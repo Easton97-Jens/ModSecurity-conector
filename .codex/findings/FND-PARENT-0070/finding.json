@@ -1,0 +1,286 @@
+{
+  "id": "FND-PARENT-0070",
+  "title": "Apache APXS wrapper omits a private common header from fresh DSO materialization",
+  "title_de": "Apache-APXS-Wrapper lässt einen privaten Common-Header bei frischer DSO-Materialisierung aus",
+  "category": "build_defect",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "security_assessment": "build_materialization_completeness_failure_without_attacker_controlled_boundary",
+  "security_invariant": "Every quoted private header required by a common source staged for the Apache APXS DSO build must be staged beside that source before compilation; a fresh materialized build must not depend on an accidental pre-existing source-tree header.",
+  "security_invariant_de": "Jeder von einer für den Apache-APXS-DSO-Build gestagten Common-Source benötigte quoted private Header muss vor der Kompilierung neben dieser Source gestagt werden; ein frischer materialisierter Build darf nicht von einem zufällig vorhandenen Source-Tree-Header abhängen.",
+  "connector": "apache",
+  "protocol": "fresh Apache APXS DSO source-materialization and build boundary",
+  "profile": "resulting Parent master 154ee724eba4653fa6378fc3c8729ae433e65697, tree-identical to final PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118",
+  "affected_files": [
+    "connectors/apache/build/apxs-wrapper.in",
+    "common/src/request_helpers.c",
+    "common/src/header_validation_internal.h"
+  ],
+  "affected_symbols": [
+    "MSCONNECTOR_COMMON_BUILD_SRC",
+    "common_source copy loop",
+    "request_helpers.c",
+    "header_validation_internal.h"
+  ],
+  "summary": "A fresh materialized Apache connector DSO tree staged common/src/request_helpers.c but omitted its quoted private include header_validation_internal.h. The retained pre-fix tree proves the header was absent while the Parent source contained it. Final PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 carries the APXS-wrapper header copy repair and was merged as Parent master 154ee724eba4653fa6378fc3c8729ae433e65697 with the same tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0. All 14 master-SHA workflows succeeded; detached-master focused Apache/MIME unit checks and make check-apache-common-adoption also passed. Those checks do not replace a fresh resulting-master APXS/DSO/HTTP run, so this P1 normal-Apache-build condition remains fixed, not verified or closed.",
+  "summary_de": "Ein frisch materialisierter Apache-Connector-DSO-Tree stagte common/src/request_helpers.c, ließ aber seinen quoted private Include-Header header_validation_internal.h aus. Der zurückgehaltene Pre-Fix-Tree beweist, dass der Header fehlte, während der Parent-Source ihn enthielt. Der finale PR-#183-Head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 enthält die APXS-Wrapper-Header-Copy-Reparatur und wurde als Parent-master 154ee724eba4653fa6378fc3c8729ae433e65697 mit demselben Tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0 gemergt. Alle 14 Master-SHA-Workflows waren erfolgreich; fokussierte Apache/MIME-Unit-Checks und make check-apache-common-adoption auf detached Master bestanden ebenfalls. Diese Checks ersetzen keinen frischen Resulting-Master-APXS-/DSO-/HTTP-Lauf, daher bleibt dieser P1-normale-Apache-Build-Zustand fixed, nicht verified oder closed.",
+  "observed_behavior": "The retained post-sentinel materialized tree contains build/common-src/request_helpers.c with an include of header_validation_internal.h at line 4, but test -e reports no build/common-src/header_validation_internal.h. The Parent source header exists. The retained apxs-wrapper.in copy loop copies request_helpers.c and other C inputs into build/common-src, but omits header_validation_internal.h. The Parent task reported make failed at the staged source line; a retained raw pre-fix make stderr/status artifact was not located. A later mutable task-worktree wrapper snapshot adds exactly header_validation_internal.h; its fresh materialized tree contains the same header digest and the built mod_security3.so. The Parent task reports the repaired clean DSO make exited 0, but this record task has no raw command/stdout/stderr receipt tied to a committed PR head.",
+  "observed_behavior_de": "Der zurückgehaltene post-sentinel-materialisierte Tree enthält build/common-src/request_helpers.c mit einem Include von header_validation_internal.h bei Zeile 4, aber test -e meldet kein build/common-src/header_validation_internal.h. Der Parent-Source-Header existiert. Die zurückgehaltene apxs-wrapper.in-Copy-Schleife kopiert request_helpers.c und andere C-Inputs nach build/common-src, lässt header_validation_internal.h aber aus. Der Parent-Task meldete, dass make bei der gestagten Source-Zeile fehlschlug; ein zurückgehaltenes Raw-Pre-Fix-make-stderr-/Status-Artefakt wurde nicht gefunden. Ein späterer mutierbarer Task-Worktree-Wrapper-Snapshot ergänzt genau header_validation_internal.h; sein frisch materialisierter Tree enthält denselben Header-Digest und das gebaute mod_security3.so. Der Parent-Task meldet, dass der reparierte saubere DSO-make mit Exit 0 endete, aber dieser Record-Task hat kein Raw-Command/stdout/stderr-Receipt, das an einen committeten PR-Head gebunden ist.",
+  "expected_behavior": "The wrapper must materialize every local private header required by copied common sources, then the clean Apache APXS DSO make must compile and configure/load successfully in the approved runtime environment. The demonstrated local repair must be committed on its own exact PR head, receive required validation, and be rerun on resulting master; it must not be retroactively attributed to the unrelated selective #94A candidate.",
+  "expected_behavior_de": "Der Wrapper muss jeden von kopierten Common-Sources benötigten lokalen privaten Header materialisieren; danach muss der saubere Apache-APXS-DSO-make in der genehmigten Runtime-Umgebung erfolgreich kompilieren und konfigurieren/laden. Die nachgewiesene lokale Reparatur muss auf einem eigenen exakten PR-Head committet werden, die erforderliche Validierung erhalten und auf dem resultierenden Master erneut laufen; sie darf nicht rückwirkend dem unabhängigen selektiven #94A-Kandidaten zugeschrieben werden.",
+  "impact": "Master cannot reliably produce a fresh Apache connector DSO until source materialization is complete, so the P1 release-blocker flag remains active for normal Apache connector delivery. The local repair's DSO output is encouraging but cannot remove the blocker before its committed PR head and resulting master reproduce the required controls. The evidence establishes no untrusted input, remote execution, secret exposure, or runtime request-processing exploit; it does not alter selective #94A candidate attribution or integration.",
+  "impact_de": "Master kann kein frisches Apache-Connector-DSO zuverlässig erzeugen, bis die Source-Materialisierung vollständig ist; deshalb bleibt das P1-Release-Blocker-Flag für normale Apache-Connector-Delivery aktiv. Die DSO-Ausgabe der lokalen Reparatur ist ermutigend, kann den Blocker aber nicht vor ihrem committeten PR-Head und der Reproduktion auf dem resultierenden Master entfernen. Die Evidence etabliert keinen untrusted Input, keine Remote-Execution, keine Secret-Exposition und keinen Runtime-Request-Processing-Exploit; sie ändert weder Attribution noch Integration des selektiven #94A-Kandidaten.",
+  "preconditions": [
+    "A fresh connector materialization uses the Parent APXS wrapper and common source root.",
+    "The staged request_helpers.c is compiled from build/common-src without an accidental sibling header from another tree.",
+    "The approved Apache/APXS/APR/libModSecurity build prerequisites are available."
+  ],
+  "reproduction": [
+    "Materialize a fresh Apache connector tree using the Parent wrapper and inspect build/common-src/request_helpers.c:4.",
+    "Confirm the original common/src/header_validation_internal.h exists but the staged build/common-src/header_validation_internal.h does not.",
+    "Inspect the apxs-wrapper.in common_source copy loop: it includes request_helpers.c but omits header_validation_internal.h.",
+    "Run the normal clean APXS DSO make in the approved environment and retain raw stderr, stdout, exit code, and materialized manifest evidence.",
+    "Compare the selected candidate commit to base for the four listed paths; it is empty, then separately hash the mutable local repair snapshot and its fresh materialized output.",
+    "Before terminal disposition, rerun the repair from a committed PR exact head and then on resulting master with raw command, stdout, stderr, exit, manifest, and Apache control receipts."
+  ],
+  "evidence": [
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/connector-src-post-sentinel/materialized-source.json",
+      "artifact_type": "retained_materialization_manifest",
+      "sha256": "65523487c8135066604a68c283217b34f00f241fe67ce241db1d8b65ecdaf4ff",
+      "command": "sha256sum retained materialized-source.json",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:25:19Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The wrapper is adapter-owned from connectors/apache/build/apxs-wrapper.in; no Framework materializer ownership transfer is evidenced."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/connector-src-post-sentinel/build/apxs-wrapper.in",
+      "artifact_type": "retained_materialized_wrapper_template",
+      "sha256": "35103aa90e4dea20a36ef8e84b659ebdde28f9bd68456ecf1460bc47be9a8d02",
+      "command": "sha256sum Parent and retained materialized apxs-wrapper.in",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:25:19Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The retained template equals the Parent baseline template and its copy loop omits header_validation_internal.h."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/connector-src-post-sentinel/build/common-src/request_helpers.c",
+      "artifact_type": "retained_staged_common_source",
+      "sha256": "e7c5473ce0228084bc2407548af20dbdb93f7ca2ba9c7757b60bbd93f2511659",
+      "command": "sha256sum retained staged request_helpers.c",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:25:19Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The staged source includes header_validation_internal.h at line 4."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "common/src/header_validation_internal.h",
+      "artifact_type": "current_parent_private_header_source",
+      "sha256": "b9ca7130e184913c10b3b24cfae18415eef411a908b1af5f926af6b695ed11e7",
+      "command": "sha256sum common/src/header_validation_internal.h",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:25:19Z",
+      "retention_status": "current_parent_source_observation",
+      "result": "The required private header exists in Parent source."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/connector-src-post-sentinel/build/common-src/header_validation_internal.h",
+      "artifact_type": "retained_negative_materialization_observation",
+      "sha256": null,
+      "command": "test -e retained staged header path",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 1,
+      "observed_at": "2026-07-29T10:25:19Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The required header is absent from the fresh staged common-source directory."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "exact candidate commit 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 compared to base for APXS wrapper, Makefile.am, request_helpers.c, and header_validation_internal.h",
+      "artifact_type": "baseline_candidate_commit_scope_comparison",
+      "sha256": null,
+      "command": "git diff --quiet 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 HEAD -- connectors/apache/build/apxs-wrapper.in connectors/apache/Makefile.am common/src/request_helpers.c common/src/header_validation_internal.h",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:25:19Z",
+      "retention_status": "retained_commit_scope_observation",
+      "result": "The selected candidate commit is baseline-identical for the affected materialization paths."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "Parent task observation: make failure at build/common-src/request_helpers.c:4",
+      "artifact_type": "parent_task_build_failure_observation",
+      "sha256": null,
+      "command": "Parent supplied exact fresh-materialization observation; no retained raw make stderr/status artifact was located by this record task.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/connector-src-post-sentinel",
+      "exit_code": null,
+      "observed_at": "2026-07-29T10:25:19Z",
+      "retention_status": "parent_task_evidence_with_raw_log_gap",
+      "result": "make reports the missing header while compiling the staged request_helpers.c; fresh raw command, stderr, and exact exit evidence remains required for a verified or closed disposition."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729/connectors/apache/build/apxs-wrapper.in",
+      "artifact_type": "mutable_task_worktree_repair_snapshot",
+      "sha256": "723148f1b635b4d33c80b13860e1c8d3b6be4c984bde2400ad086b9c7501ed1f",
+      "command": "sha256sum task-worktree apxs-wrapper.in; git diff -- connectors/apache/build/apxs-wrapper.in",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:33:55Z",
+      "retention_status": "mutable_candidate_source_observation",
+      "result": "An uncommitted one-file repair extends the common-source copy list with header_validation_internal.h. The worktree Git HEAD remains 9f23ae2c5fe908cef38f203be03f93fda75a8dd7, so this is not an exact committed PR-head claim."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/connector-src-post-build-fix/build/apxs-wrapper.in",
+      "artifact_type": "retained_repaired_materialized_wrapper",
+      "sha256": "723148f1b635b4d33c80b13860e1c8d3b6be4c984bde2400ad086b9c7501ed1f",
+      "command": "sha256sum repaired materialized apxs-wrapper.in",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:33:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The fresh repaired materialization used the same wrapper snapshot as the mutable candidate and includes header_validation_internal.h."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/connector-src-post-build-fix/build/common-src/header_validation_internal.h",
+      "artifact_type": "retained_repaired_staged_private_header",
+      "sha256": "b9ca7130e184913c10b3b24cfae18415eef411a908b1af5f926af6b695ed11e7",
+      "command": "sha256sum repaired staged header",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:33:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The repaired fresh staged tree contains the required private header with the expected Parent source digest."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/connector-src-post-build-fix/src/.libs/mod_security3.so",
+      "artifact_type": "retained_repaired_apache_dso",
+      "sha256": "fdaf666fccde82299a028f7c593412c379a61ea0e5a2074398d5a6994656919b",
+      "command": "sha256sum repaired fresh materialized mod_security3.so",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:33:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The repaired fresh materialized tree produced a loadable Apache connector DSO artifact. This artifact does not substitute for raw exact-PR-head build receipts."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "Parent task observation: repaired fresh Apache DSO make",
+      "artifact_type": "parent_task_repair_build_success_observation",
+      "sha256": null,
+      "command": "Parent supplied result for the repaired fresh materialized DSO build; retained source/header/DSO artifacts are listed above.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/connector-src-post-build-fix",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:33:55Z",
+      "retention_status": "parent_task_evidence_with_raw_receipt_gap",
+      "result": "Parent reports the corrected clean DSO make passed. Raw command/stdout/stderr are still required on a committed PR exact head and resulting master before verified or closed status."
+    },
+    {
+      "run_id": "parent-pr183-resulting-master-20260729",
+      "artifact_path": "Parent-supplied PR #183 resulting-master delivery and focused Apache/MIME-check summary",
+      "artifact_type": "resulting_master_tree_workflow_and_focused_source_check_revalidation",
+      "sha256": null,
+      "command": "git show -s --format='%H%n%T%n%ci%n%s' 154ee724eba4653fa6378fc3c8729ae433e65697; git show -s --format='%H%n%T%n%ci%n%s' 4e4dfb36e1b05f7eda38450fd3710e3a04905118; git diff --quiet 154ee724eba4653fa6378fc3c8729ae433e65697 4e4dfb36e1b05f7eda38450fd3710e3a04905118; Parent-supplied master workflow and local-check summary",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T11:27:25Z",
+      "retention_status": "parent_supplied_resulting_master_delivery_evidence",
+      "result": "PR #183 merged as master 154ee724eba4653fa6378fc3c8729ae433e65697 with tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0 equal to final head 4e4dfb36e1b05f7eda38450fd3710e3a04905118. All 14 master-SHA workflows succeeded; detached-master focused Apache/MIME unit checks and make check-apache-common-adoption passed. No fresh master APXS materialization, DSO build, Apache load, or HTTP control was supplied."
+    }
+  ],
+  "root_cause": "The Parent-owned APXS wrapper materializes a curated list of common C sources into a fresh build/common-src directory but does not include the private local headers required by those sources. request_helpers.c includes header_validation_internal.h, so the fresh build tree becomes incomplete even though the original source tree is complete. Framework materialization only supplies the adapter template and does not own this intra-Parent copy-list contract.",
+  "root_cause_de": "Der Parent-eigene APXS-Wrapper materialisiert eine kuratierte Liste von Common-C-Sources in ein frisches build/common-src-Verzeichnis, umfasst aber nicht die von diesen Sources benötigten privaten lokalen Header. request_helpers.c inkludiert header_validation_internal.h, daher wird der frische Build-Tree unvollständig, obwohl der ursprüngliche Source-Tree vollständig ist. Die Framework-Materialisierung liefert nur das Adapter-Template und besitzt diesen Parent-internen Copy-List-Vertrag nicht.",
+  "proposed_remediation": "Keep the merged APXS-wrapper header-copy repair and focused completeness contract. To verify it, run a clean fresh APXS DSO make and Apache configuration/load plus HTTP legitimate controls on resulting master with retained raw stdout, stderr, exit code, and materialization evidence. Do not infer those runtime/build controls from tree identity or successful workflows.",
+  "proposed_remediation_de": "Die gemergte APXS-Wrapper-Header-Copy-Reparatur und den fokussierten Vollständigkeits-Contract beibehalten. Zur Verifikation auf Resulting Master einen sauberen frischen APXS-DSO-make sowie Apache-Konfigurations-/Load- und HTTP-Legitimate-Controls mit aufbewahrtem Raw-stdout, stderr, Exit-Code und Materialisierungs-Evidence ausführen. Diese Runtime-/Build-Controls nicht aus Tree-Identität oder erfolgreichen Workflows ableiten.",
+  "acceptance_criteria": [
+    "Fresh materialization places header_validation_internal.h beside request_helpers.c in build/common-src before compilation.",
+    "The normal clean Apache APXS DSO make exits 0 with retained raw stdout, stderr, exit code, and materialization manifest.",
+    "Apache module configuration/load and selected HTTP legitimate controls pass after the materialization repair.",
+    "A negative source/materialization contract fails if a copied common source includes a missing quoted local header.",
+    "A fresh resulting-master APXS/DSO/HTTP validation exists before verified or closed disposition; final PR/head tree identity and successful workflows alone are insufficient."
+  ],
+  "validation_plan": [
+    "Run fresh materialization on resulting master and assert the staged header exists and has the expected source digest.",
+    "Run a clean resulting-master APXS DSO make with complete raw evidence and then Apache configuration/load plus HTTP controls.",
+    "Run a focused negative contract against a deliberately omitted required local header without weakening the normal source list.",
+    "Keep the observed final-head/resulting-master tree identity and 14 successful master workflows as delivery evidence, not as a substitute for the fresh APXS/DSO/HTTP validation."
+  ],
+  "regression_tests": [
+    "Focused APXS-wrapper static contract for quoted-local-header staging completeness.",
+    "Fresh materialized Apache connector DSO make.",
+    "Existing Apache configuration/load and selected HTTP legitimate controls."
+  ],
+  "legitimate_control_tests": [
+    "The normal source header remains available in both source and fresh staged build roots.",
+    "A complete fresh materialization compiles the DSO without fallback to another source-tree header.",
+    "Apache can load the resulting module under its ordinary configuration."
+  ],
+  "dependencies": [
+    "Approved Apache/APXS/APR/libModSecurity build environment.",
+    "A fresh resulting-master materialization root and retained raw make stdout, stderr, and exit evidence for final verification."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0008",
+    "FND-PARENT-0064",
+    "FND-PARENT-0068",
+    "FND-PARENT-0069"
+  ],
+  "deduplication_note": "This finding is separate from FND-PARENT-0008 (historical Clang initializer), FND-PARENT-0064 (RulesSet APR lifecycle cleanup), FND-PARENT-0068 (cleanup-runner output confinement), and FND-PARENT-0069 (GCC C17 mod_security3.c warnings). It owns the Parent APXS source-materialization completeness invariant and fresh-DSO build failure.",
+  "deduplication_note_de": "Dieses Finding ist von FND-PARENT-0008 (historischer Clang-Initializer), FND-PARENT-0064 (RulesSet-APR-Lifecycle-Cleanup), FND-PARENT-0068 (Cleanup-Runner-Output-Confinement) und FND-PARENT-0069 (GCC-C17-mod_security3.c-Warnungen) getrennt. Es besitzt die Parent-APXS-Source-Materialisierungs-Vollständigkeitsinvariante und den frischen DSO-Build-Fehler.",
+  "scope_disposition": "Fixed on resulting master 154ee724eba4653fa6378fc3c8729ae433e65697 because its tree equals final PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118. It remains a normal Apache build release blocker until fresh resulting-master APXS/DSO/HTTP evidence exists. It is not a selective #94A regression or candidate-integration blocker.",
+  "scope_disposition_de": "Auf Resulting Master 154ee724eba4653fa6378fc3c8729ae433e65697 fixed, weil sein Tree dem finalen PR-#183-Head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 entspricht. Es bleibt ein normaler Apache-Build-Release-Blocker, bis frische Resulting-Master-APXS-/DSO-/HTTP-Evidence vorliegt. Es ist keine selektive-#94A-Regression und kein Candidate-Integration-Blocker.",
+  "source_run_ids": [
+    "selective-apache-prs-master-20260729",
+    "parent-pr183-resulting-master-20260729"
+  ],
+  "residual_risk": "The repair is merged and all 14 master-SHA workflows succeeded, but no fresh resulting-master APXS materialization, DSO build, Apache load, and HTTP legitimate-control receipt is recorded. The normal Apache connector build therefore remains release-blocked. The scoped finding establishes no attacker-controlled vulnerability and is fixed, not verified or closed.",
+  "residual_risk_de": "Die Reparatur ist gemergt und alle 14 Master-SHA-Workflows waren erfolgreich, aber es ist kein frischer Resulting-Master-Receipt für APXS-Materialisierung, DSO-Build, Apache-Load und HTTP-Legitimate-Control erfasst. Der normale Apache-Connector-Build bleibt daher release-blockiert. Das begrenzte Finding etabliert keine attacker-kontrollierte Vulnerability und ist fixed, nicht verified oder closed.",
+  "created_at": "2026-07-29T10:25:19Z",
+  "updated_at": "2026-07-29T11:27:25Z",
+  "final_disposition": "fixed_resulting_master_154ee724eba4653fa6378fc3c8729ae433e65697_pending_fresh_master_apxs_dso_http_validation",
+  "history": [
+    {
+      "at": "2026-07-29T10:25:19Z",
+      "event": "fresh_apache_dso_materialization_header_omission_validated",
+      "detail": "The retained post-sentinel materialized tree has staged request_helpers.c but no required private header. The exact selected candidate commit is baseline-identical; an uncommitted later wrapper change is excluded from any fix claim."
+    },
+    {
+      "at": "2026-07-29T10:33:55Z",
+      "event": "mutable_apxs_header_copy_repair_locally_validated",
+      "detail": "The mutable task-worktree wrapper snapshot adds header_validation_internal.h. Its fresh materialized tree contains the required header and retained mod_security3.so; the Parent task reports a passing clean DSO make. This moves the finding to fixed locally only, pending committed PR exact-head and resulting-master reproduction."
+    },
+    {
+      "at": "2026-07-29T10:45:45Z",
+      "event": "exact_draft_pr_183_apxs_materialization_repair_published",
+      "detail": "Draft PR #183 exact head f88ea5c907ce996b0648cfd98d9aa2fcd51b2718 contains the previously local APXS wrapper repair. Parent reports the clean materialized DSO build and downstream Apache controls pass. Status remains fixed only pending hosted validation and resulting-master reproduction."
+    },
+    {
+      "at": "2026-07-29T11:27:25Z",
+      "event": "pr_183_resulting_master_delivery_reconciled",
+      "detail": "PR #183 merged as Parent master 154ee724eba4653fa6378fc3c8729ae433e65697 with tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0 equal to final head 4e4dfb36e1b05f7eda38450fd3710e3a04905118; all 14 master-SHA workflows succeeded. Detached-master focused Apache/MIME unit checks and make check-apache-common-adoption passed, but no fresh master APXS/DSO/HTTP run was supplied, so status remains fixed."
+    }
+  ]
+}

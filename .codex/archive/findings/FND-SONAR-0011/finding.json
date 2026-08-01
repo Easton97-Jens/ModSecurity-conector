@@ -1,0 +1,162 @@
+{
+  "id": "FND-SONAR-0011",
+  "title": "Parent PR #90's 23 non-gating Major SonarQube Cloud test code smells are remediated and verified",
+  "title_de": "Die 23 nicht gate-blockierenden Major-SonarQube-Cloud-Test-Code-Smells von Parent-PR #90 sind behoben und verifiziert",
+  "category": "sonarqube_finding",
+  "sonarqube_classification": "maintainability_code_smells",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P3",
+  "severity": "major",
+  "confidence": "confirmed",
+  "status": "closed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": "Parent PR #90 source head 0a1f6031418917e20e2e87aaf935b84b89ca3af1; protected squash result master ad953cdcbc8c05ede519661ca56c03cf7b1ac7f3",
+  "delivery_state": "verified_after_exact_head_hosted_sonar_and_protected_squash_merge_with_resulting_master_actions_passed",
+  "affected_files": [
+    "tests/test_go_version_contract.py",
+    "tests/test_prepare_runtime_components.py",
+    "tests/test_update_go_version.py"
+  ],
+  "affected_symbols": [
+    "22 unittest assertions flagged by python:S3415",
+    "1 exception assertion flagged by python:S5778"
+  ],
+  "source_commits": [
+    "06a4e71408a60e5a72a55065a653b9c4e79a1ecf",
+    "0a1f6031418917e20e2e87aaf935b84b89ca3af1",
+    "ad953cdcbc8c05ede519661ca56c03cf7b1ac7f3"
+  ],
+  "summary": "The original 23 Major test-only SonarQube Cloud CODE_SMELL issues on Parent PR #90 were remediated without changing a Sonar control. Exact source head 0a1f603 has zero open or confirmed leak-period issues, Quality Gate OK, and A ratings for Reliability, Security, and Maintainability; it was protected-squash-merged as Parent master ad953cd. The independent master Quality Gate release blocker FND-SONAR-0001 remains outside this finding's scope.",
+  "summary_de": "Die ursprünglichen 23 Major-Test-only-SonarQube-Cloud-CODE_SMELL-Issues auf Parent-PR #90 wurden ohne Änderung eines Sonar-Controls behoben. Der exakte Source-Head 0a1f603 hat null offene oder bestätigte Leak-Period-Issues, Quality Gate OK und A-Ratings für Reliability, Security und Maintainability; er wurde geschützt per Squash als Parent-Master ad953cd gemergt. Der unabhängige Master-Quality-Gate-Release-Blocker FND-SONAR-0001 bleibt außerhalb des Scopes dieses Befunds.",
+  "observed_behavior": "The fresh exact-head Sonar issue query returns zero OPEN or CONFIRMED leak-period issues for PR #90. The Quality Gate API returns OK with Reliability, Security, and Maintainability ratings 1, 0.0% duplicated new code, and 100.0% reviewed new security hotspots. The three affected test modules and the focused PR suite passed, and the protected squash merge produced master ad953cd with all applicable GitHub Actions workflows successful.",
+  "observed_behavior_de": "Die frische Sonar-Issue-Abfrage am exakten Head liefert für PR #90 null OPEN- oder CONFIRMED-Leak-Period-Issues. Die Quality-Gate-API liefert OK mit Reliability-, Security- und Maintainability-Rating 1, 0,0 % dupliziertem neuem Code und 100,0 % geprüften neuen Security-Hotspots. Die drei betroffenen Testmodule und die fokussierte PR-Suite bestanden, und der geschützte Squash-Merge erzeugte Master ad953cd mit erfolgreichen anwendbaren GitHub-Actions-Workflows.",
+  "expected_behavior": "Test assertions should use Sonar's expected actual-versus-expected order and the exception test should expose one potentially throwing call per assertion. Any correction must preserve the same test semantics and must not suppress or alter SonarQube Cloud controls.",
+  "expected_behavior_de": "Test-Assertions sollen Sonars erwartete Actual-versus-Expected-Reihenfolge verwenden und der Exception-Test soll je Assertion genau einen potenziell werfenden Aufruf zeigen. Jede Korrektur muss dieselbe Testsemantik bewahren und darf keine SonarQube-Cloud-Controls unterdrücken oder ändern.",
+  "impact": "The open observations create maintainability debt and future review noise, but they do not lower the current Quality Gate or create a demonstrated runtime or security defect.",
+  "impact_de": "Die offenen Beobachtungen erzeugen Maintainability-Schulden und künftiges Review-Rauschen, senken aber weder das aktuelle Quality Gate noch belegen sie einen Runtime- oder Sicherheitsdefekt.",
+  "preconditions": [
+    "Parent PR #90 remains merged as master ad953cdcbc8c05ede519661ca56c03cf7b1ac7f3.",
+    "SonarQube Cloud exposes the historical PR issue and Quality Gate APIs for readback."
+  ],
+  "reproduction": [
+    "Run rtk proxy curl -fsSL 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&pullRequest=90&ps=500'.",
+    "Group OPEN issues by type, rule, severity, and component.",
+    "Verify the Quality Gate separately at the exact PR head; it must remain OK while the code smells are open."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/evidence/sonar-pr90-06a4e71-open-code-smells.json",
+      "artifact_type": "sonarqube_cloud_exact_head_open_issue_summary",
+      "sha256": "3dcf58c2a8380955d2db678ddcafd0d2804e57bb87a7145f440fbe064ca17b2d",
+      "command": "rtk proxy curl -fsSL 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&pullRequest=90&ps=500'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T23:02:27Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/evidence/hosted-pr90-06a4e71-validation.json",
+      "artifact_type": "sonarqube_cloud_exact_head_quality_gate_receipt",
+      "sha256": "db38c89e5c1646e343ec022466d7fec899998dda05558ccf85789196d273ea20",
+      "command": "rtk proxy curl -fsSL 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&pullRequest=90'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T23:02:27Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260723T040316Z-pr90-sonar-master-ba49d4a2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T040316Z-pr90-sonar-master-ba49d4a2/evidence/pr90-sonar-remediation-security-diff-scan-receipt.json",
+      "artifact_type": "codex_security_diff_scan_completion_receipt",
+      "sha256": "55999ab8235aea150b5c703250d8fe8bae96328f9528e97a14a120ffb229bea0",
+      "command": "Codex Security security-diff-scan finalization for the three-file local Sonar remediation working-tree patch",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/pr80-central-go-submodule-20260722",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T04:21:57Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260723T040316Z-pr90-sonar-master-ba49d4a2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T040316Z-pr90-sonar-master-ba49d4a2/evidence/pr90-protected-merge-and-master-validation-20260723T045207Z.json",
+      "artifact_type": "protected_pr_merge_exact_head_sonar_and_resulting_master_receipt",
+      "sha256": "4826baec6075341a6a0c96f36dce51f89bd27381c394bbb63e445938b4da97e4",
+      "command": "Exact PR #90 Sonar issue/Quality Gate, required-check, review-thread, protected-squash-merge, and resulting-master GitHub Actions readback",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T04:52:07Z",
+      "retention_status": "retained"
+    }
+  ],
+  "root_cause": "The affected tests use assertion argument order and a multi-call exception assertion pattern that Sonar's current Python rules classify as maintainability concerns. This is separate from the former updater duplication and ambiguous-regex reliability problem.",
+  "root_cause_de": "Die betroffenen Tests verwenden eine Assertion-Argument-Reihenfolge und ein Exception-Assertion-Muster mit mehreren Aufrufen, die Sonars aktuelle Python-Regeln als Maintainability-Bedenken einstufen. Dies ist getrennt von der früheren Updater-Duplikation und dem mehrdeutigen Regex-Reliability-Problem.",
+  "proposed_remediation": "The completed test-maintainability remediation reversed only the 22 flagged assertion operands and preconstructed the unchanged prerelease metadata fixture outside the one exception assertion. It preserved expected/actual semantics and test coverage; no Sonar setting, exclusion, suppression, false-positive marking, or risk acceptance changed.",
+  "proposed_remediation_de": "Die abgeschlossene Test-Maintainability-Remediation drehte nur die 22 markierten Assertion-Operanden um und konstruierte die unveränderte Prerelease-Metadaten-Fixture außerhalb der einen Exception-Assertion. Sie bewahrte Expected-/Actual-Semantiken und Testabdeckung; keine Sonar-Einstellung, Exclusion, Suppression, False-Positive-Markierung oder Risikoakzeptanz änderte sich.",
+  "acceptance_criteria": [
+    "The 23 open issues are remediated or have an evidence-backed legitimate disposition without changing any SonarQube Cloud control.",
+    "Affected tests preserve their original behavior and focused tests pass.",
+    "A fresh exact-head SonarQube Cloud analysis confirms the resulting issue disposition and Quality Gate status."
+  ],
+  "validation_plan": [
+    "Run the affected test modules before and after any separate remediation.",
+    "Inspect the exact test diff for preserved semantic ordering and no production/runtime change.",
+    "Obtain fresh exact-head SonarQube Cloud issue and Quality Gate receipts."
+  ],
+  "regression_tests": [
+    "tests/test_go_version_contract.py",
+    "tests/test_prepare_runtime_components.py",
+    "tests/test_update_go_version.py"
+  ],
+  "legitimate_control_tests": [
+    "Current exact head continues to pass the Quality Gate without a suppression.",
+    "All existing test failure conditions remain asserted after any style-only correction."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0010",
+    "FND-PARENT-0045"
+  ],
+  "source_run_ids": [
+    "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+    "20260723T040316Z-pr90-sonar-master-ba49d4a2"
+  ],
+  "evidence_limitations": [
+    "The receipt records the aggregate PR disposition and does not replace SonarQube Cloud's per-issue audit history.",
+    "The current master Quality Gate remains ERROR for the independent release blocker FND-SONAR-0001; that condition is not evidence against this remediated PR finding."
+  ],
+  "residual_risk": "No residual runtime or security risk remains from these resolved test-only maintainability observations. The independent current master Quality Gate release blocker is tracked separately as FND-SONAR-0001 and has no risk acceptance in this task.",
+  "residual_risk_de": "Aus diesen behobenen Test-only-Maintainability-Beobachtungen verbleibt kein Runtime- oder Sicherheitsrisiko. Der unabhängige aktuelle Master-Quality-Gate-Release-Blocker wird getrennt als FND-SONAR-0001 verfolgt und hat in dieser Aufgabe keine Risikoakzeptanz.",
+  "history": [
+    {
+      "at": "2026-07-22T23:02:27Z",
+      "event": "exact_head_open_code_smells_triaged",
+      "detail": "The exact PR #90 head has Quality Gate OK but 23 open Major test-only code smells (22 S3415 and one S5778). They were allocated as a separate non-blocking finding; no suppression or remediation was applied."
+    },
+    {
+      "at": "2026-07-23T04:26:13Z",
+      "event": "authorized_semantic_preserving_remediation_in_progress",
+      "detail": "The user authorized remediation and Parent master integration. The local patch makes the 22 Sonar-required assertion-order normalizations and isolates the existing prerelease fixture from the expected MetadataError call; focused regression/contract checks and a complete local security diff scan found no behavioral or security regression. Fresh exact-head hosted Sonar evidence remains pending."
+    },
+    {
+      "at": "2026-07-23T04:52:07Z",
+      "event": "exact_head_hosted_remediation_and_protected_merge_verified",
+      "detail": "Commit 0a1f6031418917e20e2e87aaf935b84b89ca3af1 passed all required exact-head checks, Sonar Quality Gate OK, and a live Sonar query with zero open or confirmed leak-period issues. It was protected-squash-merged as Parent master ad953cdcbc8c05ede519661ca56c03cf7b1ac7f3, whose applicable GitHub Actions workflows passed. The current master Quality Gate ERROR is the independently tracked FND-SONAR-0001 hotspot baseline, not a regression from this finding."
+    },
+    {
+      "at": "2026-07-26T14:09:02Z",
+      "event": "closed_by_current_user_after_current_master_validation",
+      "detail": "The current user authorized closure and archival. All affected test paths remain unchanged from verified Parent master ad953cdcbc8c05ede519661ca56c03cf7b1ac7f3 to current master 6ca7e1536ce7e93da68099db9c586b88852ff13e, and the affected regression suites passed in the 144-test current-master control suite."
+    }
+  ],
+  "created_at": "2026-07-22T23:02:27Z",
+  "updated_at": "2026-07-26T14:09:02Z",
+  "final_disposition": "closed_by_current_user_after_current_master_test_regression_validation_archived_20260726"
+}

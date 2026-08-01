@@ -1,0 +1,85 @@
+{
+  "id": "FND-PARENT-0002",
+  "title": "Parent ShellCheck diagnostics require scoped triage",
+  "title_de": "Parent-ShellCheck-Diagnosen erfordern eine abgegrenzte Triage",
+  "category": "maintainability",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "triaged",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md"
+  ],
+  "affected_symbols": [],
+  "summary": "The assessment retained 230 Parent ShellCheck findings in 55 files without suppression.",
+  "summary_de": "Die Bestandsaufnahme hielt 230 Parent-ShellCheck-Findings in 55 Dateien ohne Suppression fest.",
+  "observed_behavior": "The assessment retained 230 Parent ShellCheck findings in 55 files without suppression.",
+  "observed_behavior_de": "Die Bestandsaufnahme hielt 230 Parent-ShellCheck-Findings in 55 Dateien ohne Suppression fest.",
+  "expected_behavior": "Current evidence must be rerun against a known revision before this finding can advance beyond triaged.",
+  "expected_behavior_de": "Die aktuelle Evidence muss gegen eine bekannte Revision erneut ausgeführt werden, bevor dieses Finding über triaged hinaus fortschreiten kann.",
+  "impact": "Release and assurance claims remain bounded by the recorded evidence.",
+  "impact_de": "Release- und Assurance-Aussagen bleiben durch die dokumentierte Evidence begrenzt.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "sed -n '83,86p;217,219p' .codex/reports/repository-full-assessment.md"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:83-86,217-219",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '83,86p;217,219p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    }
+  ],
+  "root_cause": "The retained evidence identifies the condition but does not establish a product-code root cause.",
+  "root_cause_de": "Die retained Evidence belegt den Zustand, aber keine Produktcode-Grundursache.",
+  "proposed_remediation": "Triage diagnostics by severity and source ownership; fix or document only narrowly justified exclusions.",
+  "proposed_remediation_de": "Diagnosen nach Severity und Source-Ownership triagieren; nur eng begründete Exclusions dokumentieren.",
+  "acceptance_criteria": [
+    "Each retained diagnostic has an owner and disposition.",
+    "The scoped Parent ShellCheck run reports the agreed baseline."
+  ],
+  "validation_plan": [
+    "Run Parent ShellCheck with machine-readable output.",
+    "Exercise a legitimate shell control path after each behavior-affecting fix."
+  ],
+  "regression_tests": [
+    "Add or retain a focused regression/evidence control for the recorded condition."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad"
+  ],
+  "residual_risk": "The condition remains open; no risk has been accepted by the current user.",
+  "residual_risk_de": "Der Zustand bleibt offen; der aktuelle Benutzer hat kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-17T10:43:59Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    }
+  ]
+}

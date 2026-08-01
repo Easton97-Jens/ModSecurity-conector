@@ -1,0 +1,202 @@
+{
+  "id": "FND-FRAMEWORK-0020",
+  "title": "Framework PR #27 CI-security Python-quality failure is fixed on the exact PR head, pending resulting-master verification",
+  "title_de": "Framework-PR #27: CI-Security-Python-Quality-Fehler ist am exakten PR-Head behoben, Verifikation des resultierenden Masters steht aus",
+  "category": "ci_failure",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "requires_user_decision",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "ci/checks/security/check-ci-security-evidence-contract.py"
+  ],
+  "historical_affected_files": [
+    "ci/checks/security/check-ci-security-evidence-contract.py",
+    "tests/ci_security/test_ci_security_evidence_contract.py"
+  ],
+  "affected_symbols": [
+    "workflow_events",
+    "Mapping.get",
+    "reportArgumentType",
+    "ruff format --check",
+    "ruff check"
+  ],
+  "summary": "Framework PR #27 historically failed CI-security Python quality first on Ruff formatting and then on a deterministic Pyright Mapping.get key-type diagnostic. Repair commit 82a091a3b6c3e5005126966bf3c6900208c8632b accurately types the existing PyYAML Boolean-key fallback as dict[Any, Any] without weakening a control; it is retained in resulting master 6de40c1714410241e917e9083ee890a82fb2fdbb, whose tree equals exact head 6a4e057b2cef1f911ba25ab9f95e1b01b390691b. The resulting-master Python-quality control passed, but this record remains fixed, not verified, because the independently failed Advanced CodeQL uploader is recorded in FND-GITHUB-0006.",
+  "summary_de": "Framework-PR #27 scheiterte historisch im CI-Security-Python-Quality-Job zuerst an Ruff-Formatierung und danach an einer deterministischen Pyright-Mapping.get-Key-Typ-Diagnose. Der Reparatur-Commit 82a091a3b6c3e5005126966bf3c6900208c8632b typisiert den bestehenden PyYAML-Boolean-Key-Fallback ohne Abschwächung eines Controls korrekt als dict[Any, Any]; er ist im resultierenden Master 6de40c1714410241e917e9083ee890a82fb2fdbb enthalten, dessen Tree dem exakten Head 6a4e057b2cef1f911ba25ab9f95e1b01b390691b entspricht. Das Resulting-Master-Python-Quality-Control bestand, aber dieser Record bleibt fixed, nicht verified, weil der unabhängig fehlgeschlagene Advanced-CodeQL-Uploader in FND-GITHUB-0006 erfasst ist.",
+  "observed_behavior": "At historical exact head 55a46ce68b69c8b6ef758ee94e184688aab995a4, GitHub Actions run 29696794348/job 88218830400 failed while Ruff passed because Pyright emitted check-ci-security-evidence-contract.py:424:42 Argument of type Literal[True] cannot be assigned to parameter key of type str in function get (reportArgumentType). Current exact head 6a4e057b2cef1f911ba25ab9f95e1b01b390691b has terminal passing hosted checks, including python-ci-security-quality.",
+  "observed_behavior_de": "Am historischen exakten Head 55a46ce68b69c8b6ef758ee94e184688aab995a4 schlug GitHub-Actions-Run 29696794348/Job 88218830400 fehl, während Ruff bestand, weil Pyright check-ci-security-evidence-contract.py:424:42 Argument of type Literal[True] cannot be assigned to parameter key of type str in function get (reportArgumentType) meldete. Der aktuelle exakte Head 6a4e057b2cef1f911ba25ab9f95e1b01b390691b hat terminal erfolgreiche Hosted-Checks, einschließlich python-ci-security-quality.",
+  "expected_behavior": "The CI-security evidence-contract checker accepts the existing PyYAML Boolean-key compatibility representation while preserving fail-closed event validation. Pyright, Ruff format, and Ruff lint pass at the final PR head and resulting Framework master; no quality or security gate is disabled or weakened.",
+  "expected_behavior_de": "Der CI-Security-Evidence-Contract-Checker akzeptiert die bestehende PyYAML-Boolean-Key-Kompatibilitätsdarstellung und bewahrt fail-closed Event-Validierung. Pyright, Ruff-Format und Ruff-Lint bestehen am finalen PR-Head und resultierenden Framework-Master; kein Qualitäts- oder Security-Gate wird deaktiviert oder abgeschwächt.",
+  "impact": "The historical mandatory CI failure is fixed on resulting master and its source-specific Python-quality control passed. The independently failed Advanced CodeQL uploader blocks the broader resulting-master verification; this CI failure alone does not establish an exploitable security-control bypass.",
+  "impact_de": "Der historische obligatorische CI-Fehler ist auf dem resultierenden Master behoben und sein source-spezifisches Python-Quality-Control bestand. Der unabhängig fehlgeschlagene Advanced-CodeQL-Uploader blockiert die breitere Resulting-Master-Verifikation; dieser CI-Fehler allein belegt keinen ausnutzbaren Security-Control-Bypass.",
+  "preconditions": [
+    "Historical Pyright failure: PR #27 head 55a46ce68b69c8b6ef758ee94e184688aab995a4, Actions run 29696794348/job 88218830400, observed 2026-07-19T17:28Z.",
+    "Repair commit: 82a091a3b6c3e5005126966bf3c6900208c8632b, a direct child of the Ruff-only 55a46ce68b69c8b6ef758ee94e184688aab995a4 follow-up.",
+    "Current exact head 6a4e057b2cef1f911ba25ab9f95e1b01b390691b has terminal passing GitHub check-runs, including python-ci-security-quality.",
+    "GitHub Code Scanning Default Setup currently reads state: configured for actions, c-cpp, and python; a settings decision is required before final master verification."
+  ],
+  "reproduction": [
+    "Inspect historical failed job https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/29696794348/job/88218830400 for the exact Pyright diagnostic.",
+    "Inspect exact-head check-runs at https://api.github.com/repos/Easton97-Jens/ModSecurity-test-Framework/commits/82a091a3b6c3e5005126966bf3c6900208c8632b/check-runs; no prior-head result substitutes.",
+    "After authorized normal merge, rerun equivalent Pyright/Ruff and master workflow evidence before verified status."
+  ],
+  "evidence": [
+    {
+      "run_id": "github-actions-29696794348",
+      "artifact_path": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/29696794348/job/88218830400",
+      "artifact_type": "external_github_actions_failed_job_log",
+      "sha256": null,
+      "command": "rtk gh run view 29696794348 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "job_conclusion": "failure",
+      "observed_at": "2026-07-19T17:28Z",
+      "job_step_started_at": "2026-07-19T17:25:31.4898161Z",
+      "retention_status": "not_retained_external_log",
+      "scope_note": "The live external failed log established the exact diagnostic. It was not copied into task-owned evidence; SHA-256 is intentionally null rather than fabricated."
+    },
+    {
+      "run_id": "github-check-runs-82a091a",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-test-Framework/commits/82a091a3b6c3e5005126966bf3c6900208c8632b/check-runs",
+      "artifact_type": "external_github_commit_check_runs_readback",
+      "sha256": null,
+      "command": "rtk gh api -H 'Accept: application/vnd.github+json' repos/Easton97-Jens/ModSecurity-test-Framework/commits/82a091a3b6c3e5005126966bf3c6900208c8632b/check-runs --paginate --jq '.check_runs[] | [.name, .status, (.conclusion // \"\"), .details_url] | @tsv'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T17:37Z",
+      "retention_status": "not_retained_external_api_readback",
+      "scope_note": "All non-advisory checks were terminal success, including python-ci-security-quality run 29697123197/job 88219679430; deliberately advisory jobs were terminal skipped. Live API output is not a retained hash-addressed artifact."
+    },
+    {
+      "run_id": "github-code-scanning-default-setup-20260719",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-test-Framework/code-scanning/default-setup",
+      "artifact_type": "external_github_configuration_readback",
+      "sha256": null,
+      "command": "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/code-scanning/default-setup",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T17:37Z",
+      "retention_status": "not_retained_external_api_readback",
+      "scope_note": "Readback reported state configured with languages actions, c-cpp, and python. This blocks resulting-master verification until the user authorizes a settings decision."
+    },
+    {
+      "run_id": "20260719T180448Z-framework-pr27-sonar-remediation-72a73203",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T180448Z-framework-pr27-sonar-remediation-72a73203/evidence/pr27-6a4e057-exact-head-validation.md",
+      "artifact_type": "retained_exact_pr_head_followup_validation",
+      "sha256": "cca00d78d239b9f2dc21b2ff4f7bf3ed75a0390eeff726254fa8153633b97f58",
+      "command": "rtk gh api pulls/27 and commit check-runs; rtk gh api graphql review-thread query; rtk proxy curl SonarQube Cloud PR measures, issues, and Quality Gate",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T19:34:25Z",
+      "retention_status": "retained_task_evidence",
+      "scope_note": "Current exact head 6a4e057b2cef1f911ba25ab9f95e1b01b390691b is a test-only descendant retaining the 82a091a Python-quality repair; all current non-advisory checks passed."
+    },
+    {
+      "run_id": "20260719T180448Z-framework-pr27-sonar-remediation-72a73203",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T180448Z-framework-pr27-sonar-remediation-72a73203/evidence/pr27-master-6de40c-post-merge-verification.md",
+      "artifact_type": "resulting_master_python_quality_and_external_codeql_blocker",
+      "sha256": "3b65d40a065d9c3459c5f83be92a09d12ea7709601a12964f4dbdbfa9e540d80",
+      "command": "rtk git -C /var/tmp/codex/worktrees/framework-ci-security diff --quiet 6a4e057b2cef1f911ba25ab9f95e1b01b390691b 6de40c1714410241e917e9083ee890a82fb2fdbb; rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/6de40c1714410241e917e9083ee890a82fb2fdbb/check-runs --paginate; rtk gh run view 29701466354 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T20:00:39Z",
+      "retention_status": "retained_task_evidence",
+      "scope_note": "The exact resulting master tree retains the Pyright repair and python-ci-security-quality passed. The required Advanced CodeQL uploader failed because Default Setup remains enabled; FND-GITHUB-0006 owns that independent configuration failure, so this finding remains fixed rather than verified."
+    }
+  ],
+  "root_cause": "PyYAML may parse unquoted workflow key on as Boolean True. The checker deliberately preserves that fallback with data.get(\"on\", data.get(True)), but its parameter annotation was dict[str, Any], so Pyright correctly rejected the Boolean lookup key.",
+  "root_cause_de": "PyYAML kann den nicht quotierten Workflow-Key on als Boolean True parsen. Der Checker bewahrt diesen Fallback bewusst mit data.get(\"on\", data.get(True)), aber seine Parameterannotation war dict[str, Any], weshalb Pyright den Boolean-Lookup-Key korrekt ablehnte.",
+  "proposed_remediation": "Implemented in 82a091a3b6c3e5005126966bf3c6900208c8632b: change only workflow_events(data: dict[str, Any]) to workflow_events(data: dict[Any, Any]). Preserve the existing runtime body and fail-closed PR/trusted CodeQL event controls. Do not suppress Pyright, disable Ruff, cast merely to silence the diagnostic, or weaken the security-evidence contract.",
+  "proposed_remediation_de": "Implementiert in 82a091a3b6c3e5005126966bf3c6900208c8632b: Nur workflow_events(data: dict[str, Any]) zu workflow_events(data: dict[Any, Any]) ändern. Den bestehenden Runtime-Body und die fail-closed PR-/Trusted-CodeQL-Event-Controls bewahren. Pyright nicht unterdrücken, Ruff nicht deaktivieren, nicht nur zur Unterdrückung der Diagnose casten und den Security-Evidence-Contract nicht abschwächen.",
+  "acceptance_criteria": [
+    "Passed: current exact PR head 6a4e057b2cef1f911ba25ab9f95e1b01b390691b passes hosted python-ci-security-quality without a Pyright suppression or quality-gate weakening.",
+    "Passed: exact-head Ruff format and Ruff lint pass, and the scoped review preserves fail-closed workflow-event behavior.",
+    "Observed: the user authorized PR #27 merge while retaining Default Setup without a security-setting mutation; this did not waive resulting-master verification.",
+    "Passed: PR #27 squash-merged as 6de40c1714410241e917e9083ee890a82fb2fdbb, its source tree equals the exact verified head, its MRTS gitlink is unchanged, and python-ci-security-quality passed.",
+    "Pending: the original reproduction and legitimate control cases plus the required trusted Advanced CodeQL uploader must pass after FND-GITHUB-0006 receives an authorized configuration remediation before status verified."
+  ],
+  "validation_plan": [
+    "Use the fresh exact-head GitHub check-runs result as the authoritative Pyright/Ruff validation; do not substitute the unsupported local Python environment.",
+    "Do not mark this record verified while FND-GITHUB-0006's trusted Advanced uploader remains failed; no direct-master correction or setting change is authorized by this record.",
+    "After a dedicated reviewed remediation PR, verify the exact resulting master, rerun the trusted CodeQL uploader, compare the MRTS gitlink, and rerun the original reproduction plus legitimate controls before setting verified."
+  ],
+  "regression_tests": [
+    "tests/ci_security/test_ci_security_evidence_contract.py",
+    "Hosted CI security Python quality: configured Pyright, ruff format --check, and ruff check",
+    "Exact-head GitHub check-runs for PR #27"
+  ],
+  "legitimate_control_tests": [
+    "Adding pull_request to trusted CodeQL remains rejected by the evidence-contract checker.",
+    "PR CodeQL continues to require only pull_request; trusted CodeQL continues to require push, schedule, and workflow_dispatch.",
+    "No Parent gitlink or MRTS change is present."
+  ],
+  "dependencies": [
+    "Authorized FND-GITHUB-0006 configuration remediation",
+    "New reviewed Framework PR",
+    "Successful resulting Framework-master trusted Advanced CodeQL verification"
+  ],
+  "blocked_by": [
+    "Resulting master Advanced CodeQL uploads fail while Default Setup is configured; FND-GITHUB-0006 requires a separate authorized configuration remediation."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0012",
+    "FND-GITHUB-0005",
+    "FND-GITHUB-0006"
+  ],
+  "deduplication_note": "Not a duplicate of FND-FRAMEWORK-0012: that record addresses semantic reachability/enforcement of the CI-security evidence contract, while this record addresses the independently remediable Pyright type-quality failure in its checker.",
+  "source_run_ids": [
+    "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+    "20260719T180448Z-framework-pr27-sonar-remediation-72a73203"
+  ],
+  "evidence_limitations": [
+    "The retained exact-head follow-up receipt preserves the current result summary and hash; live GitHub Actions/API responses are not copied verbatim and their original external SHA-256 values remain intentionally null rather than fabricated.",
+    "The local runner lacks Node.js, so the SHA-locked Pyright bundle could not run locally; an unsupported interpreter was not substituted and hosted exact-head CI is authoritative.",
+    "Resulting-master evidence exists for master 6de40c1714410241e917e9083ee890a82fb2fdbb, but the required trusted Advanced CodeQL uploader failed because Default Setup is enabled; FND-GITHUB-0006 must be resolved through a separate authorized remediation before verified status."
+  ],
+  "residual_risk": "The repaired PR head is retained on exact Framework master 6de40c1714410241e917e9083ee890a82fb2fdbb, whose tree equals the verified head and whose Python-quality control passed. The user authorized the merge retaining Default Setup, but the trusted Advanced CodeQL uploader actually failed as FND-GITHUB-0006 records. No setting mutation, bypass, direct master push, Parent gitlink update, or MRTS change is authorized by this finding; it remains fixed, not verified.",
+  "residual_risk_de": "Der reparierte PR-Head ist auf dem exakten Framework-Master 6de40c1714410241e917e9083ee890a82fb2fdbb enthalten, dessen Tree dem verifizierten Head entspricht und dessen Python-Quality-Control bestand. Der Nutzer autorisierte den Merge bei beibehaltenem Default Setup, aber der vertrauenswürdige Advanced-CodeQL-Uploader schlug wie in FND-GITHUB-0006 erfasst tatsächlich fehl. Dieses Finding autorisiert keine Settings-Mutation, keinen Bypass, keinen direkten Master-Push, kein Parent-Gitlink-Update und keine MRTS-Änderung; es bleibt fixed, nicht verified.",
+  "created_at": "2026-07-19T17:32:25Z",
+  "updated_at": "2026-07-19T20:00:39Z",
+  "final_disposition": "source_fix_retained_on_master_but_resulting_master_verification_blocked_by_fnd_github_0006",
+  "history": [
+    {
+      "at": "2026-07-19T17:16Z",
+      "event": "historical_external_ruff_format_failure_observed",
+      "detail": "PR #27 exact head 2f635be02ede802024ec9e0ce2ed41e3030cbff2 failed only because Ruff would reformat the checker and focused test; Ruff lint passed."
+    },
+    {
+      "at": "2026-07-19T17:28Z",
+      "event": "validated_external_pyright_ci_failure_observed",
+      "detail": "PR #27 exact head 55a46ce68b69c8b6ef758ee94e184688aab995a4 failed run 29696794348/job 88218830400 with the deterministic Literal[True] Mapping.get key-type diagnostic; Ruff passed."
+    },
+    {
+      "at": "2026-07-19T17:35Z",
+      "event": "focused_framework_repair_pushed",
+      "detail": "Normal follow-up commit 82a091a3b6c3e5005126966bf3c6900208c8632b changed only the workflow_events mapping annotation; focused security review found no reportable finding and MRTS stayed unchanged."
+    },
+    {
+      "at": "2026-07-19T17:37Z",
+      "event": "exact_head_hosted_ci_passed_status_fixed",
+      "detail": "All exact-head GitHub check-runs were terminal; non-advisory checks passed and deliberate advisory jobs skipped. Status moved to fixed pending Code Scanning Default Setup decision, normal merge, and resulting-master verification."
+    },
+    {
+      "at": "2026-07-19T19:34:25Z",
+      "event": "current_exact_pr_head_followup_validation_passed",
+      "detail": "Current exact PR #27 head 6a4e057b2cef1f911ba25ab9f95e1b01b390691b is a test-only descendant retaining the Python-quality repair. Its exact GitHub/Sonar validation passed: 20 checks succeeded, three expected advisory checks skipped, reviews and threads are empty, and SonarCloud reports zero new duplicated lines. The record remains fixed pending the explicit Default Setup decision and resulting-master verification."
+    },
+    {
+      "at": "2026-07-19T20:00:39Z",
+      "event": "resulting_master_python_quality_passed_external_codeql_blocker_recorded",
+      "detail": "PR #27 squash-merged as 6de40c1714410241e917e9083ee890a82fb2fdbb; its source tree equals exact head 6a4e057b2cef1f911ba25ab9f95e1b01b390691b, MRTS gitlink is unchanged, and python-ci-security-quality passed. The trusted Advanced CodeQL uploader failed after analysis because Default Setup is enabled; FND-GITHUB-0006 owns that independent configuration failure. Status remains fixed, not verified."
+    }
+  ]
+}

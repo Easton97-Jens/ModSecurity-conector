@@ -1,0 +1,167 @@
+{
+  "id": "FND-PARENT-0069",
+  "title": "Apache mod_security3.c has a baseline-identical GCC C17 Werror failure group",
+  "title_de": "Apache mod_security3.c hat eine baseline-identische GCC-C17-Werror-Fehlergruppe",
+  "category": "compiler_hardening_gap",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "reproduced",
+  "status": "validated",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "security_assessment": "compiler_hardening_gap_without_attacker_controlled_runtime_boundary",
+  "security_invariant": "The mandatory Apache C17 warning policy must compile the Parent-owned connector translation unit without suppressing or downgrading diagnostics; a targeted candidate must not inherit a baseline-identical unrelated failure as its own release gate.",
+  "security_invariant_de": "Die verpflichtende Apache-C17-Warnrichtlinie muss die Parent-eigene Connector-Translation-Unit ohne Unterdrücken oder Herabstufen von Diagnosen kompilieren; ein zielgerichteter Kandidat darf einen baseline-identischen unabhängigen Fehler nicht als eigenes Release-Gate erben.",
+  "connector": "apache",
+  "protocol": "native GCC C17 compiler-hardening control",
+  "profile": "master and selective #94A task-candidate baseline comparison",
+  "affected_files": [
+    "connectors/apache/src/mod_security3.c",
+    "connectors/apache/src/msc_config.h"
+  ],
+  "affected_symbols": [
+    "msc_module_cleanup",
+    "msc_hook_pre_config",
+    "msc_hook_post_config",
+    "hook_connection_early",
+    "hook_request_early",
+    "hook_log_transaction",
+    "process_request_headers",
+    "msc_register_hooks",
+    "security3_module",
+    "msc_apache_cleanup",
+    "msc_config_* declarations"
+  ],
+  "summary": "The required GCC C17 check using -std=c17 -Wall -Wextra -Werror exits 1 for connectors/apache/src/mod_security3.c on both retained master and selective #94A task-candidate runs. The source is byte-identical in both comparisons at SHA-256 8b21b64c95a1f1cb98ac05437e60e5d5ab8124e363cd2784b7c800e65449f8d7, and the two 114-line diagnostics normalize to SHA-256 34b8bbdfcda5e8420a33ac99eaf57a1283388ec7f87d104b1ee36093744eacc6. This is a reproduced existing compiler-hardening gap, not a regression caused by selective #94A; it is validated, feasible now, and explicitly not a release or candidate-integration blocker for that selective candidate.",
+  "summary_de": "Der erforderliche GCC-C17-Check mit -std=c17 -Wall -Wextra -Werror endet für connectors/apache/src/mod_security3.c sowohl im zurückgehaltenen Master- als auch im selektiven #94A-Task-Kandidatenlauf mit Exit 1. Der Source ist in beiden Vergleichen bei SHA-256 8b21b64c95a1f1cb98ac05437e60e5d5ab8124e363cd2784b7c800e65449f8d7 byte-identisch, und die beiden 114-zeiligen Diagnosen normalisieren zu SHA-256 34b8bbdfcda5e8420a33ac99eaf57a1283388ec7f87d104b1ee36093744eacc6. Dies ist eine reproduzierte bestehende Compiler-Hardening-Luecke, keine durch selektives #94A verursachte Regression; sie ist validated, feasible_now und ausdrücklich kein Release- oder Candidate-Integration-Blocker für diesen selektiven Kandidaten.",
+  "observed_behavior": "The header probe succeeds, but the separate mod_security3.c C17 compilation exits 1 in both retained comparison directories. The group includes unused parameters and variables, signedness mismatches when passing request-header values to the libModSecurity API, a missing Apache module flags initializer, static declarations from msc_config.h that are not defined in this translation unit, and a non-void cleanup path that reaches its end. Raw logs differ only in absolute source/build path prefixes; the supplied normalized digest establishes the identical 114-line diagnostic group.",
+  "observed_behavior_de": "Der Header-Probe besteht, aber die getrennte C17-Kompilierung von mod_security3.c endet in beiden zurückgehaltenen Vergleichsverzeichnissen mit Exit 1. Die Gruppe enthält unbenutzte Parameter und Variablen, Signedness-Abweichungen bei der Übergabe von Request-Header-Werten an die libModSecurity-API, einen fehlenden Apache-Module-Flags-Initializer, aus msc_config.h stammende statische Deklarationen ohne Definition in dieser Translation-Unit sowie einen Non-void-Cleanup-Pfad, der sein Ende erreicht. Die Raw-Logs unterscheiden sich nur in absoluten Source-/Build-Pfadpräfixen; der gelieferte normalisierte Digest belegt die identische 114-zeilige Diagnosegruppe.",
+  "expected_behavior": "The Parent-owned Apache connector translation unit must pass the mandatory GCC C17 warning policy without -Wno-error, warning suppression, scanner exclusion, or changed test wiring. Each individual correction must preserve Apache and libModSecurity semantics and be validated separately from the selective #94A RulesSet-cleanup candidate.",
+  "expected_behavior_de": "Die Parent-eigene Apache-Connector-Translation-Unit muss die verpflichtende GCC-C17-Warnrichtlinie ohne -Wno-error, Warnunterdrückung, Scanner-Exclusion oder geändertes Test-Wiring bestehen. Jede einzelne Korrektur muss Apache- und libModSecurity-Semantik bewahren und getrennt vom selektiven #94A-RulesSet-Cleanup-Kandidaten validiert werden.",
+  "impact": "The mandatory compiler-hardening control cannot establish a clean C17 baseline for this translation unit. This is a quality and assurance gap rather than an established attacker-controlled runtime vulnerability. Because the same source and normalized diagnostics fail on master and the selected candidate, it must not be attributed to or block selective #94A delivery.",
+  "impact_de": "Das verpflichtende Compiler-Hardening-Control kann für diese Translation-Unit keine saubere C17-Baseline etablieren. Dies ist eine Quality- und Assurance-Luecke, keine belegte attacker-kontrollierte Runtime-Vulnerability. Weil derselbe Source und dieselben normalisierten Diagnosen auf Master und im ausgewählten Kandidaten fehlschlagen, darf dies nicht selektivem #94A zugeschrieben werden oder dessen Delivery blockieren.",
+  "preconditions": [
+    "The approved Apache/APXS/APR/libModSecurity compiler environment is available.",
+    "The required check-apache-c17 source contract compiles connectors/apache/src/mod_security3.c independently with -std=c17 -Wall -Wextra -Werror.",
+    "The retained master and candidate comparison inputs remain available for source and diagnostic identity checks."
+  ],
+  "reproduction": [
+    "Read the retained master and candidate C17 stderr files; both are 114 lines and their recorded compiler result is exit 1.",
+    "Verify the Parent source and the selective-candidate worktree source have SHA-256 8b21b64c95a1f1cb98ac05437e60e5d5ab8124e363cd2784b7c800e65449f8d7.",
+    "Normalize only environment-specific absolute path prefixes in the two retained stderr files and compare the reported normalized SHA-256 34b8bbdfcda5e8420a33ac99eaf57a1283388ec7f87d104b1ee36093744eacc6.",
+    "Do not treat a fix to msc_config.c for FND-PARENT-0008 or FND-PARENT-0064 as evidence that this separate mod_security3.c group is fixed."
+  ],
+  "evidence": [
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-c17-baseline-master/connectors_apache_src_mod_security3_c.c17.o.err",
+      "artifact_type": "retained_master_gcc_c17_stderr",
+      "sha256": "1d40b8f49f4d38f09f8cfce6266f59fc963cd64d2268dbefe3ce5e66f19f6cde",
+      "command": "Retained check-apache-c17 compilation evidence; Parent task confirmation records exit 1.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 1,
+      "observed_at": "2026-07-29T10:13:10Z",
+      "retention_status": "retained_task_evidence",
+      "result": "114-line GCC C17 Werror diagnostic group for the master baseline."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-c17-baseline-candidate/connectors_apache_src_mod_security3_c.c17.o.err",
+      "artifact_type": "retained_candidate_gcc_c17_stderr",
+      "sha256": "634475cf310eb274e3825549cdeed62bb58d865a3a2dd97444da7b354885196e",
+      "command": "Retained check-apache-c17 compilation evidence; Parent task confirmation records exit 1.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729",
+      "exit_code": 1,
+      "observed_at": "2026-07-29T10:13:10Z",
+      "retention_status": "retained_task_evidence",
+      "result": "114-line GCC C17 Werror diagnostic group for the selective #94A task candidate."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "connectors/apache/src/mod_security3.c",
+      "candidate_artifact_path": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729/connectors/apache/src/mod_security3.c",
+      "artifact_type": "master_candidate_source_identity",
+      "sha256": "8b21b64c95a1f1cb98ac05437e60e5d5ab8124e363cd2784b7c800e65449f8d7",
+      "command": "sha256sum connectors/apache/src/mod_security3.c /var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729/connectors/apache/src/mod_security3.c",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:13:10Z",
+      "retention_status": "current_and_retained_source_observation",
+      "result": "Master and selective-candidate mod_security3.c sources are byte-identical; the candidate did not introduce this error group."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "normalized comparison of the retained master and candidate C17 stderr artifacts above",
+      "artifact_type": "parent_confirmed_normalized_log_equivalence",
+      "sha256": "34b8bbdfcda5e8420a33ac99eaf57a1283388ec7f87d104b1ee36093744eacc6",
+      "command": "Parent-supplied retained normalization result; only environment-specific absolute path prefixes differ and no normalization artifact was written by this record task.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": null,
+      "observed_at": "2026-07-29T10:13:10Z",
+      "retention_status": "parent_task_evidence",
+      "result": "The two 114-line diagnostic logs normalize to one identical GCC C17 Werror error group."
+    }
+  ],
+  "root_cause": "The Parent Apache module translation unit carries accumulated C17 diagnostics across unused callback parameters/variables, API pointer-sign conversions, module initializer completeness, header linkage declarations, and a non-void return path. The retained identity comparison proves only that the group is pre-existing relative to selective #94A; it does not attribute every diagnostic to one common semantic defect.",
+  "root_cause_de": "Die Parent-Apache-Module-Translation-Unit enthält angesammelte C17-Diagnosen über unbenutzte Callback-Parameter/-Variablen, API-Pointer-Sign-Konvertierungen, Vollständigkeit des Module-Initializers, Header-Linkage-Deklarationen und einen Non-void-Return-Pfad. Der zurückgehaltene Identitätsvergleich beweist nur, dass die Gruppe gegenüber selektivem #94A bereits bestand; er ordnet nicht jede Diagnose einer gemeinsamen semantischen Ursache zu.",
+  "proposed_remediation": "Create a separate Parent remediation that classifies and corrects each diagnostic with behavior-preserving changes: explicitly consume intentionally unused callback inputs, remove or use genuinely unnecessary variables, make header declarations/linkage consistent with their definitions, return the correct cleanup status, initialize the Apache module field according to the supported ABI, and perform only semantics-reviewed conversions for the libModSecurity unsigned-byte API. Retain -Werror and the independent C17 source-contract wiring.",
+  "proposed_remediation_de": "Eine getrennte Parent-Remediation erstellen, die jede Diagnose klassifiziert und mit verhaltensbewahrenden Änderungen korrigiert: absichtlich unbenutzte Callback-Inputs explizit konsumieren, wirklich unnötige Variablen entfernen oder verwenden, Header-Deklarationen/Linkage mit ihren Definitionen konsistent machen, den korrekten Cleanup-Status zurückgeben, das Apache-Module-Feld entsprechend der unterstützten ABI initialisieren und nur semantisch geprüfte Konvertierungen für die libModSecurity-Unsigned-Byte-API vornehmen. -Werror und das unabhängige C17-Source-Contract-Wiring bewahren.",
+  "acceptance_criteria": [
+    "The exact mandatory GCC C17 check for mod_security3.c exits 0 with -std=c17 -Wall -Wextra -Werror and no warning suppression.",
+    "The relevant Apache/APXS/APR and libModSecurity interfaces retain their behavior under focused legitimate controls.",
+    "Any pointer-sign, return, initializer, declaration, or unused-value correction is reviewed for the corresponding API and lifecycle semantics.",
+    "A fresh source identity and normalized-log comparison distinguishes pre-existing baseline conditions from any selective #94A candidate changes.",
+    "The selective #94A candidate remains evaluated only against findings introduced by or relevant to its own change."
+  ],
+  "validation_plan": [
+    "Run the existing check-apache-c17 target with GCC in the approved environment and retain stderr/stdout/exit evidence.",
+    "Run the corresponding Clang C17 control when its approved toolchain is available, without weakening either compiler warning policy.",
+    "Run focused Apache configuration and APR harness controls for any changed callbacks, module initializer, request-header conversion, and cleanup return behavior.",
+    "Re-run source identity, raw-log, and normalized-log comparison against the exact remediated head."
+  ],
+  "regression_tests": [
+    "Existing ci/checks/connectors/apache/check-apache-c-standards.sh GCC C17 source-contract check.",
+    "Existing wiring tests that require mod_security3.c in the C17 source list and preserve -Werror.",
+    "Focused legitimate Apache/APXS/APR controls selected by each individual source correction."
+  ],
+  "legitimate_control_tests": [
+    "Header probe continues to compile successfully before the module translation-unit compilation.",
+    "Normal Apache module configuration and request-header handling remain functional after semantics-reviewed source corrections.",
+    "APR cleanup callbacks return the documented status and preserve pool lifecycle behavior."
+  ],
+  "dependencies": [
+    "Approved GCC C17 Apache/APXS/APR/libModSecurity build environment.",
+    "A separate Parent worktree and remediation task for source changes.",
+    "Optional approved Clang C17 environment for cross-compiler confirmation."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0008",
+    "FND-PARENT-0043",
+    "FND-PARENT-0064"
+  ],
+  "deduplication_note": "FND-PARENT-0069 is deliberately separate from FND-PARENT-0008, which records a historical Clang missing-field-initializer observation in apache2/msc_config.c, and FND-PARENT-0043, which owns intervention-buffer lifecycle and ownership safety in mod_security3.c. The shared Apache area or C17 wiring is not a shared root cause, invariant, evidence set, or remediation boundary.",
+  "deduplication_note_de": "FND-PARENT-0069 ist absichtlich von FND-PARENT-0008 getrennt, das eine historische Clang-Missing-Field-Initializer-Beobachtung in apache2/msc_config.c erfasst, und von FND-PARENT-0043, das Intervention-Buffer-Lifecycle und Ownership-Sicherheit in mod_security3.c besitzt. Der gemeinsame Apache-Bereich oder das C17-Wiring sind keine gemeinsame Grundursache, Invariante, Evidence-Menge oder Remediation-Grenze.",
+  "scope_disposition": "Validated baseline-identical GCC C17 compiler-hardening gap. It is not a release blocker or candidate-integration blocker for the selective #94A candidate, because its exact source and normalized diagnostics predate and remain unchanged by that candidate.",
+  "scope_disposition_de": "Validierte baseline-identische GCC-C17-Compiler-Hardening-Luecke. Sie ist kein Release-Blocker und kein Candidate-Integration-Blocker für den selektiven #94A-Kandidaten, weil ihr exakter Source und ihre normalisierten Diagnosen diesem Kandidaten vorausgehen und von ihm unverändert bleiben.",
+  "source_run_ids": [
+    "selective-apache-prs-master-20260729"
+  ],
+  "residual_risk": "The compiler-hardening gap remains unresolved and prevents a clean GCC C17 assurance claim for mod_security3.c. It does not establish a remote, local attacker-controlled, credential, secret, connector request-processing, or runtime exploit path. No source repair, PR, hosted result, merge, master, fixed, verified, closed, or risk-acceptance claim is made by this finding.",
+  "residual_risk_de": "Die Compiler-Hardening-Luecke bleibt ungelöst und verhindert einen sauberen GCC-C17-Assurance-Claim für mod_security3.c. Sie etabliert keinen Remote-, lokalen attacker-kontrollierten, Credential-, Secret-, Connector-Request-Processing- oder Runtime-Exploit-Pfad. Dieses Finding beansprucht keinen Source-Fix, keinen PR, kein Hosted-Resultat, keinen Merge, kein Master, kein fixed, kein verified, kein closed und keine Risikoakzeptanz.",
+  "created_at": "2026-07-29T10:13:10Z",
+  "updated_at": "2026-07-29T10:13:10Z",
+  "final_disposition": "validated_baseline_identical_gcc_c17_compiler_hardening_gap_nonblocking_for_selective_94a",
+  "history": [
+    {
+      "at": "2026-07-29T10:13:10Z",
+      "event": "master_candidate_baseline_identical_gcc_c17_error_group_recorded",
+      "detail": "Two retained exit-1 C17 logs and byte-identical source establish a pre-existing compiler-hardening group. The new canonical record is intentionally separate from FND-PARENT-0008 and FND-PARENT-0043 and does not block selective #94A."
+    }
+  ]
+}

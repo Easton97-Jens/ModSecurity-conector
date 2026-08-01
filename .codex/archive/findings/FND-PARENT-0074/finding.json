@@ -1,0 +1,194 @@
+{
+  "id": "FND-PARENT-0074",
+  "title": "Case runners accepted symlinked verified runtime roots before artifact writes and native oracle execution",
+  "title_de": "Case-Runner akzeptierten verlinkte verifizierte Runtime-Roots vor Artefakt-Schreibvorgängen und nativer Oracle-Ausführung",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P3",
+  "severity": "low",
+  "confidence": "validated",
+  "confidence_score": 0.78,
+  "status": "closed",
+  "feasibility_status": "already_fixed",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "security_assessment": "validated_local_shared_host_verified_run_root_symlink_redirection",
+  "security_invariant": "Before either case runner writes artifacts, compiles, reuses, executes, or launches a child harness below VERIFIED_RUN_ROOT, the selected root and every created runner-owned descendant must be private, current-user-owned, non-symlinked, and traversed without following links.",
+  "security_invariant_de": "Bevor einer der Case-Runner unter VERIFIED_RUN_ROOT Artefakte schreibt, kompiliert, wiederverwendet, ausführt oder einen Child-Harness startet, müssen der ausgewählte Root und jeder erzeugte runner-eigene Descendant privat, dem aktuellen Benutzer zugeordnet, nicht verlinkt und ohne Link-Following traversiert sein.",
+  "connector": null,
+  "protocol": "local/shared-host CI and test-runner verified-artifact-root filesystem boundary",
+  "profile": "Verified clean-history Parent replacement PR #213 at exact head 69a990503e8b430b2922111c455ae5183c8e1dd3; protected SHA-bound squash merge to master f335965fd5f7b9640fc39a1dd7873d46d7c989c5 with passing post-merge controls",
+  "affected_files": [
+    "ci/lib/runtime_path_utils.py",
+    "ci/runtime/lifecycle/run-native-case-comparison.py",
+    "ci/runtime/lifecycle/run-verified-case.py",
+    "tests/test_runtime_artifact_utils.py",
+    "tests/test_runtime_path_security.py"
+  ],
+  "affected_symbols": [
+    "prepare_verified_runtime_artifact_root",
+    "verified_runtime_artifact_root",
+    "ensure_safe_runtime_directory",
+    "run-native-case-comparison.main",
+    "run_native_case",
+    "compile_oracle",
+    "run-verified-case.main"
+  ],
+  "summary": "Before remediation, both lifecycle case runners applied Path(...).resolve() to the selected CLI/environment/default VERIFIED_RUN_ROOT before artifact-directory creation, allowing a lower-privileged shared-host actor to pre-create final or parent symlinks that redirected runner-owned writes and native oracle execution. The repair selects CLI > VERIFIED_RUN_ROOT > historical fallback through prepare_verified_runtime_artifact_root(), validates lexically and through descriptor-based no-follow owner/mode controls, fails closed with exit 77, and validates runner-created descendants. The verified clean-history replacement PR #213 passed exact-head controls and merged normally; its tree equals current master, where focused root-security tests and post-merge checks pass.",
+  "summary_de": "Vor der Remediation wendeten beide Lifecycle-Case-Runner Path(...).resolve() auf den ausgewählten CLI-/Environment-/Default-VERIFIED_RUN_ROOT vor der Artefakt-Verzeichniserzeugung an; ein niedriger privilegierter Shared-Host-Akteur konnte dadurch finale oder Parent-Symlinks vorab erzeugen und runner-eigene Schreibvorgänge sowie die Native-Oracle-Ausführung umleiten. Die Reparatur wählt CLI > VERIFIED_RUN_ROOT > historischen Fallback über prepare_verified_runtime_artifact_root(), validiert lexikalisch und über Descriptor-basierte No-Follow-Owner-/Mode-Controls, schlägt mit Exit 77 fail-closed fehl und validiert runner-erzeugte Descendants. Der verifizierte Ersatz-PR #213 mit frischer Historie bestand Exact-Head-Controls und wurde normal gemergt; sein Tree entspricht aktuellem master, auf dem fokussierte Root-Security-Tests und Post-Merge-Checks bestehen.",
+  "observed_behavior": "The pre-remediation root selection in both case runners followed a caller-controlled existing symlink with Path(...).resolve() before mkdir, artifact writes, compiler output, native-oracle reuse/execution, or a child harness. The predictable historical fallback is /var/tmp/ModSecurity-conector-verified. The source path is a local/shared-host filesystem integrity boundary; it is not a GitHub pull-request token, secret, network, or connector-request boundary.",
+  "observed_behavior_de": "Die Pre-Remediation-Root-Selection in beiden Case-Runnern folgte mit Path(...).resolve() einem vom Caller kontrollierten bestehenden Symlink vor mkdir, Artefakt-Schreibvorgängen, Compiler-Output, Native-Oracle-Wiederverwendung/-Ausführung oder einem Child-Harness. Der vorhersagbare historische Fallback ist /var/tmp/ModSecurity-conector-verified. Der Source-Pfad ist eine lokale/shared-host-Dateisystem-Integritätsgrenze; er ist keine GitHub-Pull-Request-Token-, Secret-, Netzwerk- oder Connector-Request-Grenze.",
+  "expected_behavior": "The two runners must preserve CLI > VERIFIED_RUN_ROOT > historical fallback precedence while rejecting unsafe, broad, foreign-owned, group/world-writable, final-symlinked, or parent-symlinked roots before any runner-owned write or child process. Explain-only behavior must not materialize a runtime root.",
+  "expected_behavior_de": "Die beiden Runner müssen die Präzedenz CLI > VERIFIED_RUN_ROOT > historischer Fallback beibehalten und gleichzeitig unsichere, breite, fremdbesitzte, group/world-writable, final-verlinkte oder parent-verlinkte Roots vor jedem runner-eigenen Schreibvorgang oder Child-Prozess zurückweisen. Explain-only-Verhalten darf keinen Runtime-Root materialisieren.",
+  "impact": "A successful local/shared-host pre-seed could redirect evidence artifacts and, on the native path, cause a trusted developer or runner to reuse or execute a substituted fixed-name oracle. The impact is confined to a local actor sharing the host and a timing/filesystem precondition; there is no evidence of remote reachability, public endpoint exposure, GitHub external-PR/token escalation, secret access, connector request-processing impact, or normal hosted-CI attacker path. Severity is therefore low/P3.",
+  "impact_de": "Ein erfolgreicher lokaler/shared-host-Preseed konnte Evidence-Artefakte umleiten und auf dem nativen Pfad einen vertrauenswürdigen Developer oder Runner dazu bringen, ein ersetztes Oracle mit festem Namen wiederzuverwenden oder auszuführen. Der Impact ist auf einen lokalen Akteur mit gemeinsamem Host und einer Timing-/Dateisystem-Voraussetzung begrenzt; es gibt keine Evidence für Remote-Reachability, Public-Endpoint-Exposition, GitHub-External-PR-/Token-Eskalation, Secret-Zugriff, Connector-Request-Processing-Impact oder einen normalen Hosted-CI-Angreiferpfad. Der Schweregrad ist daher low/P3.",
+  "preconditions": [
+    "A lower-privileged local actor shares a host or self-hosted runner with the invoking identity and can create a path below the sticky /var/tmp parent before the runner's private child is created.",
+    "The runner selects the historical fallback or a caller-supplied VERIFIED_RUN_ROOT that has an existing final or parent symlink.",
+    "The invoking process reaches runner-owned artifact creation; native impact additionally requires compiler/oracle prerequisites and the native execution path."
+  ],
+  "reproduction": [
+    "On the pre-remediation source, trace the selected --verified-run-root or VERIFIED_RUN_ROOT through Path(...).resolve() before runner-created directories and native-oracle/harness actions.",
+    "Use the focused direct runner controls with a final-root symlink and a parent-component symlink; the repaired candidate returns 77 before target mutation or output creation for both runners.",
+    "Do not run a live cross-user race. The retained source-to-sink trace and deterministic symlink controls establish the bounded local/shared-host condition without unsafe concurrent manipulation."
+  ],
+  "evidence": [
+    {
+      "run_id": "ci-runtime-sonarqube-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-runtime-sonarqube-remediation-20260730/evidence/case-runner-root-hardening-local.md",
+      "artifact_type": "local_case_runner_root_hardening_receipt",
+      "sha256": "ee818da377f476f02852ea5286dcf20b508d14dc85d4b91d0fb51e72357c32e1",
+      "command": "External-root py_compile; focused unittest modules tests.test_runtime_artifact_utils, tests.test_runtime_path_security, tests.test_generated_report_evidence_integrity; direct terminal-status contract; git diff --check.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260730-ci-runtime-sonarqube-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T14:33:26Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The repaired root selection rejects final and parent symlink variants with exit 77 before observed victim/output mutation; precedence, private mode, relative lexical normalization, explain non-materialization, status compatibility, report behavior, and diff hygiene passed locally."
+    },
+    {
+      "run_id": "security-diff-ci-runtime-20260730T142059Z",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/codex-security-scans/ModSecurity-conector/caddd86d1eede95de53aa1bc971dd26d875df21c_20260730T142059Z/scan-manifest.json",
+      "artifact_type": "sealed_codex_security_working_tree_diff_scan",
+      "sha256": "f25310a5fd1b2c074d8be405895549c6c3c30f0acd242ace818b16dc1eef463a",
+      "command": "Codex Security security-diff-scan against caddd86d1eede95de53aa1bc971dd26d875df21c; every restored changed ci/runtime/test row received a full-file receipt and finalize_scan_contract.py sealed the scan.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260730-ci-runtime-sonarqube-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T14:33:26Z",
+      "retention_status": "retained_sealed_security_evidence",
+      "result": "No reportable diff-introduced security finding survived discovery. The scan documents the shared-temp threat model, exact eight-file coverage, controls, limitations, and no weakened security control."
+    },
+    {
+      "run_id": "pr-202-initial-delivery-ci-runtime-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-runtime-sonarqube-remediation-20260730/evidence/pr-202-initial-delivery.md",
+      "artifact_type": "draft_pr_exact_head_initial_delivery_receipt",
+      "sha256": "624874cf47b387a05e3572085ba7e775e55a7bf57b186f9cdab11d47c6b69d03",
+      "command": "git rev-parse HEAD; git ls-remote origin refs/heads/agent/parent-ci-runtime-sonar-remediation-20260730; gh pr view 202; gh api repos/Easton97-Jens/ModSecurity-conector/pulls/202",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260730-ci-runtime-sonarqube-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T15:10:00Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Draft PR #202 is open against master; local, origin branch, and GitHub PR head equal c846c2c6716c5e321b8743c1d191bfc8193163ca, with base caddd86d1eede95de53aa1bc971dd26d875df21c. Initial checks are incomplete, so no hosted verification, Sonar acceptance, or merge claim is made."
+    },
+    {
+      "run_id": "pr-202-head-eccc-sonar-clean-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-runtime-sonarqube-remediation-20260730/evidence/pr-202-head-eccc-sonar-clean.md",
+      "artifact_type": "bounded_exact_head_sonar_quality_issue_and_duplication_receipt",
+      "sha256": "8cea3f6df1afb3b33b4f84acfbf91373282d7d1b8477d96ec975fd2060e002c3",
+      "command": "Read-only SonarQube Cloud quality-gate, OPEN/CONFIRMED issue, and new-violation/duplication measure API readback for PR #202.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260730-ci-runtime-sonarqube-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T07:26:24Z",
+      "retention_status": "retained_task_evidence",
+      "result": "At exact head ecccaa0adf16b329162167eb1abe8a0003dc0052, SonarQube Cloud Quality Gate is OK with zero OPEN/CONFIRMED PR issues, zero new violations, zero new duplicated lines, and 0.0% New-Code duplication. This is Sonar-only evidence and does not replace the separately failed Secret scan."
+    },
+    {
+      "run_id": "pr-213-replacement-merged-verification-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/pr202-fresh-history-replacement-20260801/evidence/pr-213-replacement-merged-verification.md",
+      "artifact_type": "sanitized_exact_head_replacement_and_post_merge_receipt",
+      "sha256": "82e93a756897c81162dcb4620fe9496fa2ab8307cbf7846b2b594e7b2e722863",
+      "command": "GitHub PR/check/ruleset readback; SonarQube Cloud PR API readback; exact master tree comparison; focused Parent runtime-path tests.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260801-pr202-fresh-history-replacement",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T09:29:28Z",
+      "retention_status": "retained_sanitized_task_evidence",
+      "result": "Replacement PR #213 passed exact-range Secret Scanning, required hosted contexts, and SonarQube Cloud zero-new-issue/duplication gates, then merged normally to master. Its tree equals current master, focused root-security tests passed 26 tests, and post-merge master checks passed."
+    }
+  ],
+  "root_cause": "The case runners treated resolution of an absolute-looking pathname as sufficient authority. Path.resolve() follows an attacker-planted link before the existing no-follow, ownership, and mode controls can inspect it. The resulting redirected tree then becomes the parent of predictable artifact and native-oracle paths. The remediation centralizes selection into the existing descriptor-based validated-root primitive and validates runner-created descendants before their first use.",
+  "root_cause_de": "Die Case-Runner behandelten die Auflösung eines absolut aussehenden Pfadnamens als ausreichende Autorität. Path.resolve() folgt einem vom Angreifer angelegten Link, bevor die bestehenden No-Follow-, Ownership- und Mode-Controls ihn prüfen können. Der dadurch umgeleitete Baum wird dann Parent von vorhersagbaren Artefakt- und Native-Oracle-Pfaden. Die Remediation zentralisiert die Selection in die bestehende Descriptor-basierte Validated-Root-Primitive und validiert runner-erzeugte Descendants vor ihrer ersten Verwendung.",
+  "proposed_remediation": "Keep the shared prepare_verified_runtime_artifact_root() selection helper as the only verified-root enforcement point. Preserve CLI > VERIFIED_RUN_ROOT > fallback precedence, lexically absolutize without link resolution, delegate to the existing no-follow private-root validator, return 77 before runner-owned writes or children on ValueError, and create runner-owned case/log/oracle directories with ensure_safe_runtime_directory(). Retain direct final-/parent-symlink negative controls and legitimate precedence/private-mode/explain controls. Do not weaken workflow permissions, Sonar rules, Quality Gates, test controls, or other separate root contracts.",
+  "proposed_remediation_de": "Den gemeinsamen Selection-Helper prepare_verified_runtime_artifact_root() als einzigen Verified-Root-Enforcement-Point beibehalten. Die Präzedenz CLI > VERIFIED_RUN_ROOT > Fallback bewahren, ohne Link-Resolution lexikalisch absolutisieren, an den bestehenden No-Follow-Private-Root-Validator delegieren, bei ValueError vor runner-eigenen Schreibvorgängen oder Children Exit 77 liefern und runner-eigene Case-/Log-/Oracle-Verzeichnisse mit ensure_safe_runtime_directory() erzeugen. Direkte finale-/Parent-Symlink-Negative-Controls sowie legitime Präzedenz-/Private-Mode-/Explain-Controls beibehalten. Workflow-Berechtigungen, Sonar-Regeln, Quality Gates, Test-Controls oder andere separate Root-Verträge nicht abschwächen.",
+  "acceptance_criteria": [
+    "Both runners preserve CLI > VERIFIED_RUN_ROOT > historical fallback precedence and return 77 before writes or child-process launch when the selected root is unsafe.",
+    "Final-root and parent-component symlink variants cannot mutate the symlink target or native summary output through either runner interface.",
+    "A legitimate private root is created with safe modes; relative input is lexically normalized and --explain does not materialize a verified runtime root.",
+    "Focused source/test/security-diff controls pass on the committed candidate without a Framework/MRTS action, control weakening, suppression, or Quality-Gate change.",
+    "After push, the exact PR head has fresh hosted GitHub/Sonar evidence before any verified or closed disposition."
+  ],
+  "validation_plan": [
+    "Retain the local hardening receipt and sealed security-diff scan with their SHA-256 values.",
+    "Rerun py_compile, focused runtime artifact/path/report tests, terminal-status compatibility, and git diff --check after final documentation/commit changes.",
+    "Keep Framework-dependent tests blocked_missing_local_checkout rather than initializing or changing Framework/MRTS to obtain a passing result.",
+    "After push, compare local, remote, and PR SHA; then read exact-head required GitHub checks and SonarQube Cloud results."
+  ],
+  "regression_tests": [
+    "tests/test_runtime_path_security.py",
+    "tests/test_runtime_artifact_utils.py",
+    "tests/test_generated_report_evidence_integrity.py",
+    "tests/test_collect_no_crs_source.py"
+  ],
+  "legitimate_control_tests": [
+    "Explicit CLI root overrides VERIFIED_RUN_ROOT, which overrides the fallback, and the resulting root is private and non-symlinked.",
+    "run-verified-case.py --explain returns without materializing the requested verified runtime root.",
+    "The existing generated-report evidence suite preserves exact Markdown and full-matrix command semantics after literal extraction."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0068",
+    "FND-SONAR-0016",
+    "FND-PARENT-0075"
+  ],
+  "source_run_ids": [
+    "ci-runtime-sonarqube-remediation-20260730",
+    "security-diff-ci-runtime-20260730T142059Z",
+    "pr-202-initial-delivery-ci-runtime-20260730",
+    "pr-202-head-eccc-sonar-clean-20260801",
+    "pr-213-replacement-merged-verification-20260801"
+  ],
+  "residual_risk": "The repair covers only verified-run-root selection and runner-created descendants. It does not claim safety for separate caller-owned --build-root, --tmp-root, native --output-dir, connector/framework roots, or a same-UID actor that can mutate an already-private root. Those boundaries remain explicitly outside this closed finding; the targeted regression, legitimate controls, fresh range Secret Scanning, hosted verification, protected merge, and post-merge checks passed.",
+  "residual_risk_de": "Die Reparatur deckt nur die Verified-Run-Root-Selection und runner-erzeugte Descendants ab. Sie beansprucht keine Sicherheit für separate caller-eigene --build-root, --tmp-root, native --output-dir, Connector-/Framework-Roots oder einen Same-UID-Akteur, der einen bereits privaten Root verändern kann. Diese Grenzen bleiben ausdrücklich außerhalb dieses geschlossenen Findings; der zielgerichtete Regressionstest, Legitimate-Controls, frisches Range-Secret-Scanning, Hosted-Validierung, geschützter Merge und Post-Merge-Checks bestanden.",
+  "created_at": "2026-07-30T14:33:26Z",
+  "updated_at": "2026-08-01T18:52:17Z",
+  "final_disposition": "closed after https://github.com/Easton97-Jens/ModSecurity-conector/pull/213 merged to master as f335965fd5f7b9640fc39a1dd7873d46d7c989c5, exact hosted security evidence passed, and the current post-runner-change root/symlink control suite passed 107 tests again on current master 59aba762f2d852fd917079ca8519e4ea7f49169c after test-only PR #229.",
+  "history": [
+    {
+      "at": "2026-07-30T14:33:26Z",
+      "event": "local_shared_temp_case_runner_root_boundary_validated_and_repaired",
+      "detail": "A separate canonical Parent record was allocated after deduplication against FND-PARENT-0068: the same local/shared-host weakness family has distinct lifecycle case-runner root selection, sinks, tests, and remediation. Local source-to-sink, negative symlink, legitimate-control, and sealed security-diff evidence support status fixed; commit/push/PR/hosted evidence remains pending."
+    },
+    {
+      "at": "2026-07-30T15:10:00Z",
+      "event": "draft_pr_202_exact_head_created_hosted_validation_pending",
+      "detail": "Normal push created Parent Draft PR #202 against master. Local, origin branch, and GitHub PR head equal c846c2c6716c5e321b8743c1d191bfc8193163ca and base equals caddd86d1eede95de53aa1bc971dd26d875df21c. Initial hosted checks are incomplete; no Quality Gate, zero-new-issue/duplication, verified, closed, or merge claim is made."
+    },
+    {
+      "at": "2026-08-01T07:26:24Z",
+      "event": "pr_202_exact_head_sonar_clean_secret_scan_blocker_recorded",
+      "detail": "At PR #202 exact head ecccaa0adf16b329162167eb1abe8a0003dc0052, SonarQube Cloud is clean. FND-PARENT-0075 separately records the historical Secret-scanning heuristic failure; current master b1321cada7ea42a09170933ad91ec39ad2ab5116 makes the Draft PR conflicting. This record remains fixed, not verified or closed."
+    },
+    {
+      "at": "2026-08-01T09:29:28Z",
+      "event": "verified_clean_history_replacement_pr_213_merged_and_finding_closed",
+      "detail": "Fresh replacement PR #213 at exact head 69a990503e8b430b2922111c455ae5183c8e1dd3 passed exact-range Secret Scanning, all required GitHub contexts, and SonarQube Cloud Quality Gate with zero new issues and duplication. It merged by protected SHA-bound squash to master f335965fd5f7b9640fc39a1dd7873d46d7c989c5; its tree is identical to master, focused root-security tests passed 26 tests, and master checks passed. The original symlink-root controls are therefore verified on master and the finding is closed."
+    },
+    {
+      "at": "2026-08-01T18:52:17Z",
+      "event": "current_master_root_symlink_controls_revalidated_after_test_only_pr229",
+      "detail": "After rebase to current master 59aba762f2d852fd917079ca8519e4ea7f49169c, which changed 29 test modules including generated-report evidence assertions, python3 -B -m unittest tests.test_runtime_artifact_utils tests.test_runtime_path_security tests.test_generated_report_evidence_integrity passed 107 tests. No affected runtime source path changed after the previous current-base review."
+    }
+  ]
+}

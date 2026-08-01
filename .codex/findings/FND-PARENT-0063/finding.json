@@ -1,0 +1,140 @@
+{
+  "id": "FND-PARENT-0063",
+  "title": "Normal runtime provisioning executes release-selected mutable upstream source",
+  "title_de": "Normale Runtime-Provisionierung führt release-ausgewählten veränderlichen Upstream-Source aus",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P3",
+  "severity": "low",
+  "confidence": "validated",
+  "status": "validated",
+  "feasibility_status": "requires_user_decision",
+  "release_blocker": false,
+  "security_relevant": true,
+  "security_assessment": "validated_low_supply_chain_provenance_weakness",
+  "connector": "runtime component provisioner",
+  "protocol": "GitHub latest-release selection and build provenance",
+  "profile": "normal non-strict runtime component provisioning",
+  "affected_files": [
+    "ci/provisioning/components/prepare-runtime-components.py",
+    "ci/provisioning/components/prepare-runtime-components.sh",
+    "Makefile",
+    ".github/workflows/protocol-contract.yml",
+    ".github/workflows/all-connectors-no-crs.yml",
+    ".github/workflows/open-connectors-smoke.yml"
+  ],
+  "affected_symbols": [
+    "resolve_latest_github_release_tag",
+    "prepare_release_git_component",
+    "prepare_expat_git_component",
+    "prepare_go_tool"
+  ],
+  "trust_boundary": "configured external GitHub release selection to trusted CI or operator build execution",
+  "sink": "staged Git checkout followed by Expat shell/autotools build or Go package build",
+  "summary": "The ordinary non-strict component provisioner accepts the mutable tag returned by GitHub releases/latest, records an expected-latest difference only as metadata, and then builds the selected source on a trusted runner.",
+  "summary_de": "Der gewöhnliche nicht-strikte Komponenten-Producer akzeptiert den veränderlichen Tag aus GitHub releases/latest, zeichnet eine Differenz zum erwarteten Latest nur als Metadaten auf und baut danach den ausgewählten Source auf einem vertrauenswürdigen Runner.",
+  "observed_behavior": "At Parent master 8e8acb8dab1cd03723de269cab7da7dd62e5e010, prepare_release_git_component passes the runtime latest-release tag directly to prepare_git_component even with strict=True. A mismatch with expected_prompt_latest sets release_tag_deviation but does not block. A present source record then reaches the real Go build sink; the retained harmless local fixture compiled an executable under the original implementation.",
+  "observed_behavior_de": "Auf Parent-master 8e8acb8dab1cd03723de269cab7da7dd62e5e010 übergibt prepare_release_git_component den zur Laufzeit ermittelten Latest-Release-Tag selbst bei strict=True direkt an prepare_git_component. Eine Differenz zu expected_prompt_latest setzt release_tag_deviation, blockiert aber nicht. Ein present-Source-Record erreicht danach den realen Go-Build-Sink; die zurückgehaltene harmlose lokale Fixture kompilierte unter der ursprünglichen Implementierung ein Executable.",
+  "expected_behavior": "Every release-resolved source that can reach a trusted build sink must be bound to an explicit reviewed immutable provenance contract before checkout and build; a changed latest release must fail closed rather than be merely reported.",
+  "expected_behavior_de": "Jeder release-ausgewählte Source, der einen vertrauenswürdigen Build-Sink erreichen kann, muss vor Checkout und Build an einen expliziten überprüften unveränderlichen Provenance-Vertrag gebunden sein; ein geändertes Latest-Release muss fehlgeschlossen scheitern statt nur protokolliert zu werden.",
+  "impact": "A compromised configured upstream release state can select source-controlled build behavior for a scheduled or trusted-manual runner. Repository evidence establishes runner, cache, network, and read-only contents-token exposure, but not production or release secrets, writable repository authority, or fleet deployment impact.",
+  "impact_de": "Ein kompromittierter konfigurierter Upstream-Release-Zustand kann Source-kontrolliertes Build-Verhalten für einen geplanten oder vertrauenswürdig manuell gestarteten Runner auswählen. Repository-Evidence belegt Runner-, Cache-, Netzwerk- und Read-only-Contents-Token-Exposition, aber keine Production- oder Release-Secrets, keine schreibbare Repository-Autorität und keinen Fleet-Deployment-Impact.",
+  "preconditions": [
+    "An attacker compromises a configured upstream GitHub release maintainer or mutable releases/latest state.",
+    "A scheduled or trusted-manual workflow or local operator invokes make prepare-runtime-components.",
+    "The selected component source reaches the normal non-strict release-backed path."
+  ],
+  "reproduction": [
+    "Run the retained offline fixture validation_artifacts/validate_mutable_release_execution.py against Parent master 8e8acb8dab1cd03723de269cab7da7dd62e5e010.",
+    "Observe that a synthetic changed tag is passed to prepare_git_component with strict=True, is accepted as present, and that an intentionally harmless local Git-backed Go source reaches prepare_go_tool and produces an executable.",
+    "Review protocol-contract.yml, all-connectors-no-crs.yml, and open-connectors-smoke.yml to confirm scheduled or manual provisioner reachability and contents: read permissions."
+  ],
+  "evidence": [
+    {
+      "run_id": "sonar-652-duplication-zero-20260728-W8wqjk",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/sonar-652-duplication-zero-20260728-W8wqjk/security-scan/8e8acb8dab1cd03723de269cab7da7dd62e5e010_20260728T090300Z/artifacts/05_findings/cand-b01-s1-mutable-release-source-execution/validation_artifacts/validation-result.json",
+      "artifact_type": "focused_offline_provenance_validation",
+      "sha256": "515ef4bcaa82ffd0bf33925cf5c3091c3050d76e4db51dc6637539abed50113d",
+      "command": "rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 .venv/bin/python -B validation_artifacts/validate_mutable_release_execution.py --repo-root /root/git/ModSecurity-conector --artifact-root validation_artifacts",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-28T10:21:59Z",
+      "retention_status": "retained_task_evidence",
+      "result": "A synthetic changed latest-release tag was accepted and passed to the Git-preparer with strict=True; an accepted source record reached the real Go build sink and produced an executable harmless fixture binary without network contact or upstream-source execution."
+    },
+    {
+      "run_id": "sonar-652-duplication-zero-20260728-W8wqjk",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/sonar-652-duplication-zero-20260728-W8wqjk/security-scan/8e8acb8dab1cd03723de269cab7da7dd62e5e010_20260728T090300Z/artifacts/05_findings/cand-b01-s1-mutable-release-source-execution/attack_path_analysis_report.md",
+      "artifact_type": "security_attack_path_analysis",
+      "sha256": "cedea4cfe9d493d3cf6cc692f8112fd0ac2c91cffc6729eaefa1cb6193974d8f",
+      "command": "Repository-evidence attack-path analysis of release selection, workflow triggers, workflow permissions, source checkout, and build sinks",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-28T10:21:59Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The validated path is in scope under the repository CI supply-chain threat model. Read-only workflow permissions, disabled persisted checkout credentials, no observed pull_request_target trigger, no observed secret reference, and the upstream-compromise precondition calibrate the final severity to low / P3."
+    }
+  ],
+  "root_cause": "prepare_release_git_component was intentionally designed for compatibility tracking of current GitHub releases. It reuses latest-release selection for Expat outside strict evidence runs and for go-ftw/albedo, while expected latest is an observation rather than an admission control.",
+  "root_cause_de": "prepare_release_git_component wurde absichtlich zur Kompatibilitätsverfolgung aktueller GitHub-Releases entworfen. Es verwendet Latest-Release-Auswahl für Expat außerhalb strikter Evidence-Läufe und für go-ftw/albedo erneut, während expected latest eine Beobachtung statt einer Admission-Control ist.",
+  "proposed_remediation": "Select and document one immutable provenance contract for every release-resolved component: reviewed full Git commit, verified signed tag, or immutable source archive digest. Parent admission must reject an unexpected latest tag before checkout/build, and any Framework-owned default configuration must be changed only through a separately authorized Framework PR.",
+  "proposed_remediation_de": "Einen unveränderlichen Provenance-Vertrag für jede release-ausgewählte Komponente auswählen und dokumentieren: überprüfter vollständiger Git-Commit, verifizierter signierter Tag oder unveränderlicher Source-Archive-Digest. Die Parent-Admission muss einen unerwarteten Latest-Tag vor Checkout/Build ablehnen; jede Framework-eigene Default-Konfiguration darf nur über einen getrennt autorisierten Framework-PR geändert werden.",
+  "acceptance_criteria": [
+    "The selected immutable provenance contract is explicit for Expat non-strict compatibility, go-ftw, and albedo.",
+    "A release-tag deviation is rejected before checkout or source build rather than recorded as advisory metadata only.",
+    "The normal supported provisioning path preserves its existing safe cache, URL allowlist, clean checkout, submodule, and fsck controls.",
+    "Focused regression tests cover a rejected changed latest release and a legitimate approved immutable source path.",
+    "A fresh exact-head hosted workflow proof confirms the selected contract without a scanner, gate, permission, or provenance-control weakening."
+  ],
+  "validation_plan": [
+    "Choose the approved immutable source identity contract and identify whether the owned defaults reside in Parent or Framework.",
+    "Add focused release-selection and build-admission tests using an offline fixture.",
+    "Run the narrow Python provisioning tests and legitimate normal-path control.",
+    "Run security-diff review and applicable workflow validation, then obtain exact-head hosted proof and a fresh SonarQube Cloud readback before verification."
+  ],
+  "regression_tests": [
+    "tests/test_prepare_runtime_components.py",
+    "offline release-selection and harmless local build-sink fixture"
+  ],
+  "legitimate_control_tests": [
+    "A configured reviewed immutable source is admitted and records the exact checked-out identity.",
+    "A changed GitHub latest-release response is rejected before checkout and build.",
+    "A normal cache/provisioning run retains safe-root, URL, submodule, and git-fsck controls."
+  ],
+  "dependencies": [
+    "Current user selection of the accepted immutable provenance contract",
+    "Separate Framework write authorization if the selected default pins are Framework-owned",
+    "Exact-head hosted workflow and SonarQube Cloud evidence"
+  ],
+  "blocked_by": [
+    "The user has not selected whether normal release tracking must use reviewed commits, verified signed tags, or source archive digests.",
+    "Framework configuration write scope is not selected for the current task."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0050",
+    "FND-PARENT-0052",
+    "FND-SONAR-0016"
+  ],
+  "source_run_ids": [
+    "sonar-652-duplication-zero-20260728-W8wqjk"
+  ],
+  "residual_risk": "Until the normal release-resolved components have an approved immutable provenance contract, a compromised upstream release-selection state can make its source build behavior run in scheduled or trusted-manual provisioning. Current repository evidence limits the demonstrated workflow token to contents:read and does not establish secret or deployment compromise; no risk is accepted.",
+  "residual_risk_de": "Bis die normalen release-ausgewählten Komponenten einen genehmigten unveränderlichen Provenance-Vertrag haben, kann ein kompromittierter Upstream-Release-Auswahlzustand sein Source-Build-Verhalten in geplanter oder vertrauenswürdig manueller Provisionierung ausführen lassen. Aktuelle Repository-Evidence begrenzt das belegte Workflow-Token auf contents:read und belegt keinen Secret- oder Deployment-Kompromiss; es wird kein Risiko akzeptiert.",
+  "created_at": "2026-07-28T10:21:59Z",
+  "updated_at": "2026-07-28T10:21:59Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-28T10:16:00Z",
+      "event": "offline_selector_and_build_sink_validation_passed",
+      "detail": "The retained no-network fixture proved that a changed latest-release tag is admitted as present and reaches the real Go build sink through the production module; no upstream source was executed."
+    },
+    {
+      "at": "2026-07-28T10:20:00Z",
+      "event": "attack_path_calibrated_low_p3",
+      "detail": "The repository CI supply-chain threat model makes the validated provenance path in scope. Read-only workflow scope, disabled persisted credentials, no observed pull_request_target or secret reference, and the upstream-compromise precondition produce a low/P3 reportable disposition."
+    }
+  ]
+}

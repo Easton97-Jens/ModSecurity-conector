@@ -1,0 +1,172 @@
+{
+  "id": "FND-PARENT-0031",
+  "title": "Strict runtime evidence lacks a detached producer receipt for full-matrix artifacts",
+  "title_de": "Strikte Runtime-Evidence besitzt keinen abgekoppelten Producer-Receipt für Full-Matrix-Artefakte",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "high",
+  "confidence": "validated",
+  "status": "closed",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "validated",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "CI report and runtime-evidence integrity",
+  "profile": "verified full runtime matrix",
+  "affected_files": [
+    "ci/lib/verified_full_matrix_receipt.py",
+    "ci/runtime/lifecycle/run-verified-report-run.py",
+    "ci/runtime/lifecycle/run-full-matrix-parallel.sh",
+    "ci/checks/documentation/check-generated-report-layout.py",
+    "ci/evidence/reports/generate-full-matrix-job-completeness.py"
+  ],
+  "affected_symbols": [
+    "seal_full_matrix_aggregate_receipt",
+    "validate_full_matrix_aggregate_receipt",
+    "write_verified_manifest",
+    "run_job",
+    "check_verified_runtime_artifact_chain",
+    "rewrite_manifest"
+  ],
+  "source_commits": [
+    "c8ca0d92b630c18232b881855c4f5d1482568ea6",
+    "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+    "3966707c4e42006edd91eb8d0c7510940592ed84",
+    "f50a29f9b27280e8a4cddf4cbaeb0754b1ca66de",
+    "d4f88b886dac6fd5f483940015d6310bc239f814",
+    "b9b22cc36958ba506278f3aa3fbc1d383ea6a151",
+    "5a22cbf5206dbc2b7f53a9f961d72e37d567e188"
+  ],
+  "summary": "The strict result consumer recomputes a leaf result hash but trusts the mutable job receipt and raw-matrix row that declare that hash. A forged PASS JSONL with synchronized job.json and raw-row hash fields is accepted because the detached verified-commands receipt binds only command completion, not the full artifact set.",
+  "summary_de": "Der strikte Result-Consumer berechnet einen Leaf-Result-Hash neu, vertraut aber dem veränderbaren Job-Receipt und der Raw-Matrix-Zeile, die diesen Hash deklarieren. Eine gefälschte PASS-JSONL mit synchronisierten Hash-Feldern in job.json und Raw-Zeile wird akzeptiert, weil der abgekoppelte verified-commands-Receipt nur Command-Completion, nicht das vollständige Artefaktset bindet.",
+  "observed_behavior": "A valid temporary full run was modified after receipt creation by replacing one connector result JSONL with forged PASS content and updating hashes.results_jsonl in the matching job.json plus the matching full-runtime-matrix-runs.jsonl row. check_verified_runtime_artifact_chain returned no errors. Raw-to-job equality is therefore self-authenticating rather than anchored in a producer-owned immutable aggregate receipt.",
+  "observed_behavior_de": "Ein gültiger temporärer Full-Run wurde nach der Receipt-Erstellung verändert: Eine Connector-Result-JSONL wurde durch gefälschten PASS-Inhalt ersetzt und hashes.results_jsonl in der passenden job.json sowie der passenden full-runtime-matrix-runs.jsonl-Zeile aktualisiert. check_verified_runtime_artifact_chain lieferte keine Fehler. Die Raw-zu-Job-Gleichheit ist damit selbst-authentifizierend statt in einem Producer-eigenen unveränderlichen Aggregate-Receipt verankert.",
+  "expected_behavior": "A trusted Parent producer writes one canonical, regular, per-run aggregate receipt under verified-runs/<run-id>/ after the complete matrix stage. It binds the raw matrix, every canonical job receipt, and required leaf artifacts by expected identity, canonical path, byte count, and SHA-256. The strict consumer validates that aggregate receipt before accepting mutable job or raw records.",
+  "expected_behavior_de": "Ein vertrauenswürdiger Parent-Producer schreibt nach der vollständigen Matrix-Phase genau einen kanonischen regulären per-Run-Aggregate-Receipt unter verified-runs/<run-id>/. Er bindet Raw-Matrix, jeden kanonischen Job-Receipt und erforderliche Leaf-Artefakte über erwartete Identität, kanonischen Pfad, Byte-Anzahl und SHA-256. Der strikte Consumer validiert diesen Aggregate-Receipt, bevor er veränderbare Job- oder Raw-Records akzeptiert.",
+  "impact": "An actor able to modify retained runtime artifacts after job receipt creation can make a forged PASS result internally consistent with mutable receipts and pass the strict consumer. This defeats hash-based result-file authenticity under the stated untrusted-artifact threat model.",
+  "impact_de": "Ein Akteur, der aufbewahrte Runtime-Artefakte nach Erstellung des Job-Receipts verändern kann, kann ein gefälschtes PASS-Result intern mit veränderbaren Receipts konsistent machen und den strikten Consumer bestehen lassen. Dies unterläuft hash-basierte Result-Datei-Authentizität im angegebenen Untrusted-Artifact-Bedrohungsmodell.",
+  "preconditions": [
+    "A full-matrix artifact tree and its job/raw receipts are writable or replaceable after the job producer records its hashes.",
+    "The strict consumer relies on the existing mutable raw matrix and job receipt fields without a detached aggregate seal."
+  ],
+  "reproduction": [
+    "Build the focused valid temporary twelve-cell run fixture.",
+    "Replace one results JSONL with forged PASS content.",
+    "Update the matching job.json hashes.results_jsonl and matching raw-manifest row hashes.results_jsonl.",
+    "Invoke check_verified_runtime_artifact_chain and observe no errors before the separate fix."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/05_findings/FND-PARENT-0031-detached-producer-receipt/pre-fix-paired-receipt-forgery.json",
+      "artifact_type": "paired_mutable_receipt_forgery_reproduction",
+      "sha256": "e2cb80674729a8669fdd29dcd1b9650a210e796bc7365e7114ef597fe845c643",
+      "command": "Focused temporary Parent fixture executed with bytecode writes disabled",
+      "working_directory": "/var/tmp/codex/worktrees/parent-evidence-result-authenticity",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T14:10:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T080314Z-parent-pr55-57-59-framework-update-3443af13",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T080314Z-parent-pr55-57-59-framework-update-3443af13/evidence/pr59-d4-current-head-verification.md",
+      "artifact_type": "pr59_exact_head_delivery_and_security_snapshot",
+      "sha256": "38e88188683330e57704bb3d4559c5604dbea303c1f305fb17e695545267107d",
+      "command": "GitHub PR/check/CodeQL/Sonar/review snapshot plus git diff --check for PR #59 exact head d4f88b886dac6fd5f483940015d6310bc239f814",
+      "working_directory": "/var/tmp/codex/worktrees/parent-evidence-result-authenticity",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T09:57:03Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "PR #59 head has the detached aggregate-receipt and descriptor-relative hardening; all observed exact-head checks passed, but the Draft is behind current Parent master and requires a fresh exact-head cycle."
+    },
+    {
+      "run_id": "20260720T141403Z-pr55-pr59-master-integration-8a0b8640",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/evidence/pr59-5a22cbf-postmerge-validation.json",
+      "artifact_type": "pr59_resulting_parent_master_producer_authenticity_verification",
+      "sha256": "7749e6c6fd1ab198b54eb9704221d30aa150954db6130bec0317801a8afddc51",
+      "command": "Exact PR #59 head b9b22cc36958ba506278f3aa3fbc1d383ea6a151 passed current non-skipped CI, CodeQL, SonarQube Cloud and zero review/thread gates; after protected squash merge to Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188, run tests.test_generated_report_evidence_integrity (57/57), tests.test_bilingual_docs (11/11), sh -n ci/runtime/lifecycle/run-full-matrix-parallel.sh, and git diff --check.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/postmerge-5a22cbf",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T15:13:08+00:00",
+      "retention_status": "retained_task_evidence",
+      "summary": "The paired mutable result/job/raw forgery and alternate rewrite controls fail closed while the valid complete twelve-cell aggregate receipt control passes. FND-SONAR-0001 remains an independent unaccepted global master Sonar failure."
+    }
+  ],
+  "root_cause": "The current run-level verified-commands record proves only that the full-matrix command completed. It omits a detached inventory of the raw matrix, job JSON receipts, and leaf artifact hashes. The strict checker therefore compares two mutable documents that can be changed together.",
+  "root_cause_de": "Der aktuelle run-weite verified-commands-Record beweist nur, dass der Full-Matrix-Command abgeschlossen wurde. Er enthält kein abgekoppeltes Inventar der Raw-Matrix, der Job-JSON-Receipts und Leaf-Artefakt-Hashes. Der strikte Checker vergleicht daher zwei veränderbare Dokumente, die gemeinsam geändert werden können.",
+  "proposed_remediation": "Commit 3966707c4e42006edd91eb8d0c7510940592ed84 implements the separate stacked Parent aggregate receipt producer after the full-matrix runtime stage, records it by path/hash/bytes, and makes the strict consumer compare the expected twelve-cell raw/job/leaf inventory to the receipt. It includes paired-forgery, alternate mutation, foreign-run generator, resume, and valid-control coverage. FND-PARENT-0037 remains a separate descriptor-relative path-confinement prerequisite before this receipt chain can be considered fully verified.",
+  "proposed_remediation_de": "Commit 3966707c4e42006edd91eb8d0c7510940592ed84 implementiert den separaten gestapelten Parent-Aggregate-Receipt-Producer nach der Full-Matrix-Runtime-Phase, zeichnet ihn über Pfad/Hash/Bytes auf und lässt den strikten Consumer das erwartete Zwölf-Zellen-Raw-/Job-/Leaf-Inventar mit dem Receipt vergleichen. Er enthält gekoppelte-Fälschung-, Alternativmutation-, Fremd-Run-Generator-, Resume- und gültige-Kontroll-Coverage. FND-PARENT-0037 bleibt eine separate descriptor-relative Path-Confinement-Voraussetzung, bevor diese Receipt-Kette als vollständig verifiziert gelten kann.",
+  "acceptance_criteria": [
+    "A result JSONL forged together with mutable job.json and raw-matrix hash fields is rejected.",
+    "A detached per-run aggregate receipt binds raw matrix, all twelve job receipts, required log/build-manifest/summary/result artifacts, and their canonical identities, byte counts, and hashes.",
+    "The aggregate receipt is regular, run-ID-bound, and itself bound into the verified run manifest; descriptor-relative path confinement is tracked independently by FND-PARENT-0037.",
+    "A valid complete control run passes after aggregate receipt creation.",
+    "The user-authorized combined Parent Draft PR preserves distinct FND-PARENT-0030/-0031/-0037 traceability; no Framework or MRTS change or merge occurs."
+  ],
+  "validation_plan": [
+    "Add the paired mutable-receipt forgery fixture before the producer or consumer change and demonstrate the pre-fix acceptance.",
+    "Run focused report-evidence integrity tests, generator/producer tests, shell syntax, in-memory Python compilation, bilingual docs, governance-only and expected strict checks.",
+    "Completed: exact PR #59 source head b9b22cc36958ba506278f3aa3fbc1d383ea6a151 passed all non-skipped protected checks, required contexts, CodeQL, SonarQube Cloud Quality Gate, issue query, and zero-review/thread controls; protected squash merge produced Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 with an identical tree, where detached-master 57/57 original-reproduction and legitimate-control evidence, bilingual 11/11, shell syntax, diff, and clean/no-.pyc checks passed.",
+    "The FND-SONAR-0001 global master error is independent of this verification and is neither accepted nor suppressed."
+  ],
+  "regression_tests": [
+    "tests/test_generated_report_evidence_integrity.py"
+  ],
+  "legitimate_control_tests": [
+    "A full canonical twelve-cell run with a matching aggregate receipt passes.",
+    "A completed_with_mismatches run remains schema-valid when its aggregate receipt and required artifacts match."
+  ],
+  "dependencies": [
+    "FND-PARENT-0030 strict canonical consumer branch is the prerequisite for the aggregate-receipt consumer seam.",
+    "FND-PARENT-0037 descriptor-relative receipt-path remediation is required before final verified disposition."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0030",
+    "FND-PARENT-0037",
+    "FND-PARENT-0024",
+    "FND-CROSS-0001"
+  ],
+  "deduplication_note": "Not a duplicate of FND-PARENT-0030. FND-PARENT-0030 validates canonical paths, status schema, and mutable leaf/job/raw consistency; this finding is the independent missing producer-authenticity anchor that prevents synchronized receipt forgery.",
+  "source_run_ids": [
+    "20260718T075200Z-parent-evidence-integrity-ade378cf",
+    "20260720T080314Z-parent-pr55-57-59-framework-update-3443af13",
+    "20260720T141403Z-pr55-pr59-master-integration-8a0b8640"
+  ],
+  "residual_risk": "The receipt chain is not a signature, ACL, process-identity, UID-isolation, or external-attestation boundary. Mode 0400 limits group/other access only; arbitrary same-UID write access to the Parent evidence namespace remains outside this local filesystem trust model. No risk is accepted. The exact b9b22cc36958ba506278f3aa3fbc1d383ea6a151 PR gates and resulting master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 original-reproduction and legitimate controls are verified, not closed. FND-CROSS-0001 separately blocks real current runtime evidence and FND-SONAR-0001 separately fails the global master Quality Gate without attribution to this finding.",
+  "residual_risk_de": "Die Receipt-Kette ist keine Signatur-, ACL-, Prozessidentitäts-, UID-Isolations- oder External-Attestation-Grenze. Modus 0400 beschränkt nur Group-/Other-Zugriff; beliebiger Same-UID-Schreibzugriff auf den Parent-Evidence-Namespace bleibt außerhalb dieses lokalen Filesystem-Trust-Modells. Es wird kein Risiko akzeptiert. Die exakten b9b22cc36958ba506278f3aa3fbc1d383ea6a151-PR-Gates und die Original-Reproduktion sowie legitimen Kontrollen auf resultierendem Master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 sind verified, nicht closed. FND-CROSS-0001 blockiert reale aktuelle Runtime-Evidence getrennt und FND-SONAR-0001 lässt das globale Master-Quality-Gate ohne Zuschreibung zu diesem Finding getrennt fehlschlagen.",
+  "created_at": "2026-07-18T14:10:00Z",
+  "updated_at": "2026-07-26T14:09:02Z",
+  "final_disposition": "closed_by_current_user_after_current_master_unchanged_evidence_integrity_validation_archived_20260726",
+  "history": [
+    {
+      "at": "2026-07-18T14:10:00Z",
+      "event": "validated_paired_mutable_receipt_forgery",
+      "detail": "Independent security review reproduced an accepted forged PASS result after synchronized updates to the mutable job and raw-matrix receipts. The remediation is split from FND-PARENT-0030 into a separate Parent producer-authenticity branch."
+    },
+    {
+      "at": "2026-07-18T15:35:00Z",
+      "event": "local_receipt_remediation_committed",
+      "detail": "Commit 3966707c4e42006edd91eb8d0c7510940592ed84 adds the aggregate receipt, strict consumer verification, immutable historical resume semantics, foreign-run generator rejection, and 39 focused evidence-integrity controls. Independent re-review passed for the two follow-up P2 gaps. The separate FND-PARENT-0037 path-race finding remains required before final verification."
+    },
+    {
+      "at": "2026-07-20T09:57:03Z",
+      "event": "fixed_on_current_pr_head",
+      "detail": "PR #59 exact head d4f88b886dac6fd5f483940015d6310bc239f814 contains the detached aggregate receipt and the related FND-PARENT-0037 descriptor-relative remediation. The retained exact-head snapshot records passing observed checks, but the Draft is behind current master 9ef0619b9c00729c16b7056943d7843785223095; normal synchronization, fresh exact-head evidence, authorized merge, and post-merge reproduction remain required."
+    },
+    {
+      "at": "2026-07-20T15:13:08+00:00",
+      "event": "verified_on_resulting_parent_master",
+      "detail": "PR #59 exact head b9b22cc36958ba506278f3aa3fbc1d383ea6a151 passed current non-skipped CI, CodeQL, SonarQube Cloud, and zero-review/thread gates, then was protected-squash-merged as Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188. Retained post-merge evidence records paired mutable result/job/raw and alternate rewrite rejection plus a valid twelve-cell aggregate control among 57/57 tests, with 11/11 bilingual, shell syntax, and diff controls. FND-SONAR-0001 remains a separate unaccepted global master Sonar failure. This finding is verified, not closed."
+    },
+    {
+      "at": "2026-07-26T14:09:02Z",
+      "event": "closed_by_current_user_after_current_master_unchanged_path_validation",
+      "detail": "The current user authorized closure and archival. All affected paths remain unchanged from verified Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 to current master 6ca7e1536ce7e93da68099db9c586b88852ff13e, and tests.test_generated_report_evidence_integrity passed in the 144-test current-master control suite."
+    }
+  ]
+}

@@ -1,0 +1,202 @@
+{
+  "id": "FND-PARENT-0047",
+  "title": "Go CodeQL version-contract checker allowed YAML-equivalent literal selectors",
+  "title_de": "Go-CodeQL-Versions-Contract-Checker erlaubte YAML-äquivalente Literal-Selektoren",
+  "category": "security_hardening",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "low",
+  "confidence": "reproduced",
+"status": "closed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "GitHub Actions CodeQL Go toolchain-selection contract",
+  "profile": "github_actions_codeql_go_version_contract",
+  "source_base_revision": "d99eafd76d9fdbef5b63a19d084fd2d7caff6c08",
+  "delivery_state": "verified_exact_head_ci_and_sonarqube_cloud_passed",
+  "security_assessment": "The static Go version contract is a defense-in-depth control over an untrusted pull-request workflow diff. The immutable actions/setup-go v7 source warns when both inputs are present and resolves literal go-version before go-version-file. A YAML-equivalent second key could therefore defeat the central .go-version authority while the checker reported success. This is low impact because a workflow edit still needs the repository pull-request/review path, but it is a reproducible CodeQL workflow control bypass.",
+  "security_assessment_de": "Der statische Go-Versionsvertrag ist ein Defense-in-Depth-Control über einen nicht vertrauenswürdigen Pull-Request-Workflow-Diff. Der immutable actions/setup-go-v7-Source warnt bei beiden Inputs und löst Literal-go-version vor go-version-file auf. Ein YAML-äquivalenter zweiter Key konnte daher die zentrale .go-version-Autorität umgehen, während der Checker Erfolg meldete. Die Auswirkung ist niedrig, weil eine Workflow-Änderung weiterhin den Repository-Pull-Request-/Review-Pfad benötigt; dennoch ist dies ein reproduzierbarer CodeQL-Workflow-Control-Bypass.",
+  "affected_files": [
+    "ci/checks/common/check-go-version-contract.py",
+    "tests/test_go_version_contract.py"
+  ],
+  "affected_symbols": [
+    "job_violations",
+    "setup_go_blocks",
+    "EXPECTED_SETUP_GO_BODY",
+    "GoVersionContractTests.test_yaml_equivalent_literal_selector_variants_are_rejected"
+  ],
+  "entry_point": "The Parent CodeQL workflow invokes actions/setup-go in envoy-go and traefik-go. The contract checker evaluates that workflow before ordinary CI acceptance.",
+  "entry_point_de": "Der Parent-CodeQL-Workflow ruft actions/setup-go in envoy-go und traefik-go auf. Der Contract-Checker bewertet diesen Workflow vor der gewöhnlichen CI-Akzeptanz.",
+  "source_to_sink_or_broken_control": "An untrusted workflow diff can add a YAML-equivalent literal go-version key while retaining go-version-file: .go-version and check-latest: false. The former partial text check returned no violation. actions/setup-go resolves go-version in preference to go-version-file, so the central file could cease to be the effective selector for CodeQL Go jobs.",
+  "source_to_sink_or_broken_control_de": "Ein nicht vertrauenswürdiger Workflow-Diff kann einen YAML-äquivalenten Literal-go-version-Key hinzufügen, während go-version-file: .go-version und check-latest: false erhalten bleiben. Die frühere partielle Textprüfung lieferte keine Verletzung. actions/setup-go löst go-version vor go-version-file auf, sodass die zentrale Datei für CodeQL-Go-Jobs ihre effektive Selector-Rolle verlieren konnte.",
+  "attacker_prerequisites": [
+    "A pull-request or other proposed workflow change reaches the Parent CI contract checker.",
+    "The actions/setup-go with mapping supplies both the required central-file input and a YAML-equivalent literal go-version key."
+  ],
+  "attacker_prerequisites_de": [
+    "Eine Pull-Request- oder andere vorgeschlagene Workflow-Änderung erreicht den Parent-CI-Contract-Checker.",
+    "Das actions/setup-go-with-Mapping enthält sowohl den erforderlichen Central-File-Input als auch einen YAML-äquivalenten Literal-go-version-Key."
+  ],
+  "observed_behavior": "Before local remediation, space-before-colon, single-quoted-key, double-quoted-key, and explicit-YAML-mapping-key variants all returned an empty violation list while retaining go-version-file. After remediation, each returns the exact central-selector-input violation.",
+  "observed_behavior_de": "Vor der lokalen Remediation lieferten Leerraum-vor-Doppelpunkt-, einfach-zitierter-Key-, doppelt-zitierter-Key- und expliziter-YAML-Mapping-Key-Varianten jeweils eine leere Verletzungsliste, obwohl go-version-file erhalten blieb. Nach der Remediation liefert jede die exakte Central-Selector-Input-Verletzung.",
+  "expected_behavior": "Every CodeQL Go setup step contains exactly the approved with mapping: go-version-file: .go-version and check-latest: false. Any additional, alternate, quoted, whitespace-variant, explicit-mapping, anchor/merge, or malformed input shape fails closed.",
+  "expected_behavior_de": "Jeder CodeQL-Go-Setup-Step enthält exakt das freigegebene with-Mapping: go-version-file: .go-version und check-latest: false. Jede zusätzliche, alternative, zitierte, Leerraum-Variante, explizites Mapping, Anchor/Merge oder fehlerhafte Input-Form scheitert fail-closed.",
+  "impact": "A reviewed workflow change could make a literal Go version override the central .go-version file for CodeQL analysis, weakening toolchain reproducibility and confidence that the centrally reviewed compiler/runtime is used for security analysis.",
+  "impact_de": "Eine geprüfte Workflow-Änderung könnte eine Literal-Go-Version die zentrale .go-version-Datei für die CodeQL-Analyse überschreiben lassen, was Toolchain-Reproduzierbarkeit und das Vertrauen in den zentral geprüften Compiler/Runtime für die Sicherheitsanalyse schwächt.",
+  "preconditions": [
+    "The existing static checker is the admission control for a changed CodeQL workflow.",
+    "actions/setup-go keeps its input-precedence behavior at immutable pin b7ad1dad31e06c5925ef5d2fc7ad053ef454303e."
+  ],
+  "preconditions_de": [
+    "Der vorhandene statische Checker ist das Admission-Control für einen geänderten CodeQL-Workflow.",
+    "actions/setup-go behält sein Input-Precedence-Verhalten am immutable Pin b7ad1dad31e06c5925ef5d2fc7ad053ef454303e."
+  ],
+  "reproduction": [
+    "Create a temporary workflow with normal go-version-file: .go-version and check-latest: false inputs plus one YAML-equivalent literal go-version key.",
+    "Run the prior checker and observe an empty violation list for all four representative key forms.",
+    "Apply the exact-mapping contract, rerun the same variants, and observe the central-selector violation for every variant."
+  ],
+  "reproduction_de": [
+    "Einen temporären Workflow mit normalen Inputs go-version-file: .go-version und check-latest: false sowie einem YAML-äquivalenten Literal-go-version-Key erstellen.",
+    "Den vorherigen Checker ausführen und für alle vier repräsentativen Key-Formen eine leere Verletzungsliste beobachten.",
+    "Den Exact-Mapping-Contract anwenden, dieselben Varianten erneut ausführen und für jede Variante die Central-Selector-Verletzung beobachten."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/evidence/go-contract-literal-selector-remediation.txt",
+      "artifact_type": "local_security_control_reproduction_and_remediation",
+      "sha256": "1d924a16b3c724861070bafe652c487c6bcaf0f512a415dc1ae10a9fa7c32fcc",
+      "command": "rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-run>/tmp /root/git/ModSecurity-conector/.venv/bin/python -; rtk proxy /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_go_version_contract; rtk proxy make check-go-version-contract; rtk proxy git diff --check",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/pr80-central-go-submodule-20260722",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T22:28:04Z",
+      "retention_status": "retained"
+    },
+    {
+      "artifact_type": "immutable_action_source",
+      "url": "https://raw.githubusercontent.com/actions/setup-go/b7ad1dad31e06c5925ef5d2fc7ad053ef454303e/src/main.ts",
+      "summary": "resolveVersionInput warns when both inputs are present and returns go-version before parsing go-version-file.",
+      "observed_at": "2026-07-22T22:18:00Z"
+    },
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/evidence/sonar-remediation-final-local-validation.md",
+      "artifact_type": "final_local_remediation_validation_summary",
+      "sha256": "444a215b5cf98118daf3032e38485b07b3d100ddb8e422cb41ebbeca92d5a624",
+      "command": "Focused updater, workflow-contract, CI-security, bilingual, syntax, diff, and safe CLI-help validation as recorded by the artifact",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/pr80-central-go-submodule-20260722",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T22:47:54Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/tmp/codex-security-scans/ModSecurity-conector/d99eafd76d9_20260722T221118Z/report.md",
+      "artifact_type": "codex_security_diff_scan_report",
+      "sha256": "12df4f3ed8d6f850feaf644a512d7bd1de0c3b41b6fffb5e99e021e21a25e1b4",
+      "command": "finalize_scan_contract.py for scan d99eafd76d9_20260722T221118Z",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/pr80-central-go-submodule-20260722",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T22:41:57Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/evidence/hosted-pr90-06a4e71-validation.json",
+      "artifact_type": "github_and_sonarqube_cloud_exact_head_validation_receipt",
+      "sha256": "db38c89e5c1646e343ec022466d7fec899998dda05558ccf85789196d273ea20",
+      "command": "rtk proxy gh api repos/Easton97-Jens/ModSecurity-conector/commits/06a4e71408a60e5a72a55065a653b9c4e79a1ecf/check-runs --paginate; rtk proxy curl -fsSL 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&pullRequest=90'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T23:02:27Z",
+      "retention_status": "retained"
+    }
+  ],
+  "root_cause": "The prior checker accepted required lines independently and rejected only one exact bare go-version: spelling. YAML permits equivalent mapping keys, so the text-level control did not enforce one unambiguous selector.",
+  "root_cause_de": "Der frühere Checker akzeptierte erforderliche Zeilen unabhängig und wies nur eine exakte bare go-version:-Schreibweise zurück. YAML erlaubt äquivalente Mapping-Keys, daher erzwang das Text-Level-Control keinen eindeutigen Selector.",
+  "proposed_remediation": "Require the complete setup-go with body to equal the exact approved two-input mapping and add deterministic negative coverage for representative YAML-equivalent literal keys. Keep the immutable action pin, central file, check-latest policy, ordinary jobs, and filesystem checks unchanged.",
+  "proposed_remediation_de": "Den vollständigen setup-go-with-Body auf das exakte freigegebene Zwei-Input-Mapping festlegen und deterministische Negativ-Coverage für repräsentative YAML-äquivalente Literal-Keys ergänzen. Den immutable Action-Pin, die zentrale Datei, die check-latest-Policy, gewöhnliche Jobs und Filesystem-Checks unverändert lassen.",
+  "acceptance_criteria": [
+    "The original four YAML-equivalent literal-selector variants are rejected.",
+    "The checked-in CodeQL workflow with exactly go-version-file: .go-version and check-latest: false still passes.",
+    "The action pin and expected job inventory remain exact.",
+    "Focused tests, checker target, CI-security tests, final security-diff review, and exact-head hosted checks pass before verification."
+  ],
+  "acceptance_criteria_de": [
+    "Die ursprünglichen vier YAML-äquivalenten Literal-Selector-Varianten werden zurückgewiesen.",
+    "Der eingecheckte CodeQL-Workflow mit exakt go-version-file: .go-version und check-latest: false besteht weiterhin.",
+    "Der Action-Pin und das erwartete Job-Inventar bleiben exakt.",
+    "Fokussierte Tests, Checker-Target, CI-Security-Tests, finaler Security-Diff-Review und Exact-Head-Hosted-Checks bestehen vor Verifikation."
+  ],
+  "validation_plan": [
+    "Run tests.test_go_version_contract, including representative bypass variants and the valid central-selector control.",
+    "Run make check-go-version-contract and make check-ci-security-contract.",
+    "Rerun the original temporary-variant reproduction and inspect the final diff for unchanged action pin/job inventory and no workflow permission change.",
+    "Run final exact-diff Codex Security review and inspect exact-head hosted checks after commit and normal push."
+  ],
+  "validation_plan_de": [
+    "tests.test_go_version_contract einschließlich repräsentativer Bypass-Varianten und des gültigen Central-Selector-Controls ausführen.",
+    "make check-go-version-contract und make check-ci-security-contract ausführen.",
+    "Die ursprüngliche temporäre Variantenreproduktion erneut ausführen und den finalen Diff auf unveränderten Action-Pin/Job-Inventar sowie keine Workflow-Permission-Änderung prüfen.",
+    "Finalen Exact-Diff-Codex-Security-Review ausführen und nach Commit und normalem Push Exact-Head-Hosted-Checks prüfen."
+  ],
+  "regression_tests": [
+    "tests/test_go_version_contract.py::GoVersionContractTests.test_yaml_equivalent_literal_selector_variants_are_rejected",
+    "tests/test_go_version_contract.py::GoVersionContractTests.test_valid_contract_accepts_two_central_selectors",
+    "make check-go-version-contract"
+  ],
+  "legitimate_control_tests": [
+    "The checked-in CodeQL workflow passes with the exact approved mapping.",
+    "Wrong action pins, literal selectors, unlisted Go jobs, and symlinked .go-version files remain rejected."
+  ],
+  "legitimate_control_tests_de": [
+    "Der eingecheckte CodeQL-Workflow besteht mit dem exakten freigegebenen Mapping.",
+    "Falsche Action-Pins, Literal-Selector, nicht gelistete Go-Jobs und symlinkte .go-version-Dateien bleiben zurückgewiesen."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0010"
+  ],
+  "deduplication_note": "Not a duplicate of FND-SONAR-0010: FND-SONAR-0010 owns the hosted Quality Gate duplication/reliability failure. This finding owns a separately reproducible semantic bypass of the Go central-selector security contract.",
+  "source_run_ids": [
+    "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37"
+  ],
+  "evidence_limitations": [
+    "The local reproduction proves the checker control and the immutable action source establishes precedence; exact head 06a4e71408a60e5a72a55065a653b9c4e79a1ecf now also has successful ordinary hosted checks and SonarQube Cloud Quality Gate.",
+    "The condition was present in d99eafd76d9fdbef5b63a19d084fd2d7caff6c08 before this Sonar-remediation follow-up. It is task-owned in PR #90 but not a change introduced by the local shared-updater extraction."
+  ],
+  "residual_risk": "The verified control applies to the exact current PR #90 head. Future workflow-contract changes still require the checker, review, and a fresh exact-head validation cycle. No risk acceptance is recorded.",
+  "residual_risk_de": "Das verifizierte Control gilt für den exakten aktuellen PR-#90-Head. Künftige Workflow-Contract-Änderungen benötigen weiterhin Checker, Review und einen frischen Exact-Head-Validierungszyklus. Es ist keine Risikoakzeptanz erfasst.",
+  "history": [
+    {
+      "at": "2026-07-22T22:18:00Z",
+      "event": "control_bypass_reproduced",
+      "detail": "Four YAML-equivalent literal go-version variants passed the prior checker while retaining go-version-file. The immutable actions/setup-go v7 source was inspected to confirm literal-input precedence."
+    },
+    {
+      "at": "2026-07-22T22:28:04Z",
+      "event": "local_fix_and_regression_validation",
+      "detail": "The checker now requires the exact two-input setup-go body. All four variants are rejected; six focused tests, make check-go-version-contract, Python syntax compilation, and git diff --check passed."
+    },
+    {
+      "at": "2026-07-22T22:47:54Z",
+      "event": "final_local_remediation_validation_and_security_scan",
+      "detail": "The complete remediation passed 100 focused tests, all static contracts, syntax compilation, safe CLI-help smokes, and diff validation. Final security-diff scan d99eafd76d9_20260722T221118Z is complete with zero findings; hosted exact-head proof remains pending."
+    },
+    {
+      "at": "2026-07-22T23:02:27Z",
+      "event": "exact_head_hosted_validation_verified",
+      "detail": "Exact PR #90 head 06a4e71408a60e5a72a55065a653b9c4e79a1ecf has ordinary hosted checks terminal success or skipped and SonarQube Cloud Quality Gate passed. The verified CodeQL workflow still uses the exact central selector mapping."
+    }
+  ],
+  "created_at": "2026-07-22T22:18:00Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": "closed after https://github.com/Easton97-Jens/ModSecurity-conector/pull/90 merged to master as ad953cdcbc8c05ede519661ca56c03cf7b1ac7f3; the fixed selector remains in the current unchanged affected scope and exact PR checks passed."
+}

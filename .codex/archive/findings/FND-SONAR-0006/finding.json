@@ -1,0 +1,291 @@
+{
+  "id": "FND-SONAR-0006",
+  "title": "Parent PR #59 exact head has eight task-owned SonarQube Cloud maintainability CODE_SMELLs",
+  "title_de": "Exakter Parent-PR-#59-Head hat acht aufgabeneigene SonarQube-Cloud-Maintainability-CODE_SMELLs",
+  "category": "sonarqube_finding",
+  "sonarqube_classification": "maintainability",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "verified",
+  "feasibility_status": "already_fixed",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "ci/checks/documentation/check-generated-report-layout.py",
+    "ci/evidence/reports/generate-full-matrix-job-completeness.py",
+    "ci/runtime/lifecycle/run-verified-report-run.py",
+    "tests/test_generated_report_evidence_integrity.py",
+    "ci/lib/verified_full_matrix_receipt.py"
+  ],
+  "affected_symbols": [
+    "python:S3776",
+    "python:S1066",
+    "python:S5778",
+    "python:S1192",
+    "SonarQube Cloud PR #59 exact-head issue query"
+  ],
+  "source_commits": [
+    "b9b22cc36958ba506278f3aa3fbc1d383ea6a151",
+    "5a22cbf5206dbc2b7f53a9f961d72e37d567e188"
+  ],
+  "summary": "The retained SonarQube Cloud issue query for Parent PR #59 head 841d5d66ba6db852cbc3c0a906e56d74583beb89 against base 6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8 reports eight task-owned CODE_SMELL observations on changed Parent lines. The quality gate is OK and all observations are non-security maintainability findings. SonarQube Cloud labels six observations CRITICAL and two MAJOR, but those are scanner labels only: this finding has security severity not_applicable, security_relevant false, and release_blocker false. The behavior-preserving non-suppressive remediation was merged as Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188; the retained post-merge receipt records 57/57 evidence-integrity, 11/11 bilingual, shell-syntax, and diff controls passing, PR Quality Gate OK, and zero remaining original keys on master. The independent FND-SONAR-0001 master Quality Gate failure remains separate. This finding is verified, not closed.",
+  "summary_de": "Die zurückgehaltene SonarQube-Cloud-Issue-Abfrage für Parent-PR #59, Head 841d5d66ba6db852cbc3c0a906e56d74583beb89 gegen Basis 6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8, meldet acht aufgabeneigene CODE_SMELL-Beobachtungen auf geänderten Parent-Zeilen. Das Quality Gate ist OK und alle Beobachtungen sind nicht-sicherheitsrelevante Maintainability-Findings. SonarQube Cloud versieht sechs Beobachtungen mit CRITICAL und zwei mit MAJOR, aber das sind ausschließlich Scanner-Labels: Dieses Finding hat Security-Schwere not_applicable, security_relevant false und release_blocker false. Die verhaltenserhaltende nicht-suppressive Remediation wurde als Parent-Master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 gemergt; der zurückgehaltene Post-Merge-Receipt erfasst 57/57 Evidence-Integrity-, 11/11 Bilingual-, Shell-Syntax- und Diff-Controls bestanden, PR-Quality-Gate OK und null verbleibende ursprüngliche Keys auf master. Der unabhängige FND-SONAR-0001-Master-Quality-Gate-Fehler bleibt getrennt. Dieses Finding ist verified, nicht closed.",
+  "observed_behavior": "The exact-head issue query reports total=8, open_security_hotspots=0, and open_vulnerabilities=0. All eight records are classified by the retained receipt as SonarQube Cloud CODE_SMELL maintainability findings; the receipt also establishes that each component is a changed Parent path and each reported line is in the current PR diff. The same receipt records Quality Gate status OK with new reliability, security, and maintainability ratings of 1, duplicated-lines density 0.0, and security-hotspots reviewed 100.0.",
+  "observed_behavior_de": "Die Exact-Head-Issue-Abfrage meldet total=8, open_security_hotspots=0 und open_vulnerabilities=0. Alle acht Records sind durch den zurückgehaltenen Receipt als SonarQube-Cloud-CODE_SMELL-Maintainability-Findings klassifiziert; der Receipt belegt außerdem, dass jede Komponente ein geänderter Parent-Pfad und jede gemeldete Zeile im aktuellen PR-Diff liegt. Derselbe Receipt erfasst Quality-Gate-Status OK mit neuen Reliability-, Security- und Maintainability-Ratings von 1, duplicated-lines density 0.0 und security-hotspots reviewed 100.0.",
+  "expected_behavior": "The focused PR #59 remediation preserves observable behavior while reducing the rule-specific complexity, nesting, exception-test, and duplicated-literal smells. It was merged as master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 and is verified by the retained post-merge controls, PR Quality Gate OK, and a resulting-master query that reports the eight observations zero remaining without NOSONAR, rule disabling, exclusions, a Quality Gate change, or a false-positive disposition.",
+  "expected_behavior_de": "Die fokussierte PR-#59-Remediation bewahrt beobachtbares Verhalten und reduziert zugleich die regelbezogenen Complexity-, Nesting-, Exception-Test- und Duplicate-Literal-Smells. Sie wurde als Master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 gemergt und ist durch die zurückgehaltenen Post-Merge-Controls, PR-Quality-Gate OK und eine Resulting-Master-Abfrage verifiziert, die die acht Beobachtungen ohne NOSONAR, Regel-Deaktivierung, Exclusions, Quality-Gate-Änderung oder False-Positive-Disposition als null verbleibend meldet.",
+  "impact": "The current quality gate remains passing and the observations are not a security or release-blocking condition. Left unresolved, the eight task-owned smells increase complexity and maintenance cost in report-layout, lifecycle, receipt, and evidence-test code. Their CRITICAL/MAJOR scanner labels must not be reinterpreted as security severity or as a release blocker.",
+  "impact_de": "Das aktuelle Quality Gate bleibt bestanden und die Beobachtungen sind weder eine Security- noch eine Release-Blocker-Bedingung. Ungelöst erhöhen die acht aufgabeneigenen Smells Komplexität und Wartungsaufwand in Report-Layout-, Lifecycle-, Receipt- und Evidence-Test-Code. Ihre CRITICAL-/MAJOR-Scanner-Labels dürfen nicht als Security-Schwere oder als Release-Blocker umgedeutet werden.",
+  "preconditions": [
+    "The retained receipt is bound to Parent PR #59 head 841d5d66ba6db852cbc3c0a906e56d74583beb89 and base 6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8.",
+    "The receipt records Quality Gate status OK, zero open security hotspots, and zero open vulnerabilities for this exact-head query.",
+    "The receipt's ownership assessment states that all eight components are changed Parent paths and all reported lines are within the current diff.",
+    "Any remediation remains Parent-owned, behavior-preserving, and non-suppressive; Framework and MRTS remain outside scope."
+  ],
+  "reproduction": [
+    "Read /var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/evidence/sonar-pr59-841d5d6-maintainability.json and confirm pull_request=59, head_sha=841d5d66ba6db852cbc3c0a906e56d74583beb89, base_sha=6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8, quality_gate.status=OK, and issue_query.total=8.",
+    "Run rtk sha256sum /var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/evidence/sonar-pr59-841d5d6-maintainability.json and compare the result with 538bb94b4716979d1b75fb95b4cff97a3d4d47710b2592fc35ce5b285c2e4222.",
+    "For remediation verification, obtain a fresh SonarQube Cloud PR analysis bound to the exact remediation head and check the quality gate plus the eight issue keys individually."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260720T141403Z-pr55-pr59-master-integration-8a0b8640",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/evidence/sonar-pr59-841d5d6-maintainability.json",
+      "artifact_type": "exact_pr_head_sonarqube_cloud_maintainability_issue_query",
+      "sha256": "538bb94b4716979d1b75fb95b4cff97a3d4d47710b2592fc35ce5b285c2e4222",
+      "command": "rtk sha256sum /var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/evidence/sonar-pr59-841d5d6-maintainability.json; the retained JSON is the exact-head SonarQube Cloud PR #59 issue-query receipt.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T14:35:23Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T141403Z-pr55-pr59-master-integration-8a0b8640",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/evidence/pr59-b9b22cc-local-sonar-remediation-validation.json",
+      "artifact_type": "local_sonar_maintainability_remediation_validation",
+      "sha256": "c78e125ceb25956b25cd248bad1d04e83221a1bf2a332360148dc67005ed9e53",
+      "command": "Retained local validation receipt for b9b22cc36958ba506278f3aa3fbc1d383ea6a151: 57/57 tests.test_generated_report_evidence_integrity tests, sh -n ci/runtime/lifecycle/run-full-matrix-parallel.sh, 11/11 tests.test_bilingual_docs tests, git diff --check, and independent focused five-file receipt/path/TOCTOU security review; see artifact local_validation.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T14:48:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T141403Z-pr55-pr59-master-integration-8a0b8640",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/evidence/pr59-5a22cbf-postmerge-validation.json",
+      "artifact_type": "postmerge_pr59_master_verification",
+      "sha256": "7749e6c6fd1ab198b54eb9704221d30aa150954db6130bec0317801a8afddc51",
+      "command": "rtk sha256sum /var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/evidence/pr59-5a22cbf-postmerge-validation.json; retained post-merge validation records master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188, 57/57 evidence-integrity, 11/11 bilingual, shell syntax and diff passed, PR Quality Gate OK, and zero original FND-SONAR-0006 keys on master.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T15:13:08Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "sonarqube_cloud_context": {
+    "pull_request": 59,
+    "head_sha": "841d5d66ba6db852cbc3c0a906e56d74583beb89",
+    "base_sha": "6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8",
+    "quality_gate": {
+      "status": "OK",
+      "new_reliability_rating": "1",
+      "new_security_rating": "1",
+      "new_maintainability_rating": "1",
+      "new_duplicated_lines_density": "0.0",
+      "new_security_hotspots_reviewed": "100.0"
+    },
+    "issue_query": {
+      "total": 8,
+      "open_security_hotspots": 0,
+      "open_vulnerabilities": 0,
+      "classification": "all eight observations are SonarQube Cloud CODE_SMELL maintainability findings; none is a security finding or hotspot"
+    }
+  },
+  "scanner_severity_labels": {
+    "CRITICAL": 6,
+    "MAJOR": 2,
+    "classification": "SonarQube Cloud scanner labels only; they are not security severities."
+  },
+  "remediation_validation": {
+    "local_commit": "b9b22cc36958ba506278f3aa3fbc1d383ea6a151",
+    "commit_subject": "refactor: resolve PR 59 Sonar maintainability findings",
+    "method": "behavior-preserving helper extraction, equivalent conditional simplification, repeated diagnostic constant, and precise exception assertion",
+    "method_de": "verhaltenserhaltende Helfer-Extraktion, äquivalente Bedingungsvereinfachung, wiederholte Diagnosekonstante und präzise Exception-Assertion",
+    "forbidden_controls_changed": false,
+    "local_validation": [
+      {
+        "command": "PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_generated_report_evidence_integrity",
+        "result": "passed",
+        "detail": "57 tests; valid full-matrix control and receipt/path/hash/symlink/TOCTOU negative controls passed"
+      },
+      {
+        "command": "sh -n ci/runtime/lifecycle/run-full-matrix-parallel.sh",
+        "result": "passed"
+      },
+      {
+        "command": "PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_bilingual_docs",
+        "result": "passed",
+        "detail": "11 tests"
+      },
+      {
+        "command": "git diff --check",
+        "result": "passed"
+      },
+      {
+        "command": "independent focused five-file receipt/path/TOCTOU security review",
+        "result": "passed",
+        "detail": "no plausible high- or critical-impact regression; final TOCTOU revalidation and fail-closed controls preserved"
+      }
+    ],
+    "remaining_validation": "Completed by retained post-merge master evidence: PR #59 merged as 5a22cbf5206dbc2b7f53a9f961d72e37d567e188, applicable master controls passed or were scope-supported skips except the independent FND-SONAR-0001 Sonar failure, and the eight original keys query zero on master. This finding is verified, not closed.",
+    "remaining_validation_de": "Durch zurückgehaltene Post-Merge-Master-Evidence abgeschlossen: PR #59 wurde als 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 gemergt, anwendbare Master-Controls bestanden oder waren scope-unterstützte Skips außer dem unabhängigen FND-SONAR-0001-Sonar-Fehler, und die Abfrage der acht ursprünglichen Keys meldet null auf master. Dieses Finding ist verified, nicht closed."
+  },
+  "post_merge_verification": {
+    "merge_sha": "5a22cbf5206dbc2b7f53a9f961d72e37d567e188",
+    "merge_subject": "ci: harden strict runtime evidence validation (#59)",
+    "merge_method": "protected squash merge with --match-head-commit",
+    "pull_request_state": "MERGED",
+    "merged_at": "2026-07-20T15:09:01Z",
+    "evidence_artifact": "/var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/evidence/pr59-5a22cbf-postmerge-validation.json",
+    "evidence_sha256": "7749e6c6fd1ab198b54eb9704221d30aa150954db6130bec0317801a8afddc51",
+    "local_controls": "57/57 evidence-integrity, 11/11 bilingual documentation, shell syntax, and git diff --check passed",
+    "master_key_query": "issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&branch=master&issues=<eight-FND-SONAR-0006-keys>&resolved=false&ps=100 returned open_issue_total=0",
+    "pr_quality_gate": "OK; all eight task-owned keys absent without suppression, exclusion, false-positive disposition, or risk acceptance",
+    "verification_status": "verified_not_closed",
+    "independent_master_sonar_boundary": "FND-SONAR-0001 remains a separate terminal SonarCloud failure on base 6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8 and master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188: Quality Gate ERROR (new reliability 5, new security 5, hotspot review 0.0) due to three old python:S5332 TO_REVIEW hotspots created 2026-06-15; none is accepted, suppressed, or attributed to PR #59.",
+    "independent_master_sonar_boundary_de": "FND-SONAR-0001 bleibt ein getrennter terminaler SonarCloud-Fehler auf Basis 6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8 und Master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188: Quality Gate ERROR (new reliability 5, new security 5, hotspot review 0.0) wegen drei alter python:S5332-TO_REVIEW-Hotspots, erstellt am 2026-06-15; keiner ist akzeptiert, suppressiert oder PR #59 zugeschrieben."
+  },
+  "sonarqube_issues": [
+    {
+      "key": "AZ98bS-YZDHgEby5GFdC",
+      "rule": "python:S3776",
+      "scanner_severity": "CRITICAL",
+      "component": "ci/checks/documentation/check-generated-report-layout.py",
+      "line": 1128,
+      "message": "Reduce cognitive complexity from 36 to 15"
+    },
+    {
+      "key": "AZ98bS_lZDHgEby5GFdG",
+      "rule": "python:S3776",
+      "scanner_severity": "CRITICAL",
+      "component": "ci/evidence/reports/generate-full-matrix-job-completeness.py",
+      "line": 496,
+      "message": "Reduce cognitive complexity from 20 to 15"
+    },
+    {
+      "key": "AZ98bS_GZDHgEby5GFdE",
+      "rule": "python:S3776",
+      "scanner_severity": "CRITICAL",
+      "component": "ci/runtime/lifecycle/run-verified-report-run.py",
+      "line": 636,
+      "message": "Reduce cognitive complexity from 18 to 15"
+    },
+    {
+      "key": "AZ98bS_GZDHgEby5GFdF",
+      "rule": "python:S3776",
+      "scanner_severity": "CRITICAL",
+      "component": "ci/runtime/lifecycle/run-verified-report-run.py",
+      "line": 798,
+      "message": "Reduce cognitive complexity from 18 to 15"
+    },
+    {
+      "key": "AZ98bS_GZDHgEby5GFdD",
+      "rule": "python:S1066",
+      "scanner_severity": "MAJOR",
+      "component": "ci/runtime/lifecycle/run-verified-report-run.py",
+      "line": 1751,
+      "message": "Merge the nested if statement with its enclosing condition"
+    },
+    {
+      "key": "AZ98bTAcZDHgEby5GFdI",
+      "rule": "python:S5778",
+      "scanner_severity": "MAJOR",
+      "component": "tests/test_generated_report_evidence_integrity.py",
+      "line": 729,
+      "message": "Keep only one potentially throwing invocation in the exception test"
+    },
+    {
+      "key": "AZ98bS59ZDHgEby5GFc_",
+      "rule": "python:S1192",
+      "scanner_severity": "CRITICAL",
+      "component": "ci/lib/verified_full_matrix_receipt.py",
+      "line": 57,
+      "message": "Define a constant for the duplicated verified_run_id error literal"
+    },
+    {
+      "key": "AZ98bS59ZDHgEby5GFdA",
+      "rule": "python:S3776",
+      "scanner_severity": "CRITICAL",
+      "component": "ci/lib/verified_full_matrix_receipt.py",
+      "line": 457,
+      "message": "Reduce cognitive complexity from 24 to 15"
+    }
+  ],
+  "root_cause": "The retained exact-head query identified independently scoped maintainability smells: five cognitive-complexity locations, one nested-condition rule, one exception-test rule, and one duplicated-literal rule. The evidence establishes their task ownership and non-security classification. The source-level refactoring was then merged and verified; it does not establish or disguise a security vulnerability or hotspot.",
+  "root_cause_de": "Die zurückgehaltene Exact-Head-Abfrage identifizierte unabhängig abgrenzbare Maintainability-Smells: fünf Cognitive-Complexity-Stellen, eine Nested-Condition-Regel, eine Exception-Test-Regel und eine Duplicate-Literal-Regel. Die Evidence belegt ihre Task-Ownership und nicht-sicherheitsrelevante Klassifikation. Das Source-Level-Refactoring wurde anschließend gemergt und verifiziert; es begründet oder verdeckt keine Security-Vulnerabilität und keinen Hotspot.",
+  "proposed_remediation": "Implemented at exact PR #59 source b9b22cc36958ba506278f3aa3fbc1d383ea6a151 and protected-squash-merged as Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188: behavior-preserving helper extraction, equivalent conditional simplification, a repeated diagnostic constant, and a precise exception assertion across the reported Parent locations. Retained local and resulting-master evidence records focused regression, shell-syntax, bilingual, diff, and security-review controls passing, PR Quality Gate OK, and zero of the eight original keys on master. No NOSONAR, rule suppression, rule disabling, exclusion, Quality Gate change, or false-positive disposition was used. The finding is verified, not closed.",
+  "proposed_remediation_de": "Am exakten PR-#59-Source b9b22cc36958ba506278f3aa3fbc1d383ea6a151 implementiert und geschützt squash als Parent-Master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 gemergt: verhaltenserhaltende Helfer-Extraktion, äquivalente Bedingungsvereinfachung, eine wiederholte Diagnosekonstante und eine präzise Exception-Assertion über die gemeldeten Parent-Stellen. Zurückgehaltene lokale und Resulting-Master-Evidence erfasst bestandene fokussierte Regression-, Shell-Syntax-, Bilingual-, Diff- und Security-Review-Controls, PR-Quality-Gate OK und null der acht ursprünglichen Keys auf master. Kein NOSONAR, keine Regel-Suppression, Regel-Deaktivierung, Exclusion, Quality-Gate-Änderung oder False-Positive-Disposition wurde verwendet. Das Finding ist verified, nicht closed.",
+  "acceptance_criteria": [
+    "Exact PR #59 source b9b22cc36958ba506278f3aa3fbc1d383ea6a151 had a fresh SonarQube Cloud PR analysis with Quality Gate OK.",
+    "The resulting-master query at 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 reports all eight listed keys as zero remaining; no suppression, exclusion, rule disablement, Quality Gate change, or false-positive disposition was used.",
+    "Focused resulting-master regression and legitimate controls passed: 57/57 evidence-integrity, 11/11 bilingual documentation, shell syntax, and merge-diff whitespace validation.",
+    "The focused refactors preserve public and operational behavior, including existing validation, error handling, output, ordering, and fail-closed controls, as confirmed by the retained focused review and tests.",
+    "The final finding record retains SHA-addressed PR-head and post-merge receipts and synchronized English, German, index, backlog, and roadmap entries."
+  ],
+  "validation_plan": [
+    "Completed: inspected each focused refactor against the original conditional, error, output, ordering, and validation behavior.",
+    "Completed: ran and retained the smallest relevant local regression and legitimate-control results for each affected code path.",
+    "Completed: observed SonarQube Cloud with Quality Gate OK for exact source b9b22cc36958ba506278f3aa3fbc1d383ea6a151 and queried all eight original keys as zero on resulting master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188.",
+    "Completed: reviewed the exact remediation diff and configuration history; no NOSONAR, suppression, rule disablement, exclusion, Quality Gate change, or false-positive disposition occurred."
+  ],
+  "regression_tests": [
+    "Focused report-layout regression coverage for ci/checks/documentation/check-generated-report-layout.py.",
+    "Focused full-matrix job-completeness and verified-report lifecycle regression coverage for ci/evidence/reports/generate-full-matrix-job-completeness.py and ci/runtime/lifecycle/run-verified-report-run.py.",
+    "tests/test_generated_report_evidence_integrity.py coverage for the exception-test behavior.",
+    "Focused verified_full_matrix_receipt coverage for ci/lib/verified_full_matrix_receipt.py."
+  ],
+  "legitimate_control_tests": [
+    "Valid report-layout and full-matrix receipt inputs continue to be accepted with unchanged intended output and ordering.",
+    "Valid verified-report lifecycle and evidence-integrity cases continue to pass while invalid cases retain their current validation and error behavior.",
+    "The fresh exact remediation-head SonarQube Cloud analysis remains Quality Gate OK without a scanner-control change."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0001",
+    "FND-PARENT-0040"
+  ],
+  "source_run_ids": [
+    "20260720T141403Z-pr55-pr59-master-integration-8a0b8640"
+  ],
+  "source_run_id": "20260720T141403Z-pr55-pr59-master-integration-8a0b8640",
+  "residual_risk": "The original eight task-owned maintainability keys are verified as absent on Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188, with no risk acceptance, suppression, or scanner-control change. This finding remains verified rather than closed pending a separate lifecycle decision. FND-SONAR-0001 remains an independent, unaccepted Parent-master Quality Gate failure and leaves aggregate delivery partial; it is not caused by or attributed to this finding.",
+  "residual_risk_de": "Die ursprünglichen acht aufgabeneigenen Maintainability-Keys sind auf Parent-Master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 als nicht vorhanden verifiziert, ohne Risikoakzeptanz, Suppression oder Scanner-Control-Änderung. Dieses Finding bleibt bis zu einer separaten Lifecycle-Entscheidung verified statt closed. FND-SONAR-0001 bleibt ein unabhängiger, nicht akzeptierter Parent-Master-Quality-Gate-Fehler und lässt die aggregierte Delivery partial; er wird nicht durch dieses Finding verursacht oder ihm zugeschrieben.",
+  "created_at": "2026-07-20T14:39:40Z",
+  "updated_at": "2026-07-20T15:13:08Z",
+  "final_disposition": "verified_on_parent_master_5a22cbf5206dbc2b7f53a9f961d72e37d567e188_not_closed",
+  "history": [
+    {
+      "at": "2026-07-20T14:39:40Z",
+      "event": "exact_pr59_head_maintainability_finding_created",
+      "detail": "Created after independent SHA-256 verification of the retained exact-head receipt. Eight unique task-owned Parent CODE_SMELLs were deduplicated against existing FND-SONAR records; six CRITICAL and two MAJOR values are recorded as non-security scanner labels only."
+    },
+    {
+      "at": "2026-07-20T15:03:04Z",
+      "event": "local_non_suppressive_remediation_fixed",
+      "detail": "Local commit b9b22cc36958ba506278f3aa3fbc1d383ea6a151 implemented the behavior-preserving remediation. Retained validation passed 57/57 evidence-integrity tests, shell syntax, 11/11 bilingual tests, git diff --check, and focused receipt/path/TOCTOU security review. Fresh remote exact-head SonarQube Cloud issue proof and GitHub/CodeQL/review/thread evidence remain required; the finding is fixed, not verified or closed."
+    },
+    {
+      "at": "2026-07-20T15:13:08Z",
+      "event": "verified_on_protected_pr59_squash_merge_parent_master",
+      "detail": "Exact source b9b22cc36958ba506278f3aa3fbc1d383ea6a151 was protected-squash-merged as Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188. Fresh non-skipped CI, CodeQL, PR Sonar Quality Gate OK, and zero-review/thread controls passed before merge; retained resulting-master evidence records 57/57 evidence-integrity, 11/11 bilingual, shell syntax, and diff controls passing plus zero of the eight original keys. No suppression, scanner/gate change, false-positive disposition, or risk acceptance occurred. FND-SONAR-0001 remains independent and unaccepted. Status is verified, not closed."
+    }
+  ]
+}

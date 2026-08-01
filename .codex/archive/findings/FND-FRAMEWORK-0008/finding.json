@@ -1,0 +1,174 @@
+{
+  "id": "FND-FRAMEWORK-0008",
+  "title": "Traefik native middleware runner had a hard-coded UDS path boundary",
+  "title_de": "Traefik-Native-Middleware-Runner hatte eine hard-coded UDS-Pfadgrenze",
+  "category": "runtime_defect",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "reproduced",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "Traefik",
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "connectors/traefik/scripts/runtime_native_smoke.py",
+    "connectors/traefik/src/traefik_engine_service.c",
+    "connectors/traefik/build/test-engine-service-runtime.sh",
+    "tests/test_traefik_native_local_plugin.py",
+    "connectors/traefik/README.md",
+    "connectors/traefik/README.de.md",
+    "docs/reference/variables.md",
+    "docs/reference/variables.de.md"
+  ],
+  "affected_symbols": [
+    "TRAEFIK_ENGINE_SOCKET_PARENT",
+    "resolve_engine_socket_parent",
+    "traefik_engine_capture_bound_socket_identity",
+    "Unix-domain socket path limit"
+  ],
+  "summary": "The mandatory native middleware target failed because the authorized private root exceeded the Unix-socket path limit; a shorter override is not supported.",
+  "summary_de": "Das verpflichtende Native-Middleware-Target scheiterte, weil der autorisierte private Root das Unix-Socket-Path-Limit überschritt; ein kürzeres Override wird nicht unterstützt.",
+  "observed_behavior": "The mandatory native middleware target failed because the authorized private root exceeded the Unix-socket path limit; a shorter override is not supported.",
+  "observed_behavior_de": "Das verpflichtende Native-Middleware-Target scheiterte, weil der autorisierte private Root das Unix-Socket-Path-Limit überschritt; ein kürzeres Override wird nicht unterstützt.",
+  "expected_behavior": "The native runner selects a validated short task-owned parent in explicit, TMPDIR, then generated-fallback order and rejects unsafe paths before socket creation.",
+  "expected_behavior_de": "Der Native-Runner wählt einen validierten kurzen task-owned Parent in der Reihenfolge explizit, TMPDIR und erzeugter Fallback und lehnt unsichere Pfade vor der Socket-Erstellung ab.",
+  "impact": "The path-length boundary is repaired and focused controls pass. Real Traefik/libmodsecurity host lifecycle evidence remains unavailable; final cleanup, manifest leaf removal, and post-readiness endpoint identity limitations are separately tracked by FND-PARENT-0013, FND-PARENT-0014, and FND-PARENT-0015.",
+  "impact_de": "Die Path-Length-Grenze ist repariert und fokussierte Controls bestehen. Reale Traefik/libmodsecurity-Host-Lifecycle-Evidence bleibt nicht verfügbar; finale Cleanup-, Manifest-Leaf-Entfernungs- und Post-Readiness-Endpoint-Identity-Grenzen werden getrennt durch FND-PARENT-0013, FND-PARENT-0014 und FND-PARENT-0015 verfolgt.",
+  "preconditions": [
+    "An explicit parent or TMPDIR, when used, is an existing current-user-owned 0700 directory outside the checkout without symlink components.",
+    "The genuine host lifecycle still requires locally available Traefik and libmodsecurity runtime inputs."
+  ],
+  "reproduction": [
+    "Set a long or unsafe UDS parent before the hardened runner selection, or inspect the focused parent/path contract tests."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:542-576",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '542,576p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T09:23:19Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/056-traefik-engine-service-double-observation-race-regression.log",
+      "artifact_type": "native_uds_c17_regression_log",
+      "sha256": "fd8d6bafee0adf474880625b73c26e719a114e60d44036fb141fc940658b36da",
+      "command": "TMPDIR=<task-tmp> BUILD_ROOT=<active-run-build> TRAEFIK_ENGINE_SOCKET_TEST_PARENT=<task-tmp> PYTHON=/root/git/ModSecurity-conector/.venv/bin/python MODSECURITY_INCLUDE_DIR=<verified-prefix>/include MODSECURITY_LIB_DIR=<verified-prefix>/lib make -C connectors/traefik test-engine-service",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T13:55:00Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/057-traefik-native-local-plugin-double-observation-contract.log",
+      "artifact_type": "traefik_uds_contract_log",
+      "sha256": "8103a918dbb83bd07437f347cf9d30c6484391821b8459a8e5510fd05ad15dae",
+      "command": "PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_traefik_native_local_plugin",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T13:55:00Z",
+      "retention_status": "retained_task_log"
+    }
+  ],
+  "current_task_update": {
+    "original_status": "blocked",
+    "root_cause": "The Parent native runner forced a UDS directory below /var/tmp and did not expose a validated short parent selection.",
+    "changed_files": [
+      "connectors/traefik/scripts/runtime_native_smoke.py",
+      "connectors/traefik/src/traefik_engine_service.c",
+      "connectors/traefik/build/test-engine-service-runtime.sh",
+      "tests/test_traefik_native_local_plugin.py",
+      "connectors/traefik/README.md",
+      "connectors/traefik/README.de.md",
+      "docs/reference/variables.md",
+      "docs/reference/variables.de.md"
+    ],
+    "security_assessment": "Configured parents require an absolute, current-user-owned 0700 directory outside the checkout without symlink components or control characters; generated YAML quotes the socket scalar; fallback allocation creates and removes only a private generated parent. The C service double-observes pathname identity around a bounded SO_PEERCRED self-probe before capturing ownership. FND-PARENT-0013 tracks final socket cleanup, FND-PARENT-0014 manifest leaf deletion, and FND-PARENT-0015 post-readiness client endpoint identity; no strict same-UID claim is made.",
+    "runtime_limitation": "Real Traefik/libmodsecurity Allow/Block lifecycle execution remains blocked_environment because the required host binary and runtime inputs are unavailable.",
+    "strict_cleanup_disposition": "partial; FND-PARENT-0013 and FND-PARENT-0014 remain blocked, and FND-PARENT-0015 blocks a same-UID endpoint-integrity claim.",
+    "evidence_logs": [
+      "logs/056-traefik-engine-service-double-observation-race-regression.log",
+      "logs/057-traefik-native-local-plugin-double-observation-contract.log"
+    ]
+  },
+  "root_cause": "The Parent runner used a hard-coded /var/tmp child and did not expose a safe validated short-parent selection. It is not a Framework-owned code change.",
+  "root_cause_de": "Der Parent-Runner verwendete ein hard-coded /var/tmp-Kind und stellte keine sichere validierte Short-Parent-Auswahl bereit. Es ist keine Framework-eigene Codeänderung.",
+  "proposed_remediation": "Make the supported test harness UDS root configurable or otherwise shorten it through an authorized interface.",
+  "proposed_remediation_de": "Den unterstützten Test-Harness-UDS-Root konfigurierbar machen oder ihn über eine autorisierte Schnittstelle verkürzen.",
+  "acceptance_criteria": [
+    "The native Traefik runner selects an authorized task-owned UDS root without path-length failure.",
+    "Focused path, YAML, parent identity, collision, startup, protocol, Allow, Blocking, and ordinary shutdown controls pass.",
+    "The separate strict same-UID final-cleanup issue is tracked rather than silently treated as fixed."
+  ],
+  "validation_plan": [
+    "Run focused Python runner contracts and native C17 engine-service controls.",
+    "Run the genuine native Traefik lifecycle with the supported configuration interface when host inputs are available.",
+    "Verify no external or original MRTS path is modified."
+  ],
+  "regression_tests": [
+    "tests/test_traefik_native_local_plugin.py",
+    "connectors/traefik/build/test-engine-service-runtime.sh"
+  ],
+  "legitimate_control_tests": [
+    "Focused C engine Allow control and Blocking control through the native protocol lifecycle."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0007",
+    "FND-CROSS-0004",
+    "FND-PARENT-0013",
+    "FND-PARENT-0014",
+    "FND-PARENT-0015"
+  ],
+  "source_run_ids": [
+    "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc"
+  ],
+  "current_task_correction": "This later Parent-only update supersedes the earlier TMPDIR/generated-fallback statement: the production runner now requires TRAEFIK_ENGINE_SOCKET_PARENT only, receives it as process-environment data, and the native Make target preserves raw values before Python validation. FND-PARENT-0019 records the separately reproduced pre-validation Make/shell interpretation defect and its local repair.",
+  "current_task_correction_de": "Dieses spätere Parent-only-Update übersteuert die frühere TMPDIR-/Generated-Fallback-Aussage: Der Produktions-Runner verlangt nur TRAEFIK_ENGINE_SOCKET_PARENT, erhält ihn als Prozess-Environment-Daten, und das native Make-Target bewahrt Raw-Werte vor der Python-Validierung. FND-PARENT-0019 dokumentiert den getrennt reproduzierten Pre-Validation-Make-/Shell-Interpretationsdefekt und seine lokale Reparatur.",
+  "residual_risk": "The hard-coded short-path boundary is fixed. Live host runtime is blocked_environment, and distinct same-UID cleanup, manifest leaf, and post-readiness endpoint-identity limitations remain open in FND-PARENT-0013, FND-PARENT-0014, and FND-PARENT-0015; no risk has been accepted.",
+  "residual_risk_de": "Die hard-coded Short-Path-Grenze ist behoben. Die Live-Host-Runtime ist blocked_environment, und getrennte Same-UID-Cleanup-, Manifest-Leaf- und Post-Readiness-Endpoint-Identity-Grenzen bleiben in FND-PARENT-0013, FND-PARENT-0014 und FND-PARENT-0015 offen; es liegt keine Risikoakzeptanz vor.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-17T18:56:13Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-17T13:12:00Z",
+      "event": "phase_b_parent_fix",
+      "detail": "Ownership was corrected to Parent. The configurable private UDS-parent implementation and focused path/security contract tests passed; live host runtime validation remains blocked_environment."
+    },
+    {
+      "at": "2026-07-17T13:57:53Z",
+      "event": "phase_b_native_uds_controls_updated",
+      "detail": "The short-parent remediation remains fixed. C17 self-probe/double-observation controls and focused contracts passed; the distinct final same-UID pathname cleanup boundary is tracked by FND-PARENT-0013 and keeps strict cleanup partial."
+    },
+    {
+      "at": "2026-07-17T14:36:22Z",
+      "event": "same_uid_boundary_scope_corrected",
+      "detail": "The short-parent remediation remains fixed in scope. Final review added distinct manifest-leaf and post-readiness endpoint-identity findings, FND-PARENT-0014 and FND-PARENT-0015, without claiming them fixed."
+    },
+    {
+      "at": "2026-07-17T18:56:13Z",
+      "event": "explicit_parent_current_state_corrected",
+      "detail": "The production runner now requires only TRAEFIK_ENGINE_SOCKET_PARENT. FND-PARENT-0019 retains the raw Make forwarding evidence; no generated or TMPDIR parent selection remains."
+    }
+  ]
+}

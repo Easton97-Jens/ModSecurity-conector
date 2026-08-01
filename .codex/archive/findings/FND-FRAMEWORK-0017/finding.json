@@ -1,0 +1,212 @@
+{
+  "id": "FND-FRAMEWORK-0017",
+  "title": "CI security evidence contract accepts required command text after an assignment-only pseudo-call or terminal exec",
+  "title_de": "CI-Security-Evidence-Contract akzeptiert erforderlichen Befehlstext nach Zuweisungs-Pseudoaufruf oder terminalem exec",
+  "category": "security_hardening",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "requires_user_decision",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "ci/checks/security/check-ci-security-evidence-contract.py",
+    "tests/ci_security/test_ci_security_evidence_contract.py",
+    ".github/workflows/ci-security-scorecard.yml"
+  ],
+  "affected_symbols": [
+    "FUNCTION_CALL",
+    "shell_function_call_name",
+    "direct_context_lines",
+    "shell_function_blocks",
+    "control_flow_line_indexes",
+    "reachable_shell_lines"
+  ],
+  "summary": "The Framework PR #27 semantic evidence checker previously accepted required scanner command text after a non-invoking scalar or array assignment, or after a terminal exec command; the repair remains in resulting master 6de40c1714410241e917e9083ee890a82fb2fdbb. The merged tree equals exact PR head 6a4e057b2cef1f911ba25ab9f95e1b01b390691b and source-specific master controls passed, but final resulting-master verification remains blocked by the independently failed Advanced CodeQL upload in FND-GITHUB-0006.",
+  "summary_de": "Der semantische Evidence-Checker von Framework-PR #27 akzeptierte zuvor erforderlichen Scanner-Befehlstext nach einer nicht aufrufenden skalaren oder Array-Zuweisung oder nach einem terminalen exec-Befehl; die Reparatur bleibt im resultierenden Master 6de40c1714410241e917e9083ee890a82fb2fdbb. Der gemergte Tree entspricht dem exakten PR-Head 6a4e057b2cef1f911ba25ab9f95e1b01b390691b und source-spezifische Master-Controls bestanden, aber die finale Resulting-Master-Verifikation bleibt durch den unabhängig fehlgeschlagenen Advanced-CodeQL-Upload in FND-GITHUB-0006 blockiert.",
+  "observed_behavior": "At PR #27 head 82a091a3b6c3e5005126966bf3c6900208c8632b, scalar assignment-only lines and indexed-array assignment syntax named like an uncalled helper were treated as invocations, and direct_context_lines kept commands after exec /usr/bin/true. In-memory Scorecard workflow mutations returned no contract errors.",
+  "observed_behavior_de": "Am PR-#27-Head 82a091a3b6c3e5005126966bf3c6900208c8632b wurden reine skalare Zuweisungszeilen und Indexed-Array-Zuweisungssyntax mit dem Namen eines nicht aufgerufenen Helpers als Aufrufe behandelt, und direct_context_lines behielt Befehle nach exec /usr/bin/true. In-memory-Scorecard-Workflow-Mutationen lieferten keine Contract-Fehler.",
+  "expected_behavior": "Only commands that Bash can execute on a direct reachable path may satisfy semantic evidence requirements. Scalar and array assignment-only statements must not invoke helpers; exec forms with a real command must terminate later reachability; assignment-prefixed legitimate helper calls and commands preceding exec must remain accepted.",
+  "expected_behavior_de": "Nur Befehle, die Bash auf einem direkt erreichbaren Pfad ausführen kann, dürfen semantische Evidence-Anforderungen erfüllen. Reine skalare und Array-Zuweisungen dürfen keine Helper aufrufen; exec-Formen mit echtem Befehl müssen spätere Erreichbarkeit beenden; zuweisungspräfixierte legitime Helper-Aufrufe und Befehle vor exec müssen akzeptiert bleiben.",
+  "impact": "The local semantic control bypass is fixed on resulting master, and relevant master quality controls passed. The independently failed trusted Advanced CodeQL uploader prevents a fully verified master-integration result; it does not reintroduce the parser bypass or establish a Framework-code vulnerability.",
+  "impact_de": "Der lokale semantische Control-Bypass ist auf dem resultierenden Master behoben, und relevante Master-Quality-Controls bestanden. Der unabhängig fehlgeschlagene vertrauenswürdige Advanced-CodeQL-Uploader verhindert ein vollständig verifiziertes Master-Integrationsergebnis; er führt den Parser-Bypass nicht wieder ein und belegt keine Framework-Code-Schwachstelle.",
+  "preconditions": [
+    "Framework PR #27 head 82a091a3b6c3e5005126966bf3c6900208c8632b contains the semantic evidence checker.",
+    "A pull-request-controlled covered workflow contains a required scanner command in a run script."
+  ],
+  "reproduction": [
+    "Use an in-memory ci-security-scorecard.yml mutation with the required Scorecard command in unused_scorecard_scan() followed only by unused_scorecard_scan=disabled; workflow_errors() incorrectly returns [].",
+    "Use the same mutation followed by unused_scorecard_scan[0]=disabled or unused_scorecard_scan[\"mode\"]=disabled; the previous leading-identifier matcher incorrectly returns [].",
+    "Prepend exec /usr/bin/true immediately before that required command; workflow_errors() incorrectly returns []."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T084030Z-expand-framework-ci-security-be8fb24d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T084030Z-expand-framework-ci-security-be8fb24d/evidence/final-framework-ci-security-local-validation.md",
+      "artifact_type": "final_local_ci_security_validation",
+      "sha256": "979715e7ec9a24e700f04ab6722b5f717b1f229023a6c4de6051c675a79155c5",
+      "command": "rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 <framework-venv-python> -m unittest tests/ci_security/test_ci_security_evidence_contract.py -v; rtk make lint",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T15:18:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T180448Z-framework-pr27-sonar-remediation-72a73203",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T180448Z-framework-pr27-sonar-remediation-72a73203/evidence/fnd-framework-0017-pre-fix-reproduction.md",
+      "artifact_type": "pre_fix_semantic_reachability_reproduction",
+      "sha256": "b9c910089001ca9b67a45d2d3021f697c237b426ce221036b86fe52b2a334f67",
+      "command": "rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=<task-run>/tmp/pycache python3 -c <in-memory Scorecard assignment-only and exec reachability mutations>",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T18:05:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T180448Z-framework-pr27-sonar-remediation-72a73203",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T180448Z-framework-pr27-sonar-remediation-72a73203/evidence/fnd-framework-0017-pre-fix-regression-suite.md",
+      "artifact_type": "pre_fix_regression_suite_result",
+      "sha256": "8a74a663cad6e1664fb190913c78620cb2c356044e8c661b776235635293951b",
+      "command": "rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=<task-run>/tmp/pycache python3 -m unittest -v tests.ci_security.test_ci_security_evidence_contract",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 1,
+      "observed_at": "2026-07-19T18:18:36Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T180448Z-framework-pr27-sonar-remediation-72a73203",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T180448Z-framework-pr27-sonar-remediation-72a73203/evidence/fnd-framework-0017-final-local-validation.md",
+      "artifact_type": "post_fix_local_security_validation",
+      "sha256": "6afd44552895aeb9e2030f1a7d4acf0663e0ade7f111c4c5735c46dcdfb26039",
+      "command": "rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=<task-run>/tmp/pycache python3 -c <in-memory prior-matcher indexed-array simulation>; rtk proxy env ... python3 -m unittest -v tests.ci_security.test_ci_security_evidence_contract; rtk make BUILD_ROOT=<task-run>/build/lint-final TMPDIR=<task-run>/tmp lint; rtk git diff --check",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T18:48:52Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T180448Z-framework-pr27-sonar-remediation-72a73203",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T180448Z-framework-pr27-sonar-remediation-72a73203/evidence/fnd-framework-0017-exact-pr-head-validation.md",
+      "artifact_type": "exact_pr_head_validation",
+      "sha256": "04eaa7e9762dd53c6d9847da98aec7e5c624fdf37e44083598b4c06ede805556",
+      "command": "rtk gh pr view 27 --json headRefOid,statusCheckRollup,mergeStateStatus,mergeable,reviews; rtk gh pr checks 27 --watch; rtk gh api graphql <review-thread query>; rtk proxy curl <SonarCloud PR issues query>",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T19:07:56Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T180448Z-framework-pr27-sonar-remediation-72a73203",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T180448Z-framework-pr27-sonar-remediation-72a73203/evidence/pr27-6a4e057-exact-head-validation.md",
+      "artifact_type": "exact_pr_head_followup_validation",
+      "sha256": "cca00d78d239b9f2dc21b2ff4f7bf3ed75a0390eeff726254fa8153633b97f58",
+      "command": "rtk gh api pulls/27 and commit check-runs; rtk gh api graphql review-thread query; rtk proxy curl SonarQube Cloud PR measures, issues, and Quality Gate",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T19:34:25Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T180448Z-framework-pr27-sonar-remediation-72a73203",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T180448Z-framework-pr27-sonar-remediation-72a73203/evidence/pr27-master-6de40c-post-merge-verification.md",
+      "artifact_type": "resulting_master_source_tree_and_control_verification_with_external_codeql_blocker",
+      "sha256": "3b65d40a065d9c3459c5f83be92a09d12ea7709601a12964f4dbdbfa9e540d80",
+      "command": "rtk git -C /var/tmp/codex/worktrees/framework-ci-security diff --quiet 6a4e057b2cef1f911ba25ab9f95e1b01b390691b 6de40c1714410241e917e9083ee890a82fb2fdbb; rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/6de40c1714410241e917e9083ee890a82fb2fdbb/check-runs --paginate; rtk gh run view 29701466354 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T20:00:39Z",
+      "retention_status": "retained_task_evidence",
+      "scope_note": "The resulting master source tree equals the verified PR head; source-specific master checks passed, but all three Advanced CodeQL SARIF uploads failed because Default Setup remains enabled. FND-GITHUB-0006 owns the external configuration failure."
+    }
+  ],
+  "root_cause": "The reachability parser's leading-identifier matcher treats scalar and array-assignment syntax as a function call, and its terminal-statement model recognizes exit but not exec with a command.",
+  "root_cause_de": "Der Leading-Identifier-Matcher des Reachability-Parsers behandelt skalare und Array-Zuweisungssyntax als Funktionsaufruf, und sein Terminal-Statement-Modell erkennt exit, aber nicht exec mit einem Befehl.",
+  "proposed_remediation": "Parse ordinary leading shell assignment words before resolving a function call, reject an identifier immediately followed by [ as non-call syntax, recognize only exec forms with a real command as terminal, retain bare/redirection-only exec semantics, and add negative plus paired legitimate-control regressions.",
+  "proposed_remediation_de": "Gewöhnliche führende Shell-Zuweisungswörter vor der Auflösung eines Funktionsaufrufs parsen, einen direkt von [ gefolgten Identifier als Nicht-Aufrufsyntax ablehnen, nur exec-Formen mit echtem Befehl als terminal erkennen, Semantik von bare/redirection-only exec erhalten und negative sowie gepaarte Legitimate-Control-Regressionen ergänzen.",
+  "acceptance_criteria": [
+    "Scalar, indexed-array, and quoted-key array assignment-only statements cannot make an uncalled helper reachable.",
+    "A direct exec form with a real command prevents later required commands from satisfying the contract.",
+    "An assignment-prefixed direct helper call remains reachable.",
+    "Commands that precede terminal exec remain accepted.",
+    "Existing comments, branch-hidden commands, uncalled-function, and legitimate nested-OSV-helper regressions remain covered.",
+    "Focused local and exact final PR-head checks pass without relaxing workflow, permission, scanner, or evidence requirements."
+  ],
+  "validation_plan": [
+    "Completed: deterministic Scorecard mutation regressions cover scalar/indexed/quoted-key assignment pseudo-calls, terminal exec, and paired legitimate controls.",
+    "Completed: focused semantic suite, direct checker, diff/security review, viable native quality checks, exact-head GitHub CI, and SonarCloud passed.",
+    "Before verified/closed: resolve FND-GITHUB-0006 through an authorized configuration and new reviewed PR, then observe a successful trusted Advanced CodeQL upload on exact resulting master and rerun the original reproduction plus legitimate controls."
+  ],
+  "regression_tests": [
+    "tests/ci_security/test_ci_security_evidence_contract.py: scalar/indexed/quoted-key assignment-only pseudo-call rejection",
+    "tests/ci_security/test_ci_security_evidence_contract.py: terminal exec rejection",
+    "Existing comment, branch-hidden command, uncalled helper, and nested OSV helper controls"
+  ],
+  "legitimate_control_tests": [
+    "An assignment-prefixed direct Scorecard helper invocation remains accepted.",
+    "Commands preceding terminal exec remain accepted.",
+    "The directly invoked nested OSV helper flow remains accepted."
+  ],
+  "dependencies": [
+    "Resulting master 6de40c1714410241e917e9083ee890a82fb2fdbb source-tree and source-control evidence.",
+    "Authorized FND-GITHUB-0006 configuration remediation and exact resulting-master Advanced CodeQL verification."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0012",
+    "FND-FRAMEWORK-0015",
+    "FND-GITHUB-0006"
+  ],
+  "source_run_ids": [
+    "20260718T084030Z-expand-framework-ci-security-be8fb24d",
+    "20260719T180448Z-framework-pr27-sonar-remediation-72a73203"
+  ],
+  "residual_risk": "The current PR head merged as exact master 6de40c1714410241e917e9083ee890a82fb2fdbb; its tree equals the reviewed head and relevant source controls passed. The user authorized the merge retaining Default Setup, but the trusted Advanced uploader failed exactly as FND-GITHUB-0006 records. No correction, settings mutation, bypass, Parent gitlink update, or MRTS change is authorized; this finding remains fixed, not verified.",
+  "residual_risk_de": "Der aktuelle PR-Head wurde als exakter Master 6de40c1714410241e917e9083ee890a82fb2fdbb gemergt; sein Tree entspricht dem geprüften Head und relevante Source-Controls bestanden. Der Nutzer autorisierte den Merge bei beibehaltenem Default Setup, aber der vertrauenswürdige Advanced-Uploader schlug wie in FND-GITHUB-0006 erfasst fehl. Keine Korrektur, Settings-Mutation, kein Bypass, Parent-Gitlink-Update oder MRTS-Change ist autorisiert; dieses Finding bleibt fixed, nicht verified.",
+  "created_at": "2026-07-18T15:18:00Z",
+  "updated_at": "2026-07-19T20:00:39Z",
+  "final_disposition": "source_fix_retained_on_master_but_resulting_master_verification_blocked_by_fnd_github_0006",
+  "history": [
+    {
+      "at": "2026-07-18T15:18:00Z",
+      "event": "pre_delivery_reachability_bypass_fixed",
+      "detail": "Independent review reproduced dead-branch and uncalled-function bypasses, then confirmed closure after the multiline-if and function-form regression fixes."
+    },
+    {
+      "at": "2026-07-19T18:05:00Z",
+      "event": "current_pr27_reachability_regression_reopened",
+      "detail": "At exact PR #27 head 82a091a3b6c3e5005126966bf3c6900208c8632b, retained in-memory Scorecard mutations showed assignment-only pseudo-calls and exec /usr/bin/true both leave required scanner text falsely reachable. The finding moved from fixed to in_progress and blocks #27 integration until regression-backed remediation."
+    },
+    {
+      "at": "2026-07-19T18:48:52Z",
+      "event": "local_reachability_remediation_completed",
+      "detail": "The task-owned candidate parses scalar assignment prefixes, rejects identifier-immediately-followed-by-[ as non-call syntax, and treats exec with a command as terminal. Scalar, indexed, and quoted-key assignment regressions plus paired legitimate controls passed; focused security review, direct checker, Ruff, git diff --check, and make lint passed. Status remains in_progress pending a normal commit/push and exact final PR-head CI/Sonar evidence."
+    },
+    {
+      "at": "2026-07-19T18:58:30Z",
+      "event": "local_remediation_committed_and_pushed",
+      "detail": "Task-owned Framework files only were committed as f1ad17230072b460c7c85104efac381c19807bb6 (refactor(ci): simplify and harden evidence checks) and normally pushed to PR #27 branch agent/expand-framework-ci-security. Fresh exact-head GitHub checks and SonarCloud analysis are in progress; status remains in_progress."
+    },
+    {
+      "at": "2026-07-19T19:07:56Z",
+      "event": "exact_pr_head_validation_passed",
+      "detail": "Follow-up c323f9d937b63b97257b1ebc8be75e4fdaa3d697 completed the final Sonar complexity refactor with semantic regressions. The exact PR head is clean/mergeable, all current GitHub checks passed (with expected non-PR advisory skips), SonarCloud reports zero open/confirmed PR new-code issues, and no review threads or reviews remain. The finding is fixed pending the separate Default Setup decision, resulting-master validation, original-reproduction rerun, and final verification."
+    },
+    {
+      "at": "2026-07-19T19:34:25Z",
+      "event": "test_only_followup_exact_pr_head_validation_passed",
+      "detail": "Test-only duplication follow-up 6a4e057b2cef1f911ba25ab9f95e1b01b390691b leaves the repaired parser unchanged. Its exact PR head is clean/mergeable; 20 checks passed with three expected advisory skips; SonarCloud reports a passing Quality Gate, zero open/confirmed issues, and zero new duplicated lines. Reviews and review threads remain empty. The finding stays fixed pending the separate Default Setup decision and resulting-master verification."
+    },
+    {
+      "at": "2026-07-19T20:00:39Z",
+      "event": "resulting_master_source_controls_passed_external_codeql_blocker_recorded",
+      "detail": "PR #27 squash-merged as 6de40c1714410241e917e9083ee890a82fb2fdbb; its source tree equals 6a4e057b2cef1f911ba25ab9f95e1b01b390691b, no MRTS gitlink diff exists, and relevant master source controls passed. The trusted Advanced CodeQL uploader failed after analysis because Default Setup is enabled; FND-GITHUB-0006 tracks that independent configuration failure. Status remains fixed, not verified."
+    }
+  ]
+}

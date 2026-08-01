@@ -1,0 +1,196 @@
+{
+  "id": "FND-PARENT-0022",
+  "title": "CodeQL reflected-XSS alerts #14 and #15 lack a connector-owned request-header-to-body path",
+  "title_de": "Den CodeQL-Reflected-XSS-Alerts #14 und #15 fehlt ein connector-eigener Request-Header-zu-Body-Pfad",
+  "category": "static_analysis_finding",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "closed",
+  "feasibility_status": "not_applicable",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": "Traefik",
+  "protocol": "net/http request-header inspection and transparent response streaming",
+  "profile": "native-traefik-middleware",
+  "affected_files": [
+    "connectors/traefik/native_middleware/middleware.go",
+    "connectors/traefik/native_middleware/middleware_test.go",
+    ".github/workflows/ci-security-codeql.yml"
+  ],
+  "affected_symbols": [
+    "Middleware.ServeHTTP",
+    "boundedHeaders",
+    "streamState.processHeaders",
+    "responseWriter.Write",
+    "writeDecision"
+  ],
+  "summary": "GitHub Code Scanning alerts #14 and #15 were dismissed as CodeQL go/reflected-xss false positives after immediate per-alert revalidation at Traefik native-middleware revision c8ca0d92b630c18232b881855c4f5d1482568ea6. Their shared source is request.Header at middleware.go:356. Alert #14 reaches its reported sink only with an empty payload and therefore cannot emit a reflected body. Alert #15 transparently forwards a byte slice supplied by a Traefik-provided downstream handler; no Parent-owned code maps a request header, engine result, or metadata value into that slice. A real reflection still requires an external downstream handler to render a header in a browser-executable context.",
+  "summary_de": "Die GitHub-Code-Scanning-Alerts #14 und #15 wurden nach einer unmittelbaren alert-spezifischen Revalidierung auf der Traefik-Native-Middleware-Revision c8ca0d92b630c18232b881855c4f5d1482568ea6 als CodeQL-go/reflected-xss-False-Positives dismissed. Ihre gemeinsame Quelle ist request.Header in middleware.go:356. Alert #14 erreicht seinen gemeldeten Sink nur mit leerem Payload und kann daher keinen reflektierten Body ausgeben. Alert #15 leitet einen Byte-Slice eines von Traefik bereitgestellten Downstream-Handlers transparent weiter; kein Parent-Code bildet Request-Header, Engine-Ergebnis oder Metadaten in diesen Slice ab. Eine echte Reflexion erfordert weiterhin, dass ein externer Downstream-Handler einen Header in einem browser-ausführbaren Kontext rendert.",
+  "observed_behavior": "Immediately before each authorized PATCH, GitHub showed alert #14 and #15 as open CodeQL go/reflected-xss results at c8ca0d92b630c18232b881855c4f5d1482568ea6, with the shared source link middleware.go:356:40-54 and sinks 656:30-37 and 688:42-47 respectively. Local source and the retained task-owned Go boundary probe match that revision: request headers go to Transaction.ProcessHeaders; a disruptive decision returns before next.ServeHTTP; middleware-generated denial/failure bodies are fixed text/plain literals; #14 forwards only an empty payload; and #15 normal response chunks originate from the opaque downstream handler. GitHub then recorded #14 dismissed as false positive at 2026-07-18T08:55:32Z and #15 dismissed as false positive at 2026-07-18T08:58:49Z; fixed_at is null for both.",
+  "observed_behavior_de": "Unmittelbar vor jedem autorisierten PATCH zeigte GitHub #14 und #15 als offene CodeQL-go/reflected-xss-Ergebnisse auf c8ca0d92b630c18232b881855c4f5d1482568ea6, mit dem gemeinsamen Source-Link middleware.go:356:40-54 sowie den Sinks 656:30-37 beziehungsweise 688:42-47. Lokaler Source und der retained task-eigene Go-Boundary-Probe stimmen mit dieser Revision überein: Request-Header gehen zu Transaction.ProcessHeaders; eine disruptive Entscheidung kehrt vor next.ServeHTTP zurück; Middleware-generierte Deny-/Failure-Bodies sind feste text/plain-Literale; #14 leitet nur einen leeren Payload weiter; und normale Response-Chunks von #15 stammen vom opaken Downstream-Handler. GitHub zeichnete danach #14 am 2026-07-18T08:55:32Z und #15 am 2026-07-18T08:58:49Z jeweils als False Positive dismissed auf; fixed_at ist für beide null.",
+  "github_code_scanning_alerts": [
+    {
+      "number": 14,
+      "rule_id": "go/reflected-xss",
+      "state": "dismissed",
+      "dismissed_reason": "false positive",
+      "dismissed_at": "2026-07-18T08:55:32Z",
+      "dismissed_by": "Easton97-Jens",
+      "dismissed_comment": "The reported sink is reachable only when len(payload) == 0 and therefore writes no response-body bytes. The reported source cannot be reflected through this sink. Focused boundary tests confirmed a zero-byte body.",
+      "fixed_at": null,
+      "analyzed_sha": "c8ca0d92b630c18232b881855c4f5d1482568ea6",
+      "source": "connectors/traefik/native_middleware/middleware.go:356:40-54",
+      "sink": "connectors/traefik/native_middleware/middleware.go:656:30-37",
+      "evidence_match": true
+    },
+    {
+      "number": 15,
+      "rule_id": "go/reflected-xss",
+      "state": "dismissed",
+      "dismissed_reason": "false positive",
+      "dismissed_at": "2026-07-18T08:58:49Z",
+      "dismissed_by": "Easton97-Jens",
+      "dismissed_comment": "The connector forwards bytes produced by an externally supplied downstream handler. It does not render the reported source into an HTML or browser execution context. Context-specific encoding remains the responsibility of any downstream renderer that constructs such content.",
+      "fixed_at": null,
+      "analyzed_sha": "c8ca0d92b630c18232b881855c4f5d1482568ea6",
+      "source": "connectors/traefik/native_middleware/middleware.go:356:40-54",
+      "sink": "connectors/traefik/native_middleware/middleware.go:688:42-47",
+      "evidence_match": true
+    }
+  ],
+  "expected_behavior": "The streaming adapter must not create a response body from request headers. It must preserve downstream bytes and media-type semantics while allowing precommit WAF intervention. Any handler that constructs an HTML, attribute, JavaScript, CSS, or URL response context from a request header must apply context-correct encoding at that handler.",
+  "expected_behavior_de": "Der Streaming-Adapter darf keinen Response-Body aus Request-Headern erzeugen. Er muss Downstream-Bytes und Media-Type-Semantik bewahren und zugleich eine WAF-Intervention vor dem Commit erlauben. Jeder Handler, der aus einem Request-Header einen HTML-, Attribut-, JavaScript-, CSS- oder URL-Response-Kontext konstruiert, muss an diesem Handler kontextkorrekt encodieren.",
+  "impact": "No connector-owned reflected-XSS defect is proven at either reported sink. Alert #14 is structurally non-exploitable, and alert #15 is a connector-local false positive because it forwards externally produced bytes without rendering request data. Both GitHub alerts are dismissed, not fixed. Alert #15 still requires a deployment-level application review if a concrete downstream handler becomes in scope. Applying generic escaping or forcing text/plain in this middleware would corrupt valid HTML, JSON, binary, already-encoded, and streaming responses without establishing a correct output context.",
+  "impact_de": "An keinem gemeldeten Sink ist ein connector-eigener Reflected-XSS-Defekt belegt. Alert #14 ist strukturell nicht ausnutzbar, und Alert #15 ist ein connector-lokaler False Positive, weil er extern erzeugte Bytes weiterleitet, ohne Request-Daten zu rendern. Beide GitHub-Alerts sind dismissed, nicht fixed. Alert #15 erfordert weiterhin eine Deployment-Level-Anwendungsprüfung, falls ein konkreter Downstream-Handler in den Scope kommt. Generisches Escaping oder erzwungenes text/plain in dieser Middleware würde gültige HTML-, JSON-, Binär-, bereits encodierte und Streaming-Responses beschädigen, ohne einen korrekten Output-Kontext festzustellen.",
+  "preconditions": [
+    "The alert revision remains c8ca0d92b630c18232b881855c4f5d1482568ea6 or is revalidated on a later revision.",
+    "A concrete downstream reflection would require a Traefik-provided next handler to read a request header and write it into a browser-executable response context.",
+    "No such Parent-owned downstream handler was found in the scoped connector source."
+  ],
+  "reproduction": [
+    "Query the current Code Scanning alert metadata and instances for #14 and #15 using authenticated read-only GitHub API access.",
+    "Run the retained xss_boundary_probe.go against the native middleware module with task-owned Go caches.",
+    "Inspect responseWriter.Write and ServeHTTP at the exact reported lines: #14 is guarded by len(payload)==0, and #15 receives a payload only through the downstream handler boundary."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T074759Z-codeql-xss-alerts-14-15-87ada941",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T074759Z-codeql-xss-alerts-14-15-87ada941/evidence/github-alert-inventory.md",
+      "artifact_type": "current_github_code_scanning_alert_inventory",
+      "sha256": "710492e7e35c273b2fba0027dee51b199586b57f13a285e9da08d7a6bc098102",
+      "command": "rtk proxy gh api current alert, instance, analysis, run-artifact, and SARIF-status projections for alerts 14 and 15",
+      "working_directory": "/var/tmp/codex/worktrees/parent-codeql-xss",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T08:18:55Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T074759Z-codeql-xss-alerts-14-15-87ada941",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T074759Z-codeql-xss-alerts-14-15-87ada941/evidence/xss-boundary-probe.md",
+      "artifact_type": "focused_connector_xss_boundary_probe_summary",
+      "sha256": "1afe2cf6638b276bd6108d0483a698d776554bd72690ab266b70441061512978",
+      "command": "rtk env GOTOOLCHAIN=local GOWORK=off GOCACHE=<task-run>/build/go-cache GOMODCACHE=<task-run>/cache/go-mod go run <task-run>/evidence/xss_boundary_probe.go",
+      "working_directory": "/var/tmp/codex/worktrees/parent-codeql-xss/connectors/traefik/native_middleware",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T08:18:55Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T074759Z-codeql-xss-alerts-14-15-87ada941",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T074759Z-codeql-xss-alerts-14-15-87ada941/evidence/native-middleware-validation.md",
+      "artifact_type": "focused_connector_test_vet_build_validation",
+      "sha256": "f62d5125bfe0041340b3b24b85175c300519f4726c9b71268f51d924e94438b7",
+      "command": "rtk env BUILD_ROOT=<task-run>/build TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR=<task-run>/build/native-middleware GOCACHE=<task-run>/build/go-cache GOMODCACHE=<task-run>/cache/go-mod GOTOOLCHAIN=local GOWORK=off GO=go make -C connectors/traefik test-native-middleware; then build-native-middleware",
+      "working_directory": "/var/tmp/codex/worktrees/parent-codeql-xss",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T08:18:55Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T074759Z-codeql-xss-alerts-14-15-87ada941",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T074759Z-codeql-xss-alerts-14-15-87ada941/evidence/xss_boundary_probe.go",
+      "artifact_type": "task_owned_connector_probe_source",
+      "sha256": "6bfa0c676b37d3cd0b9a71040840d17f8384aa06ecb0f571a1cd27bb6d9d55c1",
+      "command": "sha256sum xss_boundary_probe.go",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T08:18:55Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T084215Z-github-code-scanning-disposition-14-15-babc842c",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T084215Z-github-code-scanning-disposition-14-15-babc842c/evidence/github-code-scanning-disposition.md",
+      "artifact_type": "github_code_scanning_dismissal_pre_and_post_write_evidence",
+      "sha256": "58bf308b3d1bf3ac4abeed658a83d750fdc04faa1163575de8fb7acd79b0e629",
+      "command": "rtk proxy gh api GET/PATCH/GET projections for alerts 14 and 15, with immediate local SHA/source/FND evidence comparison before each PATCH",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T09:02:09Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "Both CodeQL results cross the same generic handler/writer callback boundary. The query sees a request-header source and generic response body writes but the scoped connector code does not construct a response body from that source. Alert #14 additionally lacks the path-sensitive fact that its payload is empty. Alert #15 needs an unknown downstream renderer to bridge the source to the chunk argument.",
+  "root_cause_de": "Beide CodeQL-Ergebnisse überqueren dieselbe generische Handler/Writer-Callback-Grenze. Die Query sieht eine Request-Header-Quelle und generische Response-Body-Writes, aber der abgegrenzte Connector-Code konstruiert aus dieser Quelle keinen Response-Body. Alert #14 fehlt zusätzlich die pfadsensitive Tatsache, dass sein Payload leer ist. Alert #15 benötigt einen unbekannten Downstream-Renderer, um die Quelle mit dem Chunk-Argument zu verbinden.",
+  "proposed_remediation": "Do not change or suppress the transparent middleware. The current connector-local Code Scanning results were dismissed as false positives from exact retained and revalidated evidence. If a concrete deployed next handler is brought into scope and reflects a header, remediate that renderer with context-specific output encoding and its own regression/control/bypass tests.",
+  "proposed_remediation_de": "Die transparente Middleware weder ändern noch unterdrücken. Die aktuellen connector-lokalen Code-Scanning-Ergebnisse wurden auf Basis exakter retained und revalidierter Evidence als False Positives dismissed. Falls ein konkreter bereitgestellter Next-Handler in den Scope kommt und einen Header reflektiert, diesen Renderer mit kontextspezifischem Output-Encoding und eigenen Regression-/Control-/Bypass-Tests remediieren.",
+  "acceptance_criteria": [
+    "Alert #14 is authoritatively dismissed only while the zero-byte branch proof, exact source/sink, and analyzed revision match the retained evidence.",
+    "Alert #15 is dismissed only for the connector-local boundary and is not treated as a connector fix or a deployment-wide renderer assessment.",
+    "Any future renderer remediation preserves correct HTML, attribute, JavaScript, URL, JSON, binary, and already-encoded behavior for its actual context.",
+    "No alert is dismissed, security control weakened, or master change made without current technical evidence and authority."
+  ],
+  "validation_plan": [
+    "Rerun the authenticated alert and analysis query on every changed target SHA before altering a dismissal or relying on the disposition.",
+    "Rerun the focused boundary probe and native middleware test/vet/build target after any affected code change.",
+    "If a downstream renderer is identified, test its actual browser context and response Content-Type instead of applying a generic proxy transformation."
+  ],
+  "regression_tests": [
+    "Task-owned xss_boundary_probe.go: safe non-empty forwarding, #14 zero write, and pre-request fixed denial.",
+    "connectors/traefik target test-native-middleware (go test ./... and go vet ./...).",
+    "connectors/traefik target build-native-middleware (go test, vet, and build)."
+  ],
+  "legitimate_control_tests": [
+    "Safe HTML-content-type downstream response preserves safe-body for HTML, attribute, script, URL, encoded, empty, Unicode, and invalid-UTF-8 probe variants without reflection.",
+    "A denial retains fixed text/plain content and does not invoke the downstream handler.",
+    "The deliberately unsafe downstream HTML echo preserves its input exactly, demonstrating ownership lies in that downstream renderer."
+  ],
+  "dependencies": [
+    "A specific Traefik deployment and its next handler are outside the Parent connector source scope.",
+    "The two GitHub Code Scanning dismissals are scoped to the analyzed connector revision and do not assess or accept downstream deployment risk."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-HOST-0005",
+    "FND-SONAR-0001"
+  ],
+  "source_run_ids": [
+    "20260718T074759Z-codeql-xss-alerts-14-15-87ada941",
+    "20260718T084215Z-github-code-scanning-disposition-14-15-babc842c"
+  ],
+  "residual_risk": "Alert #14 has no component-local reflected-body path. Alert #15 can still be part of a real application-level reflected XSS only when a downstream handler chooses an HTML, script, attribute, or URL context and reflects a header without context-correct encoding; that deployment-level path is not proven, assessed, remediated, or risk-accepted here. The GitHub dismissals are connector-local false-positive dispositions, not product fixes.",
+  "residual_risk_de": "Alert #14 hat keinen component-lokalen reflektierten Body-Pfad. Alert #15 kann weiterhin Teil eines realen Application-Level-Reflected-XSS sein, wenn ein Downstream-Handler einen HTML-, Script-, Attribut- oder URL-Kontext wählt und einen Header ohne kontextkorrektes Encoding reflektiert; dieser Deployment-Level-Pfad ist hier weder belegt, untersucht, remediated noch risikoakzeptiert. Die GitHub-Dismissals sind connector-lokale False-Positive-Dispositionen, keine Produkt-Fixes.",
+  "created_at": "2026-07-18T08:18:55Z",
+  "updated_at": "2026-07-18T09:43:15Z",
+  "final_disposition": "false_positive_in_connector_scope_archived_20260726",
+  "history": [
+    {
+      "at": "2026-07-18T08:18:55Z",
+      "event": "current_alerts_triaged_with_connector_boundary_evidence",
+      "detail": "Authenticated current alert metadata, source-to-sink reconstruction, a focused Go boundary probe, and native connector test/vet/build evidence established no connector-owned request-header-to-body path. No product fix, alert dismissal, GitHub state change, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-18T09:02:09Z",
+      "event": "github_code_scanning_alerts_dismissed_as_false_positive",
+      "detail": "Immediately before each authorized PATCH, alerts #14 and #15 were revalidated as open go/reflected-xss results at c8ca0d92b630c18232b881855c4f5d1482568ea6 with source middleware.go:356:40-54 and sinks 656:30-37 / 688:42-47 matching retained evidence. GitHub dismissed #14 at 2026-07-18T08:55:32Z and #15 at 2026-07-18T08:58:49Z with reason false positive and the required comments; fixed_at is null for both. No product fix, risk acceptance, commit, pull request, Framework/MRTS change, or gitlink change occurred."
+    },
+    {
+      "at": "2026-07-18T09:43:15Z",
+      "event": "administratively_closed_false_positive_in_connector_scope",
+      "detail": "Closed after a read-only confirmation that alerts #14 and #15 remain dismissed as false positive at c8ca0d92b630c18232b881855c4f5d1482568ea6, with the documented sources, sinks, retained evidence, and fixed_at null still matching. final_disposition is false_positive_in_connector_scope; feasibility_status remains not_applicable because no connector patch is required. The sole remaining risk is an external downstream renderer that emits unsafe context-dependent output. Separate shared temporary-root finalization is tracked by FND-HOST-0005 and does not block this connector-scope closure. No GitHub mutation, product change, Framework/MRTS change, gitlink change, commit, push, or pull request occurred."
+    }
+  ]
+}

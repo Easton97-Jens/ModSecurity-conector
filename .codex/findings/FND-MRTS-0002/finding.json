@@ -1,0 +1,124 @@
+{
+  "id": "FND-MRTS-0002",
+  "title": "MRTS upstream-policy safety marker was absent from an enforced governance control",
+  "title_de": "MRTS-Upstream-Policy-Sicherheitsmarker fehlte in einer erzwungenen Governance-Kontrolle",
+  "category": "test_failure",
+  "repository": "mrts",
+  "ownership": "mrts_explicit_user_task",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "fixed",
+  "feasibility_status": "requires_user_decision",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": "MRTS local Codex control plane",
+  "affected_files": [
+    ".codex/context/fork-and-upstream-policy.md",
+    "tools/validate-governance.py",
+    "tools/test_validate_governance.py"
+  ],
+  "affected_symbols": [
+    "Do not guess an upstream URL",
+    "MRTS governance validator",
+    "MRTS fork and upstream policy"
+  ],
+  "summary": "The MRTS governance validator failed because the active fork-and-upstream policy lacked its required explicit instruction not to guess an upstream URL. A minimal policy repair restored the marker; the original validator and its focused regression tests now pass.",
+  "summary_de": "Der MRTS-Governance-Validator schlug fehl, weil die aktive Fork-and-Upstream-Policy die erforderliche ausdrückliche Anweisung fehlte, keine Upstream-URL zu erraten. Eine minimale Policy-Reparatur stellte den Marker wieder her; der ursprüngliche Validator und seine fokussierten Regressionstests bestehen jetzt.",
+  "observed_behavior": "Before the repair, `tools/validate-governance.py` exited 1 and reported that `.codex/context/fork-and-upstream-policy.md` was missing the required marker `Do not guess an upstream URL`. No remote, source, network, or delivery action was attempted.",
+  "observed_behavior_de": "Vor der Reparatur beendete sich `tools/validate-governance.py` mit Exit-Code 1 und meldete, dass `.codex/context/fork-and-upstream-policy.md` der erforderliche Marker `Do not guess an upstream URL` fehlte. Es wurde keine Remote-, Source-, Netzwerk- oder Delivery-Aktion versucht.",
+  "expected_behavior": "The active MRTS upstream policy must explicitly prohibit guessing an upstream URL, require observation of the configured remote before inspection, and continue to prohibit inferred delivery authority. The native governance validator and its focused tests must pass.",
+  "expected_behavior_de": "Die aktive MRTS-Upstream-Policy muss das Erraten einer Upstream-URL ausdrücklich verbieten, vor einer Inspektion die Beobachtung des konfigurierten Remote verlangen und weiter jede abgeleitete Delivery-Autorität untersagen. Der native Governance-Validator und seine fokussierten Tests müssen bestehen.",
+  "impact": "The failed mandatory local governance check prevented a verified configuration-reconciliation result and omitted an explicit defense-in-depth instruction at an upstream trust boundary. The evidence shows no actual remote misuse or runtime exploit.",
+  "impact_de": "Der fehlgeschlagene verpflichtende lokale Governance-Check verhinderte ein verifiziertes Configuration-Reconciliation-Ergebnis und ließ eine explizite Defense-in-Depth-Anweisung an einer Upstream-Trust-Boundary aus. Die Evidence zeigt keinen tatsächlichen Remote-Missbrauch und keinen Runtime-Exploit.",
+  "preconditions": [
+    "The MRTS control plane is present in the existing embedded MRTS checkout.",
+    "The native governance validator is executed against the active policy files."
+  ],
+  "reproduction": [
+    "Use the retained pre-repair evidence from the task run; it records the validator command and exit code 1 without mutating a remote.",
+    "After the repair, run the native governance validator from the MRTS repository root; it must exit 0.",
+    "Run the focused governance regression suite; its three tests must pass."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T000000Z-mrts-codex-config-reconciliation-current",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T000000Z-mrts-codex-config-reconciliation-current/evidence/governance-validator-before.txt",
+      "artifact_type": "pre_repair_governance_validator_result",
+      "sha256": "99fac1ae7620a2b32e321603fe51153cdf10f3187b28046c9651bc36de2dfa0a",
+      "command": "rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 tools/validate-governance.py",
+      "working_directory": "MRTS repository root (existing embedded checkout)",
+      "exit_code": 1,
+      "observed_at": "2026-07-26T04:19:42Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726T000000Z-mrts-codex-config-reconciliation-current",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T000000Z-mrts-codex-config-reconciliation-current/evidence/governance-validator-after.txt",
+      "artifact_type": "post_repair_governance_validator_and_test_result",
+      "sha256": "f67f95dec10d1042cd42915734114d0a12884b920502df8290cbf406104d6354",
+      "command": "rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 tools/validate-governance.py; rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 tools/test_validate_governance.py",
+      "working_directory": "MRTS repository root (existing embedded checkout)",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T04:24:52Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The policy and validator drifted: the policy preserved upstream inspection-only restrictions but lacked the validator's exact explicit non-guessing marker.",
+  "root_cause_de": "Policy und Validator waren auseinander gelaufen: Die Policy bewahrte Upstream-Inspection-only-Restriktionen, enthielt aber nicht den exakten ausdrücklichen Non-Guessing-Marker des Validators.",
+  "proposed_remediation": "Add the narrowly scoped explicit marker to the MRTS fork-and-upstream policy: do not guess an upstream URL; observe the configured remote before inspection; do not infer an upstream destination from a repository name, previous task, or nested Gitlink. Preserve all existing delivery prohibitions.",
+  "proposed_remediation_de": "Den eng abgegrenzten ausdrücklichen Marker zur MRTS-Fork-and-Upstream-Policy hinzufügen: Keine Upstream-URL erraten; den konfigurierten Remote vor einer Inspektion beobachten; kein Upstream-Ziel aus Repository-Namen, vorherigem Task oder verschachteltem Gitlink ableiten. Alle bestehenden Delivery-Verbote bleiben erhalten.",
+  "acceptance_criteria": [
+    "The MRTS fork-and-upstream policy contains the exact marker `Do not guess an upstream URL`.",
+    "The policy continues to bind upstream to inspection only and does not grant an upstream push, merge, synchronization, tag, rebase, or Gitlink update.",
+    "The current native governance validator explicitly asserts the exact `Do not guess an upstream URL` marker rather than merely passing on other markers.",
+    "The original governance validator exits 0.",
+    "The focused governance regression suite passes all three tests.",
+    "No MRTS product source, remote, branch, Gitlink, commit, push, pull request, or merge is changed."
+  ],
+  "validation_plan": [
+    "After explicit MRTS source/test authority, restore the current validator's assertion for the exact `Do not guess an upstream URL` marker.",
+    "Rerun the exact missing-marker negative control and the repaired positive control on the same current MRTS revision.",
+    "Rerun the focused governance regression suite and review the repaired policy for preservation of origin-only delivery and upstream inspection-only controls."
+  ],
+  "regression_tests": [
+    "tools/test_validate_governance.py"
+  ],
+  "legitimate_control_tests": [
+    "tools/validate-governance.py rejects an intentionally missing exact non-guessing marker and accepts the retained legitimate policy marker on the same current revision.",
+    "The policy continues to state the exact inspection-only upstream restriction."
+  ],
+  "dependencies": [],
+  "blocked_by": [
+    "Current MRTS validator/test coverage no longer asserts the exact non-guessing marker; a separately authorized MRTS source/test correction and current negative/positive rerun are required."
+  ],
+  "duplicates": [],
+  "related_findings": [],
+  "source_run_ids": [
+    "20260726T000000Z-mrts-codex-config-reconciliation-current"
+  ],
+  "residual_risk": "The policy text remains present, but the current validator no longer asserts its exact non-guessing marker; historical success therefore cannot verify the current enforcement path. Policy and validator controls are governance evidence, not a host-side interceptor. Any future authorized delivery must still perform the independent remote/identity preflight, and no upstream delivery authority is inferred.",
+  "residual_risk_de": "Der Policy-Text bleibt vorhanden, aber der aktuelle Validator prüft seinen exakten Non-Guessing-Marker nicht mehr; der historische Erfolg verifiziert daher den aktuellen Durchsetzungspfad nicht. Policy- und Validator-Kontrollen sind Governance-Evidence, kein Host-seitiger Interceptor. Jede künftige autorisierte Delivery muss weiterhin den unabhängigen Remote-/Identity-Preflight durchführen; keine Upstream-Delivery-Autorität wird abgeleitet.",
+  "created_at": "2026-07-26T04:19:42Z",
+  "updated_at": "2026-07-26T11:35:17Z",
+  "final_disposition": "fixed_policy_marker_present_but_current_validator_no_longer_asserts_exact_marker",
+  "history": [
+    {
+      "at": "2026-07-26T04:19:42Z",
+      "event": "original_validator_failure_reproduced",
+      "detail": "The native validator exited 1 for the missing exact upstream non-guessing marker. No remote, source, network, or delivery action occurred."
+    },
+    {
+      "at": "2026-07-26T04:24:52Z",
+      "event": "minimal_policy_repair_verified",
+      "detail": "The explicit marker was added without widening authority. The original validator and all three focused regression tests passed."
+    },
+    {
+      "at": "2026-07-26T11:35:17Z",
+      "event": "verification_reassessed_after_current_validator_coverage_regression",
+      "detail": "Current read-only inspection at MRTS b88caf4fc4aab427baca90d62d1f75774bd0b689 found that tools/validate-governance.py and its focused test changed after the historical repair and no longer assert the exact `Do not guess an upstream URL` marker. The policy text remains, but the former legitimate control is no longer current; status is reassessed from verified to fixed. No MRTS source, test, remote, Gitlink, branch, commit, or delivery action occurred."
+    }
+  ]
+}

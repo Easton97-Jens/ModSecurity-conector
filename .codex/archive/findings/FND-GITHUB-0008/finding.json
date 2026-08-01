@@ -1,0 +1,161 @@
+{
+  "id": "FND-GITHUB-0008",
+  "title": "Framework workflow-tool publisher remains blocked until its dedicated GitHub App is configured",
+  "title_de": "Framework-Workflow-Tool-Publisher bleibt bis zur Konfiguration seiner dedizierten GitHub-App blockiert",
+  "category": "ci_failure",
+  "repository": "framework",
+  "ownership": "github_configuration",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "accepted_risk",
+  "feasibility_status": "out_of_scope",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": "Framework Update pinned workflow tools runs #1 and #2",
+  "affected_files": [
+    ".github/workflows/update-workflow-tools.yml",
+    "ci/tooling/security-tools.lock.yml",
+    ".github/workflows/ci-security-codeql-pr.yml",
+    ".github/workflows/ci-security-codeql.yml",
+    "docs/github-actions-workflow-security.md",
+    "docs/github-actions-workflow-security.de.md"
+  ],
+  "affected_symbols": [
+    "publisher job",
+    "Mint repository-limited workflow publisher App token",
+    "PUBLISH_TOKEN",
+    "WORKFLOW_UPDATER_APP_CLIENT_ID",
+    "WORKFLOW_UPDATER_APP_PRIVATE_KEY"
+  ],
+  "observed_behavior": "Historical run 30190898961 on Framework master 7e9a560f3acda65510c93f649b6ed4977e4cd6cb passed resolver and validator, then GitHub rejected the native github.token workflow-file push. Source remediation PR #46 was merged as c27c644e088904b71b8380d16ee34f1b36f2c001. Current run 30195702432 (run #2, workflow_dispatch) on that master SHA again passed resolver and validator but failed before token issuance at Mint repository-limited workflow publisher App token because the client-id input is empty. Name-only repository variable and secret inventories returned no names.",
+  "expected_behavior": "After a dedicated GitHub App is installed only for this Framework repository and its client-ID variable and private-key secret are configured, a validated candidate that changes an allowlisted workflow pin publishes only the fixed maintenance branch and creates or updates exactly one matching Draft PR, while resolver and validator remain read-only and token-free.",
+  "impact": "Automated publication of reviewed immutable Action/tool maintenance updates remains unavailable until the external App configuration is completed. The failure must not be bypassed by weakening pins, validation, scope checks, credential isolation, or default-branch protection.",
+  "preconditions": [
+    "Framework default-branch updater run reaches the publisher after resolver and validator complete successfully.",
+    "The publisher is configured to mint the dedicated repository-limited GitHub App token.",
+    "A later candidate may change an allowlisted .github/workflows/* path."
+  ],
+  "reproduction": [
+    "rtk proxy -- gh run view 30195702432 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed",
+    "rtk proxy -- git show origin/master:.github/workflows/update-workflow-tools.yml",
+    "rtk proxy -- gh variable list --repo Easton97-Jens/ModSecurity-test-Framework",
+    "rtk proxy -- gh secret list --repo Easton97-Jens/ModSecurity-test-Framework"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T063152Z-framework-update-pinned-workflow-tools-1",
+      "artifact_path": ".codex/runs/20260726T063152Z-framework-update-pinned-workflow-tools-1/evidence/framework-update-pinned-workflow-tools-run-1-receipt.md",
+      "artifact_type": "github_actions_workflow_publisher_permission_failure_receipt",
+      "sha256": "310ff8dc82ce5b3bb58d1da7ed93b16b8fb5231b757af6000f6125a71df9254f",
+      "command": "rtk proxy -- gh run view 30190898961 --repo Easton97-Jens/ModSecurity-test-Framework --json ...; rtk proxy -- gh run view 30190898961 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed; rtk proxy -- gh api ...update-workflow-tools.yml?ref=master; rtk proxy -- gh secret list --repo Easton97-Jens/ModSecurity-test-Framework",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": "0 for metadata/source/secret inventory; 1 for failed job log",
+      "observed_at": "2026-07-26T06:31:52Z",
+      "retention_status": "retained_sealed_local_control_plane"
+    },
+    {
+      "run_id": "20260726T090147Z-framework-update-pinned-workflow-tools-2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T090147Z-framework-update-pinned-workflow-tools-2/evidence/framework-update-pinned-workflow-tools-run-2-receipt.md",
+      "artifact_type": "github_actions_workflow_publisher_missing_client_id_receipt",
+      "sha256": "537bf3001c99be6615a9ea0c02b091556baa3ef0a5758177d28ec8931c890592",
+      "command": "rtk proxy -- gh run list ...; rtk proxy -- gh run view 30195702432 --json ...; rtk proxy -- gh run view 30195702432 --log-failed; rtk proxy -- gh variable list ...; rtk proxy -- gh secret list ...; rtk proxy -- git show origin/master:.github/workflows/update-workflow-tools.yml",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/framework/update-pinned-workflow-tools-app-token",
+      "exit_code": "0",
+      "observed_at": "2026-07-26T09:07:01Z",
+      "retention_status": "retained_sealed_external_task_evidence"
+    }
+  ],
+  "root_cause": "The historical native-token authority gap was fixed in source by merged PR #46. The current workflow correctly fails closed before issuing a token because repository variable WORKFLOW_UPDATER_APP_CLIENT_ID is absent. The private-key secret, dedicated App installation, and exact App permissions cannot be verified until the owner configures them.",
+  "proposed_remediation": "A repository owner must configure and install a dedicated GitHub App only on Easton97-Jens/ModSecurity-test-Framework with Contents: write, Pull requests: write, and Workflows: write; then add repository variable WORKFLOW_UPDATER_APP_CLIENT_ID and repository secret WORKFLOW_UPDATER_APP_PRIVATE_KEY without exposing the key. Rerun the updater and verify the constrained maintenance branch and matching Draft PR. Do not add a github.token or personal-token fallback.",
+  "acceptance_criteria": [
+    "The dedicated App is installed only on this Framework repository with Contents: write, Pull requests: write, and Workflows: write; no credential value reaches source, evidence, logs, resolver, or validator.",
+    "Repository variable WORKFLOW_UPDATER_APP_CLIENT_ID and secret WORKFLOW_UPDATER_APP_PRIVATE_KEY are configured by an authorized owner without exposing the private key.",
+    "Master retains the pinned create-github-app-token source and has no github.token or GITHUB_TOKEN publishing fallback.",
+    "A new updater run pushes only the constrained maintenance branch and creates or updates exactly one matching Draft PR.",
+    "The resulting Draft PR remains within the validated allowlisted candidate surface and master remains unchanged by the updater."
+  ],
+  "validation_plan": [
+    "Inspect master update-workflow-tools.yml for the pinned App-token path and absence of a publishing-token fallback.",
+    "Verify the authorized App installation and the name-only repository variable/secret inventory without reading credential values.",
+    "Rerun the updater and verify constrained branch plus matching Draft PR creation without changing master directly."
+  ],
+  "regression_tests": [
+    "Merged PR #46 current-master source and successful master push workflows",
+    "Updater CI-security contract suite and workflow-action-pin validators from the merged source remediation"
+  ],
+  "legitimate_control_tests": [
+    "A candidate including a workflow-pin update creates the constrained Draft PR without changing master or exposing the publishing credential."
+  ],
+  "dependencies": [
+    "Current explicit repository-owner authorization for GitHub App installation and Actions variable/secret configuration.",
+    "Repository-limited GitHub App with the required workflow-file write authority."
+  ],
+  "blocked_by": [
+    "Repository variable WORKFLOW_UPDATER_APP_CLIENT_ID is absent; run #2 fails before token issuance with a non-empty client-id input error.",
+    "Name-only repository Actions-secret inventory is empty, so WORKFLOW_UPDATER_APP_PRIVATE_KEY is not configured.",
+    "Dedicated GitHub App installation and exact permissions are unverified and require repository-owner configuration."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-GITHUB-0005",
+    "FND-FRAMEWORK-0047",
+    "FND-FRAMEWORK-0048"
+  ],
+  "source_run_ids": [
+    "20260726T063152Z-framework-update-pinned-workflow-tools-1",
+    "20260726T090147Z-framework-update-pinned-workflow-tools-2"
+  ],
+  "residual_risk": "The current user accepted this record for local archival on 2026-07-26. Automated publication of reviewed immutable workflow/tool maintenance updates remains unavailable because the dedicated GitHub App, client-ID variable, and private-key secret are not configured. The fail-closed workflow must not gain a github.token, personal-token, pin, validation, scope, credential-isolation, or default-branch-protection workaround. This is an accepted-risk archive disposition, not a technical closure; restore and revalidate the record before production, publication, or release use.",
+  "residual_risk_de": "Der aktuelle Nutzer akzeptierte diesen Record am 2026-07-26 für die lokale Archivierung. Die automatisierte Veröffentlichung geprüfter unveränderlicher Workflow-/Tool-Wartungsupdates bleibt nicht verfügbar, weil dedizierte GitHub-App, Client-ID-Variable und Private-Key-Secret nicht konfiguriert sind. Der fail-closed Workflow darf keinen github.token-, Personal-Token-, Pin-, Validierungs-, Scope-, Credential-Isolation- oder Default-Branch-Protection-Workaround erhalten. Dies ist eine Accepted-Risk-Archiv-Disposition, kein technischer Abschluss; vor Produktion, Veröffentlichung oder Release muss der Record wiederhergestellt und neu validiert werden.",
+  "created_at": "2026-07-26T06:31:52Z",
+  "source_remediation": {
+    "status": "merged_source_pending_external_validation",
+    "pull_request": 46,
+    "url": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/46",
+    "branch": "agent/update-workflow-publisher-app-token",
+    "head_sha": "781b5603975369dd9b9a1661edc417dd37f5dfa7",
+    "initial_head_sha": "3b3a7adaf95bf41682b010785ecd624ebf906730",
+    "follow_up_commit": "781b5603975369dd9b9a1661edc417dd37f5dfa7",
+    "merge_commit": "c27c644e088904b71b8380d16ee34f1b36f2c001",
+    "merged_at": "2026-07-26T08:58:11Z",
+    "master_sha": "c27c644e088904b71b8380d16ee34f1b36f2c001",
+    "local_validation": [
+      "make lint",
+      "make test-ci-security-contract (134 tests)",
+      "make test-workflow-action-pins (25 tests)",
+      "make test-workflow-security-contract (7 tests)",
+      "make check-github-actions-workflows",
+      "make check-documentation",
+      "git diff --check"
+    ],
+    "hosted_status_at_receipt": "all normal PR checks passed on 781b5603975369dd9b9a1661edc417dd37f5dfa7; the three advisory jobs were expected skips. Initial head 3b3a7adaf95bf41682b010785ecd624ebf906730 failed Python quality only because Ruff required two mechanical formatting changes. All six merge-triggered master push workflows on c27c644e088904b71b8380d16ee34f1b36f2c001 passed.",
+    "remaining_external_prerequisite": "Repository owner must configure a repository-limited GitHub App installation with Contents, Pull requests, and Workflows write permission plus WORKFLOW_UPDATER_APP_CLIENT_ID variable and WORKFLOW_UPDATER_APP_PRIVATE_KEY secret, then validate a workflow-file updater candidate."
+  },
+  "history": [
+    {
+      "at": "2026-07-26T06:21:44Z",
+      "event": "historical_native_workflow_publisher_authority_failure",
+      "detail": "The historical publisher push was rejected for missing native GitHub App Workflows: write authority."
+    },
+    {
+      "at": "2026-07-26T08:58:11Z",
+      "event": "source_remediation_merged_pending_external_validation",
+      "detail": "PR #46 merged the source-only repository-limited App-token boundary as c27c644e088904b71b8380d16ee34f1b36f2c001."
+    },
+    {
+      "at": "2026-07-26T09:07:01Z",
+      "event": "publisher_configuration_failure_reconfirmed",
+      "detail": "Run 30195702432 failed closed before token issuance because WORKFLOW_UPDATER_APP_CLIENT_ID is empty; name-only variable and secret inventories are empty."
+    },
+    {
+      "at": "2026-07-26T14:18:25Z",
+      "event": "current_user_accepted_risk_archived",
+      "detail": "The current user explicitly accepted this exact residual risk for local archive disposition. The missing App/variable/secret external configuration is retained without any credential, setting, fallback, or technical-closure claim."
+    }
+  ],
+  "updated_at": "2026-07-26T14:18:25Z",
+  "final_disposition": "current_user_accepted_risk_20260726_workflow_publisher_external_configuration_archived_not_technically_closed"
+}

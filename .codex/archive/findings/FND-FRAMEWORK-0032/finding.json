@@ -1,0 +1,146 @@
+{
+  "id": "FND-FRAMEWORK-0032",
+  "title": "ModSecurity v3 provenance validator executes local Git fsmonitor configuration and writes during claimed read-only validation",
+  "title_de": "ModSecurity-v3-Provenance-Validator führt lokale Git-fsmonitor-Konfiguration aus und schreibt während der behaupteten schreibgeschützten Validierung",
+  "category": "security_validated",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P0",
+  "severity": "high",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "Git checkout provenance and external source acquisition",
+  "profile": "Parent PR #55 runtime-evidence remediation, Framework candidate based on 784977615acfc55567e37b863309abc4a38ac877",
+  "affected_revision": "784977615acfc55567e37b863309abc4a38ac877",
+  "affected_files": [
+    "ci/lib/common.sh",
+    "ci/provisioning/fetch-smoke-sources.sh",
+    "tests/security_regression/git_provenance_test_support.py",
+    "tests/security_regression/test_modsecurity_v3_git_ref_provenance.py",
+    "docs/connector-integration.md",
+    "docs/connector-integration.de.md"
+  ],
+  "affected_symbols": [
+    "ci_modsecurity_v3_git",
+    "ci_modsecurity_v3_require_clean_checkout",
+    "ci_require_approved_modsecurity_v3_root_checkout",
+    "ci_require_approved_modsecurity_v3_checkout"
+  ],
+  "technical_claim": "The candidate accepts caller-supplied existing ModSecurity v3 checkouts and invokes git status through ci_modsecurity_v3_git. Before correction, command-line hardening did not override local core.fsmonitor or disable optional locks. A repository-controlled local Git configuration could therefore execute a fsmonitor command before the provenance verdict, while git status could update index metadata despite the documented read-only contract. The candidate also did not bind Git's resolved worktree to the physical source path.",
+  "entry_point": "Apache, NGINX, and direct ModSecurity v3 build paths call ci_require_approved_modsecurity_v3_checkout on an existing MODSECURITY_V3_SOURCE_DIR before a source build.",
+  "source_to_sink_or_broken_control": "A caller-controlled pre-existing checkout contributes .git/config. ci_modsecurity_v3_require_clean_checkout invokes ci_modsecurity_v3_git -C <checkout> status --porcelain=v1 --untracked-files=all --ignore-submodules=none. Git evaluates local core.fsmonitor during status unless the command overrides it. The same status command may refresh index stat information unless optional locks are disabled.",
+  "attacker_prerequisites": [
+    "Ability to cause a build path to validate a pre-existing ModSecurity v3 source checkout.",
+    "Write access to that source checkout's local Git configuration or its external child Git directory before validation."
+  ],
+  "observed_behavior": "A private real-Git control repository with local core.fsmonitor set to a benign task-owned probe executed that probe during plain git status. The same configuration with git --no-optional-locks -c core.fsmonitor=false did not invoke it. A separate private real-Git control showed local core.worktree can redirect git -C <untrusted> rev-parse --show-toplevel to a different physical directory. The pre-fix focused Framework regression expected status 77 for this redirect but received 0.",
+  "expected_behavior": "Validation must not execute repository-controlled Git configuration or mutate Git metadata, and every validated root/child Git worktree must resolve to the canonical physical source directory. Extra remotes, attached HEADs, and external child Git directories must fail closed before any build action.",
+  "impact": "A malicious existing checkout can execute a local fsmonitor command with the Framework build or CI identity before provenance validation completes. It can also exploit Git worktree/config indirection to make origin, HEAD, and status checks refer to a different tree. This is a high-impact supply-chain validation boundary violation; no Parent or MRTS checkout was used in the controlled proof.",
+  "preconditions": [
+    "Framework build path accepts an existing MODSECURITY_V3_SOURCE_DIR.",
+    "The candidate guard performs Git status for its root or a recursive child.",
+    "The local Git implementation supports configured core.fsmonitor commands, as demonstrated in the retained task-owned real-Git proof."
+  ],
+  "reproduction": [
+    "In a task-owned disposable Git repository, configure core.fsmonitor to a benign marker-writing probe and run git status --porcelain=v1; observe the marker.",
+    "Repeat with git --no-optional-locks -c core.fsmonitor=false and confirm no marker is created.",
+    "Configure a separate disposable checkout with core.worktree pointing to another directory; observe git -C <untrusted> rev-parse --show-toplevel resolve to that directory.",
+    "Run the focused pre-fix Framework worktree-redirection regression; it receives 0 instead of the required fail-closed 77."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260720T173133Z-pr55-runtime-remediation-7e38e876",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T173133Z-pr55-runtime-remediation-7e38e876/evidence/framework-modsecurity-v3-git-validator-pre-fix-security-reproduction.md",
+      "artifact_type": "task_owned_real_git_security_reproduction",
+      "sha256": "805dcc95732c9f029194240fcab79b397ec21af1cbc1da0bd5bd768dbc23d716",
+      "command": "RTK-wrapped private Git core.worktree and core.fsmonitor probes plus focused Framework pre-fix regression",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T18:36:32Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Plain Git status invoked the benign local fsmonitor probe; -c core.fsmonitor=false with --no-optional-locks did not. core.worktree redirected Git resolution and the pre-fix Framework regression failed open."
+    },
+    {
+      "run_id": "20260720T201536Z-pr55-runtime-snapshot-revalidation-20f91607",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T201536Z-pr55-runtime-snapshot-revalidation-20f91607/evidence/framework-modsecurity-v3-provenance-remediation-postfix.md",
+      "artifact_type": "framework_postfix_security_validation_report",
+      "sha256": "b20ccffd871b9e4d821f5bdf08bb98061a0d7e6ed41a8921551b8fa2ec542aec",
+      "command": "RTK-wrapped focused provenance suite, real-Git fsmonitor/worktree/custom-submodule-update controls, Framework Make provenance contract, documentation checks, and full Framework lint",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260720T173133Z-pr55-runtime-remediation-7e38e876/tmp/framework-worktree",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T21:07:10Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The local candidate disabled fsmonitor and optional locks in hardened Git calls, bound root/child worktrees and child gitdirs, denied unsafe source parents, scrubbed local recursive-update configuration, and passed the real-Git and clean-control regressions without a remaining high or critical cross-UID blocker."
+    }
+  ],
+  "root_cause": "ci_modsecurity_v3_git clears environment/global/system configuration but trusts local repository configuration for status. The candidate used status without -c core.fsmonitor=false or --no-optional-locks, and did not compare Git's resolved worktree or child gitdir with the physical source containment boundary.",
+  "proposed_remediation": "The local candidate adds --no-optional-locks, core.fsmonitor=false, core.hooksPath=/dev/null, disables built-in fsmonitor, denies file transport, binds each root/child Git worktree to its canonical requested directory, contains resolved child Git directories below the root .git directory, requires exactly one origin remote and detached HEADs, and rejects unsafe parents before Git. It also clears local core.worktree, core.attributesfile, core.sparseCheckout, and every local submodule.*.update key before recursive commands. Hermetic negative tests and real-Git clean controls cover the state variants and retained-source/snapshot metadata checks.",
+  "acceptance_criteria": [
+    "Every ci_modsecurity_v3_git command disables local fsmonitor execution and optional Git locks.",
+    "Root and every approved child must resolve to the canonical physical worktree, and child Git directories must remain under the root Git metadata directory.",
+    "An extra remote, attached symbolic HEAD, external child gitdir, worktree redirect, dirty state, topology mismatch, or uninitialized child fails before a build command.",
+    "The legitimate clean approved eight-child source topology remains accepted.",
+    "A real retained-source guard invocation leaves the selected Git metadata hashes unchanged, and focused Framework checks, documentation, Change Record, and security review pass."
+  ],
+  "validation_plan": [
+    "Run the pre-fix and post-fix worktree-redirection/fsmonitor focused regressions with task-owned temporary roots.",
+    "Run the complete ModSecurity v3 provenance suite, shell/Python syntax, the Framework provenance contract Make target, documentation, Change Record, and full lint checks.",
+    "Hash relevant root and recursive child Git metadata before and after a real retained approved-source guard invocation.",
+    "Perform an independent final security review for command execution, local-config, remotes, symbolic HEAD, gitdir containment, path escape, and read-only behavior."
+  ],
+  "regression_tests": [
+    "tests/security_regression/test_modsecurity_v3_git_ref_provenance.py",
+    "tests/security_regression/git_provenance_test_support.py",
+    "make test-modsecurity-v3-provenance-contract"
+  ],
+  "legitimate_control_tests": [
+    "The clean exact approved root plus eight initialized pinned children passes the direct build guard without submodule mutation.",
+    "The fresh provisioner verifies the pinned root before its explicit recursive initialization and passes the post-update exact topology guard."
+  ],
+  "bypass_review": "Review the local Git configuration surface, fsmonitor, hooks, optional locks, core.worktree, remote inventory, symbolic HEAD, root and child gitdir containment, symlink/path traversal, recursive topology, origin, and commit. Preserve the hardened file-transport denial, TLS verification, hook path, and non-recursive default Git settings.",
+  "dependencies": [
+    "FND-FRAMEWORK-0030 static recursive topology remediation",
+    "Task-owned retained source evidence and Framework-local validation environment"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0030",
+    "FND-CROSS-0001"
+  ],
+  "deduplication_note": "Not a duplicate of FND-FRAMEWORK-0030, which owns the availability false rejection of an approved recursive topology, nor FND-FRAMEWORK-0031, which owns YAML workflow action pinning. This record owns the independently remediable Git local-configuration execution and read-only/provenance binding boundary in the candidate fix.",
+  "source_run_ids": [
+    "20260720T173133Z-pr55-runtime-remediation-7e38e876",
+    "20260720T201536Z-pr55-runtime-snapshot-revalidation-20f91607"
+  ],
+  "evidence_limitations": [
+    "The retained fsmonitor probe is a task-owned benign command in a disposable Git repository; no untrusted command was executed through a Parent, Framework authoritative, or MRTS checkout.",
+    "The local proof uses task-owned Git objects and a private snapshot; it does not establish a delivered Framework revision or a Parent runtime lifecycle."
+  ],
+  "residual_risk": "The cross-UID local-Git configuration, worktree, gitdir, remote, detached-HEAD, and private-parent boundary is fixed locally. Portable path-based shell controls cannot isolate a concurrent same-UID writer, and worktree-scoped or included local configuration remains a same-UID hardening candidate. A separate Framework PR, exact-head checks/review/Sonar evidence, Framework-master verification, and a separately authorized Parent gitlink update remain required before this finding can become verified or unblock Parent PR #55 runtime evidence. No Framework master, Parent gitlink, or MRTS action has occurred.",
+  "delivery_evidence": null,
+  "history": [
+    {
+      "at": "2026-07-20T18:36:32Z",
+      "event": "validated_task_owned_real_git_reproduction",
+      "detail": "A benign local core.fsmonitor probe executed during plain git status and did not execute when core.fsmonitor=false plus --no-optional-locks were supplied. A local core.worktree redirected Git resolution, and the focused candidate regression failed open with 0 rather than 77."
+    },
+    {
+      "at": "2026-07-20T18:36:32Z",
+      "event": "deduplicated_and_started_framework_remediation",
+      "detail": "The issue is distinct from the topology false-rejection and workflow action-pin findings. It is P0/high/validated, in_progress, and blocks Framework delivery and Parent PR #55 runtime evidence until fixed and verified."
+    },
+    {
+      "at": "2026-07-20T21:20:47Z",
+      "event": "local_remediation_fixed_pending_framework_delivery",
+      "detail": "The candidate hardened every provenance Git call, enforced root/child worktree and gitdir containment, scrubbed unsafe local recursive configuration, and passed fsmonitor, worktree, custom-update, public-parent, clean-control, Make, lint, documentation, and independent-review controls. Status is fixed, not verified, because no Framework PR or master verification exists."
+    }
+  ],
+  "created_at": "2026-07-20T18:36:32Z",
+  "updated_at": "2026-07-20T21:20:47Z",
+  "final_disposition": "fixed_locally_pending_framework_pr_exact_head_and_master_verification"
+}

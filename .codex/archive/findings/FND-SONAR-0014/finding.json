@@ -1,0 +1,242 @@
+{
+  "id": "FND-SONAR-0014",
+  "title": "PR #97 Common runtime smoke maintainability follow-up for duplicate literals and assertion order remains unverified",
+  "title_de": "PR-#97-Common-Runtime-Smoke-Maintainability-Follow-up für doppelte Literale und Assertion-Reihenfolge bleibt unverifiziert",
+  "category": "sonarqube_finding",
+  "sonarqube_classification": "maintainability_code_smells",
+  "sonarqube_rules": [
+    "python:S1192",
+    "python:S3415"
+  ],
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P3",
+  "severity": "major",
+  "confidence": "candidate",
+  "status": "accepted_risk",
+  "verification_status": "current_parent_semantics_revalidated_pending_hosted_per_rule_receipt",
+  "remediation_status": "current_parent_semantics_revalidated_pending_hosted_per_rule_receipt",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": "common",
+  "protocol": null,
+  "profile": "Parent PR #97 Common runtime smoke maintainability follow-up",
+  "delivery_state": "protected_merge_observed_master_sha_prefix_7f72325_master_push_workflows_14_passed_pending_full_master_receipt",
+  "affected_files": [
+    "common/scripts/run_local_runtime_smoke.py",
+    "tests/test_common_runtime_smoke_crs_source_security.py",
+    "reports/audits/change-records/CR-20260723-sonar-common-crs-source-integrity.md",
+    "reports/audits/change-records/CR-20260723-sonar-common-crs-source-integrity.de.md"
+  ],
+  "affected_symbols": [
+    "CRS_SETUP_TEMPLATE_NAME",
+    "RUNTIME_PATH_DEPENDENCY",
+    "RUNTIME_OUTPUT_PATH_FIELDS",
+    "four Python unittest assertion argument-order corrections"
+  ],
+  "source_commits": [
+    "2fb994324c097a846ed6f6d93126cb8def391f0d",
+    "b3860aac005a98244f5e880efc26a74449b11989",
+    "7f72325cbd177e4bd98b3511a58344c04d41b06b"
+  ],
+  "source_revisions": {
+    "original_pr97_feature_head": "2fb994324c097a846ed6f6d93126cb8def391f0d",
+    "local_pr97_worktree_snapshot": "b3860aac005a98244f5e880efc26a74449b11989",
+    "local_snapshot_base": "38752600e4823fc5a16f3e155047da2d660b9897",
+    "protected_merge_commit": "7f72325cbd177e4bd98b3511a58344c04d41b06b",
+    "current_parent_head": "3c99b88e1c73dcf7b79c0ea6dd189cb4383d13dd",
+    "scope_limit": "Local Git ancestry confirms that the full protected merge commit is reachable from the current Parent head. The retained current-source validation preserves test semantics and the security boundary, but does not provide a hosted per-rule S1192/S3415 receipt."
+  },
+  "summary": "The initial PR #97 analysis reported two python:S1192 duplicate-literal observations and four python:S3415 assertion-order observations. The corrected constants and assertions are in full protected merge 7f72325cbd177e4bd98b3511a58344c04d41b06b, locally reachable from current Parent head 3c99b88e1c73dcf7b79c0ea6dd189cb4383d13dd. Retained current-source validation passed the 26 focused controls, syntax, CLI help, whitespace, and merge ancestry while preserving FND-SONAR-0013's boundary. The current user selected a local archive-only accepted-risk disposition for the absent retained hosted per-rule S1192/S3415 receipt; no Quality-Gate pass, fix, or release disposition is claimed.",
+  "summary_de": "Die erste PR-#97-Analyse meldete zwei python:S1192-Beobachtungen zu doppelten Literalen und vier python:S3415-Beobachtungen zur Assertion-Reihenfolge. Die korrigierten Konstanten und Assertions sind im vollständigen geschützten Merge 7f72325cbd177e4bd98b3511a58344c04d41b06b enthalten, der vom aktuellen Parent-Head 3c99b88e1c73dcf7b79c0ea6dd189cb4383d13dd lokal erreichbar ist. Aufbewahrte Current-Source-Validierung bestand die 26 fokussierten Controls, Syntax, CLI-Hilfe, Whitespace und Merge-Ancestry und bewahrt die Grenze von FND-SONAR-0013. Der aktuelle Nutzer wählte eine ausschließlich lokale Archiv-Risikoakzeptanz für den fehlenden aufbewahrten Hosted-Per-Rule-S1192/S3415-Receipt; es wird kein Quality-Gate-Pass, Fix oder Release-Disposition behauptet.",
+  "observed_behavior": "The local PR #97 Change Record names two python:S1192 and four python:S3415 observations from the initial Draft PR analysis. The reviewed diff introduces CRS_SETUP_TEMPLATE_NAME, RUNTIME_PATH_DEPENDENCY, and RUNTIME_OUTPUT_PATH_FIELDS for repeated runtime/CRS text, and its test follow-up changes four unittest assertion argument orders. The source and local suite are available, but the current exact hosted issue list and Quality Gate were deliberately not queried by this bounded task.",
+  "observed_behavior_de": "Der lokale PR-#97-Change-Record nennt zwei python:S1192- und vier python:S3415-Beobachtungen aus der ersten Draft-PR-Analyse. Der geprüfte Diff führt CRS_SETUP_TEMPLATE_NAME, RUNTIME_PATH_DEPENDENCY und RUNTIME_OUTPUT_PATH_FIELDS für wiederholten Runtime-/CRS-Text ein, und sein Test-Follow-up ändert vier unittest-Assertion-Argumentreihenfolgen. Quelle und lokale Suite sind verfügbar, die aktuelle exakte Hosted-Issue-Liste und das Quality Gate wurden von dieser begrenzten Aufgabe jedoch bewusst nicht abgefragt.",
+  "expected_behavior": "The Common runtime smoke code and its tests should use named shared literals where that preserves behavior, and assertions should retain their original semantics while following the configured expected/actual order. Any correction must leave the security boundary documented by FND-SONAR-0013 intact and must not alter a Sonar rule, profile, suppression, exclusion, Quality Gate, or risk-acceptance state.",
+  "expected_behavior_de": "Der Common-Runtime-Smoke-Code und seine Tests sollen benannte gemeinsame Literale verwenden, wenn dies das Verhalten bewahrt, und Assertions sollen ihre ursprüngliche Semantik behalten, während sie der konfigurierten Expected-/Actual-Reihenfolge folgen. Jede Korrektur muss die durch FND-SONAR-0013 dokumentierte Sicherheitsgrenze intakt lassen und darf keine Sonar-Regel, kein Profil, keine Suppression, Exclusion, kein Quality Gate und keinen Risikoakzeptanzstatus ändern.",
+  "impact": "These observations are maintainability debt and future review/static-analysis noise. They are not a demonstrated runtime or security defect, do not independently block release integration, and do not change the P1 security-candidate disposition of FND-SONAR-0013.",
+  "impact_de": "Diese Beobachtungen sind Maintainability-Schulden und künftiges Review-/Static-Analysis-Rauschen. Sie sind kein belegter Runtime- oder Sicherheitsdefekt, blockieren eine Release-Integration nicht eigenständig und ändern nicht die P1-Sicherheitskandidat-Disposition von FND-SONAR-0013.",
+  "preconditions": [
+    "The initially reported Draft PR #97 Sonar observations apply to the reviewed Common runtime smoke diff.",
+    "The current exact PR head is available for a fresh hosted SonarQube Cloud readback.",
+    "The focused Parent test module remains runnable in a task-owned environment."
+  ],
+  "reproduction": [
+    "Inspect the local PR #97 diff and paired Change Record for the two reported python:S1192 and four reported python:S3415 observations.",
+    "Run env PYTHONDONTWRITEBYTECODE=1 python -m unittest -v tests.test_common_runtime_smoke_crs_source_security and verify that the changed test assertions preserve the same control and rejection behavior.",
+    "Query current exact-head SonarQube Cloud results for PR #97 and compare issue rule, component, and disposition without any Sonar control change."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/worktrees/pr55/reports/audits/change-records/CR-20260723-sonar-common-crs-source-integrity.md",
+      "artifact_type": "local_pr97_change_record_with_maintainability_followup_statement",
+      "sha256": "d07f3fb43265c7acfad64934c0b73c859ac3c30a048fff0b7e6064a0e334a8c9",
+      "command": "rtk proxy git diff --name-status origin/master...HEAD; rtk proxy git diff --check origin/master...HEAD; rtk proxy sha256sum reports/audits/change-records/CR-20260723-sonar-common-crs-source-integrity.md",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/worktrees/pr55",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T07:58:00Z",
+      "retention_status": "volatile_task_worktree_source_not_a_sealed_execution_receipt",
+      "scope_limit": "The Change Record identifies the rule counts and reports 26 local focused tests, but it is not a raw exact-head hosted Sonar issue/Quality-Gate receipt and the raw test log was not retained by this bounded record task. Parent-provided aggregate hosted evidence is recorded separately."
+    },
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/worktrees/pr55/reports/audits/change-records/CR-20260723-sonar-common-crs-source-integrity.de.md",
+      "artifact_type": "paired_german_local_pr97_change_record",
+      "sha256": "e7b9461f09f84cb43b8f736806743d0d83b7ea028507e25b88666f4c22182e24",
+      "command": "rtk proxy sha256sum reports/audits/change-records/CR-20260723-sonar-common-crs-source-integrity.de.md",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/worktrees/pr55",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T07:58:00Z",
+      "retention_status": "volatile_task_worktree_source_not_a_sealed_execution_receipt",
+      "scope_limit": "Paired change-record source only; it does not prove current hosted analysis or delivery."
+    },
+    {
+      "run_id": "20260726T171128Z-fnd-sonar-remediation",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T171128Z-fnd-sonar-remediation/validation_report.md",
+      "artifact_type": "retained_current_parent_maintainability_semantics_validation_report",
+      "sha256": "fe74a68f330bdd262e612a0a92ffafe8a558e9bbdad2fff4b1a6776f887dccf1",
+      "command": "rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-temp> <Parent-.venv>/bin/python -m unittest -v tests.test_common_runtime_smoke_crs_source_security; rtk proxy env PYTHONPYCACHEPREFIX=<task-artifacts>/pycache <Parent-.venv>/bin/python -m compileall -q common/scripts/run_local_runtime_smoke.py tests/test_common_runtime_smoke_crs_source_security.py; rtk proxy git merge-base --is-ancestor 7f72325cbd177e4bd98b3511a58344c04d41b06b HEAD",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T17:18:12Z",
+      "retention_status": "retained_task_owned_validation_evidence",
+      "scope_limit": "The current source retains named literals and the focused suite preserves assertion/control semantics. This is not a hosted per-rule S1192/S3415 receipt."
+    },
+    {
+      "run_id": "20260726T182851Z-user-selected-parent-sonar-archive",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T182851Z-user-selected-parent-sonar-archive/decision.md",
+      "artifact_type": "explicit_user_directed_local_archive_accepted_risk_decision",
+      "sha256": "d5dc1ed08dfca22b841c02eee45e0459665f026924ff531f158d1e5dd0145cdf",
+      "command": "Current user selected FND-SONAR-0010, FND-SONAR-0013, and FND-SONAR-0014 for a lossless local archive move after the current SonarQube Cloud/GitHub reconciliation.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T18:28:51Z",
+      "retention_status": "retained_task_owned_external_evidence",
+      "scope_limit": "This is a local archive decision only. It does not establish a Quality-Gate pass, a per-rule SonarQube disposition, a fix, technical closure, or release readiness."
+    }
+  ],
+  "current_exact_evidence": {
+    "source": "parent-provided current PR #97 evidence for this bounded finding-record task",
+    "observed_at": "2026-07-24T08:04:28Z",
+    "head_sha": "b3860aac005a98244f5e880efc26a74449b11989",
+    "local_validation": {
+      "focused_test_count": 26,
+      "focused_tests": "passed",
+      "compileall": "passed",
+      "help": "passed"
+    },
+    "hosted_validation": {
+      "required_checks": "passed",
+      "current_pr_checks": "passed",
+      "sonarqube_quality_gate": "OK",
+      "current_pr_issue_disposition": "8 issues CLOSED/FIXED"
+    },
+    "delivery": {
+      "protected_merge": "not_observed",
+      "resulting_master_validation": "not_observed"
+    },
+    "retention_status": "parent_supplied_summary_source_receipt_path_not_provided_to_this_bounded_record_update",
+    "scope_limit": "The aggregate evidence supports current PR-level status. A retained raw per-rule S1192/S3415 receipt was not supplied, and no protected merge or resulting-master state is proven."
+  },
+  "current_delivery_evidence": {
+    "source": "parent-provided protected-merge and resulting-master workflow summary for this bounded finding-record task",
+    "observed_at": "2026-07-24T08:13:51Z",
+    "protected_merge": "observed",
+    "master_sha_prefix": "7f72325",
+    "master_sha": "7f72325cbd177e4bd98b3511a58344c04d41b06b",
+    "current_parent_head": "3c99b88e1c73dcf7b79c0ea6dd189cb4383d13dd",
+    "current_head_reachability": "rtk git merge-base --is-ancestor 7f72325cbd177e4bd98b3511a58344c04d41b06b HEAD exited 0 at 2026-07-26T17:18:12Z",
+    "master_push_workflows": {
+      "count": 14,
+      "result": "passed"
+    },
+    "retention_status": "parent_summary_plus_retained_local_git_ancestry_and_validation_report",
+    "scope_limit": "The full merge SHA and its reachability from the current Parent head are locally evidenced. A hosted per-rule S1192/S3415 receipt remains unavailable."
+  },
+  "root_cause": "The initial Draft PR analysis reportedly identified repeated literal text in the Common runtime smoke change and assertion argument order that did not meet the configured Sonar maintainability rule. The bounded evidence does not establish a broader runtime defect or any behavior change beyond those patterns.",
+  "root_cause_de": "Die erste Draft-PR-Analyse identifizierte laut Bericht wiederholten Literaltext in der Common-Runtime-Smoke-Änderung und Assertion-Argumentreihenfolge, die die konfigurierte Sonar-Maintainability-Regel nicht erfüllte. Die begrenzte Evidenz belegt keinen breiteren Runtime-Defekt oder eine Verhaltensänderung über diese Muster hinaus.",
+  "proposed_remediation": "Retain the named shared constants and semantically equivalent assertion ordering in the focused PR #97 diff. Verify on a fresh exact hosted PR head that the two S1192 and four S3415 observations are absent or have an evidence-backed legitimate disposition. Do not change Sonar controls, and do not weaken the path/provenance controls tracked by FND-SONAR-0013 to reduce maintainability findings.",
+  "proposed_remediation_de": "Die benannten gemeinsamen Konstanten und die semantisch äquivalente Assertion-Reihenfolge im fokussierten PR-#97-Diff beibehalten. Auf einem frischen exakten Hosted-PR-Head verifizieren, dass die zwei S1192- und vier S3415-Beobachtungen fehlen oder eine evidenzgestützte legitime Disposition haben. Sonar-Controls nicht ändern und die durch FND-SONAR-0013 verfolgten Path-/Provenance-Controls nicht abschwächen, um Maintainability-Befunde zu reduzieren.",
+  "acceptance_criteria": [
+    "The current exact PR #97 head retains the same Common runtime smoke rejection and legitimate-control behavior after literal deduplication and assertion-order corrections.",
+    "Focused tests, syntax/help checks, bilingual Change Record review, and git diff --check pass for the exact head.",
+    "The confirmed exact head retains Quality Gate OK and aggregate current PR issues CLOSED/FIXED without a Sonar control change; retain a per-rule receipt before final verification and repeat it if the head changes.",
+    "FND-SONAR-0013's path/provenance boundary remains intact and independently validated."
+  ],
+  "validation_plan": [
+    "Identify and retain the current exact PR #97 head before querying hosted results.",
+    "Run the focused Common runtime smoke security test module and review changed assertion semantics against the original controls.",
+    "Run syntax, --help, bilingual-record, and whitespace checks without producing checkout artifacts.",
+    "Retain fresh exact-head SonarQube Cloud issue and Quality-Gate evidence with targeted-rule detail; repeat it after any head change and do not alter Sonar settings.",
+    "After protected merge, verify the resulting master SHA and applicable master checks before marking the finding verified.",
+    "Review the final diff to ensure no security-control weakening accompanies the maintainability follow-up."
+  ],
+  "regression_tests": [
+    "tests/test_common_runtime_smoke_crs_source_security.py — the Change Record reports 26 passing focused cases; raw output was not retained by this bounded finding-record task."
+  ],
+  "legitimate_control_tests": [
+    "Existing valid CRS source and verified-runtime-output controls retain their original test behavior after assertion-order correction.",
+    "The runtime smoke --help path remains available without executing the protected runtime path."
+  ],
+  "dependencies": [
+    "A current exact Parent PR #97 head.",
+    "A Parent Python environment for focused tests.",
+    "Read access to current exact-head SonarQube Cloud results."
+  ],
+  "blocked_by": [
+    "The full resulting-master SHA and a retained raw per-rule S1192/S3415 receipt are not supplied to this bounded finding-record task."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0013"
+  ],
+  "source_run_ids": [
+    "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+    "20260726T171128Z-fnd-sonar-remediation",
+    "20260726T182851Z-user-selected-parent-sonar-archive"
+  ],
+  "evidence_limitations": [
+    "The local Change Record reports initial rule counts and a focused test result, but no raw exact-head hosted Sonar response is retained here.",
+    "Parent-provided exact-head evidence reports Quality Gate OK and eight current PR issues CLOSED/FIXED in aggregate; it does not include a retained raw per-rule S1192/S3415 mapping.",
+    "The full protected-merge SHA is now locally reachable from current Parent HEAD and current local semantics are revalidated; the hosted per-rule S1192/S3415 receipt remains unavailable.",
+    "No runtime-exploit or independent security-remediation verification is claimed by this nonblocking maintainability finding."
+  ],
+  "residual_risk": "The full merge SHA is locally reachable and current local semantics are preserved, but maintainability/review uncertainty remains because no retained hosted per-rule S1192/S3415 receipt exists. The current user accepts that uncertainty solely for a local archive. This does not establish a Quality-Gate pass, an issue disposition, a fix, technical closure, production safety, release readiness, or any reduction of FND-SONAR-0013's requirements.",
+  "residual_risk_de": "Der vollständige Merge-SHA ist lokal erreichbar und die aktuellen lokalen Semantiken bleiben erhalten, aber Maintainability-/Review-Unsicherheit bleibt, weil kein aufbewahrter Hosted-Per-Rule-S1192/S3415-Receipt existiert. Der aktuelle Nutzer akzeptiert diese Unsicherheit ausschließlich für ein lokales Archiv. Dies begründet keinen Quality-Gate-Pass, keine Issue-Disposition, keinen Fix, keinen technischen Abschluss, keine Produktionssicherheit, keine Release-Readiness und keine Reduzierung der Anforderungen von FND-SONAR-0013.",
+  "history": [
+    {
+      "at": "2026-07-24T07:58:00Z",
+      "status": "in_progress",
+      "event": "canonical_maintainability_followup_record_created_from_pr97_local_scope",
+      "detail": "Allocated from the paired local PR #97 Change Record as a nonblocking S1192/S3415 follow-up. No current hosted result or merge outcome is asserted."
+    },
+    {
+      "at": "2026-07-24T08:04:28Z",
+      "status": "in_progress",
+      "event": "parent_provided_exact_head_validation_recorded",
+      "detail": "Parent confirmed exact head b3860aac005a98244f5e880efc26a74449b11989; 26 focused tests, compileall, --help, required/current PR checks passed, SonarQube Cloud Quality Gate was OK, and eight current PR issues were CLOSED/FIXED. PR #97 remains unmerged."
+    },
+    {
+      "at": "2026-07-24T08:13:51Z",
+      "status": "in_progress",
+      "event": "parent_provided_protected_merge_and_master_workflow_summary_recorded",
+      "detail": "Parent confirmed protected merge of PR #97 to master SHA prefix 7f72325 and 14 green master-push workflows. No full resulting-master SHA or retained per-rule S1192/S3415 receipt was supplied, so the finding remains in_progress."
+    },
+    {
+      "at": "2026-07-26T17:18:12Z",
+      "status": "in_progress",
+      "event": "current_parent_semantics_validation_and_full_merge_ancestry_recorded",
+      "detail": "Local Git proves full merge commit 7f72325cbd177e4bd98b3511a58344c04d41b06b is an ancestor of current Parent HEAD 3c99b88e1c73dcf7b79c0ea6dd189cb4383d13dd. Retained task evidence records the 26-case focused suite, syntax/help, whitespace, and preservation of the named literals/assertion semantics. Hosted per-rule S1192/S3415 evidence remains open."
+    },
+    {
+      "at": "2026-07-26T18:28:51Z",
+      "status": "accepted_risk",
+      "event": "current_user_directed_local_archive_accepted_risk",
+      "detail": "After the current master/SonarQube Cloud reconciliation, the current user explicitly selected this record for a lossless local archive move. The decision accepts only the documented missing per-rule hosted receipt for local archival; it does not mark the finding fixed, verified, closed, production-safe, or release-ready."
+    }
+  ],
+  "created_at": "2026-07-24T07:58:00Z",
+  "updated_at": "2026-07-26T18:28:51Z",
+  "final_disposition": "accepted_risk_user_directed_local_archive_only_20260726"
+}

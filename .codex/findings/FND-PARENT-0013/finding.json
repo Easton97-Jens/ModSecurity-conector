@@ -1,0 +1,128 @@
+{
+  "id": "FND-PARENT-0013",
+  "title": "Traefik pathname UDS cleanup retains a same-UID final unlink race",
+  "title_de": "Traefik-Pfad-UDS-Cleanup behält ein finales Same-UID-Unlink-Rennen",
+  "category": "security_candidate",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "probable",
+  "status": "blocked",
+  "feasibility_status": "blocked_missing_evidence",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "Traefik",
+  "protocol": null,
+  "profile": "native-traefik-middleware",
+  "affected_files": [
+    "connectors/traefik/src/traefik_engine_service.c",
+    "connectors/traefik/scripts/runtime_native_smoke.py",
+    "connectors/traefik/build/test-engine-service-runtime.sh",
+    "tests/test_traefik_native_local_plugin.py",
+    "connectors/traefik/README.md",
+    "connectors/traefik/README.de.md",
+    "docs/reference/variables.md",
+    "docs/reference/variables.de.md"
+  ],
+  "affected_symbols": [
+    "traefik_engine_remove_owned_socket",
+    "TRAEFIK_ENGINE_SOCKET_PARENT"
+  ],
+  "summary": "The native UDS service revalidates pathname socket identity before cleanup, but POSIX/Linux has no atomic unlink-if-this-inode operation. A hostile process sharing the service UID and directory mutation authority can replace the final pathname after lstat() and before unlink().",
+  "summary_de": "Der native UDS-Service validiert die Socket-Identität des Pfads vor dem Cleanup erneut, aber POSIX/Linux hat keine atomare Operation „unlink nur bei dieser Inode“. Ein bösartiger Prozess mit derselben Service-UID und Änderungsrecht im Verzeichnis kann den finalen Pfad nach lstat() und vor unlink() ersetzen.",
+  "observed_behavior": "The current service checks the socket type, owner, device, and inode with lstat(), then calls unlink() by pathname in a later operation. The strengthened double-observation and SO_PEERCRED self-probe close the pre-capture replacement windows, but do not make this final pathname deletion conditional on the previously observed inode.",
+  "observed_behavior_de": "Der aktuelle Service prüft Socket-Typ, Besitzer, Gerät und Inode mit lstat() und ruft danach unlink() über den Pfad in einer späteren Operation auf. Die verstärkte Doppelbeobachtung und die SO_PEERCRED-Selbstprüfung schließen die Ersetzungsfenster vor der Ownership-Erfassung, machen die finale Pfadlöschung aber nicht von der zuvor beobachteten Inode abhängig.",
+  "expected_behavior": "A strict foreign-object safety claim requires either no automatic pathname deletion or a verified trust boundary that prevents same-UID directory mutation. It must not claim an unavailable atomic conditional unlink.",
+  "expected_behavior_de": "Eine strikte Foreign-Object-Sicherheitsaussage erfordert entweder keine automatische Pfadlöschung oder eine verifizierte Trust Boundary, die Same-UID-Verzeichnisänderungen verhindert. Sie darf keine nicht verfügbare atomare bedingte Unlink-Operation behaupten.",
+  "impact": "The configured 0700 child protects against other UIDs and the current controls fail closed on ordinary replacement. It is not process isolation for a hostile same-UID mutator, so the requested strict no-foreign-socket-cleanup guarantee is not fully proven.",
+  "impact_de": "Das konfigurierte 0700-Kind schützt gegenüber anderen UIDs und die aktuellen Kontrollen scheitern bei gewöhnlicher Ersetzung geschlossen. Es ist keine Prozessisolation gegenüber einem bösartigen Same-UID-Mutator; daher ist die verlangte strikte No-Foreign-Socket-Cleanup-Garantie nicht vollständig bewiesen.",
+  "preconditions": [
+    "A hostile process shares the service effective UID.",
+    "That process can search and mutate the private UDS child directory.",
+    "It replaces the pathname in the interval after the final lstat() and before unlink()."
+  ],
+  "reproduction": [
+    "Inspect traefik_engine_remove_owned_socket(): lstat() validates a pathname entry and unlink() consumes the pathname in a separate system call.",
+    "No documented POSIX/Linux unlink API accepts an expected inode, descriptor, or file handle predicate."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/058-traefik-uds-final-unlink-static-review.log",
+      "artifact_type": "source_to_sink_security_review_log",
+      "sha256": "207b674e7d6842521d6a25b0e0dd4432ba939e5fe6426538636ba12e14e336aa",
+      "command": "rg -n -C 8 'traefik_engine_remove_owned_socket|lstat\\(socket_path|unlink\\(socket_path\\)' connectors/traefik/src/traefik_engine_service.c",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T13:57:53Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/056-traefik-engine-service-double-observation-race-regression.log",
+      "artifact_type": "native_uds_c17_regression_log",
+      "sha256": "fd8d6bafee0adf474880625b73c26e719a114e60d44036fb141fc940658b36da",
+      "command": "TMPDIR=<task-tmp> BUILD_ROOT=<active-run-build> TRAEFIK_ENGINE_SOCKET_TEST_PARENT=<task-tmp> PYTHON=/root/git/ModSecurity-conector/.venv/bin/python MODSECURITY_INCLUDE_DIR=<verified-prefix>/include MODSECURITY_LIB_DIR=<verified-prefix>/lib make -C connectors/traefik test-engine-service",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T13:55:00Z",
+      "retention_status": "retained_task_log"
+    }
+  ],
+  "root_cause": "Pathname AF_UNIX cleanup uses a check-then-unlink interface. The operating-system API lacks an expected-object predicate for unlink, and the current architecture deliberately uses a same-UID private directory rather than a separately trusted cleanup authority.",
+  "root_cause_de": "Pfad-AF_UNIX-Cleanup verwendet eine Check-then-Unlink-Schnittstelle. Der Betriebssystem-API fehlt ein Expected-Object-Prädikat für unlink, und die aktuelle Architektur verwendet bewusst ein privates Same-UID-Verzeichnis statt einer getrennt vertrauten Cleanup-Authority.",
+  "proposed_remediation": "Choose and prove one new boundary: never automatically unlink pathname sockets and surface cleanup_incomplete; use a separately owned trusted cleanup authority; or establish compatible abstract-AF_UNIX support end to end. Do not weaken existing pre-bind collision, identity, or cleanup-refusal controls.",
+  "proposed_remediation_de": "Eine neue Grenze auswählen und nachweisen: Pfad-Sockets nie automatisch unlinken und cleanup_incomplete ausgeben; eine getrennt besessene vertrauenswürdige Cleanup-Authority verwenden; oder kompatiblen Abstract-AF_UNIX-Support Ende-zu-Ende etablieren. Bestehende Pre-Bind-Kollision-, Identitäts- oder Cleanup-Refusal-Kontrollen nicht abschwächen.",
+  "acceptance_criteria": [
+    "The final cleanup path never claims atomic unlink-if-inode behavior.",
+    "Either automatic pathname deletion is disabled fail closed, or an independently verified trust boundary prevents same-UID path replacement.",
+    "The existing short-path, collision, symlink, replacement, Allow, Blocking, startup, shutdown, and residue controls remain covered where feasible."
+  ],
+  "validation_plan": [
+    "Validate the selected architectural boundary with a real hostile same-UID replacement test.",
+    "Run the native C17 engine self-test and protocol lifecycle controls.",
+    "Run focused runner contracts and the genuine host lifecycle when its environment becomes available."
+  ],
+  "regression_tests": [
+    "connectors/traefik/build/test-engine-service-runtime.sh",
+    "tests/test_traefik_native_local_plugin.py",
+    "A future real same-UID final-unlink boundary test after an architectural solution is selected."
+  ],
+  "legitimate_control_tests": [
+    "Normal native engine startup, protocol, Allow, and Blocking controls continue to complete in the focused C service test.",
+    "A post-start replacement sentinel is retained and the service reports socket_cleanup rather than deleting it."
+  ],
+  "dependencies": [
+    "A user-authorized cleanup trust-boundary decision or compatible abstract-AF_UNIX design evidence."
+  ],
+  "blocked_by": [
+    "No current repository-supported atomic conditional pathname unlink or separately owned cleanup authority."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0008",
+    "FND-PARENT-0014",
+    "FND-PARENT-0015"
+  ],
+  "source_run_ids": [
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc"
+  ],
+  "residual_risk": "The existing private-child design is appropriate collision mitigation across UIDs, but a same-UID mutator may race the final lstat-to-unlink interval. No risk acceptance has been provided by the current user.",
+  "residual_risk_de": "Das bestehende Private-Child-Design ist angemessene Kollisionsminderung über UIDs hinweg, aber ein Same-UID-Mutator kann das finale lstat-zu-unlink-Intervall rennen. Der aktuelle Benutzer hat keine Risikoakzeptanz erteilt.",
+  "created_at": "2026-07-17T13:57:53Z",
+  "updated_at": "2026-07-17T13:57:53Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T13:57:53Z",
+      "event": "current_task_security_boundary_identified",
+      "detail": "The post-bind and post-probe capture windows were hardened and tested, but source-to-sink review confirmed the separate final same-UID lstat-to-unlink pathname limitation. No architectural trust-boundary decision or user risk acceptance was available."
+    },
+    {
+      "at": "2026-07-17T14:36:22Z",
+      "event": "related_same_uid_boundaries_separated",
+      "detail": "Independent final review kept this final cleanup race separate from FND-PARENT-0014 (manifest leaf removal) and FND-PARENT-0015 (post-readiness Traefik endpoint redirection)."
+    }
+  ]
+}

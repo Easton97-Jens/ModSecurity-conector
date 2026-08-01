@@ -1,0 +1,179 @@
+{
+  "id": "FND-PARENT-0042",
+  "title": "Parent runtime-component cache binds the NGINX release digest to a different tag archive",
+  "title_de": "Parent-Runtime-Komponenten-Cache bindet den NGINX-Release-Digest an ein anderes Tag-Archiv",
+  "category": "ci_failure",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "blocked",
+  "feasibility_status": "blocked_environment",
+  "runtime_validation_status": "blocked_environment",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "nginx",
+  "protocol": "runtime component provisioning",
+  "profile": "Parent NGINX release-asset cache-identity source repair; final legitimate runtime proof remains blocked_environment",
+  "source_base_revision": "0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3",
+  "delivery_state": "local_parent_candidate_not_delivered_due_to_blocked_native_runtime_and_framework_dependent_documentation_checks",
+  "security_assessment": "The original failure was a fail-closed supply-chain provenance mismatch, not an integrity bypass. The local Parent source correction now binds the exact pinned GitHub release tuple before download and preserves SHA-256 verification. It passed focused positive and bypass controls, but the legitimate preparation stops independently at missing_nginx_modsecurity_module (NGINX build exit 77), so the security-relevant release outcome remains blocked rather than fixed, verified, or closed.",
+  "security_assessment_de": "Der ursprüngliche Fehler war ein fail-closed Supply-Chain-Provenance-Mismatch, kein Integrity-Bypass. Die lokale Parent-Source-Korrektur bindet nun das exakte gepinnte GitHub-Release-Tupel vor dem Download und bewahrt die SHA-256-Verifikation. Sie bestand fokussierte positive und Bypass-Controls, doch die legitime Vorbereitung stoppt unabhängig bei missing_nginx_modsecurity_module (NGINX-Build-Exit 77); daher bleibt das sicherheitsrelevante Release-Ergebnis blocked statt fixed, verified oder closed.",
+  "affected_files": [
+    "Makefile",
+    "ci/provisioning/components/prepare-runtime-components.py",
+    "ci/provisioning/components/prepare-runtime-components.sh",
+    "tests/test_runtime_component_cache_contract.py",
+    "docs/reference/variables.md",
+    "docs/reference/variables.de.md"
+  ],
+  "affected_symbols": [
+    "nginx_release_asset_identity",
+    "resolve_nginx_archive",
+    "github_repo_path",
+    "prepare_archive",
+    "NGINX_RELEASE_TAG",
+    "NGINX_RELEASE_ASSET_NAME",
+    "NGINX_SHA256"
+  ],
+  "technical_claim": "At the source base, the Parent runtime-component resolver selected the GitHub tag archive for release-1.31.2 while the configured NGINX_SHA256 authenticated the distinct GitHub release asset nginx-1.31.2.tar.gz. The local correction now requires a canonical HTTPS github.com repository, matching aliases, exact tag/ref, tag-derived asset name, and lower-case SHA-256 before deriving only the matching releases/download URL; the original mismatch no longer reproduces, but full runtime verification is blocked at the independent NGINX module build prerequisite.",
+  "entry_point": "Parent runtime-component NGINX source selection before archive download and cache admission",
+  "source_to_sink_or_broken_control": "At the source base, resolve_nginx_archive returned /archive/refs/tags/<tag>.tar.gz and prepare_archive applied the reviewed release-asset digest, so the checksum correctly rejected different bytes. The correction exports the configured asset name and digest, validates the complete immutable release tuple in nginx_release_asset_identity, derives only /releases/download/<tag>/<asset>, and retains URL-inclusive cache identity; the next independent control boundary reports missing_nginx_modsecurity_module rather than sha256_mismatch.",
+  "attacker_prerequisites": [
+    "A runtime-evidence execution uses the configured github-release NGINX source mode.",
+    "The reviewed release-asset SHA-256 is configured for the selected release tag."
+  ],
+  "observed_behavior": "The isolated PR #55 evidence preparation recorded NGINX status corrupt with blocker_reason sha256_mismatch. It downloaded https://github.com/nginx/nginx/archive/refs/tags/release-1.31.2.tar.gz, observed d886473e988ce6802d897310421e3ef038c06edc66c5424cd33ed1b15382e323, and expected af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c for the release asset. The final local candidate instead recorded archive status present, checksum_status PASS, the exact releases/download URL, and matching expected/observed SHA-256; it then stopped independently at missing_nginx_modsecurity_module with NGINX build exit 77.",
+  "expected_behavior": "For github-release mode, Parent must derive and use the exact reviewed GitHub release-asset URL https://github.com/nginx/nginx/releases/download/release-1.31.2/nginx-1.31.2.tar.gz whose identity matches the configured tag, asset name, repository, and SHA-256. It must reject malformed or inconsistent configured identity rather than falling back to a tag archive or changing the digest.",
+  "impact": "The checksum gate prevents an unverified archive from being used, so no integrity bypass was observed. The original cache-identity cause is now locally remediated and the reviewed asset is acquired and verified, but NGINX provisioning still stops at the separate missing-module build prerequisite. FND-CROSS-0001 therefore still lacks the required current full runtime evidence and Parent PR #55 integration remains blocked.",
+  "preconditions": [
+    "NGINX_SOURCE_MODE is github-release.",
+    "NGINX_SOURCE_REPO_URL identifies github.com/nginx/nginx.",
+    "NGINX_RELEASE_TAG and NGINX_SOURCE_GIT_REF are release-1.31.2, NGINX_RELEASE_ASSET_NAME is nginx-1.31.2.tar.gz, and NGINX_SHA256 is the reviewed lower-case release-asset digest."
+  ],
+  "reproduction": [
+    "Use the isolated Parent evidence worktree and task-owned output roots to run make prepare-runtime-components.",
+    "At the source base, inspect the retained runtime-component manifest for nginx.archive status corrupt and blocker_reason sha256_mismatch and compare the tag-archive URL with the reviewed GitHub release asset and configured SHA-256.",
+    "On the corrected candidate, inspect the final runtime manifest for archive status present, checksum_status PASS, the exact releases/download URL, matching expected/observed SHA-256, and the subsequent missing_nginx_modsecurity_module boundary."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260720T163253Z-pr55-runtime-evidence-refresh-698b1734",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T163253Z-pr55-runtime-evidence-refresh-698b1734/evidence/runtime-component-manifest-initial-failure.json",
+      "artifact_type": "isolated_runtime_component_cache_failure_manifest",
+      "sha256": "d7e6517fe8be3a610dd51478cbb45c2fe9b4af3b1720562076129e24822efac3",
+      "command": "isolated make prepare-runtime-components with all source, cache, build, log, and evidence roots confined beneath the registered task run",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260720T163253Z-pr55-runtime-evidence-refresh-698b1734/tmp/worktree",
+      "exit_code": 2,
+      "observed_at": "2026-07-20T16:53:52Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The manifest records the selected tag archive URL, expected release-asset digest, observed tag-archive digest, and fail-closed sha256_mismatch."
+    },
+    {
+      "run_id": "20260721T005621Z-fnd-parent-0042-release-asset-b9e7172d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T005621Z-fnd-parent-0042-release-asset-b9e7172d/build/runtime-component-reports/reports/testing/generated/cache/runtime-component-cache.generated.json",
+      "artifact_type": "isolated_runtime_component_cache_corrected_manifest",
+      "sha256": "3adf2284d3318cc35e690d319a84fe27200fe33047f43db22a328bf3c986253a",
+      "command": "isolated make prepare-runtime-components with task-owned source, cache, build, log, and evidence roots; it reached the independent NGINX connector-build boundary",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260721T005621Z-fnd-parent-0042-release-asset-b9e7172d/worktree",
+      "exit_code": 77,
+      "observed_at": "2026-07-21T01:23:07Z",
+      "retention_status": "registered_task_run_artifact",
+      "summary": "The archive is present and SHA-256 PASS at the exact release-download URL with tag/ref release-1.31.2 and asset nginx-1.31.2.tar.gz. The run then stops at the independent missing_nginx_modsecurity_module condition."
+    },
+    {
+      "run_id": "20260721T005621Z-fnd-parent-0042-release-asset-b9e7172d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T005621Z-fnd-parent-0042-release-asset-b9e7172d/evidence/fnd-parent-0042-final-validation-20260721T014617Z.json",
+      "artifact_type": "payload_safe_parent_nginx_release_asset_final_validation_receipt",
+      "sha256": "448fe124b2e1ed12a27e9402a38bc01d8809a2d7eee0fa9f14f9bcb0dbadf970",
+      "command": "RTK-proxied final local validation; exact commands and their outcomes are retained in the receipt",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T01:46:17Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The receipt records source hardening, 31 passing focused cache/provenance tests, shell syntax, variable documentation, bilingual unit tests, whitespace review, independent review, runtime checksum success, and the exact blocked native/runtime and Framework-documentation prerequisites."
+    }
+  ],
+  "root_cause": "Parent resolve_nginx_archive always constructed a GitHub tag-archive URL in github-release mode. Its shell wrapper did not pass the already configured NGINX_RELEASE_ASSET_NAME into the Python environment, so the resolver could not construct and validate the corresponding release-download URL. The Framework's direct NGINX provisioner already uses the correct release-asset URL; this was a separate Parent cache-provider defect.",
+  "proposed_remediation": "Implemented locally: export the existing NGINX_RELEASE_ASSET_NAME and NGINX_SHA256 to the Parent resolver; require a safe exact GitHub release-download URL derived from the configured repository, tag, and asset name; preserve the reviewed SHA-256; reject malformed/inconsistent identities before download; and cover resolver plus cache-identity regressions. The implementation has no tag-archive or latest-release fallback. Next, provide the missing NGINX module prerequisite and rerun the legitimate native/runtime preparation before any delivery or stronger lifecycle claim.",
+  "acceptance_criteria": [
+    "A fixed github-release configuration resolves exactly to the reviewed GitHub release-asset URL without a latest lookup.",
+    "The configured tag, repository, asset name, and URL path are mutually consistent; malformed host, repository, tag, or asset values fail closed before download.",
+    "The reviewed release-asset SHA-256 remains unchanged and is applied to that exact URL.",
+    "Focused Parent cache-contract tests cover the legitimate control and inconsistent identity bypass attempts.",
+    "An isolated runtime-component preparation reaches the component build path without this checksum mismatch; the manifest shows checksum_status PASS for the reviewed release asset and the separate missing-module/Framework blockers remain independently assessed."
+  ],
+  "validation_plan": [
+    "Provision the missing NGINX module prerequisite in an authorized environment and rerun the same legitimate isolated runtime preparation.",
+    "Repeat native NGINX module/runtime and downstream FND-CROSS-0001 legitimate controls after the missing prerequisite is available.",
+    "Rerun Framework-dependent documentation checks only with the Framework boundary available through an authorized route; do not initialize or modify it from this Parent task.",
+    "Only if all required local controls pass, create a separate Parent delivery candidate and then perform exact-head review, CI, SonarQube Cloud, and resulting-master verification."
+  ],
+  "regression_tests": [
+    "tests/test_runtime_component_cache_contract.py"
+  ],
+  "legitimate_control_tests": [
+    "Configured github-release NGINX tag release-1.31.2 plus asset nginx-1.31.2.tar.gz resolves to its matching releases/download URL without network discovery.",
+    "A cache entry with the old tag-archive URL is not reused for the release-asset URL even when the filename is the same."
+  ],
+  "bypass_review": "Independent review confirmed that foreign/non-HTTPS repositories, inconsistent aliases/tag/ref/asset/digest, tag-archive fallback, percent-encoded/reserved path components, dot segments, malformed owner names, and overlong repository components fail closed. The final review found no remaining concrete GitHub URL parser/canonicalization bypass. The SHA-256 mismatch control remains fail-closed.",
+  "dependencies": [
+    "GitHub release asset availability for the reviewed NGINX release",
+    "A later Framework provenance repair tracked separately as FND-FRAMEWORK-0030",
+    "An authorized environment with a usable ngx_http_modsecurity_module build prerequisite"
+  ],
+  "blocked_by": [
+    "missing_nginx_modsecurity_module (NGINX connector build exit 77 after successful release-asset checksum verification)",
+    "Framework-dependent broad documentation checks cannot resolve existing links while the Framework gitlink is intentionally uninitialized"
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0001",
+    "FND-FRAMEWORK-0006",
+    "FND-FRAMEWORK-0030"
+  ],
+  "deduplication_note": "Not a duplicate of FND-FRAMEWORK-0006. That Framework record covers an earlier direct-provisioner archive-digest issue and its Framework release-asset control is already correct. This record owns the distinct Parent runtime-cache resolver that selects a different tag archive while retaining the release-asset digest.",
+  "source_run_ids": [
+    "20260720T163253Z-pr55-runtime-evidence-refresh-698b1734",
+    "20260721T005621Z-fnd-parent-0042-release-asset-b9e7172d"
+  ],
+  "evidence_limitations": [
+    "The observed failure proves a fail-closed cache admission mismatch, not a successful integrity bypass.",
+    "A local Parent source repair and focused evidence exist, but no branch update, pull request, or merge has occurred.",
+    "The corrected preparation has not completed the native NGINX module build because of missing_nginx_modsecurity_module (exit 77).",
+    "A successful runtime component preparation alone will not satisfy FND-CROSS-0001; the full legitimate current evidence chain remains required."
+  ],
+  "residual_risk": "The reviewed release asset now reaches and passes the Parent cache integrity boundary, but the host does not prove the complete NGINX module build or downstream runtime matrix. A deployment/build integration defect could remain undiscovered despite the focused resolver, cache, documentation, and bypass controls. Parent PR #55 remains blocked pending the missing module prerequisite, the separate Framework repair, fresh full evidence, and an exact-head delivery cycle. The digest control must not be weakened.",
+  "delivery_evidence": {
+    "status": "not_delivered",
+    "reason": "Required native NGINX module/runtime validation is blocked_environment and broad documentation make checks are independently blocked by the intentionally uninitialized Framework boundary.",
+    "actions_not_taken": [
+      "stage",
+      "commit",
+      "push",
+      "pull request",
+      "merge"
+    ]
+  },
+  "history": [
+    {
+      "at": "2026-07-20T16:53:52Z",
+      "event": "validated_isolated_runtime_component_checksum_blocker",
+      "detail": "The registered isolated PR #55 evidence run recorded the NGINX GitHub tag archive against the distinct configured release-asset digest and stopped fail-closed at sha256_mismatch."
+    },
+    {
+      "at": "2026-07-20T17:14:09Z",
+      "event": "deduplicated_and_allocated_for_parent_remediation",
+      "detail": "Read-only comparison confirmed Framework's direct NGINX provisioner already constructs the correct release-download URL. The required correction is Parent-owned; no digest change, control bypass, delivery action, or Parent gitlink change was made."
+    },
+    {
+      "at": "2026-07-21T01:46:17Z",
+      "event": "local_source_repair_and_final_validation_recorded",
+      "detail": "The local Parent candidate exports and validates the pinned release tuple, derives only the exact GitHub release-download URL, retains URL-inclusive cache identity, rejects malformed/canonicalization-bypass inputs, and passed 31 focused cache/provenance tests plus focused documentation and review controls. The legitimate preparation now records checksum_status PASS and matching release-asset SHA-256, then stops independently at missing_nginx_modsecurity_module with NGINX build exit 77. No delivery action occurred."
+    }
+  ],
+  "created_at": "2026-07-20T17:14:09Z",
+  "updated_at": "2026-07-21T01:46:17Z",
+  "final_disposition": "blocked_environment_after_local_source_repair"
+}

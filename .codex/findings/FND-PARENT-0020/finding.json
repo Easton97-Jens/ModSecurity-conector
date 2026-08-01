@@ -1,0 +1,162 @@
+{
+  "id": "FND-PARENT-0020",
+  "title": "Traefik native middleware UDS tests exceeded the AF_UNIX pathname limit under the approved temporary root",
+  "title_de": "Traefik-Native-Middleware-UDS-Tests überschritten unter dem genehmigten temporären Root die AF_UNIX-Pfadlänge",
+  "category": "test_failure",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "reproduced",
+"status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": "Traefik",
+  "protocol": "AF_UNIX pathname length in the Go UDS test harness",
+  "profile": "native-traefik-middleware",
+  "affected_files": [
+    "connectors/traefik/native_middleware/engine_uds_test.go"
+  ],
+  "affected_symbols": [
+    "startUDSTestServer",
+    "newUDSTestSocketPath"
+  ],
+  "summary": "The focused native-middleware Go target could not exercise its UDS protocol assertions when TMPDIR was the required private external project root. Go testing's t.TempDir() inserted a long test identifier and made engine.sock exceed the AF_UNIX pathname bound before any test protocol action ran.",
+  "summary_de": "Das fokussierte native-middleware-Go-Target konnte seine UDS-Protokollassertions nicht ausführen, wenn TMPDIR der erforderliche private externe Projekt-Root war. Go-Testings t.TempDir() fügte eine lange Testkennung ein und ließ engine.sock die AF_UNIX-Pfadgrenze überschreiten, bevor eine Testprotokollaktion lief.",
+  "observed_behavior": "The pre-fix make target failed with exit code 2. Multiple tests reported net.Listen(\"unix\", socketPath) -> bind: invalid argument for paths beneath /var/tmp/codex/ModSecurity-conector/tmp/TestUDSEngine.../001/engine.sock. The failure occurred before the middleware/session assertions.",
+  "observed_behavior_de": "Das Pre-Fix-Make-Target schlug mit Exit-Code 2 fehl. Mehrere Tests meldeten für Pfade unter /var/tmp/codex/ModSecurity-conector/tmp/TestUDSEngine.../001/engine.sock net.Listen(\"unix\", socketPath) -> bind: invalid argument. Der Fehler trat vor den Middleware-/Session-Assertions auf.",
+  "expected_behavior": "The focused UDS tests run under the approved external TMPDIR, bind a socket whose path stays within the AF_UNIX bound, preserve the configured temporary-root policy, and remove only their own private test directory.",
+  "expected_behavior_de": "Die fokussierten UDS-Tests laufen unter dem genehmigten externen TMPDIR, binden einen Socketpfad innerhalb der AF_UNIX-Grenze, bewahren die konfigurierte Temporary-Root-Policy und entfernen nur ihr eigenes privates Testverzeichnis.",
+  "impact": "A mandatory focused regression target was unavailable in the authorized storage configuration, leaving UDS protocol and middleware behavior unvalidated. This is test-harness infrastructure only; no production request path or runtime UDS listener was shown to be affected.",
+  "impact_de": "Ein verpflichtendes fokussiertes Regressionstarget war in der autorisierten Storage-Konfiguration nicht verfügbar und ließ UDS-Protokoll- und Middleware-Verhalten unvalidiert. Dies betrifft nur die Testharness-Infrastruktur; kein Produktions-Request-Pfad oder Runtime-UDS-Listener wurde als betroffen nachgewiesen.",
+  "preconditions": [
+    "TMPDIR is the configured external project root /var/tmp/codex/ModSecurity-conector/tmp.",
+    "The test uses Go testing.T.TempDir() and appends engine.sock.",
+    "The resulting pathname exceeds the platform AF_UNIX pathname bound."
+  ],
+  "reproduction": [
+    "Run the focused native middleware target with TMPDIR=/var/tmp/codex/ModSecurity-conector/tmp and external task-owned Go cache/build roots.",
+    "Observe that each startUDSTestServer call reaches net.Listen before its protocol assertions and receives bind: invalid argument."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T053406Z-pr-51-master-integration-546d9dc2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/evidence/validation/go-native-middleware-long-tmpdir-regression.log",
+      "artifact_type": "pre_fix_focused_go_uds_test_reproduction",
+      "sha256": "f960246f3e6052e1da13d960e8d647c660b39ec5bd47bd308b3e9f4117b2306c",
+      "command": "rtk env BUILD_ROOT=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/build TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/build/native-middleware GOCACHE=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/cache/go-build GOMODCACHE=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/cache/go-mod GOTOOLCHAIN=local GOWORK=off GO=go TMPDIR=/var/tmp/codex/ModSecurity-conector/tmp make -C connectors/traefik test-native-middleware",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 2,
+      "observed_at": "2026-07-18T06:14:59Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T053406Z-pr-51-master-integration-546d9dc2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/evidence/validation/go-native-middleware-long-tmpdir-regression.log",
+      "artifact_type": "post_fix_focused_go_uds_test_validation",
+      "sha256": "f960246f3e6052e1da13d960e8d647c660b39ec5bd47bd308b3e9f4117b2306c",
+      "command": "rtk env BUILD_ROOT=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/build TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/build/native-middleware GOCACHE=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/cache/go-build GOMODCACHE=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/cache/go-mod GOTOOLCHAIN=local GOWORK=off GO=go TMPDIR=/var/tmp/codex/ModSecurity-conector/tmp make -C connectors/traefik test-native-middleware",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T06:14:59Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T053406Z-pr-51-master-integration-546d9dc2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/evidence/validation/go-test-harness-security-review.md",
+      "artifact_type": "focused_test_harness_security_review",
+      "sha256": "0ec987bc3e4e70f9e2dc7dc144d9feb44b2e2b0aa315a5897d99bcc3ed18d684",
+      "command": "Independent full-file and scoped-diff review of os.MkdirTemp, os.RemoveAll, configured TMPDIR ownership, AF_UNIX length, and test-only scope",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T06:14:59Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T053406Z-pr-51-master-integration-546d9dc2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/evidence/validation/go-native-middleware-exact-2589c08.log",
+      "artifact_type": "exact_committed_sha_go_uds_regression_validation",
+      "sha256": "c244e81ed67a49158d2e5d6238371eb8f8b20dc83e33f91a25dcf1e0dad67920",
+      "command": "rtk env BUILD_ROOT=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/build TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/build/native-middleware GOCACHE=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/cache/go-build GOMODCACHE=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/cache/go-mod GOTOOLCHAIN=local GOWORK=off GO=go GOFLAGS=-count=1 TMPDIR=/var/tmp/codex/ModSecurity-conector/tmp make -C connectors/traefik test-native-middleware",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T06:26:39Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T053406Z-pr-51-master-integration-546d9dc2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/evidence/validation/master-c8ca0d9-traefik-regressions.log",
+      "artifact_type": "current_master_go_uds_regression_validation",
+      "sha256": "1f766b416d36f8f0ce35e7e904e8e3f50b57d1e80af1571e2cc9e59c164004af",
+      "command": "rtk env BUILD_ROOT=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/build TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/build/native-middleware GOCACHE=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/cache/go-build GOMODCACHE=/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/cache/go-mod GOTOOLCHAIN=local GOWORK=off GO=go GOFLAGS=-count=1 TMPDIR=/var/tmp/codex/ModSecurity-conector/tmp make -C connectors/traefik test-native-middleware",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T06:40:39Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "startUDSTestServer constructed its socket path from t.TempDir(). The Go framework selects a path containing the test name and a numeric component, so a deliberately long test name plus the approved TMPDIR exceeded AF_UNIX capacity. The production runner is not involved.",
+  "root_cause_de": "startUDSTestServer konstruierte seinen Socketpfad aus t.TempDir(). Das Go-Framework wählt einen Pfad mit Testnamen und numerischer Komponente; dadurch überschritt ein absichtlich langer Testname zusammen mit dem genehmigten TMPDIR die AF_UNIX-Kapazität. Der Produktions-Runner ist nicht beteiligt.",
+  "proposed_remediation": "Use os.MkdirTemp(\"\", \"uds-\") to allocate a short, private child below the same configured TMPDIR, register t.Cleanup to remove that exact created directory, and construct engine.sock below it. Do not choose a global or unapproved temporary root.",
+  "proposed_remediation_de": "os.MkdirTemp(\"\", \"uds-\") verwenden, um ein kurzes privates Child unter demselben konfigurierten TMPDIR anzulegen, t.Cleanup zum Entfernen genau dieses angelegten Verzeichnisses registrieren und engine.sock darunter konstruieren. Keinen globalen oder nicht genehmigten Temporary-Root auswählen.",
+  "acceptance_criteria": [
+    "The exact pre-fix focused Go target passes with TMPDIR=/var/tmp/codex/ModSecurity-conector/tmp.",
+    "The target's go test ./... and go vet ./... complete successfully.",
+    "No uds-* directory remains under the configured TMPDIR after the test.",
+    "The change is limited to the test harness and git diff --check passes.",
+    "The exact final PR head and then current master retain the passing result."
+  ],
+  "validation_plan": [
+    "Rerun the original focused target with the same external cache/build roots and TMPDIR.",
+    "Confirm the target's Go test and vet stages pass and its created short child is cleaned.",
+    "Review the changed test helper for path ownership, cleanup scope, and security regression.",
+    "Bind the result to the pushed exact PR head and repeat it on the merged master SHA."
+  ],
+  "regression_tests": [
+    "connectors/traefik/Makefile target test-native-middleware",
+    "connectors/traefik/native_middleware/engine_uds_test.go"
+  ],
+  "legitimate_control_tests": [
+    "The same target runs under the configured external TMPDIR without selecting /tmp, /var/tmp, or any other global temporary root.",
+    "No uds-* test child remains after the target."
+  ],
+  "dependencies": [
+    "Current PR #51 branch validation and post-merge master verification."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0008"
+  ],
+  "source_run_ids": [
+    "20260718T053406Z-pr-51-master-integration-546d9dc2"
+  ],
+  "residual_risk": "The correction is test-only and validates only the available native Go harness. A genuine Traefik host binary remains unavailable for the separate full lifecycle test; no security risk is accepted.",
+  "residual_risk_de": "Die Korrektur betrifft nur Tests und validiert nur den verfügbaren nativen Go-Harness. Für den getrennten Full-Lifecycle-Test bleibt ein echter Traefik-Host-Binary nicht verfügbar; es wird kein Sicherheitsrisiko akzeptiert.",
+  "created_at": "2026-07-18T06:14:59Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-18T06:14:59Z",
+      "event": "pre_fix_reproduction",
+      "detail": "The focused native-middleware target failed with exit code 2 under the approved external TMPDIR before UDS protocol assertions ran."
+    },
+    {
+      "at": "2026-07-18T06:14:59Z",
+      "event": "focused_test_harness_fix_validated",
+      "detail": "The short os.MkdirTemp child and exact test cleanup made the same target pass with Go test and vet; no uds-* child remained."
+    },
+    {
+      "at": "2026-07-18T06:26:39Z",
+      "event": "exact_committed_sha_regression_validation_passed",
+      "detail": "Commit 2589c085a1ed7bbb2c2033635f06e71f5f75fb8b reran the target with GOFLAGS=-count=1 under the approved external TMPDIR; Go test and vet passed."
+    },
+    {
+      "at": "2026-07-18T06:40:39Z",
+      "event": "current_master_regression_verified",
+      "detail": "Merged master c8ca0d92b630c18232b881855c4f5d1482568ea6 reran the original target with GOFLAGS=-count=1, Go test and vet passed, and no uds-* child remained."
+    }
+  ]
+}

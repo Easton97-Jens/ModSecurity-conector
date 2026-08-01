@@ -1,0 +1,162 @@
+{
+  "id": "FND-PARENT-0037",
+  "title": "Aggregate receipt traversal has an intermediate-symlink TOCTOU race",
+  "title_de": "Aggregate-Receipt-Traversal besitzt eine Intermediate-Symlink-TOCTOU-Race",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "high",
+  "confidence": "validated",
+  "status": "closed",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "validated",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "CI runtime-evidence aggregate receipt",
+  "profile": "verified full runtime matrix",
+  "affected_files": [
+    "ci/lib/verified_full_matrix_receipt.py",
+    "ci/runtime/lifecycle/run-verified-report-run.py",
+    "tests/test_generated_report_evidence_integrity.py"
+  ],
+  "affected_symbols": [
+    "_assert_no_symlink_components",
+    "_read_stable_regular_file",
+    "_require_directory",
+    "seal_full_matrix_aggregate_receipt",
+    "validate_full_matrix_aggregate_receipt",
+    "seal_full_matrix_receipt_for_record"
+  ],
+  "source_commits": [
+    "3966707c4e42006edd91eb8d0c7510940592ed84",
+    "03e5088d8202a4eb14d891b31d149aa2f6081289",
+    "d4f88b886dac6fd5f483940015d6310bc239f814",
+    "b9b22cc36958ba506278f3aa3fbc1d383ea6a151",
+    "5a22cbf5206dbc2b7f53a9f961d72e37d567e188"
+  ],
+  "summary": "The FND-PARENT-0031 aggregate-receipt helper checks lexical path components with lstat and subsequently opens the full pathname. O_NOFOLLOW protects only the final component, so a concurrent matrix child can replace an already checked intermediate directory with a symlink and redirect a later file read or receipt publication outside BUILD_ROOT.",
+  "summary_de": "Der FND-PARENT-0031-Aggregate-Receipt-Helper prüft lexikalische Pfadkomponenten mit lstat und öffnet anschließend den vollständigen Pfadnamen. O_NOFOLLOW schützt nur die letzte Komponente; daher kann ein konkurrierendes Matrix-Child ein bereits geprüftes Zwischenverzeichnis durch einen Symlink ersetzen und ein späteres Datei-Lesen oder Receipt-Publizieren außerhalb von BUILD_ROOT umleiten.",
+  "observed_behavior": "_assert_no_symlink_components performs an lstat walk before _read_stable_regular_file performs a separate pathname os.open. An attacker can swap a checked directory such as full-matrix/no-crs/no-mrts/apache/results after the lstat walk and before the open. The leaf remains regular, the helper hashes external bytes, and _relative_file_record retains a lexical in-root path. The same check-then-use pattern exists in directory validation and receipt creation.",
+  "observed_behavior_de": "_assert_no_symlink_components führt einen lstat-Lauf aus, bevor _read_stable_regular_file ein separates pathname-os.open ausführt. Ein Angreifer kann ein geprüftes Verzeichnis wie full-matrix/no-crs/no-mrts/apache/results nach dem lstat-Lauf und vor dem Open austauschen. Das Leaf bleibt regulär, der Helper hasht externe Bytes und _relative_file_record behält einen lexikalischen In-Root-Pfad. Dasselbe Check-then-Use-Muster existiert in der Verzeichnisvalidierung und Receipt-Erstellung.",
+  "expected_behavior": "Every artifact read and receipt publication is descriptor-relative beneath one pinned BUILD_ROOT descriptor. Each intermediate component is opened with O_DIRECTORY|O_NOFOLLOW and each leaf with O_NOFOLLOW, so an intermediate symlink swap fails closed. The Parent runner consumes a receipt hash/byte record derived from the safely written descriptor rather than reopening a mutable pathname.",
+  "expected_behavior_de": "Jedes Artefakt-Lesen und jede Receipt-Publikation erfolgt descriptor-relativ unter einem gepinnten BUILD_ROOT-Descriptor. Jede Zwischenkomponente wird mit O_DIRECTORY|O_NOFOLLOW und jedes Leaf mit O_NOFOLLOW geöffnet, sodass ein Intermediate-Symlink-Swap fail-closed scheitert. Der Parent-Runner nutzt einen aus dem sicher geschriebenen Descriptor abgeleiteten Receipt-Hash/Byte-Record, statt einen veränderbaren Pfadnamen erneut zu öffnen.",
+  "impact": "A same-UID child that can race the helper may cause the aggregate receipt to commit external bytes under canonical-looking in-root paths or publish a receipt outside the authorized build root. This defeats the receipt's path-confinement invariant and undermines result-file authenticity.",
+  "impact_de": "Ein Same-UID-Child, das den Helper rennen kann, kann den Aggregate-Receipt veranlassen, externe Bytes unter kanonisch aussehenden In-Root-Pfaden zu binden oder einen Receipt außerhalb des autorisierten Build-Roots zu publizieren. Dies unterläuft die Path-Confinement-Invariante des Receipts und schwächt die Result-Datei-Authentizität.",
+  "preconditions": [
+    "The aggregate receipt helper is invoked against an untrusted full-matrix artifact tree.",
+    "A concurrent same-UID process can replace an intermediate directory after it has been inspected and before a pathname-based open or publication completes."
+  ],
+  "reproduction": [
+    "Create BUILD_ROOT/inside/leaf.txt and an external outside/leaf.txt.",
+    "Use a one-shot os.open seam to replace BUILD_ROOT/inside with a symlink after the helper's lexical inspection and before its pathname open.",
+    "Before the descriptor-relative repair, _read_stable_regular_file returns the external leaf bytes instead of failing closed.",
+    "Add the matching receipt-writer seam for verified-runs and verify no receipt appears below the external directory after the repair."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/05_findings/FND-PARENT-0037-receipt-path-race/static-source-to-sink-review.json",
+      "artifact_type": "static_source_to_sink_security_validation",
+      "sha256": "b5c9e35c1d3736fbe3d3deb41967b69352cd746d28dcc7ed35ed4109acc2e18a",
+      "command": "Independent read-only source-to-sink review of the FND-PARENT-0031 worktree implementation",
+      "working_directory": "/var/tmp/codex/worktrees/parent-evidence-aggregate-receipt",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T15:45:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T080314Z-parent-pr55-57-59-framework-update-3443af13",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T080314Z-parent-pr55-57-59-framework-update-3443af13/evidence/pr59-d4-current-head-verification.md",
+      "artifact_type": "pr59_exact_head_delivery_and_security_snapshot",
+      "sha256": "38e88188683330e57704bb3d4559c5604dbea303c1f305fb17e695545267107d",
+      "command": "GitHub PR/check/CodeQL/Sonar/review snapshot plus git diff --check for PR #59 exact head d4f88b886dac6fd5f483940015d6310bc239f814",
+      "working_directory": "/var/tmp/codex/worktrees/parent-evidence-result-authenticity",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T09:57:03Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "PR #59 head contains descriptor-relative traversal/publication and 0400 sealing; observed exact-head checks passed, but the Draft is behind current Parent master and requires a fresh exact-head cycle."
+    },
+    {
+      "run_id": "20260720T141403Z-pr55-pr59-master-integration-8a0b8640",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/evidence/pr59-5a22cbf-postmerge-validation.json",
+      "artifact_type": "pr59_resulting_parent_master_security_reproduction_and_control_validation",
+      "sha256": "7749e6c6fd1ab198b54eb9704221d30aa150954db6130bec0317801a8afddc51",
+      "command": "Exact PR #59 head b9b22cc36958ba506278f3aa3fbc1d383ea6a151 passed required non-skipped CI, CodeQL, SonarQube Cloud and zero review/thread gates; after protected squash merge to Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188, run tests.test_generated_report_evidence_integrity (57/57), tests.test_bilingual_docs (11/11), sh -n ci/runtime/lifecycle/run-full-matrix-parallel.sh, and git diff --check.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/postmerge-5a22cbf",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T15:13:08+00:00",
+      "retention_status": "retained_task_evidence",
+      "summary": "The deterministic intermediate-directory read and verified-runs publication race controls fail closed while the valid in-root complete twelve-cell receipt control passes. FND-SONAR-0001 remains an independent unaccepted global master Sonar failure."
+    }
+  ],
+  "root_cause": "The helper uses an inspect-then-use pathname model: lstat establishes a momentary lexical property, then a later path-based operation resolves the hierarchy again. Leaf-only O_NOFOLLOW cannot preserve the trusted intermediate path chain.",
+  "root_cause_de": "Der Helper verwendet ein Inspect-then-Use-Pathname-Modell: lstat stellt eine momentane lexikalische Eigenschaft fest, danach löst eine spätere pfadbasierte Operation die Hierarchie erneut auf. Leaf-only O_NOFOLLOW kann die vertrauenswürdige Zwischenpfadkette nicht erhalten.",
+  "proposed_remediation": "On a separate stacked Parent branch, replace pathname-based receipt traversal and publication with a small descriptor-backed root abstraction using O_DIRECTORY|O_NOFOLLOW and dir_fd at every component. Use descriptor-relative exclusive receipt creation, fchmod and fsync; return the sealed receipt's hash/byte information to the runner without a later pathname rehash. Add deterministic read and writer race fixtures before the fix and a normal in-root control.",
+  "proposed_remediation_de": "Auf einem separaten gestapelten Parent-Branch pathname-basierte Receipt-Traversal und -Publikation durch eine kleine descriptor-basierte Root-Abstraktion mit O_DIRECTORY|O_NOFOLLOW und dir_fd an jeder Komponente ersetzen. Descriptor-relative exklusive Receipt-Erstellung, fchmod und fsync verwenden; Hash/Byte-Informationen des versiegelten Receipts ohne späteren Pathname-Rehash an den Runner zurückgeben. Deterministische Read- und Writer-Race-Fixtures vor dem Fix sowie eine normale In-Root-Kontrolle ergänzen.",
+  "acceptance_criteria": [
+    "A deterministic intermediate-directory swap before a file open fails closed and never hashes external bytes.",
+    "A deterministic verified-runs directory swap before receipt publication fails closed and creates no receipt outside BUILD_ROOT.",
+    "The normal in-root file-read and complete twelve-cell aggregate-receipt control remain valid.",
+    "The Parent runner does not re-establish receipt trust by re-hashing a mutable pathname after a successful seal.",
+    "The user-authorized combined Parent Draft PR preserves distinct FND-PARENT-0030/-0031/-0037 traceability, with no Framework/MRTS change or merge."
+  ],
+  "validation_plan": [
+    "Add deterministic os.open seam tests before source remediation and observe their pre-fix failure behavior.",
+    "Run focused evidence-integrity tests, Python compilation, bilingual documentation tests, diff check, and the strict/governance report checks.",
+    "Perform independent security review and exact-head GitHub CI, CodeQL, SonarQube Cloud, and PR checks."
+  ],
+  "regression_tests": [
+    "tests/test_generated_report_evidence_integrity.py deterministic intermediate-directory read race",
+    "tests/test_generated_report_evidence_integrity.py deterministic verified-runs publication race"
+  ],
+  "legitimate_control_tests": [
+    "A regular in-root leaf is read with its expected bytes, SHA-256, and byte count.",
+    "A regular complete twelve-cell run seals and validates one canonical receipt."
+  ],
+  "dependencies": [
+    "FND-PARENT-0031 aggregate-receipt branch supplies the helper that this separate path-confinement remediation hardens."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0026",
+    "FND-PARENT-0031",
+    "FND-PARENT-0032",
+    "FND-PARENT-0030"
+  ],
+  "deduplication_note": "Not a duplicate of FND-PARENT-0026 or FND-PARENT-0032. Those findings control caller roots and runtime-root/run-ID authority respectively; this finding prevents a concurrent intermediate-path swap after a receipt-helper root/path check. All controls are independently required.",
+  "source_run_ids": [
+    "20260718T075200Z-parent-evidence-integrity-ade378cf",
+    "20260720T080314Z-parent-pr55-57-59-framework-update-3443af13",
+    "20260720T141403Z-pr55-pr59-master-integration-8a0b8640"
+  ],
+  "residual_risk": "The receipt chain is not a signature, ACL, process-identity, UID-isolation, or external-attestation boundary. Mode 0400 limits group/other access only; arbitrary same-UID write access to the Parent evidence namespace remains outside this local filesystem trust model. No risk is accepted. The exact b9b22cc36958ba506278f3aa3fbc1d383ea6a151 PR gates and resulting master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 original-reproduction and legitimate controls are verified, not closed. FND-CROSS-0001 separately blocks real current runtime evidence and FND-SONAR-0001 separately fails the global master Quality Gate without attribution to this finding.",
+  "residual_risk_de": "Die Receipt-Kette ist keine Signatur-, ACL-, Prozessidentitäts-, UID-Isolations- oder External-Attestation-Grenze. Modus 0400 beschränkt nur Group-/Other-Zugriff; beliebiger Same-UID-Schreibzugriff auf den Parent-Evidence-Namespace bleibt außerhalb dieses lokalen Filesystem-Trust-Modells. Es wird kein Risiko akzeptiert. Die exakten b9b22cc36958ba506278f3aa3fbc1d383ea6a151-PR-Gates und die Original-Reproduktion sowie legitimen Kontrollen auf resultierendem Master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 sind verified, nicht closed. FND-CROSS-0001 blockiert reale aktuelle Runtime-Evidence getrennt und FND-SONAR-0001 lässt das globale Master-Quality-Gate ohne Zuschreibung zu diesem Finding getrennt fehlschlagen.",
+  "created_at": "2026-07-18T15:45:00Z",
+  "updated_at": "2026-07-26T14:09:02Z",
+  "final_disposition": "closed_by_current_user_after_current_master_unchanged_evidence_integrity_validation_archived_20260726",
+  "history": [
+    {
+      "at": "2026-07-18T15:45:00Z",
+      "event": "validated_static_source_to_sink_path_race",
+      "detail": "Independent review traced a reachable lstat-to-pathname-open race in the FND-PARENT-0031 aggregate-receipt helper. It is a separate Parent path-confinement root cause and requires its own stacked branch and draft PR."
+    },
+    {
+      "at": "2026-07-20T09:57:03Z",
+      "event": "fixed_on_current_pr_head",
+      "detail": "PR #59 exact head d4f88b886dac6fd5f483940015d6310bc239f814 delivers descriptor-relative traversal/publication and the owner-read-only 0400 sealing follow-up. The retained snapshot records passing observed checks, but the Draft is behind current master 9ef0619b9c00729c16b7056943d7843785223095; normal synchronization, fresh exact-head evidence, authorized merge, and post-merge reproduction remain required."
+    },
+    {
+      "at": "2026-07-20T15:13:08+00:00",
+      "event": "verified_on_resulting_parent_master",
+      "detail": "PR #59 exact head b9b22cc36958ba506278f3aa3fbc1d383ea6a151 passed current non-skipped CI, CodeQL, SonarQube Cloud, and zero-review/thread gates, then was protected-squash-merged as Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188. Retained post-merge evidence records the deterministic intermediate read/publication race rejections and legitimate full-matrix control among 57/57 tests, plus 11/11 bilingual, shell syntax, and diff controls. FND-SONAR-0001 remains a separate unaccepted global master Sonar failure. This finding is verified, not closed."
+    },
+    {
+      "at": "2026-07-26T14:09:02Z",
+      "event": "closed_by_current_user_after_current_master_unchanged_path_validation",
+      "detail": "The current user authorized closure and archival. All affected paths remain unchanged from verified Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 to current master 6ca7e1536ce7e93da68099db9c586b88852ff13e, and tests.test_generated_report_evidence_integrity passed in the 144-test current-master control suite."
+    }
+  ]
+}

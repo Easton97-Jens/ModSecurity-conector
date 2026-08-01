@@ -1,0 +1,170 @@
+{
+  "id": "FND-SONAR-0027",
+  "title": "NGINX connector contains sixteen current SonarQube Cloud maintainability findings",
+  "title_de": "NGINX-Connector enthält sechzehn aktuelle SonarQube-Cloud-Maintainability-Befunde",
+  "category": "maintainability",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "security_relevant_protocol_lifecycle_refactor_with_no_validated_security_finding",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "connector": "nginx",
+  "protocol": "native NGINX HTTP request, response, and intervention lifecycle",
+  "profile": "SonarQube Cloud current-master directory inventory for connectors/nginx at caddd86d1eede95de53aa1bc971dd26d875df21c",
+  "affected_files": [
+    "connectors/nginx/src/ngx_http_modsecurity_access.c",
+    "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+    "connectors/nginx/src/ngx_http_modsecurity_header_filter.c",
+    "connectors/nginx/src/ngx_http_modsecurity_module.c"
+  ],
+  "affected_symbols": [
+    "ngx_http_modsecurity_access_handler",
+    "ngx_http_modsecurity_phase4_log_event",
+    "ngx_http_modsecurity_process_intervention",
+    "NGINX access/header/body/filter lifecycle comments"
+  ],
+  "summary": "Current SonarQube Cloud inventory contains sixteen open NGINX C maintainability findings: three c:S3776 Cognitive Complexity findings, one c:S134 nested-control finding, two c:S3358 nested-ternary findings, and ten c:S1134/c:S1135 deferred-work markers. The directory has zero reported bugs, vulnerabilities, security hotspots, and duplicate lines. All sixteen are confirmed current-master findings in the authorized Parent NGINX scope.",
+  "summary_de": "Das aktuelle SonarQube-Cloud-Inventar enthält sechzehn offene NGINX-C-Maintainability-Befunde: drei c:S3776-Cognitive-Complexity-Befunde, einen c:S134-Nested-Control-Befund, zwei c:S3358-Nested-Ternary-Befunde und zehn c:S1134/c:S1135-Deferred-Work-Marker. Das Verzeichnis besitzt null gemeldete Bugs, Vulnerabilities, Security-Hotspots und Duplikatzeilen. Alle sechzehn sind bestätigte Current-Master-Befunde im autorisierten Parent-NGINX-Scope.",
+  "observed_behavior": "The access handler combines connection, URI, header traversal, request-header and request-body lifecycle work in one function; Phase-4 event construction selects values through nested ternaries; intervention redirect and status behavior share an over-complex function; and the selected source retains old FIXME/TODO labels. The retained issue observation lists each exact Sonar key and source line.",
+  "observed_behavior_de": "Der Access-Handler vereint Connection-, URI-, Header-Traversierungs-, Request-Header- und Request-Body-Lifecycle-Arbeit in einer Funktion; die Phase-4-Event-Konstruktion wählt Werte über verschachtelte Ternärausdrücke; Intervention-Redirect- und Status-Verhalten teilen eine überkomplexe Funktion; und die ausgewählte Source enthält alte FIXME/TODO-Labels. Die aufbewahrte Issue-Beobachtung listet jedes exakte Sonar-Key und jede Source-Zeile.",
+  "expected_behavior": "The NGINX module must retain its existing ModSecurity phase calls, event reasons, status mapping, redirect construction, cleanup, and NGINX return behavior while each affected function stays within Sonar's maintainability thresholds and no stale deferred-work marker remains.",
+  "expected_behavior_de": "Das NGINX-Modul muss seine bestehenden ModSecurity-Phase-Aufrufe, Event-Reasons, Status-Zuordnung, Redirect-Konstruktion, Cleanup und NGINX-Return-Verhalten bewahren, während jede betroffene Funktion in Sonars Maintainability-Grenzen bleibt und kein veralteter Deferred-Work-Marker verbleibt.",
+  "impact": "The confirmed issues are maintainability findings, not evidenced security vulnerabilities. Because the affected code processes HTTP and intervention state, an incorrect refactor could alter request enforcement or response behavior. The finding therefore requires focused security-diff review and exact-head hosted verification before the requested Draft PR can be treated as verified.",
+  "impact_de": "Die bestätigten Issues sind Maintainability-Befunde, keine belegten Security-Vulnerabilities. Weil der betroffene Code HTTP- und Intervention-State verarbeitet, könnte ein falscher Refactor Request-Enforcement oder Response-Verhalten ändern. Der Befund verlangt daher einen fokussierten Security-Diff-Review und Exact-Head-Hosted-Verifikation, bevor der angeforderte Draft-PR als verifiziert gelten kann.",
+  "preconditions": [
+    "SonarQube Cloud analyzes the Parent current-master source listed in the retained observation.",
+    "The selected NGINX sources retain the pre-remediation structure and deferred-work markers."
+  ],
+  "reproduction": [
+    "Read the retained source-file-keyed Sonar inventory and inspect each listed current-master component and line.",
+    "Run the direct NGINX Common-adoption and C-standard wiring controls after the narrow refactor.",
+    "For the final PR head, query hosted SonarQube Cloud issues and New-Code duplication without changing scanner controls."
+  ],
+  "evidence": [
+    {
+      "run_id": "nginx-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/nginx-sonar-remediation-20260730/evidence/sonar-nginx-initial.md",
+      "artifact_type": "bounded_current_master_sonar_issue_inventory",
+      "sha256": "315a16d71c558cfa6a87d2a4917ae31e714751f50da308f65cff7b722c2546b6",
+      "command": "Source-file-keyed SonarQube Cloud issue queries plus directory measure query for Easton97-Jens_ModSecurity-conector:connectors/nginx.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T15:00:00Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Sixteen OPEN code smells in four NGINX C sources; zero directory bugs, vulnerabilities, security hotspots, duplicated lines, and duplicated-lines density."
+    },
+    {
+      "run_id": "nginx-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/nginx-sonar-remediation-20260730/evidence/security-diff-review.md",
+      "artifact_type": "focused_security_sensitive_diff_review",
+      "sha256": "f002a267559d7ad916e6e6e94ab6a08707f78944395aaa0df220b5fe3d16ce8c",
+      "command": "Manual diff review of access, body filter, header filter, intervention handler, and their direct source-contract control against the exact base revision.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/nginx-sonar-remediation-20260730",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T15:20:00Z",
+      "retention_status": "retained_task_evidence",
+      "result": "No plausible diff-induced security candidate; existing phase, intervention, redirect, cleanup, and metadata-only event invariants are preserved by source review and Common-adoption controls."
+    },
+    {
+      "run_id": "nginx-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/nginx-sonar-remediation-20260730/evidence/sonar-pr206-final.md",
+      "artifact_type": "exact_draft_pr_sonar_readback",
+      "sha256": "0fbddb8d4f8514f5a71054705518acf1eb1943b92f0aa12e4d5102aeedb1f0c8",
+      "command": "SonarQube Cloud Quality Gate, OPEN/CONFIRMED pull-request issue, and New-Code measure endpoints for pull request 206.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T15:55:23Z",
+      "retention_status": "retained_task_evidence",
+      "result": "On exact Draft PR #206 head 9746d81cd73c54300d709357db453a93f4f358df, Quality Gate is OK; there are zero OPEN/CONFIRMED PR issues, zero new violations, and 0.0% / zero New-Code duplication."
+    },
+    {
+      "run_id": "nginx-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/nginx-sonar-remediation-20260730/evidence/hosted-pr206-final.md",
+      "artifact_type": "exact_draft_pr_hosted_check_and_review_readback",
+      "sha256": "93805e39cb8561a732c73f0851b9173a7d8345706e7dea69f6bb54e80141db5e",
+      "command": "GitHub pull-request head, checks, review, and review-thread readback for pull request 206.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T15:55:23Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Local, remote, and GitHub heads are 9746d81cd73c54300d709357db453a93f4f358df; 33 checks passed, zero failed, no required check is pending, and the Draft PR has zero reviews and zero review threads."
+    },
+    {
+      "run_id": "nginx-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/nginx-sonar-remediation-20260730/evidence/pr-206-merge-and-master-validation-20260801.md",
+      "artifact_type": "exact_head_squash_merge_and_resulting_master_validation",
+      "sha256": "0ebea887fdd26634aede6b01e9785cc156419c72b71c385378ca1ba24870a948",
+      "command": "GitHub PR and Actions exact-SHA readback plus direct SonarQube Cloud resulting-master analysis readback.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T07:15:29Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Final PR #206 head eb1f199815b6ed3bc4ecd53bc3fd78a39629d198 was squash-merged as Parent master e870e8fbd1a31d43156d0baa79dc6d86b4e21bd3. All 14 resulting-master workflows passed. The exact master Sonar analysis has the existing FND-SONAR-0001 project baseline ERROR, while the PR quality gate had zero new issues and 0.0% New-Code duplication."
+    }
+  ],
+  "root_cause": "Historical lifecycle code accumulated phase-specific work, value selection, and non-actionable deferred-work markers in large functions rather than narrowly named helpers. The technical remediation is a behavior-preserving decomposition, explicit selection helpers, explicit header-part advance, and accurate lifecycle documentation.",
+  "root_cause_de": "Historischer Lifecycle-Code sammelte Phase-spezifische Arbeit, Wertauswahl und nicht mehr umsetzbare Deferred-Work-Marker in großen Funktionen statt in eng benannten Helpern. Die technische Remediation ist eine verhaltensbewahrende Zerlegung, explizite Selection-Helper, explizites Header-Part-Advance und korrekte Lifecycle-Dokumentation.",
+  "proposed_remediation": "Refactor only the four affected Parent NGINX C sources and their direct source-contract check; preserve phase order, return paths, event fields, redirect/status behavior, and cleanup. Add the bilingual Change Record. Do not introduce NOSONAR, suppression, policy changes, exclusions, Quality-Gate changes, Framework/MRTS/Gitlink changes, or a master action.",
+  "proposed_remediation_de": "Nur die vier betroffenen Parent-NGINX-C-Sources und ihren direkten Source-Contract-Check refaktorieren; Phase-Reihenfolge, Return-Pfade, Event-Felder, Redirect-/Status-Verhalten und Cleanup bewahren. Den zweisprachigen Change Record ergänzen. Kein NOSONAR, keine Suppression, keine Policy-, Exclusion- oder Quality-Gate-Änderung, keine Framework-/MRTS-/Gitlink-Änderung und keine Master-Aktion einführen.",
+  "acceptance_criteria": [
+    "All sixteen retained Sonar issue keys are absent from the exact final PR-head SonarQube Cloud readback, with zero new issues and 0.0% New-Code duplication.",
+    "The direct NGINX Common-adoption and C-standard wiring controls pass, and native C17 compilation is run if its required NGINX/libmodsecurity headers can be established without a global fallback.",
+    "Focused security-diff review finds no plausible diff-induced security candidate and verifies preserved intervention/phase invariants.",
+    "No scanner rule, Quality Gate, exclusion, suppression, NOSONAR, Framework, MRTS, Gitlink, or direct master change occurs; the only master action is the separately authorized exact-head PR #206 squash merge."
+  ],
+  "validation_plan": [
+    "Run NGINX Common-adoption, C-standard wiring, C17 lint, whitespace, bilingual documentation, and any feasible native C17 check.",
+    "Review the exact security-sensitive C diff for phase, return, redirect, status, cleanup, and metadata-only logging invariants.",
+    "Create one Draft PR, bind local/remote/GitHub heads, then verify terminal hosted checks, Sonar issue absence, and New-Code duplication; after explicit authorization, verify the exact squash result and resulting-master workflows."
+  ],
+  "regression_tests": [
+    "make check-nginx-common-adoption",
+    "make check-nginx-c-standard-wiring",
+    "make check-nginx-c17-lint"
+  ],
+  "legitimate_control_tests": [
+    "Existing NGINX Common-adoption source contracts for mapper, phase event, bounded rule-ID, response-body and JSONL controls.",
+    "Existing NGINX C-standard wiring inventory and mandatory C17 control."
+  ],
+  "dependencies": [
+    "NGINX and libmodsecurity headers are required for local native C17 translation-unit compilation."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0001",
+    "FND-SONAR-0016",
+    "FND-SONAR-0024"
+  ],
+  "source_run_ids": [
+    "nginx-sonar-remediation-20260730"
+  ],
+  "residual_risk": "The local C17 compile and NGINX runtime remain unverified because task-local header provisioning did not establish NGINX/libmodsecurity headers. Final PR #206 head eb1f199815b6ed3bc4ecd53bc3fd78a39629d198 passed focused source controls, security-diff review, hosted checks, and Sonar readback, and its squash result passed all applicable master workflows; neither is evidence of a resulting-master NGINX runtime. FND-SONAR-0001 remains a distinct blocked master-level Quality-Gate baseline and is neither changed nor accepted again by this finding.",
+  "residual_risk_de": "Lokaler C17-Compile und NGINX-Runtime bleiben unverifiziert, weil task-lokale Header-Provisionierung keine NGINX-/libmodsecurity-Header herstellte. Finaler PR-#206-Head eb1f199815b6ed3bc4ecd53bc3fd78a39629d198 bestand fokussierte Source-Controls, Security-Diff-Review, Hosted-Checks und Sonar-Readback, und sein Squash-Ergebnis bestand alle anwendbaren Master-Workflows; beides ist kein Nachweis einer Resulting-Master-NGINX-Runtime. FND-SONAR-0001 bleibt eine getrennte blockierte Master-Level-Quality-Gate-Baseline und wird durch diesen Befund weder geändert noch erneut akzeptiert.",
+  "created_at": "2026-07-30T15:00:00Z",
+  "updated_at": "2026-08-01T07:15:29Z",
+  "final_disposition": "verified_and_squash_merged_to_parent_master_e870e8fbd1a31d43156d0baa79dc6d86b4e21bd3_with_distinct_fnd_sonar_0001_master_baseline",
+  "history": [
+    {
+      "at": "2026-07-30T15:00:00Z",
+      "event": "current_master_nginx_sonar_inventory_triaged",
+      "detail": "Allocated FND-SONAR-0027 after source-file-keyed SonarQube Cloud evidence confirmed sixteen independently visible but one coherent NGINX lifecycle maintainability remediation items. No source, Sonar policy, PR, merge, or master state existed at allocation."
+    },
+    {
+      "at": "2026-07-30T15:55:23Z",
+      "event": "exact_draft_pr206_head_verified",
+      "detail": "Draft PR #206 exact head 9746d81cd73c54300d709357db453a93f4f358df has 33 passed and zero failed hosted checks, zero reviews and review threads, SonarQube Cloud Quality Gate OK, zero OPEN/CONFIRMED PR issues, zero New-Code violations, and 0.0% / zero New-Code duplication. No master integration was authorized or performed."
+    },
+    {
+      "at": "2026-08-01T07:15:29Z",
+      "event": "exact_head_pr206_squash_merged_and_resulting_master_verified",
+      "detail": "After final exact-head verification for eb1f199815b6ed3bc4ecd53bc3fd78a39629d198 (34 passed, zero failed checks; no review threads; PR Quality Gate OK), the user-authorized squash merge produced Parent master e870e8fbd1a31d43156d0baa79dc6d86b4e21bd3. All 14 applicable resulting-master GitHub Actions workflows passed. SonarQube Cloud analyzed that exact revision but retained the independent FND-SONAR-0001 project baseline ERROR; no PR #206 new issue, hotspot, duplication, rule, Quality-Gate, exclusion, suppression, or risk-acceptance change occurred."
+    }
+  ]
+}

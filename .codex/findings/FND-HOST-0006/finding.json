@@ -1,0 +1,157 @@
+{
+  "id": "FND-HOST-0006",
+  "title": "Task CPython 3.13.14 lacks _sqlite3, blocking local Coverage.py Cobertura XML validation",
+  "title_de": "Task-CPython 3.13.14 fehlt _sqlite3 und blockiert die lokale Coverage.py-Cobertura-XML-Validierung",
+  "category": "tooling",
+  "repository": "host_environment",
+  "ownership": "host_environment",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "blocked",
+  "feasibility_status": "blocked_environment",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": "Framework PR #39 local CPython 3.13.14 Coverage.py/Cobertura validation",
+  "affected_files": [],
+  "affected_symbols": [
+    "_sqlite3",
+    "sqlite3",
+    "coverage.sqldata",
+    "coverage==7.15.2",
+    "COVERAGE_FILE",
+    "COVERAGE_XML"
+  ],
+  "summary": "The task CPython 3.13.14 environment lacks the standard-library _sqlite3 module. coverage==7.15.2 consequently fails during coverage.sqldata -> sqlite3 -> _sqlite3 import before the selected Framework tests start, so local Cobertura XML cannot be produced. This is a P2 non-security host-environment tooling blocker, distinct from the SonarQube Cloud project/token configuration blocker in FND-SONAR-0009.",
+  "summary_de": "Der Task-CPython-3.13.14-Umgebung fehlt das Standardbibliotheksmodul _sqlite3. coverage==7.15.2 scheitert daher beim Import coverage.sqldata -> sqlite3 -> _sqlite3, bevor die ausgewählten Framework-Tests starten, sodass lokales Cobertura XML nicht erzeugt werden kann. Dies ist ein P2-non-security-Host-Environment-Tooling-Blocker, getrennt vom SonarQube-Cloud-Projekt/Token-Configuration-Blocker in FND-SONAR-0009.",
+  "observed_behavior": "The selected Framework virtual environment uses CPython 3.13.14 and hash-locked coverage==7.15.2. The workflow coverage command exited 1 before tests. Coverage.py imported coverage.sqldata, which imported sqlite3; that standard-library import raised ModuleNotFoundError: No module named _sqlite3. No local Cobertura XML was produced, fabricated, uploaded, or retained.",
+  "observed_behavior_de": "Die ausgewählte Framework-Virtual-Environment verwendet CPython 3.13.14 und hash-gesperrtes coverage==7.15.2. Der Workflow-Coverage-Command endete vor den Tests mit 1. Coverage.py importierte coverage.sqldata, das sqlite3 importierte; dieser Standardbibliotheksimport löste ModuleNotFoundError: No module named _sqlite3 aus. Es wurde kein lokales Cobertura XML erzeugt, erfunden, hochgeladen oder zurückgehalten.",
+  "expected_behavior": "A valid local coverage qualification uses the required CPython 3.13.14 environment with a working _sqlite3 module, runs the exact Coverage.py command, and produces a nonempty Cobertura XML report below a fresh task-owned external run path. Python 3.14 and a hand-copied _sqlite3 extension are not valid substitutes.",
+  "expected_behavior_de": "Eine gültige lokale Coverage-Qualifikation verwendet die erforderliche CPython-3.13.14-Umgebung mit einem funktionierenden _sqlite3-Modul, führt den exakten Coverage.py-Command aus und erzeugt einen nichtleeren Cobertura-XML-Report unter einem frischen task-eigenen externen Run-Pfad. Python 3.14 und eine handkopierte _sqlite3-Erweiterung sind keine gültigen Substitute.",
+  "impact": "Only local Cobertura XML validation is blocked. This finding neither proves nor disproves that a hosted Ubuntu runner can run the same CPython lane, and it neither provides nor removes the dedicated SONAR_TOKEN, CI-based analysis mode, scanner/import execution, hosted coverage, or Quality Gate required by FND-SONAR-0009.",
+  "impact_de": "Nur die lokale Cobertura-XML-Validierung ist blockiert. Diese Finding beweist oder widerlegt weder, dass ein Hosted-Ubuntu-Runner dieselbe CPython-Lane ausführen kann, noch stellt sie den dedizierten SONAR_TOKEN, den CI-basierten Analysemodus, die Scanner/Import-Ausführung, Hosted-Coverage oder das Quality Gate bereit oder entfernt diese, die FND-SONAR-0009 erfordert.",
+  "preconditions": [
+    "The selected Framework worktree is /var/tmp/codex/ModSecurity-test-Framework/worktrees/framework-python-updater.",
+    "The selected interpreter is the task CPython 3.13.14 environment and the Framework lock requires coverage==7.15.2.",
+    "The host CPython was built without the SQLite development headers/pkg-config data needed to enable _sqlite3.",
+    "The task explicitly excludes installations, host rebuilds, and substitute runtimes."
+  ],
+  "reproduction": [
+    "Use the selected CPython 3.13.14 Framework virtual environment.",
+    "Run .venv/bin/python -m coverage run -m unittest -v tests.ci_security.test_framework_ci_security_contract tests.ci_security.test_python_version_contract tests.ci_security.test_update_python_version tests.ci_security.test_ci_security_evidence_contract tests.security_regression.test_workflow_security_contract.",
+    "Observe the coverage.sqldata -> sqlite3 -> _sqlite3 import failure before tests.",
+    "Read /var/tmp/codex/ModSecurity-conector/runs/20260721T055738Z-framework-pr39-delivery-followup-416b152c/evidence/framework-pr39-coverage-sqlite-blocker.md and compare SHA-256 15d6518ccdb7015622df3bda5d0d1c0c4726096e3e4a392314786b448157cf9e."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260721T055738Z-framework-pr39-delivery-followup-416b152c",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T055738Z-framework-pr39-delivery-followup-416b152c/evidence/framework-pr39-coverage-sqlite-blocker.md",
+      "artifact_type": "coverage_validation_blocker_receipt",
+      "sha256": "15d6518ccdb7015622df3bda5d0d1c0c4726096e3e4a392314786b448157cf9e",
+      "command": ".venv/bin/python -m coverage run -m unittest -v tests.ci_security.test_framework_ci_security_contract tests.ci_security.test_python_version_contract tests.ci_security.test_update_python_version tests.ci_security.test_ci_security_evidence_contract tests.security_regression.test_workflow_security_contract",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/framework-python-updater",
+      "exit_code": 1,
+      "observed_at": "2026-07-21T07:41:04Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260726T173136Z-fnd-host-remediation-20260726-7837c9e2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T173136Z-fnd-host-remediation-20260726-7837c9e2/evidence/fnd-host-0002-0003-0004-0006-current-revalidation.md",
+      "artifact_type": "current_sqlite_prerequisite_revalidation",
+      "sha256": "81fdeceb0f34806cd781ee3adf0c8d57d6619d78549fef7e37313e90a4d545bf",
+      "command": "RTK-proxied retained-receipt hash verification plus pkg-config sqlite3 and /usr/include/sqlite3.h prerequisite probes; no Framework action or rebuild",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T17:34:26Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "validation_results": [
+    {
+      "name": "exact local Coverage.py qualification",
+      "result": "blocked_environment",
+      "exit_code": 1,
+      "observed_failure": "coverage.sqldata -> sqlite3 -> _sqlite3; ModuleNotFoundError: No module named _sqlite3",
+      "limitation": "No Cobertura XML exists. The command did not start the selected tests."
+    },
+    {
+      "name": "substitute interpreter review",
+      "result": "not_applicable",
+      "limitation": "System CPython 3.14 and a hand-copied _sqlite3 extension are not valid substitutes for the exact CPython 3.13.14 hash-locked validation lane."
+    },
+    {
+      "name": "current SQLite rebuild-prerequisite revalidation",
+      "result": "blocked_environment",
+      "observed_failure": "pkg-config cannot locate sqlite3 and /usr/include/sqlite3.h is absent; the retained exact-lane receipt hash remains valid.",
+      "limitation": "The current user did not select Framework work or authorize the external CPython rebuild, so the exact Framework Coverage.py lane was not rerun."
+    }
+  ],
+  "root_cause": "The task CPython 3.13.14 build lacks the SQLite development headers/pkg-config discovery required to build the standard-library _sqlite3 extension. The selected Coverage.py version imports sqlite3 through coverage.sqldata, so it fails before the test command can create Cobertura XML.",
+  "root_cause_de": "Dem Task-CPython-3.13.14-Build fehlen die SQLite-Development-Header/pkg-config-Discovery, die zum Bauen der Standardbibliotheks-_sqlite3-Erweiterung erforderlich sind. Die ausgewählte Coverage.py-Version importiert sqlite3 über coverage.sqldata und scheitert daher, bevor der Test-Command Cobertura XML erzeugen kann.",
+  "proposed_remediation": "In a separately authorized host-environment task, provide the required SQLite development headers and pkg-config data, rebuild a fresh external task-owned CPython 3.13.14, create a fresh Framework virtual environment, install only the hash-locked requirements, verify import _sqlite3, and rerun the exact Coverage.py command. Do not substitute CPython 3.14 or hand-copy an extension.",
+  "proposed_remediation_de": "In einer separat autorisierten Host-Environment-Aufgabe die erforderlichen SQLite-Development-Header und pkg-config-Daten bereitstellen, ein frisches externes task-eigenes CPython 3.13.14 neu bauen, eine frische Framework-Virtual-Environment erstellen, nur die hash-gesperrten Requirements installieren, import _sqlite3 verifizieren und den exakten Coverage.py-Command erneut ausführen. CPython 3.14 nicht substituieren und keine Erweiterung handkopieren.",
+  "acceptance_criteria": [
+    "A fresh required CPython 3.13.14 environment can import _sqlite3.",
+    "The selected hash-locked Framework environment can import coverage==7.15.2 without the coverage.sqldata -> sqlite3 -> _sqlite3 failure.",
+    "The exact Coverage.py command runs its selected tests and writes a nonempty Cobertura XML report below a fresh task-owned external run path.",
+    "No CPython 3.14 substitution, hand-copied extension, system/user-site installation, or unapproved host mutation is used.",
+    "FND-SONAR-0009 remains separately verified through hosted project/token configuration and exact-head scanner/import evidence."
+  ],
+  "validation_plan": [
+    "After a separately authorized host setup, verify import _sqlite3 with the new exact CPython 3.13.14 interpreter.",
+    "Create a fresh Framework virtual environment and install the exact hash-locked requirements without changing repository dependency files.",
+    "Rerun the retained exact Coverage.py command with COVERAGE_FILE and COVERAGE_XML below a fresh external task run.",
+    "Verify the XML is nonempty and record its separate evidence without treating it as hosted SonarQube Cloud proof."
+  ],
+  "regression_tests": [],
+  "legitimate_control_tests": [
+    "The exact required CPython 3.13.14 interpreter imports _sqlite3.",
+    "Coverage.py starts the intended selected tests and writes nonempty Cobertura XML.",
+    "The separate hosted project/token configuration remains independently validated by FND-SONAR-0009."
+  ],
+  "dependencies": [
+    "A separately authorized host-environment setup that supplies SQLite development headers/pkg-config data",
+    "A fresh task-owned CPython 3.13.14 rebuild and Framework virtual environment",
+    "The Framework hash-locked requirements",
+    "FND-SONAR-0009 for the distinct hosted project/token configuration and hosted verification"
+  ],
+  "blocked_by": [
+    "The selected task CPython 3.13.14 lacks _sqlite3.",
+    "The current task prohibits installation, host rebuild, and substitute runtime work.",
+    "No valid local Cobertura XML path exists until the exact CPython environment is rebuilt with SQLite support."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0009",
+    "FND-FRAMEWORK-0044"
+  ],
+  "source_run_ids": [
+    "20260721T055738Z-framework-pr39-delivery-followup-416b152c",
+    "20260726T173136Z-fnd-host-remediation-20260726-7837c9e2"
+  ],
+  "evidence_limitations": [
+    "The retained receipt proves this local host/interpreter blocker only.",
+    "It does not establish hosted GitHub Actions runtime behavior, SONAR_TOKEN configuration, project analysis mode, scanner/import execution, hosted coverage, or Quality Gate behavior.",
+    "No substitute CPython 3.14 result or hand-copied extension result is valid evidence for the exact CPython 3.13.14 lane.",
+    "The 2026-07-26 host prerequisite probes confirm the rebuild dependency but do not rerun the unselected Framework validation lane."
+  ],
+  "residual_risk": "Local Cobertura XML remains unverified until an authorized exact CPython 3.13.14 environment includes _sqlite3. This non-security host-tooling blocker is independent of the external SonarQube Cloud project/token blocker; no unsafe workaround, installation, build, configuration change, delivery action, Parent gitlink update, or MRTS change occurred.",
+  "residual_risk_de": "Lokales Cobertura XML bleibt unverifiziert, bis eine autorisierte exakte CPython-3.13.14-Umgebung _sqlite3 enthält. Dieser non-security-Host-Tooling-Blocker ist unabhängig vom externen SonarQube-Cloud-Projekt/Token-Blocker; es erfolgten kein unsicherer Workaround, keine Installation, kein Build, keine Configuration-Änderung, keine Delivery-Aktion, kein Parent-Gitlink-Update und keine MRTS-Änderung.",
+  "history": [
+    {
+      "at": "2026-07-21T07:54:45Z",
+      "event": "local_coverage_sqlite_blocker_recorded_separately",
+      "detail": "Allocated as a distinct P2 blocked_environment host_environment tooling finding after the retained receipt demonstrated the exact CPython 3.13.14 Coverage.py import failure. It is not the FND-SONAR-0009 hosted SONAR_TOKEN/project-analysis configuration blocker. No substitute CPython 3.14, hand-copied extension, installation, host rebuild, product change, or delivery action occurred."
+    },
+    {
+      "at": "2026-07-26T17:34:26Z",
+      "event": "current_sqlite_prerequisite_revalidation",
+      "detail": "The retained exact CPython 3.13.14 blocker receipt SHA-256 was verified. The current host still lacks sqlite3 pkg-config metadata and /usr/include/sqlite3.h. No Framework action, package installation, CPython rebuild, substitute runtime, product change, or delivery action was taken; the finding remains blocked_environment."
+    }
+  ],
+  "created_at": "2026-07-21T07:54:45Z",
+  "updated_at": "2026-07-26T17:34:26Z",
+  "final_disposition": null
+}

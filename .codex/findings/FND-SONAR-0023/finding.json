@@ -1,0 +1,180 @@
+{
+  "id": "FND-SONAR-0023",
+  "title": "Native ModSecurity oracle result writer exceeds Sonar parameter-count threshold",
+  "title_de": "Native-ModSecurity-Oracle-Result-Writer überschreitet Sonars Parameteranzahlgrenze",
+  "category": "maintainability",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "not_security_relevant_maintainability_only",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": "native Oracle JSON result serialization",
+  "profile": "SonarQube Cloud analysis 00fc69e7-8a50-4c44-9eae-abaf077610f5 for Parent master 77947c2ebe9523a24054b90bc1339657bed07ddb at inventory time",
+  "affected_files": [
+    "ci/tools/native_modsecurity_oracle.c",
+    "tests/test_sonar_reliability_contract.py"
+  ],
+  "affected_symbols": [
+    "write_result",
+    "struct result_context"
+  ],
+  "summary": "The inventory-bound SonarQube Cloud code smell c:S107, key AZ7b3dgOcO69wzd-_jHt, reported the eight-argument native Oracle write_result function. The task patch moves coherent result data into a private result_context and reduces the writer interface without changing the public command-line, JSON fields/order, or exit-state contract.",
+  "summary_de": "Der an das Inventar gebundene SonarQube-Cloud-Code-Smell c:S107, Key AZ7b3dgOcO69wzd-_jHt, meldete die achtargumentige native-Oracle-Funktion write_result. Der Task-Patch verschiebt zusammengehörige Ergebnisdaten in einen privaten result_context und reduziert die Writer-Schnittstelle, ohne den öffentlichen Command-Line-, JSON-Feld-/Reihenfolge- oder Exit-State-Vertrag zu ändern.",
+  "observed_behavior": "At inventory time, c:S107 was open for write_result in ci/tools/native_modsecurity_oracle.c because the function accepted eight parameters. The condition is a maintainability concern; no attacker-controlled security path was established.",
+  "observed_behavior_de": "Zum Inventarzeitpunkt war c:S107 für write_result in ci/tools/native_modsecurity_oracle.c offen, weil die Funktion acht Parameter annahm. Der Zustand ist ein Maintainability-Thema; es wurde kein angriffssteuerbarer Security-Pfad festgestellt.",
+  "expected_behavior": "Result serialization has one coherent private result context and preserves the existing JSON schema, null-safe fields, reason strings, output order, and command exit behavior.",
+  "expected_behavior_de": "Die Ergebnisserialisierung besitzt einen zusammenhängenden privaten Result-Context und bewahrt das bestehende JSON-Schema, nullsichere Felder, Reason-Strings, Ausgabereihenfolge und Command-Exit-Verhalten.",
+  "impact": "Protected-squash PR #200 delivered the compact result-context source repair as resulting master 13890da56ad19a105629243349f39ea8c084f396. Required controls and all 14 exact-master workflows passed, and SHA-bound default-branch analysis no longer reports the original c:S107 key. This non-security maintainability finding is verified, not closed; the independent non-ignored global Quality Gate ERROR is not an acceptance criterion for this status.",
+  "impact_de": "Geschützter Squash-PR #200 lieferte die kompakte Result-Context-Source-Reparatur als resultierenden Master 13890da56ad19a105629243349f39ea8c084f396 aus. Erforderliche Controls und alle 14 exakten Master-Workflows bestanden, und SHA-gebundene Default-Branch-Analyse meldet den ursprünglichen c:S107-Key nicht mehr. Dieses nicht sicherheitsrelevante Maintainability-Finding ist verified, nicht closed; das unabhängige nicht ignorierte globale Quality-Gate-ERROR ist kein Akzeptanzkriterium für diesen Status.",
+  "preconditions": [
+    "SonarQube Cloud analyzes the inventory revision containing the eight-parameter write_result definition.",
+    "The native Oracle source is compiled with its supported C17 toolchains."
+  ],
+  "reproduction": [
+    "Review the inventory recorded in the task contract for c:S107 key AZ7b3dgOcO69wzd-_jHt.",
+    "Compile the task patch with GCC and Clang using C17, -Wall, -Wextra, and -Werror.",
+    "Run the source-contract suite and real-libmodsecurity 200, 403, and setup-error controls."
+  ],
+  "evidence": [
+    {
+      "run_id": "ci-tools-sonar-remediation-20260730",
+      "artifact_path": ".codex/plans/ci-tools-sonar-remediation.md",
+      "artifact_type": "inventory_and_local_validation_contract",
+      "sha256": "0029f0724d663e1d84408d56af69e71724a79f79dbb24c862aa0f628ffc0852c",
+      "command": "Read-only review of the task execution contract recording c:S107 key AZ7b3dgOcO69wzd-_jHt and local C17/runtime validation.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T10:46:48Z",
+      "retention_status": "active_local_control_plane",
+      "result": "The inventory identifies the native write_result parameter-count finding and the task patch's private result-context strategy."
+    },
+    {
+      "run_id": "ci-tools-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-tools-sonar-remediation-20260730/security-diff-scan-20260730T100735Z/report.md",
+      "artifact_type": "sealed_focused_security_diff_report",
+      "sha256": "9d4b50736c29628147b053cd869e9253c1f95bf681e849174829929ec99b69d7",
+      "command": "Codex Security focused security-diff scan finalizer over the task worktree diff from 77947c2ebe9523a24054b90bc1339657bed07ddb.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/ci-tools-sonar-remediation-20260730-v2",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T10:07:35Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "The native lifecycle refactor preserves phase order and result semantics; C17 GCC/Clang and real-libmodsecurity 200/403/setup-error controls passed locally."
+    },
+    {
+      "run_id": "ci-tools-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-tools-sonar-remediation-20260730/runtime/native-final-gcc-allow-result.json",
+      "artifact_type": "real_libmodsecurity_allow_control",
+      "sha256": "ad1ed3ba88d88b8eb03683083a103461d2efb28e46135ace7365d297eaa80843",
+      "command": "Run the final GCC-built native Oracle against real LibModSecurity 3.0.14 with the allowed 200 control.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/ci-tools-sonar-remediation-20260730-v2",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T10:07:35Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The output is pass, expected_status 200, actual_status 200, native_match false, and reason no native intervention."
+    },
+    {
+      "run_id": "ci-tools-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-tools-sonar-remediation-20260730/evidence/pr200-exact-head-verification.md",
+      "artifact_type": "exact_draft_pr_head_hosted_sonar_verification_receipt",
+      "sha256": "42ba7a4ff8ff0172997a935f04a7fdf560b7b6ce9c70daab97fa24e69024f3be",
+      "command": "rtk proxy -- gh pr view 200 --repo Easton97-Jens/ModSecurity-conector --json number,url,state,isDraft,mergeable,mergeStateStatus,baseRefName,headRefName,headRefOid,reviews,comments,reviewDecision,updatedAt; rtk proxy -- gh pr checks 200 --repo Easton97-Jens/ModSecurity-conector --required; official SonarQube Cloud PR #200 quality-gate, issue, and measure readbacks.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T11:07:21Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Draft PR #200 exact head 2bc97ac058725fdba6a36ad93307487c160b1f05 is OPEN/Draft/CLEAN and MERGEABLE; required checks pass; SonarQube Cloud Quality Gate is OK with zero PR issues, including original c:S107 key AZ7b3dgOcO69wzd-_jHt, zero new violations, and 0.0% new-code duplication."
+    },
+    {
+      "run_id": "ci-tools-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-tools-sonar-remediation-20260730/evidence/pr200-66db7e3f-exact-head-verification.md",
+      "artifact_type": "refreshed_exact_draft_pr_head_hosted_sonar_verification_receipt",
+      "sha256": "33cc911a5ee393fb44906c3e4dac76634df86d99fe07b3e105be9962148c840a",
+      "command": "rtk proxy -- gh pr view 200 --repo Easton97-Jens/ModSecurity-conector --json number,url,state,isDraft,mergeable,mergeStateStatus,baseRefName,headRefName,headRefOid,reviews,comments,reviewDecision,updatedAt; rtk proxy -- gh pr checks 200 --repo Easton97-Jens/ModSecurity-conector --required; official SonarQube Cloud PR #200 quality-gate, issue, and measure readbacks after refreshed head push.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T11:33:48Z",
+      "retention_status": "retained_task_evidence",
+      "result": "After normal master refresh, Draft PR #200 exact head 66db7e3f2de324c960d8db36b4b6760d958cd7e1 against base 726322b17d6423c7f9e3bba0e6affc051dbf94cd is OPEN/Draft/CLEAN and MERGEABLE; required checks pass; SonarQube Cloud Quality Gate is OK with zero PR issues (including original key AZ7b3dgOcO69wzd-_jHt), zero new violations, and 0.0% new-code duplication."
+    },
+    {
+      "run_id": "ci-tools-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-tools-sonar-remediation-20260730/evidence/pr200-master-integration-13890da5.md",
+      "artifact_type": "resulting_master_pr200_integration_and_sonarqube_verification_receipt",
+      "sha256": "69cdb1bbdc92c4faa82e2e722dd27d5eac32b3d33df50cc64fc7ed110d9da48a",
+      "command": "Protected GitHub squash merge of PR #200 with expected_head_sha 5b7487824ae5ca4a14a48b0d743cf4a1cc817da0; resulting-master local checks, GitHub Actions, and SonarQube Cloud default-branch analysis/query as recorded by the retained receipt.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T12:16:21Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR #200 produced master 13890da56ad19a105629243349f39ea8c084f396. The native Oracle and reliability-test blobs equal the reviewed candidate (0a3acf67446e971f0a6e5eb8ab6ef8515360366c and 74c99a74affe380352548165e1968f351387b8c9); 14 master workflows pass and analysis c1f32224-aa05-4202-9b10-65c15165ff35 no longer reports AZ7b3dgOcO69wzd-_jHt."
+    }
+  ],
+  "root_cause": "write_result mixed a stable output representation with too many independently passed result values, obscuring the coherent result object already maintained by the caller.",
+  "root_cause_de": "write_result vermischte eine stabile Ausgaberepräsentation mit zu vielen einzeln übergebenen Ergebniswerten und verschleierte damit das zusammenhängende Ergebnisobjekt, das der Aufrufer bereits verwaltet.",
+  "proposed_remediation": "Keep request inputs and result values in private context structures, pass the result context plus status/reason to write_result, and retain the existing JSON and CLI behavior. The remediation does not alter a Sonar rule, Quality Gate, exclusion, NOSONAR, or suppression.",
+  "proposed_remediation_de": "Request-Inputs und Result-Werte in privaten Context-Strukturen halten, result_context plus Status/Reason an write_result übergeben und das bestehende JSON- und CLI-Verhalten erhalten. Die Remediation ändert weder Sonar-Rule, Quality Gate, Exclusion, NOSONAR noch Suppression.",
+  "acceptance_criteria": [
+    "write_result has a compact context-based interface and no longer triggers the original c:S107 issue in default-branch analysis c1f32224-aa05-4202-9b10-65c15165ff35 bound to resulting master 13890da56ad19a105629243349f39ea8c084f396.",
+    "The public JSON schema/order, null-safe serialization, reason strings, and exit behavior are preserved.",
+    "C17 GCC/Clang warning-as-error builds and real-libmodsecurity 200, 403, and setup-error controls pass.",
+    "No Sonar policy, suppression, or exclusion change is introduced."
+  ],
+  "validation_plan": [
+    "Run the focused source-contract suite and direct C17 GCC/Clang builds.",
+    "Run the allowed, intervention, and setup-error real-libmodsecurity controls.",
+    "Resulting master 13890da56ad19a105629243349f39ea8c084f396 was hosted-verified and its default-branch Sonar readback is retained; repeat it only for a future source change or before a later closure decision."
+  ],
+  "regression_tests": [
+    "tests/test_sonar_reliability_contract.py"
+  ],
+  "legitimate_control_tests": [
+    "Real LibModSecurity allowed 200 control.",
+    "Real LibModSecurity request-header intervention 403 control.",
+    "Real LibModSecurity setup-error JSON control."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0016",
+    "FND-SONAR-0024",
+    "FND-PARENT-0036"
+  ],
+  "source_run_ids": [
+    "ci-tools-sonar-remediation-20260730"
+  ],
+  "residual_risk": "The original c:S107 key is verified absent on resulting master 13890da56ad19a105629243349f39ea8c084f396, whose source blobs equal the reviewed candidate and whose workflows pass. The project-wide Quality Gate remains ERROR for unrelated retained conditions, but that is not an acceptance criterion for this non-security maintainability finding. FND-PARENT-0036 remains independently fixed, not verified.",
+  "residual_risk_de": "Der ursprüngliche c:S107-Key ist auf resultierendem Master 13890da56ad19a105629243349f39ea8c084f396 nachweislich nicht vorhanden; dessen Source-Blobs entsprechen dem geprüften Kandidaten und dessen Workflows bestehen. Das projektweite Quality Gate bleibt wegen unabhängiger zurückgehaltener Bedingungen ERROR, ist aber kein Akzeptanzkriterium für dieses nicht sicherheitsrelevante Maintainability-Finding. FND-PARENT-0036 bleibt unabhängig fixed, nicht verified.",
+  "created_at": "2026-07-30T10:46:48Z",
+  "updated_at": "2026-07-30T12:16:21Z",
+  "final_disposition": "verified_on_resulting_master",
+  "history": [
+    {
+      "at": "2026-07-30T10:46:48Z",
+      "event": "local_context_refactor_fixed_pending_exact_pr_head",
+      "detail": "Allocated as a distinct c:S107 source boundary. The compact result-context implementation passes local compiler, source-contract, and real-libmodsecurity controls; hosted exact-head Sonar verification remains pending."
+    },
+    {
+      "at": "2026-07-30T11:07:21Z",
+      "event": "exact_draft_pr200_head_hosted_sonar_verified_pending_resulting_master",
+      "detail": "Draft PR #200 exact head 2bc97ac058725fdba6a36ad93307487c160b1f05 passed required GitHub checks and SonarQube Cloud Quality Gate/readbacks; original c:S107 key AZ7b3dgOcO69wzd-_jHt is absent from the PR issue query. Status remains fixed pending authorized integration and resulting-master verification."
+    },
+    {
+      "at": "2026-07-30T11:33:48Z",
+      "event": "refreshed_exact_draft_pr200_head_hosted_sonar_verified_pending_resulting_master",
+      "detail": "After master advanced to 726322b17d6423c7f9e3bba0e6affc051dbf94cd, refreshed Draft PR #200 exact head 66db7e3f2de324c960d8db36b4b6760d958cd7e1 passed required GitHub checks and SonarQube Cloud Quality Gate/readbacks; original c:S107 key AZ7b3dgOcO69wzd-_jHt is absent from the zero-issue PR query. Status remains fixed pending authorized integration and resulting-master verification."
+    },
+    {
+      "at": "2026-07-30T12:16:21Z",
+      "event": "resulting_master_pr200_c_s107_verified",
+      "detail": "Protected-squash PR #200 head 5b7487824ae5ca4a14a48b0d743cf4a1cc817da0 produced master 13890da56ad19a105629243349f39ea8c084f396. The reviewed native-Oracle/reliability-test blobs equal master; all 14 master workflows pass and exact default analysis c1f32224-aa05-4202-9b10-65c15165ff35 no longer reports AZ7b3dgOcO69wzd-_jHt. The independent global Quality Gate ERROR does not apply to this finding's stated acceptance criteria, so status advances fixed to verified, not closed."
+    }
+  ]
+}

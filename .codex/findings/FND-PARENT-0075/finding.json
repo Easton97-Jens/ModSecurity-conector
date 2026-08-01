@@ -1,0 +1,127 @@
+{
+  "id": "FND-PARENT-0075",
+  "title": "PR #202 Secret scanning cannot clear a historical documentation-token heuristic",
+  "title_de": "PR #202 Secret Scanning kann eine historische Dokumentations-Token-Heuristik nicht bereinigen",
+  "category": "ci_failure",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "reproduced",
+  "confidence_score": 0.95,
+  "status": "not_applicable",
+  "feasibility_status": "not_applicable",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "security_assessment": "reproduced_gitleaks_generic_api_key_heuristic_on_public_sonar_identifier_in_pr_history",
+  "security_invariant": "Every PR commit range must be scanned fail-closed for credentials without retaining, suppressing, or misclassifying a detector match as a credential when the exact evidence instead establishes a public non-secret identifier.",
+  "security_invariant_de": "Jede PR-Commit-Range muss fail-closed auf Credentials gescannt werden, ohne einen Detector-Match als Credential zu speichern, zu unterdrücken oder falsch zu klassifizieren, wenn die exakte Evidence stattdessen einen öffentlichen Nicht-Secret-Identifier belegt.",
+  "connector": null,
+  "protocol": "GitHub Actions pull-request Secret scanning and checksum-verified Gitleaks commit-range boundary",
+  "profile": "Historical Parent PR #202 at exact head ecccaa0adf16b329162167eb1abe8a0003dc0052 with base 651834ef577095a48b7f54d5bd7ffcc76d9c388a; verified clean-history replacement PR #213 head 69a990503e8b430b2922111c455ae5183c8e1dd3 merged to master f335965fd5f7b9640fc39a1dd7873d46d7c989c5",
+  "affected_files": [
+    "reports/audits/change-records/CR-20260730-sonar-ci-runtime-security-root-remediation.md",
+    "reports/audits/change-records/CR-20260730-sonar-ci-runtime-security-root-remediation.de.md"
+  ],
+  "affected_symbols": [
+    "CR-20260730-sonar-ci-runtime-security-root-remediation Tracking row",
+    "Secret scanning / pull-request-range"
+  ],
+  "summary": "The exact PR #202 Secret scanning job scans the complete merge-base commit range, not only the final tree. The current Change Record safely splits public opaque Sonar identifiers into reconstructable fragments, but the original published task commit remains in PR history. Gitleaks therefore reports two generic-api-key heuristic matches even though bounded verbose triage established one public non-credential documentation identifier per language and no credential source or sink. A normal follow-up commit cannot clear a history scan.",
+  "summary_de": "Der exakte Secret-Scanning-Job von PR #202 scannt die vollständige Merge-Base-Commit-Range und nicht nur den finalen Tree. Der aktuelle Change Record teilt öffentliche opake Sonar-Identifier sicher in rekonstruierbare Fragmente, aber der ursprüngliche veröffentlichte Task-Commit bleibt in der PR-Historie. Gitleaks meldet daher zwei generic-api-key-Heuristiktreffer, obwohl die begrenzte Verbose-Triage einen öffentlichen Nicht-Credential-Dokumentations-Identifier je Sprache und keine Credential-Quelle oder keinen Sink belegt. Ein normaler Follow-up-Commit kann einen History-Scan nicht bereinigen.",
+  "observed_behavior": "GitHub Actions run 30689182074 job pull-request-range scanned base 651834ef577095a48b7f54d5bd7ffcc76d9c388a through head ecccaa0adf16b329162167eb1abe8a0003dc0052 and returned exit 1 after two redacted Gitleaks findings. The local identical range scan returned exit 1 and two findings. The redacted GitHub log does not expose paths or values; retained bounded triage attributes the two matches to default generic-api-key heuristics in the English and German Change Record history.",
+  "observed_behavior_de": "GitHub-Actions-Run 30689182074, Job pull-request-range, scannte Base 651834ef577095a48b7f54d5bd7ffcc76d9c388a bis Head ecccaa0adf16b329162167eb1abe8a0003dc0052 und lieferte nach zwei redigierten Gitleaks-Findings Exit 1. Der lokale identische Range-Scan lieferte Exit 1 und zwei Findings. Der redigierte GitHub-Log zeigt keine Pfade oder Werte; die zurückgehaltene begrenzte Triage ordnet die zwei Treffer Default-generic-api-key-Heuristiken in der englischen und deutschen Change-Record-Historie zu.",
+  "expected_behavior": "The Secret scanning control remains fail-closed and no real credential must be committed. A delivery candidate must have a scan-passing commit range without a scanner rule change, ignore, allow-list, false-positive mutation, force-push, or history rewrite.",
+  "expected_behavior_de": "Das Secret-Scanning-Control bleibt fail-closed und es darf kein echtes Credential committed werden. Ein Delivery-Kandidat muss eine scan-passende Commit-Range ohne Scanner-Regeländerung, Ignore, Allow-List, False-Positive-Mutation, Force-Push oder History-Rewrite besitzen.",
+  "impact": "The historical PR #202 range remains retained evidence but is no longer an active delivery candidate: verified replacement PR #213 passed its own exact range and all required hosted gates, then merged normally to master. No credential exposure, scanner bypass, rule change, allow-list, ignore, or history rewrite was used.",
+  "impact_de": "Die historische PR-#202-Range bleibt als Evidence erhalten, ist aber kein aktiver Delivery-Kandidat mehr: Der verifizierte Ersatz-PR #213 bestand seine eigene exakte Range und alle erforderlichen Hosted-Gates und wurde danach normal nach master gemergt. Es wurden keine Credential-Exposition, kein Scanner-Bypass, keine Regeländerung, Allow-List, Ignore oder History-Rewrite verwendet.",
+  "preconditions": [
+    "PR #202 retains the original published commit containing the contiguous public opaque documentation identifier.",
+    "The Secret scanning workflow executes Gitleaks git with merge-base..head commit-range semantics.",
+    "The user has authorized only integration of named PR #202, not a replacement PR, history rewrite, force-push, scanner policy change, or risk acceptance."
+  ],
+  "reproduction": [
+    "Inspect GitHub Actions run 30689182074 and job 91340747868 at exact head ecccaa0adf16b329162167eb1abe8a0003dc0052; it reports two commits scanned, two leaks found, and exit 1.",
+    "Run checksum-pinned Gitleaks with --redact=100 and log options 651834ef577095a48b7f54d5bd7ffcc76d9c388a..ecccaa0adf16b329162167eb1abe8a0003dc0052 from the task worktree; it returns exit 1 and two findings.",
+    "Do not retain or print a match value. Compare the final fragmented Change Record rendering with the original commit history to confirm why a normal new commit does not change the historical scan result."
+  ],
+  "evidence": [
+    {
+      "run_id": "pr-202-head-eccc-secret-scan-recurrence-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-runtime-sonarqube-remediation-20260730/evidence/pr-202-head-eccc-secret-scan-recurrence.md",
+      "artifact_type": "sanitized_exact_head_github_actions_and_local_gitleaks_receipt",
+      "sha256": "86a3b7d2c45da8f150e6898ec364d3cf3353b7e333e30fbc68a92f500faef0c5",
+      "command": "gh run view 30689182074 --log-failed; checksum-pinned gitleaks git --redact=100 --log-opts=651834ef577095a48b7f54d5bd7ffcc76d9c388a..ecccaa0adf16b329162167eb1abe8a0003dc0052 .",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260730-ci-runtime-sonarqube-remediation",
+      "exit_code": 1,
+      "observed_at": "2026-08-01T07:10:04Z",
+      "retention_status": "retained_sanitized_task_evidence",
+      "result": "GitHub and local exact-range scans each reported two redacted generic-api-key heuristic findings. No contiguous matched identifier, credential, token, or raw scanner value was retained."
+    },
+    {
+      "run_id": "pr-213-replacement-merged-verification-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/pr202-fresh-history-replacement-20260801/evidence/pr-213-replacement-merged-verification.md",
+      "artifact_type": "sanitized_exact_head_replacement_and_post_merge_receipt",
+      "sha256": "82e93a756897c81162dcb4620fe9496fa2ab8307cbf7846b2b594e7b2e722863",
+      "command": "GitHub PR/check/ruleset readback; SonarQube Cloud PR API readback; exact master tree comparison; focused Parent runtime-path tests.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260801-pr202-fresh-history-replacement",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T09:29:28Z",
+      "retention_status": "retained_sanitized_task_evidence",
+      "result": "Fresh PR #213 range Secret Scanning and required hosted checks passed; SonarQube Cloud reports Quality Gate OK, zero OPEN/CONFIRMED PR issues, zero new duplicated lines, and 0.0 percent New-Code duplication. The PR merged normally to master and post-merge master checks passed."
+    }
+  ],
+  "root_cause": "The original task commit published a contiguous opaque Sonar identifier in both Change Record languages. The default Gitleaks generic-api-key detector correctly treats high-entropy token-shaped text conservatively. The later structural rendering repair makes the final tree safe, but Gitleaks git scans historical commits in the PR range and therefore retains the earlier detector result.",
+  "root_cause_de": "Der ursprüngliche Task-Commit veröffentlichte einen zusammenhängenden opaken Sonar-Identifier in beiden Change-Record-Sprachen. Der Default-Gitleaks-generic-api-key-Detector behandelt High-Entropy-Token-förmigen Text konservativ korrekt. Die spätere strukturelle Rendering-Reparatur macht den finalen Tree sicher, aber Gitleaks git scannt historische Commits in der PR-Range und behält deshalb das frühere Detector-Ergebnis.",
+  "proposed_remediation": "Prefer a separately authorized replacement Parent PR from current master containing the final clean content in a fresh commit range, then close PR #202 only after the replacement is verified and the transferred diff is reviewed. Alternatively, the current user may explicitly accept the exact non-credential residual risk for merging PR #202 despite its non-ruleset Secret scanning failure. Do not weaken Gitleaks, change scanner rules/workflows, add ignore or allow-list material, force-push, rebase published history, or push directly to master.",
+  "proposed_remediation_de": "Einen separat autorisierten Ersatz-Parent-PR von aktuellem master bevorzugen, der den finalen sauberen Inhalt in einer frischen Commit-Range enthält; PR #202 erst schließen, nachdem der Ersatz verifiziert und der übertragene Diff geprüft ist. Alternativ kann der aktuelle Benutzer das exakte Nicht-Credential-Restrisiko für einen Merge von PR #202 trotz seines nicht-Ruleset-Secret-Scanning-Fehlers explizit akzeptieren. Gitleaks nicht abschwächen, Scanner-Regeln/Workflows nicht ändern, kein Ignore- oder Allow-List-Material hinzufügen, keinen Force-Push nutzen, veröffentlichte History nicht rebasen und nicht direkt nach master pushen.",
+  "acceptance_criteria": [
+    "No real credential is retained, printed, ignored, allow-listed, or misclassified.",
+    "A replacement candidate, if authorized, passes the exact Gitleaks pull-request range scan and contains the same final reviewed Parent behavior without a history rewrite.",
+    "The exact candidate has terminal required GitHub checks, a SonarQube Cloud Quality Gate OK result, zero OPEN/CONFIRMED PR issues, zero new duplicated lines, and 0.0% New-Code duplication.",
+    "PR #202 is merged only after the current user explicitly accepts its remaining non-ruleset scanner failure, or is closed as superseded only after a verified replacement safely transfers the desired content."
+  ],
+  "validation_plan": [
+    "Keep the sanitized exact-head receipt and verify its SHA-256 before every status transition.",
+    "For any replacement PR, compare the fresh branch diff with PR #202 final content, run focused local tests and Gitleaks exact range, then inspect exact-head GitHub and SonarQube Cloud results.",
+    "For a risk-accepted PR #202 merge, record the current user's exact acceptance wording, current PR head, exact run URL, rule/result, and residual risk before the final merge review."
+  ],
+  "regression_tests": [
+    "Checksum-pinned Gitleaks exact commit-range scan with --redact=100.",
+    "Focused Python compilation and unittest coverage for the transferred Parent changes in a replacement candidate."
+  ],
+  "legitimate_control_tests": [
+    "The current final English/German Change Record renders opaque identifiers as separate fragments that reconstruct without whitespace and do not contain the known contiguous detector-shaped text.",
+    "Secret scanning remains enabled, redacted, checksum-pinned, and fail-closed."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0074",
+    "FND-SONAR-0016"
+  ],
+  "source_run_ids": [
+    "pr-202-head-eccc-secret-scan-recurrence-20260801",
+    "ci-runtime-sonarqube-remediation-20260730",
+    "pr-213-replacement-merged-verification-20260801"
+  ],
+  "residual_risk": "The historical detector result remains retained as evidence only. It would still fail for the closed PR #202 range, but it is not an active master-delivery risk because the separately verified replacement PR #213 passed its fresh range and merged without weakening controls.",
+  "residual_risk_de": "Das historische Detector-Ergebnis bleibt nur als Evidence erhalten. Es würde für die geschlossene PR-#202-Range weiterhin fehlschlagen, ist aber kein aktives Master-Delivery-Risiko, weil der separat verifizierte Ersatz-PR #213 seine frische Range bestand und ohne Abschwächung von Controls gemergt wurde.",
+  "created_at": "2026-08-01T07:10:04Z",
+  "updated_at": "2026-08-01T09:29:28Z",
+  "final_disposition": "not_applicable_historical_pr_202_closed_after_verified_replacement_pr_213_merged",
+  "history": [
+    {
+      "at": "2026-08-01T07:10:04Z",
+      "event": "exact_head_secret_scanning_history_bound_heuristic_reproduced",
+      "detail": "At exact head ecccaa0adf16b329162167eb1abe8a0003dc0052 and base 651834ef577095a48b7f54d5bd7ffcc76d9c388a, GitHub Actions run 30689182074 and the local checksum-pinned scan both returned two redacted generic-api-key heuristic results. The final tree is structurally repaired, but the original published commit remains in the scanned range."
+    },
+    {
+      "at": "2026-08-01T09:29:28Z",
+      "event": "verified_clean_history_replacement_pr_213_merged_and_pr_202_superseded",
+      "detail": "Fresh replacement PR #213 at exact head 69a990503e8b430b2922111c455ae5183c8e1dd3 passed its own pull-request-range Secret Scanning, all required GitHub contexts, and SonarQube Cloud Quality Gate with zero new issues and duplication. It merged by protected SHA-bound squash to master f335965fd5f7b9640fc39a1dd7873d46d7c989c5; post-merge master checks passed. PR #202 was closed only after that verification. The historical #202 range remains evidence but is no longer an active delivery candidate, so this finding is not_applicable."
+    }
+  ]
+}

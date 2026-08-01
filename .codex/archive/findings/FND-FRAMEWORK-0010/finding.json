@@ -1,0 +1,120 @@
+{
+  "id": "FND-FRAMEWORK-0010",
+  "title": "Framework documentation aggregate is blocked by possible MRTS traversal",
+  "title_de": "Framework-Dokumentationsaggregat ist durch mögliche MRTS-Traversal blockiert",
+  "category": "documentation_drift",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "closed",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md",
+    "ci/checks/documentation/check-doc-links.py",
+    "tests/security_regression/test_parser_hardening.py"
+  ],
+  "affected_symbols": [
+    "ci/checks/documentation/check-doc-links.py:SKIP_DIR_PARTS",
+    "tests/security_regression/test_parser_hardening.py:MarkdownHeadingHardeningTests.test_excludes_mrts_submodule_paths_even_if_git_reports_them"
+  ],
+  "summary": "Framework PR #52 adds an explicit tools/MRTS exclusion to the Markdown-link inventory and a direct negative boundary regression. The reviewed PR-head tree equals resulting Framework master 47e50e7bc43ba7a3b5bad1a9448111794f664cc0; the focused regression, documentation aggregate, and applicable master checks pass.",
+  "summary_de": "Framework-PR #52 ergänzt einen expliziten tools/MRTS-Ausschluss im Markdown-Link-Inventar und eine direkte negative Boundary-Regression. Der Tree des geprüften PR-Heads entspricht Framework-Master 47e50e7bc43ba7a3b5bad1a9448111794f664cc0; die fokussierte Regression, das Dokumentationsaggregat und die anwendbaren Master-Checks bestehen.",
+  "observed_behavior": "Before PR #52 the Markdown-link checker relied on Git's present omission of submodule contents and had no direct control for an unexpectedly reported tools/MRTS Markdown path.",
+  "observed_behavior_de": "Vor PR #52 verließ sich der Markdown-Link-Checker auf die gegenwärtige Auslassung von Submodul-Inhalten durch Git und besaß keine direkte Kontrolle für einen unerwartet gemeldeten tools/MRTS-Markdown-Pfad.",
+  "expected_behavior": "The Framework documentation aggregate must exclude original MRTS even when a Git inventory reports a nested Markdown path, while continuing to select and validate owned Framework documentation.",
+  "expected_behavior_de": "Das Framework-Dokumentationsaggregat muss originales MRTS auch bei einem verschachtelten Markdown-Pfad im Git-Inventar ausschließen und zugleich eigene Framework-Dokumentation weiter auswählen und validieren.",
+  "impact": "The documented ownership/traversal boundary is verified on resulting Framework master. This static documentation control does not assert a connector runtime result or change any Parent or MRTS delivery boundary.",
+  "impact_de": "Die dokumentierte Eigentums-/Traversierungsgrenze ist auf dem resultierenden Framework-Master verifiziert. Diese statische Dokumentationskontrolle behauptet kein Connector-Runtime-Ergebnis und ändert keine Parent- oder MRTS-Delivery-Grenze.",
+  "preconditions": [
+    "Framework PR #52 is merged normally into Framework master.",
+    "The resulting Framework-master tree remains identical to the reviewed PR-head tree."
+  ],
+  "reproduction": [
+    "sed -n '87,90p;125,136p' .codex/reports/repository-full-assessment.md",
+    "Run tests.security_regression.test_parser_hardening with an inventory containing docs/guide.md and tools/MRTS/ignored.md; only the Framework document may be selected."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:87-90,125-136",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '87,90p;125,136p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260726-remediate-active-framework-findings",
+      "artifact_path": ".codex/runs/20260726-remediate-active-framework-findings/evidence/fnd-framework-0010-resulting-master-verification.md",
+      "artifact_type": "resulting_framework_master_finding_verification",
+      "sha256": "cbf90db531a6e4eab99ae84de6ba1008a07d6644b9805dcae2745fc54ad2aee9",
+      "command": "RTK-wrapped exact-head/tree, focused unittest, documentation aggregate, GitHub PR, and resulting-master check readback",
+      "working_directory": "/root/git/ModSecurity-conector and task-owned Framework worktree",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T17:43:12Z",
+      "retention_status": "task_owned_retained_evidence"
+    }
+  ],
+  "root_cause": "The former Markdown-link inventory depended implicitly on current Git submodule behavior rather than enforcing the independently owned MRTS boundary itself.",
+  "root_cause_de": "Das frühere Markdown-Link-Inventar hing implizit vom aktuellen Git-Submodulverhalten ab, statt die Grenze des unabhängig besessenen MRTS selbst zu erzwingen.",
+  "proposed_remediation": "Implemented in Framework PR #52: explicitly exclude tools/MRTS from the Markdown-link inventory and retain a mocked-inventory negative regression with an owned Framework-document control.",
+  "proposed_remediation_de": "In Framework-PR #52 umgesetzt: tools/MRTS wird explizit vom Markdown-Link-Inventar ausgeschlossen und eine negative Mock-Inventar-Regression mit einem eigenen Framework-Dokument-Control bleibt erhalten.",
+  "acceptance_criteria": [
+    "The documentation aggregate completes without traversing original MRTS.",
+    "A boundary control proves that the MRTS path is excluded."
+  ],
+  "validation_plan": [
+    "Passed: run the scoped Framework documentation aggregate on the reviewed tree identical to resulting Framework master.",
+    "Passed: run the negative boundary fixture that would fail if MRTS traversal occurred."
+  ],
+  "regression_tests": [
+    "Passed: tests.security_regression.test_parser_hardening (11 tests), including the explicit unexpected-MRTS-path control."
+  ],
+  "legitimate_control_tests": [
+    "Passed: ci/checks/documentation/check-doc-links.py prints doc links ok and continues to select owned Framework documentation."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-MRTS-0001"
+  ],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260726-remediate-active-framework-findings"
+  ],
+  "residual_risk": "The static Framework documentation boundary is closed. This evidence neither claims an MRTS runtime result nor authorizes a Parent Gitlink update, MRTS delivery, or a substitution of any unrelated upstream-digest evidence.",
+  "residual_risk_de": "Die statische Framework-Dokumentationsgrenze ist geschlossen. Diese Evidence behauptet weder ein MRTS-Runtime-Ergebnis noch autorisiert sie ein Parent-Gitlink-Update, eine MRTS-Delivery oder einen Ersatz für nicht verwandte Upstream-Digest-Evidence.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-26T17:43:12Z",
+  "final_disposition": "closed_after_framework_pr52_resulting_master_verification",
+  "postmerge_verification": {
+    "pull_request": 52,
+    "normal_merge_at": "2026-07-26T17:35:13Z",
+    "merged_pr_head": "b86f53e09b4fec2e435ee5441e3433065eddabd8",
+    "resulting_master": "47e50e7bc43ba7a3b5bad1a9448111794f664cc0",
+    "resulting_tree_equals_pr_head_tree": true,
+    "exact_master_checks": "SonarCloud, scaffold-lint, CodeQL Actions/Python/C/C++, OpenSSF current-revision-advisory, and common-structure succeeded; the pull-request-only OSV head check was skipped on master by scope.",
+    "receipt_sha256": "cbf90db531a6e4eab99ae84de6ba1008a07d6644b9805dcae2745fc54ad2aee9"
+  },
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-26T17:43:12Z",
+      "event": "fixed_verified_closed_after_framework_pr52_normal_merge",
+      "detail": "PR #52 added the explicit tools/MRTS inventory exclusion and direct negative regression. The reviewed head tree equals resulting Framework master 47e50e7bc43ba7a3b5bad1a9448111794f664cc0; focused negative/legitimate controls and applicable exact-master checks passed. The finding advances blocked -> fixed -> verified -> closed without a risk acceptance."
+    }
+  ]
+}

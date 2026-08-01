@@ -1,0 +1,96 @@
+{
+  "id": "FND-CROSS-0005",
+  "title": "Release readiness remains blocked by unresolved evidence and quality gates",
+  "title_de": "Release-Readiness bleibt durch ungelöste Evidence- und Quality-Gates blockiert",
+  "category": "release_blocker",
+  "repository": "parent_and_framework",
+  "ownership": "cross_repository",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "blocked",
+  "release_blocker": true,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md"
+  ],
+  "affected_symbols": [],
+  "summary": "The current report explicitly retains a blocked release disposition while Sonar, Framework baseline, protocol, profile, and evidence gaps remain open.",
+  "summary_de": "Der aktuelle Bericht hält ausdrücklich eine blockierte Release-Disposition fest, solange Sonar-, Framework-Baseline-, Protokoll-, Profil- und Evidence-Lücken offen sind.",
+  "observed_behavior": "The current report explicitly retains a blocked release disposition while Sonar, Framework baseline, protocol, profile, and evidence gaps remain open.",
+  "observed_behavior_de": "Der aktuelle Bericht hält ausdrücklich eine blockierte Release-Disposition fest, solange Sonar-, Framework-Baseline-, Protokoll-, Profil- und Evidence-Lücken offen sind.",
+  "expected_behavior": "Current evidence must be rerun against a known revision before this finding can advance beyond blocked.",
+  "expected_behavior_de": "Die aktuelle Evidence muss gegen eine bekannte Revision erneut ausgeführt werden, bevor dieses Finding über blocked hinaus fortschreiten kann.",
+  "impact": "Release and assurance claims remain bounded by the recorded evidence.",
+  "impact_de": "Release- und Assurance-Aussagen bleiben durch die dokumentierte Evidence begrenzt.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "sed -n '620,629p;652p' .codex/reports/repository-full-assessment.md"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:620-629,652-652",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '620,629p;652p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T09:23:19Z",
+      "retention_status": "retained_local_report"
+    }
+  ],
+  "root_cause": "The retained evidence identifies the condition but does not establish a product-code root cause.",
+  "root_cause_de": "Die retained Evidence belegt den Zustand, aber keine Produktcode-Grundursache.",
+  "proposed_remediation": "Resolve or explicitly and currently risk-dispose the prerequisite canonical findings, then reassess release readiness at exact revisions.",
+  "proposed_remediation_de": "Die vorausgesetzten kanonischen Findings beheben oder ausdrücklich und aktuell risikodisponieren; anschließend Release-Readiness an exakten Revisionen erneut bewerten.",
+  "acceptance_criteria": [
+    "Every dependency has a verified or current explicitly authorized disposition.",
+    "A fresh release-readiness assessment is revision-bound and no longer blocked."
+  ],
+  "validation_plan": [
+    "Re-evaluate every release-blocking finding.",
+    "Run the required quality, runtime, protocol, and evidence controls before a release decision."
+  ],
+  "regression_tests": [
+    "Add or retain a focused regression/evidence control for the recorded condition."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment."
+  ],
+  "dependencies": [
+    "FND-CROSS-0001",
+    "FND-CROSS-0002",
+    "FND-FRAMEWORK-0001",
+    "FND-SONAR-0001",
+    "FND-SONAR-0002",
+    "FND-CROSS-0004"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0001",
+    "FND-CROSS-0003",
+    "FND-CROSS-0004"
+  ],
+  "source_run_ids": [
+    "20260717T085050Z-mrts-protocol-hardening-readiness-57010656"
+  ],
+  "residual_risk": "The condition remains open; no risk has been accepted by the current user.",
+  "residual_risk_de": "Der Zustand bleibt offen; der aktuelle Benutzer hat kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-17T10:43:59Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    }
+  ]
+}

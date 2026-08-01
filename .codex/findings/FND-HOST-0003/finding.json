@@ -1,0 +1,155 @@
+{
+  "id": "FND-HOST-0003",
+  "title": "NGINX non-root worker isolation cannot be proven in the current sandbox",
+  "title_de": "NGINX-Non-Root-Worker-Isolation kann im aktuellen Sandbox nicht bewiesen werden",
+  "category": "lifecycle_defect",
+  "repository": "host_environment",
+  "ownership": "host_environment",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "reproduced",
+  "status": "blocked",
+  "feasibility_status": "blocked_missing_evidence",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "NGINX",
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md",
+    "connectors/nginx/harness/run_nginx_smoke.sh",
+    "connectors/nginx/harness/nginx_smoke.conf"
+  ],
+  "affected_symbols": [
+    "runuser cannot set groups",
+    "worker PID/effective UID/capability set absent"
+  ],
+  "summary": "The sandbox denied runuser group setup; the renderer lacks a user directive and no post-start worker PID, effective UID, or capability set was retained.",
+  "summary_de": "Die Sandbox verweigerte runuser group setup; dem Renderer fehlt eine user directive und es wurden kein Post-Start-Worker-PID, keine effective UID und kein capability set aufbewahrt.",
+  "observed_behavior": "The sandbox denied runuser group setup; the renderer lacks a user directive and no post-start worker PID, effective UID, or capability set was retained.",
+  "observed_behavior_de": "Die Sandbox verweigerte runuser group setup; dem Renderer fehlt eine user directive und es wurden kein Post-Start-Worker-PID, keine effective UID und kein capability set aufbewahrt.",
+  "expected_behavior": "Current evidence must be rerun against a known revision before this finding can advance beyond blocked.",
+  "expected_behavior_de": "Die aktuelle Evidence muss gegen eine bekannte Revision erneut ausgeführt werden, bevor dieses Finding über blocked hinaus fortschreiten kann.",
+  "impact": "Release and assurance claims remain bounded by the recorded evidence.",
+  "impact_de": "Release- und Assurance-Aussagen bleiben durch die dokumentierte Evidence begrenzt.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "sed -n '528,533p;580,594p' .codex/reports/repository-full-assessment.md"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:528-533,580-594",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '528,533p;580,594p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T09:23:19Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/039-phase-b-blocker-source-preflight.log",
+      "artifact_type": "phase_b_source_preflight_log",
+      "sha256": "bd04a04698986fd23669aef44c81eff94d1e7c1da2df367858c72257e1d17329",
+      "command": "read-only source/tool preflight for NGINX worker identity, Apache C17/finalizer, and MRTS profile semantics; no host runtime or MRTS mutation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T13:02:47Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260726T173136Z-fnd-host-remediation-20260726-7837c9e2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T173136Z-fnd-host-remediation-20260726-7837c9e2/evidence/fnd-host-0002-0003-0004-0006-current-revalidation.md",
+      "artifact_type": "current_nginx_worker_isolation_preflight",
+      "sha256": "81fdeceb0f34806cd781ee3adf0c8d57d6619d78549fef7e37313e90a4d545bf",
+      "command": "RTK-proxied Parent harness/template inspection and nginx executable inventory; no service start or privilege mutation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T17:34:26Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "current_task_update": {
+    "original_status": "blocked",
+    "root_cause": "The Parent harness has an access probe using runuser, but the current source has no rendered NGINX user directive and no current post-start worker PID, effective UID, GID, or capability evidence.",
+    "changed_files": [],
+    "security_assessment": "No privilege-related configuration or permission was changed because a non-root worker claim cannot be validated from the available evidence.",
+    "next_action": "Use a separately authorized isolated non-root runtime that retains the rendered configuration and master/worker PID, effective UID/GID, and capability facts alongside distinct root-control evidence.",
+    "evidence": {
+      "run_id": "20260726T173136Z-fnd-host-remediation-20260726-7837c9e2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T173136Z-fnd-host-remediation-20260726-7837c9e2/evidence/fnd-host-0002-0003-0004-0006-current-revalidation.md",
+      "artifact_type": "current_nginx_worker_isolation_preflight",
+      "sha256": "81fdeceb0f34806cd781ee3adf0c8d57d6619d78549fef7e37313e90a4d545bf",
+      "command": "RTK-proxied Parent harness/template inspection and nginx executable inventory; no service start or privilege mutation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T17:34:26Z",
+      "retention_status": "retained_task_evidence"
+    }
+  },
+  "root_cause": "Current source evidence is insufficient to establish a safe product or harness root cause.",
+  "root_cause_de": "Die retained Evidence belegt den Zustand, aber keine Produktcode-Grundursache.",
+  "proposed_remediation": "Use a separately authorized harness/configuration that can prove non-root worker ownership, readability, and capabilities without unsafe bypass.",
+  "proposed_remediation_de": "Einen separat autorisierten Harness/eine Konfiguration verwenden, die Non-Root-Worker-Ownership, Readability und Capabilities ohne unsicheren Bypass beweisen kann.",
+  "acceptance_criteria": [
+    "A non-root NGINX worker is evidenced with PID, effective UID, and capability facts.",
+    "Root control runtime is not promoted as non-root isolation proof."
+  ],
+  "validation_plan": [
+    "Run the authorized non-root NGINX profile.",
+    "Run the root control separately and retain both distinct results."
+  ],
+  "regression_tests": [
+    "Add or retain a focused regression/evidence control for the recorded condition."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment."
+  ],
+  "dependencies": [
+    "Explicit current-user authorization for an isolated NGINX runtime that can retain worker identity and capability evidence."
+  ],
+  "blocked_by": [
+    "No nginx executable is available on the current host, and the current task does not authorize a service start, account change, or runtime provisioning."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0009",
+    "FND-CROSS-0004"
+  ],
+  "source_run_ids": [
+    "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+    "20260726T173136Z-fnd-host-remediation-20260726-7837c9e2"
+  ],
+  "residual_risk": "The condition remains open; no risk has been accepted by the current user.",
+  "residual_risk_de": "Der Zustand bleibt offen; der aktuelle Benutzer hat kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-26T17:34:26Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-17T13:12:00Z",
+      "event": "phase_b_preflight_blocked",
+      "detail": "Current source/tool preflight retained blocked_missing_evidence. No NGINX source, user, namespace, or host configuration was changed."
+    },
+    {
+      "at": "2026-07-17T14:06:23Z",
+      "event": "phase_b_evidence_synchronized",
+      "detail": "The retained active-run source-preflight log was added to canonical evidence; the blocked_missing_evidence disposition is unchanged."
+    },
+    {
+      "at": "2026-07-26T17:34:26Z",
+      "event": "current_non_root_worker_revalidation",
+      "detail": "The Parent harness still has an access-only runuser preflight and its generated template still lacks an NGINX user directive; no nginx executable is present to collect post-start worker identity or capabilities. No privilege, service, product, Framework, or MRTS action was taken. The P1 finding remains blocked_missing_evidence."
+    }
+  ]
+}

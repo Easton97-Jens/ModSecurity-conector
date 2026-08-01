@@ -1,0 +1,157 @@
+{
+  "id": "FND-PARENT-0018",
+  "title": "Partial Dependabot CodeQL Action updates violate immutable-pin and init/analyze consistency",
+  "title_de": "Partielle Dependabot-CodeQL-Action-Updates verletzen Immutable-Pin- und Init/Analyze-Konsistenz",
+  "category": "ci_security_consistency",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "confirmed",
+  "status": "closed",
+  "outcome": "no_change",
+  "feasibility_status": "already_fixed",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "GitHub Actions CI",
+  "profile": "CodeQL Action v4.37.1 batch",
+  "affected_files": [
+    ".github/workflows/ci-security-codeql.yml",
+    ".github/workflows/ci-security-osv.yml",
+    ".github/workflows/ci-security-scorecard.yml",
+    "ci/tooling/security-tools.lock.yml"
+  ],
+  "affected_symbols": [
+    "github/codeql-action/init",
+    "github/codeql-action/analyze",
+    "github/codeql-action/upload-sarif",
+    "test_all_remote_actions_are_immutable_sha_pins"
+  ],
+  "summary": "The historical Dependabot PRs #48, #49, and #50 each updated one CodeQL Action component while leaving the registry at v4.37.0; exact-head validation proved immutable-pin and init/analyze failures. On c8ca0d92b630c18232b881855c4f5d1482568ea6, prior commit 635b8f603f852cff10926cd6f5449e763f6194a4 already atomically pins all ten references and the registry to v4.37.1 SHA 7188fc363630916deb702c7fdcf4e481b751f97a. Revalidation confirms no remaining FND-PARENT-0018 defect; outcome is no_change.",
+  "summary_de": "Die historischen Dependabot-PRs #48, #49 und #50 aktualisierten jeweils nur eine CodeQL-Action-Komponente, während die Registry auf v4.37.0 blieb; die Exact-Head-Validierung belegte Immutable-Pin- und Init/Analyze-Fehler. Auf c8ca0d92b630c18232b881855c4f5d1482568ea6 pinnt der frühere Commit 635b8f603f852cff10926cd6f5449e763f6194a4 bereits alle zehn Referenzen und die Registry atomar auf v4.37.1-SHA 7188fc363630916deb702c7fdcf4e481b751f97a. Die Revalidierung bestätigt keinen verbleibenden FND-PARENT-0018-Defekt; das Ergebnis ist no_change.",
+  "observed_behavior": "Historic exact PR heads failed because SHA 7188fc363630916deb702c7fdcf4e481b751f97a was absent from security-tools.lock.yml; #48 used init v4.37.0/analyze v4.37.1 and #50 used the inverse, each causing a CodeQL configuration/action version mismatch. Current revision c8ca0d92b630c18232b881855c4f5d1482568ea6 has no mixed scoped reference and passes the focused immutable-pin contract.",
+  "observed_behavior_de": "Historische exakte PR-Heads scheiterten, weil SHA 7188fc363630916deb702c7fdcf4e481b751f97a in security-tools.lock.yml fehlte; #48 verwendete init v4.37.0/analyze v4.37.1 und #50 die umgekehrte Richtung, jeweils mit einer CodeQL-Konfigurations-/Action-Versionsabweichung. Die aktuelle Revision c8ca0d92b630c18232b881855c4f5d1482568ea6 enthält keine gemischte abgegrenzte Referenz und besteht den fokussierten Immutable-Pin-Vertrag.",
+  "expected_behavior": "All CodeQL Action uses and the registry point to one official immutable release; contract and CodeQL jobs pass with existing controls unchanged.",
+  "expected_behavior_de": "Alle CodeQL-Action-Verwendungen und die Registry zeigen auf ein offizielles unveränderliches Release; Vertrag und CodeQL-Jobs bestehen bei unveränderten bestehenden Kontrollen.",
+  "impact": "An individual merge would produce a known-invalid CI-security configuration. This is a CI/supply-chain consistency defect, not a claimed connector-runtime exploit.",
+  "impact_de": "Ein einzelnes Mergen würde eine bekannte ungültige CI-Security-Konfiguration erzeugen. Dies ist ein CI-/Supply-Chain-Konsistenzdefekt, kein behaupteter Connector-Runtime-Exploit.",
+  "preconditions": [
+    "Only one CodeQL Action component is updated.",
+    "The immutable-action registry remains on the prior release.",
+    "CodeQL init and analyze resolve to different releases."
+  ],
+  "reproduction": [
+    "Inspect exact original heads of PRs #48, #49, and #50.",
+    "Run the immutable-pin contract.",
+    "Run CodeQL on init-only or analyze-only state."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T181659Z-codeql-action-4-37-1-batch-36346991",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T181659Z-codeql-action-4-37-1-batch-36346991/evidence/dependabot-failed-job-logs-retained.tar.gz",
+      "artifact_type": "sanitized_exact_head_github_actions_job_log_archive",
+      "sha256": "78e1f5213915163acc279e61885451e54a10f1021efb816c66fc694a4b44a8a3",
+      "command": "Authorized GitHub Actions job-log retrieval for exact original heads of PRs #48, #49, and #50",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T18:16:59Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T080726Z-fnd-parent-0018-4dd4e268",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T080726Z-fnd-parent-0018-4dd4e268/evidence/fnd-parent-0018-no-change-validation.md",
+      "artifact_type": "current_revision_no_change_revalidation",
+      "sha256": "728c55f02d52bc394207e81ccb79bbc47ecc89a39ed430b4b86b54f784cd0233",
+      "command": "RTK-mediated current-source inspection, make check-ci-security-contract, Actionlint, offline Zizmor, safe/unsafe fixtures, retained exact-head log comparison, and GitHub exact-SHA check inspection",
+      "working_directory": "/var/tmp/codex/worktrees/fnd-parent-0018",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T08:17:17Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260721T071522Z-pr67-68-action-lock-replacements-45705602",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T071522Z-pr67-68-action-lock-replacements-45705602/evidence/pr67-pr68-protected-delivery-20260721T080505Z.json",
+      "artifact_type": "protected_dependabot_action_replacements_delivery_receipt",
+      "sha256": "2010d3a79b1d590b1e2fc65dabd928b4850eea0ccae87b2636802cf073018015",
+      "command": "RTK-proxied immutable-pin local controls, exact-head GitHub required-check/Sonar/thread audits, protected merges, resulting-master check-run readback, and public SonarQube Cloud quality-gate/hotspot readback for task-owned replacements #75 and #76.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T08:05:05Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Analogous Dependabot PRs #67/#68 each lacked a matching immutable-action lock entry. Atomic task-owned replacements #75/#76 passed exact-head controls and were protected-squash merged; current master 2ade0d40983b7af21a65b8cd2884866b85626393 has successful Actions evidence. Its only failed check is the separate FND-SONAR-0001 baseline."
+    }
+  ],
+  "root_cause": "Dependabot split one versioned security action release transaction into separate component PRs while the repository contract requires all ten refs and the registry entry to change together.",
+  "root_cause_de": "Dependabot teilte eine Release-Transaktion einer versionierten Security-Action in getrennte Komponenten-PRs, während der Repository-Vertrag alle zehn Referenzen und den Registry-Eintrag gemeinsam verlangt.",
+  "proposed_remediation": "No further source remediation is required at the selected revision. Preserve the existing atomic all-ten-reference and registry update in commit 635b8f603f852cff10926cd6f5449e763f6194a4; future updates must retain that invariant.",
+  "proposed_remediation_de": "Auf der ausgewählten Revision ist keine weitere Source-Remediation erforderlich. Das bestehende atomare Update aller zehn Referenzen und der Registry in Commit 635b8f603f852cff10926cd6f5449e763f6194a4 ist zu bewahren; zukünftige Updates müssen diese Invariante erhalten.",
+  "acceptance_criteria": [
+    "All ten refs and registry entry use SHA 7188fc363630916deb702c7fdcf4e481b751f97a with v4.37.1 comments.",
+    "Local immutable-pin, Actionlint/ShellCheck, and Zizmor controls pass, including safe and unsafe Zizmor controls.",
+    "Replacement PR #52 exact-head CodeQL, Actions, and SonarQube Cloud evidence is successful; current master CodeQL checks are successful.",
+    "Any current master SonarQube Cloud failure is explicitly shown to be the separate pre-existing FND-SONAR-0001 condition.",
+    "No permission, trigger, matrix, scanner, Quality Gate, protection, PR #51, Framework, MRTS, or gitlink change is introduced during revalidation."
+  ],
+  "validation_plan": [
+    "Inspect the selected current source and the atomic replacement commit for the all-ten-reference invariant.",
+    "Run current immutable-pin, Actionlint/ShellCheck, Zizmor, safe/unsafe fixture, and retained exact-head control evidence.",
+    "Classify CodeQL and SonarQube Cloud evidence by exact SHA and ownership; do not expand into FND-SONAR-0001 remediation."
+  ],
+  "regression_tests": [
+    "make check-ci-security-contract (passed on c8ca0d92b630c18232b881855c4f5d1482568ea6)",
+    "tests/test_ci_security_workflows.py",
+    ".github/workflows/ci-security-workflow-lint.yml",
+    ".github/workflows/ci-security-codeql.yml"
+  ],
+  "legitimate_control_tests": [
+    "Full atomic v4.37.1 update passes immutable-pin contract.",
+    "Safe Zizmor fixture accepts; insecure fixture rejects (observed exit 14).",
+    "CodeQL init and analyze use v4.37.1 together."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0001"
+  ],
+  "source_run_ids": [
+    "20260717T181659Z-codeql-action-4-37-1-batch-36346991",
+    "20260718T080726Z-fnd-parent-0018-4dd4e268",
+    "20260721T071522Z-pr67-68-action-lock-replacements-45705602"
+  ],
+  "residual_risk": "FND-PARENT-0018 has no remaining current-source defect. The official v4.37.1 tag is reported unsigned, so provenance remains limited to the official repository, release, tag target, and full SHA. FND-SONAR-0001 remains open and blocked with its own release-blocking SonarQube Cloud condition; this closure neither changes nor dispositions it. No risk accepted.",
+  "residual_risk_de": "FND-PARENT-0018 hat keinen verbleibenden Current-Source-Defekt. Das offizielle v4.37.1-Tag wird als unsigned gemeldet; Provenienz bleibt auf offizielles Repository, Release, Tag-Ziel und vollständigen SHA begrenzt. FND-SONAR-0001 bleibt mit seinem eigenen release-blockierenden SonarQube-Cloud-Zustand offen und blockiert; dieser Abschluss ändert oder dispositioniert ihn nicht. Kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T18:45:07Z",
+  "updated_at": "2026-07-21T08:05:05Z",
+  "validated_master_sha": "c8ca0d92b630c18232b881855c4f5d1482568ea6",
+  "delivery_disposition": "not_applicable",
+  "final_disposition": "already_fixed_on_current_master_archived_20260726",
+  "history": [
+    {
+      "at": "2026-07-17T18:16:59Z",
+      "event": "exact_head_partial_update_failures_validated",
+      "detail": "Eleven PR #48-#50 failed job logs retained and classified."
+    },
+    {
+      "at": "2026-07-17T18:45:07Z",
+      "event": "atomic_replacement_in_progress",
+      "detail": "Local contract, actionlint/ShellCheck, Zizmor, and scoped-diff controls passed; exact PR/master evidence pending."
+    },
+    {
+      "at": "2026-07-18T08:17:17Z",
+      "event": "current_revision_revalidated_no_change",
+      "detail": "At c8ca0d92b630c18232b881855c4f5d1482568ea6, prior commit 635b8f603f852cff10926cd6f5449e763f6194a4 already atomically pins all ten CodeQL Action references and the registry to v4.37.1 SHA 7188fc363630916deb702c7fdcf4e481b751f97a. Focused local controls passed; retained PR #48/#50 logs prove both historical mixed-version directions; current master CodeQL checks passed. Current master SonarQube Cloud failure is the separately tracked pre-existing FND-SONAR-0001 condition. No product change was made."
+    },
+    {
+      "at": "2026-07-18T09:17:25Z",
+      "event": "administratively_closed_already_fixed_on_current_master",
+      "detail": "Closure follows the recorded verified state: exact original PR #48/#50 evidence, merged replacement PR #52, current master SHA c8ca0d92b630c18232b881855c4f5d1482568ea6, current CodeQL/Actions evidence, and legitimate controls are retained. Outcome remains no_change; final disposition is already_fixed_on_current_master. No product change, commit, push, or PR is required. The former worktree plan was reviewed at SHA-256 3d6cd95176279b513e1cc7f426a54a7f1feea4c263a84731f493518a0aea0e08 and is not retained because evidence/fnd-parent-0018-no-change-validation.md (SHA-256 728c55f02d52bc394207e81ccb79bbc47ecc89a39ed430b4b86b54f784cd0233) already preserves the source-to-sink proof, both mixed-version directions, current counterevidence, controls, PR #52/current CI evidence, Sonar separation, and no-delivery rationale. FND-SONAR-0001 remains open and blocked, unchanged by this closure."
+    },
+    {
+      "at": "2026-07-21T08:05:05Z",
+      "event": "analogous_dependabot_action_transactions_replaced_and_verified",
+      "detail": "The same atomic immutable-pin/lock-membership invariant recurred on Dependabot PRs #67 (actions/setup-python v7.0.0) and #68 (actions/checkout v7.0.1): each exact bot head lacked its matching reviewed lock entry. Task-owned replacement PRs #75 and #76 passed all six strict exact-head contexts, Sonar PR Quality Gates with zero new issues/hotspots, and zero-thread review controls, then protected-squash merged as masters 5c26ffb698a892ffe83b7aa1749a456eae10b956 and 2ade0d40983b7af21a65b8cd2884866b85626393. The latter has 15 successful Actions workflow runs and only the separate FND-SONAR-0001 Sonar baseline failure. Dependabot[bot] closed original PRs #67/#68 unmerged; this task did not. The historical CodeQL-specific no_change disposition remains unchanged."
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "id": "FND-FRAMEWORK-0011",
+  "title": "Protocol URL command evidence can retain an opaque path segment",
+  "title_de": "Protocol-URL-Command-Evidence kann einen undurchsichtigen Pfadabschnitt behalten",
+  "category": "security_candidate",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "medium",
+  "confidence": "validated",
+  "status": "closed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "http1",
+  "profile": "protocol-client",
+  "affected_files": [
+    "ci/checks/protocol/protocol_client.py",
+    "ci/checks/catalog/no_crs_baseline.py",
+    "ci/checks/protocol/check_protocol_evidence.py",
+    "tests/protocol_client/test_protocol_client.py",
+    "docs/reference/variables.md",
+    "docs/testing-and-evidence.md"
+  ],
+  "affected_symbols": [
+    "_safe_url_for_command",
+    "_redacted_command",
+    "_write_artifacts",
+    "copy_protocol_client_artifacts",
+    "PROTOCOL_URL"
+  ],
+  "summary": "The public protocol-client target can persist a PROTOCOL_URL path segment in client-command.txt after only userinfo and query redaction; a full-lifecycle path can copy that artifact into canonical evidence.",
+  "summary_de": "Das öffentliche protocol-client-Target kann nach Redaction nur von Userinfo und Query einen PROTOCOL_URL-Pfadabschnitt in client-command.txt persistieren; ein Full-Lifecycle-Pfad kann dieses Artefakt in kanonische Evidence kopieren.",
+  "observed_behavior": "_safe_url_for_command retains parsed.path, _redacted_command renders it, and _write_artifacts writes client-command.txt. The full-lifecycle copier accepts that required artifact without a path-redaction pass. Existing unit coverage proves query redaction only.",
+  "observed_behavior_de": "_safe_url_for_command behält parsed.path, _redacted_command rendert ihn und _write_artifacts schreibt client-command.txt. Der Full-Lifecycle-Copier akzeptiert dieses erforderliche Artefakt ohne Pfad-Redaction. Bestehende Unit-Coverage beweist nur Query-Redaction.",
+  "expected_behavior": "Evidence command artifacts must not retain opaque URL path secrets or sensitive direct CLI resolution mappings; a useful non-sensitive endpoint representation may remain only when its safety is explicit.",
+  "expected_behavior_de": "Evidence-Command-Artefakte dürfen keine undurchsichtigen URL-Pfadsecrets oder sensiblen direkten CLI-Resolution-Mappings behalten; eine nützliche nicht-sensitive Endpoint-Repräsentation darf nur bei expliziter Sicherheit verbleiben.",
+  "impact": "A caller who embeds a token or personal value in a documented protocol URL path could cause it to be retained and copied into evidence. Actual production path sensitivity and evidence-reader access were not established.",
+  "impact_de": "Ein Aufrufer, der ein Token oder einen Personenwert in einen dokumentierten Protocol-URL-Pfad einbettet, könnte dessen Retention und Kopie in Evidence auslösen. Tatsächliche produktive Pfadsensitivität und Evidence-Lesezugriff wurden nicht belegt.",
+  "preconditions": [
+    "A caller supplies a sensitive opaque path segment through the documented PROTOCOL_URL interface or direct CLI URL option.",
+    "The protocol client writes its managed artifact bundle.",
+    "For canonical retention, the full-lifecycle artifact-copy path is selected."
+  ],
+  "reproduction": [
+    "Inspect _safe_url_for_command(), _redacted_command(), and _write_artifacts() in ci/checks/protocol/protocol_client.py.",
+    "Inspect copy_protocol_client_artifacts() in ci/checks/catalog/no_crs_baseline.py and the query-only unit coverage in tests/protocol_client/test_protocol_client.py.",
+    "Do not generate a live artifact containing a secret until a safe synthetic validation plan is approved."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T081746Z-framework-common-structure-d6ee7cec",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T081746Z-framework-common-structure-d6ee7cec/evidence/protocol-url-redaction-candidate.md",
+      "artifact_type": "static_source_to_sink_security_review",
+      "sha256": "94fdd47764c82a3453e7b599212cd66f636f8d8468bcb57adef074894c7ad7bd",
+      "command": "rtk sed -n '589,631p;1186,1201p;1472,1475p' ci/checks/protocol/protocol_client.py; rtk sed -n '3956,3998p' ci/checks/catalog/no_crs_baseline.py",
+      "working_directory": "/var/tmp/codex/worktrees/framework-common-structure",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T09:27:57Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726T160903Z-framework-pr50-pr51-master-verification",
+      "artifact_path": ".codex/runs/20260726T160903Z-framework-pr50-pr51-master-verification/finding-closure-evidence.md",
+      "artifact_type": "framework_resulting_master_security_finding_verification",
+      "sha256": "519b89ef349a2d1a66b8cf78a5f0056f2df1909df2f386e5e67b7742bf277a2d",
+      "command": "python3 -m unittest tests.protocol_client.test_protocol_client tests.protocol_client.test_check_protocol_evidence -v; Framework PR #50 SonarQube Cloud Quality Gate/API issues readback",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/framework-master-pr50-pr51-verify-20260726",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T16:13:56Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "Command-artifact redaction treats query strings and userinfo as sensitive but preserves every path segment, and neither the artifact copier nor validator provides a second path or --resolve redaction control.",
+  "root_cause_de": "Die Command-Artefakt-Redaction behandelt Query-Strings und Userinfo als sensibel, behält aber jeden Pfadabschnitt; weder Artefakt-Copier noch Validator bieten eine zweite Pfad- oder --resolve-Redaction-Kontrolle.",
+  "proposed_remediation": "After focused validation, reduce artifact URLs to a safe authority plus an explicit redacted path marker, redact direct --resolve values, add synthetic path/percent-encoded/IPv6 coverage, and preserve harmless endpoint diagnostics where justified.",
+  "proposed_remediation_de": "Nach fokussierter Validierung Artefakt-URLs auf sichere Authority plus expliziten redigierten Pfadmarker reduzieren, direkte --resolve-Werte redigieren, synthetische Pfad-/Percent-Encoding-/IPv6-Coverage ergänzen und harmlose Endpoint-Diagnostik bei Begründung erhalten.",
+  "acceptance_criteria": [
+    "Synthetic secret-like path values do not appear in client-command.txt or copied canonical evidence.",
+    "Direct CLI --resolve values are redacted or demonstrably excluded from retained command artifacts.",
+    "Query, userinfo, harmless health path, IPv6, and protocol-client legitimate controls pass.",
+    "No current user-approved security remediation scope has been exceeded."
+  ],
+  "validation_plan": [
+    "Use codex-security validation before a fix to establish the supported boundary, synthetic artifact persistence, and reader exposure assumptions.",
+    "If confirmed and separately authorized, use codex-security fix-finding with focused protocol-client unit and artifact-copy regression tests.",
+    "Run the protocol-contract workflow/current exact PR head after a future remediation."
+  ],
+  "regression_tests": [
+    "tests/protocol_client/test_protocol_client.py with synthetic opaque path, percent-encoded path, IPv6, and --resolve cases.",
+    "A full-lifecycle artifact-copy control proving the copied command artifact remains redacted."
+  ],
+  "legitimate_control_tests": [
+    "A harmless /health protocol URL remains diagnostically useful without a sensitive path value.",
+    "Existing query and userinfo redaction remains intact."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0001",
+    "FND-SONAR-0002"
+  ],
+  "source_run_ids": [
+    "20260718T081746Z-framework-common-structure-d6ee7cec",
+    "20260726T160903Z-framework-pr50-pr51-master-verification"
+  ],
+  "residual_risk": "The resulting-master regression suite verifies redaction of opaque paths and --resolve values while retaining harmless health, query, userinfo, IPv6, and protocol-client controls. No risk acceptance was used.",
+  "residual_risk_de": "Die Resulting-Master-Regression prüft die Redaction undurchsichtiger Pfade und --resolve-Werte bei Erhalt harmloser Health-, Query-, Userinfo-, IPv6- und Protocol-Client-Kontrollen. Es wurde keine Risikoakzeptanz verwendet.",
+  "created_at": "2026-07-18T09:27:57Z",
+  "updated_at": "2026-07-26T16:13:56Z",
+  "final_disposition": "closed_verified_framework_master_pr50_pr51_20260726",
+  "history": [
+    {
+      "at": "2026-07-18T09:27:57Z",
+      "event": "current_task_static_candidate_triaged",
+      "detail": "Static source-to-sink evidence found a public protocol URL path-retention candidate. No live secret artifact, exploit, or remediation was performed; the item is separate from common-structure and Sonar remediation."
+    },
+    {
+      "at": "2026-07-26T16:13:56Z",
+      "event": "remediation_fixed",
+      "detail": "Framework PR #50 implemented bounded command-artifact path, query, and --resolve redaction with an independent evidence validator and focused regression coverage."
+    },
+    {
+      "at": "2026-07-26T16:13:56Z",
+      "event": "resulting_master_verified_and_closed",
+      "detail": "Exact Framework master de705a5efb872f95f010346fe2e6143c88876ad4 passed all 28 focused protocol/evidence tests; PR #50 SonarQube Cloud Quality Gate was OK with zero unresolved issues."
+    }
+  ]
+}

@@ -1,0 +1,229 @@
+{
+  "id": "FND-GITHUB-0007",
+  "title": "Framework PR #42 external Cloudflare check suite remains queued without a verified disposition",
+  "title_de": "Externe Cloudflare-Check-Suite von Framework-PR #42 bleibt ohne verifizierte Disposition in Warteschlange",
+  "category": "external_dependency",
+  "repository": "framework",
+  "ownership": "external_tool",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "accepted_risk",
+  "feasibility_status": "out_of_scope",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": "Framework PR #42 master-integration preflight",
+  "affected_files": [],
+  "affected_symbols": [
+    "Cloudflare Workers and Pages",
+    "cloudflare-workers-and-pages",
+    "check suite 81218369333",
+    "check suite 80729667930",
+    "check suite 81246317347"
+  ],
+  "observed_behavior": "Pre-merge readback at 2026-07-23T07:16:32Z found exact Framework PR #42 head dc6cf411e78b3f37f1e4be52edef59894560b1ae with Cloudflare Workers and Pages suite 81218369333 from app cloudflare-workers-and-pages queued with no conclusion and no check runs; predecessor master f73f8842f45318e2df8aff1d31855eeb7c20a22f had the same external state as suite 80729667930. After the user supplied a bounded delivery acceptance and selected merge commit, PR #42 was normally merged with exact-head protection as master 935cf14c676a24672be5c336e92cd13457cc35c8. Post-merge readback at 2026-07-23T07:51:09Z found the resulting master has new suite 81246317347 queued with no conclusion and no check runs. No repository workflow/configuration establishes that the suite is non-required, and no external-owner disposition is available to this task.",
+  "expected_behavior": "For each exact PR or resulting-master SHA, Cloudflare Workers and Pages is either terminal and successful when required by the active integration contract, or the repository/Cloudflare owner supplies a factual, current non-required disposition that can be independently verified. A queued suite is not passing evidence.",
+  "impact": "The external suite remains a global P1 delivery blocker because its applicability is unknown and it is nonterminal. The current user specifically accepted this residual only for the already completed normal protected PR #42 merge-commit delivery; that bounded decision does not establish a product vulnerability, claim the suite passing or non-required, permit a rerun or bypass, or authorize any other master delivery.",
+  "preconditions": [
+    "PR #42 was reviewed at exact head dc6cf411e78b3f37f1e4be52edef59894560b1ae before its normal protected merge as master 935cf14c676a24672be5c336e92cd13457cc35c8.",
+    "The Cloudflare GitHub App creates a check suite for the PR branch."
+  ],
+  "reproduction": [
+    "Query check suite 81218369333 and observe head SHA dc6cf411e78b3f37f1e4be52edef59894560b1ae, status queued, no conclusion, and app slug cloudflare-workers-and-pages.",
+    "Query current master check suites and observe Cloudflare suite 80729667930 queued on f73f8842f45318e2df8aff1d31855eeb7c20a22f.",
+    "Query resulting master 935cf14c676a24672be5c336e92cd13457cc35c8 check suites and observe Cloudflare suite 81246317347 queued with no conclusion and zero check runs.",
+    "Compare the result with the repository workflow inventory and check runs; neither supplies a successful or non-required disposition."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-20260723-premerge-gates.md",
+      "artifact_type": "framework_pr42_external_check_suite_and_master_gate_readback",
+      "sha256": "f62126139a762264f3953d821dc0b07362e19675970df897857afc70a5fd34cb",
+      "command": "rtk proxy -- gh api repos/Easton97-Jens/ModSecurity-test-Framework/check-suites/81218369333; rtk proxy -- gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/f73f8842f45318e2df8aff1d31855eeb7c20a22f/check-suites --paginate",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/tmp/framework-worktree-v4",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T04:13:04Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-20260723-071632-external-premerge-recheck.md",
+      "artifact_type": "framework_pr42_external_cloudflare_and_merge_method_recheck",
+      "sha256": "94fb77ec9d21918136eddf38fec2d9fb608373c747ce5419dd9fa13fec0b4154",
+      "command": "rtk proxy -- gh api readbacks for PR #42, exact PR/master Cloudflare suites, and repository merge-method configuration",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T07:16:32Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/fnd-github-0007-pr42-risk-acceptance.md",
+      "artifact_type": "current_user_bounded_external_cloudflare_risk_acceptance_for_pr42_master_delivery",
+      "sha256": "36c499680449fb4ef976ac87f480ceae966a47dbce0636d9739cd6ca9a327036",
+      "command": "current user decision recorded after exact PR/master Cloudflare, branch-protection, ruleset, and merge-method readbacks",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T07:30:34Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-20260723-final-premerge.md",
+      "artifact_type": "framework_pr42_exact_head_final_premerge_controls",
+      "sha256": "5056c5b09458e7366f946c989160f55b2bf142077102d35bd5630309d9b59a9a",
+      "command": "fresh exact-head PR/check/review/thread/Sonar/diff readback before SHA-bound normal merge",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T07:38:41Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-20260723-postmerge-verification.md",
+      "artifact_type": "framework_pr42_resulting_master_external_cloudflare_and_control_readback",
+      "sha256": "0a0421f70cf39df8f6f31ef12b4a461f05bd9875fb61775094c5031aef489ce1",
+      "command": "RTK GitHub PR/master/ref/workflow/check-suite readback after normal SHA-bound PR #42 merge",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T07:51:09Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "current_task_risk_acceptance": {
+    "accepted_at": "2026-07-23T07:30:34Z",
+    "accepted_by": "current_user",
+    "decision_text": "Cloudflare-Risiko für PR #42 akzeptieren; Merge-Methode: merge ja",
+    "scope": "Framework repository only; one normal protected merge-commit delivery of current PR #42 only, bound to exact head dc6cf411e78b3f37f1e4be52edef59894560b1ae and base/master f73f8842f45318e2df8aff1d31855eeb7c20a22f after fresh exact-head validation.",
+    "scope_de": "Nur Framework-Repository; ein normaler geschützter Merge-Commit des aktuellen PR #42, gebunden an exakten Head dc6cf411e78b3f37f1e4be52edef59894560b1ae und Base/Master f73f8842f45318e2df8aff1d31855eeb7c20a22f nach frischer Exact-Head-Validierung.",
+    "accepted_condition": "Cloudflare Workers and Pages suite 81218369333 on the exact PR head and suite 80729667930 on exact current master remain queued with no conclusion and zero check runs; their external applicability/configuration is not established by GitHub-visible evidence. The user selects the repository-permitted merge commit method.",
+    "accepted_condition_de": "Cloudflare-Workers-and-Pages-Suite 81218369333 auf dem exakten PR-Head und Suite 80729667930 auf exaktem aktuellem Master bleiben ohne Conclusion und mit null Check-Runs queued; ihre externe Anwendbarkeit/Konfiguration ist durch GitHub-sichtbare Evidence nicht belegt. Der Nutzer wählt die repository-erlaubte Merge-Commit-Methode.",
+    "not_waived": [
+      "fresh exact PR #42 head Actions, SonarQube Cloud, CodeQL, review, conversation/thread, documentation, diff/security, conflict, target/base, and SHA requirements",
+      "immediate final pre-merge review, --match-head-commit protection, GitHub-authoritative merge state, and resulting-master Cloudflare/workflow/Sonar verification",
+      "direct master push, force-push, admin bypass, auto-merge, check rerun, Cloudflare configuration change, scanner/gate change, or suppression",
+      "Parent product/gitlink/delivery and MRTS modification or Git operations",
+      "FND-GITHUB-0007 closure, general release acceptance, future PRs, or changed PR/base/external-check conditions"
+    ],
+    "merge_method": "merge",
+    "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/fnd-github-0007-pr42-risk-acceptance.md",
+    "artifact_sha256": "36c499680449fb4ef976ac87f480ceae966a47dbce0636d9739cd6ca9a327036",
+    "reassessment_triggers": [
+      "PR #42 head SHA, base/master SHA, diff, review, conversation, target, or non-accepted check changes",
+      "Cloudflare suite status, conclusion, check-run count, or external owner disposition changes before merge",
+      "scope expands beyond one protected Framework PR #42 merge-commit delivery"
+    ]
+  },
+  "pre_merge_validation": {
+    "at": "2026-07-23T07:38:41Z",
+    "head_sha": "dc6cf411e78b3f37f1e4be52edef59894560b1ae",
+    "base_sha": "f73f8842f45318e2df8aff1d31855eeb7c20a22f",
+    "result": "passed_all_non_accepted_controls",
+    "checks": "16 success, 3 expected skipped, 0 failed/cancelled/pending/unknown; PR SonarQube Cloud Quality Gate OK; reviews/comments/threads empty; PR open/non-Draft/clean/mergeable",
+    "accepted_exception": "only queued external Cloudflare suite 81218369333 under current-user bounded PR #42 acceptance",
+    "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-20260723-final-premerge.md",
+    "artifact_sha256": "5056c5b09458e7366f946c989160f55b2bf142077102d35bd5630309d9b59a9a"
+  },
+  "post_merge_validation": {
+    "at": "2026-07-23T07:51:09Z",
+    "pull_request": 42,
+    "merge_commit": "935cf14c676a24672be5c336e92cd13457cc35c8",
+    "merge_method": "normal GitHub merge commit with exact-head protection",
+    "resulting_master": "935cf14c676a24672be5c336e92cd13457cc35c8",
+    "resulting_tree": "5df6cce7d7385a041a817ff54fae777902645f1d",
+    "pr_head_tree_matches": true,
+    "github_actions": "eight exact-resulting-master workflows completed success",
+    "cloudflare_suite": "81246317347",
+    "cloudflare_status": "queued",
+    "cloudflare_conclusion": null,
+    "cloudflare_check_runs": 0,
+    "accepted_delivery_scope": "This is the resulting-master manifestation of the current-user PR #42-only Cloudflare acceptance. It is not a passing, non-required, configured, or resolved disposition and does not close the global finding.",
+    "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-20260723-postmerge-verification.md",
+    "artifact_sha256": "0a0421f70cf39df8f6f31ef12b4a461f05bd9875fb61775094c5031aef489ce1"
+  },
+  "root_cause": "The technical cause is external and unverified: the Cloudflare GitHub App queued a suite but did not create a terminal result or repository-visible configuration explaining its status. This task has no safe access to the external integration's configuration or queue.",
+  "proposed_remediation": "The repository/Cloudflare owner must inspect and resolve the external integration, then provide a current terminal result for the exact PR head or a factual non-required disposition. Re-read the exact PR head, reviews, conversations, GitHub checks, SonarQube Cloud, and protection rules afterward. Do not disable, rerun, bypass, or ignore the suite without explicit owner evidence and current delivery authorization.",
+  "acceptance_criteria": [
+    "The exact PR #42 head has a terminal successful Cloudflare suite if it is required.",
+    "If it is not required, a current repository/Cloudflare-owner disposition states why and can be independently checked against repository rules and integration configuration.",
+    "The resulting master receives its own current Cloudflare disposition; PR-head evidence is not substituted for it.",
+    "No check, rule, Quality Gate, workflow, review requirement, Parent gitlink, or MRTS boundary is weakened as a workaround."
+  ],
+  "validation_plan": [
+    "Re-query the check suite by ID and current SHA after external-owner remediation or disposition.",
+    "Inspect matching check runs, repository workflow/ruleset/branch-protection state, and PR review/thread state.",
+    "Only after a current clean pre-merge gate, perform the authorized normal PR merge and verify the resulting-master suite separately."
+  ],
+  "regression_tests": [
+    "GitHub API exact-head check-suites readback",
+    "GitHub API resulting-master check-suites readback after an authorized merge"
+  ],
+  "legitimate_control_tests": [
+    "Visible GitHub Actions and SonarQube Cloud PR checks remain terminal success without substituting for Cloudflare.",
+    "Outside the completed bounded PR #42 acceptance, a queued Cloudflare suite continues to block verified PR/master integration until a factual disposition exists."
+  ],
+  "dependencies": [
+    "Repository or Cloudflare integration owner access",
+    "External Cloudflare queue/configuration resolution",
+    "Fresh exact-head and resulting-master verification"
+  ],
+  "blocked_by": [
+    "Cloudflare Workers and Pages suite 81218369333 is queued on exact PR head dc6cf411e78b3f37f1e4be52edef59894560b1ae.",
+    "The task lacks external Cloudflare configuration/queue authority and no current non-required disposition is observed.",
+    "Readback at 2026-07-23T07:16:32Z confirms the same nonterminal PR and predecessor-master Cloudflare state.",
+    "Resulting master 935cf14c676a24672be5c336e92cd13457cc35c8 has new Cloudflare suite 81246317347 queued without conclusion or check runs."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-GITHUB-0005",
+    "FND-FRAMEWORK-0053",
+    "FND-SONAR-0002"
+  ],
+  "source_run_ids": [
+    "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e"
+  ],
+  "evidence_limitations": [
+    "The GitHub API proves the queued check-suite state, not why the external integration has queued it.",
+    "No Cloudflare project configuration, deployment log, or owner assertion was available to inspect."
+  ],
+  "residual_risk": "The current user accepted this record for local archival on 2026-07-26. The exact PR #42 and resulting-master Cloudflare suites remain queued without conclusion or check runs; the external control is not claimed successful, non-required, configured, or technically resolved. This expands neither the historic PR #42-only delivery acceptance nor any Parent/MRTS, bypass, future-delivery, or external-configuration authority. It is an accepted-risk archive disposition, not a technical closure; restore and revalidate the record before production, publication, or release use.",
+  "residual_risk_de": "Der aktuelle Nutzer akzeptierte diesen Record am 2026-07-26 für die lokale Archivierung. Die exakten Cloudflare-Suites für PR #42 und den resultierenden Master bleiben ohne Conclusion oder Check-Runs queued; der externe Control wird weder als erfolgreich, nicht erforderlich, konfiguriert noch technisch gelöst behauptet. Dies erweitert weder die historische PR-#42-only-Delivery-Akzeptanz noch eine Parent-/MRTS-, Bypass-, Future-Delivery- oder externe Konfigurationsautorität. Dies ist eine Accepted-Risk-Archiv-Disposition, kein technischer Abschluss; vor Produktion, Veröffentlichung oder Release muss der Record wiederhergestellt und neu validiert werden.",
+  "history": [
+    {
+      "at": "2026-07-23T04:13:04Z",
+      "event": "framework_pr42_external_cloudflare_suite_blocker_tracked",
+      "detail": "Allocated after deduplication: no existing canonical finding owned Cloudflare Workers and Pages queued suite 81218369333 on exact PR #42 head dc6cf411e78b3f37f1e4be52edef59894560b1ae. Visible GitHub Actions and SonarCloud succeeded, but the external suite stayed queued. No merge, closure, bypass, Parent change, gitlink update, or MRTS action occurred."
+    },
+    {
+      "at": "2026-07-23T07:16:32Z",
+      "event": "framework_pr42_external_cloudflare_suite_rechecked_after_bounded_sonar_acceptance",
+      "detail": "Exact PR #42 remains open, clean, non-Draft at dc6cf411e78b3f37f1e4be52edef59894560b1ae against master f73f8842f45318e2df8aff1d31855eeb7c20a22f. Suite 81218369333 remains queued with no conclusion/check run; master suite 80729667930 is likewise queued. The current user accepted only FND-SONAR-0002's exact master residual condition for protected PR #42 delivery, not Cloudflare. All three GitHub merge methods remain enabled with no single established convention; no merge or bypass occurred."
+    },
+    {
+      "at": "2026-07-23T07:30:34Z",
+      "event": "current_user_bounded_cloudflare_risk_acceptance_and_merge_method_for_pr42",
+      "detail": "The user explicitly instructed: Cloudflare-Risiko für PR #42 akzeptieren; Merge-Methode: merge ja. The recorded acceptance covers only normal protected merge-commit delivery of exact PR #42 head dc6cf411e78b3f37f1e4be52edef59894560b1ae against f73f8842f45318e2df8aff1d31855eeb7c20a22f, despite queued external suites 81218369333/80729667930. It does not waive any current PR-head control, resulting-master verification, Parent/MRTS boundary, bypass prohibition, future condition, or finding closure."
+    },
+    {
+      "at": "2026-07-23T07:38:41Z",
+      "event": "pr42_final_exact_head_premerge_controls_passed_after_bounded_acceptance",
+      "detail": "Fresh final exact-head controls passed: PR remains open/non-Draft/clean/mergeable at dc6cf411e78b3f37f1e4be52edef59894560b1ae against f73f8842f45318e2df8aff1d31855eeb7c20a22f; 16 check runs succeeded, three PR-inapplicable advisory runs skipped, PR Sonar Quality Gate is OK, and reviews/comments/threads are empty. Only accepted external Cloudflare suite 81218369333 remains queued. Normal --match-head-commit merge is eligible."
+    },
+    {
+      "at": "2026-07-23T07:51:09Z",
+      "event": "protected_pr42_integration_completed_resulting_master_cloudflare_reassessed_under_bounded_acceptance",
+      "detail": "Framework PR #42 exact head dc6cf411e78b3f37f1e4be52edef59894560b1ae merged normally with exact-head protection as master 935cf14c676a24672be5c336e92cd13457cc35c8; its tree equals the reviewed PR head and eight exact-master GitHub Actions workflows completed success. The new resulting-master Cloudflare Workers and Pages suite 81246317347 remains queued with no conclusion and zero check runs. This is retained as the user-accepted PR #42 delivery risk only, not as success, non-required status, external configuration evidence, or closure of the global P1 finding. Parent and MRTS remain unchanged."
+    },
+    {
+      "at": "2026-07-26T14:18:25Z",
+      "event": "current_user_accepted_risk_archived",
+      "detail": "The current user explicitly accepted this exact residual risk for local archive disposition. The unresolved queued Cloudflare suites are retained without any claim of success, non-required disposition, bypass, or technical closure."
+    }
+  ],
+  "created_at": "2026-07-23T04:13:04Z",
+  "updated_at": "2026-07-26T14:18:25Z",
+  "final_disposition": "current_user_accepted_risk_20260726_queued_cloudflare_external_dependency_archived_not_technically_closed"
+}

@@ -1,0 +1,179 @@
+{
+  "id": "FND-SONAR-0020",
+  "title": "Event JSON serializer Cognitive Complexity finding remediated and verified on master",
+  "title_de": "Event-JSON-Serializer-Cognitive-Complexity-Befund auf Master remediiert und verifiziert",
+  "category": "sonarqube_finding",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "closed",
+  "feasibility_status": "already_fixed",
+  "release_blocker": false,
+  "security_relevant": false,
+  "security_assessment": "not_security_relevant_maintainability_only",
+  "connector": null,
+  "protocol": "event JSON serialization",
+  "profile": "Historical Parent master a5901a3c89528ec9a43ab9755da5755fdb01420d; remediation PR #197 delivery head 8a9036a7663f4170a02a0e3b7a677e306ddc6012 was SHA-bound-squashed as master caddd86d1eede95de53aa1bc971dd26d875df21c and verified by analysis 43a50e20-8bdd-453a-bc44-549a7e3d7588",
+  "affected_files": [
+    "common/src/event.c"
+  ],
+  "affected_symbols": [
+    "msconnector_event_write_json_ex"
+  ],
+  "observed_behavior": "Historical Parent master analysis f179066b-a8ed-4471-895e-342cebd8dc52 reported one OPEN c:S3776 CODE_SMELL, key AZ9cRy9OHhV2CayPTP4Y, at common/src/event.c:502 in msconnector_event_write_json_ex: Cognitive Complexity 26 where 25 was allowed. PR #197 extracted the shared bounded optional event-JSON-field formatter without a Sonar configuration change. Its exact delivery head 8a9036a7663f4170a02a0e3b7a677e306ddc6012 was SHA-bound-squashed as master caddd86d1eede95de53aa1bc971dd26d875df21c. Current-master analysis 43a50e20-8bdd-453a-bc44-549a7e3d7588 marks the exact issue CLOSED/FIXED with that analysis as lastChangeAnalysisUuid.",
+  "observed_behavior_de": "Die historische Parent-Master-Analyse f179066b-a8ed-4471-895e-342cebd8dc52 meldete einen OPEN-c:S3776-CODE_SMELL, Key AZ9cRy9OHhV2CayPTP4Y, in common/src/event.c:502 in msconnector_event_write_json_ex: Cognitive Complexity 26, wo 25 erlaubt waren. PR #197 extrahierte den gemeinsamen begrenzten Optional-Event-JSON-Field-Formatter ohne Sonar-Konfigurationsänderung. Sein exakter Delivery-Head 8a9036a7663f4170a02a0e3b7a677e306ddc6012 wurde SHA-gebunden als Master caddd86d1eede95de53aa1bc971dd26d875df21c gesquasht. Die Current-Master-Analyse 43a50e20-8bdd-453a-bc44-549a7e3d7588 markiert das exakte Issue CLOSED/FIXED mit dieser Analyse als lastChangeAnalysisUuid.",
+  "expected_behavior": "The event JSON serializer remains at or below the configured Cognitive Complexity threshold of 25 while preserving all existing serialization, truncation, bounded-token validation, and raw QUIC connection-ID redaction behavior. The remediation must not use a Sonar rule, Quality-Gate, exclusion, NOSONAR, or suppression change.",
+  "expected_behavior_de": "Der Event-JSON-Serializer bleibt bei oder unter der konfigurierten Grenze für kognitive Komplexität von 25 und bewahrt dabei das bestehende Serialisierungs-, Trunkierungs-, Bounded-Token-Validierungs- und Raw-QUIC-Connection-ID-Redaktionsverhalten. Die Remediation darf keine Sonar-Rule-, Quality-Gate-, Exclusion-, NOSONAR- oder Suppression-Änderung verwenden.",
+  "impact": "This was a confirmed maintainability source finding. Sonar labels the historical issue CRITICAL and maintainability impact HIGH, but the local security severity remains not_applicable: no exploitable security path or new Quality-Gate condition was established. The exact remediation and original reproduction are verified on master, so it is neither a release blocker nor a candidate-integration blocker. This closed record does not extend the separately accepted FND-SONAR-0001 baseline risk.",
+  "impact_de": "Dies war ein bestätigter Maintainability-Source-Befund. Sonar kennzeichnet das historische Issue als CRITICAL und den Maintainability-Impact als HIGH, aber die lokale Security-Severity bleibt not_applicable: Es wurde kein ausnutzbarer Security-Pfad und keine neue Quality-Gate-Bedingung festgestellt. Die exakte Remediation und die ursprüngliche Reproduktion sind auf Master verifiziert, daher ist er weder Release-Blocker noch Candidate-Integration-Blocker. Dieser geschlossene Record erweitert nicht das separat akzeptierte FND-SONAR-0001-Baseline-Risiko.",
+  "preconditions": [
+    "Historical SonarQube Cloud analysis f179066b-a8ed-4471-895e-342cebd8dc52 analyzed Parent master revision a5901a3c89528ec9a43ab9755da5755fdb01420d.",
+    "Historical exact issue key AZ9cRy9OHhV2CayPTP4Y was OPEN at common/src/event.c:502.",
+    "Current-master analysis 43a50e20-8bdd-453a-bc44-549a7e3d7588 analyzed caddd86d1eede95de53aa1bc971dd26d875df21c after the authorized PR #197 remediation and marks the issue CLOSED/FIXED."
+  ],
+  "reproduction": [
+    "Historical baseline: read GET /api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&issues=AZ9cRy9OHhV2CayPTP4Y&ps=10.",
+    "Historical baseline: confirm the returned issue was OPEN c:S3776 at common/src/event.c:502 and reported Cognitive Complexity 26 where 25 was allowed.",
+    "Historical baseline: read GET /api/project_analyses/search?project=Easton97-Jens_ModSecurity-conector&ps=1 and confirm analysis f179066b-a8ed-4471-895e-342cebd8dc52 has revision a5901a3c89528ec9a43ab9755da5755fdb01420d.",
+    "Closure verification after the authorized PR #197 merge: rerun the exact issue and current-master analysis readbacks; retained post-merge evidence confirms CLOSED/FIXED issue AZ9cRy9OHhV2CayPTP4Y and analysis 43a50e20-8bdd-453a-bc44-549a7e3d7588 for master caddd86d1eede95de53aa1bc971dd26d875df21c."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260729T195549Z-fnd-sonar-0020-event-cognitive-complexity",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-182-20260729T121317Z/fnd-sonar-0020-event-cognitive-complexity/evidence/issue.json",
+      "artifact_type": "bounded_current_master_sonar_issue_readback",
+      "sha256": "69d6fa710a3e99b4a18151a13eb6bcf83e600a1c0d3188b0036b4115cb66c4ea",
+      "command": "rtk proxy curl --fail --silent --show-error 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&issues=AZ9cRy9OHhV2CayPTP4Y&ps=10'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T19:55:49Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "One OPEN c:S3776 CODE_SMELL at common/src/event.c:502 reports Cognitive Complexity 26 where 25 is allowed."
+    },
+    {
+      "run_id": "20260729T195549Z-fnd-sonar-0020-event-cognitive-complexity",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-182-20260729T121317Z/fnd-sonar-0020-event-cognitive-complexity/evidence/analysis.json",
+      "artifact_type": "bounded_current_master_sonar_analysis_readback",
+      "sha256": "1c12b6c8e780a1282cdb8fdc154ddc2543bf5ca2901f267994a26c83ef8ba446",
+      "command": "rtk proxy curl --fail --silent --show-error 'https://sonarcloud.io/api/project_analyses/search?project=Easton97-Jens_ModSecurity-conector&ps=1'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T19:55:49Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "The issue's analysis f179066b-a8ed-4471-895e-342cebd8dc52 is the current master analysis for revision a5901a3c89528ec9a43ab9755da5755fdb01420d."
+    },
+    {
+      "run_id": "20260729T195549Z-fnd-sonar-0020-event-cognitive-complexity",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-182-20260729T121317Z/fnd-sonar-0020-event-cognitive-complexity/evidence/quality-gate.json",
+      "artifact_type": "bounded_current_master_sonar_quality_gate_readback",
+      "sha256": "a65798fd40f5538e793d1734eb631235eb6809ae9107a2086acdc9a87b6e3689",
+      "command": "rtk proxy curl --fail --silent --show-error 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T19:55:49Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "The Quality Gate ERROR remains the separate new_security_rating=5 and new_security_hotspots_reviewed=0.0 baseline; new_maintainability_rating is 1."
+    },
+    {
+      "run_id": "20260729T195549Z-fnd-sonar-0020-event-cognitive-complexity",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-182-20260729T121317Z/fnd-sonar-0020-event-cognitive-complexity/evidence/receipt.md",
+      "artifact_type": "bounded_current_master_sonar_receipt",
+      "sha256": "5790131a8e4b5b159001af9a60c9b316209d8ceca6fc66e2e1453f52c4b7cd8f",
+      "command": "Bounded historical current-master Sonar issue, analysis, and Quality-Gate readback receipt; commands and exit-code evidence are retained in receipt.md.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T19:55:49Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "Historical baseline command, revision, and interpretation receipt for the independently remediable OPEN c:S3776 issue."
+    },
+    {
+      "run_id": "20260730T135511Z-fnd-sonar-0020-postmerge-verification",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-186-199-20260730T072658Z/fnd-sonar-0020-postmerge-verification-20260730T135511Z/evidence/sonar-master-readback.json",
+      "artifact_type": "postmerge_sonar_finding_closure_readback",
+      "sha256": "1c1c704489e1d8bf4ea09f466b6a132dd9f5f36a0095a069c2cf9b6da93d86c3",
+      "command": "rtk git rev-parse HEAD origin/master; rtk proxy curl --fail --silent --show-error 'https://sonarcloud.io/api/project_analyses/search?project=Easton97-Jens_ModSecurity-conector&ps=1'; rtk proxy curl --fail --silent --show-error 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&issues=AZ9cRy9OHhV2CayPTP4Y&ps=10'; rtk proxy curl --fail --silent --show-error 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector' (all read-only; exact replay set retained in evidence/receipt.md).",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T13:49:52Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "Master caddd86d1eede95de53aa1bc971dd26d875df21c is analyzed by 43a50e20-8bdd-453a-bc44-549a7e3d7588; AZ9cRy9OHhV2CayPTP4Y is CLOSED/FIXED. The only Quality-Gate failure is unchanged FND-SONAR-0001 context."
+    },
+    {
+      "run_id": "20260730T135511Z-fnd-sonar-0020-postmerge-verification",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-186-199-20260730T072658Z/fnd-sonar-0020-postmerge-verification-20260730T135511Z/evidence/receipt.md",
+      "artifact_type": "postmerge_sonar_finding_closure_receipt",
+      "sha256": "d0857f57980009e47ba469f143d91055c2e8b75d77ce155e27b6c25b12ad531d",
+      "command": "Read the exact replayable current-master command set retained in evidence/receipt.md; all listed commands are read-only.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T13:49:52Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "Hash-bound receipt for the post-merge closure readback, including the exact master revision, analysis, issue status, and separate FND-SONAR-0001 context."
+    }
+  ],
+  "root_cause": "Historically, the serializer combined a high number of independent validation, redaction, metadata-presence, formatting, and truncation branches in one function. PR #174 lowered the measured complexity from 32 to 26 but left the remaining control flow one point above the configured threshold. This record does not infer that PR #174 introduced the issue; it records the independently remediable historical current-master residual at the modified source boundary.",
+  "root_cause_de": "Historisch kombinierte der Serializer viele unabhängige Validierungs-, Redaktions-, Metadatenpräsenz-, Formatierungs- und Trunkierungszweige in einer Funktion. PR #174 senkte die gemessene Komplexität von 32 auf 26, ließ den verbleibenden Kontrollfluss aber einen Punkt über der konfigurierten Grenze. Dieser Record leitet nicht ab, dass PR #174 das Issue eingeführt hat; er erfasst den unabhängig behebbaren historischen Current-Master-Restbefund an der geänderten Source-Grenze.",
+  "proposed_remediation": "Completed without a Sonar configuration change: PR #197 final head 8a9036a7663f4170a02a0e3b7a677e306ddc6012 extracts the shared bounded optional JSON-field formatting path, retains serializer security invariants, passes exact local/security/hosted evidence, and was SHA-bound-squashed as master caddd86d1eede95de53aa1bc971dd26d875df21c.",
+  "proposed_remediation_de": "Ohne Sonar-Konfigurationsänderung abgeschlossen: Der finale PR-#197-Head 8a9036a7663f4170a02a0e3b7a677e306ddc6012 extrahiert den gemeinsamen begrenzten Optional-JSON-Field-Formatting-Pfad, bewahrt Serializer-Sicherheitsinvarianten, besteht exakte lokale/Security/Hosted-Evidence und wurde SHA-gebunden als Master caddd86d1eede95de53aa1bc971dd26d875df21c gesquasht.",
+  "acceptance_criteria": [
+    "The exact Sonar issue AZ9cRy9OHhV2CayPTP4Y is absent or no longer OPEN after the focused remediation is analyzed.",
+    "msconnector_event_write_json_ex has Cognitive Complexity at or below 25 without NOSONAR, suppression, rule, Quality-Gate, or exclusion changes.",
+    "Focused Common serializer tests retain legitimate serialization, truncation, bounded-token validation, and raw QUIC connection-ID redaction controls.",
+    "The exact remediation PR head has current passing required hosted checks and SonarQube Cloud evidence.",
+    "After an authorized merge, a current-master issue and analysis readback confirms the original reproduction no longer occurs."
+  ],
+  "validation_plan": [
+    "Read the current source and security invariants before selecting an extraction boundary.",
+    "Run the project-native Common helper C17 checks, Common security/SDK/flow contracts, focused bilingual documentation unit suite, and git diff --check for the exact candidate.",
+    "Perform a focused security-diff review because the serializer handles protocol and event metadata.",
+    "For the exact PR head, validate hosted checks, reviews/threads, CodeQL, dependency/secret controls, and SonarQube Cloud Quality Gate without bypasses.",
+    "After an authorized merge, rerun the retained Sonar issue and analysis readbacks on current master."
+  ],
+  "regression_tests": [
+    "make check-common-helpers-c17",
+    "make check-common-security-contract",
+    "make check-common-sdk-contract",
+    "make check-common-flow-integrity"
+  ],
+  "legitimate_control_tests": [
+    "Existing Common helper serializer coverage preserves valid event/protocol JSON output.",
+    "Existing Common security contract preserves raw QUIC connection-ID redaction and bounded metadata behavior.",
+    "Existing truncation controls preserve failure-safe JSON serialization behavior."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0001",
+    "FND-SONAR-0016"
+  ],
+  "source_run_ids": [
+    "20260729T195549Z-fnd-sonar-0020-event-cognitive-complexity",
+    "pr-integration-186-199-20260730T072658Z",
+    "20260730T135511Z-fnd-sonar-0020-postmerge-verification"
+  ],
+  "residual_risk": "No FND-SONAR-0020-specific candidate-integration risk remains: current-master analysis 43a50e20-8bdd-453a-bc44-549a7e3d7588 marks the original issue CLOSED/FIXED for exact master caddd86d1eede95de53aa1bc971dd26d875df21c. The Master Quality Gate remains ERROR only for the separately accepted FND-SONAR-0001 security-rating and hotspot-review baseline, which this finding neither changes nor accepts.",
+  "residual_risk_de": "Es bleibt kein FND-SONAR-0020-spezifisches Candidate-Integration-Risiko: Die Current-Master-Analyse 43a50e20-8bdd-453a-bc44-549a7e3d7588 markiert das ursprüngliche Issue für exakten Master caddd86d1eede95de53aa1bc971dd26d875df21c als CLOSED/FIXED. Das Master-Quality-Gate bleibt ausschließlich wegen der separat akzeptierten FND-SONAR-0001-Security-Rating- und Hotspot-Review-Baseline ERROR; dieses Finding ändert oder akzeptiert diese Baseline nicht.",
+  "created_at": "2026-07-29T19:55:49Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": "closed_after_exact_pr197_8a9036a7663f4170a02a0e3b7a677e306ddc6012_security_and_hosted_validation_sha_bound_squash_to_master_caddd86d1eede95de53aa1bc971dd26d875df21c_and_closed_fixed_cS3776_readback_on_analysis_43a50e20-8bdd-453a-bc44-549a7e3d7588",
+  "history": [
+    {
+      "at": "2026-07-29T19:55:49Z",
+      "event": "post_merge_master_residual_recorded",
+      "detail": "Current master Sonar analysis f179066b-a8ed-4471-895e-342cebd8dc52 for a5901a3c89528ec9a43ab9755da5755fdb01420d confirms OPEN c:S3776 issue AZ9cRy9OHhV2CayPTP4Y at common/src/event.c:502. The issue reports Cognitive Complexity 26 where 25 is allowed. A new stable ID is required because this is an independently remediable current-master source boundary, not the Draft-PR aggregate FND-SONAR-0016 or the separate master Quality-Gate baseline FND-SONAR-0001."
+    },
+    {
+      "at": "2026-07-30T13:41:13Z",
+      "event": "exact_pr197_event_json_complexity_remediation_fixed",
+      "detail": "Exact PR #197 head 8a9036a7663f4170a02a0e3b7a677e306ddc6012 extracted the shared bounded optional event-JSON-field formatting path. GCC/Clang C17 and GCC ASan/UBSan Common-helper smokes, Common SDK/security/flow contracts, 22 bilingual-documentation tests, a sealed zero-finding security-diff scan, exact-head hosted gates, and Sonar Quality Gate OK were observed without a Sonar rule, Quality-Gate, exclusion, NOSONAR, suppression, or risk-acceptance change."
+    },
+    {
+      "at": "2026-07-30T13:49:52Z",
+      "event": "resulting_master_cognitive_complexity_reproduction_verified_and_closed",
+      "detail": "The SHA-bound squash of #197 created master caddd86d1eede95de53aa1bc971dd26d875df21c with a tree identical to delivery head 8a9036a7663f4170a02a0e3b7a677e306ddc6012. Fourteen master workflows and all six required Ruleset contexts succeeded. Sonar analysis 43a50e20-8bdd-453a-bc44-549a7e3d7588 records that exact revision and marks AZ9cRy9OHhV2CayPTP4Y CLOSED/FIXED. The only remaining Quality-Gate failure exactly matches separately accepted FND-SONAR-0001."
+    }
+  ]
+}

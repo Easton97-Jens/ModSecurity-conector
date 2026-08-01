@@ -1,0 +1,171 @@
+{
+  "id": "FND-SONAR-0010",
+  "title": "Parent PR #90 Go-updater and contract-parser SonarQube Cloud Quality Gate failure is verified fixed at its exact head",
+  "title_de": "Der Go-Updater- und Contract-Parser-SonarQube-Cloud-Quality-Gate-Fehler von Parent-PR #90 ist am exakten Head verifiziert repariert",
+  "category": "sonarqube_finding",
+  "sonarqube_classification": "reliability_and_duplication",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": "Parent Draft PR #90 exact verified head 06a4e71408a60e5a72a55065a653b9c4e79a1ecf",
+  "delivery_state": "verified_exact_head_quality_gate_and_ordinary_checks_passed",
+  "affected_files": [
+    "ci/checks/common/check-go-version-contract.py",
+    "scripts/version_updater_common.py",
+    "scripts/update-go-version.py",
+    "scripts/update-python-version.py",
+    "tests/version_updater_test_support.py",
+    "tests/test_go_version_contract.py",
+    "tests/test_update_go_version.py",
+    "tests/test_update_python_version.py"
+  ],
+  "affected_symbols": [
+    "SETUP_GO_STEP",
+    "python:S5850",
+    "Version-updater shared transport and safe file-update mechanics",
+    "new_duplicated_lines_density",
+    "new_reliability_rating"
+  ],
+  "source_commits": [
+    "0acba7768848651758610928e89f4481dbb90c81",
+    "d99eafd76d9fdbef5b63a19d084fd2d7caff6c08",
+    "06a4e71408a60e5a72a55065a653b9c4e79a1ecf"
+  ],
+  "summary": "The SonarQube Cloud Quality Gate for Parent Draft PR #90 exact head d99eafd76d9fdbef5b63a19d084fd2d7caff6c08 was ERROR: 15.9% duplicated new code against a maximum of 3% and Reliability C where A is required. The gate-driving reliability issue was python:S5850 on the Go CodeQL contract parser, while parallel updater/test mechanics caused the duplication. The remediation extracts shared mechanics and requires the exact Go selector body. Exact head 06a4e71408a60e5a72a55065a653b9c4e79a1ecf now has Quality Gate OK, Reliability A, and 0.0% duplicated new code; ordinary hosted checks are terminal success or skipped.",
+  "summary_de": "Das SonarQube-Cloud-Quality-Gate für den exakten Head d99eafd76d9fdbef5b63a19d084fd2d7caff6c08 des Parent-Draft-PR #90 war ERROR: 15,9 % duplizierter neuer Code bei maximal 3 % und Reliability C, obwohl A erforderlich ist. Das gate-treibende Reliability-Issue war python:S5850 im Go-CodeQL-Contract-Parser, während parallele Updater-/Test-Mechaniken die Duplikation verursachten. Die Remediation extrahiert gemeinsame Mechaniken und verlangt den exakten Go-Selector-Body. Der exakte Head 06a4e71408a60e5a72a55065a653b9c4e79a1ecf hat jetzt Quality Gate OK, Reliability A und 0,0 % duplizierten neuen Code; die gewöhnlichen Hosted-Checks sind terminal erfolgreich oder übersprungen.",
+  "observed_behavior": "GitHub check run 89053617816 for PR #90 current head reports a failed SonarQube Cloud Quality Gate. The retained exact-head receipt records 238 duplicated lines out of 1497 new lines (15.898%), including 183 in scripts/update-go-version.py and 55 in tests/test_update_go_version.py. It also records open issue AZ-LhTtmzOcepZz2Zxpc (python:S5850) at ci/checks/common/check-go-version-contract.py:24, the only new reliability Bug and the cause of new Reliability C.",
+  "observed_behavior_de": "Der GitHub-Check-Run 89053617816 für den aktuellen PR-#90-Head meldet ein fehlgeschlagenes SonarQube-Cloud-Quality-Gate. Der aufbewahrte Exact-Head-Receipt erfasst 238 duplizierte Zeilen von 1497 neuen Zeilen (15,898 %), darunter 183 in scripts/update-go-version.py und 55 in tests/test_update_go_version.py. Er erfasst außerdem das offene Issue AZ-LhTtmzOcepZz2Zxpc (python:S5850) bei ci/checks/common/check-go-version-contract.py:24, den einzigen neuen Reliability-Bug und die Ursache für New Reliability C.",
+  "expected_behavior": "The PR must retain its fail-closed central-version contract, official-release authority, bounded no-redirect metadata parsing, and symlink-safe atomic version-file updates while its exact head passes the configured SonarQube Cloud Quality Gate: no new reliability Bug and duplicated new-code density no greater than 3%. No Sonar rule, quality gate, exclusion, suppression, false-positive disposition, or risk acceptance may be changed to obtain that result.",
+  "expected_behavior_de": "Der PR muss seinen fail-closed Central-Version-Contract, die offizielle Release-Autorität, begrenztes No-Redirect-Metadaten-Parsing und symlink-sichere atomare Version-File-Updates bewahren, während sein exakter Head das konfigurierte SonarQube-Cloud-Quality-Gate besteht: kein neuer Reliability-Bug und höchstens 3 % duplizierter neuer Code. Keine Sonar-Regel, kein Quality Gate, keine Exclusion, Suppression, False-Positive-Disposition oder Risikoakzeptanz darf geändert werden, um dieses Ergebnis zu erzielen.",
+  "impact": "The requested replacement for PR #80 cannot be reported as verified or ready for protected integration while its exact current PR head fails the applicable Quality Gate. A superficial metric bypass would also duplicate security-sensitive release transport and safe file-update logic, increasing maintenance and divergence risk.",
+  "impact_de": "Der angeforderte Ersatz für PR #80 kann nicht als verifiziert oder bereit für geschützte Integration gemeldet werden, solange sein exakter aktueller PR-Head das anwendbare Quality Gate nicht besteht. Ein oberflächlicher Metrik-Bypass würde außerdem sicherheitsrelevante Release-Transport- und Safe-File-Update-Logik duplizieren und damit Wartungs- und Divergenzrisiko erhöhen.",
+  "preconditions": [
+    "Parent Draft PR #90 remains open at exact head d99eafd76d9fdbef5b63a19d084fd2d7caff6c08.",
+    "GitHub check run 89053617816 belongs to that exact PR head.",
+    "The Parent SonarQube Cloud integration supplies a Quality Gate for this PR."
+  ],
+  "reproduction": [
+    "Inspect PR #90 check run 89053617816 and confirm its head SHA is d99eafd76d9fdbef5b63a19d084fd2d7caff6c08.",
+    "Run the retained read-only Sonar issue query: rtk proxy curl -fsSL 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&pullRequest=90&ps=500'.",
+    "Compare the returned python:S5850 issue at check-go-version-contract.py:24 and the retained component duplication measures with the exact PR diff."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/evidence/sonar-pr90-d99eafd-quality-gate.json",
+      "artifact_type": "sonarqube_cloud_exact_head_quality_gate_receipt",
+      "sha256": "e4d465b8cc49131866942eecc6f854bf578d5689a0f95131cab33d0fa797427b",
+      "command": "rtk proxy curl -fsSL 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&pullRequest=90&ps=500'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T21:25:24Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/evidence/sonar-remediation-final-local-validation.md",
+      "artifact_type": "final_local_sonar_remediation_validation_summary",
+      "sha256": "444a215b5cf98118daf3032e38485b07b3d100ddb8e422cb41ebbeca92d5a624",
+      "command": "Focused updater, workflow-contract, CI-security, bilingual, syntax, diff, and safe CLI-help validation as recorded by the artifact",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/pr80-central-go-submodule-20260722",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T22:47:54Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/tmp/codex-security-scans/ModSecurity-conector/d99eafd76d9_20260722T221118Z/report.md",
+      "artifact_type": "codex_security_diff_scan_report",
+      "sha256": "12df4f3ed8d6f850feaf644a512d7bd1de0c3b41b6fffb5e99e021e21a25e1b4",
+      "command": "finalize_scan_contract.py for scan d99eafd76d9_20260722T221118Z",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/pr80-central-go-submodule-20260722",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T22:41:57Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/evidence/hosted-pr90-06a4e71-validation.json",
+      "artifact_type": "github_and_sonarqube_cloud_exact_head_validation_receipt",
+      "sha256": "db38c89e5c1646e343ec022466d7fec899998dda05558ccf85789196d273ea20",
+      "command": "rtk proxy gh api repos/Easton97-Jens/ModSecurity-conector/commits/06a4e71408a60e5a72a55065a653b9c4e79a1ecf/check-runs --paginate; rtk proxy curl -fsSL 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&pullRequest=90'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T23:02:27Z",
+      "retention_status": "retained"
+    }
+  ],
+  "root_cause": "The first Go-centralization implementation copied most of the existing Python updater's transport, strict JSON, regular-file, atomic-write, CLI, test-fixture, and test-harness mechanics into separate Go-specific files. This preserved behavior but creates task-owned duplication. Its static CodeQL workflow parser also uses an ambiguous multiline regex boundary which Sonar classifies as a reliability Bug. The later d99eafd follow-up changes only Framework-cache compatibility tests and bilingual Change Records, and is not causal.",
+  "root_cause_de": "Die erste Go-Zentralisierungs-Implementierung kopierte den Großteil der vorhandenen Python-Updater-Mechaniken für Transport, striktes JSON, Regular-File, atomisches Schreiben, CLI, Test-Fixture und Test-Harness in getrennte Go-spezifische Dateien. Dies bewahrt Verhalten, erzeugt jedoch aufgabeneigene Duplikation. Der statische CodeQL-Workflow-Parser verwendet außerdem eine mehrzeilige Regex-Grenze mit mehrdeutiger Präzedenz, die Sonar als Reliability-Bug einstuft. Der spätere d99eafd-Follow-up ändert nur Framework-Cache-Kompatibilitätstests und zweisprachige Change Records und ist nicht ursächlich.",
+  "proposed_remediation": "Replace the ambiguous static-workflow regex boundary with an explicit parser or explicitly grouped safe boundary and regression coverage. Extract shared updater mechanics into one internal Parent module, keep Python- and Go-specific endpoint/schema/version policy adapters separate, and extract the duplicated response/opener test harness. Preserve all fail-closed security invariants, then rerun focused tests and a fresh exact-head SonarQube Cloud analysis.",
+  "proposed_remediation_de": "Ersetze die mehrdeutige Static-Workflow-Regex-Grenze durch einen expliziten Parser oder eine explizit gruppierte sichere Grenze samt Regression-Coverage. Extrahiere gemeinsame Updater-Mechaniken in ein internes Parent-Modul, belasse Python- und Go-spezifische Endpoint-/Schema-/Version-Policy-Adapter getrennt und extrahiere den duplizierten Response-/Opener-Test-Harness. Bewahre alle fail-closed-Sicherheitsinvarianten und führe danach fokussierte Tests sowie eine frische Exact-Head-SonarQube-Cloud-Analyse aus.",
+  "acceptance_criteria": [
+    "The exact static Go contract has no task-owned python:S5850 reliability issue and retains all previous rejection cases.",
+    "Shared updater mechanics preserve exact official endpoint validation before network access, no redirects, bounded strict JSON parsing, and symlink-safe atomic update semantics.",
+    "Python and Go adapters retain their distinct release schemas, supported version-series policies, command-line flags, JSON shapes, and fail-closed error behavior.",
+    "The exact follow-up PR head has no task-owned reliability Bug and SonarQube Cloud reports duplicated new-code density at or below 3% without forbidden workaround.",
+    "Focused unit, workflow-contract, bilingual-documentation, diff, security-diff, and current-head hosted validation evidence pass; Update submodules is not dispatched and master is not merged."
+  ],
+  "validation_plan": [
+    "Run the updater-common and both adapter test suites, including endpoint substitution, redirect, malformed metadata, duplicate JSON keys, symlink, mode, idempotency, downgrade, and expected-version controls.",
+    "Run the Go-version and Python-version contract tests plus CI-security workflow tests and repository check targets.",
+    "Run documentation parity and git diff --check.",
+    "Run a new focused security-diff scan for the exact remediation diff.",
+    "Commit and normally push only the focused remediation; verify local, remote, and PR head SHA equality and wait for fresh exact-head SonarQube Cloud and GitHub checks."
+  ],
+  "regression_tests": [
+    "tests/test_go_version_contract.py",
+    "tests/test_update_go_version.py",
+    "tests/test_update_python_version.py",
+    "tests/test_ci_security_workflows.py"
+  ],
+  "legitimate_control_tests": [
+    "Current supported Python 3.14 and Go 1.26 stable release responses remain accepted.",
+    "A newer supported patch updates only the matching central version file when the separately resolved expected version matches.",
+    "A current version remains a no-op and preserves inode, mode, and content.",
+    "The Go CodeQL workflow continues to select .go-version with check-latest false in exactly the approved jobs."
+  ],
+  "dependencies": [],
+  "evidence_limitations": [
+    "The verified result applies to exact Draft PR #90 head 06a4e71408a60e5a72a55065a653b9c4e79a1ecf only; a later head requires a new receipt.",
+    "No SonarQube control was changed and no Update submodules dispatch or master integration was performed. Non-gating open test code smells are tracked separately by FND-SONAR-0011."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0045",
+    "FND-SONAR-0006",
+    "FND-SONAR-0011"
+  ],
+  "source_run_ids": [
+    "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37"
+  ],
+  "history": [
+    {
+      "at": "2026-07-22T21:25:24Z",
+      "event": "quality_gate_failure_recorded",
+      "detail": "Allocated from the failed exact-head PR #90 Quality Gate as a confirmed, task-owned P1 blocker."
+    },
+    {
+      "at": "2026-07-22T22:47:54Z",
+      "event": "local_remediation_and_security_validation_completed",
+      "detail": "Shared updater mechanics and test support were extracted, the Go selector contract was made exact, 100 focused tests and all listed local contracts passed, and complete security-diff scan d99eafd76d9_20260722T221118Z reported zero findings. Hosted exact-head proof remains pending."
+    },
+    {
+      "at": "2026-07-22T23:02:27Z",
+      "event": "exact_head_quality_gate_and_checks_verified",
+      "detail": "Commit 06a4e71408a60e5a72a55065a653b9c4e79a1ecf matched local, remote, and PR heads. GitHub check run 89073528612 reports Quality Gate passed; the SonarQube Cloud API reports OK, Reliability A, and 0.0% duplicated new code. All observed ordinary exact-head checks were terminal success or skipped."
+    }
+  ],
+  "created_at": "2026-07-22T21:25:24Z",
+  "updated_at": "2026-07-22T23:06:49Z",
+  "final_disposition": "verified_exact_head_quality_gate_and_ordinary_checks_passed"
+}

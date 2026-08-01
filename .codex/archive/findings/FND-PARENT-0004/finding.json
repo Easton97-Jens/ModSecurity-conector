@@ -1,0 +1,125 @@
+{
+  "id": "FND-PARENT-0004",
+  "title": "HAProxy HTX cap error can conditionally resume the original backend path",
+  "title_de": "HAProxy-HTX-Cap-Fehler kann bedingt den ursprünglichen Backend-Pfad fortsetzen",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P3",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "not_applicable",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": "HAProxy",
+  "protocol": "HTTP/1.1",
+  "profile": "native HTX non-promoted observer/reference",
+  "affected_files": [
+    "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+    "connectors/haproxy/SOURCE_MAP.json",
+    "docs/connectors/haproxy.md"
+  ],
+  "affected_symbols": [
+    "haproxy_modsecurity_htx_dup_ist",
+    "haproxy_modsecurity_htx_capture_request",
+    "haproxy_modsecurity_htx_request_headers",
+    "abort_context"
+  ],
+  "summary": "The over-cap URI capture failure still disables the connector context and continues the host callback, but the exact HAProxy HTX route is affirmatively non-promoted observer/reference code with loopback-only checked-in examples. It is not currently a reportable Parent product vulnerability.",
+  "summary_de": "Der Over-Cap-URI-Capture-Fehler deaktiviert weiterhin den Connector-Kontext und setzt den Host-Callback fort, aber der exakte HAProxy-HTX-Pfad ist ausdrücklich nicht-promoteter Observer-/Referenzcode mit ausschließlich loopbackgebundenen eingecheckten Beispielen. Er ist derzeit keine berichtsfähige Parent-Produktvulnerabilität.",
+  "observed_behavior": "At target 5a22cbf5206dbc2b7f53a9f961d72e37d567e188, URI capture above 8192 bytes returns failure, abort_context marks the transaction disabled, and the header callback returns normal continuation instead of the pre-commit reply-and-close path.",
+  "observed_behavior_de": "Auf Target 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 führt URI-Capture oberhalb von 8192 Byte zu einem Fehler, abort_context markiert die Transaktion als deaktiviert und der Header-Callback kehrt zur normalen Fortsetzung statt zum Pre-Commit-Reply-and-Close-Pfad zurück.",
+  "expected_behavior": "If the HTX overlay is promoted to a supported enforcement route, capture or transaction-begin failures must fail closed before any backend forwarding and must retain a host-specific regression/control suite.",
+  "expected_behavior_de": "Wenn das HTX-Overlay zu einem unterstützten Enforcement-Pfad promotiert wird, müssen Capture- oder Transaction-Begin-Fehler vor jedem Backend-Forwarding fail-closed enden und eine host-spezifische Regression-/Control-Suite behalten.",
+  "impact": "The static control-flow defect is real, but current repository evidence establishes neither a meaningful supported production surface, host acceptance of an over-cap URI, nor a protected backend operation. No present Parent product-security impact is claimed.",
+  "impact_de": "Der statische Kontrollflussfehler ist real, aber die aktuelle Repository-Evidence belegt weder eine bedeutsame unterstützte Produktionsoberfläche noch Host-Akzeptanz einer Over-Cap-URI oder eine geschützte Backend-Operation. Es wird kein aktueller Parent-Produktsicherheitsimpact behauptet.",
+  "preconditions": [
+    "The custom pinned HAProxy 3.2.21 overlay is promoted or deployed as a supported enforcement route.",
+    "A meaningful Phase-1 URI rule is configured.",
+    "The host accepts and forwards a URI above the connector's 8192-byte snapshot cap.",
+    "An untrusted client can reach the selected listener."
+  ],
+  "reproduction": [
+    "Review connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c:49-99,279-291,346-376,635-688.",
+    "Read the retained attack-path report for CAND-HAPROXY-HTX-001.",
+    "If the route is promoted, run the documented native HAProxy over-cap URI, ordinary deny, boundary, and allow controls."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:224-227,238-244",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '224,227p;238,244p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164715Z-parent-security-reconciliation-5a22cbf5/codex-security-scans/ModSecurity-conector/5a22cbf5206dbc2b7f53a9f961d72e37d567e188_20260720T164715Z/artifacts/05_findings/CAND-HAPROXY-HTX-001/attack_path_analysis_report.md",
+      "artifact_type": "attack_path_analysis_report",
+      "sha256": "61da851e8b66dcceab11c4b19c233cf89bf4194f088188a756ea8b2e986f0b01",
+      "command": "rtk run -c 'sha256sum artifacts/05_findings/CAND-HAPROXY-HTX-001/attack_path_analysis_report.md'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T19:24:00Z",
+      "retention_status": "retained_task_artifact"
+    }
+  ],
+  "root_cause": "The 8192-byte snapshot cap correctly bounds allocation, but its failure path calls abort_context and continues the callback rather than selecting the existing pre-commit host denial path. The current route is not a promoted supported product surface.",
+  "root_cause_de": "Die 8192-Byte-Snapshot-Grenze begrenzt die Allokation korrekt, aber ihr Fehlerpfad ruft abort_context auf und setzt den Callback fort, statt den vorhandenen Pre-Commit-Host-Deny-Pfad zu wählen. Der aktuelle Pfad ist keine promotete unterstützte Produktschnittstelle.",
+  "proposed_remediation": "Conditional future hardening only: if the route is promoted, preserve the cap and convert capture/begin failure to an explicit fail-closed reply-and-close path before forwarding.",
+  "proposed_remediation_de": "Nur bedingtes zukünftiges Hardening: Wenn der Pfad promotiert wird, die Grenze beibehalten und Capture-/Begin-Fehler vor dem Forwarding in einen expliziten fail-closed Reply-and-Close-Pfad überführen.",
+  "acceptance_criteria": [
+    "If promoted, over-cap HTX input cannot reach the original/backend path.",
+    "If promoted, a normal in-cap request remains available and correctly enforced.",
+    "Host acceptance is recorded separately from connector enforcement."
+  ],
+  "validation_plan": [
+    "Use a task-owned pinned HAProxy 3.2.21 build and local backend receipt marker.",
+    "Run over-cap URI, normal-size matching deny, boundary-size, and non-matching allow controls.",
+    "Re-triage the finding before release if the route is declared supported or exposed beyond loopback."
+  ],
+  "regression_tests": [
+    "No current product regression is required while the route remains non-promoted.",
+    "Add a native over-cap URI fail-closed regression before any promotion."
+  ],
+  "legitimate_control_tests": [
+    "Use normal deny, boundary-size, and non-matching allow controls in the same native host profile."
+  ],
+  "dependencies": [
+    "Supported-route promotion or concrete deployment evidence",
+    "Pinned HAProxy 3.2.21 and libmodsecurity runtime"
+  ],
+  "blocked_by": [
+    "exact route is non-promoted observer/reference code",
+    "no native host acceptance or backend-forwarding evidence"
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0010"
+  ],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260720T164715Z-parent-security-reconciliation-5a22cbf5"
+  ],
+  "residual_risk": "The static fail-open path must be reopened if the HTX overlay is promoted, exposed beyond loopback, or shown to forward an over-cap URI while inspection is disabled. No risk is accepted.",
+  "residual_risk_de": "Der statische Fail-Open-Pfad muss erneut eröffnet werden, wenn das HTX-Overlay promotiert, über loopback hinaus exponiert oder als Forwarder einer Over-Cap-URI bei deaktivierter Inspektion nachgewiesen wird. Es wird kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-20T19:30:00Z",
+  "final_disposition": "not_applicable_with_evidence_archived_20260726",
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-20T19:30:00Z",
+      "event": "attack_path_retriaged_not_applicable",
+      "detail": "Current-target attack-path analysis retained the static connector control-flow evidence but established that the exact HTX route is non-promoted observer/reference code with loopback checked-in references. The lifecycle status is not_applicable_with_evidence, not a false-positive or fixed claim."
+    }
+  ]
+}

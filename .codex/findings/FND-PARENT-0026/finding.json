@@ -1,0 +1,132 @@
+{
+  "id": "FND-PARENT-0026",
+  "title": "Runtime path policy trusts caller-controlled project roots as confinement anchors",
+  "title_de": "Runtime-Pfad-Policy vertraut caller-kontrollierten Projekt-Roots als Confinement-Ankern",
+  "category": "security_hardening",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "medium",
+  "confidence": "reproduced",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "ci/lib/runtime_path_utils.py",
+    "ci/runtime/common/resolve-runtime-paths.py",
+    "ci/runtime/lifecycle/run-no-crs-baseline.sh",
+    "ci/checks/evidence/check-runtime-producer-readiness.py",
+    "ci/checks/security/check-runtime-path-policy.py",
+    "tests/test_runtime_path_policy.py",
+    "tests/test_resolve_runtime_paths.py",
+    "tests/test_runtime_producer_readiness_path_policy.py"
+  ],
+  "affected_symbols": [
+    "runtime_path_allowed",
+    "resolve_runtime_paths",
+    "REPO_ROOT",
+    "CONNECTOR_ROOT",
+    "FRAMEWORK_ROOT"
+  ],
+  "source_commits": [
+    "46f35ad40822081e5b4c8d5c120dd41e2a74344f",
+    "614c80493b6ebd25a17e1d27979071e5e30584d4"
+  ],
+  "summary": "Runtime path helpers accepted mutable project-root values as trusted containment anchors. Setting a root to `/` classified descendants of `/etc` and `/root` as runtime-allowed; the resolver also accepted broad `/root/poc-*` bases.",
+  "summary_de": "Runtime-Pfad-Helper akzeptierten veränderliche Projekt-Root-Werte als vertrauenswürdige Containment-Anker. Setzen eines Roots auf `/` klassifizierte Nachfahren von `/etc` und `/root` als Runtime-erlaubt; der Resolver akzeptierte außerdem breite `/root/poc-*`-Basen.",
+  "observed_behavior": "`runtime_path_utils.py:50-98` derives trusted roots from mutable environment inputs. A side-effect-free probe classified `/etc/evidence-escape` and `/root/evidence-escape` as allowed when project roots were `/`; the lifecycle resolver accepted five `/root/poc-*` bases without writing.",
+  "observed_behavior_de": "`runtime_path_utils.py:50-98` leitet vertrauenswürdige Roots aus veränderlichen Environment-Inputs ab. Ein nebenwirkungsfreier Probe klassifizierte `/etc/evidence-escape` und `/root/evidence-escape` als erlaubt, wenn Projekt-Roots `/` waren; der Lifecycle-Resolver akzeptierte fünf `/root/poc-*`-Basen ohne Schreibvorgang.",
+  "expected_behavior": "Project roots may not declassify arbitrary system-path descendants. Invocation-owned runtime bases must be canonical, safe children of a validated external task root; ordinary source roots remain read-only inputs.",
+  "expected_behavior_de": "Projekt-Roots dürfen beliebige Systempfad-Nachfahren nicht deklassifizieren. Invocation-eigene Runtime-Basen müssen kanonische sichere Nachfahren eines validierten externen Task-Roots sein; gewöhnliche Source-Roots bleiben read-only Inputs.",
+  "impact": "A local or future caller that controls path inputs can bypass intended containment and direct lifecycle artifacts toward broad system-user locations. Current workflows bind roots to runner temporary locations, so no untrusted pull-request expression reachability was proven.",
+  "impact_de": "Ein lokaler oder zukünftiger Caller mit Kontrolle über Pfad-Inputs kann das beabsichtigte Containment umgehen und Lifecycle-Artefakte in breite System-User-Locations lenken. Aktuelle Workflows binden Roots an Runner-Temporary-Locations; eine untrusted Pull-Request-Expression-Reachability wurde nicht bewiesen.",
+  "preconditions": [
+    "A caller can provide project or lifecycle root inputs.",
+    "The path helper is used before a runtime artifact write."
+  ],
+  "reproduction": [
+    "Call the side-effect-free runtime path helper with `REPO_ROOT=/`, `CONNECTOR_ROOT=/`, and `FRAMEWORK_ROOT=/` and inspect `/etc/evidence-escape` and `/root/evidence-escape` classifications.",
+    "Run the lifecycle resolver with `/root/poc-*` bases and observe successful resolution without writes.",
+    "Use a distinct task-owned external root as the legitimate control."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/05_findings/CAND-PARENT-003-path-confinement/validation_report.md",
+      "artifact_type": "codex_security_validation_report",
+      "sha256": "f4468abc4b55ead3129e62093cbe85e3022800f5a99e903b6f0ad1e1c1a457f3",
+      "command": "rtk env PYTHONPATH=/root/git/ModSecurity-conector/ci/lib PYTHONDONTWRITEBYTECODE=1 .venv/bin/python <side-effect-free path probe>; retained resolver probes",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T09:22:02Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/06_delivery/pr_delivery_status.json",
+      "artifact_type": "draft_pr_delivery_status",
+      "sha256": "70aa1c1c9048027f02da2bad4f097165d267e70befeb965eec735b512dc1c366",
+      "command": "rtk gh pr checks 58 --repo Easton97-Jens/ModSecurity-conector",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T11:13:55Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The policy uses caller-controlled project roots as positive authorization anchors instead of constraining runtime paths to a single invocation-owned external root.",
+  "root_cause_de": "Die Policy verwendet caller-kontrollierte Projekt-Roots als positive Autorisierungsanker, statt Runtime-Pfade auf einen einzigen invocation-eigenen externen Root zu beschränken.",
+  "proposed_remediation": "Reject broad/system bases and environment-derived project roots for writable runtime paths. Resolve every writable lifecycle base against a validated invocation root and retain explicit read-only source-root handling separately.",
+  "proposed_remediation_de": "Breite/System-Basen und environment-abgeleitete Projekt-Roots für beschreibbare Runtime-Pfade ablehnen. Jede beschreibbare Lifecycle-Basis gegen einen validierten Invocation-Root auflösen und explizite read-only Source-Root-Behandlung getrennt beibehalten.",
+  "acceptance_criteria": [
+    "`/`, `/etc`, `/root`, and their descendants cannot become writable runtime roots through project-root input values.",
+    "Symlink, traversal, and mixed-root escapes fail closed after canonicalization.",
+    "A distinct safe run layout beneath the task-owned external root remains accepted.",
+    "Current workflow-owned runner temporary layouts remain supported."
+  ],
+  "validation_plan": [
+    "Add path-escape fixtures before the source fix, including project roots set to `/` and a lexical traversal/symlink alternative.",
+    "Run helper and lifecycle-resolver negative/control tests without writing to system paths.",
+    "Run the focused runtime-path and lifecycle test suites plus security diff scan."
+  ],
+  "regression_tests": [
+    "Focused runtime_path_utils tests for broad project-root rejection.",
+    "Focused resolve-runtime-paths tests for canonical task-root containment."
+  ],
+  "legitimate_control_tests": [
+    "A safe connector run layout below a task-owned external root resolves successfully.",
+    "Read-only project-source paths remain usable where explicitly required."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [],
+  "source_run_ids": [
+    "20260718T075200Z-parent-evidence-integrity-ade378cf"
+  ],
+  "residual_risk": "PR 58 exact head 4f028f911807def8b771faaa3b16c58a513e0385 passed 33 checks, CodeQL, SonarCloud, focused negative controls, and security review. The local full shell policy half remains blocked by the absent Framework common.sh in the isolated Parent worktree; no Framework content was changed. No merge/master rerun occurred.",
+  "residual_risk_de": "Der exakte PR-58-Head 4f028f911807def8b771faaa3b16c58a513e0385 bestand 33 Checks, CodeQL, SonarCloud, fokussierte Negativkontrollen und Security-Review. Die vollständige lokale Shell-Policy-Hälfte bleibt wegen des fehlenden Framework-common.sh im isolierten Parent-Worktree blockiert; kein Framework-Inhalt wurde geändert. Es gab keinen Merge/Master-Rerun.",
+  "created_at": "2026-07-18T09:22:02Z",
+  "updated_at": "2026-07-18T11:51:43Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-18T09:22:02Z",
+      "event": "validated_side_effect_free_path_escape",
+      "detail": "Controlled root values bypassed helper containment for system-path descendants; current PR-expression reachability was not established."
+    },
+    {
+      "at": "2026-07-18T11:13:55Z",
+      "event": "fixed_on_verified_pr_head",
+      "detail": "PR 58 exact head passed 33 GitHub checks, CodeQL, SonarCloud, focused negative/control tests, and security review. The finding remains fixed rather than verified/closed until merge and master rerun."
+    },
+    {
+      "at": "2026-07-18T11:51:43Z",
+      "event": "corrected_affected_file_provenance",
+      "detail": "Corrected the non-existent ci/runtime/lifecycle/resolve-runtime-paths.py path to ci/runtime/common/resolve-runtime-paths.py and recorded the actual Parent checks and focused test files from PR 58."
+    }
+  ]
+}

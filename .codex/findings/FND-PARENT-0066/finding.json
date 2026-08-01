@@ -1,0 +1,149 @@
+{
+  "id": "FND-PARENT-0066",
+  "title": "Invalid full-matrix control evidence can retain pass status and permit evidence-only reclassification",
+  "title_de": "Ungültige Full-Matrix-Control-Evidence kann den Status pass behalten und eine reine Evidence-Reklassifizierung erlauben",
+  "category": "evidence_gap",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "low",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "security_assessment": "validated_low_ci_evidence_integrity_control_failure",
+  "connector": "apache, haproxy, nginx full-matrix evidence",
+  "protocol": "CI full-matrix HTTP status evidence",
+  "profile": "verified runtime mismatch analysis",
+  "affected_files": [
+    "ci/evidence/reports/generate-verified-runtime-mismatch-analysis.py",
+    "tests/test_report_conditional_remediation.py"
+  ],
+  "affected_symbols": [
+    "full_matrix_case_control_evidence",
+    "full_matrix_control_evidence",
+    "apply_semicolon_collection_semantics_classification",
+    "apply_collection_name_case_semantics_classification"
+  ],
+  "trust_boundary": "full-matrix summary JSON produced by connector CI runs and consumed as merge-readiness classification evidence",
+  "sink": "the downstream all-pass gates in apply_semicolon_collection_semantics_classification() and apply_collection_name_case_semantics_classification(), which can reclassify mismatches as documentation-only evidence",
+  "summary": "At Parent source revision 9f23ae2c5fe908cef38f203be03f93fda75a8dd7, full_matrix_case_control_evidence() preserves a producer status of pass in its fallback even when the required 403/live predicate is false. Both downstream classifiers accept every record whose emitted status equals pass. A focused pre-fix regression reproduced the non-live bypass; the adjacent wrong-actual-status input follows the same fallback. This is a bounded CI evidence-integrity failure, not a demonstrated runtime HTTP-enforcement bypass or external attacker path.",
+  "summary_de": "Auf Parent-Source-Revision 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 bewahrt full_matrix_case_control_evidence() im Fallback einen Producer-Status pass, obwohl das erforderliche 403/live-Prädikat falsch ist. Beide Downstream-Classifiers akzeptieren jeden Record, dessen ausgegebener Status pass ist. Eine fokussierte Pre-Fix-Regression reproduzierte den Non-Live-Bypass; der benachbarte Input mit falschem Actual-Status folgt demselben Fallback. Dies ist ein begrenzter CI-Evidence-Integrity-Fehler, kein belegter Runtime-HTTP-Enforcement-Bypass oder externer Angreiferpfad.",
+  "observed_behavior": "For a summary record with status=pass, expected_status=403, actual_status=403, and live_executed=false, the helper's success predicate is false but its fallback emits status=pass. The retained focused unit then fails because it requires status=fail. A record with status=pass, expected_status=403, actual_status=200, and live_executed=true follows the same fallback and is also exposed as pass. The downstream gates check only emitted status.",
+  "observed_behavior_de": "Für einen Summary-Record mit status=pass, expected_status=403, actual_status=403 und live_executed=false ist das Erfolgsprädikat des Helpers falsch, aber sein Fallback gibt status=pass aus. Die aufbewahrte fokussierte Unit schlägt deshalb fehl, weil sie status=fail verlangt. Ein Record mit status=pass, expected_status=403, actual_status=200 und live_executed=true folgt demselben Fallback und wird ebenfalls als pass ausgegeben. Die Downstream-Gates prüfen nur den ausgegebenen Status.",
+  "expected_behavior": "A control record may be emitted as pass only when status=pass, expected=403, actual-or-observed=403, and live_executed is true. Any failed predicate must emit a non-passing control state so neither downstream classifier may reclassify a mismatch as documentation-only evidence. Valid live 403 controls and existing missing or blocked evidence remain visible with compatible fields.",
+  "expected_behavior_de": "Ein Control-Record darf nur als pass ausgegeben werden, wenn status=pass, expected=403, actual-oder-observed=403 und live_executed true ist. Jedes fehlgeschlagene Prädikat muss einen nicht erfolgreichen Control-Status ausgeben, damit keiner der Downstream-Classifier einen Mismatch als reine Dokumentations-Evidence reklassifizieren kann. Gültige Live-403-Controls sowie bestehende Missing- oder Blocked-Evidence bleiben mit kompatiblen Feldern sichtbar.",
+  "impact": "Malformed, stale, or otherwise untrustworthy CI producer evidence can make a false allow or non-live control appear sufficient for an evidence-only reclassification, potentially lowering a generated mismatch report's criticality or merge-readiness signal. The available evidence does not show request-path enforcement bypass, direct attacker control in hosted CI, source-code execution, filesystem access, secrets exposure, or a production security vulnerability.",
+  "impact_de": "Fehlerhafte, veraltete oder anderweitig nicht vertrauenswürdige CI-Producer-Evidence kann ein False-Allow oder ein Non-Live-Control für eine reine Evidence-Reklassifizierung ausreichend erscheinen lassen und dadurch potenziell die Kritikalität eines generierten Mismatch-Reports oder sein Merge-Readiness-Signal senken. Die verfügbare Evidence zeigt keinen Request-Path-Enforcement-Bypass, keine direkte Angreiferkontrolle in Hosted CI, keine Source-Code-Ausführung, keinen File-Zugriff, keine Secret-Exposition und keine Produktions-Sicherheitslücke.",
+  "preconditions": [
+    "A full-matrix summary case reaches full_matrix_case_control_evidence().",
+    "The producer record declares status pass but violates at least one of expected=403, actual-or-observed=403, or live_executed=true.",
+    "A downstream collection-semantics classifier evaluates the resulting control-evidence map."
+  ],
+  "reproduction": [
+    "At source revision 9f23ae2c5fe908cef38f203be03f93fda75a8dd7, run tests.test_report_conditional_remediation.ReportConditionalRemediationTest.test_full_matrix_control_evidence_keeps_fixed_case_and_fallback_contracts with the retained pre-fix assertions.",
+    "The test supplies a pass/403/403/non-live HAProxy producer record and requires a non-passing result. The unpatched helper returns pass and the test exits 1.",
+    "The same test contains an adjacent pass/403/200/live input, which exercises the wrong-actual-status bypass after the first negative assertion is corrected."
+  ],
+  "evidence": [
+    {
+      "run_id": "ci-b-verified-runtime-mismatch-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-b-verified-runtime-mismatch-qgBSMu/pre-fix-control-evidence-negative-test.txt",
+      "artifact_type": "pre_fix_focused_control_evidence_regression_failure",
+      "sha256": "ef0876d194abe7258f5302263b0efa0a35f40a869cf84d2d00ad5d463427efe9",
+      "command": "rtk proxy bash -lc 'PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=<task-pycache> TMPDIR=<task-tmp> /root/git/ModSecurity-conector/.venv/bin/python -m unittest tests.test_report_conditional_remediation.ReportConditionalRemediationTest.test_full_matrix_control_evidence_keeps_fixed_case_and_fallback_contracts'",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260729-ci-verified-runtime-mismatch-deduplication",
+      "exit_code": 1,
+      "observed_at": "2026-07-29T08:58:00Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The pre-fix regression expected fail but observed pass for status=pass, expected_status=403, actual_status=403, live_executed=false."
+    },
+    {
+      "run_id": "ci-b-verified-runtime-mismatch-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-b-verified-runtime-mismatch-qgBSMu/post-fix-control-evidence-regression.txt",
+      "artifact_type": "post_fix_focused_control_evidence_regression_pass",
+      "sha256": "8d4bf504a6df5bb876c39f6661dfad646c4312f682bb1cc5f38a2d02216a35e1",
+      "command": "rtk proxy bash -lc 'PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=<task-pycache> TMPDIR=<task-tmp> /root/git/ModSecurity-conector/.venv/bin/python -m unittest tests.test_report_conditional_remediation.ReportConditionalRemediationTest.test_full_matrix_control_evidence_keeps_fixed_case_and_fallback_contracts'",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260729-ci-verified-runtime-mismatch-deduplication",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T09:04:00Z",
+      "retention_status": "retained_task_evidence",
+      "result": "After the focused fallback normalization, valid live-403 controls remain pass while pass/403/403/non-live and pass/403/200/live controls are fail."
+    },
+    {
+      "run_id": "ci-b-verified-runtime-mismatch-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/security-scans/ModSecurity-conector/9f23ae2c5fe908cef38f203be03f93fda75a8dd7_20260729T090933Z/report.md",
+      "artifact_type": "completed_local_security_diff_scan_report",
+      "sha256": "9bfca65429f8bc6bffe5331244d580e3ca560fd6eb84582741e005c11ffdedc1",
+      "command": "rtk proxy env CODEX_SECURITY_STARTED_AT=2026-07-29T09:09:33Z PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python /root/.codex/plugins/cache/openai-curated-remote/codex-security/0.1.14/scripts/finalize_scan_contract.py --scan-dir <task-scan-dir> --source-root <task-worktree>",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T09:22:33Z",
+      "retention_status": "sealed_task_scan",
+      "result": "Complete two-path local security diff scan; no reportable diff-induced finding and no weakened source, path, output, or classifier control."
+    }
+  ],
+  "root_cause": "full_matrix_case_control_evidence() uses the producer status unchanged in the fallback branch after the stricter four-part predicate fails. Its consumers use the emitted status as the all-pass gate, so a producer-declared pass can bypass the stricter predicate.",
+  "root_cause_de": "full_matrix_case_control_evidence() verwendet im Fallback-Zweig den Producer-Status unverändert, nachdem das strengere vierteilige Prädikat fehlschlägt. Seine Consumer verwenden den ausgegebenen Status als All-Pass-Gate, so dass ein vom Producer erklärtes pass das strengere Prädikat umgehen kann.",
+  "proposed_remediation": "Keep the existing success predicate and compatibility wrapper, but normalize an unsafe fallback producer status pass to fail whenever that predicate is not met. Add direct regressions for non-live pass and wrong-actual pass inputs, keep a legitimate live 403 pass control, and run the focused report test, syntax validation, bypass review, and exact-head hosted checks. Do not weaken evidence predicates, safe-root controls, scanner rules, exclusions, suppressions, or Quality Gates.",
+  "proposed_remediation_de": "Das bestehende Erfolgsprädikat und den Kompatibilitäts-Wrapper beibehalten, aber einen unsicheren Fallback-Producer-Status pass zu fail normalisieren, sobald dieses Prädikat nicht erfüllt ist. Direkte Regressionen für Non-Live-pass- und Wrong-Actual-pass-Inputs ergänzen, ein legitimes Live-403-pass-Control erhalten und den fokussierten Report-Test, Syntax-Validierung, Bypass-Review und Exact-Head-Hosted-Checks ausführen. Evidence-Prädikate, Safe-Root-Controls, Scanner-Regeln, Exclusions, Suppressions oder Quality Gates nicht abschwächen.",
+  "acceptance_criteria": [
+    "The pass/403/403/non-live control record is emitted as non-passing and cannot satisfy either all-pass classification gate.",
+    "The pass/403/200/live control record is emitted as non-passing and cannot satisfy either all-pass classification gate.",
+    "A legitimate pass/403/403/live control record remains emitted as pass with compatible evidence fields.",
+    "The compatibility wrapper and parameterized helper remain equivalent for ARGS_NAMES_CONTROL_CASE.",
+    "Focused tests, syntax checks, final security/bypass review, and exact-head hosted PR checks are recorded without weakening any control."
+  ],
+  "validation_plan": [
+    "Run the retained baseline regression and retain its failure receipt.",
+    "Apply the smallest helper fallback normalization and rerun the same focused test with both invalid inputs and a valid live 403 control.",
+    "Inspect both downstream all-pass consumers and run a focused bypass review for actual_status and observed_status variants.",
+    "Run focused test-module, Python compilation, diff checks, and a final security-diff review of the changed source and test paths.",
+    "After Draft-PR delivery, observe exact-head GitHub checks and SonarQube Cloud new-issue and new-duplication measures."
+  ],
+  "regression_tests": [
+    "test_full_matrix_control_evidence_keeps_fixed_case_and_fallback_contracts: pass/403/403/non-live and pass/403/200/live records must be non-passing."
+  ],
+  "legitimate_control_tests": [
+    "test_full_matrix_control_evidence_keeps_fixed_case_and_fallback_contracts: pass/403/403/live Apache and observed-status NGINX controls remain pass.",
+    "The fixed wrapper remains exactly equivalent to the parameterized helper for ARGS_NAMES_CONTROL_CASE."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0016"
+  ],
+  "deduplication_note": "Distinct from FND-SONAR-0016: this is a current Parent CI evidence-control defect with a focused reproducer, not a Sonar static-analysis backlog record.",
+  "source_run_ids": [
+    "ci-b-verified-runtime-mismatch-20260729"
+  ],
+  "residual_risk": "Draft PR #178 at exact head 178f0f9b965f75982230ef855fe386474e9a4652 has passed its hosted GitHub checks and SonarQube Cloud reports Quality Gate OK with zero new violations and zero new duplicate lines. The finding remains fixed, not verified or closed, because no current-task master integration or resulting-master original reproduction has occurred. No direct production exploit or external hosted-CI attacker reachability is claimed.",
+  "residual_risk_de": "Draft-PR #178 am exakten Head 178f0f9b965f75982230ef855fe386474e9a4652 hat seine Hosted-GitHub-Checks bestanden, und SonarQube Cloud meldet Quality Gate OK mit null neuen Violations und null neuen Duplicate Lines. Das Finding bleibt fixed, nicht verified oder closed, weil keine Master-Integration im aktuellen Task und keine Original-Reproduktion auf dem resultierenden Master erfolgte. Kein direkter Produktions-Exploit oder externer Hosted-CI-Angreiferpfad wird beansprucht.",
+  "created_at": "2026-07-29T09:02:14Z",
+  "updated_at": "2026-07-29T09:48:47Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-29T09:02:14Z",
+      "event": "focused_pre_fix_control_evidence_bypass_reproduced",
+      "detail": "A focused unit demonstrated that a producer-declared pass with live_executed=false is still emitted as pass after the helper predicate rejects it."
+    },
+    {
+      "at": "2026-07-29T09:02:14Z",
+      "event": "remediation_started",
+      "detail": "The correction is limited to the selected Parent CI helper and its direct regression test; delivery remains a separate Draft-PR outcome."
+    },
+    {
+      "at": "2026-07-29T09:26:36Z",
+      "event": "local_remediation_fixed_pending_exact_head_verification",
+      "detail": "The shared fallback now converts an invalid producer pass to fail. The retained post-fix regression, the full 11-test module, selected Python compilation, diff hygiene, and a complete two-path local security diff scan passed. Exact Draft-PR head, hosted SonarQube Cloud, and resulting-master reproduction evidence remain required before verified or closed."
+    },
+    {
+      "at": "2026-07-29T09:48:47Z",
+      "event": "exact_head_hosted_verification_completed",
+      "detail": "Draft PR #178 is open and draft at 178f0f9b965f75982230ef855fe386474e9a4652, identical to the local and remote branch head. GitHub reports 33 passed and zero failed checks. SonarQube Cloud reports Quality Gate OK, zero open PR issues, new_violations=0, new_duplicated_lines=0, and new_duplicated_lines_density=0.0. The finding remains fixed pending an explicitly authorized master integration and resulting-master original reproduction."
+    }
+  ]
+}

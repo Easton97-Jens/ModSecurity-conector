@@ -1,0 +1,177 @@
+{
+  "id": "FND-SONAR-0012",
+  "title": "MRTS PR #3 SonarQube Cloud validator signals are resolved by merged PR #4",
+  "title_de": "Die SonarQube-Cloud-Validator-Signale von MRTS-PR #3 sind durch den gemergten PR #4 behoben",
+  "summary": "Historical MRTS PR #3 failed with seven validator signals. MRTS PR #4 remediated the condition, passed all GitHub checks and SonarQube Cloud, and was merged as current main 615b13bacbd008562c17408246c41ab27dca3104; current live rechecks confirm zero vulnerabilities.",
+  "summary_de": "Der historische MRTS-PR #3 scheiterte mit sieben Validator-Signalen. MRTS-PR #4 remedierte die Bedingung, bestand alle GitHub-Checks und SonarQube Cloud und wurde als aktueller main 615b13bacbd008562c17408246c41ab27dca3104 gemergt; aktuelle Live-Checks bestätigen null Vulnerabilities.",
+  "category": "sonarqube_finding",
+  "repository": "mrts",
+  "ownership": "mrts",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "closed",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "tools/validate-governance.py"
+  ],
+  "affected_symbols": [
+    "EXPECTED_REPOSITORIES",
+    "validate_cleanup_manifest",
+    "load_cleanup_manifest"
+  ],
+  "observed_behavior": "Historical PR #3 failed new_security_rating with seven validator vulnerabilities. Remediation PR #4 head 9cdfd4136286014b244f8fecfb99701681fecae4 passed Analyze (python), CodeQL, Python 3.14 governance, and SonarCloud, then merged as main 615b13bacbd008562c17408246c41ab27dca3104. Current live PR #3, PR #4, and main rechecks report Quality Gate OK and zero vulnerabilities.",
+  "observed_behavior_de": "Der historische PR #3 scheiterte an new_security_rating mit sieben Validator-Vulnerabilities. Remediation-PR #4 mit Head 9cdfd4136286014b244f8fecfb99701681fecae4 bestand Analyze (python), CodeQL, Python-3.14-Governance und SonarCloud und wurde anschließend als main 615b13bacbd008562c17408246c41ab27dca3104 gemergt. Aktuelle Live-Checks für PR #3, PR #4 und main melden Quality Gate OK und null Vulnerabilities.",
+  "expected_behavior": "Current MRTS main retains a passing SonarQube Cloud Quality Gate and no open task-owned validator vulnerability without changing rules, the Quality Gate, exclusions, suppressions, false-positive dispositions, or security controls.",
+  "expected_behavior_de": "Der aktuelle MRTS-main bewahrt ein bestehendes SonarQube-Cloud-Quality-Gate und keine offene aufgabeneigene Validator-Vulnerability ohne Änderung von Regeln, Quality Gate, Exclusions, Suppressions, False-Positive-Dispositionen oder Security-Controls.",
+  "impact": "The former CI/quality-gate blocker is resolved. This closure applies only to the seven historical PR #3 validator signals and does not resolve unrelated SonarQube Cloud coverage or Framework findings.",
+  "impact_de": "Der frühere CI-/Quality-Gate-Blocker ist behoben. Dieser Abschluss gilt nur für die sieben historischen Validator-Signale von PR #3 und löst keine unabhängigen SonarQube-Cloud-Coverage- oder Framework-Findings.",
+  "preconditions": [
+    "The retained historical PR #3 receipt documents the former failure at e8bb04edf9e0cea03786e834c1f516f367d6136a.",
+    "MRTS PR #4 is merged as current main 615b13bacbd008562c17408246c41ab27dca3104.",
+    "The retained PR #4 and resulting-main receipts are hash-valid, and current public SonarQube Cloud and GitHub readbacks are available."
+  ],
+  "reproduction": [
+    "The historical receipt proves the former PR #3 failure.",
+    "rtk gh pr checks 4 --repo Easton97-Jens/MRTS reports Analyze (python), CodeQL, Python 3.14 governance, and SonarCloud Code Analysis as passed.",
+    "PR #4 and main SonarQube Cloud Quality Gate and vulnerability receipts report status OK and zero vulnerabilities; current live rechecks confirm the same state."
+  ],
+  "root_cause": "The original PR #3 validator shape triggered Sonar taint rules for local manifest paths. PR #4 applied the focused repository-native remediation and test coverage without weakening scanner rules, the Quality Gate, containment, symlink, remote, Gitlink, or cleanup controls.",
+  "root_cause_de": "Die ursprüngliche PR-#3-Validator-Form löste Sonar-Taint-Regeln für lokale Manifest-Pfade aus. PR #4 wandte die fokussierte repository-native Remediation samt Testabdeckung an, ohne Scanner-Regeln, Quality Gate, Containment, Symlink-, Remote-, Gitlink- oder Cleanup-Controls abzuschwächen.",
+  "proposed_remediation": "Completed by merged MRTS PR #4. Preserve the focused validator controls and tests; future changes require fresh exact-head SonarQube Cloud and GitHub-check evidence.",
+  "proposed_remediation_de": "Durch den gemergten MRTS-PR #4 abgeschlossen. Die fokussierten Validator-Controls und Tests bleiben erhalten; künftige Änderungen brauchen frische Exact-Head-SonarQube-Cloud- und GitHub-Check-Evidence.",
+  "acceptance_criteria": [
+    "MRTS PR #4 head 9cdfd4136286014b244f8fecfb99701681fecae4 passed Analyze (python), CodeQL, Python 3.14 governance, and SonarCloud Code Analysis.",
+    "The focused read-only, no-Git/no-shell/no-network/no-cleanup-execution and exact-cleanup invariants remain preserved by the retained PR #4 validation and tests.",
+    "PR #4 and resulting main 615b13bacbd008562c17408246c41ab27dca3104 report Quality Gate OK and zero open vulnerabilities.",
+    "No Sonar rule, Quality Gate, exclusion, false-positive disposition, NOSONAR marker, suppression, or security-control weakening was used."
+  ],
+  "validation_plan": [
+    "Retain the historical failure, PR #4 exact-head, resulting-main, and local-validation receipts.",
+    "Inspect the merged PR #4/current-main GitHub state, all terminal PR checks, current SonarQube Cloud Quality Gates, and open vulnerability inventories.",
+    "For a future validator change, rerun the focused source/control/sink review and exact-head SonarQube Cloud/GitHub checks."
+  ],
+  "regression_tests": [
+    "tools/test_validate_governance.py"
+  ],
+  "legitimate_control_tests": [
+    "Analyze (python), CodeQL, Python 3.14 governance, and SonarCloud Code Analysis passed for MRTS PR #4.",
+    "The retained focused local validation passed 38 tests, Python compileall, and git diff --check for the PR #4 remediation.",
+    "Existing negative controls preserve metacharacter-safe argv, shell=False, and pre-Popen failures for missing configuration or test paths."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0007",
+    "FND-FRAMEWORK-0055",
+    "FND-SONAR-0017"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260724T170026Z-worktree-cleanup-governance",
+      "artifact_path": ".codex/runs/20260724T170026Z-worktree-cleanup-governance/sonar-pr3-quality-gate.json",
+      "artifact_type": "retained_sonarcloud_pr_quality_gate_and_issue_receipt",
+      "sha256": "164f994006807455abe42da8b2b563eeb4a8032e04287d9a9bc3a5f42a6bbcf7",
+      "command": "rtk gh pr checks 3 --repo Easton97-Jens/MRTS; retained receipt records the exact SonarCloud quality-gate and issue API observations",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 1,
+      "observed_at": "2026-07-24T18:30:00Z",
+      "retention_status": "retained_local_task_evidence"
+    },
+    {
+      "run_id": "20260726T101017Z-mrts-sonarcloud-zero-pr4",
+      "artifact_path": ".codex/runs/20260726T101017Z-mrts-sonarcloud-zero-pr4/sonar-pr-issues.json",
+      "artifact_type": "retained_sonarcloud_pr_issue_receipt",
+      "sha256": "ee8fdf86104a53c760e40f0d42b92b51d2c13f2e289efcb6b562dce9076f6a55",
+      "command": "SonarCloud PR issue API query for Easton97-Jens_MRTS pullRequest=4",
+      "working_directory": "/var/tmp/codex/worktrees/mrts/mrts-sonarcloud-zero",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T10:10:17Z",
+      "retention_status": "retained_local_sealed_evidence"
+    },
+    {
+      "run_id": "20260726T101017Z-mrts-sonarcloud-zero-pr4",
+      "artifact_path": ".codex/runs/20260726T101017Z-mrts-sonarcloud-zero-pr4/sonar-quality-gate.json",
+      "artifact_type": "retained_sonarcloud_quality_gate_receipt",
+      "sha256": "1db063f467b49ec05719b0f44b2c703bc402ae52f2515452169ddafbe4343c64",
+      "command": "SonarCloud Quality Gate API query for Easton97-Jens_MRTS pullRequest=4",
+      "working_directory": "/var/tmp/codex/worktrees/mrts/mrts-sonarcloud-zero",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T10:10:17Z",
+      "retention_status": "retained_local_sealed_evidence"
+    },
+    {
+      "run_id": "20260726T105800Z-mrts-pr4-squash-merge",
+      "artifact_path": ".codex/runs/20260726T105800Z-mrts-pr4-squash-merge/github-post-merge.json",
+      "artifact_type": "retained_merged_main_workflow_and_boundary_receipt",
+      "sha256": "6d77c474bdc6a8b9744dd3ac8e2b6c76195a47e47fb945caa75acb5173a1f936",
+      "command": "Exact-head GitHub Squash merge connector plus GitHub PR/main/workflow/check-run/code-scanning readbacks",
+      "working_directory": "/var/tmp/codex/worktrees/mrts/mrts-sonarcloud-zero",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T10:57:32Z",
+      "retention_status": "retained_local_sealed_evidence"
+    },
+    {
+      "run_id": "20260726T105800Z-mrts-pr4-squash-merge",
+      "artifact_path": ".codex/runs/20260726T105800Z-mrts-pr4-squash-merge/sonar-main-issues.json",
+      "artifact_type": "retained_sonarcloud_main_issue_receipt",
+      "sha256": "58cf67de638c7b544b279c8365ac3334eb279716faed0996d6fe439a6ac9ad58",
+      "command": "SonarCloud issue API query for Easton97-Jens_MRTS branch=main",
+      "working_directory": "/var/tmp/codex/worktrees/mrts/mrts-sonarcloud-zero",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T10:58:00Z",
+      "retention_status": "retained_local_sealed_evidence"
+    },
+    {
+      "run_id": "20260726T105800Z-mrts-pr4-squash-merge",
+      "artifact_path": ".codex/runs/20260726T105800Z-mrts-pr4-squash-merge/sonar-main-quality-gate.json",
+      "artifact_type": "retained_sonarcloud_main_quality_gate_receipt",
+      "sha256": "0f88c3322a2a779ea067fcf61cbf21946c614836989b5f5d360f7c04f078e69b",
+      "command": "SonarCloud Quality Gate API query for Easton97-Jens_MRTS branch=main",
+      "working_directory": "/var/tmp/codex/worktrees/mrts/mrts-sonarcloud-zero",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T10:58:00Z",
+      "retention_status": "retained_local_sealed_evidence"
+    }
+  ],
+  "source_run_ids": [
+    "20260724T170026Z-worktree-cleanup-governance",
+    "20260726T101017Z-mrts-sonarcloud-zero-pr4",
+    "20260726T105800Z-mrts-pr4-squash-merge"
+  ],
+  "created_at": "2026-07-24T18:30:00Z",
+  "updated_at": "2026-07-26T17:45:32Z",
+  "affected_revision": "615b13bacbd008562c17408246c41ab27dca3104",
+  "feasibility_status": "feasible_now",
+  "residual_risk": "Future validator changes require fresh exact-head SonarQube Cloud and GitHub evidence. This closure does not resolve unrelated Framework coverage work in FND-SONAR-0009.",
+  "residual_risk_de": "Künftige Validator-Änderungen brauchen frische Exact-Head-SonarQube-Cloud- und GitHub-Evidence. Dieser Abschluss löst die unabhängige Framework-Coverage-Arbeit in FND-SONAR-0009 nicht.",
+  "evidence_limitations": "The closure is supported by retained PR #4/resulting-main receipts and current public SonarQube Cloud/GitHub readbacks. It does not establish a general security result for future validator changes or unrelated projects.",
+  "history": [
+    {
+      "at": "2026-07-24T18:30:00Z",
+      "event": "exact_draft_pr3_sonar_quality_gate_failed",
+      "detail": "Seven task-owned new scanner signals produce D new security rating; Analyze (python) and CodeQL passed."
+    },
+    {
+      "at": "2026-07-24T18:30:00Z",
+      "event": "static_triage_completed_without_source_change",
+      "detail": "Local tool-only surface and no-write contract are concrete counterevidence to the scanner's remote/HTTP exploit model; an external scanner disposition or scoped remediation remains a user decision."
+    },
+    {
+      "at": "2026-07-26T10:58:00Z",
+      "event": "pr4_remediation_merged_and_hosted_sonar_zero_verified",
+      "detail": "MRTS PR #4 passed all four terminal checks, was Squash-merged as current main 615b13bacbd008562c17408246c41ab27dca3104, and retained PR/main receipts prove Quality Gate OK with zero vulnerabilities."
+    },
+    {
+      "at": "2026-07-26T17:45:32Z",
+      "event": "current_live_sonar_and_github_reconciliation_closed",
+      "detail": "Current public PR #3, PR #4, project-main, and GitHub checks confirm the resolved state; the record is eligible for lossless local archival."
+    }
+  ],
+  "final_disposition": "closed_verified_by_merged_mrts_pr4_and_live_sonar_reconciliation_20260726"
+}

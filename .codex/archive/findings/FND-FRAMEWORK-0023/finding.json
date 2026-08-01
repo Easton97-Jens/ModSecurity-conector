@@ -1,0 +1,173 @@
+{
+  "id": "FND-FRAMEWORK-0023",
+  "title": "Framework PR #30 adds SonarQube Cloud new-code duplication in shared safety controls",
+  "title_de": "Framework-PR #30 fügt SonarQube-Cloud-Duplikation in gemeinsamen Sicherheitskontrollen hinzu",
+  "category": "sonarqube_finding",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "ci/reporting/generate-phase-work-queue.py",
+    "ci/reporting/generate-connector-work-queue.py",
+    "ci/reporting/generate-mrts-native-report.py",
+    "ci/provisioning/import-mrts-cases.py",
+    "ci/reporting/generate-case-matrix.py",
+    "tests/security_regression/test_modsecurity_v3_git_ref_provenance.py",
+    "tests/protocol_client/test_check_protocol_evidence.py"
+  ],
+  "affected_symbols": [
+    "_secure_directory_fd",
+    "_open_secure_temporary_file",
+    "_write_file_descriptor",
+    "write_generated_report_file",
+    "absolute_path_without_traversal",
+    "nearest_existing_directory",
+    "has_symlink_component",
+    "private_runtime_root"
+  ],
+  "summary": "SonarQube Cloud initially reported 182 new duplicated lines (1.1771554233232002%, displayed as 1.2%) on Framework PR #30. The first behavior-preserving refactor reduced a historical exact head to 32 lines (0.2059732234809475%) with Quality Gate OK. The refreshed exact head a448d056ef98e745d8551c198b2e56d33fe38194 now reports Quality Gate OK, new_duplicated_lines=0, and new_duplicated_lines_density=0.0 with all applicable local controls and hosted checks passing. The finding is fixed on the verified PR head; master integration is not authorized in this task.",
+  "summary_de": "SonarQube Cloud meldete auf Framework-PR #30 zunächst 182 neue duplizierte Zeilen (1.1771554233232002 %, angezeigt als 1.2 %). Die erste verhaltensbewahrende Refaktorierung reduzierte einen historischen Exact Head bei Quality Gate OK auf 32 Zeilen (0.2059732234809475 %). Der aktualisierte exakte Head a448d056ef98e745d8551c198b2e56d33fe38194 meldet nun Quality Gate OK, new_duplicated_lines=0 und new_duplicated_lines_density=0.0 bei bestandenen anwendbaren lokalen Controls und Hosted Checks. Der Befund ist auf dem verifizierten PR-Head fixed; eine Master-Integration ist in dieser Aufgabe nicht autorisiert.",
+  "observed_behavior": "The initial PR #30 component measure reported new_lines=15461, new_duplicated_lines=182, and density=1.1771554233232002 across seven files. After the first normal push, the exact ce6c1570d3dfbe4b4da5f9560068c37a807899d3 head reports new_duplicated_lines=32 and new_duplicated_lines_density=0.2059732234809475 with alert_status=OK. File-level residual attribution is 14 lines in ci/reporting/generate-case-matrix.py and 18 in tests/security_regression/test_modsecurity_v3_git_ref_provenance.py. Sonar pairs the case-matrix blocks at lines 2947-3021 and 3146-3220 (75 lines each) and pairs the V3 assertion sequence with test_crs_git_ref_provenance.py lines 221-237. The residual is not a zero result and therefore does not satisfy the requested integration criterion.",
+  "observed_behavior_de": "Die anfängliche PR-#30-Komponentenmetrik meldete new_lines=15461, new_duplicated_lines=182 und density=1.1771554233232002 über sieben Dateien. Nach dem ersten normalen Push meldet der exakte Head ce6c1570d3dfbe4b4da5f9560068c37a807899d3 new_duplicated_lines=32 und new_duplicated_lines_density=0.2059732234809475 mit alert_status=OK. Die Restzuordnung auf Dateiebene beträgt 14 Zeilen in ci/reporting/generate-case-matrix.py und 18 in tests/security_regression/test_modsecurity_v3_git_ref_provenance.py. Sonar paart die Case-Matrix-Blöcke bei Zeilen 2947-3021 und 3146-3220 (je 75 Zeilen) und paart die V3-Assertion-Sequenz mit test_crs_git_ref_provenance.py Zeilen 221-237. Der Rest ist kein Null-Ergebnis und erfüllt deshalb das verlangte Integrationskriterium nicht.",
+  "expected_behavior": "The updated PR must retain all path traversal, symlink, directory-descriptor, temporary-file, atomic-replacement, provenance, and protocol assertions while using one reviewed implementation per shared behavior. Its exact current head must report zero new duplicated lines and 0.0% new duplicated-line density without changing SonarQube Cloud configuration, exclusions, thresholds, coverage, suppressions, or quality gates.",
+  "expected_behavior_de": "Der aktualisierte PR muss alle Assertions zu Path-Traversal, Symlinks, Directory-Deskriptoren, temporären Dateien, atomarem Ersetzen, Provenance und Protokoll bewahren, während er je gemeinsamem Verhalten eine geprüfte Implementierung nutzt. Sein exakter aktueller Head muss ohne Änderung von SonarQube-Cloud-Konfiguration, Exclusions, Grenzwerten, Coverage, Suppressions oder Quality Gates null neue duplizierte Zeilen und 0.0 % New-Duplicated-Line-Density melden.",
+  "impact": "Duplicated security-sensitive helpers can drift in rejection order, error handling, file-descriptor lifetime, or confinement semantics. The direct current impact is a user-blocking PR maintainability and quality result, not a validated exploitable vulnerability. The affected control paths require behavior-preserving extraction and negative-control regression tests.",
+  "impact_de": "Duplizierte sicherheitssensitive Helfer können bei Ablehnungsreihenfolge, Fehlerbehandlung, File-Descriptor-Lebensdauer oder Confinement-Semantik auseinanderdriften. Die direkte aktuelle Auswirkung ist ein vom Nutzer blockierter PR-Maintainability- und Quality-Befund, keine validierte ausnutzbare Schwachstelle. Die betroffenen Control-Pfade erfordern eine verhaltensbewahrende Extraktion und Negative-Control-Regressionstests.",
+  "preconditions": [
+    "Framework PR #30 remains open from fix/sonarcloud-quality-gate to master.",
+    "The measured pre-update head is b6af3ec83011b2070f6bbe4b3f471478b373f055.",
+    "The observed Framework master is 9a729226d2e040d07d7e7a4acebf201faf06ab37.",
+    "The first remediated and normally pushed PR head is ce6c1570d3dfbe4b4da5f9560068c37a807899d3; it remains insufficient until a later exact head has zero duplication.",
+    "The SonarQube Cloud PR analysis is available for Easton97-Jens_ModSecurity-test-Framework pull request 30."
+  ],
+  "reproduction": [
+    "rtk curl --fail --silent --show-error 'https://sonarcloud.io/api/measures/component?component=Easton97-Jens_ModSecurity-test-Framework&pullRequest=30&metricKeys=new_lines,new_duplicated_lines,new_duplicated_lines_density'",
+    "rtk curl --fail --silent --show-error 'https://sonarcloud.io/api/measures/component_tree?component=Easton97-Jens_ModSecurity-test-Framework&pullRequest=30&metricKeys=duplicated_lines,new_duplicated_lines,new_duplicated_lines_density&qualifiers=FIL&ps=500'",
+    "rtk curl --fail --silent --show-error 'https://sonarcloud.io/api/duplications/show?key=Easton97-Jens_ModSecurity-test-Framework&pullRequest=30&file=ci%2Freporting%2Fgenerate-phase-work-queue.py'"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260719T230508Z-framework-pr30-duplication-master-37469460",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T230508Z-framework-pr30-duplication-master-37469460/evidence/pr30-initial-sonar-duplication.md",
+      "artifact_type": "sonarqube_cloud_pr_measure_and_duplicate_block_readback",
+      "sha256": "27dc350cc104bd804cadaf479bf2b347cee20738fab375b105637280f4575fd3",
+      "command": "rtk curl --fail --silent --show-error SonarQube-Cloud-measures-and-duplications-API-readback for Framework PR 30; sanitized retained summary",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T23:05:08Z",
+      "retention_status": "retained",
+      "summary": "PR #30 Quality Gate was OK with zero open issues, but its current new-code metric was 182 duplicated lines and 1.1771554233232002% density. Seven file contributions reconcile exactly to 182 lines; block pairings identify two high-confidence shared-helper causes and three focused test/refactor contributors."
+    },
+    {
+      "run_id": "20260719T230508Z-framework-pr30-duplication-master-37469460",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T230508Z-framework-pr30-duplication-master-37469460/evidence/pr30-current-head-residual-duplication.md",
+      "artifact_type": "sonarqube_cloud_pr_residual_measure_and_duplicate_block_readback",
+      "sha256": "bc2d2626510bc6f295f33cf6f8e104a1145af82db75423e577a993396b62bd0e",
+      "command": "rtk proxy curl --fail --silent --show-error SonarQube-Cloud component-measures and duplication endpoints for Framework PR 30; sanitized retained summary",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T00:34:04Z",
+      "retention_status": "retained",
+      "summary": "Exact current PR head ce6c1570d3dfbe4b4da5f9560068c37a807899d3 has Quality Gate OK but retains 32 new duplicated lines at 0.2059732234809475% density: 14 in the case-matrix runtime-snapshot sections and 18 in the V3/CRS provenance assertion sequence. No Sonar configuration or analytical control changed."
+    },
+    {
+      "run_id": "20260720T061746Z-framework-pr-30-refresh-remediation-f8407eef",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T061746Z-framework-pr-30-refresh-remediation-f8407eef/evidence/pr30-refresh-summary.md",
+      "artifact_type": "framework_pr30_refresh_exact_head_verification",
+      "sha256": "04a0b6891f92b0485c298bb939e57fb464cea2bd5872eb74c65d97f6450f4255",
+      "command": "GitHub exact-head check-run/review readback and SonarQube Cloud PR #30 Quality Gate and measure queries; retained sanitized summary",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T06:43:42Z",
+      "retention_status": "retained",
+      "summary": "Normal merge commit a448d056ef98e745d8551c198b2e56d33fe38194 has the prior PR head and current Framework master 3d6f51a2a2eeff6f3bcecff203f1e6ed1e240e4f as parents. Its exact PR #30 SonarQube Cloud Quality Gate is OK with new_duplicated_lines=0 and new_duplicated_lines_density=0.0; all terminal non-skipped GitHub checks, including CodeQL C/C++, succeeded."
+    }
+  ],
+  "root_cause": "The historical PR added equivalent hardened path/runtime-root and secure report-writing routines independently in multiple producer scripts, rather than placing their common semantics in a reviewed shared utility. The normal master merge and first extraction removed most of that duplication. The exact residual consists of two semantically identical case-matrix runtime-snapshot sections and an immutable-commit provenance assertion sequence shared by V3 and CRS tests. The remaining extraction must preserve rendering order, evidence rows, no-clone/no-submodule assertions, and all negative cases.",
+  "root_cause_de": "Der historische PR fügte gleichwertige gehärtete Pfad-/Runtime-Root- und sichere Report-Schreibroutinen unabhängig in mehreren Producer-Skripten hinzu, statt ihre gemeinsame Semantik in einem geprüften Shared Utility abzulegen. Der normale Master-Merge und die erste Extraktion beseitigten den Großteil dieser Duplikation. Der exakte Rest besteht aus zwei semantisch identischen Case-Matrix-Runtime-Snapshot-Abschnitten und einer Assertion-Sequenz für unveränderliche Commit-Provenance, die V3- und CRS-Tests gemeinsam haben. Die verbleibende Extraktion muss Rendering-Reihenfolge, Evidence-Zeilen, No-Clone-/No-Submodule-Assertions und alle Negativfälle bewahren.",
+  "proposed_remediation": "Keep the first shared-utility refactor unchanged and complete only the two exact residuals: extract one pure case-matrix runtime-snapshot section appender with an ordering regression test, and extract one immutable-commit fetch-control assertion helper used by the distinct V3 and CRS legitimate-control tests. Do not alter the V3/CRS fake-Git fixtures or their unique negative controls. Run targeted controls, full lint, a focused staged security-diff review, then require fresh exact-head Sonar evidence of zero new duplication before normal squash merge.",
+  "proposed_remediation_de": "Die erste Shared-Utility-Refaktorierung unverändert lassen und nur die zwei exakten Reste abschließen: einen reinen Case-Matrix-Runtime-Snapshot-Section-Appender mit Ordnungs-Regressionstest extrahieren und einen Assertion-Helper für unveränderliche Commit-Fetch-Controls verwenden, den die getrennten V3- und CRS-Legitimate-Control-Tests nutzen. Die V3/CRS-Fake-Git-Fixtures oder ihre einzigartigen Negativ-Controls nicht ändern. Gezielte Controls, vollständiges Linting und einen fokussierten gestagten Security-Diff-Review ausführen und danach frische Exact-Head-Sonar-Evidence mit null neuer Duplikation vor dem normalen Squash-Merge verlangen.",
+  "acceptance_criteria": [
+    "A normal merge of current Framework master into the PR #30 lineage is completed without force-push or history rewrite.",
+    "Only the confirmed duplicated blocks, direct tests, and the existing bilingual PR #30 Change Record change after conflict resolution.",
+    "Path traversal, symlink, secure temporary-file, atomic replacement, provenance, and protocol negative controls remain exercised and passing.",
+    "The exact PR #30 head reports new_duplicated_lines=0 and new_duplicated_lines_density=0.0 in SonarQube Cloud, with Quality Gate OK.",
+    "No SonarQube Cloud rule, quality gate, threshold, baseline, exclusion, coverage setting, suppression, or NOSONAR marker is changed.",
+    "The exact reviewed PR head passes applicable hosted checks and is then merged normally into Framework master."
+  ],
+  "validation_plan": [
+    "Inspect the normal master-merge diff and resolve each conflict by preserving both hardening paths; verify MRTS remains unchanged.",
+    "Run the focused producer and security-regression tests, protocol-client tests if that module changes, workflow-contract tests, targeted Python compilation, git diff --check, and applicable linting with task-owned output roots.",
+    "Perform a focused security-diff review of path, symlink, descriptor, atomic-write, source-provenance, and protocol-control changes.",
+    "After non-forced push, verify exact local, remote, and PR head equality; re-query Sonar measures, file-level duplication, Quality Gate, issues/hotspots, reviews, and CI checks for that exact head.",
+    "After authorized normal squash merge, read back the resulting master SHA and applicable master checks without changing the Parent gitlink or MRTS."
+  ],
+  "regression_tests": [
+    "tests/security_regression/test_generate_case_matrix_sonar.py",
+    "tests/security_regression/test_generate_phase_work_queue_sonar.py",
+    "tests/security_regression/test_generate_connector_work_queue_sonar.py",
+    "tests/security_regression/test_import_mrts_cases_sonar.py",
+    "tests/security_regression/test_runtime_snapshot_sonar.py",
+    "tests/security_regression/test_modsecurity_v3_git_ref_provenance.py",
+    "tests/security_regression/test_second_remediation.py",
+    "tests/protocol_client/test_check_protocol_evidence.py"
+  ],
+  "legitimate_control_tests": [
+    "Existing tests that reject traversal, symlink components, unsafe runtime roots, and unsafe temporary-file conditions remain passing.",
+    "Existing provenance and protocol assertions continue to distinguish permitted legitimate inputs from rejected cases.",
+    "The shared report writer preserves secure descriptor-relative creation, atomic replacement, and failure behavior.",
+    "The refactor produces zero new SonarQube Cloud duplicate lines without any analytical-control workaround."
+  ],
+  "dependencies": [
+    "A clean isolated task-owned Framework worktree",
+    "Current Framework origin/master",
+    "Exact-head GitHub Actions and SonarQube Cloud analyses",
+    "Authorized normal PR #30 master merge"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0002"
+  ],
+  "deduplication_note": "Not a duplicate of FND-SONAR-0002. FND-SONAR-0002 owns the pre-existing Framework-master multi-file Quality Gate backlog and its scoped historical risk decision. This finding owns the distinct, currently reproducible PR #30 new-code duplication and its behavior-preserving source/test remediation.",
+  "source_run_ids": [
+    "20260719T230508Z-framework-pr30-duplication-master-37469460",
+    "20260720T061746Z-framework-pr-30-refresh-remediation-f8407eef"
+  ],
+  "evidence_limitations": [
+    "SonarQube Cloud duplication groups expose duplicated blocks but not the individual new-line subset within overlapping groups.",
+    "The exact metric must be re-read for the final pushed PR head; the retained record proves the pre-remediation state only.",
+    "Framework master has an independent historical Sonar backlog under FND-SONAR-0002; it is neither a cause of this PR result nor automatically waived for this task."
+  ],
+  "residual_risk": "The original PR-specific duplication no longer reproduces on exact head a448d056ef98e745d8551c198b2e56d33fe38194, and the required controls passed without a Sonar workaround. This finding remains fixed rather than verified because the current user did not authorize Framework-master integration or resulting-master revalidation. The separate FND-SONAR-0002 master backlog remains outside this finding and is not accepted here.",
+  "residual_risk_de": "Die ursprüngliche PR-spezifische Duplikation reproduziert auf dem exakten Head a448d056ef98e745d8551c198b2e56d33fe38194 nicht mehr, und die erforderlichen Controls bestanden ohne Sonar-Workaround. Dieser Befund bleibt fixed statt verified, weil der aktuelle Nutzer keine Framework-master-Integration oder Resulting-Master-Revalidation autorisiert hat. Der separate FND-SONAR-0002-Master-Backlog liegt außerhalb dieses Befunds und wird hier nicht akzeptiert.",
+  "history": [
+    {
+      "at": "2026-07-19T23:05:08Z",
+      "event": "confirmed_pr30_new_code_duplication_tracked",
+      "detail": "Retained SonarQube Cloud readback for PR #30 recorded 182 new duplicated lines and 1.1771554233232002% density across seven files. The normal branch update, focused shared-helper extraction, local controls, exact-head remote validation, and master integration remain pending."
+    },
+    {
+      "at": "2026-07-20T00:34:04Z",
+      "event": "first_remediation_reduced_but_did_not_clear_duplication",
+      "detail": "The normal non-rewriting push of ce6c1570d3dfbe4b4da5f9560068c37a807899d3 reduced the exact PR #30 Sonar measure to 32 new duplicated lines and 0.2059732234809475% density with Quality Gate OK. The remaining two source/test blocks are confirmed, tracked, and block merge until a later exact head reports zero."
+    },
+    {
+      "at": "2026-07-20T06:43:42Z",
+      "event": "exact_refreshed_pr_head_clears_duplication",
+      "detail": "Normal merge commit a448d056ef98e745d8551c198b2e56d33fe38194 refreshed PR #30 with Framework master 3d6f51a2a2eeff6f3bcecff203f1e6ed1e240e4f. Its exact SonarQube Cloud result is Quality Gate OK with new_duplicated_lines=0 and new_duplicated_lines_density=0.0. Local controls and all current hosted checks passed; master integration remains outside the current authorization."
+    }
+  ],
+  "created_at": "2026-07-19T23:05:08Z",
+  "updated_at": "2026-07-20T06:43:42Z",
+  "final_disposition": "fixed_on_verified_pr_head_pending_authorized_master_integration"
+}

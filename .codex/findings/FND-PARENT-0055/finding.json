@@ -1,0 +1,122 @@
+{
+  "id": "FND-PARENT-0055",
+  "title": "Apache upstream-integration adapters rejected their own task-local runtime contract",
+  "title_de": "Apache-Upstream-Integrationsadapter lehnten ihren eigenen task-lokalen Runtime-Vertrag ab",
+  "category": "test_failure",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+"status": "blocked",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "No production vulnerability was validated. The defects prevented required fail-closed Apache body and Valgrind evidence from reaching their legitimate environment prerequisites; the Parent-only repairs preserve scope and path containment.",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": "apache",
+  "protocol": "Parent Apache request-body regression and Valgrind soak adapters",
+  "profile": "Selective upstream PR #91–#94 integration task, Parent branch codex/apache-upstream-pr-91-94-integration",
+  "affected_files": [
+    "ci/runtime/lifecycle/run-apache-request-body-regression.sh",
+    "ci/runtime/lifecycle/run-apache-soak.sh",
+    "tests/test_apache_request_body_regression_wiring.py",
+    "tests/test_apache_soak_wiring.py"
+  ],
+  "affected_symbols": [
+    "EXTRA_CASE_ROOTS",
+    "NO_CRS_BASELINE",
+    "prepare_external_directory",
+    "reject_symlink_ancestors",
+    "prepare_external_root"
+  ],
+  "summary": "The initial Parent request-body adapter supplied a task-local absolute case to the Framework case selector without registering the allowed external case root, so selection failed before Apache startup. The initial soak adapter reused POSIX-shell global variable names across nested helpers and therefore reduced its validated external root to `/`. Both Parent-only defects are fixed and rerun to their next legitimate fail-closed prerequisite.",
+  "summary_de": "Der anfängliche Parent-Request-Body-Adapter übergab dem Framework-Case-Selector eine task-lokale absolute Case-Datei, ohne den zulässigen externen Case-Root zu registrieren, sodass die Auswahl vor dem Apache-Start fehlschlug. Der anfängliche Soak-Adapter verwendete POSIX-Shell-globale Variablennamen in verschachtelten Helpern erneut und reduzierte deshalb seinen validierten externen Root auf `/`. Beide Parent-eigenen Defekte sind behoben und bis zu ihrer nächsten legitimen fehlgeschlossenen Voraussetzung erneut ausgeführt.",
+  "observed_behavior": "The request-body runner failed with `ValueError: smoke case is outside selected scope` for its generated external YAML. The soak runner then attempted `mkdir` under `//apache-soak-*`; an xtrace showed that nested helpers had overwritten the caller's `candidate` variable while walking ancestors. These failures occurred before Apache or Valgrind instrumentation could begin.",
+  "observed_behavior_de": "Der Request-Body-Runner schlug für seine generierte externe YAML mit `ValueError: smoke case is outside selected scope` fehl. Der Soak-Runner versuchte anschließend `mkdir` unter `//apache-soak-*`; ein xtrace zeigte, dass verschachtelte Helper beim Durchlaufen der Vorfahren die `candidate`-Variable des Callers überschrieben hatten. Diese Fehler traten auf, bevor Apache- oder Valgrind-Instrumentierung beginnen konnte.",
+  "expected_behavior": "A task-local explicit case is admitted only through the Framework-supported `EXTRA_CASE_ROOTS` boundary with the narrow no-CRS selection required by its fixture. A validated external soak root stays unchanged across nested shell helpers, remains outside source checkouts, and receives a bounded report before any unavailable tool is reported as blocked.",
+  "expected_behavior_de": "Eine task-lokale explizite Case-Datei wird nur über die Framework-unterstützte `EXTRA_CASE_ROOTS`-Grenze mit der für ihr Fixture engen No-CRS-Auswahl zugelassen. Ein validierter externer Soak-Root bleibt über verschachtelte Shell-Helper unverändert, bleibt außerhalb der Source-Checkouts und erhält einen begrenzten Bericht, bevor ein fehlendes Tool als blockiert gemeldet wird.",
+  "impact": "The adapter failures hid the genuine prerequisites and prevented meaningful request-body and memory-safety evidence. They did not alter production Apache behavior, bypass a gate, or create an observed security exploit. After repair, both paths fail closed only at their actual missing prerequisites.",
+  "impact_de": "Die Adapterfehler verdeckten die echten Voraussetzungen und verhinderten aussagekräftige Request-Body- und Memory-Safety-Evidence. Sie änderten weder produktives Apache-Verhalten noch umgingen sie ein Gate oder erzeugten einen beobachteten Security-Exploit. Nach der Reparatur schlagen beide Pfade nur noch an ihren tatsächlichen fehlenden Voraussetzungen fehlgeschlossen fehl.",
+  "preconditions": [
+    "A Parent-owned generated Apache request-body case is outside Framework source roots.",
+    "The Parent soak runner is given an absolute task-owned APACHE_SOAK_ROOT.",
+    "The Parent harness uses the existing Framework case CLI without Framework source changes."
+  ],
+  "reproduction": [
+    "Run the request-body target before registering its generated configuration directory through EXTRA_CASE_ROOTS and observe the selected-scope error.",
+    "Run the soak target before separating nested helper variables and observe a //apache-soak-* run path in its blocked output.",
+    "Apply the narrow Parent repair and rerun the same targets: request-body must resolve the external case and then block on the unavailable httpd; both soak modes must write bounded external reports and then block on unavailable Valgrind."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T083705Z-apache-upstream-pr-91-94-integration",
+      "artifact_path": ".codex/runs/20260726T083705Z-apache-upstream-pr-91-94-integration/evidence/apache-adapter-preflight-repair.md",
+      "artifact_type": "parent_adapter_preflight_failure_and_repair_summary",
+      "sha256": "a7ddb2d028d70914dd98178a8913b3c91d74af9f84d27b5d4ada72b8f3609ce5",
+      "command": "Focused static wiring checks plus rerun of the Parent request-body and memcheck/helgrind adapter entry points",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260726T083705Z-apache-upstream-pr-91-94-integration/worktree",
+      "exit_code": 77,
+      "observed_at": "2026-07-26T09:58:00Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The request-body adapter assumed an arbitrary absolute case was in scope, although Framework intentionally accepts external cases only through EXTRA_CASE_ROOTS. The soak script used global POSIX-shell variables named candidate in prepare_external_directory, require_absolute_path, and reject_symlink_ancestors; the nested ancestor walk therefore changed the outer caller's path to `/`.",
+  "root_cause_de": "Der Request-Body-Adapter nahm an, dass eine beliebige absolute Case-Datei im Scope sei, obwohl Framework externe Cases absichtlich nur über EXTRA_CASE_ROOTS akzeptiert. Das Soak-Skript verwendete globale POSIX-Shell-Variablen namens candidate in prepare_external_directory, require_absolute_path und reject_symlink_ancestors; der verschachtelte Vorfahrenlauf änderte dadurch den äußeren Caller-Pfad auf `/`.",
+  "proposed_remediation": "Set exactly the generated configuration directory as EXTRA_CASE_ROOTS and select the fixture through the no-CRS baseline without changing Framework. Use distinct variables for the outer directory, path validator, and ancestor walker; retain the absolute-path, symlink, source-checkout, and bounded-artifact controls. Guard both contracts with Parent static tests.",
+  "proposed_remediation_de": "Genau das generierte Konfigurationsverzeichnis als EXTRA_CASE_ROOTS setzen und das Fixture über die No-CRS-Baseline auswählen, ohne Framework zu ändern. Unterschiedliche Variablen für äußeres Verzeichnis, Pfadvalidator und Vorfahrenläufer verwenden; die Kontrollen für absolute Pfade, Symlinks, Source-Checkouts und begrenzte Artefakte beibehalten. Beide Verträge mit Parent-Static-Tests absichern.",
+  "acceptance_criteria": [
+    "The generated external request-body YAML resolves through the existing Framework interface with CASE_SCOPE=all, EXTRA_CASE_ROOTS restricted to its configuration directory, and the required no-CRS baseline.",
+    "The soak runner preserves a valid APACHE_SOAK_ROOT through nested helper calls and never creates or attempts to create a run directory at / or //apache-soak-*.",
+    "Focused Parent wiring tests and shell syntax checks pass.",
+    "The original entry points are rerun and reach only their legitimate fail-closed Apache or Valgrind prerequisite blockers.",
+    "Framework, MRTS, Gitlinks, Docker/Compose assets, and production request-body handler architecture remain unchanged."
+  ],
+  "validation_plan": [
+    "Run make check-apache-request-body-regression-wiring and make check-apache-soak-wiring.",
+    "Run one request-body mode and both soak modes with explicit task-owned external roots.",
+    "When a prepared Apache runtime and Valgrind are available, run the full body-mode family and native Memcheck/Helgrind evidence workflow."
+  ],
+  "regression_tests": [
+    "tests/test_apache_request_body_regression_wiring.py",
+    "tests/test_apache_soak_wiring.py"
+  ],
+  "legitimate_control_tests": [
+    "The external request-body case prints a resolved path and reaches Apache prerequisite validation rather than selected-scope rejection.",
+    "Memcheck and Helgrind each write a bounded external report/upload bundle before truthfully reporting unavailable Valgrind.",
+    "The existing absolute-path, symlink, source-checkout, and artifact-budget safeguards remain required."
+  ],
+  "dependencies": [
+    "FND-HOST-0002",
+    "A prepared Parent Apache runtime and Valgrind for native evidence"
+  ],
+  "blocked_by": [
+    "Native Apache request-body and Valgrind evidence remain blocked by missing local prerequisites; this does not reopen the verified adapter defect."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-HOST-0002",
+    "FND-PARENT-0041",
+    "FND-PARENT-0043"
+  ],
+  "deduplication_note": "Not a duplicate of FND-PARENT-0041: that record concerns an unsupported Framework helper CLI option in the Phase-4 harness. This record concerns the independently observed extra-case-root and POSIX shell-variable contracts in the upstream PR #91–#94 adapters.",
+  "source_run_ids": [
+    "20260726T083705Z-apache-upstream-pr-91-94-integration"
+  ],
+  "residual_risk": "The original adapter defects are verified repaired at their strongest locally available preflight stage. Native request-body, Memcheck, and Helgrind evidence remains unavailable because the task environment lacks the prepared Apache runtime and Valgrind; no runtime success, leak freedom, or race freedom is claimed.",
+  "residual_risk_de": "Die ursprünglichen Adapterdefekte sind in ihrer stärksten lokal verfügbaren Preflight-Stufe als repariert verifiziert. Native Request-Body-, Memcheck- und Helgrind-Evidence bleibt nicht verfügbar, weil der Task-Umgebung der vorbereitete Apache-Runtime und Valgrind fehlen; es wird kein Runtime-Erfolg, keine Leak-Freiheit und keine Race-Freiheit behauptet.",
+  "created_at": "2026-07-26T09:58:00Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": "verified_local_preflight_repair_pending_separate_native_environment_evidence",
+  "history": [
+    {
+      "at": "2026-07-26T09:40:00Z",
+      "event": "parent_adapter_preflight_failures_observed",
+      "detail": "The generated request-body case was outside Framework selected scope and the soak runner reduced its validated root to / through a global shell-variable collision."
+    },
+    {
+      "at": "2026-07-26T09:58:00Z",
+      "event": "parent_adapter_contracts_repaired_and_rerun",
+      "detail": "Parent-only EXTRA_CASE_ROOTS/no-CRS wiring and distinct soak helper variables passed focused tests. The original entry points now reach only absent httpd and Valgrind prerequisites; no Framework/MRTS change occurred."
+    }
+  ]
+}

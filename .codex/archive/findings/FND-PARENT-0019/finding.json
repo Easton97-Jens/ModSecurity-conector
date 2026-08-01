@@ -1,0 +1,210 @@
+{
+  "id": "FND-PARENT-0019",
+  "title": "Traefik native Make recipe evaluated caller-controlled socket-parent text before runner validation",
+  "title_de": "Das native Traefik-Make-Rezept wertete aufrufergesteuerten Socket-Parent-Text vor der Runner-Validierung aus",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "confirmed",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "Traefik",
+  "protocol": "GNU Make to POSIX-shell forwarding before AF_UNIX pathname validation",
+  "profile": "native-traefik-middleware",
+  "affected_files": [
+    "connectors/traefik/Makefile",
+    "connectors/traefik/build/test-engine-service-runtime.sh",
+    "ci/runtime/lifecycle/run-connector-stage.sh",
+    "ci/runtime/lifecycle/run-remaining-connector-target.sh",
+    "connectors/traefik/scripts/runtime-native-middleware.sh",
+    "connectors/traefik/scripts/runtime_native_smoke.py",
+    "tests/test_no_crs_selected_runner_wiring.py"
+  ],
+  "affected_symbols": [
+    "runtime-smoke-traefik-native",
+    "test-engine-service",
+    "run_remaining_connector",
+    "run_make_target",
+    "TRAEFIK_ENGINE_SOCKET_PARENT",
+    "TRAEFIK_BIN",
+    "TRAEFIK_NATIVE_RUNTIME_ROOT",
+    "PYTHON",
+    "BUILD_ROOT",
+    "MODSECURITY_INCLUDE_DIR",
+    "MODSECURITY_LIB_DIR",
+    "MODSECURITY_PREFIX"
+  ],
+  "summary": "The first explicit-private-parent forwarding implementation interpolated caller-controlled values into shell assignment text in the Traefik native Make recipe. A quote-and-comment payload broke that quoting and executed before runtime-native-middleware.sh and the Python private-parent validator. Direct Make command-line values containing $(...) also needed raw-value transport to prevent Make-function evaluation. The same Makefile's test-engine-service PYTHON assignment, BUILD_ROOT-derived default, and the three MODSECURITY values forwarded by the repository lifecycle route were hardened so named affected values do not retain active Make syntax at a recipe or export boundary.",
+  "summary_de": "Die erste Implementierung der expliziten Private-Parent-Weiterleitung interpolierte aufrufergesteuerte Werte in Shell-Assignment-Text des nativen Traefik-Make-Rezepts. Ein Quote-und-Kommentar-Payload brach diese Quotierung und wurde vor runtime-native-middleware.sh sowie dem Python-Private-Parent-Validator ausgeführt. Direkte Make-Kommandozeilenwerte mit $(...) benötigen zusätzlich Raw-Value-Transport, damit keine Make-Funktionen ausgewertet werden. Das PYTHON-Assignment von test-engine-service, der aus BUILD_ROOT abgeleitete Standard und die drei vom Repository-Lifecycle-Pfad weitergereichten MODSECURITY-Werte desselben Makefiles wurden gehärtet, damit benannte betroffene Werte an Recipe- oder Export-Grenzen keine aktive Make-Syntax behalten.",
+  "observed_behavior": "The vulnerable recipe rendered TRAEFIK_ENGINE_SOCKET_PARENT=\"$(TRAEFIK_ENGINE_SOCKET_PARENT)\" before invoking the wrapper. The controlled payload /tmp/unsafe\"; printf MAKE_INJECTION_REACHED; # executed printf before Python validation and prevented the wrapper from running.",
+  "observed_behavior_de": "Das verwundbare Rezept erzeugte TRAEFIK_ENGINE_SOCKET_PARENT=\"$(TRAEFIK_ENGINE_SOCKET_PARENT)\" vor dem Wrapper-Aufruf. Das kontrollierte Payload /tmp/unsafe\"; printf MAKE_INJECTION_REACHED; # führte printf vor der Python-Validierung aus und verhinderte den Wrapper-Aufruf.",
+  "expected_behavior": "Caller-provided values cross hardened Traefik Make boundaries as raw process-environment data without Make expansion or shell parsing. A valid explicit private parent arrives unchanged; an invalid or malicious parent reaches the runner as literal data and fails closed before runtime-root setup or UDS allocation. A default runtime root is assembled from a frozen raw BUILD_ROOT value and a repository suffix.",
+  "expected_behavior_de": "Vom Aufrufer bereitgestellte Werte passieren gehärtete Traefik-Make-Grenzen als rohe Prozess-Environment-Daten ohne Make-Expansion oder Shell-Parsing. Ein gültiger expliziter privater Parent kommt unverändert an; ein ungültiger oder bösartiger Parent erreicht den Runner als Literal und scheitert vor Runtime-Root-Setup oder UDS-Allokation fail closed. Ein Standard-Runtime-Root wird aus einem eingefrorenen rohen BUILD_ROOT-Wert und einem Repository-Suffix zusammengesetzt.",
+  "impact": "The pre-fix path demonstrated local code execution in the security-sensitive native Make target before the UDS parent validator ran. A caller able to control the value in a privileged local or automation context could execute shell syntax with that context's privileges. No repository workflow mapping an untrusted remote request into this variable was demonstrated, so remote exploitation and broader privilege impact are not claimed.",
+  "impact_de": "Der Pre-Fix-Pfad demonstrierte lokale Codeausführung im sicherheitsrelevanten nativen Make-Target, bevor der UDS-Parent-Validator lief. Ein Aufrufer, der den Wert in einem privilegierten lokalen oder Automatisierungskontext steuern kann, könnte Shell-Syntax mit den Rechten dieses Kontexts ausführen. Es wurde kein Repository-Workflow nachgewiesen, der eine nicht vertrauenswürdige Remote-Anfrage in diese Variable abbildet; Remote-Ausnutzung und weitergehende Privilegienauswirkung werden daher nicht behauptet.",
+  "preconditions": [
+    "A direct local caller or automation context can control TRAEFIK_ENGINE_SOCKET_PARENT, PYTHON, BUILD_ROOT, one of the MODSECURITY values forwarded by the repository lifecycle route, or another named affected Traefik Make variable.",
+    "The vulnerable runtime-smoke-traefik-native recipe is invoked before downstream Python validation, or the sibling test-engine-service recipe receives a caller-controlled PYTHON value."
+  ],
+  "reproduction": [
+    "Invoke the pre-fix native Make target with a quote-and-comment TRAEFIK_ENGINE_SOCKET_PARENT payload and inspect log 154.",
+    "Invoke the pre-fix target with the controlled printf payload and observe MAKE_INJECTION_REACHED in log 155.",
+    "After the repair, rerun literal $(shell ...) and quote/comment controls; verify no marker or sentinel executes and the runner reports Error 77.",
+    "Run the default-root branch with a safe and a controlled hostile BUILD_ROOT value; the safe path must resolve normally and the hostile text must remain literal without a Make marker.",
+    "Run test-engine-service in dry-run mode with a quote/comment PYTHON payload and verify no caller text is rendered in a recipe shell assignment."
+  ],
+  "root_cause": "The initial forwarding repair used Make-variable interpolation inside shell source, so shell parsing occurred before private-parent validation. Make command-line assignments can additionally expose embedded Make syntax. Python validation cannot mitigate input already interpreted by Make or /bin/sh.",
+  "root_cause_de": "Die erste Forwarding-Reparatur verwendete Make-Variableninterpolation innerhalb von Shell-Source, sodass Shell-Parsing vor der Private-Parent-Validierung erfolgte. Make-Kommandozeilenassignments können zusätzlich eingebettete Make-Syntax freilegen. Python-Validierung kann Eingaben nicht mehr absichern, die bereits von Make oder /bin/sh interpretiert wurden.",
+  "proposed_remediation": "Use override VAR := $(value VAR) for BUILD_ROOT and each named affected TRAEFIK_BIN, TRAEFIK_NATIVE_RUNTIME_ROOT, TRAEFIK_ENGINE_SOCKET_PARENT, PYTHON, MODSECURITY_INCLUDE_DIR, MODSECURITY_LIB_DIR, and MODSECURITY_PREFIX value; export those values; assemble the repository default from the frozen raw BUILD_ROOT; invoke the native wrapper and test-engine-service script without inline shell assignments; and export all Traefik runtime/module values in the lifecycle runner instead of passing them as Make command-line assignments. Retain downstream fail-closed private-parent validation.",
+  "proposed_remediation_de": "Für BUILD_ROOT und jeden benannten betroffenen Wert TRAEFIK_BIN, TRAEFIK_NATIVE_RUNTIME_ROOT, TRAEFIK_ENGINE_SOCKET_PARENT, PYTHON, MODSECURITY_INCLUDE_DIR, MODSECURITY_LIB_DIR und MODSECURITY_PREFIX override VAR := $(value VAR) verwenden, diese Werte exportieren, den Repository-Standard aus dem eingefrorenen rohen BUILD_ROOT zusammensetzen, nativen Wrapper und test-engine-service-Skript ohne Inline-Shell-Assignments aufrufen und alle Traefik-Runtime-/Modulwerte im Lifecycle-Runner exportieren statt sie als Make-Kommandozeilenassignments zu übergeben. Die nachgelagerte fail-closed Private-Parent-Validierung bleibt erhalten.",
+  "acceptance_criteria": [
+    "No hardened Traefik Make recipe contains caller-controlled VAR=\"$(VAR)\" shell interpolation.",
+    "Each named affected value uses raw GNU Make transport and process-environment export.",
+    "Direct named affected Make values containing $(shell ...) remain literal and execute no Make function.",
+    "A quote/comment parent payload executes no shell sentinel, reaches the runner literally, returns the runner's blocked exit 77 through Make exit 2, and creates no runtime root.",
+    "A safe explicit parent is forwarded unchanged.",
+    "The safe BUILD_ROOT default resolves normally while a hostile command-line BUILD_ROOT value remains literal and executes no Make function.",
+    "test-engine-service invokes its script through the exported raw PYTHON environment rather than an inline recipe assignment.",
+    "Focused source/wiring tests, shell syntax, diff checks, and bilingual documentation validation pass.",
+    "No scanner suppression, risk acceptance, Framework mutation, MRTS mutation, H3 work, or merge is introduced."
+  ],
+  "validation_plan": [
+    "Run focused Python and lifecycle-wiring tests with safe-parent, quote/comment, and Make-function controls.",
+    "Run a real native Make invocation with a controlled quote/comment payload and verify no sentinel file is created.",
+    "Run direct Make function-payload controls for each named affected value and the default BUILD_ROOT branch.",
+    "Run test-engine-service in dry-run mode with a hostile PYTHON control and verify no payload is rendered in the recipe.",
+    "Obtain exact PR-head delivery evidence after the focused Parent change is pushed."
+  ],
+  "regression_tests": [
+    "tests/test_no_crs_selected_runner_wiring.py",
+    "tests/test_traefik_native_local_plugin.py"
+  ],
+  "legitimate_control_tests": [
+    "A safe direct Make parent export is received byte-for-byte unchanged.",
+    "A valid existing private 0700 parent follows the normal native private-parent path.",
+    "An invalid quote/comment parent remains literal data and is rejected before runtime-root creation.",
+    "The ordinary BUILD_ROOT default remains the expected runtime path when no caller provides TRAEFIK_NATIVE_RUNTIME_ROOT."
+  ],
+  "dependencies": [
+    "Current exact Draft PR #51 head ef2f5755c29c5bc8f452290a14389fe8822e0709 passed remote/PR-head comparison, GitHub checks, and SonarCloud check 87983807169 with Quality Gate OK.",
+    "FND-PARENT-0016 exact-head SonarCloud delivery evidence is complete; post-merge master verification remains separately unauthorized."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0016",
+    "FND-PARENT-0017"
+  ],
+  "source_run_ids": [
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/154-make-parent-shell-injection-pre-fix-reproduction.log",
+      "artifact_type": "pre_fix_make_recipe_shell_injection_reproduction_log",
+      "sha256": "8a66165ca568d84aa5d7e9d923dc532c0ecde915bd276962ad5d6af321b1f1ee",
+      "command": "make -n -C connectors/traefik runtime-smoke-traefik-native with a controlled quote/comment parent payload",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T18:30:50Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/155-make-parent-shell-injection-controlled-runtime-reproduction.log",
+      "artifact_type": "pre_fix_make_shell_injection_runtime_reproduction_log",
+      "sha256": "4e4b6b5c78456dbd201b25519c6ecce5d3ea870c83fb5d549379290cb8e820f7",
+      "command": "Controlled inherited quote/comment parent payload through the pre-fix native Make target",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T18:31:38Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/159-final-make-raw-forwarding-security-validation.log",
+      "artifact_type": "post_fix_make_raw_forwarding_security_validation_log",
+      "sha256": "faab9a431c6964e40f0aab0731884dd049b22a998935fffa2ff436a05f63e51d",
+      "command": "git diff --check; sh -n lifecycle and wrapper scripts; direct Make $(shell ...) probes for all four exported variables; real quote/comment Make probe; focused native and lifecycle contracts",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T18:56:13Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/160-final-named-make-forwarding-security-validation.log",
+      "artifact_type": "post_fix_named_make_environment_forwarding_security_validation_log",
+      "sha256": "8be26ef3b432fc17c6bb8a6b6127c7199ebe114d8b5bc0a668fd7b10dcee4d7a",
+      "command": "git diff --check; shell syntax; direct hostile named Make-value controls for BUILD_ROOT, three MODSECURITY values, and four Traefik values; hostile test-engine-service dry run; focused native and lifecycle contracts",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T19:29:10Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/164-final-exact-pr-head-delivery-and-sonar.log",
+      "artifact_type": "exact_pr_head_sonarcloud_delivery_validation_log",
+      "sha256": "1a70d77d83673c68017fc466f0fbf8c57bd91fe3145c806568fc908bcd63b7d3",
+      "command": "gh pr view #51 exact head/checks; gh api check-runs for 6e73dc97; SonarCloud Quality-Gate and open-issues APIs; git local/remote/PR-head comparison",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T19:49:34Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/167-final-conflict-free-draft-pr-delivery-and-sonar.log",
+      "artifact_type": "exact_conflict_free_draft_pr_head_delivery_and_sonarcloud_validation_log",
+      "sha256": "22c69a59ee5a962354f360fd1a02ac099d148c5e76a3ccb248761a379b8e1aa7",
+      "command": "git local/remote/PR-head comparison; git diff --check; read-only git merge-tree; focused 22-test Python run; gh PR/check-runs queries; SonarCloud Quality-Gate, unresolved-issues, and hotspot APIs",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T20:18:08Z",
+      "retention_status": "retained_task_log"
+    }
+  ],
+  "residual_risk": "The repair closes the demonstrated Make and shell interpretation path for the named affected values and its directly adjacent targeted Traefik recipes/default. It does not claim to change GNU Make's handling of arbitrary unrelated command-line variables. The repair also does not resolve the separately tracked same-UID UDS pathname races in FND-PARENT-0013 through FND-PARENT-0015. Exact-head Draft-PR delivery verification passed; post-merge master verification remains outside the current authorization. No risk has been accepted.",
+  "residual_risk_de": "Die Reparatur schließt den demonstrierten Make- und Shell-Interpretationspfad für die benannten betroffenen Werte und seine direkt benachbarten gezielten Traefik-Rezepte/-Standards. Sie behauptet nicht, die Behandlung beliebiger nicht verwandter GNU-Make-Kommandozeilenvariablen zu ändern. Die Reparatur löst außerdem nicht die separat nachverfolgten Same-UID-UDS-Pathname-Races in FND-PARENT-0013 bis FND-PARENT-0015. Die Exact-Head-Draft-PR-Delivery-Verifikation bestand; Post-Merge-Master-Verifikation liegt außerhalb der aktuellen Autorisierung. Es wurde kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T18:30:50Z",
+  "updated_at": "2026-07-17T20:18:08Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T18:30:50Z",
+      "event": "pre_fix_recipe_injection_observed",
+      "detail": "The generated native recipe exposed a controlled quote/comment shell-injection path."
+    },
+    {
+      "at": "2026-07-17T18:31:38Z",
+      "event": "controlled_pre_validation_shell_execution_confirmed",
+      "detail": "A controlled printf payload executed before the Python validator."
+    },
+    {
+      "at": "2026-07-17T18:56:13Z",
+      "event": "raw_make_value_transport_and_fail_closed_controls_passed",
+      "detail": "All four direct Make function payloads remained literal; the quote/comment sentinel was absent; Python rejected literal data before runtime setup; 22 focused contracts passed."
+    },
+    {
+      "at": "2026-07-17T19:29:10Z",
+      "event": "named_lifecycle_make_forwarding_closure_verified",
+      "detail": "The BUILD_ROOT default, three lifecycle-forwarded MODSECURITY values, and the sibling test-engine-service PYTHON recipe were hardened. All eight named hostile Make values remained literal, no marker executed, shell syntax and diff checks passed, and 22 focused contracts passed."
+    },
+    {
+      "at": "2026-07-17T19:49:34Z",
+      "event": "exact_pr_head_delivery_and_sonarcloud_passed",
+      "detail": "Exact Draft PR #51 head 6e73dc97eba8b503d7d88f7feb3c43ef14132083 matched local and remote state, all applicable GitHub checks passed, and SonarCloud check 87978528103 reported zero annotations, zero open PR issues, and Quality Gate OK. The finding remains fixed until separately authorized post-merge master verification."
+    },
+    {
+      "at": "2026-07-17T20:18:08Z",
+      "event": "conflict_free_exact_pr_head_delivery_and_sonarcloud_passed",
+      "detail": "Documentation-only follow-up head ef2f5755c29c5bc8f452290a14389fe8822e0709 matched local, remote, and Draft PR #51 state without a rebase or merge. GitHub reported MERGEABLE/CLEAN, all 33 applicable checks passed with six declared skips, and SonarCloud check 87983807169 returned Quality Gate OK, zero unresolved PR issues, and no hotspots requiring review. The finding remains fixed until separately authorized post-merge master verification."
+    }
+  ]
+}

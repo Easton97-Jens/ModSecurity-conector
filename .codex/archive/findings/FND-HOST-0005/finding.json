@@ -1,0 +1,131 @@
+{
+  "id": "FND-HOST-0005",
+  "title": "Historical shared temporary-root usage no longer blocks storage finalization for the GitHub Code Scanning disposition run",
+  "title_de": "Historische gemeinsame temporäre-Root-Nutzung blockiert die Storage-Finalisierung für den GitHub-Code-Scanning-Dispositionsrun nicht mehr",
+  "category": "storage_cleanup",
+  "repository": "host_environment",
+  "ownership": "host_environment",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "already_fixed",
+  "storage_status": "ok",
+  "current_task_disposition": "verified_current_storage_target",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/bin/storage-budget",
+    ".codex/context/storage-policy.md"
+  ],
+  "affected_symbols": [
+    "storage-budget check",
+    "storage-budget finalize"
+  ],
+  "summary": "The historical GitHub Code Scanning disposition run exceeded the 15 GiB final target without any task-owned cleanup path. A current read-only check is below that target, so the original capacity condition no longer reproduces. No shared, foreign, cache, evidence, Framework, MRTS, product, or gitlink path was deleted.",
+  "summary_de": "Der historische GitHub-Code-Scanning-Dispositionsrun überschritt das 15-GiB-Finalziel ohne task-eigenen Cleanup-Pfad. Ein aktueller read-only Check liegt unter diesem Ziel; die ursprüngliche Kapazitätsbedingung reproduziert daher nicht mehr. Es wurde kein gemeinsamer, fremder, Cache-, Evidence-, Framework-, MRTS-, Produkt- oder Gitlink-Pfad gelöscht.",
+  "observed_behavior": "The historical dry run for 20260718T084215Z-github-code-scanning-disposition-14-15-babc842c exited 2 at 15.630 GiB with an empty deletion plan. On 2026-07-26, storage-budget check --json exited 0 with status ok at 9.570 GiB; the task-owned current-run dry-run and apply finalization both had status ok, an empty deletion plan, and zero deleted paths at 9.572 GiB.",
+  "observed_behavior_de": "Der historische Dry-Run für 20260718T084215Z-github-code-scanning-disposition-14-15-babc842c endete bei 15,630 GiB mit Exit 2 und leerem Löschplan. Am 2026-07-26 endete storage-budget check --json mit Exit 0, Status ok und 9,570 GiB; Dry-Run und Apply-Finalisierung des task-eigenen aktuellen Runs hatten jeweils Status ok, einen leeren Löschplan und null gelöschte Pfade bei 9,572 GiB.",
+  "expected_behavior": "Storage finalization may remove only current-run, manifest-registered, task-owned temporary paths after fail-closed checks pass. Shared, foreign, cache, retained-evidence, Framework, MRTS, product, and gitlink paths must never be deleted merely to reach a capacity target.",
+  "expected_behavior_de": "Die Storage-Finalisierung darf nur aktuelle, im Manifest registrierte und task-eigene temporäre Pfade entfernen, nachdem Fail-Closed-Checks bestanden sind. Gemeinsame, fremde, Cache-, retained-Evidence-, Framework-, MRTS-, Produkt- und Gitlink-Pfade dürfen niemals allein zur Erreichung eines Kapazitätsziels gelöscht werden.",
+  "impact": "The original host-capacity blocker is verified as no longer reproduced. The historical run remains intentionally unmodified because it owns no cleanup path; no product behavior, GitHub Code Scanning disposition, connector assurance, Framework state, MRTS state, or gitlink changed.",
+  "impact_de": "Der ursprüngliche Host-Kapazitätsblocker ist als nicht mehr reproduziert verifiziert. Der historische Run bleibt absichtlich unverändert, weil er keinen Cleanup-Pfad besitzt; Produktverhalten, GitHub-Code-Scanning-Disposition, Connector-Assurance, Framework-Status, MRTS-Status und Gitlink änderten sich nicht.",
+  "preconditions": [
+    "The current /var/tmp/codex/ModSecurity-conector temporary root remains at or below the configured 15 GiB final target.",
+    "The historical disposition-run manifest has no registered or managed cleanup paths and is not retroactively modified.",
+    "Retained evidence remains a non-cleanup candidate."
+  ],
+  "reproduction": [
+    "Run rtk proxy sh -c '.codex/bin/storage-budget check --json'.",
+    "For a task-owned evidence run only, inspect a dry-run plan before any apply action.",
+    "Inspect the historical run manifest for registered_paths, managed_paths, and deleted_paths; do not add registrations retroactively."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T084215Z-github-code-scanning-disposition-14-15-babc842c",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T084215Z-github-code-scanning-disposition-14-15-babc842c/evidence/storage-finalize-dry-run.md",
+      "artifact_type": "storage_finalization_dry_run_record",
+      "sha256": "773148f2094aba5b2bb9ac51516a7caee7e682859fe46fe9d27cf953eb484855",
+      "command": "rtk proxy /root/git/ModSecurity-conector/.codex/bin/storage-budget finalize --run 20260718T084215Z-github-code-scanning-disposition-14-15-babc842c --dry-run --json",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 2,
+      "observed_at": "2026-07-18T09:22:07Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726T171843Z-fnd-host-remediation-20260726-cf748da4",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T171843Z-fnd-host-remediation-20260726-cf748da4/evidence/fnd-host-0001-0005-current-revalidation.md",
+      "artifact_type": "current_storage_revalidation",
+      "sha256": "eec6402faaa6981206613db5d9368f1298c7f4e0216fc8e21f2522de29f9e852",
+      "command": "Recorded commands: rtk proxy sh -c '.codex/bin/storage-budget check --json'; rtk proxy .codex/bin/storage-budget finalize --run 20260726T171843Z-fnd-host-remediation-20260726-cf748da4 --dry-run --json; rtk proxy .codex/bin/storage-budget finalize --run 20260726T171843Z-fnd-host-remediation-20260726-cf748da4 --apply --json",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T17:20:59Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The historical capacity condition was caused by shared-root usage above the final target while the historical run owned no registered cleanup path. Current root usage is below the target. The helper correctly keeps the historical empty plan and never expands cleanup authority to unregistered or foreign paths.",
+  "root_cause_de": "Die historische Kapazitätsbedingung entstand durch Shared-Root-Nutzung über dem Finalziel, während der historische Run keinen registrierten Cleanup-Pfad besaß. Die aktuelle Root-Nutzung liegt unter dem Ziel. Der Helper behält den historischen leeren Plan korrekt bei und erweitert Cleanup-Autorität niemals auf nicht registrierte oder fremde Pfade.",
+  "proposed_remediation": "No Parent source change or cleanup is required for the verified capacity condition. Continue to monitor the shared root through read-only checks; any future cleanup remains a separately authorized host/storage-owner action limited to manifest-registered task-owned paths.",
+  "proposed_remediation_de": "Für die verifizierte Kapazitätsbedingung ist weder eine Parent-Quellcodeänderung noch Cleanup erforderlich. Die Shared-Root-Nutzung wird weiterhin per read-only Checks überwacht; jedes künftige Cleanup bleibt eine separat autorisierte Host-/Storage-Owner-Aktion, begrenzt auf im Manifest registrierte task-eigene Pfade.",
+  "acceptance_criteria": [
+    "A read-only check reports storage at or below the configured final target, or a host owner documents a supported retained disposition.",
+    "Any finalization plan contains only current-run, manifest-registered, task-owned temporary paths.",
+    "Retained evidence, Framework, MRTS, product files, gitlinks, caches, shared paths, and foreign runs remain untouched."
+  ],
+  "validation_plan": [
+    "Periodically rerun storage-budget check --json without deleting data.",
+    "Inspect a dry-run plan and run manifest before any future apply action.",
+    "Verify retained-evidence hashes and that any future task deletes no unrelated path."
+  ],
+  "regression_tests": [
+    ".codex/tests/test_storage_budget.py",
+    "A focused negative control showing that unregistered shared paths still produce no deletion plan."
+  ],
+  "legitimate_control_tests": [
+    "A private current-run registered temporary path may be planned only when all fail-closed checks pass.",
+    "Shared, foreign, cache, evidence, symlinked, special, mounted, or foreign-process-held paths remain ineligible for automatic cleanup."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0021",
+    "FND-PARENT-0022"
+  ],
+  "source_run_ids": [
+    "20260718T084215Z-github-code-scanning-disposition-14-15-babc842c",
+    "20260726T171843Z-fnd-host-remediation-20260726-cf748da4"
+  ],
+  "residual_risk": "No current capacity block remains. The historical run has no cleanup registration and must not be retroactively modified; future shared-root growth requires continued safe monitoring and separately authorized ownership-aware cleanup.",
+  "residual_risk_de": "Es besteht kein aktueller Kapazitätsblock mehr. Der historische Run hat keine Cleanup-Registrierung und darf nicht rückwirkend verändert werden; künftiges Wachstum der Shared-Root-Nutzung erfordert fortgesetztes sicheres Monitoring und separat autorisiertes ownership-bewusstes Cleanup.",
+  "created_at": "2026-07-18T09:43:15Z",
+  "updated_at": "2026-07-26T18:05:44Z",
+  "final_disposition": "verified",
+  "archive_disposition": {
+    "at": "2026-07-26T18:05:44Z",
+    "reason": "Current user directed lossless archival of this non-blocking verified storage-capacity finding.",
+    "status_at_move": "verified",
+    "reactivation": "Restore the complete triplet and rerun read-only storage and safe-finalization controls if the capacity condition becomes material again."
+  },
+  "history": [
+    {
+      "at": "2026-07-18T09:43:15Z",
+      "event": "separate_storage_finalization_blocker_recorded",
+      "detail": "Recorded as blocked_environment / temporary_exceed after retained dry-run evidence showed no planned deletion and shared-root ownership remained unresolved. No --apply, forced cleanup, recursive cleanup, manual deletion, product change, GitHub mutation, Framework/MRTS action, gitlink change, commit, push, or pull request occurred."
+    },
+    {
+      "at": "2026-07-26T17:20:59Z",
+      "event": "current_capacity_condition_verified",
+      "detail": "A current read-only storage-budget check was below the 15 GiB final target. A task-owned evidence run passed dry-run and apply finalization with an empty deletion plan and zero deleted paths. The historical unregistered run and all shared paths remained untouched; status is verified, not closed."
+    },
+    {
+      "at": "2026-07-26T18:05:44Z",
+      "event": "user_directed_lossless_archive",
+      "detail": "The current user directed archival of this non-blocking verified storage-capacity finding. Its lifecycle remains verified; the complete triplet and safe storage controls must be restored and revalidated if the condition becomes material again."
+    }
+  ]
+}

@@ -1,0 +1,301 @@
+{
+  "id": "FND-PARENT-0038",
+  "title": "Apache Phase-4 response bypass",
+  "title_de": "Apache-Phase-4-Response-Bypass",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P0",
+  "severity": "high",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "current_exact_native_remediation_passed; local Codex Security diff scan and exact pushed-head delivery verification remain pending",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "apache",
+  "protocol": "HTTP/1.1 and HTTP/2 Apache response body",
+  "profile": "native Apache/libModSecurity Phase 4; current Parent-only candidate 93c5f30c181710f5c2cecf207fb92aaecb215035 plus focused unpushed Parent remediation, built with the Parent-gitlink Framework revision cdc91a398d6c156eaff927d742b23018a3817fb6",
+  "observed_pr_head_sha": "7c83583b4e208b8945daeec226d04abe364cbc8e",
+  "current_local_sync_head_sha": "93c5f30c181710f5c2cecf207fb92aaecb215035",
+  "base_master_sha": "aabde81a9a315bf3e494e595ab0399357c596f9c",
+  "delivery_state": "focused_parent_remediation_local_unpushed_exact_native_matrix_passed_local_security_scan_and_remote_delivery_validation_pending",
+  "affected_files": [
+    "connectors/apache/src/msc_filters.c",
+    "connectors/apache/src/mod_security3.c",
+    "connectors/apache/src/mod_security3.h",
+    "connectors/apache/src/msc_utils.c",
+    "connectors/apache/src/msc_utils.h",
+    "connectors/apache/src/msc_config.c",
+    "connectors/apache/harness/mod_phase4_terminal_rogue.c",
+    "connectors/apache/harness/run_apache_smoke.sh",
+    "ci/runtime/lifecycle/run-apache-phase4-response-regression.sh",
+    "tests/test_apache_phase4_response_regression_wiring.py"
+  ],
+  "affected_symbols": [
+    "output_filter",
+    "phase4_terminal_guard_filter",
+    "apache_phase4_normalize_response_brigade",
+    "apache_phase4_release_saved_response",
+    "apache_send_precommit_terminal_error",
+    "apache_phase4_redirect_is_terminal_error_emission",
+    "hook_phase4_redirect_quick_handler",
+    "hook_phase4_redirect_handler",
+    "apache_phase4_terminal_error_redirect_note",
+    "msc_discard_response_brigade"
+  ],
+  "source_commits": [
+    "c8ca0d92b630c18232b881855c4f5d1482568ea6",
+    "783c024b8cb90c783adfa7a18e85de170a28e1b5",
+    "5b99259e95ac15166bc7b643e4d2d8daad330b87",
+    "7c83583b4e208b8945daeec226d04abe364cbc8e"
+  ],
+  "summary": "Before remediation, Apache could forward a response brigade before libModSecurity processed RESPONSE_BODY at EOS. A Phase-4 deny could therefore arrive after protected bytes crossed the downstream commit boundary; normal internal redirects could also reset the content-filter path while retaining a stale transaction. Fresh exact-dependency testing additionally proved that merely aborting in the insert-filter path still allowed a redirect target handler to execute. The focused Parent repair now blocks unsafe redirected requests in both the quick-handler and normal-handler paths; it is fixed locally, not verified for delivery.",
+  "summary_de": "Vor der Remediation konnte Apache eine Response-Brigade weiterleiten, bevor libModSecurity RESPONSE_BODY bei EOS verarbeitete. Ein Phase-4-Deny konnte daher nach dem Downstream-Commit geschützter Bytes eintreffen; normale interne Redirects konnten außerdem den Content-Filter-Pfad zurücksetzen, während eine veraltete Transaction erhalten blieb. Frische Exact-Dependency-Tests belegten zusätzlich, dass ein bloßer Abbruch im Insert-Filter-Pfad weiterhin die Ausführung eines Redirect-Target-Handlers erlaubte. Die fokussierte Parent-Reparatur blockiert unsichere Redirect-Requests nun sowohl im Quick-Handler- als auch im normalen Handler-Pfad; sie ist lokal fixed, aber noch nicht für Delivery verified.",
+  "observed_behavior": "The broken path was upstream response data to MODSECURITY_OUT append or forward to downstream ap_pass_brigade before EOS, followed only then by msc_process_response_body and process_intervention. A response-body marker matched by a disruptive Phase-4 rule could already be visible to a requester. A normal internal redirect could reset the resource filter chain even though the C API cannot safely rebind the original transaction to the target request state.",
+  "observed_behavior_de": "Der fehlerhafte Pfad war Upstream-Response-Daten zu MODSECURITY_OUT append oder forward zu Downstream ap_pass_brigade vor EOS und erst danach msc_process_response_body und process_intervention. Ein Response-Body-Marker, der von einer disruptiven Phase-4-Regel gematcht wurde, konnte für einen Requester bereits sichtbar sein. Ein normaler Internal Redirect konnte die Resource-Filter-Chain zurücksetzen, obwohl die C-API die ursprüngliche Transaction nicht sicher an den Zustand des Target-Requests neu binden kann.",
+  "expected_behavior": "No byte that Phase 4 can consider reaches downstream before msc_process_response_body and the associated intervention resolve. An allow releases normalized saved brigades and their EOS once; deny or pre-commit failure discards the original brigades and uses the terminal error path. An unsafe normal internal redirect fails closed.",
+  "expected_behavior_de": "Kein Byte, das Phase 4 berücksichtigen kann, erreicht Downstream bevor msc_process_response_body und die zugehörige Intervention entschieden sind. Ein Allow releast normalisierte gespeicherte Brigades samt EOS genau einmal; Deny oder Pre-Commit-Fehler verwirft die Original-Brigades und nutzt den terminalen Fehlerpfad. Ein unsicherer normaler Internal Redirect scheitert geschlossen.",
+  "impact": "A remote requester able to cause a response body matching a deployed Phase-4 deny rule could receive content that policy intended to suppress. This defeats response-body enforcement and can disclose a reflected or otherwise protected response payload despite a high-severity deny policy.",
+  "impact_de": "Ein Remote-Requester, der einen Response-Body erzeugen kann, der eine bereitgestellte Phase-4-Deny-Regel matcht, könnte Inhalt erhalten, den die Policy unterdrücken sollte. Dies unterläuft Response-Body-Enforcement und kann einen reflektierten oder anderweitig geschützten Response-Payload trotz einer High-Severity-Deny-Policy offenlegen.",
+  "preconditions": [
+    "The Apache connector uses libModSecurity with a disruptive Phase-4 SecRule RESPONSE_BODY rule.",
+    "The response contains the rule marker before EOS.",
+    "A requester reaches the response route directly or through a normal internal redirect; no local privilege is required."
+  ],
+  "reproduction": [
+    "Install the focused Phase-4 deny rule and serve its marker in a response body split across Apache brigades.",
+    "The retained historical URI-target reproduction recorded a direct target denial but an internal-redirect HTTP 200 response containing the marker.",
+    "On the current candidate, redirect-target-handler-abort-h1 first exited 1 and logged both the connector refusal and the target-handler marker; after the focused repair, the H1 and H2 controls and the 30-control native matrix exit 0 with no marker."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T075119Z-apache-phase4-response-098df329",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075119Z-apache-phase4-response-098df329/build/final-runtime-guard-v5/tests/redirect-uri-bypass-h1/logs/observed-status.txt",
+      "artifact_type": "native_apache_phase4_pre_fix_redirect_status",
+      "sha256": "c11e3f4837efde2441e23a7b9da02131f53bf59fddeb7147c4ab81afe400460f",
+      "command": "retained pre-fix Apache URI-target Phase-4 redirect reproducer",
+      "exit_code": 0,
+      "retention_status": "unavailable_unsealed_external_artifact",
+      "availability": "missing",
+      "deletion_time": "unknown",
+      "deletion_reason": "unknown"
+    },
+    {
+      "run_id": "20260718T075119Z-apache-phase4-response-098df329",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075119Z-apache-phase4-response-098df329/build/final-runtime-guard-v5/tests/redirect-uri-bypass-h1/logs/response-body.txt",
+      "artifact_type": "native_apache_phase4_pre_fix_leaked_marker",
+      "sha256": "b186cc3103543b398e617165a51528ccae430b063105434b29a0b01aea28c9ee",
+      "command": "retained pre-fix Apache URI-target Phase-4 redirect reproducer",
+      "exit_code": 0,
+      "retention_status": "unavailable_unsealed_external_artifact",
+      "availability": "missing",
+      "deletion_time": "unknown",
+      "deletion_reason": "unknown"
+    },
+    {
+      "run_id": "20260718T075119Z-apache-phase4-response-098df329",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075119Z-apache-phase4-response-098df329/build/final-runtime-guard-v12/tests/deny/logs/phase4.log",
+      "artifact_type": "native_apache_phase4_post_fix_deny",
+      "sha256": "45732d58de3644852c63c4d20d29118d7c6cae3f667407efdf3c3654ff03be41",
+      "command": "sh ci/runtime/lifecycle/run-apache-phase4-response-regression.sh deny",
+      "exit_code": 0,
+      "retention_status": "unavailable_unsealed_external_artifact",
+      "availability": "missing",
+      "deletion_time": "unknown",
+      "deletion_reason": "unknown"
+    },
+    {
+      "run_id": "20260718T075119Z-apache-phase4-response-098df329",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075119Z-apache-phase4-response-098df329/build/final-runtime-guard-v12/tests/rogue-h2/logs/phase4.log",
+      "artifact_type": "native_apache_phase4_post_fix_multibrigade_h2_deny",
+      "sha256": "bd18170c8e4b3a3dae42abaa03af232f7f2b452f2b6e88556e0e23c95904516d",
+      "command": "sh ci/runtime/lifecycle/run-apache-phase4-response-regression.sh rogue-h2",
+      "exit_code": 0,
+      "retention_status": "unavailable_unsealed_external_artifact",
+      "availability": "missing",
+      "deletion_time": "unknown",
+      "deletion_reason": "unknown"
+    },
+    {
+      "run_id": "20260718T075119Z-apache-phase4-response-098df329",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075119Z-apache-phase4-response-098df329/build/final-runtime-guard-v12/profiles/with-crs-no-mrts/verified-apache-case/with-crs-no-mrts-apache/logs/apache-runtime/crs_sqli_anomaly_block/result.json",
+      "artifact_type": "native_apache_crs_compatibility_control",
+      "sha256": "8c7de5d36446759e0753874937565dd13808098e70cbe16e5096ae84bbd9ecd8",
+      "command": "focused Apache verified-apache-case CRS profile: crs_sqli_anomaly_block",
+      "exit_code": 0,
+      "retention_status": "unavailable_unsealed_external_artifact",
+      "availability": "missing",
+      "deletion_time": "unknown",
+      "deletion_reason": "unknown"
+    },
+    {
+      "run_id": "20260718T075119Z-apache-phase4-response-098df329",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075119Z-apache-phase4-response-098df329/build/final-runtime-guard-v12/profiles/no-crs-with-mrts/verified-apache-case/no-crs-with-mrts-apache/logs/apache-runtime/mrts_100152_mrts_069_response_body_100152_1/result.json",
+      "artifact_type": "native_apache_mrts_response_body_phase4_profile",
+      "sha256": "d77175c27bd56ad0a08c4945aa1a2e56e6628df55a3f5c5154d48154582f5444",
+      "command": "make verified-apache-case CASE=mrts_100152_mrts_069_response_body_100152_1 CRS=no-crs MRTS=with-mrts",
+      "exit_code": 0,
+      "retention_status": "unavailable_unsealed_external_artifact",
+      "availability": "missing",
+      "deletion_time": "unknown",
+      "deletion_reason": "unknown"
+    },
+    {
+      "run_id": "20260718T075119Z-apache-phase4-response-098df329",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075119Z-apache-phase4-response-098df329/analysis/v12-sanitizer-revalidation.Ucxi1d/runtime-asan-rogue-h2/logs/phase4-rogue-transfers.txt",
+      "artifact_type": "native_apache_phase4_post_fix_asan_h2_deny",
+      "sha256": "e4f4ac5699d92415b1de480cf593d029b8d3185b025db81e0662de40532dd8fe",
+      "command": "fresh v12 ASan DSO, run-apache-phase4-response-regression.sh rogue-h2",
+      "exit_code": 0,
+      "retention_status": "present_unsealed_partial_artifact",
+      "availability": "present_hash_matched_not_sealed"
+    },
+    {
+      "run_id": "20260718T075119Z-apache-phase4-response-098df329",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075119Z-apache-phase4-response-098df329/analysis/v12-sanitizer-revalidation.Ucxi1d/runtime-ubsan-rogue-h2/logs/phase4-rogue-transfers.txt",
+      "artifact_type": "native_apache_phase4_post_fix_ubsan_h2_deny",
+      "sha256": "ab569dde9d18e2e942792e39100dd0bebe3ca292c819172b8d051e24689e181a",
+      "command": "fresh v12 UBSan DSO, run-apache-phase4-response-regression.sh rogue-h2",
+      "exit_code": 0,
+      "retention_status": "present_unsealed_partial_artifact",
+      "availability": "present_hash_matched_not_sealed"
+    },
+    {
+      "run_id": "20260718T184530Z-pr60-7c83583",
+      "artifact_path": "/var/tmp/codex/worktrees/apache-phase4-response/.codex/runs/20260718T184530Z-pr60-7c83583/final-revalidation.json",
+      "artifact_type": "exact_draft_pr_security_revalidation",
+      "sha256": "10d26f2790d01430264f1d8d5de0251ced7493000114346567d5aaf357f99fc8",
+      "command": "final focused Codex Security revalidation for historical PR #60 head 7c83583b4e208b8945daeec226d04abe364cbc8e",
+      "exit_code": 0,
+      "retention_status": "present_unsealed_worktree_evidence",
+      "availability": "present_hash_matched_superseded_by_local_sync_head"
+    },
+    {
+      "run_id": "20260719T162259Z-pr60-exact-head-revalidation-dfba422e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T162259Z-pr60-exact-head-revalidation-dfba422e/evidence/pre-fix-redirect-target-handler/apache-error.log",
+      "artifact_type": "exact_native_pre_fix_redirect_target_handler_side_effect",
+      "sha256": "ada09ca5545220b3c2e9afee4b54d069eae66257f2b615ba1678350f3dd7c040",
+      "command": "redirect-target-handler-abort-h1 through the exact Parent-gitlink Framework build before the focused source repair",
+      "working_directory": "/var/tmp/codex/worktrees/apache-phase4-response",
+      "exit_code": 1,
+      "observed_at": "2026-07-19T18:10:00Z",
+      "retention_status": "sealed_native_matrix"
+    },
+    {
+      "run_id": "20260719T162259Z-pr60-exact-head-revalidation-dfba422e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T162259Z-pr60-exact-head-revalidation-dfba422e/build-cdc91/logs/apache-phase4-exact-matrix/redirect-target-handler-abort-h1/error.log",
+      "artifact_type": "exact_native_post_fix_redirect_target_handler_h1",
+      "sha256": "c02afef668fc16a98ed026d3b5e0587975ed4fedd7f29184e5059021afafe021",
+      "command": "redirect-target-handler-abort-h1 through the exact Parent-gitlink Framework build after the focused source repair",
+      "working_directory": "/var/tmp/codex/worktrees/apache-phase4-response",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T18:10:00Z",
+      "retention_status": "sealed_native_matrix"
+    },
+    {
+      "run_id": "20260719T162259Z-pr60-exact-head-revalidation-dfba422e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T162259Z-pr60-exact-head-revalidation-dfba422e/build-cdc91/logs/apache-phase4-exact-matrix/redirect-target-handler-abort-h2/error.log",
+      "artifact_type": "exact_native_post_fix_redirect_target_handler_h2",
+      "sha256": "264f67f18b99979f60b6a6ecec2c40d808937aca6c0e293aa8ce94f606c7de22",
+      "command": "redirect-target-handler-abort-h2 through the exact Parent-gitlink Framework build after the focused source repair",
+      "working_directory": "/var/tmp/codex/worktrees/apache-phase4-response",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T18:10:00Z",
+      "retention_status": "sealed_native_matrix"
+    },
+    {
+      "run_id": "20260719T162259Z-pr60-exact-head-revalidation-dfba422e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T162259Z-pr60-exact-head-revalidation-dfba422e/evidence/pr60-exact-native-phase4-matrix.md",
+      "artifact_type": "exact_native_phase4_matrix_report",
+      "sha256": "2218e7d5545f6b09dcb43d1b0779889fc778a16d3f3f65e2246598c3b54e4627",
+      "command": "serial 30-mode Apache Phase-4 exact native matrix",
+      "working_directory": "/var/tmp/codex/worktrees/apache-phase4-response",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T18:10:00Z",
+      "retention_status": "sealed_native_matrix"
+    },
+    {
+      "run_id": "20260719T162259Z-pr60-exact-head-revalidation-dfba422e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T162259Z-pr60-exact-head-revalidation-dfba422e/evidence/pr60-exact-native-phase4-manifest.json",
+      "artifact_type": "exact_native_phase4_matrix_manifest",
+      "sha256": "1f44c2817676ef2952f70573917657d67645d8d85d57e829a47c9d67ee2ea548",
+      "command": "SHA-256 inventory of the sealed serial 30-mode Apache Phase-4 matrix",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260719T162259Z-pr60-exact-head-revalidation-dfba422e",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T18:10:00Z",
+      "retention_status": "sealed_native_matrix"
+    }
+  ],
+  "root_cause": "The Apache bridge treated incremental response forwarding as independent from the EOS-only libModSecurity Phase-4 decision. It could append a bounded prefix for inspection yet pass original buckets before msc_process_response_body. It also treated a response-filter reset on a normal internal redirect as harmless although the C API cannot rebind the native transaction to the target request rules and variables. The fresh target-handler reproduction proved that hook_insert_filter is void: sealing or aborting there does not stop ap_run_handler, while Apache invokes a normal internal redirect quick handler before ap_process_request_internal and ap_invoke_handler.",
+  "root_cause_de": "Die Apache-Bridge behandelte inkrementelles Response-Forwarding als unabhängig von der EOS-only libModSecurity-Phase-4-Entscheidung. Sie konnte einen begrenzten Präfix zur Inspektion anhängen und trotzdem Original-Buckets vor msc_process_response_body weitergeben. Außerdem behandelte sie einen Response-Filter-Reset bei einem normalen Internal Redirect als harmlos, obwohl die C-API die native Transaction nicht an Regeln und Variablen des Target-Requests neu binden kann. Die frische Target-Handler-Reproduktion belegte, dass hook_insert_filter void ist: Versiegeln oder Abbrechen dort stoppt ap_run_handler nicht, während Apache bei einem normalen internen Redirect einen Quick-Handler vor ap_process_request_internal und ap_invoke_handler aufruft.",
+  "proposed_remediation": "Retain and normalize every pre-EOS response brigade with ap_save_brigade, append the complete bounded body to libModSecurity, and decide at EOS before the only downstream release. Track connector-owned release state, restore the inspected Phase-3 state before release, install a terminal protocol guard, discard original bytes on deny or error, permit only a bounded core-marked local ErrorDocument emission, and fail closed for normal redirects or setaside, append, or limit failures. Register an APR_HOOK_REALLY_FIRST quick-handler guard and a normal-handler fallback that both return DONE for an unsafe r->prev request; bind a permitted local ErrorDocument transition to the redirect request's own notes table only after the core-derived proof succeeds.",
+  "proposed_remediation_de": "Jede Pre-EOS-Response-Brigade mit ap_save_brigade zurückhalten und normalisieren, den vollständigen begrenzten Body an libModSecurity anhängen und bei EOS vor dem einzigen Downstream-Release entscheiden. Den Connector-eigenen Release-Zustand verfolgen, den inspizierten Phase-3-Zustand vor Release wiederherstellen, einen terminalen Protocol-Guard installieren, Originalbytes bei Deny oder Fehler verwerfen, nur eine begrenzte core-markierte lokale ErrorDocument-Emission erlauben und bei normalen Redirects oder Setaside-, Append- oder Limit-Fehlern fail-closed handeln. Einen APR_HOOK_REALLY_FIRST-Quick-Handler-Guard und einen normalen Handler-Fallback registrieren, die beide für einen unsicheren r->prev-Request DONE zurückgeben; einen erlaubten lokalen ErrorDocument-Übergang erst nach erfolgreichem Core-abgeleiteten Nachweis an die eigene Notes-Tabelle des Redirect-Requests binden.",
+  "acceptance_criteria": [
+    "A Phase-4 response-body-marker deny returns the configured deny status without releasing the marker before EOS.",
+    "Allow, log-only, empty response, body-limit, ProcessPartial, client-abort, ErrorDocument, redirect, H1, H2, and multi-brigade controls retain their documented behavior.",
+    "Late output after EOS or terminal deny cannot emit a second body or EOS; valid ErrorDocument handling remains bounded and normal redirects fail closed.",
+    "The exact native redirect-target-handler abort control preserves the refusal and executes no target handler for both HTTP/1.1 and HTTP/2.",
+    "Focused CRS and MRTS controls remain read-only and are never bypassed; their current blocked status is stated instead of claimed as passing.",
+    "Parent-only Draft PR delivery requires a fresh local Codex Security diff scan, exact-head CI, CodeQL, SonarQube, review, and protected-merge evidence; no merge is claimed before direct evidence."
+  ],
+  "validation_plan": [
+    "The retained sealed 30-control exact native matrix covers deny, allow, log-only, empty, body-limit, ProcessPartial, client-abort, ErrorDocument, redirect, H1, H2, multi-brigade, and late-producer controls.",
+    "Focused C17, shell-syntax, wiring, and source-to-sink checks passed; no repository-native Apache Phase-4 ASan/UBSan route exists.",
+    "Record the CRS provenance-guard and MRTS materialization limits without modifying or bypassing Framework or MRTS, then verify the exact pushed PR head in CI, CodeQL, SonarQube Cloud, review checks, and a scoped Codex Security diff scan.",
+    "Retain/hash/seal the exact native evidence and keep this finding fixed, not verified, until the original reproduction and legitimate controls rerun from the delivered master SHA."
+  ],
+  "regression_tests": [
+    "tests/test_apache_phase4_response_regression_wiring.py",
+    "ci/runtime/lifecycle/run-apache-phase4-response-regression.sh",
+    "connectors/apache/harness/run_apache_smoke.sh Phase-4 deny, rogue, ErrorDocument, redirect, H1, and H2 modes"
+  ],
+  "legitimate_control_tests": [
+    "Allow and log-only response-body controls",
+    "Empty response allow and deny controls",
+    "Rogue multi-brigade allow control",
+    "Apache CRS crs_sqli_anomaly_block control",
+    "MRTS mrts_100152_mrts_069_response_body_100152_1 Phase-4 RESPONSE_BODY profile"
+  ],
+  "dependencies": [
+    "Apache httpd and libModSecurity runtime component cache",
+    "Exact read-only Framework source at Parent gitlink cdc91a398d6c156eaff927d742b23018a3817fb6",
+    "MRTS source inspected read-only at 13aa91291adea12d5c607fdd165d010fcfb1da78"
+  ],
+  "blocked_by": [
+    "fresh local Codex Security diff scan for the final candidate",
+    "exact pushed-head CI, CodeQL, SonarQube, review, protected-merge, and resulting-master evidence"
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0008"
+  ],
+  "deduplication_note": "This is the independently reproduced Apache/libModSecurity response-body enforcement bypass. FND-PARENT-0008 tracks an unrelated unchanged Clang baseline warning.",
+  "source_run_ids": [
+    "20260718T075119Z-apache-phase4-response-098df329",
+    "20260718T184530Z-pr60-7c83583",
+    "20260719T162259Z-pr60-exact-head-revalidation-dfba422e"
+  ],
+  "residual_risk": "The local ErrorDocument proof relies on Apache-core no_local_copy and REDIRECT_STATUS correlation rather than an unforgeable provenance primitive. The normal-header snapshot does not claim HTTP/2 trailer freezing. Neither limitation reopened the held-response-body leak or target-handler execution in the current exact native matrix. CRS remains blocked by its provenance guard, MRTS is not yet current, and delivery remains unverified until the final candidate passes its local security scan, remote gates, protected merge, and resulting-master revalidation; no risk is accepted.",
+  "residual_risk_de": "Der lokale ErrorDocument-Nachweis beruht auf der Korrelation von no_local_copy und REDIRECT_STATUS des Apache-Core statt auf einem nicht fälschbaren Provenance-Primitiv. Der normale Header-Snapshot beansprucht kein HTTP/2-Trailer-Freezing. Keine Einschränkung öffnete im aktuellen exakten Native-Matrix-Lauf erneut das Leck des zurückgehaltenen Response-Bodys oder die Target-Handler-Ausführung. CRS bleibt durch seinen Provenance-Guard blockiert, MRTS ist noch nicht aktuell, und die Delivery bleibt bis zum lokalen finalen Security-Scan, den Remote-Gates, dem Protected Merge und der Resulting-Master-Revalidation unverifiziert; kein Risiko wird akzeptiert.",
+  "created_at": "2026-07-19T16:50:12Z",
+  "updated_at": "2026-07-19T18:20:42Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-18T14:57:02Z",
+      "event": "historical_native_bypass_observed",
+      "detail": "The historical URI-target Phase-4 redirect reproducer recorded a marker leak after an internal redirect while the direct target denied."
+    },
+    {
+      "at": "2026-07-19T16:50:12Z",
+      "event": "canonical_record_created_with_historical_evidence_gap",
+      "detail": "The ignored worktree record and the declared old run were audited. Six central artifacts are missing and the remaining historical artifacts are unsealed or tied to the superseded head 7c83583b4e208b8945daeec226d04abe364cbc8e. The normal local sync candidate 93c5f30c181710f5c2cecf207fb92aaecb215035 therefore remained blocked pending a fresh retained exact-head revalidation."
+    },
+    {
+      "at": "2026-07-19T18:20:42Z",
+      "event": "exact_native_target_handler_bypass_fixed_locally",
+      "detail": "The exact Parent-gitlink native pre-fix H1 target-handler control exited 1 and retained both the refusal and target-handler side-effect marker. APR_HOOK_REALLY_FIRST quick-handler and normal-handler guards plus request-local ErrorDocument note binding were added. The post-fix H1/H2 controls and sealed serial 30-mode matrix exited 0. The finding is fixed locally, not verified, while the final local security scan and remote delivery gates remain pending."
+    }
+  ]
+}

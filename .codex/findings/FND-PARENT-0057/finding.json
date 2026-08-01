@@ -1,0 +1,130 @@
+{
+  "id": "FND-PARENT-0057",
+  "title": "Draft Parent PR #74 expands PR-controlled workflow output at a template-to-shell boundary",
+  "title_de": "Draft-Parent-PR #74 expandiert PR-kontrollierte Workflow-Ausgabe an einer Template-zu-Shell-Grenze",
+  "category": "security_candidate",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "probable",
+  "status": "in_progress",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "security_assessment": "plausible",
+  "security_invariant": "No value that checked-out pull-request code can write to a GitHub Actions step output may enter run-script source through a GitHub Actions expression. A static workflow step creates the private stage parent with umask, mktemp, and chmod; only stage_parent crosses through a step output into the VERIFIED_EVIDENCE_STAGE_ROOT env mapping, and the stage/final commands expand the quoted shell variable. The stage CLI exposes no user-selectable output-file argument or Path.open sink.",
+  "controlled_inputs": [
+    "Checked-out PR staging CLI output written through the legacy verified-evidence-paths step output path",
+    "Legacy user-selectable --github-output argument accepted before the current local correction"
+  ],
+  "trusted_inputs": [
+    "Static workflow-owned private stage-parent allocation through umask, mktemp, and chmod",
+    "Only stage_parent crossing through the workflow output into VERIFIED_EVIDENCE_STAGE_ROOT step env",
+    "The GitHub Actions $GITHUB_OUTPUT channel supplied to the workflow runtime",
+    "Static reviewed run-script source and quoted shell-variable expansion"
+  ],
+  "sink": "Legacy GitHub Actions run-script expansion of --stage-root and legacy Path.open for --github-output; the current local correction removes --github-output and Path.open entirely and passes VERIFIED_EVIDENCE_STAGE_ROOT through step env to quoted shell-variable expansion.",
+  "connector": null,
+  "protocol": "GitHub Actions pull-request workflow",
+  "profile": "Draft Parent PR #74 exact head 9046c69cc49145e70b18b5fc86a7c3fe67926d5a",
+  "affected_files": [
+    ".github/workflows/verified-report-governance.yml",
+    "ci/evidence/reports/stage-verified-full-matrix-evidence.py"
+  ],
+  "affected_symbols": [
+    "steps.verified-evidence-paths.outputs.staged_root",
+    "--stage-root",
+    "stage_parent",
+    "VERIFIED_EVIDENCE_STAGE_ROOT",
+    "legacy --github-output (removed)",
+    "legacy Path.open sink (removed)"
+  ],
+  "observed_behavior": "The exact Draft PR #74 hosted zizmor job exited 11 and reported one template-injection informational finding at .github/workflows/verified-report-governance.yml:150:31 for --stage-root \"${{ steps.verified-evidence-paths.outputs.staged_root }}\". Checked-out PR code controlled the staging CLI and could write the step output before its later expansion in Bash source. The same hosted observation reported one pythonsecurity:S8707 VULNERABILITY key AZ-fw-Tf7_zRPd2N8_S2 at ci/evidence/reports/stage-verified-full-matrix-evidence.py:65, where the then-user-selectable --github-output argument reached Path.open. The current local correction removes --github-output and Path.open entirely; a static workflow step creates a private parent through umask, mktemp, and chmod, passes only stage_parent through output into step env VERIFIED_EVIDENCE_STAGE_ROOT, and stage/final commands use the quoted shell variable. Hosted successor validation is pending.",
+  "expected_behavior": "The workflow allocates a private stage parent in a static step with umask, mktemp, and chmod, passes only stage_parent through a step output into VERIFIED_EVIDENCE_STAGE_ROOT step env, and expands only the quoted shell variable in stage/final commands. No output derived from PR code may enter run-script source through ${{ ... }}. --github-output and Path.open are absent from the stage CLI path.",
+  "impact": "The hosted security check fails, and the expression-to-Bash expansion is a plausible template-injection boundary: a checked-out PR can influence data written to the step output before the workflow interpolates it. No exploit execution, credential disclosure, or successful bypass is claimed. The local correction eliminates the separate S8707 argument/sink instead of suppressing it; fresh hosted validation is still required.",
+  "preconditions": [
+    "Draft PR #74 runs verified-report-governance on exact head 9046c69cc49145e70b18b5fc86a7c3fe67926d5a",
+    "The checked-out PR controls the staging CLI that can write the verified-evidence-paths step output",
+    "The workflow later expands that output through a GitHub Actions expression inside Bash source",
+    "The pre-correction stage helper receives a user-selectable --github-output path that reaches Path.open"
+  ],
+  "reproduction": [
+    "Read GitHub Actions run 30215550687 failed logs and observe zizmor template-injection at .github/workflows/verified-report-governance.yml:150:31.",
+    "Inspect the source-to-sink path from the verified-evidence-paths staged_root output into the later --stage-root run-script argument.",
+    "Inspect the pre-correction ci/evidence/reports/stage-verified-full-matrix-evidence.py:65 source-to-sink path from --github-output to Path.open, then inspect the successor correction for complete removal of both.",
+    "Inspect the successor workflow for static umask/mktemp/chmod stage-parent allocation, only stage_parent output hand-off into VERIFIED_EVIDENCE_STAGE_ROOT env, and quoted shell-variable use by stage/final commands.",
+    "Read exact-head SonarQube Cloud PR #74 issues and confirm pythonsecurity:S8707 key AZ-fw-Tf7_zRPd2N8_S2."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T185607Z-pr74-fast-validation-hosted-followup",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T185607Z-pr74-fast-validation-hosted-followup/evidence/hosted-observation.md",
+      "artifact_type": "bounded_exact_head_hosted_zizmor_and_sonarqube_observation",
+      "sha256": "5c64b4fe03ed670b0d2c25c58c2f770b59ae53bab10851ced35bd9012117d956",
+      "command": "Read-only GitHub Actions failed-log readback and SonarQube Cloud PR #74 Quality Gate/issues API readback",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T18:56:07Z",
+      "retention_status": "retained_external"
+    }
+  ],
+  "root_cause": "A PR-controlled step output crossed from workflow data into shell source through direct ${{ steps.verified-evidence-paths.outputs.staged_root }} expansion. The pre-correction stage helper separately accepted --github-output until it reached Path.open. Those independently observable boundaries produced one template-injection signal and one S8707 signal in the same Draft PR #74 follow-up.",
+  "proposed_remediation": "The current local correction removes --github-output and Path.open entirely. A static workflow step creates a private stage parent with umask, mktemp, and chmod, passes only stage_parent through output into VERIFIED_EVIDENCE_STAGE_ROOT step env, and has stage/final commands expand the quoted shell variable. Add focused negative and legitimate controls and preserve the full strict producer: the eight-second preflight is only an early rejection path, not a replacement for the full report-governance producer.",
+  "acceptance_criteria": [
+    "Exact successor PR #74 zizmor analysis reports no active template-injection finding at verified-report-governance.yml.",
+    "No value written by checked-out PR code is expanded into a run script through ${{ ... }}.",
+    "The stage CLI no longer accepts --github-output and contains no Path.open output-file sink.",
+    "A static umask/mktemp/chmod private parent passes only stage_parent through output into VERIFIED_EVIDENCE_STAGE_ROOT step env, and stage/final commands use the quoted shell variable.",
+    "The strict/full report-governance producer remains required and succeeds after the correction; the preflight is not used as a substitute.",
+    "Exact successor SonarQube Cloud analysis no longer reports pythonsecurity:S8707 key AZ-fw-Tf7_zRPd2N8_S2 and FND-SONAR-0016 reaches its zero-open-findings criterion.",
+    "No SonarQube Cloud rule, Quality Gate, exclusion, suppression, coverage threshold, false-positive disposition, Framework, MRTS, or Gitlink change is used."
+  ],
+  "validation_plan": [
+    "Run focused workflow and stage-helper negative/legitimate controls for expression-free shell input, removed --github-output/Path.open, static private-parent allocation, and VERIFIED_EVIDENCE_STAGE_ROOT hand-off.",
+    "Run the repository-native workflow security contract and zizmor checks without suppressions.",
+    "Obtain exact successor Draft PR #74 hosted zizmor, full report-governance producer, SonarQube Cloud, review, and protected-integration evidence.",
+    "Re-read the original template-injection and S8707 observations on the exact successor head before any fixed or verified disposition."
+  ],
+  "regression_tests": [
+    "Focused workflow contract rejects a run-script GitHub Actions expression sourced from a prior PR-controlled step output.",
+    "Focused stage-helper test proves --github-output is absent/rejected and Path.open is not a reachable output-file sink.",
+    "Focused workflow control proves umask/mktemp/chmod private-parent allocation, stage_parent-only env hand-off through VERIFIED_EVIDENCE_STAGE_ROOT, and quoted shell-variable use."
+  ],
+  "legitimate_control_tests": [
+    "Only the static workflow-owned stage_parent crosses the GitHub Actions output channel into the VERIFIED_EVIDENCE_STAGE_ROOT env mapping.",
+    "The full report-governance producer consumes the private staged evidence set successfully after the trusted env hand-off.",
+    "A normal Draft PR #74 workflow retains its intended no-token staging behavior."
+  ],
+  "dependencies": [
+    "FND-SONAR-0016 exact successor SonarQube Cloud zero-open-findings revalidation",
+    "Exact successor Draft PR #74 hosted workflow and protected-integration evidence"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0016",
+    "FND-PARENT-0058"
+  ],
+  "deduplication_note": "Not a duplicate of FND-SONAR-0016: FND-SONAR-0016 aggregates the PR-level Quality Gate and all open Sonar findings, while this finding owns the independently remediable workflow template-to-shell boundary and removal of the legacy --github-output/Path.open path. It is also not a duplicate of FND-PARENT-0058, which owns full-matrix port-range evidence reliability.",
+  "source_run_ids": [
+    "20260726T185607Z-pr74-fast-validation-hosted-followup"
+  ],
+  "residual_risk": "The current local correction has removed the legacy --github-output and Path.open path, but it has not yet received fresh hosted zizmor, full-producer, SonarQube Cloud, review, and protected-integration evidence. The exact Draft PR #74 head therefore remains pending confirmation that the static private-parent and env hand-off preserve controls without a new boundary. PR #74 remains Draft; no risk acceptance, suppression, workflow-control weakening, Framework/MRTS action, Gitlink update, close, merge, or delivery is claimed.",
+  "residual_risk_de": "Die aktuelle lokale Korrektur hat den Legacy- --github-output- und Path.open-Pfad entfernt, aber noch keine frische Hosted-Zizmor-, Full-Producer-, SonarQube-Cloud-, Review- und Protected-Integration-Evidence erhalten. Der exakte Draft-PR-#74-Head wartet daher auf Bestätigung, dass statischer Private-Parent und Env-Handoff die Kontrollen ohne neue Grenze erhalten. PR #74 bleibt Draft; es werden weder Risikoakzeptanz, Suppression, Lockerung einer Workflow-Kontrolle, Framework-/MRTS-Aktion, Gitlink-Update, Close, Merge noch Delivery behauptet.",
+  "created_at": "2026-07-26T18:56:07Z",
+  "updated_at": "2026-07-26T19:55:51Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-26T18:56:07Z",
+      "event": "draft_pr74_template_injection_and_s8707_plausible_correction_allocated",
+      "detail": "Retained hosted observation records the zizmor template-injection signal and the SonarQube Cloud S8707 signal on the same exact Draft PR #74 head. The finding is separately allocated as P1 in_progress/plausible; no remediation validation or delivery outcome is claimed."
+    },
+    {
+      "at": "2026-07-26T19:55:51Z",
+      "event": "local_stage_parent_env_handoff_and_output_sink_removal_recorded",
+      "detail": "The current local correction removes --github-output and Path.open entirely; it allocates a private stage parent through umask/mktemp/chmod, passes only stage_parent through output into VERIFIED_EVIDENCE_STAGE_ROOT step env, and uses a quoted shell variable in stage/final commands. FND-PARENT-0057 remains in_progress pending hosted exact-successor validation."
+    }
+  ]
+}

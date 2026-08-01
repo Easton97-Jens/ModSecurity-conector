@@ -1,0 +1,196 @@
+{
+  "id": "FND-FRAMEWORK-0003",
+  "title": "Framework workflow actions use mutable major tags",
+  "title_de": "Framework-Workflow-Actions verwenden mutable Major-Tags",
+  "category": "security_hardening",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "medium",
+  "confidence": "validated",
+  "status": "fixed",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "modules/ModSecurity-test-Framework/.github/workflows/check-action-versions.yml",
+    "modules/ModSecurity-test-Framework/.github/workflows/check-common-versions.yml",
+    "modules/ModSecurity-test-Framework/.github/workflows/cleanup-artifacts.yml",
+    "modules/ModSecurity-test-Framework/.github/workflows/lint.yml",
+    "modules/ModSecurity-test-Framework/.github/workflows/test-common.yml",
+    "modules/ModSecurity-test-Framework/ci/checks/security/check-workflow-action-pins.py",
+    "modules/ModSecurity-test-Framework/tests/security_regression/test_workflow_action_pins.py",
+    "modules/ModSecurity-test-Framework/Makefile"
+  ],
+  "affected_symbols": [
+    "check-workflow-action-pins.py",
+    "external uses: full 40-character Git commit SHA",
+    "test-workflow-action-pins"
+  ],
+  "summary": "The Framework workflow action-pin control is locally remediated: every observed external action reference is pinned to a reviewed immutable full commit SHA and a native regression-tested validator enforces the boundary.",
+  "summary_de": "Die Framework-Workflow-Action-Pin-Kontrolle ist lokal remediiert: Jede beobachtete externe Action-Referenz ist auf einen überprüften immutable vollständigen Commit-SHA gepinnt, und ein nativer regressionsgetesteter Validator erzwingt die Grenze.",
+  "observed_behavior": "At Framework base cdc91a398d6c156eaff927d742b23018a3817fb6 the prior inline validator accepted seven mutable major tags. The changed Framework workflow tree now validates only external full-SHA references.",
+  "observed_behavior_de": "Auf der Framework-Basis cdc91a398d6c156eaff927d742b23018a3817fb6 akzeptierte der bisherige Inline-Validator sieben mutable Major-Tags. Der geänderte Framework-Workflow-Baum validiert nun nur externe Full-SHA-Referenzen.",
+  "expected_behavior": "Every external executable workflow action must resolve to a reviewed full 40-character Git commit SHA before a Framework job executes it; local ./ references remain a distinct legitimate control.",
+  "expected_behavior_de": "Jede externe ausführbare Workflow-Action muss vor ihrer Ausführung durch einen Framework-Job zu einem überprüften vollständigen 40-stelligen Git-Commit-SHA auflösen; lokale ./-Referenzen bleiben ein eigenständiger legitimer Kontrollfall.",
+  "impact": "The mutable-action supply-chain path is locally removed. Delivery assurance remains bounded because mandatory static tools and independent Framework delivery gates are unresolved.",
+  "impact_de": "Der mutable-Action-Supply-Chain-Pfad ist lokal entfernt. Die Delivery-Assurance bleibt begrenzt, weil verpflichtende statische Tools und unabhängige Framework-Delivery-Gates ungelöst sind.",
+  "preconditions": [
+    "Framework base cdc91a398d6c156eaff927d742b23018a3817fb6 and the retained validation evidence remain available.",
+    "The seven action commit SHAs were reviewed from their upstream action repositories without changing the intended major versions."
+  ],
+  "reproduction": [
+    "The pre-fix extracted current-master control accepted actions/checkout@v7, actions/setup-python@v6, actions/github-script@v9, and peter-evans/create-pull-request@v8.",
+    "rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/.venv/bin/python ci/checks/security/check-workflow-action-pins.py"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:159-177,228-228",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '159,177p;228p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260718T092013Z-fnd-framework-0003-actions-sha-pins-41e9a058",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T092013Z-fnd-framework-0003-actions-sha-pins-41e9a058/evidence/fnd-framework-0003-validation-summary-retained.md",
+      "artifact_type": "retained_validation_summary",
+      "sha256": "b45fb9acc7a9ed5f12e5b49bce0669b815730b2cde9ee116c77b82f8240a8ba5",
+      "command": "rtk proxy .codex/bin/storage-budget retain-evidence --run 20260718T092013Z-fnd-framework-0003-actions-sha-pins-41e9a058 --source /var/tmp/codex/ModSecurity-conector/runs/20260718T092013Z-fnd-framework-0003-actions-sha-pins-41e9a058/tmp/fnd-framework-0003-validation-summary-source.md --destination evidence/fnd-framework-0003-validation-summary-retained.md --json",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T10:27:28Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/analysis/direct-merge-hazards.md",
+      "artifact_type": "direct_current_master_stale_pr_reintroduction_analysis",
+      "sha256": "d28d88c9b1f034e1798cfa805d3b4e7210e3e3742dc4014d19ef78238c5c2004",
+      "command": "rtk git -C <Framework-worktree> diff --name-status 9954b99a31fab0006cdf903ab477c8158c50fea8 <PR-head>; RTK-prefixed static action-control review",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T12:01:55Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The Framework action-pin control explicitly permits mutable major tags, so scheduled or manually dispatched jobs can execute externally resolved action code without an immutable action identity.",
+  "root_cause_de": "Die Framework-Action-Pin-Kontrolle erlaubt ausdrücklich mutable Major-Tags; dadurch können geplante oder manuell gestartete Jobs extern aufgelösten Action-Code ohne immutable Action-Identität ausführen.",
+  "proposed_remediation": "Implemented locally: require reviewed full commit SHAs for every external workflow action, expose the pin control as a Framework-native checker, and retain focused regression and update-review evidence.",
+  "proposed_remediation_de": "Lokal implementiert: Für jede externe Workflow-Action überprüfte vollständige Commit-SHAs verlangen, die Pin-Kontrolle als Framework-nativen Checker bereitstellen und fokussierte Regression sowie Update-Review-Evidenz zurückhalten.",
+  "acceptance_criteria": [
+    "Every external Framework workflow action is pinned to a reviewed immutable full 40-character commit SHA.",
+    "The checker recursively covers .yml and .yaml workflow locations and rejects mutable or unsupported action-reference forms fail-closed.",
+    "Focused mutable-tag and syntax-bypass regression cases fail before the control and pass after it; full-SHA legitimate controls remain valid.",
+    "The action update process records source, review, and retained validation evidence."
+  ],
+  "validation_plan": [
+    "Run the focused pin suite, broader Framework security-regression suite, real-workflow checker, Framework lint, and Framework documentation checks.",
+    "Run the requested actionlint, ShellCheck, zizmor, SonarQube Cloud, and independent Codex Security revalidation with factual pass/fail/blocked dispositions."
+  ],
+  "regression_tests": [
+    "tests/security_regression/test_workflow_action_pins.py: 21 focused cases covering mutable tags, syntax bypasses, and legitimate controls.",
+    "tests/security_regression: 34 cases passed."
+  ],
+  "legitimate_control_tests": [
+    "A quoted or unquoted external full-SHA reference and an external reusable workflow pinned to a full SHA validate.",
+    "Local ./ action and local reusable-workflow references validate as non-external controls."
+  ],
+  "dependencies": [
+    "FND-FRAMEWORK-0001",
+    "FND-SONAR-0002"
+  ],
+  "blocked_by": [
+    "actionlint and zizmor are required by the task but unavailable; no repository-approved or user-authorized provisioning route exists.",
+    "FND-FRAMEWORK-0001 and FND-SONAR-0002 remain independent verified-delivery gates."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-GITHUB-0001",
+    "FND-FRAMEWORK-0004"
+  ],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260718T092013Z-fnd-framework-0003-actions-sha-pins-41e9a058",
+    "20260719T081017Z-framework-pr-resolution-20260719-840082e0"
+  ],
+  "root_cause_triage": {
+    "triaged_at": "2026-07-18T08:09:21Z",
+    "framework_sha": "cdc91a398d6c156eaff927d742b23018a3817fb6",
+    "triage_verdict": "confirmed",
+    "static_confidence": "medium",
+    "root_cause_group": "RC-FW-001-action-reference-immutability",
+    "group_members": [
+      "FND-FRAMEWORK-0003"
+    ],
+    "shared_fix": false,
+    "separate_pr": true,
+    "entry_points": [
+      ".github/workflows/check-common-versions.yml:3-10,20-24,106-115",
+      ".github/workflows/cleanup-artifacts.yml:3-18"
+    ],
+    "source": "Mutable external GitHub Action major-tag references, including actions/github-script@v9, actions/checkout@v7, actions/setup-python@v6, and peter-evans/create-pull-request@v8.",
+    "broken_control_or_sink": "check-action-versions.yml:27 permits @vN references; scheduled/manual runners then execute action code, including a contents: write and pull-requests: write job.",
+    "attacker_preconditions": [
+      "An upstream action publisher or its release-tag authority changes a referenced major tag before a Framework workflow run.",
+      "A scheduled or manually dispatched affected Framework workflow executes.",
+      "No upstream compromise or tag rewrite was reproduced in this read-only triage."
+    ],
+    "impact": "A changed action implementation can run with the affected job's GitHub token permissions and alter workflow-controlled repository or artifact state.",
+    "countercontrols": [
+      "The affected workflows declare explicit permissions.",
+      "The existing pin checker rejects unrecognised references but explicitly accepts mutable major tags."
+    ],
+    "root_control_boundary": "Framework CI workflow action supply-chain integrity; not Parent runtime behavior.",
+    "parent_impact": "None for this triage. A later Framework delivery may be consumed only through a separately authorized Parent gitlink update.",
+    "mrts_impact": "none; no MRTS source or checkout access is required.",
+    "required_regression_tests": [
+      "A focused workflow-pin control rejects @vN references in every supported workflow file.",
+      "A full 40-hex reviewed SHA reference succeeds."
+    ],
+    "required_legitimate_control_cases": [
+      "A pinned external action continues to validate under the existing workflow syntax and trigger contract."
+    ],
+    "bypass_review": [
+      "Quoted and commented uses: entries, .yaml files, reusable workflows, local or Docker actions, abbreviated hashes, and future workflow directories."
+    ],
+    "delivery_boundary": "Framework-only branch and Draft PR; Parent gitlink unchanged; MRTS untouched. Current Framework CI/Sonar blockers require their own evidence-backed disposition before verified delivery.",
+    "proof_gaps": [
+      "The Framework has no applicable SECURITY.md; the assessment relies on the Framework and Parent security policies.",
+      "No dynamic action-tag rewrite or workflow execution was performed."
+    ]
+  },
+  "residual_risk": "The local action-pin control is fixed, but no commit, push, Draft PR, current-head CI, SonarQube Cloud result, or exact SHA equality exists. actionlint/zizmor are unavailable, ShellCheck retains independent baseline diagnostics, and FND-FRAMEWORK-0001/FND-SONAR-0002 remain separate delivery gates. No risk has been accepted.",
+  "residual_risk_de": "Die lokale Action-Pin-Kontrolle ist behoben, aber es existieren kein Commit, Push, Draft-PR, Current-Head-CI, SonarQube-Cloud-Ergebnis und keine exakte SHA-Gleichheit. actionlint/zizmor sind nicht verfügbar, ShellCheck behält unabhängige Baseline-Diagnosen, und FND-FRAMEWORK-0001/FND-SONAR-0002 bleiben getrennte Delivery-Gates. Es wurde kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-19T12:08:02Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-18T08:09:21Z",
+      "event": "root_cause_triaged",
+      "detail": "Current Framework static evidence at cdc91a398d6c156eaff927d742b23018a3817fb6 confirms the mutable-major-tag control gap. It is a singleton root-cause group and remains open without a delivery or risk-acceptance action."
+    },
+    {
+      "at": "2026-07-18T10:27:28Z",
+      "event": "local_remediation_validated_delivery_blocked",
+      "detail": "The Framework action-pin control was remediated locally with reviewed full-SHA pins, a native checker, a 21-case focused suite, a 34-case broader security-regression suite, Framework lint, documentation checks, and independent Codex Security revalidation with no concrete bypass. Delivery remains blocked: actionlint/zizmor are unavailable, ShellCheck retains baseline diagnostics, and FND-FRAMEWORK-0001/FND-SONAR-0002 are independent gates; no commit, push, Draft PR, merge, Parent gitlink change, or MRTS change occurred."
+    },
+    {
+      "at": "2026-07-19T12:08:02Z",
+      "event": "stale_pr_reintroduction_hazard_observed",
+      "detail": "The direct current-master to PR #24 comparison confirms that the stale head deletes the merged full-SHA action parser, focused regression suite, and Makefile hook and replaces them with a major-tag-tolerant check; PR #27 also has a separately reviewed parser-regression candidate. These are unmerged-head merge blockers only. Framework master 9954b99a31fab0006cdf903ab477c8158c50fea8 remains fixed; PR #29's replacement checker is not recorded as a reintroduction."
+    }
+  ]
+}

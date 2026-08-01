@@ -1,0 +1,133 @@
+{
+  "id": "FND-FRAMEWORK-0056",
+  "title": "PCRE2 archive-digest regression fixture omits the ModSecurity v3 provenance manifest",
+  "title_de": "Die PCRE2-Archiv-Digest-Regressionsfixture lässt das ModSecurity-v3-Provenance-Manifest aus",
+  "category": "test_failure",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "closed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": "apache",
+  "protocol": "PCRE2 archive-digest regression and ModSecurity v3 provenance admission",
+  "profile": "Parent PR #74 recorded Framework gitlink 77d73decd094a8f289fbe0ef2582f12430923e24",
+  "affected_revision": "77d73decd094a8f289fbe0ef2582f12430923e24",
+  "affected_files": [
+    "tests/security_regression/test_pcre2_archive_digest.py",
+    "ci/lib/common.sh",
+    "ci/provisioning/prepare-apache-build.sh"
+  ],
+  "affected_symbols": [
+    "Pcre2ArchiveDigestTests._run_case",
+    "ci_require_approved_modsecurity_v3_checkout",
+    "ensure_modsecurity_v3_source"
+  ],
+  "observed_behavior": "The focused PCRE2 archive-digest regression fixture creates MODSECURITY_V3_SOURCE_DIR with only v3-source/.git. The current Framework provenance guard correctly requires a regular non-symlink .gitmodules manifest before Apache PCRE2 setup. All four invalid-digest subcases therefore assert the wrong blocker, and the matching-digest legitimate control exits 77 before its PCRE2 tar marker.",
+  "observed_behavior_de": "Die fokussierte PCRE2-Archiv-Digest-Regressionsfixture erzeugt MODSECURITY_V3_SOURCE_DIR nur mit v3-source/.git. Der aktuelle Framework-Provenance-Guard verlangt vor dem Apache-PCRE2-Setup zu Recht ein reguläres nicht-symlinked .gitmodules-Manifest. Daher prüfen alle vier ungültigen Digest-Subcases den falschen Blocker, und die Matching-Digest-Legitimkontrolle beendet sich mit 77 vor ihrem PCRE2-tar-Marker.",
+  "expected_behavior": "The fixture must model the smallest valid non-network ModSecurity v3 source contract that the current provenance guard requires, then exercise invalid PCRE2 digest rejection before tar extraction and the matching-digest extraction control without weakening production provenance checks.",
+  "expected_behavior_de": "Die Fixture muss den kleinsten gültigen netzwerkfreien ModSecurity-v3-Source-Contract modellieren, den der aktuelle Provenance-Guard erfordert, und danach die Ablehnung ungültiger PCRE2-Digests vor der tar-Extraction sowie die Matching-Digest-Extraction-Kontrolle ausüben, ohne Produktions-Provenance-Checks abzuschwächen.",
+  "impact": "The real V3 provenance guard remains fail-closed, but this focused security-regression test no longer covers its intended PCRE2 archive-integrity controls dynamically. It is not evidence of a new source-provenance bypass and does not block Parent PR #74's independently required hosted producer evidence.",
+  "impact_de": "Der reale V3-Provenance-Guard bleibt fehlgeschlossen, aber dieser fokussierte Security-Regressionstest deckt seine beabsichtigten PCRE2-Archiv-Integritätskontrollen nicht mehr dynamisch ab. Dies ist kein Nachweis eines neuen Source-Provenance-Bypasses und blockiert die unabhängig erforderliche Hosted-Producer-Evidence von Parent PR #74 nicht.",
+  "preconditions": [
+    "Framework revision 77d73decd094a8f289fbe0ef2582f12430923e24 is used.",
+    "The focused fixture supplies an existing MODSECURITY_V3_SOURCE_DIR containing only a .git directory.",
+    "The Apache builder invokes the current V3 provenance guard before PCRE2 digest verification."
+  ],
+  "reproduction": [
+    "In the recorded Framework checkout run `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest discover -s tests/security_regression -p test_pcre2_archive_digest.py -v`.",
+    "Observe five failures: empty, whitespace, invalid, and mismatching digest subcases report unapproved ModSecurity v3 source; the matching control exits 77 with the missing .gitmodules blocker.",
+    "Inspect test_pcre2_archive_digest.py: the fixture creates v3-source/.git but no .gitmodules, then passes it through MODSECURITY_V3_SOURCE_DIR."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T084657Z-framework-pcre2-fixture-regression",
+      "artifact_path": ".codex/runs/20260726T084657Z-framework-pcre2-fixture-regression/evidence/framework-pcre2-fixture-failure.md",
+      "artifact_type": "focused_framework_security_regression_failure_summary",
+      "sha256": "b11ecbb1a4a0f95a8c2427db3033e1a00d72ddc10ab5356dc27720111a657dac",
+      "command": "rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest discover -s tests/security_regression -p test_pcre2_archive_digest.py -v",
+      "working_directory": "/var/tmp/codex/worktrees/parent/migrate-pr55-pr74-master-V27zuA/pr74/modules/ModSecurity-test-Framework",
+      "exit_code": 1,
+      "observed_at": "2026-07-26T08:46:57Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726T160903Z-framework-pr50-pr51-master-verification",
+      "artifact_path": ".codex/runs/20260726T160903Z-framework-pr50-pr51-master-verification/finding-closure-evidence.md",
+      "artifact_type": "framework_resulting_master_security_regression_verification",
+      "sha256": "519b89ef349a2d1a66b8cf78a5f0056f2df1909df2f386e5e67b7742bf277a2d",
+      "command": "python3 -m unittest discover -s tests/security_regression -p test_pcre2_archive_digest.py -v; python3 -m unittest tests.security_regression.test_modsecurity_v3_git_ref_provenance -v",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/framework-master-pr50-pr51-verify-20260726",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T16:13:56Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "FND-FRAMEWORK-0030's V3 topology hardening intentionally requires an approved non-symlink .gitmodules manifest. The older PCRE2 fixture represents a source root only by creating .git, so it no longer reaches the archive-digest verifier. The production guard is behaving as designed; the test fixture contract is stale.",
+  "root_cause_de": "Die V3-Topologiehärtung von FND-FRAMEWORK-0030 verlangt absichtlich ein freigegebenes nicht-symlinked .gitmodules-Manifest. Die ältere PCRE2-Fixture repräsentiert eine Source-Root nur durch das Erzeugen von .git und erreicht daher den Archiv-Digest-Verifier nicht mehr. Der Produktions-Guard verhält sich wie vorgesehen; der Testfixture-Contract ist veraltet.",
+  "proposed_remediation": "In a separately authorized Framework task, update only the PCRE2 test fixture to model the smallest valid approved V3 source topology that the current guard requires. Do not relax, stub out, or change ci_require_approved_modsecurity_v3_checkout. Add or preserve assertions that invalid PCRE2 inputs do not reach tar and the matching control does.",
+  "proposed_remediation_de": "In einer separat autorisierten Framework-Aufgabe ausschließlich die PCRE2-Testfixture so aktualisieren, dass sie die kleinste gültige freigegebene V3-Source-Topologie modelliert, die der aktuelle Guard verlangt. ci_require_approved_modsecurity_v3_checkout nicht abschwächen, ausstuben oder ändern. Assertions erhalten oder ergänzen, dass ungültige PCRE2-Eingaben tar nicht erreichen und die Matching-Kontrolle dies tut.",
+  "acceptance_criteria": [
+    "The PCRE2 fixture represents the smallest valid non-network ModSecurity V3 source contract required by the current provenance guard, including a non-symlinked .gitmodules manifest and any required mocked topology/Git behavior.",
+    "The fixture does not weaken, bypass, mock away, or change production ci_require_approved_modsecurity_v3_checkout controls.",
+    "Each invalid PCRE2 digest case again fails with 77 because of the digest verifier and proves the archive never reaches tar.",
+    "The matching digest legitimate control reaches the local PCRE2 archive extraction marker and completes the existing expected path.",
+    "The focused PCRE2 archive-digest and V3 provenance regressions pass after a separately authorized Framework change."
+  ],
+  "validation_plan": [
+    "Read the active Framework instructions and create a separate Framework delivery plan before any Framework write.",
+    "Run the focused PCRE2 archive-digest regression and the V3 provenance regression after the fixture-only correction.",
+    "Verify no production guard source changed, review the exact Framework PR head, and use its own protected delivery lifecycle if a Framework PR is authorized."
+  ],
+  "regression_tests": [
+    "tests/security_regression/test_pcre2_archive_digest.py",
+    "tests/security_regression/test_modsecurity_v3_git_ref_provenance.py"
+  ],
+  "legitimate_control_tests": [
+    "The matching PCRE2 digest reaches the local tar marker only after the digest verifier.",
+    "A clean approved V3 fixture is accepted by the provenance guard while missing, malformed, or unapproved topology remains rejected."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0030",
+    "FND-FRAMEWORK-0005",
+    "FND-PARENT-0053"
+  ],
+  "deduplication_note": "Not a duplicate of FND-FRAMEWORK-0030: that record owns the production guard's former false rejection of the real approved recursive topology. This record owns a separate, independently fixable stale test-fixture contract that prevents PCRE2 digest assertions from running.",
+  "source_run_ids": [
+    "20260726T084657Z-framework-pcre2-fixture-regression",
+    "20260726T160903Z-framework-pr50-pr51-master-verification"
+  ],
+  "residual_risk": "The real V3 guard remains fail-closed and the corrected fixture now reaches both the digest-negative and digest-positive controls. Future guard or fixture changes require these focused regressions.",
+  "residual_risk_de": "Der reale V3-Guard bleibt fehlgeschlossen und die korrigierte Fixture erreicht nun sowohl die Digest-negativen als auch die Digest-positiven Kontrollen. Spätere Guard- oder Fixture-Änderungen benötigen diese fokussierten Regressionen.",
+  "history": [
+    {
+      "at": "2026-07-26T08:46:57Z",
+      "event": "reproduced_framework_pcre2_fixture_regression",
+      "detail": "The focused Framework PCRE2 archive-digest suite ran three tests and failed five assertions before its intended digest verifier because its synthetic V3 source lacks the required .gitmodules manifest."
+    },
+    {
+      "at": "2026-07-26T08:46:57Z",
+      "event": "deduplicated_from_framework_v3_provenance_guard",
+      "detail": "The condition is related to FND-FRAMEWORK-0030 but is not a duplicate: the guard is correct for the current contract and only the stale fixture must be updated in a separately authorized Framework task."
+    },
+    {
+      "at": "2026-07-26T16:13:56Z",
+      "event": "remediation_fixed",
+      "detail": "Framework PR #50 updated only the PCRE2 fixture contract so the production V3 provenance guard remained unchanged."
+    },
+    {
+      "at": "2026-07-26T16:13:56Z",
+      "event": "resulting_master_verified_and_closed",
+      "detail": "Exact Framework master de705a5efb872f95f010346fe2e6143c88876ad4 passed all three PCRE2 archive-digest and all eighteen V3 provenance regression tests."
+    }
+  ],
+  "created_at": "2026-07-26T08:46:57Z",
+  "updated_at": "2026-07-26T16:13:56Z",
+  "final_disposition": "closed_verified_framework_master_pr50_pr51_20260726"
+}

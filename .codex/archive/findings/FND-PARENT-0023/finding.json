@@ -1,0 +1,173 @@
+{
+  "id": "FND-PARENT-0023",
+  "title": "Submodule-update validation shares a workspace with later GitHub-token publishing",
+  "title_de": "Die Submodule-Update-Validierung teilt einen Workspace mit einem späteren GitHub-Token-Publishing",
+  "category": "security_hardening",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "probable",
+  "status": "closed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".github/workflows/cleanup-artifacts.yml",
+    ".github/workflows/test-full-smoke-sequential.yml",
+    ".github/workflows/update-actions-versions.yml",
+    ".github/workflows/update-submodules.yml",
+    "tests/test_ci_security_workflows.py"
+  ],
+  "affected_symbols": [
+    "cleanup-artifacts",
+    "test-full-smoke-sequential",
+    "update-actions-versions",
+    "update-submodules"
+  ],
+  "summary": "Five open GitHub Scorecard TokenPermissionsID alerts identified write permissions declared at workflow scope. In particular, the scheduled update-submodules workflow validated remotely advanced recursive submodule content and later published a branch and pull request in the same job. The remediation keeps restrictive defaults and isolates validation from token-bearing publishing. After synchronizing with master, a task-owned Sonar `python:S6326` code-smell delivery blocker in the regression parser was corrected without changing that security invariant. The final PR tree and the resulting master tree are identical, and the original source/permission-boundary reproduction plus the exact-master workflow controls now verify the remediation.",
+  "summary_de": "Fünf offene GitHub-Scorecard-TokenPermissionsID-Alerts identifizierten auf Workflow-Ebene deklarierte Schreibrechte. Insbesondere validierte der geplante Workflow update-submodules remote vorgerückte rekursive Submodule-Inhalte und veröffentlichte später in demselben Job einen Branch und Pull Request. Die Remediation behält restriktive Defaults bei und trennt Validierung vom Token-tragenden Publishing. Nach der Synchronisierung mit master wurde ein task-eigener Sonar-`python:S6326`-Code-Smell-Delivery-Blocker im Regressionsparser korrigiert, ohne diese Security-Invariante zu ändern. Der finale PR-Tree und der resultierende Master-Tree sind identisch; die ursprüngliche Source-/Permission-Boundary-Reproduktion und die exakten Master-Workflow-Controls verifizieren nun die Remediation.",
+  "observed_behavior": "At c8ca0d92b630c18232b881855c4f5d1482568ea6, update-submodules.yml declared contents: write and pull-requests: write at top level, recursively checked out and advanced the Framework submodule, executed make quick-check, and then used GH_TOKEN to force-push and create a Parent pull request. cleanup-artifacts.yml and test-full-smoke-sequential.yml declared actions: write at top level; update-actions-versions.yml declared contents: write, pull-requests: write, and actions: write at top level. The GitHub Code Scanning API reported five corresponding open Scorecard TokenPermissionsID alerts.",
+  "observed_behavior_de": "Bei c8ca0d92b630c18232b881855c4f5d1482568ea6 deklarierte update-submodules.yml contents: write und pull-requests: write auf Top-Level, checkte das Framework-Submodule rekursiv aus und aktualisierte es, führte make quick-check aus und nutzte anschließend GH_TOKEN zum Force-Push und zum Erstellen eines Parent-Pull-Requests. cleanup-artifacts.yml und test-full-smoke-sequential.yml deklarierten actions: write auf Top-Level; update-actions-versions.yml deklarierte contents: write, pull-requests: write und actions: write auf Top-Level. Die GitHub-Code-Scanning-API meldete fünf entsprechende offene Scorecard-TokenPermissionsID-Alerts.",
+  "expected_behavior": "Every Parent workflow declares the restrictive top-level default permissions: contents: read. A job receives only the additional capability it needs. Untrusted or remotely mutable submodule content is checked out and executed only in a read-only validation job; a separate publishing job validates the selected commit, updates only the gitlink without checking out submodules, and receives contents: write plus pull-requests: write only while publishing.",
+  "expected_behavior_de": "Jeder Parent-Workflow deklariert die restriktiven Top-Level-Default-Berechtigungen permissions: contents: read. Ein Job erhält nur die zusätzlich benötigte Fähigkeit. Nicht vertrauenswürdige oder remote veränderbare Submodule-Inhalte werden nur in einem schreibgeschützten Validierungsjob ausgecheckt und ausgeführt; ein separater Publishing-Job validiert den ausgewählten Commit, aktualisiert nur den Gitlink ohne Submodule auszuchecken und erhält contents: write plus pull-requests: write ausschließlich beim Publishing.",
+  "impact": "A compromised or unexpected submodule update could influence the workspace before a privileged workflow operation. Top-level write permissions also enlarge the token exposure of unrelated jobs and trigger Scorecard security findings. The assessment found a plausible boundary violation, not a demonstrated token exfiltration or unauthorized repository write.",
+  "impact_de": "Ein kompromittiertes oder unerwartetes Submodule-Update könnte den Workspace vor einer privilegierten Workflow-Operation beeinflussen. Top-Level-Schreibrechte vergrößern außerdem die Token-Exposition unbeteiligter Jobs und lösen Scorecard-Sicherheitsbefunde aus. Die Untersuchung fand eine plausible Grenzverletzung, keine nachgewiesene Token-Exfiltration oder unautorisierte Repository-Schreiboperation.",
+  "preconditions": [
+    "The scheduled or manually dispatched update-submodules workflow runs on the protected default branch.",
+    "The Framework submodule remote advances to a commit selected by git submodule update --remote --recursive.",
+    "The workflow job later performs GitHub-token-authenticated branch and pull-request publishing."
+  ],
+  "reproduction": [
+    "Inspect .github/workflows/update-submodules.yml at c8ca0d92b630c18232b881855c4f5d1482568ea6.",
+    "Observe top-level contents: write and pull-requests: write, recursive submodule checkout/update, make quick-check, and later GH_TOKEN-backed push and pull-request steps in one job.",
+    "Query the GitHub Code Scanning API for open Scorecard alerts and observe TokenPermissionsID alerts 2 through 6 described in the retained evidence record."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T080138Z-harden-workflow-permissions-e804be63",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T080138Z-harden-workflow-permissions-e804be63/evidence/workflow-permission-trust-boundary.md",
+      "artifact_type": "workflow_permission_and_trust_boundary_assessment",
+      "sha256": "b7a702366ee7c9c7b470f5d7ef950dd4c51cb1ba504f62e1a956bc1f7f7bc6a3",
+      "command": "rtk gh api 'repos/Easton97-Jens/ModSecurity-conector/code-scanning/alerts?tool_name=Scorecard&state=open&per_page=100' and rtk cat .github/workflows/update-submodules.yml",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T08:01:38Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T080138Z-harden-workflow-permissions-e804be63",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T080138Z-harden-workflow-permissions-e804be63/evidence/pr-54-a9719b8-exact-head-verification.md",
+      "artifact_type": "pull_request_exact_head_verification",
+      "sha256": "fd516aa371cf5bb13a8de6d402a97aa088703a2488fb4a406e150dddfb9a2aae",
+      "command": "rtk gh pr view 54 --repo Easton97-Jens/ModSecurity-conector and rtk gh run view for exact head a9719b89f5a37f6added5b10920eccbd0e405217",
+      "working_directory": "/var/tmp/codex/worktrees/parent-workflow-permissions",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T09:32:05Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T103749Z-parent-pr-53-60-integration-a7b98a59",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T103749Z-parent-pr-53-60-integration-a7b98a59/evidence/pr54-d4318ce-exact-head-verification.md",
+      "artifact_type": "pull_request_exact_head_verification_and_sonar_remediation",
+      "sha256": "f0f757e73a26c0ead915e399b755a200e51ded593fd9308dad0978609d88ffb6",
+      "command": "rtk make check-ci-security-contract; rtk git diff --check origin/master..HEAD; rtk gh pr checks 54 --required; GitHub Checks API; SonarCloud Quality Gate and open-issue API",
+      "working_directory": "/var/tmp/codex/worktrees/parent-workflow-permissions",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T11:02:11Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T103749Z-parent-pr-53-60-integration-a7b98a59",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T103749Z-parent-pr-53-60-integration-a7b98a59/evidence/pr54-master-verification-63819e4.md",
+      "artifact_type": "post_merge_master_reproduction_and_workflow_verification",
+      "sha256": "e0db6fba0aee9629dd11b71e154c7c2f3daa9d15549c94e3fdf7ee0fb7990b71",
+      "command": "rtk git rev-parse/diff/grep; rtk make check-ci-security-contract; rtk gh pr view/run list/api Scorecard alerts for PR #54 and master 63819e416984294792bbbe68aa5d84503791baab",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T11:18:33Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "Write permissions were granted at workflow scope even though only individual jobs need them. update-submodules combined remote submodule selection, submodule code execution, and token-bearing publication in one workspace/job. The repository-level Actions default is write, so workflows without an explicit restrictive default would also inherit excessive authority.",
+  "root_cause_de": "Schreibrechte wurden auf Workflow-Ebene vergeben, obwohl nur einzelne Jobs sie benötigen. update-submodules kombinierte Remote-Submodule-Auswahl, Ausführung von Submodule-Code und Token-tragendes Publishing in einem Workspace/Job. Der repositoryweite Actions-Default ist write, sodass Workflows ohne expliziten restriktiven Default ebenfalls übermäßige Autorität erben würden.",
+  "proposed_remediation": "Set contents: read at the top level of every affected workflow. Move actions: write to isolated artifact-cleanup jobs. Scope update-actions-versions writes to its single publisher job while retaining persist-credentials: false. Split update-submodules into read-only resolution/validation and a separate minimal-permission publisher that validates the official remote commit and updates only the gitlink without checking out or executing the submodule. Add permission-contract, safe/unsafe-fixture, trust-boundary, fork-model, and SARIF-upload regression tests.",
+  "proposed_remediation_de": "contents: read auf Top-Level jedes betroffenen Workflows setzen. actions: write in isolierte Artefakt-Cleanup-Jobs verschieben. Schreibrechte von update-actions-versions auf seinen einzelnen Publisher-Job begrenzen und persist-credentials: false beibehalten. update-submodules in schreibgeschützte Auflösung/Validierung und einen separaten Publisher mit Minimalrechten aufteilen, der den offiziellen Remote-Commit validiert und nur den Gitlink aktualisiert, ohne das Submodule auszuchecken oder auszuführen. Permission-Contract-, Safe/Unsafe-Fixture-, Trust-Boundary-, Fork-Model- und SARIF-Upload-Regressionstests ergänzen.",
+  "acceptance_criteria": [
+    "All Parent workflow files declare exactly the restrictive top-level default contents: read.",
+    "No job with checkout, project execution, recursive submodule access, or untrusted pull-request execution has a write-scoped GitHub token, named secret, or persisted checkout credentials unless separately justified and proven safe.",
+    "update-submodules validates remote submodule content in a contents: read job and publishes only from a distinct job that does not check out or execute submodule content.",
+    "CodeQL and other legitimate SARIF uploads retain only the required security-events: write permission alongside contents: read.",
+    "The workflow-permission contract tests, safe/unsafe fixtures, actionlint, ShellCheck, zizmor, secret scanning, OSV, Scorecard, CodeQL/SARIF, and git diff --check provide the strongest applicable evidence."
+  ],
+  "validation_plan": [
+    "Parse all workflow YAML through actionlint with ShellCheck integration.",
+    "Run the focused CI-security workflow contract test suite, including safe and unsafe fixtures, fork/untrusted pull-request modeling, submodule trust boundaries, and SARIF-upload permissions.",
+    "Run zizmor over production workflows and verify its insecure fixture still fails while its safe fixture passes.",
+    "Run Gitleaks, OSV, and Scorecard/CodeQL workflow checks through the focused PR and verify the exact head SHA in GitHub Actions and Code Scanning.",
+    "Run git diff --check and inspect the final Parent-only diff."
+  ],
+  "regression_tests": [
+    "tests/test_ci_security_workflows.py",
+    "ci/fixtures/workflow-permission-contract/safe.yml",
+    "ci/fixtures/workflow-permission-contract/unsafe.yml"
+  ],
+  "legitimate_control_tests": [
+    "CodeQL, OSV, and Scorecard retain security-events: write only in SARIF-upload jobs and retain contents: read.",
+    "Artifact-cleanup jobs retain actions: write without checkout or test execution.",
+    "The update-submodules publishing job can create the expected Parent pull request after read-only validation selected a verified official remote commit."
+  ],
+  "dependencies": [
+    "GitHub Actions runners and GitHub Code Scanning execute the focused PR checks.",
+    "The existing repository-level default-workflow-permissions finding FND-GITHUB-0001 remains tracked separately because changing GitHub settings is outside this Parent pull request."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-GITHUB-0001"
+  ],
+  "source_run_ids": [
+    "20260718T080138Z-harden-workflow-permissions-e804be63",
+    "20260719T103749Z-parent-pr-53-60-integration-a7b98a59"
+  ],
+  "residual_risk": "PR #54 final head d4318cef184a1cdeb70858cc18861d7e5649037b is merged as master 63819e416984294792bbbe68aa5d84503791baab; the master tree is identical to that head, the original source/permission-boundary reproduction no longer reports TokenPermissionsID alerts, and all observed exact-master workflows, including OpenSSF Scorecard, succeeded. The repository-level default_workflow_permissions currently reads read and remaining separate Scorecard governance alerts remain tracked in FND-GITHUB-0001. No risk acceptance exists. This finding is verified, not closed; closure requires a distinct lifecycle decision.",
+  "residual_risk_de": "Der finale PR-#54-Head d4318cef184a1cdeb70858cc18861d7e5649037b ist als Master 63819e416984294792bbbe68aa5d84503791baab gemergt; der Master-Tree ist mit diesem Head identisch, die ursprüngliche Source-/Permission-Boundary-Reproduktion meldet keine TokenPermissionsID-Alerts mehr, und alle beobachteten exakten Master-Workflows einschließlich OpenSSF Scorecard waren erfolgreich. Die Repository-Einstellung default_workflow_permissions liest aktuell read; verbleibende separate Scorecard-Governance-Alerts werden in FND-GITHUB-0001 verfolgt. Es gibt keine Risikoakzeptanz. Dieser Befund ist verifiziert, nicht geschlossen; ein Abschluss erfordert eine separate Lifecycle-Entscheidung.",
+  "created_at": "2026-07-18T08:01:38Z",
+  "updated_at": "2026-07-26T14:09:02Z",
+  "final_disposition": "closed_by_current_user_after_current_master_workflow_contract_validation_archived_20260726",
+  "history": [
+    {
+      "at": "2026-07-18T08:01:38Z",
+      "event": "finding_created_from_scorecard_and_source_assessment",
+      "detail": "Recorded five open Scorecard TokenPermissionsID alerts and the plausible update-submodules validation-to-publishing trust boundary before remediation."
+    },
+    {
+      "at": "2026-07-18T09:32:05Z",
+      "event": "fixed_on_exact_pull_request_head",
+      "detail": "PR #54 head a9719b89f5a37f6added5b10920eccbd0e405217 passed CodeQL, OSV SARIF upload, Scorecard, secret scanning, workflow lint, and SonarQube quality gate. Status is fixed, not verified or closed, pending merge and default-branch reproduction."
+    },
+    {
+      "at": "2026-07-19T11:05:11Z",
+      "event": "post_master_sync_sonar_delivery_blocker_remediated",
+      "detail": "After normal merge of verified master a589cb662fb03deb764f78eefbb1056bc64d63e2, PR #54 source-remediation head b65d28414afed6e639000c5ca720cfdd6324f8e2 replaced the equivalent literal two-space JOB_HEADER prefix with {2}. The final documented exact head d4318cef184a1cdeb70858cc18861d7e5649037b passed all six required checks, CodeQL, OSV, report-governance, and SonarCloud; Sonar Quality Gate was OK with zero open PR issues and zero security hotspots. This validates the delivery blocker and retains fixed status only; default-master verification remains required."
+    },
+    {
+      "at": "2026-07-19T11:18:33Z",
+      "event": "current_master_reproduction_verified",
+      "detail": "PR #54 merged at 63819e416984294792bbbe68aa5d84503791baab. origin/master equals that SHA and its tree equals final PR head d4318cef184a1cdeb70858cc18861d7e5649037b. The original source/permission-boundary reproduction was rerun through the 13-test contract, current workflow-source inspection, and Scorecard alert API; TokenPermissionsID no longer appears. All 14 observed workflows for the exact master SHA, including OpenSSF Scorecard, CodeQL, Security workflow lint, and verified-report-governance, completed successfully. The fix is verified, not closed."
+    },
+    {
+      "at": "2026-07-19T11:58:56Z",
+      "event": "canonical_category_and_bilingual_record_normalized",
+      "detail": "Normalized the canonical category to the policy taxonomy value security_hardening and restored the retained historical exact-head evidence object, including SHA-256 fd516aa371cf5bb13a8de6d402a97aa088703a2488fb4a406e150dddfb9a2aae, to the complete English and German records. Status, severity, confidence, release-blocker disposition, and master-verification evidence are unchanged."
+    },
+    {
+      "at": "2026-07-26T14:09:02Z",
+      "event": "closed_by_current_user_after_current_master_validation",
+      "detail": "The current user authorized closure and archival. On Parent master 6ca7e1536ce7e93da68099db9c586b88852ff13e, tests.test_ci_security_workflows passed as part of the 144-test current-master control suite. The separate repository-default governance finding remains independently tracked."
+    }
+  ]
+}

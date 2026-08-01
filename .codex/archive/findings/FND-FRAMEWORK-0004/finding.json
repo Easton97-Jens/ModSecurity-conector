@@ -1,0 +1,235 @@
+{
+  "id": "FND-FRAMEWORK-0004",
+  "title": "Mutable Git source references can reach Framework provisioning consumption",
+  "title_de": "Mutable Git-Source-Referenzen können Framework-Provisioning-Consumption erreichen",
+  "category": "security_validated",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "medium",
+  "confidence": "validated",
+  "status": "verified",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "modules/ModSecurity-test-Framework/ci/lib/common.sh",
+    "modules/ModSecurity-test-Framework/ci/provisioning/fetch-crs.sh",
+    "modules/ModSecurity-test-Framework/tests/security_regression/test_crs_git_ref_provenance.py",
+    "modules/ModSecurity-test-Framework/docs/reference/variables.md",
+    "modules/ModSecurity-test-Framework/docs/reference/variables.de.md",
+    "modules/ModSecurity-test-Framework/docs/testing-and-evidence.md",
+    "modules/ModSecurity-test-Framework/docs/testing-and-evidence.de.md",
+    "modules/ModSecurity-test-Framework/reports/audits/change-records/20260718-01-fix-framework-crs-ref-provenance.md",
+    "modules/ModSecurity-test-Framework/reports/audits/change-records/20260718-01-fix-framework-crs-ref-provenance.de.md"
+  ],
+  "affected_symbols": [
+    "F-DISC-01-02",
+    "CRS_APPROVED_REPO_URL",
+    "CRS_APPROVED_COMMIT",
+    "CRS_RELEASE_TAG",
+    "ci_require_full_git_commit",
+    "require_approved_crs_provenance",
+    "crs_git",
+    "provision_fresh_crs"
+  ],
+  "summary": "Framework provisioning now binds CRS consumption to the centrally approved literal HTTPS origin and reviewed lower-case 40-character commit. Mutable caller selectors cannot select CRS content, and fetch, resolution, and checkout identities are verified before consumption.",
+  "summary_de": "Die Framework-Provisionierung bindet die CRS-Consumption nun an den zentral freigegebenen literalen HTTPS-Origin und den geprüften kleingeschriebenen 40-Zeichen-Commit. Mutable Aufruferselektoren können keine CRS-Inhalte auswählen, und Fetch-, Auflösungs- und Checkout-Identitäten werden vor der Consumption verifiziert.",
+  "observed_behavior": "Before remediation, CRS_GIT_REF=main could reach a Git source-ref selector. The current master tree rejects divergent CRS_REPO_URL and CRS_GIT_REF values before Git; a fresh repository fetches only the approved full commit and verifies FETCH_HEAD, resolved object, and final HEAD.",
+  "observed_behavior_de": "Vor der Remediation konnte CRS_GIT_REF=main einen Git-Quellref-Selektor erreichen. Der aktuelle Master-Tree lehnt abweichende CRS_REPO_URL- und CRS_GIT_REF-Werte vor Git ab; ein frisches Repository fetcht nur den freigegebenen Vollcommit und verifiziert FETCH_HEAD, aufgelöstes Objekt und finales HEAD.",
+  "expected_behavior": "CRS provisioning may consume only the centrally approved literal HTTPS origin and lower-case 40-character immutable commit. The release label is metadata, never a Git content selector. Existing source paths, origin mismatch, identity mismatch, and .gitmodules declarations fail closed.",
+  "expected_behavior_de": "Die CRS-Provisionierung darf nur den zentral freigegebenen literalen HTTPS-Origin und kleingeschriebenen 40-Zeichen-unveränderlichen Commit konsumieren. Das Release-Label ist Metadatum und niemals Git-Inhaltsselektor. Bestehende Quellpfade, Origin-Mismatch, Identitäts-Mismatch und .gitmodules-Deklarationen schlagen sicher fehl.",
+  "impact": "The verified boundary prevents caller-controlled selectors, mutable tags or branches, and ref-namespace spellings from selecting the CRS source tree consumed by Framework provisioning and rule preparation.",
+  "impact_de": "Die verifizierte Grenze verhindert, dass aufruferkontrollierte Selektoren, mutable Tags oder Branches und Ref-Namespace-Schreibweisen den von Framework-Provisionierung und Regelvorbereitung konsumierten CRS-Quellbaum auswählen.",
+  "preconditions": [
+    "The retained assessment, local revalidation, and PR #26 master-verification evidence remain available.",
+    "The exact Framework PR #26 head was 465766c01e2bb0a9a003cfcefa8afca5fceeafe0 and the resulting current Framework master is 36cac3029c735dddf9f717b3ce077b9285567a6a.",
+    "Post-merge validation used /var/tmp/codex/ModSecurity-test-Framework/worktrees/fw-crs-ref-provenance.",
+    "Parent gitlink and MRTS remain outside this Framework-only delivery."
+  ],
+  "reproduction": [
+    "sed -n '221,227p;238,244p' .codex/reports/repository-full-assessment.md",
+    "CRS_GIT_REF=main against ci/provisioning/fetch-crs.sh with the process-boundary fake-Git fixture: the current master script returns 77 before Git use.",
+    "rtk env BUILD_ROOT=/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/tmp/pr26-master-lint-build PYTHONPYCACHEPREFIX=/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/tmp/pr26-master-lint-build/pycache python3 -m unittest discover -s tests/security_regression -p test_crs_git_ref_provenance.py -v"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:221-227,238-244",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '221,227p;238,244p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893/evidence/fnd-framework-0004-local-validation.md",
+      "artifact_type": "framework_security_revalidation_and_delivery_evidence",
+      "sha256": "cc8e2a5292c47b416482acaaf8e6c1e5336b90ba6aa9e2e7d791c2fd3ab20757",
+      "command": "rtk env … python -m unittest discover -s tests/security_regression -p test_crs_git_ref_provenance.py -v; exact-head Draft-PR CI, SonarCloud, and security revalidation",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/fw-crs-ref-provenance",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T10:41:10Z",
+      "retention_status": "retained_local_evidence"
+    },
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/evidence/fnd-framework-0004-pr26-master-verification.md",
+      "artifact_type": "framework_pr26_master_verification_receipt",
+      "sha256": "d64b00219a95d4cbdb550d4af2abc5c9b248cb493796c3cd84301674f6f76f9a",
+      "command": "PR #26 exact-head/master verification: fetched origin/master, tree/diff/MRTS comparison, focused CRS provenance tests, documentation check, and lint with task-owned external bytecode cache",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/fw-crs-ref-provenance",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T15:00:59Z",
+      "retention_status": "retained_local_evidence"
+    }
+  ],
+  "root_cause": "The CRS provisioning path accepted the mutable CRS_GIT_REF release tag as a Git source selector and detached FETCH_HEAD without binding consumption to a reviewed immutable commit identity.",
+  "root_cause_de": "Der CRS-Provisioning-Pfad akzeptierte das mutable CRS_GIT_REF-Release-Tag als Git-Quellselektor und checkte FETCH_HEAD aus, ohne die Consumption an eine überprüfte unveränderliche Commit-Identität zu binden.",
+  "proposed_remediation": "Implemented central approved origin, release metadata, and full-commit constants; pre-Git divergent-selector rejection; full-commit validation; isolated Git invocation; fresh-source-only creation; literal-commit fetch; FETCH_HEAD/resolved-object/HEAD equality checks; and fail-closed .gitmodules handling.",
+  "proposed_remediation_de": "Implementiert wurden zentrale Konstanten für freigegebenen Origin, Release-Metadaten und Vollcommit, die Ablehnung abweichender Selektoren vor Git, Vollcommit-Validierung, isolierter Git-Aufruf, Erstellung nur frischer Quellen, Fetch des literalen Commits, Gleichheitsprüfungen von FETCH_HEAD/aufgelöstem Objekt/HEAD und sicher fehlschlagende .gitmodules-Behandlung.",
+  "acceptance_criteria": [
+    "Provisioning uses only the literal approved HTTPS origin and lower-case 40-character full commit.",
+    "Tags, branches, ref namespaces, abbreviated hashes, divergent environment selectors, inherited Git controls, existing source paths, and .gitmodules declarations fail closed before CRS content is consumed.",
+    "A fresh approved-origin control verifies FETCH_HEAD, resolved-object, detached checkout, and final HEAD equality without invoking a submodule command.",
+    "The exact final PR #26 head passes all required fresh-head checks and the resulting Framework master reruns the original negative reproduction and legitimate control successfully."
+  ],
+  "validation_plan": [
+    "Run mocked negative and legitimate-control Git/provenance fixtures.",
+    "Run focused Framework CRS provenance regression, documentation checks, and Framework lint with a task-owned external bytecode cache when the retained worktree is read-only.",
+    "Verify exact-head PR #26 CI, SonarCloud Code Analysis, reviews, and review threads without waiving fresh PR-head checks.",
+    "Verify the merge receipt and current master SHA, tree equality, diff cleanliness, unchanged MRTS, and resulting-master checks."
+  ],
+  "regression_tests": [
+    "tests/security_regression/test_crs_git_ref_provenance.py: ten focused mocked Git/provenance tests passed on the current master tree, including the original main-selector rejection."
+  ],
+  "legitimate_control_tests": [
+    "The process-boundary fake-Git fixture accepts only the approved literal origin and 55b09f5acfd16413e7b31041100711ceb7adc89c commit, then observes exact fetch, resolution, detached checkout, and final-HEAD verification on the current master tree."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0003"
+  ],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893",
+    "20260719T081017Z-framework-pr-resolution-20260719-840082e0"
+  ],
+  "root_cause_triage": {
+    "triaged_at": "2026-07-18T08:09:21Z",
+    "framework_base_sha": "cdc91a398d6c156eaff927d742b23018a3817fb6",
+    "triage_verdict": "confirmed",
+    "static_confidence": "medium",
+    "root_cause_group": "RC-FW-002-crs-git-ref-provenance",
+    "group_members": [
+      "FND-FRAMEWORK-0004"
+    ],
+    "shared_fix": false,
+    "separate_pr": true,
+    "entry_points": [
+      "ci/lib/common.sh: CRS_APPROVED_REPO_URL, CRS_APPROVED_COMMIT, CRS_RELEASE_TAG, and ci_require_full_git_commit",
+      "ci/provisioning/fetch-crs.sh: require_approved_crs_provenance, crs_git, and provision_fresh_crs"
+    ],
+    "source": "CRS_GIT_REF defaulted to mutable v4.28.0 release metadata and could be used as a provisioning selector.",
+    "broken_control_or_sink": "The base fetch-crs.sh accepted CRS_GIT_REF for Git fetch or clone selection and detached FETCH_HEAD without a reviewed immutable-object identity.",
+    "attacker_preconditions": [
+      "A caller can provide source-selector environment input before Framework CRS provisioning.",
+      "An upstream mutable tag or branch mapping changes before the affected provisioning path runs."
+    ],
+    "impact": "An altered CRS source tree can enter Framework provisioning and rule preparation under an otherwise expected HTTPS origin.",
+    "countercontrols": [
+      "The current master script validates the literal HTTPS GitHub origin, full immutable commit, and external source-root handling.",
+      "The current master script keeps release metadata out of Git content selection and compares selected object identity after fetch and checkout."
+    ],
+    "root_control_boundary": "Framework CRS source-provenance validation before provisioning consumption.",
+    "parent_impact": "None for this Framework-only delivery. A Parent integration would require separately authorized gitlink work.",
+    "mrts_impact": "none; CRS provisioning is distinct from MRTS, which remains untouched.",
+    "required_regression_tests": [
+      "Mutable tags, branches, ref namespaces, abbreviated hashes, and divergent URL/ref overrides are rejected before Git use.",
+      "A reviewed full commit is fetched, detached, and verified after checkout using mocked Git fixtures."
+    ],
+    "required_legitimate_control_cases": [
+      "A fresh approved source directory with the expected literal HTTPS origin and immutable revision verifies successfully in the mocked Git boundary fixture."
+    ],
+    "bypass_review": [
+      "Tags, branches, annotated tag object IDs, refs/tags, refs/heads, refs/remotes, URL/ref overrides, inherited GIT_* controls, existing source paths, origin mismatch, object-identity mismatch, and .gitmodules."
+    ],
+    "delivery_boundary": "Framework-only PR #26 merged to Framework master; Parent gitlink unchanged; MRTS untouched.",
+    "proof_gaps": [
+      "No dynamic upstream ref mutation was attempted.",
+      "No real CRS content fetch was performed; the control is proven through a process-boundary mocked Git fixture."
+    ]
+  },
+  "remediation_validation": {
+    "framework_base_sha": "cdc91a398d6c156eaff927d742b23018a3817fb6",
+    "framework_master_sha": "36cac3029c735dddf9f717b3ce077b9285567a6a",
+    "framework_tree": "75d90508ca6576ae3595010c52f2fd32cfa662c3",
+    "entry_point": "CRS_APPROVED_REPO_URL, CRS_APPROVED_COMMIT, CRS_RELEASE_TAG, and ci_require_full_git_commit in ci/lib/common.sh consumed by ci/provisioning/fetch-crs.sh",
+    "source_to_sink_before": "CRS_GIT_REF=v4.28.0 or main -> Git source-ref selection -> detached FETCH_HEAD -> Framework CRS consumption",
+    "broken_control_before": "No approved immutable object identity was enforced or compared after checkout.",
+    "control_after": "The literal https://github.com/coreruleset/coreruleset.git origin and 55b09f5acfd16413e7b31041100711ceb7adc89c full commit are set centrally. Divergent URL/ref selectors fail before Git. A fresh repository fetches only the literal commit and verifies FETCH_HEAD, resolved object, detached checkout, and final HEAD. .gitmodules fails closed without submodule execution.",
+    "negative_result": "CRS_GIT_REF=main, mutable tags, branches, refs/tags, refs/heads, refs/remotes, abbreviated hashes, annotated tag object IDs, and divergent URL/ref overrides return 77 before fake Git use.",
+    "legitimate_result": "The fresh approved-origin mocked control completed only after the exact 55b09f5acfd16413e7b31041100711ceb7adc89c commit was fetched, resolved, detached, and verified.",
+    "bypass_review": "The focused regression covers tags, branches, namespaces, URL/ref and approved-literal environment attempts, inherited Git environment variables, existing source paths, origin mismatch, all three object-identity mismatches, and .gitmodules.",
+    "exact_head_checks": "PR #26 head 465766c01e2bb0a9a003cfcefa8afca5fceeafe0 passed CodeQL Actions/C++/Python, two scaffold-lint jobs, two common-structure jobs, and SonarCloud Code Analysis, with no reviews or review threads.",
+    "post_merge_checks": "Merge/current master 36cac3029c735dddf9f717b3ce077b9285567a6a has the same tree as the final PR head; tree equality, diff check, unchanged MRTS, ten focused CRS provenance tests, documentation check, and lint with task-owned external bytecode cache passed.",
+    "delivery_state": "verified_on_master"
+  },
+  "delivery": {
+    "pull_request": {
+      "number": 26,
+      "url": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/26",
+      "state": "MERGED",
+      "base": "master",
+      "head": "codex/fix-framework-crs-ref-provenance",
+      "head_sha": "465766c01e2bb0a9a003cfcefa8afca5fceeafe0"
+    },
+    "merge_commit": "36cac3029c735dddf9f717b3ce077b9285567a6a",
+    "merged_at": "2026-07-19T14:29:48Z",
+    "tree": "75d90508ca6576ae3595010c52f2fd32cfa662c3",
+    "exact_sha_verification": "final PR head 465766c01e2bb0a9a003cfcefa8afca5fceeafe0 and current master 36cac3029c735dddf9f717b3ce077b9285567a6a have tree 75d90508ca6576ae3595010c52f2fd32cfa662c3",
+    "github_actions": "CodeQL Actions/C++/Python, two scaffold-lint jobs, and two common-structure jobs passed on the exact final PR head.",
+    "sonarcloud": "Fresh PR-head SonarCloud Code Analysis passed. Master-only SonarCloud run 88203518811 failed separately under FND-SONAR-0002 accepted risk and is not a fresh-head waiver.",
+    "reviews": "No reviews and no review threads blocked the merge.",
+    "delivery_state": "verified_on_master",
+    "overall_task_outcome": "verified",
+    "verified_pr": true,
+    "verified_on_master": true,
+    "parent_gitlink_unchanged": true,
+    "mrts_unchanged": true
+  },
+  "residual_risk": "The approved commit is not independently verified through a signed release-attestation chain; the control relies on the centrally reviewed literal and HTTPS/TLS Git transport. The path also assumes trusted Framework code, CI_ROOT, Git binary/PATH, TLS trust store, and exclusive source-root ownership.",
+  "residual_risk_de": "Der genehmigte Commit wird nicht zusätzlich über eine Kette signierter Release-Attestierungen verifiziert; die Kontrolle vertraut dem zentral geprüften Literal und HTTPS/TLS-Git-Transport. Der Pfad setzt außerdem vertrauenswürdigen Framework-Code, CI_ROOT, Git-Binary/PATH, TLS-Trust-Store und exklusives Source-Root-Ownership voraus.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-19T15:00:59Z",
+  "final_disposition": "verified_on_framework_master_not_closed",
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-18T08:09:21Z",
+      "event": "root_cause_triaged",
+      "detail": "Current Framework static evidence at cdc91a398d6c156eaff927d742b23018a3817fb6 confirmed the CRS mutable-ref provenance gap. It remains separate from workflow action pinning."
+    },
+    {
+      "at": "2026-07-18T10:41:10Z",
+      "event": "local_fix_revalidated",
+      "detail": "The Framework worktree implemented central immutable CRS provenance enforcement and passed focused mocked regression, shell/documentation, direct pinning, lint, exact-head CI, SonarCloud, and security revalidation before later final documentation correction."
+    },
+    {
+      "at": "2026-07-19T15:00:59Z",
+      "event": "verified_on_master",
+      "detail": "PR #26 final head 465766c01e2bb0a9a003cfcefa8afca5fceeafe0 merged as Framework master 36cac3029c735dddf9f717b3ce077b9285567a6a. The original negative reproduction and legitimate control reran successfully on the resulting master tree; the finding is verified, not closed."
+    }
+  ]
+}

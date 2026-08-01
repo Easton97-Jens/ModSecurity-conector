@@ -1,0 +1,1195 @@
+{
+  "id": "FND-SONAR-0001",
+  "title": "Parent SonarQube quality gate remains failed pending authorized review of three validated-safe hotspots",
+  "title_de": "Parent-SonarQube-Quality-Gate bleibt bis zur autorisierten Prüfung von drei validiert sicheren Hotspots fehlgeschlagen",
+  "category": "sonarqube_finding",
+  "repository": "parent",
+  "ownership": "sonarqube_configuration",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "blocked",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md",
+    "ci/checks/documentation/check-bilingual-docs.py",
+    "ci/checks/documentation/check-generated-report-layout.py",
+    "ci/evidence/reports/audit-full-lifecycle-runtime-roots.py",
+    "ci/evidence/reports/refresh-connector-reports.py",
+    "ci/evidence/reports/generate-system-environment-proof.py",
+    "ci/runtime/common/response-header-test-backend.py",
+    "connectors/envoy/harness/envoy_smoke_helper.py",
+    "connectors/haproxy/harness/haproxy_htx_smoke_helper.py",
+    "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+    "connectors/lighttpd/harness/lighttpd_http1_entity_fixture_upstream.py",
+    "connectors/lighttpd/harness/run_patched_full_lifecycle.sh",
+    "connectors/lighttpd/tests/test_patched_host_contract.py",
+    "scripts/update-github-actions-versions.py",
+    "tests/test_clang_analysis_baseline.py",
+    "tests/test_lighttpd_http1_entity_fixture_upstream.py",
+    "tests/test_response_header_backend.py",
+    "tests/test_sonar_reliability_contract.py"
+  ],
+  "affected_symbols": [
+    "Sonar check 87720810615",
+    "Sonar check 88053560480",
+    "Sonar check 88361885739",
+    "Sonar check 88391577875",
+    "SonarCloud PR #66 current-head check 88459546981",
+    "PR #66 head 284d0fd858419baf3edc65b48ddb51b589c0505b",
+    "3 Security Hotspots",
+    "Security Rating E",
+    "Reliability Rating E",
+    "SonarCloud PR #66 successor check 88453362314",
+    "SonarCloud resulting-master check 88462334259",
+    "Parent master cbd8385ce1b34318c84cf8f4a5a92ef98c83f82a",
+    "PR #66 squash merge cbd8385ce1b34318c84cf8f4a5a92ef98c83f82a",
+    "AZ7b3dgOcO69wzd-_jHv",
+    "c:S3519 ci/tools/native_modsecurity_oracle.c:131",
+    "AZ-A5siIrAfWDxf7qa7r",
+    "AZ-A5siIrAfWDxf7qa7s",
+    "AZ-A5sdsrAfWDxf7qa7q",
+    "PR #70 head 8d7f8b7283319528cf2c14479fc02399dd215825",
+    "PR #70 squash merge f2376bb3e39ffbe9d36faca8bcd7397477eadd10",
+    "SonarCloud resulting-master check 88468832775",
+    "SonarCloud analysis e04ce5bc-a9f7-44ce-bb13-8fe25c872d55",
+    "SonarCloud resulting-master check 88506822225",
+    "SonarCloud analysis b314d0b2-ea5a-49f4-be74-65eec30469d1",
+    "Parent master 0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3",
+    "AZ7K5CRYixFPtcnbna1R",
+    "AZ7K5CRYixFPtcnbna1S",
+    "AZ7K5CQgixFPtcnbna1J",
+    "AZ9cRysWHhV2CayPTP0c",
+    "AZ9MwivX-bUaKQ_zSGAh",
+    "AZ9cRyW7HhV2CayPTPur",
+    "AZ9cRyfJHhV2CayPTPxs",
+    "AZ9cRygDHhV2CayPTPxy",
+    "AZ9cRygDHhV2CayPTPxx",
+    "AZ9cRygDHhV2CayPTPxz",
+    "AZ9cRyiqHhV2CayPTPyS",
+    "AZ9cRyiqHhV2CayPTPyR",
+    "AZ9gJKOrg304P0Qlak6y",
+    "python:S5443 tests/test_clang_analysis_baseline.py:41",
+    "AZ9cRyfJHhV2CayPTPxt",
+    "pythonsecurity:S8707 ci/runtime/common/response-header-test-backend.py:101",
+    "AZ9cRynaHhV2CayPTPzR",
+    "pythonsecurity:S8707 connectors/lighttpd/harness/lighttpd_http1_entity_fixture_upstream.py:47",
+    "AZ7b3dgOcO69wzd-_jHv FIXED/CLOSED",
+    "PR #99 head 2f0d8a234f984b731229aca01d43caf2749a7d61",
+    "PR #99 squash merge 5b8db00d44ab24f3a9f4216a00f7edee977b6898",
+    "Parent master 5b8db00d44ab24f3a9f4216a00f7edee977b6898",
+    "SonarCloud resulting-master check 89321542088"
+  ],
+  "summary": "Current Parent master 5b8db00d44ab24f3a9f4216a00f7edee977b6898 is the protected squash result of PR #99. Its resulting-master SonarCloud check 89321542088 has Quality Gate ERROR: new reliability and maintainability ratings are 1 and new-code duplication is 0.4%, but new security rating is 5 and hotspot review is 0.0%. It has three TO_REVIEW hotspots. Exact-master source/control/sink validation classifies all three remaining S5332 hotspots as already_safe policy detector data; an authorized external reviewed/safe disposition is the only bounded remaining Quality-Gate action. Ten separate current regular Vulnerability rows were independently triaged as not_actionable with no source change required: four python:S5332 rows, five pythonsecurity:S2083 rows, and one python:S5443 test-only secure-temporary-directory row. Two current pythonsecurity:S8707 rows now have locally validated source repairs: the response-header backend validates fixture reads through the existing safe-root, regular-file, and symlink-resolving containment control before Path.read_text, and the Lighttpd HTTP/1.1 entity fixture helper validates ready/result output files beneath --safe-root while publishing JSON through exclusive randomized same-directory staging. The ten not_actionable rows remain OPEN without an external false-positive disposition; both S8707 issues remain OPEN on master until a delivered head is analyzed. This local work covers twelve exact inventory rows and leaves 194 Parent Vulnerability rows untriaged. Sonar indexes Framework and nested MRTS paths, tracked in FND-SONAR-0004, so the project aggregate does not prove Parent-only gate causality.",
+  "summary_de": "Der aktuelle Parent-Master 5b8db00d44ab24f3a9f4216a00f7edee977b6898 ist das geschützte Squash-Ergebnis von PR #99. Sein SonarCloud-Check 89321542088 für den resultierenden Master hat Quality Gate ERROR: New Reliability und Maintainability Rating sind 1 und New-Code-Duplizierung ist 0,4 %, aber New Security Rating ist 5 und Hotspot-Review ist 0,0 %. Es gibt drei TO_REVIEW-Hotspots. Exact-Master-Source/Control/Sink-Validierung klassifiziert alle drei verbleibenden S5332-Hotspots als already_safe-Policy-Detektordaten; eine autorisierte externe reviewed/safe-Disposition ist die einzige abgegrenzte verbleibende Quality-Gate-Aktion. Zehn getrennte aktuelle reguläre Vulnerability-Records wurden unabhängig als not_actionable ohne erforderliche Source-Änderung triagiert: vier python:S5332-, fünf pythonsecurity:S2083- und ein python:S5443-Test-only-Secure-Temporary-Directory-Record. Zwei aktuelle pythonsecurity:S8707-Records haben jetzt lokal validierte Source-Reparaturen: Das Response-Header-Backend validiert Fixture-Reads vor Path.read_text über das bestehende Safe-Root-, Regular-File- und Symlink-auflösende Containment-Control, und der Lighttpd-HTTP/1.1-Entity-Fixture-Helper validiert Ready-/Result-Ausgabedateien unter --safe-root und publiziert JSON über exklusives zufälliges Same-Directory-Staging. Die zehn not_actionable-Records bleiben ohne externe False-Positive-Disposition OPEN; beide S8707-Issues bleiben auf Master OPEN, bis ein ausgelieferter Head analysiert wurde. Diese lokale Arbeit deckt zwölf exakte Inventory-Zeilen ab und lässt 194 Parent-Vulnerability-Zeilen untriagiert. Sonar indexiert Framework- und verschachtelte MRTS-Pfade, die in FND-SONAR-0004 verfolgt werden; das Projektaggregat beweist daher keine Parent-only-Gate-Kausalität.",
+  "observed_behavior": "Exact current master 5b8db00d44ab24f3a9f4216a00f7edee977b6898 has 15 matching GitHub Actions workflow runs, all successful. SonarCloud check 89321542088 alone failed the SHA-bound quality gate because security rating is 5 and hotspot review is 0.0%; reliability and maintainability are 1 and duplication is 0.4%. The three TO_REVIEW python:S5332 hotspots remain at check-generated-report-layout.py:42 and :49 plus generate-system-environment-proof.py:98. Exact-master blobs 890e39421f36495da2b87c242e72bd13f122d69f and 02288c28d5a7e72cf5f317d9a91ca967ce91e3f5 preserve the validated forbidden-protocol detector signatures and HTTP negative test vector, never outbound HTTP endpoints. Four regular python:S5332 rows on the unchanged master were source-to-sink triaged as local loopback-harness or local-classifier uses. Three current pythonsecurity:S2083 rows in audit-full-lifecycle-runtime-roots.py flow from a locally supplied JSON payload to the content argument of Path.write_text, while two in refresh-connector-reports.py flow from retained report or command text to that content argument; no reviewed payload selects an output Path. The current python:S5443 row is a test-only TemporaryDirectory constructor, whose context-managed secure mkdtemp primitive creates the private test parent before child paths are derived. The response-header S8707 row reaches Path.read_text through --fixture-file without master-side safe-root validation; the local working tree now resolves it through the shared containment control before loading. The separate Lighttpd S8707 row accepts CLI --ready-file/--result-file output paths and previously published JSON through a predictable .{path.name}.tmp sibling; the local working tree now requires --safe-root, rejects outside-root, symlinked-directory, and final-symlink control-file escapes before listening, and writes through mkstemp/os.replace. Direct external, in-root-symlink, and predictable-temporary-symlink bypasses reproduce before the corresponding repairs and are rejected after them. No hotspot review, scanner control, suppression, gate change, false-positive disposition, external S8707 closure, or risk acceptance was made.",
+  "observed_behavior_de": "Exakter aktueller Master 5b8db00d44ab24f3a9f4216a00f7edee977b6898 hat 15 passende GitHub-Actions-Workflow-Runs, die alle bestanden. Allein SonarCloud-Check 89321542088 scheiterte am SHA-gebundenen Quality-Gate, weil Security Rating 5 und Hotspot-Review 0,0 % sind; Reliability und Maintainability sind 1 und Duplikation ist 0,4 %. Die drei TO_REVIEW-python:S5332-Hotspots bleiben bei check-generated-report-layout.py:42 und :49 sowie generate-system-environment-proof.py:98. Die Exact-Master-Blobs 890e39421f36495da2b87c242e72bd13f122d69f und 02288c28d5a7e72cf5f317d9a91ca967ce91e3f5 bewahren die validierten Forbidden-Protocol-Detektorsignaturen und den HTTP-Negativtestvektor, niemals ausgehende HTTP-Endpunkte. Vier reguläre python:S5332-Records auf dem unveränderten Master wurden Source-to-Sink als lokale Loopback-Harness- oder lokale Klassifizierungsnutzung triagiert. Drei aktuelle pythonsecurity:S2083-Records in audit-full-lifecycle-runtime-roots.py fließen von einem lokal übergebenen JSON-Payload in das Inhaltsargument von Path.write_text, während zwei in refresh-connector-reports.py von zurückgehaltenem Report- oder Command-Text in dieses Inhaltsargument fließen; kein geprüfter Payload wählt einen Ausgabepfad. Der aktuelle python:S5443-Record ist ein Test-only-TemporaryDirectory-Konstruktor, dessen context-managed sicheres mkdtemp-Primitiv den privaten Test-Parent erzeugt, bevor Child-Paths abgeleitet werden. Der Response-Header-S8707-Record erreicht Path.read_text über --fixture-file ohne Master-seitige Safe-Root-Validierung; der lokale Working Tree löst ihn jetzt vor dem Laden über das gemeinsame Containment-Control auf. Der getrennte Lighttpd-S8707-Record nimmt CLI-Ausgabepfade --ready-file/--result-file an und publizierte JSON zuvor über einen vorhersehbaren .{path.name}.tmp-Sibling; der lokale Working Tree verlangt jetzt --safe-root, weist Outside-Root-, Symlink-Directory- und finale Symlink-Control-File-Escapes vor dem Listen ab und schreibt über mkstemp/os.replace. Direkte externe, In-Root-Symlink- und Predictable-Temporary-Symlink-Bypässe reproduzieren vor den jeweiligen Reparaturen und werden danach abgewiesen. Es erfolgten kein Hotspot-Review, keine Scanner-Control, keine Suppression, keine Gate-Änderung, keine False-Positive-Disposition, kein externes S8707-Closure und keine Risikoakzeptanz.",
+  "latest_hotspot_source_assessment": {
+    "status": "already_safe",
+    "exact_master_sha": "5b8db00d44ab24f3a9f4216a00f7edee977b6898",
+    "hotspot_keys": [
+      "AZ7K5CRYixFPtcnbna1R",
+      "AZ7K5CRYixFPtcnbna1S",
+      "AZ7K5CQgixFPtcnbna1J"
+    ],
+    "source_blob_ids": {
+      "check_generated_report_layout": "890e39421f36495da2b87c242e72bd13f122d69f",
+      "generate_system_environment_proof": "02288c28d5a7e72cf5f317d9a91ca967ce91e3f5"
+    },
+    "source_change": "not_applicable",
+    "external_disposition": "blocked_pending_current_explicit_user_decision"
+  },
+  "latest_master_gate_revalidation": {
+    "status": "blocked_current_master_with_retriaged_sonar_bug_candidates",
+    "exact_master_sha": "700e62e5c2287e10f8774757ffff7432753900c0",
+    "source_pr": 108,
+    "source_pr_head": "4727d9bddd0100bf1f1cf47150db6832f96b6873",
+    "sonar_check_id": 89490754566,
+    "previous_master_sha": "00dfe5f2ae0908228a6242b15e09f70d6742d102",
+    "previous_sonar_check_id": 89484279475,
+    "comparison": "PR #108's exact head passed all 39 terminal GitHub check runs, all six protected required checks, and its SonarQube Cloud Quality Gate with zero new PR issues and security hotspots. The protected squash result 700e62e5c2287e10f8774757ffff7432753900c0 has all 14 resulting-master GitHub Actions workflows successful, but SonarCloud 89490754566 / analysis 7308b325-84f3-4df6-a6b4-ff30fc8f9e3d failed the master Quality Gate. In addition to the three existing TO_REVIEW python:S5332 hotspots, the analysis created open c:S3519 AZ-URJYx1ap3oKwyiaQ7 and c:S2637 AZ-URJYx1ap3oKwyiaQ8 rows in the unchanged HAProxy runtime source. Exact static source/control/sink review and the six-test reliability contract prove the already-present bounds and stderr guards; both scanner claims are locally already_safe / false_positive candidates, not a causal PR #108 regression or a reportable high-or-critical security finding.",
+    "quality_gate_conditions": {
+      "new_reliability_rating": "ERROR: 5 (threshold 1)",
+      "new_security_rating": "ERROR: 5 (threshold 1)",
+      "new_maintainability_rating": "OK: 1",
+      "new_duplicated_lines_density": "OK: 0.4 (threshold 3)",
+      "new_security_hotspots_reviewed": "ERROR: 0.0 (threshold 100)"
+    },
+    "evidence_artifact": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/evidence/sonar-pr108-master-700e62e-triage.json",
+    "evidence_sha256": "d4bdc2061441727c4afe199ff349681af95f0cec0b2541e3e82aaaad75d1accd",
+    "external_disposition": "no_external_disposition_or_suppression; existing hotspot-review decision remains blocked_pending_current_explicit_user_decision"
+  },
+  "latest_pr175_master_gate_revalidation": {
+    "status": "blocked_current_master_with_preexisting_three_s5332_hotspots",
+    "exact_master_sha": "5bf35f7f50f2ff9ed8b17f538d8043b3909b945b",
+    "source_pr": 175,
+    "source_pr_head": "16959671eff46937910c4ec854a14fe1651d5b96",
+    "sonar_check_id": 90552680188,
+    "previous_master_sha": "9f23ae2c5fe908cef38f203be03f93fda75a8dd7",
+    "comparison": "PR #175 exact head passed all six protected required checks, CodeQL, OSV, Secret scanning, and its SonarQube Cloud PR Quality Gate with zero new bugs, vulnerabilities, or security hotspots. The SHA-bound protected squash result 5bf35f7f50f2ff9ed8b17f538d8043b3909b945b has successful resulting-master GitHub Actions checks except SonarCloud check 90552680188, which fails the master Quality Gate on security rating 5 and hotspot review 0.0%. The only current master hotspots are the three pre-existing TO_REVIEW python:S5332 rows created 2026-06-15. Both hotspot-bearing source paths are unchanged between 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 and 5bf35f7f50f2ff9ed8b17f538d8043b3909b945b, and no remaining authorized target PR changes either path. This is not a causal PR #175 regression and no external disposition, suppression, scanner/Gate change, Framework/MRTS/gitlink action, or risk acceptance is evidenced.",
+    "comparison_de": "Der exakte PR-#175-Head bestand alle sechs geschützten Pflichtchecks, CodeQL, OSV, Secret Scanning und sein SonarQube-Cloud-PR-Quality-Gate mit null neuen Bugs, Vulnerabilities oder Security-Hotspots. Das SHA-gebundene geschützte Squash-Ergebnis 5bf35f7f50f2ff9ed8b17f538d8043b3909b945b hat erfolgreiche resultierende Master-GitHub-Actions-Checks außer SonarCloud-Check 90552680188, der das Master-Quality-Gate bei Security Rating 5 und Hotspot-Review 0,0 % scheitern lässt. Die einzigen aktuellen Master-Hotspots sind die drei vorbestehenden TO_REVIEW-python:S5332-Zeilen vom 2026-06-15. Beide hotspot-tragenden Source-Pfade sind zwischen 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 und 5bf35f7f50f2ff9ed8b17f538d8043b3909b945b unverändert, und kein verbleibender autorisierter Ziel-PR ändert einen dieser Pfade. Dies ist keine kausale PR-#175-Regression; es liegen keine externe Disposition, Suppression, Scanner-/Gate-Änderung, Framework-/MRTS-/Gitlink-Aktion oder Risikoakzeptanz vor.",
+    "quality_gate_conditions": {
+      "new_reliability_rating": "OK: 1 (threshold 1)",
+      "new_security_rating": "ERROR: 5 (threshold 1)",
+      "new_maintainability_rating": "OK: 1 (threshold 1)",
+      "new_duplicated_lines_density": "OK: 0.1 (threshold 3)",
+      "new_security_hotspots_reviewed": "ERROR: 0.0 (threshold 100)"
+    },
+    "evidence_artifact": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-177-20260729T094937Z/master/pr175-master-5bf35f7-sonar-retriage.md",
+    "evidence_sha256": "23183fad63183cfead35b431f848157dea055333d05b3da4a48a0a0f9ddd8834",
+    "external_disposition": "no_external_disposition_or_suppression; existing hotspot-review decision remains blocked_pending_current_explicit_user_decision"
+  },
+  "latest_pr109_master_gate_revalidation": {
+    "status": "blocked_current_master_with_preexisting_sonar_baseline",
+    "exact_master_sha": "475c2709f4ae0853f360a8b5dbcd754532c9b52d",
+    "source_pr": 109,
+    "source_pr_head": "7cb8c4e294b2b93fe4c0b68c0a64ef1328dcfed1",
+    "sonar_check_id": 89500782366,
+    "previous_master_sha": "09ec1e050e5f6c226d0214964fef6ae8bd498e00",
+    "previous_sonar_check_id": null,
+    "analysis_id": "baed7ff9-ca24-47a6-9cc1-5ba6744193f7",
+    "comparison": "PR #109 exact head passed 39 terminal GitHub check runs (33 success and six expected skips), all six protected required checks, and its SonarQube Cloud Quality Gate with zero PR issues and security hotspots. The protected squash result 475c2709f4ae0853f360a8b5dbcd754532c9b52d has all 14 resulting-master GitHub Actions workflows successful, but SonarCloud 89500782366 failed the master Quality Gate. The final master diff has exactly five Parent test/documentation paths, leaves the HAProxy runtime and both S5332 hotspot-bearing source files unchanged, and has no gitlink, Framework, or MRTS path. This is a pre-existing global baseline, not a causal PR #109 regression or a reportable high-or-critical security finding.",
+    "quality_gate_conditions": {
+      "new_reliability_rating": "ERROR: 5 (threshold 1)",
+      "new_security_rating": "ERROR: 5 (threshold 1)",
+      "new_maintainability_rating": "OK: 1",
+      "new_duplicated_lines_density": "OK: 0.4 (threshold 3)",
+      "new_security_hotspots_reviewed": "ERROR: 0.0 (threshold 100)"
+    },
+    "evidence_artifact": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/evidence/sonar-pr109-master-475c270-triage.json",
+    "evidence_sha256": "020e4c8d25f5025c56305eeae915640f83cb8e5410e741df62a8dcf837384cb1",
+    "external_disposition": "no_external_disposition_or_suppression; no Framework/MRTS action or risk acceptance"
+  },
+  "latest_pr110_master_gate_revalidation": {
+    "status": "blocked_current_master_with_preexisting_sonar_baseline",
+    "exact_master_sha": "5f831257949f4b2655347e2f8bcb2dd5e094a260",
+    "source_pr": 110,
+    "source_pr_head": "e13b86f15d69dc2758c197c3e7faeac07bfebff3",
+    "sonar_check_id": 89507709322,
+    "previous_master_sha": "475c2709f4ae0853f360a8b5dbcd754532c9b52d",
+    "previous_sonar_check_id": 89500782366,
+    "analysis_id": "57e1639e-b414-4179-8609-eb4e0598bc4d",
+    "comparison": "PR #110 exact head passed 39 terminal GitHub check runs (33 success and six expected skips), all six protected required checks, and its SonarQube Cloud Quality Gate with zero PR issues and security hotspots. The protected squash result 5f831257949f4b2655347e2f8bcb2dd5e094a260 has all 14 resulting-master GitHub Actions workflows successful, but SonarCloud 89507709322 failed the master Quality Gate. The final master diff has exactly seven Parent test/documentation paths, leaves the three S5332 hotspot-bearing files and HAProxy runtime source unchanged, and has no gitlink, Framework, or MRTS path. This is a pre-existing global baseline, not a causal PR #110 regression or a reportable high-or-critical security finding.",
+    "quality_gate_conditions": {
+      "new_reliability_rating": "ERROR: 5 (threshold 1)",
+      "new_security_rating": "ERROR: 5 (threshold 1)",
+      "new_maintainability_rating": "OK: 1",
+      "new_duplicated_lines_density": "OK: 0.4 (threshold 3)",
+      "new_security_hotspots_reviewed": "ERROR: 0.0 (threshold 100)"
+    },
+    "evidence_artifact": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/evidence/sonar-pr110-master-5f83125-triage.json",
+    "evidence_sha256": "2b984c868196c73f1dde1316a33b40cbe2b05e8b1bf685154d605261be1c4fdd",
+    "external_disposition": "no_external_disposition_or_suppression; no Framework/MRTS action or risk acceptance"
+  },
+  "latest_pr111_master_gate_revalidation": {
+    "status": "blocked_current_master_with_preexisting_sonar_baseline",
+    "exact_master_sha": "8e36b86ac17bce06003b0505fe26f6bb60c3cec7",
+    "source_pr": 111,
+    "source_pr_head": "2549d15f3181d236eeb83829818a6b03b273edcd",
+    "sonar_check_id": 89516958783,
+    "previous_master_sha": "5f831257949f4b2655347e2f8bcb2dd5e094a260",
+    "previous_sonar_check_id": 89507709322,
+    "analysis_id": "cbb65f1a-1990-40d0-80ea-8a000cd0c970",
+    "comparison": "PR #111 exact head passed 39 terminal GitHub check runs (33 success and six expected skips), all six protected required checks, and its SonarQube Cloud Quality Gate with zero PR issues and security hotspots. The protected squash result 8e36b86ac17bce06003b0505fe26f6bb60c3cec7 has all 14 resulting-master GitHub Actions workflows successful, but SonarCloud 89516958783 failed the master Quality Gate. The final master diff has exactly nine Parent CI-checker/documentation paths, leaves the three S5332 hotspot-bearing files and HAProxy runtime source unchanged, and has no gitlink, Framework, or MRTS path. This is a pre-existing global baseline, not a causal PR #111 regression or a reportable high-or-critical security finding.",
+    "quality_gate_conditions": {
+      "new_reliability_rating": "ERROR: 5 (threshold 1)",
+      "new_security_rating": "ERROR: 5 (threshold 1)",
+      "new_maintainability_rating": "OK: 1",
+      "new_duplicated_lines_density": "OK: 0.4 (threshold 3)",
+      "new_security_hotspots_reviewed": "ERROR: 0.0 (threshold 100)"
+    },
+    "evidence_artifact": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/evidence/sonar-pr111-master-8e36b86-triage.json",
+    "evidence_sha256": "4c5155e4fbf335e0348036da7179b03c76e76d536c08c94aeeecd0f997f58bb9",
+    "external_disposition": "no_external_disposition_or_suppression; no Framework/MRTS action or risk acceptance"
+  },
+  "latest_pr112_master_gate_revalidation": {
+    "status": "blocked_current_master_with_preexisting_sonar_baseline",
+    "exact_master_sha": "a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0",
+    "source_pr": 112,
+    "source_pr_head": "9687e5b295f7bbe1c183ba5d46097e7c84eb151c",
+    "sonar_check_id": 89523003340,
+    "previous_master_sha": "8e36b86ac17bce06003b0505fe26f6bb60c3cec7",
+    "previous_sonar_check_id": 89516958783,
+    "analysis_id": "2236aa46-8e7d-4f98-8c21-679f5de23a50",
+    "comparison": "PR #112 exact head passed 39 terminal GitHub check runs (33 success and six expected skips), all six protected required checks, and its SonarQube Cloud Quality Gate with zero PR issues and security hotspots. The protected squash result a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0 has an identical tree to the exact reviewed head and all 14 resulting-master GitHub Actions workflows successful. SonarCloud 89523003340 failed the master Quality Gate. The final master diff has exactly five Parent test/documentation paths, leaves the three S5332 hotspot-bearing files and HAProxy runtime source unchanged, and has no gitlink, Framework, or MRTS path. This is a pre-existing global baseline, not a causal PR #112 regression.",
+    "quality_gate_conditions": {
+      "new_reliability_rating": "ERROR: 5 (threshold 1)",
+      "new_security_rating": "ERROR: 5 (threshold 1)",
+      "new_maintainability_rating": "OK: 1",
+      "new_duplicated_lines_density": "OK: 0.4 (threshold 3)",
+      "new_security_hotspots_reviewed": "ERROR: 0.0 (threshold 100)"
+    },
+    "evidence_artifact": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/evidence/sonar-pr112-master-a99bd0b-triage.json",
+    "evidence_sha256": "27e26724404b7b212bb7080a90292723f0a671fa22f1c3becbc986dddd118db2",
+    "external_disposition": "no_external_disposition_or_suppression; no Framework/MRTS action or risk acceptance"
+  },
+  "latest_pr128_master_gate_revalidation": {
+    "status": "blocked_current_master_with_preexisting_mixed_backlog_baseline",
+    "exact_master_sha": "1b0f8825f3510b99b603bb6cd6f0777e1710358e",
+    "source_pr": 128,
+    "source_pr_head": "e9e97895faa1c45178f49ca2aaf60873e12b7c46",
+    "sonar_check_id": 90056181012,
+    "previous_master_sha": "7c782b0089880c02deb2b4ee32d2f3f6d7b8f59d",
+    "previous_sonar_check_id": 89923119911,
+    "analysis_id": "6b27b281-df12-42ae-9976-80ea2620b805",
+    "comparison": "PR #128 exact head passed the protected required contexts and its SonarQube Cloud PR Quality Gate with zero PR issues and security hotspots, then protected-squash merged as Parent master 1b0f8825f3510b99b603bb6cd6f0777e1710358e. All 14 resulting-master GitHub Actions workflows succeeded; 21 terminal commit checks have 18 successes, two expected skips, and only SonarCloud 90056181012 failure. The immediate predecessor 7c782b0089880c02deb2b4ee32d2f3f6d7b8f59d already had the same three TO_REVIEW python:S5332 hotspots and E reliability/security signature in SonarCloud 89923119911. check-generated-report-layout.py is byte-identical; #128 changes generate-system-environment-proof.py only at unrelated line 440 while hotspot detector line 98 is unchanged; HAProxy reliability-source blob is unchanged. This is a pre-existing global baseline, not a causal PR #128 regression.",
+    "quality_gate_conditions": {
+      "new_reliability_rating": "ERROR: 5 (threshold 1)",
+      "new_security_rating": "ERROR: 5 (threshold 1)",
+      "new_maintainability_rating": "OK: 1",
+      "new_duplicated_lines_density": "OK: 0.4 (threshold 3)",
+      "new_security_hotspots_reviewed": "ERROR: 0.0 (threshold 100)"
+    },
+    "evidence_artifact": "/var/tmp/codex/ModSecurity-conector/runs/sonar-1125-20260727-r9Ab3V/pr128-master-integration-20260727/evidence/master-workflow-summary.json",
+    "evidence_sha256": "83b9cc55ff904ee42fc1b5d466c48fc970508a624b56b964da3bc1ca02bd02de",
+    "external_disposition": "no_external_disposition_or_suppression; no Framework/MRTS action or risk acceptance"
+  },
+  "latest_sonar_bug_retriage": {
+    "exact_master_sha": "700e62e5c2287e10f8774757ffff7432753900c0",
+    "analysis_id": "7308b325-84f3-4df6-a6b4-ff30fc8f9e3d",
+    "issue_keys": [
+      "AZ-URJYx1ap3oKwyiaQ7",
+      "AZ-URJYx1ap3oKwyiaQ8"
+    ],
+    "classification": "unrelated_baseline; already_safe / false_positive_candidate on static evidence",
+    "security_disposition": "No reportable high-or-critical security finding is established. No external issue disposition, suppression, scanner change, Quality-Gate change, Framework/MRTS action, or risk acceptance occurred.",
+    "evidence_artifact": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/evidence/sonar-pr108-master-700e62e-triage.json",
+    "evidence_sha256": "d4bdc2061441727c4afe199ff349681af95f0cec0b2541e3e82aaaad75d1accd"
+  },
+  "latest_regular_s5332_vulnerability_assessment": {
+    "status": "not_actionable",
+    "exact_master_sha": "0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3",
+    "previous_inventory_sha": "f2376bb3e39ffbe9d36faca8bcd7397477eadd10",
+    "issue_keys": [
+      "AZ9cRysWHhV2CayPTP0c",
+      "AZ9MwivX-bUaKQ_zSGAh",
+      "AZ9cRyW7HhV2CayPTPur",
+      "AZ9cRyfJHhV2CayPTPxs"
+    ],
+    "source_blob_ids": {
+      "connectors/haproxy/harness/haproxy_htx_smoke_helper.py": "efc406f490f1a76cd151b31911e5c2e8196c4e90",
+      "connectors/envoy/harness/envoy_smoke_helper.py": "4a999c53f1c246ec431d5e1f3d0f0d910c3b6c71",
+      "ci/checks/documentation/check-bilingual-docs.py": "6c6be14680dd9f9e50c08367d0038de5053f7a9b",
+      "ci/runtime/common/response-header-test-backend.py": "fed58d05fbf3897d8e0d19299048c2310773c092"
+    },
+    "source_change": "not_required",
+    "external_disposition": "blocked_pending_current_explicit_user_decision",
+    "remaining_exact_inventory_parent_vulnerability_rows": 202,
+    "scope_limit": "This covers only the four listed current python:S5332 Vulnerability rows and does not reconcile the remaining Parent backlog or FND-SONAR-0004 scope contamination."
+  },
+  "regular_s2083_runtime_root_assessment": {
+    "status": "not_actionable",
+    "exact_master_sha": "0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3",
+    "analysis_key": "b314d0b2-ea5a-49f4-be74-65eec30469d1",
+    "issue_keys": [
+      "AZ9cRygDHhV2CayPTPxy",
+      "AZ9cRygDHhV2CayPTPxx",
+      "AZ9cRygDHhV2CayPTPxz"
+    ],
+    "source_blob_ids": {
+      "ci/evidence/reports/audit-full-lifecycle-runtime-roots.py": "edc6ff23aa3e3527e370edf0e0a4ffbecab0ecb6"
+    },
+    "source_change": "not_required",
+    "external_disposition": "blocked_pending_current_explicit_user_decision",
+    "historical_at_completion": true,
+    "remaining_exact_inventory_parent_vulnerability_rows": 199,
+    "scope_limit": "This covers only the three listed current pythonsecurity:S2083 rows. Their payload reaches write_text content rather than the independent output Paths; it does not reconcile the remaining Parent backlog or FND-SONAR-0004 scope contamination."
+  },
+  "latest_regular_s2083_refresh_reports_assessment": {
+    "status": "not_actionable",
+    "exact_master_sha": "0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3",
+    "analysis_key": "2ae5396d-fa94-4751-94c2-cde8cd0cac84",
+    "issue_keys": [
+      "AZ9cRyiqHhV2CayPTPyS",
+      "AZ9cRyiqHhV2CayPTPyR"
+    ],
+    "source_blob_ids": {
+      "ci/evidence/reports/refresh-connector-reports.py": "696aa3d1e447090f483369243c7d1b15ab9ac1c8"
+    },
+    "source_change": "not_required",
+    "external_disposition": "blocked_pending_current_explicit_user_decision",
+    "remaining_exact_inventory_parent_vulnerability_rows": 197,
+    "scope_limit": "This covers only the two listed current pythonsecurity:S2083 rows. Their report or command text reaches write_text content rather than catalog-derived output Paths; it does not reconcile the remaining Parent backlog or FND-SONAR-0004 scope contamination."
+  },
+  "latest_scripts_workflow_updater_s2083_assessment": {
+    "status": "not_actionable",
+    "exact_master_sha": "fc6027681cfae342dcef8e1606a38523c450044c",
+    "issue_key": "AZ70CAr3IpeCryPNS2zi",
+    "rule": "pythonsecurity:S2083",
+    "component": "scripts/update-github-actions-versions.py",
+    "line": 623,
+    "source_blob_id": "7c02b331e7dfdb58c002d2e04fe1cae4f9b180df",
+    "security_invariant": "Workflow content cannot select the file path written by the updater; only a regular, non-symlink workflow whose strict resolved pathname remains below the selected Parent root can enter the replacement map.",
+    "source_to_sink": "Sonar traces workflow-file content read at line 620 through split/join into the content argument of path.write_text at line 623. The Path receiver is selected beforehand from fixed workflow globs and confined independently of that content.",
+    "validation": "The focused updater suite passed 25 tests, including a legitimate in-root update and the direct external-workflow-symlink rejection. A controlled ancestor-.github-symlink check also returned no workflow candidates and left the external target unchanged.",
+    "source_change": "not_required",
+    "external_disposition": "blocked_pending_current_explicit_user_decision",
+    "receipt_path": "/var/tmp/codex/ModSecurity-conector/runs/20260729-scripts-last-sonar-finding/evidence/sonar-s2083-workflow-updater-triage-20260729T071145Z.json",
+    "receipt_sha256": "59ce099f2f9dd2040256d5b0e0ddc051288e596219b45078a3d08eab8c9983ac",
+    "scope_limit": "This covers only issue AZ70CAr3IpeCryPNS2zi in the Parent scripts updater. It does not reconcile the aggregate Sonar backlog, other existing regular issue assessments, or FND-SONAR-0004 scope contamination."
+  },
+  "latest_regular_s5443_clang_tempdir_assessment": {
+    "status": "not_actionable",
+    "exact_master_sha": "0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3",
+    "analysis_key": "47f27a41-4c5e-4c2b-9428-f6e06f4d3fc4",
+    "issue_keys": [
+      "AZ9gJKOrg304P0Qlak6y"
+    ],
+    "source_blob_ids": {
+      "tests/test_clang_analysis_baseline.py": "0b8a34b44453faed5de129a13ec186de2e12c5eb"
+    },
+    "source_change": "not_required",
+    "external_disposition": "blocked_pending_current_explicit_user_decision",
+    "remaining_exact_inventory_parent_vulnerability_rows": 196,
+    "scope_limit": "This covers only the test-only python:S5443 row. TemporaryDirectory delegates to the secure stdlib mkdtemp primitive and does not reconcile other public-temporary-directory uses, the remaining Parent backlog, or FND-SONAR-0004 scope contamination."
+  },
+  "latest_regular_s8707_response_header_fixture_assessment": {
+    "status": "fixed_locally_pending_delivery_and_reanalysis",
+    "exact_master_sha": "0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3",
+    "analysis_key": "2ae5396d-fa94-4751-94c2-cde8cd0cac84",
+    "issue_key": "AZ9cRyfJHhV2CayPTPxt",
+    "rule": "pythonsecurity:S8707",
+    "component": "ci/runtime/common/response-header-test-backend.py",
+    "line": 101,
+    "master_source_blob_before_fix": "fed58d05fbf3897d8e0d19299048c2310773c092",
+    "working_tree_source_blob_after_fix": "4b2ac7e556b419c584c27d416aa827534bbfd2b5",
+    "working_tree_test_blob_after_fix": "048dce6c75b0c16eaa6caae5a8f0dbb04c89595f",
+    "security_invariant": "Every fixture file must resolve to a regular file below a declared safe root before the backend reads JSON or starts listening.",
+    "pre_fix_reproducer": "The focused real-CLI test failed as intended because both a direct outside-root fixture and an in-root symlink to an outside fixture kept the backend listening until timeout.",
+    "post_fix_validation": "The same focused module passed six tests after the shared resolver was applied to --fixture-file; it rejects direct and symlink escapes before listening and retains the valid in-root declarative fixture control.",
+    "external_issue_state": "OPEN_on_current_master_not_reanalysed_for_working_tree",
+    "external_disposition": "not_requested_or_authorized; delivered_head_reanalysis_required",
+    "receipt_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T033717Z-sonar-s8707-response-header-fix-5d88e02f/evidence/sonar-s8707-response-header-fixture-fix-20260721T033723Z.json",
+    "receipt_sha256": "80922e5534416cbfc66145e2707b6bcbff0a1633ab3e24db09f8a54b7205fbf8",
+    "remaining_exact_inventory_parent_vulnerability_rows": 195,
+    "scope_limit": "This covers only the listed S8707 fixture-read containment issue. It does not reconcile the ten distinct not_actionable rows, the remaining Parent backlog, or FND-SONAR-0004 scope contamination."
+  },
+  "latest_regular_s8707_lighttpd_entity_fixture_assessment": {
+    "status": "fixed_locally_pending_delivery_and_reanalysis",
+    "exact_master_sha": "0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3",
+    "analysis_key": "retained_inventory_20260719T134711Z",
+    "issue_key": "AZ9cRynaHhV2CayPTPzR",
+    "rule": "pythonsecurity:S8707",
+    "component": "connectors/lighttpd/harness/lighttpd_http1_entity_fixture_upstream.py",
+    "line": 47,
+    "master_source_blob_before_fix": "e64d11434ccff675a0470ed1d3d1a053c3c7978d",
+    "working_tree_source_blob_after_fix": "a03252cb9acb6dc166811e358cf373aa66957e86",
+    "working_tree_runner_blob_after_fix": "1f374c4656b999c4dc33d0beecb23b7b9e5f0491",
+    "working_tree_test_blob_after_fix": "474e55fc1b57d214e5771f6bcb6a354dc9b7e017",
+    "security_invariant": "The helper's CLI output control files must resolve as fresh absolute paths beneath the declared safe root before the listener starts, and JSON staging must use an exclusive unpredictable same-directory temporary file before atomic replacement.",
+    "pre_fix_reproducer": "The focused write_json regression failed as intended because a pre-placed predictable .result.json.tmp symlink caused the old implementation to publish result.json as a symlink.",
+    "post_fix_validation": "The focused helper module passed seven tests after the repair, covering predictable temporary symlink overwrite prevention, legitimate JSON format, direct outside-root rejection, symlinked-directory escape rejection, final-symlink rejection, and CLI rejection before listener start. py_compile passed and the full Lighttpd patched-host contract suite passed 16 tests.",
+    "external_issue_state": "OPEN_on_current_master_not_reanalysed_for_working_tree",
+    "external_disposition": "not_requested_or_authorized; delivered_head_reanalysis_required",
+    "receipt_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T043051Z-sonar-s8707-lighttpd-fixture-output-fix-1725c7b1/evidence/sonar-s8707-lighttpd-fixture-output-fix-20260721T043051Z.json",
+    "receipt_sha256": "94f14a450f447fcea4095914309b4e1a8290ef41376520863a8981b319a3adfb",
+    "remaining_exact_inventory_parent_vulnerability_rows": 194,
+    "scope_limit": "This covers only the listed S8707 Lighttpd entity-fixture output containment issue. It does not reconcile the ten distinct not_actionable rows, the response-header S8707 external state, the remaining Parent backlog, or FND-SONAR-0004 scope contamination."
+  },
+  "expected_behavior": "The current Parent-master quality gate must pass, or each residual condition must have an individually authorized, evidence-backed disposition before this finding can advance beyond blocked.",
+  "expected_behavior_de": "Das aktuelle Parent-Master-Quality-Gate muss bestehen, oder jede Restbedingung braucht eine individuell autorisierte, evidenzbasierte Disposition, bevor dieses Finding über blocked hinaus fortschreiten kann.",
+  "impact": "Release and assurance claims remain bounded by the recorded evidence.",
+  "impact_de": "Release- und Assurance-Aussagen bleiben durch die dokumentierte Evidence begrenzt.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "sed -n '187,196p;212,214p' .codex/reports/repository-full-assessment.md"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260729-scripts-last-sonar-finding",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260729-scripts-last-sonar-finding/evidence/sonar-s2083-workflow-updater-triage-20260729T071145Z.json",
+      "artifact_type": "exact_current_master_scripts_workflow_updater_s2083_source_control_sink_triage",
+      "sha256": "59ce099f2f9dd2040256d5b0e0ddc051288e596219b45078a3d08eab8c9983ac",
+      "command": "RTK-proxied current master fetch/readback, public SonarQube Cloud scripts-scoped issue API, updater source/control review, focused 25-test suite, and controlled ancestor-symlink check.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T07:11:45Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The one current scripts-scoped Sonar issue AZ70CAr3IpeCryPNS2zi / pythonsecurity:S2083 is technically not_actionable. Its trace carries workflow file content to the content argument of Path.write_text, while fixed glob discovery and strict resolved-path containment independently select the receiver path. No source patch, suppression, rule/gate change, external false-positive disposition, Framework/MRTS/Gitlink action, PR, or merge occurred."
+    },
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:187-196,212-214",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '187,196p;212,214p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260717T181659Z-codeql-action-4-37-1-batch-36346991",
+      "artifact_path": "https://sonarcloud.io/api/qualitygates/project_status?analysisId=9c69bb17-16b6-4ad1-85f1-ee68b55fd2ee",
+      "artifact_type": "direct_sonarcloud_current_master_quality_gate_api",
+      "sha256": null,
+      "command": "curl SonarCloud quality-gate API by current analysis ID, then compare condition set to preceding analysis ca8887e8-6f8e-40ff-8b26-6db70cfb8d7f",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T19:00:46Z",
+      "retention_status": "direct_external_api_receipt"
+    },
+    {
+      "run_id": "20260718T053406Z-pr-51-master-integration-546d9dc2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/evidence/validation/master-c8ca0d9-sonar-preexisting-comparison.md",
+      "artifact_type": "current_master_sonar_preexisting_condition_comparison",
+      "sha256": "9f86277f2e150d31ca5109e71ef8952766c50414c7284489cd72f58ce870ef7d",
+      "command": "rtk gh api exact check-runs for current master c8ca0d92b630c18232b881855c4f5d1482568ea6, immediate parent 635b8f603f852cff10926cd6f5449e763f6194a4, and PR head 2589c085a1ed7bbb2c2033635f06e71f5f75fb8b",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T06:40:39Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T131708Z-sonarcloud-parent-remediation-baseline-bbce9d6b",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T131708Z-sonarcloud-parent-remediation-baseline-bbce9d6b/evidence/sonar-baseline-project.json",
+      "artifact_type": "paginated_current_sonarcloud_project_quality_gate_baseline",
+      "sha256": "35fbcd6c1a05903e07a0caa19990cec5844155bf34f094bae19b5dfaa2a3e6a5",
+      "command": "RTK-proxied public SonarQube Cloud V1 project, branch, measures, quality-gate, issue, and hotspot readback with paginated retained baseline",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T13:18:35Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T134711Z-sonarcloud-parent-remediation-current-3de21a87",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T134711Z-sonarcloud-parent-remediation-current-3de21a87/evidence/sonar-baseline-project.json",
+      "artifact_type": "paginated_superseding_current_sonarcloud_project_quality_gate_baseline",
+      "sha256": "4e4571357660a4a7677529674020340db370c77b065c8e08119e6f079e80f982",
+      "command": "RTK-proxied public SonarQube Cloud V1 exact-current project, branch, measures, quality-gate, issue, and hotspot readback with complete retained pagination",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T13:20:27Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T080314Z-parent-pr55-57-59-framework-update-3443af13",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T080314Z-parent-pr55-57-59-framework-update-3443af13/evidence/pr57-master-fde2-sonar-preexisting-comparison.md",
+      "artifact_type": "exact_parent_master_sonar_preexisting_comparison_after_pr57",
+      "sha256": "c8ddaf7b0de34e0174b573c6d717b989e2a27b0f8e65f264f578c7ab41df9d95",
+      "command": "RTK-proxied exact GitHub check-run comparison for Parent predecessor 9ef0619b9c00729c16b7056943d7843785223095, PR #57 head 5f8949b1d98a98127b933e9f1d626b30e3291b59, and resulting master fde2e02a1cf2226f8e9106e663e05e9b2941357e; public SonarCloud quality-gate, hotspot, and issue readback",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T11:01:59Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T131144Z-pr61-master-integration-6bba820",
+      "artifact_path": ".codex/runs/20260720T131144Z-pr61-master-integration-6bba820/evidence/pr61-master-6bba820-sonar-postmerge.md",
+      "artifact_type": "exact_resulting_parent_master_sonarcloud_and_delivery_receipt",
+      "sha256": "8016ace97659e99be38c8eb57d2e8216b8f8fa16bbc89b9ef69744000fadf2ac",
+      "command": "RTK-proxied exact GitHub merge/check-run/workflow readback plus public SonarQube Cloud analysis, quality-gate, measures, issue-facet, and hotspot readback for resulting master 6bba8206de1bb598b40f76677943e86770b6992c",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T13:14:02Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T164813Z-sonarcloud-current-master-continuation-822f725d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164813Z-sonarcloud-current-master-continuation-822f725d/evidence/sonar-pr-66-91fea6d-success-analysis.json",
+      "artifact_type": "exact_draft_pr66_sonarcloud_followup_bug_verification",
+      "sha256": "e29d39badd5263d2a27844281e95d8e251172e003d2c4556beaeecddf8381847",
+      "command": "exact PR #66 successor-head readback: GitHub checks and SonarQube Cloud Quality Gate/issues query",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164813Z-sonarcloud-current-master-continuation-822f725d/tmp/worktrees/sonar-master-bug-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T19:34:35Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164715Z-parent-security-reconciliation-5a22cbf5/evidence/current-master-pr66-and-github-reconciliation-20260720T200500Z.json",
+      "artifact_type": "current_parent_master_sonar_pr66_and_github_reconciliation",
+      "sha256": "7855ef62f8a538d0742e500ed6aa5d656bbc7d6fa5936513b3fc42bc99024ad1",
+      "command": "RTK-proxied current master GitHub check-run and SonarQube Cloud analysis/quality-gate/hotspot/issue-facet readback plus current PR #66 checks, Sonar result, review, thread, and GitHub security inventory readback",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T20:05:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164715Z-parent-security-reconciliation-5a22cbf5/evidence/post-merge-master-reconciliation-20260720T202018Z.json",
+      "artifact_type": "resulting_parent_master_pr66_sonar_and_github_security_reconciliation",
+      "sha256": "797efffded6d99d9d5cedb2c092547f7fb812e8a09b18f0cbd11c3cf0c6e514c",
+      "command": "RTK-proxied exact resulting-master GitHub, SonarQube Cloud, Dependabot, Scorecard, CodeQL, and secret-scanning readback after PR #66 squash merge",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T20:20:18Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164715Z-parent-security-reconciliation-5a22cbf5/evidence/sonar-c-s3519-triage-20260720T202835Z.json",
+      "artifact_type": "focused_sonar_c_s3519_source_sink_triage",
+      "sha256": "13095f4fd51b41f0309a370178db863ee22669973a04e58fdd7236fe461a6c52",
+      "command": "RTK-proxied current-master source, sole-caller, runner, and library-contract inspection for Sonar c:S3519",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T20:28:35Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164715Z-parent-security-reconciliation-5a22cbf5/evidence/post-pr70-master-reconciliation-20260720T204648Z.json",
+      "artifact_type": "exact_pr70_resulting_master_sonar_and_github_reconciliation",
+      "sha256": "ac9753d9ba2bb2326ce53c1d9d9e160bb89ca429a18abfd9e0729a0c53366dd5",
+      "command": "RTK-proxied exact resulting-master GitHub, SonarQube Cloud, Dependabot, Scorecard, CodeQL, and secret-scanning readback after PR #70 squash merge",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T20:46:48Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164715Z-parent-security-reconciliation-5a22cbf5/evidence/sonar-s5332-hotspot-source-triage-20260720T205006Z.json",
+      "artifact_type": "exact_master_s5332_source_control_sink_triage",
+      "sha256": "13b70c17f11eeb8a50e4c24bc8a9dd57760cef810cb3ef3bd26ae49327cff1dd",
+      "command": "RTK-proxied exact-master blob comparison plus focused Parent contract and report-governance validation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T20:50:06Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T225753Z-apache-intervention-cleanup-40c97373",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T225753Z-apache-intervention-cleanup-40c97373/evidence/apache-intervention-pr72-master-validation-20260721T000550Z-final.json",
+      "artifact_type": "exact_current_master_sonar_gate_and_hotspot_revalidation_after_pr72",
+      "sha256": "667e2642b90988cf25096ab96c176f6af66f22bb873b3eb6e937d8dc72a1b9f3",
+      "command": "RTK-proxied exact PR #72 merge/tree/GitHub Actions readback plus public SonarQube Cloud analysis, quality-gate, hotspot, and issue endpoints",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T00:05:50Z",
+      "retention_status": "retained_local_evidence"
+    },
+    {
+      "run_id": "20260720T225753Z-apache-intervention-cleanup-40c97373",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T225753Z-apache-intervention-cleanup-40c97373/evidence/sonar-current-master-recheck-20260721T003445Z-final.json",
+      "artifact_type": "independent_exact_master_public_sonar_recheck",
+      "sha256": "59bc405a7b822a62c0d134321b497d0f2e0931f8c3ef2be685f3eb3adff3a060",
+      "command": "RTK-proxied GitHub master SHA and public SonarQube Cloud quality-gate/hotspot readback; exact commands retained in the receipt",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T00:34:45Z",
+      "retention_status": "retained_local_evidence",
+      "summary": "Independent public recheck confirms master 0e8be81 Quality Gate ERROR only on security rating 5 and hotspot review 0.0%; reliability/maintainability remain 1 and duplication 0.4% passes. Exactly three TO_REVIEW python:S5332 hotspots remain, preserving the prior already_safe source/control/sink assessment. No remote disposition was submitted."
+    },
+    {
+      "run_id": "20260720T213808Z-sonar-external-evidence-76c763a2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T213808Z-sonar-external-evidence-76c763a2/evidence/sonar-s5332-regular-vulnerability-current-master-triage-20260721T020213Z.json",
+      "artifact_type": "exact_current_master_regular_s5332_vulnerability_source_sink_triage",
+      "sha256": "710339515e3f89b89b560209c39788db5b008cc2e03dc742dc357cfbd4ffd6d5",
+      "command": "Exact-master git path-diff/blob comparison plus per-key Parent source-to-sink and supported-caller review for four current python:S5332 Vulnerability rows",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T02:02:13Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Four current regular python:S5332 Vulnerability rows are technically not_actionable: three local loopback-only harness components and one local documentation-link classifier. No source patch, Sonar false-positive disposition, hotspot review, suppression, rule change, Quality-Gate change, or risk acceptance occurred."
+    },
+    {
+      "run_id": "20260721T022325Z-sonar-s2083-current-triage-fcf66308",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T022325Z-sonar-s2083-current-triage-fcf66308/evidence/sonar-s2083-runtime-root-audit-triage-20260721T023733Z.json",
+      "artifact_type": "exact_current_master_regular_s2083_vulnerability_source_sink_triage",
+      "sha256": "9a361f2ed67a4a0fa1dae11f6107ca2cd8fe7c88dd2557c84c2473dee3318d9c",
+      "command": "RTK-proxied branch-scoped Sonar issue-detail readback plus exact-master blob/diff and source-to-sink/caller review for three current pythonsecurity:S2083 Vulnerability rows",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T02:37:33Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Three current pythonsecurity:S2083 rows are technically not_actionable: a locally supplied JSON payload reaches only Path.write_text content in a report renderer, never the independent output Paths. No source patch, Sonar false-positive disposition, hotspot review, suppression, rule change, Quality-Gate change, or risk acceptance occurred."
+    },
+    {
+      "run_id": "20260721T022325Z-sonar-s2083-current-triage-fcf66308",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T022325Z-sonar-s2083-current-triage-fcf66308/evidence/sonar-s2083-refresh-connector-reports-triage-20260721T025657Z.json",
+      "artifact_type": "exact_current_master_regular_s2083_refresh_report_source_sink_triage",
+      "sha256": "3f73655e0a861a0b39d8987eafea08e33ef3b66e3625c3925fb0777cc315ae4f",
+      "command": "RTK-proxied branch-scoped Sonar issue-detail readback plus exact-master blob/diff and source-to-sink/caller/catalog review for two current pythonsecurity:S2083 Vulnerability rows",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T02:56:57Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Two current pythonsecurity:S2083 rows are technically not_actionable: retained report or command text reaches only Path.write_text content in refresh-connector-reports.py, while destination Paths are independently selected from a static report catalog and operator roots. No source patch, Sonar false-positive disposition, hotspot review, suppression, rule change, Quality-Gate change, or risk acceptance occurred."
+    },
+    {
+      "run_id": "20260721T022325Z-sonar-s2083-current-triage-fcf66308",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T022325Z-sonar-s2083-current-triage-fcf66308/evidence/sonar-s5443-clang-tempdir-triage-20260721T031222Z.json",
+      "artifact_type": "exact_current_master_regular_s5443_secure_tempdir_triage",
+      "sha256": "87d162bf24ab136cbc00e841b3cb9f2a8637aea81d34f8301ebaae5a1f176b98",
+      "command": "RTK-proxied current Sonar issue-detail readback plus exact-master blob/diff, stdlib security-property, context-manager caller, and focused test review for the python:S5443 row",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T03:12:22Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The current python:S5443 row is technically not_actionable: test-only tempfile.TemporaryDirectory delegates to secure, private, race-safe stdlib mkdtemp creation and all callers use its context manager. No source patch, Sonar false-positive disposition, hotspot review, suppression, rule change, Quality-Gate change, or risk acceptance occurred."
+    },
+    {
+      "run_id": "20260721T033717Z-sonar-s8707-response-header-fix-5d88e02f",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T033717Z-sonar-s8707-response-header-fix-5d88e02f/evidence/sonar-s8707-response-header-fixture-fix-20260721T033723Z.json",
+      "artifact_type": "local_s8707_response_header_fixture_containment_fix_validation",
+      "sha256": "80922e5534416cbfc66145e2707b6bcbff0a1633ab3e24db09f8a54b7205fbf8",
+      "command": "Focused real-CLI pre-fix reproducer, six-test post-fix backend suite, py_compile, adjacent Apache and full-lifecycle contract suites, and independent security diff review; exact commands are retained in the receipt.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T03:37:23Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The local S8707 repair applies the existing safe-root containment control to --fixture-file before Path.read_text. Direct outside-root and in-root-symlink fixtures reproduce the broken pre-fix behavior and are rejected after the repair; the valid in-root declarative fixture control remains covered. No external Sonar action, delivery, or risk acceptance occurred."
+    },
+    {
+      "run_id": "20260721T043051Z-sonar-s8707-lighttpd-fixture-output-fix-1725c7b1",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T043051Z-sonar-s8707-lighttpd-fixture-output-fix-1725c7b1/evidence/sonar-s8707-lighttpd-fixture-output-fix-20260721T043051Z.json",
+      "artifact_type": "local_s8707_lighttpd_entity_fixture_output_containment_fix_validation",
+      "sha256": "94f14a450f447fcea4095914309b4e1a8290ef41376520863a8981b319a3adfb",
+      "command": "Focused pre-fix write_json symlink reproducer, seven-test post-fix helper suite, py_compile, and the full Lighttpd patched-host contract suite; exact commands are retained in the receipt.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T04:31:04Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The local S8707 repair requires --safe-root for the Lighttpd entity-fixture helper, validates ready/result output control paths before listening, rejects direct outside-root, symlinked-directory, and final-symlink escapes, and replaces predictable JSON staging with mkstemp/os.replace. No external Sonar action, delivery, or risk acceptance occurred."
+    },
+    {
+      "run_id": "20260721T061646Z-pr65-67-68-69-master-integration-2ee109e2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T061646Z-pr65-67-68-69-master-integration-2ee109e2/evidence/sonar-master-baseline-5fa90474-20260721T061703Z.json",
+      "artifact_type": "post_pr69_exact_master_sonarqube_cloud_baseline_revalidation",
+      "sha256": "365ed868587a32ef0876b4ba5e06d8155147d2334c6b4af79ba75d92a826dcf2",
+      "command": "RTK-proxied GitHub exact-commit check-run comparison and public SonarQube Cloud quality-gate/hotspot readback for consecutive Parent masters 0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3 and 5fa90474a79eaee2df034bf1c4389572fdcca42f.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T06:17:03Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "PR #69's exact PR-head Sonar Quality Gate passed, while both consecutive masters fail only on the same three pre-existing TO_REVIEW python:S5332 hotspots, security rating 5, and 0.0% hotspot review. No source, Sonar review, suppression, Quality-Gate, false-positive, or risk-acceptance state changed."
+    },
+    {
+      "run_id": "20260721T061646Z-pr65-67-68-69-master-integration-2ee109e2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T061646Z-pr65-67-68-69-master-integration-2ee109e2/evidence/sonar-master-baseline-1fa024ca-20260721T063155Z.json",
+      "artifact_type": "post_pr65_exact_master_sonarqube_cloud_baseline_revalidation",
+      "sha256": "464c31f2f8a3e9d517af13198149f031dd557a89ba870e79d4d179ec98b41b79",
+      "command": "RTK-proxied GitHub exact-commit check-run comparison and public SonarQube Cloud quality-gate/hotspot readback for consecutive Parent masters 5fa90474a79eaee2df034bf1c4389572fdcca42f and 1fa024ca6ec97023ea5b6f7dff5215e43f10b74c.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T06:31:55Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "PR #65's exact PR-head Sonar Quality Gate passed, while both consecutive masters after PRs #69 and #65 fail only on the same three pre-existing TO_REVIEW python:S5332 hotspots, security rating 5, and 0.0% hotspot review. No source, Sonar review, suppression, Quality-Gate, false-positive, or risk-acceptance state changed."
+    },
+    {
+      "run_id": "20260721T071522Z-pr67-68-action-lock-replacements-45705602",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T071522Z-pr67-68-action-lock-replacements-45705602/evidence/pr67-pr68-protected-delivery-20260721T080505Z.json",
+      "artifact_type": "post_pr75_pr76_exact_master_sonarqube_cloud_baseline_revalidation",
+      "sha256": "2010d3a79b1d590b1e2fc65dabd928b4850eea0ccae87b2636802cf073018015",
+      "command": "RTK-proxied GitHub exact-head/commit checks and public SonarQube Cloud quality-gate/hotspot readback for protected replacement PRs #75/#76 and resulting Parent master 2ade0d40983b7af21a65b8cd2884866b85626393.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T08:05:05Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "PR #75 and #76 exact heads each passed their Sonar Quality Gate with zero new issues/hotspots. Current master 2ade0d40983b7af21a65b8cd2884866b85626393 has 15 successful Actions runs; its only failed check is SonarCloud on the same three pre-existing TO_REVIEW python:S5332 hotspots, security rating 5, and 0.0% hotspot review. No causal attribution or Sonar control change was made."
+    },
+    {
+      "run_id": "20260723T200627Z-pr99-pr100-master-integration-075c1b11",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T200627Z-pr99-pr100-master-integration-075c1b11/evidence/sonar-master-5b8db00-pr99-postmerge-baseline-recheck.md",
+      "artifact_type": "post_pr99_exact_master_sonarqube_cloud_preexisting_baseline_revalidation",
+      "sha256": "14f086d445d7c21a30c0c6dbf5f475f38343d148a8ae39952d4577157b94ea9e",
+      "command": "RTK-proxied GitHub exact-commit check-run comparison, public SonarQube Cloud quality-gate/hotspot readback, and exact hotspot-file diff/blob comparison for Parent master a308d7b414f0859490fe7253e0683a4bde80b563 and resulting master 5b8db00d44ab24f3a9f4216a00f7edee977b6898 after protected PR #99.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T20:18:11Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "PR #99 exact head passed its Sonar Quality Gate with zero new issues/hotspots and was protected-squash merged as master 5b8db00d44ab24f3a9f4216a00f7edee977b6898. All 15 resulting-master Actions workflows passed, while Sonar check 89321542088 failed only on the same three pre-existing TO_REVIEW python:S5332 hotspots, security rating 5, and 0.0% hotspot review already present on a308d7b414f0859490fe7253e0683a4bde80b563 / check 89221608146. Neither hotspot-bearing file changed, and focused source/control/sink review confirms static policy-detector data rather than a network sink. No causal attribution or Sonar control change was made."
+    },
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/commits/6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d/check-runs#89440531005; https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector; https://sonarcloud.io/api/hotspots/search?projectKey=Easton97-Jens_ModSecurity-conector&status=TO_REVIEW&ps=100",
+      "artifact_type": "post_pr100_exact_master_sonar_preexisting_mixed_backlog_revalidation",
+      "sha256": null,
+      "command": "RTK-proxied exact PR #100/commit check-run readback plus public SonarQube Cloud project-quality-gate, hotspot, and open-Vulnerability-facet APIs for resulting Parent master 6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T08:53:43Z",
+      "retention_status": "direct_external_api_receipt",
+      "summary": "PR #100 exact head passed its Sonar PR Quality Gate with zero new issues and zero new hotspots, then protected-squash merged as master 6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d. All 14 resulting-master GitHub Actions workflows passed; the sole non-passing terminal check is SonarCloud 89440531005, whose global gate remains ERROR on security rating 5 and hotspot review 0.0%. Direct readback confirms the same three low-probability TO_REVIEW python:S5332 hotspots and 177 open Vulnerability rows across mixed project scope. No source, Sonar disposition, suppression, scanner/Gate, Framework/MRTS, or risk-acceptance state changed."
+    },
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/commits/215b503a8d68ee85d93e18888f3710d1974c3169/check-runs#89447965729; https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&branch=master",
+      "artifact_type": "post_pr101_exact_master_sonar_preexisting_mixed_backlog_revalidation",
+      "sha256": null,
+      "command": "RTK-proxied exact PR #101/commit check-run readback plus public SonarQube Cloud project-quality-gate API for resulting Parent master 215b503a8d68ee85d93e18888f3710d1974c3169.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T09:32:14Z",
+      "retention_status": "direct_external_api_receipt",
+      "summary": "PR #101 exact head passed all 39 terminal checks, Sonar PR Quality Gate OK, zero new issues, and zero new hotspots, then protected-squash merged as master 215b503a8d68ee85d93e18888f3710d1974c3169. All 14 resulting-master Actions workflows passed; the sole non-passing terminal check is SonarCloud 89447965729, whose global gate remains ERROR on security rating 5 and hotspot review 0.0%. PR #101 does not modify either hotspot-bearing source file. No source, Sonar disposition, suppression, scanner/Gate, Framework/MRTS, or risk-acceptance state changed."
+    },
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/commits/ec57576814a3f75c5e153d51c945bd1dd341a916/check-runs; https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&branch=master",
+      "artifact_type": "post_pr102_current_master_sonar_mixed_backlog_readback",
+      "sha256": null,
+      "command": "RTK-proxied exact PR #102/commit check-run and resulting-master workflow readback plus public SonarQube Cloud master-quality-gate API for Parent master ec57576814a3f75c5e153d51c945bd1dd341a916.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T10:11:50Z",
+      "retention_status": "direct_external_api_receipt",
+      "summary": "PR #102 exact head passed all 39 terminal checks, Sonar PR Quality Gate OK, zero open PR issues, and zero security hotspots, then protected-squash merged as master ec57576814a3f75c5e153d51c945bd1dd341a916. All 14 resulting-master GitHub Actions workflows passed and all 20 terminal master commit checks are success or expected skipped; no SonarCloud master check run was published. Direct current master Quality Gate readback remains ERROR on security rating 5 and hotspot review 0.0%. PR #102 does not modify either hotspot-bearing source file. No source, Sonar disposition, suppression, scanner/Gate, Framework/MRTS, or risk-acceptance state changed."
+    },
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/commits/90e3d8d9603375f9a33e2a51836ba284221fdd0f/check-runs#89464137047; https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&branch=master; https://sonarcloud.io/api/hotspots/search?projectKey=Easton97-Jens_ModSecurity-conector&branch=master&status=TO_REVIEW&ps=10",
+      "artifact_type": "post_pr103_exact_master_sonar_preexisting_mixed_backlog_revalidation",
+      "sha256": null,
+      "command": "RTK-proxied exact PR #103/commit check-run and resulting-master workflow readback plus public SonarQube Cloud master-quality-gate, issue, and hotspot APIs for Parent master 90e3d8d9603375f9a33e2a51836ba284221fdd0f and its immediate predecessor.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T10:57:36Z",
+      "retention_status": "direct_external_api_receipt",
+      "summary": "PR #103 exact head passed all 39 terminal checks, all six protected required checks, Sonar PR Quality Gate OK, zero new issues, and zero security hotspots, then protected-squash merged as master 90e3d8d9603375f9a33e2a51836ba284221fdd0f. All 14 resulting-master GitHub Actions workflows passed; its 21 terminal checks are 18 success, two expected skips, and only SonarCloud 89464137047 failure. Current direct API readback confirms the same three TO_REVIEW python:S5332 hotspots and Quality Gate ERROR on security rating 5 and hotspot review 0.0% as immediate predecessor ec57576814a3f75c5e153d51c945bd1dd341a916 / SonarCloud 89456327990. PR #103 does not modify either hotspot-bearing source file. No source, Sonar disposition, suppression, scanner/Gate, Framework/MRTS/gitlink, or risk-acceptance state changed."
+    },
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/commits/053a9ca5b0f9351319c96d359107c53ba8f9d3a1/check-runs#89471250793; https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&branch=master; https://sonarcloud.io/api/hotspots/search?projectKey=Easton97-Jens_ModSecurity-conector&branch=master&status=TO_REVIEW&ps=10",
+      "artifact_type": "post_pr104_exact_master_sonar_preexisting_mixed_backlog_revalidation",
+      "sha256": null,
+      "command": "RTK-proxied exact PR #104/commit check-run and resulting-master workflow readback plus public SonarQube Cloud master-quality-gate, issue, and hotspot APIs for Parent master 053a9ca5b0f9351319c96d359107c53ba8f9d3a1 and its immediate predecessor.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T11:37:09Z",
+      "retention_status": "direct_external_api_receipt",
+      "summary": "PR #104 exact head passed all 39 terminal checks, all six protected required checks, Sonar PR Quality Gate OK, zero new issues, and zero security hotspots, then protected-squash merged as master 053a9ca5b0f9351319c96d359107c53ba8f9d3a1. All 14 resulting-master GitHub Actions workflows passed; its 21 terminal checks are 18 success, two expected skips, and only SonarCloud 89471250793 failure. Current direct API readback confirms the same three TO_REVIEW python:S5332 hotspots and Quality Gate ERROR on security rating 5 and hotspot review 0.0% as immediate predecessor 90e3d8d9603375f9a33e2a51836ba284221fdd0f / SonarCloud 89464137047. PR #104 does not modify either hotspot-bearing source file. No source, Sonar disposition, suppression, scanner/Gate, Framework/MRTS/gitlink, or risk-acceptance state changed."
+    },
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/commits/26f0eb9cff2f1c69ba7be9cfc5fd609659e3041f/check-runs#89475577491; https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&branch=master; https://sonarcloud.io/api/hotspots/search?projectKey=Easton97-Jens_ModSecurity-conector&branch=master&status=TO_REVIEW&ps=10",
+      "artifact_type": "post_pr105_exact_master_sonar_preexisting_mixed_backlog_revalidation",
+      "sha256": null,
+      "command": "RTK-proxied exact PR #105/commit check-run and resulting-master workflow readback plus public SonarQube Cloud master-quality-gate, issue, and hotspot APIs for Parent master 26f0eb9cff2f1c69ba7be9cfc5fd609659e3041f and its immediate predecessor.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T12:01:28Z",
+      "retention_status": "direct_external_api_receipt",
+      "summary": "PR #105 exact head passed all 39 terminal checks, all six protected required checks, Sonar PR Quality Gate OK, zero new issues, and zero security hotspots, then protected-squash merged as master 26f0eb9cff2f1c69ba7be9cfc5fd609659e3041f. All 14 resulting-master GitHub Actions workflows passed; its 21 terminal checks are 18 success, two expected skips, and only SonarCloud 89475577491 failure. Current direct API readback confirms the same three TO_REVIEW python:S5332 hotspots and Quality Gate ERROR on security rating 5 and hotspot review 0.0% as immediate predecessor 053a9ca5b0f9351319c96d359107c53ba8f9d3a1 / SonarCloud 89471250793. PR #105 does not modify either hotspot-bearing source file. No source, Sonar disposition, suppression, scanner/Gate, Framework/MRTS/gitlink, or risk-acceptance state changed."
+    },
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/commits/a60dd0380332a24cf231a36775256d21a812c027/check-runs#89479343187; https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&branch=master; https://sonarcloud.io/api/hotspots/search?projectKey=Easton97-Jens_ModSecurity-conector&branch=master&status=TO_REVIEW&ps=10",
+      "artifact_type": "post_pr106_exact_master_sonar_preexisting_mixed_backlog_revalidation",
+      "sha256": null,
+      "command": "RTK-proxied exact PR #106/commit check-run and resulting-master workflow readback plus public SonarQube Cloud master-quality-gate, issue, and hotspot APIs for Parent master a60dd0380332a24cf231a36775256d21a812c027 and its immediate predecessor.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T12:21:11Z",
+      "retention_status": "direct_external_api_receipt",
+      "summary": "PR #106 exact head passed all 39 terminal checks, all six protected required checks, Sonar PR Quality Gate OK, zero new issues, and zero security hotspots, then protected-squash merged as master a60dd0380332a24cf231a36775256d21a812c027. All 14 resulting-master GitHub Actions workflows passed; its 21 terminal checks are 18 success, two expected skips, and only SonarCloud 89479343187 failure. Current direct API readback confirms the same three TO_REVIEW python:S5332 hotspots and Quality Gate ERROR on security rating 5 and hotspot review 0.0% as immediate predecessor 26f0eb9cff2f1c69ba7be9cfc5fd609659e3041f / SonarCloud 89475577491. PR #106 does not modify either hotspot-bearing source file. No source, Sonar disposition, suppression, scanner/Gate, Framework/MRTS/gitlink, or risk-acceptance state changed."
+    },
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/evidence/sonar-pr111-master-8e36b86-triage.json",
+      "artifact_type": "post_pr111_exact_master_sonar_preexisting_mixed_backlog_revalidation",
+      "sha256": "4c5155e4fbf335e0348036da7179b03c76e76d536c08c94aeeecd0f997f58bb9",
+      "command": "RTK-proxied protected PR #111 merge receipt, exact resulting-master tree/workflow/check-run readback, and public SonarQube Cloud analysis, quality-gate, and hotspot APIs for Parent master 8e36b86ac17bce06003b0505fe26f6bb60c3cec7.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T15:09:03Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "PR #111 exact head passed 39 terminal GitHub check runs, all six protected required checks, SonarQube Cloud Quality Gate OK, zero PR issues, and zero security hotspots, then protected-squash merged as master 8e36b86ac17bce06003b0505fe26f6bb60c3cec7 with an identical tree. All 14 resulting-master GitHub Actions workflows passed; its 21 terminal checks are 18 success, two expected skips, and only SonarCloud 89516958783 failure. Exact analysis cbb65f1a-1990-40d0-80ea-8a000cd0c970 retains the unchanged three-TO_REVIEW-hotspot/rating-5 baseline and is not a causal #111 regression. No source, Sonar disposition, suppression, scanner/Gate, Framework/MRTS/gitlink, or risk-acceptance state changed."
+    },
+    {
+      "run_id": "20260727T173113Z-pr128-master-integration",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/sonar-1125-20260727-r9Ab3V/pr128-master-integration-20260727/evidence/master-workflow-summary.json",
+      "artifact_type": "post_pr128_exact_master_sonar_preexisting_mixed_backlog_revalidation",
+      "sha256": "83b9cc55ff904ee42fc1b5d466c48fc970508a624b56b964da3bc1ca02bd02de",
+      "command": "RTK-proxied protected PR #128 merge receipt, exact resulting-master workflow/check-run readback, predecessor comparison, and public SonarQube Cloud master-quality-gate, hotspot, and exact-issue APIs for Parent master 1b0f8825f3510b99b603bb6cd6f0777e1710358e.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-27T17:43:56Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "PR #128 exact head e9e97895faa1c45178f49ca2aaf60873e12b7c46 passed the protected contexts and Sonar PR gate with zero PR issues/hotspots, then protected-squash merged as master 1b0f8825f3510b99b603bb6cd6f0777e1710358e. All 14 resulting-master GitHub Actions workflows passed; 21 terminal checks have 18 successes, two expected skips, and only SonarCloud 90056181012 failure. Direct current-master evidence confirms the same three TO_REVIEW python:S5332 hotspots and E reliability/security signature already present on predecessor 7c782b0089880c02deb2b4ee32d2f3f6d7b8f59d / SonarCloud 89923119911. The first hotspot-bearing file is byte-identical; the PR #128 edit in the second is an unrelated line-440 unused-local removal, leaving line 98 unchanged; HAProxy reliability source blob is unchanged. No causal #128 regression, external disposition, suppression, gate change, Framework/MRTS/gitlink action, or risk acceptance is evidenced; status remains blocked."
+    },
+    {
+      "run_id": "20260727T173113Z-pr128-master-integration",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/sonar-1125-20260727-r9Ab3V/pr128-master-integration-20260727/evidence/triage-finding-v0.json",
+      "artifact_type": "current_master_s5332_static_triage",
+      "sha256": "99a9c7eafe01854daeaa9f7a8bb6a023b4afaf2ed2bf7a3ec3fc30073bb971bf",
+      "command": "RTK-proxied static source/control/sink inspection and SECURITY.md resolution for the three current-master python:S5332 hotspot keys.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-27T17:43:56Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "All three current-master python:S5332 hotspots are high-confidence not_actionable: their literals occur only in HTTPS-policy detector or negative-test data and are not HTTP client or network-endpoint sinks. No external reviewed/safe disposition was requested or performed."
+    },
+    {
+      "run_id": "sonar-open-1022-20260727",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/sonar-open-1022-20260727/evidence/pr142-exact-head-observation.json",
+      "artifact_type": "bounded_exact_head_hosted_and_sonar_followup",
+      "sha256": "0e92b1b386db985f1e9af2fb534ea88683405b0f63f06e89df37ffb8f68591f0",
+      "command": "Read-only GitHub exact-head checks and SonarQube Cloud quality-gate, OPEN/CONFIRMED issue, and duplication-measures API readback for Draft PR #142.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-27T22:24:34Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Draft PR #142 exact head b8080c93b463fb438dd27e9011ef7f440429cd19 has all completed hosted checks successful, Quality Gate OK, zero OPEN/CONFIRMED PR issues, and zero new duplicated lines. Receipt AZ-URJYx1ap3oKwyiaQ7 / c:S3519 is absent from that exact-head PR readback; the evidence is Draft-level only."
+    },
+    {
+      "run_id": "pr-integration-173-177-20260729T094937Z",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-177-20260729T094937Z/master/pr175-master-5bf35f7-sonar-retriage.md",
+      "artifact_type": "post_pr175_exact_master_sonar_preexisting_three_hotspot_revalidation",
+      "sha256": "23183fad63183cfead35b431f848157dea055333d05b3da4a48a0a0f9ddd8834",
+      "command": "RTK-proxied exact PR #175 merge/readback, resulting-master check-run readback, predecessor-path comparison, remaining-target scope comparison, and public SonarQube Cloud master-quality-gate, measure, and hotspot APIs.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:50:51Z",
+      "retention_status": "retained_task_evidence_external_root",
+      "summary": "PR #175 exact head passed protected PR gates and Sonar QG, then SHA-bound squash merged as master 5bf35f7f50f2ff9ed8b17f538d8043b3909b945b. Its resulting-master SonarCloud check 90552680188 fails only because the current project gate retains the three pre-existing 2026-06-15 TO_REVIEW python:S5332 hotspots, security rating 5, and hotspot review 0.0%. Both hotspot-bearing source paths are unchanged from predecessor 9f23ae2c5fe908cef38f203be03f93fda75a8dd7; no remaining target PR changes either path. No causal PR #175 regression or authorized external disposition is evidenced; the P1 release blocker remains blocked.",
+      "summary_de": "Der exakte PR-#175-Head bestand geschützte PR-Gates und das Sonar-QG und wurde danach SHA-gebunden als Master 5bf35f7f50f2ff9ed8b17f538d8043b3909b945b squash-gemergt. Sein resultierender Master-SonarCloud-Check 90552680188 scheitert nur, weil das aktuelle Projekt-Gate die drei vorbestehenden TO_REVIEW-python:S5332-Hotspots vom 2026-06-15, Security Rating 5 und Hotspot-Review 0,0 % behält. Beide hotspot-tragenden Source-Pfade sind gegenüber Vorgänger 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 unverändert; kein verbleibender Ziel-PR ändert einen dieser Pfade. Es liegt keine kausale PR-#175-Regression oder autorisierte externe Disposition vor; der P1-Release-Blocker bleibt blockiert."
+    }
+  ],
+  "root_cause": "The current gate failure is limited to three Sonar security-hotspot review states and the resulting new security rating. Exact-master source/control/sink validation proves their HTTP literals are deliberate HTTPS-only policy detector signatures and a negative vector, not network requests. Four separate regular python:S5332 Vulnerability rows are local loopback-harness or local-classifier cases, five regular pythonsecurity:S2083 rows carry data only into report text rather than an output path, and one test-only python:S5443 row already delegates directory creation to the secure standard-library TemporaryDirectory/mkdtemp primitive. Their technical not_actionable results are not external Sonar dispositions. Two current pythonsecurity:S8707 rows had distinct local root causes: --fixture-file reached Path.read_text without the existing --safe-root containment used by --body-file, and the Lighttpd entity-fixture helper accepted CLI output paths and used a predictable temporary sibling before replace. The working-tree repairs apply canonical root checks before loading or publishing, reject direct and symlink escapes, and use exclusive unpredictable temporary JSON staging for Lighttpd output. PR #66 removed the prior nine Bugs and its three PR follow-ups; PR #70 then removed the redundant native-oracle caller fallback, and exact final master analysis fixed/closed c:S3519. The independent remaining 194 exact-inventory Parent vulnerability rows and Sonar Framework/MRTS scope contamination remain separately tracked.",
+  "root_cause_de": "Der aktuelle Gate-Fehler ist auf drei Sonar-Security-Hotspot-Review-States und das daraus resultierende New Security Rating begrenzt. Exact-Master-Source/Control/Sink-Validierung belegt, dass ihre HTTP-Literale absichtliche HTTPS-only-Policy-Detektorsignaturen und ein Negativvektor sind, keine Netzwerkrequests. Vier getrennte reguläre python:S5332-Vulnerability-Records sind lokale Loopback-Harness- oder lokale Klassifizierungsfälle, fünf reguläre pythonsecurity:S2083-Records tragen Daten nur in Report-Text statt in einen Ausgabepfad, und ein Test-only-python:S5443-Record delegiert die Verzeichniserzeugung bereits an das sichere Standardbibliotheks-TemporaryDirectory/mkdtemp-Primitiv. Ihre technischen not_actionable-Ergebnisse sind keine externen Sonar-Dispositionen. Zwei aktuelle pythonsecurity:S8707-Records hatten getrennte lokale Root Causes: --fixture-file erreichte Path.read_text ohne das bereits von --body-file verwendete --safe-root-Containment, und der Lighttpd-Entity-Fixture-Helper nahm CLI-Ausgabepfade an und verwendete vor replace einen vorhersehbaren temporären Sibling. Die Working-Tree-Reparaturen wenden vor dem Laden oder Publizieren kanonische Root-Checks an, weisen direkte und Symlink-Escapes ab und nutzen für Lighttpd-Ausgabe exklusives unvorhersehbares temporäres JSON-Staging. PR #66 beseitigte die vorherigen neun Bugs und seine drei PR-Follow-ups; PR #70 beseitigte anschließend den redundanten Native-Oracle-Caller-Fallback, und die exakte finale Master-Analyse schloss c:S3519. Die unabhängigen übrigen 194 exakten Parent-Vulnerability-Inventory-Zeilen und die Sonar-Framework-/MRTS-Scope-Kontamination bleiben getrennt verfolgt.",
+  "proposed_remediation": "Do not alter the HTTPS-only policy, loopback harnesses, local URL classifiers, report renderer, or secure TemporaryDirectory test helper merely to change scanner output. Obtain a current explicit user decision before marking the three evidence-backed safe hotspots reviewed/safe and, separately, the ten evidence-backed not_actionable regular issues false-positive in SonarQube Cloud; then re-read the exact target master state. Deliver the two local S8707 containment repairs only through a separately authorized PR and require the resulting Sonar analysis rather than a false-positive disposition. Continue individual triage of the remaining vulnerabilities without scanner evasion or Quality-Gate weakening.",
+  "proposed_remediation_de": "Die HTTPS-only-Policy, Loopback-Harnesses, lokalen URL-Klassifizierer, den Report-Renderer oder den sicheren TemporaryDirectory-Test-Helper nicht allein zur Änderung des Scanner-Outputs verändern. Vor dem Markieren der drei evidenzbasiert sicheren Hotspots als reviewed/safe und getrennt der zehn evidenzbasiert not_actionable regulären Issues als false positive in SonarQube Cloud eine aktuelle ausdrückliche Nutzerentscheidung einholen; danach den exakten Ziel-Master-Status erneut lesen. Die zwei lokalen S8707-Containment-Reparaturen nur über einen getrennt autorisierten PR ausliefern und die resultierende Sonar-Analyse statt einer False-Positive-Disposition verlangen. Die individuelle Triage der übrigen Vulnerabilities ohne Scanner-Evasion oder Quality-Gate-Abschwächung fortsetzen.",
+  "acceptance_criteria": [
+    "The three exact-master S5332 hotspot source/control/sink assessments remain retained and current.",
+    "The ten exact-master regular S5332, S2083, and S5443 Vulnerability assessments remain retained, bounded to their listed keys, and do not claim the remaining backlog is reconciled.",
+    "The local S8707 repairs retain source-to-sink, direct-outside-root, symlink, predictable-temporary-file, and legitimate in-root fixture validation without claiming an external issue closure before delivery and reanalysis.",
+    "A current explicit user decision authorizes each evidence-backed external reviewed/safe or false-positive disposition, or the relevant external state remains unchanged.",
+    "After any authorized disposition, the same master analysis or a newer SHA-bound analysis shows all Quality-Gate conditions passing.",
+    "Directly sourced issue detail is retained without exposing excluded paths, and remaining Vulnerabilities continue through individual triage."
+  ],
+  "validation_plan": [
+    "Re-read the authorized Parent Sonar quality gate/check at the exact target SHA.",
+    "Verify the three individual hotspot states and retain the resulting gate evidence.",
+    "Verify the ten individual regular S5332, S2083, and S5443 issue states only after any separately authorized external false-positive disposition.",
+    "For the two local S8707 fixes, run the focused source controls on the authorized delivery head and retain the resulting Sonar analysis; no external false-positive disposition substitutes for that reanalysis.",
+    "Continue individual open-Vulnerability triage separately from the hotspot disposition."
+  ],
+  "regression_tests": [
+    "Focused Parent evidence-integrity suite: 57 tests passed against blobs identical to exact master f2376bb3e39ffbe9d36faca8bcd7397477eadd10.",
+    "S8707 response-header local source repair: tests.test_response_header_backend passed six tests, including direct and symlink fixture containment rejection plus the valid in-root fixture control; py_compile and adjacent Apache/full-lifecycle contract suites also passed.",
+    "S8707 Lighttpd entity-fixture local source repair: tests.test_lighttpd_http1_entity_fixture_upstream passed seven tests, including predictable temporary symlink overwrite prevention, direct outside-root rejection, symlinked-directory escape rejection, final-symlink rejection, and valid JSON publication; py_compile and the full Lighttpd patched-host contract suite also passed."
+  ],
+  "legitimate_control_tests": [
+    "make report-governance passed, including the HTTPS-only negative and allowed repository-URL controls.",
+    "The Lighttpd patched full-lifecycle runner continues to call the entity fixture helper with upstream-ready.json and result.json below $SMOKE_DIR/entity-fixtures, now with --safe-root \"$FIXTURE_DIR\"."
+  ],
+  "dependencies": [],
+  "blocked_by": [
+    "The current project aggregate has zero open Bugs, 220 open Vulnerabilities, and three unreviewed but validated-safe hotspots. Ten regular Vulnerability rows (four S5332, five S2083, and one S5443) are locally not_actionable but remain externally OPEN without an authorized false-positive disposition. Two S8707 containment repairs are locally fixed but remain externally OPEN until a delivered head is analyzed. The remaining 194 exact-inventory Parent vulnerability rows are untriaged. PR #70 fixed/closed c:S3519 at ci/tools/native_modsecurity_oracle.c:131; only an explicitly authorized external hotspot disposition can clear the current Quality-Gate conditions without a prohibited policy change.",
+    "SonarQube Cloud indexes Framework and nested MRTS paths; its project-level Quality Gate cannot by itself prove Parent-only ownership or causality.",
+    "No current explicit user decision authorizes changing the external Sonar hotspot review or regular-issue false-positive states; no risk acceptance exists."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0005",
+    "FND-SONAR-0004"
+  ],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260717T181659Z-codeql-action-4-37-1-batch-36346991",
+    "20260718T053406Z-pr-51-master-integration-546d9dc2",
+    "20260719T131708Z-sonarcloud-parent-remediation-baseline-bbce9d6b",
+    "20260719T134711Z-sonarcloud-parent-remediation-current-3de21a87",
+    "20260720T080314Z-parent-pr55-57-59-framework-update-3443af13",
+    "20260720T131144Z-pr61-master-integration-6bba820",
+    "20260720T164813Z-sonarcloud-current-master-continuation-822f725d",
+    "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+    "20260720T225753Z-apache-intervention-cleanup-40c97373",
+    "20260720T213808Z-sonar-external-evidence-76c763a2",
+    "20260721T022325Z-sonar-s2083-current-triage-fcf66308",
+    "20260721T033717Z-sonar-s8707-response-header-fix-5d88e02f",
+    "20260721T043051Z-sonar-s8707-lighttpd-fixture-output-fix-1725c7b1",
+    "20260721T061646Z-pr65-67-68-69-master-integration-2ee109e2",
+    "20260721T071522Z-pr67-68-action-lock-replacements-45705602",
+    "20260723T051154Z-fnd-parent-0045-update-submodules-validation-0a8cca09",
+    "20260723T200627Z-pr99-pr100-master-integration-075c1b11",
+    "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+    "20260727T173113Z-pr128-master-integration",
+    "pr-integration-173-177-20260729T094937Z"
+  ],
+  "unallocated_child_observations": [
+    {
+      "requested_id": "FND-SONAR-0007",
+      "status": "fixed_on_parent_master_pending_canonical_directory",
+      "scope": "Traefik c:S5489 lock identity",
+      "issue_keys": [
+        "AZ-A5siIrAfWDxf7qa7r",
+        "AZ-A5siIrAfWDxf7qa7s"
+      ],
+      "pending_import_artifact": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164813Z-sonarcloud-current-master-continuation-822f725d/evidence/FND-SONAR-0007-pending-canonical-import.json",
+      "pending_import_sha256": "c722a69da3f5d72f767a42adeab5c1c07cd484f5c878aebd6d5fa26da47e4992"
+    },
+    {
+      "requested_id": "FND-SONAR-0008",
+      "status": "fixed_on_parent_master_pending_canonical_directory",
+      "scope": "HAProxy c:S3519 readable-source extent",
+      "issue_keys": [
+        "AZ-A5sdsrAfWDxf7qa7q"
+      ],
+      "pending_import_artifact": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164813Z-sonarcloud-current-master-continuation-822f725d/evidence/FND-SONAR-0008-pending-canonical-import.json",
+      "pending_import_sha256": "0fc6a52f9845c58b18d02e5bf468cd5095e98bc9da0e4f836133254b31e204ea"
+    }
+  ],
+  "bounded_delivery_risk_acceptance": {
+    "accepted_at": "2026-07-29T13:14:43Z",
+    "user_statement": "ich akzeptiere das rest risiko",
+    "scope": "Only sequential SHA-bound Parent PR #173–#182 delivery; only a resulting-master SonarCloud failure that exactly matches the documented pre-existing three-python:S5332-hotspot condition and is demonstrated non-causal to the selected PR.",
+    "scope_de": "Nur die sequenzielle SHA-gebundene Delivery der Parent-PRs #173–#182; nur ein Resulting-Master-SonarCloud-Fehler, der exakt dem dokumentierten vorbestehenden Drei-python:S5332-Hotspot-Zustand entspricht und als nicht kausal zum ausgewählten PR belegt ist.",
+    "baseline_master_sha": "154ee724eba4653fa6378fc3c8729ae433e65697",
+    "baseline_sonar_check_id": 90559417652,
+    "quality_gate_conditions": {
+      "new_security_rating": "ERROR: 5 (threshold 1)",
+      "new_security_hotspots_reviewed": "ERROR: 0.0 (threshold 100)"
+    },
+    "hotspot_keys": [
+      "AZ7K5CRYixFPtcnbna1R",
+      "AZ7K5CRYixFPtcnbna1S",
+      "AZ7K5CQgixFPtcnbna1J"
+    ],
+    "hotspot_paths": [
+      "ci/checks/documentation/check-generated-report-layout.py",
+      "ci/evidence/reports/generate-system-environment-proof.py"
+    ],
+    "does_not_authorize": [
+      "PR-specific failed, pending, skipped, stale, or bypassed required checks, Sonar Quality Gate, security scan, review, or unresolved thread",
+      "new or changed master Sonar failure, confirmed security finding, or selected PR change to a hotspot-bearing path",
+      "external Sonar reviewed/safe or false-positive disposition, suppression, exclusion, scanner or Quality-Gate setting change",
+      "direct master push, force push, rebase of published history, auto-merge, administrative bypass, Framework/MRTS action, or Gitlink change"
+    ],
+    "global_finding_status": "blocked; release_blocker true; not technically verified, externally dispositioned, or globally accepted",
+    "evidence_artifact": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-182-20260729T121317Z/risk-acceptance.md",
+    "evidence_sha256": "59b9e9ec44e40d7315b8f26ffea607e071cd42720f19459228a1b65fa0816b98"
+  },
+  "residual_risk": "Current Parent master remains globally blocked by three externally unreviewed but source-validated-safe hotspots and security rating 5. The current user explicitly accepts only that exact, non-causal three-hotspot master signature as residual risk for sequential SHA-bound Parent PR #173–#182 delivery; the global finding remains blocked and release-blocking. This acceptance is not an external reviewed/safe or false-positive disposition and authorizes no suppression, scanner/Gate change, or failed PR-specific gate. Ten regular S5332/S2083/S5443 Vulnerability rows are locally not_actionable but remain externally OPEN without an independently authorized false-positive disposition. Two S8707 containment repairs are locally validated but their external issues remain OPEN until a delivered head receives Sonar analysis. The aggregate includes Framework/MRTS paths and the remaining Parent vulnerability backlog may contain genuine Parent defects.",
+  "residual_risk_de": "Der aktuelle Parent-Master bleibt global durch drei extern unreviewte, aber Source-validiert sichere Hotspots und Security Rating 5 blockiert. Der aktuelle Benutzer akzeptiert ausschließlich diese exakte, nicht-kausale Drei-Hotspot-Master-Signatur als Restrisiko für die sequenzielle SHA-gebundene Delivery der Parent-PRs #173–#182; das globale Finding bleibt blocked und release-blocking. Diese Akzeptanz ist keine externe reviewed/safe- oder False-Positive-Disposition und autorisiert keine Suppression, Scanner-/Gate-Änderung oder fehlenden PR-spezifischen Gate. Zehn reguläre S5332/S2083/S5443-Vulnerability-Records sind lokal not_actionable, bleiben aber ohne getrennt autorisierte False-Positive-Disposition extern OPEN. Zwei S8707-Containment-Reparaturen sind lokal validiert, aber ihre externen Issues bleiben OPEN, bis ein ausgelieferter Head eine Sonar-Analyse erhält. Das Aggregat enthält Framework-/MRTS-Pfade und der übrige Parent-Vulnerability-Backlog kann echte Parent-Defekte enthalten.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-08-01T12:26:14Z",
+  "final_disposition": "global_quality_gate_blocked_pending_external_reviewed_safe_disposition_of_three_validated_safe_hotspots; current_user_bounded_delivery_risk_acceptance_for_only_PRs_173_to_182_when_exact_preexisting_signature_is_revalidated; no_external_sonar_disposition_or_gate_change; prior HAProxy Sonar BUG rows remain locally already_safe / false_positive candidates without external disposition",
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-17T19:00:46Z",
+      "event": "current_master_gate_revalidated_as_preexisting",
+      "detail": "Current master revision 635b8f603f852cff10926cd6f5449e763f6194a4 has direct SonarCloud Quality Gate ERROR with new reliability/security ratings 5 and security-hotspots-reviewed 0.0%. The condition set exactly matches preceding analysis ca8887e8-6f8e-40ff-8b26-6db70cfb8d7f; no batch-specific regression is supported."
+    },
+    {
+      "at": "2026-07-18T06:40:39Z",
+      "event": "post_merge_master_gate_revalidated_as_preexisting",
+      "detail": "Post-merge master c8ca0d92b630c18232b881855c4f5d1482568ea6 failed Sonar check 88053560480 with three Security Hotspots and E/E new-code ratings. Immediate pre-merge master 635b8f603f852cff10926cd6f5449e763f6194a4 failed check 87968758684 with the identical signature, while exact PR #51 head 2589c085a1ed7bbb2c2033635f06e71f5f75fb8b passed check 88053106295 with zero PR issues and hotspots. No task-owned master fix, gate weakening, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-19T13:30:00Z",
+      "event": "current_master_gate_revalidated_with_paginated_scope_baseline",
+      "detail": "Current master a73c33529f4b900e0e5722f6c8eae2ae47e41c1f has retained public SonarQube Cloud Quality Gate ERROR: new reliability rating 5, new security rating 5, and new-hotspot review 0.0%; maintainability 1 and duplication 0.5 pass. The same baseline confirms 1,456 open issues and three unreviewed hotspots. Project-scope contamination by Framework/MRTS is a distinct record FND-SONAR-0004. No source, gate, suppression, or risk-acceptance change was performed."
+    },
+    {
+      "at": "2026-07-19T14:09:34Z",
+      "event": "superseding_current_master_gate_revalidated_with_complete_pagination",
+      "detail": "Superseding remote master aabde81a9a315bf3e494e595ab0399357c596f9c has retained analysis ab643038-c835-490f-ba36-a621da59de1d with Quality Gate ERROR: new reliability rating 5, new security rating 5, and new-hotspot review 0.0%; maintainability 1 and duplication 0.5 pass. It confirms 1,451 open issues, three unreviewed hotspots, and 209 Parent-only OPEN vulnerabilities. Five exact static/loopback records are already safe for their stated concern; 204 remain candidates. Four S5443 records are closed in this analysis, but their original regression control was not rerun. Scope contamination remains separately tracked in FND-SONAR-0004. No source, gate, suppression, hotspot-review, or risk-acceptance mutation was performed."
+    },
+    {
+      "at": "2026-07-20T11:01:59Z",
+      "event": "post_pr57_master_gate_revalidated_as_preexisting_parent_blocker",
+      "detail": "Resulting Parent master fde2e02a1cf2226f8e9106e663e05e9b2941357e has 18 successful and two expected-skipped terminal check runs plus one failed SonarCloud check 88333445075. It reports the same three hotspots and E/E New Code ratings as immediate predecessor 9ef0619b9c00729c16b7056943d7843785223095 check 88317800622. Exact PR #57 head 5f8949b1d98a98127b933e9f1d626b30e3291b59 passed Sonar check 88328644200 with zero new issues and zero hotspots. All 14 master Actions workflows passed. The three hotspot sources predate and lie outside the #57 diff; no causal attribution, source/gate/hotspot-review mutation, or risk acceptance was made."
+    },
+    {
+      "at": "2026-07-20T13:14:02Z",
+      "event": "post_pr61_master_gate_revalidated_with_small_backlog_reduction",
+      "detail": "Protected PR #61 head c9b505a7a0f697318a57f42fe30493038ef03527 was squash-merged as exact Parent master 6bba8206de1bb598b40f76677943e86770b6992c. Its tree equals the reviewed PR head; all 14 master Actions workflows passed and the terminal inventory is 18 success, 2 expected skips, 1 failed Sonar check 88361885739. SonarCloud analysis explicitly names revision 6bba8206de1bb598b40f76677943e86770b6992c and retains the three-hotspot/E/E failure. The public open Bug/Vulnerability inventory fell from the previously retained 230 to 229 (220 vulnerabilities and 9 bugs), but no hot-spot review, source/gate/scanner mutation, causal attribution of the remaining failure, or risk acceptance was made."
+    },
+    {
+      "at": "2026-07-20T19:34:35Z",
+      "event": "pr66_followup_bugs_fixed_but_canonical_child_allocation_blocked",
+      "detail": "Draft Parent PR #66 successor head 91fea6d05850cc5aeef8ce7fb66a4123ac14e190 passed SonarCloud check 88453362314, Quality Gate OK, and zero open/confirmed/reopened Bugs. The two Traefik c:S5489 keys and one HAProxy c:S3519 key are CLOSED/FIXED by analysis 3263335b-3f73-4bdd-bdbe-e5e525760547. They are separate, independently remediable child root causes requested as FND-SONAR-0007 and FND-SONAR-0008, but the .codex finding mount is read-only and denies directory creation. Retained EN/DE/JSON pending-import records provide complete import data. This aggregate remains blocked because the Parent-master Quality Gate, hotspots, vulnerabilities, and scope contamination are not resolved."
+    },
+    {
+      "at": "2026-07-20T20:05:00Z",
+      "event": "current_master_and_current_pr66_head_reconciled",
+      "detail": "Remote Parent master remains 5a22cbf5206dbc2b7f53a9f961d72e37d567e188. Its newest Sonar analysis 1ce09bf5-917a-4961-b909-01d375fda03f and check 88391577875 fail Quality Gate ERROR with new reliability/security ratings 5 and hotspot review 0.0%; maintainability 1 and duplication 0.4 pass. The project has 1,061 unresolved issues (9 Bugs, 220 Vulnerabilities, 832 Code Smells) and three TO_REVIEW python:S5332 hotspots, while Sonar indexes Framework/MRTS paths. Current Draft PR #66 head 284d0fd858419baf3edc65b48ddb51b589c0505b is a documentation-only child of repaired source head 91fea6d05850cc5aeef8ce7fb66a4123ac14e190; it has 33 passing/zero failed reported checks, Sonar check 88459546981 Quality Gate passed, zero PR Bugs/Vulnerabilities, and zero reviews/comments/threads. No merge, hotspot disposition, suppression, scanner/gate change, Framework/MRTS action, or risk acceptance occurred."
+    },
+    {
+      "at": "2026-07-20T20:20:18Z",
+      "event": "post_pr66_squash_merge_current_master_reconciled",
+      "detail": "PR #66 exact head 284d0fd858419baf3edc65b48ddb51b589c0505b was squash-merged as Parent master cbd8385ce1b34318c84cf8f4a5a92ef98c83f82a at 2026-07-20T20:09:38Z. All 14 observed resulting-master GitHub Actions workflow runs passed, but Sonar check 88462334259 / analysis 6cc3a8ba-3926-4240-b6ec-f2c1f99509ff failed Quality Gate ERROR with ratings 5/5 and hotspot review 0.0%. The current aggregate is 1 Bug, 220 Vulnerabilities, 831 Code Smells, and three TO_REVIEW hotspots; the remaining Bug AZ7b3dgOcO69wzd-_jHv c:S3519 at ci/tools/native_modsecurity_oracle.c:131 is under focused triage. No hotspot disposition, suppression, scanner/gate change, Framework/MRTS action, or risk acceptance occurred."
+    },
+    {
+      "at": "2026-07-20T20:28:35Z",
+      "event": "c_s3519_source_sink_triaged_already_safe",
+      "detail": "Focused current-master source/sink triage for externally open BUG AZ7b3dgOcO69wzd-_jHv c:S3519 at ci/tools/native_modsecurity_oracle.c:131 found no supported attacker-controlled byte span at the static CI-oracle serializer. The sole caller passes literals, bounded local buffers, or library-defined C strings; NULL is guarded. Verdict is already_safe/not_actionable with high static confidence. No source patch, suppression, false-positive disposition, hotspot review, scanner/gate change, or risk acceptance was made. The separate three-hotspot/E/E master gate blocker remains."
+    },
+    {
+      "at": "2026-07-20T20:42:14Z",
+      "event": "post_pr70_final_master_reconciled",
+      "detail": "Protected PR #70 exact head 8d7f8b7283319528cf2c14479fc02399dd215825 was squash-merged as Parent master f2376bb3e39ffbe9d36faca8bcd7397477eadd10. The resulting tree equals the reviewed head tree d1903f4702d5dcf1de893ba14d5f6ec798368350, all resulting GitHub Actions workflows passed, and SHA-bound Sonar analysis e04ce5bc-a9f7-44ce-bb13-8fe25c872d55 fixed/closed c:S3519 AZ7b3dgOcO69wzd-_jHv. Reliability is now 1, while security rating 5, three TO_REVIEW hotspots, and 220 open Vulnerabilities keep the independent aggregate gate blocked. No aggregate closure, hotspot disposition, suppression, scanner/gate change, Framework/MRTS action, or risk acceptance was made."
+    },
+    {
+      "at": "2026-07-20T20:50:06Z",
+      "event": "exact_master_s5332_hotspots_validated_already_safe",
+      "detail": "The three remaining TO_REVIEW python:S5332 hotspots AZ7K5CRYixFPtcnbna1R, AZ7K5CRYixFPtcnbna1S, and AZ7K5CQgixFPtcnbna1J were source/control/sink-validated on exact master f2376bb3e39ffbe9d36faca8bcd7397477eadd10 through identical GitHub/local blob identities. They are HTTPS-only repository-policy detector signatures and an HTTP negative vector, not HTTP clients or network endpoints. The focused 57-test Parent contract suite and make report-governance passed. No source change is applicable; dynamic literal concealment would be scanner evasion. An external reviewed/safe disposition remains blocked pending a current explicit user decision; no suppression, policy change, or risk acceptance occurred."
+    },
+    {
+      "at": "2026-07-21T00:13:32Z",
+      "event": "post_pr72_current_master_gate_revalidated",
+      "detail": "Current Parent master 0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3 has analysis b314d0b2-ea5a-49f4-be74-65eec30469d1 and failed Sonar check 88506822225 solely on new security rating 5 and hotspot review 0.0%; reliability/maintainability are 1 and duplication 0.4% passes. The three S5332 hotspot keys and source blob identities remain unchanged from the already_safe source/control/sink assessment. Final PR #72 passed its task-owned Sonar result and did not cause this master blocker. No source/gate/suppression/hotspot-review change or risk acceptance was made."
+    },
+    {
+      "at": "2026-07-21T00:34:45Z",
+      "event": "independent_exact_master_public_sonar_recheck_confirmed",
+      "detail": "Independent public-Sonar recheck of Parent master 0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3 confirms Quality Gate ERROR: security rating 5 and hotspot review 0.0% fail; reliability/maintainability remain 1 and duplication 0.4% passes. Exactly three TO_REVIEW python:S5332 hotspots remain: AZ7K5CRYixFPtcnbna1R at ci/checks/documentation/check-generated-report-layout.py:42, AZ7K5CRYixFPtcnbna1S at ci/checks/documentation/check-generated-report-layout.py:49, and AZ7K5CQgixFPtcnbna1J at ci/evidence/reports/generate-system-environment-proof.py:98. The receipt confirms, rather than changes, the prior already_safe source/control/sink assessment. No source, hotspot-review, suppression, scanner/gate, false-positive, risk-acceptance, Framework, MRTS, or gitlink action occurred; status remains blocked."
+    },
+    {
+      "at": "2026-07-21T00:41:45Z",
+      "event": "public_sonar_recheck_receipt_finalized",
+      "detail": "The initial pre-retention readback was superseded by an immutable retained final receipt with matching facts. No remote state, technical disposition, or finding status changed."
+    },
+    {
+      "at": "2026-07-21T02:02:13Z",
+      "event": "regular_s5332_vulnerabilities_source_sink_triaged_not_actionable",
+      "detail": "Exact-current-master source-to-sink and supported-caller review classifies four regular python:S5332 Vulnerability keys as not_actionable: local HAProxy and Envoy loopback harnesses, a local documentation-link classifier, and a loopback response-header fixture backend. The four paths are unchanged since exact inventory master f2376bb3e39ffbe9d36faca8bcd7397477eadd10. No source patch, false-positive disposition, hotspot review, suppression, scanner/gate change, Framework/MRTS action, or risk acceptance occurred. The local result covers only four keys; 202 exact-inventory Parent vulnerability rows remain untriaged."
+    },
+    {
+      "at": "2026-07-21T02:37:33Z",
+      "event": "regular_s2083_vulnerabilities_source_sink_triaged_not_actionable",
+      "detail": "Exact-current-master source-to-sink review classifies three adjacent pythonsecurity:S2083 Vulnerability keys at ci/evidence/reports/audit-full-lifecycle-runtime-roots.py:339-341 as not_actionable. Sonar traces a JSON payload from read_object to Path.write_text, but the payload reaches only report content; the independently supplied output Paths are never dataflow-derived from it. Exact-name Parent searches found no automatic repository caller. No source patch, false-positive disposition, hotspot review, suppression, scanner/gate change, Framework/MRTS action, or risk acceptance occurred. The local cumulative result covers seven regular keys; 199 exact-inventory Parent vulnerability rows remain untriaged."
+    },
+    {
+      "at": "2026-07-21T02:56:57Z",
+      "event": "regular_s2083_refresh_reports_vulnerabilities_source_sink_triaged_not_actionable",
+      "detail": "Exact-current-master source-to-sink, caller, and report-catalog review classifies pythonsecurity:S2083 keys AZ9cRyiqHhV2CayPTPyS and AZ9cRyiqHhV2CayPTPyR at ci/evidence/reports/refresh-connector-reports.py:281 and :1063 as not_actionable. Sonar tracks retained report or command text into Path.write_text content, but destination Paths are independently chosen from static GENERATED_REPORTS catalog paths and explicit operator roots; no reported value selects or constructs a filesystem target. No source patch, false-positive disposition, hotspot review, suppression, scanner/gate change, Framework/MRTS action, or risk acceptance occurred. The local cumulative result covers nine regular keys; 197 exact-inventory Parent vulnerability rows remain untriaged."
+    },
+    {
+      "at": "2026-07-21T03:12:22Z",
+      "event": "regular_s5443_clang_tempdir_vulnerability_triaged_not_actionable",
+      "detail": "Exact-current-master review classifies python:S5443 key AZ9gJKOrg304P0Qlak6y at tests/test_clang_analysis_baseline.py:41 as not_actionable. The test-only tempfile.TemporaryDirectory constructor delegates to secure standard-library mkdtemp creation, all seven callers use its context manager, and the configurable parent is a same-privilege test-launcher environment setting rather than remote input. The focused eight-test contract suite passed. No source patch, false-positive disposition, hotspot review, suppression, scanner/gate change, Framework/MRTS action, or risk acceptance occurred. The local cumulative result covers ten regular keys; 196 exact-inventory Parent vulnerability rows remain untriaged."
+    },
+    {
+      "at": "2026-07-21T03:37:23Z",
+      "event": "regular_s8707_response_header_fixture_containment_fixed_locally",
+      "detail": "Current Sonar issue AZ9cRyfJHhV2CayPTPxt (pythonsecurity:S8707) at ci/runtime/common/response-header-test-backend.py:101 had a confirmed fixture-read containment gap: --fixture-file reached Path.read_text without the established --safe-root control used for --body-file. The Parent-only local repair generalizes that resolver and validates fixture files before loading. The focused real-CLI regression reproduced direct outside-root and in-root-symlink escapes before the repair; the post-fix backend suite passed six tests, py_compile and adjacent Apache/full-lifecycle contract suites passed, and independent security diff review found no reportable issue. No staging, commit, push, PR, external Sonar action, suppression, false-positive disposition, Framework/MRTS/gitlink action, or risk acceptance occurred. The repair is locally fixed but externally OPEN pending delivered-head analysis; the cumulative local scope covers eleven regular rows and leaves 195 exact-inventory Parent Vulnerability rows untriaged."
+    },
+    {
+      "at": "2026-07-21T04:31:04Z",
+      "event": "regular_s8707_lighttpd_entity_fixture_output_containment_fixed_locally",
+      "detail": "Current Sonar issue AZ9cRynaHhV2CayPTPzR (pythonsecurity:S8707) at connectors/lighttpd/harness/lighttpd_http1_entity_fixture_upstream.py:47 had a confirmed output containment and predictable-temporary-file gap: CLI --ready-file/--result-file reached write_json, which wrote through .{path.name}.tmp before replacing the final path. The Parent-only local repair requires --safe-root, validates ready/result output files as fresh absolute descendants of the fixture root before listening, rejects direct outside-root, symlinked-directory, and final-symlink escapes, and publishes JSON with exclusive randomized same-directory staging plus os.replace. The focused pre-fix regression reproduced result.json becoming a symlink after a pre-placed .result.json.tmp symlink; the post-fix helper suite passed seven tests, py_compile passed, and the full Lighttpd patched-host contract suite passed 16 tests. No staging, commit, push, PR, external Sonar action, suppression, false-positive disposition, Framework/MRTS/gitlink action, or risk acceptance occurred. The repair is locally fixed but externally OPEN pending delivered-head analysis; the cumulative local scope covers twelve regular rows and leaves 194 exact-inventory Parent Vulnerability rows untriaged."
+    },
+    {
+      "at": "2026-07-21T06:17:03Z",
+      "event": "post_pr69_master_gate_revalidated_as_preexisting",
+      "detail": "Protected PR #69 exact head 2b41add0cfeb442149c4516fcbb1b199d83a86c2 passed its PR Sonar Quality Gate with zero new issues and hotspots, then squash-merged as Parent master 5fa90474a79eaee2df034bf1c4389572fdcca42f. All observed resulting-master GitHub Actions workflows and six strict required contexts passed. Sonar check 88556930734 failed only on the same three TO_REVIEW python:S5332 hotspots, security rating 5, and hotspot review 0.0% already present on immediate predecessor 0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3 / check 88506822225. The quality gate is an unrelated baseline/release blocker, not a #69 regression. No source, hotspot-review, suppression, scanner/Gate, false-positive, Framework/MRTS/gitlink, or risk-acceptance action occurred; status remains blocked."
+    },
+    {
+      "at": "2026-07-21T06:31:55Z",
+      "event": "post_pr65_master_gate_revalidated_as_preexisting",
+      "detail": "Protected PR #65 exact head 1ddeb7163076e6e552dc161d8813a46bf24903d0 passed its PR Sonar Quality Gate with zero new issues and hotspots, then squash-merged as Parent master 1fa024ca6ec97023ea5b6f7dff5215e43f10b74c. All 14 observed resulting-master GitHub Actions workflows and six strict required contexts passed. Sonar check 88560064918 failed only on the same three TO_REVIEW python:S5332 hotspots, security rating 5, and hotspot review 0.0% already present on immediate predecessor 5fa90474a79eaee2df034bf1c4389572fdcca42f / check 88556930734. The quality gate is an unrelated baseline/release blocker, not a #65 regression. No source, hotspot-review, suppression, scanner/Gate, false-positive, Framework/MRTS/gitlink, or risk-acceptance action occurred; status remains blocked."
+    },
+    {
+      "at": "2026-07-21T08:05:05Z",
+      "event": "post_pr75_pr76_master_gate_revalidated_as_preexisting",
+      "detail": "Task-owned replacement PR #75 (for Dependabot #67) and #76 (for #68) each passed exact-head Sonar Quality Gates with zero new issues/hotspots and the required protected-branch contexts before squash merges as masters 5c26ffb698a892ffe83b7aa1749a456eae10b956 and 2ade0d40983b7af21a65b8cd2884866b85626393. Current master 2ade0d40983b7af21a65b8cd2884866b85626393 has 15 successful Actions runs; its 22 terminal check runs are 19 success, two expected skips, and only Sonar check 88577130249 failure. Public Sonar readback confirms the same three TO_REVIEW python:S5332 hotspots, security rating 5, and 0.0% hotspot review. This is an unrelated baseline/release blocker, not a #75/#76 regression. No source, hotspot-review, suppression, scanner/Gate, false-positive, Framework/MRTS/gitlink, or risk-acceptance action occurred; status remains blocked."
+    },
+    {
+      "at": "2026-07-23T04:52:07Z",
+      "event": "post_pr90_master_gate_revalidated_as_preexisting_current_blocker",
+      "detail": "Protected PR #90 exact head 0a1f6031418917e20e2e87aaf935b84b89ca3af1 passed required checks, Sonar Quality Gate OK, and zero open/confirmed PR leak-period issues before squash merge as Parent master ad953cdcbc8c05ede519661ca56c03cf7b1ac7f3. Its exact master Sonar analysis 93842ace-ff04-4318-ab02-7dd065389f0a is Quality Gate ERROR only because security rating remains 5 and hotspot review 0.0%; reliability and maintainability are 1 and duplication is 0.4%. The identical three TO_REVIEW python:S5332 hotspot keys and validated source blobs remain. All applicable resulting-master GitHub Actions workflows passed. No source, hotspot-review, suppression, scanner/Gate, false-positive, Framework/MRTS/gitlink, or risk-acceptance action occurred; status remains blocked."
+    },
+    {
+      "at": "2026-07-23T07:47:27Z",
+      "event": "post_pr92_master_gate_revalidated_as_preexisting_current_blocker",
+      "detail": "Protected PR #92 exact head 40a419d5b0f599566469060112b7e55dbab05744 passed its exact-head SonarQube Cloud Quality Gate with zero new issues and zero new security hotspots, then was squash-merged as Parent master 95fb4917b63dd8a5c5973bb49fd955bd3d2b29a3. All 14 resulting-master GitHub Actions workflows passed. Its 21 terminal checks are 18 success, two expected skips, and only Sonar check 89147577049 failure. The current public quality gate has the same three TO_REVIEW python:S5332 hotspots, security rating 5, and hotspot review 0.0% as immediate predecessor ad953cdcbc8c05ede519661ca56c03cf7b1ac7f3 / check 89121173685; reliability and maintainability are 1 and duplication is 0.4%. Exact current source blobs equal the prior already_safe assessment blobs. No causal #92 regression, source change, hotspot-review, suppression, scanner/Gate, false-positive, Framework/MRTS/gitlink, or risk-acceptance action is evidenced; status remains blocked."
+    },
+    {
+      "at": "2026-07-23T20:23:07Z",
+      "event": "post_pr99_master_gate_revalidated_as_preexisting_current_blocker",
+      "detail": "Protected PR #99 exact head 2f0d8a234f984b731229aca01d43caf2749a7d61 passed its exact-head SonarQube Cloud Quality Gate with zero new issues and zero new security hotspots, then was squash-merged as Parent master 5b8db00d44ab24f3a9f4216a00f7edee977b6898. All 15 resulting-master GitHub Actions workflows passed. Sonar check 89321542088 failed only on the same three TO_REVIEW python:S5332 hotspots, security rating 5, and hotspot review 0.0% already present on immediate predecessor a308d7b414f0859490fe7253e0683a4bde80b563 / check 89221608146; reliability and maintainability are 1 and duplication is 0.4%. Both hotspot-bearing source blobs are identical across the compared commits, and focused source/control/sink review confirms static HTTPS-only policy detector data rather than a network sink. No causal #99 regression, source change, hotspot-review, suppression, scanner/Gate, false-positive, Framework/MRTS/gitlink, or risk-acceptance action is evidenced; status remains blocked."
+    },
+    {
+      "at": "2026-07-24T08:30:18Z",
+      "event": "post_pr98_master_gate_revalidated_as_preexisting_mixed_backlog_blocker",
+      "detail": "Protected PR #98 exact head a2f2dd1f8bd2c433ee4cb107a0bf94281fbd7640 was squash-merged as Parent master 3311f3fd0e6dee01efc905e62f55bbdb3490ad20. All 14 applicable resulting-master GitHub Actions workflows passed; the three targeted PR #98 base Sonar keys are CLOSED/FIXED. The public project Quality Gate remains ERROR: new security rating 5 and hotspot review 0.0% fail while reliability and maintainability are 1 and duplication is 0.4%. The same three TO_REVIEW python:S5332 hotspots remain. Current Sonar inventory reports 177 OPEN Vulnerability rows across mixed Parent, Framework and original-MRTS-indexed components; a bounded static triage returns needs_review because per-entry caller provenance and supported security boundaries are not established. No external hotspot review, suppression, false-positive disposition, scanner/Gate change, Framework/MRTS action, or risk acceptance occurred. Status remains blocked."
+    },
+    {
+      "at": "2026-07-24T08:53:43Z",
+      "event": "post_pr100_master_gate_revalidated_as_preexisting_mixed_backlog_blocker",
+      "detail": "Protected PR #100 exact head dace5ca118a89a91c33fde952a6282f9c391ee10 passed its exact-head SonarQube Cloud Quality Gate with zero new issues and zero new security hotspots, then was squash-merged as Parent master 6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d. All 14 resulting-master GitHub Actions workflows passed. Its 21 terminal commit checks have only Sonar check 89440531005 failing; the public project Quality Gate remains ERROR because new security rating is 5 and hotspot review is 0.0%, while reliability and maintainability are 1 and duplication is 0.4%. Direct current API readback confirms the same three low-probability TO_REVIEW python:S5332 hotspots and 177 OPEN Vulnerability rows across mixed Parent, Framework, and original-MRTS-indexed components. The prior bounded static triage remains needs_review because per-entry caller provenance and supported security boundaries are unestablished. No external hotspot review, suppression, false-positive disposition, scanner/Gate change, Framework/MRTS action, or risk acceptance occurred. Status remains blocked."
+    },
+    {
+      "at": "2026-07-24T09:32:14Z",
+      "event": "post_pr101_master_gate_revalidated_as_preexisting_mixed_backlog_blocker",
+      "detail": "Protected PR #101 exact head f988d627e76c98b7c34f91cb3d82be268750d464 passed all 39 terminal GitHub check runs, SonarQube Cloud Quality Gate OK, zero new issues, and zero new security hotspots, then was squash-merged as Parent master 215b503a8d68ee85d93e18888f3710d1974c3169. All 14 resulting-master GitHub Actions workflows passed. Its 21 terminal commit checks have only Sonar check 89447965729 failing; the public project Quality Gate remains ERROR because new security rating is 5 and hotspot review is 0.0%, while reliability and maintainability are 1 and duplication is 0.4%. PR #101's final diff does not contain either hotspot-bearing source file. No external hotspot review, suppression, false-positive disposition, scanner/Gate change, Framework/MRTS action, or risk acceptance occurred. Status remains blocked."
+    },
+    {
+      "at": "2026-07-24T10:11:50Z",
+      "event": "post_pr102_master_gate_revalidated_as_preexisting_mixed_backlog_blocker",
+      "detail": "Protected PR #102 exact head 193fefd120e69807b40d21ffe376b45f50f10208 passed all 39 terminal GitHub check runs, SonarQube Cloud Quality Gate OK, zero open PR issues, and zero security hotspots, then was squash-merged as Parent master ec57576814a3f75c5e153d51c945bd1dd341a916. All 14 resulting-master GitHub Actions workflows passed. Its 20 terminal master commit checks are success or expected skipped; no SonarCloud master check run was published for this SHA. The direct public master Quality Gate remains ERROR because new security rating is 5 and hotspot review is 0.0%, while reliability and maintainability are 1 and duplication is 0.4%. PR #102's final diff does not contain either hotspot-bearing source file. No external hotspot review, suppression, false-positive disposition, scanner/Gate change, Framework/MRTS action, or risk acceptance occurred. Status remains blocked."
+    },
+    {
+      "at": "2026-07-24T10:57:36Z",
+      "event": "post_pr103_master_gate_revalidated_as_preexisting_mixed_backlog_blocker",
+      "detail": "Protected PR #103 exact head ad1aef95ed62fd906cee1e9b1d507ce07cbc7d54 passed all 39 terminal GitHub check runs, all six protected required checks, SonarQube Cloud Quality Gate OK, zero new PR issues, and zero security hotspots, then was squash-merged as Parent master 90e3d8d9603375f9a33e2a51836ba284221fdd0f. All 14 resulting-master GitHub Actions workflows passed. Its 21 terminal master checks are 18 success, two expected skips, and only SonarCloud 89464137047 failure. Direct public master readback shows the same three TO_REVIEW python:S5332 hotspots, security rating 5, and hotspot review 0.0% as immediate predecessor ec57576814a3f75c5e153d51c945bd1dd341a916 / SonarCloud 89456327990; reliability and maintainability are 1 and duplication is 0.4%. PR #103's final diff does not contain either hotspot-bearing source file. No external hotspot review, suppression, false-positive disposition, scanner/Gate change, Framework/MRTS/gitlink action, or risk acceptance occurred; status remains blocked."
+    },
+    {
+      "at": "2026-07-24T11:37:09Z",
+      "event": "post_pr104_master_gate_revalidated_as_preexisting_mixed_backlog_blocker",
+      "detail": "Protected PR #104 exact head 53564d896492945b681d20474d33e2a19a1bc4b5 passed all 39 terminal GitHub check runs, all six protected required checks, SonarQube Cloud Quality Gate OK, zero new PR issues, and zero security hotspots, then was squash-merged as Parent master 053a9ca5b0f9351319c96d359107c53ba8f9d3a1. All 14 resulting-master GitHub Actions workflows passed. Its 21 terminal master checks are 18 success, two expected skips, and only SonarCloud 89471250793 failure. Direct public master readback shows the same three TO_REVIEW python:S5332 hotspots, security rating 5, and hotspot review 0.0% as immediate predecessor 90e3d8d9603375f9a33e2a51836ba284221fdd0f / SonarCloud 89464137047; reliability and maintainability are 1 and duplication is 0.4%. PR #104's final diff does not contain either hotspot-bearing source file. No external hotspot review, suppression, false-positive disposition, scanner/Gate change, Framework/MRTS/gitlink action, or risk acceptance occurred; status remains blocked."
+    },
+    {
+      "at": "2026-07-24T12:01:28Z",
+      "event": "post_pr105_master_gate_revalidated_as_preexisting_mixed_backlog_blocker",
+      "detail": "Protected PR #105 exact head 831a6c7a3f8d179b1735ea6e6a0b9ff4d1868bdc passed all 39 terminal GitHub check runs, all six protected required checks, SonarQube Cloud Quality Gate OK, zero new PR issues, and zero security hotspots, then was squash-merged as Parent master 26f0eb9cff2f1c69ba7be9cfc5fd609659e3041f. All 14 resulting-master GitHub Actions workflows passed. Its 21 terminal master checks are 18 success, two expected skips, and only SonarCloud 89475577491 failure. Direct public master readback shows the same three TO_REVIEW python:S5332 hotspots, security rating 5, and hotspot review 0.0% as immediate predecessor 053a9ca5b0f9351319c96d359107c53ba8f9d3a1 / SonarCloud 89471250793; reliability and maintainability are 1 and duplication is 0.4%. PR #105's final diff does not contain either hotspot-bearing source file. No external hotspot review, suppression, false-positive disposition, scanner/Gate change, Framework/MRTS/gitlink action, or risk acceptance occurred; status remains blocked."
+    },
+    {
+      "at": "2026-07-24T12:21:11Z",
+      "event": "post_pr106_master_gate_revalidated_as_preexisting_mixed_backlog_blocker",
+      "detail": "Protected PR #106 exact head 43e55c2e54f738ee6d9e969cc8e57ce2831e0874 passed all 39 terminal GitHub check runs, all six protected required checks, SonarQube Cloud Quality Gate OK, zero new PR issues, and zero security hotspots, then was squash-merged as Parent master a60dd0380332a24cf231a36775256d21a812c027. All 14 resulting-master GitHub Actions workflows passed. Its 21 terminal master checks are 18 success, two expected skips, and only SonarCloud 89479343187 failure. Direct public master readback shows the same three TO_REVIEW python:S5332 hotspots, security rating 5, and hotspot review 0.0% as immediate predecessor 26f0eb9cff2f1c69ba7be9cfc5fd609659e3041f / SonarCloud 89475577491; reliability and maintainability are 1 and duplication is 0.4%. PR #106's final diff does not contain either hotspot-bearing source file. No external hotspot review, suppression, false-positive disposition, scanner/Gate change, Framework/MRTS/gitlink action, or risk acceptance occurred; status remains blocked."
+    },
+    {
+      "at": "2026-07-24T12:47:01Z",
+      "event": "post_pr107_master_gate_revalidated_as_preexisting_mixed_backlog_blocker",
+      "detail": "Protected PR #107 exact head c1168e7a715280d50c4a263285b7d0c09245bc6d passed all 39 terminal GitHub check runs, all six protected required checks, SonarQube Cloud Quality Gate OK, zero new PR issues, and zero security hotspots, then was squash-merged as Parent master 00dfe5f2ae0908228a6242b15e09f70d6742d102. All 14 resulting-master GitHub Actions workflows passed. Its 21 terminal master checks are 18 success, two expected skips, and only SonarCloud 89484279475 failure. Direct public master readback shows the same three TO_REVIEW python:S5332 hotspots, security rating 5, and hotspot review 0.0% as immediate predecessor a60dd0380332a24cf231a36775256d21a812c027 / SonarCloud 89479343187; reliability and maintainability are 1 and duplication is 0.4%. PR #107's final diff does not contain either hotspot-bearing source file. No external hotspot review, suppression, false-positive disposition, scanner/Gate change, Framework/MRTS/gitlink action, or risk acceptance occurred; status remains blocked."
+    },
+    {
+      "at": "2026-07-24T13:18:00Z",
+      "event": "post_pr108_master_gate_revalidated_with_static_sonar_bug_retriage",
+      "detail": "Protected PR #108 exact head 4727d9bddd0100bf1f1cf47150db6832f96b6873 passed 39 terminal GitHub check runs, all six protected required checks, SonarQube Cloud Quality Gate OK, zero new PR issues, and zero security hotspots, then was squash-merged as Parent master 700e62e5c2287e10f8774757ffff7432753900c0. All 14 resulting-master GitHub Actions workflows passed. SonarCloud check 89490754566 / analysis 7308b325-84f3-4df6-a6b4-ff30fc8f9e3d failed the master Quality Gate with reliability rating 5, security rating 5, and hotspot review 0.0%. The new open c:S3519 AZ-URJYx1ap3oKwyiaQ7 and c:S2637 AZ-URJYx1ap3oKwyiaQ8 rows point to unchanged HAProxy code that already carries PR #66's bounded-copy and stderr guards. Exact static source/control/sink review plus tests.test_sonar_reliability_contract (6 passed) classify both as locally already_safe / false_positive candidates; no reportable high-or-critical security issue, causal PR #108 regression, external Sonar disposition, suppression, scanner/Gate change, Framework/MRTS action, or risk acceptance is evidenced. Retained receipt: sonar-pr108-master-700e62e-triage.json sha256 d4bdc2061441727c4afe199ff349681af95f0cec0b2541e3e82aaaad75d1accd."
+    },
+    {
+      "at": "2026-07-24T15:09:03Z",
+      "event": "post_pr111_master_gate_revalidated_as_preexisting_mixed_backlog_blocker",
+      "detail": "Protected PR #111 exact head 2549d15f3181d236eeb83829818a6b03b273edcd passed 39 terminal GitHub check runs, all six protected required checks, SonarQube Cloud Quality Gate OK, zero PR issues, and zero security hotspots, then was squash-merged as Parent master 8e36b86ac17bce06003b0505fe26f6bb60c3cec7 with an identical tree. All 14 resulting-master GitHub Actions workflows passed. Its 21 terminal checks are 18 success, two expected skips, and only SonarCloud 89516958783 failure. Direct public analysis cbb65f1a-1990-40d0-80ea-8a000cd0c970 has the same three TO_REVIEW python:S5332 hotspots, reliability/security ratings 5, hotspot review 0.0%, maintainability 1, and duplication 0.4% as immediate predecessor 5f831257949f4b2655347e2f8bcb2dd5e094a260 / analysis 57e1639e-b414-4179-8609-eb4e0598bc4d. PR #111 changes neither hotspot-bearing source nor HAProxy runtime. No causal #111 regression, source change, hotspot-review, suppression, scanner/Gate, false-positive disposition, Framework/MRTS/gitlink action, or risk acceptance is evidenced; status remains blocked."
+    },
+    {
+      "at": "2026-07-24T15:34:25Z",
+      "event": "post_pr112_master_gate_revalidated_as_preexisting_mixed_backlog_blocker",
+      "detail": "Protected PR #112 exact head 9687e5b295f7bbe1c183ba5d46097e7c84eb151c passed 39 terminal GitHub check runs, all six protected required checks, SonarQube Cloud Quality Gate OK, zero PR issues, and zero security hotspots, then was squash-merged as Parent master a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0 with an identical tree. All 14 resulting-master GitHub Actions workflows passed. Its 21 terminal checks are 18 success, two expected skips, and only SonarCloud 89523003340 failure. Direct public analysis 2236aa46-8e7d-4f98-8c21-679f5de23a50 has the same three TO_REVIEW python:S5332 hotspots, reliability/security ratings 5, hotspot review 0.0%, maintainability 1, and duplication 0.4% as immediate predecessor 8e36b86ac17bce06003b0505fe26f6bb60c3cec7 / analysis cbb65f1a-1990-40d0-80ea-8a000cd0c970. PR #112 changes neither hotspot-bearing source nor HAProxy runtime, and its final diff has no gitlink, Framework, or MRTS path. No causal #112 regression, source change, hotspot-review, suppression, scanner/Gate, false-positive disposition, Framework/MRTS/gitlink action, or risk acceptance is evidenced; status remains blocked."
+    },
+    {
+      "at": "2026-07-27T17:43:56Z",
+      "event": "post_pr128_master_gate_revalidated_as_preexisting_mixed_backlog_blocker",
+      "detail": "Protected PR #128 exact head e9e97895faa1c45178f49ca2aaf60873e12b7c46 passed its protected required contexts, SonarQube Cloud Quality Gate OK, zero PR issues, zero security hotspots, and 0.0% duplication on new code, then was squash-merged as Parent master 1b0f8825f3510b99b603bb6cd6f0777e1710358e. All 14 resulting-master GitHub Actions workflows passed. Its 21 terminal checks are 18 successes, two expected skips, and only SonarCloud 90056181012 failure. Direct public analysis 6b27b281-df12-42ae-9976-80ea2620b805 has the same three TO_REVIEW python:S5332 hotspots and E reliability/security signature as immediate predecessor 7c782b0089880c02deb2b4ee32d2f3f6d7b8f59d / SonarCloud 89923119911. check-generated-report-layout.py is byte-identical; the only #128 edit in generate-system-environment-proof.py is the unrelated line-440 unused-local removal, while hotspot line 98 is identical; the two HAProxy reliability issue rows predate #128 and their source blob is unchanged. Retained static triage classifies the three hotspot literals as HTTPS-policy detector or negative-test data, not network endpoints. No causal #128 regression, external hotspot review/disposition, suppression, scanner/Gate change, Framework/MRTS/gitlink action, or risk acceptance occurred; status remains blocked."
+    },
+    {
+      "at": "2026-07-27T22:24:34Z",
+      "event": "draft_pr142_exact_head_s3519_remediation_verified",
+      "detail": "Draft PR #142 exact head b8080c93b463fb438dd27e9011ef7f440429cd19 has all completed hosted checks successful, SonarQube Cloud Quality Gate OK, zero OPEN/CONFIRMED PR issues, and zero new duplicated lines. Receipt AZ-URJYx1ap3oKwyiaQ7 / c:S3519 is absent from the exact-head PR issue readback. This verifies the Parent serializer candidate at Draft-PR level only; master, external issue disposition, policy, suppression, exclusion, Framework, MRTS, Gitlink, Ready-for-review, and merge remain unchanged."
+    },
+    {
+      "at": "2026-07-29T10:50:51Z",
+      "event": "post_pr175_master_gate_revalidated_as_preexisting_three_hotspot_blocker",
+      "detail": "Protected PR #175 exact head 16959671eff46937910c4ec854a14fe1651d5b96 passed all six required checks, CodeQL, OSV, Secret scanning, and its SonarQube Cloud PR Quality Gate with zero new bugs, vulnerabilities, and security hotspots. The SHA-bound squash result 5bf35f7f50f2ff9ed8b17f538d8043b3909b945b has successful resulting-master GitHub Actions checks except SonarCloud 90552680188, which fails Quality Gate ERROR on security rating 5 and hotspot review 0.0%. Direct master API readback returns exactly the three pre-existing 2026-06-15 TO_REVIEW python:S5332 hotspot keys AZ7K5CRYixFPtcnbna1R, AZ7K5CRYixFPtcnbna1S, and AZ7K5CQgixFPtcnbna1J. Both hotspot-bearing source paths are unchanged from pre-merge master 9f23ae2c5fe908cef38f203be03f93fda75a8dd7, and no remaining authorized target PR changes either path. No causal #175 regression, external disposition, suppression, scanner/Gate change, Framework/MRTS/gitlink action, or risk acceptance is evidenced; status remains blocked."
+    },
+    {
+      "at": "2026-07-29T13:14:43Z",
+      "event": "current_user_bounded_pr173_to_pr182_delivery_risk_acceptance",
+      "detail": "After disclosure of Parent master 154ee724eba4653fa6378fc3c8729ae433e65697 / SonarCloud 90559417652, the current user explicitly stated 'ich akzeptiere das rest risiko'. The acceptance applies only to sequential SHA-bound Parent PR #173–#182 delivery and only while resulting-master Sonar is revalidated as the same non-causal three TO_REVIEW python:S5332 keys AZ7K5CRYixFPtcnbna1R, AZ7K5CRYixFPtcnbna1S, and AZ7K5CQgixFPtcnbna1J with security rating 5 and hotspot review 0.0%. It waives no PR-specific gate or security control and does not authorize external Sonar disposition, suppression, scanner/Gate change, direct-master action, bypass, Framework/MRTS action, Gitlink change, technical verification, or global finding closure; status remains blocked/release-blocking outside this bounded delivery acceptance. Evidence: /var/tmp/codex/ModSecurity-conector/pr-integration-173-182-20260729T121317Z/risk-acceptance.md sha256 59b9e9ec44e40d7315b8f26ffea607e071cd42720f19459228a1b65fa0816b98."
+    },
+    {
+      "at": "2026-08-01T12:26:14Z",
+      "event": "post_pr219_master_gate_revalidated_as_preexisting_security_rating_baseline",
+      "detail": "Protected Parent PR #219 exact head 5765a626433591ec3b758463ad3afbf75c857b10 passed all strict required checks, SonarQube Cloud Quality Gate OK, zero direct PR issue rows, and 0.0 percent New-Code duplication before the current user's SHA-bound squash merge as master 904a8fca64b35cd287348722b4bdc2260b4f64b3. All fourteen matching resulting-master GitHub Actions push workflows succeeded. SonarCloud check 91368002687 alone failed, with resulting-master analysis 6774d409-f6fe-46b7-8ee9-20b288d4c67e Quality Gate ERROR solely at new security rating 5; reliability and maintainability are 1, new duplication is 0.0 percent, and new hotspot review is 100.0 percent. Immediate predecessor master 4a9992109ab3ac26526d14f6356b5be7215ab658 / analysis 67693a09-e0d9-4810-ac36-9305962957d1 already has the same security-rating failure. PR #219 changed no Sonar configuration, Quality Gate, suppression/exclusion, Framework, MRTS, or Gitlink. This is a non-causal observation of this existing global baseline, not a new remediable PR #219 defect. No external Sonar disposition, hotspot review, suppression, policy change, or current risk acceptance occurred; status remains blocked/release-blocking. Evidence: /var/tmp/codex/ModSecurity-conector/runs/20260801T103430Z-parent-ci-runtime-sonar-complete-remediation-20260801-6a18910f/evidence/pr-219-resulting-master-sonar-baseline-retriage.md sha256 e88afb18d0b0a0e92048a6f8399f8627949a88cb74a1bc353ebcd3c7055c210e."
+    }
+  ]
+}

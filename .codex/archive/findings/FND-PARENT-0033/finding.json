@@ -1,0 +1,106 @@
+{
+  "id": "FND-PARENT-0033",
+  "title": "Predictable runtime roots and unvalidated run IDs grant filesystem authority outside the verified run root",
+  "title_de": "Vorhersehbare Runtime-Wurzeln und unvalidierte Run-IDs verleihen Dateisystemautorität außerhalb der verifizierten Run-Wurzel",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P0",
+  "severity": "high",
+  "confidence": "reproduced",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "validated",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "runtime artifact filesystem boundary",
+  "profile": "verified runtime lifecycle",
+  "affected_files": [
+    "ci/lib/runtime_path_security.py",
+    "ci/runtime/lifecycle/prepare-runtime-root.py",
+    "ci/runtime/lifecycle/run-mrts-native-full.sh",
+    "ci/runtime/lifecycle/run-verified-report-run.py"
+  ],
+  "affected_symbols": [
+    "prepare_runtime_root",
+    "validate_verified_run_id",
+    "relative_path_below",
+    "ensure_private_directory",
+    "write_new_private_text"
+  ],
+  "summary": "Runtime entry points accepted predictable temporary roots, mutable path fragments, and unchecked VERIFIED_RUN_ID values before downstream writers opened or cleaned paths. A local same-user attacker could redirect a report/evidence write through a parent or final symlink or escape a build directory with traversal or an absolute ID.",
+  "summary_de": "Runtime-Einstiegspunkte akzeptierten vorhersehbare temporäre Wurzeln, veränderbare Pfadfragmente und ungeprüfte VERIFIED_RUN_ID-Werte, bevor nachgelagerte Writer Pfade öffneten oder bereinigten. Ein lokaler Angreifer mit demselben Benutzer konnte einen Report-/Evidence-Write über einen Parent- oder finalen Symlink umleiten oder ein Build-Verzeichnis mit Traversal oder absoluter ID verlassen.",
+  "observed_behavior": "The retained pre-fix proof set demonstrated predictable-root and parent/final-symlink traversal, final-file clobbering, '..' and absolute run-ID escape, empty/overlong/Unicode-separator acceptance, foreign-file adoption, parallel non-exclusive creation, and an lstat-to-open replacement race.",
+  "observed_behavior_de": "Der erhaltene Pre-Fix-Nachweissatz demonstrierte vorhersehbare Wurzel- und Parent-/Final-Symlink-Traversierung, Final-File-Clobbering, '..'- und absolute Run-ID-Escapes, Akzeptanz leerer/überlanger/Unicode-Separator-IDs, Foreign-File-Adoption, parallele nicht-exklusive Erstellung und eine lstat-zu-open-Ersetzungs-Race.",
+  "expected_behavior": "Every runtime artifact remains below a current-user-owned, capability-bound 0700 verified root; run IDs are bounded allowlist values before joins; no symlink is followed; foreign files are not adopted or overwritten; creation/open is exclusive or descriptor-bound; cleanup unlinks a symlink leaf without following it.",
+  "expected_behavior_de": "Jedes Runtime-Artefakt bleibt unterhalb einer dem aktuellen Benutzer gehörenden capability-gebundenen 0700-verifizierten Wurzel; Run-IDs sind vor Joins begrenzte Allowlist-Werte; kein Symlink wird verfolgt; Fremddateien werden weder adoptiert noch überschrieben; Erstellung/Öffnung ist exklusiv oder deskriptorgebunden; Cleanup unlinkt ein Symlink-Leaf ohne ihm zu folgen.",
+  "impact": "Unauthorized local filesystem writes, evidence/report corruption, and deletion or overwrite of a target selected through a same-user symlink/path race were possible outside the intended runtime root.",
+  "impact_de": "Nicht autorisierte lokale Dateisystemschreibvorgänge, Evidence-/Report-Korruption und Löschen oder Überschreiben eines über eine Same-User-Symlink-/Pfadrace gewählten Ziels waren außerhalb der vorgesehenen Runtime-Wurzel möglich.",
+  "preconditions": [
+    "A local attacker can create or replace a temporary/runtime path component under a writable ancestor.",
+    "A runtime entry point consumes the supplied root or run ID before the fixed validation/open boundary."
+  ],
+  "reproduction": [
+    "Pre-create a root, parent, or final symlink to a foreign sentinel and invoke the affected runtime writer.",
+    "Supply '..', an absolute path, empty, overlong, or Unicode-separator VERIFIED_RUN_ID and observe a join or acceptance before the fix.",
+    "Race a directory/file replacement between legacy validation and pathname open."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T075146Z-harden-temp-paths-97486abe",
+      "artifact_path": ".codex/runs/20260718T075146Z-harden-temp-paths-97486abe/evidence/runtime-temp-path-revalidation.md",
+      "artifact_type": "runtime_temp_path_revalidation",
+      "sha256": "db84a74c2048327ec886d03b33f04885af9b368799f45fc9959111f0b4eb1216",
+      "command": "rtk env PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-run>/tmp /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_runtime_env_snapshot_contract tests.test_verified_runtime_path_hardening tests.test_runtime_artifact_io_hardening tests.test_mrts_native_full_path_hardening",
+      "working_directory": "/var/tmp/codex/worktrees/verify-parent-temp-paths-576c08e",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T14:46:42Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "String-derived runtime path authority was trusted across root allocation, run-ID propagation, direct writers, reads, and cleanup. Path containment checks were incomplete and did not provide descriptor ownership, no-follow, exclusive creation, or a per-root capability for existing roots.",
+  "root_cause_de": "String-abgeleitete Runtime-Pfadautorität wurde über Wurzelallokation, Run-ID-Propagation, direkte Writer, Reads und Cleanup vertraut. Pfadcontainment-Prüfungen waren unvollständig und lieferten keine Deskriptor-Ownership, No-Follow, exklusive Erstellung oder eine Pro-Wurzel-Capability für bestehende Wurzeln.",
+  "proposed_remediation": "PR A implements descriptor-relative lstat/no-follow/exclusive primitives, 0700 capability-bound roots, a bounded ASCII run-ID allowlist, ownership records, secure shell/Python bridges, and safe cleanup across mapped runtime writers.",
+  "proposed_remediation_de": "PR A implementiert deskriptorrelative lstat/No-Follow/exklusive Primitive, 0700-capability-gebundene Wurzeln, eine begrenzte ASCII-Run-ID-Allowlist, Ownership-Records, sichere Shell-/Python-Brücken und sicheres Cleanup über die abgebildeten Runtime-Writer.",
+  "acceptance_criteria": [
+    "All permitted artifacts remain below a canonical verified root with restrictive ownership and modes.",
+    "Root/parent/final symlink, traversal, absolute, empty/long/Unicode run-ID, foreign-file, parallel, race, and cleanup controls fail without changing the foreign sentinel.",
+    "Normal valid runtime controls succeed and Parent, Framework, and MRTS remain non-targets."
+  ],
+  "validation_plan": [
+    "Re-run the original and alternate symlink/traversal/race controls on the exact PR head.",
+    "Run focused runtime path, artifact IO, snapshot, and MRTS-native synthetic tests plus shell static checks.",
+    "Verify the exact delivery PR head before changing status beyond fixed."
+  ],
+  "regression_tests": [
+    "tests/test_verified_runtime_path_hardening.py",
+    "tests/test_runtime_artifact_io_hardening.py",
+    "tests/test_mrts_native_full_path_hardening.py",
+    "tests/test_runtime_env_snapshot_contract.py"
+  ],
+  "legitimate_control_tests": [
+    "Normal private owned runtime artifact creation.",
+    "Valid bounded run ID and synthetic Parent-only runtime staging."
+  ],
+  "dependencies": [],
+  "blocked_by": [
+    "Framework/MRTS end-to-end integration is blocked_missing_evidence, but does not invalidate Parent local containment proof."
+  ],
+  "duplicates": [],
+  "related_findings": ["FND-PARENT-0034", "FND-PARENT-0035"],
+  "deduplication_note": "Distinct from FND-PARENT-0034 because report publication has a separate trusted write authority; distinct from FND-PARENT-0035 because raw rules reach Library sinks after runtime root preparation.",
+  "source_run_ids": ["20260718T075146Z-harden-temp-paths-97486abe"],
+  "residual_risk": "Parent-local remediation is tested and fixed, but remains delivery-pending until the exact PR head has remote CI/review evidence. Framework/MRTS integration is a recorded evidence gap, not a risk acceptance.",
+  "residual_risk_de": "Die Parent-lokale Remediation ist getestet und fixed, bleibt aber delivery-pending, bis der exakte PR-Head Remote-CI-/Review-Evidenz besitzt. Framework-/MRTS-Integration ist eine festgehaltene Evidenzlücke, keine Risikoakzeptanz.",
+  "created_at": "2026-07-18T14:46:42Z",
+  "updated_at": "2026-07-18T14:46:42Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-18T14:46:42Z",
+      "event": "validated_and_fixed_pending_verified_pr",
+      "detail": "Pre-fix exploit classes were reproduced; PR A exact-head focused controls passed. Delivery verification and no-merge PR status remain pending."
+    }
+  ]
+}

@@ -1,0 +1,164 @@
+{
+  "id": "FND-CROSS-0008",
+  "title": "Cache-backed Apache and NGINX refreshes lose their owner-root contract in the Parent runtime matrix",
+  "title_de": "Cache-gestützte Apache- und NGINX-Refreshes verlieren ihren Owner-Root-Vertrag in der Parent-Runtime-Matrix",
+  "category": "ci_failure",
+  "repository": "parent_and_framework",
+  "ownership": "cross_repository",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+"status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "security_assessment": "A validated runtime exploit is not claimed. The security-relevant broken control was the ownership boundary for REFRESH deletion: a managed cache build path flows from the Parent runtime snapshot through the Parent matrix into Framework safe_remove_runtime_path. Framework PR #48 preserves containment for the NGINX half. Parent PR #74 head 093df42d8773c3d0a5c843225fe7c3575fa4e67f repaired only the parallel dispatcher; its exact hosted direct runtime-matrix producer proved the invocation-local snapshot still omitted the owner-root hand-off. The Parent successor remediation supplies the same narrow owner root during cache preparation and snapshot publication. Its exact hosted ece2d335c7106a38bf51feb3f9937ec3b9e09ef1 producer reached NGINX configure rather than the old owner-root guard; the bounded Parent failure summary omitted the fixed NGINX configure log, so the remaining source-build cause is not yet classified. Parent head a0f337b8e45e5661b1ed09c7bf39b958548fbd14 adds only that existing regular-file/non-symlink, command-masked log diagnostic. Exact-head hosted validation remains required before closure. A broad owner-root workaround would risk deleting outside the intended managed cache root.",
+  "security_invariant": "A REFRESH deletion target must be an absolute safe generated path contained by an explicitly validated connector-cache owner root; a job-local BUILD_ROOT must not become an implicit authority over cache content, and a cache owner root must not authorize a sibling, symlink, relative, or system path.",
+  "controlled_inputs": [
+    "Prepared runtime snapshot values APACHE_BUILD_ROOT, NGINX_BUILD_DIR, APACHE_BUILD_OWNER_ROOT, and NGINX_BUILD_OWNER_ROOT",
+    "Matrix REFRESH decision for cache-backed connector builds"
+  ],
+  "trusted_inputs": [
+    "Verified Parent component-cache root and connector build manifest",
+    "Framework safe_remove_runtime_path containment helper"
+  ],
+  "sink": "Framework safe_remove_runtime_path invoked from Apache/NGINX refresh deletion guards",
+  "connector": "apache, nginx",
+  "protocol": "verified runtime matrix cache refresh and path containment",
+  "profile": "Parent PR #74 successor exact head a0f337b8e45e5661b1ed09c7bf39b958548fbd14",
+  "affected_files": [
+    "ci/runtime/lifecycle/run-full-matrix-parallel.sh",
+    "ci/provisioning/components/prepare-runtime-components.py",
+    ".github/workflows/verified-report-governance.yml",
+    "tests/test_ci_security_workflows.py",
+    "modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh"
+  ],
+  "affected_symbols": [
+    "run_full_matrix_parallel: CONNECTOR_BUILD_OWNER_ROOT",
+    "run_full_matrix_parallel: run_cache_backed_connector",
+    "prepare_runtime_components: runtime_env owner-root publication",
+    "prepare_nginx_build: safe_remove_dir"
+  ],
+  "observed_behavior": "Exact hosted PR #74 pull-request run 30201764369/job 89792783415 and push run 30201763067/job 89792780237 passed component preparation and readiness, then failed the required direct runtime matrix. The prepared cache-backed NGINX build was below component-cache/builds/connectors, but its refresh deletion guard used the unrelated job /.../build as owner root because the invocation-local runtime snapshot omitted NGINX_BUILD_OWNER_ROOT. Both strict terminal gates were correctly skipped.",
+  "expected_behavior": "A verified cache-backed connector build may be refreshed only when its explicitly supplied, validated owner root contains it. The normal per-job BUILD_ROOT remains isolated, and a cache path outside the declared connector-cache owner root remains rejected.",
+  "impact": "The Parent hand-off is implemented locally and published on PR #74, but it cannot be considered closed or integrated until its fresh exact-head hosted producer and strict terminal gate pass. A broad owner root or disabling the deletion guard would weaken fail-closed path containment and is prohibited.",
+  "preconditions": [
+    "The Parent runtime snapshot supplies a cache-backed Apache or NGINX build directory.",
+    "The full runtime matrix selects REFRESH=1 for a connector whose prepared build is reused.",
+    "The matrix invokes the connector with a job-local BUILD_ROOT."
+  ],
+  "reproduction": [
+    "Inspect exact PR #74 workflow run 30197684223/job 89782035387 and its bounded current-matrix diagnostic.",
+    "Observe the Apache and NGINX cache build paths together with owner=/.../build and the fail-closed exit 77 decisions.",
+    "Trace Parent run-full-matrix-parallel.sh: it forwards cache build paths while setting a job-local BUILD_ROOT; compare the historical Framework safe_remove_dir behavior with merged Framework PR #48's explicit NGINX_BUILD_OWNER_ROOT hand-off."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T103539Z-pr74-cache-owner-root",
+      "artifact_path": ".codex/runs/20260726T103539Z-pr74-cache-owner-root/evidence/hosted-cache-owner-root-blocker.md",
+      "artifact_type": "bounded_exact_head_hosted_ci_root_cause_summary",
+      "sha256": "aeeb731c3c4b3eb5902b6624b5a5c7db41fb3367f01c2ca594735195181a3d9a",
+      "command": "Read-only GitHub Actions exact-head run/job log inspection plus Parent/Framework source-to-sink review",
+      "working_directory": "/var/tmp/codex/worktrees/parent/migrate-pr55-pr74-master-V27zuA/pr74",
+      "exit_code": 2,
+      "observed_at": "2026-07-26T10:28:51Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260726T115300Z-framework-pr48-master-integration",
+      "artifact_path": ".codex/runs/20260726T115300Z-framework-pr48-master-integration/evidence/framework-pr48-master-integration.md",
+      "artifact_type": "bounded_framework_pr_exact_head_and_post_merge_validation",
+      "sha256": "2460d2f15a027e79f08aee120ce487a6ff2714d882fa46b15786d2615d43c7c3",
+      "command": "Protected GitHub update-branch and exact-head PR checks; GitHub normal merge with --match-head-commit; result-tree/master-workflow GitHub API inspection; SonarQube Cloud PR/master and leak-period issue readbacks",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T11:51:45Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260726T123434Z-pr74-direct-snapshot-owner-root",
+      "artifact_path": ".codex/runs/20260726T123434Z-pr74-direct-snapshot-owner-root/evidence/hosted-direct-runtime-snapshot-owner-root-blocker.md",
+      "artifact_type": "bounded_exact_head_hosted_ci_direct_snapshot_root_cause_summary",
+      "sha256": "5fb54fb6e1ec6e9f0afd699a97415b13553d78225eaa5c8a46cb4903d8672470",
+      "command": "Read-only GitHub Actions exact-head run/job log inspection plus Parent snapshot-to-Framework deletion-guard source review",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 2,
+      "observed_at": "2026-07-26T12:38:54Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260726T132600Z-pr74-nginx-configure-observability",
+      "artifact_path": ".codex/runs/20260726T132600Z-pr74-nginx-configure-observability/evidence/hosted-nginx-configure-observability-gap.md",
+      "artifact_type": "bounded_exact_head_hosted_ci_failure_classification_summary",
+      "sha256": "a89b41b87ea076a5a83e29e19fcfa490f8fba1ce327157cff649d884ab3bebbe",
+      "command": "Read-only GitHub Actions exact-head producer log inspection plus Parent workflow failure-summary boundary review",
+      "working_directory": "/var/tmp/codex/worktrees/parent/migrate-pr55-pr74-master-V27zuA/pr74",
+      "exit_code": 1,
+      "observed_at": "2026-07-26T13:18:56Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260726T135925Z-pr74-nginx-common-source-snapshot",
+      "artifact_path": ".codex/runs/20260726T135925Z-pr74-nginx-common-source-snapshot/evidence/parent-nginx-common-source-snapshot-root-cause.md",
+      "artifact_type": "bounded_related_parent_snapshot_root_cause_summary",
+      "sha256": "f9b8c36c52f41e9fda2535ffa7522033f06b9e52bfe21e61a6d1e5c25ed5f52a",
+      "command": "Read-only exact-head diagnostic inspection plus Parent/Framework source-to-sink review",
+      "working_directory": "/var/tmp/codex/worktrees/parent/migrate-pr55-pr74-master-V27zuA/pr74",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T13:59:25Z",
+      "retention_status": "sealed"
+    }
+  ],
+  "root_cause": "Parent passes cache-backed Apache and NGINX build paths into a runtime matrix that creates a job-local BUILD_ROOT. Framework PR #48 repaired the NGINX guard capability. Parent commit 093df42d8773c3d0a5c843225fe7c3575fa4e67f derives CONNECTOR_COMPONENT_CACHE/builds/connectors and hands it to the parallel runner, but the direct runtime-matrix target instead sources an invocation-local prepared runtime snapshot. That snapshot published the connector build paths but not APACHE_BUILD_OWNER_ROOT or NGINX_BUILD_OWNER_ROOT, so the Framework guards defaulted to the unrelated job BUILD_ROOT. The subsequent ece2d335c7106a38bf51feb3f9937ec3b9e09ef1 producer evidence shows that this owner-root failure is passed and the later NGINX configure command exits nonzero. Its actual configure diagnostic was not available because the Parent failure summary tailed the fixed Apache log but omitted the fixed NGINX configure log. The source-build cause is therefore still an evidence gap, not a basis for a speculative Framework or Parent build workaround.",
+  "proposed_remediation": "Framework PR #48 is merged and verified. Parent #74 successor remediation supplies CONNECTOR_COMPONENT_CACHE/builds/connectors while constructing Apache and NGINX cache builds and publishes the same narrow owner root in the invocation-local runtime snapshot. Focused direct-snapshot and full-matrix controls pass locally without relaxing either guard. Parent follow-up a0f337b8e45e5661b1ed09c7bf39b958548fbd14 adds the fixed NGINX configure log to the existing bounded regular-file/non-symlink failure-summary helper and its workflow-security regression. Rerun full #74 exact-head validation; classify and repair any now-visible source-build failure without weakening controls. Terminal producer, strict-gate, SonarQube Cloud, review, protection, and protected-integration evidence then remain.",
+  "classification_update": "The a0f NGINX configure diagnostic is now classified. Its distinct Parent-only source-root snapshot omission is FND-PARENT-0056, not an unresolved Framework owner-root defect. The owner-root remediation remains in this finding; #74 still requires both remediations' fresh exact-head hosted evidence.",
+  "acceptance_criteria": [
+    "Apache and NGINX cache-backed refreshes succeed only when their connector build root is under the declared managed cache owner root.",
+    "An outside-owner, symlinked, relative, or system-path refresh target still fails before deletion.",
+    "The Parent runtime matrix preserves a distinct per-job BUILD_ROOT and does not broaden it to the component cache; its invocation-local snapshot supplies the same narrow owner root to direct runtime execution.",
+    "The Framework change is separately merged and verified; the Parent #74 successor carries the normal current-master Gitlink and must obtain exact-head runtime validation.",
+    "PR #74 obtains a new exact-head hosted producer pass, strict terminal-gate pass, and the user-required SonarQube Cloud 0 open findings / 0 new duplicated lines.",
+    "If the NGINX configure command fails, the exact-head bounded failure summary exposes only its fixed regular-file/non-symlink log path so the remaining source-build cause can be classified without a diagnostic bypass."
+  ],
+  "validation_plan": [
+    "Run focused Parent full-matrix and direct runtime-snapshot owner-root contract tests and Framework NGINX refresh-ownership tests.",
+    "Exercise a cache-contained positive control and an outside-owner negative control through the same shell boundary, including the invocation-local snapshot path.",
+    "Run #74 successor exact-head GitHub Actions, SonarQube Cloud issue and duplication readbacks, review/thread inspection, and protected integration checks.",
+    "Inspect the bounded fixed NGINX configure diagnostic from a failed a0f337b8e45e5661b1ed09c7bf39b958548fbd14 producer before proposing a source-build repair."
+  ],
+  "regression_tests": [
+    "Parent tests/test_runtime_path_security.py and focused runtime-matrix contract tests",
+    "Framework NGINX provisioning refresh-ownership regression test"
+  ],
+  "legitimate_control_tests": [
+    "A cache-contained Apache and NGINX connector build refreshes through the declared owner-root path.",
+    "A sibling/outside path and a symlinked target remain rejected by safe_remove_runtime_path."
+  ],
+  "dependencies": [
+    "Parent #74 exact-head hosted producer and strict terminal-gate evidence after the source remediation",
+    "FND-CROSS-0001 fresh legitimate runtime evidence"
+  ],
+  "blocked_by": [
+    "Exact-head producer, terminal-gate, SonarQube Cloud, review/protection, and protected-integration evidence for Parent PR #74 head a0f337b8e45e5661b1ed09c7bf39b958548fbd14."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0001",
+    "FND-PARENT-0053",
+    "FND-PARENT-0054",
+    "FND-PARENT-0056",
+    "FND-SONAR-0016"
+  ],
+  "source_run_ids": [
+    "20260726T103539Z-pr74-cache-owner-root",
+    "20260726T115300Z-framework-pr48-master-integration",
+    "20260726T123434Z-pr74-direct-snapshot-owner-root",
+    "20260726T132600Z-pr74-nginx-configure-observability",
+    "20260726T135925Z-pr74-nginx-common-source-snapshot"
+  ],
+  "residual_risk": "Framework PR #48 verifies the NGINX containment repair without a guard relaxation. Exact hosted evidence shows Parent head 093df42d8773c3d0a5c843225fe7c3575fa4e67f missed the direct snapshot hand-off; ece2d335c7106a38bf51feb3f9937ec3b9e09ef1 subsequently reached NGINX configure rather than the old guard but did not retain that command's bounded diagnostic. Successor a0f337b8e45e5661b1ed09c7bf39b958548fbd14 adds the observability-only control, but no hosted evidence exists for it yet and the source-build cause remains unknown. No suppression, owner-root broadening, guard bypass, or risk acceptance is used; MRTS source and Gitlink remain unchanged.",
+  "residual_risk_de": "Framework-PR #48 verifiziert die NGINX-Containment-Reparatur ohne Lockerung eines Guards. Exakte Hosted-Evidence zeigt, dass Parent-Head 093df42d8773c3d0a5c843225fe7c3575fa4e67f der direkte Snapshot-Handoff fehlte; ece2d335c7106a38bf51feb3f9937ec3b9e09ef1 erreichte danach NGINX-configure statt des alten Guards, behielt aber dessen begrenzte Diagnose nicht. Nachfolge-Head a0f337b8e45e5661b1ed09c7bf39b958548fbd14 ergänzt die reine Observability-Kontrolle, aber Hosted-Evidence dafür existiert noch nicht und die Source-Build-Ursache bleibt unbekannt. Es werden weder Suppression, Owner-Root-Aufweitung, Guard-Bypass noch Risikoakzeptanz verwendet; MRTS-Source und Gitlink bleiben unverändert.",
+  "created_at": "2026-07-26T10:35:39Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": null
+}

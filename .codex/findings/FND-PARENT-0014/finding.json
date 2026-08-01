@@ -1,0 +1,116 @@
+{
+  "id": "FND-PARENT-0014",
+  "title": "Manifest cleanup retains a same-UID leaf-replacement deletion race",
+  "title_de": "Manifest-Cleanup behält ein Same-UID-Leaf-Replacement-Löschrennen",
+  "category": "security_candidate",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "probable",
+  "status": "blocked",
+  "feasibility_status": "blocked_missing_evidence",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/bin/storage-budget",
+    ".codex/tests/test_storage_budget.py",
+    ".codex/context/storage-policy.md"
+  ],
+  "affected_symbols": [
+    "validate_planned_operations",
+    "remove_planned_paths_no_follow"
+  ],
+  "summary": "The helper revalidates each planned leaf through a pinned parent descriptor, then deletes that name in a later unlinkat/rmdir operation. A hostile same-UID process with mutation authority can replace the leaf in the final interval.",
+  "summary_de": "Der Helper validiert jedes geplante Leaf über einen gepinnten Parent-Descriptor erneut und löscht diesen Namen danach in einer späteren unlinkat/rmdir-Operation. Ein bösartiger Same-UID-Prozess mit Änderungsrecht kann das Leaf im finalen Intervall ersetzen.",
+  "observed_behavior": "validate_planned_operations() compares type, device, inode, owner, group, and mode through the parent descriptor. remove_planned_paths_no_follow() then calls os.rmdir() or os.unlink() by the same name and descriptor in a distinct operation.",
+  "observed_behavior_de": "validate_planned_operations() vergleicht Typ, Gerät, Inode, Owner, Gruppe und Mode über den Parent-Descriptor. remove_planned_paths_no_follow() ruft danach os.rmdir() oder os.unlink() mit demselben Namen und Descriptor in einer getrennten Operation auf.",
+  "expected_behavior": "Descriptor anchoring must still prevent ancestor traversal and deletion outside the registered run. A strict no-foreign-leaf deletion claim requires an atomic expected-object deletion primitive or a separately verified trust boundary; neither is currently proven.",
+  "expected_behavior_de": "Descriptor-Anchoring muss weiterhin Ancestor-Traversal und Löschung außerhalb des registrierten Runs verhindern. Eine strikte No-Foreign-Leaf-Deletion-Behauptung erfordert ein atomares Expected-Object-Löschprimitiv oder eine separat verifizierte Trust Boundary; keines ist derzeit belegt.",
+  "impact": "The pinned parent descriptor bounds deletion to the registered run, so this is not an escape to Parent, Framework, MRTS, or arbitrary host paths. It means strict no-foreign-object deletion is not proven against a hostile same-UID leaf replacement.",
+  "impact_de": "Der gepinnte Parent-Descriptor begrenzt die Löschung auf den registrierten Run; dies ist kein Escape zu Parent, Framework, MRTS oder beliebigen Host-Pfaden. Es bedeutet, dass strikte No-Foreign-Object-Deletion gegen ein feindliches Same-UID-Leaf-Replacement nicht bewiesen ist.",
+  "preconditions": [
+    "A hostile process shares the effective UID that owns a registered task-run directory.",
+    "It can mutate the planned leaf name in the pinned parent directory.",
+    "It replaces the leaf after final validation and before os.unlink() or os.rmdir()."
+  ],
+  "reproduction": [
+    "Inspect validate_planned_operations(): it gets final no-follow leaf metadata through operation.parent_descriptor.",
+    "Inspect remove_planned_paths_no_follow(): it then performs os.unlink() or os.rmdir() by that name in a later operation.",
+    "The 49-test suite covers special files, symlinks, mounts, retained evidence, and foreign-process references, not deterministic final leaf replacement."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/062-same-uid-pathname-toctou-static-review.log",
+      "artifact_type": "source_to_sink_security_review_log",
+      "sha256": "2294d4ff41b1266a34a234da0db62072cadd51199efe37db979114ebcafc2dd2",
+      "command": "rg -n -C 8 'def validate_planned_operations|def remove_planned_paths_no_follow|os\\.unlink\\(|os\\.rmdir\\(' .codex/bin/storage-budget",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T14:26:58Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/043-storage-budget-security-regression-final.log",
+      "artifact_type": "storage_cleanup_regression_log",
+      "sha256": "0b1322f17bb7c1fe5ed71f2b9f94d7eca8c4a01189982289798629a12f6e22ac",
+      "command": "PYTHONDONTWRITEBYTECODE=1 STORAGE_BUDGET_TEST_ROOT=<active-run>/tmp/storage-budget-tests .venv/bin/python -B -m unittest discover -s .codex/tests -p test_storage_budget.py -v",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T13:08:24Z",
+      "retention_status": "retained_task_log"
+    }
+  ],
+  "root_cause": "POSIX pathname removal separates final leaf identity validation from removal. Parent descriptors prevent parent traversal but do not make later removal conditional on observed device/inode.",
+  "root_cause_de": "POSIX-Pfad-Entfernung trennt finale Leaf-Identity-Validierung und Entfernung. Parent-Descriptoren verhindern Parent-Traversal, machen spätere Entfernung aber nicht von beobachtetem Gerät/Inode abhängig.",
+  "proposed_remediation": "Before making a strict claim, preserve the affected object for manual owner-authorized handling, use a separately trusted cleanup authority, or establish a compatible atomic expected-object deletion mechanism. Do not weaken descriptor anchoring, special-file refusal, evidence/process gates, or dry-run/apply controls.",
+  "proposed_remediation_de": "Vor einer strikten Behauptung das betroffene Objekt für manuelles owner-autorisiertes Handling erhalten, eine separat vertrauenswürdige Cleanup-Authority nutzen oder einen kompatiblen atomaren Expected-Object-Deletion-Mechanismus etablieren. Descriptor-Anchoring, Spezialdatei-Refusal, Evidence-/Process-Gates oder Dry-Run/Apply-Controls nicht abschwächen.",
+  "acceptance_criteria": [
+    "The helper never claims unavailable atomic unlink-if-inode or rmdir-if-inode behavior.",
+    "Either a verified boundary prevents hostile same-UID leaf replacement, or automatic deletion of the affected class fails closed.",
+    "Existing anchored-root, symlink, special-file, mount, evidence, process, dry-run, apply, and idempotency controls remain covered."
+  ],
+  "validation_plan": [
+    "Validate the selected boundary with a deterministic same-UID replacement attempt between final validation and removal.",
+    "Rerun focused storage-budget controls, including normal task-owned regular-file and empty-directory cases.",
+    "Verify that no Parent, Framework, MRTS, retained-evidence, or out-of-run path can be affected."
+  ],
+  "regression_tests": [
+    ".codex/tests/test_storage_budget.py",
+    "A future deterministic final-leaf replacement control after an architectural solution is selected."
+  ],
+  "legitimate_control_tests": [
+    "The retained 49-test storage suite passes normal task-owned cleanup and currently covered safety controls."
+  ],
+  "dependencies": [
+    "Evidence for a compatible atomic deletion primitive or a user-authorized separately trusted cleanup-boundary design."
+  ],
+  "blocked_by": [
+    "No current repository-supported atomic expected-object removal primitive or separately owned cleanup authority."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-HOST-0001",
+    "FND-PARENT-0013"
+  ],
+  "source_run_ids": [
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc"
+  ],
+  "residual_risk": "The helper is materially safer and root-bounded, but it is not proven to preserve a foreign same-UID leaf inserted after final validation. No risk acceptance exists.",
+  "residual_risk_de": "Der Helper ist materiell sicherer und root-begrenzt, aber nicht als Erhalt eines fremden Same-UID-Leafs bewiesen, das nach finaler Validierung eingefügt wird. Es liegt keine Risikoakzeptanz vor.",
+  "created_at": "2026-07-17T14:27:29Z",
+  "updated_at": "2026-07-17T14:27:29Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T14:27:29Z",
+      "event": "current_task_security_boundary_identified",
+      "detail": "Independent final source review confirmed that final validation and later removal are separate leaf-name operations. Existing covered controls remain effective, but no atomic same-UID leaf identity boundary is proven."
+    }
+  ]
+}

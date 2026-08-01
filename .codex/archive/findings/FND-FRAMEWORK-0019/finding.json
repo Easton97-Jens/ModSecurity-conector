@@ -1,0 +1,145 @@
+{
+  "id": "FND-FRAMEWORK-0019",
+  "title": "Framework CI-security workflows are incompatible with the canonical strict YAML workflow-security contract",
+  "title_de": "Framework-CI-Sicherheits-Workflows sind mit dem kanonischen strikten YAML-Workflow-Sicherheitsvertrag inkompatibel",
+  "category": "security_hardening",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "medium",
+  "confidence": "validated",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".github/workflows/ci-security-codeql.yml",
+    ".github/workflows/ci-security-dependency-review.yml",
+    ".github/workflows/ci-security-osv.yml",
+    ".github/workflows/ci-security-quality.yml",
+    ".github/workflows/ci-security-scorecard.yml",
+    ".github/workflows/ci-security-secrets.yml",
+    ".github/workflows/ci-security-workflow-lint.yml",
+    ".github/workflows/cleanup-artifacts.yml",
+    "ci/checks/security/check-github-actions-workflows.py",
+    "tests/ci_security/test_framework_ci_security_contract.py"
+  ],
+  "affected_symbols": [
+    "flow-style YAML collections",
+    "block mappings",
+    "workflow-security contract",
+    "check-github-actions-workflows.py --check all"
+  ],
+  "summary": "After #27 was reconciled with the #29 workflow checker, its CI-security workflows retained flow-style YAML collections. The canonical checker deliberately rejects those collections fail-closed because block mappings keep workflow permissions and action pins reviewable. The incompatibility is distinct from the FND-FRAMEWORK-0013 permission invariant and the FND-FRAMEWORK-0016 downloader-locking boundary.",
+  "summary_de": "Nachdem #27 mit dem #29-Workflow-Checker abgeglichen wurde, behielten seine CI-Sicherheits-Workflows Flow-Style-YAML-Collections. Der kanonische Checker lehnt diese Collections absichtlich fail-closed ab, weil Block-Mappings Workflow-Berechtigungen und Action-Pins reviewbar halten. Die Inkompatibilität ist von der Berechtigungsinvariante FND-FRAMEWORK-0013 und der Downloader-Lock-Grenze FND-FRAMEWORK-0016 verschieden.",
+  "observed_behavior": "The retained pre-fix canonical checker exits 1 and reports flow-style YAML collection violations at ci-security-codeql lines 5, 7, and 30; ci-security-dependency-review line 5; ci-security-osv line 5; ci-security-quality line 5; ci-security-scorecard lines 5 and 7; ci-security-secrets line 5; ci-security-workflow-lint line 5; and cleanup-artifacts line 8.",
+  "observed_behavior_de": "Der aufbewahrte Pre-Fix-Canonical-Checker beendet sich mit Exit 1 und meldet Flow-Style-YAML-Collection-Verletzungen bei ci-security-codeql Zeilen 5, 7 und 30; ci-security-dependency-review Zeile 5; ci-security-osv Zeile 5; ci-security-quality Zeile 5; ci-security-scorecard Zeilen 5 und 7; ci-security-secrets Zeile 5; ci-security-workflow-lint Zeile 5; sowie cleanup-artifacts Zeile 8.",
+  "expected_behavior": "All Framework workflow YAML covered by the strict contract uses canonical block mappings. The checker remains fail-closed for any flow-style collection while legitimate block-mapped workflow permissions and SHA-pinned actions remain accepted.",
+  "expected_behavior_de": "Sämtliches vom strikten Contract abgedeckte Framework-Workflow-YAML verwendet kanonische Block-Mappings. Der Checker bleibt für jede Flow-Style-Collection fail-closed, während legitime blockgemappte Workflow-Berechtigungen und SHA-gepinnte Actions akzeptiert bleiben.",
+  "impact": "Flow-style collections obscure permission and action-pin review boundaries and are explicitly forbidden by the Framework's canonical strict workflow-security contract. Permitting them would weaken a security control and make syntax-equivalent but less reviewable workflow changes easier to introduce.",
+  "impact_de": "Flow-Style-Collections verschleiern Review-Grenzen für Berechtigungen und Action-Pins und sind durch den kanonischen strikten Workflow-Sicherheitsvertrag des Frameworks ausdrücklich verboten. Ihre Zulassung würde einen Security-Control schwächen und syntaktisch äquivalente, aber weniger reviewbare Workflow-Änderungen erleichtern.",
+  "preconditions": [
+    "Framework PR #27 agent/expand-framework-ci-security was normally reconciled with Framework origin/master 7a12073c28e62a67492dd501b6513b9914fe5df8.",
+    "The retained diagnostics were captured after the ten textual merge conflicts were resolved and before the #27-owned workflow compatibility repair.",
+    "The #29 canonical checker is intentionally strict and fail-closed; no Parent or MRTS path was changed."
+  ],
+  "reproduction": [
+    {
+      "command": "rtk env PYTHONDONTWRITEBYTECODE=1 python3 ci/checks/security/check-github-actions-workflows.py --check all",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "expected_exit_code_before_remediation": 1,
+      "required_diagnostics": [
+        ".github/workflows/ci-security-codeql.yml:5: flow-style YAML collections are prohibited in workflows; use block mappings for reviewable action pins",
+        ".github/workflows/ci-security-scorecard.yml:7: flow-style YAML collections are prohibited in workflows; use block mappings for reviewable action pins",
+        ".github/workflows/cleanup-artifacts.yml:8: flow-style YAML collections are prohibited in workflows; use block mappings for reviewable action pins"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/evidence/pr27-pre-fix-workflow-contract-diagnostics.md",
+      "artifact_type": "pre_fix_pr27_workflow_contract_diagnostics",
+      "sha256": "95237ba7fd80715e4fb9086298d4eb6e814d2cf575bc45ccfe4fd58489ab2c61",
+      "command": "rtk env PYTHONDONTWRITEBYTECODE=1 python3 ci/checks/security/check-github-actions-workflows.py --check all",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 1,
+      "observed_at": "2026-07-19T15:xxZ",
+      "retention_status": "retained_task_evidence",
+      "scope_note": "Current pre-fix #27/#29 workflow-contract compatibility evidence; the exact observation minute was not retained in the supplied receipt."
+    },
+    {
+      "run_id": "20260726-framework-findings-batch",
+      "artifact_path": ".codex/runs/20260726-framework-findings-batch/evidence/current-master-revalidation.md",
+      "artifact_type": "current_framework_master_finding_revalidation",
+      "sha256": "6912df100503c87123b72e4fac4cc76d6c8bf9f40f884786eeedfcebe0614f3c",
+      "command": "make test-workflow-security-contract test-workflow-action-pins check-github-actions-workflows; ci/checks/security/check-github-actions-workflows.py --check all",
+      "working_directory": "/var/tmp/codex/worktrees/framework/20260726-framework-findings-batch",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T18:28:05Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Current Framework master 47e50e7bc43ba7a3b5bad1a9448111794f664cc0 passes the strict fail-closed syntax contract and focused negative/legitimate block-mapping controls; PR #27 and resulting-master checks are successful."
+    }
+  ],
+  "root_cause": "PR #27's CI-security workflow syntax predates or was not fully reconciled to the #29 canonical strict checker. Flow-style YAML mappings survived the normal branch reconciliation, creating a deterministic contract failure rather than a reason to loosen the checker.",
+  "root_cause_de": "Die CI-Sicherheits-Workflow-Syntax von PR #27 geht dem #29-kanonischen strikten Checker voraus oder wurde nicht vollständig mit ihm abgeglichen. Flow-Style-YAML-Mappings überstanden den normalen Branch-Abgleich und erzeugen damit einen deterministischen Contract-Fehler statt eines Grundes, den Checker zu lockern.",
+  "proposed_remediation": "Convert every listed flow-style YAML collection to the canonical equivalent block mapping in the #27-owned workflow files. Preserve scanner coverage, pinned action identities, the strict checker, and the distinct FND-FRAMEWORK-0013 permission remediation; do not add an exception or broaden the accepted syntax.",
+  "proposed_remediation_de": "Jede aufgeführte Flow-Style-YAML-Collection in den #27-eigenen Workflow-Dateien in das kanonische äquivalente Block-Mapping überführen. Scanner-Coverage, gepinnte Action-Identitäten, den strikten Checker und die separate Berechtigungsremediation FND-FRAMEWORK-0013 erhalten; keine Ausnahme hinzufügen und die akzeptierte Syntax nicht erweitern.",
+  "acceptance_criteria": [
+    "Every listed workflow has no flow-style YAML collection covered by the strict workflow-security contract.",
+    "The canonical checker remains fail-closed and passes --check all on the final #27 exact head.",
+    "Focused negative regression controls continue to reject flow-style mappings.",
+    "Legitimate block-mapped permissions and SHA-pinned action definitions remain accepted.",
+    "Fresh exact-head PR checks and the resulting-master rerun verify the repaired workflow set without weakening the checker."
+  ],
+  "validation_plan": [
+    "Rerun the retained canonical reproducer after the #27 syntax repair; it must exit 0 without checker changes that broaden accepted YAML syntax.",
+    "Run focused workflow-contract regressions that reject flow-style collections and accept canonical block mappings.",
+    "Run applicable local workflow/lint checks, then observe fresh exact-head PR checks and rerun the original reproduction plus legitimate controls on resulting Framework master."
+  ],
+  "regression_tests": [
+    "tests/ci_security/test_framework_ci_security_contract.py",
+    "ci/checks/security/check-github-actions-workflows.py --check all"
+  ],
+  "legitimate_control_tests": [
+    "Canonical block-mapped top-level and job permissions remain accepted.",
+    "SHA-pinned actions expressed with canonical block mappings remain accepted.",
+    "The strict checker still rejects a representative flow-style YAML collection."
+  ],
+  "dependencies": [
+    "#27-owned YAML compatibility repair",
+    "FND-FRAMEWORK-0013 permission remediation remains distinct and must also pass",
+    "Fresh exact-head PR checks and review evidence",
+    "Resulting Framework master original-reproduction and legitimate-control rerun"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0013",
+    "FND-FRAMEWORK-0016",
+    "FND-SONAR-0005"
+  ],
+  "source_run_ids": [
+    "20260719T081017Z-framework-pr-resolution-20260719-840082e0"
+  ],
+  "residual_risk": "The current reconciled #27 pre-fix workflow set fails the strict syntax contract. No post-fix local, exact-head remote, or resulting-master evidence exists yet. The strict checker is deliberately not waived or weakened.",
+  "residual_risk_de": "Der aktuelle abgeglichene Pre-Fix-Workflow-Satz von #27 scheitert am strikten Syntax-Contract. Es existiert noch keine Post-Fix-lokale, Exact-Head-Remote- oder Resulting-Master-Evidence. Der strikte Checker wird ausdrücklich weder waived noch geschwächt.",
+  "created_at": "2026-07-19T15:35:21Z",
+  "updated_at": "2026-07-26T18:28:05Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-19T15:35:21Z",
+      "event": "validated_pre_fix_pr27_workflow_contract_incompatibility_recorded",
+      "detail": "A distinct fail-closed flow-style YAML compatibility finding was created from retained #27/#29 reconciliation diagnostics. No current remediation or remote verification is claimed."
+    },
+    {
+      "at": "2026-07-26T18:28:05Z",
+      "event": "verified_on_current_framework_master",
+      "detail": "PR #27 exact-head and resulting-master checks were confirmed successful, and current master 47e50e7bc43ba7a3b5bad1a9448111794f664cc0 passed the strict flow-style rejection and legitimate block-mapping controls without weakening the checker."
+    }
+  ]
+}

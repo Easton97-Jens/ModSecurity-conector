@@ -1,0 +1,138 @@
+{
+  "id": "FND-FRAMEWORK-0048",
+  "title": "Workflow-tool publisher expands default-branch metadata directly in shell source",
+  "title_de": "Workflow-Tool-Publisher expandiert Default-Branch-Metadaten direkt im Shell-Source",
+  "category": "security_hardening",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "reproduced",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": "Framework PR #39-#41 consolidation local workflow-security validation",
+  "affected_revision": "7e419189af46e32f4d4e6646c42147d8be2cbd8b",
+  "affected_files": [
+    ".github/workflows/update-workflow-tools.yml",
+    "ci/checks/security/check-ci-security-contract.py",
+    "tests/ci_security/test_ci_security_contract.py"
+  ],
+  "affected_symbols": [
+    "Prepare the constrained maintenance branch",
+    "Revalidate the reusable Draft branch before modifying it",
+    "UPDATER_PUBLISHER_STEP_PROFILE",
+    "UPDATER_PUBLISHER_ENV_VALUES"
+  ],
+  "technical_claim": "The write-capable workflow-tool publisher interpolated github.event.repository.default_branch directly into run-script source. Zizmor reports this as high-confidence template injection because template expansion precedes shell parsing. The remediated workflow supplies the value through reviewed step-local environment maps, quotes the variable at use sites, and validates it as a Git branch before ref construction.",
+  "entry_point": "Scheduled or manual execution of update-workflow-tools.yml reaches the constrained publisher after resolver and validator success.",
+  "source_to_sink_or_broken_control": "Source: direct GitHub expression interpolation in publisher run blocks. Potential sink: shell parsing and Git ref arguments in a contents:write/pull-requests:write job. Broken control: no reviewed environment boundary or ref-format validation before shell-source expansion.",
+  "attacker_prerequisites": [
+    "A shell-significant default-branch metadata value reaches a trusted publisher run, or a future workflow broadens the metadata trust boundary.",
+    "The resolver and validator succeed and the publisher condition is satisfied."
+  ],
+  "observed_behavior": "Checksum-verified zizmor --offline .github returned exit code 1 and reported four high-confidence template-injection findings at update-workflow-tools.yml lines 192, 202, 205, and 225 before remediation.",
+  "expected_behavior": "Repository metadata must not be expanded directly into publisher shell source. The exact approved value must be carried as step-local data, safely quoted, validated as a branch ref, and bound by the publisher profile.",
+  "impact": "The required workflow-security check fails. If a shell-significant value crosses this metadata boundary, it could alter commands in a token-bearing publisher. Current evidence does not claim an untrusted pull-request author can control repository default-branch metadata; this is treated as a release-blocking security hardening and CI-control failure until hosted verification.",
+  "root_cause": "The updater used GitHub expression syntax inside shell run blocks instead of a reviewed environment mapping and quoted variable expansion.",
+  "proposed_remediation": "Use exact step-local DEFAULT_BRANCH environment mappings, validate them with git check-ref-format --branch, use only quoted shell-variable references, update the publisher profile/digests, and retain independent resolver/validator gates and least-privilege permissions.",
+  "acceptance_criteria": [
+    "No direct github.event.repository.default_branch expression remains in an update-workflow-tools run block.",
+    "Both affected publisher steps have exactly reviewed DEFAULT_BRANCH environment maps.",
+    "The maintenance-branch step validates DEFAULT_BRANCH with git check-ref-format --branch before constructing refs.",
+    "The exact publisher profile and all static workflow security controls pass.",
+    "The exact hosted consolidation PR passes the applicable workflow-security checks before merge."
+  ],
+  "validation_plan": [
+    "Run checksum-verified zizmor --offline .github before and after the repair.",
+    "Run check-ci-security-contract.py, check-github-actions-workflows.py --check all, and focused CI-security tests.",
+    "Verify hosted workflow-lint and exact PR-head checks after publication."
+  ],
+  "regression_tests": [
+    "tests/ci_security/test_ci_security_contract.py",
+    "ci/checks/security/check-ci-security-contract.py",
+    "checksum-verified zizmor --offline .github"
+  ],
+  "legitimate_control_tests": [
+    "The unchanged constrained publisher profile passes the CI-security contract.",
+    "The post-fix offline zizmor scan has no active findings.",
+    "The normal default-branch condition and quoted Git ref handling remain intact."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0047",
+    "FND-SONAR-0002"
+  ],
+  "source_run_ids": [
+    "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/delivery/pr42-exact-head-hosted-verification.md",
+      "artifact_type": "exact_pr_head_hosted_verification",
+      "sha256": "07d30f93ab9bda5fb03fb22b20b9755aba2b8567b67678a34ec3ff7927bcb853",
+      "command": "RTK-wrapped GitHub PR/check/review/thread readback plus retained hosted verification receipt",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/tmp/framework-worktree-v3",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T17:42:25Z",
+      "retention_status": "task_owned_temporary_evidence",
+      "summary": "The corrected PR #42 head 1fd3b362e0fed9766c6920e3c7bd1939535850f2 passes hosted workflow lint, Zizmor, Sonar PR Quality Gate, and all other applicable controls."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/zizmor-template-injection-remediation.md",
+      "artifact_type": "checksum_verified_zizmor_pre_and_post_remediation",
+      "sha256": "2c8ab7e8fc947188f9bd9ca312457a21042051580a2c18bafdfc368b7feac468",
+      "command": "RTK-wrapped checksum-verified zizmor --offline .github before and after the workflow remediation",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/tmp/framework-worktree-v3",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T16:30:00Z",
+      "retention_status": "task_owned_temporary_evidence",
+      "summary": "The pre-fix scan reported four high-confidence template-injection findings; the post-fix scan reports no active findings."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/security-diff/consolidation-commit-receipt.md",
+      "artifact_type": "committed_consolidation_head_receipt",
+      "sha256": "c07815638b747cb80002db2f34ff18028d80d0241eb7c7248488d5c8fe6f9e1c",
+      "command": "RTK-wrapped clean-worktree, exact range whitespace, and native make lint verification after committing the consolidation head",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/tmp/framework-worktree-v3",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T17:24:06Z",
+      "retention_status": "task_owned_temporary_evidence",
+      "summary": "The locally fixed publisher metadata-boundary remediation is bound to committed Framework head 22747d460a9f7be02760edf05c311be376492457; hosted exact-head evidence remains required."
+    }
+  ],
+  "evidence_limitations": [
+    "The evidence is static local scanning and does not prove a hostile party can set repository default-branch metadata.",
+    "No token-bearing publisher, GitHub workflow, or remote action was invoked during validation."
+  ],
+  "residual_risk": "The publisher metadata-boundary repair passed the applicable hosted controls on the exact open PR #42 head but is not yet integrated into Framework master. It remains fixed, not verified or closed, until a normal master integration and resulting-master evidence. FND-SONAR-0002 remains an independent master-integration blocker.",
+  "delivery_evidence": null,
+  "history": [
+    {
+      "at": "2026-07-22T17:42:25Z",
+      "event": "exact_pr_head_hosted_controls_passed",
+      "detail": "Open Framework PR #42 head 1fd3b362e0fed9766c6920e3c7bd1939535850f2 passed hosted workflow lint/Zizmor, Sonar PR Quality Gate, and all other applicable controls. This strengthens the fixed disposition, but the finding is neither verified nor closed before normal master integration and resulting-master evidence."
+    },
+    {
+      "at": "2026-07-22T17:24:06Z",
+      "event": "consolidation_remediation_committed",
+      "detail": "The locally fixed publisher metadata-boundary repair is now bound to Framework commit 22747d460a9f7be02760edf05c311be376492457. Clean-worktree, exact-range whitespace, and native make lint validation passed; hosted exact-head evidence remains required."
+    },
+    {
+      "at": "2026-07-22T16:30:00Z",
+      "event": "zizmor_template_injection_reproduced_and_locally_fixed",
+      "detail": "Four high-confidence direct-expression findings in the token-bearing updater publisher were replaced with reviewed environment mappings, ref-format validation, quoted expansion, and updated exact publisher contracts; post-fix zizmor passed locally."
+    }
+  ],
+  "created_at": "2026-07-22T16:30:00Z",
+  "updated_at": "2026-07-22T17:42:25Z",
+  "final_disposition": null
+}

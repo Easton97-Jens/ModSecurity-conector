@@ -1,0 +1,119 @@
+{
+  "id": "FND-PARENT-0012",
+  "title": "C++ evaluator had easily-swappable string-parameter hardening gaps",
+  "title_de": "C++-Evaluator hatte Hardening-Lücken durch leicht vertauschbare String-Parameter",
+  "category": "compiler_hardening_gap",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "closed",
+  "feasibility_status": "feasible_after_local_setup",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "common/scripts/modsecurity_targeted_eval.cc",
+    "tests/test_c_cpp_diagnostics.py"
+  ],
+  "affected_symbols": [
+    "bracket_value",
+    "DecisionLogInput",
+    "append_decision_log"
+  ],
+  "observed_behavior": "The prior real Clang-Tidy baseline reported two bugprone-easily-swappable-parameters diagnostics for internal C++ evaluator string parameters. The current calls were correct, but the signatures left future call-order mistakes unnecessarily easy.",
+  "expected_behavior": "Internal evaluator interfaces should make the field key distinct from the intervention log and collect decision-record inputs in named fields without changing the emitted record or evaluator outcomes.",
+  "impact": "This was a bounded hardening gap, not a validated request-security bypass or current functional defect.",
+  "preconditions": [
+    "A task-owned C++17 build, compilation database, and analysis output are available.",
+    "The validated external libmodsecurity headers and library remain available."
+  ],
+  "reproduction": [
+    "Run the focused real Clang analysis with CLANG_TIDY_CHECKS='-*,bugprone-easily-swappable-parameters' against the fresh C++17 compilation database."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/029-cpp17-targeted-evaluator-cpp17.log",
+      "artifact_type": "cxx17_compile_log",
+      "sha256": "083b7d535465fcb2f09d9ee5b7e14385f749d3f8d490acee43047ec5a712ec74",
+      "command": "CXX=/usr/bin/clang++ CPP_BUILD_ROOT=<active-run>/build/cpp17-warning-remediation MODSECURITY_INCLUDE_DIR=<verified-prefix>/include MODSECURITY_LIB_DIR=<verified-prefix>/lib MODSECURITY_LIB_FILE=<verified-prefix>/lib/libmodsecurity.so make check-targeted-evaluator-cpp17",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T12:54:50Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/031-cpp17-clang-tidy-swappable-parameters.log",
+      "artifact_type": "clang_tidy_analysis_log",
+      "sha256": "aaa6deb035c9170dc2170a687db32a801f0513e589f8a86d20103529a7d2d746",
+      "command": "CODEX_TEMP_ROOT=<active-run>/analysis/cpp17-warning-remediation COMPDB_OUTPUT=<active-run>/analysis/cpp17-warning-remediation/compdb/compile_commands.json ANALYSIS_OUTPUT=<active-run>/analysis/cpp17-warning-remediation/clang-analysis/swappable-parameters CLANG_TIDY=/usr/bin/clang-tidy CLANG=/usr/bin/clang CLANGXX=/usr/bin/clang++ CLANG_TIDY_CHECKS='-*,bugprone-easily-swappable-parameters' make clang-analysis-baseline",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T12:55:26Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/034-cpp17-evaluator-allow-block-controls.log",
+      "artifact_type": "direct_evaluator_control_log",
+      "sha256": "141216acc6602f06f25f210bd809b0c25bd4a2d9cc42ff97757a3d6c389d3827",
+      "command": "LD_LIBRARY_PATH=<verified-prefix>/lib <active-run>/build/cpp17-warning-remediation/modsecurity_targeted_eval --rule-file common/rules/modsecurity_targeted_smoke.conf --decision-log <active-run>/logs/cpp17-warning-remediation/{allow,block}.decision.log --header-value {allow,block}; validate JSON and decision records",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T12:56:52Z",
+      "retention_status": "retained_task_log"
+    }
+  ],
+  "root_cause": "Two internal functions had adjacent canonical std::string parameter types. The original calls were correct, but the interface did not encode their distinct meanings.",
+  "proposed_remediation": "Use std::string_view for the immutable bracket field key and a value-owning DecisionLogInput record at the sole decision-log call site.",
+  "acceptance_criteria": [
+    "The C++17 evaluator compiles with -Wall -Wextra -Werror.",
+    "The focused swappable-parameter Clang analysis has zero normalized findings.",
+    "The Allow control remains HTTP-status 200 and the blocking control remains status 403 with rule ID 1000001.",
+    "No public C or C++ API/ABI changes are introduced."
+  ],
+  "validation_plan": [
+    "Compile the production evaluator with the existing C++17 target.",
+    "Capture a real compilation database and run focused and normal Clang analysis profiles.",
+    "Run the existing diagnostics contract tests and direct Allow/Block evaluator controls."
+  ],
+  "regression_tests": [
+    "tests/test_c_cpp_diagnostics.py",
+    "Focused real Clang-Tidy swappable-parameter analysis"
+  ],
+  "legitimate_control_tests": [
+    "Direct evaluator Allow control: status 200.",
+    "Direct evaluator blocking control: status 403 and rule ID 1000001."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0008"
+  ],
+  "source_run_ids": [
+    "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc"
+  ],
+  "residual_risk": "Static analysis and direct evaluator controls do not substitute for every connector runtime. No current parameter-order defect or request-security bypass was found.",
+  "created_at": "2026-07-17T13:10:00Z",
+  "updated_at": "2026-07-26T14:09:02Z",
+  "final_disposition": "closed_by_current_user_after_current_master_compiler_and_control_validation_archived_20260726",
+  "history": [
+    {
+      "at": "2026-07-17T13:10:00Z",
+      "event": "phase_b_preflight_and_remediation_verified",
+      "detail": "Distinct Parent-only compiler-hardening finding created after the current source/call-site review, task-owned setup, C++17 compilation, focused Clang analysis, contract tests, and direct Allow/Block controls."
+    },
+    {
+      "at": "2026-07-26T14:09:02Z",
+      "event": "closed_by_current_user_after_current_master_validation",
+      "detail": "The current user authorized closure and archival. On Parent master 6ca7e1536ce7e93da68099db9c586b88852ff13e, tests.test_c_cpp_diagnostics passed as part of the 144-test current-master control suite; no current parameter-order defect or request-security bypass was observed."
+    }
+  ]
+}

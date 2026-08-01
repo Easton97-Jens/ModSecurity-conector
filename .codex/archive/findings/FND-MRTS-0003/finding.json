@@ -1,0 +1,148 @@
+{
+  "id": "FND-MRTS-0003",
+  "title": "MRTS runner-profile contract contradicted a user-approved local configuration",
+  "title_de": "MRTS-Runner-Profilvertrag widersprach einer nutzergenehmigten lokalen Konfiguration",
+  "category": "documentation_drift",
+  "repository": "mrts",
+  "ownership": "mrts_explicit_user_task",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "not_applicable",
+  "feasibility_status": "not_applicable",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": "MRTS shared local Codex runner profile",
+  "affected_files": [
+    ".codex/config.toml",
+    ".codex/structure-manifest.toml",
+    ".codex/context/security.md",
+    ".codex/context/read-only-policy.md",
+    ".codex/context/governance-validation.md",
+    "tools/validate-governance.py",
+    "tools/test_validate_governance.py"
+  ],
+  "affected_symbols": [
+    "sandbox_workspace_write.network_access",
+    "sandbox_workspace_write.writable_roots",
+    "sandbox_workspace_write.exclude_tmpdir_env_var",
+    "shell_environment_policy.inherit",
+    "shell_environment_policy.set",
+    "MRTS governance validator"
+  ],
+  "summary": "The current user confirmed that the retained Framework-style MRTS configuration is the intended trusted local runner profile. The conflicting MRTS-only default-deny contract was a documentation/validator drift, not a product-security finding.",
+  "summary_de": "Der aktuelle Nutzer bestätigte, dass die aufbewahrte Framework-artige MRTS-Konfiguration das beabsichtigte vertrauenswürdige lokale Runner-Profil ist. Der widersprüchliche MRTS-spezifische Default-Deny-Vertrag war eine Dokumentations-/Validator-Drift, kein Produkt-Sicherheitsbefund.",
+  "observed_behavior": "The live MRTS configuration matches the retained user-approved snapshot SHA-256 ee2e0437e2c5c3b8926b96ff68b617197140bea2602a8b8e094d4c1686ec0cfb. It uses the same local runner-profile type as Parent and Framework: workspace-write, declared network access, exact support roots, inherit = all, secret exclusions, and a non-secret path map.",
+  "observed_behavior_de": "Die Live-MRTS-Konfiguration entspricht dem aufbewahrten nutzergenehmigten Snapshot SHA-256 ee2e0437e2c5c3b8926b96ff68b617197140bea2602a8b8e094d4c1686ec0cfb. Sie verwendet denselben lokalen Runner-Profiltyp wie Parent und Framework: workspace-write, deklarierten Netzwerkzugriff, exakte Support-Wurzeln, inherit = all, Secret-Ausschlüsse und eine nicht geheime Pfadzuordnung.",
+  "expected_behavior": "MRTS declares its exact user-approved shared runner profile in the structure manifest. The native validator must reject profile drift while allowing the declared network, roots, TMPDIR setting, inherit = all, and non-secret environment map. The declaration does not confer task authority or prove runtime enforcement.",
+  "expected_behavior_de": "MRTS deklariert sein exaktes nutzergenehmigtes gemeinsames Runner-Profil im Strukturmanifest. Der native Validator muss Profilabweichungen ablehnen, aber den deklarierten Netzwerkzugriff, die Wurzeln, die TMPDIR-Einstellung, inherit = all und die nicht geheime Umgebungszuordnung zulassen. Die Deklaration verleiht keine Task-Autorität und beweist keine Runtime-Enforcement.",
+  "impact": "No supported product security boundary is crossed: the ignored local file is trusted operator configuration and no less-privileged or remote writer was evidenced. The profile remains local declarative evidence only; runtime filesystem and network enforcement are not verified.",
+  "impact_de": "Es wird keine unterstützte Produkt-Sicherheitsgrenze überschritten: Die ignorierte lokale Datei ist vertrauenswürdige Operator-Konfiguration und es wurde kein weniger privilegierter oder Remote-Writer nachgewiesen. Das Profil bleibt nur lokale deklarative Evidence; Runtime-Dateisystem- und Netzwerk-Enforcement sind nicht verifiziert.",
+  "preconditions": [
+    "The current top-level user selects the MRTS shared local runner profile.",
+    "A Codex session resolves the trusted ignored MRTS project configuration."
+  ],
+  "reproduction": [
+    "Compare the live config to the retained user-approved snapshot with SHA-256 `ee2e0437e2c5c3b8926b96ff68b617197140bea2602a8b8e094d4c1686ec0cfb`.",
+    "Run `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 tools/validate-governance.py` from the MRTS root; the manifest-driven validator exits 0.",
+    "Run `rtk proxy env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python .codex/bin/validate-codex-inheritance.py --check --all --json --explain` from the Parent root; it exits 0 with only documented legacy warnings."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T041432Z-codex-control-plane-unification-d42a1961",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T041432Z-codex-control-plane-unification-d42a1961/evidence/security-remediation/mrts-config-before-remediation.toml",
+      "artifact_type": "pre_remediation_mrts_configuration_snapshot",
+      "sha256": "2eb63d56f02fa9b76a35f5b6b21916bf6b47d9d8ab594d0230b573374c18ea4b",
+      "command": "rtk proxy env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python tools/validate-governance.py",
+      "working_directory": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tools/MRTS",
+      "exit_code": 1,
+      "observed_at": "2026-07-26T05:15:58Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726T041432Z-codex-control-plane-unification-d42a1961",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T041432Z-codex-control-plane-unification-d42a1961/evidence/security-remediation/mrts-config-after-remediation.toml",
+      "artifact_type": "post_remediation_mrts_configuration_snapshot",
+      "sha256": "c8897b0c3489e145b2bb7b1a9b103638bbe8217233e9bc8e6ca0fa79af523a85",
+      "command": "rtk proxy env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python tools/validate-governance.py; rtk proxy /root/git/ModSecurity-conector/.venv/bin/python .codex/bin/validate-codex-inheritance.py --check --repository mrts --json --explain",
+      "working_directory": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tools/MRTS and /root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T05:23:33Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726T041432Z-codex-control-plane-unification-d42a1961",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T041432Z-codex-control-plane-unification-d42a1961/evidence/security-remediation/mrts-config-recurrence.toml",
+      "artifact_type": "concurrent_post_remediation_mrts_configuration_snapshot",
+      "sha256": "ee2e0437e2c5c3b8926b96ff68b617197140bea2602a8b8e094d4c1686ec0cfb",
+      "command": "rtk proxy env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python tools/validate-governance.py; rtk proxy /root/git/ModSecurity-conector/.venv/bin/python .codex/bin/validate-codex-inheritance.py --check --all --json --explain",
+      "working_directory": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tools/MRTS and /root/git/ModSecurity-conector",
+      "exit_code": 1,
+      "observed_at": "2026-07-26T05:31:48Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The local MRTS manifest and native validator incorrectly imposed a restrictive default-deny configuration despite the user-approved shared local runner profile already used by Parent and Framework. The ignored config has no tracked Git baseline, and no untrusted writer or runtime boundary was evidenced.",
+  "root_cause_de": "Das lokale MRTS-Manifest und der native Validator erzwingten fälschlich eine restriktive Default-Deny-Konfiguration, obwohl das nutzergenehmigte gemeinsame lokale Runner-Profil bereits von Parent und Framework verwendet wird. Die ignorierte Config hat keinen getrackten Git-Baseline, und es wurde kein nicht vertrauenswürdiger Writer oder Runtime-Boundary nachgewiesen.",
+  "proposed_remediation": "Completed: restore the retained user-approved profile and align the manifest, validator, tests, and directly contradictory documentation. Preserve explicit secret exclusions, no-MCP/plugin controls, task-authorization boundaries, and the no-runtime-enforcement claim.",
+  "proposed_remediation_de": "Abgeschlossen: Das aufbewahrte nutzergenehmigte Profil wiederherstellen und Manifest, Validator, Tests sowie direkt widersprüchliche Dokumentation ausrichten. Explizite Secret-Ausschlüsse, No-MCP/Plugin-Kontrollen, Task-Autorisierungsgrenzen und die fehlende Runtime-Enforcement-Behauptung bleiben erhalten.",
+  "acceptance_criteria": [
+    "MRTS `.codex/config.toml` matches SHA-256 `ee2e0437e2c5c3b8926b96ff68b617197140bea2602a8b8e094d4c1686ec0cfb`.",
+    "MRTS `.codex/structure-manifest.toml` declares the exact network, roots, TMPDIR, inherit, secret-exclusion, and environment-map profile.",
+    "The native MRTS governance validator exits 0 and rejects profile drift.",
+    "The Parent MRTS-scoped and all-root inheritance validators exit 0 without violations.",
+    "The six focused MRTS governance tests and 133 Parent control-plane tests pass.",
+    "No Git, Gitlink, remote, dependency, generator, or delivery action is changed by this alignment."
+  ],
+  "validation_plan": [
+    "Run the native MRTS governance validator and its focused unittest module with bytecode disabled.",
+    "Run the Parent MRTS-scoped and all-root inheritance validators with JSON explanation.",
+    "Run the Parent local control-plane test suite and review Git whitespace/status without Git writes."
+  ],
+  "regression_tests": [
+    "tools/test_validate_governance.py::GovernanceValidatorTests.test_workspace_sandbox_contract_rejects_profile_drift",
+    "tools/test_validate_governance.py::GovernanceValidatorTests.test_workspace_sandbox_environment_map_follows_manifest_policy"
+  ],
+  "legitimate_control_tests": [
+    "tools/validate-governance.py reports the regular MRTS governance structure and policy markers as valid.",
+    "The Parent MRTS-scoped and all-root inheritance validators report a compliant configuration."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-MRTS-0002"
+  ],
+  "source_run_ids": [
+    "20260726T041432Z-codex-control-plane-unification-d42a1961"
+  ],
+  "residual_risk": "The user-approved runner profile declares network access and support roots for trusted local work. Configuration and validators are local governance evidence only; they do not prove runtime filesystem/network enforcement. Concurrent non-task Parent, Framework, MRTS, and ignored-control-plane changes still prevent a whole-workspace continuity claim.",
+  "residual_risk_de": "Das nutzergenehmigte Runner-Profil deklariert Netzwerkzugriff und Support-Wurzeln für vertrauenswürdige lokale Arbeit. Konfiguration und Validatoren sind nur lokale Governance-Evidence; sie beweisen kein Runtime-Dateisystem-/Netzwerk-Enforcement. Parallele nicht task-eigene Parent-, Framework-, MRTS- und ignorierte Control-Plane-Änderungen verhindern weiterhin eine Whole-Workspace-Continuity-Aussage.",
+  "created_at": "2026-07-26T05:15:58Z",
+  "updated_at": "2026-07-26T06:05:14Z",
+  "final_disposition": "not_applicable_user_approved_trusted_local_runner_profile_archived_20260726",
+  "history": [
+    {
+      "at": "2026-07-26T05:15:58Z",
+      "event": "static_control_regression_observed",
+      "detail": "The ignored MRTS config showed broad Framework-style roots, enabled network, full inherited environment, and injected environment values; static validators rejected the declared contract."
+    },
+    {
+      "at": "2026-07-26T05:23:33Z",
+      "event": "minimal_configuration_restoration_verified",
+      "detail": "Only the violated config controls were restored. The original native validator, its five focused tests, and the Parent MRTS-scoped validator passed; no runtime enforcement claim was made."
+    },
+    {
+      "at": "2026-07-26T05:31:48Z",
+      "event": "concurrent_configuration_regression_recurred",
+      "detail": "The config was overwritten again during final regression. The native validator, focused current-tree test, and Parent all-root validator returned the original control violations."
+    },
+    {
+      "at": "2026-07-26T06:05:14Z",
+      "event": "user_approved_runner_profile_retriaged",
+      "detail": "The current user confirmed the retained Framework-style MRTS runner profile is intended. Static comparison found the same trusted local profile type in Parent and Framework and no less-privileged or remote writer/product boundary. The exact profile was restored; manifest-driven validation and focused tests passed; the finding is not applicable as a product-security issue."
+    }
+  ]
+}

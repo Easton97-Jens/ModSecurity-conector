@@ -1,0 +1,200 @@
+{
+  "id": "FND-PARENT-0039",
+  "title": "PR #59 Change Records retained stale pre-push delivery wording",
+  "title_de": "PR-#59-Change-Records enthielten veraltete Pre-Push-Delivery-Formulierung",
+  "category": "documentation_drift",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "validated",
+"status": "closed",
+  "observed_exact_head_sha": "34a1756635ccf30ebd74f61d5222e80230ceea17",
+  "exact_head_sha": "f00eb11a25172959d50aa3e213fd1d7ace209599",
+  "current_pr_source_sha": "b9b22cc36958ba506278f3aa3fbc1d383ea6a151",
+  "resulting_master_sha": "5a22cbf5206dbc2b7f53a9f961d72e37d567e188",
+  "delivery_state": "merged_pr65_then_retired_by_pr227",
+  "follow_up_pr": {
+    "number": 65,
+    "url": "https://github.com/Easton97-Jens/ModSecurity-conector/pull/65",
+    "branch": "agent/fix-pr59-change-record-delivery-state",
+    "head_sha": "1ddeb7163076e6e552dc161d8813a46bf24903d0",
+    "base": "master",
+    "is_draft": false,
+    "auto_merge": false,
+    "delivery_state": "merged",
+    "checks": {
+      "total_terminal": 39,
+      "passed": 33,
+      "conditionally_skipped": 6,
+      "failed": 0,
+      "required_ruleset_checks": [
+        "actions",
+        "bounded-c-cpp",
+        "envoy-go",
+        "traefik-go",
+        "actionlint",
+        "zizmor"
+      ],
+      "sonarqube_cloud_quality_gate": "OK",
+      "new_issues": 0,
+      "security_hotspots": 0
+    },
+    "review_threads": 0,
+    "observed_at": "2026-07-21T06:28:05Z"
+  },
+  "feasibility_status": "already_fixed",
+  "security_assessment": "not_reportable",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": "PR #59 delivery traceability",
+  "affected_files": [
+    "reports/audits/change-records/CR-20260718-result-file-authenticity.md",
+    "reports/audits/change-records/CR-20260718-result-file-authenticity.de.md"
+  ],
+  "affected_symbols": [
+    "Checks not run and rationale",
+    "Final diff and review status"
+  ],
+  "summary": "PR #65 corrected the two then-current PR #59 Change Records, merged normally as 1fa024ca6ec97023ea5b6f7dff5215e43f10b74c, and is reachable from current master. PR #227 later intentionally retired the two individual reports. The current tree retains only the bilingual change-record archive README pair, publishes no stale Draft/no-integration wording, and preserves traceability in Git history, commits, and pull requests. This is a closed documentation finding, not a product-security finding.",
+  "summary_de": "PR #65 korrigierte die zwei damals aktuellen PR-#59-Change-Records, mergte normal als 1fa024ca6ec97023ea5b6f7dff5215e43f10b74c und ist vom aktuellen Master erreichbar. PR #227 retirierte die zwei einzelnen Reports später absichtlich. Der aktuelle Baum behält nur das bilinguale Change-Record-Archiv-README-Paar, veröffentlicht keine veraltete Draft-/Keine-Integration-Formulierung und bewahrt die Nachvollziehbarkeit in Git-Historie, Commits und Pull Requests. Dies ist ein geschlossenes Dokumentations-Finding, kein Product-Security-Finding.",
+  "observed_behavior": "Exact PR #59 source b9b22cc and resulting Parent master 5a22cbf have identical paired Change Record trees. Both records retain now-false Draft/no-integration wording after the protected squash merge at 2026-07-20T15:09:01Z.",
+  "observed_behavior_de": "Exakter PR-#59-Source b9b22cc und resultierender Parent-Master 5a22cbf haben identische gepaarte Change-Record-Trees. Beide Records behalten nach dem geschützten Squash-Merge um 2026-07-20T15:09:01Z nun falsche Draft-/Keine-Integration-Formulierung.",
+  "expected_behavior": "The then-current paired Change Records accurately stated the observed PR #59 integration before retirement. The current reader-facing tree must not publish the stale Draft/no-integration wording; archival traceability must remain available through the bilingual archive README, Git history, commits, and pull requests.",
+  "expected_behavior_de": "Die damals aktuellen gepaarten Change Records benannten die beobachtete PR-#59-Integration vor ihrer Retirierung korrekt. Der heutige leserorientierte Baum darf keine veraltete Draft-/Keine-Integration-Formulierung veröffentlichen; Archiv-Nachvollziehbarkeit muss über das bilinguale Archiv-README, Git-Historie, Commits und Pull Requests erhalten bleiben.",
+  "impact": "The former records could have caused readers to misinterpret delivery state. The corrected reports were subsequently retired, so no current reader-facing in-tree copy retains the stale wording. No product-security boundary, runtime behavior, secret, or deployed control is affected.",
+  "impact_de": "Die früheren Records konnten Leser den Delivery-Status fehlinterpretieren lassen. Die korrigierten Reports wurden anschließend retirert, sodass keine aktuelle leserorientierte In-Tree-Kopie die veraltete Formulierung behält. Keine Product-Security-Grenze, kein Runtime-Verhalten, Secret oder deploytes Control ist betroffen.",
+  "preconditions": [
+    "The source-remediation head had been pushed after the earlier paired Change Record update.",
+    "A reader relies on the Delivery-state wording in the paired records."
+  ],
+  "reproduction": [
+    "Resolve local HEAD and origin/agent/harden-evidence-result-authenticity at 03e5088d8202a4eb14d891b31d149aa2f6081289.",
+    "Compare both former Change Record delivery-state paragraphs with that exact reference.",
+    "Read the sealed exact-head security-diff report's rejected documentation-drift candidate."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260719T144606Z-pr59-final-security-diff-03e5088-c2519afb",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T144606Z-pr59-final-security-diff-03e5088-c2519afb/evidence/pr59-03e5088-security-diff-report.md",
+      "artifact_type": "sealed_pr59_exact_head_security_diff_report",
+      "sha256": "4db335de36065c1f4eb98190e6f7655fd6d7f333609639a47f71e77776334d2a",
+      "command": "repeat finalize_scan_contract.py for immutable PR #59 head 03e5088d8202a4eb14d891b31d149aa2f6081289",
+      "working_directory": "/var/tmp/codex/worktrees/parent-evidence-result-authenticity",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T14:50:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T141403Z-pr55-pr59-master-integration-8a0b8640",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/evidence/pr59-5a22cbf-postmerge-validation.json",
+      "artifact_type": "retained_pr59_resulting_master_validation_receipt",
+      "sha256": "7749e6c6fd1ab198b54eb9704221d30aa150954db6130bec0317801a8afddc51",
+      "command": "git diff --quiet b9b22cc36958ba506278f3aa3fbc1d383ea6a151 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 -- reports/audits/change-records/CR-20260718-result-file-authenticity.md reports/audits/change-records/CR-20260718-result-file-authenticity.de.md; inspect resulting-master delivery wording",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/postmerge-5a22cbf",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T15:13:08Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The record-only wording model did not include a post-merge factual-currency update; the final protected integration therefore made its Draft/no-integration statements stale.",
+  "root_cause_de": "Das Record-only-Formulierungsmodell enthielt kein Update der sachlichen Aktualität nach dem Merge; die finale geschützte Integration machte seine Draft-/Keine-Integration-Aussagen daher veraltet.",
+  "proposed_remediation": "Completed: PR #65 updated only the paired Change Records, received exact-head bilingual, documentation, CI, review, and SonarCloud evidence, and merged normally. PR #227 then retired the individual reports under the repository's archive policy without recreating them. No Framework, MRTS, gitlink, scanner, gate, or risk control was changed.",
+  "proposed_remediation_de": "Abgeschlossen: PR #65 aktualisierte nur die gepaarten Change Records, erhielt Exact-Head-Bilingual-, Dokumentations-, CI-, Review- und SonarCloud-Evidence und mergte normal. PR #227 retirierte die einzelnen Reports danach unter der Archivpolicy, ohne sie wieder anzulegen. Kein Framework, MRTS, Gitlink, Scanner, Gate oder Risikocontrol wurde geändert.",
+  "acceptance_criteria": [
+    "PR #65 corrected the then-current paired Change Records and merged normally as 1fa024ca6ec97023ea5b6f7dff5215e43f10b74c.",
+    "No current reader-facing in-tree copy retains the stale statement that PR #59 is Draft or that no Parent-master integration occurred.",
+    "The bilingual archive README preserves the retirement policy and Git history, commits, and pull requests preserve traceability.",
+    "The correction's exact PR checks, CodeQL, and SonarCloud evidence are recorded; PR #227 retired the two individual reports with its own successful checks."
+  ],
+  "validation_plan": [
+    "Verify PR #65 head 1ddeb7163076e6e552dc161d8813a46bf24903d0, merge 1fa024ca6ec97023ea5b6f7dff5215e43f10b74c, and the recorded exact-head checks.",
+    "Verify PR #227 merge 522e791c1efa21da6101f9a0908d5e185736b518 retired only the individual reports and retained the bilingual archive README pair.",
+    "Confirm current finding documentation contains no Markdown link to either retired report and that current reader-facing content contains no stale Draft/no-integration wording."
+  ],
+  "regression_tests": [
+    "tests.test_bilingual_docs",
+    "git diff --check",
+    "negative assertion that neither Change Record says PR #59 remains Draft or that no Parent-master integration occurred"
+  ],
+  "legitimate_control_tests": [
+    "The then-current paired records accurately stated observed PR #59 protected integration before PR #227 retired them.",
+    "The current tree retains only the bilingual archive README pair and publishes no stale Draft/no-integration wording."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0030",
+    "FND-PARENT-0031",
+    "FND-PARENT-0037"
+  ],
+  "source_run_ids": [
+    "20260719T144606Z-pr59-final-security-diff-03e5088-c2519afb",
+    "20260720T141403Z-pr55-pr59-master-integration-8a0b8640"
+  ],
+  "residual_risk": "Individual Change Records were intentionally retired by PR #227 after the verified correction. Their history remains traceable through Git history, commits, and pull requests; no current tree publishes the stale wording. This is not a product-security or release-blocker finding, and no security risk is accepted.",
+  "residual_risk_de": "Einzelne Change Records wurden nach der verifizierten Korrektur durch PR #227 absichtlich retirert. Ihre Historie bleibt über Git-Historie, Commits und Pull Requests nachvollziehbar; kein aktueller Baum veröffentlicht die veraltete Formulierung. Es ist kein Product-Security- oder Release-Blocker-Finding und kein Security-Risiko wird akzeptiert.",
+  "created_at": "2026-07-19T14:50:00Z",
+  "updated_at": "2026-08-01T18:52:17Z",
+  "final_disposition": "closed after https://github.com/Easton97-Jens/ModSecurity-conector/pull/65 head 1ddeb7163076e6e552dc161d8813a46bf24903d0 merged to master as 1fa024ca6ec97023ea5b6f7dff5215e43f10b74c, reachable from current origin/master 59aba762f2d852fd917079ca8519e4ea7f49169c. PR #227 subsequently retired the two individual reports. Closure is based on the delivered correction plus retirement of the affected reports, not on a claim that the deleted reports remain current; Git history, commits, pull requests, and the bilingual archive README retain traceability.",
+  "history": [
+    {
+      "at": "2026-07-19T14:50:00Z",
+      "event": "validated_documentation_delivery_state_drift",
+      "detail": "The sealed exact-head scan rejected the wording drift as non-reportable security-wise but required a focused paired documentation correction."
+    },
+    {
+      "at": "2026-07-19T14:50:00Z",
+      "event": "fixed_locally_pending_exact_head_delivery",
+      "detail": "The paired Change Records were corrected without changing source code or delivery state; commit, normal push, and exact-head verification remain pending."
+    },
+    {
+      "at": "2026-07-19T15:00:00Z",
+      "event": "normal_documentation_push_completed",
+      "detail": "Commit 34a1756635ccf30ebd74f61d5222e80230ceea17 was pushed normally; exact-head security, CI, SonarCloud, review, and merge verification remain pending."
+    },
+    {
+      "at": "2026-07-19T15:34:20Z",
+      "event": "stable_wording_revalidated_locally_pending_commit",
+      "detail": "The self-referential wording from 34a1756 was replaced in both records by stable current-head wording. The focused 46-test and whitespace-diff round passed; a normal commit, push, and exact-head verification remain pending."
+    },
+    {
+      "at": "2026-07-19T15:47:07Z",
+      "event": "stable_wording_committed_locally_pending_push",
+      "detail": "The reviewed three-file correction was committed as f00eb11a25172959d50aa3e213fd1d7ace209599; normal push and exact-head verification remain pending."
+    },
+    {
+      "at": "2026-07-19T15:53:32Z",
+      "event": "stable_wording_normal_push_completed",
+      "detail": "Commit f00eb11a25172959d50aa3e213fd1d7ace209599 was pushed normally without force; exact-head security, CI, SonarCloud, review, and merge verification remain pending."
+    },
+    {
+      "at": "2026-07-20T16:00:15Z",
+      "event": "resulting_master_reassessment_reopened_documentation_follow_up",
+      "detail": "Exact PR #59 source b9b22cc36958ba506278f3aa3fbc1d383ea6a151 and equal-tree Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 still say that PR #59 is Draft and that no Parent-master integration occurred. The retained post-merge receipt proves the merge but not factual currency of these records. Status changes from fixed to in_progress; a new narrow bilingual correction PR and fresh exact-head delivery evidence are required. FND-SONAR-0001 remains independent."
+    },
+    {
+      "at": "2026-07-20T16:29:19Z",
+      "event": "follow_up_pr65_verified_pr_open",
+      "detail": "Draft Parent PR #65 contains only the paired factual-currency correction at exact local/remote/PR head 090f7658e599392965c62615d32ea77383078968. The focused bilingual documentation check and diff check passed; 39 exact-head check runs are terminal (33 successful, six conditionally skipped), all six repository-ruleset required checks pass, SonarQube Cloud Quality Gate is OK with zero new issues/hotspots, and no review threads or auto-merge request exist. The finding remains in_progress pending a separately authorized merge and post-merge verification."
+    },
+    {
+      "at": "2026-07-21T06:28:05Z",
+      "event": "follow_up_pr65_merged_and_closed",
+      "detail": "Final PR #65 head 1ddeb7163076e6e552dc161d8813a46bf24903d0 merged normally as 1fa024ca6ec97023ea5b6f7dff5215e43f10b74c after its exact-head validation. The paired reader records no longer published the stale Draft/no-integration wording."
+    },
+    {
+      "at": "2026-08-01T18:14:53Z",
+      "event": "current_master_rechecked_after_change_record_retirement",
+      "detail": "At Parent master 522e791c1efa21da6101f9a0908d5e185736b518, PR #227 intentionally retired individual Change Record files while retaining the archive placeholder and Git-history/commit/PR traceability. No Finding Markdown link targets the retired files. The original stale wording is not published in the current tree; PR #65 and its exact checks remain the closure evidence."
+    },
+    {
+      "at": "2026-08-01T18:52:17Z",
+      "event": "current_master_reconfirmed_after_test_only_pr229",
+      "detail": "Current master 59aba762f2d852fd917079ca8519e4ea7f49169c contains only the test changes from PR #229 since the prior current-master review. The retired Change Records remain absent, the bilingual archive README remains, and no Finding Markdown link targets either retired file."
+    }
+  ]
+}

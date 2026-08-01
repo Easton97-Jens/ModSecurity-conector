@@ -1,0 +1,168 @@
+{
+  "id": "FND-SONAR-0025",
+  "title": "Lighttpd lifecycle fixture input lacks verified runtime-root containment",
+  "title_de": "Lighttpd-Lifecycle-Fixture-Input besitzt keine verifizierte Runtime-Root-Begrenzung",
+  "category": "security_candidate",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "low",
+  "confidence": "validated",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "validated_local_cli_artifact_boundary; no remote HTTP arbitrary-file-read path was demonstrated",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "connector": "lighttpd",
+  "protocol": "patched Lighttpd lifecycle runtime artifact handling",
+  "profile": "SonarQube Cloud current Parent issue AZ9cRymfHhV2CayPTPzM / pythonsecurity:S8707",
+  "affected_files": [
+    "connectors/lighttpd/harness/safe_runtime_output.py",
+    "connectors/lighttpd/harness/write_patched_lifecycle_results.py",
+    "connectors/lighttpd/tests/test_patched_event_validation.py"
+  ],
+  "affected_symbols": [
+    "main",
+    "load_fixture_result",
+    "safe_input_path",
+    "read_runtime_input_text"
+  ],
+  "summary": "SonarQube Cloud issue AZ9cRymfHhV2CayPTPzM reported that the Lighttpd lifecycle writer read the CLI-selected --entity-fixture-result through Path.read_text without proving it belonged to the verified private runtime root. The task patch confines that fixture and every other data-bearing lifecycle input to an absolute existing regular non-symlink artifact below the root, then reads fixture JSON through the existing descriptor-relative no-follow control.",
+  "summary_de": "SonarQube-Cloud-Issue AZ9cRymfHhV2CayPTPzM meldete, dass der Lighttpd-Lifecycle-Writer das per CLI gewählte --entity-fixture-result über Path.read_text las, ohne seine Zugehörigkeit zum verifizierten privaten Runtime-Root zu beweisen. Der Task-Patch begrenzt dieses Fixture und alle weiteren datenführenden Lifecycle-Inputs auf ein absolutes vorhandenes reguläres Nicht-Symlink-Artefakt unterhalb der Root und liest das Fixture-JSON anschließend durch den bestehenden descriptor-relativen No-Follow-Control.",
+  "observed_behavior": "Before the patch, a direct lifecycle-helper invocation could pass an unrelated readable path as --entity-fixture-result. The checked-in canonical runner normally creates the fixture under its private smoke directory, but the helper did not enforce this invariant. Sonar classified the item as a HIGH security impact vulnerability at write_patched_lifecycle_results.py:208.",
+  "observed_behavior_de": "Vor dem Patch konnte ein direkter Lifecycle-Helper-Aufruf einen unabhängigen lesbaren Pfad als --entity-fixture-result übergeben. Der eingecheckte kanonische Runner erzeugt das Fixture normalerweise unter seinem privaten Smoke-Verzeichnis, aber der Helper erzwang diese Invariante nicht. Sonar klassifizierte das Item als Vulnerability mit HIGH Security Impact in write_patched_lifecycle_results.py:208.",
+  "expected_behavior": "Every lifecycle data input must be an absolute, existing regular non-symlink file below the verified private runtime root before it is consumed. The fixture reader must not follow a substituted symlink and no lifecycle result, projection, or summary may be published after an invalid input is supplied.",
+  "expected_behavior_de": "Jeder Lifecycle-Dateninput muss vor seiner Verarbeitung eine absolute vorhandene reguläre Nicht-Symlink-Datei unterhalb des verifizierten privaten Runtime-Roots sein. Der Fixture-Leser darf keinem substituierten Symlink folgen, und nach einem ungültigen Input dürfen kein Lifecycle-Resultat, keine Projection und keine Summary publiziert werden.",
+  "impact": "The confirmed boundary is local developer/CI/operator CLI artifact selection. No repository evidence establishes a remote HTTP peer, separate lower-privilege process, or cross-tenant actor able to select the path. The severity is therefore low despite Sonar's generic HIGH impact label; the task does not claim a remote arbitrary-file-read exploit.",
+  "impact_de": "Die bestätigte Grenze ist die lokale Auswahl eines CLI-Artefakts durch Developer/CI/Operator. Keine Repository-Evidence belegt einen Remote-HTTP-Peer, separaten Prozess mit niedrigeren Privilegien oder Cross-Tenant-Akteur, der den Pfad wählen kann. Die Schwere ist daher trotz Sonars generischem HIGH-Impact-Label niedrig; der Task beansprucht keinen Remote-Arbitrary-File-Read-Exploit.",
+  "preconditions": [
+    "A direct caller can supply an absolute --entity-fixture-result path to the lifecycle helper.",
+    "The pre-fix lifecycle helper is in use.",
+    "For a material boundary impact, the caller must be distinct from the identity that owns the private runtime root; no such repository path was evidenced."
+  ],
+  "reproduction": [
+    "Inspect the retained Sonar issue JSON for key AZ9cRymfHhV2CayPTPzM and source line 208.",
+    "Run the focused lifecycle event-validation suite; its hostile controls supply outside-root and symlink paths for all six data-bearing options and assert rejection before output publication.",
+    "Run the legitimate in-root lifecycle control and verify its existing projection and summary behavior remains valid."
+  ],
+  "evidence": [
+    {
+      "run_id": "lighttpd-sonar-security-20260728",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/lighttpd-sonar-security-20260728/evidence/sonarqube-cloud-issue-AZ9cRymfHhV2CayPTPzM.json",
+      "artifact_type": "sonarqube_cloud_open_issue_query",
+      "sha256": "81891db472788897c2f98e78dca90bc1ad3422f8bb296190b906bd97a7cfd45d",
+      "command": "SonarQube Cloud issue query restricted to Parent connectors/lighttpd scope.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T13:52:50Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Exactly one open in-scope issue: AZ9cRymfHhV2CayPTPzM, pythonsecurity:S8707, at the fixture reader path."
+    },
+    {
+      "run_id": "lighttpd-sonar-security-20260728",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/lighttpd-sonar-security-20260728/evidence/test-patched-event-validation.log",
+      "artifact_type": "focused_lifecycle_security_regression",
+      "sha256": "ce229433d6e29eec70abd1e41fb09656f335146304be8054068362ce787cc4ad",
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 connectors/lighttpd/tests/test_patched_event_validation.py -v",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/lighttpd-sonar-security-20260728",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T13:52:50Z",
+      "retention_status": "retained_task_evidence",
+      "result": "All 8 tests passed, including outside-root, symlink, missing, and non-regular lifecycle-input rejection plus the legitimate lifecycle control."
+    },
+    {
+      "run_id": "lighttpd-sonar-security-20260728",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/lighttpd-sonar-security-20260728/evidence/test-patched-host-contract.log",
+      "artifact_type": "lighttpd_host_contract_regression",
+      "sha256": "00ea1ddd907f040d93ead44b04b4d917cbe1b93d9b23f108ce6b7c4a3f48c6c6",
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 connectors/lighttpd/tests/test_patched_host_contract.py -v",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/lighttpd-sonar-security-20260728",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T13:52:50Z",
+      "retention_status": "retained_task_evidence",
+      "result": "All 17 Lighttpd host-contract controls passed."
+    },
+    {
+      "run_id": "lighttpd-sonar-security-20260728",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/lighttpd-sonar-security-20260728/security-diff-scan/report.md",
+      "artifact_type": "sealed_security_diff_scan_report",
+      "sha256": "a5e3bcfb9bbd2ce405602b0a61a9f4a5278c64b784b494865873667bd6614ae0",
+      "command": "python3 finalize_scan_contract.py --scan-dir .../security-diff-scan --source-root task_worktree",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T14:12:09Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "Complete two-file security-diff coverage found no newly introduced reportable candidate; the changed control strengthens private runtime-artifact containment."
+    },
+    {
+      "run_id": "lighttpd-sonar-security-20260728",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/lighttpd-sonar-security-20260728/evidence/pr-201-exact-head-hosted-verification.md",
+      "artifact_type": "exact_draft_pr_head_hosted_verification",
+      "sha256": "524aa610ec821f333d0fa5632429214a07374aba761beae0a58b26a2935c3129",
+      "command": "GitHub PR readback and public SonarQube Cloud quality-gate, issue and measure queries restricted to pullRequest=201",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T14:32:00Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Draft PR #201 at the exact recorded head is open and all executed GitHub checks passed; SonarQube Cloud reports Quality Gate OK, zero OPEN/CONFIRMED PR issues, zero new violations, zero new duplicated lines, and 0.0 new-code duplication density."
+    }
+  ],
+  "root_cause": "load_fixture_result called Path.read_text on a CLI-selected path without a verified-root containment or descriptor-relative no-follow read. The other lifecycle data inputs similarly lacked an explicit root-bound precondition before use.",
+  "root_cause_de": "load_fixture_result rief Path.read_text auf einem CLI-ausgewählten Pfad ohne verifizierte Root-Begrenzung oder descriptor-relativen No-Follow-Read auf. Auch den übrigen Lifecycle-Dateninputs fehlte vor ihrer Nutzung eine explizite an die Root gebundene Voraussetzung.",
+  "proposed_remediation": "Validate all six data-bearing lifecycle paths with runtime_artifact_path(..., must_exist=True) through Lighttpd-local adapters, and read the fixture through read_runtime_artifact_text. Preserve the existing atomic output path and add direct hostile and legitimate CLI regressions. Do not change Sonar policy, exclusions, NOSONAR, suppression, Framework, MRTS, or Gitlinks.",
+  "proposed_remediation_de": "Alle sechs datenführenden Lifecycle-Pfade über Lighttpd-lokale Adapter mit runtime_artifact_path(..., must_exist=True) validieren und das Fixture über read_runtime_artifact_text lesen. Den bestehenden atomaren Output-Pfad erhalten und direkte hostile sowie legitime CLI-Regressionen hinzufügen. Keine Sonar-Policy, Exclusions, NOSONAR, Suppression, Framework, MRTS oder Gitlinks ändern.",
+  "acceptance_criteria": [
+    "Every data-bearing lifecycle input is rejected when it is outside the verified root, a symlink, missing, or non-regular where required.",
+    "The fixture read uses the descriptor-confined no-follow helper.",
+    "The legitimate lifecycle control and 17 host-contract controls pass.",
+    "Exact PR-head SonarQube Cloud analysis must prove the original issue absent, zero New Issues, and zero New-Code duplication before any merge consideration."
+  ],
+  "validation_plan": [
+    "Run the focused event-validation and host-contract suites, Python compilation, and whitespace check on the exact branch head.",
+    "Complete a security-diff review of all changed source-like files and retain its sealed report.",
+    "After creating the draft PR, read the exact GitHub head, required checks, Sonar quality gate, original issue key, and new-code duplication measures."
+  ],
+  "regression_tests": [
+    "connectors/lighttpd/tests/test_patched_event_validation.py",
+    "connectors/lighttpd/tests/test_patched_host_contract.py"
+  ],
+  "legitimate_control_tests": [
+    "test_lifecycle_writer_preserves_aliases_schema_and_candidate_controls",
+    "All 17 patched Lighttpd host-contract tests"
+  ],
+  "dependencies": [
+    "No current dependency within the requested draft-PR scope; resulting-master evidence would be required only after a separately authorized merge."
+  ],
+  "draft_pr": {
+    "number": 201,
+    "url": "https://github.com/Easton97-Jens/ModSecurity-conector/pull/201",
+    "state": "OPEN",
+    "is_draft": true,
+    "base": "master",
+    "head": "agent/lighttpd-sonar-security-20260728",
+    "head_sha": "620ce4b8f731ee2e01fd3b9cf21abc4bc38511e6",
+    "hosted_verification": "verified_exact_head"
+  },
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0001",
+    "FND-SONAR-0016"
+  ],
+  "source_run_ids": [
+    "lighttpd-sonar-security-20260728"
+  ],
+  "residual_risk": "The patch does not prove or claim a remote HTTP exploit. Event JSONL readers still use normal reads after private-root validation; under the documented current-user-owned, non-group/world-writable root this is same-identity defense-in-depth rather than a demonstrated separate-actor vulnerability. Exact Draft-PR hosted evidence is verified; resulting-master evidence is not yet applicable because no merge was requested or performed.",
+  "residual_risk_de": "Der Patch beweist und beansprucht keinen Remote-HTTP-Exploit. Event-JSONL-Leser verwenden nach der Private-Root-Validierung weiterhin normale Reads; unter der dokumentierten current-user-owned, nicht group/world-writable Root ist dies Same-Identity-Defense-in-Depth und keine nachgewiesene Vulnerability für einen separaten Akteur. Exact-Draft-PR-Hosted-Evidence ist verifiziert; Resulting-Master-Evidence ist noch nicht anwendbar, weil kein Merge beantragt oder ausgeführt wurde.",
+  "history": [
+    "2026-07-30T13:52:50Z: Sonar issue and local CLI boundary revalidated; focused patch and regressions completed.",
+    "2026-07-30T14:12:09Z: complete security-diff report sealed with no diff-introduced reportable finding.",
+    "2026-07-30T14:12:09Z: status fixed pending exact draft-PR hosted verification; no merge or master change occurred.",
+    "2026-07-30T14:31:00Z: Draft Parent PR #201 was created against master. Local, remote, and GitHub PR heads all resolve to 620ce4b8f731ee2e01fd3b9cf21abc4bc38511e6; hosted checks and Sonar are pending.",
+    "2026-07-30T14:32:00Z: exact Draft PR #201 hosted verification passed: all executed GitHub checks passed and SonarQube Cloud returned Quality Gate OK, zero open PR issues, zero new violations, and 0.0%/zero new-code duplication. Status promoted to verified; no merge or master change occurred."
+  ],
+  "created_at": "2026-07-30T14:12:09Z",
+  "updated_at": "2026-07-30T14:32:00Z",
+  "final_disposition": "verified_exact_draft_pr_head_no_master_claim"
+}

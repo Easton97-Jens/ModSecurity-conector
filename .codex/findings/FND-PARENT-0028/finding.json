@@ -1,0 +1,120 @@
+{
+  "id": "FND-PARENT-0028",
+  "title": "SHA-pinned Parent scanner actions retain mutable Docker image dependencies",
+  "title_de": "SHA-gepinnte Parent-Scanner-Actions behalten mutable Docker-Image-Abhängigkeiten",
+  "category": "security_hardening",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "medium",
+  "confidence": "confirmed",
+  "status": "triaged",
+  "feasibility_status": "requires_user_decision",
+  "security_assessment": "validated",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "GitHub Actions CI",
+  "profile": "OSV and OpenSSF Scorecard scanner workflows",
+  "affected_files": [
+    ".github/workflows/ci-security-osv.yml",
+    ".github/workflows/ci-security-scorecard.yml",
+    "ci/tooling/security-tools.lock.yml"
+  ],
+  "affected_symbols": [
+    "google/osv-scanner-action/osv-scanner-action",
+    "google/osv-scanner-action/osv-reporter-action",
+    "ossf/scorecard-action",
+    "runs.using: docker",
+    "runs.image"
+  ],
+  "source_commits": [
+    "c8ca0d92b630c18232b881855c4f5d1482568ea6"
+  ],
+  "summary": "The Parent pins the outer OSV and OpenSSF Scorecard Git Action repositories to full commit SHAs, but the action metadata at those exact revisions executes Docker images selected by mutable version tags. The outer Git SHA therefore does not bind the final executable container payload.",
+  "summary_de": "Der Parent pinnt die äußeren OSV- und OpenSSF-Scorecard-Git-Action-Repositories auf vollständige Commit-SHAs, aber die Action-Metadaten an genau diesen Revisionen führen Docker-Images aus, die über mutable Versionstags ausgewählt werden. Die äußere Git-SHA bindet damit nicht den endgültigen ausführbaren Container-Payload.",
+  "observed_behavior": "At Parent origin/master c8ca0d92b630c18232b881855c4f5d1482568ea6, ci-security-osv.yml invokes google/osv-scanner-action/osv-scanner-action and osv-reporter-action at 9a498708959aeaef5ef730655706c5a1df1edbc2. Their action metadata declares runs.using: docker and docker://ghcr.io/google/osv-scanner-action:v2.3.8. ci-security-scorecard.yml invokes ossf/scorecard-action at 4eaacf0543bb3f2c246792bd56e8cdeffafb205a, whose action.yaml declares docker://ghcr.io/ossf/scorecard-action:v2.4.3. The OSV pull-request and Scorecard default-branch jobs grant security-events: write.",
+  "observed_behavior_de": "Auf Parent origin/master c8ca0d92b630c18232b881855c4f5d1482568ea6 ruft ci-security-osv.yml google/osv-scanner-action/osv-scanner-action und osv-reporter-action auf 9a498708959aeaef5ef730655706c5a1df1edbc2 auf. Deren Action-Metadaten deklarieren runs.using: docker und docker://ghcr.io/google/osv-scanner-action:v2.3.8. ci-security-scorecard.yml ruft ossf/scorecard-action auf 4eaacf0543bb3f2c246792bd56e8cdeffafb205a auf, dessen action.yaml docker://ghcr.io/ossf/scorecard-action:v2.4.3 deklariert. Der OSV-Pull-Request- und der Scorecard-Default-Branch-Job vergeben security-events: write.",
+  "expected_behavior": "Every executable scanner payload must be bound to an immutable, independently verifiable artifact identity. A full outer Git Action SHA alone is insufficient when action metadata delegates execution to a mutable container tag; job permissions must remain minimal for the selected reporting mechanism.",
+  "expected_behavior_de": "Jeder ausführbare Scanner-Payload muss an eine unveränderliche, unabhängig verifizierbare Artefaktidentität gebunden sein. Eine vollständige äußere Git-Action-SHA allein ist unzureichend, wenn die Action-Metadaten die Ausführung an einen mutablen Container-Tag delegieren; Job-Berechtigungen müssen für den gewählten Reporting-Mechanismus minimal bleiben.",
+  "impact": "A later tag retargeting, compromised registry publisher, or registry supply-chain incident can change the code executed by these jobs without changing the Parent workflow or its outer action SHA. The affected jobs process repository content and, in the noted contexts, can write security events. This record does not claim that a retagging or compromise occurred.",
+  "impact_de": "Ein späteres Tag-Retargeting, ein kompromittierter Registry-Publisher oder ein Registry-Supply-Chain-Vorfall kann den von diesen Jobs ausgeführten Code ändern, ohne dass sich Parent-Workflow oder äußere Action-SHA ändern. Die betroffenen Jobs verarbeiten Repository-Inhalte und können in den genannten Kontexten Security Events schreiben. Dieser Record behauptet nicht, dass ein Retagging oder eine Kompromittierung erfolgt ist.",
+  "preconditions": [
+    "A Parent OSV or Scorecard workflow runs the named SHA-pinned outer action.",
+    "GitHub Actions resolves the Docker image declared by that action metadata.",
+    "The referenced image tag is retargeted or its publisher/registry trust boundary is compromised after the action Git revision was pinned."
+  ],
+  "reproduction": [
+    "Run `rtk git show origin/master:.github/workflows/ci-security-osv.yml` and `rtk git show origin/master:.github/workflows/ci-security-scorecard.yml` at Parent origin/master.",
+    "Observe the full outer action SHAs and the OSV pull-request or Scorecard default-branch security-events: write permission.",
+    "Retrieve the action metadata at exactly 9a498708959aeaef5ef730655706c5a1df1edbc2 and 4eaacf0543bb3f2c246792bd56e8cdeffafb205a; observe `runs.using: docker` and image values ending in `:v2.3.8` or `:v2.4.3`, not an image digest.",
+    "Compare the outer Git pin with the nested tag resolution boundary: the workflow contains no immutable digest for the executed image."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T110742Z-fnd-parent-0028-mutable-action-images",
+      "artifact_path": ".codex/runs/20260718T110742Z-fnd-parent-0028-mutable-action-images/validation.md",
+      "artifact_type": "parent_ci_supply_chain_validation_receipt",
+      "sha256": "2f1016917d0a0e1dc46bdd8901a4e4f6860d48ba5cdc25d0d0b698c7f16db732",
+      "command": "rtk git rev-parse origin/master; RTK-mediated git show of the Parent OSV, Scorecard, and action lock files; RTK-mediated retrieval of exact upstream action metadata at the pinned commits",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T11:07:42Z",
+      "retention_status": "retained_local_evidence"
+    }
+  ],
+  "root_cause": "The Parent immutable-action policy and lock model record the outer Git repository commit but do not model or verify the Docker image identity declared inside Docker-backed action metadata. Consequently, a Git SHA pin stops at the action repository boundary while the container runtime resolves a mutable tag later.",
+  "root_cause_de": "Das Parent-Modell für immutable Actions und Lock-Dateien erfasst den äußeren Git-Repository-Commit, modelliert oder verifiziert aber nicht die in Docker-basierten Action-Metadaten deklarierte Docker-Image-Identität. Daher endet ein Git-SHA-Pin an der Action-Repository-Grenze, während die Container-Runtime später einen mutablen Tag auflöst.",
+  "proposed_remediation": "Create a separate Parent-owned remediation task. Prefer a checksum-verified standalone OSV Scanner and Scorecard CLI from explicitly locked official release assets, with task-specific no-token local output. If a Docker action remains necessary, record and enforce an immutable image digest together with provenance and renewal validation. Remove security-events: write where local JSON/advisory reporting does not require SARIF upload; preserve only permissions required by the selected behavior.",
+  "proposed_remediation_de": "Eine separate Parent-eigene Remediation-Aufgabe erstellen. Bevorzugt einen checksum-verifizierten eigenständigen OSV-Scanner- und Scorecard-CLI aus explizit gelockten offiziellen Release-Assets verwenden, mit task-spezifischer tokenloser lokaler Ausgabe. Falls eine Docker-Action erforderlich bleibt, einen unveränderlichen Image-Digest samt Provenienz- und Erneuerungsvalidierung erfassen und erzwingen. security-events: write entfernen, wenn lokale JSON-/Advisory-Ausgabe keinen SARIF-Upload benötigt; nur für das gewählte Verhalten erforderliche Berechtigungen beibehalten.",
+  "acceptance_criteria": [
+    "The Parent OSV and Scorecard execution paths no longer resolve a mutable container tag at job runtime.",
+    "Every executed scanner artifact has an exact immutable identity with retained provenance and verification evidence.",
+    "The Parent lock/contract detects a future mutable nested Docker image dependency or documents the verified immutable replacement mechanism.",
+    "Job permissions are limited to the selected reporting path; security-events: write exists only when a verified SARIF-upload path requires it.",
+    "Focused contract tests, actionlint/ShellCheck, Zizmor, scanner control cases, exact-head CI, CodeQL, security checks, Scorecard, SonarQube Cloud, reviews, and review-thread checks pass on the Parent remediation PR."
+  ],
+  "validation_plan": [
+    "Before any Parent source change, revalidate exact Parent master workflow source and the nested action metadata/image identity.",
+    "Add a focused Parent CI-security contract test that fails for a Docker-backed scanner action with a mutable tag and passes for the chosen immutable replacement.",
+    "Run Parent CI-security contract checks, actionlint/ShellCheck, offline Zizmor, Gitleaks/OSV/Scorecard legitimate controls, and documentation/change-record checks.",
+    "For the Parent remediation PR, verify local SHA equals remote SHA equals PR head and then inspect exact-head CI, CodeQL, security checks, Scorecard, SonarQube Cloud, reviews, and unresolved review threads."
+  ],
+  "regression_tests": [
+    "A Parent CI-security contract test rejects mutable nested Docker image tags for OSV and Scorecard execution paths.",
+    "The Parent immutable-action registry/contract test covers the replacement artifact identity.",
+    "A negative fixture proves an outer Git SHA does not falsely satisfy the nested-image invariant."
+  ],
+  "legitimate_control_tests": [
+    "The selected OSV scan still analyzes the intended dependency scope and reports its documented result.",
+    "The selected Scorecard check still produces the documented local or SARIF result under only the permissions it needs.",
+    "A known-safe workflow fixture with immutable scanner artifact identity passes the focused contract."
+  ],
+  "dependencies": [
+    "A separately authorized Parent-owned CI remediation task and delivery lifecycle."
+  ],
+  "blocked_by": [
+    "The active Framework CI-security task expressly excludes Parent product and workflow changes."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0018",
+    "FND-GITHUB-0001"
+  ],
+  "deduplication_note": "Not a duplicate of FND-PARENT-0018: that record concerns outer CodeQL action-version and registry consistency, while this record concerns mutable executable Docker image resolution inside separately SHA-pinned OSV and Scorecard action metadata.",
+  "source_run_ids": [
+    "20260718T110742Z-fnd-parent-0028-mutable-action-images"
+  ],
+  "residual_risk": "The current Parent workflows retain the nested mutable image-tag boundary until a separately authorized Parent remediation is verified. The full outer Git SHAs remain a partial control but do not bind the executed image. No risk has been accepted.",
+  "residual_risk_de": "Die aktuellen Parent-Workflows behalten die verschachtelte mutable Image-Tag-Grenze, bis eine separat autorisierte Parent-Remediation verifiziert ist. Die vollständigen äußeren Git-SHAs bleiben ein partielles Control, binden aber nicht das ausgeführte Image. Es wurde kein Risiko akzeptiert.",
+  "created_at": "2026-07-18T11:07:42Z",
+  "updated_at": "2026-07-18T11:10:26Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-18T11:07:42Z",
+      "event": "validated_nested_mutable_docker_image_dependency",
+      "detail": "Current Parent OSV scanner/reporter and Scorecard workflows were inspected at c8ca0d92b630c18232b881855c4f5d1482568ea6. Exact upstream action metadata at their outer Git SHAs resolves v2.3.8 and v2.4.3 Docker image tags rather than immutable digests. No product, Git, Framework, or MRTS change was made."
+    }
+  ]
+}

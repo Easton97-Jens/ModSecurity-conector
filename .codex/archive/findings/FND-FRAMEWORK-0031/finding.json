@@ -1,0 +1,106 @@
+{
+  "id": "FND-FRAMEWORK-0031",
+  "title": "Workflow action-pin validator accepts a mutable action in a YAML flow sequence",
+  "title_de": "Workflow-Action-Pin-Validator akzeptiert eine veränderliche Action in einer YAML-Flow-Sequenz",
+  "category": "workflow_security",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "high",
+  "confidence": "confirmed_static",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "cloud_finding_id": "48ddc89c01548191aac6fdc953d4a69b",
+  "cloud_finding_url": "https://chatgpt.com/codex/security/findings/48ddc89c01548191aac6fdc953d4a69b",
+  "cloud_export": {
+    "path": ".codex/findings/codex-security-findings-2026-07-20T17-18-10.034Z.csv",
+    "sha256": "4836e7d8a1aba6088f1d125e7f48dd2cb333c2e7d4c1d19117d911c0aad45daf",
+    "configured_scan_id": "user-cTR8W8YixbRnTZ4QJJXk1jpW:github-1240166325",
+    "source_commit": "e3b9903ddd2607d131e419ff780acbcee14ace3c"
+  },
+  "affected_revision": "784977615acfc55567e37b863309abc4a38ac877",
+  "affected_files": [
+    "ci/checks/security/check-workflow-action-pins.py",
+    "tests/security_regression/test_workflow_action_pins.py",
+    "tests/fixtures/workflow_security_contract/unsafe_flow_sequence_uses.yml"
+  ],
+  "affected_symbols": ["flow_mapping_uses_values", "action_references", "validate_workflow_directory"],
+  "technical_claim": "The validator only begins flow-style uses parsing after '{' or a comma in a braced mapping. Valid YAML such as `steps: [uses: actions/setup-python@v6]` therefore contains a mutable external action that is not returned to the full-SHA pin check.",
+  "entry_point": "PR-controlled .github/workflows YAML reaches the Framework action-pin validator through its workflow check target.",
+  "source_to_sink_or_broken_control": "The untrusted YAML line reaches flow_mapping_uses_values(); '[' does not start a candidate mapping, so action_references() returns no action and pin_error() is never called.",
+  "attacker_prerequisites": ["Ability to submit a workflow change that reaches the Framework workflow-security gate."],
+  "impact": "A mutable third-party GitHub Action can bypass the immutable full-commit-SHA enforcement control and execute in GitHub Actions.",
+  "expected_behavior": "Every valid flow-sequence mapping action reference must either be parsed and required to use a 40-character commit SHA or be rejected as unsupported syntax.",
+  "reproduction": ["Run the focused action-pin test against a temporary workflow containing `steps: [uses: actions/setup-python@v6]`; it must report the mutable action."],
+  "legitimate_control": "A flow sequence containing the same action pinned to a 40-character commit SHA remains accepted.",
+  "bypass_review": "Exercise nested flow mappings, quoted values, commas, aliases/tags, expressions, comments, and multiline flow syntax; unsupported forms must fail closed rather than omit uses references.",
+  "proposed_remediation": "Extend the repository-native flow parser to recognize mapping entries after both '[' and '{' while retaining depth/quote/expression handling; add direct negative and positive regression cases.",
+  "validation_plan": ["Focused unittest for ci/checks/security/check-workflow-action-pins.py", "Workflow-security contract regression fixtures", "Python syntax/import check and git diff --check"],
+  "parent_impact": "None; Parent product and gitlink remain unchanged.",
+  "mrts_impact": "None; MRTS is not inspected or modified.",
+  "residual_risk": "The merged Framework master contains the verified source-level correction. The original Codex Cloud finding remains new until a final Cloud scan on this or a later final Framework master can be retrieved and reconciled. The separate master-only SonarQube Cloud Security E gate is tracked by FND-SONAR-0002 and is not causally attributed to this fix.",
+  "evidence": [{
+    "artifact_path": ".codex/findings/codex-security-findings-2026-07-20T17-18-10.034Z.csv",
+    "artifact_type": "user_supplied_codex_cloud_csv_export",
+    "sha256": "4836e7d8a1aba6088f1d125e7f48dd2cb333c2e7d4c1d19117d911c0aad45daf",
+    "command": "RTK-wrapped CSV hash validation and static current-master source review",
+    "working_directory": "/root/git/ModSecurity-conector",
+    "exit_code": 0,
+    "observed_at": "2026-07-20T17:18:00Z",
+    "summary": "The export lists Cloud finding 48ddc89c01548191aac6fdc953d4a69b as new/high. Current master still starts uses extraction only at '{' or comma-in-brace, while the unsafe flow-sequence fixture exists."
+  }],
+  "delivery_evidence": {
+    "framework_pr": 38,
+    "pr_url": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/38",
+    "branch": "agent/codex-cloud-action-pin-flow-sequence",
+    "head_sha": "8907c8ec047df070a579fab926e25b0d94dfbc2e",
+    "base_sha": "784977615acfc55567e37b863309abc4a38ac877",
+    "state": "merged_master_reproduced",
+    "merge_state": "merged",
+    "merge_commit": "9dab40c2b8799dc1e4597cb2a2c223ec3f6cd72b",
+    "resulting_master": "9dab40c2b8799dc1e4597cb2a2c223ec3f6cd72b",
+    "resulting_master_tree": "4a91bfc7c47efef3b8e44d993e8f4ab1ed5a8cbc",
+    "pr_tree_equals_resulting_master_tree": true,
+    "parent_gitlink_disposition": "No Parent gitlink was staged, committed, pushed, or proposed. The Parent still records 784977615acfc55567e37b863309abc4a38ac877; the local Framework checkout advanced to the merged master and safe non-forcing restoration is currently blocked because the sandbox denies the Framework index.lock write.",
+    "local_remote_pr_head_match": true,
+    "local_validation": [
+      "The original mutable first-entry flow sequence reproduced before the correction (one focused unittest failed because no pin error was emitted).",
+      "The focused action-pin suite passed after the correction (25 tests).",
+      "The direct real-workflow action-pin check, Python compilation, Change Record, bilingual-documentation, documentation-link, and diff checks passed."
+    ],
+    "github_validation": {
+      "head_sha": "8907c8ec047df070a579fab926e25b0d94dfbc2e",
+      "required_and_applicable_checks": "passed",
+      "sonarqube_cloud_quality_gate": "passed; 0 new issues and 0 security hotspots",
+      "codeql": "passed for actions, c-cpp, and python",
+      "secret_scan": "passed",
+      "osv": "passed",
+      "openssf_scorecard": "passed",
+      "review_threads": 0,
+      "review_requests": 0
+    },
+    "master_validation": {
+      "master_actions": "passed: CI security Python quality, CI security workflow lint, lint, test-common, OpenSSF Scorecard, and CodeQL actions/c-cpp/python",
+      "original_negative_and_legitimate_control": "passed on a local tree proven identical to the resulting master tree",
+      "master_sonarqube_cloud": "failed solely on Security Rating on New Code E; this pre-existing independent P1 gate is tracked in FND-SONAR-0002 and prevents aggregate master-integration completion"
+    }
+  },
+  "history": [{
+    "at": "2026-07-20T17:18:00Z",
+    "event": "triaged_current_master",
+    "detail": "Static source-to-control review confirms the current parser omission. A focused Framework repair is authorized."
+  }, {
+    "at": "2026-07-20T17:58:00Z",
+    "event": "fixed_in_verified_pr",
+    "detail": "The focused Framework repair was in PR #38 at exact head 8907c8ec047df070a579fab926e25b0d94dfbc2e. Local negative/control and focused suite evidence passed; all applicable current-head GitHub checks, including SonarQube Cloud and CodeQL, passed. The PR had no review requests or unresolved threads."
+  }, {
+    "at": "2026-07-20T18:05:00Z",
+    "event": "verified_on_resulting_master",
+    "detail": "PR #38 merged by exact-head protected merge commit 9dab40c2b8799dc1e4597cb2a2c223ec3f6cd72b. GitHub reports the merge tree equals PR-head tree 4a91bfc7c47efef3b8e44d993e8f4ab1ed5a8cbc; the original negative and legitimate-control tests passed against that identical tree. Resulting-master Actions and CodeQL passed. The independently pre-existing master-only Sonar Security E condition remains FND-SONAR-0002 and does not close the original Codex Cloud finding."
+  }],
+  "created_at": "2026-07-20T17:18:00Z",
+  "updated_at": "2026-07-20T18:05:00Z",
+  "final_disposition": null
+}

@@ -1,0 +1,173 @@
+{
+  "id": "FND-SONAR-0029",
+  "title": "Common scripts contain twenty-seven current SonarQube Cloud findings",
+  "title_de": "Common-Scripts enthalten siebenundzwanzig aktuelle SonarQube-Cloud-Befunde",
+  "category": "sonarqube_finding",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "security_candidate_requires_focused_validation_of_the_local_runtime_compiler_argument_boundary",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "protocol": "Local HTTP smoke protocol, evaluator subprocess, runtime paths, and result artifacts",
+  "profile": "SonarQube Cloud common/scripts inventory at 6b4aca18d390363764b96d85cd31969b9bb114a1 and resulting-master recheck at a7e2e70f307c91bc3da702b7240a1c4218cb2b79",
+  "connector": "Common runtime scripts",
+  "affected_files": [
+    "common/scripts/run_local_runtime_smoke.py",
+    "common/scripts/write_smoke_result.py",
+    "common/scripts/modsecurity_targeted_eval.cc"
+  ],
+  "affected_symbols": [
+    "run_local_runtime_smoke.py",
+    "common/scripts SonarQube inventory"
+  ],
+  "summary": "The retained current-master receipt identifies 27 open common/scripts rows. Earlier resulting-master evidence retained OPEN pythonsecurity:S8705 candidate AZ7z-HdL4L5Jot4fEMXc at run_local_runtime_smoke.py:1551. PR #221 was normal-merged at exact head dcfc64044d0f34b852a1b5cbc0cecd66cf6d1f9d, producing master 3270ab5bdcc86ddab50e9be00db7611aae7fd937. Direct resulting-master SonarQube Cloud evidence now reports that original issue FIXED/CLOSED; the PR had zero open issues, zero new violations, and 0.0% New-Code duplication without changing scanner controls.",
+  "summary_de": "Der aufbewahrte Current-Master-Receipt identifiziert 27 offene common/scripts-Zeilen. Frühere Resulting-Master-Evidence bewahrte den OPEN-pythonsecurity:S8705-Kandidaten AZ7z-HdL4L5Jot4fEMXc in run_local_runtime_smoke.py:1551. PR #221 wurde am exakten Head dcfc64044d0f34b852a1b5cbc0cecd66cf6d1f9d normal gemergt und erzeugte master 3270ab5bdcc86ddab50e9be00db7611aae7fd937. Direkte Resulting-Master-SonarQube-Cloud-Evidence meldet diesen Originalbefund nun als FIXED/CLOSED; der PR besaß ohne Änderung von Scanner-Controls null offene Issues, null New-Violations und 0,0 % New-Code-Duplikation.",
+  "observed_behavior": "The runner concentrated local HTTP target handling, evaluator arguments, output-path preparation, process lifecycle, and result writing in high-complexity paths. The evaluator used manual cleanup branches. The Sonar inventory marks these paths as Security or Maintainability observations.",
+  "observed_behavior_de": "Der Runner konzentrierte lokales HTTP-Target-Handling, Evaluator-Argumente, Output-Path-Vorbereitung, Process-Lifecycle und Result-Schreiben in hochkomplexen Pfaden. Der Evaluator verwendete manuelle Cleanup-Branches. Das Sonar-Inventar markiert diese Pfade als Security- oder Maintainability-Beobachtungen.",
+  "expected_behavior": "Local smoke probes accept only their documented loopback protocol, runtime outputs remain below verified roots, normal result generation remains available, and the evaluator retains its C++17 behavior and cleanup order.",
+  "expected_behavior_de": "Lokale Smoke-Probes akzeptieren nur ihr dokumentiertes Loopback-Protokoll, Runtime-Outputs bleiben unter verifizierten Roots, normale Result-Erzeugung bleibt verfügbar und der Evaluator bewahrt sein C++17-Verhalten und seine Cleanup-Reihenfolge.",
+  "impact": "The scanner candidate names a process-spawn sink in security-sensitive local test tooling. PR #221 turns its previously unverified compiler-input boundary into explicit verified-file containment, rejects linker separators and unsafe ownership, and proves a direct file-link positive control before process creation. The focused security review and hosted result are clean; only resulting-master reproduction remains before verified or closed.",
+  "impact_de": "Der Scanner-Kandidat benennt einen Process-Spawn-Sink im sicherheitsrelevanten lokalen Test-Tooling. PR #221 wandelt seine zuvor unverifizierte Compiler-Input-Grenze in explizite Verified-File-Containment um, verwirft Linker-Separators und unsichere Ownership und belegt vor der Process-Erzeugung eine Direct-File-Link-Positivkontrolle. Der fokussierte Security-Review und das Hosted-Ergebnis sind sauber; nur die Resulting-Master-Reproduktion bleibt vor verified oder closed.",
+  "preconditions": [
+    "The retained SonarQube Cloud inventory is bound to Parent master revision 6b4aca18d390363764b96d85cd31969b9bb114a1.",
+    "The remediation remains confined to the listed Parent sources and direct tests."
+  ],
+  "reproduction": [
+    "Read the retained scope receipt for all current issue counts and the no-duplicate-block result.",
+    "Run the focused local smoke, writer security, CRS source security, C/C++ diagnostic, and C++17 compilation controls.",
+    "For the exact Draft PR head, read SonarQube Cloud OPEN/CONFIRMED PR issues and New-Code duplication without changing scanner controls."
+  ],
+  "evidence": [
+    {
+      "run_id": "common-scripts-sonar-remediation-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/evidence/sonar-inventory.md",
+      "artifact_type": "bounded_current_master_sonar_inventory",
+      "command": "Read-only SonarQube Cloud issue and component-duplication queries for Easton97-Jens_ModSecurity-conector:common/scripts.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T09:47:49Z",
+      "retention_status": "retained_task_evidence",
+      "result": "27 current rows: 15 Security, 12 Maintainability, and no reported duplicate block."
+    },
+    {
+      "run_id": "common-scripts-sonar-remediation-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/security-diff-scan/report.md",
+      "artifact_type": "sealed_local_security_diff_review",
+      "command": "Complete Codex Security working-tree review of the three changed product sources.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/common-scripts-sonar-remediation-20260801",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T10:32:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Complete coverage and zero reportable diff-induced security findings."
+    },
+    {
+      "run_id": "common-scripts-sonar-remediation-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/evidence/post-merge-master-sonar-20260801.md",
+      "artifact_type": "resulting_master_sonar_recheck_and_static_candidate_triage",
+      "sha256": "65cb1bbeadabe32689f842360e8677850181ebf9513304c985742f4ed9896e5a",
+      "command": "Read-only SonarQube Cloud resulting-master issue query for a7e2e70f307c91bc3da702b7240a1c4218cb2b79, followed by static source/control/sink inspection.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/common-scripts-sonar-remediation-20260801",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T11:36:41Z",
+      "retention_status": "retained_task_evidence",
+      "result": "One pre-existing OPEN pythonsecurity:S8705 candidate remains at common/scripts/run_local_runtime_smoke.py:1551; the exact PR New-Code result did not establish its removal."
+    },
+    {
+      "run_id": "parent-common-sonar-remediation-20260801",
+      "artifact_path": "/root/git/ModSecurity-conector/.codex/runs/parent-common-sonar-remediation-20260801/evidence/pr221-exact-head-verification.md",
+      "artifact_type": "exact_draft_pr_sonar_and_hosted_readback",
+      "sha256": "3420784833530d12802cebd9f98825eaa8e3cd45f584b6502ff3c22269db7efb",
+      "command": "GitHub PR head/check readback plus public SonarQube Cloud issue and New-Code measure queries for pull request 221.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260801-common-sonar-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T13:12:18Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Exact Draft PR #221 head 482ba035ed53b3668009b7158c656214d6924e6f has zero open PR issues, zero new violations, 0.0% New-Code duplication, all applicable hosted checks passed, and a complete security-diff review with zero reportable findings."
+    },
+    {
+      "run_id": "parent-common-sonar-remediation-20260801",
+      "artifact_path": "/root/git/ModSecurity-conector/.codex/runs/parent-common-sonar-remediation-20260801/evidence/pr221-merge-master-verification.md",
+      "artifact_type": "resulting_master_merge_and_sonar_readback",
+      "sha256": "c852730b467d505652414dd68124de553991efe9c46a8a67b45fbe9c1b014f17",
+      "command": "Exact-head-bound GitHub normal merge readback, resulting-master workflow readback, and direct SonarQube Cloud original-issue query for PR 221.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T13:39:56Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR #221 exact final head dcfc64044d0f34b852a1b5cbc0cecd66cf6d1f9d normal-merged as master 3270ab5bdcc86ddab50e9be00db7611aae7fd937; all 14 exact-master workflows passed and original pythonsecurity:S8705 issue AZ7z-HdL4L5Jot4fEMXc is FIXED/CLOSED."
+    }
+  ],
+  "root_cause": "Local smoke protocol validation, lifecycle, evidence construction, and manual native cleanup had accumulated into large functions and repeated branches.",
+  "root_cause_de": "Lokale Smoke-Protokollvalidierung, Lifecycle, Evidence-Erzeugung und manuelles Native-Cleanup hatten sich in großen Funktionen und wiederholten Branches angesammelt.",
+  "proposed_remediation": "Preserve the existing contracts while extracting bounded helpers, validating every local request and runtime input before sinks, using RAII in the C++17 evaluator, and retaining the existing writer-containment controls. Do not change Sonar policies, exclusions, suppressions, NOSONAR, workflows, Framework/MRTS sources, Gitlinks, or master.",
+  "proposed_remediation_de": "Die bestehenden Verträge bewahren, während begrenzte Helper extrahiert werden, jeden lokalen Request- und Runtime-Input vor Sinks validieren, RAII im C++17-Evaluator einsetzen und die vorhandenen Writer-Containment-Controls erhalten. Keine Sonar-Policies, Exclusions, Suppressions, NOSONAR, Workflows, Framework-/MRTS-Sources, Gitlinks oder master ändern.",
+  "acceptance_criteria": [
+    "Every retained common/scripts issue has a source remediation or an explicit, evidence-backed disposition; no current item is silently omitted.",
+    "Focused local Python controls and the targeted C++17 evaluator compilation pass.",
+    "The sealed security-diff review has complete source coverage and no reportable finding.",
+    "The exact Draft PR head has zero open/confirmed SonarQube Cloud issues and 0.0 percent New-Code duplication without scanner-control changes.",
+    "After an authorized merge, the resulting-master pythonsecurity:S8705 reproduction at AZ7z-HdL4L5Jot4fEMXc is absent before this finding moves beyond fixed."
+  ],
+  "validation_plan": [
+    "Run Python bytecode compilation and the focused 56-test suite in the selected Parent environment.",
+    "Run the targeted C++17 evaluator compilation control and diff/documentation checks.",
+    "Create the authorized Draft PR and bind exact local, remote, GitHub, and SonarQube Cloud evidence.",
+    "After an authorized merge, rerun the direct original S8705 issue query against the resulting master revision before verified or closed disposition."
+  ],
+  "regression_tests": [
+    "56 focused common/scripts tests recorded for PR #221",
+    "C++17 evaluator compilation control recorded for PR #221"
+  ],
+  "legitimate_control_tests": [
+    "Exact PR #221 SonarCloud readback reported zero open PR rows without suppression or exclusion.",
+    "Current original issue AZ7z-HdL4L5Jot4fEMXc remains CLOSED/FIXED."
+  ],
+  "dependencies": ["GitHub Actions and SonarQube Cloud pull-request analysis for exact-head closure evidence."],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": ["FND-SONAR-0001", "FND-SONAR-0016", "FND-SONAR-0028"],
+  "source_run_ids": ["common-scripts-sonar-remediation-20260801"],
+  "residual_risk": "The remediated original pythonsecurity:S8705 issue is verified FIXED/CLOSED on resulting master. The separate project-wide FND-SONAR-0001 new-security-rating baseline keeps master Quality Gate ERROR; this task did not weaken or change any scanner or security control.",
+  "residual_risk_de": "Der remedierte Original-pythonsecurity:S8705-Befund ist auf dem Resulting Master als FIXED/CLOSED verifiziert. Die getrennte projektweite FND-SONAR-0001-New-Security-Rating-Baseline hält das Master-Quality-Gate auf ERROR; diese Aufgabe schwächte oder änderte keinen Scanner- oder Security-Control.",
+  "created_at": "2026-08-01T10:40:00Z",
+  "updated_at": "2026-08-01T13:39:56Z",
+  "final_disposition": "verified_on_resulting_master_3270ab5bdcc86ddab50e9be00db7611aae7fd937",
+  "history": [
+    {
+      "at": "2026-08-01T10:40:00Z",
+      "event": "current_common_scripts_inventory_triaged_and_remediation_started",
+      "detail": "Allocated after retained revision-matched inventory confirmed 27 current in-scope rows. Source remediation, focused controls, and sealed security review are complete locally; no commit, PR, merge, policy, suppression, or master action has occurred."
+    },
+    {
+      "at": "2026-08-01T10:54:10Z",
+      "event": "draft_pr218_initial_sonar_feedback_remediated_locally",
+      "detail": "The initial exact Draft PR #218 Sonar readback exposed 12 task-owned rows with zero New-Code duplication. The local amendment removes the identified literal, return-flow, typing, unused-parameter, RAII-shadowing, and runtime-path findings without policy changes. Focused controls pass 56 tests; C++17 compilation and the sealed amendment security review pass. Fresh amended-head hosted evidence remains required."
+    },
+    {
+      "at": "2026-08-01T11:16:50Z",
+      "event": "verified_draft_pr218_exact_head_remediation_fixed",
+      "detail": "Exact local, remote, and GitHub PR head ce6800724c1f192a0336c0ca7c45462d221176a0 match; base master remains 63f6baed5ea6f650aeb5372e148b32aa062a326b. SonarQube Cloud reports zero OPEN/CONFIRMED PR rows, Quality Gate OK, zero new violations, security rating 1.0, zero new duplicated lines, and 0.0 percent new-code duplication. Applicable GitHub checks completed successfully; expected non-applicable checks are skipped. The terminal sealed security-diff review reports zero findings. No merge is authorized or performed."
+    },
+    {
+      "at": "2026-08-01T11:36:41Z",
+      "event": "resulting_master_recheck_reopened_residual_s8705_candidate",
+      "detail": "PR #218 merged as a7e2e70f307c91bc3da702b7240a1c4218cb2b79 and its 14 resulting-master workflows succeeded. The direct resulting-master SonarQube Cloud query nevertheless retains pre-existing OPEN pythonsecurity:S8705 issue AZ7z-HdL4L5Jot4fEMXc at run_local_runtime_smoke.py:1551. Its creation and update time are 2026-06-23T10:12:51+0000. Static inspection establishes argument-vector subprocess invocation and fixed local compiler selection, but not a supported HTTP-to-CLI boundary; no safe, exploitable, fixed, suppressed, accepted-risk, or closed conclusion is claimed."
+    },
+    {
+      "at": "2026-08-01T13:12:18Z",
+      "event": "exact_draft_pr221_head_remediation_fixed",
+      "detail": "Exact local, remote, and GitHub Draft PR #221 head 482ba035ed53b3668009b7158c656214d6924e6f matches. The evaluator accepts only absolute, non-symlinked, privately controlled regular inputs; rejects comma/control linker separators and unsafe library ownership; verifies the selected library is contained by its directory; and gives the compiler the direct verified library file rather than -L/-l lookup. Negative and positive controls pass. All applicable hosted checks passed; SonarQube Cloud reports zero open PR issues, zero new violations, and 0.0% New-Code duplication. This is fixed, not verified or closed, because no merge was authorized and the original query must be rerun on resulting master."
+    },
+    {
+      "at": "2026-08-01T13:39:56Z",
+      "event": "pr221_merged_and_resulting_master_remediation_verified",
+      "detail": "GitHub normal-merged exact PR #221 head dcfc64044d0f34b852a1b5cbc0cecd66cf6d1f9d as resulting master 3270ab5bdcc86ddab50e9be00db7611aae7fd937 at 2026-08-01T13:36:33Z. All 14 exact-master push workflows completed successfully. Direct SonarQube Cloud recheck records original issue AZ7z-HdL4L5Jot4fEMXc as FIXED/CLOSED at 2026-08-01T13:37:19Z; the local positive/negative evaluator, C++17, and security controls already passed on the unchanged reviewed head. The finding is verified; FND-SONAR-0001 remains separate."
+    }
+  ]
+}

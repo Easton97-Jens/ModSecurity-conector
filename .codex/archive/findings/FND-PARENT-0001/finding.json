@@ -1,0 +1,411 @@
+{
+  "id": "FND-PARENT-0001",
+  "title": "Go advisory results require a supported patched Go line decision",
+  "title_de": "Go-Advisory-Ergebnisse erfordern eine Entscheidung für eine unterstützte gepatchte Go-Linie",
+  "category": "dependency_risk",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "validated",
+  "status": "closed",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "current_reconciliation_20260723": {
+    "master_sha": "a308d7b414f0859490fe7253e0683a4bde80b563",
+    "module": "connectors/envoy/ext_proc",
+    "module_go_directive": "1.26.5",
+    "dependabot_alerts": [
+      {
+        "number": 1,
+        "package": "golang.org/x/net",
+        "selected_version": "0.48.0",
+        "dependabot_first_patched_version": "0.55.0",
+        "osv_smallest_complete_module_version": "0.56.0",
+        "disposition": "confirmed_open"
+      },
+      {
+        "number": 2,
+        "package": "google.golang.org/grpc",
+        "selected_version": "1.79.3",
+        "first_patched_version": "1.82.1",
+        "disposition": "confirmed_open"
+      }
+    ],
+    "environment_blocker": "Resolved for this task by the user-authorized, task-local official Go 1.26.5 toolchain; host/system Go and global configuration remain unchanged.",
+    "status": "validated_draft_pr_remediation_pending_master_refresh",
+    "draft_pr": {
+      "number": 99,
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/pull/99",
+      "head_sha": "2f0d8a234f984b731229aca01d43caf2749a7d61",
+      "state": "open_draft",
+      "selected_versions": {
+        "google.golang.org/grpc": "1.82.1",
+        "golang.org/x/net": "0.56.0",
+        "golang.org/x/sys": "0.46.0",
+        "golang.org/x/text": "0.39.0"
+      },
+      "exact_head_checks": "passed",
+      "govulncheck": "no vulnerabilities found"
+    },
+    "retained_delivery_evidence": {
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T165434Z-github-alert-remediation-go1265-4fc93743/evidence/delivery/20260723-draft-pr-delivery-alert-state.md",
+      "sha256": "7508110eef978259f0b9757df675844535b44bd5e6a4dc30c92d265da05110de"
+    }
+  },
+  "current_master_verification_20260724": {
+    "master_sha": "8e36b86ac17bce06003b0505fe26f6bb60c3cec7",
+    "merged_prs": [
+      {
+        "number": 99,
+        "head_sha": "2f0d8a234f984b731229aca01d43caf2749a7d61",
+        "merge_commit": "5b8db00d44ab24f3a9f4216a00f7edee977b6898",
+        "merged_at": "2026-07-23T20:13:26Z",
+        "exact_head_checks": {
+          "success": 33,
+          "skipped": 6
+        }
+      },
+      {
+        "number": 100,
+        "head_sha": "dace5ca118a89a91c33fde952a6282f9c391ee10",
+        "merge_commit": "6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d",
+        "merged_at": "2026-07-24T08:50:27Z",
+        "exact_head_checks": {
+          "success": 33,
+          "skipped": 6
+        }
+      }
+    ],
+    "dependabot": {
+      "open_alert_numbers": [],
+      "fixed_alerts": [
+        {
+          "number": 1,
+          "package": "golang.org/x/net",
+          "selected_version": "0.56.0",
+          "fixed_at": "2026-07-23T20:14:31Z",
+          "dismissed_at": null
+        },
+        {
+          "number": 2,
+          "package": "google.golang.org/grpc",
+          "selected_version": "1.82.1",
+          "fixed_at": "2026-07-23T20:14:31Z",
+          "dismissed_at": null
+        }
+      ]
+    },
+    "toolchain": "go1.26.5 linux/amd64",
+    "validation": {
+      "envoy_go_test": "passed",
+      "envoy_go_vet": "passed",
+      "envoy_govulncheck": "no vulnerabilities found",
+      "traefik_go_test": "passed",
+      "traefik_go_vet": "passed",
+      "traefik_govulncheck": "no vulnerabilities found",
+      "traefik_fuzz_15_seconds": "passed (99749 executions, one worker)"
+    },
+    "retained_evidence": {
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/github-alert-closure-verification.md",
+      "sha256": "20ea82fbd04cc7ea672a644c4c5c5621b38b6fc29ce76ed9c54f028ca458afdf"
+    },
+    "disposition": "closed_after_current_master_verification"
+  },
+  "post_closure_master_recheck_20260724": {
+    "master_sha": "a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0",
+    "previous_verified_master_sha": "8e36b86ac17bce06003b0505fe26f6bb60c3cec7",
+    "ahead_by": 1,
+    "changed_files": [
+      "reports/audits/change-records/CR-20260724-sonar-tests-full-lifecycle-evidence-assertions.de.md",
+      "reports/audits/change-records/CR-20260724-sonar-tests-full-lifecycle-evidence-assertions.md",
+      "reports/audits/change-records/README.de.md",
+      "reports/audits/change-records/README.md",
+      "tests/test_full_lifecycle_evidence.py"
+    ],
+    "affected_go_modules_changed": false,
+    "traefik_fuzz_target_changed": false,
+    "current_selected_versions": {
+      "google.golang.org/grpc": "1.82.1",
+      "golang.org/x/net": "0.56.0"
+    },
+    "dependabot_open_alert_numbers": [],
+    "dependabot_fixed_without_dismissal": [1, 2],
+    "current_master_workflows": "14 observed push workflows, all success",
+    "retained_evidence": {
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/post-master-advance-recheck.md",
+      "sha256": "c099c32564c1a78e60f98a61ba350904669d9c7231459c4109587088e31f915f"
+    },
+    "disposition": "closed_finding_remains_current"
+  },
+  "post_closure_second_master_recheck_20260724": {
+    "master_sha": "185fd358bcfabe63464ab0e135eecedf24c9a699",
+    "previous_verified_master_sha": "a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0",
+    "ahead_by": 1,
+    "changed_files": [
+      "reports/audits/change-records/CR-20260724-sonar-tests-full-lifecycle-profiles-assertions.de.md",
+      "reports/audits/change-records/CR-20260724-sonar-tests-full-lifecycle-profiles-assertions.md",
+      "reports/audits/change-records/README.de.md",
+      "reports/audits/change-records/README.md",
+      "tests/test_full_lifecycle_profiles.py"
+    ],
+    "affected_go_modules_changed": false,
+    "traefik_fuzz_target_changed": false,
+    "dependabot_open_alert_numbers": [],
+    "dependabot_fixed_without_dismissal": [1, 2],
+    "current_master_workflows": {
+      "observed_push_workflow_count": 14,
+      "successful_count": 13,
+      "failed_count": 1,
+      "failed_workflow": "OpenSSF Scorecard run 30107490735, default-branch check",
+      "additional_failed_check": "SonarCloud Code Analysis"
+    },
+    "latest_scorecard_alert_instances": {
+      "commit_sha": "a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0",
+      "open_alert_numbers": [1, 7, 8, 10, 11, 12],
+      "note": "No newer Scorecard alert instance is published for the current master at this recheck."
+    },
+    "retained_evidence": {
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/post-master-second-advance-recheck.md",
+      "sha256": "17f4abdf4be2939aca498746e9e345d0e33566580adbee0b6e92427bf73b1c8b"
+    },
+    "disposition": "closed_finding_remains_current; current external Scorecard and Sonar workflow failures remain outside this Go finding and are retained under their existing follow-up records"
+  },
+  "post_closure_final_current_master_recheck_20260724": {
+    "master_sha": "185fd358bcfabe63464ab0e135eecedf24c9a699",
+    "revision_unchanged_since_second_recheck": true,
+    "affected_go_modules_changed": false,
+    "traefik_fuzz_target_changed": false,
+    "dependabot_open_alert_numbers": [],
+    "dependabot_fixed_without_dismissal": [1, 2],
+    "current_master_actions_workflows": {
+      "observed_push_workflow_count": 14,
+      "successful_count": 14,
+      "openssf_scorecard_retry": "run 30107490735 attempt 3 completed successfully at 2026-07-24T16:14:21Z"
+    },
+    "current_scorecard_alert_instances": {
+      "commit_sha": "185fd358bcfabe63464ab0e135eecedf24c9a699",
+      "open_alert_numbers": [1, 7, 8, 10, 11, 12]
+    },
+    "remaining_failed_check": "SonarCloud Code Analysis",
+    "retained_evidence": {
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/post-master-scorecard-retry-final-recheck.md",
+      "sha256": "2a788454ba88bcd90add62b5eae3545d83a53180f7aefe8c72ffc864a2959746"
+    },
+    "disposition": "closed_finding_remains_current; current Scorecard alerts and failed SonarCloud check remain separate active follow-up conditions"
+  },
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md",
+    "connectors/envoy/ext_proc/go.mod",
+    "connectors/traefik/native_middleware/go.mod"
+  ],
+  "affected_symbols": [
+    "Envoy Go module",
+    "Traefik Go module",
+    "OSV workflow run 29783388062"
+  ],
+  "summary": "Resulting-master OSV workflow run 29783388062 reports 15 unknown vulnerabilities across the Envoy and Traefik Go modules; the 18 Go 1.24.13-compatible occurrences are absent from this result, while every remaining occurrence requires Go 1.25.8 or later and remains decision-gated.",
+  "summary_de": "Der OSV-Workflow-Lauf 29783388062 auf dem resultierenden Master meldet 15 unknown vulnerabilities in den Go-Modulen von Envoy und Traefik; die 18 mit Go 1.24.13 kompatiblen Vorkommen fehlen in diesem Ergebnis, während jedes verbleibende Vorkommen Go 1.25.8 oder neuer erfordert und entscheidungsabhängig bleibt.",
+  "observed_behavior": "PR #71 head b1eef0a087432aa9bf9bc1243a34b0b0d8f6080e was squash-merged at 2026-07-20T22:16:36Z as master 929fe60dfca30787947027e5bd49003581a5b080, whose tree fae388da52f5d660c8e18f06b058ec67b38adfd7 equals the reviewed head tree. OSV workflow run 29783388062 completed its wrapper successfully but the scanner exited 1 and reports 15 unknown vulnerabilities; the 18 Go 1.24.13-compatible occurrences are absent and all remaining occurrences require Go 1.25.8 or later.",
+  "observed_behavior_de": "PR #71 mit Head b1eef0a087432aa9bf9bc1243a34b0b0d8f6080e wurde am 2026-07-20T22:16:36Z per Squash als Master 929fe60dfca30787947027e5bd49003581a5b080 gemergt; dessen Tree fae388da52f5d660c8e18f06b058ec67b38adfd7 entspricht dem geprüften Head-Tree. Der OSV-Workflow-Lauf 29783388062 schloss seinen Wrapper erfolgreich ab, aber der Scanner endete mit 1 und meldet 15 unknown vulnerabilities; die 18 mit Go 1.24.13 kompatiblen Vorkommen fehlen und alle verbleibenden Vorkommen erfordern Go 1.25.8 oder neuer.",
+  "expected_behavior": "A supported Go 1.25.8-or-later compatibility and dependency decision must be made and validated before this validated P1 release blocker can advance.",
+  "expected_behavior_de": "Eine unterstützte Kompatibilitäts- und Dependency-Entscheidung für Go 1.25.8 oder neuer muss getroffen und validiert werden, bevor dieser validierte P1-Release-Blocker fortschreiten kann.",
+  "impact": "The validated P1 release blocker remains: 15 scanner-reported unknown vulnerabilities cannot be given a supported disposition without the Go 1.25.8-or-later decision.",
+  "impact_de": "Der validierte P1-Release-Blocker bleibt bestehen: 15 vom Scanner gemeldete unknown vulnerabilities können ohne die Entscheidung für Go 1.25.8 oder neuer keine unterstützte Disposition erhalten.",
+  "preconditions": [
+    "The retained resulting-master reconciliation evidence remains available.",
+    "A supported Go 1.25.8-or-later compatibility decision is available before dependency remediation."
+  ],
+  "reproduction": [
+    "jq '.resulting_master_controls.osv' /var/tmp/codex/ModSecurity-conector/runs/20260720T164715Z-parent-security-reconciliation-5a22cbf5/evidence/resulting-master-go12413-delivery-and-scan-reconciliation-20260720T221900Z.json"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:83-86,216-216",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '83,86p;216p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164715Z-parent-security-reconciliation-5a22cbf5/evidence/resulting-master-go12413-delivery-and-scan-reconciliation-20260720T221900Z.json",
+      "artifact_type": "resulting_master_go12413_delivery_and_scan_reconciliation",
+      "sha256": "f8e8fa49a9aa8639b61946b49fca49bc0fc06623a80554f4145f78ade6ad71b2",
+      "command": "RTK-proxied exact resulting-master PR #71 delivery, OSV, secret-wrapper, GitHub security, and SonarQube Cloud reconciliation after squash merge",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T22:19:00Z",
+      "retention_status": "task_owned_external_evidence"
+    },
+    {
+      "run_id": "20260723T161931Z-github-alert-reconciliation-20260723-65ec68cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T161931Z-github-alert-reconciliation-20260723-65ec68cf/evidence/go/05-osv-grpc-v1.79.3.json",
+      "artifact_type": "official_osv_package_version_query",
+      "sha256": "801a60594f60869ee48033d8bf7d9ad1248c3964752d10b19b143f0e158a4d61",
+      "command": "rtk proxy curl --fail --silent --show-error --request POST --header 'Content-Type: application/json' --data '{\"package\":{\"ecosystem\":\"Go\",\"name\":\"google.golang.org/grpc\"},\"version\":\"1.79.3\"}' https://api.osv.dev/v1/query",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T16:37:03Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260723T161931Z-github-alert-reconciliation-20260723-65ec68cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T161931Z-github-alert-reconciliation-20260723-65ec68cf/evidence/go/06-osv-x-net-v0.48.0.json",
+      "artifact_type": "official_osv_package_version_query",
+      "sha256": "b8f11f2a4b68c905d803f0d23e32666866935fe5a09a905518ed425841ec0a18",
+      "command": "rtk proxy curl --fail --silent --show-error --request POST --header 'Content-Type: application/json' --data '{\"package\":{\"ecosystem\":\"Go\",\"name\":\"golang.org/x/net\"},\"version\":\"0.48.0\"}' https://api.osv.dev/v1/query",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T16:37:03Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260723T165434Z-github-alert-remediation-go1265-4fc93743",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T165434Z-github-alert-remediation-go1265-4fc93743/evidence/delivery/20260723-draft-pr-delivery-alert-state.md",
+      "artifact_type": "draft_pr_99_dependency_remediation_delivery",
+      "sha256": "7508110eef978259f0b9757df675844535b44bd5e6a4dc30c92d265da05110de",
+      "command": "RTK-proxied exact-head Draft PR #99, check, and Dependabot alert reconciliation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T17:52:48Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/github-alert-closure-verification.md",
+      "artifact_type": "current_master_dependabot_and_go_security_verification",
+      "sha256": "20ea82fbd04cc7ea672a644c4c5c5621b38b6fc29ce76ed9c54f028ca458afdf",
+      "command": "RTK-proxied GitHub PR/alert/current-master workflow reads plus Go 1.26.5 go test, go vet, govulncheck, and bounded Traefik fuzz validation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T15:39:43Z",
+      "retention_status": "task_owned_external_evidence"
+    },
+    {
+      "run_id": "20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/post-master-advance-recheck.md",
+      "artifact_type": "post_closure_authoritative_master_scope_recheck",
+      "sha256": "c099c32564c1a78e60f98a61ba350904669d9c7231459c4109587088e31f915f",
+      "command": "RTK-proxied current master ref, GitHub comparison, current module content, Dependabot, Scorecard, and workflow recheck",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T15:55:37Z",
+      "retention_status": "task_owned_external_evidence"
+    },
+    {
+      "run_id": "20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/post-master-second-advance-recheck.md",
+      "artifact_type": "post_closure_second_authoritative_master_scope_recheck",
+      "sha256": "17f4abdf4be2939aca498746e9e345d0e33566580adbee0b6e92427bf73b1c8b",
+      "command": "RTK-proxied current master ref, GitHub comparison, Dependabot, Scorecard, workflow, and check-run recheck after second post-closure master advance",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T16:07:44Z",
+      "retention_status": "task_owned_external_evidence"
+    },
+    {
+      "run_id": "20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/post-master-scorecard-retry-final-recheck.md",
+      "artifact_type": "final_current_master_scorecard_retry_and_alert_recheck",
+      "sha256": "2a788454ba88bcd90add62b5eae3545d83a53180f7aefe8c72ffc864a2959746",
+      "command": "RTK-proxied final current master ref, Dependabot, Scorecard, Actions retry, and check-run recheck",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T16:14:53Z",
+      "retention_status": "task_owned_external_evidence"
+    }
+  ],
+  "root_cause": "The Go 1.24.13 change removed the 18 compatible scanner occurrences, but the retained resulting-master evidence shows that every remaining occurrence requires Go 1.25.8 or later; no product-code root cause is claimed.",
+  "root_cause_de": "Die Go-1.24.13-Änderung entfernte die 18 kompatiblen Scanner-Vorkommen, aber die retained resulting-master Evidence zeigt, dass jedes verbleibende Vorkommen Go 1.25.8 oder neuer erfordert; eine Produktcode-Grundursache wird nicht behauptet.",
+  "proposed_remediation": "Make an explicit supported Go 1.25.8-or-later compatibility decision, update dependencies only within that decision, and rerun the exact OSV scan plus module tests.",
+  "proposed_remediation_de": "Eine ausdrückliche unterstützte Kompatibilitätsentscheidung für Go 1.25.8 oder neuer treffen, Dependencies nur innerhalb dieser Entscheidung aktualisieren und den exakten OSV-Scan sowie Modultests erneut ausführen.",
+  "acceptance_criteria": [
+    "A supported Go 1.25.8-or-later decision covers each of the 15 remaining scanner-reported vulnerabilities or each has an explicit supported disposition.",
+    "Exact OSV result data and Go tests are retained for the selected toolchain."
+  ],
+  "validation_plan": [
+    "Reread the exact OSV workflow result for Envoy and Traefik after the selected Go decision.",
+    "Run go test ./..., go vet ./..., and their legitimate controls with the selected toolchain."
+  ],
+  "regression_tests": [
+    "Retain an exact-master OSV evidence control for the recorded condition."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-GITHUB-0001",
+    "FND-HOST-0002",
+    "FND-PARENT-0003"
+  ],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+    "20260723T161931Z-github-alert-reconciliation-20260723-65ec68cf",
+    "20260723T165434Z-github-alert-remediation-go1265-4fc93743",
+    "20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3"
+  ],
+  "residual_risk": "No remaining Go dependency risk is evidenced within this finding's Envoy/Traefik scope. The separate active Scorecard findings, including the PyYAML result, remain tracked by FND-GITHUB-0001 and are not dismissed or risk-accepted here.",
+  "residual_risk_de": "Im Envoy-/Traefik-Geltungsbereich dieses Findings ist kein verbleibendes Go-Dependency-Risiko belegt. Die separaten aktiven Scorecard-Findings einschließlich des PyYAML-Ergebnisses bleiben in FND-GITHUB-0001 erfasst und werden hier weder dismissed noch risikoakzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-24T16:14:53Z",
+  "final_disposition": "closed_after_dependabot_fixed_state_selected_toolchain_go_validation_and_unchanged_scope_recheck_on_current_master",
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-20T22:19:00Z",
+      "event": "post_pr71_resulting_master_osv_reconciled",
+      "detail": "PR #71 head b1eef0a087432aa9bf9bc1243a34b0b0d8f6080e was squash-merged as master 929fe60dfca30787947027e5bd49003581a5b080 with identical tree fae388da52f5d660c8e18f06b058ec67b38adfd7. OSV run 29783388062 recorded scanner exit 1 and 15 unknown vulnerabilities; the 18 Go 1.24.13-compatible occurrences are absent, while remaining occurrences require Go 1.25.8 or later. Status remains validated and priority remains P1; no risk acceptance, verification, or closure was performed."
+    },
+    {
+      "at": "2026-07-23T16:37:03Z",
+      "event": "current_master_dependabot_and_osv_reconciled",
+      "detail": "Current master a308d7b414f0859490fe7253e0683a4bde80b563 has two confirmed-open Envoy ext_proc dependency alerts: grpc 1.79.3 requires 1.82.1 and x/net 0.48.0 requires 0.56.0 for the smallest complete current OSV remediation. The current Go 1.26.5 module baseline supersedes the historic Go-1.24 blocker, but the host Go 1.26.0 toolchain fails closed under GOTOOLCHAIN=local. No implicit download, dependency mutation, alert closure, risk acceptance, or verification occurred."
+    },
+    {
+      "at": "2026-07-23T17:52:48Z",
+      "event": "go_dependency_draft_pr_and_exact_head_checks_reconciled",
+      "detail": "User-authorized task-local Go 1.26.5 validation produced Draft PR #99 at 2f0d8a234f984b731229aca01d43caf2749a7d61, selecting grpc 1.82.1, x/net 0.56.0, x/sys 0.46.0, and x/text 0.39.0. Resolver/module/scanner/contract controls and all exact-head PR checks passed; independent review found no reportable new finding. Master remains a308d7b414f0859490fe7253e0683a4bde80b563 with both Dependabot alerts open, so validated status remains and no closure/risk acceptance occurred."
+    },
+    {
+      "at": "2026-07-24T15:39:43Z",
+      "event": "current_master_go_dependency_remediation_verified",
+      "detail": "Current master 8e36b86ac17bce06003b0505fe26f6bb60c3cec7 contains merged PR #99 and PR #100. GitHub marks Dependabot alerts #1 and #2 fixed without dismissal and reports no open Dependabot alerts. With the retained official Go 1.26.5 toolchain and task-owned caches, Envoy and Traefik go test/go vet passed and both govulncheck runs reported no vulnerabilities; the bounded Traefik fuzz control also passed. The original Go-advisory condition no longer reproduces, so the finding is verified pending its explicit lifecycle close."
+    },
+    {
+      "at": "2026-07-24T15:43:59Z",
+      "event": "verified_finding_closed",
+      "detail": "The English/German/JSON records, retained evidence checksum, and current-master technical literals were validated after the verified transition. FND-PARENT-0001 is closed because the original Go dependency condition no longer reproduces on master, its legitimate controls pass, and GitHub independently reports both scoped Dependabot alerts fixed without manual dismissal. Active Scorecard alerts remain outside this finding and continue in FND-GITHUB-0001."
+    },
+    {
+      "at": "2026-07-24T15:55:37Z",
+      "event": "post_closure_authoritative_master_recheck",
+      "detail": "GitHub master advanced from 8e36b86ac17bce06003b0505fe26f6bb60c3cec7 to a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0. The one intervening commit changes only change-record and lifecycle-evidence test files; it does not change either scoped Go module or the Traefik fuzz target. Current module floors, fixed Dependabot state, and successful master workflows remain intact, so the closed finding stays current without reopening."
+    },
+    {
+      "at": "2026-07-24T16:07:44Z",
+      "event": "post_closure_second_authoritative_master_recheck",
+      "detail": "GitHub master advanced one further documentation/test-only commit to 185fd358bcfabe63464ab0e135eecedf24c9a699. It does not change either scoped Go module or the Traefik fuzz target; Dependabot #1/#2 remain fixed without dismissal and the open inventory is empty. The current master has 13 successful and one failed Actions workflow (OpenSSF Scorecard default-branch); SonarCloud Code Analysis also fails. Those external follow-up states are retained without dismissal under their existing records and do not reopen the independently remediated Go dependency condition."
+    },
+    {
+      "at": "2026-07-24T16:14:53Z",
+      "event": "post_closure_final_current_master_recheck",
+      "detail": "Master remains 185fd358bcfabe63464ab0e135eecedf24c9a699 and its scoped Go/fuzz paths remain unchanged. Dependabot #1/#2 remain fixed without dismissal and the open inventory is empty. OpenSSF Scorecard run 30107490735 attempt 3 succeeded, leaving all 14 observed GitHub Actions workflows successful. Scorecard alert instances #1/#7/#8/#10/#11/#12 are now refreshed to this current master; SonarCloud Code Analysis remains failed. The Go finding remains closed and those separate active conditions remain retained."
+    }
+  ]
+}

@@ -1,0 +1,176 @@
+{
+  "id": "FND-PARENT-0050",
+  "title": "Parent ModSecurity v3 generic Git acquisition remediation is locally verified; hosted evidence is pending",
+  "title_de": "Die generische Git-Akquisition von Parent-ModSecurity-v3 ist lokal durch die Framework-Provisionierungs-Bridge behoben; gehostete Evidence steht aus",
+  "category": "security_hardening",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "validated",
+"status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "ModSecurity v3 source acquisition and immutable provenance admission",
+  "profile": "isolated Parent/Framework ModSecurity v3 runtime-component preparation; original MRTS remains read-only",
+  "historical_validated_parent_revision": "2404f66d3919bda6f2e5a721f5e070f1cb61cb68",
+  "candidate_parent_revision": "c53ea5de38bc884fdd7f8b686005f6c22ee0a628",
+  "framework_revision": "77d73decd094a8f289fbe0ef2582f12430923e24",
+  "security_assessment": "The retained historical source-to-sink evidence validates a control-order and evidence-integrity gap, not a demonstrated lower-privileged attacker, upstream compromise, secret exposure, or successful hostile-PATH execution. Candidate c53ea5d removes generic V3 Git acquisition and delegates fresh source creation to the public Framework bridge at the Parent-recorded revision, then re-verifies and fail-closed publishes a sealed cache entry. Local Parent and Framework tests validate the direct remediation. Fresh exact-head runtime evidence, the terminal gate, and protected delivery remain pending.",
+  "security_assessment_de": "Die aufbewahrte historische Source-to-Sink-Evidence validiert eine Control-Order- und Evidence-Integrity-Lücke, keinen nachgewiesenen weniger privilegierten Angreifer, Upstream-Kompromiss, Secret-Exposure oder eine erfolgreiche hostile-PATH-Ausführung. Candidate c53ea5d entfernt generische V3-Git-Akquisition und delegiert die Erzeugung frischer Source an die öffentliche Framework-Bridge bei der durch Parent festgehaltenen Revision, verifiziert danach erneut und publiziert einen versiegelten Cache-Eintrag fail closed. Lokale Parent- und Framework-Tests validieren die direkte Remediation. Frische Exact-Head-Runtime-Evidence, Terminal-Gate und geschützte Delivery stehen aus.",
+  "affected_files": [
+    "ci/provisioning/components/prepare-runtime-components.py",
+    "tests/test_prepare_runtime_components.py",
+    "reports/audits/change-records/CR-20260718-verified-report-evidence-gate.md",
+    "reports/audits/change-records/CR-20260718-verified-report-evidence-gate.de.md"
+  ],
+  "affected_symbols": [
+    "prepare_framework_approved_modsecurity_v3_source",
+    "provision_framework_approved_modsecurity_v3_checkout",
+    "reserve_framework_approved_modsecurity_v3_staging_path",
+    "trusted_framework_modsecurity_v3_git_output",
+    "verify_framework_approved_modsecurity_v3_checkout",
+    "prepare_shared_modsecurity"
+  ],
+  "technical_claim": "The historical Parent route could hand a generic ModSecurity v3 Git checkout to the shared build before immutable Framework admission. Candidate c53ea5d no longer invokes generic prepare_git_component for V3: Framework owns fresh approved acquisition, while Parent owns only safe staging reservation, re-verification, metadata, sealing, and atomic publication.",
+  "entry_point": "Parent runtime-component ModSecurity v3 source preparation before shared build/cache use",
+  "source_to_sink_or_broken_control": "Historical: prepare_framework_approved_modsecurity_v3_source delegated to generic prepare_git_component before the later checkout guard. Current: configuration guard -> marker-only absent staging reservation -> Framework public immutable provisioner -> Framework checkout verification -> trusted metadata -> complete marker -> atomic publication -> retained build-time guard.",
+  "observed_behavior": "The retained historical trace confirms the generic-acquisition ordering gap. In current candidate c53ea5d, negative Parent controls prove rejected configuration, bridge failure, and post-provision verification failure cannot reach generic acquisition, completion, publication, or the build sinks; the Framework exact provenance/fresh-root suite passes at 77d73de.",
+  "observed_behavior_de": "Der aufbewahrte historische Trace bestätigt die Generic-Acquisition-Reihenfolgelücke. Im aktuellen Candidate c53ea5d beweisen negative Parent-Controls, dass abgelehnte Configuration, Bridge-Fehler und Post-Provision-Verifikationsfehler weder generische Akquisition, Completion, Publication noch Build-Sinks erreichen; die exakte Framework-Provenance-/Fresh-Root-Suite besteht bei 77d73de.",
+  "expected_behavior": "Before Parent creates, reuses, or builds from any ModSecurity v3 checkout, fresh acquisition runs only through the fail-closed Framework immutable admission boundary; Parent publishes a cache only after a second Framework verification and complete managed marker.",
+  "expected_behavior_de": "Bevor Parent ein ModSecurity-v3-Checkout erzeugt, wiederverwendet oder baut, läuft frische Akquisition nur durch die fehlgeschlossene unveränderliche Framework-Admission-Grenze; Parent publiziert Cache nur nach einer zweiten Framework-Verifikation und vollständigem Managed-Marker.",
+  "impact": "Historical partial-build output remains excluded from FND-CROSS-0001 runtime evidence. The direct generic acquisition defect is remediated locally, but PR #55 cannot claim delivery or integrate until fresh exact-head hosted runtime evidence, FND-CROSS-0001, SonarQube, reviews, and protected checks pass.",
+  "impact_de": "Historische Teil-Build-Ausgabe bleibt von FND-CROSS-0001-Runtime-Evidence ausgeschlossen. Der direkte Generic-Acquisition-Defekt ist lokal behoben, aber PR #55 kann keine Delivery beanspruchen oder integrieren, bevor frische Exact-Head-gehostete Runtime-Evidence, FND-CROSS-0001, SonarQube, Reviews und geschützte Checks bestehen.",
+  "preconditions": [
+    "Parent runtime-component preparation selects the ModSecurity v3 source route.",
+    "Framework revision 77d73decd094a8f289fbe0ef2582f12430923e24 is available read-only at the Parent-recorded gitlink.",
+    "The route invokes the Framework public immutable provisioner and then the Parent shared build/cache path."
+  ],
+  "reproduction": [
+    "Inspect the retained historical Parent source-to-sink trace; do not use its stopped partial build as runtime evidence.",
+    "Inspect c53ea5d: the V3 route has no prepare_git_component call and invokes the Framework public provisioner with an absent marker-owned staging child.",
+    "Run the retained Parent source/cache and Framework provenance/fresh-root regression controls."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260723T162517Z-fnd-cross-0001-runtime-evidence-bcda7d1d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T162517Z-fnd-cross-0001-runtime-evidence-bcda7d1d/evidence/parent-modsecurity-v3-provenance-gap.md",
+      "artifact_type": "isolated_parent_v3_historical_control_order_validation",
+      "sha256": "b18f34ca2f6a056e9fb4055d6f52bf22f64560645a97dece53f437da10d66fe",
+      "command": "RTK-proxied isolated Parent/Framework source-to-sink inspection; the partial task-owned build was stopped immediately after the ordering gap was confirmed",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260723T162517Z-fnd-cross-0001-runtime-evidence-bcda7d1d/tmp/parent",
+      "exit_code": 130,
+      "observed_at": "2026-07-23T16:25:17Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The historical source-to-sink trace proves that generic V3 acquisition and build could precede immutable Framework checkout admission. Stopped output is explicitly excluded from runtime evidence."
+    },
+    {
+      "run_id": "20260726T081500Z-pr55-framework-v3-bridge",
+      "artifact_path": ".codex/runs/20260726T081500Z-pr55-framework-v3-bridge/evidence/local-bridge-validation.md",
+      "artifact_type": "isolated_parent_framework_v3_bridge_local_validation",
+      "sha256": "ba0954d5d9c3e7c6bc31d558f55b9acc99b44ee93984c817aed1fba35d381f15",
+      "command": "Focused Parent source/cache tests, Framework V3 provenance/fresh-root suite, CI-security contract, bilingual-documentation check, and whitespace check",
+      "working_directory": "/var/tmp/codex/worktrees/parent/migrate-pr55-pr74-master-V27zuA/pr55",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T08:15:00Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Candidate c53ea5d removes generic V3 acquisition. Parent 44 tests and Framework 18 tests pass; this is local control evidence only."
+    }
+  ],
+  "root_cause": "The Parent historically treated ModSecurity v3 as a generic Git component and deferred immutable checkout admission until after acquisition and the shared build path.",
+  "root_cause_de": "Parent behandelte ModSecurity v3 historisch als generische Git-Komponente und verschob unveränderliche Checkout-Admission bis nach Akquisition und Shared-Build-Pfad.",
+  "proposed_remediation": "Implemented in c53ea5d: consume the existing Framework public immutable V3 provisioner, preserve Parent re-verification and build-time guard, and publish only a sealed verified cache. Remaining remediation is exact-head hosted evidence and protected delivery, not a Framework/MRTS source change.",
+  "proposed_remediation_de": "In c53ea5d implementiert: den vorhandenen öffentlichen unveränderlichen Framework-V3-Provisioner nutzen, Parent-Re-Verifikation und build-time-Guard behalten und nur versiegelten verifizierten Cache publizieren. Verbleibende Remediation ist Exact-Head-gehostete Evidence und geschützte Delivery, keine Framework-/MRTS-Source-Änderung.",
+  "acceptance_criteria": [
+    "Rejected V3 configuration cannot invoke Framework provisioning, generic Git, or a build sink: passed locally.",
+    "Approved V3 acquisition occurs only through the Framework public fresh-destination bridge, never prepare_git_component: passed locally.",
+    "Bridge and post-provision verification failures preserve existing cache and cannot publish an unverified checkout: passed locally.",
+    "Parent 44-test and Framework 18-test focused controls pass at c53ea5d/77d73de: passed locally.",
+    "Fresh exact-head #55 hosted strict/full producer, terminal gate, FND-CROSS-0001, SonarQube, reviews, and branch protection pass: pending."
+  ],
+  "validation_plan": [
+    "Retain historical and current local evidence without accepting either as fresh runtime evidence.",
+    "Resolve the separate #74 Apache full-producer blocker without weakening the strict terminal gate.",
+    "Reconcile #55 after #74/master, then inspect exact-head hosted checks, FND-CROSS-0001 evidence, SonarQube, reviews, threads, and mergeability."
+  ],
+  "regression_tests": [
+    "tests/test_prepare_runtime_components.py",
+    "tests/test_runtime_component_cache_contract.py",
+    "Framework tests.security_regression.test_modsecurity_v3_git_ref_provenance",
+    "tests/test_ci_security_workflows.py"
+  ],
+  "legitimate_control_tests": [
+    "The Framework public provisioner accepts the reviewed approved topology at a fresh absent destination.",
+    "Rejected configuration, bridge failure, and post-provision verification failure cannot invoke generic acquisition, cache completion/publication, or build sinks.",
+    "A fake Git earlier on PATH, fresh-root, attributes/filter, and custom recursive-update controls remain ineffective in the Framework suite."
+  ],
+  "dependencies": [
+    "FND-CROSS-0001 fresh legitimate runtime evidence",
+    "FND-PARENT-0053 Apache runtime-producer root-cause remediation",
+    "Exact-head PR #55 hosted checks, SonarQube, review/thread, and branch-protection evidence"
+  ],
+  "blocked_by": [
+    "The separate #74 Apache producer must establish the legitimate strict/full producer foundation.",
+    "FND-CROSS-0001 has not yet received fresh legitimate runtime evidence.",
+    "PR #55 exact-head hosted checks and protected-integration prerequisites remain pending."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0001",
+    "FND-FRAMEWORK-0030",
+    "FND-FRAMEWORK-0036",
+    "FND-FRAMEWORK-0054",
+    "FND-PARENT-0042",
+    "FND-PARENT-0053"
+  ],
+  "deduplication_note": "This Parent finding owns the historical generic-acquisition control order and current Parent hand-off. Framework owns its public immutable provisioner and topology controls; no duplicate Framework or MRTS delivery is implied.",
+  "source_run_ids": [
+    "20260723T162517Z-fnd-cross-0001-runtime-evidence-bcda7d1d",
+    "20260726T081500Z-pr55-framework-v3-bridge"
+  ],
+  "evidence_limitations": [
+    "The historical partial build intentionally stopped with exit 130 and is not runtime evidence for FND-CROSS-0001.",
+    "The current artifact is local source/cache/API regression evidence only; it does not establish exact-head hosted runtime success.",
+    "No productive hostile-PATH actor, lower-privileged attacker, upstream compromise, or dynamic exploit is asserted.",
+    "No Framework or MRTS source, gitlink, branch, commit, push, PR, or merge is claimed."
+  ],
+  "residual_risk": "The direct generic acquisition path is removed but no local result is accepted as delivery evidence. Parent PR #55 remains blocked from protected integration until fresh exact-head runtime evidence and all PR controls pass. No risk is accepted.",
+  "residual_risk_de": "Der direkte Generic-Acquisition-Pfad ist entfernt, aber kein lokales Ergebnis wird als Delivery-Evidence akzeptiert. Parent PR #55 bleibt bis frische Exact-Head-Runtime-Evidence und alle PR-Controls bestehen von geschützter Integration blockiert. Kein Risiko ist akzeptiert.",
+  "delivery_evidence": {
+    "status": "published_pending_exact_head_evidence",
+    "reason": "Normal commit c53ea5d was pushed to the existing #55 branch and its PR description was updated. No exact-head hosted success, SonarQube result, review, merge, or resulting-master evidence is yet observed.",
+    "actions_taken": [
+      "normal parent commit",
+      "normal push to existing PR branch",
+      "PR body update"
+    ],
+    "actions_not_taken": [
+      "Framework/MRTS source modification",
+      "gitlink update",
+      "merge",
+      "branch deletion"
+    ]
+  },
+  "history": [
+    {
+      "at": "2026-07-23T16:25:17Z",
+      "event": "validated_historical_parent_v3_control_order_gap",
+      "detail": "Retained isolated source-to-sink evidence showed generic ModSecurity v3 acquisition and the shared build could precede immutable Framework checkout admission. The partial build was stopped and excluded from FND-CROSS-0001 runtime evidence."
+    },
+    {
+      "at": "2026-07-23T17:41:30Z",
+      "event": "current_generic_acquisition_admission_requirement_recorded",
+      "detail": "Static review of candidate 59321ca found that its Framework configuration guard still delegated V3 acquisition to generic bare Git before the later checkout guard."
+    },
+    {
+      "at": "2026-07-26T08:15:00Z",
+      "event": "framework_public_bridge_parent_remediation_published",
+      "detail": "Normal Parent PR #55 commit c53ea5de38bc884fdd7f8b686005f6c22ee0a628 removes generic V3 acquisition, uses Framework revision 77d73de, and passed Parent/Framework focused local controls. Exact-head hosted evidence remains pending."
+    }
+  ],
+  "created_at": "2026-07-23T16:25:17Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": null
+}

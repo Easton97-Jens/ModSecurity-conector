@@ -1,0 +1,240 @@
+{
+  "id": "FND-FRAMEWORK-0049",
+  "title": "Framework PR #42 Python-quality gate fails on five Pyright type diagnostics",
+  "title_de": "Framework-PR #42: Python-Quality-Gate scheitert an fünf Pyright-Typdiagnosen",
+  "category": "ci_failure",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "verified",
+  "feasibility_status": "already_fixed",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": "Framework PR #42 hosted python-ci-security-quality Pyright follow-up",
+  "affected_revision": "22747d460a9f7be02760edf05c311be376492457",
+  "candidate_remediation_revision": "1fd3b362e0fed9766c6920e3c7bd1939535850f2",
+  "candidate_remediation_parent": "22747d460a9f7be02760edf05c311be376492457",
+  "merged_pr_head_revision": "dc6cf411e78b3f37f1e4be52edef59894560b1ae",
+  "resulting_master_revision": "935cf14c676a24672be5c336e92cd13457cc35c8",
+  "external_ci": {
+    "pull_request": 42,
+    "run_id": "29942429850",
+    "check": "python-ci-security-quality",
+    "result": "failure"
+  },
+  "hosted_verification": {
+    "revision": "1fd3b362e0fed9766c6920e3c7bd1939535850f2",
+    "run_id": "29943112344",
+    "job_id": "89001693819",
+    "check": "python-ci-security-quality",
+    "result": "success",
+    "completed_at": "2026-07-22T17:37:28Z",
+    "pr_state": "open_non_draft_mergeable_clean",
+    "all_non_skipped_pr_checks": "success",
+    "sonar_pr_quality_gate": "passed",
+    "reviews_or_threads": "none_observed",
+    "historical_premerge_master_gate": "At the exact-head observation, FND-SONAR-0002 was the independently tracked master Sonar gate condition. It was later separately user-bounded for PR #42 delivery and is not a dependency of this verified source repair."
+  },
+  "postmerge_verification": {
+    "pull_request": 42,
+    "normal_merge_at": "2026-07-23T07:41:13Z",
+    "predecessor_master": "f73f8842f45318e2df8aff1d31855eeb7c20a22f",
+    "merged_pr_head": "dc6cf411e78b3f37f1e4be52edef59894560b1ae",
+    "resulting_master": "935cf14c676a24672be5c336e92cd13457cc35c8",
+    "resulting_tree": "5df6cce7d7385a041a817ff54fae777902645f1d",
+    "ci_security_python_quality_workflow_run": "29989195066",
+    "exact_master_github_actions_workflows": "8 completed success",
+    "receipt_sha256": "0a0421f70cf39df8f6f31ef12b4a461f05bd9875fb61775094c5031aef489ce1",
+    "observed_at": "2026-07-23T07:51:09Z"
+  },
+  "affected_files": [
+    "ci/tools/fetch-security-tool.py",
+    "tests/ci_security/test_update_workflow_tools.py"
+  ],
+  "affected_symbols": [
+    "ci/tools/fetch-security-tool.py:161 re.fullmatch",
+    "ci/tools/fetch-security-tool.py:166 re.fullmatch",
+    "tests/ci_security/test_update_workflow_tools.py:49 nested lock-fixture indexing"
+  ],
+  "summary": "Framework PR #42 exact head 22747d460a9f7be02760edf05c311be376492457 failed its required python-ci-security-quality check in GitHub Actions run 29942429850 with five Pyright type diagnostics. Candidate commit 1fd3b362e0fed9766c6920e3c7bd1939535850f2 narrowed the dynamic values and corrected the fixture annotation. Its bounded local validation and fresh hosted python-ci-security-quality/Pyright run 29943112344/job 89001693819 passed; all non-skipped PR checks and the PR Sonar Quality Gate are green. PR #42 then merged normally as resulting Framework master 935cf14c676a24672be5c336e92cd13457cc35c8, whose CI security Python quality workflow 29989195066 and seven other exact-master GitHub Actions workflows completed success. The source remediation is verified, not closed. FND-SONAR-0002 and FND-GITHUB-0007 are separate bounded delivery limitations, not blockers of this repair.",
+  "summary_de": "Der exakte Head 22747d460a9f7be02760edf05c311be376492457 von Framework-PR #42 scheiterte im erforderlichen Check python-ci-security-quality des GitHub-Actions-Runs 29942429850 mit fünf Pyright-Typdiagnosen. Der Kandidaten-Commit 1fd3b362e0fed9766c6920e3c7bd1939535850f2 grenzte die dynamischen Werte ein und korrigierte die Fixture-Annotation. Seine begrenzte lokale Validierung und der frische gehostete python-ci-security-quality/Pyright-Run 29943112344/Job 89001693819 bestanden; alle nicht übersprungenen PR-Checks und das PR-Sonar-Quality-Gate sind grün. PR #42 wurde danach normal als resultierender Framework-Master 935cf14c676a24672be5c336e92cd13457cc35c8 integriert; dessen CI-security-Python-quality-Workflow 29989195066 und sieben weitere exakte Master-GitHub-Actions-Workflows endeten erfolgreich. Die Source-Remediation ist verified, nicht closed. FND-SONAR-0002 und FND-GITHUB-0007 sind getrennte begrenzte Delivery-Limitierungen, keine Blocker dieser Reparatur.",
+  "technical_claim": "This is a reproducible required CI-quality failure on the recorded hosted head. It is not evidence of a runtime defect or a validated vulnerability. The affected helper participates in a security-quality/provenance workflow, so the remediation must preserve its existing download-host, release-identity, action-lock, permission, publisher, checkout, and ref-validation controls.",
+  "entry_point": "Framework PR #42 invokes the hosted python-ci-security-quality job, which reaches deterministic Pyright analysis for the CI security-quality source and tests.",
+  "source_to_sink_or_broken_control": "Static typing sees repeated dynamic mapping lookups as Any | None at re.fullmatch call sites and an object-typed nested fixture value before indexing. No attacker-controlled source-to-sink path or broken runtime security control is established by the type diagnostics.",
+  "observed_behavior": "GitHub Actions run 29942429850 fails python-ci-security-quality on exact PR #42 head 22747d460a9f7be02760edf05c311be376492457 during deterministic Pyright analysis with five errors. The hosted log identifies ci/tools/fetch-security-tool.py lines 161 and 166, where dict.get() values typed Any | None are supplied to re.fullmatch, and tests/ci_security/test_update_workflow_tools.py line 49, where a value typed object is indexed.",
+  "expected_behavior": "The required Python-quality job must complete successfully without suppressing Pyright or weakening its scope. Dynamic mapping values must be narrowed before regular-expression matching, nested YAML-derived lock data must carry an accurate type contract before indexing, and the existing provenance and workflow-security behavior must remain unchanged.",
+  "impact": "The original exact PR head could not satisfy a required CI gate and was a P1 release blocker. Candidate head 1fd3b362e0fed9766c6920e3c7bd1939535850f2 satisfies the direct Pyright gate and all non-skipped PR checks. PR #42 then merged normally as resulting Framework master 935cf14c676a24672be5c336e92cd13457cc35c8, where CI security Python quality workflow 29989195066 and the other seven exact-master GitHub Actions workflows completed success. The source repair is verified and no longer a release blocker. The evidence does not claim changed runtime behavior, a security exploit, or a configuration defect; FND-SONAR-0002 and FND-GITHUB-0007 are separate bounded delivery limitations, not source-remediation blockers.",
+  "preconditions": [
+    "Framework PR #42 is evaluated at exact head 22747d460a9f7be02760edf05c311be376492457.",
+    "GitHub Actions runs python-ci-security-quality and reaches the deterministic Pyright step.",
+    "The workflow checks ci/tools/fetch-security-tool.py and tests/ci_security/test_update_workflow_tools.py under its reviewed Python and Pyright contract."
+  ],
+  "reproduction": [
+    "Inspect GitHub Actions run 29942429850 for Framework PR #42 at 22747d460a9f7be02760edf05c311be376492457; python-ci-security-quality terminates failed with five Pyright diagnostics.",
+    "The retained PR #42 Pyright follow-up receipt records the same failing head, run, check, locations, and the bounded local candidate remediation."
+  ],
+  "root_cause": "The original source allowed repeated dynamic dict.get() results to retain the Any | None type at re.fullmatch boundaries, while the test lock fixture declared a flat object map despite the nested dynamic YAML-derived structure it is indexed as. The exact runtime behavior is not alleged to be wrong; the declared static type contracts were insufficient for the required Pyright analysis.",
+  "proposed_remediation": "Use only the bounded candidate correction at 1fd3b362e0fed9766c6920e3c7bd1939535850f2 or an equivalently reviewed successor: store upstream_release and asset_url once, check and narrow their string type before matching, type the dynamic nested lock fixture as nested Any data, and preserve all existing provenance and workflow-security controls. Do not add a Pyright suppression, broaden the type checker exclusions, or alter download, lock, permission, publisher, checkout, or ref-validation behavior merely to obtain a pass.",
+  "acceptance_criteria": [
+    "A reviewed candidate retains the bounded narrowing and nested fixture typing without changing download host, release identity, action lock, workflow permissions, publisher, checkout, or ref-validation behavior.",
+    "Focused Fetcher/Updater tests, CI-security contract, documentation and Change Record contracts, checksum-verified Ruff check and format check for touched Python files, native make lint, clean-worktree review, and git diff --check pass for the candidate range.",
+    "A distinct exact PR head containing the remediation has a newly observed successful python-ci-security-quality result, including Pyright; a result for 22747d460a9f7be02760edf05c311be376492457 is not acceptable evidence.",
+    "Completed: all non-skipped hosted PR checks, including python-ci-security-quality/Pyright run 29943112344/job 89001693819 and the PR Sonar Quality Gate, were observed for exact head 1fd3b362e0fed9766c6920e3c7bd1939535850f2; PR #42 then merged normally as 935cf14c676a24672be5c336e92cd13457cc35c8 with successful exact-master CI security Python quality workflow 29989195066."
+  ],
+  "validation_plan": [
+    "Review the retained follow-up receipt and the base-to-candidate diff for the two source paths and paired Change Record.",
+    "On the Framework task branch, run the focused Fetcher/Updater tests, CI-security contract, documentation/Change Record contracts, checksum-verified Ruff check and format check for touched Python files, native make lint, and exact-range git diff --check.",
+    "Observe the fresh python-ci-security-quality/Pyright success and all required hosted checks for exact head 1fd3b362e0fed9766c6920e3c7bd1939535850f2; this passed in run 29943112344/job 89001693819 at 2026-07-22T17:37:28Z.",
+    "Do not treat historical head 22747d460a9f7be02760edf05c311be376492457 as fixed; direct source proof is retained for exact PR head 1fd3b362e0fed9766c6920e3c7bd1939535850f2, and the SHA-bound postmerge receipt confirms normal merge plus resulting master 935cf14c676a24672be5c336e92cd13457cc35c8."
+  ],
+  "regression_tests": [
+    "Focused Fetcher/Updater unit tests covering ci/tools/fetch-security-tool.py and tests/ci_security/test_update_workflow_tools.py (39 passed for candidate 1fd3b362e0fed9766c6920e3c7bd1939535850f2).",
+    "Passed: python-ci-security-quality/Pyright on exact candidate PR head 1fd3b362e0fed9766c6920e3c7bd1939535850f2 in GitHub Actions run 29943112344/job 89001693819."
+  ],
+  "legitimate_control_tests": [
+    "Existing accepted release/provenance matching continues after explicit string narrowing; invalid or absent dynamic values must not bypass the existing checks.",
+    "The dynamic YAML-derived nested lock fixture remains usable by the existing updater tests without weakening action-lock or workflow-security assertions.",
+    "The candidate's focused 39 Fetcher/Updater tests, CI-security contract, documentation and Change Record checks, checksum-verified Ruff checks, and native make lint all remain green."
+  ],
+  "local_validation": [
+    "Passed: focused Fetcher/Updater unit tests, 39 tests.",
+    "Passed: CI-security contract.",
+    "Passed: documentation and Change Record contracts.",
+    "Passed: checksum-verified Ruff check and format check for ci/tools/fetch-security-tool.py and tests/ci_security/test_update_workflow_tools.py.",
+    "Passed: native make lint.",
+    "Passed: clean worktree and git diff --check for the full base-to-head range.",
+    "Passed: hosted python-ci-security-quality/Pyright, all non-skipped PR checks, and the PR Sonar Quality Gate for 1fd3b362e0fed9766c6920e3c7bd1939535850f2."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0020",
+    "FND-FRAMEWORK-0046",
+    "FND-FRAMEWORK-0047",
+    "FND-FRAMEWORK-0048",
+    "FND-SONAR-0002",
+    "FND-GITHUB-0007"
+  ],
+  "source_run_ids": [
+    "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e"
+  ],
+  "evidence": [
+    {
+      "run_id": "github-actions-29942429850",
+      "artifact_path": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/29942429850",
+      "artifact_type": "external_github_actions_failed_check_log",
+      "sha256": null,
+      "command": "GitHub Actions hosted execution of python-ci-security-quality for Framework PR #42",
+      "working_directory": "GitHub Actions hosted runner (external)",
+      "exit_code": 1,
+      "observed_at": "2026-07-22T17:35:19Z",
+      "retention_status": "not_retained_external_log",
+      "scope_note": "The current task supplied the exact run, check, head, five-error outcome, and diagnostic locations. The full remote log was not copied into this Parent-local finding task."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/ci-remediation/pr42-pyright-followup-commit-receipt.md",
+      "artifact_type": "task_owned_framework_pr42_pyright_followup_commit_receipt",
+      "sha256": "5ccf2bd636101b2feea10e80c89852dbcf9c5f5e94e4b27decfbe0f5311ab790",
+      "command": "Task-owned Framework follow-up commit and bounded local-validation receipt",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T17:35:19Z",
+      "retention_status": "task_owned_retained_evidence",
+      "summary": "The receipt binds the failure to 22747d460a9f7be02760edf05c311be376492457 and candidate 1fd3b362e0fed9766c6920e3c7bd1939535850f2, records the bounded source change, and reports local validation passed while hosted Pyright remains unobserved."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/tmp/framework-worktree-v3/reports/audits/change-records/20260722-01-consolidate-framework-pr-39-41.md",
+      "artifact_type": "framework_change_record_hosted_pyright_limitation",
+      "sha256": "faad4f2e542bac431c0a0f7f3b348cc3192ace933cf3c38944ee3beb7fa7ee93",
+      "command": "RTK-wrapped read of the task-owned Framework consolidation Change Record",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T17:35:19Z",
+      "retention_status": "task_owned_retained_evidence",
+      "summary": "The paired Change Record names FND-FRAMEWORK-0049, preserves the five hosted Pyright diagnostics, and requires a new exact head to rerun hosted Pyright and required checks."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/delivery/pr42-exact-head-hosted-verification.md",
+      "artifact_type": "task_owned_framework_pr42_exact_head_hosted_verification",
+      "sha256": "07d30f93ab9bda5fb03fb22b20b9755aba2b8567b67678a34ec3ff7927bcb853",
+      "command": "Task-owned exact-head hosted GitHub Actions, PR-state, review, and Sonar verification receipt",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T17:37:28Z",
+      "retention_status": "task_owned_retained_evidence",
+      "summary": "Exact PR #42 head 1fd3b362e0fed9766c6920e3c7bd1939535850f2 is non-Draft, CLEAN, MERGEABLE, and passes python-ci-security-quality/Pyright, all non-skipped PR checks, reviews/threads, and the PR Sonar Quality Gate."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-20260723-postmerge-verification.md",
+      "artifact_type": "framework_pr42_resulting_master_python_quality_verification",
+      "sha256": "0a0421f70cf39df8f6f31ef12b4a461f05bd9875fb61775094c5031aef489ce1",
+      "command": "RTK-wrapped GitHub PR/master/workflow/check-suite and SonarCloud readback; the exact commands are retained in the receipt.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T07:51:09Z",
+      "retention_status": "task_owned_retained_evidence",
+      "summary": "PR #42 merged normally at 2026-07-23T07:41:13Z as Framework master 935cf14c676a24672be5c336e92cd13457cc35c8 from predecessor f73f8842f45318e2df8aff1d31855eeb7c20a22f and merged head dc6cf411e78b3f37f1e4be52edef59894560b1ae; the resulting tree equals the reviewed PR-head tree. Exact-master CI security Python quality workflow 29989195066 and seven other GitHub Actions workflows completed success."
+    }
+  ],
+  "evidence_limitations": [
+    "The original GitHub Actions log is external and not copied into this Parent-local finding task; its exact run, check, head, outcome, and cited diagnostics are supplied task evidence and corroborated by retained task-owned receipts.",
+    "The exact PR-head receipt is the direct retained evidence of deterministic Pyright success. The postmerge receipt records the successful exact-master CI security Python quality workflow, but does not retain individual master workflow step logs; it must not be overstated as a separately retained step-level Pyright transcript.",
+    "The type diagnostics alone do not prove a runtime behavior defect, security exploit, or changed security control."
+  ],
+  "residual_risk": "The original Python-quality failure is absent on exact PR #42 head 1fd3b362e0fed9766c6920e3c7bd1939535850f2 and is verified after normal PR #42 merge as resulting Framework master 935cf14c676a24672be5c336e92cd13457cc35c8. FND-SONAR-0002 and FND-GITHUB-0007 are separately user-bounded PR #42 delivery limitations; their global findings remain independently tracked and neither condition blocks or reopens this verified source repair. The finding is not closed.",
+  "delivery_evidence": {
+    "state": "verified_after_normal_protected_merge",
+    "pull_request": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/42",
+    "base_revision": "f73f8842f45318e2df8aff1d31855eeb7c20a22f",
+    "verified_head_revision": "1fd3b362e0fed9766c6920e3c7bd1939535850f2",
+    "merged_pr_head_revision": "dc6cf411e78b3f37f1e4be52edef59894560b1ae",
+    "merge_commit": "935cf14c676a24672be5c336e92cd13457cc35c8",
+    "resulting_master": "935cf14c676a24672be5c336e92cd13457cc35c8",
+    "resulting_tree": "5df6cce7d7385a041a817ff54fae777902645f1d",
+    "normal_merge_at": "2026-07-23T07:41:13Z",
+    "python_ci_security_quality": "passed in GitHub Actions run 29943112344/job 89001693819 at 2026-07-22T17:37:28Z",
+    "resulting_master_ci_security_python_quality": "workflow run 29989195066 completed success",
+    "resulting_master_github_actions": "eight workflows completed success",
+    "all_non_skipped_pr_checks": "passed",
+    "sonar_pr_quality_gate": "passed",
+    "pr_state": "merged",
+    "reviews_or_threads": "none_observed",
+    "postmerge_receipt_sha256": "0a0421f70cf39df8f6f31ef12b4a461f05bd9875fb61775094c5031aef489ce1",
+    "separate_delivery_limitations": "FND-SONAR-0002 and FND-GITHUB-0007 were user-bounded only for PR #42 delivery; they do not block this verified Pyright repair",
+    "no_merge_or_bypass": true
+  },
+  "history": [
+    {
+      "at": "2026-07-23T07:51:09Z",
+      "event": "verified_after_pr42_normal_merge_and_resulting_master",
+      "detail": "PR #42 merged normally at 2026-07-23T07:41:13Z as Framework master 935cf14c676a24672be5c336e92cd13457cc35c8 from predecessor f73f8842f45318e2df8aff1d31855eeb7c20a22f and merged head dc6cf411e78b3f37f1e4be52edef59894560b1ae. The retained postmerge receipt SHA-256 0a0421f70cf39df8f6f31ef12b4a461f05bd9875fb61775094c5031aef489ce1 records successful exact-master CI security Python quality workflow 29989195066 and seven other GitHub Actions workflows. With the prior direct Pyright success, the source repair transitions from fixed to verified, not closed. FND-SONAR-0002 and FND-GITHUB-0007 remain separate bounded delivery limitations, not blockers of this repair."
+    },
+    {
+      "at": "2026-07-22T17:37:28Z",
+      "event": "exact_head_hosted_pr_validation_passed",
+      "detail": "Framework PR #42 exact head 1fd3b362e0fed9766c6920e3c7bd1939535850f2 is non-Draft, CLEAN, and MERGEABLE. GitHub Actions run 29943112344/job 89001693819 passed python-ci-security-quality including deterministic Pyright; all non-skipped PR checks and the PR Sonar Quality Gate passed, with no reviews or actionable threads. The source remediation is fixed/open, not verified. No normal master merge or resulting-master rerun occurred because FND-SONAR-0002 independently blocks the current master Sonar gate."
+    },
+    {
+      "at": "2026-07-22T17:35:19Z",
+      "event": "candidate_remediation_committed_locally",
+      "detail": "Candidate Framework commit 1fd3b362e0fed9766c6920e3c7bd1939535850f2, parent 22747d460a9f7be02760edf05c311be376492457, narrows the dynamic values before re.fullmatch and types the nested lock fixture as Any data. Focused 39 tests, CI-security contract, documentation/Change Record checks, checksum-verified Ruff checks, native make lint, clean-worktree review, and git diff --check passed. Hosted Pyright and required checks remain unobserved."
+    },
+    {
+      "at": "2026-07-22T17:35:19Z",
+      "event": "hosted_pyright_failure_recorded",
+      "detail": "Framework PR #42 exact head 22747d460a9f7be02760edf05c311be376492457 failed GitHub Actions run 29942429850 check python-ci-security-quality with five Pyright type diagnostics at the recorded fetcher matching and updater test-fixture locations."
+    }
+  ],
+  "created_at": "2026-07-22T17:35:19Z",
+  "updated_at": "2026-07-23T07:51:09Z",
+  "final_disposition": null
+}

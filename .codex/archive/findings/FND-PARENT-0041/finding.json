@@ -1,0 +1,147 @@
+{
+  "id": "FND-PARENT-0041",
+  "title": "Apache Phase-4 harness passes an unsupported synchronized-upstream option",
+  "title_de": "Apache-Phase-4-Harness übergibt eine nicht unterstützte Synchronized-Upstream-Option",
+  "category": "test_failure",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "parent_harness_contract_mismatch fixed locally; exact native matrix passed, while final security scan and remote delivery verification remain pending",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "apache",
+  "protocol": "HTTP/1.1 synchronized upstream and Apache response-body Phase 4",
+  "profile": "PR #60 exact local normal-master-sync candidate 93c5f30c181710f5c2cecf207fb92aaecb215035",
+  "affected_files": [
+    "connectors/apache/harness/run_apache_smoke.sh",
+    "tests/test_apache_phase4_response_regression_wiring.py"
+  ],
+  "affected_symbols": [
+    "start_synchronized_upstream",
+    "SYNCHRONIZED_UPSTREAM",
+    "test_synchronized_upstream_cli_contract"
+  ],
+  "source_commits": [
+    "93c5f30c181710f5c2cecf207fb92aaecb215035",
+    "cdc91a398d6c156eaff927d742b23018a3817fb6"
+  ],
+  "summary": "The Parent #60 harness previously invoked the Framework synchronized_upstream.py helper with --control-root even though the Parent-gitlink Framework revision has no such argparse option. The Parent repair now sends --control-root only to the Parent-owned custom MIME helper that supports it, while the pinned Framework helper receives only supported ready, paused, release, and server-evidence arguments. This is a fixed Parent harness contract defect, not authorization to modify Framework or bypass a runtime gate.",
+  "summary_de": "Der Parent-#60-Harness rief den Framework-Helper synchronized_upstream.py zuvor mit --control-root auf, obwohl die vom Parent-Gitlink referenzierte Framework-Revision keine solche argparse-Option besitzt. Die Parent-Reparatur sendet --control-root nun nur an den Parent-eigenen Custom-MIME-Helper, der ihn unterstützt, während der gepinnte Framework-Helper ausschließlich unterstützte Ready-, Paused-, Release- und Server-Evidence-Argumente erhält. Dies ist ein behobener Parent-Harness-Vertragsdefekt und keine Autorisierung, Framework zu ändern oder ein Runtime-Gate zu umgehen.",
+  "observed_behavior": "The first serial exact-head deny control exited 77 and its upstream stderr recorded unrecognized arguments: --control-root followed by the task-owned first-byte directory. Direct read-only inspection of the Framework gitlink revision cdc91a398d6c156eaff927d742b23018a3817fb6 showed only ready, paused, release, and server-evidence file arguments. After the focused Parent patch, the supported Framework invocation and the custom-helper-only control-root invocation both completed successfully in the exact native matrix.",
+  "observed_behavior_de": "Das erste serielle Exact-Head-Deny-Control endete mit Exit 77, und sein Upstream-stderr zeichnete unrecognized arguments: --control-root gefolgt vom task-eigenen First-Byte-Verzeichnis auf. Die direkte read-only-Inspektion der Framework-Gitlink-Revision cdc91a398d6c156eaff927d742b23018a3817fb6 zeigte nur Ready-, Paused-, Release- und Server-Evidence-Dateiargumente. Nach dem fokussierten Parent-Patch liefen sowohl der unterstützte Framework-Aufruf als auch der nur für den Custom-Helper bestimmte control-root-Aufruf in der exakten Native-Matrix erfolgreich.",
+  "expected_behavior": "The Parent harness invokes the pinned Framework helper only with the supported control-file CLI. It may pass --control-root only to the explicit Parent-owned custom helper that declares the option. The compatibility regression prevents both the unsupported Framework argument and loss of the supported file arguments.",
+  "expected_behavior_de": "Der Parent-Harness ruft den gepinnten Framework-Helper nur mit der unterstützten Control-File-CLI auf. Er darf --control-root nur an den expliziten Parent-eigenen Custom-Helper übergeben, der die Option deklariert. Die Kompatibilitätsregression verhindert sowohl das nicht unterstützte Framework-Argument als auch den Verlust der unterstützten Dateiargumente.",
+  "impact": "Before the repair, required synchronized Phase-4 controls could not start, leaving the P0 response-body remediation without current native proof. No production response byte was shown to leak because the failure occurred in the test upstream before Apache served the request. The current exact matrix passed after the narrow Parent repair.",
+  "impact_de": "Vor der Reparatur konnten erforderliche synchronisierte Phase-4-Controls nicht starten, sodass die P0-Response-Body-Remediation ohne aktuellen Native-Nachweis blieb. Es wurde kein Leck von Production-Response-Bytes gezeigt, weil der Fehler im Test-Upstream vor dem Apache-Request auftrat. Die aktuelle exakte Matrix bestand nach der engen Parent-Reparatur.",
+  "preconditions": [
+    "Parent harness from local candidate 93c5f30c181710f5c2cecf207fb92aaecb215035.",
+    "Framework helper at the Parent gitlink revision cdc91a398d6c156eaff927d742b23018a3817fb6.",
+    "A synchronized Phase-4 runtime mode such as deny."
+  ],
+  "reproduction": [
+    "Prepare Apache runtime components for the local candidate with the read-only Framework checkout.",
+    "Run the Parent Phase-4 deny mode through with-runtime-components.sh.",
+    "Observe exit 77 and the synchronized-upstream argparse error for --control-root, then apply the focused Parent conditional invocation and rerun the exact native matrix."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260719T162259Z-pr60-exact-head-revalidation-dfba422e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T162259Z-pr60-exact-head-revalidation-dfba422e/build/logs/apache-phase4/deny/synchronized-upstream.stderr.log",
+      "artifact_type": "exact_head_runtime_contract_failure",
+      "sha256": "ce80d9e44a44a3d018435ba418db0498a5cd9f4048627d27c0f21a6b81bbdd0b",
+      "command": "serial Apache Phase-4 deny control through with-runtime-components.sh",
+      "exit_code": 77,
+      "observed_at": "2026-07-19T17:00:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T162259Z-pr60-exact-head-revalidation-dfba422e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T162259Z-pr60-exact-head-revalidation-dfba422e/build/logs/apache-phase4/deny/status.txt",
+      "artifact_type": "exact_head_runtime_block_status",
+      "sha256": "5f7ce3ab6d8be2a2946edf6669446aec8bb611e755468c11bafc8108304dd354",
+      "command": "serial Apache Phase-4 deny control through with-runtime-components.sh",
+      "exit_code": 77,
+      "observed_at": "2026-07-19T17:00:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T162259Z-pr60-exact-head-revalidation-dfba422e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T162259Z-pr60-exact-head-revalidation-dfba422e/evidence/pr60-exact-native-phase4-matrix.md",
+      "artifact_type": "exact_native_post_fix_phase4_matrix",
+      "sha256": "2218e7d5545f6b09dcb43d1b0779889fc778a16d3f3f65e2246598c3b54e4627",
+      "command": "serial 30-mode Apache Phase-4 exact native matrix after Parent harness contract repair",
+      "working_directory": "/var/tmp/codex/worktrees/apache-phase4-response",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T18:10:00Z",
+      "retention_status": "sealed_native_matrix"
+    },
+    {
+      "run_id": "20260719T162259Z-pr60-exact-head-revalidation-dfba422e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T162259Z-pr60-exact-head-revalidation-dfba422e/evidence/pr60-exact-native-phase4-manifest.json",
+      "artifact_type": "exact_native_post_fix_manifest",
+      "sha256": "1f44c2817676ef2952f70573917657d67645d8d85d57e829a47c9d67ee2ea548",
+      "command": "SHA-256 inventory of the post-fix serial Apache Phase-4 matrix",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260719T162259Z-pr60-exact-head-revalidation-dfba422e",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T18:10:00Z",
+      "retention_status": "sealed_native_matrix"
+    }
+  ],
+  "root_cause": "PR #60 added --control-root to the generic Parent-side invocation without a corresponding pinned Framework CLI capability. The Parent gitlink remains cdc91a398d6c156eaff927d742b23018a3817fb6, whose parser does not define the option. The custom MIME helper and the Framework helper have distinct supported command surfaces.",
+  "root_cause_de": "PR #60 fügte --control-root dem generischen Parent-seitigen Aufruf hinzu, ohne eine entsprechende gepinnte Framework-CLI-Fähigkeit. Der Parent-Gitlink bleibt cdc91a398d6c156eaff927d742b23018a3817fb6, dessen Parser die Option nicht definiert. Der Custom-MIME-Helper und der Framework-Helper besitzen unterschiedliche unterstützte Command-Surfaces.",
+  "proposed_remediation": "Select --control-root only when the explicit Parent-owned custom MIME helper is selected, while the generic pinned Framework helper receives its supported ready, paused, release, and server-evidence arguments. Add a focused wiring regression which asserts that both contracts remain distinct. Do not modify Framework, MRTS, the Parent gitlink, or test outcomes.",
+  "proposed_remediation_de": "--control-root nur auswählen, wenn der explizite Parent-eigene Custom-MIME-Helper ausgewählt ist, während der generische gepinnte Framework-Helper seine unterstützten Ready-, Paused-, Release- und Server-Evidence-Argumente erhält. Eine fokussierte Wiring-Regression ergänzen, die bestätigt, dass beide Verträge getrennt bleiben. Framework, MRTS, Parent-Gitlink oder Testergebnisse nicht ändern.",
+  "acceptance_criteria": [
+    "The generic pinned Framework helper receives supported ready, paused, release, and server-evidence arguments and no --control-root.",
+    "The explicit Parent-owned custom MIME helper receives --control-root only when selected.",
+    "A focused regression retains both contracts and the serial exact native matrix passes its response-byte protection assertions.",
+    "The final security scan and exact pushed-head delivery gates are rerun before PR #60 merge."
+  ],
+  "validation_plan": [
+    "Focused Apache Phase-4 wiring tests and shell syntax passed after the narrow Parent patch.",
+    "The entire serial native 30-control Phase-4 matrix passed with the same pinned read-only Framework revision.",
+    "Retain/hash/seal outputs, run a fresh scoped security diff scan, and then exact pushed-head CI, CodeQL, SonarQube, review, and merge preflight."
+  ],
+  "regression_tests": [
+    "tests/test_apache_phase4_response_regression_wiring.py synchronized-upstream CLI contract test",
+    "ci/runtime/lifecycle/run-apache-phase4-response-regression.sh deny"
+  ],
+  "legitimate_control_tests": [
+    "The supported ready, paused, release, and server-evidence paths remain passed to the Framework helper, while --control-root remains limited to the explicit custom MIME helper.",
+    "The Parent Framework gitlink and Framework/MRTS working trees remain unchanged."
+  ],
+  "dependencies": [
+    "Read-only Framework revision cdc91a398d6c156eaff927d742b23018a3817fb6",
+    "Apache httpd and libModSecurity task-owned runtime components"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0038"
+  ],
+  "deduplication_note": "Not a duplicate of FND-PARENT-0038: this finding records the Parent test-contract defect that prevents current proof of the response-body remediation.",
+  "source_run_ids": [
+    "20260719T162259Z-pr60-exact-head-revalidation-dfba422e"
+  ],
+  "residual_risk": "The Parent harness contract is fixed locally and its exact native matrix passed. This does not verify PR delivery: final local security analysis, exact pushed-head checks, protected merge, and resulting-master validation remain required. No runtime gate was bypassed and no risk is accepted.",
+  "residual_risk_de": "Der Parent-Harness-Vertrag ist lokal fixed, und seine exakte Native-Matrix bestand. Damit ist die PR-Delivery nicht verifiziert: finaler lokaler Security-Scan, Exact-Pushed-Head-Checks, Protected Merge und Resulting-Master-Validierung bleiben erforderlich. Kein Runtime-Gate wurde umgangen und kein Risiko wird akzeptiert.",
+  "created_at": "2026-07-19T17:06:28Z",
+  "updated_at": "2026-07-19T18:20:42Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-19T17:06:28Z",
+      "event": "validated_exact_head_framework_cli_contract_blocker",
+      "detail": "The serial deny control on 93c5f30c exited 77 because the Parent harness supplied --control-root to Framework synchronized_upstream.py. Read-only inspection of the cdc91a3 gitlink revision confirmed the option is unsupported."
+    },
+    {
+      "at": "2026-07-19T18:20:42Z",
+      "event": "parent_harness_contract_fixed_locally",
+      "detail": "The Parent harness now passes --control-root only to the explicit custom MIME helper. The pinned Framework helper receives only supported arguments; focused wiring tests and the sealed exact native 30-control Phase-4 matrix passed. This finding is fixed, not delivery-verified."
+    }
+  ]
+}

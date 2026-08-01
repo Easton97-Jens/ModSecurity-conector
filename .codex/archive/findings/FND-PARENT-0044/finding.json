@@ -1,0 +1,187 @@
+{
+  "id": "FND-PARENT-0044",
+  "title": "Python workflow-security contract rejects the current immutable setup-python v7 pin",
+  "title_de": "Python-Workflow-Sicherheitsvertrag weist den aktuellen unveränderlichen setup-python-v7-Pin zurück",
+  "category": "ci_failure",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "GitHub Actions Python workflow supply-chain contract",
+  "profile": "Parent Python 3.14.6 and Go 1.26.5 toolchain baseline upgrade",
+  "source_base_revision": "2ade0d40983b7af21a65b8cd2884866b85626393",
+  "delivery_state": "local_remediation_fixed_exact_head_hosted_ci_pending",
+  "local_validation_status": "passed_with_exact_target_runtime_and_exact_head_hosted_ci_pending",
+  "security_assessment": "Current master uses the approved immutable actions/setup-python v7.0.0 SHA in all workflows and in the reviewed security-tools lock, but the Python-specific contract recognizes only the prior v6.3.0 SHA. The mandatory contract therefore fails and cannot provide reliable ordering/control evidence for Python jobs. No runtime exploit or mutable action execution was demonstrated; the impact is a CI supply-chain-control availability and integrity defect.",
+  "security_assessment_de": "Der aktuelle Master verwendet in allen Workflows und im geprüften security-tools-Lock den freigegebenen unveränderlichen actions/setup-python-v7.0.0-SHA, doch der Python-spezifische Vertrag erkennt nur den vorherigen v6.3.0-SHA. Der verpflichtende Vertrag schlägt daher fehl und kann keine verlässliche Reihenfolge-/Control-Evidence für Python-Jobs liefern. Es wurde weder ein Runtime-Exploit noch die Ausführung einer veränderlichen Action belegt; die Auswirkung ist ein Verfügbarkeits- und Integritätsdefekt eines CI-Supply-Chain-Controls.",
+  "affected_files": [
+    "ci/checks/common/check-python-version-contract.py",
+    "tests/test_python_version_contract.py",
+    "tests/fixtures/python-version-contract/"
+  ],
+  "affected_control_inputs": [
+    ".github/workflows/*.yml",
+    "ci/tooling/security-tools.lock.yml"
+  ],
+  "affected_symbols": [
+    "SETUP_PYTHON_ACTION",
+    "SETUP_PYTHON_RELEASE_COMMENT",
+    "check-python-version-contract"
+  ],
+  "technical_claim": "The checker must accept exactly actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0, because that is the existing immutable reviewed workflow and lock value. It must continue to reject a mutable tag, short SHA, missing comment, wrong comment, or a SHA absent from the lock, and preserve setup-before-use and Python-version controls.",
+  "technical_claim_de": "Der Checker muss exakt actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0 akzeptieren, weil dies der vorhandene unveränderliche geprüfte Workflow- und Lock-Wert ist. Er muss weiterhin einen veränderlichen Tag, einen kurzen SHA, einen fehlenden Kommentar, einen falschen Kommentar oder einen im Lock fehlenden SHA zurückweisen und Setup-before-use- sowie Python-Version-Controls bewahren.",
+  "entry_point": "The required make check-python-version-contract target parses every Python workflow before hosted CI can use its static control evidence.",
+  "entry_point_de": "Das verpflichtende Target make check-python-version-contract parst jeden Python-Workflow, bevor Hosted CI seine statische Control-Evidence nutzen kann.",
+  "source_to_sink_or_broken_control": "The workflow and lock define the trusted v7 SHA, while the checker compares each use against stale v6. It therefore finds zero valid setup-python steps and emits cascading false setup-order failures despite immutable and lock-matched live declarations.",
+  "source_to_sink_or_broken_control_de": "Workflow und Lock definieren den vertrauenswürdigen v7-SHA, während der Checker jede Verwendung mit veraltetem v6 vergleicht. Er findet daher keine gültigen setup-python-Schritte und erzeugt kaskadierende falsche Setup-Reihenfolgefehler trotz unveränderlicher und Lock-gematchter aktiver Deklarationen.",
+  "attacker_prerequisites": [],
+  "attacker_prerequisites_de": [],
+  "observed_behavior": "On current master 2ade0d40983b7af21a65b8cd2884866b85626393, make check-python-version-contract exits 2. Its first error requires v6.3.0 at ece7cb06caefa5fff74198d8649806c4678c61a1, although all active workflow references and ci/tooling/security-tools.lock.yml use v7.0.0 at 5fda3b95a4ea91299a34e894583c3862153e4b97.",
+  "observed_behavior_de": "Auf aktuellem Master 2ade0d40983b7af21a65b8cd2884866b85626393 endet make check-python-version-contract mit Exit 2. Sein erster Fehler verlangt v6.3.0 bei ece7cb06caefa5fff74198d8649806c4678c61a1, obwohl alle aktiven Workflow-Referenzen und ci/tooling/security-tools.lock.yml v7.0.0 bei 5fda3b95a4ea91299a34e894583c3862153e4b97 verwenden.",
+  "expected_behavior": "The current approved v7 immutable reference is accepted, the Python workflow contract passes, and intentionally malformed lock fixtures remain rejected for their original security reason.",
+  "expected_behavior_de": "Die aktuelle freigegebene v7-Immutable-Referenz wird akzeptiert, der Python-Workflow-Vertrag besteht, und absichtlich fehlerhafte Lock-Fixtures bleiben aus ihrem ursprünglichen Sicherheitsgrund zurückgewiesen.",
+  "impact": "A mandatory CI security contract is unavailable on an otherwise correctly pinned current master. It blocks reliable local and hosted Python workflow validation and can obscure a genuine workflow regression behind stale-reference failures. No credential exposure, repository-write bypass, or runtime connector exploit is claimed.",
+  "impact_de": "Ein verpflichtender CI-Sicherheitsvertrag ist auf einem ansonsten korrekt gepinnten aktuellen Master nicht verfügbar. Das blockiert verlässliche lokale und gehostete Python-Workflow-Validierung und kann eine echte Workflow-Regressions hinter Fehlern wegen veralteter Referenzen verbergen. Es wird weder Credential-Exposure noch ein Repository-Write-Bypass oder ein Runtime-Connector-Exploit behauptet.",
+  "preconditions": [
+    "A workflow uses the current reviewed actions/setup-python v7 immutable reference.",
+    "The Python workflow contract is run against current master."
+  ],
+  "preconditions_de": [
+    "Ein Workflow verwendet die aktuelle geprüfte unveränderliche actions/setup-python-v7-Referenz.",
+    "Der Python-Workflow-Vertrag wird gegen aktuellen Master ausgeführt."
+  ],
+  "reproduction": [
+    "Check out current master 2ade0d40983b7af21a65b8cd2884866b85626393 in a clean worktree.",
+    "Run rtk proxy env PYTHON=/root/git/ModSecurity-conector/.venv/bin/python PYTHONDONTWRITEBYTECODE=1 make check-python-version-contract.",
+    "Observe exit 2 and the obsolete v6.3.0 expected action reference, then compare it with the v7.0.0 workflow and lock values."
+  ],
+  "reproduction_de": [
+    "Aktuellen Master 2ade0d40983b7af21a65b8cd2884866b85626393 in einem sauberen Worktree auschecken.",
+    "rtk proxy env PYTHON=/root/git/ModSecurity-conector/.venv/bin/python PYTHONDONTWRITEBYTECODE=1 make check-python-version-contract ausführen.",
+    "Exit 2 und die veraltete erwartete v6.3.0-Action-Referenz beobachten und dann mit den v7.0.0-Workflow- und Lock-Werten vergleichen."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260721T101749Z-parent-python314-go126-upgrade-8add1076",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T101749Z-parent-python314-go126-upgrade-8add1076/evidence/python-contract-prechange-failure.md",
+      "artifact_type": "payload_safe_current_master_python_contract_failure_receipt",
+      "sha256": "461d1710225eb8f79008308ebbc168fab50d968dc2e9ea8e55da5e1e1b3fb921",
+      "command": "rtk proxy env PYTHON=/root/git/ModSecurity-conector/.venv/bin/python PYTHONDONTWRITEBYTECODE=1 make check-python-version-contract",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260721T101749Z-parent-python314-go126-upgrade-8add1076/tmp/worktree",
+      "exit_code": 2,
+      "observed_at": "2026-07-21T10:17:49Z",
+      "retention_status": "retained_local_evidence",
+      "summary": "Current master checker expected setup-python v6 while all current workflow declarations and security-tools.lock.yml correctly use the reviewed immutable v7 pin."
+    },
+    {
+      "run_id": "20260721T101749Z-parent-python314-go126-upgrade-8add1076",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T101749Z-parent-python314-go126-upgrade-8add1076/evidence/python-go-toolchain-final-local-validation.md",
+      "artifact_type": "payload_safe_local_remediation_and_control_validation_receipt",
+      "sha256": "2dca237a075dd15f7e7e5a90e26bca8328a88bb89076063856a21ccb15bb3dbd",
+      "command": "Focused Python/CI-security/compiler-guide test suite; make check-python-version-contract; make check-ci-security-contract; make check-compiler-guides; compileall; diff/lock integrity review; local Go target discovery.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260721T101749Z-parent-python314-go126-upgrade-8add1076/tmp/worktree",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T11:07:03Z",
+      "retention_status": "retained_local_evidence",
+      "summary": "The original Python contract command now passes for 3.14.6 and 25 Python jobs; 98 focused unit tests, CI-security contract, compiler-guide check, compileall, and scoped diff/lock controls pass. Exact target runtime and hosted exact-head CI remain pending."
+    }
+  ],
+  "root_cause": "The prior immutable setup-python v7 update changed active workflows and the reviewed lock but left this Python-specific strict checker, its fixtures, and its expected test strings on the earlier v6 identity.",
+  "root_cause_de": "Das vorherige unveränderliche setup-python-v7-Update änderte aktive Workflows und den geprüften Lock, ließ jedoch diesen Python-spezifischen strengen Checker, seine Fixtures und seine erwarteten Teststrings auf der früheren v6-Identität.",
+  "proposed_remediation": "Update the checker, tests, and fixtures atomically to the already approved exact v7 reference; retain real workflow pins, security lock, permissions, triggers, and checkout behavior. Couple the repair with the requested Python 3.14.6 contract migration, then rerun original, valid, and negative controls.",
+  "proposed_remediation_de": "Checker, Tests und Fixtures atomar auf die bereits freigegebene exakte v7-Referenz aktualisieren; reale Workflow-Pins, Security-Lock, Berechtigungen, Trigger und Checkout-Verhalten beibehalten. Die Reparatur mit der gewünschten Python-3.14.6-Vertragsmigration koppeln und danach ursprüngliche, gültige und negative Controls erneut ausführen.",
+  "acceptance_criteria": [
+    "The original check-python-version-contract command passes after remediation.",
+    "A valid v7 immutable setup-python reference and its matching lock entry are accepted.",
+    "Mutable tag, short SHA, missing comment, wrong comment, and lock-mismatched fixtures remain rejected.",
+    "No actual workflow action pin, security lock entry, permission, trigger, or checkout configuration is weakened or changed to make the test pass.",
+    "The final candidate receives exact-head hosted Python workflow and CodeQL evidence before verification or closure."
+  ],
+  "acceptance_criteria_de": [
+    "Der ursprüngliche check-python-version-contract-Befehl besteht nach der Reparatur.",
+    "Eine gültige unveränderliche v7-setup-python-Referenz und ihr passender Lock-Eintrag werden akzeptiert.",
+    "Veränderlicher Tag, kurzer SHA, fehlender Kommentar, falscher Kommentar und Lock-nichtgematchte Fixtures bleiben zurückgewiesen.",
+    "Kein tatsächlicher Workflow-Action-Pin, Security-Lock-Eintrag, Berechtigung, Trigger oder Checkout-Konfiguration wird abgeschwächt oder geändert, um den Test zu bestehen.",
+    "Der finale Candidate erhält Exact-Head-Hosted-Python-Workflow- und CodeQL-Evidence vor Verifikation oder Closure."
+  ],
+  "validation_plan": [
+    "Run focused Python checker and unit suites after updating v7 contract and Python 3.14.6 semantics.",
+    "Run the repository CI security workflow contract to retain independent immutable-pin and permission controls.",
+    "Inspect the diff to prove existing v7 workflow pins and reviewed security lock are unchanged.",
+    "Require exact-head hosted Actions and CodeQL evidence before verification or closure."
+  ],
+  "validation_plan_de": [
+    "Fokussierten Python-Checker und Unit-Suiten nach Aktualisierung von v7-Vertrag und Python-3.14.6-Semantik ausführen.",
+    "Den Repository-CI-Sicherheitsworkflow-Vertrag ausführen, um unabhängige Immutable-Pin- und Permission-Controls aufzubewahren.",
+    "Den Diff prüfen, um nachzuweisen, dass vorhandene v7-Workflow-Pins und geprüfter Security-Lock unverändert sind.",
+    "Exact-Head-Hosted-Actions- und CodeQL-Evidence vor Verifikation oder Closure verlangen."
+  ],
+  "regression_tests": [
+    "make check-python-version-contract",
+    "tests/test_python_version_contract.py",
+    "make check-ci-security-contract"
+  ],
+  "legitimate_control_tests": [
+    "A valid action reference exactly matches the approved v7 SHA and comment.",
+    "A job sets up the selected interpreter before its Python consumer runs.",
+    "The canonical Python version remains exact and check-latest remains false."
+  ],
+  "legitimate_control_tests_de": [
+    "Eine gültige Action-Referenz entspricht exakt dem freigegebenen v7-SHA und -Kommentar.",
+    "Ein Job richtet den ausgewählten Interpreter ein, bevor sein Python-Consumer läuft.",
+    "Die kanonische Python-Version bleibt exakt und check-latest bleibt false."
+  ],
+  "bypass_review": "The remediation must not replace immutable pins with tags or relax lock membership, comment matching, setup-before-use ordering, check-latest: false, permissions, triggers, or checkout credentials. Negative fixtures prove these controls remain fail-closed.",
+  "bypass_review_de": "Die Reparatur darf keine Immutable-Pins durch Tags ersetzen und weder Lock-Mitgliedschaft, Kommentar-Matching, Setup-before-use-Reihenfolge, check-latest: false, Berechtigungen, Trigger noch Checkout-Credentials lockern. Negative Fixtures beweisen, dass diese Controls fail-closed bleiben.",
+  "dependencies": [
+    "Exact Python 3.14.6 availability on GitHub-hosted runners",
+    "Exact candidate-head GitHub Actions and CodeQL execution"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0018"
+  ],
+  "deduplication_note": "Not a duplicate of FND-PARENT-0018: that record owns historic partial CodeQL action/lock transactions, while this finding owns a current Python-specific checker that rejects the already correct setup-python v7 workflow and lock identity.",
+  "source_run_ids": [
+    "20260721T101749Z-parent-python314-go126-upgrade-8add1076"
+  ],
+  "evidence_limitations": [
+    "The retained current-master receipt proves the static checker failure, not a runtime connector exploit.",
+    "Local Python 3.14.4 and Go 1.26.0 can validate source contracts only; exact Python 3.14.6 runtime resolution and exact Go 1.26.5 CodeQL execution require the candidate PR's hosted evidence.",
+    "The full bilingual documentation target is blocked solely by absent links below the intentionally uninitialized Framework gitlink; the focused bilingual-document unit suite and generated-guide parity checks pass."
+  ],
+  "residual_risk": "The corrected candidate passes the original contract and its local negative controls. Until exact Python 3.14.6/Go 1.26.5 hosted CI passes on the final candidate head, target-runtime compatibility and remote control execution remain unverified. No risk has been accepted.",
+  "residual_risk_de": "Der korrigierte Candidate besteht den ursprünglichen Vertrag und seine lokalen negativen Controls. Bis exakte Python-3.14.6-/Go-1.26.5-Hosted-CI auf dem finalen Candidate-Head besteht, bleiben Target-Runtime-Kompatibilität und Remote-Control-Ausführung unverifiziert. Es wurde kein Risiko akzeptiert.",
+  "delivery_evidence": {
+    "status": "local_validation_complete_not_delivered",
+    "reason": "The local remediation is fixed and validated; exact-head hosted CI is still required. No current-task explicit master authorization exists.",
+    "actions_not_taken": ["stage", "commit", "push", "pull request", "merge"]
+  },
+  "history": [
+    {
+      "at": "2026-07-21T10:17:49Z",
+      "event": "current_master_contract_failure_retained",
+      "detail": "The clean current-master worktree reproduced exit 2: the Python checker still expects v6 while all real workflow and lock references are the approved v7 identity."
+    },
+    {
+      "at": "2026-07-21T10:28:55Z",
+      "event": "finding_allocated_for_atomic_contract_repair",
+      "detail": "The distinct Parent CI supply-chain contract blocker was deduplicated against FND-PARENT-0018 and allocated as feasible_now. The planned repair preserves real immutable pins and lock content while updating the stale checker/tests/fixtures."
+    },
+    {
+      "at": "2026-07-21T11:07:03Z",
+      "event": "local_remediation_and_legitimate_controls_passed",
+      "detail": "The original Python contract command now passes for Python 3.14.6 and 25 jobs; 98 focused unit tests, the independent CI-security contract, compiler-guide check, compileall, and scoped lock/diff controls passed. Mutable-tag, short-SHA, missing-comment, and wrong-comment fixtures remain rejected. Exact target runtime and exact-head hosted CI remain required before verification or closure."
+    }
+  ],
+  "created_at": "2026-07-21T10:28:55Z",
+  "updated_at": "2026-07-21T11:07:03Z",
+  "final_disposition": "local_remediation_fixed_exact_head_hosted_ci_pending"
+}

@@ -1,0 +1,111 @@
+{
+  "id": "FND-FRAMEWORK-0055",
+  "title": "Framework policy auditor could omit the active Git policy while reporting broad control-plane coverage",
+  "title_de": "Framework-Policy-Auditor konnte die aktive Git-Policy auslassen und trotzdem breite Control-Plane-Coverage melden",
+  "category": "security_hardening",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "low",
+  "confidence": "verified",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": "Framework local policy-audit control plane",
+  "affected_files": [
+    "modules/ModSecurity-test-Framework/.codex/bin/audit-policies",
+    "modules/ModSecurity-test-Framework/.codex/tests/test_audit_policies.py",
+    "modules/ModSecurity-test-Framework/.codex/context/git-policy.md"
+  ],
+  "affected_symbols": [
+    "DOMAIN_SPECS.delivery",
+    "FORBIDDEN_PATTERNS",
+    "test_git_policy_weakening_is_not_omitted_from_audit"
+  ],
+  "source_commits": [
+    "77d73decd094a8f289fbe0ef2582f12430923e24"
+  ],
+  "summary": "The Framework local policy auditor built its read set from DOMAIN_SPECS but did not include the active git-policy.md. A direct-master-push weakening written only there could be omitted from its all_text forbidden-language scan while the audit reported broad coverage.",
+  "summary_de": "Der lokale Framework-Policy-Auditor bildete seine Lesemenge aus DOMAIN_SPECS, enthielt aber die aktive git-policy.md nicht. Eine ausschließlich dort geschriebene Direct-Master-Push-Abschwächung konnte somit aus dem all_text-Forbidden-Language-Scan ausfallen, während das Audit breite Coverage meldete.",
+  "observed_behavior": "The security review inspected the Framework audit source and found that DOMAIN_SPECS omitted git-policy.md; the forbidden weakening loop therefore did not read that active Git authority. The original audit was structural only and did not execute delivery actions.",
+  "observed_behavior_de": "Das Security-Review untersuchte den Framework-Audit-Source und stellte fest, dass DOMAIN_SPECS git-policy.md ausließ; die Forbidden-Weakening-Schleife las diese aktive Git-Autorität daher nicht. Das ursprüngliche Audit war ausschließlich strukturell und führte keine Delivery-Aktionen aus.",
+  "expected_behavior": "A Framework policy audit that claims delivery/Git safety coverage must read the active git-policy.md and reject forbidden weakening text there, while retaining its documented structural-only proof boundary.",
+  "expected_behavior_de": "Ein Framework-Policy-Audit, das Delivery-/Git-Safety-Coverage beansprucht, muss die aktive git-policy.md lesen und dort verbotene Abschwächungstexte zurückweisen, während seine dokumentierte ausschließlich strukturelle Beweisgrenze erhalten bleibt.",
+  "impact": "A local governance change could weaken Git safety in the authoritative Git policy without the Framework audit detecting it, producing misleading local audit evidence. No automated delivery sink consumed that audit result, so this is a low-severity control-coverage hardening issue rather than a demonstrated exploit.",
+  "impact_de": "Eine lokale Governance-Änderung konnte die Git-Safety in der maßgeblichen Git-Policy abschwächen, ohne dass das Framework-Audit sie erkannte, und damit irreführende lokale Audit-Evidence erzeugen. Kein automatisierter Delivery-Sink verbrauchte dieses Audit-Ergebnis; daher ist dies ein Low-Severity-Control-Coverage-Hardening-Problem und kein nachgewiesener Exploit.",
+  "preconditions": [
+    "A Framework control-plane change modifies git-policy.md with prohibited Git weakening language.",
+    "A task relies on the old audit's consistency result as evidence of broad policy coverage."
+  ],
+  "reproduction": [
+    "Inspect the retained scan report and pre-fix Framework audit DOMAIN_SPECS to confirm git-policy.md was absent from the source inventory.",
+    "Run the new focused fixture that appends 'Direct push to master is permitted.' only to git-policy.md and confirm forbidden_weakening_language becomes conflicting.",
+    "Run the normal Framework audit to confirm the valid control-plane remains consistent."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260724T170026Z-worktree-cleanup-governance",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/codex-security-scans/ModSecurity-conector/30ee953b_20260724T170026Z-worktree-cleanup-governance/report.md",
+      "artifact_type": "scoped_governance_security_scan_final_report",
+      "sha256": "83f0006b91b2831ce0b8067c07e3af13b7be55fb82af957bdd2eba6465c5d914",
+      "command": "RTK-wrapped scoped Codex Security review of Framework audit source, policy authority, and focused test coverage",
+      "working_directory": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T17:00:26Z",
+      "retention_status": "external_retained_task_evidence"
+    }
+  ],
+  "evidence_limitations": "The audit is intentionally a local structural consistency tool. Its passing result does not prove runtime Git, GitHub, access-control, or sandbox enforcement.",
+  "root_cause": "The Framework audit's delivery domain enumerated delivery-and-ci-policy.md but not git-policy.md, and its forbidden-pattern scan only examined text loaded through the declared domains.",
+  "root_cause_de": "Die Delivery-Domain des Framework-Audits führte delivery-and-ci-policy.md, aber nicht git-policy.md auf, und ihr Forbidden-Pattern-Scan untersuchte nur Text, der über die deklarierten Domains geladen wurde.",
+  "proposed_remediation": "Include git-policy.md and the new fork-and-upstream-policy.md in the delivery-domain file inventory, then add regression fixtures proving that a direct-master-push weakening in git-policy.md is detected and that a missing git-policy.md makes delivery coverage missing.",
+  "proposed_remediation_de": "git-policy.md und die neue fork-and-upstream-policy.md in das Delivery-Domain-Dateiinventar aufnehmen und Regression-Fixtures hinzufügen, die nachweisen, dass eine Direct-Master-Push-Abschwächung in git-policy.md erkannt wird und eine fehlende git-policy.md Delivery-Coverage als missing meldet.",
+  "acceptance_criteria": [
+    "Framework audit DOMAIN_SPECS reads git-policy.md as part of delivery coverage.",
+    "A forbidden direct-master-push phrase in git-policy.md produces a conflicting forbidden_weakening_language domain.",
+    "Removing git-policy.md produces missing delivery coverage.",
+    "The ordinary Framework audit and all focused audit tests pass without weakening the structural-only scope statement."
+  ],
+  "validation_plan": [
+    "Completed locally: Framework audit passed with all domains covered.",
+    "Completed locally: 22 focused Framework audit tests passed, including the new git-policy weakening and missing-file cases.",
+    "Retain the limitation that this check does not replace future task-specific remote/GitHub or delivery validation."
+  ],
+  "regression_tests": [
+    "Framework .codex/tests/test_audit_policies.py::test_git_policy_weakening_is_not_omitted_from_audit",
+    "Framework .codex/tests/test_audit_policies.py::test_missing_git_policy_is_missing_delivery_coverage"
+  ],
+  "legitimate_control_tests": [
+    "The complete valid Framework fixture remains consistent and exits zero.",
+    "The normal Framework control-plane audit remains consistent after including the active Git and fork policies."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0007"
+  ],
+  "source_run_ids": [
+    "20260724T170026Z-worktree-cleanup-governance"
+  ],
+  "residual_risk": "The audit now reads the active Git authority but remains a local textual consistency check; a future task must still perform real worktree, remote, PR, and Gitlink evidence collection before a delivery or deletion decision.",
+  "residual_risk_de": "Das Audit liest nun die aktive Git-Autorität, bleibt aber eine lokale textuelle Konsistenzprüfung; eine künftige Aufgabe muss weiterhin reale Worktree-, Remote-, PR- und Gitlink-Evidence erfassen, bevor sie eine Delivery- oder Löschentscheidung trifft.",
+  "created_at": "2026-07-24T17:00:26Z",
+  "updated_at": "2026-07-24T18:15:00Z",
+  "final_disposition": "fixed_local_audit_coverage_pending_future_delivery_context",
+  "history": [
+    {
+      "at": "2026-07-24T17:00:26Z",
+      "event": "scoped_governance_scan_validated_audit_omission",
+      "detail": "The deterministic security review recorded that the Framework audit could omit the active git-policy.md while reporting broad coverage."
+    },
+    {
+      "at": "2026-07-24T18:15:00Z",
+      "event": "audit_inventory_and_negative_regressions_added",
+      "detail": "The delivery audit domain now reads git-policy.md and fork-and-upstream-policy.md. New negative fixtures and the ordinary audit passed; no repository delivery or Gitlink action occurred."
+    }
+  ]
+}

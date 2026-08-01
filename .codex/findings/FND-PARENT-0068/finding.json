@@ -1,0 +1,170 @@
+{
+  "id": "FND-PARENT-0068",
+  "title": "Apache cleanup runners execute compiler output from predictable shared temporary trees",
+  "title_de": "Apache-Cleanup-Runner führen Compiler-Ausgabe aus vorhersagbaren gemeinsam genutzten temporären Bäumen aus",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P3",
+  "severity": "low",
+  "confidence": "validated",
+  "confidence_score": 0.72,
+  "status": "in_progress",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "security_assessment": "validated_local_shared_host_path_confinement_toctou_process_execution_not_github_pr_token_escalation",
+  "security_invariant": "A compiler-output directory used for immediate execution must be freshly created, private, non-symlinked, and bound to the invoking process; a lower-privileged local actor must not be able to preseed or replace its executable pathname.",
+  "security_invariant_de": "Ein für unmittelbare Ausführung verwendetes Compiler-Output-Verzeichnis muss frisch erzeugt, privat, nicht verlinkt und an den aufrufenden Prozess gebunden sein; ein niedriger privilegierter lokaler Akteur darf seinen ausführbaren Pfad weder vorab erzeugen noch ersetzen können.",
+  "connector": "apache",
+  "protocol": "local/shared-host CI and test-runner filesystem execution boundary",
+  "profile": "remediated exact Draft PR #183 RulesSet-cleanup runner plus identical unresolved current request-transaction cleanup sibling",
+  "affected_files": [
+    "ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh",
+    "ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh"
+  ],
+  "affected_symbols": [
+    "APACHE_RULES_SET_CLEANUP_OUT",
+    "APACHE_REQUEST_TRANSACTION_CLEANUP_OUT",
+    "BUILD_ROOT",
+    "OUT",
+    "mkdir -p",
+    "apache-rules-set-cleanup",
+    "apache-request-transaction-cleanup",
+    "BIN"
+  ],
+  "trust_boundary": "A lower-privileged local/shared-host filesystem actor can preseed or race a predictable directory under sticky /var/tmp before a developer or shared-runner process compiles and executes a fixed binary name. The validated boundary is local process identity, not an external pull request, GitHub token, secret, network, or connector-runtime boundary.",
+  "sink": "The pre-remediation RulesSet runner preserves an existing output tree through mkdir -p, links a fixed apache-rules-set-cleanup binary in it, and immediately executes that pathname. The current request-transaction sibling has the same OUT/BUILD_ROOT, mkdir -p, fixed binary, and execution sequence.",
+  "summary": "Retained security-diff evidence validates the pre-remediation Apache RulesSet-cleanup runner weakness: a predictable output tree below /var/tmp/ModSecurity-conector-verified/build can be preseeded or raced before fixed-name execution on a multi-user developer host or shared self-hosted runner. Exact Draft PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 remediates that task-introduced RulesSet instance with a private-output contract and negative controls; it is no longer a candidate-integration blocker. The identical pre-existing request-transaction cleanup runner remains on Parent master, so the canonical finding stays in_progress for that sibling only. GitHub external-PR/token escalation remains counterevidenced: no pull_request_target, untrusted workflow input, writable token, or PR path reaches either runner.",
+  "summary_de": "Zurückgehaltene Security-Diff-Evidence validiert die Pre-Remediation-Schwäche des Apache-RulesSet-Cleanup-Runners: Ein vorhersagbarer Output-Baum unter /var/tmp/ModSecurity-conector-verified/build kann vor der Ausführung mit festem Namen auf einem Multi-User-Developer-Host oder Shared-Self-Hosted-Runner vorab erzeugt oder geraced werden. Der exakte Draft-PR-#183-Head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 repariert diese vom Task eingeführte RulesSet-Instanz mit einem Private-Output-Vertrag und Negative-Controls; sie ist kein Candidate-Integration-Blocker mehr. Der identische bereits bestehende Request-Transaction-Cleanup-Runner bleibt auf Parent-master, daher bleibt das kanonische Finding nur für diesen Sibling in_progress. GitHub-External-PR-/Token-Eskalation bleibt widerlegt: Kein pull_request_target, kein untrusted Workflow-Input, kein writable Token und kein PR-Pfad erreichen einen der Runner.",
+  "scope_disposition": "The exact Draft PR #183 RulesSet-cleanup runner was remediated and validated on head 4e4dfb36e1b05f7eda38450fd3710e3a04905118, including private-output negative controls. This record no longer blocks that candidate. Its in_progress scope is limited to the semantically identical, pre-existing request-transaction cleanup runner on Parent master, which was not changed by #183.",
+  "observed_behavior": "The retained pre-remediation candidate snapshot at ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh:8,19-25,82-91 sets OUT from APACHE_RULES_SET_CLEANUP_OUT, BUILD_ROOT, or the deterministic /var/tmp/ModSecurity-conector-verified/build/apache-rules-set-cleanup default. Its only path control requires an absolute string. mkdir -p keeps a pre-existing tree, the compiler writes OUT/apache-rules-set-cleanup, and the script executes that pathname. Direct host evidence records /var/tmp as root:root mode 1777 and the predictable project/build parents as ordinary mode 755. The current Parent sibling check-apache-request-transaction-cleanup.sh has the same construction at lines 8,19-25,81-89.",
+  "observed_behavior_de": "Der zurückgehaltene Pre-Remediation-Kandidaten-Snapshot bei ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh:8,19-25,82-91 setzt OUT aus APACHE_RULES_SET_CLEANUP_OUT, BUILD_ROOT oder dem deterministischen Default /var/tmp/ModSecurity-conector-verified/build/apache-rules-set-cleanup. Seine einzige Pfadkontrolle verlangt einen absoluten String. mkdir -p behält einen vorbestehenden Baum, der Compiler schreibt OUT/apache-rules-set-cleanup und das Skript führt diesen Pfad aus. Direkte Host-Evidence erfasst /var/tmp als root:root mode 1777 und die vorhersagbaren Projekt-/Build-Parents als gewöhnliche mode-755-Verzeichnisse. Der aktuelle Parent-Sibling check-apache-request-transaction-cleanup.sh besitzt dieselbe Konstruktion bei Zeilen 8,19-25,81-89.",
+  "expected_behavior": "Each Apache cleanup runner must create a fresh private mode-700 output directory beneath a validated temporary parent and compile/execute only inside that directory. An inherited OUT, BUILD_ROOT, predictable default, existing directory, symlink, or final-name replacement must not become authority over compiler output or execution. The normal APR compile/run interface must remain available in its isolated legitimate-control environment.",
+  "expected_behavior_de": "Jeder Apache-Cleanup-Runner muss unter einem validierten temporären Parent ein frisches privates mode-700-Output-Verzeichnis erzeugen und nur darin kompilieren/ausführen. Ein geerbtes OUT, BUILD_ROOT, vorhersagbarer Default, bestehendes Verzeichnis, Symlink oder Final-Name-Replacement darf keine Autorität über Compiler-Ausgabe oder Ausführung erhalten. Die normale APR-Compile-/Run-Schnittstelle muss in ihrer isolierten Legitimate-Control-Umgebung verfügbar bleiben.",
+  "impact": "A successful local race can cause one developer or shared-runner process to execute a substituted local binary under the victim identity, or redirect compiler output. The effect is potentially high for that process, but the vector is localhost and requires a multi-user/shared-host timing precondition; retained attack-path analysis calibrates severity as low/P3. The evidence establishes no public endpoint, remote exploit, GitHub PR or credential escalation, secret access, fleet-wide effect, connector request-processing impact, or normal hosted-CI attacker path.",
+  "impact_de": "Ein erfolgreicher lokaler Race kann einen Developer- oder Shared-Runner-Prozess dazu bringen, eine ersetzte lokale Binary unter der Opferidentität auszuführen oder Compiler-Ausgabe umzuleiten. Der Effekt ist für diesen Prozess potenziell hoch, aber der Vektor ist localhost und benötigt eine Multi-User-/Shared-Host-Timing-Voraussetzung; die zurückgehaltene Attack-Path-Analyse kalibriert den Schweregrad als low/P3. Die Evidence belegt keinen öffentlichen Endpoint, keinen Remote-Exploit, keine GitHub-PR- oder Credential-Eskalation, keinen Secret-Zugriff, keinen Fleet-weiten Effekt, keinen Connector-Request-Processing-Impact und keinen normalen Hosted-CI-Angreiferpfad.",
+  "preconditions": [
+    "A lower-privileged local actor shares a multi-user developer host or shared self-hosted runner with the invoking process and can create paths under /var/tmp.",
+    "The victim invokes the Apache cleanup target without a separately validated fresh private output directory, causing the predictable default or a controllable output root to be used.",
+    "The actor precreates or races the selected tree before or between compiler/linker output and the immediate execution of the fixed binary name.",
+    "The runner reaches its compiler/linker and execution path with its ordinary Apache/APXS/APR prerequisites available."
+  ],
+  "reproduction": [
+    "Read the retained bounded validation and attack-path reports for the pre-remediation RulesSet runner snapshot at lines 8,19-25,82-91; together they establish the source, absolute-only control, filesystem precondition, linker output, execution sink, local/shared-host threat model, and GitHub PR/token counterevidence.",
+    "Confirm the host evidence recorded by the report: /var/tmp is mode 1777 root:root, while /var/tmp/ModSecurity-conector-verified and its build parent are ordinary mode-755 directories.",
+    "Inspect the current request-transaction sibling at lines 8,19-25,81-89; it has the same root selection, mkdir -p preservation, fixed binary name, and immediate execution structure.",
+    "Do not run a live cross-user race for this record task. It would require unsafe concurrent manipulation; the retained deterministic static path plus observed sticky ancestor establish the bounded local/shared-host precondition."
+  ],
+  "evidence": [
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/security-diff-scan/artifacts/05_findings/cand-apache-rules-set-cleanup-output-confinement/validation_report.md",
+      "artifact_type": "retained_security_diff_candidate_validation",
+      "sha256": "05bcf8565c7de8f6fcadf2f607e8266ff762fd5e7296d9434066c78a4eada6f7",
+      "command": "Retained bounded static source/configuration trace, direct host filesystem metadata, and task-owned runner control; no live cross-user race was executed.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T09:42:56Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Reportable local path-confinement weakness at medium confidence 0.72. It validates the predictable default, absolute-only control, mkdir/link/execute sink, mode-1777 ancestor, and separate GitHub PR/token counterevidence."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/security-diff-scan/artifacts/05_findings/cand-apache-rules-set-cleanup-output-confinement/attack_path_analysis_report.md",
+      "artifact_type": "retained_security_diff_attack_path_analysis",
+      "sha256": "bf50d4a22613eeccc59d6b99d512e28f2d109c6315d21c097c22bf26f553171f",
+      "command": "Retained repository threat-model and source/configuration attack-path trace for the candidate.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T09:42:56Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Reportable localhost path: a lower-privileged actor can precreate the deterministic tree and race the final pathname. Impact is high per successful race, likelihood is low, and the severity matrix yields low/P3."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh",
+      "artifact_type": "current_parent_source_related_preexisting_instance",
+      "sha256": "9c4594c75e8848085de9f7f4b7dcc61f8984a80a106d6351904254683d7a37a5",
+      "command": "rtk proxy -- rg -n APACHE_REQUEST_TRANSACTION_CLEANUP_OUT|BUILD_ROOT|mkdir -p|apache-request-transaction-cleanup|BIN ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T09:42:56Z",
+      "retention_status": "current_parent_source_observation",
+      "result": "Current Parent source has the matching default output-root, absolute-only control, mkdir -p, fixed binary, and immediate execution pattern at lines 8,19-25,81-89."
+    }
+  ],
+  "evidence_integrity_note": "The live candidate ledger changed after the pre-remediation observation and now contains later remediation-validation data, so its prior digest is deliberately excluded from current acceptance evidence. The two hash-stable retained reports above govern this record's pre-remediation state; this note makes no candidate-current-source, fixed, verified, closed, or delivery claim.",
+  "evidence_integrity_note_de": "Das Live-Candidate-Ledger änderte sich nach der Pre-Remediation-Beobachtung und enthält nun spätere Remediation-Validation-Daten; sein früherer Digest wird daher absichtlich von der aktuellen Acceptance-Evidence ausgeschlossen. Die beiden hash-stabilen zurückgehaltenen Berichte oben bestimmen den Pre-Remediation-Status dieses Records; dieser Hinweis beansprucht keinen Candidate-Current-Source-, fixed-, verified-, closed- oder Delivery-Status.",
+  "root_cause": "The runner design treats an absolute output string as sufficient authority and reuses a deterministic directory under a sticky shared ancestor. mkdir -p does not establish ownership, freshness, permissions, non-symlink identity, or post-link binding. The compiler outputs a predictable binary name, then the script executes that name without preventing a local actor from preserving or replacing it. The existing request-transaction runner repeats the same root-control/control/sink arrangement.",
+  "root_cause_de": "Das Runner-Design behandelt einen absoluten Output-String als ausreichende Autorität und verwendet ein deterministisches Verzeichnis unter einem sticky Shared-Ancestor wieder. mkdir -p etabliert weder Ownership, Frische, Berechtigungen, Non-Symlink-Identität noch eine Post-Link-Bindung. Der Compiler erzeugt einen vorhersagbaren Binary-Namen, danach führt das Skript diesen Namen aus, ohne einen lokalen Akteur am Erhalten oder Ersetzen zu hindern. Der bestehende Request-Transaction-Runner wiederholt dieselbe Root-Control-/Control-/Sink-Anordnung.",
+  "proposed_remediation": "Repair the RulesSet and request-transaction cleanup runners together through one audited confinement contract: choose a validated temporary parent, create a fresh private mode-700 directory with mktemp -d, compile and execute only inside that directory, and reject or remove externally selected deterministic output-root authority. Add source-contract negative coverage for preseeded default/BUILD_ROOT, symlink, and final-name replacement attempts plus a legitimate APR compile/run control. Preserve compiler, APXS/APR, and Apache behavior; do not weaken workflow permissions, scanners, Quality Gates, or existing path controls.",
+  "proposed_remediation_de": "RulesSet- und Request-Transaction-Cleanup-Runner gemeinsam über einen auditierten Confinement-Vertrag reparieren: Einen validierten temporären Parent wählen, mit mktemp -d ein frisches privates mode-700-Verzeichnis erzeugen, nur darin kompilieren und ausführen und extern gewählte deterministische Output-Root-Autorität zurückweisen oder entfernen. Source-Contract-Negativ-Coverage für vorab erzeugten Default/BUILD_ROOT, Symlink und Final-Name-Replacement sowie einen legitimen APR-Compile-/Run-Control ergänzen. Compiler-, APXS/APR- und Apache-Verhalten bewahren; Workflow-Berechtigungen, Scanner, Quality Gates oder bestehende Pfadkontrollen nicht abschwächen.",
+  "acceptance_criteria": [
+    "Both Apache cleanup runners create a fresh private mode-700 output directory below a validated temporary parent before compiler output exists.",
+    "A preseeded deterministic default, inherited BUILD_ROOT/OUT, symlink, or final-name replacement cannot select or replace the executable that the runner invokes.",
+    "The RulesSet and request-transaction runners retain their legitimate Apache/APXS/APR compiler and harness execution behavior in an isolated task-owned environment.",
+    "Focused source-contract, negative containment, legitimate-control, shell syntax, and security-diff checks pass without weakening workflow permissions, scanner exclusions, Quality Gates, or production Apache behavior.",
+    "A fresh exact-head review and hosted checks exist before any fixed, verified, or closed disposition."
+  ],
+  "validation_plan": [
+    "Run focused source-contract regressions proving both runners create and use a fresh private directory instead of an inherited deterministic output root.",
+    "Exercise preseeded default/BUILD_ROOT, symlink, and final-name-replacement negative controls without creating an unsafe live cross-user race.",
+    "Run the legitimate APR compile/run controls for both runners in a verified task-owned Apache/APXS/APR environment.",
+    "Run shell syntax, a focused security-diff review, and fresh exact-head hosted checks for the repaired candidate."
+  ],
+  "regression_tests": [
+    "Focused static contract test for fresh private output-directory creation and no inherited deterministic OUT/BUILD_ROOT execution authority in both Apache cleanup runners.",
+    "Negative preseeded-root, symlink, and final-name-replacement controls.",
+    "Shell syntax check for each changed runner."
+  ],
+  "legitimate_control_tests": [
+    "RulesSet cleanup harness compiles and runs successfully with verified Apache/APXS/APR prerequisites inside a fresh task-owned output directory.",
+    "Request-transaction cleanup harness compiles and runs successfully with the same private-output contract.",
+    "A normal hosted caller continues to use its job-local temporary root with read-only contents permissions."
+  ],
+  "dependencies": [
+    "A task-owned Parent worktree for source remediation and isolated output roots.",
+    "Shell mktemp support and a validated temporary-parent contract.",
+    "Apache/APXS/APR/libmodsecurity prerequisites for the legitimate native harness controls.",
+    "Fresh exact-head hosted review and CI evidence after remediation."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0043",
+    "FND-PARENT-0064"
+  ],
+  "deduplication_note": "The current request-transaction cleanup runner is not allocated a separate canonical finding: it has the same Parent owner, local/shared-host source, absolute-only output-root control, mkdir -p preservation, fixed binary execution sink, security invariant, and fresh-private-directory remediation. It is recorded as a related pre-existing instance within FND-PARENT-0068. FND-PARENT-0064 owns RulesSet APR lifecycle cleanup and FND-PARENT-0043 owns request-transaction memory lifecycle; neither owns this output-confinement/TOCTOU execution boundary.",
+  "source_run_ids": [
+    "selective-apache-prs-master-20260729"
+  ],
+  "residual_risk": "The sealed reports remain pre-remediation evidence for the former RulesSet runner and current Parent source retains the identical request-transaction runner pattern. A live cross-user race was deliberately not run; shared-host topology is outside repository evidence. GitHub PR/token escalation is counterevidenced, but that does not resolve the remaining local/shared-host process-execution path in the pre-existing sibling. The repaired RulesSet instance has no residual candidate-blocking risk under this finding; the sibling needs separate follow-up before the canonical finding can become fixed or closed.",
+  "residual_risk_de": "Die versiegelten Berichte bleiben Pre-Remediation-Evidence für den früheren RulesSet-Runner und der aktuelle Parent-Source behält das identische Request-Transaction-Runner-Pattern. Ein Live-Cross-User-Race wurde bewusst nicht ausgeführt; die Shared-Host-Topologie liegt außerhalb der Repository-Evidence. GitHub-PR-/Token-Eskalation ist widerlegt, löst aber den verbleibenden lokalen/shared-host Process-Execution-Pfad im bereits bestehenden Sibling nicht. Die reparierte RulesSet-Instanz hat unter diesem Finding kein Candidate-Blocking-Restrisiko; der Sibling benötigt separates Follow-up, bevor das kanonische Finding fixed oder closed werden kann.",
+  "created_at": "2026-07-29T09:42:56Z",
+  "updated_at": "2026-07-29T11:06:58Z",
+  "final_disposition": "in_progress_preexisting_request_transaction_sibling_not_candidate_blocking",
+  "history": [
+    {
+      "at": "2026-07-29T09:42:56Z",
+      "event": "retained_pre_remediation_local_output_confinement_path_validated",
+      "detail": "The sealed validation and attack-path reports established the task-introduced RulesSet runner's local/shared-host path-confinement weakness, while separately counterevidencing GitHub PR/token escalation."
+    },
+    {
+      "at": "2026-07-29T09:42:56Z",
+      "event": "identical_preexisting_sibling_deduplicated_into_same_canonical_finding",
+      "detail": "The current request-transaction cleanup runner has the same output-root, mkdir, fixed-binary, and execution structure. Policy requires one canonical finding for this semantically identical, jointly remediable instance."
+    },
+    {
+      "at": "2026-07-29T10:04:18Z",
+      "event": "mutable_post_observation_candidate_ledger_excluded_from_acceptance_evidence",
+      "detail": "The live ledger no longer matches the pre-remediation observation and contains later remediation-validation data. It is excluded to preserve this finding's report-only pre-remediation evidence boundary; status remains in_progress."
+    },
+    {
+      "at": "2026-07-29T11:06:58Z",
+      "event": "exact_pr_183_ruleset_instance_cleared_as_candidate_blocker",
+      "detail": "Parent supplied exact-head evidence for Draft PR #183 at 4e4dfb36e1b05f7eda38450fd3710e3a04905118: private-output repair and negative controls, all required GitHub checks passed, SonarQube Cloud Quality Gate OK, direct PR issue API total=0, and zero review threads. The task-introduced RulesSet runner is therefore no longer a candidate blocker; in_progress now applies solely to the pre-existing request-transaction sibling."
+    }
+  ]
+}

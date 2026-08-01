@@ -1,0 +1,141 @@
+{
+  "id": "FND-PARENT-0053",
+  "title": "Exact #74 runtime producer is blocked at Apache HTTPD preparation",
+  "title_de": "Der exakte #74-Runtime-Producer ist bei der Apache-HTTPD-Vorbereitung blockiert",
+  "category": "ci_failure",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+"status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "apache",
+  "protocol": "strict/full runtime evidence production",
+  "profile": "Parent PR #74 exact-head hosted run at d93446a1b53be344f5599c48272060e2c664ae86",
+  "affected_files": [
+    "Makefile",
+    "ci/provisioning/components/prepare-runtime-components.py",
+    ".github/workflows/verified-report-governance.yml"
+  ],
+  "affected_symbols": [
+    "PCRE2_SHA256 export boundary",
+    "require_literal_sha256",
+    "prepare_archive",
+    "prepare_apache_httpd",
+    "verified-report-governance:report-governance"
+  ],
+  "summary": "The fresh strict/full PR #74 runtime producer fails closed because Parent turns an absent PCRE2 digest into an explicitly empty Framework override and accepts unverified PCRE2 prefetches before the Framework extraction guard rejects the empty digest.",
+  "summary_de": "Der frische strikte/vollständige PR-#74-Runtime-Producer schlägt fehlgeschlossen fehl, weil Parent eine fehlende PCRE2-Prüfsumme in einen explizit leeren Framework-Override umwandelt und unbestätigte PCRE2-Prefetches akzeptiert, bevor der Framework-Extraction-Guard die leere Prüfsumme ablehnt.",
+  "observed_behavior": "At exact head d93446a1b53be344f5599c48272060e2c664ae86, hosted run 30193495484/job 89770795068 emitted `apache_poc: blocked missing required SHA256 digest for pcre2`. GNU Make exported the otherwise undefined PCRE2_SHA256 as an explicit empty string, suppressing the Framework's intentional unset-only default. Parent prepare_archive also allowed an empty PCRE2 digest and could cache/download/parse an unverified archive before the later Framework extraction guard failed closed.",
+  "observed_behavior_de": "Am exakten Head d93446a1b53be344f5599c48272060e2c664ae86 gab der Hosted-Run 30193495484/Job 89770795068 `apache_poc: blocked missing required SHA256 digest for pcre2` aus. GNU Make exportierte die ansonsten undefinierte PCRE2_SHA256 als explizit leeren String und unterdrückte damit den absichtlich nur bei nicht gesetztem Wert greifenden Framework-Default. Parent prepare_archive erlaubte zudem eine leere PCRE2-Prüfsumme und konnte ein unbestätigtes Archiv cachen, herunterladen und parsen, bevor der spätere Framework-Extraction-Guard fehlgeschlossen scheiterte.",
+  "expected_behavior": "An absent PCRE2_SHA256 reaches Framework as absent so Framework remains the sole default-pin authority; an explicit empty or malformed caller override fails closed. Parent must reject a missing or malformed literal PCRE2 digest before cache creation, download, archive parsing, or cache publication, and a matching digest must remain accepted.",
+  "expected_behavior_de": "Eine fehlende PCRE2_SHA256 erreicht Framework als fehlend, damit Framework alleinige Autorität für das Default-Pin bleibt; ein explizit leerer oder fehlerhafter Caller-Override schlägt fehlgeschlossen fehl. Parent muss eine fehlende oder fehlerhafte literale PCRE2-Prüfsumme vor Cache-Erstellung, Download, Archiv-Parsing oder Cache-Publikation ablehnen; eine passende Prüfsumme muss weiterhin akzeptiert werden.",
+  "impact": "PR #74 cannot produce fresh legitimate runtime evidence or be integrated while the required producer is failed. The Framework extraction boundary prevents a demonstrated extraction bypass, but Parent unnecessarily processes and can mark unverified PCRE2 cache content complete before the downstream rejection. No secret exposure or exploit is observed.",
+  "impact_de": "PR #74 kann keine frische legitime Runtime-Evidence erzeugen oder integriert werden, solange der verpflichtende Producer fehlschlägt. Die Framework-Extraction-Grenze verhindert einen nachgewiesenen Extraction-Bypass, aber Parent verarbeitet unnötig unbestätigten PCRE2-Cache-Inhalt und kann ihn vor der nachgelagerten Ablehnung als vollständig markieren. Es wurden weder Secret-Exposure noch Exploit beobachtet.",
+  "preconditions": [
+    "PR #74 exact head runs verified-report-governance with its strict/full producer.",
+    "PCRE2_SHA256 is absent from the Parent Make invocation or is supplied as an empty/malformed caller override.",
+    "The required strict/full producer invokes Parent prepare-runtime-components and the Framework Apache builder."
+  ],
+  "reproduction": [
+    "Inspect hosted run 30193495484/job 89770795068 at d93446a1b53be344f5599c48272060e2c664ae86 and observe `apache_poc: blocked missing required SHA256 digest for pcre2`.",
+    "At the published head run `rtk make -s --eval='print-pcre2-env: ; @printf \"PCRE2_SHA256=<%s>\\\\n\" \"$$PCRE2_SHA256\"' print-pcre2-env` and observe `PCRE2_SHA256=<>`.",
+    "Run the Parent cache-contract regression with invalid literal PCRE2 digests and verify that download, archive parsing, checksum-URL fallback, and cache publication do not occur."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T073000Z-pr74-apache-runtime-blocker",
+      "artifact_path": ".codex/runs/20260726T073000Z-pr74-apache-runtime-blocker/evidence/exact-head-ci-failure.md",
+      "artifact_type": "exact_head_hosted_ci_failure_summary",
+      "sha256": "45d9f0942bd0a884b0c65a1f99753d70ec0a8b7024e76ac7c304b16ab4ce8bd8",
+      "command": "Read-only inspection of exact-head GitHub Actions workflow/job results and failure-only diagnostic output",
+      "working_directory": "/var/tmp/codex/worktrees/parent/migrate-pr55-pr74-master-V27zuA/pr74",
+      "exit_code": 1,
+      "observed_at": "2026-07-26T07:30:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726T083803Z-pr74-pcre2-digest-remediation",
+      "artifact_path": ".codex/runs/20260726T083803Z-pr74-pcre2-digest-remediation/evidence/exact-head-pcre2-digest-blocker.md",
+      "artifact_type": "exact_head_hosted_ci_failure_summary",
+      "sha256": "f226e3d727c384c55abc80cea24aec506341e831d52c9e695892ecad617e29a5",
+      "command": "Read-only inspection of exact-head GitHub Actions run/job output plus no-write GNU Make export-boundary reproduction",
+      "working_directory": "/var/tmp/codex/worktrees/parent/migrate-pr55-pr74-master-V27zuA/pr74",
+      "exit_code": 1,
+      "observed_at": "2026-07-26T08:38:03Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "Parent Makefile unconditionally exported an undefined PCRE2_SHA256. GNU Make therefore supplied an explicit empty environment value, while Framework common.sh deliberately distinguishes unset from empty so only an unset value receives its reviewed default pin. Separately, Parent prepare_archive treated the PCRE2 digest as optional and allowed its checksum URL as fallback, permitting download, tarfile parsing, and cache completion before Framework later rejected an empty digest before extraction.",
+  "root_cause_de": "Das Parent-Makefile exportierte eine undefinierte PCRE2_SHA256 bedingungslos. GNU Make lieferte daher einen explizit leeren Environment-Wert, während Framework common.sh absichtlich zwischen nicht gesetzt und leer unterscheidet, sodass nur ein nicht gesetzter Wert das überprüfte Default-Pin erhält. Zusätzlich behandelte Parent prepare_archive die PCRE2-Prüfsumme als optional und erlaubte ihre Checksum-URL als Fallback; dadurch konnten Download, tarfile-Parsing und Cache-Vervollständigung erfolgen, bevor Framework später eine leere Prüfsumme vor der Extraction ablehnte.",
+  "proposed_remediation": "Export PCRE2_SHA256 from Parent only when GNU Make reports an actual caller-provided value, leaving Framework as the single default-pin authority. Require and lowercase-normalize a literal 64-hex PCRE2 digest before Parent creates archive/cache state; do not use PCRE2_SHA256_URL as a PCRE2 fallback. Preserve Framework's empty/malformed override failure and its extraction-time verification.",
+  "proposed_remediation_de": "PCRE2_SHA256 aus Parent nur exportieren, wenn GNU Make einen tatsächlich vom Caller bereitgestellten Wert meldet, sodass Framework die alleinige Autorität für das Default-Pin bleibt. Eine literale 64-hex-PCRE2-Prüfsumme vor der Erzeugung von Parent-Archiv-/Cache-Zustand erzwingen und kleinschreiben; PCRE2_SHA256_URL nicht als PCRE2-Fallback verwenden. Die Framework-Ablehnung leerer/fehlerhafter Overrides und seine Extraction-Time-Verifikation erhalten.",
+  "acceptance_criteria": [
+    "An absent PCRE2_SHA256 is absent from the Parent Make child environment; an explicit empty override is still explicit and fails closed; a valid caller override is preserved exactly.",
+    "Parent rejects empty, whitespace-only, and malformed PCRE2 digests before archive-directory creation, download, tarfile parsing, checksum-URL fallback, or cache-marker publication.",
+    "A matching literal digest, including uppercase input, is accepted after lowercase normalization; a valid-but-mismatching digest removes the archive and leaves no complete marker.",
+    "Focused Parent Make, cache-contract, cache-identity, CI-security, component, documentation, and diff checks pass without changing Framework or MRTS.",
+    "A fresh hosted exact-head strict/full producer and terminal evidence gate pass before the finding is verified or PR #74 is integrated."
+  ],
+  "validation_plan": [
+    "Run focused Parent cache-contract/cache-identity, CI-security, and runtime-component tests with the task-local Python environment.",
+    "Run make check-ci-security-contract, variable documentation, bilingual documentation, and git diff --check in the #74 task worktree.",
+    "Inspect the fresh hosted exact-head strict/full producer and terminal-gate result after normal PR branch publication; then repeat required PR checks, review, SonarCloud, and protected-integration evidence."
+  ],
+  "regression_tests": [
+    "tests/test_ci_security_workflows.py",
+    "tests/test_runtime_component_cache_contract.py",
+    "tests/test_runtime_component_cache_identity.py",
+    "tests/test_prepare_runtime_components.py"
+  ],
+  "legitimate_control_tests": [
+    "A valid matching literal PCRE2 digest produces a cache entry with checksum_status PASS.",
+    "An absent Parent Make variable remains absent so Framework resolves its reviewed default pin.",
+    "The fresh strict/full producer prepares Apache and reaches the terminal evidence gate."
+  ],
+  "dependencies": [
+    "FND-CROSS-0001",
+    "FND-PARENT-0052",
+    "FND-FRAMEWORK-0005"
+  ],
+  "blocked_by": [
+    "Fresh hosted exact-head strict/full producer and terminal-gate evidence after the Parent remediation is normally published."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0001",
+    "FND-PARENT-0042",
+    "FND-PARENT-0052",
+    "FND-FRAMEWORK-0005",
+    "FND-FRAMEWORK-0056"
+  ],
+  "source_run_ids": [
+    "20260726T073000Z-pr74-apache-runtime-blocker",
+    "20260726T083803Z-pr74-pcre2-digest-remediation"
+  ],
+  "residual_risk": "No failing runtime output is accepted as evidence. The strict producer, Framework digest verifier, and terminal gate remain fail-closed; no risk is accepted.",
+  "residual_risk_de": "Keine fehlgeschlagene Runtime-Ausgabe wird als Evidence akzeptiert. Der strikte Producer, der Framework-Digest-Verifier und das terminale Gate bleiben fehlgeschlossen; kein Risiko wird akzeptiert.",
+  "created_at": "2026-07-26T07:30:00Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-26T07:30:00Z",
+      "event": "exact_head_apache_runtime_blocker_recorded",
+      "detail": "Both exact #74 workflow variants failed closed at the Apache runtime-component classifier. The first bounded diagnostic identified missing_local_httpd_build but did not expose the subordinate build cause."
+    },
+    {
+      "at": "2026-07-26T07:52:00Z",
+      "event": "bounded_apache_diagnostic_published_pending_hosted_evidence",
+      "detail": "Normal PR #74 commit d93446a1b53be344f5599c48272060e2c664ae86 adds a current-run, exact Apache-log, regular-file-only, command-shielded diagnostic."
+    },
+    {
+      "at": "2026-07-26T08:38:03Z",
+      "event": "pcre2_digest_root_cause_confirmed_and_parent_remediation_in_progress",
+      "detail": "The hosted bounded diagnostic exposed `apache_poc: blocked missing required SHA256 digest for pcre2`. Parent's unconditional export converted an absent value into an empty Framework override; Parent prefetch also accepted an optional digest. The active Parent-only remediation preserves the absent-versus-empty boundary and adds an early literal-digest guard."
+    }
+  ]
+}

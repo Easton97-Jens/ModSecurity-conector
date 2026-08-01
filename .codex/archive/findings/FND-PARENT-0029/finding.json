@@ -1,0 +1,119 @@
+{
+  "id": "FND-PARENT-0029",
+  "title": "SonarQube Cloud reports inconsistent Apache candidate return shapes",
+  "title_de": "SonarQube Cloud meldet inkonsistente Rückgabeformen der Apache-Kandidaten",
+  "category": "sonarqube_finding",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+"status": "closed",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "not_applicable",
+  "release_blocker": true,
+  "security_relevant": false,
+  "connector": "Apache",
+  "protocol": "CI optional prerequisite status",
+  "profile": "apache_development_prerequisite",
+  "affected_files": [
+    "ci/tools/run-check-status.py",
+    "tests/test_optional_prerequisite_status.py"
+  ],
+  "affected_symbols": [
+    "apache_development_candidates",
+    "apache_development_available",
+    "main"
+  ],
+  "source_commits": [
+    "63f4c9694f3f1c1372ce6db86ea1f88a38f01a92"
+  ],
+"summary": "Historical SonarQube Cloud PR analysis for PR #56 reported one task-owned python:S8495 code smell at apache_development_candidates(). PR #56 merged to master as a73c33529f4b900e0e5722f6c8eae2ae47e41c1f; the current function retains one canonical candidate return, the specified regression and legitimate-control tests pass, and current Sonar issue queries show no unresolved original or rule issue.",
+"summary_de": "Die historische SonarQube-Cloud-PR-Analyse für PR #56 meldete einen task-eigenen python:S8495-Code-Smell in apache_development_candidates(). PR #56 wurde als a73c33529f4b900e0e5722f6c8eae2ae47e41c1f nach master gemergt; die aktuelle Funktion behält einen kanonischen Candidate-Return, die spezifizierten Regressions- und legitimen Control-Tests bestehen und aktuelle Sonar-Issue-Abfragen zeigen kein ungelöstes Original- oder Rule-Issue.",
+  "observed_behavior": "At PR #56 head 63f4c9694f3f1c1372ce6db86ea1f88a38f01a92, ci/tools/run-check-status.py:222-234 returns (value,), tuple(shlex.split(...)), (), or (\"apxs\", \"apxs2\") depending on parent-controlled environment selection. SonarQube Cloud issue AZ90uTmr7VSiD7VvMb8Y is OPEN at line 222 with python:S8495 and HIGH Reliability/Maintainability impacts.",
+  "observed_behavior_de": "Am PR-56-Head 63f4c9694f3f1c1372ce6db86ea1f88a38f01a92 gibt ci/tools/run-check-status.py:222-234 abhängig von der parent-kontrollierten Environment-Auswahl (value,), tuple(shlex.split(...)), () oder (\"apxs\", \"apxs2\") zurück. SonarQube-Cloud-Issue AZ90uTmr7VSiD7VvMb8Y ist an Zeile 222 mit python:S8495 sowie HIGH-Auswirkungen auf Reliability und Maintainability OPEN.",
+  "expected_behavior": "The Parent-owned candidate-selection function preserves its documented precedence while assigning one candidate sequence and returning it through one canonical return path. The current PR-head Sonar issue query must report no open task-owned issue.",
+  "expected_behavior_de": "Die Parent-eigene Kandidatenauswahlfunktion bewahrt ihre dokumentierte Priorität, weist aber genau eine Kandidatensequenz zu und gibt sie über einen kanonischen Rückgabepfad zurück. Die Sonar-Issue-Abfrage für den aktuellen PR-Head darf kein offenes task-eigenes Issue melden.",
+  "impact": "The observable behavior is currently covered by focused controls, but the task-owned SonarCloud reliability and maintainability issue blocks the requested verified_pr disposition. No evidence shows a recurrence of the untrusted-child-output bypass fixed by FND-PARENT-0025.",
+  "impact_de": "Das beobachtbare Verhalten ist aktuell durch fokussierte Kontrollen abgedeckt, aber das task-eigene SonarCloud-Issue zu Reliability und Maintainability blockiert die verlangte verified_pr-Disposition. Es gibt keinen Nachweis für eine Wiederkehr des durch FND-PARENT-0025 behobenen Untrusted-Child-Output-Bypasses.",
+  "preconditions": [
+    "Draft PR #56 is analyzed by SonarQube Cloud at source commit 63f4c9694f3f1c1372ce6db86ea1f88a38f01a92.",
+    "The Parent optional Apache development prerequisite preflight calls apache_development_candidates()."
+  ],
+  "reproduction": [
+    "Query the SonarQube Cloud issues API for project Easton97-Jens_ModSecurity-conector, pullRequest=56, and unresolved issues.",
+    "Observe open issue AZ90uTmr7VSiD7VvMb8Y (python:S8495) at ci/tools/run-check-status.py:222.",
+    "Inspect apache_development_candidates() and observe early tuple returns with differing cardinalities."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/05_findings/FND-PARENT-0029-sonar-return-shape/sonar-open-issue.json",
+      "artifact_type": "sonarqube_cloud_pr_issue_query",
+      "sha256": "e0f0bbcb9f9895461c07a4453471ed016acc9208e8fc974e9c5209f0596d7a71",
+      "command": "rtk curl -fsS 'https://sonarcloud.io/api/issues/search?projectKeys=Easton97-Jens_ModSecurity-conector&pullRequest=56&resolved=false&ps=100'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T12:40:03Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The status-channel remediation introduced several semantically valid but structurally divergent tuple return paths. SonarQube Cloud conservatively flags the varying tuple arity as a reliability and maintainability pitfall. No child output is used as control data and no security-bypass recurrence was observed.",
+  "root_cause_de": "Die Statuskanal-Remediation führte mehrere semantisch valide, aber strukturell divergierende Tuple-Rückgabepfade ein. SonarQube Cloud markiert die unterschiedliche Tuple-Arity konservativ als Reliability- und Maintainability-Fallstrick. Child-Ausgabe wird nicht als Kontrolldatum verwendet und es wurde keine Wiederkehr eines Security-Bypasses beobachtet.",
+  "proposed_remediation": "Use an explicitly typed local candidate sequence, preserve APXS_BIN → APXS → CI_APXS_BIN_CANDIDATES → default precedence, and return that sequence exactly once. Add an AST regression assertion and a real parent preflight control; do not suppress Sonar, disable the rule, or alter the status-channel trust boundary.",
+  "proposed_remediation_de": "Eine explizit typisierte lokale Kandidatensequenz verwenden, die Priorität APXS_BIN → APXS → CI_APXS_BIN_CANDIDATES → Default bewahren und diese Sequenz genau einmal zurückgeben. Eine AST-Regressionsassertion und eine echte Parent-Preflight-Kontrolle ergänzen; Sonar nicht unterdrücken, die Rule nicht deaktivieren und die Statuskanal-Trust-Boundary nicht ändern.",
+  "acceptance_criteria": [
+    "apache_development_candidates() has one canonical return of its candidate sequence.",
+    "APXS_BIN, APXS, CI_APXS_BIN_CANDIDATES, defaults, and malformed candidate configuration retain their existing semantics.",
+    "The focused optional-prerequisite suite covers the single return path and a valid configured APXS preflight control.",
+    "The exact #56 PR head has no unresolved task-owned SonarCloud issue; no scanner suppression, rule disablement, or risk acceptance is used.",
+    "The status-channel security invariant remains intact: child stdout and stderr cannot authorize an allowed blocked result."
+  ],
+  "validation_plan": [
+    "Run tests.test_optional_prerequisite_status before and after the focused correction.",
+    "Run the AST single-return regression and the configured absolute APXS legitimate control.",
+    "Push only the isolated #56 follow-up, verify local/remote/PR-head equality, and query SonarCloud issue and Quality Gate APIs for the new exact head.",
+    "Review the diff for a behavioral change, scanner suppression, or reintroduction of child-output authority."
+  ],
+  "regression_tests": [
+    "tests/test_optional_prerequisite_status.py::OptionalPrerequisiteStatusTests.test_parent_apache_candidate_resolution_has_one_canonical_return",
+    "tests/test_optional_prerequisite_status.py::OptionalPrerequisiteStatusTests.test_configured_apxs_candidate_is_a_valid_parent_preflight"
+  ],
+  "legitimate_control_tests": [
+    "A configured absolute APXS candidate succeeds with an empty PATH.",
+    "A genuine missing Apache development prerequisite remains a parent-authenticated blocked status.",
+    "Malformed CI_APXS_BIN_CANDIDATES remains an empty candidate sequence and does not create a false pass."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0025"
+  ],
+  "deduplication_note": "Not a duplicate of FND-PARENT-0025. FND-PARENT-0025 concerns authorization of an allowed blocked status from untrusted child output; this finding concerns the static return-shape structure of the subsequently introduced Parent-controlled APXS candidate selector.",
+  "source_run_ids": [
+    "20260718T075200Z-parent-evidence-integrity-ade378cf"
+  ],
+"residual_risk": "No task-owned return-shape or scanner issue remains. The global master Quality Gate error is tracked separately by FND-SONAR-0001 and is not treated as closure evidence for this finding.",
+"residual_risk_de": "Kein task-eigenes Return-Shape- oder Scanner-Issue bleibt offen. Das globale Master-Quality-Gate-ERROR wird separat durch FND-SONAR-0001 verfolgt und nicht als Closure-Evidence für dieses Finding behandelt.",
+  "created_at": "2026-07-18T12:40:03Z",
+  "updated_at": "2026-08-01T18:52:17Z",
+  "final_disposition": "closed after https://github.com/Easton97-Jens/ModSecurity-conector/pull/56 merged to master as a73c33529f4b900e0e5722f6c8eae2ae47e41c1f; the merge is reachable from origin/master 59aba762f2d852fd917079ca8519e4ea7f49169c, the two specified controls passed again after test-only PR #229, and current Sonar queries report the original key resolved.",
+  "history": [
+    {
+      "at": "2026-07-18T12:40:03Z",
+      "event": "sonarcloud_task_owned_issue_triaged",
+      "detail": "Direct SonarQube Cloud PR API evidence confirmed open issue AZ90uTmr7VSiD7VvMb8Y (python:S8495) on the #56 source commit. No suppression or risk acceptance is authorized."
+    },
+    {
+      "at": "2026-08-01T17:36:54Z",
+      "event": "closed_after_current_reconciliation",
+      "detail": "PR #56 is merged and reachable from current origin/master; current canonical-return source inspection, the two specified unittest controls, and Sonar issue readback establish closure without suppression or risk acceptance."
+    },
+    {
+      "at": "2026-08-01T18:52:17Z",
+      "event": "current_master_controls_revalidated_after_test_only_pr229",
+      "detail": "After rebase to current master 59aba762f2d852fd917079ca8519e4ea7f49169c, the two specified OptionalPrerequisiteStatusTests passed again. PR #229 modified tests only and did not change ci/tools/run-check-status.py or the finding's source scope."
+    }
+  ]
+}

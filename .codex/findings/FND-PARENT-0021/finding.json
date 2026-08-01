@@ -1,0 +1,132 @@
+{
+  "id": "FND-PARENT-0021",
+  "title": "Storage-budget finalization cannot clean task-owned validation and build artifacts",
+  "title_de": "Storage-Budget-Finalisierung kann task-eigene Validierungs- und Build-Artefakte nicht bereinigen",
+  "category": "storage_cleanup",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "reproduced",
+  "status": "blocked",
+  "feasibility_status": "out_of_scope",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/bin/storage-budget",
+    ".codex/context/storage-policy.md"
+  ],
+  "affected_symbols": [
+    "command_register",
+    "RECURSIVE_DIRECTORY_NAMES",
+    "removal_plan_no_follow",
+    "assert_private_owned"
+  ],
+  "summary": "Current integration runs cannot be sealed by the repository-local storage-budget helper. It correctly fails closed instead of deleting data: validation-tmp cannot be registered recursively, generated engine binaries and the Go cache are not private enough for automatic cleanup, and a task-owned Framework source worktree contains a tracked symlink that recursive cleanup must not follow. The task-owned evidence remains retained and no automatic or manual deletion was performed.",
+  "summary_de": "Aktuelle Integrations-Runs können durch den repository-lokalen Storage-Budget-Helper nicht versiegelt werden. Er scheitert korrekt geschlossen, statt Daten zu löschen: validation-tmp kann nicht rekursiv registriert werden, erzeugte Engine-Binaries und der Go-Cache sind für eine automatische Bereinigung nicht privat genug, und ein task-eigener Framework-Source-Worktree enthält einen getrackten Symlink, dem die rekursive Bereinigung nicht folgen darf. Die task-eigene Evidence bleibt aufbewahrt; es gab keine automatische oder manuelle Löschung.",
+  "observed_behavior": "After the evidence checksum was refreshed and the five build directories were re-registered as recursive temporary paths, a dry run had zero planned deletions. It rejected the non-empty validation-tmp directory without recursive registration and rejected build/engine-service/traefik-engine-service, build/engine-service-clang/traefik-engine-service, and build/native-middleware/gocache because their permissions were not private enough. On 2026-07-20, the PR #34 task made its registered Framework worktree private and reran finalization; the helper then rejected, without following it, the tracked symlink tests/mrts/infra-overlays/nginx-pr24/infra/modules-enabled/mod-http-geoip2.conf and produced no deletion plan.",
+  "observed_behavior_de": "Nachdem die Evidence-Prüfsumme aktualisiert und die fünf Build-Verzeichnisse als rekursive temporäre Pfade neu registriert waren, hatte ein Dry-Run null geplante Löschungen. Er lehnte das nichtleere Verzeichnis validation-tmp ohne rekursive Registrierung ab und lehnte build/engine-service/traefik-engine-service, build/engine-service-clang/traefik-engine-service und build/native-middleware/gocache ab, weil ihre Berechtigungen nicht privat genug waren. Am 2026-07-20 machte die PR-#34-Aufgabe ihren registrierten Framework-Worktree privat und führte die Finalisierung erneut aus; der Helper lehnte daraufhin ohne ihm zu folgen den getrackten Symlink tests/mrts/infra-overlays/nginx-pr24/infra/modules-enabled/mod-http-geoip2.conf ab und erzeugte keinen Löschplan.",
+  "expected_behavior": "The helper must continue to fail closed for untrusted or non-private paths. A separately authorized storage-control-plane change may make the documented task-owned validation and build outputs eligible for safe finalization only with an exact recursive-path policy, private artifact permissions, retained-evidence integrity, and the existing no-symlink, no-foreign-process, and root-containment controls intact.",
+  "expected_behavior_de": "Der Helper muss für nicht vertrauenswürdige oder nicht private Pfade weiterhin geschlossen scheitern. Eine separat autorisierte Storage-Control-Plane-Änderung darf die dokumentierten task-eigenen Validierungs- und Build-Outputs nur mit einer exakten rekursiven Pfad-Policy, privaten Artefaktberechtigungen, erhaltener Evidence-Integrität sowie unveränderten No-Symlink-, No-Foreign-Process- und Root-Containment-Controls für eine sichere Finalisierung zulassen.",
+  "impact": "The task runs remain active instead of finalized and their registered temporary artifacts remain on disk. The current PR #34 run is at 8.429 GiB with 54.245 GiB free and meets the 15 GiB final target, so no foreign cleanup or deletion-bypass is justified. This is a local tooling/cleanup limitation, not a product or security-control failure.",
+  "impact_de": "Die Task-Runs bleiben aktiv statt finalisiert und ihre registrierten temporären Artefakte bleiben auf dem Datenträger. Der aktuelle PR-#34-Run liegt bei 8,429 GiB mit 54,245 GiB frei und erfüllt das 15-GiB-Finalziel; daher sind weder Fremdbereinigung noch Lösch-Bypass gerechtfertigt. Dies ist eine lokale Tooling-/Cleanup-Grenze, kein Produkt- oder Sicherheitskontrollfehler.",
+  "preconditions": [
+    "A private current task run contains validation-tmp and build artifacts created by the authorized validation commands.",
+    "The active manifest registers validation-tmp as a non-recursive temporary directory and the documented build directories as recursive temporary paths.",
+    "The storage-budget helper enforces its recursive-directory allowlist and private-ownership checks.",
+    "A registered task-owned Framework source worktree can contain a tracked symlink that the helper must not follow during recursive cleanup."
+  ],
+  "reproduction": [
+    "Register the retained evidence directory with the storage-budget helper after all evidence writes.",
+    "Register the five documented build roots as recursive temporary paths and leave validation-tmp registered as a normal temporary path.",
+    "Run rtk run '/root/git/ModSecurity-conector/.codex/bin/storage-budget finalize --run 20260718T053406Z-pr-51-master-integration-546d9dc2 --dry-run --json'.",
+    "Observe zero planned deletions and the validation-tmp/private-permission fail-closed errors.",
+    "For the private registered Framework PR #34 worktree, run rtk proxy /root/git/ModSecurity-conector/.codex/bin/storage-budget finalize --run 20260720T042405Z-framework-pr-34-master-integration-31a1528d --dry-run --json.",
+    "Observe exit 2, zero planned deletions, and the fail-closed rejection of tests/mrts/infra-overlays/nginx-pr24/infra/modules-enabled/mod-http-geoip2.conf as a symlink."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T053406Z-pr-51-master-integration-546d9dc2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T053406Z-pr-51-master-integration-546d9dc2/evidence/validation/storage-finalization-fail-closed.md",
+      "artifact_type": "storage_finalization_fail_closed_record",
+      "sha256": "146abee82f088548838293ceb760e7d919611cc39f9549832e7b400e61032719",
+      "command": "rtk run '/root/git/ModSecurity-conector/.codex/bin/storage-budget finalize --run 20260718T053406Z-pr-51-master-integration-546d9dc2 --dry-run --json'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 2,
+      "observed_at": "2026-07-18T07:05:32Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T042405Z-framework-pr-34-master-integration-31a1528d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T042405Z-framework-pr-34-master-integration-31a1528d/evidence/storage-finalization-fail-closed.md",
+      "artifact_type": "storage_finalization_fail_closed_record",
+      "sha256": "d71163521ee4d7d01fce2fe728bee6b5bfa1a44ec1c7facf66c89f40e643d100",
+      "command": "rtk proxy /root/git/ModSecurity-conector/.codex/bin/storage-budget finalize --run 20260720T042405Z-framework-pr-34-master-integration-31a1528d --dry-run --json",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 2,
+      "observed_at": "2026-07-20T05:05:00Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The cleanup helper's recursive-registration allowlist excludes validation-tmp, and its private-ownership safeguard rejects build outputs generated with non-private permissions. Separately, its no-symlink safeguard correctly refuses a tracked symlink within a task-owned Framework source worktree. Both protections are working as designed, but their combined policy does not support finalizing these otherwise task-owned layouts.",
+  "root_cause_de": "Die Allowlist des Cleanup-Helpers für rekursive Registrierung schließt validation-tmp aus, und seine Private-Ownership-Sicherung lehnt mit nicht privaten Berechtigungen erzeugte Build-Outputs ab. Separat lehnt seine No-Symlink-Sicherung korrekt einen getrackten Symlink innerhalb eines task-eigenen Framework-Source-Worktrees ab. Beide Schutzmechanismen funktionieren wie vorgesehen, aber ihre kombinierte Policy unterstützt die Finalisierung dieser ansonsten task-eigenen Layouts nicht.",
+  "proposed_remediation": "In a separate explicitly authorized control-plane task, determine whether validation-tmp belongs to a safe recursive temporary class, ensure affected test/build outputs are created with helper-acceptable private permissions, and define a supported retained disposition for source worktrees that contain tracked symlinks. Add focused storage-budget regression and legitimate-control tests. Do not weaken evidence checksums, descriptor anchoring, symlink/special-file rejection, process checks, mount checks, or dry-run/apply separation.",
+  "proposed_remediation_de": "In einer separaten ausdrücklich autorisierten Control-Plane-Aufgabe bestimmen, ob validation-tmp zu einer sicheren rekursiven temporären Klasse gehört, sicherstellen, dass betroffene Test-/Build-Outputs mit für den Helper akzeptablen privaten Berechtigungen erzeugt werden, und eine unterstützte Retained-Disposition für Source-Worktrees mit getrackten Symlinks definieren. Fokussierte Storage-Budget-Regressions- und legitime Kontrolltests ergänzen. Evidence-Prüfsummen, Descriptor-Anchoring, Symlink-/Spezialdatei-Refusal, Prozess- und Mount-Checks oder die Dry-Run/Apply-Trennung nicht abschwächen.",
+  "acceptance_criteria": [
+    "A dry run for a representative private task run yields an exact safe plan for all intended task-owned temporary paths or explains a supported retained disposition.",
+    "The corresponding apply operation finalizes the manifest only after the same plan passes all no-symlink, no-foreign-process, ownership, mount, and evidence-integrity checks.",
+    "No Parent, Framework, MRTS, retained-evidence, shared-cache, or foreign task path is eligible for deletion.",
+    "The existing fail-closed behavior remains covered for non-private, symlinked, special, mounted, foreign-process-held, and out-of-run paths.",
+    "A task-owned source worktree with tracked symlinks has either a verified safe retained disposition or a separately authorized, equally safe cleanup path; the helper never follows the symlink."
+  ],
+  "validation_plan": [
+    "Create an isolated private test run containing the documented validation and build shapes.",
+    "Run the storage-budget dry run and inspect every planned deletion path before apply.",
+    "Run apply only after the plan is safe, verify a finalized manifest, retained evidence checksum, and absence of only the permitted temporary paths.",
+    "Rerun the focused storage-budget test suite plus negative controls for non-private and foreign paths."
+  ],
+  "regression_tests": [
+    ".codex/tests/test_storage_budget.py",
+    "A focused test for recursive validation-tmp policy and helper-acceptable task build artifact permissions."
+  ],
+  "legitimate_control_tests": [
+    "A normal private task-owned validation/build run finalizes only its registered temporary paths while its evidence remains intact.",
+    "Non-private, symlinked, special, mounted, foreign-process-held, and out-of-run paths continue to fail closed."
+  ],
+  "dependencies": [
+    "Explicit user authorization for a local storage control-plane change."
+  ],
+  "blocked_by": [
+    "The current PR #51 integration task does not authorize changes to .codex/bin/storage-budget or storage-policy.md.",
+    "The current Framework PR #34 integration task does not authorize changes to .codex/bin/storage-budget or storage-policy.md."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-HOST-0001",
+    "FND-PARENT-0014"
+  ],
+  "source_run_ids": [
+    "20260718T053406Z-pr-51-master-integration-546d9dc2",
+    "20260720T042405Z-framework-pr-34-master-integration-31a1528d"
+  ],
+  "residual_risk": "The task runs are not sealed and their temporary artifacts remain retained, but no unsafe deletion took place. Evidence is retained and the final storage target is met. No risk acceptance exists.",
+  "residual_risk_de": "Die Task-Runs sind nicht versiegelt und ihre temporären Artefakte bleiben erhalten, aber es fand keine unsichere Löschung statt. Evidence ist aufbewahrt und das finale Speicherziel ist erfüllt. Es gibt keine Risikoakzeptanz.",
+  "created_at": "2026-07-18T07:05:32Z",
+  "updated_at": "2026-07-20T05:05:00Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-18T07:05:32Z",
+      "event": "current_task_storage_finalization_blocked_fail_closed",
+      "detail": "Dry-run finalization recorded zero planned deletions and refused the non-empty non-recursive validation-tmp directory plus three non-private generated build/cache paths. No --apply or manual deletion was performed."
+    },
+    {
+      "at": "2026-07-20T05:05:00Z",
+      "event": "framework_pr34_worktree_storage_finalization_blocked_fail_closed",
+      "detail": "After the registered private Framework PR #34 worktree passed the ownership check, dry-run finalization refused its tracked mod-http-geoip2.conf symlink without following it. No --apply, manual recursive deletion, or direct worktree removal was performed."
+    }
+  ]
+}

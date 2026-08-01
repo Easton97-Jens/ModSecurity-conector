@@ -1,0 +1,116 @@
+{
+  "id": "FND-SONAR-0004",
+  "title": "SonarQube Cloud project analyzes read-only Framework and MRTS trees",
+  "title_de": "SonarQube-Cloud-Projekt analysiert schreibgeschützte Framework- und MRTS-Bäume",
+  "category": "sonarqube_finding",
+  "repository": "parent",
+  "ownership": "sonarqube_configuration",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "blocked",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "modules/ModSecurity-test-Framework/",
+    "modules/ModSecurity-test-Framework/tools/MRTS/"
+  ],
+  "affected_symbols": [
+    "Easton97-Jens_ModSecurity-conector",
+    "SonarQube Cloud Automatic Analysis scope"
+  ],
+  "summary": "The current Parent SonarQube Cloud project includes 341 Framework-exclusive and 17 MRTS issue records even though those nested repositories are read-only and outside this task's ownership boundary.",
+  "summary_de": "Das aktuelle Parent-SonarQube-Cloud-Projekt enthält 341 ausschließlich zum Framework gehörende und 17 MRTS-Issue-Records, obwohl diese verschachtelten Repositories schreibgeschützt und außerhalb der Ownership-Grenze dieser Aufgabe liegen.",
+  "observed_behavior": "The retained, paginated baseline for remote Parent SHA aabde81a9a315bf3e494e595ab0399357c596f9c contains 358 records beneath modules/ModSecurity-test-Framework/: 337 open and 4 closed Framework-exclusive records, plus 17 open MRTS-subtree records. Public effective settings confirm sonar.autoscan.enabled=true, while the Parent has no versioned scanner configuration; no Parent-owned fix can remediate those nested-source records.",
+  "observed_behavior_de": "Die zurückgehaltene, paginierte Baseline für Remote-Parent-SHA aabde81a9a315bf3e494e595ab0399357c596f9c enthält 358 Records unterhalb von modules/ModSecurity-test-Framework/: 337 offene und 4 geschlossene ausschließlich zum Framework gehörende Records sowie 17 offene Records im MRTS-Subtree. Öffentliche effektive Settings bestätigen sonar.autoscan.enabled=true, während der Parent keine versionierte Scanner-Konfiguration besitzt; kein Parent-eigener Fix kann diese Nested-Source-Records beheben.",
+  "expected_behavior": "A Parent Sonar analysis must report only Parent-owned source paths. Framework and MRTS paths must have zero analyzed issue records without suppressing, disabling, or broadly excluding Parent source rules.",
+  "expected_behavior_de": "Eine Parent-Sonar-Analyse muss ausschließlich Parent-eigene Source-Pfade ausweisen. Framework- und MRTS-Pfade müssen null analysierte Issue-Records haben, ohne Parent-Source-Regeln zu unterdrücken, zu deaktivieren oder breit auszuschließen.",
+  "impact": "The current analysis cannot be reconciled entirely through authorized Parent source changes, and nested security/quality records can distort project-wide metrics and gate triage.",
+  "impact_de": "Die aktuelle Analyse kann nicht vollständig durch autorisierte Parent-Source-Änderungen abgeglichen werden; verschachtelte Security-/Quality-Records können projektweite Metriken und die Gate-Triage verfälschen.",
+  "preconditions": [
+    "The SonarQube Cloud project analyzes the Parent checkout with Automatic Analysis enabled.",
+    "Framework and MRTS remain independent read-only repository boundaries for this task."
+  ],
+  "reproduction": [
+    "Use the retained issue baseline and count components beginning with Easton97-Jens_ModSecurity-conector:modules/ModSecurity-test-Framework/ and its /tools/MRTS/ subtree.",
+    "Read the public effective project settings for Easton97-Jens_ModSecurity-conector and confirm sonar.autoscan.enabled=true."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260719T131708Z-sonarcloud-parent-remediation-baseline-bbce9d6b",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T131708Z-sonarcloud-parent-remediation-baseline-bbce9d6b/evidence/sonar-baseline-issues.json",
+      "artifact_type": "paginated_sonarcloud_issue_baseline",
+      "sha256": "1d03d14de35cd0ec0bb5e26854534e1f1ec4694ed3e917ac220e65c0ed5ef25f",
+      "command": "RTK-proxied public SonarQube Cloud V1 issue pagination followed by component-prefix accounting for the retained baseline",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T13:18:35Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T134711Z-sonarcloud-parent-remediation-current-3de21a87",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T134711Z-sonarcloud-parent-remediation-current-3de21a87/evidence/sonar-baseline-issues.json",
+      "artifact_type": "paginated_superseding_sonarcloud_issue_baseline",
+      "sha256": "b219bff16466e443c11733e335ae8b9bf9b63aac2cf556bd5b0d9fd8d3e8175c",
+      "command": "RTK-proxied public SonarQube Cloud V1 exact-current issue pagination followed by component-prefix accounting for the retained baseline",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T13:20:27Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "Confirmed scope contamination: the current SonarQube Cloud project analyzes nested Framework and MRTS paths. The public effective setting sonar.autoscan.enabled=true and the absence of Parent scanner configuration support Automatic Analysis as the active mechanism, but administrative project-scope configuration is not available in this task environment.",
+  "root_cause_de": "Bestätigte Scope-Kontamination: Das aktuelle SonarQube-Cloud-Projekt analysiert verschachtelte Framework- und MRTS-Pfade. Das öffentliche effektive Setting sonar.autoscan.enabled=true und das Fehlen einer Parent-Scanner-Konfiguration stützen Automatic Analysis als aktiven Mechanismus, aber administrative Projekt-Scope-Konfiguration steht in dieser Aufgabenumgebung nicht zur Verfügung.",
+  "proposed_remediation": "An authorized SonarQube Cloud project administrator must configure a narrow ownership boundary that excludes only the nested Framework and MRTS repository trees, or migrate the project to a CI-managed scanner with an explicit Parent-only source scope. Re-run the analysis and prove that Parent sources remain covered and Framework/MRTS paths are absent. Do not suppress rules, add NOSONAR, or use a broad Parent-source exclusion.",
+  "proposed_remediation_de": "Ein autorisierter SonarQube-Cloud-Projektadministrator muss eine enge Ownership-Grenze konfigurieren, die ausschließlich die verschachtelten Framework- und MRTS-Repository-Bäume ausschließt, oder das Projekt auf einen CI-gesteuerten Scanner mit explizitem Parent-only-Source-Scope migrieren. Die Analyse ist erneut auszuführen und muss belegen, dass Parent-Source weiterhin erfasst wird und Framework-/MRTS-Pfade fehlen. Regeln dürfen nicht unterdrückt, NOSONAR nicht hinzugefügt und Parent-Source nicht breit ausgeschlossen werden.",
+  "acceptance_criteria": [
+    "A fresh SHA-bound SonarQube Cloud analysis reports zero components or issue records under modules/ModSecurity-test-Framework/ and its tools/MRTS subtree.",
+    "The analysis still includes the intended Parent source paths and preserves all Parent rules and quality-gate controls.",
+    "The configuration change and exact resulting analysis revision are retained without secrets."
+  ],
+  "validation_plan": [
+    "Query paginated issues for the exact post-change analysis and assert zero nested Framework/MRTS component paths.",
+    "Compare Parent component counts and quality-gate conditions before and after the scope correction.",
+    "Review the effective scope configuration for absence of NOSONAR, rule disabling, or broad Parent-source exclusions."
+  ],
+  "regression_tests": [
+    "A scope-accounting readback must fail if a nested Framework or MRTS component reappears."
+  ],
+  "legitimate_control_tests": [
+    "A representative Parent source component remains present in the post-change analysis."
+  ],
+  "dependencies": [
+    "SonarQube Cloud project-administration access or an approved CI-scanner migration decision"
+  ],
+  "blocked_by": [
+    "No SonarQube Cloud project-administration credential or approved external-configuration authority is available in this task environment."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0001"
+  ],
+  "source_run_ids": [
+    "20260719T131708Z-sonarcloud-parent-remediation-baseline-bbce9d6b",
+    "20260719T134711Z-sonarcloud-parent-remediation-current-3de21a87"
+  ],
+  "residual_risk": "Current project-wide quality and security counts include findings that this Parent-only task is forbidden to modify. No user risk acceptance has been given.",
+  "residual_risk_de": "Aktuelle projektweite Quality- und Security-Zählungen enthalten Findings, die diese Parent-only-Aufgabe nicht ändern darf. Es liegt keine Risikoakzeptanz durch den Benutzer vor.",
+  "created_at": "2026-07-19T13:30:00Z",
+  "updated_at": "2026-07-19T14:09:34Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-19T13:30:00Z",
+      "event": "created_from_paginated_current_sonar_baseline",
+      "detail": "Allocated after deduplicating against FND-SONAR-0001: this is a distinct, independently remediable project-scope configuration defect; no nested source or project setting was changed."
+    },
+    {
+      "at": "2026-07-19T14:09:34Z",
+      "event": "superseding_current_scope_baseline_revalidated",
+      "detail": "Superseding remote Parent SHA aabde81a9a315bf3e494e595ab0399357c596f9c retains the exact same nested-scope accounting: 337 open and 4 closed Framework-exclusive records plus 17 open MRTS-subtree records. No nested source, project setting, suppression, rule, or risk-acceptance mutation was performed; the authorized external scope correction remains blocked."
+    }
+  ]
+}

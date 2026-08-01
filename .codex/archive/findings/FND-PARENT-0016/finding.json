@@ -1,0 +1,329 @@
+{
+  "id": "FND-PARENT-0016",
+  "title": "SonarCloud rejected the original Traefik UDS hardening because public-root allocation was on the PR path",
+  "title_de": "SonarCloud wies die ursprüngliche Traefik-UDS-Härtung zurück, weil Public-Root-Allokation im PR-Pfad lag",
+  "category": "sonarqube_finding",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "high",
+  "confidence": "confirmed",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "Traefik",
+  "protocol": "AF_UNIX pathname",
+  "profile": "native-traefik-middleware",
+  "affected_files": [
+    "connectors/traefik/scripts/runtime_native_smoke.py",
+    "connectors/traefik/src/traefik_engine_service.c",
+    "connectors/traefik/build/test-engine-service-runtime.sh",
+    "connectors/traefik/build/build-engine-service.sh",
+    "tests/test_traefik_native_local_plugin.py",
+    "ci/runtime/lifecycle/run-connector-stage.sh",
+    "ci/runtime/lifecycle/run-remaining-connector-target.sh",
+    "connectors/traefik/Makefile",
+    "tests/test_no_crs_selected_runner_wiring.py",
+    "common/scripts/modsecurity_targeted_eval.cc"
+  ],
+  "affected_symbols": [
+    "resolve_engine_socket_parent",
+    "assert_private_engine_socket_parent_ancestors_are_safe",
+    "traefik_engine_socket_ownership_self_test",
+    "traefik_engine_private_directory_ancestors_are_safe",
+    "traefik_engine_serve",
+    "traefik_engine_create_listener",
+    "run_remaining_connector",
+    "run_make_target",
+    "runtime-smoke-traefik-native",
+    "bracket_value"
+  ],
+  "summary": "The first SonarCloud analysis of Parent Draft PR #51 failed its new-code Security Rating (D). Direct raw PR evidence classified public-root UDS allocation/fallback code, a generic inherited TMPDIR selector, and a process-global umask as vulnerabilities. The first post-remediation exact-head check closed 14 task-owned issues; the final implementation requires an explicit private parent and preserves named lifecycle values as raw environment data. Exact head 6e73dc97eba8b503d7d88f7feb3c43ef14132083 then passed SonarCloud with zero new issues and an A security rating, without suppression or risk acceptance.",
+  "summary_de": "Die erste SonarCloud-Analyse des Parent-Draft-PR #51 scheiterte am New-Code-Security-Rating (D). Direkte rohe PR-Evidence klassifizierte Public-Root-UDS-Allokation/Fallback-Code, einen generischen geerbten TMPDIR-Selector und eine prozessglobale umask als Vulnerabilities. Der erste Post-Remediation-Exact-Head-Check schloss 14 task-owned Issues; die finale Implementierung verlangt einen expliziten privaten Parent und bewahrt benannte Lifecycle-Werte als rohe Environment-Daten. Exact Head 6e73dc97eba8b503d7d88f7feb3c43ef14132083 bestand anschließend SonarCloud mit null neuen Issues und Security-Rating A, ohne Suppression oder Risikoakzeptanz.",
+  "observed_behavior": "SonarCloud check run 87922216387 for PR #51/head 48198b50357cf24fd59b1aad39d99ef407b3d890 completed with Quality Gate failure: new_security_rating=4 against an A threshold. The first post-remediation exact-head check, 87949565401 for 56e35eb5e6ff52e0ec84f08807f767acc890ae9e, closed 14 task-owned issues. Its only open vulnerability was python:S5443 at the runner's inherited TMPDIR fallback; no scanner control was changed. The subsequent head 2ad97e0e4c7defd0d7d0aa30b8603d59dacbed85 exposed thirteen test-fixture-only python:S5443 annotations for hard-coded /tmp injection values. The focused follow-up derives those fixture paths from a private TemporaryDirectory; final exact head 6e73dc97eba8b503d7d88f7feb3c43ef14132083 passed check 87978528103 with zero annotations, zero open PR issues, and Quality Gate status OK.",
+  "observed_behavior_de": "SonarCloud-Check-Run 87922216387 für PR #51/Head 48198b50357cf24fd59b1aad39d99ef407b3d890 endete mit Quality-Gate-Fehler: new_security_rating=4 gegen den A-Schwellenwert. Der erste Post-Remediation-Exact-Head-Check 87949565401 für 56e35eb5e6ff52e0ec84f08807f767acc890ae9e schloss 14 task-owned Issues. Seine einzige offene Vulnerability war python:S5443 am geerbten TMPDIR-Fallback des Runners; keine Scanner-Kontrolle wurde geändert. Der nachfolgende Head 2ad97e0e4c7defd0d7d0aa30b8603d59dacbed85 zeigte dreizehn nur Test-Fixture-betreffende python:S5443-Annotations für hart codierte /tmp-Injection-Werte. Der fokussierte Follow-up leitet diese Fixture-Pfade aus einem privaten TemporaryDirectory ab; finaler Exact Head 6e73dc97eba8b503d7d88f7feb3c43ef14132083 bestand Check 87978528103 mit null Annotations, null offenen PR-Issues und Quality-Gate-Status OK.",
+  "expected_behavior": "The runner, shell harness, and C engine must require an existing, absolute, canonical, current-user-owned, exact-0700 non-symlink socket parent whose full ancestor chain prevents cross-UID replacement before binding or allocating a UDS child. The native runner accepts only the explicit TRAEFIK_ENGINE_SOCKET_PARENT and must not select a generic inherited temporary-directory variable. The listener must not rely on a process-global umask or pathname chmod for that boundary, and a re-run on the updated exact PR head must satisfy the SonarCloud new-code Security Rating gate without a suppression or risk acceptance.",
+  "expected_behavior_de": "Runner, Shell-Harness und C-Engine müssen vor Bind oder Allokation eines UDS-Childs einen bestehenden, absoluten, kanonischen, current-user-owned, exakt-0700 und symlinkfreien Socket-Parent verlangen, dessen vollständige Vorfahrenkette UID-übergreifende Ersetzung verhindert. Der native Runner akzeptiert nur den expliziten TRAEFIK_ENGINE_SOCKET_PARENT und darf keine generische geerbte Temporary-Directory-Variable wählen. Der Listener darf sich für diese Grenze nicht auf eine prozessglobale umask oder pathname chmod stützen, und ein Rerun auf dem aktualisierten exakten PR-Head muss das SonarCloud-New-Code-Security-Rating-Gate ohne Suppression oder Risikoakzeptanz erfüllen.",
+  "impact": "The exact Draft-PR head now satisfies its configured external security gate, but the finding remains fixed rather than verified or closed because no master integration is authorized or performed. In the pre-remediation implementation, an elevated or otherwise sensitive native runner inheriting an attacker-selected absolute TMPDIR could create a named UDS child below a parent outside the intended private boundary. The scanner evidence does not validate the separate same-UID endpoint-redirection or final-cleanup races; those remain FND-PARENT-0013, FND-PARENT-0014, and FND-PARENT-0015.",
+  "impact_de": "Der exakte Draft-PR-Head erfüllt jetzt sein konfiguriertes externes Security-Gate, aber das Finding bleibt fixed statt verified oder closed, weil keine Master-Integration autorisiert oder durchgeführt ist. Im Vorzustand könnte ein privilegierter oder anderweitig sensibler nativer Runner, der ein angreiferkontrolliertes absolutes TMPDIR erbt, ein benanntes UDS-Child außerhalb der beabsichtigten privaten Grenze erzeugen. Die Scanner-Evidence validiert nicht die separaten Same-UID-Endpoint-Umleitungs- oder Final-Cleanup-Races; diese bleiben FND-PARENT-0013, FND-PARENT-0014 und FND-PARENT-0015.",
+  "preconditions": [
+    "Draft PR #51 remains on the recorded head and SonarCloud analyzes its new code.",
+    "A runner starts without an explicitly selected private socket parent, or the C self-test inherits an unsuitable absolute TMPDIR under the pre-remediation design.",
+    "The selected path is evaluated by SonarCloud's new-code rules."
+  ],
+  "reproduction": [
+    "Query GitHub check-run 87922216387 annotations for PR #51.",
+    "Query SonarCloud issues and quality-gate APIs for project Easton97-Jens_ModSecurity-conector and pullRequest=51.",
+    "Trace the prior runner fallback (/var/tmp), the C self-test TMPDIR/public-root fallback, and the global umask wrapper before listener creation."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/evidence/draft-pr-51-sonar-annotations.json",
+      "artifact_type": "github_check_run_annotations_json",
+      "sha256": "96885558996384b6f17e83a5d4452413ef6c2c2ff04b19441f1753aae4cbb2c8",
+      "command": "gh api --paginate 'repos/Easton97-Jens/ModSecurity-conector/check-runs/87922216387/annotations?per_page=100'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T15:27:12Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/evidence/draft-pr-51-sonar-issues.json",
+      "artifact_type": "sonarcloud_pr_issues_json",
+      "sha256": "361370c72e7d4e965695c823cdac616a3404dcf3fa2f3441d3446fe850317d7c",
+      "command": "curl --fail --silent --show-error 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&pullRequest=51&ps=100'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T15:29:31Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/evidence/draft-pr-51-sonar-quality-gate.json",
+      "artifact_type": "sonarcloud_pr_quality_gate_json",
+      "sha256": "b6348c561174b598ec56ec596a106179cb12f4e8c75654fb61b0f7143538debe",
+      "command": "curl --fail --silent --show-error 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&pullRequest=51'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T15:32:26Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/120-private-parent-ancestor-python-contracts-final.log",
+      "artifact_type": "focused_python_contract_log",
+      "sha256": "1bf27a75961e8aec742448899c4e2e648ad1ea4bf6af1fdc9b33440c9d4620f2",
+      "command": "python3 -B -m unittest -v tests.test_traefik_native_local_plugin",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T16:19:11Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/123-private-parent-ancestor-negative-controls-final.log",
+      "artifact_type": "focused_cross_uid_ancestor_negative_control_log",
+      "sha256": "0cc657a4a58763b44070215e7c354027c12688a1eb248e21cb9a76c9c4a2868c",
+      "command": "missing-parent, Python, shell, and C mutable-ancestor rejection controls",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T16:20:28Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/125-private-parent-ancestor-engine-runtime-controls-final-rerun.log",
+      "artifact_type": "focused_native_runtime_control_log",
+      "sha256": "c35d629326601b521feeb92953f7f43526cad2bc5b9d7e6c7316d22e85c0cb36",
+      "command": "TRAEFIK_ENGINE_SOCKET_TEST_PARENT=<private parent> TRAEFIK_ENGINE_SERVICE_BIN=<diagnostic binary> sh connectors/traefik/build/test-engine-service-runtime.sh",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T16:21:10Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/evidence/pr-51-head-56e35eb-sonar-issues.json",
+      "artifact_type": "sonarcloud_pr_issues_json",
+      "sha256": "5561b1461984c8b7375def710bfaca9ac31bf466b24fad750f0c7b1c348e78da",
+      "command": "curl --fail --silent --show-error 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&pullRequest=51&ps=100'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T17:28:35Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/144-explicit-private-parent-python-contracts.log",
+      "artifact_type": "focused_python_contract_log",
+      "sha256": "712fa2f1ac323a17d9c569fd8f8396eafceda7f6e28b18df61a6a502580dbc37",
+      "command": "git diff --check && PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest -v tests.test_traefik_native_local_plugin",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T17:34:11Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/148-explicit-private-parent-targeted-bilingual-docs.log",
+      "artifact_type": "targeted_bilingual_documentation_log",
+      "sha256": "a26471edca192db542c117efe00e6aaae1ed44ea2518e5b2b3d59b6aaa17bdf8",
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -B <run>/background/bilingual-docs/check_changed_pairs.py",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T17:42:13Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/150-explicit-parent-forwarding-final-validation.log",
+      "artifact_type": "explicit_parent_forwarding_validation_log",
+      "sha256": "139dba675ef96bf6c8c3e0bb2b0624949f208ba5cd14f982933fde80fb244221",
+      "command": "git diff --check; sh -n ci/runtime/lifecycle/run-connector-stage.sh ci/runtime/lifecycle/run-remaining-connector-target.sh; PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest -v tests.test_traefik_native_local_plugin tests.test_no_crs_selected_runner_wiring; targeted changed-pair documentation checker; no-TMPDIR source assertion; native Make dry run with an explicit parent",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T18:18:18Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/152-change-record-forwarding-docs-validation.log",
+      "artifact_type": "targeted_bilingual_change_record_validation_log",
+      "sha256": "2199e4d1cdffede8f66e3a19dabbf3806e5afbddd25719c4d87c59705d878d6b",
+      "command": "git diff --check; PYTHONDONTWRITEBYTECODE=1 python3 -B <run>/background/bilingual-docs/check_changed_pairs.py",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T18:26:45Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/159-final-make-raw-forwarding-security-validation.log",
+      "artifact_type": "post_fix_explicit_parent_raw_forwarding_validation_log",
+      "sha256": "faab9a431c6964e40f0aab0731884dd049b22a998935fffa2ff436a05f63e51d",
+      "command": "git diff --check; shell syntax; direct Make raw-value probes; controlled quote/comment native Make probe; focused native and lifecycle contracts",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T18:56:13Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/160-final-named-make-forwarding-security-validation.log",
+      "artifact_type": "post_fix_explicit_parent_named_make_forwarding_validation_log",
+      "sha256": "8be26ef3b432fc17c6bb8a6b6127c7199ebe114d8b5bc0a668fd7b10dcee4d7a",
+      "command": "git diff --check; shell syntax; named Make forwarding controls; focused native and lifecycle contracts",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T19:29:10Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/164-final-exact-pr-head-delivery-and-sonar.log",
+      "artifact_type": "exact_pr_head_sonarcloud_delivery_validation_log",
+      "sha256": "1a70d77d83673c68017fc466f0fbf8c57bd91fe3145c806568fc908bcd63b7d3",
+      "command": "gh pr view #51 exact head/checks; gh api check-runs for 6e73dc97; SonarCloud Quality-Gate and open-issues APIs; git local/remote/PR-head comparison",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T19:49:34Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/167-final-conflict-free-draft-pr-delivery-and-sonar.log",
+      "artifact_type": "exact_conflict_free_draft_pr_head_delivery_and_sonarcloud_validation_log",
+      "sha256": "22c69a59ee5a962354f360fd1a02ac099d148c5e76a3ccb248761a379b8e1aa7",
+      "command": "git local/remote/PR-head comparison; git diff --check; read-only git merge-tree; focused 22-test Python run; gh PR/check-runs queries; SonarCloud Quality-Gate, unresolved-issues, and hotspot APIs",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T20:18:08Z",
+      "retention_status": "retained_task_log"
+    }
+  ],
+  "root_cause": "The prior implementation retained automatic public-root fallback allocation in the Python runner and the C self-test accepted inherited TMPDIR with only an absolute-path check before falling back to /var/tmp. It also used a temporary process-global umask for a pathname socket boundary where the verified control is instead the private parent. The first remediation review additionally proved that immediate-parent-only checks accepted a parent beneath a non-sticky cross-UID-writable ancestor. The first exact-head reanalysis proved that the generic Python TMPDIR fallback was the sole remaining active vulnerability, so the final source follow-up removes that optional selector rather than relying on later manual validation. Once that selection is strict, the supported dispatcher and Make chain must preserve the caller's value; deriving one below the canonical runtime or temporary root would exceed the 100-byte UDS path budget. The external Quality Gate failure is confirmed; whether every scanner classification maps to a separately exploitable product vulnerability remains bounded by the source and runtime evidence stated here.",
+  "root_cause_de": "Die vorherige Implementierung behielt automatische Public-Root-Fallback-Allokation im Python-Runner, und der C-Selbsttest akzeptierte geerbtes TMPDIR nur mit absoluter Pfadprüfung, bevor er auf /var/tmp zurückfiel. Außerdem verwendete sie eine temporäre prozessglobale umask für eine Pathname-Socket-Grenze, deren verifizierte Kontrolle stattdessen der private Parent ist. Die erste Remediation-Review bewies zusätzlich, dass Immediate-Parent-only-Checks einen Parent unter einem nicht-sticky UID-übergreifend beschreibbaren Vorfahren akzeptierten. Die erste Exact-Head-Reanalyse bewies, dass der generische Python-TMPDIR-Fallback die einzige verbleibende aktive Vulnerability war; der finale Source-Follow-up entfernt daher diesen optionalen Selector statt sich auf eine spätere manuelle Validierung zu stützen. Sobald diese Auswahl strikt ist, muss die unterstützte Dispatcher- und Make-Kette den Aufruferwert erhalten; einen unter dem kanonischen Runtime- oder Temporary-Root abzuleiten würde das 100-Byte-UDS-Pfadbudget überschreiten. Der externe Quality-Gate-Fehler ist bestätigt; ob jede Scanner-Klassifikation einer separat ausnutzbaren Produktvulnerability entspricht, bleibt durch die hier benannte Source- und Runtime-Evidence begrenzt.",
+  "proposed_remediation": "Replace public-root/default allocation with explicitly supplied existing private parents; enforce absolute, canonical, current-user-owned, exact-0700 non-symlink checks and a cross-UID-safe ancestor chain in the runner, C listener, C self-test, and shell harness; require only TRAEFIK_ENGINE_SOCKET_PARENT in the production runner instead of inheriting TMPDIR; make the canonical dispatcher and native Make target forward only that caller-supplied exact value rather than deriving one below a runtime or temporary root; remove global umask reliance and avoid pathname chmod claims; preserve fail-closed behavior; then rerun security and legitimate controls and the external PR analysis.",
+  "proposed_remediation_de": "Public-Root-/Standardallokation durch explizit bereitgestellte bestehende private Parents ersetzen; absolute, kanonische, current-user-owned, exakt-0700 und symlinkfreie Checks sowie eine UID-übergreifend sichere Vorfahrenkette im Runner, C-Listener, C-Selbsttest und Shell-Harness erzwingen; im Produktions-Runner nur TRAEFIK_ENGINE_SOCKET_PARENT verlangen, statt TMPDIR zu erben; den kanonischen Dispatcher und das native Make-Target nur diesen aufrufergelieferten exakten Wert weiterreichen lassen, statt einen unter einem Runtime- oder Temporary-Root abzuleiten; globale umask-Abhängigkeit entfernen und Pathname-chmod-Behauptungen vermeiden; Fail-Closed-Verhalten erhalten; danach Security- und legitime Kontrollen sowie die externe PR-Analyse erneut ausführen.",
+  "acceptance_criteria": [
+    "No production runner or C self-test silently allocates a UDS parent beneath /tmp or /var/tmp.",
+    "The production runner does not accept a generic inherited temporary-directory fallback and requires TRAEFIK_ENGINE_SOCKET_PARENT before host setup.",
+    "The canonical dispatcher and native Make target preserve only the caller-supplied exact parent and do not derive one below a runtime or temporary root.",
+    "An absent, relative, symlinked, foreign-owned, or non-0700 socket parent fails before UDS allocation or bind.",
+    "The listener relies on the verified private-parent/ancestor boundary; no global umask wrapper or pathname chmod claim remains.",
+    "Focused C17 build, native UDS runtime, Python runner contracts, C++ evaluator controls, and legitimate Allow/Blocking cases pass.",
+    "The updated PR head has no active task-owned SonarCloud vulnerability finding from this remediation and its new-code Security Rating meets the configured threshold.",
+    "No scanner suppression, Quality-Gate configuration change, automatic risk acceptance, H3 work, Framework work, MRTS modification, or merge occurs."
+  ],
+  "validation_plan": [
+    "Run source/static assertions for the explicit-private-parent contract and absence of public fallback/umask use.",
+    "Run the focused Python contract suite with safe and unsafe parent controls.",
+    "Run shell syntax, native Make dry-run, and lifecycle-wiring controls proving caller-value forwarding without a generated temporary-root parent.",
+    "Build the C engine in C17 with warnings-as-errors and run its self-test/runtime protocol Allow/Blocking controls under a private parent.",
+    "Rebuild and exercise the C++ evaluator after the C++17 string_view hardening adjustment.",
+    "Push only the focused Parent repair to the existing Draft PR and retrieve exact-head SonarCloud raw issue and Quality-Gate JSON."
+  ],
+  "regression_tests": [
+    "tests/test_traefik_native_local_plugin.py",
+    "connectors/traefik/build/test-engine-service-runtime.sh",
+    "connectors/traefik/build/build-engine-service.sh",
+    "ci/checks/analysis/check-targeted-evaluator-cpp17.sh",
+    "tests/test_c_cpp_diagnostics.py"
+  ],
+  "legitimate_control_tests": [
+    "A valid existing private 0700 parent accepts a unique short UDS child.",
+    "The C engine accepts its SO_PEERCRED self-probe only below a verified private parent and safe ancestor chain.",
+    "Allow remains HTTP 200 and Blocking remains HTTP 403 in the existing focused engine/evaluator controls."
+  ],
+  "dependencies": [
+    "Current exact Draft-PR head ef2f5755c29c5bc8f452290a14389fe8822e0709 passed remote/PR-head comparison, GitHub checks, and SonarCloud check 87983807169 with Quality Gate OK; master verification requires separate explicit authorization."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0013",
+    "FND-PARENT-0014",
+    "FND-PARENT-0015",
+    "FND-PARENT-0017",
+    "FND-PARENT-0019",
+    "FND-SONAR-0001"
+  ],
+  "source_run_ids": [
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc"
+  ],
+  "residual_risk": "The remediation can remove public-root/default allocation and global umask state, but cannot by itself resolve the separately tracked same-UID pathname endpoint-redirection or non-atomic cleanup races. No risk has been accepted.",
+  "residual_risk_de": "Die Remediation kann Public-Root-/Standardallokation und globalen umask-Zustand entfernen, löst jedoch nicht allein die separat nachverfolgten Same-UID-Pfad-Endpoint-Umleitungs- oder nichtatomaren Cleanup-Races. Es wurde kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T15:35:00Z",
+  "updated_at": "2026-07-17T20:18:08Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T15:35:00Z",
+      "event": "sonarcloud_pr_gate_failure_triaged",
+      "detail": "Direct GitHub and SonarCloud raw exports confirmed a PR-head Security Rating D gate failure. The finding is active remediation; scanner configuration, suppression, and risk acceptance are not authorized."
+    },
+    {
+      "at": "2026-07-17T16:58:45Z",
+      "event": "local_remediation_and_security_controls_passed",
+      "detail": "Public/default allocation and global umask reliance were removed. The repair additionally rejects cross-UID-replaceable ancestors. Focused Python, Clang/GCC C17, shell/runtime, hardened, ASan+UBSan, and GCC -fanalyzer controls passed. The finding is fixed locally, pending exact-head SonarCloud reanalysis."
+    },
+    {
+      "at": "2026-07-17T17:42:13Z",
+      "event": "remaining_generic_tmpdir_selector_removed",
+      "detail": "Exact-head check 87949565401 closed 14 task-owned issues and left only python:S5443 at the inherited TMPDIR fallback. The final source follow-up requires TRAEFIK_ENGINE_SOCKET_PARENT, and 16 focused Python contracts plus changed-pair bilingual validation passed. The finding remains fixed locally pending a new exact-head SonarCloud reanalysis."
+    },
+    {
+      "at": "2026-07-17T18:18:18Z",
+      "event": "explicit_parent_forwarding_integrated",
+      "detail": "The canonical stage dispatcher, remaining-target runner, and native Make target now forward only the caller-supplied explicit parent. Fresh focused source, wiring, documentation, and Make-dry-run validation passed; a derived canonical runtime or temporary-root parent was deliberately rejected because it exceeds the UDS path budget."
+    },
+    {
+      "at": "2026-07-17T18:26:45Z",
+      "event": "change_record_forwarding_evidence_synchronized",
+      "detail": "The EN/DE Change Record was synchronized with the final forwarding validation, and its changed-pair checker rerun passed. The finding remains fixed locally pending exact-head SonarCloud reanalysis."
+    },
+    {
+      "at": "2026-07-17T18:56:13Z",
+      "event": "raw_make_forwarding_security_boundary_repaired",
+      "detail": "The earlier log 150 was non-hostile forwarding evidence only. FND-PARENT-0019 records the separately reproduced Make/shell interpretation defect; raw environment forwarding and focused hostile-input controls passed in log 159. This finding remains fixed locally pending exact-head SonarCloud reanalysis."
+    },
+    {
+      "at": "2026-07-17T19:29:10Z",
+      "event": "named_make_forwarding_final_controls_passed",
+      "detail": "The named lifecycle-forwarded BUILD_ROOT, MODSECURITY, and Traefik values were all verified literal through the Make boundary; no marker executed and 22 focused contracts passed. FND-PARENT-0019 records the shared interpretation-root-cause closure. This finding remains fixed locally pending exact-head SonarCloud reanalysis."
+    },
+    {
+      "at": "2026-07-17T19:49:34Z",
+      "event": "exact_pr_head_sonarcloud_quality_gate_passed",
+      "detail": "Exact Draft PR #51 head 6e73dc97eba8b503d7d88f7feb3c43ef14132083 passed SonarCloud check 87978528103 with zero annotations, zero open PR issues, and Quality Gate status OK. The focused TemporaryDirectory fixture follow-up removed the 13 intermediate test-only S5443 annotations without suppression or risk acceptance. The finding remains fixed until an authorized post-merge master verification can occur."
+    },
+    {
+      "at": "2026-07-17T20:18:08Z",
+      "event": "conflict_free_exact_pr_head_delivery_and_sonarcloud_passed",
+      "detail": "Documentation-only follow-up head ef2f5755c29c5bc8f452290a14389fe8822e0709 matched local, remote, and Draft PR #51 state without a rebase or merge. GitHub reported MERGEABLE/CLEAN, all 33 applicable checks passed with six declared skips, and SonarCloud check 87983807169 returned Quality Gate OK, zero unresolved PR issues, and no hotspots requiring review. The finding remains fixed until separately authorized post-merge master verification."
+    }
+  ]
+}

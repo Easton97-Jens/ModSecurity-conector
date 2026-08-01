@@ -1,0 +1,181 @@
+{
+  "id": "FND-PARENT-0073",
+  "title": "HAProxy HTX metadata-event test failed before executing its path and TLS control",
+  "title_de": "HAProxy-HTX-Metadaten-Event-Test schlug vor Ausführung seiner Pfad- und TLS-Kontrolle fehl",
+  "category": "test_failure",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+"status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": false,
+  "security_assessment": "test_control_failure_without_evidence_of_runtime_security_regression",
+  "connector": "haproxy",
+  "protocol": "HTX metadata-event and private-root/TLS harness control",
+  "profile": "PR #182 exact current-master head 76644bfe832d1530704ca2ae0f2182338949ead5, protected merge pending",
+  "affected_files": [
+    "connectors/haproxy/harness/test_haproxy_htx_smoke_helper.py"
+  ],
+  "affected_symbols": [
+    "HAProxyHTXSmokeHelperTest.test_event_contains_only_metadata"
+  ],
+  "summary": "At exact remote PR #182 head d79750b4869080ab04137d1c3eff7a9c751af760, test_event_contains_only_metadata loaded root in calls to the HTX helper but never bound it. The full helper suite is blocked before discovery by the deliberately uninitialized Framework fixture, but retained static AST evidence confirms the local-binding defect. Exact current-master hosted head 76644bfe832d1530704ca2ae0f2182338949ead5 retains the root binding and the centralization of the duplicated HAProxy/Envoy descriptor-safe artifact protocol after a normal non-force base update; 42 focused common/HAProxy/Envoy/runtime-path controls pass, all required GitHub contexts pass, Sonar has Quality Gate OK with zero open issues and zero New-Code duplication, and review/thread readbacks are empty. The test-control candidate blocker is cleared; protected merge and resulting-master verification remain pending.",
+  "summary_de": "Am exakten Remote-PR-#182-Head d79750b4869080ab04137d1c3eff7a9c751af760 lud test_event_contains_only_metadata root in Aufrufen des HTX-Helpers, band ihn aber nie. Die vollständige Helper-Suite wird vor der Testentdeckung durch die bewusst nicht initialisierte Framework-Fixture blockiert, doch aufbewahrte statische AST-Evidence bestätigt den lokalen Bindungsdefekt. Der exakte aktuelle-Master-Hosted-Head 76644bfe832d1530704ca2ae0f2182338949ead5 behält die Root-Bindung und die Zentralisierung des doppelten HAProxy-/Envoy-Descriptor-Safe-Artefaktprotokolls nach einem normalen nicht erzwungenen Basis-Update bei; 42 fokussierte Common-/HAProxy-/Envoy-/Runtime-Path-Kontrollen bestehen, alle erforderlichen GitHub-Kontexte bestehen, Sonar hat Quality Gate OK mit null offenen Issues und null New-Code-Duplizierung, und Review-/Thread-Readbacks sind leer. Der Test-Control-Candidate-Blocker ist aufgehoben; geschützter Merge und resulting-master-Verifikation bleiben ausstehend.",
+  "observed_behavior": "The test method constructed events and decision-log paths directly from Path(temporary) but passed str(root) to write_event and write_host_evidence. If the Framework fixture is available so the module can be imported, that unbound local raises NameError before the intended metadata-only, private-root, and host-evidence assertions execute.",
+  "observed_behavior_de": "Die Testmethode konstruierte Event- und Decision-Log-Pfade direkt aus Path(temporary), übergab aber str(root) an write_event und write_host_evidence. Wenn die Framework-Fixture vorhanden ist und das Modul importiert werden kann, löst dieser ungebundene lokale Wert NameError aus, bevor die vorgesehenen Assertions für Metadaten, Private Root und Host-Evidence ausgeführt werden.",
+  "expected_behavior": "The test must bind one private temporary root, use it consistently for all affected paths and helper calls, and reach its metadata-only and private-root assertions without a setup exception.",
+  "expected_behavior_de": "Der Test muss einen privaten temporären Root binden, ihn konsistent für alle betroffenen Pfade und Helper-Aufrufe verwenden und seine Metadaten- und Private-Root-Assertions ohne Setup-Exception erreichen.",
+  "impact": "A candidate regression control for a path/TLS-sensitive harness did not execute its assertions. This is a test-control failure only; the evidence does not establish a production HTX path, TLS, or metadata security defect.",
+  "impact_de": "Eine Kandidaten-Regressionskontrolle für einen pfad-/TLS-sensitiven Harness führte ihre Assertions nicht aus. Dies ist nur ein Test-Control-Fehler; die Evidence belegt keinen Produktions-HTX-Pfad-, TLS- oder Metadaten-Sicherheitsdefekt.",
+  "preconditions": [
+    "The exact pre-fix PR #182 source contains test_event_contains_only_metadata with root loaded but not bound.",
+    "The Framework synchronized-upstream fixture is present if the complete helper module is to reach test discovery."
+  ],
+  "reproduction": [
+    "Inspect the retained exact-head static AST receipt and observe that root is a load but not a local binding in test_event_contains_only_metadata.",
+    "With the Framework fixture available, run the focused helper suite and observe NameError before its metadata-event assertions on the pre-fix source.",
+    "On the repaired candidate, run the static binding and direct temporary-root metadata-event controls before relying on hosted delivery evidence."
+  ],
+  "evidence": [
+    {
+      "run_id": "merge-prs-181-182-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/merge-prs-181-182-master-20260729.nq2EeI/evidence/pr182-unbound-root-static.md",
+      "artifact_type": "exact_pr182_head_static_test_binding_failure",
+      "sha256": "82ff93736e180b8d17c2499661ffd04bd4c48edbded48a18c5cda83a0c286d05",
+      "command": "Static AST analysis of PR #182 head d79750b4869080ab04137d1c3eff7a9c751af760 for root loads and local bindings in test_event_contains_only_metadata.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/merge-prs-181-182-master-20260729.nq2EeI/parent-clone",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T18:42:11Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Confirmed: root is loaded but never locally bound in the exact pre-fix test method."
+    },
+    {
+      "run_id": "merge-prs-181-182-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/merge-prs-181-182-master-20260729.nq2EeI/evidence/pr182-root-binding-postfix.md",
+      "artifact_type": "post_fix_local_test_control_receipt",
+      "sha256": "b74d25130e749b4c58a5c42966f58d441bcedc9bcb0810f2952abc5dbea15668",
+      "command": "Static binding, py_compile, direct private-root metadata-event, transaction-ID/TLS, shell, HTX-overlay, Common-adoption, bilingual, and diff controls on local candidate 85995befd19dcac4ab159ec05ee511b891981296.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/merge-prs-181-182-master-20260729.nq2EeI/parent-clone",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T18:42:11Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The repaired source binds root before use and focused local controls pass; Framework-backed helper and live HAProxy runtime remain unavailable."
+    },
+    {
+      "run_id": "merge-prs-181-182-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/merge-prs-181-182-master-20260729.nq2EeI/evidence/pr182-shared-artifact-remediation-local.md",
+      "artifact_type": "committed_candidate_shared_artifact_remediation_receipt",
+      "sha256": "a9066f4f4420f1ac53a366bae14f563228560b14f80efcb6da64d5dba1747648",
+      "command": "Focused common/HAProxy/Envoy/runtime-path, bilingual, adoption, overlay, shell, and whitespace controls on the workspace tree later committed as c15092f2bf05d5281f0976e87450bb79e6ea9e65.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/merge-prs-181-182-master-20260729.nq2EeI/parent-clone",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T19:26:36Z",
+      "retention_status": "retained_task_evidence",
+      "result": "42 focused common/HAProxy/Envoy/runtime-path controls plus all recorded local non-Framework controls pass; fresh exact pushed-head hosted evidence remains required."
+    },
+    {
+      "run_id": "merge-prs-181-182-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/merge-prs-181-182-master-20260729.nq2EeI/evidence/pr182-c798-exact-head-hosted.md",
+      "artifact_type": "exact_pr182_head_hosted_readiness_receipt",
+      "sha256": "f02e5612bb3394387d349aec72da4025a130f6e84d71b8aae76ae32ad5271add",
+      "command": "Exact PR #182 head/base, required GitHub check-run, SonarQube Cloud Quality Gate/issues/measures, review-thread, and review readback.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/merge-prs-181-182-master-20260729.nq2EeI/parent-clone",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T19:43:18Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Exact head c798334f9e6ddb5f2f4385e66779aba55be06156 is non-draft, clean, mergeable, required-context clean, Sonar clean, and has no review threads or reviews."
+    },
+    {
+      "run_id": "merge-prs-181-182-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/merge-prs-181-182-master-20260729.nq2EeI/evidence/pr182-766-current-master-exact-head-hosted.md",
+      "artifact_type": "exact_pr182_current_master_head_hosted_readiness_receipt",
+      "sha256": "e306a4e68c3c91b623f9e8851df00f37fc1a84b3cc76fc3ffa0a7e3e177bb7bc",
+      "command": "Exact PR #182 current-master head/base, protected GitHub checks, SonarQube Cloud Quality Gate/issues/measures, review-thread, review, and conversation readback.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/merge-prs-181-182-master-20260729.nq2EeI/parent-clone",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T19:55:07Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Exact current-master head 76644bfe832d1530704ca2ae0f2182338949ead5 is non-draft, clean, mergeable, all required contexts clean, Sonar clean, and has no review threads or reviews."
+    }
+  ],
+  "root_cause": "The test created Path(temporary) for individual file paths but did not assign the shared root variable required by the helper's confinement contract.",
+  "root_cause_de": "Der Test erzeugte Path(temporary) für einzelne Dateipfade, wies aber nicht die gemeinsame Root-Variable zu, die der Confinement-Vertrag des Helpers verlangt.",
+  "proposed_remediation": "Retain root = Path(temporary) at the start of the temporary-directory block, derive all affected artifact paths from it, and obtain exact-head hosted validation before clearing the candidate-integration blocker. Do not initialize or modify Framework/MRTS merely to bypass the missing fixture.",
+  "proposed_remediation_de": "root = Path(temporary) am Anfang des Temporary-Directory-Blocks beibehalten, alle betroffenen Artefaktpfade davon ableiten und Exact-Head-Hosted-Validierung einholen, bevor der Candidate-Integration-Blocker entfernt wird. Framework/MRTS nicht nur zur Umgehung der fehlenden Fixture initialisieren oder ändern.",
+  "acceptance_criteria": [
+    "The test source binds root before its first load and uses it for the metadata-event and decision-log paths.",
+    "Static binding and direct temporary-root metadata-event controls pass on the exact committed candidate head.",
+    "The independent transaction-ID/private-root/TLS controls pass.",
+    "The exact pushed PR head has required GitHub Actions, SonarQube Cloud, review/thread, and mergeability evidence before the candidate-integration blocker is cleared."
+  ],
+  "validation_plan": [
+    "Retain the exact pre-fix AST receipt and the post-fix focused local receipt.",
+    "Rerun the static binding, py_compile, direct metadata-event, transaction-ID/TLS, shell, HTX-overlay, Common-adoption, bilingual, and whitespace controls on the committed candidate.",
+    "Do not treat the missing Framework fixture as a successful full-helper run; report it as blocked_environment.",
+    "After push, verify the exact PR head's hosted checks, SonarQube Cloud state, threads, and clean mergeability."
+  ],
+  "regression_tests": [
+    "connectors/haproxy/harness/test_haproxy_htx_smoke_helper.py",
+    "tests/test_haproxy_htx_transaction_id.py",
+    "make check-haproxy-htx-overlay",
+    "make check-haproxy-common-adoption"
+  ],
+  "legitimate_control_tests": [
+    "The direct temporary-root control writes metadata-only event and host-evidence records only below the bound private root.",
+    "The independent transaction-ID suite accepts verified loopback TLS and rejects out-of-root, symlink, and non-loopback paths."
+  ],
+  "dependencies": [
+    "Fresh exact-head GitHub Actions and SonarQube Cloud verification for PR #182 after the normal non-force push."
+  ],
+  "blocked_by": [
+    "The complete Framework-backed HTX helper suite cannot run without the deliberately uninitialized Framework fixture; Framework initialization is outside this task's authority."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0010"
+  ],
+  "source_run_ids": [
+    "merge-prs-181-182-master-20260729"
+  ],
+  "residual_risk": "The local repair restores the intended test control, but the complete Framework-backed helper suite and live HAProxy/libmodsecurity runtime are unavailable in this task clone. No runtime security failure is asserted. The candidate-integration blocker is cleared by fresh exact-head hosted evidence; protected merge and resulting-master validation remain required.",
+  "residual_risk_de": "Die lokale Reparatur stellt die vorgesehene Testkontrolle wieder her, aber die vollständige Framework-gestützte Helper-Suite und die Live-HAProxy-/libmodsecurity-Runtime sind in diesem Task-Clone nicht verfügbar. Es wird kein Runtime-Sicherheitsfehler behauptet. Der Candidate-Integration-Blocker ist durch frische Exact-Head-Hosted-Evidence aufgehoben; geschützter Merge und resulting-master-Validierung bleiben erforderlich.",
+  "created_at": "2026-07-29T18:42:11Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": "fixed_exact_pr182_current_master_head_verified_pending_protected_merge_and_resulting_master_validation",
+  "history": [
+    {
+      "at": "2026-07-29T18:42:11Z",
+      "event": "exact_pr182_head_static_test_binding_failure_confirmed",
+      "detail": "Retained static AST evidence for d79750b4869080ab04137d1c3eff7a9c751af760 confirmed that root was loaded but never locally bound."
+    },
+    {
+      "at": "2026-07-29T18:42:11Z",
+      "event": "local_candidate_root_binding_repaired_and_focused_controls_passed",
+      "detail": "Local candidate 85995befd19dcac4ab159ec05ee511b891981296 binds root = Path(temporary); retained focused controls pass. Hosted exact-head evidence remains pending."
+    },
+    {
+      "at": "2026-07-29T19:26:36Z",
+      "event": "shared_artifact_remediation_committed_pending_push",
+      "detail": "Committed local candidate c15092f2bf05d5281f0976e87450bb79e6ea9e65 retains the root-binding repair and centralizes the duplicated descriptor-safe HAProxy/Envoy artifact protocol. Retained focused controls pass; the normal non-force push and exact-head hosted evidence remain pending."
+    },
+    {
+      "at": "2026-07-29T19:34:57Z",
+      "event": "s5778_test_followup_pushed_pending_exact_head_evidence",
+      "detail": "Successor 948168ca3fdeaaa9c77eaa972e9994b40fb99c4c retains the root-binding repair, isolates the single exception assertion reported by Sonar, passes the 42 focused common/HAProxy/Envoy/runtime-path controls, and was pushed without force. Fresh exact-head hosted evidence remains pending."
+    },
+    {
+      "at": "2026-07-29T19:43:18Z",
+      "event": "exact_pr182_head_hosted_candidate_blocker_cleared",
+      "detail": "Exact head c798334f9e6ddb5f2f4385e66779aba55be06156 is non-draft, clean, mergeable, required-context clean, Quality Gate OK, zero OPEN/CONFIRMED issues, zero New-Code duplicated lines/density, and has zero review threads/reviews. The test-control candidate blocker is cleared; protected merge and resulting-master validation remain required."
+    },
+    {
+      "at": "2026-07-29T19:55:07Z",
+      "event": "exact_pr182_current_master_head_hosted_candidate_blocker_cleared",
+      "detail": "After a normal non-force current-master update, exact head 76644bfe832d1530704ca2ae0f2182338949ead5 is non-draft, clean, mergeable, all required contexts clean, Quality Gate OK, zero OPEN/CONFIRMED issues, zero New-Code duplicated lines/density, and has zero review threads/reviews. The test-control candidate blocker remains cleared; protected merge and resulting-master validation remain required."
+    }
+  ]
+}

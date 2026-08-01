@@ -1,0 +1,772 @@
+{
+  "id": "FND-GITHUB-0001",
+  "title": "GitHub Scorecard governance baseline has incomplete controls and follow-up evidence",
+  "title_de": "GitHub-Scorecard-Governance-Baseline hat unvollständige Controls und Folge-Evidence",
+  "category": "github_governance",
+  "repository": "github",
+  "ownership": "github_configuration",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "closed",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "current_reconciliation_20260723": {
+    "master_sha": "a308d7b414f0859490fe7253e0683a4bde80b563",
+    "scorecard_open": {
+      "alerts": ["#1 BranchProtectionID", "#7 CodeReviewID", "#8 MaintainedID", "#10 CIIBestPracticesID", "#11 FuzzingID", "#12 VulnerabilitiesID"],
+      "analysis_status": "current default-branch Scorecard analysis succeeded; the six alerts remain open"
+    },
+    "dependabot_open": [
+      "#1 golang.org/x/net v0.48.0, transitive runtime, GHSA-5cv4-jp36-h3mw, confirmed_open",
+      "#2 google.golang.org/grpc v1.79.3, direct runtime, GHSA-hrxh-6v49-42gf, confirmed_open"
+    ],
+    "governance_dispositions": {
+      "branch_protection": "confirmed_open: ruleset has no required approver, code-owner review, or last-push approval",
+      "code_review": "blocked_external_requirement: independent reviewer is not evidenced and an immediate approval rule would create single-maintainer lockout",
+      "maintained": "blocked_external_requirement: repository has not reached the 90-day age threshold",
+      "cii_best_practices": "blocked_external_requirement: external OpenSSF registration/attestation is required",
+      "fuzzing": "draft_pr_delivered_pending_master_refresh: Draft PR #100 provides a bounded Go UDS parser fuzz target and existing-CI invocation; its exact-head checks passed",
+      "vulnerabilities": "draft_pr_delivered_pending_master_refresh: all 13 aggregate rows are mapped; Draft PR #99 addresses the Go roots and both historic PyYAML rows are already safe"
+    },
+    "closure_state": "No alert was closed, dismissed, or treated as fixed.",
+    "draft_pr_delivery": {
+      "envoy_dependency_pr": {
+        "number": 99,
+        "url": "https://github.com/Easton97-Jens/ModSecurity-conector/pull/99",
+        "head_sha": "2f0d8a234f984b731229aca01d43caf2749a7d61",
+        "state": "open_draft",
+        "exact_head_checks": "passed"
+      },
+      "traefik_fuzzing_pr": {
+        "number": 100,
+        "url": "https://github.com/Easton97-Jens/ModSecurity-conector/pull/100",
+        "head_sha": "4602c573b86b397712a2528bbce67fd3af891396",
+        "state": "open_draft",
+        "exact_head_checks": "passed"
+      },
+      "retained_evidence": {
+        "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T165434Z-github-alert-remediation-go1265-4fc93743/evidence/delivery/20260723-draft-pr-delivery-alert-state.md",
+        "sha256": "7508110eef978259f0b9757df675844535b44bd5e6a4dc30c92d265da05110de"
+      }
+    }
+  },
+  "pr111_traefik_go_timing_observation_20260724": {
+    "pull_request": 111,
+    "base_sha": "5f831257949f4b2655347e2f8bcb2dd5e094a260",
+    "head_sha": "2549d15f3181d236eeb83829818a6b03b273edcd",
+    "initial_codeql_run_id": 30102616292,
+    "initial_traefik_go_job_id": 89512179584,
+    "initial_result": "15.06s context deadline exceeded in the bounded FuzzUDSFrameAndResult invocation",
+    "non_causality_control": "PR #111 changes neither the CodeQL workflow nor connectors/traefik/native_middleware; predecessor master 5f831257... passed the same job 89507225557 in run 30101153404.",
+    "one_time_retry_job_id": 89513231832,
+    "retry_result": "same exact head passed; CodeQL run 30102616292 attempt 2 completed successfully at 2026-07-24T14:55:06Z",
+    "local_go_confirmation": "blocked_environment: host attempted Go 1.26.5 download under read-only /root/go and is not product evidence",
+    "disposition": "transient_ci_timing_incident; no source change, control weakening, separate code fix, or risk acceptance",
+    "evidence_artifact": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/evidence/pr111-traefik-go-timing-retry.json",
+    "evidence_sha256": "1cf369ee311f012a9a584bd30cc535b0061ec9eb2e072e431307aa3b6cd4f8fe"
+  },
+  "current_master_alert_closure_verification_20260724": {
+    "master_sha": "8e36b86ac17bce06003b0505fe26f6bb60c3cec7",
+    "merged_prs": [
+      {
+        "number": 99,
+        "head_sha": "2f0d8a234f984b731229aca01d43caf2749a7d61",
+        "merge_commit": "5b8db00d44ab24f3a9f4216a00f7edee977b6898",
+        "state": "MERGED"
+      },
+      {
+        "number": 100,
+        "head_sha": "dace5ca118a89a91c33fde952a6282f9c391ee10",
+        "merge_commit": "6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d",
+        "state": "MERGED"
+      }
+    ],
+    "dependabot": {
+      "open_alert_numbers": [],
+      "fixed_alert_numbers": [1, 2],
+      "manual_dismissal": false,
+      "disposition": "resolved_and_tracked_under_closed_FND-PARENT-0001"
+    },
+    "master_workflows": {
+      "observed_push_workflow_count": 14,
+      "conclusion": "all success",
+      "note": "A successful OpenSSF Scorecard workflow does not itself close its active individual alerts."
+    },
+    "open_scorecard_alerts": [
+      {
+        "number": 1,
+        "rule": "BranchProtectionID",
+        "disposition": "retained_external_governance_decision"
+      },
+      {
+        "number": 7,
+        "rule": "CodeReviewID",
+        "disposition": "retained_independent_review_history_required"
+      },
+      {
+        "number": 8,
+        "rule": "MaintainedID",
+        "disposition": "retained_time_based_condition"
+      },
+      {
+        "number": 10,
+        "rule": "CIIBestPracticesID",
+        "disposition": "retained_external_registration_attestation_required"
+      },
+      {
+        "number": 11,
+        "rule": "FuzzingID",
+        "disposition": "retained_current_scanner_still_reports_no_fuzzer_integrations"
+      },
+      {
+        "number": 12,
+        "rule": "VulnerabilitiesID",
+        "disposition": "retained_current_scanner_still_reports_two_PyYAML_advisories"
+      }
+    ],
+    "current_fuzz_control": "FuzzUDSFrameAndResult passed on current master for 15 seconds with 99749 executions and one worker, but this does not permit dismissal of active Scorecard alert #11.",
+    "retained_evidence": {
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/github-alert-closure-verification.md",
+      "sha256": "20ea82fbd04cc7ea672a644c4c5c5621b38b6fc29ce76ed9c54f028ca458afdf"
+    },
+    "closure_disposition": "No Scorecard alert is closed, dismissed, suppressed, or risk-accepted because all six remain open on the current authoritative master scan."
+  },
+  "post_master_advance_recheck_20260724": {
+    "master_sha": "a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0",
+    "previous_master_sha": "8e36b86ac17bce06003b0505fe26f6bb60c3cec7",
+    "ahead_by_commits": 1,
+    "changed_paths": [
+      "reports/audits/change-records/CR-20260724-sonar-tests-full-lifecycle-evidence-assertions.de.md",
+      "reports/audits/change-records/CR-20260724-sonar-tests-full-lifecycle-evidence-assertions.md",
+      "reports/audits/change-records/README.de.md",
+      "reports/audits/change-records/README.md",
+      "tests/test_full_lifecycle_evidence.py"
+    ],
+    "affected_go_modules_changed": false,
+    "traefik_fuzz_target_changed": false,
+    "dependabot": {
+      "open_alert_numbers": [],
+      "fixed_alert_numbers": [1, 2],
+      "manual_dismissal": false
+    },
+    "master_workflows": {
+      "observed_push_workflow_count": 14,
+      "conclusion": "all success"
+    },
+    "open_scorecard_alert_numbers": [1, 7, 8, 10, 11, 12],
+    "retained_evidence": {
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/post-master-advance-recheck.md",
+      "sha256": "c099c32564c1a78e60f98a61ba350904669d9c7231459c4109587088e31f915f"
+    },
+    "disposition": "The fixed Go scope remains closed in FND-PARENT-0001; all six current Scorecard alerts remain open and FND-GITHUB-0001 remains in_progress without dismissal or risk acceptance."
+  },
+  "post_master_second_advance_recheck_20260724": {
+    "master_sha": "185fd358bcfabe63464ab0e135eecedf24c9a699",
+    "previous_master_sha": "a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0",
+    "ahead_by_commits": 1,
+    "changed_paths": [
+      "reports/audits/change-records/CR-20260724-sonar-tests-full-lifecycle-profiles-assertions.de.md",
+      "reports/audits/change-records/CR-20260724-sonar-tests-full-lifecycle-profiles-assertions.md",
+      "reports/audits/change-records/README.de.md",
+      "reports/audits/change-records/README.md",
+      "tests/test_full_lifecycle_profiles.py"
+    ],
+    "affected_go_modules_changed": false,
+    "traefik_fuzz_target_changed": false,
+    "dependabot": {
+      "open_alert_numbers": [],
+      "fixed_alert_numbers": [1, 2],
+      "manual_dismissal": false
+    },
+    "latest_scorecard_alert_instances": {
+      "commit_sha": "a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0",
+      "open_alert_numbers": [1, 7, 8, 10, 11, 12],
+      "note": "No newer Scorecard alert instance is published for the current master at this recheck."
+    },
+    "master_workflows": {
+      "observed_push_workflow_count": 14,
+      "successful_count": 13,
+      "failed_count": 1,
+      "failed_workflow": "OpenSSF Scorecard run 30107490735, default-branch check",
+      "additional_failed_check": "SonarCloud Code Analysis"
+    },
+    "retained_evidence": {
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/post-master-second-advance-recheck.md",
+      "sha256": "17f4abdf4be2939aca498746e9e345d0e33566580adbee0b6e92427bf73b1c8b"
+    },
+    "disposition": "FND-PARENT-0001 remains closed. This aggregate remains in_progress because the six Scorecard alerts remain open and the latest master has retained OpenSSF Scorecard and SonarCloud failures; no alert is dismissed, suppressed, closed, or risk-accepted."
+  },
+  "post_master_final_current_recheck_20260724": {
+    "master_sha": "185fd358bcfabe63464ab0e135eecedf24c9a699",
+    "revision_unchanged_since_second_recheck": true,
+    "affected_go_modules_changed": false,
+    "traefik_fuzz_target_changed": false,
+    "dependabot": {
+      "open_alert_numbers": [],
+      "fixed_alert_numbers": [1, 2],
+      "manual_dismissal": false
+    },
+    "current_scorecard_alert_instances": {
+      "commit_sha": "185fd358bcfabe63464ab0e135eecedf24c9a699",
+      "open_alert_numbers": [1, 7, 8, 10, 11, 12]
+    },
+    "master_actions_workflows": {
+      "observed_push_workflow_count": 14,
+      "successful_count": 14,
+      "openssf_scorecard_retry": "run 30107490735 attempt 3 completed successfully at 2026-07-24T16:14:21Z"
+    },
+    "remaining_failed_check": "SonarCloud Code Analysis",
+    "retained_evidence": {
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/post-master-scorecard-retry-final-recheck.md",
+      "sha256": "2a788454ba88bcd90add62b5eae3545d83a53180f7aefe8c72ffc864a2959746"
+    },
+    "disposition": "FND-PARENT-0001 remains closed. This aggregate remains in_progress because all six current Scorecard alerts remain open and SonarCloud Code Analysis remains failed; no alert is dismissed, suppressed, closed, or risk-accepted."
+  },
+  "draft_pr120_exact_head_validation_20260724": {
+    "pull_request": 120,
+    "url": "https://github.com/Easton97-Jens/ModSecurity-conector/pull/120",
+    "state": "OPEN_DRAFT",
+    "base_sha": "30ee953b57f4aafebaa0e6ed565a80f6500db1de",
+    "head_sha": "57c411eeca7be024e5718d560e26e4bc051b92ae",
+    "merge_state": "CLEAN",
+    "mergeable": true,
+    "check_rollup": {
+      "successful_count": 33,
+      "failed_count": 0,
+      "pending_count": 0,
+      "scope_appropriate_skips": [
+        "OpenSSF Scorecard default-branch: pull_request event cannot update default-branch SARIF or alerts",
+        "OSV scheduled-advisory",
+        "Secret scanning advisory-full-history",
+        "Profile-gated checks outside the changed scope"
+      ]
+    },
+    "codeql_bounded_c_cpp": {
+      "run_id": 30111632630,
+      "job_id": 89542295414,
+      "fuzz_step": "Fuzz Common HTTP header parser succeeded from 2026-07-24T17:06:15Z through 2026-07-24T17:06:42Z",
+      "result": "success"
+    },
+    "scorecard_pr_job": {
+      "run_id": 30111632360,
+      "job_id": 89542294656,
+      "result": "success",
+      "default_branch_step": "skipped on pull_request; no default-branch alert update occurred"
+    },
+    "source_remediation_disposition": {
+      "fuzzing_id_11": "verified_draft_pr_pending_resulting_master_scorecard_refresh",
+      "vulnerabilities_id_12": "verified_draft_pr_pending_resulting_master_scorecard_refresh"
+    },
+    "remaining_external_alerts": {
+      "branch_protection_id_1": "requires GitHub ruleset/independent-review configuration decision",
+      "code_review_id_7": "requires genuine independent review history",
+      "maintained_id_8": "requires the repository to reach the 90-day threshold on 2026-08-12",
+      "cii_best_practices_id_10": "requires maintainer-owned OpenSSF Best Practices registration and attestation"
+    },
+    "current_master_alert_readback": {
+      "master_sha": "30ee953b57f4aafebaa0e6ed565a80f6500db1de",
+      "open_alert_numbers": [1, 7, 8, 10, 11, 12],
+      "alert_instance_commit_sha": "30ee953b57f4aafebaa0e6ed565a80f6500db1de"
+    },
+    "retained_evidence": {
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T164102Z-scorecard-alert-remediation-pr-7c78e095/evidence/pr120-exact-head-validation.md",
+      "sha256": "24225b5a3c44a960dcaf3e0dc595a8560546058b019da63d99ce898dcfe9e453"
+    },
+    "closure_disposition": "No Scorecard alert is closed, dismissed, suppressed, or risk-accepted. PR #120 must be independently reviewed and merged, then its resulting default branch must receive a fresh Scorecard analysis before #11 or #12 can be reassessed."
+  },
+  "post_pr120_base_advance_recheck_20260724": {
+    "observed_at": "2026-07-24T17:25:15Z",
+    "previous_validated_base_sha": "30ee953b57f4aafebaa0e6ed565a80f6500db1de",
+    "current_remote_master_sha": "9e788057d2b551ba51ad7c4e6e1d8c5198b77834",
+    "master_advance": {
+      "ahead_by_commits": 1,
+      "changed_paths": [
+        "ci/checks/common/check-adapter-helpers.sh",
+        "reports/audits/change-records/CR-20260724-sonar-ci-adapter-helpers-default-case.de.md",
+        "reports/audits/change-records/CR-20260724-sonar-ci-adapter-helpers-default-case.md",
+        "reports/audits/change-records/README.de.md",
+        "reports/audits/change-records/README.md"
+      ],
+      "overlaps_pr120_changed_paths": false
+    },
+    "pull_request": {
+      "number": 120,
+      "state": "OPEN_DRAFT",
+      "head_sha": "57c411eeca7be024e5718d560e26e4bc051b92ae",
+      "merge_state": "BEHIND",
+      "mergeable": true
+    },
+    "exact_head_validation_continuity": "The 33-success exact-head validation remains valid for head 57c411eeca7be024e5718d560e26e4bc051b92ae against the previous base. It is no longer a current merge-candidate validation after the master advance.",
+    "current_scorecard_alert_readback": {
+      "master_sha": "9e788057d2b551ba51ad7c4e6e1d8c5198b77834",
+      "open_alert_numbers": [1, 7, 8, 10, 11, 12],
+      "alert_instance_commit_sha": "9e788057d2b551ba51ad7c4e6e1d8c5198b77834"
+    },
+    "delivery_disposition": "No PR-branch update, rebase, force push, merge commit, or master merge was performed. The current task prohibits merge and force push. A separately authorized normal branch update and fresh exact-head validation are required before the Draft PR is current against remote master.",
+    "retained_evidence": {
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T164102Z-scorecard-alert-remediation-pr-7c78e095/evidence/pr120-base-advance-recheck.md",
+      "sha256": "c47ae53a06ddf584a0edac3ddacbfea168a7cc8edb9029a082ef4a0535b57e6f"
+    },
+    "closure_disposition": "All six active Scorecard alerts remain open. #11/#12 retain an exact-head-verified Draft-PR source remediation, but it is behind current master and must be updated and revalidated before review/merge and a resulting-master Scorecard refresh."
+  },
+  "affected_files": [
+    "SECURITY.md",
+    "SECURITY.de.md",
+    ".github/workflows/ci-security-codeql.yml",
+    ".github/workflows/ci-security-workflow-lint.yml",
+    ".github/dependabot.yml",
+    "connectors/envoy/ext_proc/go.mod",
+    "fuzz/common_http_headers_fuzz.c",
+    "ci/checks/common/check-common-http-header-fuzz.sh",
+    "Makefile",
+    "requirements-dev.txt",
+    "tests/test_ci_security_workflows.py"
+  ],
+  "affected_symbols": [
+    "GitHub ruleset 19138299 Protect master",
+    "GitHub Actions default workflow permissions",
+    "GitHub vulnerability alerts",
+    "GitHub Dependency Graph SBOM",
+    "Scorecard alerts #1, #7, #8, #10, #11, #12",
+    "Dependabot alert #1",
+    "CodeQL checks actions, bounded-c-cpp, envoy-go, traefik-go",
+    "Security workflow checks actionlint, zizmor",
+    "CodeQL workflow run 29783353825",
+    "Scorecard workflow run 29783353831",
+    "Secret workflow run 29783388295",
+    "SonarQube Cloud analysis ee3e3400-36fb-452f-b396-775b6c4c2040",
+    "LLVMFuzzerTestOneInput (Common HTTP header parser)",
+    "msconnector_headers_parse_content_length",
+    "PyYAML==6.0.3",
+    "Draft PR #120 exact head 57c411eeca7be024e5718d560e26e4bc051b92ae"
+  ],
+  "summary": "Current master 9e788057d2b551ba51ad7c4e6e1d8c5198b77834 retains all six open Scorecard alerts. Draft PR #120 directly remediates the source-controlled FuzzingID #11 and VulnerabilitiesID #12 causes; its exact head 57c411eeca7be024e5718d560e26e4bc051b92ae previously passed 33 terminal applicable checks, including bounded C/libFuzzer CodeQL, OSV, and SonarCloud. The master advanced one non-overlapping commit, so GitHub now marks the Draft PR BEHIND and its source result must be refreshed after a separately authorized normal branch update. Its PR-event Scorecard default-branch step cannot clear alerts. Governance/review, repository-age, and CII-attestation requirements remain distinct external work.",
+  "summary_de": "Der aktuelle Master 9e788057d2b551ba51ad7c4e6e1d8c5198b77834 behält alle sechs offenen Scorecard-Alerts. Draft-PR #120 behebt die quellcodekontrollierten Ursachen von FuzzingID #11 und VulnerabilitiesID #12; sein exakter Head 57c411eeca7be024e5718d560e26e4bc051b92ae bestand zuvor 33 anwendbare terminale Checks, einschließlich begrenztem C/libFuzzer-CodeQL, OSV und SonarCloud. Master rückte um einen nicht überlappenden Commit vor, daher markiert GitHub den Draft-PR jetzt als BEHIND und sein Source-Ergebnis muss nach einem getrennt autorisierten normalen Branch-Update erneut validiert werden. Der Scorecard-Default-Branch-Schritt beim PR-Event kann Alerts nicht schließen. Governance-/Review-, Repository-Alters- und CII-Attestierungsanforderungen bleiben getrennte externe Arbeit.",
+  "observed_behavior": "PR #71 head b1eef0a087432aa9bf9bc1243a34b0b0d8f6080e was squash-merged at 2026-07-20T22:16:36Z as master 929fe60dfca30787947027e5bd49003581a5b080, whose tree fae388da52f5d660c8e18f06b058ec67b38adfd7 equals the reviewed head tree. Dynamic Dependabot runs 29783426906 and 29783429481 succeeded but alert #1 remains open. GitHub secret scanning has zero active alerts; the separate secret workflow 29783388295 has no retained raw Gitleaks log or count, so a raw secret-scan result remains unknown.",
+  "observed_behavior_de": "PR #71 mit Head b1eef0a087432aa9bf9bc1243a34b0b0d8f6080e wurde am 2026-07-20T22:16:36Z per Squash als Master 929fe60dfca30787947027e5bd49003581a5b080 gemergt; dessen Tree fae388da52f5d660c8e18f06b058ec67b38adfd7 entspricht dem geprüften Head-Tree. Die dynamischen Dependabot-Läufe 29783426906 und 29783429481 waren erfolgreich, aber Alert #1 bleibt offen. GitHub Secret Scanning hat null aktive Alerts; der getrennte Secret-Workflow 29783388295 hat kein retained Raw-Gitleaks-Log oder keinen Count, daher bleibt ein Raw-Secret-Scan-Ergebnis unbekannt.",
+  "expected_behavior": "Master accepts changes only through no-bypass pull requests with resolved conversations, strict current-head required checks, no force push, and no deletion. Security reporting is discoverable through a merged SECURITY.md; human approval is enforced after an independent reviewer exists. Every remaining Scorecard point has a truthful evidence-backed disposition.",
+  "expected_behavior_de": "Master akzeptiert Änderungen nur über no-bypass Pull Requests mit gelösten Konversationen, strikten Required Checks für den aktuellen Head, ohne Force Push und ohne Löschung. Security Reporting ist über eine gemergte SECURITY.md auffindbar; Human Approval wird erzwungen, sobald ein unabhängiger Reviewer existiert. Jeder verbleibende Scorecard-Punkt hat eine wahrheitsgemäße evidenzbasierte Disposition.",
+  "impact": "Unprotected default branches and overly broad workflow defaults can bypass review or CI boundaries. Incomplete disclosure, dependency, SAST, and fuzzing governance reduces assurance; no unvalidated scanner lead is represented as a confirmed runtime vulnerability.",
+  "impact_de": "Ungeschützte Default-Branches und zu breite Workflow-Defaults können Review- oder CI-Grenzen umgehen. Unvollständige Disclosure-, Dependency-, SAST- und Fuzzing-Governance reduziert Assurance; kein unvalidierter Scanner-Lead wird als bestätigte Runtime-Schwachstelle dargestellt.",
+  "preconditions": [
+    "GitHub repository administration access remains available.",
+    "The six required check contexts remain stable and successful on master.",
+    "A second independent reviewer is added before an approval count is enforced.",
+    "No product, Framework, or MRTS modification is authorized by this finding."
+  ],
+  "reproduction": [
+    "gh api repos/Easton97-Jens/ModSecurity-conector/rulesets/19138299",
+    "gh api repos/Easton97-Jens/ModSecurity-conector/rules/branches/master",
+    "gh api repos/Easton97-Jens/ModSecurity-conector/actions/permissions/workflow",
+    "gh api repos/Easton97-Jens/ModSecurity-conector/vulnerability-alerts --include",
+    "gh api repos/Easton97-Jens/ModSecurity-conector/code-scanning/alerts?tool_name=Scorecard&state=open"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T081034Z-github-scorecard-governance",
+      "artifact_path": ".codex/runs/20260718T081034Z-github-scorecard-governance.json",
+      "artifact_type": "sanitized_github_governance_receipt_and_static_triage",
+      "sha256": "3822662f25f4517cbb4ebe668ffd55941edcf827dbc7b4b0ee46f0531b8805ce",
+      "command": "gh api governance and security endpoints; static Dependabot-alert triage",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T09:21:20Z",
+      "retention_status": "retained_local_receipt"
+    },
+    {
+      "run_id": "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164715Z-parent-security-reconciliation-5a22cbf5/evidence/current-master-pr66-and-github-reconciliation-20260720T200500Z.json",
+      "artifact_type": "current_parent_master_pr_and_github_security_reconciliation",
+      "sha256": "7855ef62f8a538d0742e500ed6aa5d656bbc7d6fa5936513b3fc42bc99024ad1",
+      "command": "RTK-proxied Dependabot, Scorecard, CodeQL, Secret Scanning, ruleset, master, and PR #66 current-state readback",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T20:05:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164715Z-parent-security-reconciliation-5a22cbf5/evidence/post-merge-master-reconciliation-20260720T202018Z.json",
+      "artifact_type": "resulting_parent_master_github_security_reconciliation",
+      "sha256": "797efffded6d99d9d5cedb2c092547f7fb812e8a09b18f0cbd11c3cf0c6e514c",
+      "command": "RTK-proxied exact resulting-master Dependabot, Scorecard, CodeQL, secret-scanning, ruleset, and workflow readback after PR #66 squash merge",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T20:20:18Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164715Z-parent-security-reconciliation-5a22cbf5/evidence/post-pr70-master-reconciliation-20260720T204648Z.json",
+      "artifact_type": "resulting_parent_master_pr70_github_security_reconciliation",
+      "sha256": "ac9753d9ba2bb2326ce53c1d9d9e160bb89ca429a18abfd9e0729a0c53366dd5",
+      "command": "RTK-proxied exact resulting-master Dependabot, Scorecard, CodeQL, secret-scanning, and workflow readback after PR #70 squash merge",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T20:46:48Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164715Z-parent-security-reconciliation-5a22cbf5/evidence/resulting-master-go12413-delivery-and-scan-reconciliation-20260720T221900Z.json",
+      "artifact_type": "resulting_master_go12413_delivery_and_scan_reconciliation",
+      "sha256": "f8e8fa49a9aa8639b61946b49fca49bc0fc06623a80554f4145f78ade6ad71b2",
+      "command": "RTK-proxied exact resulting-master PR #71 delivery, OSV, secret-wrapper, GitHub security, and SonarQube Cloud reconciliation after squash merge",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T22:19:00Z",
+      "retention_status": "task_owned_external_evidence"
+    },
+    {
+      "run_id": "20260723T161931Z-github-alert-reconciliation-20260723-65ec68cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T161931Z-github-alert-reconciliation-20260723-65ec68cf/evidence/github/09-current-github-alert-inventory.json",
+      "artifact_type": "authenticated_current_github_alert_inventory",
+      "sha256": "50921ba77734f5a5e219ee65c4e1813daf96f18956f41876298f43eb599e3a5c",
+      "command": "rtk gh api --paginate Dependabot and code-scanning open-alert endpoints for Easton97-Jens/ModSecurity-conector",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T16:37:03Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260723T165434Z-github-alert-remediation-go1265-4fc93743",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T165434Z-github-alert-remediation-go1265-4fc93743/evidence/delivery/20260723-draft-pr-delivery-alert-state.md",
+      "artifact_type": "draft_pr_delivery_and_alert_state",
+      "sha256": "7508110eef978259f0b9757df675844535b44bd5e6a4dc30c92d265da05110de",
+      "command": "RTK-proxied exact-head Draft PR #99/#100, check, and fresh Dependabot/Scorecard alert reconciliation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T17:52:48Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/evidence/pr111-traefik-go-timing-retry.json",
+      "artifact_type": "exact_head_traefik_go_fuzz_timing_and_one_time_retry",
+      "sha256": "1cf369ee311f012a9a584bd30cc535b0061ec9eb2e072e431307aa3b6cd4f8fe",
+      "command": "RTK-proxied exact-head CodeQL log/readback, predecessor control comparison, and one policy-permitted retry of job 89512179584",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T14:55:06Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/github-alert-closure-verification.md",
+      "artifact_type": "current_master_dependabot_and_scorecard_closure_verification",
+      "sha256": "20ea82fbd04cc7ea672a644c4c5c5621b38b6fc29ce76ed9c54f028ca458afdf",
+      "command": "RTK-proxied current master, merged PR, Dependabot, Scorecard, workflow, selected-toolchain Go, and bounded fuzz verification",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T15:39:43Z",
+      "retention_status": "task_owned_external_evidence"
+    },
+    {
+      "run_id": "20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/post-master-advance-recheck.md",
+      "artifact_type": "post_closure_authoritative_master_scope_recheck",
+      "sha256": "c099c32564c1a78e60f98a61ba350904669d9c7231459c4109587088e31f915f",
+      "command": "RTK-proxied current master ref, GitHub comparison, current module content, Dependabot, Scorecard, and workflow recheck",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T15:55:37Z",
+      "retention_status": "task_owned_external_evidence"
+    },
+    {
+      "run_id": "20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/post-master-second-advance-recheck.md",
+      "artifact_type": "post_closure_second_authoritative_master_scope_recheck",
+      "sha256": "17f4abdf4be2939aca498746e9e345d0e33566580adbee0b6e92427bf73b1c8b",
+      "command": "RTK-proxied current master ref, GitHub comparison, Dependabot, Scorecard, workflow, and check-run recheck after second post-closure master advance",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T16:07:44Z",
+      "retention_status": "task_owned_external_evidence"
+    },
+    {
+      "run_id": "20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3/evidence/post-master-scorecard-retry-final-recheck.md",
+      "artifact_type": "final_current_master_scorecard_retry_and_alert_recheck",
+      "sha256": "2a788454ba88bcd90add62b5eae3545d83a53180f7aefe8c72ffc864a2959746",
+      "command": "RTK-proxied final current master ref, Dependabot, Scorecard, Actions retry, and check-run recheck",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T16:14:53Z",
+      "retention_status": "task_owned_external_evidence"
+    },
+    {
+      "run_id": "20260724T164102Z-scorecard-alert-remediation-pr-7c78e095",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T164102Z-scorecard-alert-remediation-pr-7c78e095/evidence/pr120-base-advance-recheck.md",
+      "artifact_type": "draft_pr_base_advance_and_current_master_scorecard_recheck",
+      "sha256": "c47ae53a06ddf584a0edac3ddacbfea168a7cc8edb9029a082ef4a0535b57e6f",
+      "command": "RTK-proxied PR #120 state/check readback, remote master reference, comparison from the previous base, and current Scorecard alert inventory",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T17:25:15Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The repository was newly created without complete GitHub branch/governance configuration, a discoverable Security Policy, or an evidence-backed decision for every Scorecard heuristic. Solo ownership makes a mandatory human approval unsafe without a new reviewer or bypass.",
+  "root_cause_de": "Das Repository wurde ohne vollständige GitHub-Branch-/Governance-Konfiguration, ohne auffindbare Security Policy und ohne evidenzbasierte Entscheidung für jede Scorecard-Heuristik erstellt. Solo-Ownership macht eine verpflichtende Human Approval ohne neuen Reviewer oder Bypass unsicher.",
+  "proposed_remediation": "Retain verified ruleset 19138299 and the GitHub-recognized Security Policy. Add an independent trusted reviewer before setting required_approving_review_count to one. Treat CII registration, dependency remediation, expanded SAST, and fuzzing as separate scoped work with concrete feasibility evidence.",
+  "proposed_remediation_de": "Das verifizierte Ruleset 19138299 und die von GitHub erkannte Sicherheitsrichtlinie beibehalten. Einen unabhängigen vertrauenswürdigen Reviewer hinzufügen, bevor required_approving_review_count auf eins gesetzt wird. CII-Registrierung, Dependency-Remediation, erweiterte SAST und Fuzzing als getrennte abgegrenzte Arbeit mit konkreter Machbarkeits-Evidence behandeln.",
+  "acceptance_criteria": [
+    "Ruleset 19138299 readback proves deletion, non-fast-forward, pull_request, strict six-check, and empty-bypass controls on master.",
+    "PR #53 at d5781bd15cd286608168b952dfeb7f2d7ab29772 demonstrated the exact required checks without bypass and its authorized squash merge produced master a589cb662fb03deb764f78eefbb1056bc64d63e2.",
+    "One independent reviewer exists before one human approval is configured.",
+    "SECURITY.md and SECURITY.de.md are merged through the reviewed PR #53, GitHub GraphQL returns https://github.com/Easton97-Jens/ModSecurity-conector/security/policy as securityPolicyUrl, and private vulnerability reporting is enabled.",
+    "Every governance point below retains a concrete status, evidence, validation plan, and residual risk."
+  ],
+  "validation_plan": [
+    "Reread ruleset, effective branch rules, Actions permissions, vulnerability alerts, Dependabot alerts, master, and GitHub securityPolicyUrl after every relevant change.",
+    "Observe exact required check contexts and mergeability on the PR head; do not merge or bypass.",
+    "Run scoped bilingual/link and diff checks for Security Policy documentation; record the full-tree Framework-gitlink limitation and verify the resulting master content.",
+    "Re-run Scorecard only when GitHub publishes a later analysis; do not infer a score change.",
+    "Perform separate static feasibility work before SAST expansion or fuzzing introduction."
+  ],
+  "regression_tests": [
+    "Ruleset API readback plus effective-rules endpoint for master.",
+    "Required-check observation on a real same-repository pull request.",
+    "Targeted bilingual/link control for SECURITY.md and its Change Record pair."
+  ],
+  "legitimate_control_tests": [
+    "A clean PR head can run and satisfy the six required checks without bypass.",
+    "A private vulnerability report can be accepted by GitHub without publishing a public issue.",
+    "Dependabot alert inventory remains accessible after enabling alerts."
+  ],
+  "dependencies": [
+    "Independent reviewer for required human approval.",
+    "External owner decision for OpenSSF Best Practices registration/attestation.",
+    "Independent review, merge, and resulting-default-branch Scorecard refresh for Draft PR #120's FuzzingID #11 remediation.",
+    "Independent review, merge, and resulting-default-branch Scorecard refresh for Draft PR #120's VulnerabilitiesID #12 remediation."
+  ],
+  "blocked_by": [
+    "No independent reviewer exists; a mandatory approval would lock out the sole owner/admin without a forbidden automatic bypass.",
+    "CII Best Practices requires an external owner attestation/registration decision.",
+    "Scorecard alert #8 is an age-gated condition until the repository exceeds 90 days.",
+    "Scorecard alert #11 remains open on current master 9e788057d2b551ba51ad7c4e6e1d8c5198b77834. Draft PR #120's C/libFuzzer remediation is exact-head verified only against its previous base and is now BEHIND; an authorized normal branch update, fresh exact-head validation, review, merge, and a resulting-default-branch Scorecard refresh are required before reassessment.",
+    "Scorecard alert #12 remains open on current master 9e788057d2b551ba51ad7c4e6e1d8c5198b77834. Draft PR #120's safe PyYAML==6.0.3 remediation is exact-head verified only against its previous base and is now BEHIND; an authorized normal branch update, fresh exact-head validation, review, merge, and a resulting-default-branch Scorecard refresh are required before reassessment."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0001",
+    "FND-PARENT-0003",
+    "FND-PARENT-0018",
+    "FND-SONAR-0001"
+  ],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260718T081034Z-github-scorecard-governance",
+    "20260718T082206Z-github-scorecard-governance-45b01572",
+    "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+    "20260723T161931Z-github-alert-reconciliation-20260723-65ec68cf",
+    "20260723T165434Z-github-alert-remediation-go1265-4fc93743",
+    "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+    "20260724T152905Z-pr99-pr100-alert-closure-20260724-23a1b3b3",
+    "20260724T164102Z-scorecard-alert-remediation-pr-7c78e095"
+  ],
+  "governance_points": [
+    {
+      "point_key": "branch-protection",
+      "initial_state": "nicht konfiguriert",
+      "action": "Created active no-bypass ruleset 19138299 with deletion, non_fast_forward, pull_request, resolved conversations, strict required checks, and no merge queue.",
+      "final_state": "bereits korrekt",
+      "status": "verified",
+      "evidence": "Ruleset 19138299 remains active and no-bypass; current Scorecard alert #1 on master cbd8385ce1b34318c84cf8f4a5a92ef98c83f82a scores 4 because master has no required approvers, CODEOWNERS review, or last-push approval.",
+      "remaining_risk": "The independent-human-review gap is tracked separately under code-review; Scorecard correctly records the missing approver/code-owner/last-push settings."
+    },
+    {
+      "point_key": "code-review",
+      "initial_state": "nicht konfiguriert",
+      "action": "Documented lockout analysis; no approval count or bypass was configured.",
+      "final_state": "muss geändert werden",
+      "status": "blocked",
+      "evidence": "Scorecard alert #7 on master cbd8385ce1b34318c84cf8f4a5a92ef98c83f82a reports 0/27 approved changesets; the current repository still has no independent reviewer available for a safe mandatory approval requirement.",
+      "remaining_risk": "Merges can proceed after checks and resolved conversations without an independent human approval until a reviewer is added."
+    },
+    {
+      "point_key": "security-policy",
+      "initial_state": "nicht konfiguriert",
+      "action": "Created bilingual SECURITY.md policy and Change Record on dedicated branch codex/security-policy-20260718; PR #53 was authorized, squash-merged, and verified on master.",
+      "final_state": "bereits korrekt",
+      "status": "verified",
+      "evidence": "PR #53 exact head d5781bd15cd286608168b952dfeb7f2d7ab29772 passed all six required checks without bypass and was merged as master a589cb662fb03deb764f78eefbb1056bc64d63e2. Its master tree matches the reviewed head; all 14 observed master push workflows succeeded. GitHub returns securityPolicyUrl https://github.com/Easton97-Jens/ModSecurity-conector/security/policy and private vulnerability reporting enabled=true.",
+      "remaining_risk": "The verified policy point does not remove the separate independent-review, CII, dependency, SAST, or fuzzing gaps; GitHub availability and policy URL should be reread after later repository changes."
+    },
+    {
+      "point_key": "maintained",
+      "initial_state": "nicht anwendbar",
+      "action": "No configuration change; Scorecard reports the repository is younger than 90 days.",
+      "final_state": "nicht anwendbar",
+      "status": "not_applicable",
+      "evidence": "Repository creation date 2026-05-14; Scorecard reason is age rather than inactive maintenance.",
+      "remaining_risk": "Recheck after 2026-08-12 if the Scorecard signal remains open."
+    },
+    {
+      "point_key": "ci-best-practices",
+      "initial_state": "muss geändert werden",
+      "action": "Changed Actions default workflow permission from write to read; preserved narrowly declared scheduled-writer permissions and approval capability pending separate validation.",
+      "final_state": "muss geändert werden",
+      "status": "in_progress",
+      "evidence": "Post-write API readback is read; all versioned workflows declare top-level permissions; Scorecard CII finding is absence of external OpenSSF badge.",
+      "remaining_risk": "CII registration/attestation and scheduled-writer privilege review need owner decisions; Token-Permissions alerts #2-#6 remain separate hardening leads."
+    },
+    {
+      "point_key": "sast",
+      "initial_state": "muss geändert werden",
+      "action": "Established real partial CodeQL Actions/Go/limited C/C++ and actionlint/zizmor coverage; no scorecard-only workflow was added.",
+      "final_state": "muss geändert werden",
+      "status": "triaged",
+      "evidence": "The current exact-master CodeQL inventory has 0 open alerts; actions, bounded-c-cpp, envoy-go, traefik-go, actionlint, and zizmor checks succeeded for resulting master cbd8385ce1b34318c84cf8f4a5a92ef98c83f82a. No current Scorecard SAST alert is open.",
+      "remaining_risk": "Full connector C/C++ CodeQL coverage requires a separate reproducible build feasibility decision."
+    },
+    {
+      "point_key": "fuzzing",
+      "initial_state": "nicht konfiguriert",
+      "action": "Delivered Draft PR #120's genuine C/libFuzzer Common HTTP-header parser target, bounded external-build runner, Make target, and existing-CodeQL-job invocation; no empty detector marker or scanner suppression was added.",
+      "final_state": "verified_draft_pr_behind_current_master_requires_update_and_revalidation",
+      "status": "in_progress",
+      "evidence": "Draft PR #120 exact head 57c411eeca7be024e5718d560e26e4bc051b92ae passed all 33 applicable terminal hosted checks. CodeQL run 30111632630 job 89542295414 executed Fuzz Common HTTP header parser successfully from 2026-07-24T17:06:15Z through 2026-07-24T17:06:42Z. Remote master advanced non-overlappingly to 9e788057d2b551ba51ad7c4e6e1d8c5198b77834, and GitHub now reports the Draft PR BEHIND while alert #11 remains open on that master.",
+      "remaining_risk": "A separately authorized normal branch update and fresh exact-head checks are required before independent review and merge; only a fresh resulting-default-branch Scorecard analysis can reassess or close the active alert."
+    },
+    {
+      "point_key": "vulnerabilities",
+      "initial_state": "muss geändert werden",
+      "action": "Delivered Draft PR #120's exact safe development pin PyYAML==6.0.3, aligned to the existing CI hash lock, with no OSV ignore or vulnerability suppression.",
+      "final_state": "verified_draft_pr_behind_current_master_requires_update_and_revalidation",
+      "status": "in_progress",
+      "evidence": "Draft PR #120 exact head 57c411eeca7be024e5718d560e26e4bc051b92ae passed all 33 applicable terminal hosted checks, including OSV and SonarCloud. Its exact PyYAML==6.0.3 declaration prevents the Scorecard/OSV parser from treating >=6,<7 as the literal version 6,<7. Remote master advanced non-overlappingly to 9e788057d2b551ba51ad7c4e6e1d8c5198b77834, and GitHub now reports the Draft PR BEHIND while alert #12 remains open on that master.",
+      "remaining_risk": "A separately authorized normal branch update and fresh exact-head checks are required before independent review and merge; only a fresh resulting-default-branch Scorecard analysis can reassess or close the active alert."
+    }
+  ],
+  "current_github_reconciliation_20260726": {
+    "observed_at": "2026-07-26T13:29:40Z",
+    "parent_master_sha": "6ca7e1536ce7e93da68099db9c586b88852ff13e",
+    "scorecard_open_alerts": [],
+    "terminal_scorecard_alerts": [
+      {"number": 1, "rule_id": "BranchProtectionID", "state": "dismissed", "reason": "false positive", "updated_at": "2026-07-24T18:54:29Z"},
+      {"number": 7, "rule_id": "CodeReviewID", "state": "dismissed", "reason": "false positive", "updated_at": "2026-07-24T18:54:19Z"},
+      {"number": 8, "rule_id": "MaintainedID", "state": "dismissed", "reason": "false positive", "updated_at": "2026-07-24T18:53:35Z"},
+      {"number": 10, "rule_id": "CIIBestPracticesID", "state": "dismissed", "reason": "used in tests", "updated_at": "2026-07-24T18:55:13Z"},
+      {"number": 11, "rule_id": "FuzzingID", "state": "fixed", "fixed_at": "2026-07-24T18:57:39Z"},
+      {"number": 12, "rule_id": "VulnerabilitiesID", "state": "fixed", "fixed_at": "2026-07-24T18:57:39Z"}
+    ],
+    "merged_pull_requests": [
+      {"number": 99, "merge_commit": "5b8db00d44ab24f3a9f4216a00f7edee977b6898"},
+      {"number": 100, "merge_commit": "6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d"},
+      {"number": 120, "merge_commit": "53f0937b377e2e2b2e33e58c87d4034f78587608"}
+    ],
+    "governance_readback": {
+      "protect_master_ruleset_id": 19138299,
+      "protect_master_enforcement": "active",
+      "bypass_actors": [],
+      "default_workflow_permissions": "read",
+      "private_vulnerability_reporting": true,
+      "security_policy_url": "https://github.com/Easton97-Jens/ModSecurity-conector/security/policy"
+    },
+    "validation_artifacts": {
+      "run_id": "20260726T133000Z-github-finding-status-reconciliation",
+      "report_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T133000Z-github-finding-status-reconciliation/artifacts/05_findings/FND-GITHUB-0001/validation_report.md",
+      "report_sha256": "9b12821b9c70a8603f2e1fcbc84dcc2d0e876587589d688d734c484610f27740",
+      "ledger_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T133000Z-github-finding-status-reconciliation/artifacts/05_findings/FND-GITHUB-0001/candidate_ledger.jsonl",
+      "ledger_sha256": "acd2f36bd5c17e877b662c10e2cc46ce598972f8d05b5593a4ebdf255f3d7f36"
+    },
+    "disposition": "All tracked Scorecard alerts are terminal and no open Scorecard alert remains. The aggregate source condition is closed for the current test-only, no-release archive scope."
+  },
+  "residual_risk": "The terminal GitHub alert states do not certify production governance. Before production, publication, or release, restore this record and revalidate current approval, CODEOWNERS, external attestation, and any Scorecard requirements against the then-current repository state.",
+  "residual_risk_de": "Die terminalen GitHub-Alert-Status zertifizieren keine Production-Governance. Vor Produktion, Veröffentlichung oder Release muss dieser Record wiederhergestellt und die aktuelle Approval-, CODEOWNERS-, externe Attestierungs- und Scorecard-Lage gegen den dann aktuellen Repository-Status neu validiert werden.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-26T13:29:40Z",
+  "final_disposition": "closed_after_current_github_scorecard_reconciliation",
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-18T08:49:52Z",
+      "event": "governance_inventory_and_bounded_remediation",
+      "detail": "Replaced visibility-limited bootstrap summary with an authorized live aggregate for the eight requested Scorecard points. Existing .codex mount denies creation of additional canonical finding directories, so point-level records are retained in this canonical aggregate without claiming separate directory allocation."
+    },
+    {
+      "at": "2026-07-18T09:21:20Z",
+      "event": "post_write_readback_and_pr_control_validation",
+      "detail": "Ruleset, effective rules, Actions permissions, vulnerability alerts, Dependabot inventory, and Dependency Graph SBOM were reread. The SBOM endpoint returned 200 and recorded golang.org/x/net v0.48.0. PR #53 at d5781bd15cd286608168b952dfeb7f2d7ab29772 was CLEAN and mergeable with six exact required checks successful, no reviews, and zero review threads. Scorecard alerts still exposed the 2026-07-16 pre-remediation analysis, so no score result was inferred."
+    },
+    {
+      "at": "2026-07-19T10:48:14Z",
+      "event": "security_policy_master_merge_and_recognition_verified",
+      "detail": "Authorized PR #53 was squash-merged at 2026-07-19T10:42:53Z as master a589cb662fb03deb764f78eefbb1056bc64d63e2. Remote master content matched reviewed head d5781bd15cd286608168b952dfeb7f2d7ab29772, the 14 observed master push workflows completed successfully, private vulnerability reporting read enabled=true, and GitHub GraphQL returned securityPolicyUrl https://github.com/Easton97-Jens/ModSecurity-conector/security/policy. This verifies only the security-policy point; the aggregate finding remains in_progress."
+    },
+    {
+      "at": "2026-07-20T20:20:18Z",
+      "event": "resulting_master_github_security_inventory_reconciled",
+      "detail": "Resulting Parent master cbd8385ce1b34318c84cf8f4a5a92ef98c83f82a has one open runtime/transitive Dependabot alert #1 for golang.org/x/net v0.48.0 and six Scorecard alerts #1, #7, #8, #10, #11, and #12. CodeQL and secret-scanning inventories are both zero open. The Scorecard alerts are bound to cbd8385..., not merely the historical creation date. Alert #1 safe remediation requires Go 1.25, while the module/CI baseline is Go 1.24. No alert was dismissed, no governance bypass was introduced, and the aggregate finding remains in_progress."
+    },
+    {
+      "at": "2026-07-20T20:50:06Z",
+      "event": "post_pr70_github_security_inventory_reconciled",
+      "detail": "Current Parent master f2376bb3e39ffbe9d36faca8bcd7397477eadd10 retains one open runtime/transitive Dependabot alert #1 for golang.org/x/net v0.48.0 and the same six Scorecard alerts #1, #7, #8, #10, #11, and #12. CodeQL and secret-scanning inventories are both zero open. Alert #1 remains blocked by the Go 1.25 compatibility decision; no alert was dismissed, no governance bypass was introduced, and the aggregate finding remains in_progress."
+    },
+    {
+      "at": "2026-07-20T22:19:00Z",
+      "event": "post_pr71_resulting_master_github_sonar_reconciled",
+      "detail": "PR #71 head b1eef0a087432aa9bf9bc1243a34b0b0d8f6080e was squash-merged as master 929fe60dfca30787947027e5bd49003581a5b080 with identical tree fae388da52f5d660c8e18f06b058ec67b38adfd7. CodeQL 29783353825 succeeded with zero open master alerts; Scorecard 29783353831 succeeded while six alerts persist; Dependabot 29783426906 and 29783429481 succeeded while alert #1 remains open; GitHub secret scanning has zero active alerts. Secret workflow 29783388295 establishes advisory-wrapper success only, without a raw Gitleaks result or count. Sonar analysis ee3e3400-36fb-452f-b396-775b6c4c2040 remains Quality Gate ERROR with 220 unresolved VULNERABILITY issues and three TO_REVIEW hotspots. Status remains in_progress; no open alert was closed."
+    },
+    {
+      "at": "2026-07-23T16:37:03Z",
+      "event": "current_master_alert_inventory_and_fuzzing_feasibility_reconciled",
+      "detail": "Authenticated current-master inventory confirms two Dependabot and six Scorecard alerts on a308d7b414f0859490fe7253e0683a4bde80b563. The historical Go-1.24 dependency blocker is superseded by the repository Go-1.26.5 baseline; current local validation awaits explicit authorization for isolated Go-1.26.5 acquisition/use. A narrow Traefik UDS-result parser fuzz target with bounded existing-CI execution is technically meaningful. No GitHub settings were changed, no alert was closed, and no risk was accepted."
+    },
+    {
+      "at": "2026-07-23T17:52:48Z",
+      "event": "draft_pr_delivery_and_exact_head_checks_reconciled",
+      "detail": "User-authorized task-local Go 1.26.5 validation produced Draft PR #99 (Envoy dependency floors) and Draft PR #100 (Traefik UDS fuzzing). Each exact local/remote/PR head matches, both full exact-head check sets passed, and fresh authenticated reads still show Dependabot #1/#2 and all six Scorecard alerts on unchanged master a308d7b414f0859490fe7253e0683a4bde80b563. No merge, alert closure, dismissal, or risk acceptance occurred."
+    },
+    {
+      "at": "2026-07-24T14:55:06Z",
+      "event": "pr111_exact_head_traefik_go_timing_retry_reconciled",
+      "detail": "Eligible Parent-only PR #111 exact head 2549d15f3181d236eeb83829818a6b03b273edcd had one CodeQL traefik-go job 89512179584 time out after 15.06s in the bounded FuzzUDSFrameAndResult command. PR #111 does not change the CodeQL workflow or Traefik middleware, and immediately preceding master 5f831257949f4b2655347e2f8bcb2dd5e094a260 passed the same fuzz job 89507225557. One policy-permitted diagnostic retry on the unchanged head, job 89513231832, passed and CodeQL run 30102616292 attempt 2 succeeded. The incident is retained as transient CI timing; no control was weakened, no code remediation or risk acceptance occurred, and the finding remains in_progress."
+    },
+    {
+      "at": "2026-07-24T15:43:59Z",
+      "event": "current_master_alert_closure_reconciled",
+      "detail": "Current master 8e36b86ac17bce06003b0505fe26f6bb60c3cec7 contains merged PR #99/#100. GitHub independently marks Dependabot #1/#2 fixed without dismissal and reports zero open Dependabot alerts; that Go scope closes FND-PARENT-0001. All six Scorecard alerts remain open on the same current master scan, including #11 despite the passed bounded fuzz control and #12 for two PyYAML advisories. No Scorecard alert was closed, dismissed, suppressed, or risk-accepted; FND-GITHUB-0001 remains in_progress."
+    },
+    {
+      "at": "2026-07-24T16:00:01Z",
+      "event": "post_master_advance_alert_rechecked",
+      "detail": "Authoritative master advanced one documentation/test-only commit to a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0. A fresh comparison confirms the affected Go modules and Traefik fuzz target are unchanged; Dependabot #1/#2 remain fixed without dismissal, all 14 observed master workflows are successful, and Scorecard alerts #1/#7/#8/#10/#11/#12 remain open. FND-PARENT-0001 stays closed and this aggregate finding stays in_progress without any external dismissal or risk acceptance."
+    },
+    {
+      "at": "2026-07-24T16:07:44Z",
+      "event": "post_master_second_advance_alert_rechecked",
+      "detail": "Authoritative master advanced one further documentation/test-only commit to 185fd358bcfabe63464ab0e135eecedf24c9a699. The scoped Go modules and Traefik fuzz target are unchanged; Dependabot #1/#2 remain fixed without dismissal and no Dependabot alerts are open. The six open Scorecard alerts have their latest instances on a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0, while the current master has 13 successful and one failed Actions workflow (OpenSSF Scorecard default-branch) and a failed SonarCloud Code Analysis check. No alert was dismissed, suppressed, closed, or risk-accepted; FND-GITHUB-0001 remains in_progress."
+    },
+    {
+      "at": "2026-07-24T16:14:53Z",
+      "event": "post_master_final_current_alert_rechecked",
+      "detail": "Master remains 185fd358bcfabe63464ab0e135eecedf24c9a699. Dependabot #1/#2 remain fixed without dismissal and no Dependabot alerts are open. OpenSSF Scorecard run 30107490735 attempt 3 succeeded, leaving all 14 observed Actions workflows successful. Scorecard alerts #1/#7/#8/#10/#11/#12 are now refreshed to this current master and remain open; SonarCloud Code Analysis remains failed. No alert was dismissed, suppressed, closed, or risk-accepted; FND-GITHUB-0001 remains in_progress."
+    },
+    {
+      "at": "2026-07-24T17:13:44Z",
+      "event": "draft_pr120_exact_head_verified",
+      "detail": "Draft PR #120 is OPEN_DRAFT, CLEAN, and mergeable from exact head 57c411eeca7be024e5718d560e26e4bc051b92ae against master 30ee953b57f4aafebaa0e6ed565a80f6500db1de. All 33 applicable terminal hosted checks succeeded, including CodeQL bounded-c-cpp's real C Common HTTP-header libFuzzer step, OSV, and SonarCloud. The PR-event Scorecard default-branch step is skipped, so the fresh master alert readback retains #1/#7/#8/#10/#11/#12 open on 30ee953b57f4aafebaa0e6ed565a80f6500db1de. #11/#12 are verified draft-PR source remediations pending review, merge, and resulting-master Scorecard refresh; #1/#7/#8/#10 remain external requirements. No alert was dismissed, suppressed, closed, or risk-accepted."
+    },
+    {
+      "at": "2026-07-24T17:25:15Z",
+      "event": "draft_pr120_base_advance_rechecked",
+      "detail": "Remote master advanced one non-overlapping commit to 9e788057d2b551ba51ad7c4e6e1d8c5198b77834. Draft PR #120 remains OPEN_DRAFT at exact head 57c411eeca7be024e5718d560e26e4bc051b92ae but GitHub now reports it BEHIND. The existing 33-success result remains evidence for that exact source revision, not a current merge-candidate result. Current Scorecard alert instances #1/#7/#8/#10/#11/#12 are open on 9e788057d2b551ba51ad7c4e6e1d8c5198b77834. No branch update, rebase, force push, merge commit, alert dismissal, suppression, closure, or risk acceptance was performed because the task permits neither merge nor force push. FND-GITHUB-0001 remains in_progress."
+    },
+    {
+      "at": "2026-07-26T13:29:40Z",
+      "event": "current_github_scorecard_reconciliation_closed",
+      "detail": "Read-only GitHub reconciliation on Parent master 6ca7e1536ce7e93da68099db9c586b88852ff13e found no open Scorecard alerts. Alerts #1/#7/#8 are dismissed false positive, #10 is dismissed used in tests, and #11/#12 are fixed; Parent PRs #99/#100/#120 are merged. Protect-master remains active with no bypass actors, Actions default permission is read, private vulnerability reporting is enabled, and the security policy URL is present. The aggregate source condition is closed and archive eligible, without certifying production governance."
+    }
+  ]
+}

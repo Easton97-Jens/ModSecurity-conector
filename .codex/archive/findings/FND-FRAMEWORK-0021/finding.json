@@ -1,0 +1,222 @@
+{
+  "id": "FND-FRAMEWORK-0021",
+  "title": "External Python-version change breaks Framework hash-locked CI dependency contract",
+  "title_de": "Externe Python-Versionsänderung bricht den hash-gesperrten Framework-CI-Abhängigkeitsvertrag",
+  "category": "ci_failure",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".github/workflows/ci-security-workflow-lint.yml",
+    ".github/workflows/lint.yml",
+    ".github/workflows/check-action-versions.yml",
+    ".github/workflows/check-common-versions.yml",
+    ".github/workflows/ci-security-osv.yml",
+    ".github/workflows/ci-security-quality.yml",
+    ".github/workflows/ci-security-scorecard.yml",
+    ".github/workflows/ci-security-secrets.yml",
+    "requirements-ci.lock"
+  ],
+  "affected_symbols": [
+    "actions/setup-python python-version",
+    "Install hash-locked CI dependency",
+    "--require-hashes",
+    "PyYAML==6.0.3"
+  ],
+  "summary": "After the user-authorized PR #27 merge, external Framework master commits changed twelve reviewed actions/setup-python values across eight workflows from 3.12.13 to 3.13 but left requirements-ci.lock explicitly bound to the CPython 3.12.13 CP312 PyYAML 6.0.3 wheel hash. On exact later master 4dee26fcff988fd408bc7df577de772373c4b765, hosted Python 3.13.14 correctly rejects the CP313 wheel digest in actionlint-and-contract, zizmor, scaffold-lint, and current-revision-advisory. The strict hash control is working fail closed; the incompatible version/lock contract is the defect.",
+  "summary_de": "Nach dem nutzerautorisierten PR-#27-Merge änderten externe Framework-master-Commits zwölf geprüfte actions/setup-python-Werte in acht Workflows von 3.12.13 auf 3.13, ließen aber requirements-ci.lock ausdrücklich an den CPython-3.12.13-CP312-PyYAML-6.0.3-Wheel-Hash gebunden. Auf dem exakten späteren Master 4dee26fcff988fd408bc7df577de772373c4b765 lehnt Hosted Python 3.13.14 den CP313-Wheel-Digest in actionlint-and-contract, zizmor, scaffold-lint und current-revision-advisory korrekt ab. Das strikte Hash-Control arbeitet fail closed; der inkompatible Versions-/Lock-Vertrag ist der Defekt.",
+  "observed_behavior": "External commits beginning at 6cfe9cdb97d807ec265aec45da3d13fa4f2c28a7 changed twelve setup-python values in eight reviewed workflows from 3.12.13 to 3.13. requirements-ci.lock still documents the reviewed CPython 3.12.13 CP312 wheel and declares SHA-256 ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc. Exact later master 4dee26fcff988fd408bc7df577de772373c4b765 runs Python 3.13.14, downloads the PyYAML 6.0.3 CP313 wheel with SHA-256 0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6, and exits 1 in actionlint-and-contract, zizmor, scaffold-lint, and current-revision-advisory before their intended checks run.",
+  "observed_behavior_de": "Externe Commits beginnend mit 6cfe9cdb97d807ec265aec45da3d13fa4f2c28a7 änderten zwölf setup-python-Werte in acht geprüften Workflows von 3.12.13 auf 3.13. requirements-ci.lock dokumentiert weiterhin das geprüfte CPython-3.12.13-CP312-Wheel und deklariert SHA-256 ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc. Der exakte spätere Master 4dee26fcff988fd408bc7df577de772373c4b765 läuft mit Python 3.13.14, lädt das PyYAML-6.0.3-CP313-Wheel mit SHA-256 0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6 herunter und endet in actionlint-and-contract, zizmor, scaffold-lint und current-revision-advisory mit Exit 1, bevor deren vorgesehene Checks laufen.",
+  "expected_behavior": "Every workflow interpreter version and every hash-locked wheel digest form one reviewed, internally consistent CI dependency contract. actionlint-and-contract, zizmor, scaffold-lint, and current-revision-advisory must install the intended reviewed artifact and then execute their checks. The failure must not be bypassed by deleting --require-hashes or accepting a mismatched artifact.",
+  "expected_behavior_de": "Jede Workflow-Interpreterversion und jeder hash-gesperrte Wheel-Digest bilden einen geprüften, intern konsistenten CI-Abhängigkeitsvertrag. actionlint-and-contract, zizmor, scaffold-lint und current-revision-advisory müssen das beabsichtigte geprüfte Artifact installieren und danach ihre Checks ausführen. Der Fehler darf nicht durch das Entfernen von --require-hashes oder durch Akzeptieren eines nicht passenden Artifacts umgangen werden.",
+  "impact": "Four mandatory Framework master controls presently do not reach their intended workflow/security checks, and other externally changed scheduled/manual consumers share the same incompatible contract. The failure is a release blocker and security relevant because the immutable dependency-integrity control must remain fail closed; it is not evidence that the hash control should be weakened or that an incompatible wheel should be trusted.",
+  "impact_de": "Vier obligatorische Framework-master-Controls erreichen derzeit ihre vorgesehenen Workflow-/Security-Checks nicht, und weitere extern geänderte Scheduled-/Manual-Consumer teilen denselben inkompatiblen Vertrag. Der Fehler ist ein Release-Blocker und security-relevant, weil das unveränderliche Dependency-Integritäts-Control fail closed bleiben muss; er belegt nicht, dass das Hash-Control abgeschwächt oder ein inkompatibles Wheel vertraut werden sollte.",
+  "preconditions": [
+    "Framework origin/master resolves to 4dee26fcff988fd408bc7df577de772373c4b765 after PR #27 merge commit 6de40c1714410241e917e9083ee890a82fb2fdbb.",
+    "External commits from 6cfe9cdb97d807ec265aec45da3d13fa4f2c28a7 through 4dee26fcff988fd408bc7df577de772373c4b765 change twelve workflow Python values to 3.13.",
+    "requirements-ci.lock remains the reviewed CPython 3.12.13 CP312-only PyYAML 6.0.3 lock contract."
+  ],
+  "reproduction": [
+    "rtk git -C /var/tmp/codex/worktrees/framework-ci-security show --format= --unified=20 6cfe9cdb97d807ec265aec45da3d13fa4f2c28a7",
+    "rtk git -C /var/tmp/codex/worktrees/framework-ci-security show --format= --unified=20 8572da580e11bc3c62f6ef559152f49b30650056",
+    "rtk git -C /var/tmp/codex/worktrees/framework-ci-security show 8572da580e11bc3c62f6ef559152f49b30650056:requirements-ci.lock",
+    "rtk gh run view 29702454427 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed",
+    "rtk gh run view 29702454412 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed"
+  ],
+  "evidence": [
+    {
+      "run_id": "github-actions-29702454427",
+      "artifact_path": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/29702454427",
+      "artifact_type": "external_github_actions_failed_jobs_log",
+      "sha256": null,
+      "command": "rtk gh run view 29702454427 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T20:32:09Z",
+      "retention_status": "not_retained_external_log",
+      "summary": "Exact master 8572da580e11bc3c62f6ef559152f49b30650056: actionlint-and-contract and zizmor fail at Install hash-locked CI dependency because Python 3.13.14 downloads PyYAML 6.0.3 CP313 SHA-256 0f29edc..., while requirements-ci.lock expects CP312 SHA-256 ba1cc08...."
+    },
+    {
+      "run_id": "github-actions-29702454412",
+      "artifact_path": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/29702454412",
+      "artifact_type": "external_github_actions_failed_job_log",
+      "sha256": null,
+      "command": "rtk gh run view 29702454412 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T20:32:09Z",
+      "retention_status": "not_retained_external_log",
+      "summary": "Exact master 8572da580e11bc3c62f6ef559152f49b30650056: scaffold-lint fails at the same hash-locked PyYAML CP313-versus-CP312 mismatch before the intended broad Framework lint runs."
+    },
+    {
+      "run_id": "github-master-readback-20260719T203209Z",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-test-Framework/commits/8572da580e11bc3c62f6ef559152f49b30650056",
+      "artifact_type": "external_github_commit_and_workflow_contract_readback",
+      "sha256": null,
+      "command": "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/8572da580e11bc3c62f6ef559152f49b30650056; rtk git -C /var/tmp/codex/worktrees/framework-ci-security show --format= --unified=20 6cfe9cdb97d807ec265aec45da3d13fa4f2c28a7; rtk git -C /var/tmp/codex/worktrees/framework-ci-security show --format= --unified=20 8572da580e11bc3c62f6ef559152f49b30650056; rtk git -C /var/tmp/codex/worktrees/framework-ci-security show origin/master:requirements-ci.lock",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T20:32:09Z",
+      "retention_status": "not_retained_external_api_readback",
+      "summary": "The later external master commits change only workflow interpreter values while the CP312-only lock header and digest remain unchanged."
+    },
+    {
+      "run_id": "github-master-4dee26f-20260719T204756Z",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-test-Framework/commits/4dee26fcff988fd408bc7df577de772373c4b765/check-runs",
+      "artifact_type": "external_github_current_master_ci_regression_reconfirmation",
+      "sha256": null,
+      "command": "rtk gh run view 29703131028 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed; rtk gh run view 29703131032 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed; rtk gh run view 29703131031 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed; rtk git -C /var/tmp/codex/worktrees/framework-ci-security diff --unified=6 8572da580e11bc3c62f6ef559152f49b30650056..4dee26fcff988fd408bc7df577de772373c4b765 -- .github/workflows",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T20:47:56Z",
+      "retention_status": "not_retained_external_log",
+      "summary": "Current external master 4dee26... retains the exact CP313-versus-CP312 mismatch in actionlint-and-contract, zizmor, scaffold-lint, and current-revision-advisory. The comparison shows twelve reviewed Python 3.12.13 values changed to 3.13 across eight workflows while requirements-ci.lock remains CP312-only."
+    },
+    {
+      "run_id": "20260719T211529Z-framework-python-313-master-migration-939e61b5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T211529Z-framework-python-313-master-migration-939e61b5/downloads/pyyaml-cp313/pyyaml-6.0.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "artifact_type": "official_pypi_cp313_wheel_hash_verification",
+      "sha256": "0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6",
+      "command": "rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_INPUT=1 <framework-venv-python> -m pip download --no-cache-dir --no-deps --only-binary=:all: --implementation cp --python-version 3.13 --abi cp313 --platform manylinux2014_x86_64 --require-hashes -r requirements-ci.lock --dest <task-downloads>/pyyaml-cp313; rtk sha256sum <downloaded-wheel>",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260719T211529Z-framework-python-313-master-migration-939e61b5/worktrees/framework-python-313-master-migration",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T21:31:45Z",
+      "retention_status": "task_temporary_pending_finalization",
+      "summary": "The exact reviewed CP313 Linux x86_64 PyYAML 6.0.3 wheel selected under --require-hashes downloaded successfully and its local SHA-256 matches the revised lock."
+    },
+    {
+      "run_id": "20260719T211529Z-framework-python-313-master-migration-939e61b5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T211529Z-framework-python-313-master-migration-939e61b5/downloads/build",
+      "artifact_type": "local_ci_security_contract_regression_matrix",
+      "sha256": null,
+      "command": "rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 make BUILD_ROOT=<task-downloads>/build TMP_ROOT=<task-downloads>/tmp PYTHON=<framework-venv-python> test-ci-security-contract check-github-actions-workflows test-workflow-action-pins",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260719T211529Z-framework-python-313-master-migration-939e61b5/worktrees/framework-python-313-master-migration",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T21:31:45Z",
+      "retention_status": "task_temporary_pending_finalization",
+      "summary": "The repaired source passes the 69-test CI-security matrix, immutable workflow-pin checks, and workflow permission checks while the existing suite still exercises fail-closed negative controls."
+    },
+    {
+      "run_id": "framework-pr-33-master-9a729226-20260719T221845Z",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-test-Framework/commits/9a729226d2e040d07d7e7a4acebf201faf06ab37/check-runs",
+      "artifact_type": "external_github_exact_master_ci_remediation_verification",
+      "sha256": null,
+      "command": "rtk gh pr view 33 --repo Easton97-Jens/ModSecurity-test-Framework --json state,mergedAt,mergeCommit,headRefOid,baseRefName; rtk gh api 'repos/Easton97-Jens/ModSecurity-test-Framework/actions/runs?head_sha=9a729226d2e040d07d7e7a4acebf201faf06ab37&per_page=100'; rtk gh api 'repos/Easton97-Jens/ModSecurity-test-Framework/commits/9a729226d2e040d07d7e7a4acebf201faf06ab37/check-runs'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T22:18:45Z",
+      "retention_status": "not_retained_external_api_readback",
+      "summary": "PR #33 exact head e94029f5b893ef6a8efa118d21698426a43c82dd merged normally as Framework master 9a729226d2e040d07d7e7a4acebf201faf06ab37. The original affected controls actionlint-and-contract, zizmor, scaffold-lint, and current-revision-advisory all completed successfully; master CodeQL, CI security Python quality, lint, test-common, and Scorecard also succeeded."
+    }
+  ],
+  "root_cause": "The later external workflow edits treated 3.13 as a compatible replacement for the explicitly reviewed 3.12.13 interpreter across eight workflows without updating the interpreter-specific PyYAML wheel lock metadata and validating every consumer. PyPI correctly serves a different CP313 wheel whose digest cannot match the CP312 lock entry.",
+  "root_cause_de": "Die späteren externen Workflow-Edits behandelten 3.13 in acht Workflows als kompatiblen Ersatz für den ausdrücklich geprüften Interpreter 3.12.13, ohne die interpreter-spezifischen PyYAML-Wheel-Lock-Metadaten zu aktualisieren und jeden Consumer zu validieren. PyPI liefert korrekt ein anderes CP313-Wheel, dessen Digest nicht zum CP312-Lock-Eintrag passen kann.",
+  "proposed_remediation": "The current user authorized a normal Framework master-integration PR. Select the coherent CPython 3.13.14 contract: update all twelve active setup-python uses to exact 3.13.14 with check-latest: false, migrate the reviewed lock header and sole CP313 PyYAML hash, and validate each consumer. Preserve --require-hashes and the security-tooling review requirements. Do not direct-push master, suppress the install failure, trust a mismatched digest, change Parent, or change MRTS.",
+  "proposed_remediation_de": "Der aktuelle Nutzer autorisierte einen normalen Framework-Master-Integration-PR. Den kohärenten CPython-3.13.14-Vertrag wählen: alle zwölf aktiven setup-python-Uses auf exaktes 3.13.14 mit check-latest: false aktualisieren, den geprüften Lock-Header und den einzigen CP313-PyYAML-Hash migrieren und jeden Consumer validieren. --require-hashes und die Security-Tooling-Review-Anforderungen bewahren. Keinen direkten Master-Push, keine Unterdrückung des Install-Fehlers, kein Vertrauen in einen nicht passenden Digest, keine Parent-Änderung und keine MRTS-Änderung vornehmen.",
+  "acceptance_criteria": [
+    "One reviewed normal Framework PR makes the interpreter and hash-locked artifact contract internally consistent without weakening --require-hashes.",
+    "The exact PR head passes actionlint-and-contract, zizmor, scaffold-lint, and current-revision-advisory after the intended artifact is installed.",
+    "The exact resulting master reruns and passes the original four controls with a processable reviewed artifact.",
+    "The original CP313-versus-CP312 mismatch no longer reproduces, and a deliberate alternative interpreter path has current reviewed hashes for every required wheel.",
+    "No Parent gitlink, Parent source, MRTS path, workflow permission, or security control is weakened as a workaround."
+  ],
+  "validation_plan": [
+    "Read the exact remote master and branch protection state before any later remediation work.",
+    "On a separate authorized Framework branch, run the focused dependency-install consumers and the repository-native CI-security contract checks with task-owned temporary paths.",
+    "Verify exact PR-head hosted checks, reviews, and CodeQL behavior before a separately authorized merge.",
+    "After merge, bind all four successful controls to the exact resulting master SHA and rerun the original mismatch observation before status verified."
+  ],
+  "regression_tests": [
+    "Hosted actionlint-and-contract",
+    "Hosted zizmor",
+    "Hosted scaffold-lint",
+    "Hosted current-revision-advisory",
+    "requirements-ci.lock contract inspection for the selected interpreter and PyYAML artifact"
+  ],
+  "legitimate_control_tests": [
+    "A deliberately mismatched interpreter/wheel pair remains rejected by pip --require-hashes.",
+    "The selected interpreter installs only the reviewed artifact whose digest matches the lock.",
+    "No workflow removes --require-hashes, changes the security-tooling validation, or grants additional permissions."
+  ],
+  "dependencies": [
+    "Current authorized normal Framework remediation PR",
+    "Reviewed interpreter and PyYAML artifact decision",
+    "GitHub-hosted Linux CPython wheel availability"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0017",
+    "FND-FRAMEWORK-0020"
+  ],
+  "deduplication_note": "Not a duplicate of FND-FRAMEWORK-0020: that record owns the earlier Pyright annotation failure in the evidence-contract checker and its exact PR #27/master source evidence. This finding owns a later, independently remediable interpreter-to-lock artifact mismatch affecting four observed workflow jobs after master advanced externally.",
+  "source_run_ids": [
+    "github-master-readback-20260719T203209Z",
+    "github-actions-29702454427",
+    "github-actions-29702454412",
+    "github-master-4dee26f-20260719T204756Z",
+    "20260719T211529Z-framework-python-313-master-migration-939e61b5",
+    "framework-pr-33-master-9a729226-20260719T221845Z"
+  ],
+  "evidence_limitations": [
+    "GitHub Actions logs and commit API output were observed read-only and were not copied into a local artifact; external evidence objects intentionally retain sha256 null rather than fabricate a digest.",
+    "The local test environment runs CPython 3.14.4, not CPython 3.13.14; the exact PR and resulting-master hosted controls now supply the required CPython 3.13.14 execution evidence.",
+    "The separate failing Framework-master SonarQube Cloud gate is tracked under FND-SONAR-0002 and is not attributed to this verified dependency-contract repair."
+  ],
+  "residual_risk": "No residual defect remains for this finding on Framework master 9a729226d2e040d07d7e7a4acebf201faf06ab37. The strict lock remains fail closed and the independent master SonarQube Cloud backlog remains separately tracked under FND-SONAR-0002.",
+  "residual_risk_de": "Für dieses Finding verbleibt auf Framework-master 9a729226d2e040d07d7e7a4acebf201faf06ab37 kein Restdefekt. Der strikte Lock bleibt fail closed; der unabhängige Master-SonarQube-Cloud-Backlog wird getrennt unter FND-SONAR-0002 verfolgt.",
+  "history": [
+    {
+      "at": "2026-07-19T20:32:09Z",
+      "event": "external_post_merge_python_lock_regression_validated",
+      "detail": "After PR #27 merge commit 6de40c1714410241e917e9083ee890a82fb2fdbb, external commits 6cfe9cdb97d807ec265aec45da3d13fa4f2c28a7 and 8572da580e11bc3c62f6ef559152f49b30650056 changed three reviewed Python 3.12.13 values to 3.13. Exact master 8572da... fails actionlint-and-contract, zizmor, and scaffold-lint because the reviewed CP312 PyYAML digest does not match the fetched CP313 wheel. The hash control correctly failed closed; no remediation was performed or authorized in this task."
+    },
+    {
+      "at": "2026-07-19T20:47:56Z",
+      "event": "external_master_ci_regression_reconfirmed_and_expanded",
+      "detail": "Further external commits advanced master to 4dee26fcff988fd408bc7df577de772373c4b765 and changed twelve reviewed Python 3.12.13 workflow values to 3.13 across eight workflows, still without a corresponding CP313 lock migration. actionlint-and-contract, zizmor, scaffold-lint, and current-revision-advisory all reproduce the same strict PyYAML hash mismatch. This task did not author, merge, or remediate those external commits."
+    },
+    {
+      "at": "2026-07-19T21:31:45Z",
+      "event": "authorized_python_313_14_lock_remediation_started",
+      "detail": "The current user authorized a normal Framework master-integration PR. The task selected exact CPython 3.13.14 with check-latest: false, replaced the CP312 lock entry with the verified CP313 PyYAML 6.0.3 digest 0f29edc..., and passed the focused local CI-security matrix and target-wheel --require-hashes resolution. Exact-head and resulting-master hosted verification remain pending."
+    },
+    {
+      "at": "2026-07-19T22:18:45Z",
+      "event": "verified_after_exact_pr33_merge_and_master_reproduction",
+      "detail": "Framework PR #33 passed its exact-head checks and SonarQube Cloud Quality Gate without reviews or threads, then merged normally at expected head e94029f5b893ef6a8efa118d21698426a43c82dd as master 9a729226d2e040d07d7e7a4acebf201faf06ab37. The original four affected master controls all passed, so the CP313-versus-CP312 mismatch no longer reproduces. No hash, permission, Parent, or MRTS control was weakened."
+    }
+  ],
+  "created_at": "2026-07-19T20:32:09Z",
+  "updated_at": "2026-07-19T22:18:45Z",
+  "final_disposition": "verified_on_framework_master_9a729226d2e040d07d7e7a4acebf201faf06ab37"
+}

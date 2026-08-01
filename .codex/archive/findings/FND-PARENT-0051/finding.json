@@ -1,0 +1,107 @@
+{
+  "id": "FND-PARENT-0051",
+  "title": "CPython 3.14 test loader does not register the local runtime-smoke module before dataclass processing",
+  "title_de": "CPython-3.14-Testloader registriert das lokale Runtime-Smoke-Modul vor der Dataclass-Verarbeitung nicht",
+  "category": "test_failure",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "reproduced",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": false,
+  "connector": "local runtime smoke harness",
+  "protocol": "Python importlib test loading",
+  "profile": "Parent PR #74 normal master update under CPython 3.14.4",
+  "affected_files": [
+    "tests/test_local_runtime_smoke_request_body.py",
+    "common/scripts/run_local_runtime_smoke.py"
+  ],
+  "affected_symbols": [
+    "SPEC",
+    "SMOKE",
+    "RuntimeOutputPaths"
+  ],
+  "observed_behavior": "On the PR #74 worktree after the normal uncommitted merge of current Parent master, CPython 3.14.4 fails during import of tests/test_local_runtime_smoke_request_body.py. The test creates SMOKE with importlib.util.module_from_spec(SPEC) and executes it without sys.modules[SPEC.name] registration. The imported smoke runner now declares RuntimeOutputPaths with @dataclass, and CPython 3.14.4 dataclasses._is_type dereferences the missing module entry, raising AttributeError before any request-body or runtime-path test runs.",
+  "expected_behavior": "The test must register its dynamically loaded module under SPEC.name before exec_module. The focused request-body, parser-rejection, and runtime-output-path tests must run under the selected CPython 3.14.4 interpreter without changing the smoke runner's request framing, error status, or output-path confinement behavior.",
+  "impact": "PR #74 cannot complete its focused security and regression test suite under the repository's CPython 3.14 lane. This is a test-loader compatibility defect, not evidence of a production request parser or path-confinement bypass.",
+  "preconditions": [
+    "Use the selected Parent virtual-environment interpreter, CPython 3.14.4.",
+    "Load common/scripts/run_local_runtime_smoke.py through tests/test_local_runtime_smoke_request_body.py.",
+    "The smoke runner declares the RuntimeOutputPaths dataclass introduced by current master."
+  ],
+  "reproduction": [
+    "Run the retained focused unittest command in the evidence receipt from the PR #74 isolated worktree.",
+    "Observe AttributeError in Python 3.14 dataclasses._is_type while test-local SMOKE is absent from sys.modules.",
+    "As a legitimate import control, register module under spec.name before exec_module and observe successful RuntimeOutputPaths import."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T000000Z-pr55-pr74-python314-import",
+      "artifact_path": ".codex/runs/20260726T000000Z-pr55-pr74-python314-import/evidence/python314-import-loader-failure.md",
+      "artifact_type": "cp314_unittest_failure_and_registered_import_control",
+      "sha256": "75c710e45b9db641bb82a4ef5b39ca088e0f35daf1ea5a0cb9f8a31852b0da2b",
+      "command": "Focused CPython 3.14.4 unittest invocation followed by a direct registered-import control",
+      "working_directory": "/var/tmp/codex/worktrees/parent/update-pr55-pr74-hZR2UF/pr74",
+      "exit_code": 1,
+      "observed_at": "2026-07-26T05:30:02Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The unregistered import fails during dataclass processing; registering the module before exec_module succeeds."
+    },
+    {
+      "run_id": "20260726T000000Z-pr55-pr74-python314-import",
+      "artifact_path": ".codex/runs/20260726T000000Z-pr55-pr74-python314-import/evidence/python314-import-loader-success.md",
+      "artifact_type": "cp314_remediation_and_focused_regression_receipt",
+      "sha256": "a04432c4ba7b26dbf4b91d2a46c9f508a51d5cbf3cab7fabd83f2e2a9f75b093",
+      "command": "Original request-body module and focused PR #74 regression suite under CPython 3.14.4",
+      "working_directory": "/var/tmp/codex/worktrees/parent/update-pr55-pr74-hZR2UF/pr74",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T05:30:02Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The original module passes 10 tests and the focused suite passes 143 tests without weakening parser or path-confinement coverage."
+    }
+  ],
+  "root_cause": "The test's importlib loading sequence omits the standard sys.modules[spec.name] registration. This was latent until the imported module used @dataclass; CPython 3.14.4 evaluates the class annotation context through the module registry and exposes the missing registration.",
+  "proposed_remediation": "Add import sys and sys.modules[SPEC.name] = SMOKE immediately before SPEC.loader.exec_module(SMOKE) in tests/test_local_runtime_smoke_request_body.py. Do not remove the dataclass or weaken any smoke-harness request-body or runtime-output-path security control.",
+  "acceptance_criteria": [
+    "The test registers SMOKE under the exact SPEC.name before exec_module.",
+    "tests.test_local_runtime_smoke_request_body passes on CPython 3.14.4.",
+    "Focused runtime-path, report-evidence, HAProxy, CI-security, bilingual-documentation, compiler-guide, and Makefile tests pass on the same exact candidate head.",
+    "The request-body framing and verified output-path security behavior remains covered and unchanged.",
+    "Fresh exact-head GitHub PR evidence is evaluated after the update; no master merge is implied."
+  ],
+  "validation_plan": [
+    "Run the original failing test module on CPython 3.14.4 after the one-line registration repair.",
+    "Run the focused PR #74 regression suite covering request-body, runtime-path, report-evidence, HAProxy, CI workflow, documentation, compiler guide, and Makefile contracts.",
+    "Run the external-root HTTP authorization-service timeout smoke and git diff --check.",
+    "After publication, inspect current exact-head GitHub checks, SonarQube Cloud, review comments, and threads."
+  ],
+  "regression_tests": [
+    "tests/test_local_runtime_smoke_request_body.py",
+    "tests/test_runtime_path_security.py",
+    "tests/test_generated_report_evidence_integrity.py",
+    "tests/test_haproxy_htx_transaction_id.py"
+  ],
+  "legitimate_control_tests": [
+    "A direct import that registers the module under SPEC.name reaches RuntimeOutputPaths successfully on CPython 3.14.4.",
+    "The request-body test retains valid-body acceptance and invalid framing/size rejection controls.",
+    "The runtime-path test retains rejection of out-of-root and symlinked output paths."
+  ],
+  "dependencies": [
+    "Parent PR #74 normal update branch"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0046"
+  ],
+  "source_run_ids": [
+    "20260726T000000Z-pr55-pr74-python314-import"
+  ],
+  "residual_risk": "Until the registration repair and focused exact-head validation are complete, CPython 3.14.4 cannot execute the affected request-body test module. This records a test compatibility gap only; no request-parser, authorization, file-path, Framework, MRTS, or Gitlink security control is waived and no risk is accepted.",
+  "created_at": "2026-07-26T05:30:02Z",
+  "updated_at": "2026-07-26T05:30:02Z",
+  "final_disposition": "fixed_pending_exact_head_pr_verification"
+}

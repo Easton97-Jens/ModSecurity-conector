@@ -1,0 +1,90 @@
+{
+  "id": "FND-PARENT-0003",
+  "title": "Envoy and Traefik staticcheck diagnostics require disposition",
+  "title_de": "Envoy- und Traefik-staticcheck-Diagnosen erfordern eine Disposition",
+  "category": "static_analysis_finding",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "triaged",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md"
+  ],
+  "affected_symbols": [
+    "Envoy",
+    "Traefik"
+  ],
+  "summary": "Staticcheck recorded 10 Envoy diagnostics and one Traefik test diagnostic.",
+  "summary_de": "Staticcheck dokumentierte 10 Envoy-Diagnosen und eine Traefik-Testdiagnose.",
+  "observed_behavior": "Staticcheck recorded 10 Envoy diagnostics and one Traefik test diagnostic.",
+  "observed_behavior_de": "Staticcheck dokumentierte 10 Envoy-Diagnosen und eine Traefik-Testdiagnose.",
+  "expected_behavior": "Current evidence must be rerun against a known revision before this finding can advance beyond triaged.",
+  "expected_behavior_de": "Die aktuelle Evidence muss gegen eine bekannte Revision erneut ausgeführt werden, bevor dieses Finding über triaged hinaus fortschreiten kann.",
+  "impact": "Release and assurance claims remain bounded by the recorded evidence.",
+  "impact_de": "Release- und Assurance-Aussagen bleiben durch die dokumentierte Evidence begrenzt.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "sed -n '83,86p;218,219p' .codex/reports/repository-full-assessment.md"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:83-86,218-219",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '83,86p;218,219p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    }
+  ],
+  "root_cause": "The retained evidence identifies the condition but does not establish a product-code root cause.",
+  "root_cause_de": "Die retained Evidence belegt den Zustand, aber keine Produktcode-Grundursache.",
+  "proposed_remediation": "Correct each diagnostic or retain a narrowly justified and reviewed exclusion.",
+  "proposed_remediation_de": "Jede Diagnose korrigieren oder eine eng begründete und überprüfte Exclusion bewahren.",
+  "acceptance_criteria": [
+    "Every reported diagnostic is fixed or explicitly justified.",
+    "The selected staticcheck baseline is clean or has approved, traceable exclusions."
+  ],
+  "validation_plan": [
+    "Rerun staticcheck for Envoy and Traefik.",
+    "Run affected Go unit tests as legitimate controls."
+  ],
+  "regression_tests": [
+    "Add or retain a focused regression/evidence control for the recorded condition."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0001"
+  ],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad"
+  ],
+  "residual_risk": "The condition remains open; no risk has been accepted by the current user.",
+  "residual_risk_de": "Der Zustand bleibt offen; der aktuelle Benutzer hat kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-17T10:43:59Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    }
+  ]
+}

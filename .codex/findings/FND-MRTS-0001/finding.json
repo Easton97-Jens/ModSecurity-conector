@@ -1,0 +1,188 @@
+{
+  "id": "FND-MRTS-0001",
+  "title": "MRTS-related assurance remains limited to controlled external-copy evidence",
+  "title_de": "MRTS-bezogene Assurance bleibt auf kontrollierte External-Copy-Evidence begrenzt",
+  "category": "mrts_gap",
+  "repository": "mrts",
+  "ownership": "mrts_external_read_only",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "blocked",
+  "feasibility_status": "blocked_missing_evidence",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md"
+  ],
+  "affected_symbols": [],
+  "summary": "The original MRTS checkout stayed read-only; current conclusions rely on task-owned external-copy controls and do not establish unrestricted original-checkout runtime assurance.",
+  "summary_de": "Der originale MRTS-Checkout blieb read-only; aktuelle Schlussfolgerungen beruhen auf task-owned External-Copy-Controls und belegen keine uneingeschränkte Original-Checkout-Runtime-Assurance.",
+  "observed_behavior": "The original MRTS checkout stayed read-only; current conclusions rely on task-owned external-copy controls and do not establish unrestricted original-checkout runtime assurance.",
+  "observed_behavior_de": "Der originale MRTS-Checkout blieb read-only; aktuelle Schlussfolgerungen beruhen auf task-owned External-Copy-Controls und belegen keine uneingeschränkte Original-Checkout-Runtime-Assurance.",
+  "expected_behavior": "Current evidence must be rerun against a known revision before this finding can advance beyond blocked.",
+  "expected_behavior_de": "Die aktuelle Evidence muss gegen eine bekannte Revision erneut ausgeführt werden, bevor dieses Finding über blocked hinaus fortschreiten kann.",
+  "impact": "Release and assurance claims remain bounded by the recorded evidence.",
+  "impact_de": "Release- und Assurance-Aussagen bleiben durch die dokumentierte Evidence begrenzt.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "sed -n '496,517p;620,629p' .codex/reports/repository-full-assessment.md"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:496-517,620-629",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '496,517p;620,629p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T09:23:19Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/039-phase-b-blocker-source-preflight.log",
+      "artifact_type": "phase_b_source_preflight_log",
+      "sha256": "bd04a04698986fd23669aef44c81eff94d1e7c1da2df367858c72257e1d17329",
+      "command": "read-only source/tool preflight for NGINX worker identity, Apache C17/finalizer, and MRTS profile semantics; no host runtime or MRTS mutation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T13:02:47Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260724T042019Z-open-pr-triage-mrts-test-only-relevance-9786d0b7",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T042019Z-open-pr-triage-mrts-test-only-relevance-9786d0b7/evidence/mrts-test-only-relevance-assessment.md",
+      "artifact_type": "read_only_test_only_mrts_relevance_assessment",
+      "sha256": "f06f7a8fb6bf8aa9ed18916f7dcc964b83f6b94ae74f0fda6683a27ad75ed75f",
+      "command": "Read-only static source, Git metadata, finding, and Framework-delta inspection; no MRTS generator, importer, or test execution",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T04:20:19Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "current_task_update": {
+    "original_status": "blocked",
+    "root_cause": "Read-only structural inspection finds DetectionOnly declarations, but no current runtime evidence proves external overlay order or separates DetectionOnly detection/audit behavior from Blocking Allow/Block behavior for the requested route.",
+    "changed_files": [],
+    "security_assessment": "MRTS remained external read-only; no profile, generated output, dependency, Git state, or gitlink was changed.",
+    "next_action": "Use a Framework-owned, task-owned external overlay and retain four profile-specific controls: DetectionOnly Allow/detection and Blocking Allow/block, together with original-MRTS integrity checks.",
+    "evidence": {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/039-phase-b-blocker-source-preflight.log",
+      "artifact_type": "read_only_source_preflight_log",
+      "sha256": "bd04a04698986fd23669aef44c81eff94d1e7c1da2df367858c72257e1d17329",
+      "command": "read-only source/tool preflight for NGINX worker identity, Apache C17/finalizer, and MRTS profile semantics; no host runtime or MRTS mutation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T13:02:47Z",
+      "retention_status": "retained_task_log"
+    }
+  },
+  "test_only_relevance_assessment": {
+    "assessed_at": "2026-07-24T04:20:19Z",
+    "scope": "Whether FND-MRTS-0001 is relevant when MRTS supplies test definitions or test data only.",
+    "scope_de": "Ob FND-MRTS-0001 relevant ist, wenn MRTS nur Testdefinitionen oder Testdaten liefert.",
+    "framework_revision": "4c9753291d26d92f2d7e51ae425dedb79666fd5e",
+    "framework_static_source_revision": "f98a8739cb13b583f23d646784b144e596b61441",
+    "framework_delta_review": "The exact Framework delta from the static source revision changes no MRTS generation/import/runner path or Framework MRTS gitlink.",
+    "framework_delta_review_de": "Das exakte Framework-Delta von der statischen Source-Revision ändert weder MRTS-Generation/-Import/-Runner-Pfade noch den Framework-MRTS-Gitlink.",
+    "mrts_revision": "13aa91291adea12d5c607fdd165d010fcfb1da78",
+    "framework_mrts_gitlink": "160000 13aa91291adea12d5c607fdd165d010fcfb1da78",
+    "classification": "conditionally_relevant_for_opt_in_test_execution_only",
+    "classification_de": "nur_fuer_opt_in_Testausfuehrung_bedingt_relevant",
+    "production_exposure": "not_demonstrated",
+    "production_exposure_de": "nicht_nachgewiesen",
+    "current_runtime_execution": "not_evidenced; static coverage summary records 399 imported cases, 0 active/runtime-executable cases, and 399 pending/unclassified cases",
+    "current_runtime_execution_de": "nicht_belegt; die statische Coverage-Zusammenfassung enthält 399 importierte Cases, 0 aktive/runtime-ausführbare Cases und 399 pending/unclassified Cases",
+    "consumer_path": [
+      "read-only MRTS config_tests/*.yaml and mrts/generate-rules.py",
+      "Framework generate-mrts.sh writes generated data only below an external build root",
+      "Framework mrts-common.sh adds generated rule preambles and imports generated cases into a private runtime root",
+      "Framework runner consumes an extra case root only for applicable and active selected cases",
+      "local connector smoke runtime and HTTP test traffic can occur only after such case selection"
+    ],
+    "consumer_path_de": [
+      "read-only MRTS config_tests/*.yaml und mrts/generate-rules.py",
+      "Framework generate-mrts.sh schreibt generierte Daten nur unterhalb eines externen Build-Roots",
+      "Framework mrts-common.sh fügt generierte Rule-Preambles hinzu und importiert generierte Cases in einen privaten Runtime-Root",
+      "Der Framework-Runner verwendet einen Extra-Case-Root nur für anwendbare und aktive ausgewählte Cases",
+      "Lokale Connector-Smoke-Runtime und HTTP-Testverkehr können erst nach dieser Case-Auswahl auftreten"
+    ],
+    "boundary_result": "No command in this task changed Parent, Framework, or original MRTS. A recorded out-of-task Framework fast-forward was checked and did not change the MRTS path or gitlink; no generator, importer, test, build, Git-changing, or network command was run against MRTS.",
+    "boundary_result_de": "Kein Kommando dieses Tasks änderte Parent, Framework oder originales MRTS. Ein aufgezeichneter externer Framework-Fast-Forward wurde geprüft und änderte weder den MRTS-Pfad noch den Gitlink; gegen MRTS wurde kein Generator-, Importer-, Test-, Build-, Git-änderndes oder Netzwerk-Kommando ausgeführt.",
+    "runtime_validation": "not_run; this classification does not replace authorized external-copy runtime evidence",
+    "runtime_validation_de": "nicht_ausgefuehrt; diese Klassifikation ersetzt keine autorisierte External-Copy-Runtime-Evidence",
+    "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T042019Z-open-pr-triage-mrts-test-only-relevance-9786d0b7/evidence/mrts-test-only-relevance-assessment.md",
+    "artifact_sha256": "f06f7a8fb6bf8aa9ed18916f7dcc964b83f6b94ae74f0fda6683a27ad75ed75f"
+  },
+  "root_cause": "Structural MRTS profile evidence alone cannot establish the requested runtime enforcement semantics.",
+  "root_cause_de": "Die retained Evidence belegt den Zustand, aber keine Produktcode-Grundursache.",
+  "proposed_remediation": "Define an authorized read-only assurance protocol that preserves original MRTS integrity and records exact pre/post boundary controls.",
+  "proposed_remediation_de": "Ein autorisiertes read-only Assurance-Protokoll definieren, das die Integrität des originalen MRTS bewahrt und exakte Vor-/Nach-Boundary-Controls protokolliert.",
+  "acceptance_criteria": [
+    "MRTS-related runtime claims identify external-copy versus original-checkout evidence precisely.",
+    "The original MRTS SHA, status, and Gitlink controls pass before and after authorized work."
+  ],
+  "validation_plan": [
+    "Run only an authorized external-copy harness.",
+    "Retain Parent/Framework/MRTS boundary checks and distinguish assurance limitations from product defects."
+  ],
+  "regression_tests": [
+    "Add or retain a focused regression/evidence control for the recorded condition."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0004",
+    "FND-FRAMEWORK-0010"
+  ],
+  "source_run_ids": [
+    "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+    "20260724T042019Z-open-pr-triage-mrts-test-only-relevance-9786d0b7"
+  ],
+  "residual_risk": "The condition remains open; no risk has been accepted by the current user.",
+  "residual_risk_de": "Der Zustand bleibt offen; der aktuelle Benutzer hat kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-24T04:28:24Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-17T13:12:00Z",
+      "event": "phase_b_preflight_blocked",
+      "detail": "Current read-only inspection retained blocked_missing_evidence for DetectionOnly versus Blocking semantics. No MRTS path was modified."
+    },
+    {
+      "at": "2026-07-17T14:06:23Z",
+      "event": "phase_b_evidence_synchronized",
+      "detail": "The retained active-run source-preflight log was added to canonical evidence; the blocked_missing_evidence disposition and MRTS read-only boundary are unchanged."
+    },
+    {
+      "at": "2026-07-24T04:21:50Z",
+      "event": "test_only_relevance_assessed",
+      "detail": "Classified the finding as conditionally relevant to opt-in MRTS test execution only, not as a demonstrated production exposure. The blocked disposition and original-MRTS read-only boundary are unchanged."
+    },
+    {
+      "at": "2026-07-24T04:28:24Z",
+      "event": "framework_delta_refreshed",
+      "detail": "Checked the recorded out-of-task Framework fast-forward from f98a8739cb13b583f23d646784b144e596b61441 to 4c9753291d26d92f2d7e51ae425dedb79666fd5e; no MRTS generation/import/runner path or gitlink changed, so the test-only classification remains valid."
+    }
+  ]
+}

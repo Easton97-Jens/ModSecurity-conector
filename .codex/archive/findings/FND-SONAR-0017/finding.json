@@ -1,0 +1,229 @@
+{
+  "id": "FND-SONAR-0017",
+  "title": "MRTS PR #4 eliminates all task-owned SonarCloud issues on merged main",
+  "title_de": "MRTS-PR #4 beseitigt alle aufgabeneigenen SonarCloud-Issues auf dem gemergten main",
+  "category": "sonarqube_finding",
+  "repository": "mrts",
+  "ownership": "mrts_explicit_user_task",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "closed",
+  "verification_status": "verified_merged_main_hosted_sonar_zero",
+  "remediation_status": "closed_verified_merged_main_hosted_sonar_zero",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": "MRTS SonarCloud project Easton97_Jens_MRTS",
+  "summary": "The 12-item baseline was remediated without scanner-control changes. PR #4 source head 9cdfd4136286014b244f8fecfb99701681fecae4 was exact-head-protected Squash-merged as main 615b13bacbd008562c17408246c41ab27dca3104; current main has 0 open SonarCloud issues, Quality Gate OK, successful main workflows, and no open CodeQL alert.",
+  "summary_de": "Die 12-Elemente-Basis wurde ohne Scanner-Control-Änderungen remediated. PR-#4-Source-Head 9cdfd4136286014b244f8fecfb99701681fecae4 wurde mit Exact-Head-Schutz als Squash nach main 615b13bacbd008562c17408246c41ab27dca3104 gemergt; das aktuelle main hat 0 offene SonarCloud-Issues, Quality Gate OK, erfolgreiche Main-Workflows und keinen offenen CodeQL-Alarm.",
+  "affected_files": [
+    "mrts/mrts.py",
+    "tools/test_mrts_path_utils.py",
+    "tools/test_validate_governance.py",
+    "tools/validate-governance.py"
+  ],
+  "affected_symbols": [
+    "GO_FTW_CONFIGURATION",
+    "execute_test_set",
+    "main",
+    "_destructive_cleanup_violations",
+    "_cleanup_actions",
+    "_validate_cleanup_status",
+    "_validate_disposition_constraints"
+  ],
+  "observed_behavior": "Baseline: seven python:S5778, two python:S1172, two python:S3776, and one pythonsecurity:S8705. First PR analysis removed them but reported one python:S1192 duplicate literal at mrts/mrts.py:66. The exact PR query and the resulting-main query each return total 0.",
+  "observed_behavior_de": "Basis: sieben python:S5778, zwei python:S1172, zwei python:S3776 und ein pythonsecurity:S8705. Die erste PR-Analyse entfernte sie, meldete jedoch ein python:S1192-Duplicate-Literal in mrts/mrts.py:66. Die Exact-PR-Abfrage und die Resulting-Main-Abfrage liefern jeweils total 0.",
+  "expected_behavior": "The merged main revision has zero open task-owned SonarCloud issues and an OK Quality Gate without rule, gate, exclusion, false-positive, NOSONAR, suppression, or security-control changes.",
+  "expected_behavior_de": "Die gemergte Main-Revision hat ohne Regel-, Gate-, Exclusion-, False-Positive-, NOSONAR-, Suppressions- oder Security-Control-Änderungen null offene aufgabeneigene SonarCloud-Issues und ein OK-Quality-Gate.",
+  "impact": "The user required zero issues before main integration. PR #4 was protectedly Squash-merged and the resulting main revision satisfies that criterion with all applicable hosted workflows successful.",
+  "impact_de": "Der Nutzer verlangte null Issues vor der Main-Integration. PR #4 wurde geschützt als Squash gemergt und die resultierende Main-Revision erfüllt dieses Kriterium mit allen anwendbaren erfolgreichen gehosteten Workflows.",
+  "preconditions": [
+    "PR #4 source head was 9cdfd4136286014b244f8fecfb99701681fecae4 against main in Easton97-Jens/MRTS.",
+    "The exact-head-protected Squash merge produced main 615b13bacbd008562c17408246c41ab27dca3104.",
+    "SonarCloud project Easton97-Jens_MRTS is queried with branch=main."
+  ],
+  "reproduction": [
+    "Query SonarCloud issues with componentKeys=Easton97-Jens_MRTS, branch=main, resolved=false, ps=500; final total is 0.",
+    "Query Quality Gate with projectKey=Easton97-Jens_MRTS and branch=main; final status is OK.",
+    "Inspect PR #4 merge state, resulting main SHA, main workflow runs, and CodeQL alert list; all required results are successful or empty."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T101017Z-mrts-sonarcloud-zero-pr4",
+      "artifact_path": ".codex/runs/20260726T101017Z-mrts-sonarcloud-zero-pr4/sonar-pr-issues.json",
+      "artifact_type": "retained_sonarcloud_pr_issue_receipt",
+      "sha256": "ee8fdf86104a53c760e40f0d42b92b51d2c13f2e289efcb6b562dce9076f6a55",
+      "command": "SonarCloud PR issue API query for Easton97-Jens_MRTS pullRequest=4",
+      "working_directory": "/var/tmp/codex/worktrees/mrts/mrts-sonarcloud-zero",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T10:10:17Z",
+      "retention_status": "retained_local_sealed_evidence"
+    },
+    {
+      "run_id": "20260726T101017Z-mrts-sonarcloud-zero-pr4",
+      "artifact_path": ".codex/runs/20260726T101017Z-mrts-sonarcloud-zero-pr4/sonar-quality-gate.json",
+      "artifact_type": "retained_sonarcloud_quality_gate_receipt",
+      "sha256": "1db063f467b49ec05719b0f44b2c703bc402ae52f2515452169ddafbe4343c64",
+      "command": "SonarCloud Quality Gate API query for Easton97-Jens_MRTS pullRequest=4",
+      "working_directory": "/var/tmp/codex/worktrees/mrts/mrts-sonarcloud-zero",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T10:10:17Z",
+      "retention_status": "retained_local_sealed_evidence"
+    },
+    {
+      "run_id": "20260726T101017Z-mrts-sonarcloud-zero-pr4",
+      "artifact_path": ".codex/runs/20260726T101017Z-mrts-sonarcloud-zero-pr4/pr-status.json",
+      "artifact_type": "retained_exact_pr_head_check_receipt",
+      "sha256": "cf4ad16887f3e9723292215666e48e269c4a3a4f01b319024973e2915a4fa5a6",
+      "command": "gh pr view 4 --repo Easton97-Jens/MRTS --json headRefOid,statusCheckRollup,state,isDraft,mergeStateStatus",
+      "working_directory": "/var/tmp/codex/worktrees/mrts/mrts-sonarcloud-zero",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T10:10:17Z",
+      "retention_status": "retained_local_sealed_evidence"
+    },
+    {
+      "run_id": "20260726T101017Z-mrts-sonarcloud-zero-pr4",
+      "artifact_path": ".codex/runs/20260726T101017Z-mrts-sonarcloud-zero-pr4/local-validation.md",
+      "artifact_type": "retained_focused_local_validation",
+      "sha256": "5fdc769af00f7c81b8839766bf6f65834b91278f65a55c00a2adc5677db743fd",
+      "command": "Focused 38-test suite, Python compileall, and git diff --check",
+      "working_directory": "/var/tmp/codex/worktrees/mrts/mrts-sonarcloud-zero",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T10:10:17Z",
+      "retention_status": "retained_local_sealed_evidence"
+    },
+    {
+      "run_id": "20260726T105800Z-mrts-pr4-squash-merge",
+      "artifact_path": ".codex/runs/20260726T105800Z-mrts-pr4-squash-merge/github-post-merge.json",
+      "artifact_type": "retained_merged_main_workflow_and_boundary_receipt",
+      "sha256": "6d77c474bdc6a8b9744dd3ac8e2b6c76195a47e47fb945caa75acb5173a1f936",
+      "command": "Exact-head GitHub Squash merge connector plus GitHub PR/main/workflow/check-run/code-scanning readbacks",
+      "working_directory": "/var/tmp/codex/worktrees/mrts/mrts-sonarcloud-zero",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T10:57:32Z",
+      "retention_status": "retained_local_sealed_evidence"
+    },
+    {
+      "run_id": "20260726T105800Z-mrts-pr4-squash-merge",
+      "artifact_path": ".codex/runs/20260726T105800Z-mrts-pr4-squash-merge/sonar-main-issues.json",
+      "artifact_type": "retained_sonarcloud_main_issue_receipt",
+      "sha256": "58cf67de638c7b544b279c8365ac3334eb279716faed0996d6fe439a6ac9ad58",
+      "command": "SonarCloud issue API query for Easton97-Jens_MRTS branch=main",
+      "working_directory": "/var/tmp/codex/worktrees/mrts/mrts-sonarcloud-zero",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T10:58:00Z",
+      "retention_status": "retained_local_sealed_evidence"
+    },
+    {
+      "run_id": "20260726T105800Z-mrts-pr4-squash-merge",
+      "artifact_path": ".codex/runs/20260726T105800Z-mrts-pr4-squash-merge/sonar-main-quality-gate.json",
+      "artifact_type": "retained_sonarcloud_main_quality_gate_receipt",
+      "sha256": "0f88c3322a2a779ea067fcf61cbf21946c614836989b5f5d360f7c04f078e69b",
+      "command": "SonarCloud Quality Gate API query for Easton97-Jens_MRTS branch=main",
+      "working_directory": "/var/tmp/codex/worktrees/mrts/mrts-sonarcloud-zero",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T10:58:00Z",
+      "retention_status": "retained_local_sealed_evidence"
+    }
+  ],
+  "root_cause": "Assertion-call refactors, unused arguments, cognitive complexity, and a scanner taint candidate required narrow source/test changes. Sink-local validation created a repeated literal, then GO_FTW_CONFIGURATION removed S1192 without changing behavior.",
+  "root_cause_de": "Assertion-Call-Refactors, unbenutzte Argumente, kognitive Komplexität und ein Scanner-Taint-Kandidat erforderten enge Source-/Test-Änderungen. Sink-lokale Validierung erzeugte ein wiederholtes Literal, dann entfernte GO_FTW_CONFIGURATION S1192 ohne Verhaltensänderung.",
+  "proposed_remediation": "Bind assertion inputs before loader calls; remove unused arguments; extract behavior-preserving helpers; retain fixed go-ftw argv, shell=False, and sink-local existing-file/directory validation; add exact-argv/negative tests; factor GO_FTW_CONFIGURATION. Do not change SonarCloud controls.",
+  "proposed_remediation_de": "Assertion-Inputs vor Loader-Aufrufen binden; unbenutzte Argumente entfernen; verhaltensbewahrende Helfer extrahieren; feste go-ftw-argv, shell=False und sink-lokale Existing-File-/Directory-Validierung bewahren; Exact-argv-/Negativtests hinzufügen; GO_FTW_CONFIGURATION auslagern. SonarCloud-Kontrollen nicht ändern.",
+  "acceptance_criteria": [
+    "Merged main 615b13bacbd008562c17408246c41ab27dca3104 reports 0 open SonarCloud issues.",
+    "Main Quality Gate is OK and all applicable resulting-main workflows are SUCCESS.",
+    "Focused MRTS validation passes 38 tests, Python compileall, and git diff --check.",
+    "No Sonar rule, Quality Gate, exclusion, false-positive disposition, NOSONAR marker, suppression, or security-control weakening occurs.",
+    "No direct main push, Parent/Framework Gitlink action, or unauthorized cleanup deletion occurs."
+  ],
+  "validation_plan": [
+    "Retain exact-head issue, Quality Gate, check-rollup, and local-validation receipts.",
+    "Verify the authorized Squash merge, resulting main SHA, hosted main workflows, fresh main SonarCloud analysis, and legitimate control evidence before closure."
+  ],
+  "regression_tests": [
+    "tools.test_validate_governance",
+    "tools.test_mrts_path_utils"
+  ],
+  "legitimate_control_tests": [
+    "Metacharacter-bearing existing configuration/test paths remain individual Popen argv operands with shell=False.",
+    "Default configuration remains accepted and missing config/test paths fail before Popen.",
+    "Existing governance negative controls retain their expected errors."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0012"
+  ],
+  "source_commits": [
+    "1c4d6dfa36fa17d496eb95bbd18ec4969947079c",
+    "9cdfd4136286014b244f8fecfb99701681fecae4",
+    "615b13bacbd008562c17408246c41ab27dca3104"
+  ],
+  "source_run_ids": [
+    "20260726T101017Z-mrts-sonarcloud-zero-pr4",
+    "20260726T105800Z-mrts-pr4-squash-merge"
+  ],
+  "affected_revision": "615b13bacbd008562c17408246c41ab27dca3104",
+  "sonarqube_classification": {
+    "project_key": "Easton97-Jens_MRTS",
+    "pull_request": 4,
+    "baseline_open_total": 12,
+    "introduced_pr_issue_key": "AZ-d4GbHiXpRjQDki63x",
+    "exact_pr_head": "9cdfd4136286014b244f8fecfb99701681fecae4",
+    "exact_pr_open_total": 0,
+    "exact_pr_quality_gate": "OK",
+    "merged_main": "615b13bacbd008562c17408246c41ab27dca3104",
+    "main_open_total": 0,
+    "main_quality_gate": "OK"
+  },
+  "sonarqube_rules": [
+    "python:S5778",
+    "python:S1172",
+    "python:S3776",
+    "pythonsecurity:S8705",
+    "python:S1192"
+  ],
+  "residual_risk": "Full go-ftw/infrastructure integration, downstream configuration semantics, and PATH trust are not claimed as resolved by this scanner remediation. The merged branch and clean task worktree are intentionally retained because the user did not authorize deletion/removal actions.",
+  "residual_risk_de": "Vollständige go-ftw-/Infrastruktur-Integration, nachgelagerte Konfigurationssemantik und PATH-Trust werden nicht als durch diese Scanner-Remediation gelöst behauptet. Der gemergte Branch und das saubere Task-Worktree bleiben absichtlich erhalten, weil der Nutzer keine Lösch-/Entfernungsaktionen autorisiert hat.",
+  "evidence_limitations": "Receipts prove the exact PR head, protected Squash merge, resulting main, hosted workflows, main issue count, Quality Gate, no open CodeQL alert, and focused local checks. They do not prove a full go-ftw/infrastructure integration run or resolve unrelated PATH-trust concerns.",
+  "history": [
+    {
+      "at": "2026-07-26T09:00:00Z",
+      "status": "in_progress",
+      "event": "baseline_inventory_mapped",
+      "detail": "Twelve open SonarCloud issues were mapped without scanner-control mutation."
+    },
+    {
+      "at": "2026-07-26T10:02:19Z",
+      "status": "fixed",
+      "event": "first_pr_analysis_found_new_s1192",
+      "detail": "First PR analysis removed baseline issues but reported one S1192 duplicate literal; a constant extraction was used instead of suppression."
+    },
+    {
+      "at": "2026-07-26T10:10:17Z",
+      "status": "fixed",
+      "event": "exact_pr_head_hosted_sonar_zero_verified",
+      "detail": "Exact head 9cdfd4136286014b244f8fecfb99701681fecae4 has 0 open PR issues, Quality Gate OK, and four successful hosted checks."
+    },
+    {
+      "at": "2026-07-26T10:58:00Z",
+      "status": "verified",
+      "event": "protected_squash_merge_and_resulting_main_verified",
+      "detail": "PR #4 was exact-head-protected Squash-merged as main 615b13bacbd008562c17408246c41ab27dca3104; all resulting-main workflows pass, main SonarCloud reports 0 open issues and Quality Gate OK, and no open CodeQL alert exists."
+    },
+    {
+      "at": "2026-07-26T10:58:00Z",
+      "status": "closed",
+      "event": "finding_closed_after_required_verification",
+      "detail": "Original SonarCloud reproduction no longer reproduces on merged main and legitimate control evidence remains passing."
+    }
+  ],
+  "created_at": "2026-07-26T10:11:41Z",
+  "updated_at": "2026-07-26T10:58:00Z",
+  "final_disposition": "closed_verified_merged_main_hosted_sonar_zero_archived_20260726"
+}

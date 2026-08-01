@@ -1,0 +1,108 @@
+{
+  "id": "FND-PARENT-0062",
+  "title": "Python workflow inventory contract references a removed verified-report governance job",
+  "title_de": "Python-Workflow-Inventarvertrag referenziert einen entfernten Verified-Report-Governance-Job",
+  "category": "ci_failure",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "validated",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": false,
+  "security_assessment": "not_applicable",
+  "connector": null,
+  "protocol": "GitHub Actions Python workflow inventory contract",
+  "profile": "Parent master Python workflow inventory",
+  "affected_files": [
+    ".github/workflows/verified-report-governance.yml",
+    "ci/checks/common/check-python-version-contract.py",
+    "Makefile",
+    "tests/test_python_version_contract.py"
+  ],
+  "affected_symbols": [
+    "EXPECTED_NORMAL_PYTHON_JOBS",
+    "JobIdentity(\"verified-report-governance.yml\", \"verified-report-contract-preflight\")",
+    "inventory_violations",
+    "check-python-version-contract"
+  ],
+  "trust_boundary": null,
+  "sink": null,
+  "observed_behavior": "On Parent master dd175053b3d7f509286af87646d6eb093a49d578, rtk proxy make check-python-version-contract exits 2 because the exact inventory still requires verified-report-governance.yml:verified-report-contract-preflight while .github/workflows/verified-report-governance.yml no longer defines that job. The workflow, checker, and Makefile scope is identical to origin/master and is not changed by PR #138.",
+  "expected_behavior": "The explicit Python-job inventory and the checked-in workflows describe the same current contract, so rtk proxy make check-python-version-contract exits 0 on current Parent master while continuing to fail closed for a genuinely missing required Python job.",
+  "impact": "A mandatory Parent Python workflow contract fails on current master. It blocks trustworthy CI validation and can mask meaningful inventory drift behind a permanently failing baseline. This is a P1 CI release blocker, not a security finding.",
+  "preconditions": [
+    "Parent master dd175053b3d7f509286af87646d6eb093a49d578 is the compared revision.",
+    "The checked-in Python inventory includes JobIdentity(\"verified-report-governance.yml\", \"verified-report-contract-preflight\").",
+    ".github/workflows/verified-report-governance.yml does not define verified-report-contract-preflight."
+  ],
+  "reproduction": [
+    "Confirm git diff --quiet origin/master -- .github/workflows/verified-report-governance.yml ci/checks/common/check-python-version-contract.py Makefile exits 0 for the candidate under review.",
+    "Run rtk proxy make check-python-version-contract.",
+    "Observe exit 2 and the unaltered error: python-version-contract: expected normal Python job is absent: verified-report-governance.yml:verified-report-contract-preflight."
+  ],
+  "evidence": [
+    {
+      "run_id": "merge-prs-129-149-master-20260728",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/merge-prs-129-149-master-20260728/evidence/fnd-parent-0062-python-workflow-contract-drift.md",
+      "artifact_type": "parent_ci_contract_failure_receipt",
+      "sha256": "17ae8b2b76e65e4f9db7625122b56f5d74c171bed69912f6ba2a68198b3b283e",
+      "command": "git diff --quiet origin/master -- .github/workflows/verified-report-governance.yml ci/checks/common/check-python-version-contract.py Makefile; rtk proxy make check-python-version-contract",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/sonar-report-conditionals-20260727",
+      "exit_code": 2,
+      "observed_at": "2026-07-28T07:03:58Z",
+      "retention_status": "retained",
+      "result": "The scope-equivalence control exited 0. The checked-in validator requires verified-report-governance.yml:verified-report-contract-preflight, the current workflow omits that job, and make check-python-version-contract exited 2. No workflow, scanner, suppression, Framework, MRTS, Gitlink, or delivery state changed while collecting the receipt."
+    }
+  ],
+  "root_cause": "ci/checks/common/check-python-version-contract.py inventories verified-report-governance.yml:verified-report-contract-preflight, but .github/workflows/verified-report-governance.yml no longer defines it.",
+  "proposed_remediation": "Create a separate focused Parent workflow/checker-alignment PR that preserves the canonical Python setup and workflow trust controls, adds a regression test, and obtains hosted proof. The repair must restore a truthful exact inventory/workflow relationship without silently folding the work into PR #138.",
+  "acceptance_criteria": [
+    "The explicit inventory and the defined verified-report-governance jobs are aligned at the exact corrective PR head without weakening canonical Python setup or workflow trust controls.",
+    "rtk proxy make check-python-version-contract exits 0 on the aligned source tree.",
+    "A focused regression demonstrates that the selected contract relationship is preserved and that an actually missing required Python job still fails closed.",
+    "The existing Python workflow inventory remains explicit; no broad filename or job-name pattern replaces the exact identities.",
+    "Focused local checks and exact-head hosted workflow proof pass before the finding moves beyond validated.",
+    "The remediation is delivered through a separate focused Parent PR, not silently folded into PR #138."
+  ],
+  "validation_plan": [
+    "Add or update focused coverage in tests/test_python_version_contract.py for the selected inventory/workflow alignment and an independent missing-job negative control.",
+    "Run rtk proxy make check-python-version-contract and the focused Python contract tests without changing the canonical Python-version or trust-control policy.",
+    "Run workflow syntax and applicable CI-contract checks, then review the exact corrective PR head.",
+    "Obtain hosted proof for the exact corrective head and rerun the original make target on the resulting Parent master before verified or closed status."
+  ],
+  "regression_tests": [
+    "tests/test_python_version_contract.py",
+    "rtk proxy make check-python-version-contract"
+  ],
+  "legitimate_control_tests": [
+    "The aligned current workflow inventory passes with the canonical .python-version setup path and verifier contract intact.",
+    "A deliberately absent different required Python job remains rejected by inventory_violations.",
+    "The verified-report-governance workflow retains its existing least-privilege and trust-control topology."
+  ],
+  "dependencies": [
+    "Separate focused Parent workflow/checker-alignment PR",
+    "Focused Python inventory regression coverage",
+    "Exact-head hosted workflow proof and resulting-master rerun"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [],
+  "source_run_ids": [
+    "merge-prs-129-149-master-20260728"
+  ],
+  "residual_risk": "Until a separate focused Parent alignment repair passes its exact-head hosted proof and the original make target is rerun on resulting master, the mandatory Python workflow inventory contract remains unusable as a passing current-master control. No workflow trust-control weakening, scanner change, suppression, Framework/MRTS action, Gitlink update, or risk acceptance is recorded.",
+  "residual_risk_de": "Bis eine getrennte fokussierte Parent-Alignment-Reparatur ihren Exact-Head-Hosted-Nachweis besteht und das ursprüngliche Make-Target auf dem resultierenden Master erneut läuft, bleibt der verpflichtende Python-Workflow-Inventarvertrag als bestehender Master-Control nicht nutzbar. Es sind keine Abschwächung eines Workflow-Trust-Controls, Scanner-Änderung, Suppression, Framework-/MRTS-Aktion, Gitlink-Update oder Risikoakzeptanz erfasst.",
+  "created_at": "2026-07-28T07:03:58Z",
+  "updated_at": "2026-07-28T07:03:58Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-28T07:03:58Z",
+      "event": "validated_current_master_python_workflow_inventory_contract_drift",
+      "detail": "The retained receipt hash 17ae8b2b76e65e4f9db7625122b56f5d74c171bed69912f6ba2a68198b3b283e proves the current-master-equivalent scope and the independent exit-2 reproduction. The finding is separately tracked from PR #138 because its workflow/checker alignment root cause and focused remediation boundary are independent."
+    }
+  ]
+}

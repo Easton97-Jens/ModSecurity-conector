@@ -1,0 +1,162 @@
+{
+  "id": "FND-GITHUB-0002",
+  "title": "Framework Dependency Review is unavailable without Dependency Graph access",
+  "title_de": "Framework-Dependency-Review ist ohne Dependency-Graph-Zugriff nicht verfügbar",
+  "category": "github_governance",
+  "repository": "framework",
+  "ownership": "github_configuration",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "closed",
+  "feasibility_status": "already_fixed",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".github/workflows/ci-security-dependency-review.yml"
+  ],
+  "affected_symbols": [
+    "dependency-review",
+    "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
+    "GitHub Dependency Graph",
+    "GitHub Dependency Graph SBOM endpoint"
+  ],
+  "summary": "Exact Framework Draft PR #27 head 66d90872cfc0125536267d574b776d2e88d26b23 has a correctly pinned, least-privilege Dependency Review job, but GitHub rejected the exact-head run because Dependency Review is unsupported for this repository. The prior associated Dependency Graph SBOM endpoint readback returned HTTP 404. This is a GitHub configuration/access blocker, not a defect that may be hidden or weakened in the Framework workflow.",
+  "summary_de": "Der exakte Head 66d90872cfc0125536267d574b776d2e88d26b23 des Framework-Draft-PRs #27 hat einen korrekt gepinnten Dependency-Review-Job mit minimalen Berechtigungen, aber GitHub lehnte den Exact-Head-Run ab, weil Dependency Review für dieses Repository nicht unterstützt wird. Der vorherige zugehörige Dependency-Graph-SBOM-Endpunkt-Readback lieferte HTTP 404. Dies ist ein GitHub-Konfigurations-/Zugriffsblocker und kein Defekt, der im Framework-Workflow verborgen oder abgeschwächt werden darf.",
+  "observed_behavior": "GitHub Actions run 29647958872 on exact PR #27 head 66d90872cfc0125536267d574b776d2e88d26b23 reported: Dependency review is not supported on this repository. Please ensure that Dependency graph is enabled. The earlier read-only request to repos/Easton97-Jens/ModSecurity-test-Framework/dependency-graph/sbom returned HTTP 404 Not Found. All other task-owned security checks for the exact current PR head passed or were trigger-skipped as designed.",
+  "observed_behavior_de": "GitHub-Actions-Run 29647958872 auf dem exakten PR-#27-Head 66d90872cfc0125536267d574b776d2e88d26b23 meldete: Dependency review is not supported on this repository. Please ensure that Dependency graph is enabled. Die frühere nur lesende Anfrage an repos/Easton97-Jens/ModSecurity-test-Framework/dependency-graph/sbom lieferte HTTP 404 Not Found. Alle anderen task-eigenen Security-Checks für den exakten aktuellen PR-Head bestanden oder waren wie vorgesehen trigger-skipped.",
+  "expected_behavior": "The Framework repository provides the Dependency Graph capability needed by GitHub Dependency Review, and the exact PR #27 head rerun succeeds without suppressing the job, changing its fail policy, broadening permissions, or bypassing review controls.",
+  "expected_behavior_de": "Das Framework-Repository stellt die von GitHub Dependency Review benötigte Dependency-Graph-Fähigkeit bereit, und ein Rerun des exakten PR-#27-Heads ist erfolgreich, ohne den Job zu unterdrücken, seine Fail-Policy zu ändern, Berechtigungen zu erweitern oder Review-Controls zu umgehen.",
+  "impact": "The Draft PR cannot reach verified_pr while a required security/dependency check fails. Dependency and license changes can therefore lack the repository-native GitHub review intended by the workflow until the external configuration/access condition is resolved.",
+  "impact_de": "Der Draft-PR kann verified_pr nicht erreichen, solange ein erforderlicher Security-/Dependency-Check fehlschlägt. Dependency- und Lizenzänderungen können daher die vom Workflow vorgesehene repository-native GitHub-Review vermissen, bis die externe Konfigurations-/Zugriffsbedingung behoben ist.",
+  "preconditions": [
+    "Framework Draft PR #27 remains open at exact head 66d90872cfc0125536267d574b776d2e88d26b23.",
+    "GitHub Actions and the Dependency Graph API remain reachable for the repository.",
+    "A repository owner or administrator can make the required GitHub configuration decision."
+  ],
+  "reproduction": [
+    "rtk gh run view 29647958872 --log-failed",
+    "rtk proxy gh api -i repos/Easton97-Jens/ModSecurity-test-Framework/dependency-graph/sbom"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T083435Z-expand-framework-ci-security-32892be1",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T083435Z-expand-framework-ci-security-32892be1/evidence/ci-security/framework-pr27-final-blockers.txt",
+      "artifact_type": "exact_framework_pr_head_ci_and_dependency_graph_readback",
+      "sha256": "1686ed164f9a892c08c6749ed5d9922269a7a026a442ddd477d62bd240848b5f",
+      "command": "rtk proxy gh run view 29645450452 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed; rtk proxy gh api -i repos/Easton97-Jens/ModSecurity-test-Framework/dependency-graph/sbom",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 1,
+      "observed_at": "2026-07-18T13:13:38Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T084030Z-expand-framework-ci-security-be8fb24d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T084030Z-expand-framework-ci-security-be8fb24d/evidence/framework-pr27-final-remote-status.md",
+      "artifact_type": "exact_final_pr_head_external_blocker_disposition",
+      "sha256": "ccedabbe5e020bf43eb91ccf93b1e1484b8d11471e2817b6d078a95eeddb3552",
+      "command": "rtk gh run view 29647958872 --log-failed",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T14:26:12Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "GitHub Dependency Review reported that the required repository capability is unsupported. The observed SBOM HTTP 404 establishes that the Dependency Graph endpoint is unavailable at the current access/configuration state; it does not by itself distinguish a disabled feature from another GitHub-side entitlement or visibility condition.",
+  "root_cause_de": "GitHub Dependency Review meldete, dass die erforderliche Repository-Fähigkeit nicht unterstützt wird. Das beobachtete SBOM-HTTP-404 belegt, dass der Dependency-Graph-Endpunkt im aktuellen Zugriffs-/Konfigurationszustand nicht verfügbar ist; es unterscheidet allein nicht zwischen einer deaktivierten Funktion und einer anderen GitHub-seitigen Berechtigungs- oder Sichtbarkeitsbedingung.",
+  "proposed_remediation": "An authorized repository owner or administrator must enable or otherwise make Dependency Graph available, verify the setting/readback, and rerun Dependency Review on the unchanged exact PR #27 head. Do not disable, make advisory, skip, or otherwise weaken the workflow as a substitute.",
+  "proposed_remediation_de": "Ein autorisierter Repository-Owner oder Administrator muss Dependency Graph aktivieren oder anderweitig verfügbar machen, die Einstellung bzw. den Readback verifizieren und Dependency Review auf dem unveränderten exakten PR-#27-Head erneut ausführen. Der Workflow darf nicht als Ersatz deaktiviert, advisory geschaltet, übersprungen oder anderweitig abgeschwächt werden.",
+  "acceptance_criteria": [
+    "An authorized GitHub configuration readback proves that the Dependency Graph capability is available for Easton97-Jens/ModSecurity-test-Framework.",
+    "Dependency Review completes successfully for exact PR #27 head 66d90872cfc0125536267d574b776d2e88d26b23 or a later explicitly verified task-owned head.",
+    "The immutable action pin, dependency/license policies, least permissions, and fail-closed enforcement remain unchanged."
+  ],
+  "validation_plan": [
+    "Read the repository configuration/capability with authorized GitHub API evidence without changing workflow code.",
+    "Rerun or observe the exact-head Dependency Review job after the configuration change.",
+    "Recheck PR #27 local/remote/PR-head equality, all current checks, SonarQube Cloud, reviews, and review threads before any verified_pr claim."
+  ],
+  "regression_tests": [
+    "GitHub Actions Dependency Review check run reaches completed/success on the exact current PR head."
+  ],
+  "legitimate_control_tests": [
+    "A benign dependency manifest change is evaluated by the existing pinned Dependency Review action without extra workflow permissions or a token bypass."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0001"
+  ],
+  "source_run_ids": [
+    "20260718T083435Z-expand-framework-ci-security-32892be1",
+    "20260718T084030Z-expand-framework-ci-security-be8fb24d"
+  ],
+  "current_github_reconciliation_20260726": {
+    "observed_at": "2026-07-26T13:29:40Z",
+    "dependency_graph_sbom": {
+      "http_status": 200,
+      "spdx_version": "SPDX-2.3",
+      "document_name": "com.github.Easton97-Jens/ModSecurity-test-Framework",
+      "package_count": 12,
+      "created_at": "2026-07-26T13:28:37Z"
+    },
+    "later_successful_dependency_review": {
+      "pull_request": 42,
+      "head_sha": "dc6cf411e78b3f37f1e4be52edef59894560b1ae",
+      "merge_commit": "935cf14c676a24672be5c336e92cd13457cc35c8",
+      "run_id": 29978759046,
+      "job_id": 89116042141,
+      "conclusion": "success",
+      "completed_at": "2026-07-23T04:08:07Z"
+    },
+    "current_workflow_control": {
+      "path": ".github/workflows/ci-security-dependency-review.yml",
+      "action_pin": "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
+      "permissions": "contents: read",
+      "fail_on_severity": "high",
+      "fail_on_scopes": "runtime,development",
+      "license_check": true,
+      "vulnerability_check": true,
+      "warn_only": false
+    },
+    "historical_pr27_failure_preserved": {
+      "run_id": 29647958872,
+      "head_sha": "66d90872cfc0125536267d574b776d2e88d26b23",
+      "previous_sbom_http_status": 404
+    },
+    "validation_artifacts": {
+      "run_id": "20260726T133000Z-github-finding-status-reconciliation",
+      "report_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T133000Z-github-finding-status-reconciliation/artifacts/05_findings/FND-GITHUB-0002/validation_report.md",
+      "report_sha256": "1a8eb46316dee26e09b3d3ffa43cd20e5b7775984accb37a8813814e81295e1c",
+      "ledger_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T133000Z-github-finding-status-reconciliation/artifacts/05_findings/FND-GITHUB-0002/candidate_ledger.jsonl",
+      "ledger_sha256": "600f08a45b2675a615b28972e4c0f3b8da141a4d5d6dec974be06f21cedaee6c"
+    },
+    "disposition": "The historical capability blocker no longer exists; a later explicitly verified pull-request head succeeded under the current fail-closed workflow."
+  },
+  "residual_risk": "Reopen this archived record if GitHub disables Dependency Graph, if the current pinned fail-closed workflow regresses, or if a later relevant Dependency Review execution again fails for the same capability reason.",
+  "residual_risk_de": "Diesen archivierten Record wieder öffnen, falls GitHub Dependency Graph deaktiviert, der aktuelle gepinnte fail-closed Workflow regressiert oder eine spätere relevante Dependency-Review-Ausführung erneut aus demselben Capability-Grund fehlschlägt.",
+  "created_at": "2026-07-18T13:13:38Z",
+  "updated_at": "2026-07-26T13:29:40Z",
+  "final_disposition": "closed_after_dependency_graph_and_later_successful_dependency_review_validation",
+  "history": [
+    {
+      "at": "2026-07-18T13:13:38Z",
+      "event": "exact_pr_head_dependency_review_blocker_recorded",
+      "detail": "Exact Framework Draft PR #27 head 5b2a26a41e7621e7b246aa1a060149252cfe3062 failed GitHub Actions run 29645450452 because Dependency Review is unsupported; the read-only Dependency Graph SBOM endpoint returned HTTP 404. This record is blocked pending an authorized GitHub configuration/access disposition and is not a workflow-code remediation authorization."
+    },
+    {
+      "at": "2026-07-18T14:26:12Z",
+      "event": "final_exact_pr_head_blocker_reconfirmed",
+      "detail": "Exact Draft PR #27 head 66d90872cfc0125536267d574b776d2e88d26b23 again failed Dependency Review run 29647958872 with the same unsupported-repository/enable-Dependency-Graph message. All task-owned security gates otherwise passed; status remains blocked pending authorized GitHub configuration or access resolution."
+    },
+    {
+      "at": "2026-07-26T13:29:40Z",
+      "event": "current_github_dependency_review_reconciliation_closed",
+      "detail": "The Framework Dependency Graph SBOM endpoint now returns HTTP 200 with an SPDX-2.3 document. Later Framework PR #42 head dc6cf411e78b3f37f1e4be52edef59894560b1ae completed Dependency Review run 29978759046/job 89116042141 successfully. Current source retains the immutable action pin, contents-read permission, high/runtime-development failure policy, and warn-only false. The historic PR #27 failure remains retained; the external capability blocker is closed and archive eligible."
+    }
+  ]
+}

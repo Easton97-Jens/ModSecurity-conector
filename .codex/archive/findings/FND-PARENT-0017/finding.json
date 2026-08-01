@@ -1,0 +1,151 @@
+{
+  "id": "FND-PARENT-0017",
+  "title": "Traefik UDS private-parent validation accepted a cross-UID-replaceable ancestor",
+  "title_de": "Die Traefik-UDS-Private-Parent-Validierung akzeptierte einen UID-übergreifend ersetzbaren Vorfahren",
+  "category": "security_hardening",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "Traefik",
+  "protocol": "AF_UNIX pathname",
+  "profile": "native-traefik-middleware",
+  "affected_files": [
+    "connectors/traefik/scripts/runtime_native_smoke.py",
+    "connectors/traefik/src/traefik_engine_service.c",
+    "connectors/traefik/build/test-engine-service-runtime.sh",
+    "tests/test_traefik_native_local_plugin.py"
+  ],
+  "affected_symbols": [
+    "assert_private_engine_socket_parent_ancestors_are_safe",
+    "directory_entry_is_protected_from_cross_user_replacement",
+    "traefik_engine_private_directory_ancestors_are_safe",
+    "traefik_engine_parent_protects_child_from_cross_uid_replacement",
+    "traefik_engine_private_directory_is_safe"
+  ],
+  "summary": "The prior UDS path controls checked only the immediate current-user-owned exact-0700 parent. A configured parent beneath a non-sticky group- or other-writable ancestor could be renamed and replaced by a different UID after validation but before bind. The current Python, shell, and C controls now reject that topology while allowing sticky-ancestor semantics only when the child entry belongs to the effective UID.",
+  "summary_de": "Die vorherigen UDS-Pfadkontrollen prüften nur den unmittelbaren, dem aktuellen Benutzer gehörenden Parent mit exakt 0700. Ein konfigurierter Parent unter einem nicht-sticky gruppen- oder weltbeschreibbaren Vorfahren konnte nach der Validierung und vor bind von einer anderen UID umbenannt und ersetzt werden. Die aktuellen Python-, Shell- und C-Kontrollen lehnen diese Topologie ab und erlauben Sticky-Vorfahren nur, wenn der Kindeintrag der effektiven UID gehört.",
+  "observed_behavior": "Before the repair, a task-owned test created a non-sticky mode-0777 ancestor with a mode-0700 child. runtime_native_smoke.py accepted that child and the C engine self-test completed successfully. The exact log records Python acceptance and engine exit 0.",
+  "observed_behavior_de": "Vor der Reparatur erzeugte ein task-owned Test einen nicht-sticky Vorfahren mit Modus 0777 und ein Kind mit Modus 0700. runtime_native_smoke.py akzeptierte dieses Kind und der C-Engine-Selbsttest endete erfolgreich. Das exakte Log protokolliert Python-Akzeptanz und Engine-Exit 0.",
+  "expected_behavior": "Every selected socket parent must be canonical, symlink-free, current-user-owned, exact-0700, and protected against replacement from every ancestor to root. A group- or other-writable ancestor is allowed only when it is sticky and the next child entry is owned by the effective UID. The runner, shell harness, and C listener/self-test must fail before UDS allocation or bind otherwise.",
+  "expected_behavior_de": "Jeder ausgewählte Socket-Parent muss kanonisch, symlinkfrei, dem aktuellen Benutzer gehörend, exakt 0700 und gegen Ersetzung durch jeden Vorfahren bis zur Root geschützt sein. Ein gruppen- oder weltbeschreibbarer Vorfahr ist nur zulässig, wenn er sticky ist und der nächste Kindeintrag der effektiven UID gehört. Runner, Shell-Harness und C-Listener/Selbsttest müssen andernfalls vor UDS-Allokation oder bind scheitern.",
+  "impact": "If an operator selected a parent below a cross-UID-replaceable ancestor, another local UID with that ancestor write permission could replace the checked parent during the validation-to-bind interval. The service could then bind below an attacker-controlled directory, weakening the intended cross-UID UDS pathname boundary. The configured task roots are private, so a live foreign-UID exploit was not run under the storage policy; the concrete acceptance gap and source-to-sink condition were nevertheless reproduced and closed.",
+  "impact_de": "Wenn ein Operator einen Parent unter einem UID-übergreifend ersetzbaren Vorfahren auswählte, könnte eine andere lokale UID mit Schreibrecht auf diesem Vorfahren den geprüften Parent im Validierung-zu-bind-Intervall ersetzen. Der Dienst könnte dann unter einem angreiferkontrollierten Verzeichnis binden und die beabsichtigte UID-übergreifende UDS-Pfadgrenze schwächen. Die konfigurierten Task-Roots sind privat, deshalb wurde unter der Storage-Policy kein Live-Exploit mit fremder UID ausgeführt; die konkrete Akzeptanzlücke und die Source-to-Sink-Bedingung wurden dennoch reproduziert und geschlossen.",
+  "preconditions": [
+    "An operator configures a current-user-owned exact-0700 socket parent below a non-sticky group- or other-writable ancestor.",
+    "Another local UID can traverse and write that ancestor and races after initial validation but before bind.",
+    "The pre-repair immediate-parent-only validation is selected through the runner, focused shell harness, or C direct CLI."
+  ],
+  "reproduction": [
+    "Create a task-owned non-sticky 0777 ancestor and an exact-0700 child, then invoke the pre-repair Python parent validator and C --self-test --socket-parent child.",
+    "Observe Python acceptance and C engine exit 0 in log 119.",
+    "Trace the prior immediate-parent-only checks to the bind sink and the absence of ancestor renameability validation."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/119-private-parent-mutable-ancestor-control-gap-pre-fix-final.log",
+      "artifact_type": "focused_pre_fix_security_control_log",
+      "sha256": "25a6728bca11448352bd922384e22749570e7d453e393f6dd1092cec1abfeee7",
+      "command": "task-owned non-sticky 0777 ancestor setup; Python parent validation; C --self-test --socket-parent",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T16:17:28Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/123-private-parent-ancestor-negative-controls-final.log",
+      "artifact_type": "focused_post_fix_security_control_log",
+      "sha256": "0cc657a4a58763b44070215e7c354027c12688a1eb248e21cb9a76c9c4a2868c",
+      "command": "missing shell parent, Python mutable-ancestor rejection, shell mutable-ancestor rejection, C --self-test mutable-ancestor rejection",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T16:20:28Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/125-private-parent-ancestor-engine-runtime-controls-final-rerun.log",
+      "artifact_type": "focused_legitimate_runtime_control_log",
+      "sha256": "c35d629326601b521feeb92953f7f43526cad2bc5b9d7e6c7316d22e85c0cb36",
+      "command": "TRAEFIK_ENGINE_SOCKET_TEST_PARENT=/var/tmp/codex/ModSecurity-conector/tmp TRAEFIK_ENGINE_SERVICE_BIN=<clang diagnostic binary> sh connectors/traefik/build/test-engine-service-runtime.sh",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T16:21:10Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/128-private-parent-asan-ubsan-runtime-controls-final.log",
+      "artifact_type": "asan_ubsan_runtime_control_log",
+      "sha256": "f2663195a519ad478d1001b44c9fea7584f92c88c1019f8da6520baa54f3587c",
+      "command": "ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 TRAEFIK_ENGINE_SOCKET_TEST_PARENT=<private parent> TRAEFIK_ENGINE_SERVICE_BIN=<ASan+UBSan diagnostic binary> sh connectors/traefik/build/test-engine-service-runtime.sh",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T16:56:51Z",
+      "retention_status": "retained_task_log"
+    }
+  ],
+  "root_cause": "The former validations treated the immediate 0700 parent as sufficient. They canonicalized or rejected symlinks but did not reason about whether any ancestor could rename the validated child entry. That left the validation-to-bind pathname traversal exposed when an ancestor was writable by another UID without sticky-directory protection.",
+  "root_cause_de": "Die früheren Validierungen betrachteten den unmittelbaren Parent mit 0700 als ausreichend. Sie kanonisierten Pfade oder lehnten Symlinks ab, prüften jedoch nicht, ob ein Vorfahr den validierten Kindeintrag umbenennen kann. Dadurch blieb die Pfadauflösung zwischen Validierung und bind offen, wenn ein Vorfahr von einer anderen UID ohne Sticky-Directory-Schutz beschreibbar war.",
+  "proposed_remediation": "Validate the full existing ancestor chain in all three selection boundaries. Reject a non-directory ancestor and a group- or other-writable non-sticky ancestor. Permit sticky writable ancestors only while the child entry is owned by the effective UID. Preserve the exact-0700 immediate-parent, canonicalization, no-symlink, no-public-default, and same-UID residual-risk controls.",
+  "proposed_remediation_de": "Die vollständige bestehende Vorfahrenkette in allen drei Auswahlgrenzen validieren. Nicht-Verzeichnis-Vorfahren sowie gruppen- oder weltbeschreibbare nicht-sticky Vorfahren ablehnen. Sticky beschreibbare Vorfahren nur zulassen, solange der Kindeintrag der effektiven UID gehört. Die Kontrollen für unmittelbaren Parent mit exakt 0700, Kanonisierung, keine Symlinks, keinen öffentlichen Default und Same-UID-Restrisiken erhalten.",
+  "acceptance_criteria": [
+    "The Python runner, focused shell harness, C listener, and C self-test reject a current-user-owned exact-0700 socket parent below a non-sticky 0777 ancestor before UDS allocation or bind.",
+    "A valid canonical private parent with safe ancestors still passes C17 self-test and the focused Allow/Blocking runtime controls.",
+    "The normal Clang and GCC C17 builds, hardened diagnostic build, combined ASan+UBSan diagnostic runtime, and GCC -fanalyzer build pass without modifying production flags.",
+    "No public fallback, global umask, pathname chmod claim, Framework mutation, MRTS mutation, H3 work, scanner suppression, or risk acceptance is introduced."
+  ],
+  "validation_plan": [
+    "Run focused Python contracts including the ancestor-protection predicate.",
+    "Build the engine with Clang and GCC in C17 mode and run explicit-private-parent self-tests.",
+    "Exercise missing-parent and mutable-ancestor negative controls through Python, shell, and C, then rerun the legitimate engine protocol Allow/Blocking controls.",
+    "Run separate hardened, ASan+UBSan, and GCC -fanalyzer diagnostic builds outside the checkout."
+  ],
+  "regression_tests": [
+    "tests/test_traefik_native_local_plugin.py",
+    "connectors/traefik/build/test-engine-service-runtime.sh",
+    "connectors/traefik/build/build-engine-service.sh"
+  ],
+  "legitimate_control_tests": [
+    "Clang and GCC C17 engine self-tests with a valid private parent.",
+    "Focused native engine protocol Allow/Blocking runtime control with a valid canonical private parent.",
+    "ASan+UBSan diagnostic runtime control with leak detection enabled."
+  ],
+  "dependencies": [
+    "Exact-head SonarCloud analysis after the focused Parent remediation is pushed."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0013",
+    "FND-PARENT-0015",
+    "FND-PARENT-0016"
+  ],
+  "source_run_ids": [
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc"
+  ],
+  "residual_risk": "The ancestor check closes the cross-UID parent-replacement class for the documented pathname selection contract. It does not solve the separately tracked hostile same-UID post-readiness endpoint redirection or final cleanup races. No risk has been accepted.",
+  "residual_risk_de": "Die Vorfahrenprüfung schließt die UID-übergreifende Parent-Ersetzungsklasse für den dokumentierten Pfadauswahlvertrag. Sie löst nicht die separat verfolgte feindliche Same-UID-Endpoint-Umleitung nach Bereitschaft oder finale Cleanup-Races. Es wurde kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T16:58:45Z",
+  "updated_at": "2026-07-17T16:58:45Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T16:17:28Z",
+      "event": "pre_fix_immediate_parent_only_control_reproduced",
+      "detail": "A temporary non-sticky 0777 ancestor with an exact-0700 child was accepted by both the Python selector and C self-test. The storage policy prevented a live foreign-UID process beneath a public root, so the cross-UID race impact is supported by the source/POSIX path trace rather than a live exploit."
+    },
+    {
+      "at": "2026-07-17T16:56:51Z",
+      "event": "fixed_with_focused_security_controls",
+      "detail": "Python, shell, and C negative controls reject the mutable ancestor; legitimate C17, runtime, hardened, ASan+UBSan, and GCC -fanalyzer controls passed. Exact-head external SonarCloud verification remains pending."
+    }
+  ]
+}

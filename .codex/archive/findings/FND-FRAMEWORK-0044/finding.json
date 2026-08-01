@@ -1,0 +1,428 @@
+{
+  "id": "FND-FRAMEWORK-0044",
+  "title": "Framework PR #42 has 27 SonarQube Cloud code smells locally remediated pending exact-head confirmation",
+  "title_de": "Framework-PR #42 hat 27 lokal behobene SonarQube-Cloud-Code-Smells, deren Exact-Head-Bestätigung aussteht",
+  "category": "sonarqube_finding",
+  "sonarqube_classification": "maintainability",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": "Framework PR #42 local SonarQube Cloud code-smell remediation and CPython 3.14.6 migration across CI-security, Python-version, updater, lock, workflow, and direct-test controls; local validation passed, pending fresh exact submitted-head analysis",
+  "affected_files": [
+    "ci/checks/security/check-ci-security-contract.py",
+    "ci/checks/security/check-python-version.py",
+    "ci/tools/update-python-version.py",
+    "tests/ci_security/test_update_python_version.py"
+  ],
+  "affected_symbols": [
+    "python:S6035",
+    "python:S1066",
+    "python:S1192",
+    "python:S8786",
+    "python:S3776",
+    "python:S6353",
+    "python:S5713",
+    "python:S5778",
+    "SonarQube Cloud PR #42 issue query"
+  ],
+  "summary": "The retained public SonarQube Cloud PR #42 inventory contains 42 open new-code CODE_SMELL issues. This existing root-cause finding owns 27 diagnostics in four CI-security, Python-version, updater, and updater-exception-test files; the remaining 15 assertion-order diagnostics are independently tracked by FND-FRAMEWORK-0050. The local remediation is fixed and locally validated, but hosted confirmation is intentionally not inferred from source, test, or scan evidence. A fresh analysis for the exact submitted remediation head must show all 27 owned keys absent without NOSONAR, suppression, rule change, Quality Gate change, false-positive marking, or exclusion before delivery can be verified.",
+  "summary_de": "Das zurückgehaltene öffentliche SonarQube-Cloud-PR-#42-Inventar enthält 42 offene New-Code-CODE_SMELL-Issues. Dieses bestehende Grundursachen-Finding besitzt 27 Diagnosen in vier CI-Security-, Python-Version-, Updater- und Updater-Exception-Testdateien; die übrigen 15 Assertion-Order-Diagnosen werden unabhängig durch FND-FRAMEWORK-0050 verfolgt. Die lokale Remediation ist fixed und lokal validiert, aber eine Hosted-Bestätigung wird bewusst nicht aus Source-, Test- oder Scan-Evidence abgeleitet. Eine frische Analyse für den exakt eingereichten Remediation-Head muss alle 27 besessenen Keys ohne NOSONAR, Suppression, Regeländerung, Quality-Gate-Änderung, False-Positive-Markierung oder Exclusion als nicht vorhanden zeigen, bevor die Delivery verifiziert werden kann.",
+  "observed_behavior": "At 2026-07-22T18:18:47Z the retained public PR #42 query returned 42 open/confirmed CODE_SMELL issues; 27 map to this root-cause cluster. The combined local patch now also migrates the Python baseline to exact CPython 3.14.6 and spans 22 reviewed Framework paths. Selected CPython 3.14.4 local validation passed 61 migration tests, 49 direct Sonar-remediation tests, the full native make lint target, and a complete 22-path sealed Codex Security review with zero reportable findings. The local changes have not yet received a fresh SonarQube Cloud analysis bound to a newly submitted exact remediation head.",
+  "observed_behavior_de": "Am 2026-07-22T18:18:47Z lieferte die zurückgehaltene öffentliche PR-#42-Abfrage 42 offene/bestätigte CODE_SMELL-Issues; 27 gehören zu diesem Grundursachencluster. Der kombinierte lokale Patch migriert jetzt zusätzlich die Python-Basis auf exaktes CPython 3.14.6 und umfasst 22 geprüfte Framework-Pfade. Die ausgewählte lokale CPython-3.14.4-Validierung bestand 61 Migrationstests, 49 direkte Sonar-Remediation-Tests, das vollständige native make-lint-Target und eine vollständige 22-Pfad-versiegelte Codex-Security-Review mit null reportable Findings. Die lokalen Änderungen erhielten noch keine frische SonarQube-Cloud-Analyse, die an einen neu eingereichten exakten Remediation-Head gebunden ist.",
+  "expected_behavior": "The focused local refactors and CPython 3.14.6 migration preserve CI-security, Python-version, updater, parser, lock, workflow, and test contracts while eliminating the 27 owned maintainability issues. A fresh exact-head SonarQube Cloud analysis must report all owned keys absent and retain the existing scanner rules, Quality Gate, and analysis scope.",
+  "expected_behavior_de": "Die fokussierten lokalen Refactorings und die CPython-3.14.6-Migration bewahren CI-Security-, Python-Version-, Updater-, Parser-, Lock-, Workflow- und Test-Contracts, während sie die 27 besessenen Maintainability-Issues beseitigen. Eine frische Exact-Head-SonarQube-Cloud-Analyse muss alle besessenen Keys als nicht vorhanden melden und die bestehenden Scanner-Regeln, das Quality Gate und den Analyseumfang beibehalten.",
+  "impact": "These are non-security maintainability findings, so severity is not_applicable and security_relevant is false. They remain a release blocker because the user selected remediation of all 42 PR #42 issues before master integration. The local tests, full native lint, and sealed security review prove local code behavior only; they do not prove the hosted SonarQube Cloud result or a CPython 3.14.6 hosted job.",
+  "impact_de": "Dies sind nicht sicherheitsrelevante Maintainability-Findings; deshalb lautet die Severity not_applicable und security_relevant ist false. Sie bleiben ein Release-Blocker, weil der Nutzer die Behebung aller 42 PR-#42-Issues vor der Master-Integration ausgewählt hat. Die lokalen Tests, der vollständige native Lint und die versiegelte Security-Review beweisen nur lokales Codeverhalten; sie beweisen nicht das gehostete SonarQube-Cloud-Ergebnis oder einen CPython-3.14.6-Hosted-Job.",
+  "preconditions": [
+    "The retained current inventory is for SonarQube Cloud project Easton97-Jens_ModSecurity-test-Framework and pull request 42.",
+    "The local remediation scope is limited to four directly owned Framework files and preserves existing CI-security, Python-version, updater, and updater-exception-test behavior.",
+    "No NOSONAR, suppression, rule change, Quality Gate change, false-positive marking, or exclusion is used to dispose of the 27 owned keys.",
+    "Hosted confirmation requires a submitted remediation head and a fresh SonarQube Cloud PR analysis for that exact head.",
+    "The retained current local validation uses selected CPython 3.14.4 with PYTHONNOUSERSITE=1 and task-owned output roots; it does not replace the exact CPython 3.14.6 hosted evidence required after publication."
+  ],
+  "reproduction": [
+    "Query the SonarQube Cloud issues API for component Easton97-Jens_ModSecurity-test-Framework, pullRequest=42, issueStatuses=OPEN,CONFIRMED, sinceLeakPeriod=true, and ps=500; filter the 27 keys owned by this record.",
+    "Read /var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/sonar-pr42-initial-issue-inventory.md and compare its SHA-256 with 7d4c5cff26e885de37c1090713e7fe947e409c1478f3dcd6a69809ddd3401d44.",
+    "After an authorized normal submission, obtain a new SonarQube Cloud analysis for the exact remediation head and confirm all 27 owned keys are absent."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260721T044827Z-framework-pr39-sonar-remediation-56e8f9d8",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T044827Z-framework-pr39-sonar-remediation-56e8f9d8/evidence/sonar-pr39-initial-inventory.md",
+      "artifact_type": "markdown",
+      "sha256": "f9feb36fe34055f6c17f47ed0011803d70b3128a2104d483bad9b01be54dcddd",
+      "command": "rtk proxy python3 -c 'import json, urllib.request; data=json.load(urllib.request.urlopen(\"https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-test-Framework&pullRequest=39&issueStatuses=OPEN%2CCONFIRMED&sinceLeakPeriod=true&ps=500\")); print(data[\"total\"])'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T04:40:00Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "security-diff-ee513e45-20260721t042538z",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/codex-security-scans/ModSecurity-test-Framework/ee513e45_20260721T042538Z.UwIsr9/report.md",
+      "artifact_type": "sealed_codex_security_diff_scan_report",
+      "sha256": "23e40aeb939a82f90c02662c02817775177cc9467cb6dc22857f6a7aed2e986c",
+      "command": "Codex Security diff review of the local PR #39 Sonar code-smell remediation patch; retained report records 0 reportable findings.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T04:25:38Z",
+      "retention_status": "sealed_task_evidence"
+    },
+    {
+      "run_id": "20260721T055738Z-framework-pr39-delivery-followup-416b152c",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T055738Z-framework-pr39-delivery-followup-416b152c/evidence/framework-pr39-cpython313-validation.md",
+      "artifact_type": "framework_pr39_cpython31314_local_qualification",
+      "sha256": "2825f5278dcf241dcdb8e501fccb85b9f9fc710e5b24406259a396af7cd3ee30",
+      "command": "Framework PR #39 CPython 3.13.14 qualification receipt: hash-locked PyYAML-6.0.3 installation and pip check; 30 direct affected tests; make test-ci-security-contract (89 tests); make check-python-version; make check-github-actions-workflows; make test-workflow-security-contract (7 tests); make check-documentation; python -m compileall -q ci tests; worktree-scoped response-body guard; make lint.",
+      "working_directory": "framework-python-updater",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T06:13:56Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/sonar-pr42-initial-issue-inventory.md",
+      "artifact_type": "task_owned_sonarqube_cloud_pr42_initial_inventory",
+      "sha256": "7d4c5cff26e885de37c1090713e7fe947e409c1478f3dcd6a69809ddd3401d44",
+      "command": "rtk run curl SonarQube Cloud issues API with pullRequest=42, OPEN/CONFIRMED, sinceLeakPeriod=true, ps=500",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T18:18:47Z",
+      "retention_status": "task_owned_retained_evidence"
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/analysis/security-diff-pr42-sonar-20260722T182000Z/report.md",
+      "artifact_type": "sealed_codex_security_diff_scan_report",
+      "sha256": "f003ab79a8ebfa4e4a71ca71211799ff41f269e0e16204bbd761107eb23c3019",
+      "command": "Codex Security diff scan finalized from the exact local PR #42 remediation snapshot",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T18:52:31Z",
+      "retention_status": "sealed_task_evidence"
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/sonar-pr42-remediation-local-validation.md",
+      "artifact_type": "framework_pr42_local_validation_receipt",
+      "sha256": "0152032094bbb0a9347446e9c2c11c358712ccf7751655715f683addeac4d88c",
+      "command": "Selected Framework virtual-environment pip check, make test-ci-security-contract, task-range git diff --check, and sealed security-diff scan",
+      "working_directory": "framework-worktree-v4",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T18:52:31Z",
+      "retention_status": "task_owned_retained_evidence"
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-python314-local-validation.md",
+      "artifact_type": "framework_pr42_cpython3146_local_validation_receipt",
+      "sha256": "4f3f7967438688697da9dcca5cb57bcaf7914c700342d9af8bb07f16a8d63075",
+      "command": "Selected CPython 3.14.4 focused tests, contracts, CP314 hash-lock dry runs, full native make lint, and diff hygiene for the configured CPython 3.14.6 migration",
+      "working_directory": "framework-worktree-v4",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T20:14:50Z",
+      "retention_status": "task_owned_retained_evidence"
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/analysis/security-diff-pr42-python314-20260722T200333Z/report.md",
+      "artifact_type": "sealed_codex_security_diff_scan_report",
+      "sha256": "1b85288ff20d4c4f04443a9f2e4ba6ce07b69967e165dcc2d3c02257dfc6da36",
+      "command": "Complete 22-path Codex Security diff scan of the combined local PR #42 remediation and CPython 3.14.6 migration",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T20:14:50Z",
+      "retention_status": "sealed_task_evidence"
+    },
+    {
+      "run_id": "20260726T105400Z-framework-pr47-sonar-merge",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T105400Z-framework-pr47-sonar-merge/evidence/sonar-pr47-initial-issue-inventory.json",
+      "artifact_type": "task_owned_sonarqube_cloud_pr47_initial_inventory",
+      "sha256": "d98ef7664e411e8d6f820eec8a4b8b82e9501fcf5aabf42e9b7a1cd857006937",
+      "command": "rtk proxy -- curl --fail --silent --show-error --location SonarQube Cloud issues/search with componentKeys=Easton97-Jens_ModSecurity-test-Framework, pullRequest=47, resolved=false, and ps=100",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T10:52:13Z",
+      "retention_status": "task_owned_retained_evidence"
+    }
+  ],
+  "original_issue_inventory": {
+    "total": 25,
+    "issue_statuses": [
+      "OPEN",
+      "CONFIRMED"
+    ],
+    "type": "CODE_SMELL",
+    "groups": [
+      {
+        "path": "ci/checks/security/check-ci-security-contract.py",
+        "rules": {
+          "python:S1192": [
+            "AZ-BJmy21Sm1F-_jUkdY:54",
+            "AZ-BJmy21Sm1F-_jUkdX:536"
+          ],
+          "python:S6035": [
+            "AZ-BreILltpcPPRUrDMO:71"
+          ],
+          "python:S8786": [
+            "AZ-BJmy21Sm1F-_jUkdZ:83"
+          ],
+          "python:S3776": [
+            "AZ-BJmy21Sm1F-_jUkda:684"
+          ]
+        }
+      },
+      {
+        "path": "ci/checks/security/check-python-version.py",
+        "rules": {
+          "python:S6353": [
+            "AZ-BJmyl1Sm1F-_jUkdS:19",
+            "AZ-BJmyl1Sm1F-_jUkdT:32",
+            "AZ-BJmyl1Sm1F-_jUkdU:35",
+            "AZ-BJmyl1Sm1F-_jUkdV:39"
+          ],
+          "python:S3776": [
+            "AZ-BJmyl1Sm1F-_jUkdW:281"
+          ]
+        }
+      },
+      {
+        "path": "ci/tools/update-python-version.py",
+        "rules": {
+          "python:S6353": [
+            "AZ-BJmyc1Sm1F-_jUkdE:32",
+            "AZ-BJmyc1Sm1F-_jUkdF:33",
+            "AZ-BJmyc1Sm1F-_jUkdG:34",
+            "AZ-BJmyc1Sm1F-_jUkdH:36",
+            "AZ-BJmyc1Sm1F-_jUkdI:36",
+            "AZ-BJmyc1Sm1F-_jUkdJ:36",
+            "AZ-BJmyc1Sm1F-_jUkdK:36",
+            "AZ-BJmyc1Sm1F-_jUkdL:36",
+            "AZ-BJmyc1Sm1F-_jUkdM:36",
+            "AZ-BJmyc1Sm1F-_jUkdN:36"
+          ],
+          "python:S5713": [
+            "AZ-BJmyc1Sm1F-_jUkdO:232"
+          ],
+          "python:S3776": [
+            "AZ-BJmyc1Sm1F-_jUkdP:262",
+            "AZ-BJmyc1Sm1F-_jUkdQ:568"
+          ],
+          "python:S1066": [
+            "AZ-BreDOltpcPPRUrDMN:470"
+          ]
+        }
+      },
+      {
+        "path": "tests/ci_security/test_update_python_version.py",
+        "rules": {
+          "python:S5778": [
+            "AZ-BJmv31Sm1F-_jUkdC:208"
+          ]
+        }
+      }
+    ]
+  },
+  "current_pr42_issue_inventory": {
+    "pull_request": 42,
+    "initial_head": "1fd3b362e0fed9766c6920e3c7bd1939535850f2",
+    "total_pr_issue_count": 42,
+    "owned_issue_count": 27,
+    "issue_statuses": [
+      "OPEN",
+      "CONFIRMED"
+    ],
+    "type": "CODE_SMELL",
+    "rule_counts": {
+      "python:S1192": 4,
+      "python:S6035": 1,
+      "python:S8786": 1,
+      "python:S3776": 4,
+      "python:S6353": 14,
+      "python:S5713": 1,
+      "python:S1066": 1,
+      "python:S5778": 1
+    },
+    "groups": [
+      {
+        "path": "ci/checks/security/check-ci-security-contract.py",
+        "rules": {
+          "python:S1192": [
+            "AZ-K31Akbx6VBofpXBiN:169",
+            "AZ-K31Akbx6VBofpXBiQ:96",
+            "AZ-K31Akbx6VBofpXBiP:97",
+            "AZ-K31Akbx6VBofpXBiO:921"
+          ],
+          "python:S3776": [
+            "AZ-K31Akbx6VBofpXBiT:1071"
+          ],
+          "python:S6035": [
+            "AZ-K31Akbx6VBofpXBiR:116"
+          ],
+          "python:S8786": [
+            "AZ-K31Akbx6VBofpXBiS:310"
+          ]
+        }
+      },
+      {
+        "path": "ci/checks/security/check-python-version.py",
+        "rules": {
+          "python:S3776": [
+            "AZ-K30_-bx6VBofpXBiM:291"
+          ],
+          "python:S6353": [
+            "AZ-K30_-bx6VBofpXBiJ:36",
+            "AZ-K30_-bx6VBofpXBiI:19",
+            "AZ-K30_-bx6VBofpXBiK:39",
+            "AZ-K30_-bx6VBofpXBiL:43"
+          ]
+        }
+      },
+      {
+        "path": "ci/tools/update-python-version.py",
+        "rules": {
+          "python:S3776": [
+            "AZ-K30_Ubx6VBofpXBiG:262",
+            "AZ-K30_Ubx6VBofpXBiH:568"
+          ],
+          "python:S6353": [
+            "AZ-K30_Ubx6VBofpXBh7:32",
+            "AZ-K30_Ubx6VBofpXBh8:33",
+            "AZ-K30_Ubx6VBofpXBh9:34",
+            "AZ-K30_Ubx6VBofpXBh-:36",
+            "AZ-K30_Ubx6VBofpXBh_:36",
+            "AZ-K30_Ubx6VBofpXBiA:36",
+            "AZ-K30_Ubx6VBofpXBiB:36",
+            "AZ-K30_Ubx6VBofpXBiC:36",
+            "AZ-K30_Ubx6VBofpXBiD:36",
+            "AZ-K30_Ubx6VBofpXBiE:36"
+          ],
+          "python:S1066": [
+            "AZ-K30_Ubx6VBofpXBh6:470"
+          ],
+          "python:S5713": [
+            "AZ-K30_Ubx6VBofpXBiF:232"
+          ]
+        }
+      },
+      {
+        "path": "tests/ci_security/test_update_python_version.py",
+        "rules": {
+          "python:S5778": [
+            "AZ-K30-lbx6VBofpXBhy:208"
+          ]
+        }
+      }
+    ],
+    "separate_finding": "FND-FRAMEWORK-0050 owns the remaining 15 python:S3415 test assertion-order diagnostics."
+  },
+  "root_cause": "The current PR #42 diagnostics repeat the same bounded maintainability root cause previously recorded by this stable finding: duplicated CI-security literals, complex workflow/updater validation paths, numeric regex notation, broad exception grouping, and an exception assertion construct. The local refactors preserve the security and behavior contracts; only a fresh hosted analysis can establish that the exact submitted head no longer reproduces the owned keys.",
+  "root_cause_de": "Die aktuellen PR-#42-Diagnosen wiederholen dieselbe begrenzte Maintainability-Grundursache, die bereits durch dieses stabile Finding erfasst wurde: duplizierte CI-Security-Literale, komplexe Workflow-/Updater-Validierungspfade, numerische Regex-Notation, breite Exception-Gruppierung und ein Exception-Assertion-Konstrukt. Die lokalen Refactorings bewahren die Security- und Verhaltens-Contracts; nur eine frische Hosted-Analyse kann belegen, dass der exakt eingereichte Head die besessenen Keys nicht mehr reproduziert.",
+  "proposed_remediation": "Retain the focused, behavior-preserving local refactors, associated tests, and the exact CPython 3.14.6 migration across the task-owned Framework paths. Submit the exact PR #42 remediation head through the authorized normal delivery path, wait for the matching SonarQube Cloud PR analysis, and confirm that all 27 owned keys are absent without NOSONAR, suppression, rule change, Quality Gate change, false-positive marking, or exclusion.",
+  "proposed_remediation_de": "Die fokussierten verhaltenserhaltenden lokalen Refactorings, zugehörigen Tests und die exakte CPython-3.14.6-Migration über die task-eigenen Framework-Pfade beibehalten. Den exakten PR-#42-Remediation-Head über den autorisierten normalen Delivery-Pfad einreichen, auf die passende SonarQube-Cloud-PR-Analyse warten und bestätigen, dass alle 27 besessenen Keys ohne NOSONAR, Suppression, Regeländerung, Quality-Gate-Änderung, False-Positive-Markierung oder Exclusion nicht vorhanden sind.",
+  "acceptance_criteria": [
+    "A fresh SonarQube Cloud PR analysis is bound to the exact submitted Framework PR #42 remediation head.",
+    "Every one of the 27 owned original keys is absent in that fresh exact-head analysis.",
+    "No NOSONAR, suppression, rule change, Quality Gate change, exclusion, false-positive disposition, or risk acceptance is used for the 27 owned original keys.",
+    "The local CPython 3.14.6 migration evidence retains the CP314 PyYAML-6.0.3 hash lock, pip check, focused 61-test and 49-test suites, contracts, documentation checks, CP314 hash-lock controls, and full native make lint.",
+    "The SHA-addressed evidence and English, German, index, backlog, and roadmap records remain synchronized."
+  ],
+  "validation_plan": [
+    "Review the exact submitted remediation diff against the six owned source/test paths and the coupled CPython 3.14.6 migration paths; retain the current local validation and sealed scan receipts.",
+    "Do not treat the local receipts as hosted SonarQube Cloud, GitHub, review, branch-protection, push, merge, live update, real installation, or target-3.14.6 hosted-run evidence.",
+    "Observe the fresh hosted SonarQube Cloud analysis for the exact submitted head rather than an earlier PR revision after authorized normal submission.",
+    "Query the 27 owned original keys and confirm a remaining count of zero.",
+    "Inspect scanner and project configuration history to confirm no prohibited control change."
+  ],
+  "regression_tests": [
+    "tests/ci_security/test_framework_ci_security_contract.py",
+    "tests/ci_security/test_python_version_contract.py",
+    "tests/ci_security/test_update_python_version.py"
+  ],
+  "legitimate_control_tests": [
+    "Valid CI-security contract inputs remain accepted while invalid workflow or context inputs remain rejected.",
+    "Valid Python-version workflow and release metadata inputs retain their acceptance and failure behavior.",
+    "The updater retains strict metadata parsing, check-only non-writing behavior, and controlled atomic update behavior."
+  ],
+  "dependencies": [
+    "An authorized Framework submission of the local remediation head",
+    "A fresh SonarQube Cloud PR analysis bound to that exact head"
+  ],
+  "blocked_by": [
+    "Exact-head hosted SonarQube Cloud confirmation has not yet been observed after an authorized normal submission."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0033",
+    "FND-FRAMEWORK-0037",
+    "FND-FRAMEWORK-0038",
+    "FND-FRAMEWORK-0039",
+    "FND-FRAMEWORK-0046",
+    "FND-FRAMEWORK-0047",
+    "FND-FRAMEWORK-0048",
+    "FND-FRAMEWORK-0049",
+    "FND-FRAMEWORK-0050",
+    "FND-SONAR-0002"
+  ],
+  "source_run_ids": [
+    "20260721T044827Z-framework-pr39-sonar-remediation-56e8f9d8",
+    "security-diff-ee513e45-20260721t042538z",
+    "20260721T055738Z-framework-pr39-delivery-followup-416b152c",
+    "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+    "20260726T105400Z-framework-pr47-sonar-merge"
+  ],
+  "evidence_limitations": [
+    "The initial inventory proves the pre-remediation issue set, not the result for a later submitted head.",
+    "The sealed local security diff scan reports 0 reportable findings for the local code change, but it is not proof of hosted SonarQube Cloud completion.",
+    "No exact submitted remediation-head SonarQube Cloud analysis or Quality Gate result is recorded here.",
+    "The current selected interpreter is CPython 3.14.4, not the checked-in CPython 3.14.6 target; it proves local compatibility only.",
+    "No hosted SonarQube Cloud or GitHub confirmation occurred, and no coverage, scanner, Quality Gate, rule, exclusion, suppression, or hosted-service configuration changed."
+  ],
+  "residual_risk": "Until the exact submitted head has a fresh hosted SonarQube Cloud analysis, one or more owned code-smell keys could remain open or a new task-owned issue could appear. No risk is accepted, and neither the local CPython 3.14.4 compatibility evidence nor the local security scan waives the exact-head SonarQube Cloud or target-3.14.6 hosted requirements.",
+  "delivery_evidence": {
+    "pull_request": 42,
+    "initial_head": "1fd3b362e0fed9766c6920e3c7bd1939535850f2",
+    "state": "local_remediation_and_cpython_3_14_6_migration_fixed_pending_exact_head_hosted_sonarqube_cloud_confirmation",
+    "hosted_sonar_completion": "not_verified",
+    "local_framework_acceptance": "passed_selected_cpython_3_14_4_validation_for_configured_cpython_3_14_6_contract",
+    "local_qualification_receipt": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-python314-local-validation.md",
+    "local_qualification_receipt_sha256": "4f3f7967438688697da9dcca5cb57bcaf7914c700342d9af8bb07f16a8d63075",
+    "sealed_local_security_scan": "complete_22_path_scan_with_0_reportable_findings",
+    "sealed_local_security_scan_sha256": "1b85288ff20d4c4f04443a9f2e4ba6ce07b69967e165dcc2d3c02257dfc6da36",
+    "parent_gitlink_update_authorized": false,
+    "mrts_change_authorized": false
+  },
+  "history": [
+    {
+      "at": "2026-07-21T04:48:27Z",
+      "event": "framework_pr39_code_smell_remediation_finding_created",
+      "detail": "Allocated as a distinct Framework P2 non-security SonarQube Cloud finding after SHA-256 verification of the retained initial 25-key inventory. Local remediation is recorded fixed; all 25 original keys still require fresh exact-head hosted confirmation without scanner-control changes."
+    },
+    {
+      "at": "2026-07-21T06:13:56Z",
+      "event": "framework_pr39_cpython31314_local_qualification_reconciled",
+      "detail": "The retained historical receipt 20260721T055738Z-framework-pr39-delivery-followup-416b152c, SHA-256 2825f5278dcf241dcdb8e501fccb85b9f9fc710e5b24406259a396af7cd3ee30, records the prior PR #39 CPython 3.13.14 local qualification. It remains historical evidence and does not determine the current PR #42 delivery state."
+    },
+    {
+      "at": "2026-07-22T20:14:50Z",
+      "event": "framework_pr42_sonar_remediation_and_cpython3146_local_validation_reconciled",
+      "detail": "The 27 owned PR #42 code-smell remediations and coupled exact CPython 3.14.6 migration are locally fixed. Selected CPython 3.14.4 focused validation, direct Sonar-remediation tests, full native make lint, CP314 positive and CP313-negative hash-lock controls, and the complete 22-path security scan passed. No host-side Sonar, GitHub, live-update, real-installation, or CPython-3.14.6 hosted-job evidence is claimed."
+    },
+    {
+      "at": "2026-07-26T10:52:13Z",
+      "event": "framework_pr47_same_root_cause_deduplicated_and_locally_remediated",
+      "detail": "Exact PR #47 initial head 3bbb2e806f4892e8f92476e35740d149b8b9b17b has two python:S1192 and one python:S3776 CODE_SMELL diagnostics in ci/checks/security/check-ci-security-contract.py. They repeat this record's bounded duplicated-literal and cognitive-complexity root causes. The task replaces repeated checkout-policy literals with named constants and splits the submodule-updater validation into behavior-preserving helpers; focused contract tests and workflow/documentation controls passed locally. Hosted current-head SonarQube Cloud confirmation remains pending; no NOSONAR, suppression, rule, Quality Gate, exclusion, or false-positive control changed."
+    }
+  ],
+  "created_at": "2026-07-21T04:48:27Z",
+  "updated_at": "2026-07-26T10:52:13Z",
+  "final_disposition": "local_framework_pr42_remediation_and_cpython_3_14_6_migration_fixed_pending_exact_head_hosted_confirmation"
+}

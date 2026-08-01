@@ -1,0 +1,223 @@
+{
+  "id": "FND-HOST-0002",
+  "title": "Host prerequisites and optional analysis tools block selected evidence",
+  "title_de": "Host-Prerequisites und optionale Analyse-Tools blockieren ausgewählte Evidence",
+  "category": "tooling",
+  "repository": "host_environment",
+  "ownership": "host_environment",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "not_applicable",
+  "feasibility_status": "not_applicable",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "current_go_1265_validation_blocker": {
+    "master_sha": "a308d7b414f0859490fe7253e0683a4bde80b563",
+    "installed_go_version": "go1.26.0 linux/amd64",
+    "required_module_go_version": "1.26.5",
+    "command_result": "go mod graph exits 1 before dependency resolution with 'go.mod requires go >= 1.26.5 (running go 1.26.0; GOTOOLCHAIN=local)'",
+    "local_toolchain_search": "No go1.26.5 executable or cached side-by-side toolchain found.",
+    "safe_next_step": "Explicit current-user authorization for isolated official Go 1.26.5 acquisition/use only; no system or user-local replacement."
+  },
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md",
+    ".python-version",
+    ".github/workflows/all-connectors-no-crs.yml"
+  ],
+  "affected_symbols": [
+    "C++ evaluator",
+    "apxs",
+    "NGINX headers/source",
+    "HAProxy headers/source",
+    "Ruff",
+    "Pyright",
+    "actionlint",
+    "zizmor",
+    "gitleaks",
+    "exact Python 3.14.6 CI lane",
+    "Go 1.26.5 module-validation toolchain"
+  ],
+  "summary": "The host and local virtual environment remain at Python 3.14.4 while the Parent contract declares 3.14.6, and native/optional tools remain unavailable. The current user excludes exact local Python/native/optional-tool parity from the current local test scope; this is not a product defect or evidence of an exact hosted CI result.",
+  "summary_de": "Host und lokale Virtual Environment bleiben bei Python 3.14.4, während der Parent-Contract 3.14.6 deklariert, und Native-/optionale Tools bleiben nicht verfügbar. Der aktuelle Nutzer schließt exakte lokale Python-/Native-/Optional-Tool-Parität aus dem aktuellen lokalen Testumfang aus; dies ist weder ein Produktdefekt noch Evidence für ein exaktes gehostetes CI-Ergebnis.",
+  "observed_behavior": "The canonical .python-version file contains 3.14.6 and the workflow passes it to actions/setup-python, but the current host and local virtual environment report Python 3.14.4 and no python3.14.6 executable resolves on PATH. Native host prerequisites and selected optional tools remain unavailable.",
+  "observed_behavior_de": "Die kanonische .python-version-Datei enthält 3.14.6 und der Workflow übergibt sie an actions/setup-python, aber der aktuelle Host und die lokale Virtual Environment melden Python 3.14.4 und kein python3.14.6-Executable löst über PATH auf. Native Host-Prerequisites und ausgewählte optionale Tools bleiben nicht verfügbar.",
+  "expected_behavior": "The finding is not applicable to the current local test scope. If exact local Python/native/optional-tool parity becomes an acceptance or release criterion, restore this triplet and rerun its original controls in an approved isolated environment.",
+  "expected_behavior_de": "Das Finding ist für den aktuellen lokalen Testumfang nicht anwendbar. Wenn exakte lokale Python-/Native-/Optional-Tool-Parität zu einem Akzeptanz- oder Release-Kriterium wird, ist dieses Tripel wiederherzustellen und seine ursprünglichen Controls in einer genehmigten isolierten Umgebung erneut auszuführen.",
+  "impact": "The unavailable local prerequisites do not block the user-selected current scope. They remain unverified and cannot support a local exact-Python or hosted-CI claim.",
+  "impact_de": "Die nicht verfügbaren lokalen Prerequisites blockieren den nutzergewählten aktuellen Scope nicht. Sie bleiben unverifiziert und können keinen lokalen Exact-Python- oder Hosted-CI-Claim stützen.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "sed -n '248,264p' .codex/reports/repository-full-assessment.md",
+    "sed -n '1p' .python-version; python3 --version; command -v python3.14.6 || true"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:248-264",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '248,264p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/136-python313-ci-lane-availability-final.log",
+      "artifact_type": "host_python_ci_lane_availability_log",
+      "sha256": "36b6be11baae984e34c1babd5dcc4daa2bac83dbc2772756bfa36c99773ddaba",
+      "command": "python3 --version; command -v python3.13; if present, python3.13 --version; otherwise record unavailable",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T17:20:47Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260723T161931Z-github-alert-reconciliation-20260723-65ec68cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T161931Z-github-alert-reconciliation-20260723-65ec68cf/evidence/go/01-go-mod-graph-local-toolchain-block.log",
+      "artifact_type": "go_exact_module_toolchain_block_log",
+      "sha256": "6fcac7c9821e4b4faf044b31777003615683879da3d4ad4b3042669d1a57e26c",
+      "command": "rtk proxy sh -c 'env GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly GOCACHE=<task-run>/tmp/go-cache GOMODCACHE=<task-run>/tmp/go-modcache go mod graph > <task-run>/tmp/go-logs/01-go-mod-graph.log 2>&1'",
+      "working_directory": "/root/git/ModSecurity-conector/connectors/envoy/ext_proc",
+      "exit_code": 1,
+      "observed_at": "2026-07-23T16:37:03Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260723T165434Z-github-alert-remediation-go1265-4fc93743",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T165434Z-github-alert-remediation-go1265-4fc93743/evidence/delivery/20260723-draft-pr-delivery-alert-state.md",
+      "artifact_type": "task_local_go_1265_resolution_and_draft_pr_delivery",
+      "sha256": "7508110eef978259f0b9757df675844535b44bd5e6a4dc30c92d265da05110de",
+      "command": "RTK-proxied official Go 1.26.5 task-local setup, exact validation, Draft PR delivery, and checks",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T17:52:48Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726T173136Z-fnd-host-remediation-20260726-7837c9e2",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T173136Z-fnd-host-remediation-20260726-7837c9e2/evidence/fnd-host-0002-0003-0004-0006-current-revalidation.md",
+      "artifact_type": "current_host_prerequisite_revalidation",
+      "sha256": "81fdeceb0f34806cd781ee3adf0c8d57d6619d78549fef7e37313e90a4d545bf",
+      "command": "RTK-proxied .python-version/workflow, interpreter, native-tool, and optional-client inventory; no installation or host mutation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T17:34:26Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726T180544Z-fnd-host-archive-20260726-8b20e52d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T180544Z-fnd-host-archive-20260726-8b20e52d/evidence/fnd-host-user-directed-archive-scope-disposition.md",
+      "artifact_type": "current_user_scope_disposition",
+      "sha256": "50f77adb2bfbe8dbea9341bb4012ed67acaa4bf43a540ef3268f7ef2121c666b",
+      "command": "Current user-directed local archive and scope disposition; no tool provisioning, host mutation, or hosted CI execution",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T18:05:44Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The retained evidence identifies the condition but does not establish a product-code root cause. The exact Python CI-lane, native-host, and optional-tool gaps are host-environment/version availability limitations, not product defects.",
+  "root_cause_de": "Die retained Evidence belegt den Zustand, aber keine Produktcode-Grundursache. Die exakte Python-CI-Lane-, Native-Host- und optionalen Tool-Lücken sind Host-Environment-/Versionsverfügbarkeitsgrenzen, keine Produktdefekte.",
+  "proposed_remediation": "No local provisioning is required for the user-selected current scope. Restore this record and provision a reproducible isolated host/tool bundle only if exact local parity becomes required.",
+  "proposed_remediation_de": "Für den nutzergewählten aktuellen Scope ist keine lokale Provisionierung erforderlich. Diesen Record wiederherstellen und einen reproduzierbaren isolierten Host-/Tool-Bundle nur bereitstellen, wenn exakte lokale Parität erforderlich wird.",
+  "acceptance_criteria": [
+    "The archived record retains the observed host/tool condition and the current user scope decision without claiming it passed.",
+    "No local exact-Python/native/optional-tool or hosted-CI result is represented as observed.",
+    "If exact local parity becomes required, the complete triplet is restored and its original approved-environment controls are rerun."
+  ],
+  "validation_plan": [
+    "Verify the lossless archive triplet, manifest hash, and removal from active finding summaries.",
+    "If the scope is reactivated, record tool versions, commands, exits, and legitimate controls in an approved isolated environment."
+  ],
+  "regression_tests": [
+    "Add or retain a focused regression/evidence control for the recorded condition."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-GITHUB-0001",
+    "FND-PARENT-0001",
+    "FND-PARENT-0008",
+    "FND-CROSS-0004"
+  ],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+    "20260723T161931Z-github-alert-reconciliation-20260723-65ec68cf",
+    "20260723T165434Z-github-alert-remediation-go1265-4fc93743",
+    "20260726T173136Z-fnd-host-remediation-20260726-7837c9e2",
+    "20260726T180544Z-fnd-host-archive-20260726-8b20e52d"
+  ],
+  "residual_risk": "No risk is accepted. Exact local Python/native/optional-tool validation and a hosted CI result remain unobserved; restore and revalidate before relying on either as an acceptance or release claim.",
+  "residual_risk_de": "Es wird kein Risiko akzeptiert. Exakte lokale Python-/Native-/Optional-Tool-Validierung und ein Hosted-CI-Ergebnis bleiben unbeobachtet; vor ihrer Nutzung als Akzeptanz- oder Release-Claim wiederherstellen und neu validieren.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-26T18:05:44Z",
+  "go_toolchain_resolution_20260723": {
+    "status": "resolved_for_current_task_only",
+    "authorization": "current user approved side-by-side official Go 1.26.5 in the registered task cache only",
+    "toolchain_version": "go1.26.5 linux/amd64",
+    "archive_sha256": "5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053",
+    "no_global_change": true,
+    "result": "Envoy dependency and Traefik fuzz candidates validated and delivered as Draft PRs #99 and #100 with passed exact-head checks",
+    "retained_delivery_evidence": {
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T165434Z-github-alert-remediation-go1265-4fc93743/evidence/delivery/20260723-draft-pr-delivery-alert-state.md",
+      "sha256": "7508110eef978259f0b9757df675844535b44bd5e6a4dc30c92d265da05110de"
+    }
+  },
+  "final_disposition": "not_applicable_user_directed_current_local_test_scope_archived",
+  "current_scope_disposition": {
+    "at": "2026-07-26T18:05:44Z",
+    "scope": "The current user excludes exact local Python 3.14.6/native/optional-tool parity from the current local test scope because GitHub may lead the host environment.",
+    "not_claimed": [
+      "An exact Python 3.14.6 interpreter is available locally.",
+      "Native or optional tools are available locally.",
+      "A current GitHub hosted CI result was observed."
+    ],
+    "reactivation": "Restore the complete triplet and rerun original controls before any local-parity, hosted-CI, production, publication, or release reliance.",
+    "archive_path": ".codex/archive/findings/FND-HOST-0002"
+  },
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-17T17:20:47Z",
+      "event": "python_313_ci_lane_host_gap_recorded",
+      "detail": "The host supplied Python 3.14.4 and no python3.13 executable. Focused Python contracts remain valid local control evidence but do not establish the declared Python-3.13 CI lane. No interpreter installation was attempted."
+    },
+    {
+      "at": "2026-07-23T16:37:03Z",
+      "event": "go_1265_exact_module_validation_block_recorded",
+      "detail": "Current dependency and fuzz validation is blocked before module resolution: installed Go 1.26.0 correctly refuses both Go-1.26.5 modules under GOTOOLCHAIN=local. No side-by-side Go 1.26.5 executable/toolchain cache was found, and no implicit download or installation was attempted."
+    },
+    {
+      "at": "2026-07-23T17:52:48Z",
+      "event": "go_1265_task_local_toolchain_resolution_reconciled",
+      "detail": "The current user authorized the official Go 1.26.5 archive only inside the registered task cache. Its SHA-256 was verified, no system/user Go or global configuration changed, and exact Envoy dependency and Traefik fuzz validation produced Draft PRs #99/#100 with passed exact-head checks. The finding remains blocked for its unrelated Python 3.13/native/optional-tool gaps."
+    },
+    {
+      "at": "2026-07-26T17:34:26Z",
+      "event": "current_host_prerequisite_revalidation",
+      "detail": "The canonical Parent target is now exact Python 3.14.6. The current host and local virtual environment report only Python 3.14.4, no python3.14.6 executable resolves, and the scoped native/optional-tool inventory remains unavailable. No installation, host mutation, product change, or delivery action was attempted; the finding remains blocked_environment."
+    },
+    {
+      "at": "2026-07-26T18:05:44Z",
+      "event": "user_directed_current_scope_not_applicable",
+      "detail": "The current user selected a local test scope in which exact local Python 3.14.6/native/optional-tool parity is cosmetic rather than a blocker because GitHub can lead the host. The record changes from blocked_environment to not_applicable for that scope and is archived losslessly. No Python/native/optional-tool provisioning, product change, or hosted CI execution is claimed; restore and revalidate before future local-parity or release reliance."
+    }
+  ]
+}

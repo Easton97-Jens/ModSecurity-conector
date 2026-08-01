@@ -1,0 +1,142 @@
+{
+  "id": "FND-PARENT-0060",
+  "title": "Full-matrix batch scheduler is not work-conserving at its concurrency cap",
+  "title_de": "Full-Matrix-Batch-Scheduler schöpft seine Parallelitätsgrenze nicht work-conserving aus",
+  "category": "lifecycle_defect",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": false,
+  "security_assessment": "not_applicable",
+  "connector": null,
+  "protocol": null,
+  "profile": "full-matrix parallel scheduler",
+  "affected_files": [
+    "ci/runtime/lifecycle/run-full-matrix-parallel.sh",
+    "tests/test_full_matrix_parallel_scheduler.py"
+  ],
+  "affected_symbols": [
+    "run_planned_jobs",
+    "batch-wide wait",
+    "full-matrix concurrency cap"
+  ],
+  "trust_boundary": null,
+  "sink": "Full-matrix job admission and completion scheduling; a batch-wide wait can leave available capacity idle while queued work remains.",
+  "source_review": {
+    "source": "parent-supplied task-conversation review",
+    "file": "ci/runtime/lifecycle/run-full-matrix-parallel.sh",
+    "symbol": "run_planned_jobs",
+    "cited_line_range": "680-732",
+    "conclusion": "With cap=2, run_planned_jobs waits for the whole started batch. If a fast job finishes while its slow sibling is still running, a third queued job cannot start until the slow sibling ends.",
+    "retention_status": "task_conversation_only; no filesystem source-review receipt supplied"
+  },
+  "observed_behavior": "The prior scheduler filled a batch up to the configured cap and then waited for the entire batch rather than admitting the next queued job when an individual child completed. At cap=2 with one fast and one slow job running, the fast job could free a core while a third job remained queued until the slow sibling finished. The earlier eight-test reviewer command did not expose this unequal-duration scheduling gap. The parent now confirms that test_parallel_scheduler_refills_a_freed_slot_before_a_slow_sibling_exits passes and that a 107-test combined scheduler run passed, validating the local remediation.",
+  "expected_behavior": "The full-matrix scheduler is work-conserving: when a child finishes and queued work remains, it promptly admits the next job while respecting the configured concurrency cap. With cap=2 and three unequal-duration jobs, the queued third job starts after the fast sibling completes and before the slow sibling exits. Existing port planning, lock admission, and manifest/result controls remain intact. This behavior is fixed locally, but hosted-successor verification remains pending.",
+  "impact": "The scheduler can leave configured capacity idle, lengthen full-matrix completion, and increase the chance of timeouts or delayed release evidence despite queued work. This is a validated P1 lifecycle/reliability release blocker, not a security finding.",
+  "preconditions": [
+    "The full-matrix scheduler is configured with a concurrency cap of 2.",
+    "At least three planned jobs are ready to run.",
+    "The first two jobs have unequal durations, with one completing while the other remains active.",
+    "A third job remains queued when the faster sibling completes."
+  ],
+  "reproduction": [
+    "Configure the scheduler with cap=2 and submit a slow job, a fast job, and a third queued job.",
+    "Observe the fast job complete while the slow sibling remains active.",
+    "Observe the legacy batch-wide behavior leave the third job queued until the slow sibling exits, despite one free slot.",
+    "The locally fixed scheduler starts the third job before the slow sibling exits and keeps no more than two jobs concurrent."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T204802Z-parent-task-conversation-batch-scheduler-review",
+      "artifact_path": "task-conversation://root/finding_followup/2026-07-26/fnd-parent-0060-batch-scheduler-review",
+      "artifact_type": "parent_supplied_task_conversation_review",
+      "sha256": null,
+      "hash_status": "not_available_task_conversation_only_no_filesystem_receipt_supplied",
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -B tests/test_full_matrix_parallel_scheduler.py",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T20:48:02Z",
+      "retention_status": "task_conversation_only; no filesystem receipt supplied",
+      "result": "Parent-confirmed: 8 tests passed. The reviewed suite does not expose the cap=2, three-unequal-job non-work-conserving batch behavior. Parent also supplied a static review of run_planned_jobs cited as lines 680-732."
+    },
+    {
+      "run_id": "20260726T212307Z-parent-task-conversation-scheduler-refill-local-validation",
+      "artifact_path": "task-conversation://root/finding_followup/2026-07-26/fnd-parent-0060-work-conserving-refill",
+      "artifact_type": "parent_supplied_task_conversation_local_remediation_validation",
+      "sha256": null,
+      "hash_status": "not_available_task_conversation_only_no_filesystem_receipt_supplied",
+      "command": "Parent-supplied execution of test_parallel_scheduler_refills_a_freed_slot_before_a_slow_sibling_exits and parent-confirmed 107-test combined scheduler run (exact combined command not supplied)",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T21:23:07Z",
+      "retention_status": "task_conversation_only; local remediation validated; hosted successor pending",
+      "result": "Parent-confirmed: test_parallel_scheduler_refills_a_freed_slot_before_a_slow_sibling_exits passed, and the combined 107-test scheduler run passed."
+    }
+  ],
+  "root_cause": "run_planned_jobs uses whole-batch synchronization after filling the cap instead of reaping individual completions and immediately admitting the next queued job. The scheduler therefore treats completion of the slowest sibling as the batch admission boundary, even when another child has already freed capacity.",
+  "proposed_remediation": "The local correction replaces whole-batch waiting with completion-driven admission: it tracks/reaps individual child completions, starts the next queued job whenever a slot becomes available, and preserves the cap. test_parallel_scheduler_refills_a_freed_slot_before_a_slow_sibling_exits validates the cap=2, three-unequal-job behavior locally. Preserve FND-PARENT-0058 port-plan controls, FND-PARENT-0059 FD 9 lock controls, and manifest/result controls. Fresh hosted-successor evidence is required before verified or closed status.",
+  "acceptance_criteria": [
+    "With cap=2 and three unequal-duration jobs, the queued third job demonstrably starts after the fast sibling completes and before the slow sibling exits.",
+    "The scheduler never exceeds the configured cap of 2 active jobs.",
+    "Existing FND-PARENT-0058 port-allocation controls remain effective.",
+    "Existing FND-PARENT-0059 live-lock and inherited-FD 9 controls remain effective.",
+    "Existing manifest and result-policy controls remain effective.",
+    "test_parallel_scheduler_refills_a_freed_slot_before_a_slow_sibling_exits exposes the old batch-wide wait and passes with the local remediation.",
+    "Fresh hosted-successor evidence is obtained before verified or closed status."
+  ],
+  "validation_plan": [
+    "Retain an exact local receipt for test_parallel_scheduler_refills_a_freed_slot_before_a_slow_sibling_exits; the parent-confirmed focused regression passed.",
+    "Retain an exact local receipt for the parent-confirmed 107-test combined scheduler run; the exact command was not supplied to this tracking task.",
+    "Run legitimate controls proving the active-job count never exceeds 2 and preserving port allocation, FD 9 lock, manifest, and result-policy behavior.",
+    "Obtain fresh exact-successor full-matrix and hosted evidence before verified or closed status."
+  ],
+  "regression_tests": [
+    "test_parallel_scheduler_refills_a_freed_slot_before_a_slow_sibling_exits (parent-confirmed passed)",
+    "PYTHONDONTWRITEBYTECODE=1 python3 -B tests/test_full_matrix_parallel_scheduler.py (parent-confirmed 8 passed; does not expose this gap)"
+  ],
+  "legitimate_control_tests": [
+    "The scheduler records no more than two active jobs while refilling freed capacity.",
+    "FND-PARENT-0058 port allocation remains non-overlapping for concurrent jobs.",
+    "FND-PARENT-0059 live owner and inherited-FD 9 lock controls still block competing schedulers correctly.",
+    "Manifest publication and result-policy behavior remain unchanged for admitted jobs."
+  ],
+  "dependencies": [
+    "Retained Parent completion-driven scheduler remediation and deterministic regression",
+    "FND-PARENT-0058 port-plan controls",
+    "FND-PARENT-0059 FD 9 lock controls"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0058",
+    "FND-PARENT-0059",
+    "FND-PARENT-0061",
+    "FND-SONAR-0016"
+  ],
+  "source_run_ids": [
+    "20260726T204802Z-parent-task-conversation-batch-scheduler-review",
+    "20260726T212307Z-parent-task-conversation-scheduler-refill-local-validation"
+  ],
+  "residual_risk": "The local completion-driven remediation, named regression, and 107-test combined scheduler result are parent-confirmed task-conversation evidence only; no retained filesystem receipt or hosted-successor result has been supplied. The finding is fixed locally, not verified or closed, and remains a P1 release blocker until hosted-successor evidence exists.",
+  "residual_risk_de": "Die lokale completion-gesteuerte Remediation, die genannte Regression und das kombinierte 107-Test-Scheduler-Ergebnis sind nur vom Parent bestätigte Task-Konversations-Evidence; es wurden keine aufbewahrte Filesystem-Receipt und kein Hosted-Successor-Ergebnis geliefert. Das Finding ist lokal fixed, nicht verified oder closed, und bleibt ein P1-Release-Blocker, bis Hosted-Successor-Evidence vorliegt.",
+  "created_at": "2026-07-26T20:48:02Z",
+  "updated_at": "2026-07-26T21:23:07Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-26T20:48:02Z",
+      "event": "validated_non_work_conserving_batch_scheduler_allocated",
+      "detail": "Parent-confirmed task-conversation review allocated this finding separately from FND-PARENT-0058 port allocation and FND-PARENT-0059 lock admission. No product change, regression implementation, fixed, verified, or delivery disposition is claimed."
+    },
+    {
+      "at": "2026-07-26T21:23:07Z",
+      "event": "local_completion_driven_refill_validated_hosted_successor_pending",
+      "detail": "Parent confirmed that test_parallel_scheduler_refills_a_freed_slot_before_a_slow_sibling_exits and a combined 107-test scheduler run passed. The completion-driven scheduler remediation is fixed locally only; no hosted verification, closure, or delivery disposition is claimed."
+    }
+  ]
+}

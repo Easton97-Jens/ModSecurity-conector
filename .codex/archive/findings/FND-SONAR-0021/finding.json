@@ -1,0 +1,186 @@
+{
+  "id": "FND-SONAR-0021",
+  "title": "PR #177 inner Sonar S131 issue remediated and verified on master",
+  "title_de": "Inneres Sonar-S131-Issue von PR #177 auf Master remediiert und verifiziert",
+  "category": "sonarqube_finding",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "closed",
+  "feasibility_status": "already_fixed",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": false,
+  "security_assessment": "not_security_relevant_maintainability_only",
+  "connector": null,
+  "protocol": null,
+  "profile": "Historical baseline analysis d0cd2970-18e5-4a3b-ad84-eb4f91a13855 for fda62539b6f0a710865707e3003b73ed4469f20e; remediation PR #177 final head da4dc5d77c0695182b58b116d55a285156992c15 was squashed as master a1c8394e528bfcd7b54bc3e0aac4cdf3430d1345, and latest analysis a9e18381-2f71-4627-a750-731ceb8dd1c3 reports that revision",
+  "affected_files": [
+    "common/scripts/run_blocked_runtime_smoke.sh"
+  ],
+  "affected_symbols": [
+    "inner case statement at line 119"
+  ],
+  "observed_behavior": "Historical retained evidence recorded one OPEN shelldre:S131 CODE_SMELL, key AZ7uz_BiBV84XD89pXti, at common/scripts/run_blocked_runtime_smoke.sh:119 on baseline fda62539b6f0a710865707e3003b73ed4469f20e. PR #177 final head da4dc5d77c0695182b58b116d55a285156992c15 then added the fail-closed default at that actual inner case and was squashed as master a1c8394e528bfcd7b54bc3e0aac4cdf3430d1345. The latest retained SonarCloud analysis a9e18381-2f71-4627-a750-731ceb8dd1c3 binds to that master revision, and the rerun unresolved S131 query returns total 0.",
+  "observed_behavior_de": "Historische aufbewahrte Evidence erfasste einen OPEN-shelldre:S131-CODE_SMELL, Key AZ7uz_BiBV84XD89pXti, in common/scripts/run_blocked_runtime_smoke.sh:119 auf Baseline fda62539b6f0a710865707e3003b73ed4469f20e. Der finale PR-#177-Head da4dc5d77c0695182b58b116d55a285156992c15 ergänzte anschließend den fail-closed-Default an diesem tatsächlichen inneren case und wurde als Master a1c8394e528bfcd7b54bc3e0aac4cdf3430d1345 gesquasht. Die neueste aufbewahrte SonarCloud-Analyse a9e18381-2f71-4627-a750-731ceb8dd1c3 bindet an diese Master-Revision, und die erneut ausgeführte Abfrage ungelöster S131-Issues liefert total 0.",
+  "expected_behavior": "The actual inner case at the reported location has an explicit fail-closed *) branch for unexpected values. The focused test and English/German tracking accurately identify that inner branch as the S131 remediation. No Sonar rule, Quality Gate, exclusion, NOSONAR, suppression, or risk-acceptance change is used.",
+  "expected_behavior_de": "Der tatsächliche innere case an der gemeldeten Stelle hat einen expliziten fail-closed-*)-Zweig für unerwartete Werte. Der fokussierte Test und das englische/deutsche Tracking identifizieren diesen inneren Zweig zutreffend als S131-Remediation. Es wird keine Sonar-Rule-, Quality-Gate-, Exclusion-, NOSONAR-, Suppression- oder Risikoakzeptanz-Änderung verwendet.",
+  "impact": "This was a confirmed Parent maintainability finding. Its local security severity remains not_applicable and no attacker-to-runtime security path is asserted, despite Sonar's CRITICAL rule severity. The exact remediation and the original Sonar reproduction are now verified on master, so it is neither a release blocker nor a candidate-integration blocker. This closed record does not extend the separately accepted FND-SONAR-0001 baseline risk.",
+  "impact_de": "Dies war ein bestätigter Parent-Maintainability-Befund. Seine lokale Security-Severity bleibt not_applicable und es wird kein Angreifer-zu-Runtime-Security-Pfad behauptet, trotz Sonars CRITICAL-Rule-Severity. Die exakte Remediation und die ursprüngliche Sonar-Reproduktion sind jetzt auf Master verifiziert, daher ist es weder Release-Blocker noch Candidate-Integration-Blocker. Dieser geschlossene Record erweitert nicht das separat akzeptierte FND-SONAR-0001-Baseline-Risiko.",
+  "preconditions": [
+    "The retained SonarQube Cloud issue query returns AZ7uz_BiBV84XD89pXti as OPEN shelldre:S131 at common/scripts/run_blocked_runtime_smoke.sh:119.",
+    "The retained project-analyses query lists d0cd2970-18e5-4a3b-ad84-eb4f91a13855 for revision fda62539b6f0a710865707e3003b73ed4469f20e.",
+    "PR #177 candidate 8a95d22db11576d337743c8131af65a08a9449a8 changes the outer default at lines 184–194 rather than the reported inner case line 119."
+  ],
+  "reproduction": [
+    "Run rtk curl -fsS 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&rules=shelldre%3AS131&resolved=false&ps=500' from /root/git/ModSecurity-conector and confirm AZ7uz_BiBV84XD89pXti is OPEN at common/scripts/run_blocked_runtime_smoke.sh:119.",
+    "Run rtk curl -fsS 'https://sonarcloud.io/api/project_analyses/search?project=Easton97-Jens_ModSecurity-conector&ps=3' from /root/git/ModSecurity-conector and retain the listed analysis d0cd2970-18e5-4a3b-ad84-eb4f91a13855, date, and revision.",
+    "Compare the exact candidate 8a95d22db11576d337743c8131af65a08a9449a8 with its base and confirm its outer default change is at lines 184–194 while the inner S131 location at line 119 remains unchanged."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260729T204320Z-fnd-sonar-0021-blocked-smoke-s131",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-182-20260729T121317Z/fnd-sonar-0021-blocked-smoke-s131/evidence/issue.json",
+      "artifact_type": "bounded_sonar_rule_issue_readback",
+      "sha256": "854c3a863b37013cbfa4ebc918e650fcbb3a3eefb0d0383f4e5ba79cfe29708e",
+      "command": "rtk curl -fsS 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&rules=shelldre%3AS131&resolved=false&ps=500'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T20:43:20Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "One OPEN shelldre:S131 CODE_SMELL, key AZ7uz_BiBV84XD89pXti, at common/scripts/run_blocked_runtime_smoke.sh:119."
+    },
+    {
+      "run_id": "20260729T204320Z-fnd-sonar-0021-blocked-smoke-s131",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-182-20260729T121317Z/fnd-sonar-0021-blocked-smoke-s131/evidence/analysis.json",
+      "artifact_type": "bounded_sonar_project_analysis_readback",
+      "sha256": "462ee987c4213297fa0e0ff1ffa3714e97b14a25ce471e5682ea629cbffaa32a",
+      "command": "rtk curl -fsS 'https://sonarcloud.io/api/project_analyses/search?project=Easton97-Jens_ModSecurity-conector&ps=3'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T20:43:20Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "Project analysis d0cd2970-18e5-4a3b-ad84-eb4f91a13855 is dated 2026-07-29T20:43:20+0000 and has revision fda62539b6f0a710865707e3003b73ed4469f20e."
+    },
+    {
+      "run_id": "20260729T204320Z-fnd-sonar-0021-blocked-smoke-s131",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-182-20260729T121317Z/fnd-sonar-0021-blocked-smoke-s131/evidence/receipt.md",
+      "artifact_type": "bounded_tracking_receipt",
+      "sha256": "9bd53db9f102c827469f81400cccc34117d2e3f390823189e6ab241cf5e601bd",
+      "command": "Receipt for the two retained read-only SonarQube Cloud commands and their source-location comparison.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T20:43:20Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "Records the candidate-integration blocker without a new network query or a risk-acceptance change."
+    },
+    {
+      "run_id": "20260729T224132Z-fnd-sonar-0021-postmerge-verification",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-182-20260729T121317Z/fnd-sonar-0021-postmerge-20260729T223327Z/evidence/sonar-s131-closure.json",
+      "artifact_type": "postmerge_sonar_rule_reproduction_readback",
+      "sha256": "3afea43ab59b9b77b506b956538dd4e09ae0c56d564f1c7991bdf1eaf8a224e5",
+      "command": "rtk curl -fsS 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&resolved=false&rules=shelldre%3AS131&ps=500'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T22:41:32Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "The original unresolved S131 reproduction returns total 0 on current master."
+    },
+    {
+      "run_id": "20260729T224132Z-fnd-sonar-0021-postmerge-verification",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-182-20260729T121317Z/fnd-sonar-0021-postmerge-20260729T223327Z/evidence/sonar-master-analysis.json",
+      "artifact_type": "postmerge_sonar_master_analysis_readback",
+      "sha256": "cada6555fd4e8d49feeef5d2d376bc7a40e8db4b4cd53f1111b86655ba275ff8",
+      "command": "rtk curl -fsS 'https://sonarcloud.io/api/project_analyses/search?project=Easton97-Jens_ModSecurity-conector&ps=1'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T22:41:32Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "Latest analysis a9e18381-2f71-4627-a750-731ceb8dd1c3 records revision a1c8394e528bfcd7b54bc3e0aac4cdf3430d1345."
+    },
+    {
+      "run_id": "20260729T224132Z-fnd-sonar-0021-postmerge-verification",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-182-20260729T121317Z/fnd-sonar-0021-postmerge-20260729T223327Z/evidence/github-master-workflows.json",
+      "artifact_type": "postmerge_github_master_workflow_readback",
+      "sha256": "bead085abef79de1c178b427dec91ff48b99694f97aaddb2cf07ed53b29793b0",
+      "command": "rtk gh run list --repo Easton97-Jens/ModSecurity-conector --commit a1c8394e528bfcd7b54bc3e0aac4cdf3430d1345 --limit 100 --json status,conclusion,name,workflowName,updatedAt",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T22:41:32Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "Fourteen observed master workflows completed with success."
+    },
+    {
+      "run_id": "20260729T224132Z-fnd-sonar-0021-postmerge-verification",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-173-182-20260729T121317Z/fnd-sonar-0021-postmerge-20260729T223327Z/evidence/sonar-master-quality-gate.json",
+      "artifact_type": "postmerge_sonar_baseline_context_readback",
+      "sha256": "aa96b54808ed89e9a0e90fc0b83e13961287b555d2c55e0ea450877c3590dd70",
+      "command": "rtk curl -fsS 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T22:41:32Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "Master Quality Gate remains ERROR only at new_security_rating=5 and new_security_hotspots_reviewed=0.0; this is separate user-accepted FND-SONAR-0001 baseline context, not the closed S131 issue."
+    }
+  ],
+  "root_cause": "The outer-case default recorded in PR #177 is a different control-flow boundary from the inner case reported by Sonar. The candidate therefore leaves the actual S131 location default-free and the prior issue-to-remediation mapping was incomplete.",
+  "root_cause_de": "Der in PR #177 erfasste äußere case-Default ist eine andere Kontrollflussgrenze als der von Sonar gemeldete innere case. Der Kandidat lässt daher die tatsächliche S131-Stelle ohne Default und das bisherige Issue-zu-Remediation-Mapping war unvollständig.",
+  "proposed_remediation": "Completed without a Sonar configuration change: PR #177 final head da4dc5d77c0695182b58b116d55a285156992c15 adds the fail-closed *) branch to the actual inner case, adds focused structural coverage, and aligns English/German tracking. The exact head passed the sealed security scan and hosted SonarCloud evidence, then was squashed as master a1c8394e528bfcd7b54bc3e0aac4cdf3430d1345.",
+  "proposed_remediation_de": "Ohne Sonar-Konfigurationsänderung abgeschlossen: Der finale PR-#177-Head da4dc5d77c0695182b58b116d55a285156992c15 ergänzt den fail-closed-*)-Zweig am tatsächlichen inneren case, ergänzt fokussierte strukturelle Coverage und gleicht das englische/deutsche Tracking ab. Der exakte Head bestand den versiegelten Security-Scan und gehostete SonarCloud-Evidence und wurde dann als Master a1c8394e528bfcd7b54bc3e0aac4cdf3430d1345 gesquasht.",
+  "acceptance_criteria": [
+    "The actual inner case reported at common/scripts/run_blocked_runtime_smoke.sh:119 has an explicit fail-closed *) branch for unexpected values.",
+    "Focused structural regression coverage asserts the actual inner unexpected-value default, while valid named inner-case source paths remain preserved.",
+    "The English and German tracking record cite the same S131 issue, location, actual remediation branch, and validation limitation.",
+    "No NOSONAR, suppression, rule, Quality-Gate, exclusion, or risk-acceptance change is introduced.",
+    "A fresh exact PR #177 head scan and hosted SonarQube Cloud evidence demonstrate the disposition of AZ7uz_BiBV84XD89pXti before candidate integration is reconsidered."
+  ],
+  "validation_plan": [
+    "Review the repaired inner case and focused test together to confirm that the tested default is the reported line-119 boundary rather than the outer lines-184–194 boundary.",
+    "Run the focused Parent blocked-runtime-smoke regression test and the relevant existing shell/static checks for the exact candidate.",
+    "Review the English and German records for identical IDs, paths, line numbers, rule IDs, SHAs, commands, statuses, and acceptance criteria.",
+    "After the replacement candidate is pushed, obtain exact-head hosted checks and SonarQube Cloud issue/analysis evidence; do not credit older revision fda62539b6f0a710865707e3003b73ed4469f20e evidence to the replacement head."
+  ],
+  "regression_tests": [
+    "Focused tests/test_run_blocked_runtime_smoke.py coverage for the actual inner unexpected-value case path."
+  ],
+  "legitimate_control_tests": [
+    "Known valid named inner-case branches retain their current connector-selection behavior.",
+    "The outer default behavior remains separately tested and is not substituted for the inner default control."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0001",
+    "FND-SONAR-0016",
+    "FND-SONAR-0020"
+  ],
+  "source_run_ids": [
+    "20260729T204320Z-fnd-sonar-0021-blocked-smoke-s131",
+    "20260729T224132Z-fnd-sonar-0021-postmerge-verification"
+  ],
+  "residual_risk": "No FND-SONAR-0021-specific candidate-integration risk remains: the original S131 reproduction returns zero unresolved issues on the latest analysis for exact master a1c8394e528bfcd7b54bc3e0aac4cdf3430d1345. The master Quality Gate remains ERROR only for the separately current-user-accepted FND-SONAR-0001 security-rating and hotspot-review baseline; that baseline is neither changed nor accepted by this finding.",
+  "residual_risk_de": "Es bleibt kein FND-SONAR-0021-spezifisches Candidate-Integration-Risiko: Die ursprüngliche S131-Reproduktion liefert auf der neuesten Analyse für den exakten Master a1c8394e528bfcd7b54bc3e0aac4cdf3430d1345 null ungelöste Issues. Das Master-Quality-Gate bleibt ausschließlich wegen der separat aktuellen, nutzerakzeptierten FND-SONAR-0001-Security-Rating- und Hotspot-Review-Baseline ERROR; diese Baseline wird durch dieses Finding weder geändert noch akzeptiert.",
+  "created_at": "2026-07-29T20:43:20Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": "closed_after_exact_pr177_da4_security_and_hosted_validation_sha_bound_squash_to_master_a1c8394e528bfcd7b54bc3e0aac4cdf3430d1345_and_zero_open_s131_readback_on_analysis_a9e18381-2f71-4627-a750-731ceb8dd1c3",
+  "history": [
+    {
+      "at": "2026-07-29T20:43:20Z",
+      "event": "open_s131_inner_case_candidate_integration_blocker_recorded",
+      "detail": "Allocated FND-SONAR-0021 after retained SonarQube Cloud data confirmed OPEN shelldre:S131 issue AZ7uz_BiBV84XD89pXti at common/scripts/run_blocked_runtime_smoke.sh:119. The PR #177 candidate 8a95d22db11576d337743c8131af65a08a9449a8 changes only outer default lines 184–194, so this is independently remediable and non-duplicate with FND-SONAR-0001, FND-SONAR-0016, and FND-SONAR-0020."
+    },
+    {
+      "at": "2026-07-29T22:19:19Z",
+      "event": "actual_inner_case_remediation_fixed_on_exact_pr177_head",
+      "detail": "Final PR #177 head da4dc5d77c0695182b58b116d55a285156992c15 adds the missing fail-closed default to the actual inner case, adds focused structural coverage, passes exact local controls and a sealed complete security-diff scan with zero reportable findings, and receives hosted exact-head SonarCloud evidence with zero open PR issues."
+    },
+    {
+      "at": "2026-07-29T22:41:32Z",
+      "event": "resulting_master_s131_reproduction_verified_and_closed",
+      "detail": "The SHA-bound squash of #177 created master a1c8394e528bfcd7b54bc3e0aac4cdf3430d1345 with a tree identical to da4dc5d77c0695182b58b116d55a285156992c15. Fourteen observed master workflows completed successfully. Latest SonarCloud analysis a9e18381-2f71-4627-a750-731ceb8dd1c3 records that exact revision, and the original unresolved S131 query returns total 0. The independently accepted FND-SONAR-0001 Quality-Gate baseline remains unchanged."
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "id": "FND-PARENT-0072",
+  "title": "Draft PR #183 has an open SonarQube Cloud c:S1186 issue for its intentional Apache log wrapper",
+  "title_de": "Draft PR #183 hat ein offenes SonarQube-Cloud-c:S1186-Issue für seinen absichtlichen Apache-Log-Wrapper",
+  "category": "sonarqube_finding",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P3",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": false,
+  "security_assessment": "maintainability_finding_without_attacker_controlled_boundary",
+  "connector": "apache",
+  "protocol": "APR RulesSet cleanup native harness",
+  "profile": "resulting Parent master 154ee724eba4653fa6378fc3c8729ae433e65697, tree-identical to final PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118; direct master Sonar analysis/issues remain unverified",
+  "affected_files": [
+    "ci/checks/connectors/apache/apache_rules_set_cleanup.c"
+  ],
+  "affected_symbols": [
+    "__wrap_ap_log_perror_"
+  ],
+  "summary": "SonarQube Cloud had reported open c:S1186 at ci/checks/connectors/apache/apache_rules_set_cleanup.c:173 because the linker-wrap stub __wrap_ap_log_perror_ is intentionally empty. Final PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 contains one behavior-neutral explanatory in-body comment; its PR Quality Gate was OK and its direct PR issue API total was 0. The head was merged as Parent master 154ee724eba4653fa6378fc3c8729ae433e65697 with the same tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0, and all 14 master-SHA workflows succeeded. These facts do not establish a direct Sonar master analysis or master issue query, so the finding remains fixed, not verified or closed.",
+  "summary_de": "SonarQube Cloud hatte offenes c:S1186 bei ci/checks/connectors/apache/apache_rules_set_cleanup.c:173 gemeldet, weil der Linker-Wrap-Stub __wrap_ap_log_perror_ absichtlich leer ist. Der finale PR-#183-Head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 enthält einen verhaltensneutralen erklärenden Kommentar im Funktionsbody; sein PR-Quality-Gate war OK und seine direkte PR-Issue-API-total war 0. Der Head wurde als Parent-master 154ee724eba4653fa6378fc3c8729ae433e65697 mit demselben Tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0 gemergt, und alle 14 Master-SHA-Workflows waren erfolgreich. Diese Fakten belegen keine direkte Sonar-Master-Analyse oder Master-Issue-Abfrage, daher bleibt das Finding fixed, nicht verified oder closed.",
+  "observed_behavior": "The native APR harness needs a no-op linker wrapper for ap_log_perror_ so it can compile and run independently of Apache log output. Sonar c:S1186 flagged the empty body. The behavior-neutral explanatory comment has a fresh exact-PR-head Sonar Quality Gate OK and direct PR issue API total=0; no direct Sonar master analysis or master issue query is yet recorded.",
+  "observed_behavior_de": "Der native APR-Harness benötigt einen No-Op-Linker-Wrapper für ap_log_perror_, damit er unabhängig von Apache-Log-Ausgabe kompilieren und laufen kann. Sonar c:S1186 markierte den leeren Body. Der verhaltensneutrale erklärende Kommentar besitzt ein frisches Exact-PR-Head-Sonar-Quality-Gate OK und eine direkte PR-Issue-API-total von 0; eine direkte Sonar-Master-Analyse oder Master-Issue-Abfrage ist noch nicht erfasst.",
+  "expected_behavior": "The required no-op wrapper remains behaviorally inert and explicit enough to satisfy the applicable Sonar rule, while the exact PR head has zero open/confirmed SonarQube Cloud issues.",
+  "expected_behavior_de": "Der benötigte No-Op-Wrapper bleibt verhaltensmäßig inert und ist ausdrücklich genug, um die anwendbare Sonar-Regel zu erfüllen, während der exakte PR-Head null offene/bestätigte SonarQube-Cloud-Issues besitzt.",
+  "impact": "This is a low-severity maintainability issue, not a security vulnerability or Quality Gate failure. It blocks the selected candidate's task objective of zero open Sonar issues until a fresh exact-head analysis confirms the remediation.",
+  "impact_de": "Dies ist ein geringfügiges Maintainability-Issue, keine Security-Vulnerability und kein Quality-Gate-Fehler. Es blockiert das Task-Ziel des ausgewählten Kandidaten mit null offenen Sonar-Issues, bis eine frische Exact-Head-Analyse die Remediation bestätigt.",
+  "preconditions": [
+    "Draft PR #183 has a SonarQube Cloud analysis.",
+    "The native APR harness retains a linker-wrap stub for ap_log_perror_."
+  ],
+  "reproduction": [
+    "Query SonarQube Cloud issues for Draft PR #183 and observe c:S1186 at apache_rules_set_cleanup.c:173.",
+    "Inspect __wrap_ap_log_perror_ and its explanatory comment on the next exact PR head.",
+    "Run the focused local harness and obtain a fresh PR-specific Sonar issue query before clearing the candidate blocker."
+  ],
+  "evidence": [
+    {
+      "run_id": "draft-pr-183-sonar-observation-20260729",
+      "artifact_path": "SonarQube Cloud Draft PR #183 issue c:S1186 at ci/checks/connectors/apache/apache_rules_set_cleanup.c:173; correction pushed at exact head 4e4dfb36e1b05f7eda38450fd3710e3a04905118",
+      "artifact_type": "parent_task_sonar_issue_observation",
+      "sha256": null,
+      "command": "Parent-supplied direct PR issue observation: Quality Gate OK, issue state OPEN.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": null,
+      "observed_at": "2026-07-29T10:45:45Z",
+      "retention_status": "parent_task_evidence_pending_exact_head_receipt",
+      "result": "Open c:S1186 flagged the intentional linker-wrap stub before the behavior-neutral in-body comment was analyzed."
+    },
+    {
+      "run_id": "draft-pr-183-exact-head-sonar-receipt-20260729",
+      "artifact_path": "Parent-supplied exact Draft PR #183 receipt for head 4e4dfb36e1b05f7eda38450fd3710e3a04905118",
+      "artifact_type": "parent_task_exact_pr_sonar_receipt",
+      "sha256": null,
+      "command": "Parent-supplied exact-head verification: all required GitHub checks passed; SonarQube Cloud Quality Gate OK; direct PR issue API total=0; zero review threads.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T11:06:58Z",
+      "retention_status": "parent_task_exact_head_receipt",
+      "result": "Fresh PR-specific Sonar evidence confirms no open/confirmed issue, including no remaining c:S1186 at the intentional no-op wrapper."
+    },
+    {
+      "run_id": "parent-pr183-resulting-master-20260729",
+      "artifact_path": "Parent-supplied PR #183 resulting-master delivery summary",
+      "artifact_type": "resulting_master_tree_and_workflow_revalidation",
+      "sha256": null,
+      "command": "git show -s --format='%H%n%T%n%ci%n%s' 154ee724eba4653fa6378fc3c8729ae433e65697; git show -s --format='%H%n%T%n%ci%n%s' 4e4dfb36e1b05f7eda38450fd3710e3a04905118; git diff --quiet 154ee724eba4653fa6378fc3c8729ae433e65697 4e4dfb36e1b05f7eda38450fd3710e3a04905118; Parent-supplied master workflow summary",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T11:27:25Z",
+      "retention_status": "parent_supplied_resulting_master_delivery_evidence",
+      "result": "PR #183 merged as master 154ee724eba4653fa6378fc3c8729ae433e65697 with tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0 equal to final head 4e4dfb36e1b05f7eda38450fd3710e3a04905118, and all 14 master-SHA workflows succeeded. No direct Sonar master analysis or master issue query was supplied."
+    }
+  ],
+  "root_cause": "The no-op test-harness wrapper intentionally discards Apache log output but does not document that intent in its function body, triggering Sonar's empty-function maintainability rule.",
+  "root_cause_de": "Der No-Op-Test-Harness-Wrapper verwirft absichtlich Apache-Log-Ausgabe, dokumentiert diese Intention aber nicht in seinem Funktionsbody und löst damit Sonars Empty-Function-Maintainability-Regel aus.",
+  "proposed_remediation": "Keep the minimal explanatory in-function comment without changing the wrapper's no-op behavior. Run a direct SonarQube Cloud analysis and issue query for resulting master before verified or closed status; do not infer those results from the PR receipt, tree identity, or master workflow success.",
+  "proposed_remediation_de": "Den minimalen erklärenden Kommentar innerhalb der Funktion ohne Änderung des No-Op-Verhaltens beibehalten. Vor verified- oder closed-Status eine direkte SonarQube-Cloud-Analyse und Issue-Abfrage für Resulting Master ausführen; diese Ergebnisse nicht aus PR-Receipt, Tree-Identität oder Master-Workflow-Erfolg ableiten.",
+  "acceptance_criteria": [
+    "The wrapper remains behaviorally inert and the focused APR harness passes.",
+    "Final PR #183 has a successful SonarQube Cloud analysis and PR-specific zero-open-issue receipt.",
+    "A direct resulting-master SonarQube Cloud analysis and issue query return zero relevant open/confirmed issues before verified or closed status."
+  ],
+  "validation_plan": [
+    "Retain the passed resulting-master make check-apache-ruleset-cleanup as behavior evidence for the wrapper/harness boundary.",
+    "Inspect the resulting-master source to confirm the wrapper behavior is unchanged apart from explanatory documentation.",
+    "Run direct resulting-master SonarQube Cloud analysis and open/confirmed issue query."
+  ],
+  "regression_tests": [
+    "make check-apache-ruleset-cleanup",
+    "tests/test_apache_rules_set_cleanup.py"
+  ],
+  "legitimate_control_tests": [
+    "The APR lifecycle harness retains expected exactly-once cleanup behavior."
+  ],
+  "dependencies": [
+    "Direct resulting-master SonarQube Cloud analysis and issue-query access before verified or closed disposition."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0008",
+    "FND-PARENT-0064",
+    "FND-PARENT-0070",
+    "FND-PARENT-0071"
+  ],
+  "source_run_ids": [
+    "draft-pr-183-sonar-observation-20260729",
+    "parent-pr183-resulting-master-20260729"
+  ],
+  "residual_risk": "The repair is merged and all 14 master-SHA workflows succeeded, but direct Sonar master analysis and issue-query evidence is missing. The PR-specific zero-open-issue receipt is not a master result. The finding is fixed, not verified or closed.",
+  "residual_risk_de": "Die Reparatur ist gemergt und alle 14 Master-SHA-Workflows waren erfolgreich, aber direkte Sonar-Master-Analyse- und Issue-Abfrage-Evidence fehlt. Der PR-spezifische Null-offene-Issues-Receipt ist kein Master-Ergebnis. Das Finding ist fixed, nicht verified oder closed.",
+  "created_at": "2026-07-29T10:45:45Z",
+  "updated_at": "2026-07-29T11:27:25Z",
+  "final_disposition": "fixed_resulting_master_154ee724eba4653fa6378fc3c8729ae433e65697_pending_direct_master_sonar_analysis_and_issue_query",
+  "history": [
+    {
+      "at": "2026-07-29T10:45:45Z",
+      "event": "draft_pr_183_open_sonar_c_s1186_observed",
+      "detail": "Parent observed an OPEN SonarQube Cloud c:S1186 issue while Quality Gate remained OK. A behavior-preserving explanatory comment was added locally but has not yet received a new exact-head Sonar analysis."
+    },
+    {
+      "at": "2026-07-29T10:45:45Z",
+      "event": "comment_only_c_s1186_repair_pushed_pending_sonar",
+      "detail": "Exact Draft PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 contains the behavior-neutral explanatory comment. Fresh PR-specific Sonar evidence is pending."
+    },
+    {
+      "at": "2026-07-29T11:06:58Z",
+      "event": "exact_pr_183_sonar_zero_open_issue_receipt_observed",
+      "detail": "Parent supplied fresh exact-head evidence: all required GitHub checks passed, SonarQube Cloud Quality Gate OK, direct PR issue API total=0, and zero review threads. The c:S1186 repair is fixed and no longer candidate-integration-blocking; only resulting-master reproduction remains before verified or closed disposition."
+    },
+    {
+      "at": "2026-07-29T11:27:25Z",
+      "event": "pr_183_resulting_master_delivery_reconciled",
+      "detail": "PR #183 merged as Parent master 154ee724eba4653fa6378fc3c8729ae433e65697 with tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0 equal to final head 4e4dfb36e1b05f7eda38450fd3710e3a04905118; all 14 master-SHA workflows succeeded. This does not establish a direct Sonar master analysis or issue query, so status remains fixed."
+    }
+  ]
+}

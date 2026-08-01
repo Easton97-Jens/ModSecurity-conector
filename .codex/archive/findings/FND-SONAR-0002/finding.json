@@ -1,0 +1,615 @@
+{
+  "id": "FND-SONAR-0002",
+  "title": "Framework SonarQube quality-gate failure is verified resolved on current master",
+  "title_de": "Framework-SonarQube-Quality-Gate-Fehler ist auf aktuellem Master verifiziert behoben",
+  "category": "sonarqube_finding",
+  "repository": "framework",
+  "ownership": "sonarqube_configuration",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "already_fixed",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md",
+    "tests/runners/synchronized_upstream.py:355",
+    "ci/reporting/generate-connector-work-queue.py:486",
+    "ci/checks/catalog/no_crs_baseline.py:1746",
+    "ci/reporting/update-runtime-snapshot.py:72",
+    "tests/runners/runner_core.py:636",
+    "tests/runners/case_cli.py:424",
+    "tools/MRTS/mrts/generate-rules.py:428,444",
+    "tools/MRTS/mrts/mrts.py:13,14,30,53,73,83"
+  ],
+  "affected_symbols": [
+    "Sonar check 87720680094",
+    "Security Rating E",
+    "Reliability Rating D",
+    "Reliability Rating A on efdbcbd98afeed0f39f8912ce1140aaa5742f507",
+    "Sonar check 88295589868",
+    "Sonar check 88203518811",
+    "Security Rating E on 4907f6ca6ea996f8d4bc6e426d7875bd4c0805d5",
+    "Security Rating C on f73f8842f45318e2df8aff1d31855eeb7c20a22f",
+    "Sonar check 89757305894",
+    "Security Rating C on 7e9a560f3acda65510c93f649b6ed4977e4cd6cb",
+    "19 current leak-period issues (9 VULNERABILITY; 10 CODE_SMELL)",
+    "14 open Sonar vulnerability signals (5 Framework-owned; 9 MRTS)",
+    "9 open read-only MRTS vulnerability signals on f73f8842f45318e2df8aff1d31855eeb7c20a22f",
+    "AZ84XDED2YUGB8FZMhlm",
+    "AZ84XDED2YUGB8FZMhln",
+    "AZ84XDDw2YUGB8FZMhle",
+    "AZ84XDDw2YUGB8FZMhlb",
+    "AZ84XDDw2YUGB8FZMhlY",
+    "AZ84XDDw2YUGB8FZMhlc",
+    "AZ84XDDw2YUGB8FZMhlZ",
+    "AZ84XDDw2YUGB8FZMhld",
+    "AZ84XDDw2YUGB8FZMhla",
+    "analysis 2ab6b2fe-32b1-486c-9b1d-bf5a66ee21e3",
+    "python:S5779",
+    "python:S3923"
+  ],
+  "summary": "The historical Framework default-branch SonarQube Cloud Quality-Gate failure is verified resolved on exact current master a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6. Bound analysis 2b78d1c9-9a3c-4497-a076-74c468eff0d8 reports Quality Gate OK, all five conditions passing, new duplication 0.0, and zero current leak-period open issues. The audit rechecked the original gate outcome and legitimate controls without a suppression, scanner/gate change, causal attribution, or Parent/Framework/MRTS source, Git, or Gitlink action. The record remains verified, not closed, for future regression reassessment.",
+  "summary_de": "Der historische Framework-Default-Branch-SonarQube-Cloud-Quality-Gate-Fehler ist auf exaktem aktuellem Master a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6 verifiziert behoben. Gebundene Analyse 2b78d1c9-9a3c-4497-a076-74c468eff0d8 meldet Quality Gate OK, fünf bestandene Bedingungen, neue Duplikation 0.0 und null aktuelle offene Leak-Period-Issues. Das Audit prüfte das ursprüngliche Gate-Ergebnis und legitime Controls ohne Suppression, Scanner-/Gate-Änderung, kausale Zuschreibung oder Parent-/Framework-/MRTS-Source-, Git- oder Gitlink-Aktion erneut. Der Record bleibt für künftige Regressions-Neubewertung verified, nicht closed.",
+  "current_reassessment": "At 2026-07-26T12:12:27Z, exact Framework master a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6 has bound SonarQube Cloud analysis 2b78d1c9-9a3c-4497-a076-74c468eff0d8 with Quality Gate OK, all five conditions passing, new duplication 0.0, and zero current leak-period open issues. This is sufficient verification that the original default-branch gate failure no longer reproduces; no causal attribution or repository action is claimed.",
+  "current_reassessment_de": "Am 2026-07-26T12:12:27Z hat exakter Framework-master a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6 die gebundene SonarQube-Cloud-Analyse 2b78d1c9-9a3c-4497-a076-74c468eff0d8 mit Quality Gate OK, fünf bestandenen Bedingungen, neuer Duplikation 0.0 und null aktuellen offenen Leak-Period-Issues. Dies verifiziert ausreichend, dass der ursprüngliche Default-Branch-Gate-Fehler nicht mehr reproduzierbar ist; es wird weder eine kausale Zuschreibung noch eine Repository-Aktion behauptet.",
+  "current_user_acceptance": "After the exact master-only FND-SONAR-0002 residual was presented, the current user directed ‘bringe pr 47 in den master’. This accepts only normal exact-head-protected Framework PR #47 delivery despite the documented New Security Rating C condition. Fresh PR-head checks, Sonar evidence, review/rules checks, and the normal merge method remain mandatory. It authorizes no Parent/MRTS action, direct push, bypass, suppression, scanner/gate change, finding closure, or future/general release waiver.",
+  "current_user_acceptance_de": "Nachdem das exakte master-only-FND-SONAR-0002-Restrisiko vorgelegt worden war, wies der aktuelle Nutzer an: ‘bringe pr 47 in den master’. Dies akzeptiert nur die normale exact-head-geschützte Framework-PR-#47-Delivery trotz der dokumentierten New-Security-Rating-C-Bedingung. Frische PR-Head-Checks, Sonar-Evidence, Review-/Regel-Prüfung und die normale Merge-Methode bleiben verpflichtend. Es autorisiert keine Parent-/MRTS-Aktion, keinen direkten Push, Bypass, Suppression, Scanner-/Gate-Änderung, Finding-Closure oder Waiver für künftige/allgemeine Releases.",
+  "pr47_postmerge_verification": "PR #47 was normally merged at 2026-07-26T11:26:19Z as bcb5b69f135c8b38b834e00e47b0369ae3bdb670. Its parents are reviewed base c27c644e088904b71b8380d16ee34f1b36f2c001 and exact PR head cb0b810e0770a0a4d10fa5bb08031e70ac9ad9a7; its tree equals the reviewed head tree. All result-master workflows bound to bcb5b69 passed, including CodeQL, lint, CI-security checks, common structure, OpenSSF, and the updater's read-only Framework validation. SonarCloud analysis bound to bcb5b69 failed solely on the accepted New Security Rating C residual. The acceptance is consumed for PR #47 only; FND-SONAR-0002 remains globally blocked. After that verification, GitHub event history attributes a separate later PR #49 merge to the Easton97-Jens account, not this session or GitHub Actions; master then advanced to ab7374e08f12f80b1e6a7224418e4e04ca19ddc6. PR #49 is out of scope and not validated here.",
+  "pr47_postmerge_verification_de": "PR #47 wurde am 2026-07-26T11:26:19Z normal als bcb5b69f135c8b38b834e00e47b0369ae3bdb670 gemergt. Seine Eltern sind die geprüfte Basis c27c644e088904b71b8380d16ee34f1b36f2c001 und der exakte PR-Head cb0b810e0770a0a4d10fa5bb08031e70ac9ad9a7; sein Tree entspricht dem geprüften Head-Tree. Alle an bcb5b69 gebundenen Resulting-Master-Workflows bestanden, einschließlich CodeQL, Lint, CI-Sicherheitschecks, Common Structure, OpenSSF und read-only-Framework-Validierung des Updaters. Die an bcb5b69 gebundene SonarCloud-Analyse scheiterte ausschließlich am akzeptierten New-Security-Rating-C-Restrisiko. Die Akzeptanz ist nur für PR #47 verbraucht; FND-SONAR-0002 bleibt global blocked. Nach dieser Verifikation schreibt GitHubs Ereignishistorie einen getrennten späteren PR-#49-Merge dem Konto Easton97-Jens zu, nicht dieser Sitzung oder GitHub Actions; master schritt danach auf ab7374e08f12f80b1e6a7224418e4e04ca19ddc6 fort. PR #49 liegt außerhalb des Scopes und wird hier nicht validiert.",
+  "observed_behavior": "At 2026-07-26T12:12:27Z, exact Framework master a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6 has bound SonarCloud analysis 2b78d1c9-9a3c-4497-a076-74c468eff0d8 with Quality Gate OK, all five conditions passing, new duplication 0.0, and zero current leak-period open issues. Historical failed-master observations are retained as history; the audit makes no causal attribution and changes no repository state.",
+  "observed_behavior_de": "Am 2026-07-26T12:12:27Z hat exakter Framework-master a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6 die gebundene SonarCloud-Analyse 2b78d1c9-9a3c-4497-a076-74c468eff0d8 mit Quality Gate OK, fünf bestandenen Bedingungen, neuer Duplikation 0.0 und null aktuellen offenen Leak-Period-Issues. Historische fehlgeschlagene Master-Beobachtungen bleiben als Historie erhalten; das Audit nimmt keine kausale Zuschreibung vor und ändert keinen Repository-Zustand.",
+  "expected_behavior": "The exact current Framework master Quality Gate is OK and its current leak-period open-issue query returns zero. The record stays verified rather than closed, so any later non-OK condition requires fresh evidence-based reassessment.",
+  "expected_behavior_de": "Das Quality Gate des exakten aktuellen Framework-masters ist OK und seine aktuelle Leak-Period-Open-Issue-Abfrage liefert null. Der Record bleibt verified statt closed, sodass jede spätere nicht-OK-Bedingung eine frische evidenzbasierte Neubewertung erfordert.",
+  "impact": "The historical default-branch Quality-Gate failure is no longer a P1 release blocker. This audit neither weakens a scanner or gate nor authorizes a future release waiver; unrelated findings retain their own lifecycle.",
+  "impact_de": "Der historische Default-Branch-Quality-Gate-Fehler ist kein P1-Release-Blocker mehr. Dieses Audit schwächt weder Scanner noch Gate und autorisiert keinen künftigen Release-Waiver; unabhängige Findings behalten ihren eigenen Lifecycle.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available.",
+    "SonarQube Cloud public API and GitHub check decoration remain readable for the exact current Framework SHA."
+  ],
+  "reproduction": [
+    "sed -n '187,196p;212,215p' .codex/reports/repository-full-assessment.md",
+    "Query current exact-master Actions, Sonar project-status, and issue inventory for Framework SHA 7e9a560f3acda65510c93f649b6ed4977e4cd6cb.",
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/9954b99a31fab0006cdf903ab477c8158c50fea8/check-runs",
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/36cac3029c735dddf9f717b3ce077b9285567a6a/check-runs",
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/4907f6ca6ea996f8d4bc6e426d7875bd4c0805d5/check-runs; rtk curl --fail --silent --show-error 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-test-Framework&branch=master'; rtk curl --fail --silent --show-error 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-test-Framework&branch=master&resolved=false&types=VULNERABILITY&ps=100'",
+    "rtk proxy -- gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/7e9a560f3acda65510c93f649b6ed4977e4cd6cb/check-runs; rtk proxy -- curl --fail --silent --show-error 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-test-Framework&branch=master'; rtk proxy -- curl --fail --silent --show-error 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-test-Framework&branch=master&statuses=OPEN%2CCONFIRMED&sinceLeakPeriod=true&ps=100'"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:187-196,212-215",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '187,196p;212,215p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260718T081746Z-framework-common-structure-d6ee7cec",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T081746Z-framework-common-structure-d6ee7cec/evidence/sonar-quality-gate-current.md",
+      "artifact_type": "current_sonarqube_cloud_gate_inventory",
+      "sha256": "659ef53f520c6d62a17d9b5860babdf183cd849baa057c7239d02b636c3bf418",
+      "command": "rtk curl --fail --silent --show-error 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-test-Framework&branch=master'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T09:20:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T081746Z-framework-common-structure-d6ee7cec",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T081746Z-framework-common-structure-d6ee7cec/evidence/pr-23-current.md",
+      "artifact_type": "pr_new_code_sonar_gate_disposition",
+      "sha256": "c28444cfdd989b9884e367f17e0540ccda9858a3bc10b24b26dd8293b500855d",
+      "command": "rtk gh pr view 23 --json statusCheckRollup; read-only PR metadata and review-thread inspection through RTK",
+      "working_directory": "/var/tmp/codex/worktrees/framework-common-structure",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T09:58:40Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/evidence/pr25-9954b99-post-merge-master-verification.md",
+      "artifact_type": "exact_framework_master_sonar_failure_after_authorized_pr25_merge",
+      "sha256": "fdda0551354ccc8cb28794a1f7ca8e35f6aa333a9d6272743e15e7e12aacca34",
+      "command": "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/9954b99a31fab0006cdf903ab477c8158c50fea8/check-runs --paginate; rtk gh run list --commit 9954b99a31fab0006cdf903ab477c8158c50fea8",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T09:52:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/analysis/sonar-master-risk-acceptance.md",
+      "artifact_type": "current_user_explicit_master_sonar_risk_acceptance",
+      "sha256": "109222be8968799f2fef2fa59c7172e2cf57cee3077446bc5472261664133679",
+      "command": "Current user instruction recorded verbatim in a payload-safe acceptance artifact; exact Framework master check readback retained separately.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T12:34:25Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/evidence/fnd-sonar-0002-36cac-master-reassessment.md",
+      "artifact_type": "exact_framework_master_sonar_risk_reassessment_after_authorized_pr26_merge",
+      "sha256": "e548fde741694abca18528f4836f68f1dfcd52e76d2dd45f2b8500ec68829ddf",
+      "command": "rtk gh pr view 26 --repo Easton97-Jens/ModSecurity-test-Framework --json state,mergedAt,mergeCommit,headRefOid,baseRefName,url,isDraft; rtk git -C /var/tmp/codex/ModSecurity-test-Framework/worktrees/fw-crs-ref-provenance fetch origin master; rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/36cac3029c735dddf9f717b3ce077b9285567a6a/check-runs",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T14:46:13Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "framework-pr-33-master-sonar-20260719T221823Z",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-test-Framework/commits/9a729226d2e040d07d7e7a4acebf201faf06ab37/check-runs",
+      "artifact_type": "external_sonarqube_cloud_current_master_gate_reassessment",
+      "sha256": null,
+      "command": "rtk gh api 'repos/Easton97-Jens/ModSecurity-test-Framework/commits/9a729226d2e040d07d7e7a4acebf201faf06ab37/check-runs'; rtk curl --fail --silent --show-error 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-test-Framework&branch=master'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T22:18:45Z",
+      "retention_status": "not_retained_external_api_readback",
+      "summary": "Exact master 9a729226d2e040d07d7e7a4acebf201faf06ab37 has a completed failed SonarCloud Code Analysis check. The public gate reports ERROR: new_reliability_rating actual 4 (D) and new_security_rating actual 5 (E); new_duplicated_lines_density 0.4 and hotspot review 100.0 pass."
+    },
+    {
+      "run_id": "20260720T042405Z-framework-pr-34-master-integration-31a1528d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T042405Z-framework-pr-34-master-integration-31a1528d/evidence/master-postmerge-verification.md",
+      "artifact_type": "exact_framework_master_sonar_failure_after_pr34_merge",
+      "sha256": "7471054c232a5e2ad26c3327894535ff9d2245e3ec0f37ec60e077a57caea19a",
+      "command": "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/3d6f51a2a2eeff6f3bcecff203f1e6ed1e240e4f/check-runs --paginate; rtk curl --fail --silent --show-error 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-test-Framework&branch=master'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T04:52:04Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Exact master 3d6f51a2a2eeff6f3bcecff203f1e6ed1e240e4f has a completed failed SonarQube Cloud check. The public gate reports ERROR: new_reliability_rating actual 4 (D) and new_security_rating actual 5 (E); new_duplicated_lines_density 0.4 and hotspot review 100.0 pass. Exact PR #34 head 4fc22651ab2da652cbcaa7026258506d79b9af9c passed its separate Quality Gate."
+    },
+    {
+      "run_id": "framework-pr-30-master-sonar-20260720T073135Z",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-test-Framework/commits/efdbcbd98afeed0f39f8912ce1140aaa5742f507/check-runs; https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-test-Framework&branch=master",
+      "artifact_type": "external_sonarqube_cloud_current_master_gate_reassessment",
+      "sha256": null,
+      "command": "rtk proxy gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/efdbcbd98afeed0f39f8912ce1140aaa5742f507/check-runs --paginate; rtk curl --fail --silent --show-error 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-test-Framework&branch=master'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T07:31:35Z",
+      "retention_status": "not_retained_external_api_readback",
+      "summary": "After PR #30 was normally merged at 2026-07-20T07:30:40Z, exact master efdbcbd98afeed0f39f8912ce1140aaa5742f507 has completed failed SonarQube Cloud Check Run 88295589868 at 2026-07-20T07:31:35Z solely on new_security_rating actual 5 (E). New reliability is actual 1 (A); duplication and hotspot-review conditions pass. PR #30's exact head passed its separate Quality Gate and all six resulting-master GitHub Actions workflows succeeded. The preceding master 3d6f51a2a2eeff6f3bcecff203f1e6ed1e240e4f already had Security E, so no causal attribution to PR #30 is made."
+    },
+    {
+      "run_id": "20260720T113905Z-framework-pr35-36-integration-de98515c",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T113905Z-framework-pr35-36-integration-de98515c/analysis/master-sonar-after-pr35.json",
+      "artifact_type": "exact_framework_master_sonar_reassessment_after_pr35_merge",
+      "sha256": "7b62f2b918059d816fcfccafcbff16fdd6e1f92d33191862c406d22d414df988",
+      "command": "GitHub exact-master ref/workflow readback and public SonarQube Cloud project-status and issue-inventory endpoints through RTK",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T12:03:31Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "After PR #35 merge, exact master 4907f6ca6ea996f8d4bc6e426d7875bd4c0805d5 returned Quality Gate ERROR solely on new_security_rating actual 5 (E). Reliability and maintainability were A, duplication was 0.0, hotspot review was 100.0, and all six exact-master Actions workflows passed. The public inventory has 14 untriaged vulnerability signals: five Framework-owned and nine MRTS. The prior master already had Security E, so no causal attribution to PR #35 is made."
+    },
+    {
+      "run_id": "20260720T113905Z-framework-pr35-36-integration-de98515c",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T113905Z-framework-pr35-36-integration-de98515c/analysis/pr36-master-sonar-risk-acceptance.md",
+      "artifact_type": "current_user_bounded_master_sonar_risk_acceptance_for_framework_pr36",
+      "sha256": "5e280a0b832b7ecef6109f297602c137fe3fdb3b2687252163a0b774769fb162",
+      "command": "Current user directly instructed Framework PR #36 integration after the exact master-only Sonar risk was presented; Codex retained the narrow acceptance verbatim and structurally bounded it.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T12:50:36Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The current user conditionally authorized only protected Framework PR #36 integration despite the documented master-only Security E gate. Fresh #36 exact-head CI, Sonar, review, conflict, documentation, and security controls remain mandatory; no Parent or MRTS action, direct push, bypass, gate weakening, or broader release acceptance is authorized."
+    },
+    {
+      "run_id": "20260720T113905Z-framework-pr35-36-integration-de98515c",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T113905Z-framework-pr35-36-integration-de98515c/analysis/master-sonar-after-pr36.json",
+      "artifact_type": "exact_framework_master_sonar_reassessment_after_pr36_merge_under_bounded_acceptance",
+      "sha256": "5ba2c4ea093419fcf6b1b066c85dd37b7d2a08b29ee23525119e641d2e0093ef",
+      "command": "RTK GitHub exact-master PR/ref/check-run readback and public SonarQube Cloud project-status query after protected PR #36 merge",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T13:08:16Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Protected Framework PR #36 exact head 1608352912a755f0f8639eddfa2350436446067e merged normally as master 784977615acfc55567e37b863309abc4a38ac877. The new master SonarQube Cloud check failed solely on new_security_rating actual 5 (E) against threshold 1; reliability and maintainability were A, duplication 0.0, and hotspot review 100.0. CodeQL actions/python/C++, lint, test-common, and OpenSSF passed; the non-PR pull-request-head job was intentionally skipped. The preceding master 4907f6ca6ea996f8d4bc6e426d7875bd4c0805d5 already had the same Security E condition. The observed result is exactly the current user's bounded master-only acceptance for this protected delivery; it neither closes nor reduces the global backlog."
+    },
+    {
+      "run_id": "20260721T060210Z-framework-pr-37-master-integration-6be553a4",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T060210Z-framework-pr-37-master-integration-6be553a4/analysis/postmerge-master-sonar-triage.md",
+      "artifact_type": "exact_framework_master_sonar_reassessment_and_read_only_mrts_claim_triage_after_pr37_merge",
+      "sha256": "a9a312f1ba760030ceb45644ced6b0d533fe01b9a4d2f8e19c1e832dc54b5830",
+      "command": "RTK GitHub PR/master/check-run readback; public SonarQube Cloud project-status and issue queries; static MRTS source triage; exact gitlink/boundary checks",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T07:28:49Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "PR #37 exact source 1e9fa0d22639517193d450b05eb7b07193e41257 merged normally as Framework master f73f8842f45318e2df8aff1d31855eeb7c20a22f. All applicable resulting-master Actions and CodeQL checks passed, but SonarCloud failed solely on New Security Rating C (actual 3, threshold 1). Nine open gate-driving signals are all below unchanged read-only MRTS, predate PR #37, and are needs_review after static claim-specific triage; no PR #37 causality, MRTS mutation, risk acceptance, suppression, or gate weakening is asserted."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/fnd-sonar-0002-pr42-risk-acceptance.md",
+      "artifact_type": "current_user_bounded_master_sonar_risk_acceptance_for_framework_pr42",
+      "sha256": "5f087611098d039da1c73f128bc442efecf24f25df9f145fcef2a97ec6107642",
+      "command": "Current user explicitly directed that FND-SONAR-0002 be left out for Framework PR #42 integration; RTK-wrapped current public SonarQube Cloud master gate and GitHub exact-master suite readback retained the exact residual condition.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T07:01:16Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The current user accepts only the documented Framework master f73f8842f45318e2df8aff1d31855eeb7c20a22f SonarQube Cloud Security C condition for normal protected PR #42 integration. The nine read-only MRTS signals remain needs_review and may be real in another trust context; the acceptance waives no PR-head check, Cloudflare disposition, merge method, Parent/MRTS action, control change, future condition, or finding closure."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-20260723-postmerge-verification.md",
+      "artifact_type": "exact_framework_master_sonar_reassessment_after_pr42_merge_under_bounded_acceptance",
+      "sha256": "0a0421f70cf39df8f6f31ef12b4a461f05bd9875fb61775094c5031aef489ce1",
+      "command": "RTK GitHub PR/master/ref/workflow/check-suite readback and public SonarQube Cloud exact-revision analysis and Quality Gate query after normal SHA-bound PR #42 merge",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T07:51:09Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Framework PR #42 exact head dc6cf411e78b3f37f1e4be52edef59894560b1ae merged normally as exact master 935cf14c676a24672be5c336e92cd13457cc35c8. Eight exact-master GitHub Actions workflows succeeded. SonarQube Cloud analysis dda3ea04-2721-4ee6-a9c1-74bd2925f139 is bound to that exact revision and failed solely on new_security_rating C (actual 3, threshold 1); reliability and maintainability are A, duplication is 0.0, and hotspot review is 100.0. This confirms the same bounded PR #42 delivery residual, not a false positive, closure, or general release acceptance."
+    },
+    {
+      "run_id": "20260723T092456Z-framework-sonarqube-test-issues-507-10387697",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T092456Z-framework-sonarqube-test-issues-507-10387697/evidence/framework-pr43-postmerge-master-verification.md",
+      "artifact_type": "exact_framework_master_sonar_reassessment_after_pr43_merge_without_risk_acceptance",
+      "sha256": "d8a63662d10def3118b5795c90474a0c63ab9a96a82d5e93debb8436c79bd79c",
+      "command": "GitHub exact-head protected normal merge and master workflow/check readback plus SonarQube Cloud exact-revision quality-gate and vulnerability/S3415 issue queries",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T11:25:34Z",
+      "retention_status": "task_owned_retained_evidence",
+      "summary": "Framework PR #43 exact head 4c55bb2855b8e0196fe54cb0c6f90f43aa993962 merged normally as exact master f98a8739cb13b583f23d646784b144e596b61441. SonarQube Cloud analysis 77e255d6-17a2-4e8a-bb29-6438e91e6fa8 is bound to that revision and failed solely on new_security_rating C (actual 3, threshold 1). Reliability and maintainability are A, duplication is 0.0, hotspot review is 100.0, four applicable master workflows succeeded, and the open inventory has nine read-only MRTS vulnerability signals plus zero python:S3415 issues. The PR #42-only acceptance does not cover this delivery or resulting master."
+    },
+    {
+      "run_id": "20260723T201023Z-framework-pr44-review-master-integration-2a51bd2a",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T201023Z-framework-pr44-review-master-integration-2a51bd2a/evidence/pr44-master-sonar-risk-acceptance-retained.md",
+      "artifact_type": "current_user_bounded_master_sonar_risk_acceptance_for_framework_pr44",
+      "sha256": "bd07be75f13798ab168cfb6994961c453a035b9781ab657cb72a69d0b1302819",
+      "command": "Current user replied 'ja' directly to the presented exact question accepting the current master-only FND-SONAR-0002 residual for normal exact-head-protected Framework PR #44 delivery.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T03:51:41Z",
+      "retention_status": "task_owned_retained_evidence",
+      "summary": "The acceptance is limited to Framework PR #44 and the documented current master-only Security C residual. It does not waive PR-head controls, exact-head protection, post-merge verification, Parent/MRTS boundaries, scanner controls, future delivery, or finding closure."
+    },
+    {
+      "run_id": "20260723T201023Z-framework-pr44-review-master-integration-2a51bd2a",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T201023Z-framework-pr44-review-master-integration-2a51bd2a/evidence/pr44-final-premerge-readback.md",
+      "artifact_type": "framework_pr44_final_premerge_and_current_master_sonar_readback",
+      "sha256": "d677a3638802a06251d91b3d1d2f00634bd34814baf041eb1c472619d9efaf2c",
+      "command": "RTK GitHub PR/head/review/check/ruleset reads and public SonarQube Cloud current-master Quality Gate and issue-inventory queries.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T03:56:04Z",
+      "retention_status": "task_owned_retained_evidence",
+      "summary": "PR #44 exact head 3b67efb8534fb56a93f085897417ada449ff1a39 remains clean and its SonarQube Cloud PR gate passes. Pre-merge master f98a8739cb13b583f23d646784b144e596b61441 still fails solely on Security C (actual 3, threshold 1); the current public issue API reports nine open vulnerability signals."
+    },
+    {
+      "run_id": "20260723T201023Z-framework-pr44-review-master-integration-2a51bd2a",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T201023Z-framework-pr44-review-master-integration-2a51bd2a/evidence/pr44-resulting-master-verification.md",
+      "artifact_type": "framework_pr44_resulting_master_exact_head_and_sonar_reassessment",
+      "sha256": "71228129d8b0a24706a35219fb568679ef7be0e7a47a615cb7f5abcc167c1f3f",
+      "command": "RTK GitHub PR/resulting-master/check-run reads, isolated exact-tree/ancestry validation, public SonarQube Cloud Quality Gate and issue-inventory queries, and Parent/Framework/MRTS boundary status reads.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T04:16:09Z",
+      "retention_status": "task_owned_retained_evidence",
+      "summary": "PR #44 exact head 3b67efb8534fb56a93f085897417ada449ff1a39 normally merged as Framework master 4c9753291d26d92f2d7e51ae425dedb79666fd5e. The merge tree equals the reviewed head. Resulting-master CodeQL, lint, common-structure, and advisory checks pass; SonarCloud fails solely on Security C (actual 3, threshold 1), while the public inventory remains nine needs_review read-only MRTS signals."
+    },
+    {
+      "run_id": "20260726T050327Z-framework-pr45-master-integration",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T050327Z-framework-pr45-master-integration/evidence/postmerge-master-verification.md",
+      "artifact_type": "framework_pr45_resulting_master_verification_and_sonar_reassessment",
+      "sha256": "21a8bb0c5cf83ac6ca0156d3285e5829ca1d871754dc9019516844ef9c94695d",
+      "command": "RTK GitHub PR/ref/tree/compare/check-run reads and public SonarQube Cloud quality-gate and leak-period issue-inventory queries after normal exact-head-protected PR #45 merge.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T05:03:27Z",
+      "retention_status": "sealed_local_evidence",
+      "summary": "PR #45 exact head dd7e221d903a7e2e0a59af203ba312dfca55d69c normally merged as exact Framework master 7e9a560f3acda65510c93f649b6ed4977e4cd6cb with an identical merge tree. Applicable resulting-master checks pass; SonarCloud fails solely on New Security Rating C (actual 3, threshold 1). The current leak-period inventory has 19 open/confirmed records, including the same nine read-only MRTS VULNERABILITY keys and ten CODE_SMELL records. No PR-#45-specific risk acceptance was requested or inferred."
+    },
+    {
+      "run_id": "20260726T051835Z-framework-pr45-boundary-snapshot",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T051835Z-framework-pr45-boundary-snapshot/evidence/final-boundary-snapshot.md",
+      "artifact_type": "framework_pr45_final_parent_framework_mrts_boundary_snapshot",
+      "sha256": "07da9852d035d0be72a3260258d0d05b350d7a1b1e49c5acd7e6f229f39b13d9",
+      "command": "RTK read-only Parent/Framework/MRTS status, gitlink, commit, diff-stat, path, and mtime reads after the PR #45 merge.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T05:18:35Z",
+      "retention_status": "sealed_local_evidence",
+      "summary": "Parent's recorded Framework gitlink and embedded/MRTS commits remain unchanged by the task. A final snapshot preserves three unattributed dirty MRTS working-tree files; no task command wrote, restored, staged, or otherwise modified them."
+    },
+    {
+      "run_id": "20260726T115300Z-framework-pr48-master-integration",
+      "artifact_path": ".codex/runs/20260726T115300Z-framework-pr48-master-integration/evidence/framework-pr48-master-integration.md",
+      "artifact_type": "exact_framework_master_sonarqube_quality_gate_and_leak_period_reassessment",
+      "sha256": "2460d2f15a027e79f08aee120ce487a6ff2714d882fa46b15786d2615d43c7c3",
+      "command": "Read-only exact-master GitHub ref/workflow readback and SonarQube Cloud project-analysis, Quality-Gate, and leak-period open-issue queries.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T12:12:27Z",
+      "retention_status": "retained_local_evidence",
+      "summary": "Exact Framework master a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6 has bound analysis 2b78d1c9-9a3c-4497-a076-74c468eff0d8 with Quality Gate OK, all five conditions passing, new duplication 0.0, and zero current leak-period open issues."
+    }
+  ],
+  "root_cause": "Historical master revisions had a SonarQube Cloud Quality-Gate failure. Current retained exact-master evidence proves that the same externally evaluated control now passes; the audit does not establish which intervening change caused the improvement.",
+  "root_cause_de": "Historische Master-Revisionen hatten einen SonarQube-Cloud-Quality-Gate-Fehler. Aktuelle zurückgehaltene Exact-Master-Evidence belegt, dass dieselbe extern ausgewertete Kontrolle nun besteht; das Audit ermittelt nicht, welche intervenierende Änderung die Verbesserung verursachte.",
+  "proposed_remediation": "No remediation is authorized or required for this verified historical Quality-Gate failure. Reassess only if a later exact Framework master analysis becomes non-OK or reports current leak-period open issues, without weakening controls.",
+  "proposed_remediation_de": "Für diesen verifizierten historischen Quality-Gate-Fehler ist keine Remediation autorisiert oder erforderlich. Nur neu bewerten, wenn eine spätere exakte Framework-Master-Analyse nicht OK ist oder aktuelle offene Leak-Period-Issues meldet, ohne Controls abzuschwächen.",
+  "acceptance_criteria": [
+    "The exact current Framework master Quality Gate passes.",
+    "The current leak-period open-issue query returns zero.",
+    "Retained revision-bound evidence records the exact SHA, analysis, and result without a suppression or control change."
+  ],
+  "validation_plan": [
+    "Read back the exact current Framework master SHA and bound SonarCloud analysis.",
+    "Verify Quality Gate OK, all conditions passing, and zero current leak-period open issues.",
+    "Reassess only after a later external master condition changes."
+  ],
+  "regression_tests": [
+    "Add a claim-specific regression only after a validated individual Sonar finding is selected for remediation."
+  ],
+  "legitimate_control_tests": [
+    "Preserve passing maintainability, duplication, and hotspot-review gate conditions while remediating a selected issue."
+  ],
+  "dependencies": [
+    "FND-FRAMEWORK-0001 common-structure repair is separate and cannot remediate this Quality Gate backlog."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0001",
+    "FND-CROSS-0005"
+  ],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260718T081746Z-framework-common-structure-d6ee7cec",
+    "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+    "framework-pr-33-master-sonar-20260719T221823Z",
+    "20260720T042405Z-framework-pr-34-master-integration-31a1528d",
+    "framework-pr-30-master-sonar-20260720T073135Z",
+    "20260720T113905Z-framework-pr35-36-integration-de98515c",
+    "20260721T060210Z-framework-pr-37-master-integration-6be553a4",
+    "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+    "20260723T092456Z-framework-sonarqube-test-issues-507-10387697",
+    "20260723T201023Z-framework-pr44-review-master-integration-2a51bd2a",
+    "20260726T050327Z-framework-pr45-master-integration",
+    "20260726T051835Z-framework-pr45-boundary-snapshot",
+    "20260726T115300Z-framework-pr48-master-integration"
+  ],
+  "risk_acceptance": {
+    "accepted_at": "2026-07-19T12:34:25Z",
+    "accepted_by": "current_user",
+    "decision_text": "SonarCloud Code Analysis auf dem master kannst du ignorieren.",
+    "scope": "Framework-only sequential reconciliation of PRs #24, #26, #27, and #29; initially assessed at master 9954b99a31fab0006cdf903ab477c8158c50fea8 and reassessed at the authorized PR #26 merge result 36cac3029c735dddf9f717b3ce077b9285567a6a.",
+    "accepted_condition": "The known failed SonarCloud Code Analysis condition on resulting Framework master revisions may remain unresolved only while the named PRs are sequentially corrected and integrated under the current user authorization.",
+    "residual_risk": "Untriaged SonarQube Cloud security and reliability signals on those accepted master revisions may represent real defects.",
+    "not_waived": [
+      "SonarCloud checks for newly pushed PR heads",
+      "other CI, review, security, documentation, conflict, and exact-head requirements",
+      "Parent gitlink delivery",
+      "MRTS read-only boundary"
+    ],
+    "reassessment_triggers": [
+      "Framework master SHA changes",
+      "SonarCloud master gate result changes",
+      "task scope expands beyond PR reconciliation"
+    ]
+  },
+  "current_task_risk_acceptance": {
+    "accepted_at": "2026-07-23T07:01:16Z",
+    "accepted_by": "current_user",
+    "decision_text": "kannst den FND-SONAR-0002 ausen vor lassen und den pr 42 in den master übernehmen",
+    "scope": "Framework repository only; normal protected delivery of current PR #42 only, against current master f73f8842f45318e2df8aff1d31855eeb7c20a22f and only after fresh exact-head verification.",
+    "scope_de": "Nur Framework-Repository; nur normale geschützte Delivery des aktuellen PR #42 gegen aktuellen Master f73f8842f45318e2df8aff1d31855eeb7c20a22f und nur nach frischer Exact-Head-Verifikation.",
+    "accepted_condition": "The documented master-only SonarQube Cloud Quality Gate ERROR solely on new_security_rating actual 3 against threshold 1, with nine pre-existing read-only MRTS signals that remain needs_review, may remain unresolved for this exact protected PR #42 integration.",
+    "accepted_condition_de": "Das dokumentierte master-only-SonarQube-Cloud-Quality-Gate ERROR ausschließlich auf new_security_rating Actual 3 gegen Threshold 1 mit neun vorbestehenden read-only-MRTS-Signalen, die needs_review bleiben, darf für diese exakte geschützte PR-#42-Integration ungelöst bleiben.",
+    "not_waived": [
+      "fresh PR #42 exact-head SonarQube Cloud, GitHub Actions, CodeQL, review, conflict, documentation, security, and exact-head requirements",
+      "FND-GITHUB-0007 Cloudflare disposition and a repository-approved merge-method decision",
+      "direct master push, force-push, admin bypass, auto-merge, branch-rule bypass, suppression, Quality Gate change, or scanner weakening",
+      "Parent product/gitlink/delivery and MRTS modification or Git operations",
+      "FND-SONAR-0002 closure, a general release acceptance, future PRs, or future master conditions"
+    ],
+    "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/fnd-sonar-0002-pr42-risk-acceptance.md",
+    "artifact_sha256": "5f087611098d039da1c73f128bc442efecf24f25df9f145fcef2a97ec6107642",
+    "reassessment_triggers": [
+      "Framework master SHA or current master SonarQube Cloud condition changes",
+      "PR #42 head SHA, base, diff, review, or required check changes",
+      "scope expands beyond protected Framework PR #42 integration"
+    ]
+  },
+  "current_task_risk_acceptance_pr44": {
+    "accepted_at": "2026-07-24T03:51:41Z",
+    "accepted_by": "current_user",
+    "decision_text": "ja",
+    "decision_context": "Direct response to the exact request to accept the current master-only FND-SONAR-0002 residual for Framework PR #44 and allow a normal merge commit.",
+    "scope": "Framework repository only; normal exact-head-protected delivery of current PR #44 only, whose fresh reviewed head is 3b67efb8534fb56a93f085897417ada449ff1a39, against current master f98a8739cb13b583f23d646784b144e596b61441.",
+    "scope_de": "Nur Framework-Repository; nur normale exact-head-geschützte Delivery des aktuellen PR #44 mit frisch geprüftem Head 3b67efb8534fb56a93f085897417ada449ff1a39 gegen aktuellen Master f98a8739cb13b583f23d646784b144e596b61441.",
+    "accepted_condition": "The documented master-only SonarQube Cloud Quality Gate ERROR solely on new_security_rating actual 3 against threshold 1, with nine read-only MRTS signals that remain needs_review, may remain unresolved only for this exact normal PR #44 integration.",
+    "accepted_condition_de": "Das dokumentierte master-only-SonarQube-Cloud-Quality-Gate ERROR ausschließlich auf new_security_rating Actual 3 gegen Threshold 1 mit neun read-only-MRTS-Signalen, die needs_review bleiben, darf nur für diese exakte normale PR-#44-Integration ungelöst bleiben.",
+    "not_waived": [
+      "fresh PR #44 exact-head SonarQube Cloud, GitHub Actions, CodeQL, review, conversation, conflict, documentation, Change Record, security, and exact-head requirements",
+      "normal merge protection, current ruleset/protection controls, and post-merge master verification",
+      "direct master push, force-push, admin bypass, auto-merge, branch-rule bypass, suppression, Quality Gate change, or scanner weakening",
+      "Parent product/gitlink/delivery and MRTS modification or Git operations",
+      "FND-SONAR-0002 closure, a general release acceptance, future PRs, changed PR heads, or future master conditions"
+    ],
+    "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T201023Z-framework-pr44-review-master-integration-2a51bd2a/evidence/pr44-master-sonar-risk-acceptance-retained.md",
+    "artifact_sha256": "bd07be75f13798ab168cfb6994961c453a035b9781ab657cb72a69d0b1302819",
+    "delivery_result": {
+      "merged_at": "2026-07-24T04:11:49Z",
+      "merge_commit": "4c9753291d26d92f2d7e51ae425dedb79666fd5e",
+      "resulting_master": "4c9753291d26d92f2d7e51ae425dedb79666fd5e",
+      "method": "normal GitHub merge commit with --match-head-commit protection",
+      "tree_equals_reviewed_head": true,
+      "postmerge_artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T201023Z-framework-pr44-review-master-integration-2a51bd2a/evidence/pr44-resulting-master-verification.md",
+      "postmerge_artifact_sha256": "71228129d8b0a24706a35219fb568679ef7be0e7a47a615cb7f5abcc167c1f3f",
+      "result": "Completed under the bounded acceptance; resulting-master checks pass except the same documented master-only Security C Sonar Quality Gate condition. The global finding remains blocked."
+    },
+    "reassessment_triggers": [
+      "Framework master SHA or current master SonarQube Cloud condition changes",
+      "PR #44 head SHA, base, diff, review, or required check changes",
+      "scope expands beyond protected Framework PR #44 integration"
+    ]
+  },
+  "delivery_result": {
+    "completed_at": "2026-07-26T04:53:10Z",
+    "pull_request": 45,
+    "pr_head": "dd7e221d903a7e2e0a59af203ba312dfca55d69c",
+    "prior_master": "77d73decd094a8f289fbe0ef2582f12430923e24",
+    "resulting_master": "7e9a560f3acda65510c93f649b6ed4977e4cd6cb",
+    "method": "normal GitHub merge commit with exact-head protection",
+    "tree_equals_reviewed_head": true,
+    "master_sonar_disposition": "The observed Security C-only Quality Gate ERROR is independently confirmed on the resulting master. No PR-#45-specific current-user risk acceptance was requested, inferred, or used; the global finding remains blocked and does not close.",
+    "parent_or_mrts_changed": false
+  },
+  "latest_reassessment": {
+    "at": "2026-07-26T12:12:27Z",
+    "resulting_master": "a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6",
+    "sonar_analysis": "2b78d1c9-9a3c-4497-a076-74c468eff0d8",
+    "result": "Quality Gate OK; all five conditions pass; new duplication 0.0; current leak-period open issue count 0",
+    "artifact_path": ".codex/runs/20260726T115300Z-framework-pr48-master-integration/evidence/framework-pr48-master-integration.md",
+    "artifact_sha256": "2460d2f15a027e79f08aee120ce487a6ff2714d882fa46b15786d2615d43c7c3",
+    "scope": "Verification-only audit of the historical FND-SONAR-0002 condition; no causal attribution, scanner/gate change, suppression, Parent action, Framework source/Git action, MRTS action, or Gitlink action occurred."
+  },
+  "residual_risk": "The passing state is observed only for exact master a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6 and its bound analysis 2b78d1c9-9a3c-4497-a076-74c468eff0d8. A later external change can reintroduce a gate failure. This audit neither classifies historic scanner signals as false positives nor attributes the current passing state to a particular change.",
+  "residual_risk_de": "Der Passing-Zustand ist nur für exakten Master a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6 und seine gebundene Analyse 2b78d1c9-9a3c-4497-a076-74c468eff0d8 beobachtet. Eine spätere externe Änderung kann einen Gate-Fehler wieder einführen. Dieses Audit klassifiziert historische Scanner-Signale weder als False Positives noch schreibt es den aktuellen Passing-Zustand einer bestimmten Änderung zu.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-26T12:12:27Z",
+  "final_disposition": "verified_current_framework_master_sonarqube_quality_gate_and_leak_period_rechecked",
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-18T09:27:57Z",
+      "event": "current_task_direct_sonar_inventory",
+      "detail": "Direct current-SHA gate/issue evidence was retained. The gate is confirmed independent of common-structure; its multi-file remediation is not mixed into that patch."
+    },
+    {
+      "at": "2026-07-18T09:58:40Z",
+      "event": "pr_new_code_gate_distinguished",
+      "detail": "Exact Draft PR #23 head passed SonarCloud with zero new issues/hotspots. This does not remediate the default-branch E/D backlog, but proves it does not block the PR's verified status."
+    },
+    {
+      "at": "2026-07-19T09:52:00Z",
+      "event": "current_master_gate_reconfirmed_after_pr25_merge",
+      "detail": "Framework master 9954b99a31fab0006cdf903ab477c8158c50fea8 again has a failed SonarCloud Code Analysis check while lint, test-common/common-structure, and CodeQL are successful. The retained receipt does not attribute the existing multi-file backlog to the NGINX provenance merge; status remains blocked."
+    },
+    {
+      "at": "2026-07-19T12:34:25Z",
+      "event": "current_user_risk_acceptance_for_pr_reconciliation_only",
+      "detail": "The current user explicitly accepted the failed SonarCloud Code Analysis check on Framework master 9954b99a31fab0006cdf903ab477c8158c50fea8 for correcting PRs #24, #26, #27, and #29. The acceptance records that untriaged security/reliability signals may be real defects and waives neither new PR-head Sonar checks nor any other CI/review/security gate, master merge, Parent delivery, or MRTS protection."
+    },
+    {
+      "at": "2026-07-19T14:46:13Z",
+      "event": "master_sonar_risk_reassessed_after_authorized_pr26_merge",
+      "detail": "Exact Framework master 36cac3029c735dddf9f717b3ce077b9285567a6a again failed SonarCloud Check Run 88203518811 with Security E and Reliability D while CodeQL, common-structure, and scaffold-lint passed. The active user-authorized sequential reconciliation scope was re-evaluated and retains only this master-only residual risk; fresh PR-head Sonar gates and all other controls remain mandatory."
+    },
+    {
+      "at": "2026-07-19T22:18:45Z",
+      "event": "master_sonar_reassessed_after_pr33_python313_merge_scope_not_extended",
+      "detail": "Exact Framework master 9a729226d2e040d07d7e7a4acebf201faf06ab37 again has a failed SonarCloud Code Analysis check. The public gate reports New Reliability D (actual 4) and New Security E (actual 5), while duplication and hotspot review pass. PR #33's exact head passed its separate Quality Gate and the master Actions/CodeQL workflows pass, so no causal attribution is made to the Python-3.13 repair. The stored user acceptance names only PRs #24, #26, #27, and #29; no automatic extension to PR #33 is inferred."
+    },
+    {
+      "at": "2026-07-20T04:52:04Z",
+      "event": "master_sonar_reassessed_after_pr34_phase4_identity_merge_scope_not_extended",
+      "detail": "Exact Framework master 3d6f51a2a2eeff6f3bcecff203f1e6ed1e240e4f again has a failed SonarQube Cloud check. The public gate reports New Reliability D (actual 4) and New Security E (actual 5), while duplication and hotspot review pass. PR #34's exact head passed its separate Quality Gate and the master Actions/CodeQL workflows pass, so no causal attribution is made to the Phase-4 identity remediation. The stored user acceptance names only PRs #24, #26, #27, and #29; no automatic extension to PR #34 is inferred, and the finding returns to blocked for new master-integration verification."
+    },
+    {
+      "at": "2026-07-20T07:31:35Z",
+      "event": "master_sonar_reassessed_after_pr30_merge_scope_not_extended",
+      "detail": "After PR #30 was normally merged at 2026-07-20T07:30:40Z, exact Framework master efdbcbd98afeed0f39f8912ce1140aaa5742f507 failed Check Run 88295589868 solely on New Security Rating E (actual 5); Reliability is A (actual 1). PR #30's exact head and all six resulting-master GitHub Actions workflows passed. The preceding master already failed Security E, so no causal attribution to PR #30 is made and the stored user acceptance is not extended. No Parent or MRTS change occurred."
+    },
+    {
+      "at": "2026-07-20T12:03:31Z",
+      "event": "master_sonar_reassessed_after_pr35_merge_scope_not_extended",
+      "detail": "After PR #35 was normally merged at 2026-07-20T11:57:54Z, exact Framework master 4907f6ca6ea996f8d4bc6e426d7875bd4c0805d5 returned Quality Gate ERROR solely on New Security Rating E (actual 5); Reliability and Maintainability were A, duplication was 0.0, hotspot review was 100.0, and all six exact-master Actions workflows passed. The public inventory has 14 untriaged vulnerability signals (five Framework-owned and nine MRTS). The preceding master already had Security E, so no causal attribution to PR #35 is made and the stored acceptance is not extended to PR #35 or PR #36. No Parent or MRTS change occurred."
+    },
+    {
+      "at": "2026-07-20T12:50:36Z",
+      "event": "current_user_bounded_risk_acceptance_for_pr36_master_integration",
+      "detail": "After the exact current master-only Sonar result was presented, the user directly instructed integration of Framework PR #36. The retained acceptance conditionally authorizes only this protected PR #36 integration after normal refresh and fresh exact-head CI, Sonar, review, conflict, documentation, and security evidence. It waives no PR-head control, direct push/bypass, Parent/MRTS work, general release delivery, future condition, or finding closure."
+    },
+    {
+      "at": "2026-07-20T13:08:16Z",
+      "event": "protected_pr36_integration_completed_master_sonar_reassessed_under_bounded_acceptance",
+      "detail": "Framework PR #36 exact head 1608352912a755f0f8639eddfa2350436446067e was normally merged with exact-head protection as master 784977615acfc55567e37b863309abc4a38ac877. Fresh PR-head Actions, CodeQL, Sonar Quality Gate, documentation, review, and conflict controls passed before merge. Resulting-master CodeQL actions/python/C++, lint, test-common, and OpenSSF passed. SonarCloud master failed solely on New Security Rating E (actual 5, threshold 1), while reliability/maintainability were A, duplication 0.0, and hotspot review 100.0. The immediate predecessor master already had Security E, so no causal attribution to PR #36 is made. This is the exact bounded current-user acceptance condition; global FND-SONAR-0002 remains blocked, and Parent/MRTS remain unchanged."
+    },
+    {
+      "at": "2026-07-20T18:05:00Z",
+      "event": "master_sonar_reassessed_after_pr38_merge_scope_not_extended",
+      "detail": "PR #38 exact head passed its distinct PR SonarQube Cloud Quality Gate with zero new issues and zero security hotspots. Its resulting master 9dab40c2b8799dc1e4597cb2a2c223ec3f6cd72b nevertheless has failed SonarCloud Check Run 88432322185 solely on Security Rating on New Code E. The immediate predecessor 784977615acfc55567e37b863309abc4a38ac877 had the same failure, while resulting-master Actions and CodeQL passed. No causal attribution is made to the action-pin fix and the historical PR #36-only risk acceptance is not extended."
+    },
+    {
+      "at": "2026-07-21T07:28:49Z",
+      "event": "master_sonar_reassessed_after_pr37_merge_and_mrts_inputs_triaged",
+      "detail": "PR #37 exact source 1e9fa0d22639517193d450b05eb7b07193e41257 merged normally as Framework master f73f8842f45318e2df8aff1d31855eeb7c20a22f. PR-head Sonar passed and applicable resulting-master Actions/CodeQL checks passed, but master Sonar failed solely on New Security Rating C (actual 3, threshold 1). All nine open gate-driving records are below unchanged read-only MRTS and predate PR #37. Static source/control/sink triage classified each needs_review: CLI/YAML-controlled file/process sinks exist, while a current untrusted Framework invocation is not established. No PR #37 causality, MRTS action, suppression, gate change, or current risk acceptance is claimed; FND-SONAR-0002 remains blocked."
+    },
+    {
+      "at": "2026-07-23T07:01:16Z",
+      "event": "current_user_bounded_risk_acceptance_for_pr42_master_integration",
+      "detail": "The current user explicitly directed that FND-SONAR-0002 be left out while Framework PR #42 is integrated. Fresh master readback confirms exact master f73f8842f45318e2df8aff1d31855eeb7c20a22f still fails solely on New Security Rating C (actual 3, threshold 1); nine pre-existing read-only MRTS signals remain needs_review and may be real in another trust context. The acceptance is only for normal protected PR #42 delivery and waives no PR-head gate, Cloudflare disposition, merge-method selection, Parent/MRTS action, direct push/bypass, control change, future condition, or finding closure. The global finding remains blocked."
+    },
+    {
+      "at": "2026-07-23T07:51:09Z",
+      "event": "protected_pr42_integration_completed_master_sonar_reassessed_under_bounded_acceptance",
+      "detail": "Framework PR #42 exact head dc6cf411e78b3f37f1e4be52edef59894560b1ae merged normally with exact-head protection as master 935cf14c676a24672be5c336e92cd13457cc35c8. Its tree equals the reviewed PR head and eight exact-master GitHub Actions workflows succeeded. Sonar analysis dda3ea04-2721-4ee6-a9c1-74bd2925f139 is bound to that exact revision and failed solely on New Security Rating C (actual 3, threshold 1); reliability/maintainability are A, duplication is 0.0, and hotspot review is 100.0. This records the bounded PR #42 delivery result, not a finding closure, false-positive disposition, or general release acceptance. Parent and MRTS remain unchanged."
+    },
+    {
+      "at": "2026-07-23T11:25:34Z",
+      "event": "master_sonar_reassessed_after_pr43_merge_scope_not_extended",
+      "detail": "Framework PR #43 exact head 4c55bb2855b8e0196fe54cb0c6f90f43aa993962 merged normally with exact-head protection as master f98a8739cb13b583f23d646784b144e596b61441. Exact resulting-master Sonar analysis 77e255d6-17a2-4e8a-bb29-6438e91e6fa8 failed solely on New Security Rating C (actual 3, threshold 1), while reliability/maintainability are A, duplication is 0.0, hotspot review is 100.0, and the four applicable master Actions workflows passed. The inventory has nine read-only MRTS vulnerability signals and zero python:S3415 issues. No causal attribution to PR #43 is made; the PR #42-only acceptance is not extended, and the finding remains globally blocked. Parent and MRTS remain unchanged."
+    },
+    {
+      "at": "2026-07-24T03:56:04Z",
+      "event": "current_user_bounded_risk_acceptance_for_pr44_master_integration",
+      "detail": "After the exact current master-only Sonar result and the fully reviewed Framework PR #44 state were presented, the current user replied 'ja' directly to acceptance of this residual for a normal merge commit. Fresh PR #44 head 3b67efb8534fb56a93f085897417ada449ff1a39 remains green with no reviews or threads; current master f98a8739cb13b583f23d646784b144e596b61441 still fails solely on New Security Rating C (actual 3, threshold 1), and the current public inventory reports nine open vulnerability signals. The acceptance is only for normal exact-head-protected PR #44 delivery and waives no PR-head control, Parent/MRTS action, suppression, gate change, later condition, or finding closure. The global finding remains blocked."
+    },
+    {
+      "at": "2026-07-24T04:16:09Z",
+      "event": "protected_pr44_integration_completed_master_sonar_reassessed_under_bounded_acceptance",
+      "detail": "Framework PR #44 exact head 3b67efb8534fb56a93f085897417ada449ff1a39 was normally merged with --match-head-commit protection as master 4c9753291d26d92f2d7e51ae425dedb79666fd5e. The resulting tree equals the reviewed head. Resulting-master CodeQL actions/python/C++, current-revision advisory, common-structure, and scaffold-lint passed; pull-request-head was intentionally skipped on the non-PR trigger. SonarCloud failed solely on New Security Rating C (actual 3, threshold 1), while reliability/maintainability are A, duplication is 0.0, hotspot review is 100.0, and the current public inventory remains nine needs_review read-only MRTS signals. This is the exact bounded current-user acceptance condition, not a finding closure, false-positive disposition, or general release acceptance. Parent and MRTS remain unchanged."
+    },
+    {
+      "at": "2026-07-26T05:03:27Z",
+      "event": "master_sonar_reassessed_after_pr45_merge_scope_not_extended",
+      "detail": "Framework PR #45 exact head dd7e221d903a7e2e0a59af203ba312dfca55d69c was normally merged with exact-head protection as master 7e9a560f3acda65510c93f649b6ed4977e4cd6cb; the merge tree equals the reviewed head. CodeQL actions/python/C++, current-revision-advisory, common-structure, and scaffold-lint passed; pull-request-head was intentionally skipped on the non-PR trigger. SonarCloud Check Run 89757305894 failed solely on New Security Rating C (actual 3, threshold 1). The current leak-period inventory has 19 open/confirmed records, including the same nine read-only MRTS VULNERABILITY signals and ten CODE_SMELL records. PR #45 changes no tools/MRTS path, so no causal attribution is made. No PR-#45-specific risk acceptance was requested, inferred, or used; Parent and MRTS remain unchanged and the global finding stays blocked."
+    },
+    {
+      "at": "2026-07-26T05:18:35Z",
+      "event": "final_boundary_snapshot_preserves_unattributed_mrts_worktree_state",
+      "detail": "A later read-only boundary snapshot confirms that the Parent-recorded Framework gitlink, embedded Framework commit, and MRTS commit were not changed by this task. It also observes three unattributed dirty MRTS working-tree paths after the initial post-merge receipt. No task command wrote, restored, staged, committed, pushed, merged, or attributed them; the task preserves the foreign state. This does not change the Framework PR #45 merge result or the FND-SONAR-0002 lifecycle."
+    },
+    {
+      "at": "2026-07-26T11:18:24Z",
+      "event": "pr47_master_integration_gate_reassessed_requires_current_user_decision",
+      "detail": "Exact Framework PR #47 head cb0b810e0770a0a4d10fa5bb08031e70ac9ad9a7 passes its separate SonarQube Cloud Quality Gate with zero bugs, vulnerabilities, code smells, and open PR issues; all current PR checks, including both lint triggers, pass. Current Framework master c27c644e088904b71b8380d16ee34f1b36f2c001 remains Quality Gate ERROR solely on New Security Rating C (actual 3, threshold 1), while reliability, maintainability, duplication, and hotspot review pass. PR #47 changes no tools/MRTS gitlink, so no causality is asserted. Historical bounded acceptances are not extended. The normal protected merge is blocked pending a fresh explicit current-user decision; no draft-state change, merge, Parent action, MRTS action, suppression, or gate change occurred."
+    },
+    {
+      "at": "2026-07-26T11:19:00Z",
+      "event": "current_user_bounded_risk_acceptance_for_pr47_master_integration",
+      "detail": "After the exact master-only residual was presented, the current user directed ‘bringe pr 47 in den master’. This authorizes only normal exact-head-protected Framework PR #47 delivery despite the New Security Rating C condition. Fresh PR-head controls, no-bypass rules, and Parent/MRTS boundaries remain mandatory; the acceptance does not close FND-SONAR-0002 or authorize Parent/MRTS work, direct push, suppression, scanner/gate changes, or later/general release waivers."
+    },
+    {
+      "at": "2026-07-26T11:32:18Z",
+      "event": "protected_pr47_integration_completed_and_exact_resulting_master_verified_under_bounded_acceptance",
+      "detail": "Framework PR #47 exact head cb0b810e0770a0a4d10fa5bb08031e70ac9ad9a7 was normally merged as bcb5b69f135c8b38b834e00e47b0369ae3bdb670 at 2026-07-26T11:26:19Z. Its parents are reviewed base c27c644e088904b71b8380d16ee34f1b36f2c001 and the exact head, and its tree equals the reviewed head tree. Every result-master workflow bound to bcb5b69 passed: CI security Python quality, CI security workflow lint, OpenSSF Scorecard, test-common, CodeQL, lint, and Update MRTS submodule's read-only validation. SonarCloud analysis is bound to bcb5b69 and fails solely on the accepted New Security Rating C residual; global FND-SONAR-0002 remains blocked. A later updater-created PR #49 was separately marked ready and merged by the Easton97-Jens account according to GitHub event history, advancing master to ab7374e08f12f80b1e6a7224418e4e04ca19ddc6; it is outside this task and was not actioned or validated by this session."
+    },
+    {
+      "at": "2026-07-26T12:12:27Z",
+      "event": "current_master_quality_gate_verified",
+      "detail": "Exact Framework master a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6 has bound SonarCloud analysis 2b78d1c9-9a3c-4497-a076-74c468eff0d8 with Quality Gate OK, all five conditions passing, new duplication 0.0, and zero current leak-period open issues. The retained receipt SHA-256 is 2460d2f15a027e79f08aee120ce487a6ff2714d882fa46b15786d2615d43c7c3. This reruns the original failure outcome and legitimate controls, so FND-SONAR-0002 is verified/already_fixed and no longer a release blocker. No causal attribution or Parent/Framework/MRTS source, Git, or Gitlink action is claimed."
+    }
+  ]
+}

@@ -1,0 +1,170 @@
+{
+  "id": "FND-PARENT-0027",
+  "title": "Phase-4 evidence matching omits selected run and workload identity",
+  "title_de": "Phase-4-Evidence-Matching lässt ausgewählte Run- und Workload-Identität aus",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "high",
+  "confidence": "confirmed",
+  "status": "closed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": "apache",
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "ci/checks/evidence/check-full-lifecycle-evidence.py",
+    "ci/checks/evidence/check-six-connector-core-completion.py",
+    "Makefile",
+    "tests/test_full_lifecycle_evidence.py",
+    "tests/test_full_lifecycle_gate_wiring.py"
+  ],
+  "affected_symbols": [
+    "matching_events",
+    "check_first_byte",
+    "check_no_full_buffer",
+    "identity matcher",
+    "RUN_PARENT_FULL_LIFECYCLE_EVIDENCE_CHECK",
+    "RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK"
+  ],
+  "source_commits": [
+    "6bfdc66329fc68531b3f358cab25ef91b3d9a2a9",
+    "8b7b13b294fe4043fb4002c1cb96ba3de72986f8",
+    "0124b0d685c69129d4aeace8eff75ccc288e7a8e",
+    "5f8949b1d98a98127b933e9f1d626b30e3291b59",
+    "fde2e02a1cf2226f8e9106e663e05e9b2941357e"
+  ],
+  "summary": "The Phase-4 lifecycle checker accepted event records based only on rule ID and phase. Copied events carrying a foreign run ID, connector, or profile passed the same first-byte and no-full-buffer checks as a legitimate Apache event.",
+  "summary_de": "Der Phase-4-Lifecycle-Checker akzeptierte Event-Records nur anhand von Rule-ID und Phase. Kopierte Events mit fremder Run-ID, fremdem Connector oder fremdem Profil bestanden dieselben First-Byte- und No-Full-Buffer-Checks wie ein legitimes Apache-Event.",
+  "observed_behavior": "`matching_events` at lines 154-155 does not bind run ID, connector, host profile, integration mode, or transaction identity. Three temporary foreign-identity variants and one legitimate control all returned PASS for first-byte and no-full-buffer checks.",
+  "observed_behavior_de": "`matching_events` in Zeilen 154-155 bindet weder Run-ID, Connector, Host-Profil, Integrationsmodus noch Transaktionsidentität. Drei temporäre Varianten mit fremder Identität und ein legitimer Kontrollfall lieferten alle PASS für First-Byte- und No-Full-Buffer-Checks.",
+  "expected_behavior": "Each promoted Phase-4 event must bind the selected run ID, connector, host profile, integration mode, and transaction identity using the canonical event/result schema. Missing or mismatched identity fails closed.",
+  "expected_behavior_de": "Jedes promotete Phase-4-Event muss mit dem kanonischen Event-/Result-Schema die ausgewählte Run-ID, den Connector, das Host-Profil, den Integrationsmodus und die Transaktionsidentität binden. Fehlende oder nicht passende Identität scheitert geschlossen.",
+  "impact": "Evidence copied from another run, connector, or profile can be promoted as proof for a selected workload, breaking run identity and integration-mode integrity.",
+  "impact_de": "Evidence, die aus einem anderen Run, Connector oder Profil kopiert wurde, kann als Nachweis für einen ausgewählten Workload promoted werden und verletzt Run-Identity- und Integrationsmodus-Integrität.",
+  "preconditions": [
+    "A selected evidence directory contains a syntactically valid Phase-4 event with the expected rule and phase.",
+    "The event originates from a foreign run, connector, profile, or integration mode."
+  ],
+  "reproduction": [
+    "Build temporary evidence roots containing an Apache selected-run result and a foreign-run event, foreign-connector event, or foreign-profile event.",
+    "Run `check-full-lifecycle-evidence.py` for first-byte and no-full-buffer with `--run-id selected-run --connectors apache`.",
+    "Observe PASS for every foreign variant and for the legitimate control."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/05_findings/CAND-PARENT-004-phase4-identity/validation_report.md",
+      "artifact_type": "codex_security_validation_report",
+      "sha256": "70d07710bb9cab22be7cc64657e030302905ec99a4cfdfd1702a5ab8b930a645",
+      "command": "rtk env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python ci/checks/evidence/check-full-lifecycle-evidence.py --connector-root /root/git/ModSecurity-conector --evidence-root <temporary-root> --run-id selected-run --check <first-byte|no-full-buffer> --connectors apache",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T09:22:02Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/06_delivery/pr_delivery_status.json",
+      "artifact_type": "draft_pr_delivery_status",
+      "sha256": "70aa1c1c9048027f02da2bad4f097165d267e70befeb965eec735b512dc1c366",
+      "command": "rtk gh pr checks 57 --repo Easton97-Jens/ModSecurity-conector",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T11:13:55Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T080314Z-parent-pr55-57-59-framework-update-3443af13",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T080314Z-parent-pr55-57-59-framework-update-3443af13/evidence/pr57-5f8949b-current-head-verification.md",
+      "artifact_type": "parent_pr_current_head_delivery_verification",
+      "sha256": "cb6ae640643dec166ab77cb364ab61f01d79ce44cfaba99c97477d4d92820178",
+      "command": "GitHub exact-head check-runs, CodeQL/code-scanning, SonarCloud, review-thread, and scoped-diff inspection for PR #57",
+      "working_directory": "/var/tmp/codex/worktrees/parent-evidence-phase4-binding",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T10:41:05Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T080314Z-parent-pr55-57-59-framework-update-3443af13",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T080314Z-parent-pr55-57-59-framework-update-3443af13/evidence/pr57-master-fde2-phase4-identity-verification.md",
+      "artifact_type": "exact_parent_master_phase4_identity_original_reproduction_and_legitimate_control",
+      "sha256": "8c638de640cd2fd6b49c1c26ac026ac569aa119642fd51e31dec558667d11f0f",
+      "command": "RTK-proxied detached exact-master inspection, diff/giltink comparison, and PYTHONDONTWRITEBYTECODE=1 Parent unittest run for tests.test_full_lifecycle_gate_wiring, tests.test_full_lifecycle_evidence, and tests.test_six_connector_core_completion",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260720T080314Z-parent-pr55-57-59-framework-update-3443af13/tmp/parent-pr57-master-fde2",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T11:05:00Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The event predicate used only rule ID and phase and was not initially invoked by the actual Parent first-byte/no-full-buffer/promotion Make targets. A stronger identity matcher existed in the six-connector completion checker but was not reused or wired into promotion.",
+  "root_cause_de": "Das Event-Prädikat verwendete nur Rule-ID und Phase und wurde anfangs nicht von den tatsächlichen Parent-Make-Targets für First-Byte/No-Full-Buffer/Promotion aufgerufen. Ein stärkerer Identity-Matcher existierte im Six-Connector-Completion-Checker, wurde aber weder wiederverwendet noch in die Promotion verdrahtet.",
+  "proposed_remediation": "Reuse the canonical identity-matching pattern, require all selected identity fields before promotion, and wire the Parent first-byte/no-full-buffer/promotion targets to the matching Parent checks. Add the named foreign-identity fixtures, a legitimate control, and a static target-wiring contract.",
+  "proposed_remediation_de": "Das kanonische Identity-Matching-Muster wiederverwenden, vor Promotion alle ausgewählten Identitätsfelder verlangen und die Parent-Targets für First-Byte/No-Full-Buffer/Promotion mit den passenden Parent-Checks verdrahten. Die genannten Foreign-Identity-Fixtures, eine legitime Kontrolle und einen statischen Target-Wiring-Contract ergänzen.",
+  "acceptance_criteria": [
+    "Foreign run-ID, connector, profile, and integration-mode events cannot satisfy first-byte or no-full-buffer checks.",
+    "Missing required event identity fails closed.",
+    "A legitimate event and result from the selected run remain accepted.",
+    "Result, event, manifest, and checksum identity are checked consistently without a filename/PASS-only decision.",
+    "The actual Parent first-byte, no-full-buffer, and promotion Make targets invoke their matching Parent identity checks."
+  ],
+  "validation_plan": [
+    "Add the named foreign-identity and valid-control fixtures before the implementation change.",
+    "Rerun the original copied-event PoCs, an alternate missing-identity case, and the valid control after the fix.",
+    "Run focused lifecycle-evidence tests, a static Makefile target-wiring contract, and the applicable runtime-harness contract tests."
+  ],
+  "regression_tests": [
+    "Focused check-full-lifecycle-evidence tests for run, connector, profile, and integration-mode mismatch.",
+    "Existing six-connector identity matcher control tests."
+  ],
+  "legitimate_control_tests": [
+    "A selected Apache run with an identity-consistent native event passes first-byte and no-full-buffer checks.",
+    "A complete manifest chain with matching event/result identity remains accepted."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0001",
+    "FND-CROSS-0006"
+  ],
+  "source_run_ids": [
+    "20260718T075200Z-parent-evidence-integrity-ade378cf",
+    "20260720T080314Z-parent-pr55-57-59-framework-update-3443af13"
+  ],
+  "residual_risk": "The exact Parent master fde2e02a1cf2226f8e9106e663e05e9b2941357e reproduces the original and alternate copied/missing identity cases as fail-closed and preserves the selected Apache legitimate control; FND-PARENT-0027 is verified, not closed. FND-CROSS-0006 is separately verified and FND-CROSS-0001 remains a distinct runtime-evidence limitation. The independent Parent Sonar release blocker FND-SONAR-0001 prevents aggregate master_integration_complete but does not reopen this verified Phase-4 identity repair.",
+  "residual_risk_de": "Der exakte Parent-Master fde2e02a1cf2226f8e9106e663e05e9b2941357e reproduziert die ursprünglichen und alternativen kopierten/fehlenden Identity-Fälle fail closed und bewahrt die legitime ausgewählte Apache-Kontrolle; FND-PARENT-0027 ist verified, nicht closed. FND-CROSS-0006 ist separat verified und FND-CROSS-0001 bleibt eine eigenständige Runtime-Evidence-Grenze. Der unabhängige Parent-Sonar-Release-Blocker FND-SONAR-0001 verhindert aggregate master_integration_complete, eröffnet diese verifizierte Phase-4-Identity-Reparatur aber nicht erneut.",
+  "created_at": "2026-07-18T09:22:02Z",
+  "updated_at": "2026-07-26T14:09:02Z",
+  "final_disposition": "closed_by_current_user_after_current_master_lifecycle_identity_validation_archived_20260726",
+  "history": [
+    {
+      "at": "2026-07-18T09:22:02Z",
+      "event": "validated_foreign_identity_promotion",
+      "detail": "Foreign run, connector, and profile event variants passed the selected Apache Phase-4 checks alongside the legitimate control."
+    },
+    {
+      "at": "2026-07-18T11:13:55Z",
+      "event": "fixed_parent_gate_wiring_after_security_review",
+      "detail": "Independent review found that the initial identity matcher was not wired into actual Parent promotion targets. Follow-up 0124b0d wired first-byte, no-full-buffer, and promotion checks, passed 20 focused tests and 33 PR checks, and received a clean re-review. FND-CROSS-0006 records the separate Framework-authoritative boundary."
+    },
+    {
+      "at": "2026-07-20T10:41:05Z",
+      "event": "fixed_current_pr_57_head_validated",
+      "detail": "Exact PR #57 head 5f8949b1d98a98127b933e9f1d626b30e3291b59 passed 33 success and 6 expected-skipped checks, strict ruleset contexts, CodeQL, SonarCloud, zero-open-alert query, review-thread inspection, focused documentation validation, and final scoped diff review. It remains fixed pending authorized merge and resulting-master original reproduction."
+    },
+    {
+      "at": "2026-07-20T11:05:00Z",
+      "event": "verified_on_resulting_parent_master_after_original_reproduction",
+      "detail": "PR #57 source head 5f8949b1d98a98127b933e9f1d626b30e3291b59 is merged as exact Parent master fde2e02a1cf2226f8e9106e663e05e9b2941357e. In a clean detached exact-master worktree, 20 focused lifecycle/wiring/six-connector tests passed: foreign run, connector, profile, integration-mode, transaction, and missing-identity variants fail closed on both first-byte and no-full-buffer paths, while the selected Apache legitimate control passes. The Parent Framework gitlink remains efdbcbd98afeed0f39f8912ce1140aaa5742f507. All 14 master Actions workflows pass; the independent pre-existing Parent Sonar failure FND-SONAR-0001 leaves aggregate delivery partial but does not reopen this verified finding."
+    },
+    {
+      "at": "2026-07-26T14:09:02Z",
+      "event": "closed_by_current_user_after_current_master_validation",
+      "detail": "The current user authorized closure and archival. On Parent master 6ca7e1536ce7e93da68099db9c586b88852ff13e, tests.test_full_lifecycle_evidence and tests.test_full_lifecycle_gate_wiring passed as part of the 144-test current-master control suite. FND-SONAR-0001 remains an independent active Quality-Gate blocker."
+    }
+  ]
+}

@@ -1,0 +1,313 @@
+{
+  "id": "FND-SONAR-0030",
+  "title": "Provisioning remediation for thirty-eight SonarQube Cloud findings and two duplicate blocks",
+  "title_de": "Provisioning-Remediation für achtunddreißig SonarQube-Cloud-Befunde und zwei Duplikatblöcke",
+  "category": "maintainability",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "fixed",
+  "feasibility_status": "requires_user_decision",
+  "security_assessment": "sealed_exact_head_post_change_security_diff_review_complete_with_zero_reportable_findings_and_historical_deferred_baseline_caller_reachability",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "CI provisioning, archive and Git component preparation, cache manifests, and runtime report generation",
+  "profile": "Initial SonarQube Cloud current-master directory inventory at 6b4aca18d390363764b96d85cd31969b9bb114a1; PR #220 normal merge of exact head 5378ed0c29f91df7e508f13b9d860c548f882468 as resulting master caabf33c11d6002f9a1661f215ed195d6e141253; PR #224 normal merge of exact head 0da588ecd068f35e27ae404139906e2bebc89e14 as resulting master 7016a66f3702523098811b45139133c77dee88fb",
+  "affected_files": [
+    "ci/provisioning/components/prepare-runtime-components.py",
+    "ci/evidence/reports/update-runtime-reports.py"
+  ],
+  "affected_symbols": [
+    "validated_cache_manifest_for_entry",
+    "prepare_git_component",
+    "prepare_archive",
+    "resolve_nginx_archive",
+    "hash_input_paths",
+    "prepare_expat_managed_overrides",
+    "prepare_expat",
+    "modsecurity_build_inputs",
+    "prepare_shared_modsecurity",
+    "connector_plan",
+    "prepare_go_tool",
+    "rebase_apache_install_text_paths_for_publish",
+    "connector_cache_entry_complete",
+    "reuse_connector_cache_entry_if_only_commit_changed",
+    "prepare_connector_transactionally",
+    "prepare_connector_with_optional_staging",
+    "prepare_apache_httpd",
+    "_prepare_apache_httpd_for_plan",
+    "prepare_nginx_runtime",
+    "_prepare_nginx_runtime_for_plan",
+    "prepare_haproxy_runtime",
+    "remove_incomplete_connector_cache_entry",
+    "BuildLock.__enter__",
+    "known_tool_source",
+    "markdown_report",
+    "main",
+    "map_expat_build_failure"
+  ],
+  "summary": "The retained initial current-master inventory identified 38 SonarQube Cloud rows in ci/provisioning/components/prepare-runtime-components.py: 21 python:S3776, 10 python:S1192, 3 pythonsecurity:S6549, 2 python:S3358, 1 python:S1066, and 1 python:S8786. It also identified two provisioning-side duplicate blocks totalling 25 lines between markdown_report() and ci/evidence/reports/update-runtime-reports.py. PR #220 remediated the initial inventory except four historical rows. PR #224 was then normal-merged at exact head 0da588ecd068f35e27ae404139906e2bebc89e14 as resulting master 7016a66f3702523098811b45139133c77dee88fb. Its resulting-master Sonar analysis closes only python:S1066 and BuildLock.__enter__(); python:S3776 remained OPEN at prepare_apache_httpd() and prepare_nginx_runtime(). Exact Draft PR #226 now remediates those two last causes at exact head b08bc69278570a02af5c0367bffb2dea47d37d7c, with all 33 completed hosted checks successful, six expected skips, Quality Gate OK, zero open PR issues, zero new violations, and zero New-Code duplication. No scanner-control change was used. The finding is fixed pending explicit master authorization and resulting-master reproduction.",
+  "summary_de": "Das aufbewahrte anfängliche Current-Master-Inventar identifizierte 38 SonarQube-Cloud-Zeilen in ci/provisioning/components/prepare-runtime-components.py: 21 python:S3776, 10 python:S1192, 3 pythonsecurity:S6549, 2 python:S3358, 1 python:S1066 und 1 python:S8786. Es identifizierte außerdem zwei provisioning-seitige Duplikatblöcke mit zusammen 25 Zeilen zwischen markdown_report() und ci/evidence/reports/update-runtime-reports.py. PR #220 remedierte das anfängliche Inventar bis auf vier historische Zeilen. PR #224 wurde danach mit exaktem Head 0da588ecd068f35e27ae404139906e2bebc89e14 normal als Resulting Master 7016a66f3702523098811b45139133c77dee88fb gemergt. Seine Resulting-Master-Sonar-Analyse schließt nur python:S1066 und BuildLock.__enter__(); python:S3776 blieb bei prepare_apache_httpd() und prepare_nginx_runtime() OPEN. Exakter Draft-PR #226 remediert nun diese zwei letzten Ursachen auf exaktem Head b08bc69278570a02af5c0367bffb2dea47d37d7c, mit 33 erfolgreichen abgeschlossenen Hosted-Checks, sechs erwarteten Skips, Quality Gate OK, null offenen PR-Issues, null neuen Violations und null New-Code-Duplikation. Keine Scanner-Control wurde geändert. Das Finding ist fixed bis zu expliziter Master-Autorisierung und Resulting-Master-Reproduktion.",
+  "observed_behavior": "The current Sonar inventory concentrates cognitive complexity, repeated literals, nested conditional flow, one regex-performance observation, and path-construction scanner leads in the primary provisioner. The two reported duplicate blocks are in markdown_report() and its report-updater counterpart. The scoped baseline security review found no reportable finding; its S6549 source-control-sink review found the reviewed managed-root controls already safe for the claimed path-escape outcome, while one runtime-snapshot caller-reachability question remains deferred.",
+  "observed_behavior_de": "Das aktuelle Sonar-Inventar konzentriert kognitive Komplexität, wiederholte Literale, verschachtelten bedingten Ablauf, eine Regex-Performance-Beobachtung und Path-Construction-Scanner-Leads im primären Provisioner. Die zwei gemeldeten Duplikatblöcke liegen in markdown_report() und seinem Report-Updater-Gegenstück. Der eingegrenzte Baseline-Security-Review fand keinen reportierbaren Befund; sein S6549-Source-Control-Sink-Review bewertete die geprüften Managed-Root-Controls für das behauptete Path-Escape-Ergebnis als bereits sicher, während eine Runtime-Snapshot-Caller-Reachability-Frage zurückgestellt bleibt.",
+  "expected_behavior": "Provisioning must preserve validated managed-root containment, provenance checks, atomic publication, and argument-vector execution while the functions are decomposed, literals are centralized, conditional flow is clarified, and the provisioning-side report representation is deduplicated without changing the report contract.",
+  "expected_behavior_de": "Provisioning muss validierte Managed-Root-Containment, Provenance-Prüfungen, atomare Veröffentlichung und Argument-Vector-Ausführung bewahren, während die Funktionen zerlegt, Literale zentralisiert, bedingter Ablauf geklärt und die provisioning-seitige Report-Repräsentation ohne Änderung des Report-Vertrags dedupliziert wird.",
+  "impact": "The selected scope contains cache, download, path, provenance, and subprocess-adjacent behavior. A careless maintainability remediation could weaken a containment or provenance invariant. The retained baseline review contains zero reportable security findings, but its partial caller-reachability coverage limits the baseline conclusion. The focused PR #224 security/control review found no reportable diff-induced security issue, and all resulting-master GitHub Actions workflows pass. However, the resulting-master Sonar reproduction leaves two historical cognitive-complexity causes open. Further source remediation is required; verified status is not justified.",
+  "impact_de": "Der gewählte Scope enthält Cache-, Download-, Path-, Provenance- und Subprocess-nahe Abläufe. Eine unvorsichtige Maintainability-Remediation könnte eine Containment- oder Provenance-Invariante schwächen. Der aufbewahrte Baseline-Review enthält null reportierbare Security-Befunde, aber seine partielle Caller-Reachability-Abdeckung begrenzt die Baseline-Schlussfolgerung. Der fokussierte PR-#224-Security-/Control-Review fand keinen reportierbaren diff-induzierten Security-Befund, und alle Resulting-Master-GitHub-Actions-Workflows bestehen. Die Resulting-Master-Sonar-Reproduktion lässt jedoch zwei historische Cognitive-Complexity-Ursachen offen. Weitere Source-Remediation ist erforderlich; verified ist nicht gerechtfertigt.",
+  "preconditions": [
+    "The retained inventory is bound to Parent master revision 6b4aca18d390363764b96d85cd31969b9bb114a1.",
+    "The remediation remains confined to Parent ci/provisioning code and directly necessary Parent tests and records.",
+    "No SonarQube Cloud rule, Quality Gate, exclusion, suppression, NOSONAR marker, workflow, Framework/MRTS source, Gitlink, or master change is part of this finding allocation."
+  ],
+  "reproduction": [
+    "Read the retained task plan inventory for the 38 current issue rows and two duplicate blocks at the recorded Parent revision.",
+    "Inspect the listed primary provisioner and report-updater symbols against the retained issue grouping and duplicate-block mapping.",
+    "PR #220 exact head 5378ed0c29f91df7e508f13b9d860c548f882468 was normal-merged as resulting master caabf33c11d6002f9a1661f215ed195d6e141253. Four OPEN pre-inventory source rows remained there: AZ9cRyj3HhV2CayPTPzC, AZ9cRyj3HhV2CayPTPzB, AZ9cRyj3HhV2CayPTPys, and AZ9cRyj3HhV2CayPTPy2. Exact Draft PR #224 head 0da588ecd068f35e27ae404139906e2bebc89e14 remediates the four source causes and has zero open PR issues and 0.0% new-code duplication. A resulting-master reproduction after a user-authorized integration remains required before verified status."
+  ],
+  "evidence": [
+    {
+      "run_id": "ci-provisioning-sonar-remediation-20260801",
+      "artifact_path": ".codex/plans/ci-provisioning-sonar-remediation-20260801.md",
+      "artifact_type": "retained_task_plan_with_read_only_sonar_api_inventory",
+      "sha256": "4cab13eaecb863922524318c350a85baeb57f72db6a32cd86cbcae3bd9005274",
+      "command": "Read-only SonarQube Cloud current-master issue and component-duplication API queries recorded in the task plan.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T11:08:22Z",
+      "retention_status": "retained_local_task_plan",
+      "result": "38 current rows in the primary provisioner: 21 python:S3776, 10 python:S1192, 3 pythonsecurity:S6549, 2 python:S3358, 1 python:S1066, and 1 python:S8786; two provisioning-side duplicate blocks total 25 lines."
+    },
+    {
+      "run_id": "ci-provisioning-sonar-remediation-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-provisioning-sonar-remediation-20260801/security-scan-6b4aca18-20260801/report.md",
+      "artifact_type": "sealed_baseline_scoped_security_review",
+      "sha256": "d4eb095bd927350ea1a1a9c349750abd3bba0e1960721cd83fa6446e0aaa8503",
+      "command": "Codex Security scan-contract finalization for the scoped Parent ci/provisioning baseline review.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260801-ci-provisioning-sonar-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T10:25:41Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "Partial source-control-sink coverage, zero reportable baseline security findings, and one explicitly deferred non-reportable runtime-snapshot caller-reachability question. This is not a post-change security-diff review."
+    },
+    {
+      "run_id": "ci-provisioning-sonar-remediation-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-provisioning-sonar-remediation-20260801/security-diff-scan-6b4aca18-working-tree-20260801/report.md",
+      "artifact_type": "sealed_complete_post_change_security_diff_review",
+      "sha256": "5ed2a23a1b0f1e999f5c20082861b998c202b1b04f3f8116bf6f81c6e22895b1",
+      "command": "Codex Security finalization for the complete working-tree diff review of the Parent ci/provisioning remediation local patch.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260801-ci-provisioning-sonar-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T11:36:00Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "target_snapshot_digest": "codex-security-snapshot/v1:sha256:ad33f9ea2a77c566961b276b43af9726da2f6d2e39efd7abfd2a1661e85d2dab",
+      "result": "Complete coverage over ci/provisioning/, tests/test_runtime_component_cache_contract.py, and the four scoped English/German Change Record/index documents; zero reportable diff-induced security findings. This is local working-tree evidence, not a hosted SonarQube Cloud, GitHub Actions, or real provisioning runtime result."
+    },
+    {
+      "run_id": "ci-provisioning-sonar-remediation-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-provisioning-sonar-remediation-20260801/security-diff-scan-6b4aca18-working-tree-20260801/artifacts/05_findings/validation_summary.md",
+      "artifact_type": "sealed_post_change_security_diff_validation_summary",
+      "sha256": "eca395322240c6c68062360b3eba5126b699a94fe48d75eccfc7d25e336d3068",
+      "command": "Review-projected final local control evidence retained by the complete Codex Security working-tree diff review.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260801-ci-provisioning-sonar-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T11:36:00Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "89 focused provisioner/cache/environment/artifact/path-policy tests, the three Expat positive and escape-rejection controls, the silent nonzero Git-submodule failure control, make check-runtime-path-policy, and the bilingual documentation checker passed. No real provisioning build or hosted analysis was run."
+    },
+    {
+      "run_id": "ci-provisioning-sonar-remediation-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-provisioning-sonar-remediation-20260801/security-diff-904a8fca-cb500e3a-20260801/report.md",
+      "artifact_type": "sealed_complete_exact_head_post_change_security_diff_review",
+      "sha256": "6b9ce34f771a3b7f8799b0ba9addcbc5e649005efeb932955cd7734a4f64bd6a",
+      "command": "Codex Security scan-contract finalization for the exact Parent PR #220 head diff 904a8fca64b35cd287348722b4bdc2260b4f64b3...cb500e3a84efe94565b7a6665dea4b94ec719501.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260801-ci-provisioning-sonar-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T13:10:39Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "target_snapshot_digest": "codex-security-snapshot/v1:sha256:e8be4b2a67a9c15bca3bb57abcea08c635a7d40af90e9ec574cdeaa2fb0be311",
+      "result": "Complete coverage over the exact PR-head diff and zero reportable security findings; this local review does not replace resulting-master verification."
+    },
+    {
+      "run_id": "ci-provisioning-sonar-remediation-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-provisioning-sonar-remediation-20260801/hosted-verification-pr-220-cb500e3a.md",
+      "artifact_type": "exact_head_hosted_pr_verification_receipt",
+      "sha256": "d129af2ad25db78f85623c8b1d14149ad03192257a7fa70c7d4be4b223bd1d8f",
+      "command": "Read-only GitHub pull-request/workflow-run API queries and SonarQube Cloud project-status, issues, and measures API queries bound to PR #220 exact head cb500e3a84efe94565b7a6665dea4b94ec719501.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T13:20:09Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR #220 is open Draft at base 904a8fca64b35cd287348722b4bdc2260b4f64b3 and matching local/remote/GitHub head cb500e3a84efe94565b7a6665dea4b94ec719501. Required exact-head GitHub checks succeeded; quick-framework-check was expected skipped. SonarQube Cloud reports Quality Gate OK, zero open PR issues, new_violations=0, violations=0, new_security_hotspots=0, new_duplicated_lines_density=0.0, and duplicated_lines_density=0.0."
+    },
+    {
+      "run_id": "ci-provisioning-sonar-remediation-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-provisioning-sonar-remediation-20260801/master-integration-verification-caabf33c-20260801.md",
+      "artifact_type": "resulting_master_merge_workflow_and_sonar_reproduction_receipt",
+      "sha256": "351639d5a70189bf776063414c8ea8b23060dc863b6177cea2638415f450a55d",
+      "command": "Read-only GitHub merge/workflow evidence and SonarQube Cloud project-analysis, issues, and measures API queries bound to resulting master caabf33c11d6002f9a1661f215ed195d6e141253.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T14:13:10Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR #220 was normal-merged at exact head 5378ed0c29f91df7e508f13b9d860c548f882468 as resulting master caabf33c11d6002f9a1661f215ed195d6e141253. All 14 resulting-master workflows succeeded. The exact master Sonar analysis has zero duplicated lines and 0.0% duplicated-lines density, but four OPEN pre-inventory source rows remain in the original component; the finding remains in_progress."
+    },
+    {
+      "run_id": "ci-provisioning-four-sonar-followup-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-provisioning-four-sonar-followup-20260801/hosted-verification-pr-224.md",
+      "artifact_type": "exact_head_hosted_pr_verification_receipt",
+      "sha256": "975675e0ae13027d05f7a219c884b24428ff03eb0f82f43d64b4f97073f69647",
+      "command": "Read-only GitHub pull-request/check/review queries and SonarQube Cloud Quality Gate, issues, and measures queries bound to PR #224 exact head 0da588ecd068f35e27ae404139906e2bebc89e14.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T15:46:12Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Open Draft PR #224 has base 62f7e13f35edd3f73661f724fd5208dcf1584d18, matching local/remote/GitHub head 0da588ecd068f35e27ae404139906e2bebc89e14, and mergeable state clean. All applicable exact-head checks passed; SonarQube Cloud Quality Gate is OK with zero open PR issues, new_violations=0, new_security_hotspots=0, new_duplicated_lines_density=0.0, and new_duplicated_lines=0. The only issue comment is the successful Sonar bot notification; there are zero inline review comments and zero submitted reviews. No merge is recorded."
+    },
+    {
+      "run_id": "ci-provisioning-four-sonar-followup-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-provisioning-four-sonar-followup-20260801/master-integration-verification-7016a66f.md",
+      "artifact_type": "resulting_master_merge_workflow_and_original_issue_reproduction_receipt",
+      "sha256": "44324bf23b19bebd8523056dbd6834d77eea9e2113ddc96e96cdf525328688bd",
+      "command": "Read-only GitHub PR/merge/workflow and SonarQube Cloud project-analysis, Quality Gate, measures, and original-issue API queries bound to resulting master 7016a66f3702523098811b45139133c77dee88fb.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T16:03:41Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR #224 normal-merged exact head 0da588ecd068f35e27ae404139906e2bebc89e14 as resulting master 7016a66f3702523098811b45139133c77dee88fb; all 14 resulting-master workflows succeeded and the Sonar analysis is bound to that revision. Original keys AZ9cRyj3HhV2CayPTPys and AZ9cRyj3HhV2CayPTPy2 are CLOSED/FIXED, but AZ9cRyj3HhV2CayPTPzB and AZ9cRyj3HhV2CayPTPzC remain OPEN. The master Quality Gate is ERROR; this record does not attribute unrelated existing project findings to PR #224."
+    },
+    {
+      "run_id": "ci-provisioning-two-cognitive-sonar-remediation-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-provisioning-two-cognitive-sonar-remediation-20260801/sonar-open-issue-preflight.md",
+      "artifact_type": "current_master_exact_issue_preflight_receipt",
+      "sha256": "57c2b92f8bd2613aebb0a9d238e9720c840d1ae0a86b3afae1a68a1fabf2c49f",
+      "command": "Read-only SonarQube Cloud issue API query for AZ9cRyj3HhV2CayPTPzB and AZ9cRyj3HhV2CayPTPzC.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T16:03:41Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Exactly two scoped rows are OPEN on the analysis bound to resulting master 7016a66f3702523098811b45139133c77dee88fb: both are python:S3776, Maintainability High, and cognitive complexity 16 where 15 is allowed."
+    },
+    {
+      "run_id": "ci-provisioning-two-cognitive-sonar-remediation-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-provisioning-two-cognitive-sonar-remediation-20260801/focused-security-control-review.md",
+      "artifact_type": "focused_post_change_security_control_review",
+      "sha256": "40729d42131b215ccd86c41a21de14625239c157355be0abbf20f817617b9889",
+      "command": "Focused manual source/control review and cache-contract regression suite for the local task branch diff.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260801-ci-provisioning-two-cognitive-sonar-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T16:33:12Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The refactor preserves keyed managed-root staging/publication and unkeyed direct preparation; 34 focused cache-contract tests and Python compilation pass, with no plausible diff-induced reportable security finding."
+    },
+    {
+      "run_id": "ci-provisioning-two-cognitive-sonar-remediation-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-provisioning-two-cognitive-sonar-remediation-20260801/hosted-verification-pr-226-b08bc692.md",
+      "artifact_type": "exact_head_hosted_pr_verification_receipt",
+      "sha256": "92cee447f5fb36bfa536681b85c8d6a04d9b9d7f74c2f79db0bfa3e8666b2e5a",
+      "command": "Read-only GitHub pull-request/check/review queries and SonarQube Cloud Quality Gate, issues, and measures queries bound to PR #226 exact head b08bc69278570a02af5c0367bffb2dea47d37d7c.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T16:59:29Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Open Draft PR #226 has matching local/remote/GitHub head b08bc69278570a02af5c0367bffb2dea47d37d7c and CLEAN merge state. All 33 completed checks passed and six context-appropriate checks were skipped. SonarQube Cloud Quality Gate is OK with zero OPEN/CONFIRMED PR issues, new_violations=0, new_security_hotspots=0, new_duplicated_lines_density=0.0, and new_duplicated_lines=0. No merge occurred."
+    }
+  ],
+  "root_cause": "Provisioning cache, acquisition, component, reporting, and CLI responsibilities accumulated in one primary module, creating high-complexity control flow, repeated literals, local nested branches, and a duplicated report-rendering representation.",
+  "root_cause_de": "Provisioning-Cache-, Acquisition-, Component-, Reporting- und CLI-Verantwortlichkeiten sammelten sich in einem primären Modul und erzeugten hochkomplexen Kontrollfluss, wiederholte Literale, lokale verschachtelte Branches und eine duplizierte Report-Rendering-Repräsentation.",
+  "proposed_remediation": "The task-owned Parent branch centralizes the existing Apache/NGINX transactional-entry decision in prepare_connector_with_optional_staging() and leaves each public entry point as a thin wrapper around its preserved private per-plan control flow. Exact Draft PR #226 verification shows both current causes with zero open PR issues and zero New-Code duplication. Preserve this scope and do not move code merely to alter metrics or change a scanner rule, gate, exclusion, suppression, NOSONAR marker, workflow, Framework/MRTS source, or Gitlink. The only remaining delivery decision is an explicitly authorized merge followed by resulting-master reproduction.",
+  "proposed_remediation_de": "Der task-eigene Parent-Branch zentralisiert die bestehende Apache-/NGINX-Entscheidung für den transaktionalen Einstieg in prepare_connector_with_optional_staging() und lässt jeden öffentlichen Einstiegspunkt als dünnen Wrapper um seinen bewahrten privaten Per-Plan-Kontrollfluss. Die Verifikation des exakten Draft-PR #226 zeigt beide aktuellen Ursachen mit null offenen PR-Issues und null New-Code-Duplikation. Diesen Scope bewahren und keinen Code nur zur Metrikänderung verschieben oder Scanner-Rule, Gate, Exclusion, Suppression, NOSONAR-Marker, Workflow, Framework-/MRTS-Source oder Gitlink ändern. Die einzige verbleibende Delivery-Entscheidung ist ein explizit autorisierter Merge mit anschließender Resulting-Master-Reproduktion.",
+  "acceptance_criteria": [
+    "Every one of the 38 retained current ci/provisioning SonarQube Cloud rows has a concrete source-level disposition; no task-owned item is silently omitted.",
+    "Both retained provisioning-side duplicate blocks are removed by behavior-preserving source remediation, not by moving code or changing scanner controls.",
+    "The focused Parent regression and legitimate-control tests for tests/test_prepare_runtime_components.py, tests/test_runtime_component_cache_contract.py, and tests/test_runtime_component_cache_identity.py pass.",
+    "A complete post-change security-diff review covers the changed provisioning source and records no reportable diff-induced security finding.",
+    "The exact task-owned pull-request head has zero OPEN/CONFIRMED SonarQube Cloud issues and 0.0 percent New-Code duplication in the selected scope without rule, gate, exclusion, suppression, NOSONAR, or workflow changes."
+  ],
+  "validation_plan": [
+    "Completed local validation: 91 focused provisioner/cache/environment/artifact/path-policy tests passed, along with Python compilation, make check-runtime-path-policy, bilingual documentation, documentation links, and git diff --check in the task-owned external worktree with the Parent-pinned Framework fixture.",
+    "Completed legitimate controls: managed Expat marked-child acceptance and external-path, canonical-traversal, and symlink-escape rejection controls passed before cache filesystem or build sinks; the silent nonzero Git-submodule failure and bounded NGINX profile-propagation controls passed.",
+    "Completed sealed exact-head Codex Security diff review for 904a8fca64b35cd287348722b4bdc2260b4f64b3...cb500e3a84efe94565b7a6665dea4b94ec719501 with complete coverage and zero reportable findings.",
+    "Completed exact-head hosted validation on PR #220: the named required GitHub Actions checks succeeded and SonarQube Cloud Quality Gate was OK with zero open PR issues, new_violations=0, new_security_hotspots=0, new_duplicated_lines_density=0.0, and duplicated_lines_density=0.0.",
+    "Completed resulting-master verification: GitHub normal-merged exact head 5378ed0c29f91df7e508f13b9d860c548f882468 as caabf33c11d6002f9a1661f215ed195d6e141253, all 14 exact-master workflows passed, and the resulting-master Sonar analysis is bound to that revision with zero duplicated lines and 0.0% duplication.",
+    "Completed PR #224 follow-up validation: exact Draft head 0da588ecd068f35e27ae404139906e2bebc89e14 remediates the four retained source causes; the focused 94-test aggregate, Python compilation, runtime-path policy, bilingual documentation, documentation links, and git diff --check passed. All applicable exact-head GitHub checks passed, and SonarQube Cloud reports Quality Gate OK, zero open PR issues, new_violations=0, new_security_hotspots=0, new_duplicated_lines_density=0.0, and new_duplicated_lines=0.",
+    "Resulting-master verification of PR #224 completed: all 14 master workflows passed, but only AZ9cRyj3HhV2CayPTPys and AZ9cRyj3HhV2CayPTPy2 are CLOSED/FIXED; AZ9cRyj3HhV2CayPTPzB and AZ9cRyj3HhV2CayPTPzC remain OPEN. A new focused source remediation and exact-head/resulting-master reproduction are required before fixed, verified, or closed status.",
+    "PR #226 exact-head validation completed: b08bc69278570a02af5c0367bffb2dea47d37d7c matches local, remote, and GitHub. The helper preserves keyed-plan staging and unkeyed direct preparation; Python compilation and 34 focused cache-contract tests pass. GitHub reports 33 successful completed checks and six expected skips, and SonarQube Cloud reports Quality Gate OK, zero OPEN/CONFIRMED PR issues, new_violations=0, new_security_hotspots=0, new_duplicated_lines_density=0.0, and new_duplicated_lines=0. Resulting-master reproduction requires explicit current-user merge authorization."
+  ],
+  "regression_tests": [
+    "tests/test_prepare_runtime_components.py",
+    "tests/test_runtime_component_cache_contract.py",
+    "tests/test_runtime_component_cache_identity.py"
+  ],
+  "legitimate_control_tests": [
+    "Managed Expat override marked-child acceptance remains available.",
+    "Managed Expat override external-path, canonical-traversal, and symlink-escape inputs are rejected before cache filesystem or build sinks.",
+    "Existing report generation remains contract-compatible after provisioning-side duplicate removal.",
+    "Unkeyed plans call the prepare callback directly, and keyed non-transactional plans call it only with the existing transactionally staged plan."
+  ],
+  "dependencies": [
+    "Task-owned external Parent worktree and the Parent-pinned Framework fixture for focused tests.",
+    "The exact task-owned Draft PR #226 head is verified. Explicit current-user master-integration authorization and resulting-master reproduction remain required for verified or closed status."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0016",
+    "FND-SONAR-0029"
+  ],
+  "source_run_ids": [
+    "ci-provisioning-sonar-remediation-20260801",
+    "ci-provisioning-four-sonar-followup-20260801",
+    "ci-provisioning-two-cognitive-sonar-remediation-20260801"
+  ],
+  "residual_risk": "The baseline review retains a deferred runtime-snapshot-wrapper caller-reachability question, although the focused PR #226 control review found no reportable diff-induced security issue. The two remaining cognitive-complexity keys are remediated and exact-head verified on the open Draft PR, but remain open on current master until an explicitly authorized merge and resulting-master reproduction occur. The finding is fixed, not verified or closed.",
+  "residual_risk_de": "Der Baseline-Review bewahrt eine zurückgestellte Runtime-Snapshot-Wrapper-Caller-Reachability-Frage, obwohl der fokussierte PR-#226-Control-Review keinen reportierbaren diff-induzierten Security-Befund fand. Die zwei verbleibenden Cognitive-Complexity-Keys sind im offenen Draft-PR remediert und auf Exact Head verifiziert, bleiben aber auf aktuellem Master bis zu explizit autorisiertem Merge und Resulting-Master-Reproduktion offen. Das Finding ist fixed, nicht verified oder closed.",
+  "created_at": "2026-08-01T11:08:22Z",
+  "updated_at": "2026-08-01T16:59:29Z",
+  "final_disposition": "exact_draft_pr_226_head_b08bc69278570a02af5c0367bffb2dea47d37d7c_verified_fixed_pending_explicit_master_authorization_and_resulting_master_reproduction",
+  "history": [
+    {
+      "at": "2026-08-01T11:08:22Z",
+      "event": "current_provisioning_sonar_inventory_triaged_and_remediation_started",
+      "detail": "Allocated after retained revision-matched inventory confirmed 38 current ci/provisioning rows and two provisioning-side duplicate blocks. The sealed baseline review records zero reportable finding with one deferred caller-reachability question. No code completion, commit, PR, merge, scanner-control, Framework/MRTS, Gitlink, or master action is claimed by this allocation."
+    },
+    {
+      "at": "2026-08-01T11:36:00Z",
+      "event": "complete_post_change_security_diff_review_passed_locally",
+      "detail": "The sealed working-tree post-change review for snapshot codex-security-snapshot/v1:sha256:ad33f9ea2a77c566961b276b43af9726da2f6d2e39efd7abfd2a1661e85d2dab has complete coverage and zero reportable findings. Its retained validation summary records 89 focused tests, Expat positive/escape controls, the silent Git-submodule failure control, make check-runtime-path-policy, and the bilingual documentation checker as passed. This is local evidence only; no commit, PR, merge, hosted analysis, or source-finding closure is claimed."
+    },
+    {
+      "at": "2026-08-01T13:20:09Z",
+      "event": "exact_draft_pr_220_head_verified_and_finding_fixed_pending_master",
+      "detail": "Open Draft Parent PR #220 is bound to base 904a8fca64b35cd287348722b4bdc2260b4f64b3 and exact matching local/remote/GitHub head cb500e3a84efe94565b7a6665dea4b94ec719501. The final sealed exact-head security-diff review has complete coverage and zero reportable findings; 91 focused local tests and all listed local controls passed. Required exact-head GitHub Actions checks succeeded, with quick-framework-check expected skipped. SonarQube Cloud reports Quality Gate OK, zero open PR issues, new_violations=0, violations=0, new_security_hotspots=0, new_duplicated_lines_density=0.0, and duplicated_lines_density=0.0. No merge was authorized or attempted, so this transition is fixed rather than verified or closed."
+    },
+    {
+      "at": "2026-08-01T14:13:10Z",
+      "event": "pr_220_normal_merge_and_resulting_master_reproduction_reopened_remediation",
+      "detail": "GitHub normal-merged exact PR #220 head 5378ed0c29f91df7e508f13b9d860c548f882468 as resulting master caabf33c11d6002f9a1661f215ed195d6e141253. All 14 resulting-master workflows succeeded, and the resulting-master Sonar analysis is bound to that SHA with zero duplicate lines and 0.0% duplication. However, four OPEN original-component rows remain: python:S3776 AZ9cRyj3HhV2CayPTPzC at prepare_nginx_runtime(), python:S3776 AZ9cRyj3HhV2CayPTPzB at prepare_apache_httpd(), python:S1066 AZ9cRyj3HhV2CayPTPys at remove_incomplete_connector_cache_entry(), and python:S3776 AZ9cRyj3HhV2CayPTPy2 at BuildLock.__enter__(). Their Sonar creation dates predate the retained 38-row inventory. The clean PR/New-Code result does not demonstrate complete historical remediation, so status is corrected from fixed to in_progress; no scanner control, Framework/MRTS source, Gitlink, bypass, or direct master change was used."
+    },
+    {
+      "at": "2026-08-01T15:46:12Z",
+      "event": "exact_draft_pr_224_head_remediated_remaining_historical_provisioning_rows",
+      "detail": "Open Draft Parent PR #224 is bound to base 62f7e13f35edd3f73661f724fd5208dcf1584d18 and exact matching local/remote/GitHub head 0da588ecd068f35e27ae404139906e2bebc89e14. The source change remediates the four historical rows retained after PR #220: cognitive complexity in prepare_nginx_runtime(), prepare_apache_httpd(), and BuildLock.__enter__(), plus the nested conditional in remove_incomplete_connector_cache_entry(). The focused 94-test aggregate and all listed local checks passed; all applicable exact-head GitHub checks passed; SonarQube Cloud Quality Gate is OK with zero open PR issues, new_violations=0, new_security_hotspots=0, new_duplicated_lines_density=0.0, and new_duplicated_lines=0. The only issue comment is Sonar's successful notification; no review comments or submitted reviews remain. No merge was authorized or attempted. Status becomes fixed pending user-authorized master integration and resulting-master reproduction; no scanner control, Framework/MRTS source, Gitlink, bypass, or direct master change was used."
+    },
+    {
+      "at": "2026-08-01T16:03:41Z",
+      "event": "pr_224_normal_merge_resulting_master_reproduction_reopened_two_rows",
+      "detail": "GitHub normal-merged exact PR #224 head 0da588ecd068f35e27ae404139906e2bebc89e14 as resulting master 7016a66f3702523098811b45139133c77dee88fb. All 14 workflows for that exact master SHA succeeded, and SonarQube Cloud's newest master analysis is bound to it. Original keys AZ9cRyj3HhV2CayPTPys (python:S1066) and AZ9cRyj3HhV2CayPTPy2 (python:S3776 BuildLock.__enter__) are CLOSED/FIXED. Original cognitive-complexity keys AZ9cRyj3HhV2CayPTPzB (prepare_apache_httpd) and AZ9cRyj3HhV2CayPTPzC (prepare_nginx_runtime) remain OPEN. The project Quality Gate is ERROR, but no unrelated project issue is attributed to PR #224. The original reproduction disproves the previous fixed claim, so the canonical finding returns to in_progress. No direct master correction, scanner control, Framework/MRTS source, Gitlink, bypass, or forced action was used."
+    },
+    {
+      "at": "2026-08-01T16:33:12Z",
+      "event": "two_remaining_cognitive_complexity_rows_remediated_locally_pending_pr",
+      "detail": "A fresh read-only SonarQube Cloud query confirms exactly the two remaining current-master keys AZ9cRyj3HhV2CayPTPzB and AZ9cRyj3HhV2CayPTPzC, both python:S3776 at cognitive complexity 16 where 15 is allowed. The task-owned Parent branch centralizes their unchanged keyed-plan transactional entry decision in prepare_connector_with_optional_staging(), leaving public Apache/NGINX wrappers around preserved private per-plan control flow. Python compilation and 34 focused cache-contract tests pass; focused review finds no plausible diff-induced reportable security issue. No commit, push, PR, hosted analysis, scanner-control change, Framework/MRTS source, Gitlink, or master action is claimed."
+    },
+    {
+      "at": "2026-08-01T16:59:29Z",
+      "event": "exact_draft_pr_226_head_verified_finding_fixed_pending_master",
+      "detail": "Open Draft Parent PR #226 is bound to master and exact matching local/remote/GitHub head b08bc69278570a02af5c0367bffb2dea47d37d7c, with CLEAN merge state, no submitted review, and no review decision. The helper preserves keyed-plan managed-root staging and unkeyed direct preparation; 34 focused cache-contract tests and Python compilation passed, while broad Framework-dependent checks remain evidenced as blocked only by intentionally absent Framework files. All 33 completed GitHub checks succeeded and six expected context skips occurred. SonarQube Cloud Quality Gate is OK with zero OPEN/CONFIRMED PR issues, new_violations=0, new_security_hotspots=0, new_duplicated_lines_density=0.0, and new_duplicated_lines=0. No scanner-control change, Framework/MRTS source, Gitlink, bypass, merge, or direct master action occurred. Status becomes fixed pending explicit master authorization and resulting-master reproduction."
+    }
+  ]
+}

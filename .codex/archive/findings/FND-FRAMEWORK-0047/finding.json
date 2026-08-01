@@ -1,0 +1,156 @@
+{
+  "id": "FND-FRAMEWORK-0047",
+  "title": "Quoted YAML uses key bypasses reviewed action-lock binding for a write-capable Framework publisher",
+  "title_de": "Ein gequoteter YAML-uses-Schlüssel umgeht die geprüfte Action-Lock-Bindung eines schreibfähigen Framework-Publishers",
+  "category": "security_validated",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "high",
+  "confidence": "reproduced",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": "Framework PR #39-#41 consolidation security review",
+  "affected_revision": "c274460a3e27b9fc0dfe904e1ce5eba33042f444",
+  "affected_files": [
+    ".github/workflows/update-workflow-tools.yml",
+    "ci/checks/security/check-ci-security-contract.py",
+    "tests/ci_security/test_framework_ci_security_contract.py"
+  ],
+  "affected_symbols": [
+    "uses_reference_and_comment",
+    "line_pin_errors",
+    "updater_publisher_profile_errors",
+    "validator -> publisher dependency"
+  ],
+  "technical_claim": "The CI security contract binds unquoted external action references to the reviewed action lock by text-line parsing. A quoted YAML key is parsed as the same uses field but is invisible to that line parser. The other mandatory validators enforce full-SHA immutability for this form but do not compare it with the reviewed lock. All three validator commands therefore succeed although the checkout SHA differs from the lock record.",
+  "entry_point": "A workflow change accepted into the trusted default branch changes a publisher step external action reference using a quoted YAML key.",
+  "source_to_sink_or_broken_control": "Source: YAML-legal quoted action key in update-workflow-tools.yml. Broken control: check-ci-security-contract.py recognizes only literal unquoted uses: source lines while it alone compares a reference with the reviewed lock and exact version comment. Sink: the publisher has contents: write and pull-requests: write and uses GitHub token-bearing publisher operations after validator success.",
+  "attacker_prerequisites": [
+    "A change with the quoted spelling is accepted into the trusted Framework default branch.",
+    "The constrained updater later runs from a trusted schedule or manual dispatch with candidate updates.",
+    "The selected alternative action SHA is a syntactically valid full SHA for the expected official action name."
+  ],
+  "observed_behavior": "On exact PR #40 head c274460a3e27b9fc0dfe904e1ce5eba33042f444, the original workflow passes all three validator commands. A mutable tag is rejected before publisher, but a quoted key with a different full checkout SHA 11bd71901bbe5b1630ceea73d27597364c9af683 passes check-github-actions-workflows.py --check all, check-workflow-action-pins.py, and check-ci-security-contract.py. The publisher needs: [resolver, validator] condition is therefore satisfiable for the lock-divergent spelling.",
+  "expected_behavior": "Every parsed external uses reference must be bound to the reviewed action lock regardless of YAML spelling, and the publisher must remain unreachable when a reference differs from the locked immutable commit.",
+  "impact": "This bypass weakens the reviewed action provenance boundary immediately before a repository-write-capable publisher. It does not prove an unauthenticated party can create commits in official actions repositories, but it allows a reviewed-lock-divergent action SHA to evade the intended exact-lock control and later execute in a token-bearing publisher context. The result is treated as a high-severity release blocker until repaired and regression-tested.",
+  "root_cause": "The only lock-equality check is coupled to a source-text parser that accepts only lines beginning with literal unquoted uses:. Parsed workflow profile validation checks action names and other publisher fields but not the expected locked SHA.",
+  "proposed_remediation": "Add source-form-independent parsed-YAML action-lock validation for every external uses reference, preserving local-action handling and existing version-comment checks. Add focused regressions for quoted-key and flow-mapping full-SHA variants, plus a legitimate current-lock control. Do not weaken validator dependency, token scope, branch condition, action pinning, or action lock.",
+  "acceptance_criteria": [
+    "A quoted external uses key with a different full SHA fails the CI security contract against the reviewed action lock.",
+    "A flow-mapping external uses reference with a different full SHA fails before the publisher.",
+    "The exact legitimate updater workflow continues to pass all CI security validators.",
+    "The publisher remains dependent on the read-only validator and retains its existing least-privilege boundary.",
+    "Focused regressions and relevant hosted exact-head controls pass on the consolidation PR."
+  ],
+  "validation_plan": [
+    "Run focused CI-security contract tests covering quoted-key and flow-mapping variants.",
+    "Run check-github-actions-workflows.py --check all, check-workflow-action-pins.py, and check-ci-security-contract.py against the final consolidation tree.",
+    "Run exact-head hosted workflow/security and Sonar checks before normal PR merge."
+  ],
+  "regression_tests": [
+    "tests/ci_security/test_framework_ci_security_contract.py",
+    "tests/security_regression/test_workflow_action_pins.py",
+    "ci/checks/security/check-ci-security-contract.py"
+  ],
+  "legitimate_control_tests": [
+    "The unchanged pinned updater workflow passes all three static validator commands.",
+    "A mutable tag remains rejected before publisher.",
+    "A quoted key with the lock exact SHA is accepted only if all other reviewed publisher constraints remain intact."
+  ],
+  "bypass_review": "Confirm the repair compares parsed references with the action lock and does not rely solely on a source-spelling ban, and verify it does not grant broader token, publish, checkout, or action-update capability.",
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": ["FND-FRAMEWORK-0046", "FND-SONAR-0002"],
+  "deduplication_note": "FND-FRAMEWORK-0046 is a distinct OSV bootstrap availability defect. This record is a reproducible action-provenance control bypass in PR #40 publisher validation.",
+  "source_run_ids": [
+    "20260722T145132Z-framework-pr-39-41-master-integration-9a3c7dc7",
+    "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/delivery/pr42-exact-head-hosted-verification.md",
+      "artifact_type": "exact_pr_head_hosted_verification",
+      "sha256": "07d30f93ab9bda5fb03fb22b20b9755aba2b8567b67678a34ec3ff7927bcb853",
+      "command": "RTK-wrapped GitHub PR/check/review/thread readback plus retained hosted verification receipt",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/tmp/framework-worktree-v3",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T17:42:25Z",
+      "retention_status": "task_owned_temporary_evidence",
+      "summary": "The corrected PR #42 head 1fd3b362e0fed9766c6920e3c7bd1939535850f2 passes the exact hosted security/quality controls after the parsed action-lock repair."
+    },
+    {
+      "run_id": "20260722T145132Z-framework-pr-39-41-master-integration-9a3c7dc7",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T145132Z-framework-pr-39-41-master-integration-9a3c7dc7/evidence/security-diff/pr40_c274460_20260722T145132Z/artifacts/05_findings/CAND-FW40-QUOTED-USES/validation_report.md",
+      "artifact_type": "exact_pr_head_action_lock_bypass_validation",
+      "sha256": "a7f5df22d62985136dede2c12d775da8d80661646e24e11a57ff45941dd46b8c",
+      "command": "RTK-wrapped Python evidence harness runs three validator commands against disposable exact-head workflow mutations",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T16:00:00Z",
+      "retention_status": "task_owned_temporary_evidence",
+      "summary": "A mutable tag is rejected, while a quoted YAML key containing a different full checkout SHA passes all three exact-head validators and preserves the publisher dependency."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/security-diff/consolidation-local-security-closure.md",
+      "artifact_type": "consolidation_local_action_lock_remediation_validation",
+      "sha256": "6a5f626d9f574841484055431c33fb8dcfc47bc0029d641ea48359c1a9764719",
+      "command": "RTK-wrapped parsed-action-lock contract, quoted-key/flow-mapping focused tests, pin/workflow checks, actionlint, and checksum-verified offline Zizmor",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/tmp/framework-worktree-v3",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T17:04:03Z",
+      "retention_status": "task_owned_temporary_evidence",
+      "summary": "The consolidation compares parsed external uses references with the reviewed lock independent of YAML spelling; quoted-key and flow-mapping divergent full-SHA regressions are rejected locally."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/security-diff/consolidation-commit-receipt.md",
+      "artifact_type": "committed_consolidation_head_receipt",
+      "sha256": "c07815638b747cb80002db2f34ff18028d80d0241eb7c7248488d5c8fe6f9e1c",
+      "command": "RTK-wrapped clean-worktree, exact range whitespace, and native make lint verification after committing the consolidation head",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/tmp/framework-worktree-v3",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T17:24:06Z",
+      "retention_status": "task_owned_temporary_evidence",
+      "summary": "The locally fixed parsed-action-lock remediation is bound to committed Framework head 22747d460a9f7be02760edf05c311be376492457; hosted exact-head evidence remains required."
+    }
+  ],
+  "evidence_limitations": [
+    "The evidence proves an internal reviewed-lock control bypass, not an attacker-controlled commit in an official actions repository.",
+    "No token-bearing publisher or external action was invoked during reproduction."
+  ],
+  "residual_risk": "The parsed-action-lock repair passed the applicable hosted controls on the exact open PR #42 head but is not yet integrated into Framework master. It remains fixed, not verified or closed, until a normal master integration and resulting-master evidence. FND-SONAR-0002 remains an independent master-integration condition.",
+  "delivery_evidence": null,
+  "history": [
+    {
+      "at": "2026-07-22T17:42:25Z",
+      "event": "exact_pr_head_hosted_controls_passed",
+      "detail": "Open Framework PR #42 head 1fd3b362e0fed9766c6920e3c7bd1939535850f2 passed CodeQL, workflow security, OSV, Pyright, Sonar PR Quality Gate, and all other applicable hosted controls. This strengthens the fixed disposition, but the finding is neither verified nor closed before normal master integration and resulting-master evidence."
+    },
+    {
+      "at": "2026-07-22T17:24:06Z",
+      "event": "consolidation_remediation_committed",
+      "detail": "The locally fixed source-form-independent action-lock repair is now bound to Framework commit 22747d460a9f7be02760edf05c311be376492457. Clean-worktree, exact-range whitespace, and native make lint validation passed; hosted exact-head evidence remains required."
+    },
+    {
+      "at": "2026-07-22T17:04:03Z",
+      "event": "consolidation_remediation_locally_fixed",
+      "detail": "The task-owned consolidation recursively binds parsed external uses references to the reviewed action lock and adds quoted-key/flow-mapping divergent-SHA regressions while preserving publisher permissions and validator dependency. Hosted exact-head evidence remains required before verification."
+    },
+    {
+      "at": "2026-07-22T16:00:00Z",
+      "event": "action_lock_bypass_reproduced_and_tracked",
+      "detail": "The exact PR #40 validator chain accepts a quoted uses key containing a full SHA that differs from the reviewed action lock; mutable tags remain independently blocked."
+    }
+  ],
+  "created_at": "2026-07-22T16:00:00Z",
+  "updated_at": "2026-07-22T17:42:25Z",
+  "final_disposition": null
+}

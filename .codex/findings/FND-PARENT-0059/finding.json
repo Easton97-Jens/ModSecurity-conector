@@ -1,0 +1,129 @@
+{
+  "id": "FND-PARENT-0059",
+  "title": "Legacy stale full-matrix lock can deny scheduler service",
+  "title_de": "Legacy-Stale-Full-Matrix-Lock kann Scheduler-Service verweigern",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "validated",
+"status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "security_assessment": "validated",
+  "security_invariant": "The scheduler opens a regular non-symlink .full-matrix-run.lock below private MATRIX_ROOT on FD 9, acquires flock -n 9, and holds that FD for the full scheduler lifetime. Running job/Make descendants inherit FD 9, so SIGKILL of only the scheduler parent intentionally leaves the lock active until the final descendant exits; the kernel then releases it and the same lock path can be reused. A competing scheduler must not enter while any live holder retains FD 9; no secondary control path or release interface exists.",
+  "connector": null,
+  "protocol": "local full-matrix scheduler lock",
+  "profile": "concurrent full-matrix scheduler",
+  "affected_files": [
+    "ci/runtime/lifecycle/run-full-matrix-parallel.sh",
+    "tests/test_full_matrix_parallel_scheduler.py"
+  ],
+  "affected_symbols": [
+    "legacy mkdir full-matrix lock",
+    "MATRIX_ROOT",
+    "regular non-symlink .full-matrix-run.lock",
+    "FD 9",
+    "flock -n 9",
+    "full-matrix scheduler"
+  ],
+  "controlled_inputs": [
+    "private MATRIX_ROOT",
+    "regular non-symlink lock-file path",
+    "competing full-matrix scheduler invocation"
+  ],
+  "trust_boundary": "The private MATRIX_ROOT filesystem boundary and the kernel-held FD 9 lock distinguish the running scheduler and its job/Make descendants from a competing process. A regular non-symlink lock file and inherited shell-held descriptor preserve the ownership boundary without durable ownership state or a secondary release interface.",
+  "sink": "Full-matrix scheduler admission; an incorrect lock protocol can either deny service after owner death or allow a competing scheduler to impersonate release and overlap a live owner.",
+  "observed_behavior": "The prior mkdir-based full-matrix lock directory remained after its owner received SIGKILL. A later scheduler treated that orphaned directory as live and could be denied service indefinitely. A final release-impersonation review superseded the interim helper design entirely. The final local implementation in ci/runtime/lifecycle/run-full-matrix-parallel.sh opens a regular non-symlink .full-matrix-run.lock under private MATRIX_ROOT on shell FD 9, takes flock -n 9, and holds that descriptor for the whole scheduler. Running job/Make descendants inherit FD 9, so SIGKILL of only the scheduler parent leaves the lock active until the final descendant exits; the kernel then releases it for reuse on the same lock path. No secondary ownership state or release interface exists. The parent-confirmed local scheduler suite reported eight passing tests with -W error::ResourceWarning, including test_scheduler_rejects_a_live_full_matrix_lock_owner and test_scheduler_lock_outlives_a_sigkilled_parent_until_its_job_descendant_exits. Hosted exact-successor evidence is still pending.",
+  "expected_behavior": "A live scheduler holds FD 9 and flock -n 9 for its entire lifetime, so a competing scheduler receives the normal busy result and cannot release, replace, or bypass it. Running job/Make descendants inherit the descriptor; SIGKILL of only the scheduler parent must retain the advisory lock until the final descendant exits, after which kernel cleanup permits reuse of the same regular non-symlink lock path within private MATRIX_ROOT. No secondary ownership state or release interface exists.",
+  "impact": "The legacy persistent mkdir lock could deny later full-matrix runs and invalidate release evidence after an owner died. A release helper or owner-record recovery path could also permit release impersonation against a live owner. The final shell-held kernel lock removes both paths, but this validated P1 availability/security boundary remains a release blocker until hosted exact-successor evidence is available.",
+  "preconditions": [
+    "A full-matrix scheduler acquires the legacy mkdir lock",
+    "The owner is terminated with SIGKILL before legacy cleanup removes the lock directory",
+    "A later full-matrix scheduler attempts admission through the same lock path"
+  ],
+  "reproduction": [
+    "Start a full-matrix scheduler using the prior mkdir-based lock implementation.",
+    "Terminate its owner with SIGKILL before cleanup.",
+    "Start a second scheduler and observe that the persistent directory blocks admission although no owner remains.",
+    "Run the scheduler regression suite and confirm that a live FD 9 owner blocks a competitor, then SIGKILL of only the scheduler parent leaves the lock active until its final job/Make descendant exits and the same path is reusable."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T201408Z-parent-final-security-review",
+      "artifact_path": "task-conversation://root/finding_followup/2026-07-26/final-security-review",
+      "artifact_type": "parent-supplied final security review and local scheduler-test outcome",
+      "sha256": null,
+      "hash_status": "not_available_task_conversation_only_no_filesystem_receipt_supplied",
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -W error::ResourceWarning -m unittest -v tests.test_full_matrix_parallel_scheduler",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T20:27:15Z",
+      "retention_status": "task_conversation_only; hosted exact-successor receipt pending",
+      "result": "Parent-confirmed: 8 scheduler tests passed with ResourceWarning treated as an error, including test_scheduler_rejects_a_live_full_matrix_lock_owner and test_scheduler_lock_outlives_a_sigkilled_parent_until_its_job_descendant_exits."
+    }
+  ],
+  "root_cause": "A durable mkdir lock directory remained after SIGKILL and was treated as proof of a live owner. The release-impersonation review also established that a separate lock-control path would add an avoidable authority boundary against a live scheduler.",
+  "proposed_remediation": "The final local correction in ci/runtime/lifecycle/run-full-matrix-parallel.sh opens a regular non-symlink .full-matrix-run.lock under private MATRIX_ROOT on shell FD 9, acquires flock -n 9, and holds that FD for the scheduler lifetime. Running job/Make descendants inherit FD 9; SIGKILL of only the scheduler parent leaves the lock active until the final descendant exits, when kernel cleanup releases it for reuse. Preserve the single FD 9 ownership path and absence of a release interface; retain the eight focused scheduler controls and obtain final exact-successor hosted validation.",
+  "acceptance_criteria": [
+    "A live scheduler holding FD 9 and flock -n 9 rejects a competing scheduler without release, replacement, or bypass.",
+    "SIGKILL of only the scheduler parent leaves the kernel lock active while a job/Make descendant retains inherited FD 9; after the final descendant exits, kernel cleanup releases it and a later scheduler can acquire the same path.",
+    "The lock file is regular and non-symlink below private MATRIX_ROOT.",
+    "Only the shell-held FD 9 ownership path remains; no secondary control path or release interface exists.",
+    "All eight tests in tests.test_full_matrix_parallel_scheduler, including the named live-owner and SIGKILL regressions, pass.",
+    "A fresh hosted exact-successor run confirms the lock behavior without weakening scheduler isolation or result policy."
+  ],
+  "validation_plan": [
+    "Re-run PYTHONDONTWRITEBYTECODE=1 python3 -W error::ResourceWarning -m unittest -v tests.test_full_matrix_parallel_scheduler and retain an exact local receipt.",
+    "Exercise live-owner contention and prove that SIGKILL of only the scheduler parent preserves the lock until the final inherited job/Make descendant exits, then permits reuse of the same path.",
+    "Obtain fresh hosted exact-successor full-matrix, producer, review, and protected-integration evidence before fixed or verified status."
+  ],
+  "regression_tests": [
+    "Parent-confirmed eight-test scheduler suite: tests.test_full_matrix_parallel_scheduler",
+    "test_scheduler_rejects_a_live_full_matrix_lock_owner",
+    "test_scheduler_lock_outlives_a_sigkilled_parent_until_its_job_descendant_exits"
+  ],
+  "legitimate_control_tests": [
+    "A live scheduler holds FD 9 and a competing scheduler receives the expected busy result.",
+    "Closing the final copy of FD 9 releases its kernel lock without a secondary release operation.",
+    "SIGKILL of only the scheduler parent leaves the lock held by an inherited job/Make descriptor; after the final descendant exits, a subsequent scheduler acquires the same path normally."
+  ],
+  "dependencies": [
+    "Fresh hosted exact-successor scheduler/full-matrix evidence",
+    "FND-PARENT-0058 for separate full-matrix port-range reliability remediation"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0058",
+    "FND-SONAR-0016"
+  ],
+  "deduplication_note": "Not a duplicate of FND-PARENT-0058: FND-PARENT-0058 owns port-range allocation and ready-artifact scheduling reliability, while this finding owns the independently remediable stale-lock availability and live-owner preservation boundary. FND-SONAR-0016 remains the aggregate Quality-Gate record.",
+  "source_run_ids": [
+    "20260726T201408Z-parent-final-security-review"
+  ],
+  "residual_risk": "The parent-confirmed local eight-test outcome is task-conversation evidence only; no local filesystem receipt or hosted exact-successor result has been supplied to this finding yet. Until that evidence is retained, the shell-held FD 9 kernel-lock implementation remains in_progress and the P1 release blocker remains active. No risk acceptance, suppression, product-policy relaxation, Framework/MRTS action, Gitlink update, close, merge, or delivery is claimed.",
+  "residual_risk_de": "Das vom Parent bestätigte lokale Acht-Test-Ergebnis liegt nur als Task-Konversations-Evidence vor; für dieses Finding wurde noch kein lokaler Filesystem-Receipt und kein Hosted-Exact-Successor-Ergebnis geliefert. Bis diese Evidence aufbewahrt ist, bleibt die Shell-gehaltene-FD-9-Kernel-Lock-Implementierung in_progress und der P1-Release-Blocker aktiv. Es werden weder Risikoakzeptanz, Suppression, Lockerung einer Produkt-Policy, Framework-/MRTS-Aktion, Gitlink-Update, Close, Merge noch Delivery behauptet.",
+  "created_at": "2026-07-26T20:14:08Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-26T20:14:08Z",
+      "event": "stale_full_matrix_lock_dos_validated_and_local_guarded_remediation_recorded",
+      "detail": "Parent final security review confirmed that the prior mkdir lock survives SIGKILL and can deny later scheduler service. The final implementation is recorded separately in the superseding release-impersonation review event; hosted exact-successor evidence remains required."
+    },
+    {
+      "at": "2026-07-26T20:27:15Z",
+      "event": "release_impersonation_review_superseded_interim_lock_design",
+      "detail": "Release-impersonation review retained only the shell-held FD 9 ownership path. Final implementation holds flock -n 9 on a regular non-symlink .full-matrix-run.lock below private MATRIX_ROOT for the full scheduler lifetime; closing the final descriptor releases the lock. The later correction records that SIGKILL of only the scheduler parent retains the inherited-descriptor lock until the final job/Make descendant exits. Parent reported eight passing scheduler tests with ResourceWarning treated as errors, including the named live-owner and SIGKILL controls."
+    },
+    {
+      "at": "2026-07-26T20:37:23Z",
+      "event": "sigkill_parent_inherited_fd9_semantics_corrected",
+      "detail": "Parent clarified that running job/Make descendants inherit FD 9. SIGKILL of only the scheduler parent therefore intentionally leaves flock active until the last descendant exits; only then does kernel cleanup release the lock for reuse on the same path. The regression name is test_scheduler_lock_outlives_a_sigkilled_parent_until_its_job_descendant_exits."
+    }
+  ]
+}

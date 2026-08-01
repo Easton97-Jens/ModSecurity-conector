@@ -1,0 +1,301 @@
+{
+  "id": "FND-SONAR-0009",
+  "title": "Framework PR #39 Model-1 same-repository coverage workflow is locally implemented; hosted SonarQube Cloud coverage remains externally blocked",
+  "title_de": "Der Model-1-Same-Repository-Coverage-Workflow für Framework-PR #39 ist lokal implementiert; die Hosted-SonarQube-Cloud-Coverage bleibt extern blockiert",
+  "category": "sonarqube_finding",
+  "sonarqube_classification": "coverage_configuration",
+  "repository": "framework",
+  "ownership": "sonarqube_configuration",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "blocked",
+  "feasibility_status": "blocked_external_dependency",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": "Framework PR #39 Model 1 same-repository SonarQube Cloud coverage",
+  "affected_files": [
+    ".github/workflows/ci-security-coverage.yml",
+    "ci/checks/security/check-github-actions-workflows.py",
+    "ci/checks/security/check-ci-security-contract.py",
+    "ci/checks/security/check-ci-security-evidence-contract.py",
+    "requirements-ci.lock",
+    "tests/ci_security/test_ci_security_evidence_contract.py",
+    "tests/security_regression/test_workflow_security_contract.py"
+  ],
+  "affected_symbols": [
+    "same-repository-sonarqube-coverage",
+    "same_repository_sonar_coverage_errors",
+    "same_repository_sonar_coverage_job_errors",
+    "same_repository_sonar_coverage_producer_errors",
+    "SONAR_TOKEN",
+    "coverage==7.15.2"
+  ],
+  "summary": "The user selected Model 1. The same-repository pull-request workflow that produces a transient Cobertura report and invokes the fixed SonarQube Cloud scanner is locally implemented in the Framework worktree, and post-master local static/direct validation passed. The finding remains blocked_external_dependency, not fixed or verified: the project owner must configure a dedicated least-privilege SONAR_TOKEN and change the existing SonarQube Cloud project from automatic to CI-based analysis, then an exact-head hosted workflow must import coverage. Neither external action, hosted exact-head scan, imported coverage, nor hosted Quality Gate was observed or claimed.",
+  "summary_de": "Der Nutzer hat Model 1 ausgewählt. Der Same-Repository-Pull-Request-Workflow, der einen transienten Cobertura-Report erzeugt und den festen SonarQube-Cloud-Scanner aufruft, ist im Framework-Worktree lokal implementiert, und die lokale Static-/Direct-Validierung nach dem Master-Sync bestand. Das Finding bleibt blocked_external_dependency, nicht fixed oder verified: Der Projekt-Owner muss einen dedizierten Least-Privilege-SONAR_TOKEN konfigurieren und das bestehende SonarQube-Cloud-Projekt von automatischer auf CI-basierte Analyse umstellen; danach muss ein Exact-Head-Hosted-Workflow Coverage importieren. Keine externe Aktion, kein Hosted-Exact-Head-Scan, keine importierte Coverage und kein Hosted-Quality-Gate wurden beobachtet oder behauptet.",
+  "observed_behavior": "The retained initial PR #39 observation was 0.0% Coverage on New Code. After the user selected Model 1, the local Framework worktree gained the listed same-repository coverage workflow and contract/test paths. After normal synchronization with origin/master f73f8842f45318e2df8aff1d31855eeb7c20a22f, local HEAD was merge commit 0b0c20f686fcc2fd76a7035daf691bc17566d2e1 and origin/master...HEAD was 0 5. The final direct combined suite passed 23 tests in 31.756s: 14 CI-security-evidence-contract tests and 9 workflow-security tests. The generic workflow checker and make lint also passed; make lint included 90 CI-security tests, documentation checks, and git diff --check. The local Coverage.py execution remains separately blocked before tests by the missing CPython _sqlite3 module; FND-HOST-0006 records that host condition.",
+  "observed_behavior_de": "Die zurückgehaltene ursprüngliche PR-#39-Beobachtung lautete 0,0 % Coverage on New Code. Nachdem der Nutzer Model 1 ausgewählt hatte, erhielt der lokale Framework-Worktree die aufgeführten Same-Repository-Coverage-Workflow- und Contract/Test-Pfade. Nach normaler Synchronisierung mit origin/master f73f8842f45318e2df8aff1d31855eeb7c20a22f war der lokale HEAD der Merge-Commit 0b0c20f686fcc2fd76a7035daf691bc17566d2e1 und origin/master...HEAD war 0 5. Die finale direkte kombinierte Suite bestand 23 Tests in 31.756s: 14 CI-Security-Evidence-Contract-Tests und 9 Workflow-Security-Tests. Der generische Workflow-Checker und make lint bestanden ebenfalls; make lint umfasste 90 CI-Security-Tests, Dokumentationsprüfungen und git diff --check. Die lokale Coverage.py-Ausführung bleibt vor den Tests wegen des fehlenden CPython-Moduls _sqlite3 separat blockiert; FND-HOST-0006 erfasst diese Host-Bedingung.",
+  "expected_behavior": "For a same-repository PR, Model 1 must continue to check out the exact PR head without persisted credentials, run the focused hash-locked tests under Coverage.py, create a runner-local nonempty Cobertura XML report, and scope SONAR_TOKEN only to the fixed scanner action. The project owner must then configure the dedicated least-privilege SONAR_TOKEN and convert the existing SonarQube Cloud project from automatic to CI-based analysis so that a fresh exact-head hosted scan imports the report and yields a real coverage result.",
+  "expected_behavior_de": "Für einen Same-Repository-PR muss Model 1 weiterhin den exakten PR-Head ohne persistierte Credentials auschecken, die fokussierten hash-gesperrten Tests unter Coverage.py ausführen, einen runner-lokalen nichtleeren Cobertura-XML-Report erzeugen und SONAR_TOKEN nur auf die feste Scanner-Action beschränken. Der Projekt-Owner muss danach den dedizierten Least-Privilege-SONAR_TOKEN konfigurieren und das bestehende SonarQube-Cloud-Projekt von automatischer auf CI-basierte Analyse umstellen, damit ein frischer Exact-Head-Hosted-Scan den Report importiert und ein reales Coverage-Ergebnis liefert.",
+  "impact": "The local source/configuration remedy is fixed but cannot establish external project configuration, token provisioning, report ingestion, a hosted Quality Gate, or exact-head SonarQube Cloud coverage. PR delivery therefore remains blocked. The local CPython SQLite condition is distinct from the hosted project/token condition and must not be used to infer either hosted success or hosted failure.",
+  "impact_de": "Die lokale Source/Configuration-Remediation ist fixed, kann jedoch keine externe Projektkonfiguration, Token-Provisionierung, Report-Ingestion, ein Hosted-Quality-Gate oder Exact-Head-SonarQube-Cloud-Coverage belegen. Die PR-Delivery bleibt daher blockiert. Die lokale CPython-SQLite-Bedingung ist von der Hosted-Projekt/Token-Bedingung getrennt und darf weder für Hosted-Erfolg noch für Hosted-Fehler herangezogen werden.",
+  "preconditions": [
+    "The retained initial PR #39 inventory applies to SonarQube Cloud project Easton97-Jens_ModSecurity-test-Framework and records the 0.0% Coverage on New Code dashboard observation.",
+    "The user selected Model 1 for a same-repository pull-request coverage workflow.",
+    "The local Framework implementation is present only in the affected Framework paths listed by this finding and has not been represented as hosted configuration.",
+    "The project owner controls the dedicated least-privilege SONAR_TOKEN and the existing project's automatic-versus-CI-based analysis mode."
+  ],
+  "reproduction": [
+    "Run the recorded post-refactor generic workflow checker from the Framework worktree.",
+    "Run the recorded post-refactor CI-security contract and CI-security evidence-contract checkers from the Framework worktree.",
+    "Run the recorded post-refactor combined direct suite tests.ci_security.test_ci_security_evidence_contract and tests.security_regression.test_workflow_security_contract.",
+    "Read /var/tmp/codex/ModSecurity-conector/runs/20260721T055738Z-framework-pr39-delivery-followup-416b152c/evidence/framework-pr39-coverage-sqlite-blocker.md and compare SHA-256 15d6518ccdb7015622df3bda5d0d1c0c4726096e3e4a392314786b448157cf9e.",
+    "After owner configuration, inspect the CI scanner/import logs and the matching SonarQube Cloud analysis for the exact submitted head."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260721T044827Z-framework-pr39-sonar-remediation-56e8f9d8",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T044827Z-framework-pr39-sonar-remediation-56e8f9d8/evidence/sonar-pr39-initial-inventory.md",
+      "artifact_type": "markdown",
+      "sha256": "f9feb36fe34055f6c17f47ed0011803d70b3128a2104d483bad9b01be54dcddd",
+      "command": "rtk proxy python3 -c 'import json, urllib.request; data=json.load(urllib.request.urlopen(\"https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-test-Framework&pullRequest=39&issueStatuses=OPEN%2CCONFIRMED&sinceLeakPeriod=true&ps=500\")); print(data[\"total\"])'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T04:40:00Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260721T055738Z-framework-pr39-delivery-followup-416b152c",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T055738Z-framework-pr39-delivery-followup-416b152c/evidence/framework-pr39-coverage-sqlite-blocker.md",
+      "artifact_type": "coverage_validation_blocker_receipt",
+      "sha256": "15d6518ccdb7015622df3bda5d0d1c0c4726096e3e4a392314786b448157cf9e",
+      "command": ".venv/bin/python -m coverage run -m unittest -v tests.ci_security.test_framework_ci_security_contract tests.ci_security.test_python_version_contract tests.ci_security.test_update_python_version tests.ci_security.test_ci_security_evidence_contract tests.security_regression.test_workflow_security_contract",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/framework-python-updater",
+      "exit_code": 1,
+      "observed_at": "2026-07-21T07:41:04Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260721T101159Z-framework-pr39-sonar-delivery-preflight-d47e17f2",
+      "artifact_path": ".codex/runs/20260721T101159Z-framework-pr39-sonar-delivery-preflight-d47e17f2/evidence/framework-pr39-renewed-sonar-delivery-preflight-receipt.json",
+      "artifact_type": "sonarqube_cloud_renewed_delivery_preflight_receipt",
+      "sha256": "8141302e6bbd8303c7b86e2bdf50f35ebd7e669aaefb9faf9aa1f4d41cde5863",
+      "command": "apply_patch local receipt construction from parent-supplied renewed Framework PR #39 Sonar delivery-preflight summaries; no GitHub/SonarQube Cloud endpoint replay or credential inspection.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T10:11:59Z",
+      "retention_status": "retained_sealed_local_control_plane"
+    }
+  ],
+  "validation_results": [
+    {
+      "name": "combined Model-1 direct evidence and workflow-security suites",
+      "command": "rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=/var/tmp/codex/ModSecurity-conector/runs/20260721T055738Z-framework-pr39-delivery-followup-416b152c/tmp/model-one-refactor-pycache .venv/bin/python -m unittest -v tests.ci_security.test_ci_security_evidence_contract tests.security_regression.test_workflow_security_contract",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/framework-python-updater",
+      "exit_code": 0,
+      "result": "passed",
+      "output": "Ran 23 tests in 31.756s; OK (final post-master synchronization validation)",
+      "coverage": "14 CI-security-evidence-contract tests and 9 workflow-security tests",
+      "recorded_at": "2026-07-21T08:13:50Z",
+      "limitation": "Direct local tests; no GitHub Actions run, SonarQube Cloud scan, report upload, or project configuration change was observed."
+    },
+    {
+      "name": "generic workflow checker",
+      "command": "rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=/var/tmp/codex/ModSecurity-conector/runs/20260721T055738Z-framework-pr39-delivery-followup-416b152c/tmp/model-one-checkers-pycache .venv/bin/python ci/checks/security/check-github-actions-workflows.py --workflow-root .github/workflows --check all",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/framework-python-updater",
+      "exit_code": 0,
+      "result": "passed",
+      "output": "ok ci-security-coverage.yml",
+      "recorded_at": "2026-07-21T07:54:45Z",
+      "limitation": "Static local workflow validation only."
+    },
+    {
+      "name": "CI-security contract checker",
+      "command": "rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=/var/tmp/codex/ModSecurity-conector/runs/20260721T055738Z-framework-pr39-delivery-followup-416b152c/tmp/model-one-checkers-pycache .venv/bin/python ci/checks/security/check-ci-security-contract.py --root .",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/framework-python-updater",
+      "exit_code": 0,
+      "result": "passed",
+      "output": "CI security contract passed.",
+      "recorded_at": "2026-07-21T07:54:45Z",
+      "limitation": "Static local contract validation only."
+    },
+    {
+      "name": "CI-security evidence-contract checker",
+      "command": "rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=/var/tmp/codex/ModSecurity-conector/runs/20260721T055738Z-framework-pr39-delivery-followup-416b152c/tmp/model-one-checkers-pycache .venv/bin/python ci/checks/security/check-ci-security-evidence-contract.py --root .",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/framework-python-updater",
+      "exit_code": 0,
+      "result": "passed",
+      "output": "CI security evidence contract passed.",
+      "recorded_at": "2026-07-21T07:54:45Z",
+      "limitation": "Static local evidence-contract validation only."
+    },
+    {
+      "name": "selected Model-1 checker syntax",
+      "command": "rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=/var/tmp/codex/ModSecurity-conector/runs/20260721T055738Z-framework-pr39-delivery-followup-416b152c/tmp/model-one-refactor-pycache .venv/bin/python -m compileall -q ci/checks/security/check-github-actions-workflows.py ci/checks/security/check-ci-security-evidence-contract.py",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/framework-python-updater",
+      "exit_code": 0,
+      "result": "passed",
+      "recorded_at": "2026-07-21T07:54:45Z",
+      "limitation": "Syntax evidence only."
+    },
+    {
+      "name": "final post-master local validation",
+      "command": "recorded generic workflow checker; recorded combined direct unittest suite; make lint",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/framework-python-updater",
+      "exit_code": 0,
+      "result": "passed",
+      "output": "origin/master=f73f8842f45318e2df8aff1d31855eeb7c20a22f; HEAD=0b0c20f686fcc2fd76a7035daf691bc17566d2e1; origin/master...HEAD=0 5; generic workflow checker exit 0; combined suite Ran 23 tests in 31.756s; OK; make lint exit 0, including 90 CI-security tests, documentation checks, and git diff --check.",
+      "recorded_at": "2026-07-21T08:13:50Z",
+      "limitation": "Post-master local validation only; no GitHub Actions run, SonarQube Cloud scan, report upload, project configuration change, or hosted Quality Gate was observed."
+    },
+    {
+      "name": "renewed Framework PR #39 Sonar delivery-preflight receipt syntax",
+      "command": "rtk proxy -- jq -e . .codex/runs/20260721T101159Z-framework-pr39-sonar-delivery-preflight-d47e17f2/evidence/framework-pr39-renewed-sonar-delivery-preflight-receipt.json",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "result": "passed",
+      "output": "The secret-safe receipt parsed as JSON and records matching Framework local, origin task-branch, and PR #39 head 0b0c20f686fcc2fd76a7035daf691bc17566d2e1; Draft state; GitHub mergeable=true with UNSTABLE status because one check fails; an empty reported repository Actions-secret list/API count 0; inherited sonar.autoscan.enabled=true; no returned coverage measure; 25 OPEN/CONFIRMED new-code issues; and current-head Quality Gate OK without a coverage condition.",
+      "recorded_at": "2026-07-21T10:21:06Z",
+      "limitation": "Receipt parsing validates only the retained parent-supplied result summary. No endpoint command, raw response, credential value, scanner/import run that imports coverage, or coverage result was replayed or claimed."
+    }
+  ],
+  "root_cause": "The original coverage condition crossed two independent boundaries. Model 1 now remedies the local workflow/configuration absence, but the external SonarQube Cloud project still needs an owner-provisioned dedicated least-privilege SONAR_TOKEN and a switch from automatic to CI-based analysis before it can ingest the exact-head report. Local Cobertura generation is independently blocked by the host CPython _sqlite3 condition in FND-HOST-0006.",
+  "root_cause_de": "Die ursprüngliche Coverage-Bedingung überschritt zwei unabhängige Grenzen. Model 1 behebt nun das lokale Fehlen von Workflow/Configuration, doch das externe SonarQube-Cloud-Projekt benötigt weiterhin einen vom Owner bereitgestellten dedizierten Least-Privilege-SONAR_TOKEN und eine Umstellung von automatischer auf CI-basierte Analyse, bevor es den Exact-Head-Report ingestieren kann. Die lokale Cobertura-Erzeugung wird unabhängig durch die Host-CPython-_sqlite3-Bedingung in FND-HOST-0006 blockiert.",
+  "proposed_remediation": "Keep the locally fixed Model-1 files and focused controls intact. The project owner must configure a dedicated least-privilege SONAR_TOKEN, switch the existing SonarQube Cloud project from automatic to CI-based analysis, and run the workflow on the exact submitted same-repository PR head. Retain scanner/import evidence and re-check the hosted coverage and Quality Gate. Do not lower thresholds, add exclusions, suppress findings, change rules, or mark any risk accepted.",
+  "proposed_remediation_de": "Die lokal fixed Model-1-Dateien und fokussierten Controls unverändert beibehalten. Der Projekt-Owner muss einen dedizierten Least-Privilege-SONAR_TOKEN konfigurieren, das bestehende SonarQube-Cloud-Projekt von automatischer auf CI-basierte Analyse umstellen und den Workflow auf dem exakten eingereichten Same-Repository-PR-Head ausführen. Scanner/Import-Evidence aufbewahren und Hosted-Coverage sowie Quality Gate erneut prüfen. Keine Thresholds absenken, keine Exclusions hinzufügen, keine Findings unterdrücken, keine Regeln ändern und kein Risiko akzeptieren.",
+  "acceptance_criteria": [
+    "The Model-1 local workflow and its generic, CI-security, and evidence-contract controls remain passing.",
+    "The project owner configures a dedicated least-privilege SONAR_TOKEN without disclosing its value.",
+    "The existing SonarQube Cloud project is switched from automatic to CI-based analysis.",
+    "A same-repository exact-head workflow run produces and imports a nonempty Cobertura XML report.",
+    "A fresh matching SonarQube Cloud analysis reports the imported coverage and its actual Quality Gate result.",
+    "No threshold reduction, relevant exclusion, suppression, false-positive disposition, rule/gate change, or risk acceptance is used."
+  ],
+  "validation_plan": [
+    "Rerun the five recorded local checks after any Model-1 source refactor.",
+    "After separately resolving FND-HOST-0006, rerun the exact local Coverage.py command with the required CPython 3.13.14 environment and verify a nonempty Cobertura XML file.",
+    "After owner configuration, inspect the exact-head GitHub Actions workflow, scanner/import log, and SonarQube Cloud report-import result.",
+    "Verify the same-repository guard, exact checkout, runner-local coverage paths, least-privilege token placement, and absence of project-configuration shortcuts remain intact."
+  ],
+  "regression_tests": [
+    "tests/ci_security/test_ci_security_evidence_contract.py",
+    "tests/security_regression/test_workflow_security_contract.py"
+  ],
+  "legitimate_control_tests": [
+    "The selected direct 23-test suite passed locally.",
+    "The generic workflow checker passed with ci-security-coverage.yml.",
+    "The CI-security contract checker and CI-security evidence-contract checker both passed.",
+    "The exact same-repository guard and single reviewed SONAR_TOKEN scanner-action mapping are enforced by the local contract checks."
+  ],
+  "dependencies": [
+    "Project-owner configuration of a dedicated least-privilege SONAR_TOKEN",
+    "Project-owner conversion of the existing SonarQube Cloud project from automatic to CI-based analysis",
+    "A hosted same-repository exact-head workflow run and SonarQube Cloud access for verification",
+    "FND-HOST-0006 for local Cobertura generation only"
+  ],
+  "blocked_by": [
+    "The project-owner SONAR_TOKEN configuration has not been observed.",
+    "The existing SonarQube Cloud project switch from automatic to CI-based analysis has not been observed.",
+    "The exact current remote PR #39 head 0b0c20f686fcc2fd76a7035daf691bc17566d2e1 has no Model-1 scanner/import run because the locally implemented Model-1 source changes remain unstaged and undelivered.",
+    "No exact-head scanner/import log or imported coverage result has been observed; the current Quality Gate is OK but has no coverage condition."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0044",
+    "FND-HOST-0006",
+    "FND-SONAR-0002",
+    "FND-SONAR-0004"
+  ],
+  "source_run_ids": [
+    "20260721T044827Z-framework-pr39-sonar-remediation-56e8f9d8",
+    "20260721T055738Z-framework-pr39-delivery-followup-416b152c",
+    "20260721T101159Z-framework-pr39-sonar-delivery-preflight-d47e17f2"
+  ],
+  "evidence_limitations": [
+    "The original public measure endpoint omitted new_coverage; the 0.0% observation remains a retained dashboard observation.",
+    "The current local check results validate Model-1 static and direct-suite behavior only; they are not GitHub Actions, scanner, report-import, hosted coverage, or Quality Gate evidence.",
+    "No dedicated least-privilege SONAR_TOKEN configuration or automatic-to-CI-based project conversion was observed.",
+    "The renewed delivery-preflight receipt records parent-supplied result summaries without raw endpoint responses or command reconstruction. The empty repository Actions-secret observation does not prove absence of organization, environment, or other external credential configuration.",
+    "The local Coverage.py command did not produce Cobertura XML because CPython 3.13.14 lacks _sqlite3; FND-HOST-0006 tracks that separate local blocker."
+  ],
+  "security_assessment": {
+    "trust_boundary": "A project analysis token is referenced only for same-repository pull-request execution and only in the reviewed scanner action environment.",
+    "residual_trust_assumption": "same-repository PR initiators are authorized for the project analysis token.",
+    "accepted_risk": false,
+    "hosted_token_configuration_observed": false,
+    "repository_actions_secret_list_observed_empty": true,
+    "repository_actions_secret_api_count": 0,
+    "repository_secret_observation_scope": "Repository Actions secrets only; organization, environment, and other external credential configuration were not inferred."
+  },
+  "residual_risk": "The exact residual trust assumption is: same-repository PR initiators are authorized for the project analysis token. This is not a risk acceptance. No hosted configuration, token provisioning, scanner/import execution, coverage result, Quality Gate, PR delivery, Framework delivery, Parent gitlink update, or MRTS change is claimed by this finding.",
+  "residual_risk_de": "Die exakte Restrisiko-Annahme lautet: same-repository PR initiators are authorized for the project analysis token. Dies ist keine Risikoakzeptanz. Diese Finding behauptet keine Hosted-Konfiguration, Token-Provisionierung, Scanner/Import-Ausführung, kein Coverage-Ergebnis, kein Quality Gate, keine PR-Delivery, keine Framework-Delivery, kein Parent-Gitlink-Update und keine MRTS-Änderung.",
+  "delivery_evidence": {
+    "model_selection": "Model 1 selected by user",
+    "local_implementation": "fixed_locally",
+    "local_final_validation": "passed",
+    "lifecycle_disposition": "blocked_external_dependency; the local Model-1 implementation is a completed sub-remediation, not a hosted fix",
+    "post_master_branch_state": {
+      "origin_master": "f73f8842f45318e2df8aff1d31855eeb7c20a22f",
+      "local_head": "0b0c20f686fcc2fd76a7035daf691bc17566d2e1",
+      "origin_master_ahead_count": 0,
+      "local_head_ahead_count": 5,
+      "task_changes_state": "restored_unstaged_after_normal_merge"
+    },
+    "renewed_delivery_preflight": {
+      "run_id": "20260721T101159Z-framework-pr39-sonar-delivery-preflight-d47e17f2",
+      "receipt_sha256": "8141302e6bbd8303c7b86e2bdf50f35ebd7e669aaefb9faf9aa1f4d41cde5863",
+      "remote_pr_head": "0b0c20f686fcc2fd76a7035daf691bc17566d2e1",
+      "origin_task_branch_head": "0b0c20f686fcc2fd76a7035daf691bc17566d2e1",
+      "remote_pr_head_matches_origin_task_branch": true,
+      "remote_pr_state": "draft",
+      "remote_pr_mergeable": true,
+      "remote_pr_mergeability_status": "UNSTABLE",
+      "remote_pr_mergeability_status_reason": "one GitHub check is failing",
+      "repository_actions_secret_list": "exit 0; reported empty; API count 0; no credential values retained",
+      "public_autoscan_setting": "sonar.autoscan.enabled=true (inherited)",
+      "current_pr_metric_result": "no coverage measure returned; new_duplicated_lines_density=0.0",
+      "new_code_open_confirmed_issue_count": 25,
+      "current_quality_gate": "OK on the exact current PR #39 head, with no coverage condition",
+      "hosted_current_head_coverage": "not_verified",
+      "hosted_current_head_quality_gate": "OK_without_coverage_condition"
+    },
+    "local_cobertura_generation": "blocked_environment; see FND-HOST-0006",
+    "hosted_project_configuration": "blocked_external_dependency",
+    "hosted_coverage_ingestion": "not_verified",
+    "hosted_quality_gate": "not_verified",
+    "parent_gitlink_update_authorized": false,
+    "mrts_change_authorized": false
+  },
+  "history": [
+    {
+      "at": "2026-07-21T04:48:27Z",
+      "event": "framework_pr39_coverage_ingestion_blocker_created",
+      "detail": "Allocated as a distinct P1 blocked SonarQube Cloud configuration finding after retained evidence confirmed 0.0% Coverage on New Code and no local coverage producer or import path. At that time a user selection and authorization for external configuration remained required."
+    },
+    {
+      "at": "2026-07-21T07:54:45Z",
+      "event": "model_one_selected_locally_fixed_and_hosted_verification_blocked",
+      "detail": "The user selected Model 1. Local same-repository workflow implementation and final focused static/direct validation passed. The lifecycle is fixed locally, not verified: dedicated least-privilege SONAR_TOKEN configuration and automatic-to-CI-based SonarQube Cloud project conversion are external project-owner dependencies, neither observed nor claimed. The distinct local CPython _sqlite3 blocker is tracked as FND-HOST-0006."
+    },
+    {
+      "at": "2026-07-21T08:13:50Z",
+      "event": "post_master_sync_local_validation_recorded",
+      "detail": "After normal synchronization with origin/master f73f8842f45318e2df8aff1d31855eeb7c20a22f, local HEAD 0b0c20f686fcc2fd76a7035daf691bc17566d2e1 was ahead by five commits and task changes were restored unstaged. The generic workflow checker, final 23-test combined suite (31.756s), and make lint passed. Hosted SONAR_TOKEN/project-analysis prerequisites and the distinct FND-HOST-0006 _sqlite3 blocker remain unresolved."
+    },
+    {
+      "at": "2026-07-21T08:22:13Z",
+      "event": "lifecycle_reconciled_as_externally_blocked",
+      "detail": "The canonical lifecycle is blocked / blocked_external_dependency because no hosted exact-head scan, imported coverage, or hosted Quality Gate was observed. The locally implemented and validated Model-1 workflow remains recorded as a completed sub-remediation; it is not a full fix or verification."
+    },
+    {
+      "at": "2026-07-21T10:21:06Z",
+      "event": "renewed_remote_delivery_preflight_recorded",
+      "detail": "Secret-safe parent-supplied post-push preflight evidence was retained in run 20260721T101159Z-framework-pr39-sonar-delivery-preflight-d47e17f2. Framework local HEAD, origin task branch, and remote PR #39 head match at 0b0c20f686fcc2fd76a7035daf691bc17566d2e1, which includes origin/master f73f8842f45318e2df8aff1d31855eeb7c20a22f. The PR is Draft, GitHub reports mergeable=true with UNSTABLE status because one check fails, and the reported repository Actions-secret list was empty with API count 0, scoped only to repository secrets. Public SonarQube Cloud data on the exact current head reported inherited sonar.autoscan.enabled=true, no returned coverage measure (only new_duplicated_lines_density=0.0), 25 OPEN/CONFIRMED new-code issues, and current Quality Gate OK with no coverage condition. These observations preserve blocked / blocked_external_dependency and do not verify an imported coverage report."
+    }
+  ],
+  "created_at": "2026-07-21T04:48:27Z",
+  "updated_at": "2026-07-21T10:21:06Z",
+  "final_disposition": null
+}

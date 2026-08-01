@@ -1,0 +1,169 @@
+{
+  "id": "FND-FRAMEWORK-0033",
+  "title": "Framework Python-maintenance contract permits future token and secret exposure outside its reviewed publisher input",
+  "title_de": "Framework-Python-Wartungsvertrag erlaubt künftige Token- und Secret-Exposition außerhalb seines überprüften Publisher-Inputs",
+  "category": "security_hardening",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "low",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "GitHub Actions token and secret handling",
+  "profile": "Framework CPython 3.13 updater security-diff remediation",
+  "affected_revision": "9dab40c2b8799dc1e4597cb2a2c223ec3f6cd72b plus uncommitted task-worktree updater change",
+  "affected_files": [
+    ".github/workflows/check-python-version.yml",
+    "ci/checks/security/check-ci-security-contract.py",
+    "tests/ci_security/test_framework_ci_security_contract.py"
+  ],
+  "affected_symbols": [
+    "TOKEN_REFERENCE",
+    "SENSITIVE_REFERENCE",
+    "sensitive_reference_paths",
+    "python_version_maintenance_errors"
+  ],
+  "technical_claim": "Before remediation, the new Python-maintenance workflow was exempted as a whole from the generic GitHub-token reference check. Its maintenance-specific helper searched only for literal github.token in resolve and candidate-validate and did not inspect publish. A future YAML change with github['token'], secrets.GITHUB_TOKEN, secrets.<name>, or a publisher shell/action token reference could pass the local security contract even though the intended invariant permits only the explicit create-pull-request.with.token value ${{ github.token }}. The first local repair rejected those direct forms, but its regex still accepted serialized GitHub-expression contexts such as ${{ toJSON(secrets) }} and ${{ toJSON(github) }}. The active narrow follow-up parses expression bodies and rejects secret contexts, GitHub token/index forms, and bare GitHub-context serialization at every non-approved parsed location.",
+  "entry_point": "A future proposed edit to .github/workflows/check-python-version.yml evaluated by ci/checks/security/check-ci-security-contract.py.",
+  "source_to_sink_or_broken_control": "Before remediation, the filename allow-list bypassed github_token_reference_errors for the maintenance workflow. The special matcher then recognized only literal github.token and was applied only to resolve/candidate-validate. A secrets.* expression in a read-only job or a sensitive expression in publisher env, run, or another action could therefore reach a job/action/Bash execution context without contract rejection. The repaired SENSITIVE_REFERENCE parser traverses values recursively and permits exactly one parsed publisher field.",
+  "attacker_prerequisites": [
+    "A proposed modification to the Framework maintenance workflow contains an explicit GitHub token or repository/organization secret reference.",
+    "That modification is reviewed or merged despite relying on the incomplete local contract; no current untrusted pull-request-to-writer path is established."
+  ],
+  "observed_behavior": "The focused pre-fix regression inserted ${{ secrets.GITHUB_TOKEN }} into resolve.env and expected rejection. The checker returned no maintenance-contract error, causing the regression to fail. Source review separately established the same parser omission for generic secrets, indexed github['token'], and publisher contexts. After the first repair, a follow-up mutation with ${{ toJSON(secrets) }} in a candidate shell step still returned no error and failed the focused test; a publisher ${{ toJSON(github) }} mutation was likewise accepted. The active expression-aware mutation suite rejects each class while the legitimate workflow passes.",
+  "expected_behavior": "Resolve and candidate-validate must declare no explicit GitHub token or secret reference, including direct, indexed, shell, or serialized GitHub-expression context forms. Publish may declare exactly one sensitive reference: create-pull-request.with.token must equal ${{ github.token }}. The automatic read-scoped token used internally by actions/checkout is not an explicit YAML secret declaration and remains constrained by contents: read plus persist-credentials: false.",
+  "impact": "This is a low-severity defense-in-depth control failure: a future workflow edit could introduce a secret into a shell or action without the intended contract rejecting it. The current source has no such extra reference, no pull_request_target trigger, and a schedule/manual trusted-default-branch-gated writer; no current secret disclosure, arbitrary untrusted execution, or broader repository write was reproduced.",
+  "preconditions": [
+    "The maintenance workflow runs under GitHub Actions with the relevant job permissions.",
+    "A later source change adds an explicit expression or shell token reference beyond the single reviewed pull-request action input."
+  ],
+  "reproduction": [
+    "Copy the parsed current maintenance workflow in tests/ci_security/test_framework_ci_security_contract.py.",
+    "Set jobs.resolve.env.TOKEN to ${{ secrets.GITHUB_TOKEN }}.",
+    "Run the focused contract tests before the remediation and observe that python_version_maintenance_errors returns no rejection for that mutation."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260720T180337Z-framework-python-313-updater-f3349a7e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T180337Z-framework-python-313-updater-f3349a7e/analysis/codex-security-scans/ModSecurity-test-Framework/9dab40c2_20260720T185431Z/05_findings/FND-FRAMEWORK-0033-pre-fix-validation.md",
+      "artifact_type": "focused_security_contract_pre_fix_regression",
+      "sha256": "8a0a0cb5ac7fa15a76de01c5210d596bc2ceac1933e40380eb6d49869bb71495",
+      "command": "RTK-wrapped Framework-owned Python unittest for the focused Python-version and CI-security contract modules with task-owned temporary and pycache roots",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/framework-python-updater",
+      "exit_code": 1,
+      "observed_at": "2026-07-20T19:12:21Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The intentional pre-fix regression failed because resolve.env containing the literal test expression ${{ secrets.GITHUB_TOKEN }} was accepted; the same run also captured the independent nested candidate-workflow basename gap."
+    },
+    {
+      "run_id": "20260720T180337Z-framework-python-313-updater-f3349a7e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T180337Z-framework-python-313-updater-f3349a7e/analysis/codex-security-scans/ModSecurity-test-Framework/9dab40c2_20260720T185431Z/report.md",
+      "artifact_type": "sealed_framework_security_diff_scan",
+      "sha256": "f4c1ec2c78aeb33745fada8f1a9795cc5eba576e11be1f1cc24130ee9e4de56a",
+      "command": "RTK-wrapped finalize_scan_contract.py with the Framework task worktree as source root after focused mutation tests and full native lint",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T19:55:25Z",
+      "retention_status": "sealed_task_evidence",
+      "summary": "The sealed complete security-diff scan has zero reportable findings; its retained receipts record the repaired exact-path, token/secret, duplicate-action, and runner-owned body controls."
+    },
+    {
+      "run_id": "20260720T180337Z-framework-python-313-updater-f3349a7e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T180337Z-framework-python-313-updater-f3349a7e/evidence/fnd-framework-0033-serialized-context.md",
+      "artifact_type": "safe_serialized_context_regression",
+      "sha256": "dbd349b48bb084a5bb26beb38e106cc7f98410c822ee62d1ccd8d9f57f837799",
+      "command": "RTK-wrapped Framework CI-security-contract unittest using literal inert ${{ toJSON(secrets) }} and ${{ toJSON(github) }} test expressions",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/framework-python-updater",
+      "exit_code": 1,
+      "observed_at": "2026-07-20T20:54:02Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The pre-follow-up mutation failed because the direct-reference matcher accepted serialized contexts. The same retained evidence records the post-fix focused 12-test pass; no credential was resolved, printed, or retained."
+    },
+    {
+      "run_id": "20260720T180337Z-framework-python-313-updater-f3349a7e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T180337Z-framework-python-313-updater-f3349a7e/analysis/codex-security-scans/ModSecurity-test-Framework/4a31df0_remediation_followup_20260720T210011Z/report.md",
+      "artifact_type": "sealed_follow_up_framework_security_diff_scan",
+      "sha256": "be92a7e65c3c81e72140b5441494eb4461df4417ee361c344bd3d0cf56775a5c",
+      "command": "RTK-wrapped finalize_scan_contract.py against the complete 11-file Framework remediation patch after expression-aware regression, focused suite, native CI-security contract tests, workflow checks, documentation validation, and full lint",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T21:04:35Z",
+      "retention_status": "sealed_task_evidence",
+      "summary": "The complete follow-up security-diff scan sealed with zero reportable findings and records the serialized-context bypass as safely reproduced and closed by the current expression-aware contract."
+    }
+  ],
+  "root_cause": "A file-wide allow-list was used where a parsed, location-specific exception was required. The special matcher checked only github.token, omitted indexed github['token'], secrets.* and shell GITHUB_TOKEN forms, and did not validate the publisher outside its create-pull-request token option. The first repair still used a direct-reference regex and therefore did not classify a bare secrets or github context nested inside a GitHub expression function.",
+  "proposed_remediation": "Active follow-up: retain generic compatibility handling for unrelated workflows, but parse GitHub expression bodies before recursively classifying maintenance-workflow values. Reject secrets anywhere in an expression, github.token, every github[...] form, bare github serialization, and shell GITHUB_TOKEN in resolve/candidate-validate and every publish location except the unique reviewed create-pull-request.with.token field, which must equal ${{ github.token }}. Mutation regressions preserve github.sha, github.repository, and the legitimate current publisher token input.",
+  "acceptance_criteria": [
+    "A resolve or candidate-validate env, with, uses, or run expression using github.token, github['token'], secrets.GITHUB_TOKEN, another secrets.* form, or serialized secrets/github context is rejected.",
+    "A publisher shell, env, or non-approved action reference, including serialized github context, is rejected.",
+    "The only accepted sensitive publisher expression is the unique create-pull-request.with.token scalar ${{ github.token }}.",
+    "The current workflow and focused/full Framework contract checks pass without adding permissions, triggers, secret sources, or auto-merge behavior."
+  ],
+  "validation_plan": [
+    "Rerun the focused mutation test after the checker change and verify all injected classes are rejected while the current workflow passes.",
+    "Review the changed expression-aware traversal for alternate direct, indexed, serialized, and shell token/secret spellings and the publisher action count/location.",
+    "Run the owning Framework contract suite, full lint, documentation/Change-Record validation, git diff --check, and final security-diff scan before delivery; then collect exact-head hosted PR evidence."
+  ],
+  "regression_tests": [
+    "tests/ci_security/test_framework_ci_security_contract.py"
+  ],
+  "legitimate_control_tests": [
+    "The actual check-python-version.yml permits its one explicit peter-evans/create-pull-request.with.token: ${{ github.token }} input.",
+    "Read-only checkout continues to use its implicit read-scoped GitHub Actions credential without a persisted checkout credential or an explicit YAML token/secret reference."
+  ],
+  "bypass_review": "Test github.token, github['token'], dynamic github indexing, secrets.GITHUB_TOKEN, generic secrets.<name>, bracket-form secrets references, serialized toJSON(secrets), serialized toJSON(github), and shell ${GITHUB_TOKEN} in both reader jobs and all publisher fields. Confirm that only the exact parsed token field is excluded, that github.sha and github.repository remain benign, that a duplicate create-pull-request action cannot create another exception, and that checkout's implicit default token is described accurately rather than mistaken for an explicit secret declaration.",
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [],
+  "deduplication_note": "No existing Framework finding owns this new, uncommitted CPython-maintenance workflow token/secret contract. The issue is distinct from broader GitHub governance and historical workflow-permission records because it is an independently remediable parsed semantic control.",
+  "source_run_ids": [
+    "20260720T180337Z-framework-python-313-updater-f3349a7e"
+  ],
+  "evidence_limitations": [
+    "The regression uses literal non-secret test expressions only; no credential was created, printed, or retained.",
+    "The observation proves a static safety-contract bypass that would require a future source change and merge; it does not prove a current secret disclosure or untrusted pull-request execution path.",
+    "GitHub automatic per-job token behavior is hosted-runtime behavior; this record constrains explicit YAML exposure and preserves the read-only checkout configuration."
+  ],
+  "residual_risk": "The expression-aware repair and complete local gates are validated, but the remediated commit has not yet been pushed and exact-current-head GitHub Actions, review, and SonarQube evidence remain pending. Current workflow source remains schedule/manual only, default-branch/repository gated for publication, Draft-only, and without the unsafe expressions used in the reproduction.",
+  "delivery_evidence": {
+    "state": "local_follow_up_fixed_pending_current_head_hosted_validation",
+    "branch": "agent/add-framework-python-updater",
+    "base_revision": "9dab40c2b8799dc1e4597cb2a2c223ec3f6cd72b",
+    "worktree_snapshot": "codex-security-snapshot/v1:sha256:457dda2a18a5e2ffa4785754172d4f7512881879276a816150be5c4b463796da",
+    "exact_head_checks": "pending_remediated_commit",
+    "reviews": "pending",
+    "sonarqube": "pending",
+    "limitations": "No Framework merge, Parent gitlink update, or MRTS action is authorized by this local fixed disposition."
+  },
+  "history": [
+    {
+      "at": "2026-07-20T19:12:21Z",
+      "event": "validated_pre_fix_security_contract_bypass",
+      "detail": "A focused task-owned mutation regression demonstrated that secrets.GITHUB_TOKEN in resolve.env was accepted by the maintenance contract. The finding was allocated as a P2/low Framework hardening remediation before product delivery."
+    },
+    {
+      "at": "2026-07-20T19:55:25Z",
+      "event": "fixed_with_local_security_validation",
+      "detail": "The parser now recursively rejects explicit token/secret references outside the unique reviewed publisher token field, including github['token']. Focused mutation regressions, Python-version and CI-security contracts, full Framework lint, git diff --check, and the sealed complete security-diff scan passed. Exact-head Draft-PR evidence remains pending."
+    },
+    {
+      "at": "2026-07-20T20:54:02Z",
+      "event": "reopened_for_serialized_context_bypass",
+      "detail": "A safe literal mutation demonstrated that the prior direct-reference regex still accepted ${{ toJSON(secrets) }} and ${{ toJSON(github) }}. The finding is reopened for an expression-aware parser/test repair; no current secret disclosure or untrusted PR-to-writer path was observed."
+    },
+    {
+      "at": "2026-07-20T21:12:33Z",
+      "event": "fixed_after_expression_aware_follow_up_validation",
+      "detail": "The expression-aware matcher rejects serialized secrets/github contexts, dynamic GitHub indexing, direct token/secret forms, and shell GITHUB_TOKEN outside the one approved publisher input while preserving github.sha and github.repository. The safe pre/post regression, 36 focused tests, 85 CI-security tests, native workflow/documentation/lint gates, and the sealed follow-up security-diff scan passed. Exact current-head hosted delivery validation remains required before any verified disposition."
+    }
+  ],
+  "created_at": "2026-07-20T19:12:21Z",
+  "updated_at": "2026-07-20T21:12:33Z",
+  "final_disposition": "fixed_in_framework_task_worktree_pending_current_head_hosted_delivery_validation"
+}

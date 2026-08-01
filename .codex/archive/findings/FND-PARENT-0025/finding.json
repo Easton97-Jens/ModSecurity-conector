@@ -1,0 +1,142 @@
+{
+  "id": "FND-PARENT-0025",
+  "title": "Allowed blocked status is derived from untrusted child output",
+  "title_de": "Erlaubter Blocked-Status wird aus nicht vertrauenswürdiger Child-Ausgabe abgeleitet",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "high",
+  "confidence": "reproduced",
+  "status": "closed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "ci/tools/run-check-status.py",
+    "Makefile"
+  ],
+  "affected_symbols": [
+    "extract_block_reason",
+    "workflow_exit_code",
+    "test-optional-prerequisite-status"
+  ],
+  "source_commits": [
+    "57d8753bc9db93d42eeb8be806798c7b394a8076"
+  ],
+  "summary": "The check-status wrapper parsed an approved blocked-reason marker from combined child stdout and stderr. A child that exited 77 could print the marker and make the wrapper return workflow success. The Parent now owns that disposition through a structured preflight, and the original spoof and legitimate-control cases are verified on master.",
+  "summary_de": "Der Check-Status-Wrapper parste einen erlaubten Blocked-Reason-Marker aus kombinierter Child-stdout- und stderr-Ausgabe. Ein Child mit Exit 77 konnte den Marker ausgeben und den Wrapper zu Workflow-Erfolg veranlassen. Der Parent besitzt diese Disposition nun über einen strukturierten Preflight; die ursprünglichen Spoof- und legitimen Kontrollfälle sind auf Master verifiziert.",
+  "observed_behavior": "`ci/tools/run-check-status.py:186-210` accepted `CHECK_STATUS_REASON` from child output and `workflow_exit_code` returned zero for an allowlisted reason. Controlled stdout and stderr fixtures both produced `allowed_by_contract=true` and workflow exit code zero.",
+  "observed_behavior_de": "`ci/tools/run-check-status.py:186-210` akzeptierte `CHECK_STATUS_REASON` aus Child-Ausgabe, und `workflow_exit_code` gab für einen allowgelisteten Reason null zurück. Kontrollierte stdout- und stderr-Fixtures erzeugten beide `allowed_by_contract=true` und Workflow-Exit-Code null.",
+  "expected_behavior": "Only a parent-verified prerequisite condition may produce an allowed blocked disposition. A child exit code or free-form output must remain diagnostic data and cannot authorize workflow success.",
+  "expected_behavior_de": "Nur eine vom Parent verifizierte Prerequisite darf eine erlaubte Blocked-Disposition erzeugen. Ein Child-Exit-Code oder frei formatierte Ausgabe bleibt Diagnosedaten und darf keinen Workflow-Erfolg autorisieren.",
+  "impact": "A compromised, faulty, or intentionally permissive child command could mask a required check failure as an allowed environment block.",
+  "impact_de": "Ein kompromittiertes, fehlerhaftes oder absichtlich permissives Child-Kommando konnte einen erforderlichen Check-Fehler als erlaubten Environment-Block maskieren.",
+  "preconditions": [
+    "The check wrapper allows `apache_development_prerequisite`.",
+    "The executed child can emit stdout or stderr and exit 77."
+  ],
+  "reproduction": [
+    "Run the retained stderr spoof fixture through `run-check-status.py` with the allowlisted reason.",
+    "Run the retained stdout spoof fixture through the same wrapper.",
+    "Observe structured blocked status with `allowed_by_contract=true` and wrapper exit code zero in both cases."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/05_findings/CAND-PARENT-002-status-channel/validation_report.md",
+      "artifact_type": "codex_security_validation_report",
+      "sha256": "024f6956d07e3b787f1f4f1441bc107c4c9c15432a9337946a132262a7173218",
+      "command": "rtk env BUILD_ROOT=<task-run> PYTHONDONTWRITEBYTECODE=1 .venv/bin/python ci/tools/run-check-status.py --check status_spoof --allow-blocked-reason apache_development_prerequisite -- <controlled-fixture>",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T09:22:02Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/06_delivery/pr_delivery_status.json",
+      "artifact_type": "draft_pr_delivery_status",
+      "sha256": "70aa1c1c9048027f02da2bad4f097165d267e70befeb965eec735b512dc1c366",
+      "command": "rtk gh pr checks 56 --repo Easton97-Jens/ModSecurity-conector",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T11:13:55Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T103749Z-parent-pr-53-60-integration-a7b98a59",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T103749Z-parent-pr-53-60-integration-a7b98a59/evidence/pr56-master-verification-a73c335.md",
+      "artifact_type": "post_merge_master_reproduction_and_workflow_verification",
+      "sha256": "2260f2573467879d7c105dddfb9c64395308b021e1eccec6e53f358fef7c2562",
+      "command": "rtk git rev-parse/diff; rtk make check-optional-prerequisite-status/check-ci-security-contract; rtk gh pr view/run list for PR #56 and master a73c33529f4b900e0e5722f6c8eae2ae47e41c1f",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T11:42:54Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The status channel treated free-form child diagnostics as authoritative control data and joined them with the allowlist decision.",
+  "root_cause_de": "Der Statuskanal behandelte frei formatierte Child-Diagnostik als autoritative Kontrolldaten und verband sie mit der Allowlist-Entscheidung.",
+  "proposed_remediation": "Move the allowed missing-prerequisite decision into an explicit parent-side structured disposition and remove child-text authorization. Preserve arbitrary child output only as escaped diagnostics and reject unclassified exit-77 results.",
+  "proposed_remediation_de": "Die Entscheidung über die erlaubte fehlende Prerequisite in eine explizite strukturierte Parent-Disposition verschieben und Child-Text-Autorisierung entfernen. Beliebige Child-Ausgabe nur als escaped Diagnostik behalten und nicht klassifizierte Exit-77-Ergebnisse ablehnen.",
+  "acceptance_criteria": [
+    "Neither stdout nor stderr marker text can change a child failure into an allowed blocked workflow result.",
+    "A real parent-detected missing Apache development prerequisite remains an explicit, schema-valid blocked result.",
+    "All other child failures, including exit 77, remain nonzero.",
+    "The persisted status record records the parent disposition and does not use untrusted child text as its reason field."
+  ],
+  "validation_plan": [
+    "Add stdout and stderr spoof fixtures before the fix and show both fail after it.",
+    "Exercise a parent-detected missing-prerequisite control and ordinary child failure control.",
+    "Run the focused optional-prerequisite status test suite and security diff scan."
+  ],
+  "regression_tests": [
+    "tests/test_optional_prerequisite_status.py",
+    "Focused stdout/stderr spoof fixtures for `run-check-status.py`."
+  ],
+  "legitimate_control_tests": [
+    "A genuine missing Apache development prerequisite produces a parent-authenticated allowed blocked status.",
+    "A valid child command succeeds without relying on a status marker."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0024"
+  ],
+  "source_run_ids": [
+    "20260718T075200Z-parent-evidence-integrity-ade378cf",
+    "20260719T103749Z-parent-pr-53-60-integration-a7b98a59"
+  ],
+  "residual_risk": "PR #56 final head cd0211bbefd4baef4ddee300ccf872e4d1ad9a53 is merged as master a73c33529f4b900e0e5722f6c8eae2ae47e41c1f; the master tree is identical to that head, the 20-test original-spoof/bypass/legitimate-control suite passes, and all observed exact-master workflows pass. APXS selector configuration remains trusted job/operator input; current production PR workflows do not route untrusted PR input to it. Reassess if that trust boundary changes. No risk acceptance exists. This finding is verified, not closed; closure requires a distinct lifecycle decision.",
+  "residual_risk_de": "Der finale PR-#56-Head cd0211bbefd4baef4ddee300ccf872e4d1ad9a53 ist als Master a73c33529f4b900e0e5722f6c8eae2ae47e41c1f gemergt; der Master-Tree ist mit diesem Head identisch, die 20-Test-Suite für ursprüngliche Spoof-/Bypass-/legitime Kontrollfälle besteht, und alle beobachteten exakten Master-Workflows bestehen. Die APXS-Selector-Konfiguration bleibt vertrauenswürdige Job-/Operator-Eingabe; aktuelle produktive PR-Workflows leiten keine nicht vertrauenswürdige PR-Eingabe dorthin. Bei Änderung dieser Vertrauensgrenze erneut bewerten. Es gibt keine Risikoakzeptanz. Dieser Befund ist verifiziert, nicht geschlossen; ein Abschluss erfordert eine separate Lifecycle-Entscheidung.",
+  "created_at": "2026-07-18T09:22:02Z",
+  "updated_at": "2026-07-26T14:09:02Z",
+  "final_disposition": "closed_by_current_user_after_current_master_status_channel_validation_archived_20260726",
+  "history": [
+    {
+      "at": "2026-07-18T09:22:02Z",
+      "event": "validated_stdout_and_stderr_spoofing",
+      "detail": "Independent controlled stdout and stderr marker fixtures both received an allowed blocked workflow disposition."
+    },
+    {
+      "at": "2026-07-18T11:13:55Z",
+      "event": "fixed_on_verified_pr_head",
+      "detail": "PR 56 exact head passed local controls, 33 GitHub checks, CodeQL, SonarCloud, and focused security review. The finding remains fixed rather than verified/closed until merge and master rerun."
+    },
+    {
+      "at": "2026-07-19T11:42:54Z",
+      "event": "current_master_reproduction_verified",
+      "detail": "PR #56 merged at a73c33529f4b900e0e5722f6c8eae2ae47e41c1f. origin/master equals that SHA and its tree equals final PR head cd0211bbefd4baef4ddee300ccf872e4d1ad9a53. The original spoof, bypass, and legitimate-control suite passed 20 tests; the related 13-test workflow-permission contract also passed. All 14 observed workflows for the exact master SHA, including OpenSSF Scorecard, CodeQL, Security workflow lint, and verified-report-governance, completed successfully. The fix is verified, not closed."
+    },
+    {
+      "at": "2026-07-26T14:09:02Z",
+      "event": "closed_by_current_user_after_current_master_validation",
+      "detail": "The current user authorized closure and archival. On Parent master 6ca7e1536ce7e93da68099db9c586b88852ff13e, tests.test_optional_prerequisite_status passed as part of the 144-test current-master control suite, retaining the spoof, bypass, and legitimate-control coverage."
+    }
+  ]
+}

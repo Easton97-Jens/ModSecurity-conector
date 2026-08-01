@@ -1,0 +1,237 @@
+{
+  "id": "FND-PARENT-0064",
+  "title": "Apache RulesSet allocation lacks an APR config-pool cleanup binding",
+  "title_de": "Der Apache-RulesSet-Allocation fehlt eine APR-Config-Pool-Cleanup-Bindung",
+  "category": "lifecycle_defect",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "security_assessment": "validated_lifecycle_ownership_defect_no_attacker_controlled_boundary_established",
+  "connector": "apache",
+  "protocol": "Apache configuration-pool lifecycle and graceful restart",
+  "profile": "resulting master 154ee724eba4653fa6378fc3c8729ae433e65697, tree-identical to final PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118",
+  "affected_files": [
+    "connectors/apache/src/msc_config.c"
+  ],
+  "affected_symbols": [
+    "msc_hook_create_config_directory",
+    "msc_create_rules_set",
+    "msc_rules_cleanup",
+    "apr_pool_cleanup_register"
+  ],
+  "trust_boundary": "trusted Apache operator configuration and process lifecycle; no attacker-controlled source or supported attacker-facing boundary has been established",
+  "sink": "the historical Parent-master allocation path did not bind a heap-allocated RulesSet to APR configuration-pool destruction; resulting master now registers that cleanup",
+  "summary": "Parent master had allocated a per-directory RulesSet without APR-pool cleanup; the retained baseline APR harness aborted with exit 134 at apache_rules_set_cleanup.c:205. PR #183 was merged at 2026-07-29T11:14:45Z as master 154ee724eba4653fa6378fc3c8729ae433e65697. That master tree is byte-identical to final PR head 4e4dfb36e1b05f7eda38450fd3710e3a04905118, and a detached resulting-master worktree passed make check-apache-ruleset-cleanup (five Python contracts plus the native GCC APR harness). All 14 exact-SHA master workflows succeeded. The original APR failure no longer reproduces and its direct legitimate control passes, so the finding is verified. It is not closed: the broader live Apache configuration/readiness/phase-2/SIGUSR1 sequence was not rerun on resulting master.",
+  "summary_de": "Parent-master hatte ein Per-Directory-RulesSet ohne APR-Pool-Cleanup alloziert; der zurückgehaltene Baseline-APR-Harness brach mit Exit 134 bei apache_rules_set_cleanup.c:205 ab. PR #183 wurde am 2026-07-29T11:14:45Z als Master 154ee724eba4653fa6378fc3c8729ae433e65697 gemergt. Dessen Master-Tree ist byteidentisch mit dem finalen PR-Head 4e4dfb36e1b05f7eda38450fd3710e3a04905118, und ein detached resulting-master-Worktree bestand make check-apache-ruleset-cleanup (fünf Python-Contracts plus nativer GCC-APR-Harness). Alle 14 diesem SHA zugeordneten Master-Workflows waren erfolgreich. Der ursprüngliche APR-Fehler reproduziert nicht mehr und sein direkter Legitimate-Control besteht, daher ist das Finding verified. Es ist nicht closed: die breitere Live-Apache-Konfigurations-/Readiness-/Phase-2-/SIGUSR1-Sequenz wurde nicht auf resultierendem Master erneut ausgeführt.",
+  "observed_behavior": "At Parent master 9f23ae2c5fe908cef38f203be03f93fda75a8dd7, msc_hook_create_config_directory assigns cnf->rules_set = msc_create_rules_set() but does not register an msc_rules_cleanup callback. The retained baseline APR harness exits 134 while asserting native_cleanup_calls == 1. Final PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 adds msc_rules_set_cleanup and apr_pool_cleanup_register immediately after the non-null RulesSet guard. It was merged as Parent master 154ee724eba4653fa6378fc3c8729ae433e65697 with the same tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0. On a detached exact-master worktree, make check-apache-ruleset-cleanup passed five Python contracts and the native GCC APR harness.",
+  "observed_behavior_de": "Auf Parent-master 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 weist msc_hook_create_config_directory cnf->rules_set = msc_create_rules_set() zu, registriert aber keinen msc_rules_cleanup-Callback. Der zurückgehaltene Baseline-APR-Harness endet mit Exit 134, während native_cleanup_calls == 1 erwartet wird. Der finale PR-#183-Head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 ergänzt msc_rules_set_cleanup und apr_pool_cleanup_register unmittelbar nach dem Non-Null-RulesSet-Guard. Er wurde als Parent-master 154ee724eba4653fa6378fc3c8729ae433e65697 mit demselben Tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0 gemergt. In einem detached Exact-Master-Worktree bestand make check-apache-ruleset-cleanup fünf Python-Contracts und den nativen GCC-APR-Harness.",
+  "expected_behavior": "A RulesSet created for one Apache configuration generation is released exactly once when that generation's APR configuration pool is destroyed, while the configured rules remain usable for the normal active-generation lifetime.",
+  "expected_behavior_de": "Ein für eine Apache-Konfigurationsgeneration erzeugtes RulesSet wird genau einmal freigegeben, wenn der APR-Konfigurationspool dieser Generation zerstört wird, während die konfigurierten Regeln während der normalen Lebenszeit der aktiven Generation nutzbar bleiben.",
+  "impact": "Without the binding, retired configuration generations can retain RulesSets across graceful restarts and contribute to process-memory growth or availability degradation. The lifecycle ownership flaw is validated by the baseline/candidate harness pair and native configuration/restart controls. No attacker-triggerable path, externally exploitable memory-safety claim, or release blocker has been established.",
+  "impact_de": "Ohne die Bindung können ausgemusterte Konfigurationsgenerationen RulesSets über Graceful-Restarts hinweg zurückhalten und zu Prozessspeicherwachstum oder Verfügbarkeitsbeeinträchtigung beitragen. Der Lifecycle-Ownership-Fehler ist durch das Baseline-/Kandidaten-Harness-Paar und native Konfigurations-/Restart-Controls validiert. Es wurde weder ein von Angreifern auslösbarer Pfad noch eine extern ausnutzbare Memory-Safety-Behauptung oder ein Release-Blocker belegt.",
+  "preconditions": [
+    "The Parent Apache connector is built and loaded by Apache.",
+    "A non-null RulesSet is created for a per-directory configuration generation.",
+    "Apache eventually destroys or clears the APR configuration pool, including on graceful restart."
+  ],
+  "reproduction": [
+    "Inspect Parent master 9f23ae2c5fe908cef38f203be03f93fda75a8dd7: connectors/apache/src/msc_config.c creates cnf->rules_set without a RulesSet-specific apr_pool_cleanup_register call.",
+    "Run the retained APR cleanup harness against the baseline master source. It aborts at ci/checks/connectors/apache/apache_rules_set_cleanup.c:205 because native_cleanup_calls is 0 rather than 1, with exit 134.",
+    "Run the candidate GCC harness. It passes the exactly-once and failure-path ownership controls after registering the callback immediately after successful RulesSet creation.",
+    "Run the private Apache HTTP/1.1 control, send SIGUSR1, repeat readiness, and terminate the private server. The retained log shows restart and clean shutdown."
+  ],
+  "evidence": [
+    {
+      "run_id": "merge-pr171-apache-pr91-94-comparison-20260729",
+      "artifact_path": ".codex/runs/merge-pr171-apache-pr91-94-comparison-20260729/evidence/fnd-parent-0064-static-triage.md",
+      "artifact_type": "static_upstream_parent_lifecycle_comparison",
+      "sha256": "acd1923243fb4b46894959c5b9b08cf99f9d7478aa524e07fe008ecdf0357b59",
+      "command": "Static comparison of upstream commit 5ea3fc9da876195706375cf35f321de2a1f35ce1 and Parent msc_config.c",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T07:53:18Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The upstream cleanup direction and the Parent allocation site match statically."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/baseline-apr/apache-rules-set-cleanup",
+      "artifact_type": "baseline_apr_ruleset_cleanup_harness",
+      "sha256": "030144bc518ad0ab9549858fbcc3cb8fdecb380b46d95822a4cea183f233c2df",
+      "command": "Focused APR RulesSet cleanup harness compiled against Parent master and invoked from the task-owned validation root",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 134,
+      "observed_at": "2026-07-29T08:51:41Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Baseline failure at ci/checks/connectors/apache/apache_rules_set_cleanup.c:205: assertion native_cleanup_calls == 1 failed because no APR cleanup callback was registered."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/ruleset-gcc/apache-rules-set-cleanup",
+      "artifact_type": "candidate_gcc_apr_ruleset_cleanup_harness",
+      "sha256": "6b1dfd3ab32b36cf2efa74c08fde14237b87bcc6949a2efe8a5e2998d0ff7415",
+      "command": "Focused GCC APR RulesSet cleanup harness for the uncommitted task candidate",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T08:51:20Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Candidate passes exact-once ownership, null-RulesSet, pool-clear, successful merge, and merge-failure cleanup controls."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/logs/apache-runtime/result.json",
+      "artifact_type": "private_apache_http1_phase2_control",
+      "sha256": "4b56897c87aa87b4b10d6a56bcc36b7fa60e91cd938a76cd1eb22d5ad7d83bf5",
+      "command": "Task-owned private Apache connector build/configuration load and HTTP/1.1 phase2_args_block smoke",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T08:57:52Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Private readiness control returned HTTP 200; the configured phase-2 deny control returned HTTP 403 as expected."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/logs/apache-runtime/error.log",
+      "artifact_type": "private_apache_graceful_restart_and_shutdown_log",
+      "sha256": "d65d607196ecc06f09179a5db5cc11ffb5fa332185d0f4d5125a3f47923165b4",
+      "command": "run-graceful-control.sh and run-graceful-memcheck.sh against the task-owned private Apache runtime",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T08:58:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Apache logs AH00493 SIGUSR1 graceful restart, a later AH00489 normal-operations message, PID-file removal, and AH00491 clean SIGTERM shutdown."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/logs/graceful-memcheck/memcheck.8.log",
+      "artifact_type": "private_apache_graceful_memcheck",
+      "sha256": "a49ca3a72f06aef4f4e67bab0b57056fe785c95a1dfba2361a892fbbf497b931",
+      "command": "run-graceful-memcheck.sh with Valgrind Memcheck error-exitcode 99",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime",
+      "exit_code": 99,
+      "observed_at": "2026-07-29T08:58:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "No Invalid free/read/write or use-after-free diagnostic appears. Exit 99 is caused by 66 bytes definitely lost in three strdup-backed blocks, tracked separately as FND-PARENT-0067 rather than attributed to RulesSet cleanup."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "exact Draft PR #183 head 313cae2550bf7c8ff8eadc71065dbd617762c8cc",
+      "artifact_type": "parent_task_exact_pr_head_local_validation_summary",
+      "sha256": "834d7ba4ff1bcbe2998c86608a6bba4280cc5992164f36622bb51fa10d5d6d31",
+      "command": "Parent task final local validation: six focused Python contracts; GCC and Clang make check-apache-ruleset-cleanup; lint; Apache/Common structural and C-standard wiring; fresh materialized DSO make; HTTP/1.1 phase2_args_block=403; SIGUSR1 graceful readiness.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:45:45Z",
+      "retention_status": "parent_task_exact_pr_head_evidence",
+      "result": "Draft PR #183's final documentation-only head leaves the bounded product/test validation paths unchanged. Supplied local controls support fixed status only; hosted checks, review, merge, and resulting-master reproduction are not claimed."
+    },
+    {
+      "run_id": "parent-pr183-resulting-master-20260729",
+      "artifact_path": "Parent-supplied PR #183 resulting-master delivery and focused-cleanup summary",
+      "artifact_type": "resulting_master_tree_workflow_and_focused_apr_revalidation",
+      "sha256": null,
+      "command": "git show -s --format='%H%n%T%n%ci%n%s' 154ee724eba4653fa6378fc3c8729ae433e65697; git show -s --format='%H%n%T%n%ci%n%s' 4e4dfb36e1b05f7eda38450fd3710e3a04905118; git diff --quiet 154ee724eba4653fa6378fc3c8729ae433e65697 4e4dfb36e1b05f7eda38450fd3710e3a04905118; Parent-supplied master workflow and local-check summary",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T11:27:25Z",
+      "retention_status": "parent_supplied_resulting_master_delivery_evidence",
+      "result": "PR #183 merged as master 154ee724eba4653fa6378fc3c8729ae433e65697 with tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0 equal to final head 4e4dfb36e1b05f7eda38450fd3710e3a04905118. All 14 master-SHA workflows succeeded. Detached master make check-apache-ruleset-cleanup passed five Python contracts and the native GCC APR harness; the broader live Apache sequence was not rerun."
+    }
+  ],
+  "external_references": [
+    "https://github.com/owasp-modsecurity/ModSecurity-apache/pull/94",
+    "https://github.com/owasp-modsecurity/ModSecurity-apache/commit/5ea3fc9da876195706375cf35f321de2a1f35ce1",
+    "https://github.com/owasp-modsecurity/ModSecurity-apache/issues/82"
+  ],
+  "related_pull_requests": [
+    {
+      "repository": "Easton97-Jens/ModSecurity-conector",
+      "number": 123,
+      "role": "stale conflicting source input; not an authoritative remediation"
+    },
+    {
+      "repository": "Easton97-Jens/ModSecurity-conector",
+      "number": 124,
+      "role": "stale conflicting source input; its cleanup direction was selectively revalidated rather than wholesale merged"
+    },
+    {
+      "repository": "owasp-modsecurity/ModSecurity-apache",
+      "number": 94,
+      "role": "upstream source of the selectively revalidated cleanup direction"
+    }
+  ],
+  "root_cause": "The historical adapter-owned Parent source reflected the upstream baseline before 5ea3fc9da876195706375cf35f321de2a1f35ce1 and created a RulesSet without binding its heap lifetime to the APR configuration pool. PR #183 corrected that path with a callback that invokes msc_rules_cleanup and registration after the successful non-null allocation guard. The distinct name_for_debug strdup lifetime remains separately tracked by FND-PARENT-0067.",
+  "root_cause_de": "Der historische adaptereigene Parent-Source spiegelte die Upstream-Baseline vor 5ea3fc9da876195706375cf35f321de2a1f35ce1 und erzeugte ein RulesSet, ohne seine Heap-Lebenszeit an den APR-Konfigurationspool zu binden. PR #183 korrigierte diesen Pfad mit einem Callback, der msc_rules_cleanup aufruft, sowie einer Registrierung nach dem erfolgreichen Non-Null-Allocation-Guard. Die getrennte name_for_debug-strdup-Lebenszeit bleibt durch FND-PARENT-0067 verfolgt.",
+  "proposed_remediation": "Retain the minimal RulesSet cleanup callback, APR registration, and focused regression harness now on resulting master. Before any closed disposition, run the broader live Apache configuration/readiness/phase-2/SIGUSR1 sequence on exact master. Do not fold the independent name_for_debug leak into this correction without a separate lifecycle-safe ownership decision.",
+  "proposed_remediation_de": "Den minimalen RulesSet-Cleanup-Callback, die APR-Registrierung und den fokussierten Regressions-Harness auf dem resultierenden Master beibehalten. Vor jedem closed-Status die breitere Live-Apache-Konfigurations-/Readiness-/Phase-2-/SIGUSR1-Sequenz auf exaktem Master ausführen. Den unabhängigen name_for_debug-Leak nicht ohne getrennte lifecycle-sichere Ownership-Entscheidung in diese Korrektur aufnehmen.",
+  "acceptance_criteria": [
+    "The cleanup registration remains after successful non-null msc_create_rules_set() and invokes msc_rules_cleanup exactly once per retired APR configuration generation.",
+    "The focused resulting-master APR ownership regression passes with five Python contracts and the native GCC APR harness.",
+    "A future closed disposition has fresh resulting-master live Apache configuration, readiness, phase-2 denial, graceful restart, and clean-shutdown evidence; those broader live controls were not rerun for this verification.",
+    "A focused security review finds no double-free, premature cleanup, stale-pool, or error-path ownership regression.",
+    "The merged tree is identical to final PR #183 head and all 14 master-SHA GitHub Actions workflows completed successfully."
+  ],
+  "validation_plan": [
+    "Preserve the passed resulting-master APR harness as the verification evidence for the original lifecycle failure/control boundary.",
+    "Before closure, re-run isolated live Apache HTTP/1.1 readiness and phase-2 denial through the resulting-master configuration lifecycle.",
+    "Before closure, re-run SIGUSR1 graceful restart and a bounded Memcheck diagnostic; classify any independent allocation finding separately.",
+    "Do not infer the broader live Apache sequence from the focused native harness or the successful master workflows."
+  ],
+  "regression_tests": [
+    "ci/checks/connectors/apache/apache_rules_set_cleanup.c on resulting master: five focused Python contracts and the native GCC APR lifecycle ownership harness pass.",
+    "make check-apache-ruleset-cleanup on resulting master: passes local native harness execution."
+  ],
+  "legitimate_control_tests": [
+    "Private Apache readiness remains HTTP 200 before and after SIGUSR1 graceful restart.",
+    "The configured phase2_args_block request remains HTTP 403 after connector configuration loads.",
+    "The private Apache process removes its PID file and logs clean SIGTERM shutdown."
+  ],
+  "dependencies": [
+    "A controlled resulting-master Apache/APXS, APR, libmodsecurity, and Valgrind environment for the broader live closure sequence."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0055",
+    "FND-PARENT-0067"
+  ],
+  "source_run_ids": [
+    "merge-pr171-apache-pr91-94-comparison-20260729",
+    "selective-apache-prs-master-20260729",
+    "parent-pr183-resulting-master-20260729"
+  ],
+  "residual_risk": "The exact resulting-master APR reproduction is verified, but the broader live Apache configuration/readiness/phase-2/SIGUSR1 sequence was not rerun on master and prevents closure. The retained Memcheck leak is separate FND-PARENT-0067 and does not reopen or close this finding.",
+  "residual_risk_de": "Die exakte Resulting-Master-APR-Reproduktion ist verified, aber die breitere Live-Apache-Konfigurations-/Readiness-/Phase-2-/SIGUSR1-Sequenz wurde nicht auf Master erneut ausgeführt und verhindert einen Abschluss. Der aufbewahrte Memcheck-Leak ist das getrennte FND-PARENT-0067 und eröffnet oder schließt dieses Finding nicht.",
+  "created_at": "2026-07-29T07:53:18Z",
+  "updated_at": "2026-07-29T11:27:25Z",
+  "final_disposition": "verified_resulting_master_154ee724eba4653fa6378fc3c8729ae433e65697_focused_apr_reproduction_passed_broad_live_apache_sequence_pending_for_closure",
+  "history": [
+    {
+      "at": "2026-07-29T07:53:18Z",
+      "event": "static_upstream_parent_comparison_triaged",
+      "detail": "Upstream #94A and the Parent Apache origin baseline established a probable missing APR-pool cleanup without a runtime claim."
+    },
+    {
+      "at": "2026-07-29T09:04:55Z",
+      "event": "baseline_candidate_and_private_apache_lifecycle_evidence_recorded",
+      "detail": "Baseline APR harness exited 134; the uncommitted GCC candidate passed; private Apache configuration, HTTP/1.1, SIGUSR1 restart, and clean shutdown controls passed. A distinct strdup leak was allocated FND-PARENT-0067."
+    },
+    {
+      "at": "2026-07-29T10:45:45Z",
+      "event": "exact_draft_pr_183_ruleset_cleanup_fixed_locally",
+      "detail": "Exact Draft PR #183 head f88ea5c907ce996b0648cfd98d9aa2fcd51b2718 carries the cleanup callback and APR registration. Parent reports focused Python, GCC/Clang APR, lint, structural, materialized-DSO, H1 403, and SIGUSR1 controls pass. The final follow-up only repairs Change Record schema documentation. Status is fixed only; hosted validation, review, and resulting-master reproduction remain pending."
+    },
+    {
+      "at": "2026-07-29T11:27:25Z",
+      "event": "pr_183_resulting_master_ruleset_cleanup_verified",
+      "detail": "PR #183 merged as Parent master 154ee724eba4653fa6378fc3c8729ae433e65697 with the same tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0 as final head 4e4dfb36e1b05f7eda38450fd3710e3a04905118. All 14 master-SHA workflows succeeded, and detached master make check-apache-ruleset-cleanup passed five Python contracts plus the native GCC APR harness. The original APR boundary is verified; the broader live Apache sequence remains required before closure."
+    }
+  ]
+}

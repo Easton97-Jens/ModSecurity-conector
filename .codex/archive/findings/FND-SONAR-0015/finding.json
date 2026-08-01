@@ -1,0 +1,198 @@
+{
+  "id": "FND-SONAR-0015",
+  "title": "Compile-database input reaches a file-read boundary without a private capture-root contract",
+  "title_de": "Der Compile-Database-Input erreicht eine Datei-Lesegrenze ohne Vertrag für eine private Capture-Root",
+  "category": "security_candidate",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "high",
+  "confidence": "probable",
+  "status": "closed",
+  "verification_status": "protected_merge_resulting_master_and_sonar_keys_verified",
+  "remediation_status": "protected_merge_resulting_master_and_sonar_keys_verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": "Parent CI compilation-database ingestion",
+  "delivery_state": "protected_squash_merged_resulting_master_workflows_verified",
+  "summary": "Before PR #98, non-verify CLI input reached load_database(...).read_text after only a basic file check and had no explicit capture-root provenance or containment contract. Exact PR #98 head a2f2dd1f8bd2c433ee4cb107a0bf94281fbd7640 was protected-squash-merged as master 3311f3fd0e6dee01efc905e62f55bbdb3490ad20. All 14 applicable master-push workflows passed, and the three targeted base Sonar keys are CLOSED/FIXED. The project-wide Quality Gate remains ERROR for separately tracked baseline backlog and is not attributed to this remediation.",
+  "summary_de": "Vor PR #98 erreichte nicht verifizierter CLI-Input load_database(...).read_text nach nur einer grundlegenden Dateiprüfung und ohne expliziten Vertrag für Capture-Root-Provenance oder Containment. Der exakte PR-#98-Head a2f2dd1f8bd2c433ee4cb107a0bf94281fbd7640 wurde geschützt per Squash als master 3311f3fd0e6dee01efc905e62f55bbdb3490ad20 gemergt. Alle 14 anwendbaren Master-Push-Workflows bestanden, und die drei zielgerichteten Basis-Sonar-Keys sind CLOSED/FIXED. Das projektweite Quality Gate bleibt wegen eines getrennt verfolgten Basis-Backlogs ERROR und wird dieser Remediation nicht zugerechnet.",
+  "affected_files": [
+    "ci/checks/analysis/compile_database.py",
+    "ci/checks/analysis/compile-db-cpp17.sh",
+    "ci/checks/analysis/compile-db-nginx-c17.sh",
+    "tests/test_c_cpp_diagnostics.py",
+    "reports/audits/change-records/CR-20260723-sonar-ci-compile-db-input-confinement.md",
+    "reports/audits/change-records/CR-20260723-sonar-ci-compile-db-input-confinement.de.md"
+  ],
+  "affected_symbols": [
+    "external_capture_root",
+    "external_capture_input_path",
+    "captured_database_entries",
+    "load_database",
+    "parse_arguments",
+    "main"
+  ],
+  "observed_behavior": "At the pre-remediation base, a non-verify --input value could reach load_database and Path.read_text without an explicit private capture-root requirement. Static Sonar key AZ9dWiALxi9ITghe3pzq recorded this as a high-impact pythonsecurity:S8707 candidate. The current repository call sites are CI-owned wrappers rather than a demonstrated remote or cross-principal CLI service.",
+  "observed_behavior_de": "Auf der Basis vor der Remediation konnte ein nicht verifizierter --input-Wert load_database und Path.read_text ohne explizite Anforderung an eine private Capture-Root erreichen. Der statische Sonar-Key AZ9dWiALxi9ITghe3pzq erfasste dies als Kandidat mit hoher Auswirkung für pythonsecurity:S8707. Die aktuellen Repository-Call-Sites sind CI-eigene Wrapper und kein belegter Remote- oder Cross-Principal-CLI-Service.",
+  "expected_behavior": "Every non-verify input must be an absolute existing regular file that resolves outside the checkout and beneath an absolute, non-symlinked, current-user-owned external capture root that is not group writable or accessible by others. The validator must enforce that boundary before the JSON file-read sink; a valid private capture must remain accepted.",
+  "expected_behavior_de": "Jeder nicht verifizierte Input muss eine absolute vorhandene reguläre Datei sein, die außerhalb des Checkouts und unterhalb einer absoluten, nicht verlinkten, externen Capture-Root im Besitz des aktuellen Benutzers aufgelöst wird, die weder gruppenbeschreibbar noch für andere zugänglich ist. Der Validator muss diese Grenze vor dem JSON-Dateilesesink erzwingen; ein gültiger privater Capture muss weiter akzeptiert werden.",
+  "impact": "Without the contract, a caller could direct the CI helper to parse an arbitrary readable file path. The strongest evidence supports a CI-local path-integrity candidate, not a proven remote exploit or a distinct untrusted same-UID attacker path. The PR-specific security review found no validated high- or critical-impact regression in the remediation.",
+  "impact_de": "Ohne den Vertrag konnte ein Aufrufer den CI-Helper zum Parsen eines beliebigen lesbaren Dateipfads veranlassen. Die stärkste Evidenz stützt einen CI-lokalen Pfadintegritätskandidaten, keinen bewiesenen Remote-Exploit oder einen eigenständigen untrusted Same-UID-Angreiferpfad. Das PR-spezifische Security-Review fand keine validierte Regression mit hoher oder kritischer Auswirkung in der Remediation.",
+  "preconditions": [
+    "A non-verify invocation supplies --input to ci/checks/analysis/compile_database.py.",
+    "The invocation reaches the JSON parsing branch.",
+    "For material security impact beyond the CI-local candidate, an untrusted caller or cross-principal write/read relationship would need to be demonstrated."
+  ],
+  "reproduction": [
+    "Inspect the pre-remediation non-verify branch where --input reaches load_database(...).read_text without a capture-root contract.",
+    "At exact PR #98 head a2f2dd1f8bd2c433ee4cb107a0bf94281fbd7640, exercise missing root, relative input, checkout input, symlink escape, symlink loop, unsafe root permissions, and a root symlink; each must fail before parsing/publishing.",
+    "Exercise a regular JSON input beneath a private 0700 capture root as the legitimate control."
+  ],
+  "security_assessment": {
+    "assessment_status": "validated_candidate_scope",
+    "security_invariant": "The capture input must establish private external-root provenance and containment before load_database reads JSON.",
+    "controlled_inputs": [
+      "--input",
+      "--capture-root"
+    ],
+    "trust_boundary": "CLI capture path -> capture-root/input validation -> load_database -> Path.read_text",
+    "sinks": [
+      "Path.read_text"
+    ],
+    "counterevidence_and_limits": "Current production call sites are two CI-owned Bear wrappers that create a fresh mktemp capture directory and pass the fixed local file plus root. A theoretical same-EUID replacement between validation and read was assessed, but no distinct attacker-controlled writer in the private root or cross-principal boundary is evidenced. The adjacent output-path boundary is unchanged and outside this finding."
+  },
+  "evidence": [
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": null,
+      "artifact_type": "current_task_exact_head_validation",
+      "command": "PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-run>/tmp python3 -m unittest -v tests.test_c_cpp_diagnostics; python3 -m unittest -v tests.test_bilingual_docs; bash -n wrappers; git diff --check",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/worktrees/pr55",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T08:16:22Z",
+      "retention_status": "tool_observed_not_retained_as_a_separate_receipt",
+      "scope_limit": "Seven focused diagnostics tests, eleven bilingual-documentation tests, two shell syntax checks, and diff check; not a Bear/compiler integration run."
+    },
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": null,
+      "artifact_type": "hosted_exact_head_validation",
+      "command": "GitHub PR checks and SonarCloud API for PR #98 head a2f2dd1f8bd2c433ee4cb107a0bf94281fbd7640",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T08:16:22Z",
+      "retention_status": "tool_observed_not_retained_as_a_separate_receipt",
+      "scope_limit": "Required checks, CodeQL, OSV, SonarCloud check, and Quality Gate are exact-head evidence; protected merge and master-push workflows remain pending."
+    }
+  ],
+  "current_exact_evidence": {
+    "head_sha": "a2f2dd1f8bd2c433ee4cb107a0bf94281fbd7640",
+    "base_master_sha": "7f72325cbd177e4bd98b3511a58344c04d41b06b",
+    "local_validation": {
+      "focused_diagnostics_tests": "passed (7)",
+      "bilingual_documentation_tests": "passed (11)",
+      "wrapper_shell_syntax": "passed (2 wrappers)",
+      "git_diff_check": "passed"
+    },
+    "hosted_validation": {
+      "required_checks": "passed: actions, bounded-c-cpp, envoy-go, traefik-go, actionlint, zizmor",
+      "additional_checks": "passed: CodeQL, SonarCloud Code Analysis, OSV, report governance and all non-skipped PR checks",
+      "sonarqube_quality_gate_api": "OK",
+      "pr_issue_query": "1 issue, AZ-QC5_F7_w-jke5-e7_, CLOSED/FIXED"
+    },
+    "protected_delivery": {
+      "merge_method": "protected_squash",
+      "resulting_master_sha": "3311f3fd0e6dee01efc905e62f55bbdb3490ad20",
+      "applicable_master_push_workflows": "14 SUCCESS"
+    },
+    "post_merge_sonar": {
+      "base_issue_keys": "AZ9dWiALxi9ITghe3pzq, AZ9dWiALxi9ITghe3pzp and AZ9dWiALxi9ITghe3pzo are CLOSED/FIXED",
+      "observed_at": "2026-07-24T08:22:45Z"
+    },
+    "scope_limit": "The project-wide Quality Gate is ERROR for separately tracked baseline backlog; this record does not claim to resolve it."
+  },
+  "sonarqube_classification": {
+    "project_key": "Easton97-Jens_ModSecurity-conector",
+    "base_issue_keys": [
+      "AZ9dWiALxi9ITghe3pzq",
+      "AZ9dWiALxi9ITghe3pzp",
+      "AZ9dWiALxi9ITghe3pzo"
+    ],
+    "pr_issue_key": "AZ-QC5_F7_w-jke5-e7_",
+    "base_issue_state": "After protected merge, all three listed keys are CLOSED/FIXED in the exact master query.",
+    "exact_pr_state": "PR #98 query returned only AZ-QC5_F7_w-jke5-e7_, CLOSED/FIXED; the Quality Gate is OK.",
+    "verification_status": "closed_fixed_on_resulting_master"
+  },
+  "root_cause": "The original non-verify flow treated the CLI input as a file after only a basic file check. It did not bind the input to a private external Bear capture root before the read sink.",
+  "root_cause_de": "Der ursprüngliche nicht verifizierte Ablauf behandelte den CLI-Input nach nur einer grundlegenden Dateiprüfung als Datei. Er band den Input vor dem Lesesink nicht an eine private externe Bear-Capture-Root.",
+  "proposed_remediation": "Keep PR #98's narrow validation boundary: require --capture-root whenever --input is used, validate the root's path class, ownership and permissions, strictly resolve and confine the input, and pass only the validated result to load_database. Preserve the private mktemp wrapper flow and the valid private-capture control.",
+  "proposed_remediation_de": "Die enge Validierungsgrenze von PR #98 beibehalten: --capture-root verlangen, wenn --input verwendet wird, Pfadklasse, Eigentümerschaft und Rechte der Root prüfen, den Input strikt auflösen und begrenzen und nur das validierte Ergebnis an load_database übergeben. Den privaten mktemp-Wrapper-Ablauf und das gültige Private-Capture-Control beibehalten.",
+  "acceptance_criteria": [
+    "Exact PR #98 head a2f2dd1f8bd2c433ee4cb107a0bf94281fbd7640 rejects missing root, relative input, checkout input, escape/loop symlinks, unsafe root permissions, root symlink, and invalid verify-only combination before parsing or publishing.",
+    "The same exact head accepts a valid capture beneath a private 0700 external root and preserves compilation-database filtering, merge and atomic-publication controls.",
+    "The focused 7-test diagnostics suite, 11-test bilingual documentation suite, wrapper syntax checks, diff check, required checks, CodeQL, OSV, SonarCloud PR check, and Sonar Quality Gate pass on the exact head without suppression, false-positive disposition, exclusion, rule change, or Quality-Gate change.",
+    "The PR is protected-squash-merged only at the exact checked head; resulting master 3311f3fd0e6dee01efc905e62f55bbdb3490ad20 and all 14 applicable master-push workflows are verified.",
+    "A post-merge master Sonar analysis records AZ9dWiALxi9ITghe3pzq, AZ9dWiALxi9ITghe3pzp and AZ9dWiALxi9ITghe3pzo as CLOSED/FIXED."
+  ],
+  "validation_plan": [
+    "Retain the protected-delivery and exact-master Sonar evidence for PR #98.",
+    "Reassess only if a supported cross-principal input surface is added to this CI helper."
+  ],
+  "regression_tests": [
+    "tests/test_c_cpp_diagnostics.py — seven focused tests passed at exact PR #98 head.",
+    "tests/test_bilingual_docs.py — eleven tests passed for the Change Record pair."
+  ],
+  "legitimate_control_tests": [
+    "A valid JSON capture beneath a current-user-owned 0700 external root is accepted and published.",
+    "Existing valid compilation-database merge and verify behavior remains covered by the focused diagnostics suite."
+  ],
+  "dependencies": [
+    "No Framework or MRTS dependency.",
+    "Optional Bear/compiler integration prerequisites were not required for the focused boundary suite."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [],
+  "source_commits": [
+    "a308d7b",
+    "a2f2dd1f8bd2c433ee4cb107a0bf94281fbd7640"
+  ],
+  "source_run_ids": [
+    "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b"
+  ],
+  "evidence_limitations": [
+    "The current evidence is tool-observed in this task and has no separately retained receipt file.",
+    "The focused tests do not execute a full Bear/compiler capture integration.",
+    "No remote exploit, separate untrusted same-UID caller, or cross-principal writer in the private capture root is demonstrated.",
+    "The adjacent external output-path boundary is pre-existing and outside this input-confinement finding."
+  ],
+  "residual_risk": "A same-EUID TOCTOU scenario is not reportable on current evidence because no distinct untrusted writer can access the private root; reassess if the tool becomes a cross-principal interface. The separate project-wide Sonar Quality Gate ERROR remains tracked elsewhere.",
+  "residual_risk_de": "Ein Same-EUID-TOCTOU-Szenario ist nach der aktuellen Evidenz nicht reportable, weil kein eigenständiger untrusted Writer auf die private Root zugreifen kann; bei einer späteren Cross-Principal-Schnittstelle neu bewerten. Das getrennte projektweite Sonar-Quality-Gate-ERROR bleibt anderweitig verfolgt.",
+  "history": [
+    {
+      "at": "2026-07-24T08:16:22Z",
+      "status": "fixed",
+      "event": "exact_pr_head_validated_pending_protected_merge",
+      "detail": "Created canonical record after exact head a2f2dd1f8bd2c433ee4cb107a0bf94281fbd7640 passed focused local and hosted validation; master closure is not yet claimed."
+    },
+    {
+      "at": "2026-07-24T08:28:09Z",
+      "status": "verified",
+      "event": "protected_merge_resulting_master_and_sonar_keys_verified",
+      "detail": "PR #98 was protected-squash-merged as master 3311f3fd0e6dee01efc905e62f55bbdb3490ad20; all 14 applicable master-push workflows passed and the three targeted base keys are CLOSED/FIXED."
+    },
+    {
+      "at": "2026-07-26T14:09:02Z",
+      "status": "closed",
+      "event": "closed_by_current_user_after_current_master_validation",
+      "detail": "The current user authorized closure and archival. All affected paths remain unchanged from verified Parent master 3311f3fd0e6dee01efc905e62f55bbdb3490ad20 to current master 6ca7e1536ce7e93da68099db9c586b88852ff13e, and tests.test_c_cpp_diagnostics passed in the 144-test current-master control suite."
+    }
+  ],
+  "created_at": "2026-07-24T08:16:22Z",
+  "updated_at": "2026-07-26T14:09:02Z",
+  "final_disposition": "closed_by_current_user_after_current_master_compile_database_boundary_validation_archived_20260726"
+}

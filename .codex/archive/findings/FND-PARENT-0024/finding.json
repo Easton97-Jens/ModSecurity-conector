@@ -1,0 +1,127 @@
+{
+  "id": "FND-PARENT-0024",
+  "title": "Verified-report workflow accepts governance-only validation without the strict runtime-evidence gate",
+  "title_de": "Verified-Report-Workflow akzeptiert Governance-only-Validierung ohne striktes Runtime-Evidence-Gate",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "high",
+  "confidence": "reproduced",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".github/workflows/verified-report-governance.yml",
+    "Makefile",
+    "ci/checks/documentation/check-generated-report-layout.py"
+  ],
+  "affected_symbols": [
+    "report-governance",
+    "verified-report-evidence-gate",
+    "check_generated_report_layout"
+  ],
+  "source_commits": [
+    "dd6e0455c4838949ce86cff81ce89dccd4e524f8"
+  ],
+  "summary": "A workflow named as verified report governance invoked only the governance-only report-layout target. It could succeed while the strict runtime-evidence gate failed, so report governance alone could be mistaken for verified runtime evidence.",
+  "summary_de": "Ein als Verified-Report-Governance bezeichneter Workflow rief nur das Governance-only-Report-Layout-Target auf. Er konnte erfolgreich sein, während das strikte Runtime-Evidence-Gate fehlschlug; dadurch konnte Report-Governance allein mit verifizierter Runtime-Evidence verwechselt werden.",
+  "observed_behavior": "At Parent revision c8ca0d92b630c18232b881855c4f5d1482568ea6, workflow lines 41-44 invoked `make report-governance`, which invokes `--governance-only`. The governance target returned success while the strict evidence checker returned a nonzero result for stale or missing runtime evidence inputs.",
+  "observed_behavior_de": "Auf Parent-Revision c8ca0d92b630c18232b881855c4f5d1482568ea6 riefen die Workflow-Zeilen 41-44 `make report-governance` auf, das `--governance-only` verwendet. Das Governance-Target war erfolgreich, während der strikte Evidence-Checker für veraltete oder fehlende Runtime-Evidence-Inputs nicht erfolgreich war.",
+  "expected_behavior": "A workflow that represents verified report evidence must execute the strict runtime-evidence gate after its governance checks. Governance-only validation remains non-evidence validation and cannot mint a runtime-evidence claim.",
+  "expected_behavior_de": "Ein Workflow, der verifizierte Report-Evidence repräsentiert, muss nach seinen Governance-Checks das strikte Runtime-Evidence-Gate ausführen. Governance-only-Validierung bleibt Non-Evidence-Validierung und kann keinen Runtime-Evidence-Claim erzeugen.",
+  "impact": "A stale, incomplete, or absent runtime-manifest set could be hidden behind a successful governance-only check, undermining release evidence and report integrity.",
+  "impact_de": "Ein veralteter, unvollständiger oder fehlender Runtime-Manifest-Satz konnte hinter einem erfolgreichen Governance-only-Check verborgen werden und damit Release-Evidence und Report-Integrität untergraben.",
+  "preconditions": [
+    "The verified-report workflow is run against reports whose layout is valid.",
+    "Strict runtime evidence is stale, incomplete, or otherwise rejected."
+  ],
+  "reproduction": [
+    "Run `make report-governance` with the documented external task roots and observe success.",
+    "Run the strict report-evidence checker against the same checkout and observe rejection of stale or missing runtime evidence.",
+    "Before the remediation, run the focused workflow-contract test that requires `make verified-report-evidence-gate` and observe failure."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/05_findings/CAND-PARENT-001-governance-gate/validation_report.md",
+      "artifact_type": "codex_security_validation_report",
+      "sha256": "b8f6e7b7ba71fccef38a2119938491748475498b62560ceb7b883b303eaebfba",
+      "command": "rtk make report-governance; strict checker command retained in the validation report",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T09:22:02Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/06_delivery/pr_delivery_status.json",
+      "artifact_type": "draft_pr_delivery_status",
+      "sha256": "70aa1c1c9048027f02da2bad4f097165d267e70befeb965eec735b512dc1c366",
+      "command": "rtk gh pr checks 55 --repo Easton97-Jens/ModSecurity-conector",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 1,
+      "observed_at": "2026-07-18T11:13:55Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The workflow wired a governance-only target but omitted the existing strict runtime-evidence target. The two targets enforce different trust boundaries.",
+  "root_cause_de": "Der Workflow verdrahtete ein Governance-only-Target, ließ aber das vorhandene strikte Runtime-Evidence-Target aus. Die beiden Targets erzwingen unterschiedliche Trust Boundaries.",
+  "proposed_remediation": "Add the existing strict target to the verified workflow, retain governance as a companion check, and cover the workflow ordering and both target names with a focused test. Do not regenerate reports or weaken the strict checker.",
+  "proposed_remediation_de": "Das vorhandene strikte Target zum Verified-Workflow hinzufügen, Governance als Begleitcheck beibehalten und Workflow-Reihenfolge sowie beide Target-Namen mit einem fokussierten Test abdecken. Keine Reports regenerieren und den strikten Checker nicht abschwächen.",
+  "acceptance_criteria": [
+    "The verified-report workflow invokes `make verified-report-evidence-gate` after `make report-governance`.",
+    "A report without accepted runtime manifests cannot produce a successful verified-evidence workflow result.",
+    "A legitimate complete, checksum-consistent runtime-evidence run remains eligible for verification.",
+    "No report file is hand-edited to make the strict gate pass."
+  ],
+  "validation_plan": [
+    "Run the pre-fix workflow-contract test and retain its failure.",
+    "Run the same test after the workflow change, plus YAML/static workflow validation when available.",
+    "Run report-governance and the strict gate separately to preserve the distinction between governance and runtime evidence.",
+    "Obtain PR CI, CodeQL, SonarQube Cloud, and exact-head evidence before setting verified."
+  ],
+  "regression_tests": [
+    "tests/test_ci_security_workflows.py",
+    "Focused report-evidence gate tests for absent runtime manifests and inconsistent checksums."
+  ],
+  "legitimate_control_tests": [
+    "A complete current run with consistent manifests and checksums passes the strict gate.",
+    "Governance-only layout checks remain available but are not presented as runtime verification."
+  ],
+  "dependencies": [
+    "FND-CROSS-0001 must be reconciled before a currently stale repository can become release-verified."
+  ],
+  "blocked_by": [
+    "FND-CROSS-0001"
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0001",
+    "FND-CROSS-0005"
+  ],
+  "source_run_ids": [
+    "20260718T075200Z-parent-evidence-integrity-ade378cf"
+  ],
+  "residual_risk": "PR 55 exact head 42b31f1c84c0c915a5cb65119714613fbf3e0c40 has the strict gate and passed CodeQL/SonarCloud, but its correct report-governance failure proves FND-CROSS-0001 remains unresolved. The finding is fixed, not verified or closed, because no current green runtime evidence or master rerun exists.",
+  "residual_risk_de": "Der exakte PR-55-Head 42b31f1c84c0c915a5cb65119714613fbf3e0c40 enthält das strikte Gate und bestand CodeQL/SonarCloud, aber sein korrektes report-governance-Fehlschlagen belegt, dass FND-CROSS-0001 ungelöst bleibt. Das Finding ist fixed, nicht verified oder closed, weil keine aktuelle grüne Runtime-Evidence und kein Master-Rerun existieren.",
+  "created_at": "2026-07-18T09:22:02Z",
+  "updated_at": "2026-07-18T11:13:55Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-18T09:22:02Z",
+      "event": "validated_and_root_cause_remediation_started",
+      "detail": "Governance-only success and strict runtime-evidence rejection were reproduced; the isolated Parent workflow remediation started after a pre-fix workflow-contract failure."
+    },
+    {
+      "at": "2026-07-18T11:13:55Z",
+      "event": "fixed_strict_gate_wired_cross_evidence_blocked",
+      "detail": "PR 55 wired the strict gate after governance and the focused security review found no bypass. Its expected CI rejection of stale critical inputs keeps FND-CROSS-0001 as a release blocker; no merge or master verification occurred."
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "id": "FND-PARENT-0056",
+  "title": "Ready NGINX runtime snapshots omit the Parent Common source root",
+  "title_de": "Bereite NGINX-Runtime-Snapshots lassen den Parent-Common-Source-Root aus",
+  "category": "ci_failure",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+"status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "security_assessment": "No production exploit is claimed. The affected boundary is a Parent-controlled environment hand-off into NGINX configure. The repair must publish only the resolved Parent Common source directory, must not accept a job-provided override, and must retain the Framework's fail-closed missing-source and cache-containment controls.",
+  "security_invariant": "A ready NGINX direct-runtime snapshot carries only the explicit Common source root derived from the reviewed Parent connector root; no inherited job value, cache-path fallback, or missing-path bypass may become build authority.",
+  "controlled_inputs": [
+    "Parent invocation-local runtime environment snapshot",
+    "Ready NGINX runtime record"
+  ],
+  "trusted_inputs": [
+    "Resolved Parent CONNECTOR_ROOT",
+    "Parent CONNECTOR_ROOT/common/src"
+  ],
+  "sink": "Framework prepare-nginx-build.sh NGINX configure invocation and the Parent NGINX adapter config",
+  "connector": "nginx",
+  "protocol": "Parent verified runtime matrix environment hand-off",
+  "profile": "Parent PR #74 head c6db0f8ab5b95be67a92ba925a1f4caa3d3d0a1d; original snapshot omission fixed locally and no longer reproduces in hosted preparation",
+  "affected_files": [
+    "ci/provisioning/components/prepare-runtime-components.py",
+    "ci/provisioning/cache/with-runtime-components.sh",
+    "tests/test_runtime_env_snapshot_contract.py",
+    "tests/test_full_matrix_cache_owner_root.py"
+  ],
+  "affected_symbols": [
+    "prepare_runtime_components: runtime_env",
+    "prepare_runtime_components: nginx_runtime_environment",
+    "with-runtime-components.sh: source invocation-local snapshot"
+  ],
+  "observed_behavior": "Earlier exact-head #74 producers completed runtime-component preparation and readiness, then NGINX configure failed with `ngx_http_modsecurity: missing Common source root; set MSCONNECTOR_COMMON_SRC`. The c6db0f8 follow-up then completed Apache and NGINX preparation and configured the NGINX module, so the original omission no longer reproduces. That producer next failed on FND-FRAMEWORK-0057; its Framework repair is now merged and adopted by Parent master, leaving a fresh updated #74 producer and strict terminal gate as the only remaining verification.",
+  "expected_behavior": "A ready NGINX runtime snapshot publishes the explicit Parent CONNECTOR_ROOT/common/src value so the Framework's normal inherited environment reaches NGINX configure. Missing or invalid source paths remain fail-closed by the existing NGINX adapter config.",
+  "impact": "The original Parent snapshot omission is locally remediated and no longer reproduces in hosted NGINX preparation. Framework's distinct case-schema blocker is delivered and adopted by Parent master, so PR #74 can now run its full legitimate producer; adding a generic source-path fallback or forwarding a job-provided value remains prohibited.",
+  "preconditions": [
+    "The direct runtime matrix consumes an invocation-local snapshot after NGINX cache preparation.",
+    "Framework materializes the NGINX adapter outside the Parent Common source directory.",
+    "NGINX configure compiles the adapter Common C sources."
+  ],
+  "reproduction": [
+    "Inspect the exact a0f337b8e45e5661b1ed09c7bf39b958548fbd14 hosted NGINX configure diagnostic.",
+    "Trace Parent prepare_nginx_runtime, later runtime_env construction, and with-runtime-components.sh snapshot sourcing.",
+    "Verify Framework prepare-nginx-build.sh uses normal env inheritance and does not clear MSCONNECTOR_COMMON_SRC."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T135925Z-pr74-nginx-common-source-snapshot",
+      "artifact_path": ".codex/runs/20260726T135925Z-pr74-nginx-common-source-snapshot/evidence/parent-nginx-common-source-snapshot-root-cause.md",
+      "artifact_type": "bounded_exact_head_hosted_ci_and_source_to_sink_summary",
+      "sha256": "f9b8c36c52f41e9fda2535ffa7522033f06b9e52bfe21e61a6d1e5c25ed5f52a",
+      "command": "Read-only exact-head GitHub Actions diagnostic inspection plus Parent/Framework source-to-sink review; focused Parent snapshot and direct-matrix controls",
+      "working_directory": "/var/tmp/codex/worktrees/parent/migrate-pr55-pr74-master-V27zuA/pr74",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T13:59:25Z",
+      "retention_status": "sealed"
+    }
+  ],
+  "root_cause": "prepare_nginx_runtime supplies MSCONNECTOR_COMMON_SRC only to the managed cache build. Later main() reconstructs runtime_env from the ready NGINX record but omitted the Common source root. The invocation-local snapshot is therefore missing the value when with-runtime-components.sh starts the direct Framework runner. Framework's env command inherits values normally, so it is not the omission point.",
+  "proposed_remediation": "Use the Parent helper nginx_runtime_environment to publish MSCONNECTOR_COMMON_SRC derived only from connector_root/common/src for ready NGINX records. Keep the existing owner-root snapshot values, do not consume an inherited override, and cover ready/unready publication plus direct snapshot propagation with focused tests.",
+  "acceptance_criteria": [
+    "A ready NGINX runtime snapshot contains exactly the Parent-derived MSCONNECTOR_COMMON_SRC value.",
+    "An unready NGINX record publishes no NGINX runtime values.",
+    "The direct Framework runtime-matrix boundary receives the source-root value from the sourceable invocation-local snapshot.",
+    "The existing cache-contained positive and outside-owner negative controls continue to pass.",
+    "A new exact #74 hosted producer and strict terminal gate pass without a source-path fallback, guard relaxation, Sonar suppression, or MRTS change."
+  ],
+  "validation_plan": [
+    "Run the focused snapshot, matrix owner-root, and component-cache contract tests.",
+    "Run CI workflow/security and bilingual-documentation checks for the #74 update.",
+    "Push a normal #74 follow-up commit and obtain exact-head GitHub Actions, SonarQube Cloud, review, branch-protection, and protected-integration evidence."
+  ],
+  "regression_tests": [
+    "tests/test_runtime_env_snapshot_contract.py",
+    "tests/test_full_matrix_cache_owner_root.py",
+    "tests/test_runtime_component_cache_contract.py"
+  ],
+  "legitimate_control_tests": [
+    "Ready NGINX snapshot publishes the Parent Common source root.",
+    "Direct NGINX matrix runner receives the same sourceable snapshot value.",
+    "Cache-contained refresh remains accepted and an outside owner root remains rejected before make."
+  ],
+  "dependencies": [
+    "FND-CROSS-0008",
+    "FND-CROSS-0001 exact runtime-evidence validation"
+  ],
+  "blocked_by": [
+    "Parent #74 must merge the current Parent master Gitlink update normally and obtain fresh exact-head hosted producer and strict terminal-gate evidence",
+    "Exact-head Parent SonarQube Cloud, review, branch-protection, and protected-integration evidence"
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0008",
+    "FND-PARENT-0054",
+    "FND-CROSS-0001",
+    "FND-FRAMEWORK-0057"
+  ],
+  "deduplication_note": "Not a duplicate of FND-CROSS-0008: that finding owns cache refresh deletion-owner containment across Parent and Framework. This finding has a distinct Parent-only cause, sink, invariant, and remediation: omission of the Common source root from a ready direct-runtime snapshot.",
+  "source_run_ids": [
+    "20260726T135925Z-pr74-nginx-common-source-snapshot"
+  ],
+  "residual_risk": "The original missing-Common-source condition no longer reproduces. Framework PR #51 is merged and the resulting gitlink is already on Parent master, but a full hosted exact-head producer and strict terminal gate still must rerun on the updated #74 branch. No final runtime success, Parent #74 integration, MRTS change, risk acceptance, or control weakening is claimed.",
+  "residual_risk_de": "Die ursprüngliche Missing-Common-Source-Bedingung reproduziert nicht mehr. Framework-PR #51 ist gemergt und der resultierende Gitlink bereits auf Parent-master, aber ein vollständiger Hosted-Exact-Head-Producer und das strikte Terminal-Gate müssen noch auf dem aktualisierten #74-Branch erneut laufen. Es werden weder finaler Runtime-Erfolg noch Parent-#74-Integration, MRTS-Änderung, Risikoakzeptanz oder Lockerung einer Kontrolle behauptet.",
+  "created_at": "2026-07-26T13:59:25Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-26T13:59:25Z",
+      "event": "exact_head_nginx_common_source_snapshot_omission_classified",
+      "detail": "Bounded hosted NGINX configure evidence and source-to-sink review identified Parent runtime snapshot publication as the independently remediable omission."
+    },
+    {
+      "at": "2026-07-26T15:00:00Z",
+      "event": "original_parent_snapshot_condition_no_longer_reproduces",
+      "detail": "Exact Parent head c6db0f8 completed Apache/NGINX preparation and configured the NGINX module. The subsequent producer failure is the distinct Framework case-schema blocker FND-FRAMEWORK-0057, so full exact-head terminal-gate verification remains pending external dependency resolution."
+    },
+    {
+      "at": "2026-07-26T16:19:57Z",
+      "event": "framework_dependency_delivered_and_adopted",
+      "detail": "Framework PR #51 is merged as de705a5efb872f95f010346fe2e6143c88876ad4 and Parent PR #126 adopted that gitlink on Parent master 3c99b88e1c73dcf7b79c0ea6dd189cb4383d13dd. The prior external dependency is resolved; Parent #74 now needs a normal update from current master plus fresh exact-head producer and strict terminal-gate evidence."
+    }
+  ]
+}

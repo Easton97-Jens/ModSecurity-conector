@@ -1,0 +1,204 @@
+{
+  "id": "FND-SONAR-0019",
+  "title": "PR #150 Traefik result serialization Sonar blockers",
+  "title_de": "Sonar-Blocker der Traefik-Resultatserialisierung von PR #150",
+  "category": "sonarqube_finding",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": false,
+  "security_assessment": "security_boundary_review_required_but_no_exploitable_out_of_bounds_path_proven",
+  "connector": "traefik",
+  "protocol": "private local-engine Unix-socket result frame",
+  "profile": "Draft Parent PR #150 exact fixed head 4dae04f2d584da855139d6f42ab36c1bdf8c8d63",
+  "affected_files": [
+    "connectors/traefik/src/traefik_engine_service.c",
+    "tests/test_sonar_reliability_contract.py"
+  ],
+  "affected_symbols": [
+    "traefik_engine_send_result",
+    "traefik_engine_bounded_string_size",
+    "traefik_engine_copy_bounded_text"
+  ],
+  "observed_behavior": "The first published Draft Parent PR #150 head 7418dfe9a509ea87c0209d64f3082a6c601013c2 had three OPEN BLOCKER c:S3519 reports at Traefik result-frame copy sites and a Quality Gate ERROR because New-Code Reliability Rating was E. Exact fixed draft head 4dae04f2d584da855139d6f42ab36c1bdf8c8d63 now has SonarQube Cloud Quality Gate OK, zero OPEN/CONFIRMED PR issues, zero PR bugs, vulnerabilities, and code smells, and a GitHub SonarCloud check-run success bound to that SHA. The original analyzer path was not proven dynamically reachable, but the source correction is now externally observed without analyzer suppression.",
+  "observed_behavior_de": "Der erste veröffentlichte Draft-Parent-PR-#150-Head 7418dfe9a509ea87c0209d64f3082a6c601013c2 hatte drei OPEN-BLOCKER-`c:S3519`-Meldungen an Traefik-Resultatframe-Copy-Sites und ein Quality-Gate-ERROR, weil das New-Code-Reliability-Rating E war. Der exakte korrigierte Draft-Head 4dae04f2d584da855139d6f42ab36c1bdf8c8d63 hat nun SonarQube-Cloud-Quality-Gate OK, null OPEN/CONFIRMED-PR-Issues, null PR-Bugs, Vulnerabilities und Code-Smells sowie einen an diese SHA gebundenen erfolgreichen GitHub-SonarCloud-Check-Run. Der ursprüngliche Analyzer-Pfad war nicht als dynamisch erreichbar bewiesen, die Source-Korrektur ist nun aber ohne Analyzer-Suppression extern beobachtet.",
+  "expected_behavior": "A missing optional field encodes as zero length without dereference or copy; a positive-length result-frame copy has an actual non-null source and preserves the existing protocol maximum. The exact PR head has Quality Gate OK and no OPEN/CONFIRMED new Sonar issue; master verification remains required before this fixed finding can be verified or closed.",
+  "expected_behavior_de": "Ein fehlendes Optionalfeld kodiert als Länge null ohne Dereferenz oder Kopie; eine Resultatframe-Kopie mit positiver Länge hat eine tatsächliche nichtnullige Quelle und behält das bestehende Protokollmaximum. Der exakte PR-Head hat Quality Gate OK und kein OPEN/CONFIRMED-neues Sonar-Issue; vor `verified` oder `closed` dieses behobenen Befunds bleibt eine Master-Verifikation erforderlich.",
+  "impact": "The historical analyzer findings blocked the draft Quality Gate. That exact-PR delivery blocker no longer reproduces at the fixed head. This record does not claim a demonstrated runtime memory-safety vulnerability; it remains fixed, not verified or closed, until an authorized merge and an exact current-master recheck occur.",
+  "impact_de": "Die historischen Analyzer-Befunde blockierten das Draft-Quality-Gate. Dieser exakte-PR-Delivery-Blocker reproduziert am korrigierten Head nicht mehr. Dieser Datensatz behauptet keine nachgewiesene Runtime-Memory-Safety-Schwachstelle; er bleibt `fixed`, nicht `verified` oder `closed`, bis ein autorisierter Merge und eine exakte Current-Master-Nachprüfung erfolgen.",
+  "preconditions": [
+    "The historical failure was analyzed at Draft Parent PR #150 head 7418dfe9a509ea87c0209d64f3082a6c601013c2.",
+    "The normal fixed successor is Draft Parent PR #150 head 4dae04f2d584da855139d6f42ab36c1bdf8c8d63.",
+    "SonarQube Cloud symbolic C analysis is reachable for the PR."
+  ],
+  "reproduction": [
+    "GET /api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&pullRequest=150&statuses=OPEN,CONFIRMED&ps=500",
+    "GET /api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&pullRequest=150",
+    "GET /api/measures/component?component=Easton97-Jens_ModSecurity-conector&pullRequest=150&metricKeys=bugs,reliability_rating,code_smells,vulnerabilities,duplicated_lines_density,duplicated_lines"
+  ],
+  "evidence": [
+    {
+      "run_id": "sonar-652-duplication-zero-20260728-W8wqjk",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/sonar-652-duplication-zero-20260728-W8wqjk/evidence/pr150-s3519/issues.json",
+      "artifact_type": "bounded_exact_head_sonar_issue_readback",
+      "sha256": "85137dd3fcc6f78b77d4a5558893c69fec3200e44cf3a405da07108d5ccfbb47",
+      "command": "Read-only SonarQube Cloud PR #150 issue API readback",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-28T10:46:25Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Three OPEN BLOCKER c:S3519 issues target the three result-field copy sites."
+    },
+    {
+      "run_id": "sonar-652-duplication-zero-20260728-W8wqjk",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/sonar-652-duplication-zero-20260728-W8wqjk/evidence/pr150-s3519/quality-gate.json",
+      "artifact_type": "bounded_exact_head_sonar_quality_gate_readback",
+      "sha256": "5d39d167e470b398aec47026771eb8b1dc8216afccffcf75d49e7f29772f0d09",
+      "command": "Read-only SonarQube Cloud PR #150 quality-gate API readback",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-28T10:46:25Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Quality Gate ERROR only for new_reliability_rating actual value 5; security, maintainability, duplication, and hotspot conditions are OK."
+    },
+    {
+      "run_id": "sonar-652-duplication-zero-20260728-W8wqjk",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/sonar-652-duplication-zero-20260728-W8wqjk/evidence/pr150-s3519/measures.json",
+      "artifact_type": "bounded_exact_head_sonar_measure_readback",
+      "sha256": "36112d78bac4adb0d868a0e583fc8c8caf822fc3a1410ec1a06c96bf6d6136c7",
+      "command": "Read-only SonarQube Cloud PR #150 measures API readback",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-28T10:46:25Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR measures are bugs=3, reliability_rating=5.0, code_smells=0, vulnerabilities=0, duplicated_lines_density=0.2, and duplicated_lines=1260."
+    },
+    {
+      "run_id": "sonar-652-duplication-zero-20260728-W8wqjk",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/sonar-652-duplication-zero-20260728-W8wqjk/evidence/pr150-final-4dae.lWGym5/issues.json",
+      "artifact_type": "final_exact_head_sonar_issue_readback",
+      "sha256": "55f044e91d4122d08d0c18dfcf5dc57a1316761d9e59c954b4d3e72f669f6c1e",
+      "command": "Read-only SonarQube Cloud PR #150 issue API readback after the successful exact-head Sonar check",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-28T11:45:13Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR #150 OPEN/CONFIRMED issue total is 0."
+    },
+    {
+      "run_id": "sonar-652-duplication-zero-20260728-W8wqjk",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/sonar-652-duplication-zero-20260728-W8wqjk/evidence/pr150-final-4dae.lWGym5/quality-gate.json",
+      "artifact_type": "final_exact_head_sonar_quality_gate_readback",
+      "sha256": "c7e717905dde072d807b54104fb4c004f6eef55e0a2900a2cf019db663293d77",
+      "command": "Read-only SonarQube Cloud PR #150 quality-gate API readback after the successful exact-head Sonar check",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-28T11:45:13Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Quality Gate OK; new reliability, security, maintainability, duplication, and hotspot conditions are all OK."
+    },
+    {
+      "run_id": "sonar-652-duplication-zero-20260728-W8wqjk",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/sonar-652-duplication-zero-20260728-W8wqjk/evidence/pr150-final-4dae.lWGym5/measures.json",
+      "artifact_type": "final_exact_head_sonar_measure_readback",
+      "sha256": "160692c56d9700514ac43c408ad6254009c89699274d6b6b7ec4ed8fdfa71840",
+      "command": "Read-only SonarQube Cloud PR #150 measure API readback after the successful exact-head Sonar check",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-28T11:45:13Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR measures are bugs=0, reliability_rating=1.0, code_smells=0, vulnerabilities=0, and new-code duplication is 0.0%; inherited aggregate duplication remains 1,260 lines / 0.2%."
+    },
+    {
+      "run_id": "sonar-652-duplication-zero-20260728-W8wqjk",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/sonar-652-duplication-zero-20260728-W8wqjk/evidence/pr150-final-4dae.lWGym5/github-check-runs.json",
+      "artifact_type": "exact_head_github_check_run_readback",
+      "sha256": "4674862df6f2e0aa8d10473158911c5bc9ff71b75c54e10235d371ca1a84d3dd",
+      "command": "Read-only GitHub public check-runs API readback for commit 4dae04f2d584da855139d6f42ab36c1bdf8c8d63",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-28T11:45:13Z",
+      "retention_status": "retained_task_evidence",
+      "result": "SonarCloud Code Analysis is completed/success and explicitly bound to exact head 4dae04f2d584da855139d6f42ab36c1bdf8c8d63."
+    },
+    {
+      "run_id": "sonar-652-duplication-zero-20260728-W8wqjk",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/sonar-652-duplication-zero-20260728-W8wqjk/evidence/pr150-final-4dae.lWGym5/github-pr.json",
+      "artifact_type": "exact_head_github_pr_metadata_readback",
+      "sha256": "896c2681a288620c5e4d65cc786b4033caf8dadc15bb1d9bcace31ff3ff8c55a",
+      "command": "Read-only GitHub public pull-request API readback for PR #150",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-28T11:45:13Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR #150 is open, draft, mergeable, targets master, and its exact head is 4dae04f2d584da855139d6f42ab36c1bdf8c8d63; no merge occurred."
+    }
+  ],
+  "root_cause": "The first PR #150 correction used one shared zero-length C array as a non-null fallback. The analyzer did not retain the interprocedural fact that the existing bounded-size helper returns zero for that exact object, so it modeled a nonzero copy from a one-byte source. After that path was removed, c:S5955 reported the bounded-copy counter's unnecessarily broad declaration scope; it had no behavioral or source-to-sink security impact.",
+  "root_cause_de": "Die erste PR-#150-Korrektur verwendete ein gemeinsames C-Array der Länge null als nichtnulligen Fallback. Der Analyzer behielt die interprozedurale Tatsache nicht bei, dass der bestehende Bounded-Size-Helper für genau dieses Objekt null zurückgibt, und modellierte daher eine von null verschiedene Kopie aus einer einbytegroßen Quelle. Nachdem dieser Pfad entfernt war, meldete c:S5955 den unnötig breiten Deklarationsscope des Bounded-Copy-Zählers; er hatte keine Verhaltens- oder Source-to-Sink-Security-Auswirkung.",
+  "proposed_remediation": "Implemented: nullable optional pointers remain used for size calculation; the three raw sinks use one private bounded byte-copy helper that accepts zero length without a source and rejects a null source for a positive length. The counter is declared in the C17 for initializer. Direct C17 absent, populated, maximum-length, positive-length-null-source, and loop-scope controls passed. The exact head was reanalyzed with no rule, Quality Gate, exclusion, suppression, or source-analysis configuration change.",
+  "proposed_remediation_de": "Umgesetzt: Nullable Optionalpointer bleiben für die Size-Berechnung erhalten; die drei rohen Sinks nutzen einen privaten begrenzten Byte-Copy-Helper, der Länge null ohne Quelle akzeptiert und eine Nullquelle bei positiver Länge abweist. Der Zähler wird im C17-for-Initializer deklariert. Direkte C17-Controls für fehlende, gefüllte, maximale, positive-Länge-mit-Nullquelle und Schleifenscope bestanden. Der exakte Head wurde ohne Rule-, Quality-Gate-, Exclusion-, Suppression- oder Source-Analysis-Konfigurationsänderung erneut analysiert.",
+  "acceptance_criteria": [
+    "Absent optional fields retain zero-length result-frame encoding without dereference.",
+    "Populated and maximum-length fields retain exact byte order, lengths, action, phase, status, and flags.",
+    "A positive-length null source is rejected by the private copy boundary.",
+    "Focused C17 and relevant Traefik/security tests pass with no scanner suppression or policy change.",
+    "The exact fixed PR #150 head has a SonarQube Cloud Quality Gate OK and no OPEN/CONFIRMED new Sonar issue."
+  ],
+  "validation_plan": [
+    "Run the direct C17 socketpair harness and its missing/present/maximum/negative-source controls.",
+    "Run remaining-connectors C17, C/C++ diagnostics, Traefik security contracts, diff check, and a focused security-diff review.",
+    "After an authorized merge, read current-master Sonar issues, Quality Gate, and measures before changing this fixed finding to verified or closed."
+  ],
+  "regression_tests": [
+    "tests/test_sonar_reliability_contract.py",
+    "make check-remaining-connectors-c17",
+    "tests.test_c_cpp_diagnostics",
+    "tests.test_traefik_native_local_plugin",
+    "tests.test_traefik_runtime_smoke_security"
+  ],
+  "legitimate_control_tests": [
+    "The direct C17 result-frame harness preserves absent and populated fields byte-for-byte.",
+    "The harness exercises exactly maximum-size transaction, rule, and redirect strings.",
+    "The helper returns failure without changing its destination for a positive length paired with a null source."
+  ],
+  "dependencies": [
+    "An explicit master integration authorization and a post-merge exact current-master Sonar recheck before verified or closed disposition."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0001",
+    "FND-SONAR-0016"
+  ],
+  "source_run_ids": [
+    "sonar-652-duplication-zero-20260728-W8wqjk"
+  ],
+  "residual_risk": "The full Traefik host/plugin/Common/libmodsecurity runtime is still unavailable locally because verified libmodsecurity development dependencies are absent. The focused C17 harness covers the actual serializer and boundary conditions but is not a full host-runtime claim.",
+  "residual_risk_de": "Die vollständige Traefik-Host-/Plugin-/Common-/libmodsecurity-Runtime ist lokal weiterhin nicht verfügbar, weil verifizierte libmodsecurity-Development-Abhängigkeiten fehlen. Der fokussierte C17-Harness deckt den tatsächlichen Serializer und die Grenzbedingungen ab, ist aber keine Full-Host-Runtime-Behauptung.",
+  "created_at": "2026-07-28T10:46:25Z",
+  "updated_at": "2026-07-28T11:45:13Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-28T10:46:25Z",
+      "event": "draft_pr150_exact_head_quality_gate_error_recorded",
+      "detail": "The retained PR #150 API readbacks establish three new OPEN BLOCKER c:S3519 issues and Quality Gate ERROR. The local successor is feasible_now and intentionally uses no Sonar policy, Quality Gate, exclusion, suppression, or scanner-configuration change."
+    },
+    {
+      "at": "2026-07-28T11:07:28Z",
+      "event": "canonical_id_reallocated_to_avoid_archived_mrts_collision",
+      "detail": "The initially selected FND-SONAR-0017 is a never-reusable archived MRTS finding. The new Parent PR #150 quality-gate finding was therefore reallocated to the next unused FND-SONAR-0019 identifier without changing its evidence, scope, or disposition."
+    },
+    {
+      "at": "2026-07-28T11:45:13Z",
+      "event": "fixed_exact_draft_pr150_head_sonar_readback",
+      "detail": "Exact draft head 4dae04f2d584da855139d6f42ab36c1bdf8c8d63 has a successful GitHub-bound SonarCloud check, Quality Gate OK, and zero OPEN/CONFIRMED PR issues after the fail-closed copy and C17 loop-scope corrections. The finding is fixed, not verified or closed: PR #150 remains Draft and unmerged, and a current-master recheck is still required after any separately authorized integration."
+    }
+  ]
+}

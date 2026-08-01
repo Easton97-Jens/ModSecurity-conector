@@ -1,0 +1,126 @@
+{
+  "id": "FND-GITHUB-0005",
+  "title": "Framework master governance and Actions defaults lack external enforcement",
+  "title_de": "Framework-master-Governance und Actions-Defaults besitzen keine externe Durchsetzung",
+  "category": "github_governance",
+  "repository": "framework",
+  "ownership": "github_configuration",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "accepted_risk",
+  "feasibility_status": "out_of_scope",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".github/workflows/ci-security-codeql-pr.yml",
+    ".github/workflows/ci-security-codeql.yml"
+  ],
+  "affected_symbols": [
+    "GitHub master branch protection",
+    "GitHub repository rulesets",
+    "GitHub effective master rules",
+    "GitHub Actions default_workflow_permissions",
+    "current-head PR, review, and required-check enforcement"
+  ],
+  "observed_behavior": "For Easton97-Jens/ModSecurity-test-Framework at the reviewed PR #27 head 2f635be02ede802024ec9e0ce2ed41e3030cbff2, read-only GitHub API evidence shows classic master protection returns HTTP 404 Branch not protected; the master branch reports protected=false with no required checks; repository rulesets and effective master rules are empty; Actions default_workflow_permissions is write; and one direct collaborator has admin, maintain, and push capabilities. The current PR source is safer than that default: its PR CodeQL workflow is read-only, exact-head, credentialless, and non-uploading, while its trusted uploader is non-PR and scopes its added capability to security-events.",
+  "observed_behavior_de": "Für Easton97-Jens/ModSecurity-test-Framework beim geprüften PR-#27-Head 2f635be02ede802024ec9e0ce2ed41e3030cbff2 zeigt schreibgeschützte GitHub-API-Evidence: Der klassische master-Schutz liefert HTTP 404 Branch not protected; der master-Branch meldet protected=false ohne Required Checks; Repository-Rulesets und effektive master-Regeln sind leer; Actions default_workflow_permissions ist write; und ein direkter Collaborator besitzt admin-, maintain- und push-Fähigkeiten. Der aktuelle PR-Source ist sicherer als dieser Default: Sein PR-CodeQL-Workflow ist read-only, exact-head, credentialless und non-uploading, während sein vertrauenswürdiger Uploader non-PR ist und seine zusätzliche Fähigkeit auf security-events begrenzt.",
+  "expected_behavior": "A no-bypass GitHub governance control independently enforces master protection or rules, current-head pull-request/review/required-check requirements, and least-privilege Actions defaults. Source-controlled PR workflow declarations remain defense in depth rather than the sole mechanism protecting future master and workflow changes.",
+  "expected_behavior_de": "Ein No-bypass-GitHub-Governance-Control erzwingt unabhängig master-Schutz oder Regeln, current-head Pull-Request-/Review-/Required-Check-Anforderungen und Least-Privilege-Actions-Defaults. Source-kontrollierte PR-Workflow-Deklarationen bleiben Defense in Depth statt des einzigen Mechanismus zum Schutz künftiger master- und Workflow-Änderungen.",
+  "impact": "The current Framework master-integration prerequisites are not externally enforceable: a privileged collaborator or compromised privileged credential could change master or its adjudicating workflow without an evidenced independent PR, review, or current-head check. The attack-path analysis does not classify this as a reportable security vulnerability because the only demonstrated source already has privileged repository-write authority and no lower-privilege escalation is proven. It is nevertheless a validated GitHub-governance and release-control blocker; no unauthenticated RCE, PR write token, secret exposure, Parent gitlink change, or MRTS change is claimed.",
+  "impact_de": "Die aktuellen Framework-master-Integrationsvoraussetzungen sind nicht extern durchsetzbar: Ein privilegierter Collaborator oder ein kompromittiertes privilegiertes Credential könnte master oder seinen entscheidenden Workflow ohne nachgewiesenen unabhängigen PR-, Review- oder current-head-Check ändern. Die Attack-Path-Analyse klassifiziert dies nicht als reportable Security-Vulnerability, weil die einzige nachgewiesene Quelle bereits privilegierte Repository-Write-Autorität besitzt und keine Lower-Privilege-Eskalation bewiesen ist. Es bleibt dennoch ein validierter GitHub-Governance- und Release-Control-Blocker; es werden keine unauthentifizierte RCE, kein PR-Write-Token, keine Secret-Exposition, keine Parent-Gitlink-Änderung und keine MRTS-Änderung behauptet.",
+  "preconditions": [
+    "The GitHub repository Easton97-Jens/ModSecurity-test-Framework remains accessible to the authorized read-only GitHub CLI account.",
+    "The current master control-plane state remains the one returned by the retained read-only API receipt.",
+    "A malicious privileged collaborator or a compromised privileged credential acts; no lower-privileged external or fork-PR attacker path is evidenced."
+  ],
+  "reproduction": [
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/branches/master/protection",
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/branches/master",
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/rulesets",
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/rules/branches/master",
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/actions/permissions/workflow",
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/collaborators?affiliation=direct"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/evidence/framework-github-governance-readback-20260719T160637Z.md",
+      "artifact_type": "github_master_governance_read_only_configuration_receipt",
+      "sha256": "1cbdf30f5a0dfe329c354f753cce92f037067d92ba8ccd9435e6efe08ee1d354",
+      "command": "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/branches/master/protection; rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/branches/master; rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/rulesets; rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/rules/branches/master; rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/actions/permissions/workflow; rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/collaborators?affiliation=direct",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T16:06:37Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "Framework PR workflow YAML explicitly constrains the current source, but GitHub repository configuration does not independently require future master/workflow changes to preserve those declarations. The absence of master protection/effective rules and the write Actions default are external control-plane facts, distinct from the currently safe PR source. The final security attack-path policy ignores the candidate because the demonstrated attacker already has repository-write authority; this does not restore the missing governance control.",
+  "root_cause_de": "Framework-PR-Workflow-YAML begrenzt den aktuellen Source explizit, aber die GitHub-Repository-Konfiguration verlangt nicht unabhängig, dass künftige master-/Workflow-Änderungen diese Deklarationen bewahren. Das Fehlen von master-Schutz/effektiven Regeln und der write-Actions-Default sind externe Control-Plane-Fakten und vom aktuell sicheren PR-Source verschieden. Die finale Security-Attack-Path-Policy ignoriert den Kandidaten, weil der nachgewiesene Angreifer bereits Repository-Write-Autorität hat; dadurch wird das fehlende Governance-Control nicht wiederhergestellt.",
+  "proposed_remediation": "Only an authorized GitHub repository owner or administrator may decide and apply the Framework configuration. Establish no-bypass master protection or rules, require current-head pull-request/review/required-check enforcement, and set least-privilege default Actions workflow permissions. Retain current explicit PR workflow permissions as defense in depth. Reread the same endpoints and then repeat exact-head PR #27 delivery verification. Do not direct-push master, use an admin bypass, weaken a check, or infer risk acceptance from a merge request.",
+  "proposed_remediation_de": "Nur ein autorisierter GitHub-Repository-Owner oder Administrator darf die Framework-Konfiguration entscheiden und anwenden. No-bypass master-Schutz oder Regeln herstellen, current-head Pull-Request-/Review-/Required-Check-Durchsetzung verlangen und Least-Privilege-Default-Actions-Workflow-Berechtigungen setzen. Die aktuellen expliziten PR-Workflow-Berechtigungen als Defense in Depth beibehalten. Dieselben Endpoints erneut lesen und danach die Exact-Head-PR-#27-Delivery-Verifikation wiederholen. Keinen direkten master-Push, keinen Admin-Bypass und keine Check-Abschwächung verwenden und Risikoakzeptanz nicht aus einer Merge-Anfrage ableiten.",
+  "acceptance_criteria": [
+    "A post-change read-only GitHub receipt proves no-bypass master protection or effective rules are present.",
+    "The configured rule requires the intended current-head pull-request, review, and required-check controls without a direct-push or administrator bypass.",
+    "The Actions permissions endpoint reports a least-privilege default rather than default_workflow_permissions=write.",
+    "PR #27 is re-read at its exact current head and independently satisfies all delivery checks, reviews, thread, ruleset, and merge-method prerequisites.",
+    "No Parent source or gitlink, MRTS content or gitlink, Framework product source, security control, or SonarCloud result is weakened as a workaround."
+  ],
+  "validation_plan": [
+    "Repeat every command in reproduction and retain a new hash-addressed configuration readback.",
+    "Read the effective master rule, required-check/current-head settings, bypass actors, and Actions default before enabling PR delivery.",
+    "Re-run the final exact-head PR #27 local and GitHub delivery preflight after any authorized configuration change.",
+    "Confirm the existing read-only PR CodeQL workflow and trusted non-PR uploader remain valid legitimate controls."
+  ],
+  "regression_tests": [],
+  "legitimate_control_tests": [
+    "The PR CodeQL workflow remains pull_request-scoped, contents: read, exact-head, credentialless, non-submodule, and non-uploading.",
+    "The trusted CodeQL workflow remains non-PR and restricts its added write capability to security-events.",
+    "The configured governance control permits a compliant current-head PR to proceed without a bypass."
+  ],
+  "dependencies": [
+    "An explicit current-user decision authorizing the GitHub configuration change, or explicit acceptance of the precise residual governance risk.",
+    "GitHub repository-owner or administrator capability to apply and reread the configuration."
+  ],
+  "blocked_by": [
+    "The current task has no explicit authority to change GitHub master protection, rulesets, bypass settings, or Actions-default configuration.",
+    "The retained API receipt proves the prerequisite controls are absent at the reviewed state.",
+    "The current user's 2026-07-26 accepted-risk decision archives rather than remediates the remaining direct-master/check-bypass risk."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-GITHUB-0001",
+    "FND-GITHUB-0002",
+    "FND-GITHUB-0004",
+    "FND-FRAMEWORK-0013",
+    "FND-FRAMEWORK-0019"
+  ],
+  "source_run_ids": [
+    "20260719T081017Z-framework-pr-resolution-20260719-840082e0"
+  ],
+  "residual_risk": "The current user accepted this record for local archival on 2026-07-26. Until an authorized configuration decision and endpoint reread occur, a privileged collaborator or compromised privileged credential can bypass the independently enforced master review/current-head-check boundary required for safe integration. Current PR workflow controls remain valid but are not an external no-bypass guarantee. This is an accepted-risk archive disposition, not a technical closure; restore and revalidate the record before production, publication, or release use.",
+  "residual_risk_de": "Der aktuelle Nutzer akzeptierte diesen Record am 2026-07-26 für die lokale Archivierung. Bis eine autorisierte Konfigurationsentscheidung und ein Endpoint-Readback erfolgen, kann ein privilegierter Collaborator oder ein kompromittiertes privilegiertes Credential die unabhängig erzwungene master-Review-/current-head-Check-Grenze für sichere Integration umgehen. Die aktuellen PR-Workflow-Controls bleiben gültig, sind aber keine externe No-bypass-Garantie. Dies ist eine Accepted-Risk-Archiv-Disposition, kein technischer Abschluss; vor Produktion, Veröffentlichung oder Release muss der Record wiederhergestellt und neu validiert werden.",
+  "created_at": "2026-07-19T16:35:35Z",
+  "updated_at": "2026-07-26T14:18:25Z",
+  "final_disposition": "current_user_accepted_risk_20260726_framework_governance_bypass_archived_not_technically_closed",
+  "history": [
+    {
+      "at": "2026-07-19T16:06:37Z",
+      "event": "github_master_governance_gap_observed",
+      "detail": "Read-only API evidence recorded no classic master protection, protected=false, no repository/effective rules, a write Actions default, and a direct collaborator with admin, maintain, and push capabilities."
+    },
+    {
+      "at": "2026-07-19T16:35:35Z",
+      "event": "security_scan_attack_path_and_delivery_disposition",
+      "detail": "CAND-PR27-GITHUB-GOVERNANCE-001 was technically validated but final security policy ignored it as privileged-only with no proven lower-privilege escalation. The independently required master-integration governance control remains blocked pending an authorized configuration decision or explicit risk acceptance."
+    },
+    {
+      "at": "2026-07-26T14:18:25Z",
+      "event": "current_user_accepted_risk_archived",
+      "detail": "The current user explicitly accepted this exact residual risk for local archive disposition. No GitHub rule, protection, bypass, or Actions-default configuration changed and no technical closure is claimed."
+    }
+  ]
+}

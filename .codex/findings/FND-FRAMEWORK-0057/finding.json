@@ -1,0 +1,165 @@
+{
+  "id": "FND-FRAMEWORK-0057",
+  "title": "Connector-neutral security/data-flow descriptors are treated as executable runtime cases",
+  "title_de": "Connector-neutrale Security-Data-Flow-Deskriptoren werden als ausführbare Runtime-Fälle behandelt",
+  "category": "ci_failure",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "reproduced",
+"status": "fixed",
+  "feasibility_status": "blocked_external_dependency",
+  "release_blocker": true,
+  "security_relevant": true,
+  "security_assessment": "No production exploit is claimed. The affected security boundary is the Framework case-schema path from trusted YAML metadata into connector runtime materialization and evidence promotion. The remedy must preserve fail-closed rejection of incomplete executable cases and must not invent connector rules or results.",
+  "security_invariant": "A connector-neutral descriptor without a connector-owned rule never reaches a connector runtime, cannot be rendered as executable in a force-all report, and cannot be promoted to PASS. The normal non-empty rules requirement remains mandatory for materializable cases.",
+  "controlled_inputs": [
+    "Framework-owned security-data-flow YAML metadata",
+    "Force-all case discovery selection",
+    "Direct case_cli materialization request"
+  ],
+  "trusted_inputs": [
+    "Reviewed Framework case corpus",
+    "Framework runner capability allowlist"
+  ],
+  "sink": "Framework runner selection and case_cli materialization; runtime matrix report classification",
+  "connector": "all",
+  "protocol": "Framework case-schema validation and Parent verified runtime matrix discovery",
+  "profile": "The original Parent PR #74 failure used Framework revision a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6; its repair is merged in Framework master de705a5efb872f95f010346fe2e6143c88876ad4 and already adopted by Parent master through PR #126",
+  "affected_revision": "a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6",
+  "affected_files": [
+    "tests/cases/security-data-flow/**/*.yaml",
+    "tests/runners/runner_core.py",
+    "tests/runners/case_cli.py",
+    "ci/reporting/generate-case-matrix.py"
+  ],
+  "affected_symbols": [
+    "_validate_case_metadata",
+    "is_runtime_materializable",
+    "is_case_applicable",
+    "case_cli.materialize",
+    "runtime_executable_for_snapshot",
+    "runtime_cell_non_materializable"
+  ],
+  "observed_behavior": "The Parent PR #74 exact runtime producer prepared Apache and NGINX, then Framework force-all discovery failed with ValueError: case requires rules for a security-data-flow descriptor. All 15 descriptors lack connector-owned rules, and their normalized security-data-flow capability was not in the runner allowlist.",
+  "observed_behavior_de": "Der Exact-Parent-#74-Runtime-Producer bereitete Apache und NGINX vor und scheiterte anschließend in der Framework-Force-All-Discovery mit ValueError: case requires rules für einen Security-Data-Flow-Deskriptor. Alle 15 Deskriptoren besitzen keine connector-eigenen Regeln, und ihre normalisierte Capability security-data-flow fehlte im Runner-Allowlist.",
+  "expected_behavior": "Connector-neutral former-XFAIL connector-gap descriptors with runtime_verified false must be represented explicitly as non-materializable metadata, remain visible but non-promotable, and never enter connector runtime materialization. Materializable cases must still require non-empty rules.",
+  "expected_behavior_de": "Connector-neutrale Former-XFAIL-Connector-Gap-Deskriptoren mit runtime_verified false müssen explizit als nicht materialisierbare Metadaten dargestellt werden, sichtbar aber nicht hochstufbar bleiben und niemals die Connector-Runtime-Materialisierung erreichen. Materialisierbare Fälle müssen weiterhin nichtleere Regeln verlangen.",
+  "impact": "Fresh legitimate Parent PR #74 runtime evidence is blocked. Treating these descriptors as executable or solving the failure with placeholder rules would create a misleading security result; no runtime outcome is currently claimed.",
+  "impact_de": "Frische legitime Parent-PR-#74-Runtime-Evidence ist blockiert. Die Behandlung dieser Deskriptoren als ausführbar oder die Lösung mit Platzhalterregeln würde ein irreführendes Security-Ergebnis erzeugen; derzeit wird kein Runtime-Ergebnis behauptet.",
+  "preconditions": [
+    "Framework revision a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6 is selected by Parent PR #74.",
+    "FORCE_ALL_CASES is enabled for the Parent runtime matrix discovery.",
+    "The security-data-flow corpus contains connector-neutral former-XFAIL connector-gap descriptors without rules."
+  ],
+  "reproduction": [
+    "Inspect GitHub Actions Parent PR #74 run 30205593649, job 89802976898, where case_cli rejects request_body_limit_exceeded.yaml with case requires rules after native preparation succeeds.",
+    "Before remediation, run FORCE_ALL_CASES=1 python3 tests/runners/case_cli.py list-cases --repo-root . --framework-root . --connector apache --scope all in the Framework root and observe the missing-rules schema rejection.",
+    "Audit tests/cases/security-data-flow/**/*.yaml and observe 15 connector-gap former-XFAIL descriptors with runtime_verified false and no rules."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T145000Z-security-data-flow-case-schema",
+      "artifact_path": "/var/tmp/codex/runs/framework/20260726T145000Z-security-data-flow-case-schema/evidence/security-data-flow-case-schema-summary.md",
+      "artifact_type": "bounded_framework_case_schema_remediation_summary",
+      "sha256": "72c36838d9d868f50df8cc7e6dfe35fd0e72c59928415b9da1c84e828ad2ee90",
+      "command": "Focused Framework runner/CLI/report-generator tests, direct force-all list-cases discovery, syntax compilation, descriptor validation, documentation checks, exact PR #51 delivery/check-rollup readback, and direct SonarQube Cloud PR issue/measure readback",
+      "working_directory": "/var/tmp/codex/worktrees/framework/fix-security-data-flow-case-schema-20260726",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T16:19:57Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726-framework-findings-batch",
+      "artifact_path": ".codex/runs/20260726-framework-findings-batch/evidence/current-master-revalidation.md",
+      "artifact_type": "current_framework_master_finding_revalidation",
+      "sha256": "6912df100503c87123b72e4fac4cc76d6c8bf9f40f884786eeedfcebe0614f3c",
+      "command": "python -m unittest discover -s tests/security_regression -p test_security_data_flow_case_schema.py -q; python -m unittest discover -s tests/security_regression -p test_generate_case_matrix_sonar.py -q; python ci/checks/security/check-security-data-flow-cases.py",
+      "working_directory": "/var/tmp/codex/worktrees/framework/20260726-framework-findings-batch",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T18:28:05Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "The Framework-owned schema and report controls are present and pass on current master 47e50e7bc43ba7a3b5bad1a9448111794f664cc0. The remaining required proof is explicitly Parent PR #74 exact-head producer, strict terminal gate, SonarQube Cloud, review, and protected integration evidence."
+    }
+  ],
+  "root_cause": "The runner assumes every YAML case is materializable and applies its normal rules/request/expectation schema to connector-neutral inventory descriptors. The Framework schema lacks an explicit non-materializable state and its normalized capability allowlist omits security-data-flow.",
+  "root_cause_de": "Der Runner nimmt jeden YAML-Fall als materialisierbar an und wendet seinen normalen Rules-/Request-/Expectation-Schema-Contract auf connector-neutrale Inventar-Deskriptoren an. Dem Framework-Schema fehlt ein expliziter nicht materialisierbarer Zustand, und seinem normalisierten Capability-Allowlist fehlt security-data-flow.",
+  "proposed_remediation": "Add a constrained runtime_materializable boolean to the Framework schema. Only false for former-XFAIL connector-gap cases with capabilities.runtime_verified exactly false may bypass executable request/rules validation; exclude it from force-all selection, reject direct materialization, classify it NOT_EXECUTABLE/non-promotable in reports, and add the normalized capability token.",
+  "proposed_remediation_de": "Dem Framework-Schema ein eingeschränktes Boolean runtime_materializable hinzufügen. Nur false für Former-XFAIL-Connector-Gap-Fälle mit capabilities.runtime_verified exakt false darf die ausführbare Request-/Rules-Validierung umgehen; von Force-All-Auswahl ausschließen, direkte Materialisierung abweisen, in Reports als NOT_EXECUTABLE/nicht hochstufbar klassifizieren und das normalisierte Capability-Token ergänzen.",
+  "acceptance_criteria": [
+    "All 15 security-data-flow descriptors set runtime_materializable false and retain former_xfail true, status connector-gap, and capabilities.runtime_verified false.",
+    "Any materializable case without non-empty rules is still rejected.",
+    "An active case cannot opt into the non-materializable contract.",
+    "Force-all discovery excludes non-materializable descriptors and direct materialization rejects them.",
+    "The report generator marks them NOT_EXECUTABLE and non-promotable even in a force-all snapshot.",
+    "Focused tests, Framework PR #51 hosted CI/SonarQube/review/protected integration, and the adopted Parent #74 exact-head producer with strict terminal gate all pass."
+  ],
+  "validation_plan": [
+    "Run the focused runner/CLI and report-generator tests.",
+    "Run the direct force-all list-cases control, Python syntax compilation, the security-data-flow case checker, and relevant documentation/Change Record checks.",
+    "Retain Framework PR #51 delivery evidence, including its exact completed SonarQube Cloud analysis.",
+    "Update the existing Parent #74 branch from Parent master containing the adopted Gitlink, then rerun its exact-head producer and strict gate."
+  ],
+  "regression_tests": [
+    "tests/security_regression/test_security_data_flow_case_schema.py",
+    "tests/security_regression/test_generate_case_matrix_sonar.py",
+    "ci/checks/security/check-security-data-flow-cases.py"
+  ],
+  "legitimate_control_tests": [
+    "A valid materializable case still requires non-empty rules.",
+    "A non-materializable former-XFAIL connector-gap descriptor is excluded from force-all discovery.",
+    "Direct materialization of a non-materializable descriptor fails.",
+    "A force-all report marks a non-materializable descriptor NOT_EXECUTABLE and not promoted."
+  ],
+  "dependencies": [
+    "FND-PARENT-0056",
+    "FND-CROSS-0001"
+  ],
+  "blocked_by": [
+    "Fresh Parent PR #74 exact-head producer and strict terminal-gate evidence after the normal update from Parent master",
+    "Exact-head Parent SonarQube Cloud, review, and protected-integration evidence"
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0056",
+    "FND-CROSS-0001"
+  ],
+  "deduplication_note": "Not a duplicate of FND-PARENT-0056: that finding owns the now-remediated Parent NGINX Common-source snapshot omission. This finding owns a distinct Framework case-schema failure that begins only after Apache and NGINX preparation complete.",
+  "source_run_ids": [
+    "30205593649",
+    "20260726T145000Z-security-data-flow-case-schema"
+  ],
+  "residual_risk": "The 15 items remain intentionally visible connector-gap inventory until a connector-owned implementation provides rules and live evidence. Framework PR #51 is delivered with a completed exact PR SonarQube Cloud analysis showing zero open/confirmed issues and zero new-code duplication, but it does not prove Parent #74 runtime success. No risk is accepted.",
+  "residual_risk_de": "Die 15 Einträge bleiben absichtlich sichtbares Connector-Gap-Inventar, bis eine connector-eigene Implementierung Regeln und Live-Evidence liefert. Framework-PR #51 ist mit einer abgeschlossenen exakten PR-SonarQube-Cloud-Analyse ausgeliefert, die null offene/bestätigte Issues und null New-Code-Duplikation zeigt, beweist aber keinen Parent-#74-Runtime-Erfolg. Es wird kein Risiko akzeptiert.",
+  "history": [
+    {
+      "at": "2026-07-26T15:00:00Z",
+      "event": "reproduced_and_classified_framework_security_data_flow_case_schema_failure",
+      "detail": "Exact Parent #74 hosted failure and direct Framework force-all discovery prove the invalid executable-case schema. The complete corpus audit identified 15 descriptors and the capability allowlist omission."
+    },
+    {
+      "at": "2026-07-26T15:19:34Z",
+      "event": "isolated_framework_remediation_locally_validated",
+      "detail": "A constrained non-materializable contract, selection/materialization/report controls, documentation, and focused regressions were prepared in an isolated Framework worktree. Framework Draft PR #51 is open at exact head 792bbffb1eefc7be0a9f76911729917d606eb00b; its hosted check cycle is in progress and no Framework merge is authorized."
+    },
+    {
+      "at": "2026-07-26T15:25:11Z",
+      "event": "exact_head_github_checks_passed_sonar_pr_analysis_absent",
+      "detail": "All visible GitHub Actions checks for Framework Draft PR #51 exact head 792bbffb1eefc7be0a9f76911729917d606eb00b passed. Direct SonarQube Cloud PR readback has an empty issues page but Quality Gate status NONE and no new-code measures, so no zero-issue/zero-duplication conclusion is recorded. The Draft/review state remains user-controlled."
+    },
+    {
+      "at": "2026-07-26T16:19:57Z",
+      "event": "framework_pr51_delivered_and_parent_gitlink_adopted",
+      "detail": "Framework PR #51 merged normally at 2026-07-26T16:09:03Z as Framework master de705a5efb872f95f010346fe2e6143c88876ad4. Its completed SonarQube Cloud PR #51 readback reports zero open/confirmed issues, zero new violations/vulnerabilities/bugs/security hotspots/code smells, new duplicated-lines density 0.0, and total duplicated-lines density 0.0. Parent PR #126 has already adopted that Gitlink on Parent master 3c99b88e1c73dcf7b79c0ea6dd189cb4383d13dd; the remaining control is a fresh Parent #74 exact-head producer and strict gate."
+    },
+    {
+      "at": "2026-07-26T18:28:05Z",
+      "event": "framework_controls_revalidated_parent_terminal_evidence_blocked",
+      "detail": "Current Framework master 47e50e7bc43ba7a3b5bad1a9448111794f664cc0 passed the case-schema, case-matrix, and security-data-flow checker controls. Framework repair is not the remaining impediment; the finding is blocked only by the listed Parent PR #74 exact-head producer, strict terminal-gate, SonarQube Cloud, review, and protected-integration evidence."
+    }
+  ],
+  "created_at": "2026-07-26T15:00:00Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": null
+}

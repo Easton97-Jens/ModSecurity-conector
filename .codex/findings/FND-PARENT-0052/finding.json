@@ -1,0 +1,126 @@
+{
+  "id": "FND-PARENT-0052",
+  "title": "Full evidence producer accepts mutable supply-chain inputs",
+  "title_de": "Full-Evidence-Producer akzeptiert veränderliche Supply-Chain-Eingaben",
+  "category": "dependency_risk",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "confirmed",
+"status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "verified report runtime producer",
+  "protocol": "runtime evidence and CI dependency provenance",
+  "profile": "Parent PR #74 strict/full verified report workflow",
+  "affected_files": [
+    ".github/workflows/verified-report-governance.yml",
+    "ci/provisioning/components/prepare-runtime-components.py",
+    "modules/ModSecurity-test-Framework/ci/tools/bootstrap-python.sh",
+    "modules/ModSecurity-test-Framework/requirements-dev.txt",
+    "modules/ModSecurity-test-Framework/requirements-ci.lock"
+  ],
+  "affected_symbols": [
+    "prepare_release_git_component",
+    "resolve_latest_github_release_tag",
+    "verified-report-governance:report-governance"
+  ],
+  "summary": "The newly activated strict/full runtime producer resolved Expat from a mutable latest-release endpoint and used an unpinned Python bootstrap before evidence production.",
+  "summary_de": "Der neu aktivierte strikte/vollständige Runtime-Producer löste Expat über einen veränderlichen Latest-Release-Endpunkt auf und verwendete vor der Evidence-Produktion einen ungepinnten Python-Bootstrap.",
+  "observed_behavior": "The PR #74 workflow change invokes make verified-report-run. Its mandatory component preparation resolved Expat through GitHub releases/latest, while the newly added make setup-dev step upgraded Pip and installed range-based PyYAML.",
+  "observed_behavior_de": "Die PR-#74-Workflow-Änderung ruft make verified-report-run auf. Dessen verpflichtende Komponenten-Vorbereitung löste Expat über GitHub releases/latest auf, während der neu hinzugefügte Schritt make setup-dev Pip aktualisierte und bereichsbasiertes PyYAML installierte.",
+  "expected_behavior": "Every mandatory producer input must be fixed to an immutable reviewed identity before evidence is accepted; Python dependency installation must be hash-locked.",
+  "expected_behavior_de": "Jede verpflichtende Producer-Eingabe muss vor der Evidence-Akzeptanz auf eine unveränderliche überprüfte Identität festgelegt sein; die Python-Abhängigkeitsinstallation muss hash-gesperrt erfolgen.",
+  "impact": "The runtime evidence chain would not be reproducibly provenance-bound, so a strict-gate pass could not provide the intended assurance. No GitHub permission or gate bypass was observed.",
+  "impact_de": "Die Runtime-Evidence-Kette wäre nicht reproduzierbar an ihre Provenienz gebunden; ein Strict-Gate-Pass könnte die beabsichtigte Assurance nicht liefern. Es wurde kein GitHub-Berechtigungs- oder Gate-Bypass beobachtet.",
+  "preconditions": [
+    "PR #74 activates make verified-report-run in verified-report-governance.yml.",
+    "The mandatory full producer prepares runtime components and installs its Python dependency path."
+  ],
+  "reproduction": [
+    "Inspect prepare_release_git_component and resolve_latest_github_release_tag in ci/provisioning/components/prepare-runtime-components.py.",
+    "Inspect the make setup-dev workflow step and Framework bootstrap-python.sh/requirements-dev.txt."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T063235Z-pr55-pr74-supply-chain-provenance",
+      "artifact_path": ".codex/runs/20260726T063235Z-pr55-pr74-supply-chain-provenance/evidence/pr74-full-producer-source-review.md",
+      "artifact_type": "independent_security_source_review",
+      "sha256": "7268086e9248045ded3e3dce76b066d411419cce927ac43a2367b6e014fb926b",
+      "command": "Focused source-to-sink security review of the uncommitted PR #74 workflow remediation",
+      "working_directory": "/var/tmp/codex/worktrees/parent/migrate-pr55-pr74-master-V27zuA/pr74",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T06:32:35Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726T063235Z-pr55-pr74-supply-chain-provenance",
+      "artifact_path": ".codex/runs/20260726T063235Z-pr55-pr74-supply-chain-provenance/evidence/pr74-focused-remediation-validation.md",
+      "artifact_type": "focused_parent_remediation_validation",
+      "sha256": "819fc41de013b7430b2c75cec013c4652b1f4823008aed1497ef8e49a863e274",
+      "command": "Focused strict-Expat, workflow-security, tool-lock, bilingual-documentation, and whitespace validation",
+      "working_directory": "/var/tmp/codex/worktrees/parent/migrate-pr55-pr74-master-V27zuA/pr74",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T06:44:31Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The mandatory Expat call reused a helper designed to resolve latest releases at runtime, and the workflow used the general development bootstrap rather than the existing hash-locked Framework CI dependency contract.",
+  "root_cause_de": "Der verpflichtende Expat-Aufruf verwendete einen Helper zur Laufzeitauflösung aktueller Releases erneut, und der Workflow nutzte den allgemeinen Entwicklungs-Bootstrap statt des vorhandenen hash-gesperrten Framework-CI-Abhängigkeitsvertrags.",
+  "proposed_remediation": "Use a Parent verifier that accepts only an exact Expat commit and sets it from the reviewed workflow, then replace make setup-dev with a selected-Python virtual environment that installs Framework requirements-ci.lock using --require-hashes and --only-binary.",
+  "proposed_remediation_de": "Einen Parent-Verifier verwenden, der nur einen exakten Expat-Commit akzeptiert und ihn aus dem überprüften Workflow setzt; anschließend make setup-dev durch eine Selected-Python-virtuelle Umgebung ersetzen, die Framework requirements-ci.lock mit --require-hashes und --only-binary installiert.",
+  "acceptance_criteria": [
+    "The Expat strict path rejects a branch, tag, empty ref, or latest-release lookup.",
+    "The reviewed full Expat commit is checked out and recorded exactly.",
+    "The workflow uses requirements-ci.lock with --require-hashes and no Pip upgrade or requirements-dev installation.",
+    "Focused source and workflow tests pass.",
+    "A fresh exact-head strict/full runtime run and terminal evidence gate pass."
+  ],
+  "validation_plan": [
+    "Run the focused prepare-runtime-components and CI workflow contract suites.",
+    "Run a fresh exact-head hosted full producer and terminal strict gate.",
+    "Inspect exact-head CI, SonarCloud, review threads, and resulting master evidence before closure."
+  ],
+  "regression_tests": [
+    "tests/test_prepare_runtime_components.py",
+    "tests/test_ci_security_workflows.py"
+  ],
+  "legitimate_control_tests": [
+    "The verified R_2_8_2 Expat commit is accepted and recorded without a latest-release lookup.",
+    "The exact CPython 3.14 Framework lock installs with its reviewed wheel hash and pip check."
+  ],
+  "dependencies": [
+    "FND-CROSS-0001"
+  ],
+  "blocked_by": [
+    "Exact-head hosted strict/full runtime evidence and terminal-gate validation are pending."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0001",
+    "FND-PARENT-0042",
+    "FND-PARENT-0050"
+  ],
+  "source_run_ids": [
+    "20260726T063235Z-pr55-pr74-supply-chain-provenance"
+  ],
+  "residual_risk": "Until the parent fix and exact-head full evidence run pass, the strict producer could consume mutable source or dependency inputs. The gate remains fail-closed; no risk is accepted.",
+  "residual_risk_de": "Bis Parent-Korrektur und Exact-Head-Full-Evidence-Lauf bestanden sind, könnte der strikte Producer veränderliche Source- oder Dependency-Eingaben konsumieren. Das Gate bleibt fehlgeschlossen; es wird kein Risiko akzeptiert.",
+  "created_at": "2026-07-26T06:32:35Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-26T06:32:35Z",
+      "event": "validated_before_pr_publication",
+      "detail": "Independent source-to-sink review found mandatory mutable Expat and Python bootstrap inputs in the proposed strict/full producer. The normal push was suspended; no control was weakened."
+    },
+    {
+      "at": "2026-07-26T06:44:31Z",
+      "event": "parent_source_remediation_validated_locally",
+      "detail": "The strict producer now supplies a hash-locked Framework CI dependency and an immutable Expat commit. Focused Parent tests, workflow/tool-lock validation, bilingual documentation, and whitespace validation passed. Publication and exact-head hosted full evidence remain required."
+    }
+  ]
+}

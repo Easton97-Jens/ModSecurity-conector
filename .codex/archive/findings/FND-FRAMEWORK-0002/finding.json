@@ -1,0 +1,109 @@
+{
+  "id": "FND-FRAMEWORK-0002",
+  "title": "Framework ShellCheck diagnostics require scoped triage",
+  "title_de": "Framework-ShellCheck-Diagnosen erfordern eine abgegrenzte Triage",
+  "category": "maintainability",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "closed",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md"
+  ],
+  "affected_symbols": [
+    "ci/lib/mrts-common.sh"
+  ],
+  "summary": "The assessment retained 261 Framework ShellCheck findings, including a shell declaration error in ci/lib/mrts-common.sh.",
+  "summary_de": "Die Bestandsaufnahme hielt 261 Framework-ShellCheck-Findings fest, einschließlich eines Shell-Declaration-Errors in ci/lib/mrts-common.sh.",
+  "observed_behavior": "The assessment retained 261 Framework ShellCheck findings, including a shell declaration error in ci/lib/mrts-common.sh.",
+  "observed_behavior_de": "Die Bestandsaufnahme hielt 261 Framework-ShellCheck-Findings fest, einschließlich eines Shell-Declaration-Errors in ci/lib/mrts-common.sh.",
+  "expected_behavior": "Current evidence must be rerun against a known revision before this finding can advance beyond triaged.",
+  "expected_behavior_de": "Die aktuelle Evidence muss gegen eine bekannte Revision erneut ausgeführt werden, bevor dieses Finding über triaged hinaus fortschreiten kann.",
+  "impact": "Release and assurance claims remain bounded by the recorded evidence.",
+  "impact_de": "Release- und Assurance-Aussagen bleiben durch die dokumentierte Evidence begrenzt.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "sed -n '83,86p;217,219p' .codex/reports/repository-full-assessment.md"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:83-86,217-219",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '83,86p;217,219p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260726T160903Z-framework-pr50-pr51-master-verification",
+      "artifact_path": ".codex/runs/20260726T160903Z-framework-pr50-pr51-master-verification/finding-closure-evidence.md",
+      "artifact_type": "framework_resulting_master_finding_verification",
+      "sha256": "519b89ef349a2d1a66b8cf78a5f0056f2df1909df2f386e5e67b7742bf277a2d",
+      "command": "shellcheck -s sh ci/lib/mrts-common.sh; Framework master lint workflow 30209754928",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/framework-master-pr50-pr51-verify-20260726",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T16:13:56Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The retained evidence identifies the condition but does not establish a product-code root cause.",
+  "root_cause_de": "Die retained Evidence belegt den Zustand, aber keine Produktcode-Grundursache.",
+  "proposed_remediation": "Triage diagnostics by severity and permitted scope; fix or document only narrowly justified exclusions.",
+  "proposed_remediation_de": "Diagnosen nach Severity und erlaubtem Scope triagieren; nur eng begründete Exclusions korrigieren oder dokumentieren.",
+  "acceptance_criteria": [
+    "Each retained diagnostic has an owner and disposition.",
+    "The scoped Framework ShellCheck run reports the agreed baseline."
+  ],
+  "validation_plan": [
+    "Run Framework ShellCheck excluding original MRTS.",
+    "Run a legitimate Framework shell control after behavior-affecting fixes."
+  ],
+  "regression_tests": [
+    "Add or retain a focused regression/evidence control for the recorded condition."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260726T160903Z-framework-pr50-pr51-master-verification"
+  ],
+  "residual_risk": "No remaining ShellCheck declaration condition was observed on resulting Framework master; future changes require their own scoped lint validation.",
+  "residual_risk_de": "Auf dem resultierenden Framework-Master wurde keine verbleibende ShellCheck-Deklarationsbedingung beobachtet; spätere Änderungen benötigen ihre eigene abgegrenzte Lint-Validierung.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-26T16:13:56Z",
+  "final_disposition": "closed_verified_framework_master_pr50_pr51_20260726",
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-26T16:13:56Z",
+      "event": "remediation_fixed",
+      "detail": "Framework PR #50 corrected the scoped ci/lib/mrts-common.sh ShellCheck declaration without changing MRTS."
+    },
+    {
+      "at": "2026-07-26T16:13:56Z",
+      "event": "resulting_master_verified_and_closed",
+      "detail": "Exact Framework master de705a5efb872f95f010346fe2e6143c88876ad4 passed the direct ShellCheck control and its resulting-master lint workflow; the original diagnostic no longer reproduces."
+    }
+  ]
+}

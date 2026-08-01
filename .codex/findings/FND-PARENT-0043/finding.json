@@ -1,0 +1,323 @@
+{
+  "id": "FND-PARENT-0043",
+  "title": "Apache intervention buffers require request-owned copies before native cleanup",
+  "title_de": "Apache-Interventionspuffer benötigen request-eigene Kopien vor dem nativen Cleanup",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "medium",
+  "confidence": "validated",
+  "status": "blocked",
+  "feasibility_status": "blocked_environment",
+  "native_validation_status": "blocked_environment",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": "apache",
+  "protocol": "Apache HTTP request intervention and response Location ownership",
+  "profile": "Parent Apache intervention ownership correction merged through PR #72; native runtime verification remains pending",
+  "source_base_revision": "929fe60dfca30787947027e5bd49003581a5b080",
+  "source_base_blob": "6e3c9a5f2d906ba6a7099d599611e85156a94ffa",
+  "source_head_revision": "486aef56424f5bf33bcd7396f6dc2f881f7f3bdd",
+  "source_head_branch": "agent/apache-intervention-ownership-20260720",
+  "delivery_state": "merged_to_parent_master_0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3_with_exact_master_workflow_success_and_unrelated_sonar_baseline_documented",
+  "security_assessment": "A reachable request-driven Apache/libModSecurity lifecycle boundary retains native intervention values across an APR request-lifetime boundary. Merged PR #72 copies Apache-retained values before nonzero cleanup and preserves the direct zero-result return; focused source contracts, exact-head hosted checks, and resulting-master GitHub workflows passed. Native Apache/APR/libModSecurity and ASan/LSan evidence remains unavailable, so the security outcome remains blocked rather than fixed, verified, or closed.",
+  "security_assessment_de": "Eine erreichbare requestgetriebene Apache/libModSecurity-Lebensdauergrenze behält native Interventionswerte über eine APR-Request-Lebensdauergrenze hinweg. Der gemergte PR #72 kopiert von Apache behaltene Werte vor dem Nichtnull-Cleanup und bewahrt die direkte Null-Ergebnis-Rückgabe; fokussierte Source-Contracts, Exact-Head-Hosted-Checks und Resulting-Master-GitHub-Workflows bestanden. Native Apache/APR/libModSecurity- sowie ASan/LSan-Evidence bleiben nicht verfügbar, daher bleibt das Security-Ergebnis blocked statt fixed, verified oder closed.",
+  "affected_files": [
+    "connectors/apache/src/mod_security3.c",
+    "tests/test_apache_intervention_cleanup.py",
+    "tests/test_apache_request_transaction_cleanup.py",
+    "ci/checks/connectors/apache/check-apache-c-standards.sh",
+    "Makefile"
+  ],
+  "affected_symbols": [
+    "process_intervention",
+    "msc_intervention",
+    "msc_intervention_cleanup",
+    "apr_pstrdup",
+    "apr_table_setn",
+    "ModSecurityIntervention.url",
+    "ModSecurityIntervention.log"
+  ],
+  "technical_claim": "The zero-result path directly returns N_INTERVENTION_STATUS. Every nonzero msc_intervention result must copy every Apache-retained url or log value into r->pool before exactly one msc_intervention_cleanup call; apr_table_setn must never receive intervention.url directly.",
+  "technical_claim_de": "Der Null-Ergebnis-Pfad gibt N_INTERVENTION_STATUS direkt zurück. Jedes Nichtnull-msc_intervention-Ergebnis muss jeden von Apache behaltenen url- oder log-Wert nach r->pool kopieren, bevor genau ein msc_intervention_cleanup-Aufruf erfolgt; apr_table_setn darf intervention.url nie direkt erhalten.",
+  "entry_point": "A remote HTTP request that satisfies a configured disruptive libModSecurity rule reaches process_intervention(Transaction *, request_rec *) through an Apache hook.",
+  "entry_point_de": "Ein Remote-HTTP-Request, der eine konfigurierte disruptive libModSecurity-Regel erfüllt, erreicht process_intervention(Transaction *, request_rec *) über einen Apache-Hook.",
+  "source_to_sink_or_broken_control": "At the source base, process_intervention wrote intervention.url into non-copying apr_table_setn and returned without a nonzero cleanup funnel. Its fallback wrote a static literal into intervention.log. libModSecurity initializes fields for nonzero results and msc_intervention_cleanup frees url and log, so direct response-table retention cannot safely survive cleanup and a static fallback must not be freed.",
+  "source_to_sink_or_broken_control_de": "Auf der Source-Basis schrieb process_intervention intervention.url in nicht kopierendes apr_table_setn und kehrte ohne Nichtnull-Cleanup-Funnel zurück. Sein Fallback schrieb ein statisches Literal in intervention.log. libModSecurity initialisiert Felder für Nichtnull-Ergebnisse und msc_intervention_cleanup gibt url und log frei, daher kann direkte Response-Tabellen-Retention den Cleanup nicht sicher überleben und ein statischer Fallback darf nicht freigegeben werden.",
+  "attacker_prerequisites": [
+    "The Parent Apache connector is deployed with libModSecurity and a rule path capable of producing a disruptive intervention.",
+    "A remote requester can send an ordinary HTTP request that satisfies that rule; no local privilege is required.",
+    "A redirect intervention supplies a 3xx status and URL; logging may supply or omit a log buffer."
+  ],
+  "attacker_prerequisites_de": [
+    "Der Parent-Apache-Connector ist mit libModSecurity und einem Regelpfad ausgerollt, der eine disruptive Intervention erzeugen kann.",
+    "Ein Remote-Requester kann einen gewöhnlichen HTTP-Request senden, der diese Regel erfüllt; lokale Privilegien sind nicht erforderlich.",
+    "Eine Redirect-Intervention liefert einen 3xx-Status und eine URL; Logging kann einen Log-Puffer liefern oder auslassen."
+  ],
+  "observed_behavior": "The source base had no single ownership-preserving cleanup path for nonzero interventions. It retained intervention.url by pointer in an Apache response table and returned early, while its fallback would be invalid to free. Final PR #72 head 486aef makes r->pool copies, uses a local fallback, funnels every nonzero result through one cleanup label, and preserves the direct zero-result return. It was squash-merged as master 0e8be81; its test-only follow-up also removed the task-owned SonarQube Cloud python:S8786 issue without a suppression.",
+  "observed_behavior_de": "Die Source-Basis hatte keinen einzelnen Ownership-erhaltenden Cleanup-Pfad für Nichtnull-Interventionen. Sie behielt intervention.url per Pointer in einer Apache-Response-Tabelle und kehrte früh zurück, während ihr Fallback ungültig freizugeben wäre. Der finale PR-#72-Head 486aef erzeugt r->pool-Kopien, verwendet einen lokalen Fallback, führt jedes Nichtnull-Ergebnis durch ein Cleanup-Label und bewahrt die direkte Null-Ergebnis-Rückgabe. Er wurde als Master 0e8be81 squash-gemergt; sein test-only-Follow-up beseitigte außerdem das aufgabeneigene SonarQube-Cloud-python:S8786-Issue ohne Suppression.",
+  "expected_behavior": "Nonzero interventions obtain request-owned copies for Apache-retained values and execute exactly one cleanup before their final return. The zero result directly returns N_INTERVENTION_STATUS, the Location table never references intervention.url, and fallback handling never mutates intervention.log.",
+  "expected_behavior_de": "Nichtnull-Interventionen erhalten request-eigene Kopien für von Apache behaltene Werte und führen genau einen Cleanup vor ihrer finalen Rückgabe aus. Das Null-Ergebnis gibt N_INTERVENTION_STATUS direkt zurück, die Location-Tabelle referenziert intervention.url nie und die Fallback-Behandlung mutiert intervention.log nie.",
+  "impact": "Without the ownership correction, remotely triggered disruptive interventions retain native buffers without a safe cleanup contract. A cleanup added without copies would create a dangling Location value or invalid free. This is a request-facing memory-lifecycle and response-integrity boundary; static evidence supports medium impact, while native exploitability and sanitizer behavior remain unverified.",
+  "impact_de": "Ohne Ownership-Korrektur behalten remote ausgelöste disruptive Interventionen native Puffer ohne sicheren Cleanup-Vertrag. Ein ohne Kopien hinzugefügter Cleanup würde einen hängenden Location-Wert oder ein ungültiges Free erzeugen. Dies ist eine requestseitige Speicher-Lebensdauer- und Response-Integrity-Grenze; statische Evidence stützt mittlere Auswirkung, während native Exploitability und Sanitizer-Verhalten unverified bleiben.",
+  "preconditions": [
+    "process_intervention receives a valid Transaction and Apache request_rec.",
+    "msc_intervention returns nonzero and initializes its intervention fields.",
+    "Apache retains a log value in msc_t or a redirect URL in headers_out."
+  ],
+  "preconditions_de": [
+    "process_intervention erhält eine gültige Transaction und Apache request_rec.",
+    "msc_intervention gibt einen von null verschiedenen Wert zurück und initialisiert seine Interventionsfelder.",
+    "Apache behält einen Log-Wert in msc_t oder eine Redirect-URL in headers_out."
+  ],
+  "reproduction": [
+    "Inspect source base 929fe60dfca30787947027e5bd49003581a5b080: process_intervention uses apr_table_setn with intervention.url and lacks a nonzero cleanup funnel.",
+    "Confirm in the read-only shared source cache that msc_intervention_cleanup frees ModSecurityIntervention.url and .log.",
+    "Run the focused source contract on the local candidate; it asserts direct zero behavior, one nonzero cleanup, local fallback handling, and request-owned redirect storage."
+  ],
+  "reproduction_de": [
+    "Source-Basis 929fe60dfca30787947027e5bd49003581a5b080 prüfen: process_intervention verwendet apr_table_setn mit intervention.url und besitzt keinen Nichtnull-Cleanup-Funnel.",
+    "Im schreibgeschützten Shared-Source-Cache bestätigen, dass msc_intervention_cleanup ModSecurityIntervention.url und .log freigibt.",
+    "Den fokussierten Source-Contract auf dem lokalen Candidate ausführen; er prüft direktes Null-Verhalten, einen Nichtnull-Cleanup, lokale Fallback-Behandlung und request-eigenen Redirect-Speicher."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260720T225753Z-apache-intervention-cleanup-40c97373",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T225753Z-apache-intervention-cleanup-40c97373/evidence/apache-intervention-final-local-validation-20260720T232020Z.json",
+      "artifact_type": "payload_safe_apache_intervention_final_local_validation_receipt",
+      "sha256": "349f0a11ed98ad68bf3cbd881599bf7381aba253462113d42e7cf948ed7bf1b6",
+      "command": "rtk run '/root/git/ModSecurity-conector/.codex/bin/storage-budget retain-evidence ...'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T23:20:20Z",
+      "retention_status": "retained_local_evidence",
+      "summary": "Final receipt confirms the direct zero-result path; exact-once cleanup for nonzero results after request-owned copies; five focused source-contract tests, C-standard wiring, sixteen static transaction/documentation tests, diff check, and an independent security review passed. Native Apache/APR/libModSecurity compilation and ASan/LSan remain blocked_environment."
+    },
+    {
+      "run_id": "20260720T225753Z-apache-intervention-cleanup-40c97373",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/cache/shared/sources/ModSecurity_V3/src/transaction.cc",
+      "artifact_type": "read_only_libmodsecurity_intervention_cleanup_source",
+      "sha256": "b148564757d12e9bbe55c65df26d6465d662cb4213a7cd90e9ad4aa9a4a929a7",
+      "command": "rtk run 'sha256sum /var/tmp/codex/ModSecurity-conector/runs/20260720T225753Z-apache-intervention-cleanup-40c97373/worktree/connectors/apache/src/mod_security3.c /var/tmp/codex/ModSecurity-conector/runs/20260720T225753Z-apache-intervention-cleanup-40c97373/worktree/tests/test_apache_intervention_cleanup.py /var/tmp/codex/ModSecurity-conector/cache/shared/sources/ModSecurity_V3/src/transaction.cc /var/tmp/codex/ModSecurity-conector/cache/shared/sources/ModSecurity_V3/headers/modsecurity/intervention.h'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T23:11:09Z",
+      "retention_status": "shared_read_only_source_cache_reference",
+      "summary": "msc_intervention_cleanup calls intervention::free and intervention::clean for a supplied ModSecurityIntervention."
+    },
+    {
+      "run_id": "20260720T225753Z-apache-intervention-cleanup-40c97373",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/cache/shared/sources/ModSecurity_V3/headers/modsecurity/intervention.h",
+      "artifact_type": "read_only_libmodsecurity_intervention_ownership_header",
+      "sha256": "42eca68546bb2a1172b6d5d35c00d5e9aaa2c0649cbacb0cf984bb2a0645fd1d",
+      "command": "rtk run 'sha256sum /var/tmp/codex/ModSecurity-conector/runs/20260720T225753Z-apache-intervention-cleanup-40c97373/worktree/connectors/apache/src/mod_security3.c /var/tmp/codex/ModSecurity-conector/runs/20260720T225753Z-apache-intervention-cleanup-40c97373/worktree/tests/test_apache_intervention_cleanup.py /var/tmp/codex/ModSecurity-conector/cache/shared/sources/ModSecurity_V3/src/transaction.cc /var/tmp/codex/ModSecurity-conector/cache/shared/sources/ModSecurity_V3/headers/modsecurity/intervention.h'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T23:11:09Z",
+      "retention_status": "shared_read_only_source_cache_reference",
+      "summary": "The intervention structure owns url and log fields; freeUrl and freeLog free and null them."
+    },
+    {
+      "run_id": "20260720T225753Z-apache-intervention-cleanup-40c97373",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T225753Z-apache-intervention-cleanup-40c97373/evidence/apache-intervention-pr72-c761-validation-20260720T234605Z.json",
+      "artifact_type": "payload_safe_pr72_exact_head_and_local_change_record_validation_receipt",
+      "sha256": "51f57e94617426d9e811b015cd2baae57631a9799741ec31831cd69edf9551bd",
+      "command": "rtk run /root/git/ModSecurity-conector/.codex/bin/storage-budget retain-evidence --run 20260720T225753Z-apache-intervention-cleanup-40c97373 --source <task-run>/tmp/apache-intervention-pr72-c761-validation-20260720T234605Z.json --destination evidence/apache-intervention-pr72-c761-validation-20260720T234605Z.json --json",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T23:46:05Z",
+      "retention_status": "retained_local_evidence",
+      "summary": "Exact PR #72 head c761a13 has six required checks passed, SonarQube Cloud Quality Gate passed, zero new issues/hotspots and 0.0% duplication; five focused source-contract and eleven bilingual-documentation unit tests passed for the local Change Record correction. Native and full documentation prerequisites remain blocked_environment."
+    },
+    {
+      "run_id": "20260720T225753Z-apache-intervention-cleanup-40c97373",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T225753Z-apache-intervention-cleanup-40c97373/evidence/apache-intervention-pr72-master-validation-20260721T000550Z-final.json",
+      "artifact_type": "payload_safe_pr72_resulting_master_and_sonarqube_cloud_validation_receipt",
+      "sha256": "667e2642b90988cf25096ab96c176f6af66f22bb873b3eb6e937d8dc72a1b9f3",
+      "command": "RTK-proxied GitHub PR/workflow and SonarCloud analysis, quality-gate, hotspot, and S8786 API readback; exact commands are retained in the receipt",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T00:05:50Z",
+      "retention_status": "retained_local_evidence",
+      "summary": "Final PR #72 head 486aef was squash-merged as master 0e8be81; matching trees, 14 successful resulting-master GitHub Actions workflows, and the final PR Quality Gate are recorded. Sonar master is ERROR only for pre-existing S5332 hotspots and broader baseline debt; no task-owned Sonar regression was found. Native Apache/APR/libModSecurity and ASan/LSan remain blocked_environment."
+    },
+    {
+      "run_id": "20260720T225753Z-apache-intervention-cleanup-40c97373",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T225753Z-apache-intervention-cleanup-40c97373/evidence/apache-intervention-final-pr-head-local-validation-20260721T002300Z.json",
+      "artifact_type": "payload_safe_final_pr72_head_local_apache_validation_receipt",
+      "sha256": "e75d97615af04cca6c26b40c61946660e5b83a5554e6c814790545b38f89a20e",
+      "command": "RTK-proxied final exact-PR-head local Apache validation; exact commands are retained in the receipt",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260720T225753Z-apache-intervention-cleanup-40c97373/worktree",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T00:23:00Z",
+      "retention_status": "retained_local_evidence",
+      "summary": "At final PR #72 head 486aef, five Apache intervention ownership contracts, Apache C-standard wiring, five Apache request-transaction ownership tests, eleven bilingual-documentation tests, and git diff --check passed. Native Apache/APR/libModSecurity and sanitizer proof remain blocked_environment."
+    }
+  ],
+  "root_cause": "The Apache bridge crossed a native ownership boundary without an explicit transfer. It exposed libModSecurity-owned intervention values to longer-lived APR storage via a non-copying table setter and had no exact-once nonzero cleanup funnel. The fallback mutated an ownership-bearing field, so it was incompatible with correct cleanup. The base source avoided an immediate dangling table pointer only by leaking the native buffers.",
+  "root_cause_de": "Die Apache-Bridge überschritt eine native Ownership-Grenze ohne expliziten Transfer. Sie stellte libModSecurity-eigene Interventionswerte über einen nicht kopierenden Table-Setter länger lebendem APR-Speicher bereit und hatte keinen Exact-once-Nichtnull-Cleanup-Funnel. Der Fallback mutierte ein Ownership-tragendes Feld und war daher mit korrektem Cleanup inkompatibel. Die Basis-Source vermied einen unmittelbaren hängenden Tabellenpointer nur durch Leaken der nativen Puffer.",
+  "proposed_remediation": "Merged PR #72 copies intervention.log and every redirect intervention.url into r->pool before retaining them, uses a local fallback variable, directs every nonzero result through one cleanup label, and preserves the direct zero-result return. Its test-only c761a13 follow-up remediated the task-owned Sonar python:S8786 issue without a suppression, and final head 486aef carried the corrected EN/DE Change Record. The delivered source correction now awaits only the unavailable native Apache/APR/libModSecurity and sanitizer proof before verification or closure.",
+  "proposed_remediation_de": "Der gemergte PR #72 kopiert intervention.log und jede Redirect-intervention.url nach r->pool, bevor sie behalten werden, verwendet eine lokale Fallback-Variable, leitet jedes Nichtnull-Ergebnis durch ein Cleanup-Label und bewahrt die direkte Null-Ergebnis-Rückgabe. Sein test-only-Follow-up c761a13 behob das aufgabeneigene Sonar-python:S8786-Issue ohne Suppression, und der finale Head 486aef enthielt den korrigierten EN/DE-Change-Record. Die ausgelieferte Source-Korrektur wartet vor Verifikation oder Closure nur noch auf den nicht verfügbaren nativen Apache/APR/libModSecurity- und Sanitizer-Proof.",
+  "acceptance_criteria": [
+    "The zero-result path directly returns N_INTERVENTION_STATUS and does not call msc_intervention_cleanup.",
+    "Every nonzero result reaches exactly one cleanup after request-owned copies of all Apache-retained values.",
+    "apr_table_setn never receives intervention.url directly, and fallback handling never assigns a static literal to intervention.log.",
+    "Redirect and nonredirect statuses retain their intended return semantics.",
+    "Focused source/static controls, PR #72 final-head checks, and the SonarQube Cloud PR readback pass without weakening scanner, compiler, or test controls.",
+    "A reproducible Apache/APR/libModSecurity environment repeats native compile, redirect/nonredirect legitimate controls, and available ASan/LSan checks.",
+    "The corrected EN/DE Change Record pair is included in PR #72 final head 486aef, and resulting-master GitHub workflow plus causal Sonar and Code Scanning readbacks complete before closure."
+  ],
+  "acceptance_criteria_de": [
+    "Der Null-Ergebnis-Pfad gibt N_INTERVENTION_STATUS direkt zurück und ruft msc_intervention_cleanup nicht auf.",
+    "Jedes Nichtnull-Ergebnis erreicht genau einen Cleanup nach request-eigenen Kopien aller von Apache behaltenen Werte.",
+    "apr_table_setn erhält intervention.url nie direkt und die Fallback-Behandlung weist intervention.log nie ein statisches Literal zu.",
+    "Redirect- und Nichtredirect-Status behalten ihre beabsichtigte Rückgabe-Semantik.",
+    "Fokussierte Source-/Static-Controls, PR-#72-Final-Head-Checks und der SonarQube-Cloud-PR-Readback bestehen ohne Abschwächung von Scanner-, Compiler- oder Test-Controls.",
+    "Eine reproduzierbare Apache/APR/libModSecurity-Umgebung wiederholt native Compilation, Redirect-/Nichtredirect-Legitimate-Controls und verfügbare ASan/LSan-Checks.",
+    "Das korrigierte EN/DE-Change-Record-Paar ist im PR-#72-Final-Head 486aef enthalten, und Resulting-Master-GitHub-Workflow sowie kausale Sonar- und Code-Scanning-Readbacks schließen vor Closure ab."
+  ],
+  "validation_plan": [
+    "Rerun check-apache-intervention-cleanup, check-apache-c-standard-wiring, static Apache request-transaction ownership and bilingual documentation tests, and git diff --check.",
+    "In a provisioned native environment rerun check-apache-request-transaction-cleanup and check-apache-c17, then exercise disruptive redirect, disruptive nonredirect, allow, and missing-log controls.",
+    "Run ASan/LSan or the strongest available native memory-safety check without modifying Framework or MRTS.",
+    "Retain focused security-diff and exact delivery/resulting-master validation for PR #72; do not verify or close until native evidence is available."
+  ],
+  "validation_plan_de": [
+    "check-apache-intervention-cleanup, check-apache-c-standard-wiring, statische Apache-Request-Transaction-Ownership- und bilinguale Dokumentationstests sowie git diff --check erneut ausführen.",
+    "In einer bereitgestellten nativen Umgebung check-apache-request-transaction-cleanup und check-apache-c17 erneut ausführen und danach disruptive Redirect-, disruptive Nichtredirect-, Allow- und Missing-Log-Controls ausüben.",
+    "ASan/LSan oder die stärkste verfügbare native Memory-Safety-Prüfung ohne Änderung von Framework oder MRTS ausführen.",
+    "Fokussierten Security-Diff- und exakte Delivery-/Resulting-Master-Validierung für PR #72 aufbewahren; ohne native Evidence nicht verifizieren oder schließen."
+  ],
+  "regression_tests": [
+    "tests/test_apache_intervention_cleanup.py",
+    "tests/test_apache_request_transaction_cleanup.py",
+    "ci/checks/connectors/apache/check-apache-c-standards.sh",
+    "Makefile targets check-apache-intervention-cleanup and check-apache-c-standard-wiring"
+  ],
+  "legitimate_control_tests": [
+    "A zero msc_intervention result returns N_INTERVENTION_STATUS directly without cleanup.",
+    "A nonredirect nonzero intervention preserves its status result after cleanup.",
+    "A redirect nonzero intervention stores a request-owned Location value before cleanup.",
+    "A missing intervention log uses a local fallback and remains safe to clean."
+  ],
+  "legitimate_control_tests_de": [
+    "Ein Null-msc_intervention-Ergebnis gibt N_INTERVENTION_STATUS direkt ohne Cleanup zurück.",
+    "Eine Nichtredirect-Nichtnull-Intervention bewahrt ihr Statusresultat nach Cleanup.",
+    "Eine Redirect-Nichtnull-Intervention speichert einen request-eigenen Location-Wert vor Cleanup.",
+    "Ein fehlendes Interventionslog verwendet einen lokalen Fallback und bleibt sicher zu bereinigen."
+  ],
+  "bypass_review": "The focused contract rejects direct apr_table_setn(..., intervention.url), a cleanup after the zero return, multiple cleanup calls, cleanup before copied redirect storage, and a fallback assignment into intervention.log. Independent review found no local delivery blocker; native alternate-path and sanitizer proof remains blocked_environment.",
+  "bypass_review_de": "Der fokussierte Contract weist direktes apr_table_setn(..., intervention.url), einen Cleanup nach der Null-Rückgabe, mehrere Cleanup-Aufrufe, Cleanup vor kopiertem Redirect-Speicher und eine Fallback-Zuweisung in intervention.log zurück. Der unabhängige Review fand keinen lokalen Delivery-Blocker; native Alternative-Path- und Sanitizer-Proofs bleiben blocked_environment.",
+  "dependencies": [
+    "Apache APXS and usable Apache development headers",
+    "A compatible libModSecurity runtime and headers",
+    "A reproducible native Apache test environment with optional ASan/LSan"
+  ],
+  "blocked_by": [
+    "Native Apache/APR/libModSecurity compilation prerequisites are unavailable in the current environment.",
+    "A reproducible sanitizer-capable Apache request runtime is unavailable in the current environment.",
+    "Full documentation link checks remain blocked by existing links into the absent Framework gitlink; the focused bilingual contract passed."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0038",
+    "FND-PARENT-0041"
+  ],
+  "deduplication_note": "Not a duplicate of the generic Apache request-transaction cleanup contract, which owns msc_t and msc_cleanup_request_transaction. This finding owns ModSecurityIntervention url/log lifetime across process_intervention and APR response retention. It is also distinct from FND-PARENT-0038's Phase-4 response-commit/redirect-handler boundary and FND-PARENT-0041's harness CLI contract.",
+  "source_run_ids": [
+    "20260720T225753Z-apache-intervention-cleanup-40c97373"
+  ],
+  "evidence_limitations": [
+    "The source correction, test-only Sonar follow-up, and corrected EN/DE Change Record were delivered by merged PR #72; GitHub Actions and PR Quality Gate evidence do not replace native runtime proof.",
+    "No native Apache/APR/libModSecurity compilation or ASan/LSan run was available.",
+    "The static source contract proves the intended ownership invariant but is not a substitute for a deployed Apache runtime control.",
+    "The resulting-master Sonar Quality Gate remains ERROR for a separately pre-existing backlog; it is not a passing master Sonar result and no scanner control was altered."
+  ],
+  "residual_risk": "The corrected code is on Parent master, but native runtime and sanitizer evidence remains unavailable. A deployment-specific lifecycle or integration defect could therefore remain undiscovered even though the static ownership invariant, legitimate source controls, PR checks, and resulting-master GitHub workflows passed. No risk has been accepted.",
+  "residual_risk_de": "Der korrigierte Code liegt auf Parent-master, aber native Runtime- und Sanitizer-Evidence bleiben nicht verfügbar. Daher könnte trotz bestandener statischer Ownership-Invariante, legitimer Source-Controls, PR-Checks und Resulting-Master-GitHub-Workflows ein deploymentspezifischer Lifecycle- oder Integrationsdefekt unentdeckt bleiben. Es wurde keine Risikoakzeptanz erteilt.",
+  "delivery_evidence": {
+    "branch": "agent/apache-intervention-ownership-20260720",
+    "source_correction_commit": "23b84324e1db8fe13af48ddcc8bf04caae26e30c",
+    "sonar_hardening_commit": "c761a13cb5b4dd3717018960aa03d928758fd21d",
+    "change_record_commit": "486aef56424f5bf33bcd7396f6dc2f881f7f3bdd",
+    "final_pr_head": "486aef56424f5bf33bcd7396f6dc2f881f7f3bdd",
+    "merge_method": "squash",
+    "merged_at": "2026-07-21T00:01:04Z",
+    "resulting_master": "0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3",
+    "pr_head_tree_equals_resulting_master_tree": true,
+    "pull_request": {
+      "number": 72,
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/pull/72",
+      "state": "MERGED",
+      "draft": false,
+      "review_count": 0,
+      "review_threads": 0,
+      "merge_state_before_merge": "CLEAN"
+    },
+    "final_pr_checks": {
+      "status": "passed",
+      "workflows": "15 success and one expected quick-framework-check skip",
+      "required_contexts": "actions, bounded-c-cpp, envoy-go, traefik-go, actionlint, zizmor"
+    },
+    "sonarqube_cloud": {
+      "pr_quality_gate": "passed",
+      "pr_new_issues": 0,
+      "new_security_hotspots": 0,
+      "pr_new_duplicated_lines_density": "0.0",
+      "master_analysis_revision": "0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3",
+      "master_quality_gate": "ERROR_unrelated_preexisting_baseline"
+    },
+    "resulting_master_actions": {
+      "status": "passed",
+      "workflows": 14
+    },
+    "github_code_scanning": "Six pre-existing Scorecard rows persisted unchanged; none is attributed to PR #72.",
+    "change_record": "Corrected EN/DE pair included in final PR head 486aef."
+  },
+  "history": [
+    {
+      "at": "2026-07-20T23:20:20Z",
+      "event": "final_local_source_validation_retained",
+      "detail": "The payload-safe receipt captured the direct zero-result return, exact-once cleanup for nonzero interventions, focused controls, and independent review; native runtime validation remained blocked_environment."
+    },
+    {
+      "at": "2026-07-20T23:22:52Z",
+      "event": "canonical_finding_allocated",
+      "detail": "A distinct Parent P2/medium security_validated record was allocated after comparison with generic transaction cleanup and the separate Apache Phase-4 and harness findings. No product, Framework, MRTS, gitlink, Git, or delivery action was taken by the finding-record update."
+    },
+    {
+      "at": "2026-07-20T23:43:04Z",
+      "event": "pr72_sonar_follow_up_revalidated",
+      "detail": "External task delivery advanced PR #72 to c761a13. The exact head has six required checks passed and SonarQube Cloud reports Quality Gate passed with zero new issues, hotspots, bugs, vulnerabilities, code smells, and 0.0% duplication. The PR remains Draft/open without a submitted review; no resulting-master claim was made."
+    },
+    {
+      "at": "2026-07-20T23:46:05Z",
+      "event": "change_record_integrity_correction_retained",
+      "detail": "The local EN/DE Change Record correction now matches the direct zero-result return and distinguishes c761a13 evidence from a future SHA. Focused source-contract, bilingual unit, and diff controls passed; full documentation and native checks remain blocked_environment. The pair was intentionally not committed, pushed, or staged."
+    },
+    {
+      "at": "2026-07-21T00:00:58Z",
+      "event": "outcome_corrected_to_blocked",
+      "detail": "The source correction and exact-head Sonar result are retained, but the required native Apache/APR/libModSecurity and sanitizer validation remains unavailable. Under the security workflow the finding is blocked rather than fixed until relevant verification is no longer unknown."
+    },
+    {
+      "at": "2026-07-21T00:05:50Z",
+      "event": "pr72_merged_and_resulting_master_reconciled",
+      "detail": "PR #72 final head 486aef was normally squash-merged as master 0e8be81. The PR tree equals the resulting master tree; the observed 14 master GitHub Actions workflows passed. The final PR Sonar Quality Gate passed with no task-owned new issue or hotspot. Master Sonar ERROR and six Code Scanning rows were independently proven pre-existing and unrelated to this Apache change."
+    },
+    {
+      "at": "2026-07-21T00:26:43Z",
+      "event": "outcome_retained_blocked_pending_native_verification",
+      "detail": "The delivered source correction has exact PR and resulting-master evidence, but the stricter security workflow forbids fixed while relevant native Apache/APR/libModSecurity and sanitizer proof remains unknown. The finding therefore remains blocked and is neither verified nor closed."
+    },
+    {
+      "at": "2026-07-21T00:28:49Z",
+      "event": "final_pr_head_local_validation_linked",
+      "detail": "Retained final-head local validation for 486aef is now linked to this record: focused Apache intervention, C-standard wiring, request-transaction ownership, bilingual-documentation, and whitespace controls passed. It adds no native-runtime claim; status remains blocked pending the existing blocked_environment prerequisite."
+    }
+  ],
+  "created_at": "2026-07-20T23:22:52Z",
+  "updated_at": "2026-07-21T00:28:49Z",
+  "final_disposition": null
+}

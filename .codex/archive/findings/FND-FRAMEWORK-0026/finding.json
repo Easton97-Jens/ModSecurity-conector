@@ -1,0 +1,129 @@
+{
+  "id": "FND-FRAMEWORK-0026",
+  "title": "Framework PR #30 C/C++ CodeQL initialization was blocked by an external GitHub service outage",
+  "title_de": "Framework-PR #30: C/C++-CodeQL-Initialisierung war durch einen externen GitHub-Dienstausfall blockiert",
+  "category": "external_dependency",
+  "repository": "framework",
+  "ownership": "external_tool",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "already_fixed",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [],
+  "affected_symbols": [
+    "CodeQL pull-request analysis / Initialize CodeQL for actual Framework languages",
+    "CodeQL PR (c-cpp)"
+  ],
+  "summary": "The historical exact PR #30 head had a C/C++ CodeQL initialization failure before analysis began. GitHub returned HTTP 503 while determining feature enablement, so the failure was an external hosted dependency rather than a Framework source or workflow defect. After the normal branch refresh, the exact new PR head completed CodeQL Actions, Python, and C/C++ successfully without a retry bypass, waiver, scanner change, or source workaround.",
+  "summary_de": "Der historische exakte PR-#30-Head hatte vor Beginn der Analyse einen C/C++-CodeQL-Initialisierungsfehler. GitHub lieferte bei der Ermittlung der Feature-Aktivierung HTTP 503, daher war der Fehler eine externe gehostete Abhängigkeit und kein Framework-Source- oder Workflow-Defekt. Nach dem normalen Branch-Refresh beendete der exakte neue PR-Head CodeQL Actions, Python und C/C++ erfolgreich – ohne Retry-Bypass, Waiver, Scanner-Änderung oder Source-Workaround.",
+  "observed_behavior": "At historical exact head 2706506be9e5f4b5bae57ec6d9419a715a8f3544, CodeQL C/C++ jobs 88253045864 and 88253302100 failed in Initialize CodeQL for actual Framework languages before analysis. The public annotation reports that no server was available to service the request while determining feature enablement. At refreshed exact head a448d056ef98e745d8551c198b2e56d33fe38194, CodeQL pull-request run 29722369621 completed successfully for Actions job 88287878237, Python job 88287878246, and C/C++ job 88287878247.",
+  "observed_behavior_de": "Am historischen exakten Head 2706506be9e5f4b5bae57ec6d9419a715a8f3544 schlugen die CodeQL-C/C++-Jobs 88253045864 und 88253302100 in Initialize CodeQL for actual Framework languages vor der Analyse fehl. Die öffentliche Annotation meldet, dass bei der Ermittlung der Feature-Aktivierung kein Server zur Bedienung der Anfrage verfügbar war. Am aktualisierten exakten Head a448d056ef98e745d8551c198b2e56d33fe38194 beendete CodeQL-Pull-Request-Run 29722369621 die Jobs Actions 88287878237, Python 88287878246 und C/C++ 88287878247 erfolgreich.",
+  "expected_behavior": "CodeQL C/C++ must initialize and analyze the exact PR head successfully. A hosted service outage must be rerun and evidenced after recovery; it must not be hidden by disabling CodeQL, altering the workflow, waiving the check, or changing product source without a task-owned defect.",
+  "expected_behavior_de": "CodeQL C/C++ muss den exakten PR-Head erfolgreich initialisieren und analysieren. Ein gehosteter Dienstausfall muss nach der Wiederherstellung erneut ausgeführt und belegt werden; er darf nicht durch Deaktivieren von CodeQL, Ändern des Workflows, Waiven des Checks oder Ändern von Produkt-Source ohne task-eigenen Defekt verborgen werden.",
+  "impact": "The temporary HTTP 503 blocked the security-delivery evidence for PR #30 but produced no CodeQL source finding and did not establish a Framework vulnerability. Treating it as a source defect could have encouraged an unsafe workflow or scanner workaround. The exact refreshed-head rerun restored the required CodeQL evidence.",
+  "impact_de": "Das vorübergehende HTTP 503 blockierte die Security-Delivery-Evidence für PR #30, erzeugte aber keinen CodeQL-Source-Finding und belegte keine Framework-Schwachstelle. Eine Behandlung als Source-Defekt hätte einen unsicheren Workflow- oder Scanner-Workaround fördern können. Der Exact-Refreshed-Head-Rerun stellte die erforderliche CodeQL-Evidence wieder her.",
+  "preconditions": [
+    "Framework PR #30 is analyzed by the CodeQL pull-request workflow.",
+    "The historical exact head is 2706506be9e5f4b5bae57ec6d9419a715a8f3544.",
+    "GitHub's CodeQL feature-enablement service is temporarily unavailable for the historical run."
+  ],
+  "reproduction": [
+    "Read the retained historical job annotation for jobs 88253045864 and 88253302100 in workflow run 29710235017.",
+    "Read the exact refreshed-head CodeQL check runs for a448d056ef98e745d8551c198b2e56d33fe38194, including C/C++ job 88287878247.",
+    "Compare the terminal current check-run state with the PR head returned by GitHub."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260719T230508Z-framework-pr30-duplication-master-37469460",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T230508Z-framework-pr30-duplication-master-37469460/evidence/pr30-codeql-cpp-hosted-503.md",
+      "artifact_type": "github_codeql_cpp_hosted_initialization_failure",
+      "sha256": "d41e0212f555f36f073bca5d2d25639acdc55ecbcfe309815609051a8ab1750a",
+      "command": "GitHub Actions job annotation and failed-log readback for CodeQL pull-request run 29710235017; sanitized retained summary",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T01:08:00Z",
+      "retention_status": "retained",
+      "summary": "CodeQL C/C++ jobs 88253045864 and 88253302100 failed before analysis while GitHub feature enablement returned HTTP 503. No source finding or debug artifact was produced."
+    },
+    {
+      "run_id": "20260720T061746Z-framework-pr-30-refresh-remediation-f8407eef",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T061746Z-framework-pr-30-refresh-remediation-f8407eef/evidence/pr30-refresh-summary.md",
+      "artifact_type": "github_codeql_exact_refreshed_head_recovery",
+      "sha256": "04a0b6891f92b0485c298bb939e57fb464cea2bd5872eb74c65d97f6450f4255",
+      "command": "GitHub exact-head check-run/review readback for Framework PR #30; retained sanitized summary",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T06:43:42Z",
+      "retention_status": "retained",
+      "summary": "At exact head a448d056ef98e745d8551c198b2e56d33fe38194, CodeQL pull-request run 29722369621 completed successfully for Actions job 88287878237, Python job 88287878246, and C/C++ job 88287878247; all terminal non-skipped checks succeeded."
+    }
+  ],
+  "root_cause": "GitHub's hosted CodeQL feature-enablement endpoint returned HTTP 503 during initialization. The failure occurred before source analysis and the PR's changed files did not include C/C++ source or the CodeQL workflow, so no task-owned Framework defect was evidenced.",
+  "root_cause_de": "GitHubs gehosteter CodeQL-Feature-Enablement-Endpunkt lieferte während der Initialisierung HTTP 503. Der Fehler trat vor der Source-Analyse auf und die geänderten PR-Dateien enthielten weder C/C++-Source noch den CodeQL-Workflow, daher wurde kein task-eigener Framework-Defekt belegt.",
+  "proposed_remediation": "Do not patch Framework code or relax any CodeQL control. Refresh or rerun the exact PR head after hosted-service recovery, then require a terminal-success C/C++ CodeQL check together with the other exact-head delivery evidence.",
+  "proposed_remediation_de": "Keinen Framework-Code patchen und kein CodeQL-Control lockern. Den exakten PR-Head nach Wiederherstellung des gehosteten Dienstes aktualisieren oder erneut ausführen und danach einen terminal erfolgreichen C/C++-CodeQL-Check zusammen mit der übrigen Exact-Head-Delivery-Evidence verlangen.",
+  "acceptance_criteria": [
+    "The exact refreshed PR head has a terminal-success CodeQL PR (c-cpp) check.",
+    "CodeQL Actions and Python checks for the same exact head are terminal-success.",
+    "No CodeQL workflow, scanner setting, waiver, quality gate, or product source is changed to bypass the historical HTTP 503.",
+    "The historical failure and its external root cause remain retained and distinct from Framework source findings."
+  ],
+  "validation_plan": [
+    "Read back the GitHub PR head, CodeQL run, individual CodeQL check-run jobs, and terminal status for the same SHA.",
+    "Confirm the current PR diff contains no CodeQL workflow or C/C++ workaround for this failure.",
+    "Retain a secret-free historical-failure and current-success evidence pair."
+  ],
+  "regression_tests": [
+    "GitHub CodeQL PR (c-cpp) exact-head check run",
+    "GitHub CodeQL PR (actions) exact-head check run",
+    "GitHub CodeQL PR (python) exact-head check run"
+  ],
+  "legitimate_control_tests": [
+    "The exact refreshed head completes CodeQL C/C++ successfully after service recovery.",
+    "The same exact head retains successful CodeQL Actions and Python checks.",
+    "No scanner disablement, waiver, workflow bypass, or source workaround is present."
+  ],
+  "dependencies": [
+    "GitHub-hosted CodeQL service availability",
+    "Framework PR #30 exact-head GitHub Actions execution"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0023",
+    "FND-FRAMEWORK-0024"
+  ],
+  "deduplication_note": "Not a duplicate of FND-FRAMEWORK-0023 or FND-FRAMEWORK-0024. Those findings own PR #30 Sonar duplication and Change Record contract defects. This finding owns the distinct external GitHub CodeQL initialization outage, whose non-source cause was proven by the pre-analysis HTTP 503 and later exact-head recovery.",
+  "source_run_ids": [
+    "20260719T230508Z-framework-pr30-duplication-master-37469460",
+    "20260720T061746Z-framework-pr-30-refresh-remediation-f8407eef"
+  ],
+  "evidence_limitations": [
+    "GitHub did not expose a debug artifact for the historical initialization failure because initialization stopped before analysis.",
+    "A recovered exact-head run proves the observed incident is no longer reproducing; it cannot guarantee future GitHub service availability.",
+    "No Framework-master integration or resulting-master check is part of this task."
+  ],
+  "residual_risk": "GitHub-hosted CodeQL availability can fail again independently of Framework source. The historical incident is verified as recovered on exact PR head a448d056ef98e745d8551c198b2e56d33fe38194, but a later delivery must collect fresh exact-head evidence if it changes that SHA. No master merge is authorized by this task.",
+  "residual_risk_de": "Die Verfügbarkeit des von GitHub gehosteten CodeQL kann unabhängig von Framework-Source erneut scheitern. Der historische Vorfall ist auf dem exakten PR-Head a448d056ef98e745d8551c198b2e56d33fe38194 als wiederhergestellt verifiziert, aber eine spätere Delivery muss bei Änderung dieses SHA frische Exact-Head-Evidence sammeln. Ein Master-Merge ist von dieser Aufgabe nicht autorisiert.",
+  "history": [
+    {
+      "at": "2026-07-20T01:08:00Z",
+      "event": "hosted_codeql_initialization_outage_confirmed",
+      "detail": "Historical CodeQL C/C++ jobs 88253045864 and 88253302100 failed before analysis at exact PR head 2706506be9e5f4b5bae57ec6d9419a715a8f3544. GitHub's public annotation identifies HTTP 503 while determining feature enablement."
+    },
+    {
+      "at": "2026-07-20T06:43:42Z",
+      "event": "exact_refreshed_head_codeql_recovery_verified",
+      "detail": "Exact refreshed PR head a448d056ef98e745d8551c198b2e56d33fe38194 completed CodeQL pull-request run 29722369621 successfully for Actions job 88287878237, Python job 88287878246, and C/C++ job 88287878247, with no bypass or source workaround."
+    }
+  ],
+  "created_at": "2026-07-20T06:43:42Z",
+  "updated_at": "2026-07-20T06:43:42Z",
+  "final_disposition": "external_dependency_recovered_on_verified_pr_head"
+}

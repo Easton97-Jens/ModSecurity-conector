@@ -1,0 +1,179 @@
+{
+  "id": "FND-FRAMEWORK-0053",
+  "title": "Framework PR #42 evidence documents retained stale exact-head claims",
+  "title_de": "Framework-PR-#42-Evidenzdokumente enthielten veraltete Exact-Head-Aussagen",
+  "category": "documentation_drift",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "closed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": "Framework PR #42 master-integration preflight",
+  "affected_files": [
+    "reports/audits/change-records/20260722-02-migrate-framework-python-314-ci.md",
+    "reports/audits/change-records/20260722-02-migrate-framework-python-314-ci.de.md",
+    "GitHub pull request #42 description"
+  ],
+  "affected_symbols": [
+    "Issue or pull request",
+    "Commands and results",
+    "Documentation and runtime evidence",
+    "Checks not run",
+    "Limitations and residual risk",
+    "Final diff and review status"
+  ],
+  "observed_behavior": "The paired record correctly described the historical e056 CPython 3.14 migration failure but still stated that the security-preserving follow-up's exact head, hosted evidence, and resulting-master evidence were pending. Before the paired-record correction, exact source head 2930e04e1558b5b10bdeb87a76abb077a2085566 had already passed hosted python-ci-security-quality run 29962792445/job 89067507532, repaired OSV, all non-skipped PR checks, and the PR SonarQube Cloud Quality Gate. After that correction, the separate existing GitHub PR #42 description still called 2930e04 the required exact merge head although later documentation-reconciliation commit dc6cf411e78b3f37f1e4be52edef59894560b1ae was the published current head with successful visible Actions and PR Sonar evidence. The retained post-merge receipt now proves that PR #42 merged normally at 2026-07-23T07:41:13Z as Framework master/merge commit 935cf14c676a24672be5c336e92cd13457cc35c8, but the Change Record in that merged tree still says resulting-master evidence is unobserved and PR #42 has not merged. This is a newly reproduced factual documentation drift.",
+  "expected_behavior": "The English/German Change Record pair and bilingual GitHub PR description distinguish historical source-head evidence from the current exact PR head and resulting-master evidence, bind every hosted claim to the observed SHA, preserve limitations for later heads and master, and, once resulting-master evidence exists, accurately record its exact SHA-bound result rather than call it unobserved.",
+  "impact": "The stale wording could mislead a master-integration reviewer about evidence already observed for PR #42 or cause older-head evidence to be treated as current-head evidence. The newly reproduced merged-record assertion can also falsely report a completed merge/result as absent. It is a P2 documentation/evidence-quality defect and does not prove a product vulnerability, runtime change, or authorization to merge.",
+  "preconditions": [
+    "At the original PR-scope reproduction, Framework PR #42 was open and its source follow-up head 2930e04e1558b5b10bdeb87a76abb077a2085566 had retained hosted evidence.",
+    "The paired Change Record is part of the PR's versioned documentation.",
+    "The existing bilingual GitHub PR description is part of the PR's current delivery evidence.",
+    "PR #42 has been normally merged as Framework master/merge commit 935cf14c676a24672be5c336e92cd13457cc35c8 and the exact post-merge receipt is retained."
+  ],
+  "reproduction": [
+    "Inspect the pre-correction identity, commands/results, checks-not-run, limitations, and final-review sections of the paired Change Record.",
+    "Compare its pending hosted-head claim with GitHub Actions run 29962792445/job 89067507532 and the retained PR #42 hosted verification receipt.",
+    "Read the pre-correction PR #42 Security and delivery boundary sections and compare their 2930e04 merge-head claim with the published dc6cf411 current head.",
+    "Read the Change Record as merged at 935cf14c676a24672be5c336e92cd13457cc35c8 and compare its still-unobserved resulting-master/unmerged-PR statements with the retained post-merge verification receipt."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-20260723-premerge-gates.md",
+      "artifact_type": "framework_pr42_documentation_reconciliation_and_premerge_gate_readback",
+      "sha256": "f62126139a762264f3953d821dc0b07362e19675970df897857afc70a5fd34cb",
+      "command": "RTK-wrapped Change Record diff review, make check-documentation, git diff --check, exact branch/PR head readback, and current GitHub/Sonar check readback",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/tmp/framework-worktree-v4",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T04:13:04Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-20260723-merge-continuation.md",
+      "artifact_type": "framework_pr42_current_head_description_reconciliation_and_merge_preflight",
+      "sha256": "2cf2c0943bb7b4d7fa61101cbabdb3646d2c908ebf19b479c5bab38c6b0aaed1",
+      "command": "GitHub App current PR metadata/body read followed by task-owned bilingual pull-request-description update and current-state readback",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T06:12:04Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-20260723-postmerge-verification.md",
+      "artifact_type": "framework_pr42_resulting_master_verification",
+      "sha256": "0a0421f70cf39df8f6f31ef12b4a461f05bd9875fb61775094c5031aef489ce1",
+      "command": "RTK-wrapped GitHub PR/ref/commit/workflow/check-suite readback, SonarQube Cloud project-analysis/Quality-Gate readback, and Parent/Framework/MRTS status readback",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T07:51:09Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726T160903Z-framework-pr50-pr51-master-verification",
+      "artifact_path": ".codex/runs/20260726T160903Z-framework-pr50-pr51-master-verification/finding-closure-evidence.md",
+      "artifact_type": "framework_resulting_master_documentation_verification",
+      "sha256": "519b89ef349a2d1a66b8cf78a5f0056f2df1909df2f386e5e67b7742bf277a2d",
+      "command": "make check-documentation; GitHub merge/tree and PR #50 path-comparison readback",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/framework-master-pr50-pr51-verify-20260726",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T16:13:56Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The original Change Record was authored before the final source follow-up reached hosted validation and was not reconciled after its exact-head checks passed; the first reconciliation corrected only the paired versioned records and left the independently editable GitHub PR description stale. After the normal PR #42 merge, the resulting-master state was likewise not reconciled in the already merged Change Record.",
+  "proposed_remediation": "A separately authorized Framework documentation-only follow-up must update the paired Change Record to retain historical source-head evidence, bind the actual normal PR #42 merge/result to 935cf14c676a24672be5c336e92cd13457cc35c8, and preserve the unresolved SonarQube Cloud/Cloudflare limitations without calling either passing or resolved. Validate, review, merge, and recheck that follow-up normally. Do not alter source behavior, tests, controls, Quality Gates, merge permissions, Parent, or MRTS. The current task is tracking-only and authorizes no product-source change, Framework branch, or Framework pull request.",
+  "acceptance_criteria": [
+    "The English and German Change Records carry equivalent facts, exact SHA values, run/job IDs, status boundaries, and limitations.",
+    "The record identifies hosted source-head evidence as observed and binds the actual resulting-master result to 935cf14c676a24672be5c336e92cd13457cc35c8 rather than calling it unobserved.",
+    "The record makes no claim beyond the exact documentation-reconciliation or resulting-master evidence that is retained.",
+    "The PR description identifies 2930e04 as historical evidence and dc6cf411 as the current head in equivalent English and German.",
+    "make check-documentation and git diff --check pass for the paired correction.",
+    "A separately authorized correction is normally committed and pushed in its own Framework PR; no direct master push, Parent gitlink update, or MRTS change occurs.",
+    "A separately authorized Framework documentation follow-up is normally reviewed, validated, merged, and rechecked on its resulting master before this finding can become verified or closed."
+  ],
+  "validation_plan": [
+    "Review the paired diff and run git diff --check.",
+    "Run make check-documentation with an explicitly selected Framework interpreter and task-owned external state/build roots.",
+    "Commit and normally push only the paired Change Record files, then confirm local, remote, and PR head SHA equality.",
+    "Collect fresh exact-head PR evidence without substituting it for resulting-master evidence.",
+    "Read back the corrected GitHub PR description and confirm that its head is unchanged.",
+    "Compare the merged Change Record at exact master 935cf14c676a24672be5c336e92cd13457cc35c8 with the hash-addressed post-merge verification receipt.",
+    "For a separately authorized follow-up only, rerun documentation checks, exact-head validation, normal merge, and resulting-master reproduction."
+  ],
+  "regression_tests": [
+    "make check-documentation",
+    "git diff --check",
+    "GitHub Actions and SonarQube Cloud exact-head readback for PR #42",
+    "GitHub App PR #42 metadata/body readback",
+    "Hash-addressed post-merge Change Record/resulting-master comparison"
+  ],
+  "legitimate_control_tests": [
+    "Both records retain the direct-master-push prohibition and require fresh exact-head evidence for every later PR head.",
+    "The record must distinguish observed resulting-master evidence from the still-unresolved SonarQube Cloud and Cloudflare limits.",
+    "The corrected PR body preserves queued Cloudflare and current-master Sonar delivery limitations."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0045",
+    "FND-GITHUB-0007",
+    "FND-SONAR-0002"
+  ],
+  "source_run_ids": [
+    "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+    "20260726T160903Z-framework-pr50-pr51-master-verification"
+  ],
+  "evidence_limitations": [
+    "The correction and exact current PR head were verified at PR scope only before the later normal merge.",
+    "The post-merge receipt proves one exact resulting Framework master state but does not prove that the stale merged Change Record has been corrected.",
+    "The resulting-master SonarQube Cloud Quality Gate is ERROR only for new_security_rating C, and its Cloudflare suite is queued with no check runs; the bounded PR #42 acceptance does not make either condition passing, resolved, or globally closed.",
+    "No product source, Framework branch, or Framework pull request is authorized by the current tracking task."
+  ],
+  "residual_risk": "The paired Change Record correction was normally merged by Framework PR #50 and passed resulting-master documentation validation. Separate global SonarQube Cloud and Cloudflare records remain independently unresolved and are not closed by this documentation disposition.",
+  "residual_risk_de": "Die gepaarte Change-Record-Korrektur wurde durch Framework-PR #50 normal gemergt und bestand die Resulting-Master-Dokumentationsvalidierung. Getrennte globale SonarQube-Cloud- und Cloudflare-Records bleiben unabhängig ungelöst und werden durch diese Dokumentationsdisposition nicht geschlossen.",
+  "history": [
+    {
+      "at": "2026-07-23T04:07:43Z",
+      "event": "pr42_change_record_source_head_evidence_reconciled",
+      "detail": "Only the paired Change Record files were committed as dc6cf411e78b3f37f1e4be52edef59894560b1ae and normally pushed to PR #42. make check-documentation and git diff --check passed. The record now binds historical hosted evidence to 2930e04e1558b5b10bdeb87a76abb077a2085566 and keeps resulting-master evidence unobserved."
+    },
+    {
+      "at": "2026-07-23T04:13:04Z",
+      "event": "documentation_drift_tracked_after_deduplication",
+      "detail": "Allocated as a distinct PR #42 Change Record drift from FND-FRAMEWORK-0045, which owns the independently remediable PR #37 record. No product source, Parent, gitlink, MRTS, merge, or risk acceptance changed."
+    },
+    {
+      "at": "2026-07-23T06:12:04Z",
+      "event": "pr42_description_current_head_reconciled_and_deduplicated",
+      "detail": "The existing bilingual GitHub PR #42 description was updated without changing its branch or head. It now distinguishes historical 2930e04 evidence from current dc6cf411 evidence and preserves Cloudflare/Sonar limitations. The independently editable metadata surface shares the same incomplete PR #42 evidence-reconciliation root cause, so it was added to this canonical finding rather than allocated a duplicate ID."
+    },
+    {
+      "at": "2026-07-23T07:51:09Z",
+      "event": "resulting_master_documentation_drift_reproduced",
+      "detail": "Retained post-merge evidence hash 0a0421f70cf39df8f6f31ef12b4a461f05bd9875fb61775094c5031aef489ce1 proves normal PR #42 merge and exact Framework master 935cf14c676a24672be5c336e92cd13457cc35c8. The merged Change Record still says resulting-master evidence is unobserved and PR #42 has not merged. Reclassified fixed to in_progress; no product source, Framework branch, or pull request was changed or authorized by this tracking task."
+    },
+    {
+      "at": "2026-07-26T16:13:56Z",
+      "event": "remediation_fixed",
+      "detail": "Framework PR #50 corrected the paired PR #42 Change Record facts and preserved observed limitations without changing unrelated global findings."
+    },
+    {
+      "at": "2026-07-26T16:13:56Z",
+      "event": "resulting_master_verified_and_closed",
+      "detail": "Exact Framework master de705a5efb872f95f010346fe2e6143c88876ad4 retained the PR #50 documentation paths unchanged through PR #51 and passed make check-documentation."
+    }
+  ],
+  "created_at": "2026-07-23T04:13:04Z",
+  "updated_at": "2026-07-26T16:13:56Z",
+  "final_disposition": "closed_verified_framework_master_pr50_pr51_20260726"
+}

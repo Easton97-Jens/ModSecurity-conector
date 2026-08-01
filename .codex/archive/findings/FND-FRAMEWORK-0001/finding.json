@@ -1,0 +1,224 @@
+{
+  "id": "FND-FRAMEWORK-0001",
+  "title": "Framework test-common and common-structure checks fail",
+  "title_de": "Framework-test-common- und common-structure-Checks schlagen fehl",
+  "category": "ci_failure",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "fixed",
+  "release_blocker": true,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md",
+    ".github/workflows/test-common.yml",
+    "tests/runners/runner_core.py",
+    "tests/workflow_contract/test_common_structure_workflow.py"
+  ],
+  "affected_symbols": [
+    "test-common",
+    "common-structure",
+    "discover_case_files",
+    "is_case_applicable"
+  ],
+  "summary": "The current default Framework SHA reproducibly failed test-common/common-structure; the focused repair now passes on exact Draft PR #23 head f869d77070dc1fe05f7ff8377d8723b8e3185849, but it is intentionally unmerged. Unrelated workflow-hardening Draft PR #29 and CI/security Draft PR #27 both reproduced the same current-head baseline failure.",
+  "summary_de": "Der aktuelle Framework-Default-SHA schlug reproduzierbar bei test-common/common-structure fehl; die fokussierte Reparatur besteht nun am exakten Head des Draft-PR #23 f869d77070dc1fe05f7ff8377d8723b8e3185849, ist aber absichtlich nicht gemergt. Die unabhängigen Workflow-Hardening- und CI/Security-Draft-PRs #29 und #27 reproduzierten denselben Current-Head-Baseline-Fehler.",
+  "observed_behavior": "The default workflow failed expected 141 YAML cases, found 179. Removing the stale guard locally exposed runtime discovery validating a catalog-only security-data-flow case before former_xfail/connector-gap eligibility filtering. Exact PR #23 head now has two successful common-structure runs. Exact PR #29 head 191b7e3d1999c7ffb39ad16bfaff7821bfc09825 and exact PR #27 head 5b2a26a41e7621e7b246aa1a060149252cfe3062 have failed common-structure runs with the unchanged 141-versus-179 guard.",
+  "observed_behavior_de": "Der Default-Workflow schlug mit expected 141 YAML cases, found 179 fehl. Das lokale Entfernen des veralteten Guards legte Runtime-Discovery offen, die einen reinen Security-Data-Flow-Katalogfall vor der former_xfail/connector-gap-Eignungsfilterung validierte. Der exakte Head von PR #23 hat nun zwei erfolgreiche common-structure-Runs. Die exakten Heads von PR #29 191b7e3d1999c7ffb39ad16bfaff7821bfc09825 und PR #27 5b2a26a41e7621e7b246aa1a060149252cfe3062 haben fehlgeschlagene common-structure-Runs mit dem unveränderten 141-gegen-179-Guard.",
+  "expected_behavior": "The exact task-branch head has passed current GitHub Actions. A future master merge and rerun are required before verification/closure, neither of which is authorized in this task.",
+  "expected_behavior_de": "Der exakte Task-Branch-Head hat aktuelle GitHub Actions bestanden. Für Verifikation/Schließung sind ein zukünftiger Master-Merge und Rerun erforderlich; beides ist in diesem Task nicht autorisiert.",
+  "impact": "The task repair is fixed and its Draft PR is verified at the exact head. It remains unmerged by user instruction; until that independent repair or an equivalent is integrated, unrelated Draft PRs such as #29 and #27 cannot reach verified_pr. The independent default-branch Sonar backlog remains a release concern but did not fail PR #23's new-code Quality Gate.",
+  "impact_de": "Die Task-Reparatur ist fixed und ihr Draft PR ist am exakten Head verifiziert. Sie bleibt auf Benutzeranweisung ungemergt; bis diese unabhängige Reparatur oder eine gleichwertige Änderung integriert ist, können unabhängige Draft-PRs wie #29 und #27 nicht verified_pr erreichen. Der unabhängige Default-Branch-Sonar-Backlog bleibt ein Release-Thema, schlug aber nicht beim New-Code-Quality-Gate von PR #23 fehl.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available.",
+    "Framework master is at cdc91a398d6c156eaff927d742b23018a3817fb6 and the task worktree uses its clean branch base."
+  ],
+  "reproduction": [
+    "sed -n '181,196p;212,215p' .codex/reports/repository-full-assessment.md",
+    "GitHub Actions run 29527830684 logs expected 141 YAML cases, found 179.",
+    "Run the literal common-structure materialization/assertion block with external task-owned RUNNER_TEMP."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:181-196,212-215",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '181,196p;212,215p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260718T081746Z-framework-common-structure-d6ee7cec",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T081746Z-framework-common-structure-d6ee7cec/evidence/common-structure-current.md",
+      "artifact_type": "current_ci_root_cause_and_local_regression",
+      "sha256": "03a39f33a6b7e3eac71e3c4d5a32cc102de8e1a6f2d41556a64945d0c5427a1f",
+      "command": "rtk make BUILD_ROOT=<task-owned> test-workflow-contract; rtk env RUNNER_TEMP=<task-owned> ... bash -eu -c '<literal common-structure block>'",
+      "working_directory": "/var/tmp/codex/worktrees/framework-common-structure",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T09:20:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T081746Z-framework-common-structure-d6ee7cec",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T081746Z-framework-common-structure-d6ee7cec/evidence/pr-23-current.md",
+      "artifact_type": "exact_draft_pr_head_ci_sonar_review_verification",
+      "sha256": "c28444cfdd989b9884e367f17e0540ccda9858a3bc10b24b26dd8293b500855d",
+      "command": "rtk git rev-parse HEAD; rtk git ls-remote origin refs/heads/agent/fix-framework-common-structure; rtk gh pr view 23 --json number,url,isDraft,baseRefName,headRefName,headRefOid,mergeStateStatus,mergeable,statusCheckRollup,reviewDecision,reviews",
+      "working_directory": "/var/tmp/codex/worktrees/framework-common-structure",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T09:58:40Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T081429Z-framework-workflow-hardening-320e9322",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T081429Z-framework-workflow-hardening-320e9322/evidence/common-structure-baseline-recheck.md",
+      "artifact_type": "baseline_ci_recheck",
+      "sha256": "290001674e3974e268f1a7f63469f1c5e1dc743eeb31f440ed1297a1433d75b9",
+      "command": "rtk env PYTHONDONTWRITEBYTECODE=1 bash -lc '<literal test-common common-structure block>'; rtk bash -lc 'find tests/cases -type f -name \"*.yaml\" | wc -l'; rtk gh run list --workflow test-common.yml --branch master --limit 5 --json databaseId,conclusion,status,headSha,createdAt,updatedAt,displayTitle,url",
+      "working_directory": "/var/tmp/codex/worktrees/framework-workflow-hardening",
+      "exit_code": 1,
+      "observed_at": "2026-07-18T10:39:59Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T081429Z-framework-workflow-hardening-320e9322",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T081429Z-framework-workflow-hardening-320e9322/evidence/pr-29-common-structure-status.md",
+      "artifact_type": "current_draft_pr_ci_baseline_confirmation",
+      "sha256": "9ae5cd9cb6d4b314a69d4849d880465a79f6927ba2bd8d8b5b322f6ac36b3951",
+      "command": "rtk gh pr view 29 --json ...; rtk gh run view 29642757453 --json ...; rtk gh run view 29642757453 --log-failed",
+      "working_directory": "/var/tmp/codex/worktrees/framework-workflow-hardening",
+      "exit_code": 1,
+      "observed_at": "2026-07-18T11:33:16Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T083435Z-expand-framework-ci-security-32892be1",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T083435Z-expand-framework-ci-security-32892be1/evidence/ci-security/framework-pr27-final-blockers.txt",
+      "artifact_type": "exact_framework_pr_head_common_structure_duplicate_evidence",
+      "sha256": "1686ed164f9a892c08c6749ed5d9922269a7a026a442ddd477d62bd240848b5f",
+      "command": "rtk proxy gh run view 29645450445 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T13:13:38Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T084030Z-expand-framework-ci-security-be8fb24d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T084030Z-expand-framework-ci-security-be8fb24d/evidence/framework-pr27-final-remote-status.md",
+      "artifact_type": "exact_final_pr_head_common_structure_duplicate_evidence",
+      "sha256": "ccedabbe5e020bf43eb91ccf93b1e1484b8d11471e2817b6d078a95eeddb3552",
+      "command": "rtk gh run view 29647958875 --log-failed",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T14:26:12Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/analysis/direct-merge-hazards.md",
+      "artifact_type": "direct_current_master_stale_pr_reintroduction_analysis",
+      "sha256": "d28d88c9b1f034e1798cfa805d3b4e7210e3e3742dc4014d19ef78238c5c2004",
+      "command": "rtk git -C <Framework-worktree> diff --name-status 9954b99a31fab0006cdf903ab477c8158c50fea8 <PR-head>; RTK-prefixed read-only GitHub PR and check-run readback",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T12:01:55Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The fixed count was introduced in b7f9bdc9831f9a8d14294cfb8fcb129a183d5d18 when the corpus had 141 YAML files; later valid additions raised it to 179. discover_case_files() previously called full load_case() before applicability filtering, so a catalog-only former_xfail case without runtime rules failed before its intended non-runtime exclusion.",
+  "root_cause_de": "Die feste Zahl wurde in b7f9bdc9831f9a8d14294cfb8fcb129a183d5d18 eingeführt, als der Bestand 141 YAML-Dateien enthielt; spätere gültige Ergänzungen erhöhten ihn auf 179. discover_case_files() rief zuvor volle load_case()-Validierung vor der Eignungsfilterung auf, sodass ein reiner former_xfail-Katalogfall ohne Runtime-Rules vor seinem beabsichtigten Nicht-Runtime-Ausschluss fehlschlug.",
+  "proposed_remediation": "Use dynamic non-empty discovery, filter non-runtime catalog metadata before runtime-only schema validation, retain validation/materialization for selected runtime cases, and verify the exact task-branch head without changing Sonar controls.",
+  "proposed_remediation_de": "Dynamische nichtleere Discovery verwenden, Nicht-Runtime-Katalogmetadaten vor Runtime-spezifischer Schemavalidierung filtern, Validierung/Materialisierung ausgewählter Runtime-Fälle erhalten und den exakten Task-Branch-Head ohne Änderung von Sonar-Controls verifizieren.",
+  "acceptance_criteria": [
+    "Current Framework test-common and common-structure checks succeed at the target SHA.",
+    "A regression distinguishes the repaired behavior from the failing baseline.",
+    "Empty corpus and empty Apache common selection still fail explicitly.",
+    "Catalog-only security-data-flow cases remain covered by their dedicated static check and do not reach materialization."
+  ],
+  "validation_plan": [
+    "Run make test-workflow-contract and the literal common-structure control locally.",
+    "Rerun the exact task-branch GitHub Actions workflow and retain current-head evidence.",
+    "Run the dedicated security-data-flow catalog checker as a legitimate control."
+  ],
+  "regression_tests": [
+    "tests/workflow_contract/test_common_structure_workflow.py covers dynamic guards and catalog-only exclusion."
+  ],
+  "legitimate_control_tests": [
+    "Selected Apache common cases still materialize and assert expected statuses."
+  ],
+  "dependencies": [
+    "FND-SONAR-0002 remains independent and must not be mixed into this Framework patch."
+  ],
+  "blocked_by": [
+    "No merge authorization exists; policy requires post-merge reproduction before closure. The independent default-branch Sonar backlog remains a release blocker despite the passing PR new-code Quality Gate."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0002",
+    "FND-CROSS-0005",
+    "FND-FRAMEWORK-0011"
+  ],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260718T081746Z-framework-common-structure-d6ee7cec",
+    "20260718T081429Z-framework-workflow-hardening-320e9322",
+    "20260718T083435Z-expand-framework-ci-security-32892be1",
+    "20260718T084030Z-expand-framework-ci-security-be8fb24d",
+    "20260719T081017Z-framework-pr-resolution-20260719-840082e0"
+  ],
+  "residual_risk": "The focused repair is verified only on the unmerged Draft PR head. No risk has been accepted; future master integration and the independent default-branch Sonar backlog remain outside this task.",
+  "residual_risk_de": "Die fokussierte Reparatur ist nur am ungemergten Draft-PR-Head verifiziert. Keine Risikoakzeptanz liegt vor; zukünftige Master-Integration und der unabhängige Default-Branch-Sonar-Backlog liegen außerhalb dieses Tasks.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-19T12:08:02Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-18T09:27:57Z",
+      "event": "current_task_root_cause_and_repair_in_progress",
+      "detail": "Current-SHA evidence proved the stale cardinality guard and the masked discovery-ordering defect; focused local regression and literal control passed. No PR-head verification or closure has occurred."
+    },
+    {
+      "at": "2026-07-18T09:58:40Z",
+      "event": "exact_draft_pr_head_verified_fixed",
+      "detail": "Draft PR #23 is clean, exact-head equal locally/remotely/in PR, has six successful checks including two common-structure and SonarCloud runs, and has no reviews or review threads. It is intentionally not merged, so the finding is fixed rather than closed."
+    },
+    {
+      "at": "2026-07-18T10:39:59Z",
+      "event": "workflow_hardening_baseline_recheck_deduplicated",
+      "detail": "The separate Framework workflow-hardening task reran the unchanged literal count gate: it still exits 1 with expected 141 YAML cases, found 179. The same count is present in the authoritative checkout and current master run 29527830684 remains failed at cdc91a398d6c156eaff927d742b23018a3817fb6. This is duplicate confirmation, not a task-owned remediation."
+    },
+    {
+      "at": "2026-07-18T11:33:16Z",
+      "event": "workflow_hardening_draft_pr_ci_baseline_confirmation",
+      "detail": "Draft PR #29 head 191b7e3d1999c7ffb39ad16bfaff7821bfc09825 has matching local/remote/PR SHA and passed check-action-versions and scaffold-lint, but both current-head common-structure runs failed with the unchanged expected 141 YAML cases, found 179 guard. This task does not change tests/cases or common-structure and therefore records duplicate baseline evidence only."
+    },
+    {
+      "at": "2026-07-18T13:13:38Z",
+      "event": "ci_security_draft_pr_baseline_recheck_deduplicated",
+      "detail": "Exact Draft PR #27 head 5b2a26a41e7621e7b246aa1a060149252cfe3062 has two failed common-structure checks with the unchanged expected 141 YAML cases, found 179 guard. The CI/security expansion does not change tests/cases or common-structure, so this is duplicate baseline evidence only; status remains fixed pending the separate unmerged repair."
+    },
+    {
+      "at": "2026-07-18T14:26:12Z",
+      "event": "final_ci_security_draft_pr_baseline_recheck_deduplicated",
+      "detail": "Final exact Draft PR #27 head 66d90872cfc0125536267d574b776d2e88d26b23 again failed common-structure run 29647958875 with the unchanged expected 141 YAML cases, found 179 guard. This task still does not change tests/cases or common structure; status remains fixed, with duplicate baseline evidence only."
+    },
+    {
+      "at": "2026-07-19T12:08:02Z",
+      "event": "stale_pr_reintroduction_hazard_observed",
+      "detail": "Direct current-master comparisons show that unmerged stale heads #24, #27, and #29 remove the merged dynamic non-empty common-structure control and reintroduce the fixed count/order failure. This is a merge blocker only: Framework master 9954b99a31fab0006cdf903ab477c8158c50fea8 remains fixed, and no finding status is reopened or weakened."
+    }
+  ]
+}

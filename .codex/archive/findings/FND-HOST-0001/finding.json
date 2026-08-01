@@ -1,0 +1,163 @@
+{
+  "id": "FND-HOST-0001",
+  "title": "Manifest cleanup required special-file and foreign-process safeguards",
+  "title_de": "Manifest-Cleanup erforderte Schutzvorkehrungen für Spezialdateien und fremde Prozesse",
+  "category": "storage_cleanup",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/bin/storage-budget",
+    ".codex/tests/test_storage_budget.py",
+    ".codex/context/storage-policy.md"
+  ],
+  "affected_symbols": [],
+  "summary": "The native runtime manifest is partial because cleanup correctly refused two symlinked temporary paths; no manual deletion is authorized.",
+  "summary_de": "Das Native-Runtime-Manifest ist partial, weil Cleanup zwei symlinked Temporary-Pfade korrekt verweigerte; manuelle Löschung ist nicht autorisiert.",
+  "observed_behavior": "The native runtime manifest is partial because cleanup correctly refused two symlinked temporary paths; no manual deletion is authorized.",
+  "observed_behavior_de": "Das Native-Runtime-Manifest ist partial, weil Cleanup zwei symlinked Temporary-Pfade korrekt verweigerte; manuelle Löschung ist nicht autorisiert.",
+  "expected_behavior": "Current evidence must be rerun against a known revision before this finding can advance beyond blocked.",
+  "expected_behavior_de": "Die aktuelle Evidence muss gegen eine bekannte Revision erneut ausgeführt werden, bevor dieses Finding über blocked hinaus fortschreiten kann.",
+  "impact": "Release and assurance claims remain bounded by the recorded evidence.",
+  "impact_de": "Release- und Assurance-Aussagen bleiben durch die dokumentierte Evidence begrenzt.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "jq -c '{run_id,task_slug,goal,start_time_utc,end_time_utc,last_check_status,last_check_utc,final_size_bytes,expected_max_size_bytes,cleanup}' /var/tmp/codex/ModSecurity-conector/runs/20260717T054830Z-native-runtime-evidence-6c0853fe/manifest.json"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T054830Z-native-runtime-evidence-6c0853fe",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T054830Z-native-runtime-evidence-6c0853fe/manifest.json",
+      "artifact_type": "external_storage_manifest",
+      "sha256": "97bf04a08164e7abc46aa3d419761376b76684d496c34cdfe595bf3ef3ae85a7",
+      "command": "jq -c '{run_id,task_slug,goal,start_time_utc,end_time_utc,last_check_status,last_check_utc,final_size_bytes,expected_max_size_bytes,cleanup}' /var/tmp/codex/ModSecurity-conector/runs/20260717T054830Z-native-runtime-evidence-6c0853fe/manifest.json",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T08:17:36Z",
+      "retention_status": "retained_external_evidence"
+    },
+    {
+      "run_id": "20260717T054830Z-native-runtime-evidence-6c0853fe",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:480-489,620-629",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '480,489p;620,629p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T08:17:36Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/043-storage-budget-security-regression-final.log",
+      "artifact_type": "storage_cleanup_regression_log",
+      "sha256": "0b1322f17bb7c1fe5ed71f2b9f94d7eca8c4a01189982289798629a12f6e22ac",
+      "command": "PYTHONDONTWRITEBYTECODE=1 STORAGE_BUDGET_TEST_ROOT=<active-run>/tmp/storage-budget-tests .venv/bin/python -B -m unittest discover -s .codex/tests -p test_storage_budget.py -v",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T13:08:24Z",
+      "retention_status": "retained_task_log"
+    }
+  ],
+  "current_task_update": {
+    "original_status": "blocked",
+    "root_cause": "The cleanup planner needed fail-closed special-file, retained-evidence, and per-operation foreign-process checks before descriptor-anchored deletion.",
+    "changed_files": [
+      ".codex/bin/storage-budget",
+      ".codex/tests/test_storage_budget.py",
+      ".codex/context/storage-policy.md"
+    ],
+    "security_assessment": "Validated storage boundary hardening: control cases reject FIFO, socket, mount, symlink, manifest tampering, retained-evidence mismatch, and an injected foreign-process reference before a later deletion. FND-PARENT-0014 separately records the unproven atomic same-UID leaf-identity boundary between final validation and removal.",
+    "runtime_limitation": "No external runtime directory was deleted; tests use task-owned temporary paths only.",
+    "strict_same_uid_disposition": "partial; FND-PARENT-0014 remains blocked and no same-UID no-foreign-leaf-deletion guarantee is made.",
+    "evidence": {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/043-storage-budget-security-regression-final.log",
+      "artifact_type": "storage_cleanup_regression_log",
+      "sha256": "0b1322f17bb7c1fe5ed71f2b9f94d7eca8c4a01189982289798629a12f6e22ac",
+      "command": "PYTHONDONTWRITEBYTECODE=1 STORAGE_BUDGET_TEST_ROOT=<active-run>/tmp/storage-budget-tests .venv/bin/python -B -m unittest discover -s .codex/tests -p test_storage_budget.py -v",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T13:08:24Z",
+      "retention_status": "retained_task_log"
+    }
+  },
+  "root_cause": "The retained historical evidence was expanded by a current Parent-only source root cause and verified remediation.",
+  "root_cause_de": "Die retained Evidence belegt den Zustand, aber keine Produktcode-Grundursache.",
+  "proposed_remediation": "Define a safe, owner-authorized retention or cleanup procedure for symlinked task paths without following links.",
+  "proposed_remediation_de": "Eine sichere, owner-autorisierte Retention- oder Cleanup-Prozedur für symlinked Task-Pfade definieren, ohne Links zu folgen.",
+  "acceptance_criteria": [
+    "Each retained symlinked path has an owner, retention decision, and safe disposal procedure.",
+    "No cleanup follows a symlink or removes data outside the task-owned run."
+  ],
+  "validation_plan": [
+    "Inspect object types with no symlink traversal.",
+    "Run the storage helper's safe dry-run/finalization controls only on registered paths."
+  ],
+  "regression_tests": [
+    "Add or retain a focused regression/evidence control for the recorded condition."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0001",
+    "FND-PARENT-0014"
+  ],
+  "source_run_ids": [
+    "20260717T054830Z-native-runtime-evidence-6c0853fe",
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc"
+  ],
+  "residual_risk": "The condition remains open; no risk has been accepted by the current user.",
+  "residual_risk_de": "Der Zustand bleibt offen; der aktuelle Benutzer hat kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-26T18:05:44Z",
+  "final_disposition": "verified",
+  "archive_disposition": {
+    "at": "2026-07-26T18:05:44Z",
+    "reason": "Current user directed lossless archival of this non-blocking verified finding.",
+    "status_at_move": "verified",
+    "reactivation": "Restore the complete triplet and rerun its existing acceptance criteria before using it as current release evidence."
+  },
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-17T13:12:00Z",
+      "event": "phase_b_remediation_verified",
+      "detail": "Parent manifest cleanup was hardened and the current 49-test suite verified special-file, retained-evidence, ownership, mount, and per-operation foreign-process refusal controls."
+    },
+    {
+      "at": "2026-07-17T14:06:23Z",
+      "event": "phase_b_evidence_synchronized",
+      "detail": "The retained active-run cleanup-regression log was added to canonical evidence; the verified disposition is unchanged."
+    },
+    {
+      "at": "2026-07-17T14:36:22Z",
+      "event": "strict_same_uid_boundary_separated",
+      "detail": "Existing verified special-file/process/evidence remediation remains in scope; independent final review added FND-PARENT-0014 for the distinct final leaf validation-to-removal boundary."
+    },
+    {
+      "at": "2026-07-26T18:05:44Z",
+      "event": "user_directed_lossless_archive",
+      "detail": "The current user directed archival of this non-blocking verified finding. Its lifecycle remains verified; the complete triplet and retained evidence must be restored and revalidated before future release reliance."
+    }
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "id": "FND-SONAR-0031",
+  "title": "CI evidence report generators retain fifteen SonarQube Cloud cognitive-complexity findings and one duplicate block",
+  "title_de": "CI-Evidence-Reportgeneratoren bewahren fünfzehn SonarQube-Cloud-Cognitive-Complexity-Befunde und einen Duplikatblock",
+  "category": "maintainability",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "security_assessment": "focused_post_change_security_diff_review_completed_with_zero_reportable_diff_induced_findings",
+  "connector": null,
+  "protocol": "Parent CI evidence report generation and runtime-evidence classification",
+  "profile": "Baseline SonarQube Cloud master analysis 3b1a67b0-1026-4dbc-a437-192604db29b4 at caabf33c11d6002f9a1661f215ed195d6e141253; verified resulting-master analysis 9d61b075-9f49-48f2-b74f-c8a0d8e68f9f at 6dc912643133e5c7d3c305979d4052da9cb45153",
+  "affected_files": [
+    "ci/evidence/reports/refresh-connector-reports.py",
+    "ci/evidence/reports/generate-connector-roadmap.py",
+    "ci/evidence/reports/generate-verified-runtime-mismatch-analysis.py",
+    "ci/evidence/reports/generate-nginx-mrts-http500-cluster-analysis.py",
+    "ci/evidence/reports/generate-body-processor-analysis.py",
+    "ci/evidence/reports/generate-final-consistency-audit.py",
+    "ci/evidence/reports/generate-intervention-blocking-analysis.py",
+    "ci/evidence/reports/generate-phase4-hard-abort-capability.py",
+    "ci/evidence/reports/generate-remaining-failure-analysis.py",
+    "ci/evidence/reports/generate-response-header-hook-analysis.py",
+    "ci/evidence/reports/generate-rule-chain-semantics-analysis.py",
+    "ci/lib/focused_analysis_utils.py"
+  ],
+  "affected_symbols": [
+    "write_placeholder_outputs",
+    "connector_row",
+    "xml_parser_semantics_result_evidence",
+    "full_matrix_case_control_evidence",
+    "row_from_case",
+    "pattern_rollup",
+    "render_merge_dashboard_md",
+    "submodule_report",
+    "case_metadata",
+    "build_audit",
+    "phase4_detail_category",
+    "parse_case_metadata",
+    "chain_row",
+    "run_report_generator"
+  ],
+  "summary": "The revision-bound current-master SonarQube Cloud inventory contained fifteen OPEN CRITICAL python:S3776 code-smell receipts in Parent ci/evidence report generators and one 23-line duplicate block between two report-generator CLI entry points. Protected PR #225 exact head 74bcb950f8a75835b4fb59175a783e9aedcfd1c3 was normally merged as resulting master 6dc912643133e5c7d3c305979d4052da9cb45153. All 14 exact-master GitHub Actions workflows passed; the original fifteen keys are CLOSED/FIXED, and the targeted ci/evidence component now has zero violations and zero duplicated lines. The global master Quality Gate remains ERROR solely on the pre-existing new-security-rating baseline tracked by FND-SONAR-0001 and is not attributed to this remediation. The finding is verified, not closed.",
+  "summary_de": "Das revisionsgebundene Current-Master-SonarQube-Cloud-Inventar enthielt fünfzehn OPEN-CRITICAL-python:S3776-Code-Smell-Receipts in Parent-CI-Evidence-Reportgeneratoren und einen 23-Zeilen-Duplikatblock zwischen zwei CLI-Einstiegspunkten von Reportgeneratoren. Der geschützte exakte PR-#225-Head 74bcb950f8a75835b4fb59175a783e9aedcfd1c3 wurde normal als Resulting Master 6dc912643133e5c7d3c305979d4052da9cb45153 gemergt. Alle 14 Exact-Master-GitHub-Actions-Workflows bestanden; die ursprünglichen fünfzehn Keys sind CLOSED/FIXED, und die ausgewählte ci/evidence-Komponente besitzt nun null Violations und null Duplikatzeilen. Das globale Master-Quality-Gate bleibt ausschließlich wegen der bereits bestehenden New-Security-Rating-Baseline unter FND-SONAR-0001 ERROR und wird dieser Remediation nicht zugeschrieben. Das Finding ist verified, nicht closed.",
+  "observed_behavior": "At master revision caabf33c11d6002f9a1661f215ed195d6e141253, the selected ci/evidence component reports 15 OPEN python:S3776 findings with cognitive complexity from 16 through 33 where 15 is allowed. The component also reports 23 duplicated lines (0.1%), traced to equivalent final-audit and rule-chain command-line lifecycle scaffolding.",
+  "observed_behavior_de": "Auf der Master-Revision caabf33c11d6002f9a1661f215ed195d6e141253 meldet die ausgewählte ci/evidence-Komponente 15 OPEN-python:S3776-Findings mit einer kognitiven Komplexität von 16 bis 33 bei erlaubten 15. Die Komponente meldet außerdem 23 duplizierte Zeilen (0,1 %), die auf gleichwertiges Final-Audit- und Rule-Chain-Command-Line-Lifecycle-Scaffolding zurückgeführt wurden.",
+  "expected_behavior": "Report generators keep their existing schemas, ordering, path containment, redaction, classification precedence, and fail-closed runtime-evidence rules while their independent data collection, decision, rendering, and post-write responsibilities are kept below the Sonar cognitive-complexity threshold. The two entry points share the established safe lifecycle without a duplicate scaffold.",
+  "expected_behavior_de": "Reportgeneratoren behalten ihre bestehenden Schemas, Reihenfolge, Path-Containment, Redaktion, Klassifizierungspräzedenz und fail-closed Runtime-Evidence-Regeln, während ihre unabhängigen Datensammlungs-, Entscheidungs-, Rendering- und Post-Write-Verantwortlichkeiten unter dem Sonar-Cognitive-Complexity-Schwellenwert bleiben. Die beiden Einstiegspunkte teilen den etablierten sicheren Lifecycle ohne dupliziertes Scaffolding.",
+  "impact": "The issue is a maintainability backlog within evidence tooling, but its functions handle path-constrained output, report serialization, state classification, and runtime-evidence interpretation. An unsafe simplification could weaken a real integrity boundary. There is no demonstrated security defect, no scanner-control change, and no claim about the global project backlog.",
+  "impact_de": "Der Befund ist ein Maintainability-Backlog innerhalb der Evidence-Tooling, aber seine Funktionen behandeln pfadbegrenzte Ausgabe, Report-Serialisierung, State-Klassifizierung und Runtime-Evidence-Interpretation. Eine unsichere Vereinfachung könnte eine echte Integritätsgrenze schwächen. Es gibt keinen nachgewiesenen Security-Defekt, keine Scanner-Control-Änderung und keine Aussage über den globalen Projekt-Backlog.",
+  "preconditions": [
+    "The inventory is bound to SonarQube Cloud master analysis 3b1a67b0-1026-4dbc-a437-192604db29b4 and Parent revision caabf33c11d6002f9a1661f215ed195d6e141253.",
+    "The remediation is limited to Parent ci/evidence report sources, one shared Parent lifecycle helper, direct Parent tests, traceability documentation, and local evidence records.",
+    "No SonarQube Cloud rule, Quality Gate, exclusion, suppression, NOSONAR marker, scanner setting, workflow, Framework/MRTS source, Gitlink, or direct master write is part of this finding; the separately authorized protected PR #225 merge is fully evidenced."
+  ],
+  "reproduction": [
+    "Read the retained SonarQube Cloud API inventory receipt and inspect the fifteen issue keys plus duplicate block at the recorded master revision.",
+    "Run the focused Parent Python report/evidence suites against the task patch and compare their contracts with the current master source.",
+    "Read the exact pull-request head issue and measure endpoints, then the resulting-master analysis, original-key query, and ci/evidence component measures; only the recorded target closure and zero component duplication satisfy verification."
+  ],
+  "evidence": [
+    {
+      "run_id": "ci-evidence-sonar-remediation-20260801",
+      "artifact_path": ".codex/runs/20260801-ci-evidence-sonar-remediation/evidence/sonar-master-ci-evidence-inventory.json",
+      "artifact_type": "revision_bound_read_only_sonar_api_inventory",
+      "sha256": "d521f5a19ac7e6f40f0c49e4c65357a9bdd1dbfed65bf21bbfde4809de19865b",
+      "command": "Read-only SonarQube Cloud current-master issue, component-metric, and duplicate-block API queries listed in the retained inventory.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T14:05:20Z",
+      "retention_status": "retained_local_task_evidence",
+      "result": "15 OPEN CRITICAL python:S3776 ci/evidence receipts, 23 duplicated lines, 0.1 percent duplication, and no bugs, vulnerabilities, or hotspots in the selected component."
+    },
+    {
+      "run_id": "ci-evidence-sonar-remediation-20260801",
+      "artifact_path": ".codex/runs/20260801-ci-evidence-sonar-remediation/evidence/hosted-verification-pr-225-d86fd1f.json",
+      "artifact_type": "exact_head_draft_pull_request_hosted_verification_receipt",
+      "sha256": "f412f51dc227bd3773885432ae258ab285085ba2d89f9bbd23e439cc01b92690",
+      "command": "Read-only gh PR/checks and SonarQube Cloud quality-gate, issue, and measure queries bound to Draft PR #225 exact head d86fd1f91177ae8dceb2906a00d802e4735cd9b4.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T15:55:56Z",
+      "retention_status": "retained_local_task_evidence",
+      "result": "PR #225 is open Draft on base 62f7e13f35edd3f73661f724fd5208dcf1584d18 with matching local, remote, and GitHub head d86fd1f91177ae8dceb2906a00d802e4735cd9b4. GitHub checks: 33 passed, 6 scope-skipped, 0 pending, 0 failed. SonarQube Cloud: Quality Gate OK, 0 open issues, 0 new violations, 0 new duplicated lines, and 0.0 percent New-Code duplication."
+    },
+    {
+      "run_id": "20260801-pr225-master-integration",
+      "artifact_path": ".codex/runs/20260801-pr225-master-integration/evidence/master-verification.json",
+      "artifact_type": "resulting_master_pr225_merge_and_sonar_verification",
+      "sha256": "d63bacab44956e35958cef9d8bd82e476853a3d77d672ab804285077f4173a4b",
+      "command": "GitHub protected-merge and exact-SHA workflow readback plus SonarQube Cloud resulting-master analysis, original-key, open-S3776, and ci/evidence component-metric queries bound to master 6dc912643133e5c7d3c305979d4052da9cb45153.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T16:32:10Z",
+      "retention_status": "retained_local_task_evidence",
+      "result": "PR #225 exact head 74bcb950f8a75835b4fb59175a783e9aedcfd1c3 normally merged as master 6dc912643133e5c7d3c305979d4052da9cb45153. All 14 exact-master GitHub Actions workflows passed; all fifteen retained S3776 keys are CLOSED/FIXED; and ci/evidence has zero violations, bugs, vulnerabilities, security hotspots, duplicated lines, and duplicate density. The separate global Quality Gate ERROR is the pre-existing FND-SONAR-0001 new-security-rating baseline."
+    }
+  ],
+  "root_cause": "Several evidence report generators accumulated parsing, evidence filtering, status classification, rendering, and output-lifecycle responsibilities in single functions. Two independent CLI entry points also retained equivalent lifecycle scaffolding.",
+  "root_cause_de": "Mehrere Evidence-Reportgeneratoren sammelten Parsing-, Evidence-Filter-, Statusklassifizierungs-, Rendering- und Output-Lifecycle-Verantwortlichkeiten in einzelnen Funktionen. Zwei unabhängige CLI-Einstiegspunkte bewahrten zudem gleichwertiges Lifecycle-Scaffolding.",
+  "proposed_remediation": "Extract narrow, behavior-preserving helpers around the existing report contracts; preserve output-root setup and fail-closed evidence predicates; invoke the final-audit post-write step through the established safe lifecycle; and add regression tests for changed ordering, fallback, classification, retention, and negative evidence cases. Create one Parent Draft PR and obtain exact-head hosted SonarQube Cloud verification. Do not change scanner controls or merely move code to alter metrics.",
+  "proposed_remediation_de": "Enge verhaltensbewahrende Helper um die bestehenden Report-Verträge extrahieren; Output-Root-Setup und fail-closed Evidence-Prädikate bewahren; den Final-Audit-Post-Write-Schritt durch den etablierten sicheren Lifecycle aufrufen; und Regressionstests für geänderte Reihenfolge, Fallback, Klassifizierung, Retention und negative Evidence-Fälle ergänzen. Einen Parent-Draft-PR erstellen und Exact-Head-Hosted-SonarQube-Cloud-Verifikation einholen. Scanner-Controls nicht ändern und Code nicht bloß zur Metrikänderung verschieben.",
+  "acceptance_criteria": [
+    "Every retained issue key and the duplicate block has a concrete source-level disposition in the task-owned diff; no selected ci/evidence item is silently omitted.",
+    "Focused source, schema, ordering, safe-output, path-normalization, and fail-closed evidence controls pass without changing a SonarQube Cloud control or an unrelated repository boundary.",
+    "A focused post-change security diff review finds no reportable diff-induced security finding.",
+    "The exact task-owned PR head reports zero OPEN/CONFIRMED SonarQube Cloud new issues and zero New-Code duplication, with a passing Quality Gate, without any scanner-control change.",
+    "The resulting-master SonarQube Cloud analysis is read after the separately authorized integration; the original keys and component duplication must no longer reproduce before setting verified or closed."
+  ],
+  "validation_plan": [
+    "Run Python compilation for every changed source and direct test, the focused report/evidence unittest aggregate, and git diff --check.",
+    "Run the legitimate safe-output, runtime-path, generated-report-integrity, and fail-closed XML decision controls included in the selected suites.",
+    "Perform a complete focused security diff review of the changed evidence/report sources and direct tests.",
+    "Before delivery, repeat remote identity preflight, inspect the final task-owned diff, scan only staged task files for secrets, and verify local/remote/PR-head SHA equality.",
+    "Read exact-head GitHub Actions and SonarQube Cloud results after PR analysis is complete; do not treat an earlier or base analysis as proof."
+  ],
+  "regression_tests": [
+    "tests.test_focused_analysis_utils",
+    "tests.test_report_conditional_remediation",
+    "tests.test_case_metadata_utils",
+    "tests.test_remaining_failure_analysis",
+    "tests.test_nginx_mrts_http500_cluster_analysis",
+    "tests.test_report_presentation_literals",
+    "tests.test_generated_report_evidence_integrity"
+  ],
+  "legitimate_control_tests": [
+    "tests.test_evidence_output_security",
+    "tests.test_runtime_path_security",
+    "tests.test_runtime_env_snapshot_contract",
+    "HAProxy XML decision-evidence negative cases for duplicate, disruptive, and non-empty match records"
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0016",
+    "FND-SONAR-0001"
+  ],
+  "source_run_ids": [
+    "ci-evidence-sonar-remediation-20260801",
+    "20260801-pr225-master-integration"
+  ],
+  "created_at": "2026-08-01T15:34:38Z",
+  "updated_at": "2026-08-01T16:32:10Z",
+  "final_disposition": "verified_on_resulting_master_6dc912643133e5c7d3c305979d4052da9cb45153"
+}

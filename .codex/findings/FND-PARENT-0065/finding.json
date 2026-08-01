@@ -1,0 +1,155 @@
+{
+  "id": "FND-PARENT-0065",
+  "title": "Body-processor metadata can read an out-of-root request body through an artifact-derived case ID",
+  "title_de": "Body-Processor-Metadaten können über eine artefaktabgeleitete Case-ID einen Request-Body außerhalb der Safe Root lesen",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "low",
+  "confidence": "validated",
+"status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "security_assessment": "validated_low_bounded_ci_artifact_path_read_boundary_bypass",
+  "connector": "nginx branch validated; Apache and HAProxy branches share the generator pattern but were not independently reproduced",
+  "protocol": "CI evidence/report artifact path containment",
+  "profile": "body-processor analysis generated report",
+  "affected_files": [
+    "ci/evidence/reports/generate-body-processor-analysis.py",
+    "ci/lib/report_path_safety.py"
+  ],
+  "affected_symbols": [
+    "generated_config_path",
+    "generated_body_length",
+    "request_body_bytes",
+    "case_metadata",
+    "safe_existing_file"
+  ],
+  "trust_boundary": "artifact-derived case metadata (case_id) crossing into a CI report reader that otherwise uses configured safe-root containment",
+  "sink": "request_body_bytes() directly read_bytes() config_path.parent / request-body.bin and is the confirmed content-read/disclosure sink; generated_body_length() has an unguarded is_file() existence probe, but its subsequent read_text() path already applies safe-root gating before content is read",
+  "summary": "At Parent source revision 9f23ae2c5fe908cef38f203be03f93fda75a8dd7, a controlled pre-fix NGINX probe proved that an artifact-derived case_id of ../../../outside can move the generated request-body candidate outside the configured safe root. request_body_bytes() then read the external conf/request-body.bin sentinel and emitted its preview and matching SHA-256 while the legitimate in-root control remained readable. The probe does not establish an external content disclosure through generated_body_length().",
+  "summary_de": "Auf Parent-Source-Revision 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 bewies ein kontrollierter Pre-Fix-NGINX-Probe, dass eine artefaktabgeleitete Case-ID ../../../outside den generierten Request-Body-Kandidaten außerhalb der konfigurierten Safe Root verschieben kann. request_body_bytes() las danach den externen Sentinel conf/request-body.bin und gab dessen Vorschau sowie passende SHA-256 aus, während die legitime In-Root-Kontrolle lesbar blieb. Der Probe belegt keine externe Content-Offenlegung über generated_body_length().",
+  "observed_behavior": "The baseline generated_config_path() concatenates entry['case_id'] into a path derived from a safe evidence file. On the NGINX branch, request_body_bytes() directly reads config_path.parent / request-body.bin instead of first calling safe_existing_file(); that is the confirmed disclosure sink. generated_body_length() also constructs the candidate and performs an unguarded is_file() probe, but its later read_text() path already applies safe-root gating before content is read. The focused probe configured SAFE_ROOTS to its temporary safe root, kept the evidence and case file in that root, supplied case_id ../../../outside, and observed vulnerability_reproduced:true with an out-of-root sentinel preview and matching digest.",
+  "observed_behavior_de": "Die Baseline generated_config_path() hängt entry['case_id'] an einen aus einer sicheren Evidence-Datei abgeleiteten Pfad an. Im NGINX-Zweig liest request_body_bytes() config_path.parent / request-body.bin direkt, statt zuerst safe_existing_file() aufzurufen; dies ist der bestätigte Offenlegungs-Sink. generated_body_length() konstruiert den Kandidaten ebenfalls und führt eine ungeschützte is_file()-Existenzprüfung aus, aber sein späterer read_text()-Pfad wendet Safe-Root-Gating bereits vor dem Content-Read an. Der fokussierte Probe konfigurierte SAFE_ROOTS auf seinen temporären Safe Root, beließ Evidence- und Case-Datei in diesem Root, übergab case_id ../../../outside und beobachtete vulnerability_reproduced:true mit einer Out-of-Root-Sentinel-Vorschau und passendem Digest.",
+  "expected_behavior": "Every request-body read used by body-processor report metadata remains beneath a configured safe root after all artifact-derived path segments are resolved. A case_id must not bypass the existing path-read control; a rejected external body must fall back to the already supported in-record request body behavior.",
+  "expected_behavior_de": "Jeder für Body-Processor-Report-Metadaten verwendete Request-Body-Read bleibt nach Auflösung aller artefaktabgeleiteten Pfadsegmente unter einer konfigurierten Safe Root. Eine Case-ID darf das bestehende Path-Read-Control nicht umgehen; ein abgewiesener externer Body muss auf das bereits unterstützte In-Record-Request-Body-Verhalten zurückfallen.",
+  "impact": "A party able to supply a body-processor artifact record with a traversal-bearing case_id can cause request_body_bytes() in this report generator to disclose the preview and SHA-256 of an accessible out-of-root file only when that file is named conf/request-body.bin at the selected parent path. The fixed suffix limits filename selection. The reproduction does not establish an external content disclosure through generated_body_length(), a normal hosted-CI attacker path, arbitrary filename read, file write, code execution, secret exposure, or external publication of the report.",
+  "impact_de": "Eine Partei, die einen Body-Processor-Artefakt-Record mit traversalhaltiger Case-ID liefern kann, kann request_body_bytes() in diesem Report-Generator dazu bringen, Vorschau und SHA-256 einer erreichbaren Datei außerhalb der Root offenzulegen, jedoch nur wenn diese Datei am ausgewählten Parent-Pfad conf/request-body.bin heißt. Das feste Suffix begrenzt die Dateinamenauswahl. Die Reproduktion belegt keine externe Content-Offenlegung über generated_body_length(), keinen normalen Hosted-CI-Angreiferpfad, keinen beliebigen Dateiread, keinen File-Write, keine Codeausführung, keine Secret-Exposition und keine externe Veröffentlichung des Reports.",
+  "preconditions": [
+    "The body-processor generator configures at least one SAFE_ROOTS entry and processes an evidence/case record whose declared evidence and case files are within that root.",
+    "The artifact-derived case_id is attacker- or otherwise untrusted-input controllable and contains a traversal segment that escapes the generated runtime parent.",
+    "The selected out-of-root parent contains a regular file at the fixed suffix conf/request-body.bin that the generator process can read.",
+    "case_metadata() reaches request_body_bytes() for the record."
+  ],
+  "reproduction": [
+    "Run the retained pre-fix probe against source baseline 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 with PYTHONNOUSERSITE=1, PYTHONDONTWRITEBYTECODE=1, a task-owned TMPDIR, and a task-owned PYTHONPYCACHEPREFIX.",
+    "The probe creates a safe-root evidence/case layout, a legitimate in-root runtime/legitimate-case/conf/request-body.bin, and an out-of-root outside/conf/request-body.bin sentinel.",
+    "Call case_metadata() once with case_id legitimate-case and once with case_id ../../../outside. The retained result records the in-root control and vulnerability_reproduced:true for the traversal case."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260729-parent-ci-sonar-remediation",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260729-parent-ci-sonar-remediation/evidence/security-diff-ci-a-9f23ae2-20260729T074736Z/artifacts/03_validation/pre_fix_body_processor_path_probe.result.json",
+      "artifact_type": "controlled_pre_fix_safe_root_bypass_result",
+      "sha256": "1ac99356e987dc8a95f5715ec508da16b1007cfbc93f31e4c48bdd2485cdc826",
+      "command": "rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-tmp> PYTHONPYCACHEPREFIX=<task-pycache> /root/git/ModSecurity-conector/.venv/bin/python -B artifacts/03_validation/pre_fix_body_processor_path_probe.py",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260729-ci-report-helper-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T08:11:35Z",
+      "retention_status": "retained_task_evidence",
+      "result": "vulnerability_reproduced:true; traversal_preview was outside-root-sentinel and traversal_sha256 equaled outside_sha256 afeb199d897b997c4b32330b4fa18c6ae6694cd153edd9ddacabb6bcfbfa2c2b; legitimate_preview remained legitimate-in-root-body. No raw request body is retained."
+    },
+    {
+      "run_id": "20260729-parent-ci-sonar-remediation",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260729-parent-ci-sonar-remediation/evidence/security-diff-ci-a-9f23ae2-20260729T074736Z/artifacts/03_validation/focused_regression_failure.md",
+      "artifact_type": "pre_fix_focused_regression_failure",
+      "sha256": "5deb32d93b42a4b71ec6fe7cb19e927c4c544a9d576685f61708c15b75512392",
+      "command": "rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-tmp> PYTHONPYCACHEPREFIX=<task-pycache> /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest discover -s tests -p test_focused_analysis_utils.py",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260729-ci-report-helper-remediation",
+      "exit_code": 1,
+      "observed_at": "2026-07-29T08:11:35Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The newly added focused regression failed as expected before the source fix: it expected fallback-body but received the out-of-root sentinel. This proves the actual case_metadata report-generation boundary, not only a helper-level pattern."
+    },
+    {
+      "run_id": "20260729-parent-ci-sonar-remediation",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260729-parent-ci-sonar-remediation/evidence/security-diff-ci-a-9f23ae2-20260729T074736Z/artifacts/03_validation/post_fix_body_processor_path_probe.result.json",
+      "artifact_type": "local_candidate_post_fix_control",
+      "sha256": "1dcce56a4de6b03f63d1b459d865211eb39fc5a93fa3f2cda2d13a8dbb6a223a",
+      "command": "rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-tmp> PYTHONPYCACHEPREFIX=<task-pycache> /root/git/ModSecurity-conector/.venv/bin/python -B artifacts/03_validation/post_fix_body_processor_path_probe.py",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260729-ci-report-helper-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T08:11:35Z",
+      "retention_status": "retained_task_evidence",
+      "result": "A local candidate routed the body candidate through safe_existing_file(); traversal_preview and symlink_preview both fell back to fallback-body while the legitimate in-root preview remained readable. This is local remediation evidence only and does not change the finding status from validated."
+    },
+    {
+      "run_id": "20260729-parent-ci-sonar-remediation",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260729-parent-ci-sonar-remediation/evidence/security-diff-ci-a-9f23ae2-20260729T074736Z/artifacts/03_validation/final_diff_security_review.md",
+      "artifact_type": "local_candidate_final_diff_security_review",
+      "sha256": "a2904a5561dca0fd7646f27b0987baf64ba84fc39dd4c33e74c86466fa86e5ad",
+      "command": "Focused final security review of the local candidate exact diff",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260729-ci-report-helper-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T08:11:35Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The local candidate's security review found no remaining candidate in the changed path. It is not delivery, exact-head hosted, master, or lifecycle verification evidence."
+    }
+  ],
+  "root_cause": "The generator validates artifact evidence and the case file through safe_existing_file(), but treats the artifact-derived case_id as a path component and then constructs the sibling request-body candidate without reapplying that control. request_body_bytes() directly reads the candidate; generated_body_length() makes an unguarded is_file() probe before its separately gated read_text() call.",
+  "root_cause_de": "Der Generator validiert Artefakt-Evidence und Case-Datei über safe_existing_file(), behandelt die artefaktabgeleitete Case-ID jedoch als Pfadkomponente und konstruiert danach den benachbarten Request-Body-Kandidaten ohne erneute Anwendung dieses Controls. request_body_bytes() liest den Kandidaten direkt; generated_body_length() führt vor seinem separat gegateten read_text()-Aufruf eine ungeschützte is_file()-Prüfung aus.",
+  "proposed_remediation": "Make both generated_body_length() and request_body_bytes() resolve config_path.parent / request-body.bin through safe_existing_file() before inspecting or reading it. Add focused regression coverage for a traversal-bearing case ID and an in-root symlink that resolves outside, plus a legitimate in-root body; preserve the existing fallback body behavior and the configured safe-root control. Do not weaken report-path validation or broaden allowed roots.",
+  "proposed_remediation_de": "Sowohl generated_body_length() als auch request_body_bytes() müssen config_path.parent / request-body.bin vor Prüfung oder Read über safe_existing_file() auflösen. Fokussierte Regression-Coverage für eine traversalhaltige Case-ID und einen In-Root-Symlink, der nach außerhalb auflöst, sowie einen legitimen In-Root-Body ergänzen; bestehendes Fallback-Body-Verhalten und das konfigurierte Safe-Root-Control bewahren. Report-Path-Validierung nicht abschwächen und erlaubte Roots nicht erweitern.",
+  "acceptance_criteria": [
+    "The original ../../../outside reproduction no longer returns an external request-body preview or SHA-256.",
+    "A traversal-bearing case_id and an in-root request-body symlink resolving outside cannot cause request_body_bytes() to disclose content outside configured safe roots; both body helpers consistently reject the derived candidate.",
+    "A legitimate in-root request-body.bin remains readable and produces the same metadata as before.",
+    "Fallback body behavior remains correct when the generated body file is rejected or absent.",
+    "Focused local tests and a security-diff review pass without changing safe-root policy, report-output containment, scanner rules, exclusions, suppressions, or Quality Gates."
+  ],
+  "validation_plan": [
+    "Run the retained baseline reproducer or an equivalent focused test against the repaired source and assert that the former traversal condition is rejected.",
+    "Exercise a legitimate in-root request-body file through the same case_metadata() boundary.",
+    "Exercise an in-root request-body symlink that resolves outside and verify that the fixed suffix still cannot select an out-of-root file.",
+    "Run the focused body-processor utility/report tests, Python compilation, and a security-diff review of the exact repair."
+  ],
+  "regression_tests": [
+    "Focused case_metadata path-boundary test for a traversal-bearing case_id and an in-root request-body symlink resolving outside (added with the local candidate; delivery verification remains pending).",
+    "Focused legitimate in-root request-body metadata control through case_metadata()."
+  ],
+  "legitimate_control_tests": [
+    "An in-root runtime/legitimate-case/conf/request-body.bin is read and its metadata is preserved.",
+    "A record with no generated body file continues to use its supported request-body fallback.",
+    "Evidence and case files within the configured safe root remain accepted."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0026",
+    "FND-PARENT-0034"
+  ],
+  "deduplication_note": "Distinct from FND-PARENT-0026 because this finding is a concrete read-path bypass in one body-processor report generator rather than broad caller-controlled runtime roots; distinct from FND-PARENT-0034 because it concerns bounded out-of-root reads, not report publication writes or symlink clobbering.",
+  "source_run_ids": [
+    "20260729-parent-ci-sonar-remediation"
+  ],
+  "residual_risk": "The baseline source permits the bounded out-of-root content read through request_body_bytes() described above until a repair is verified. Local candidate evidence is retained, but this record does not claim a fixed/verified status, a PR, delivery, merge, master result, normal hosted-CI attacker reachability, secret exposure, or risk acceptance.",
+  "residual_risk_de": "Der Baseline-Source erlaubt bis zur verifizierten Reparatur den beschriebenen begrenzten Out-of-Root-Content-Read über request_body_bytes(). Lokale Candidate-Evidence wird aufbewahrt, aber dieser Record beansprucht weder Status fixed/verified noch PR, Delivery, Merge, Master-Ergebnis, normale Hosted-CI-Angreiferreichweite, Secret-Exposition oder Risikoakzeptanz.",
+  "created_at": "2026-07-29T08:07:53Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-29T08:11:35Z",
+      "event": "controlled_pre_fix_safe_root_bypass_reproduced",
+      "detail": "A safe-root-configured probe used an artifact-derived traversal case_id to expose an out-of-root fixed-suffix request-body sentinel while preserving the legitimate in-root control."
+    },
+    {
+      "at": "2026-07-29T08:11:35Z",
+      "event": "local_candidate_remediation_evidence_retained_without_status_change",
+      "detail": "The local candidate rejected traversal and symlink variants and passed final diff review, but it remains unverified local evidence; finding status is intentionally validated, not fixed or verified."
+    }
+  ]
+}

@@ -1,0 +1,161 @@
+{
+  "id": "FND-FRAMEWORK-0022",
+  "title": "Framework action lock lags active immutable upload-artifact pin",
+  "title_de": "Framework-Action-Lock hinkt dem aktiven unveränderlichen upload-artifact-Pin hinterher",
+  "category": "ci_failure",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".github/workflows/ci-security-osv.yml",
+    ".github/workflows/ci-security-scorecard.yml",
+    "ci/tooling/security-tools.lock.yml"
+  ],
+  "affected_symbols": [
+    "actions/upload-artifact",
+    "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+    "ci/checks/security/check-ci-security-contract.py pin_errors"
+  ],
+  "summary": "Framework master uses immutable actions/upload-artifact v7.0.1 in three security-workflow steps, but its repository-owned security-tools.lock.yml still records v5.0.0. The strict CI-security contract therefore rejects current source before the intended checks can be trusted. The task has selected the minimal repair: synchronize the custom lock to the already active, independently verified v7.0.1 immutable release without changing workflow permissions or pin enforcement.",
+  "summary_de": "Framework-master verwendet in drei Security-Workflow-Schritten unveränderliches actions/upload-artifact v7.0.1, aber sein repository-eigenes security-tools.lock.yml verzeichnet noch v5.0.0. Der strikte CI-Security-Vertrag lehnt dadurch den aktuellen Source ab, bevor die vorgesehenen Checks als vertrauenswürdig gelten können. Der Task wählt die kleinste Reparatur: den Custom-Lock mit dem bereits aktiven, unabhängig verifizierten unveränderlichen v7.0.1-Release synchronisieren, ohne Workflow-Permissions oder Pin-Enforcement zu ändern.",
+  "observed_behavior": "External Dependabot commit 61fec7cb40e0b940760c079f0e8da3f977bc9ae8 changed the three workflow references from actions/upload-artifact v5.0.0 to v7.0.1 SHA 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a but did not change ci/tooling/security-tools.lock.yml, which still declared v5.0.0 SHA 330a01c490aca151604b8cf639adc76d48f6c5d4. The repository-native CI-security contract rejected that mismatch on the current master-derived task branch.",
+  "observed_behavior_de": "Der externe Dependabot-Commit 61fec7cb40e0b940760c079f0e8da3f977bc9ae8 änderte die drei Workflow-Referenzen von actions/upload-artifact v5.0.0 auf v7.0.1 SHA 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a, änderte aber ci/tooling/security-tools.lock.yml nicht; dort stand weiterhin v5.0.0 SHA 330a01c490aca151604b8cf639adc76d48f6c5d4. Der repository-eigene CI-Security-Vertrag lehnte diese Abweichung auf dem aktuellen master-abgeleiteten Task-Branch ab.",
+  "expected_behavior": "Each external GitHub Action reference must match a complete repository-owned immutable lock record: exact release, exact 40-character commit, upstream release URL, license, purpose, platform, and update procedure. The checker must continue to reject a stale, mutable, short, or mismatched pin.",
+  "expected_behavior_de": "Jede externe GitHub-Action-Referenz muss einem vollständigen repository-eigenen unveränderlichen Lock-Record entsprechen: exakter Release, exakter 40-stelliger Commit, Upstream-Release-URL, Lizenz, Zweck, Plattform und Update-Prozedur. Der Checker muss einen veralteten, mutablen, verkürzten oder nicht passenden Pin weiterhin ablehnen.",
+  "impact": "The CI-security contract is a supply-chain control. A stale lock blocks current workflow validation and makes the repository's documented provenance inventory false. Updating the lock to the active immutable pin restores the intended consistency without trusting a tag, removing pin validation, or adding permissions.",
+  "impact_de": "Der CI-Security-Vertrag ist ein Supply-Chain-Control. Ein veralteter Lock blockiert die Validierung aktueller Workflows und macht das dokumentierte Provenance-Inventar des Repositories falsch. Das Aktualisieren des Locks auf den aktiven unveränderlichen Pin stellt die beabsichtigte Konsistenz wieder her, ohne einem Tag zu vertrauen, Pin-Validierung zu entfernen oder Permissions hinzuzufügen.",
+  "preconditions": [
+    "Framework master-derived source contains three actions/upload-artifact v7.0.1 immutable references.",
+    "ci/tooling/security-tools.lock.yml retains the earlier v5.0.0 record.",
+    "The upstream v7.0.1 tag resolves through the GitHub API to 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a."
+  ],
+  "reproduction": [
+    "rtk git show --format='%H%n%s' --no-patch 61fec7cb40e0b940760c079f0e8da3f977bc9ae8",
+    "rtk gh api repos/actions/upload-artifact/git/ref/tags/v7.0.1 --jq .object.sha",
+    "rtk rg -n 'actions/upload-artifact|version: v5.0.0|330a01c490aca151604b8cf639adc76d48f6c5d4' .github/workflows ci/tooling/security-tools.lock.yml"
+  ],
+  "evidence": [
+    {
+      "run_id": "framework-python-313-master-migration-commit-61fec7c",
+      "artifact_path": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/commit/61fec7cb40e0b940760c079f0e8da3f977bc9ae8",
+      "artifact_type": "external_git_commit_metadata",
+      "sha256": null,
+      "command": "rtk git show --format='%H%n%s' --no-patch 61fec7cb40e0b940760c079f0e8da3f977bc9ae8",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260719T211529Z-framework-python-313-master-migration-939e61b5/worktrees/framework-python-313-master-migration",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T21:31:45Z",
+      "retention_status": "external_commit_not_copied",
+      "summary": "The commit is titled Bump actions/upload-artifact from 5.0.0 to 7.0.1 (#32); it establishes the independently observed workflow-versus-lock drift."
+    },
+    {
+      "run_id": "framework-python-313-master-migration-action-tag",
+      "artifact_path": "https://api.github.com/repos/actions/upload-artifact/git/ref/tags/v7.0.1",
+      "artifact_type": "external_github_tag_reference",
+      "sha256": null,
+      "command": "rtk gh api repos/actions/upload-artifact/git/ref/tags/v7.0.1 --jq .object.sha",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T21:31:45Z",
+      "retention_status": "external_api_not_copied",
+      "summary": "Official GitHub API resolves v7.0.1 to immutable commit 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a."
+    },
+    {
+      "run_id": "20260719T211529Z-framework-python-313-master-migration-939e61b5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T211529Z-framework-python-313-master-migration-939e61b5/downloads/build",
+      "artifact_type": "local_repository_contract_validation",
+      "sha256": null,
+      "command": "rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 make BUILD_ROOT=<task-downloads>/build TMP_ROOT=<task-downloads>/tmp PYTHON=<framework-venv-python> test-ci-security-contract check-github-actions-workflows test-workflow-action-pins",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260719T211529Z-framework-python-313-master-migration-939e61b5/worktrees/framework-python-313-master-migration",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T21:31:45Z",
+      "retention_status": "task_temporary_pending_finalization",
+      "summary": "After the focused lock update, 69 CI-security tests, immutable workflow-pin checks, and workflow permissions checks pass; mismatch-rejection controls remain exercised by the existing suite."
+    },
+    {
+      "run_id": "framework-pr-33-master-9a729226-20260719T221845Z",
+      "artifact_path": "https://api.github.com/repos/Easton97-Jens/ModSecurity-test-Framework/commits/9a729226d2e040d07d7e7a4acebf201faf06ab37/check-runs",
+      "artifact_type": "external_github_exact_master_provenance_lock_verification",
+      "sha256": null,
+      "command": "rtk gh pr view 33 --repo Easton97-Jens/ModSecurity-test-Framework --json state,mergedAt,mergeCommit,headRefOid,baseRefName; rtk gh api 'repos/Easton97-Jens/ModSecurity-test-Framework/actions/runs?head_sha=9a729226d2e040d07d7e7a4acebf201faf06ab37&per_page=100'; rtk gh api 'repos/Easton97-Jens/ModSecurity-test-Framework/commits/9a729226d2e040d07d7e7a4acebf201faf06ab37/check-runs'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T22:18:45Z",
+      "retention_status": "not_retained_external_api_readback",
+      "summary": "PR #33 exact head e94029f5b893ef6a8efa118d21698426a43c82dd passed the current CI-security and immutable-action checks, then merged normally as Framework master 9a729226d2e040d07d7e7a4acebf201faf06ab37. Master actionlint-and-contract and zizmor both passed, confirming the reviewed v7.0.1 immutable upload-artifact lock is accepted without any permission, retention, or enforcement relaxation."
+    }
+  ],
+  "root_cause": "The Dependabot update changed workflow pins but did not update the repository-specific security-tools provenance lock that the CI-security contract uses as its authoritative comparison source.",
+  "root_cause_de": "Das Dependabot-Update änderte Workflow-Pins, aktualisierte aber nicht den repository-spezifischen security-tools-Provenance-Lock, den der CI-Security-Vertrag als maßgebliche Vergleichsquelle verwendet.",
+  "proposed_remediation": "In the current authorized Framework PR, replace only the stale actions/upload-artifact lock record with the already active v7.0.1 release, its verified immutable commit, and matching upstream-release URL. Preserve all workflow references, action pin validation, permissions, retention policy, and update procedure.",
+  "proposed_remediation_de": "Im aktuellen autorisierten Framework-PR nur den veralteten actions/upload-artifact-Lock-Record durch den bereits aktiven v7.0.1-Release, seinen verifizierten unveränderlichen Commit und die passende Upstream-Release-URL ersetzen. Alle Workflow-Referenzen, Action-Pin-Validierung, Permissions, Retention-Policy und Update-Prozedur bewahren.",
+  "acceptance_criteria": [
+    "The actions/upload-artifact lock record exactly matches v7.0.1 commit 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a and its upstream release URL.",
+    "The current CI-security checker, test-ci-security-contract, workflow pin, and permission checks pass without an exception or suppression.",
+    "A deliberately mismatched or mutable action reference remains rejected by the existing contract tests.",
+    "The exact task PR head and resulting master pass their applicable hosted workflow checks."
+  ],
+  "validation_plan": [
+    "Run the focused repository-native CI-security contract, workflow pin, and permissions checks with external task-owned output.",
+    "Review the exact scoped diff for changes to only the lock provenance record and the separately authorized Python-3.13 migration.",
+    "Require exact-head GitHub checks and post-merge master checks; do not treat a local pass as hosted action-runtime proof."
+  ],
+  "regression_tests": [
+    "tests.ci_security.test_framework_ci_security_contract.FrameworkCiSecurityContractTest.test_current_workflows_and_lock_pass",
+    "tests.security_regression.test_workflow_action_pins",
+    "ci/checks/security/check-github-actions-workflows.py --check pins",
+    "ci/checks/security/check-github-actions-workflows.py --check permissions"
+  ],
+  "legitimate_control_tests": [
+    "The exact v7.0.1 SHA and lock record are accepted by the static contract.",
+    "Existing tests reject short, mutable, malformed, and mismatched action references.",
+    "No workflow permissions or retention setting is relaxed."
+  ],
+  "dependencies": [
+    "Current authorized normal Framework PR",
+    "Exact-head hosted workflow checks",
+    "Protected PR merge and resulting-master revalidation"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0019",
+    "FND-FRAMEWORK-0021",
+    "FND-FRAMEWORK-0003"
+  ],
+  "deduplication_note": "Not a duplicate of FND-FRAMEWORK-0021: that finding owns the interpreter ABI and PyYAML wheel-hash contract. Not a duplicate of FND-FRAMEWORK-0019: that finding owns flow-style YAML incompatibility. This finding owns the independently remediable stale immutable-action provenance record.",
+  "source_run_ids": [
+    "20260719T211529Z-framework-python-313-master-migration-939e61b5",
+    "framework-pr-33-master-9a729226-20260719T221845Z"
+  ],
+  "evidence_limitations": [
+    "The local test environment runs CPython 3.14.4, not CPython 3.13.14; it proves the static contract but not GitHub-hosted action runtime behavior.",
+    "The external tag API and commit metadata were observed read-only and were not copied into a local evidence artifact; sha256 is intentionally null.",
+    "The separate failing Framework-master SonarQube Cloud gate is tracked under FND-SONAR-0002 and is not attributed to this verified immutable-action lock repair."
+  ],
+  "residual_risk": "No residual provenance-lock defect remains on Framework master 9a729226d2e040d07d7e7a4acebf201faf06ab37. Immutable SHA pinning, permission boundaries, retention, and the mismatch-rejection controls remain intact; the independent master SonarQube Cloud backlog is separately tracked under FND-SONAR-0002.",
+  "residual_risk_de": "Auf Framework-master 9a729226d2e040d07d7e7a4acebf201faf06ab37 verbleibt kein Provenance-Lock-Defekt. Unveränderliche SHA-Pins, Permission-Grenzen, Retention und die Mismatch-Rejection-Controls bleiben intakt; der unabhängige Master-SonarQube-Cloud-Backlog wird getrennt unter FND-SONAR-0002 verfolgt.",
+  "history": [
+    {
+      "at": "2026-07-19T21:31:45Z",
+      "event": "stale_action_provenance_lock_confirmed_and_remediation_started",
+      "detail": "Current master-derived source retained actions/upload-artifact v7.0.1 workflow pins but the custom lock still recorded v5.0.0 after external Dependabot commit 61fec7cb40e0b940760c079f0e8da3f977bc9ae8. The official v7.0.1 tag resolves to 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a. The current task updated only that lock record and passed the focused local static CI-security matrix; hosted exact-head validation remains pending."
+    },
+    {
+      "at": "2026-07-19T22:18:45Z",
+      "event": "verified_after_exact_pr33_merge_and_master_contract_controls",
+      "detail": "Framework PR #33 passed its exact-head GitHub Actions and SonarQube Cloud Quality Gate without reviews or threads, then merged normally at expected head e94029f5b893ef6a8efa118d21698426a43c82dd as master 9a729226d2e040d07d7e7a4acebf201faf06ab37. The master CI-security actionlint-and-contract and zizmor controls passed with the synchronized v7.0.1 lock, while permissions, retention, and immutable-pin enforcement remained unchanged."
+    }
+  ],
+  "created_at": "2026-07-19T21:31:45Z",
+  "updated_at": "2026-07-19T22:18:45Z",
+  "final_disposition": "verified_on_framework_master_9a729226d2e040d07d7e7a4acebf201faf06ab37"
+}

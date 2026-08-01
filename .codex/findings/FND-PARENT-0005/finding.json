@@ -1,0 +1,128 @@
+{
+  "id": "FND-PARENT-0005",
+  "title": "Slow authorization readers can retain service capacity",
+  "title_de": "Langsame Authorization-Reader können Service-Kapazität binden",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P3",
+  "severity": "low",
+  "confidence": "validated",
+"status": "fixed",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": "Common runtime; Envoy ext_authz and Traefik forwardAuth wrappers",
+  "protocol": "HTTP/1.1 authorization service",
+  "profile": "direct public bind only; shipped harness profiles bind loopback",
+  "affected_files": [
+    "common/runtime/http_authorization_service.c",
+    "connectors/envoy/src/envoy_ext_authz_service_main.c",
+    "connectors/traefik/src/traefik_forwardauth_service_main.c",
+    "connectors/envoy/config/envoy-ext-authz-smoke.yaml.in",
+    "connectors/traefik/scripts/start-smoke.sh"
+  ],
+  "affected_symbols": [
+    "parse_listen_spec",
+    "recv_more",
+    "read_request_body",
+    "read_http_request",
+    "serve_authorization"
+  ],
+  "summary": "When the supported authorization-service 0.0.0.0 bind is directly reachable by untrusted clients, one incomplete HTTP request can retain the only synchronous receive loop and delay authorization-dependent traffic. Shipped Envoy and Traefik profiles keep this service loopback-only.",
+  "summary_de": "Wenn der unterstützte 0.0.0.0-Bind des Authorization-Service direkt von nicht vertrauenswürdigen Clients erreichbar ist, kann eine unvollständige HTTP-Anfrage die einzige synchrone Receive-Schleife binden und authorization-abhängigen Traffic verzögern. Die ausgelieferten Envoy- und Traefik-Profile halten den Service loopbackgebunden.",
+  "observed_behavior": "The listen parser accepts 0.0.0.0, accepted connections are processed synchronously, and header/body receive loops block without an absolute elapsed-time deadline, accepted-socket timeout, nonblocking state machine, or bounded admission control.",
+  "observed_behavior_de": "Der Listen-Parser akzeptiert 0.0.0.0, angenommene Verbindungen werden synchron verarbeitet und Header-/Body-Receive-Schleifen blockieren ohne absolute Zeitgrenze, Accepted-Socket-Timeout, nichtblockierende State-Machine oder begrenzte Admission-Control.",
+  "expected_behavior": "A directly exposed authorization-service listener must bound complete-request receipt time and preserve capacity for ordinary authorization clients without weakening existing fail-closed host semantics.",
+  "expected_behavior_de": "Ein direkt exponierter Authorization-Service-Listener muss die Zeit für den vollständigen Request-Empfang begrenzen und Kapazität für normale Authorization-Clients bewahren, ohne bestehende fail-closed Host-Semantik abzuschwächen.",
+  "impact": "Conditional Low/P3 availability risk for one configured service process and its authorization-dependent traffic. No authorization bypass, confidentiality loss, integrity impact, secret exposure, code execution, or cross-tenant effect is established.",
+  "impact_de": "Bedingtes Low-/P3-Verfügbarkeitsrisiko für einen konfigurierten Service-Prozess und seinen authorization-abhängigen Traffic. Es sind kein Authorization-Bypass, kein Verlust der Vertraulichkeit, kein Integritätsimpact, keine Secret-Exposition, keine Codeausführung und kein Cross-Tenant-Effekt belegt.",
+  "preconditions": [
+    "An operator selects the supported 0.0.0.0 authorization-service bind.",
+    "The service port is directly reachable by untrusted clients.",
+    "No effective outside-repository proxy, network admission, or timeout control terminates the slow connection first."
+  ],
+  "reproduction": [
+    "Review common/runtime/http_authorization_service.c:134-165,190-203,370-480,604-786.",
+    "Read the retained attack-path report for CAND-5A22CBF5-COV003-AUTH-SLOWLORIS-001.",
+    "In an authorized local-only harness, hold one incomplete bounded request and issue a normal complete authorization request concurrently."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:225-227,241-244",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '225,227p;241,244p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260720T164715Z-parent-security-reconciliation-5a22cbf5",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T164715Z-parent-security-reconciliation-5a22cbf5/codex-security-scans/ModSecurity-conector/5a22cbf5206dbc2b7f53a9f961d72e37d567e188_20260720T164715Z/artifacts/05_findings/CAND-5A22CBF5-COV003-AUTH-SLOWLORIS-001/attack_path_analysis_report.md",
+      "artifact_type": "attack_path_analysis_report",
+      "sha256": "e899028b6b59363903a6c50056db15f0616e2b4303ec60d1778dccbdd57bf9b6",
+      "command": "rtk run -c 'sha256sum artifacts/05_findings/CAND-5A22CBF5-COV003-AUTH-SLOWLORIS-001/attack_path_analysis_report.md'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T19:16:00Z",
+      "retention_status": "retained_task_artifact"
+    }
+  ],
+  "root_cause": "The public bind parser allows 0.0.0.0 while the sole accept loop synchronously performs unbounded blocking reads on each accepted socket. Byte limits and the caller-side Envoy timeout do not impose an absolute deadline on a directly connected slow client.",
+  "root_cause_de": "Der Public-Bind-Parser erlaubt 0.0.0.0, während die einzige Accept-Schleife auf jedem angenommenen Socket synchron unbegrenzte blockierende Reads ausführt. Byte-Limits und das Caller-seitige Envoy-Timeout setzen für einen direkt verbundenen langsamen Client keine absolute Frist.",
+  "proposed_remediation": "Add an absolute monotonic complete-request deadline and a bounded admission/concurrency design that retains ordinary-client capacity. Keep loopback/private binding as the default and preserve fail-closed Envoy behavior.",
+  "proposed_remediation_de": "Eine absolute monotone Gesamt-Request-Frist und ein begrenztes Admission-/Concurrency-Design ergänzen, das Kapazität für normale Clients bewahrt. Loopback-/Private-Bind als Default beibehalten und fail-closed Envoy-Verhalten erhalten.",
+  "acceptance_criteria": [
+    "Slow-reader pressure cannot retain unbounded authorization capacity.",
+    "Normal authorization traffic remains available under the configured budgets.",
+    "A directly held incomplete request is closed or receives the documented timeout result within the absolute deadline.",
+    "Existing Envoy failure_mode_allow false semantics remain unchanged."
+  ],
+  "validation_plan": [
+    "Use an authorized isolated loopback-only harness with a non-sensitive rule configuration.",
+    "Hold one bounded incomplete header or body request and send a complete authorization request concurrently.",
+    "Verify timeout/closure for the stalled client, timely expected decision for the ordinary client, queue/admission bounds, and loopback defaults in both wrappers."
+  ],
+  "regression_tests": [
+    "Add a deterministic slow partial request timeout/control test.",
+    "Add a concurrent ordinary authorization allow/block control under the same configured budget.",
+    "Retain wrapper configuration assertions that shipped authorization endpoints remain loopback."
+  ],
+  "legitimate_control_tests": [
+    "Run a complete ordinary authorization request through both selected wrapper profiles.",
+    "Verify the existing Envoy fail-closed timeout and Traefik loopback defaults remain intact."
+  ],
+  "dependencies": [
+    "Task-owned local socket/control harness",
+    "Documented request-deadline and admission policy"
+  ],
+  "blocked_by": [
+    "Direct public deployment reachability is unobserved.",
+    "No authorized slow-client versus ordinary-client runtime control has yet run."
+  ],
+  "duplicates": [],
+  "related_findings": [],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260720T164715Z-parent-security-reconciliation-5a22cbf5"
+  ],
+  "residual_risk": "The service remains Low/P3 conditional risk if an operator directly exposes its supported public bind. Shipped profiles are loopback-only but that does not remove the explicitly supported public-bind path. No risk is accepted.",
+  "residual_risk_de": "Der Service bleibt ein bedingtes Low-/P3-Risiko, wenn ein Operator seinen unterstützten Public-Bind direkt exponiert. Ausgelieferte Profile sind loopbackgebunden, beseitigen aber nicht den ausdrücklich unterstützten Public-Bind-Pfad. Es wird kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-20T19:30:00Z",
+      "event": "attack_path_enriched",
+      "detail": "Current-target analysis identified the specific 0.0.0.0 direct-bind, synchronous receive, and serial accept path. It remains validated Low/P3, not a claim that shipped Envoy or Traefik default profiles expose the service publicly."
+    }
+  ]
+}

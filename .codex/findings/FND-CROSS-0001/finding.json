@@ -1,0 +1,205 @@
+{
+  "id": "FND-CROSS-0001",
+  "title": "Evidence freshness manifest contains stale entries and SHA mismatches",
+  "title_de": "Evidence-Freshness-Manifest enthält veraltete Einträge und SHA-Abweichungen",
+  "category": "evidence_gap",
+  "repository": "parent_and_framework",
+  "ownership": "cross_repository",
+  "priority": "P0",
+  "severity": "low",
+  "confidence": "confirmed",
+  "status": "validated",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md",
+    ".github/workflows/verified-report-governance.yml",
+    "ci/checks/common/check-python-version-contract.py",
+    "ci/evidence/reports/stage-verified-full-matrix-evidence.py",
+    "ci/lib/verified_full_matrix_receipt.py",
+    "tests/test_ci_security_workflows.py",
+    "tests/test_generated_report_evidence_integrity.py",
+    "tests/test_python_version_contract.py"
+  ],
+  "affected_symbols": [],
+  "summary": "The assessment recorded 58 stale entries and 9 SHA mismatches in freshness evidence; Parent PR #74 needs a newly hosted, descriptor-staged, payload-safe retained machine-readable chain before this P0 finding can advance.",
+  "summary_de": "Die Bestandsaufnahme dokumentiert 58 veraltete Einträge und 9 SHA-Abweichungen in der Freshness-Evidence; Parent-PR #74 benötigt eine neu gehostete, descriptor-gestagte, payload-sichere aufbewahrte maschinenlesbare Kette, bevor dieses P0-Finding fortschreiten kann.",
+  "observed_behavior": "The assessment recorded 58 stale entries and 9 SHA mismatches in freshness evidence. Parent PR #74 hosted producers generate the needed structured chain, but the pre-retention workflow did not preserve it after runner teardown. The first successor used pathname-only checks that did not bind the later upload action; its two runs were cancelled before upload and produced no artifact.",
+  "observed_behavior_de": "Die Bestandsaufnahme dokumentiert 58 veraltete Einträge und 9 SHA-Abweichungen in der Freshness-Evidence. Die gehosteten Parent-PR-#74-Producer erzeugen die benötigte strukturierte Kette, aber der Workflow vor der Retention bewahrte sie nach Runner-Teardown nicht auf. Der erste Nachfolger verwendete nur Pfadnamenprüfungen, die die spätere Upload-Action nicht banden; seine zwei Läufe wurden vor dem Upload abgebrochen und erzeugten kein Artifact.",
+  "expected_behavior": "Current evidence must be rerun against known Parent and Framework revisions, copied through a descriptor-safe staged allowlist, bound to the final strict gate, and retained as a payload-safe machine-readable artifact before this finding can advance beyond validated.",
+  "expected_behavior_de": "Die aktuelle Evidence muss gegen bekannte Parent- und Framework-Revisionen erneut ausgeführt, durch eine descriptor-sichere gestagte Allowlist kopiert, an das finale strikte Gate gebunden und als payload-sicheres maschinenlesbares Artifact aufbewahrt werden, bevor dieses Finding über validated hinaus fortschreiten kann.",
+  "impact": "Release and assurance claims remain bounded by the recorded evidence because an ephemeral green producer cannot prove the retained freshness chain; an unbound pathname upload could also retain content outside the intended structured allowlist.",
+  "impact_de": "Release- und Assurance-Aussagen bleiben durch die dokumentierte Evidence begrenzt, weil ein ephemerer grüner Producer keine aufbewahrte Freshness-Kette beweisen kann; ein ungebundener Pfadnamen-Upload könnte außerdem Inhalte außerhalb der beabsichtigten strukturierten Allowlist aufbewahren.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "sed -n '204,230p' .codex/reports/repository-full-assessment.md"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:204-230",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '204,230p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/06_delivery/pr_delivery_status.json",
+      "artifact_type": "strict_runtime_evidence_gate_failure",
+      "sha256": "70aa1c1c9048027f02da2bad4f097165d267e70befeb965eec735b512dc1c366",
+      "command": "rtk gh pr checks 55 --repo Easton97-Jens/ModSecurity-conector",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 1,
+      "observed_at": "2026-07-18T11:13:55Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T201536Z-pr55-runtime-snapshot-revalidation-20f91607",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T201536Z-pr55-runtime-snapshot-revalidation-20f91607/evidence/framework-current-master-transfer-revalidation.md",
+      "artifact_type": "framework_current_master_validation_prerequisite_blocker",
+      "sha256": "067db2ef9c429fa405737d193aa7a7fa5751c158b4d0ffdddbc6667918ce3ed6",
+      "command": "rtk proxy test -x /var/tmp/codex/ModSecurity-conector/runs/20260720T201536Z-pr55-runtime-snapshot-revalidation-20f91607/tmp/framework-current-master-worktree/.venv/bin/python",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 1,
+      "observed_at": "2026-07-20T22:18:23Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T201536Z-pr55-runtime-snapshot-revalidation-20f91607",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T201536Z-pr55-runtime-snapshot-revalidation-20f91607/evidence/framework-current-master-python-environment-preflight.md",
+      "artifact_type": "framework_ci_python_and_dependency_contract_blocker",
+      "sha256": "7491f9abd99c80e0c2c16b2ba2d3ef4ec5a21e4e93ea7ea272bb0d6b4e6f5082",
+      "command": "rtk proxy /usr/bin/python3.14 --version",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T04:22:56Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260721T055738Z-framework-pr39-delivery-followup-416b152c",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260721T055738Z-framework-pr39-delivery-followup-416b152c/evidence/framework-pr39-cpython313-validation.md",
+      "artifact_type": "framework_pr39_cpython31314_local_qualification",
+      "sha256": "2825f5278dcf241dcdb8e501fccb85b9f9fc710e5b24406259a396af7cd3ee30",
+      "command": "Framework PR #39 CPython 3.13.14 qualification receipt: hash-locked PyYAML-6.0.3 installation and pip check; 30 direct affected tests; make test-ci-security-contract (89 tests); make check-python-version; make check-github-actions-workflows; make test-workflow-security-contract (7 tests); make check-documentation; python -m compileall -q ci tests; worktree-scoped response-body guard; make lint.",
+      "working_directory": "framework-python-updater",
+      "exit_code": 0,
+      "observed_at": "2026-07-21T06:13:56Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260726T171724Z-pr74-hosted-evidence-retention",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T171724Z-pr74-hosted-evidence-retention/evidence/pr74-hosted-evidence-retention-preflight.md",
+      "artifact_type": "hosted_runtime_evidence_retention_gap_preflight",
+      "sha256": "3e5c1580b2e7765782cc83dae6122318aac97a26b7ac7b8c32d8d55f007bbcf3",
+      "command": "rtk proxy gh api repos/Easton97-Jens/ModSecurity-conector/actions/runs/30210885288/artifacts and 30210883722/artifacts; rtk proxy gh run view 30210885288 --repo Easton97-Jens/ModSecurity-conector --json headSha,event,status,conclusion,workflowName,url",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T17:17:24Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726T171724Z-pr74-hosted-evidence-retention",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T171724Z-pr74-hosted-evidence-retention/evidence/pr74-artifact-retention-security-correction.md",
+      "artifact_type": "payload_safe_artifact_retention_security_correction",
+      "sha256": "1c980e2b3de51b08144ae33fd534f882264780bc5fd4b22ce15689bb640bae5a",
+      "command": "Focused descriptor-staging, workflow-security, and Python-contract tests; pinned-tool validation; bilingual-documentation check; workflow YAML check; and diff hygiene on the local successor to published PR #74 head 881a6bccf0a324ead467ced47b64514164b00981.",
+      "working_directory": "/var/tmp/codex/worktrees/parent/migrate-pr55-pr74-master-V27zuA/pr74",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T18:27:22Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The retained evidence identifies the condition but does not establish a product-code root cause. The Parent strict report gate correctly rejects unresolved stale/mismatched runtime evidence instead of converting governance validation into runtime proof. The hosted producer needed an explicit payload-safe export because manifests and receipts disappear with the runner; the first export attempt added pathname checks but did not bind actions/upload-artifact to the checked objects.",
+  "root_cause_de": "Die retained Evidence belegt den Zustand, aber keine Produktcode-Grundursache. Das strikte Parent-Report-Gate weist ungelöste veraltete/abweichende Runtime-Evidence korrekt zurück, statt Governance-Validierung in Runtime-Nachweis umzuwandeln. Der gehostete Producer benötigte einen expliziten payload-sicheren Export, weil Manifeste und Receipts mit dem Runner verschwinden; der erste Exportversuch ergänzte Pfadnamenprüfungen, band actions/upload-artifact aber nicht an die geprüften Objekte.",
+  "proposed_remediation": "Regenerate and reconcile revision-bound evidence, retain a current descriptor-staged payload-safe manifest/receipt chain from the exact hosted run, and keep the strict report gate failing closed on unresolved SHA mismatch or a changed staged source.",
+  "proposed_remediation_de": "Revisionsgebundene Evidence neu erzeugen und abgleichen, eine aktuelle descriptor-gestagte payload-sichere Manifest-/Receipt-Kette aus dem exakten gehosteten Run aufbewahren und das strikte Report-Gate bei ungelöster SHA-Abweichung oder einer geänderten gestagten Source geschlossen fehlschlagen lassen.",
+  "acceptance_criteria": [
+    "Every retained assessment claim is tied to the current Parent and Framework revisions.",
+    "The freshness manifest reports no unexplained stale entry or SHA mismatch.",
+    "The exact hosted upload contains only the fixed eighteen-file staged allowlist and its final byte/digest binding to the strict-gate source set."
+  ],
+  "validation_plan": [
+    "Regenerate the freshness manifest at the target revisions.",
+    "Verify each report/reference SHA and retain the raw machine-readable result.",
+    "Download the exact-head success-only artifact and verify one matching run ID, Parent/Framework revisions, declared hashes, all twelve structured full-matrix job records, and the staged allowlist's exact path set."
+  ],
+  "regression_tests": [
+    "Add or retain a focused regression/evidence control for the recorded condition.",
+    "tests.test_ci_security_workflows must require a post-gate, SHA/run-bound, payload-safe staged artifact allowlist and reject log/result-payload paths.",
+    "tests.test_generated_report_evidence_integrity must reject intermediate/final source symlinks, source mutation/replacement, unsafe staging parents, reused staging roots, and post-stage source changes while retaining the legitimate 18-file control."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment.",
+    "A successful exact-head strict producer must upload the staged allowlisted structured records without broadening workflow permissions or retaining runtime payloads."
+  ],
+  "dependencies": [],
+  "blocked_by": [
+    "Fresh Parent and Framework evidence and a regenerated freshness manifest have not been produced; the original 58 stale entries and 9 SHA mismatches remain unresolved.",
+    "The retained 2026-07-21T04:22:56Z current-master candidate preflight remains evidence for that separate candidate, but the 2026-07-21T06:13:56Z Framework PR #39 CPython 3.13.14 receipt does not revalidate that candidate or mint the fresh Parent runtime evidence required by this finding.",
+    "Exact Parent PR #74 head 77bd39e64194cf5e6d221d874d9c6924549711eb had pre-retention hosted producers with no artifact inventory. Published successor 881a6bccf0a324ead467ced47b64514164b00981 was not accepted because its unbound pathname upload was unsafe; both of its runs were cancelled before upload. The uncommitted descriptor-staging successor must be committed, pass the strict producer, and retain its bound structured evidence before freshness can be reconciled."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0002",
+    "FND-CROSS-0005",
+    "FND-PARENT-0037"
+  ],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260718T075200Z-parent-evidence-integrity-ade378cf",
+    "20260720T201536Z-pr55-runtime-snapshot-revalidation-20f91607",
+    "20260721T055738Z-framework-pr39-delivery-followup-416b152c",
+    "20260726T171724Z-pr74-hosted-evidence-retention"
+  ],
+  "residual_risk": "The condition remains open. The historical private Framework current-master candidate and Framework PR #39 receipt do not revalidate the current Parent candidate or resolve the original 58 stale entries and 9 SHA mismatches. Pre-retention Parent PR #74 producers had no artifact, and published successor 881a6bccf0a324ead467ced47b64514164b00981 was cancelled before upload because pathname checks did not safely bind the upload. The successor's staged snapshot protects the normal runner boundary but cannot prevent an arbitrary surviving same-UID process from modifying a runner path after its final comparison; a separate identity or descriptor/stream-consuming uploader would be stronger. The successor exact head must pass, publish, and have its artifact reconciled before this P0 finding can advance. No risk has been accepted by the current user.",
+  "residual_risk_de": "Der Zustand bleibt offen. Der historische private Framework-Current-master-Candidate und der Framework-PR-#39-Receipt revalidieren den aktuellen Parent-Candidate nicht und lösen die ursprünglichen 58 veralteten Einträge und 9 SHA-Abweichungen nicht. Die Parent-PR-#74-Producer vor der Retention hatten kein Artifact, und der veröffentlichte Nachfolger 881a6bccf0a324ead467ced47b64514164b00981 wurde vor dem Upload abgebrochen, weil Pfadnamenprüfungen den Upload nicht sicher banden. Der staged Snapshot des Nachfolgers schützt die normale Runner-Grenze, kann aber einen beliebigen weiterlaufenden Same-UID-Prozess nicht daran hindern, nach seinem finalen Vergleich einen Runner-Pfad zu ändern; eine getrennte Identität oder ein Descriptor-/Stream-konsumierender Uploader wäre stärker. Der Nachfolge-Exact-Head muss bestehen, veröffentlichen und sein Artifact muss abgeglichen werden, bevor dieses P0-Finding fortschreiten kann. Der aktuelle Benutzer hat kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-26T18:27:22Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-18T11:13:55Z",
+      "event": "strict_report_gate_correctly_rejected_stale_runtime_evidence",
+      "detail": "Parent PR 55 head 42b31f1c84c0c915a5cb65119714613fbf3e0c40 failed the strict runtime-evidence gate as designed, preserving this finding as validated rather than minting governance-only runtime evidence."
+    },
+    {
+      "at": "2026-07-20T22:18:23Z",
+      "event": "current_framework_master_prerequisite_blocked_before_parent_runtime_rerun",
+      "detail": "A private Framework current-master candidate at 9dab40c2b8799dc1e4597cb2a2c223ec3f6cd72b received the reviewed PR #55 prerequisite patch without path overlap, passed diff and shell checks, and retained report SHA-256 067db2ef9c429fa405737d193aa7a7fa5751c158b4d0ffdddbc6667918ce3ed6. Its Framework-selected .venv/bin/python is absent, so the required exact-candidate Python provenance, documentation, and lint checks were not substituted with system or Parent Python. No Framework PR, fresh Parent runtime evidence, or protected merge was performed."
+    },
+    {
+      "at": "2026-07-21T04:22:56Z",
+      "event": "authorized_framework_environment_preflight_remains_blocked_on_ci_contract",
+      "detail": "The user authorized a Framework-owned repository environment and dependency installation. Current Framework master and the private candidate remained 9dab40c2b8799dc1e4597cb2a2c223ec3f6cd72b, MRTS remained unchanged, and storage preflight allowed the estimated additional GiB. The retained preflight report SHA-256 7491f9abd99c80e0c2c16b2ba2d3ef4ec5a21e4e93ea7ea272bb0d6b4e6f5082 established that all Framework CI workflows and the reviewed hash-locked requirements-ci.lock require CPython 3.13.14, which is not locally available; only CPython 3.14.4 was found. requirements-dev.txt is a mutable PyYAML>=6,<7 range and its bootstrap upgrades Pip. No venv, package download, Framework PR, Parent runtime evidence, or protected merge was performed."
+    },
+    {
+      "at": "2026-07-21T06:13:56Z",
+      "event": "framework_pr39_environment_blocker_superseded_without_freshness_resolution",
+      "detail": "The retained receipt 20260721T055738Z-framework-pr39-delivery-followup-416b152c, SHA-256 2825f5278dcf241dcdb8e501fccb85b9f9fc710e5b24406259a396af7cd3ee30, establishes Framework PR #39 local CPython 3.13.14 qualification with hash-locked PyYAML-6.0.3, pip check, 30 direct affected tests, 89 make test-ci-security-contract tests, workflow and documentation checks, python -m compileall -q ci tests, the response-body guard, and make lint. It supersedes only the PR #39 local CPython environment blocker; it does not rerun or reconcile the original 58 stale entries and 9 SHA mismatches, so status remains validated."
+    },
+    {
+      "at": "2026-07-26T17:17:24Z",
+      "event": "hosted_evidence_retention_gap_confirmed_and_remediation_prepared",
+      "detail": "Exact Parent PR #74 head 77bd39e64194cf5e6d221d874d9c6924549711eb had active pull-request and push producers with zero artifact inventory. The pre-retention workflow generated structured manifests and receipts only in the ephemeral runner, so a green job could not retain the required raw freshness chain. A Parent-only success-only, SHA/run-bound, payload-safe artifact remediation is prepared with focused workflow-security controls. The successor exact head must pass, publish, and have its artifact reconciled before this P0 release blocker can advance."
+    },
+    {
+      "at": "2026-07-26T18:27:22Z",
+      "event": "unbound_artifact_upload_corrected_with_descriptor_staging_and_fast_preflight",
+      "detail": "Independent review of published PR #74 head 881a6bccf0a324ead467ced47b64514164b00981 found a low/P3 pathname TOCTOU exposure; its two runs were cancelled before upload and produced no evidence. The local Parent-only successor stages all eighteen allowlisted records through descriptor-relative no-follow traversal, exclusive private staging, and a final strict-gate source binding. It also adds a 15-minute read-only contract preflight and cancels only superseded PR/ref runs while preserving the full producer. Local 117-test, CI-security, Python-contract, bilingual-documentation, workflow-YAML, and diff checks passed. Hosted exact-head artifact, Sonar, and protection evidence remain required."
+    }
+  ]
+}

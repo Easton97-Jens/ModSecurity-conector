@@ -1,0 +1,124 @@
+{
+  "id": "FND-PARENT-0015",
+  "title": "Traefik pathname UDS permits same-UID post-readiness endpoint redirection",
+  "title_de": "Traefik-Pfad-UDS erlaubt Same-UID-Endpoint-Umleitung nach Bereitschaft",
+  "category": "security_candidate",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "probable",
+  "status": "blocked",
+  "feasibility_status": "blocked_missing_evidence",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "Traefik",
+  "protocol": "AF_UNIX pathname",
+  "profile": "native-traefik-middleware",
+  "affected_files": [
+    "connectors/traefik/src/traefik_engine_service.c",
+    "connectors/traefik/scripts/runtime_native_smoke.py",
+    "connectors/traefik/native_middleware/engine_uds.go",
+    "connectors/traefik/native_middleware/middleware.go",
+    "connectors/traefik/native_middleware/engine_uds_test.go"
+  ],
+  "affected_symbols": [
+    "traefik_engine_capture_bound_socket_identity",
+    "wait_for_socket",
+    "unixSocketEngine.Open",
+    "safeUnixSocketPath",
+    "udsResult.decision"
+  ],
+  "summary": "The C listener proves pathname identity only through its initial readiness capture. The Traefik middleware opens a new pathname UDS connection for each transaction without peer identity verification, so a hostile same-UID process that can rebind engine.sock after readiness can redirect later middleware traffic to a fake endpoint.",
+  "summary_de": "Der C-Listener beweist Pfad-Identity nur bis zu seiner initialen Bereitschaftserfassung. Die Traefik-Middleware öffnet für jede Transaktion eine neue Pfad-UDS-Verbindung ohne Peer-Identity-Prüfung; ein bösartiger Same-UID-Prozess, der engine.sock nach Bereitschaft neu bindet, kann spätere Middleware-Traffic zu einem Fake-Endpoint umleiten.",
+  "observed_behavior": "The runner waits only for a socket pathname to exist, then starts Traefik with that same path. unixSocketEngine.Open() performs net.Dialer.DialContext(\"unix\", socketPath) for each new transaction. A protocol-valid RESULT with action allow is accepted and mapped to allowDecision(). Neither the runner nor the client binds the connection to the original C listener identity.",
+  "observed_behavior_de": "Der Runner wartet nur darauf, dass ein Socket-Pfad existiert, und startet Traefik dann mit demselben Pfad. unixSocketEngine.Open() führt für jede neue Transaktion net.Dialer.DialContext(\"unix\", socketPath) aus. Ein protokollgültiges RESULT mit Action allow wird akzeptiert und zu allowDecision() abgebildet. Weder Runner noch Client binden die Verbindung an die originale C-Listener-Identity.",
+  "expected_behavior": "The pre-capture C self-probe may claim only that a replacement in that bounded startup window fails closed. A strict live client-to-engine identity claim requires a verified client-side peer-identity or descriptor/abstract-socket boundary; current pathname selection and 0700 permissions do not isolate hostile same-UID processes.",
+  "expected_behavior_de": "Die C-Selbstprobe vor der Capture darf nur behaupten, dass ein Ersatz in diesem begrenzten Startup-Fenster geschlossen scheitert. Eine strikte Live-Client-zu-Engine-Identity-Behauptung erfordert eine verifizierte clientseitige Peer-Identity- oder Descriptor-/Abstract-Socket-Grenze; aktuelle Pfadauswahl und 0700-Rechte isolieren keine bösartigen Same-UID-Prozesse.",
+  "impact": "Under the same-UID mutation precondition, a fake listener can return a syntactically valid allow result for newly opened transactions, bypassing the intended ModSecurity decision path. It can also receive request/response metadata and bodies sent on that connection. Deployment-specific exploitability and a real host reproduction were not established, so severity remains medium/probable rather than High or confirmed.",
+  "impact_de": "Unter der Same-UID-Änderungsvoraussetzung kann ein Fake-Listener für neu geöffnete Transaktionen ein syntaktisch gültiges Allow-Result zurückgeben und den beabsichtigten ModSecurity-Entscheidungspfad umgehen. Er kann außerdem über diese Verbindung gesendete Request-/Response-Metadaten und Bodies erhalten. Deployment-spezifische Ausnutzbarkeit und echte Host-Reproduktion sind nicht belegt; daher bleibt Severity medium/probable statt High oder confirmed.",
+  "preconditions": [
+    "A hostile process shares the service effective UID and can mutate the private UDS child directory.",
+    "It unlinks the live engine.sock pathname after C readiness capture and binds a replacement listener before a later middleware transaction opens.",
+    "The replacement returns a protocol-valid allow result."
+  ],
+  "reproduction": [
+    "Trace C readiness capture and its lack of a later pathname watch.",
+    "Trace wait_for_socket(): it accepts any existing socket pathname before Traefik starts.",
+    "Trace unixSocketEngine.Open(): it redials the configured pathname for each transaction, and udsResult.decision(): it maps action allow to allowDecision()."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/063-traefik-live-uds-redirection-static-review.log",
+      "artifact_type": "source_to_sink_security_review_log",
+      "sha256": "15d453ebcb8e013a3881f2897317ca5dca0f04c69a16920bda3e9137b7bb2406",
+      "command": "rg -n -C 8 'DialContext|socketPath|allowDecision|Action|RESULT' connectors/traefik/native_middleware/engine_uds.go; rg -n -C 8 'engineSocketPath|socketPath|absolute' connectors/traefik/native_middleware/middleware.go",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T14:33:24Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/062-same-uid-pathname-toctou-static-review.log",
+      "artifact_type": "source_to_sink_security_review_log",
+      "sha256": "2294d4ff41b1266a34a234da0db62072cadd51199efe37db979114ebcafc2dd2",
+      "command": "focused C listener identity and runner socket-readiness source review",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T14:27:29Z",
+      "retention_status": "retained_task_log"
+    }
+  ],
+  "root_cause": "The architecture transfers trust from a C listener to an independently dialing Traefik client through a mutable pathname only. The C-side SO_PEERCRED self-probe detects a replacement before initial identity capture but no later client-side peer validation, descriptor handoff, abstract-socket mode, or live pathname identity binding exists.",
+  "root_cause_de": "Die Architektur überträgt Vertrauen von einem C-Listener zu einem unabhängig wählenden Traefik-Client nur über einen veränderbaren Pfad. Die C-seitige SO_PEERCRED-Selbstprobe erkennt einen Ersatz vor initialer Identity-Capture, aber es gibt keine spätere clientseitige Peer-Validierung, Descriptor-Übergabe, Abstract-Socket-Mode oder Live-Pfad-Identity-Bindung.",
+  "proposed_remediation": "Do not claim this boundary fixed without a verified end-to-end design. Future candidates are Linux-only abstract AF_UNIX support, client-side SO_PEERCRED validation against securely managed expected engine identity, or a descriptor-handoff protocol. Each requires a compatible Traefik/Yaegi/runtime contract, restart semantics, and hostile same-UID validation; none is a current verified fix.",
+  "proposed_remediation_de": "Diese Grenze ohne verifiziertes Ende-zu-Ende-Design nicht als fixed behaupten. Künftige Kandidaten sind Linux-only Abstract-AF_UNIX-Support, clientseitige SO_PEERCRED-Validierung gegen sicher verwaltete erwartete Engine-Identity oder ein Descriptor-Handoff-Protokoll. Jeder benötigt einen kompatiblen Traefik/Yaegi/Runtime-Vertrag, Restart-Semantik und feindliche Same-UID-Validierung; keiner ist ein aktueller verifizierter Fix.",
+  "acceptance_criteria": [
+    "A selected client-to-engine identity boundary is validated with a hostile same-UID post-readiness replacement attempt.",
+    "A fake endpoint cannot receive a newly opened middleware transaction or make it accept an allow result as the intended engine.",
+    "The existing startup collision, path-length, YAML-quoting, Allow, Blocking, shutdown, and cleanup-refusal controls remain covered."
+  ],
+  "validation_plan": [
+    "Run a real native Traefik/Yaegi host test with a deterministic post-readiness replacement listener and a blocking request.",
+    "Test engine restart/PID-reuse semantics for any peer-identity approach.",
+    "Validate the chosen Linux-specific or portable fallback without weakening unsupported-platform fail-closed behavior."
+  ],
+  "regression_tests": [
+    "connectors/traefik/native_middleware/engine_uds_test.go",
+    "connectors/traefik/build/test-engine-service-runtime.sh",
+    "A future genuine host post-readiness replacement test."
+  ],
+  "legitimate_control_tests": [
+    "The focused C engine protocol/lifecycle and Python runner contracts passed for the narrower pre-capture hardening controls."
+  ],
+  "dependencies": [
+    "A verified end-to-end Traefik client/engine identity-bound design and compatible host runtime evidence."
+  ],
+  "blocked_by": [
+    "No current client peer-identity verification, descriptor handoff, or supported abstract-AF_UNIX configuration contract.",
+    "No genuine native Traefik/Yaegi host runtime available to validate an architectural mitigation."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0008",
+    "FND-PARENT-0013",
+    "FND-PARENT-0014"
+  ],
+  "source_run_ids": [
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc"
+  ],
+  "residual_risk": "The current path and 0700 allocation mitigate cross-UID collision but not a hostile same-UID endpoint rebind after readiness. No risk acceptance has been provided.",
+  "residual_risk_de": "Aktueller Pfad und 0700-Allokation mindern UID-übergreifende Kollisionen, aber keinen feindlichen Same-UID-Endpoint-Rebind nach Bereitschaft. Es liegt keine Risikoakzeptanz vor.",
+  "created_at": "2026-07-17T14:33:24Z",
+  "updated_at": "2026-07-17T14:33:24Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T14:33:24Z",
+      "event": "current_task_security_boundary_identified",
+      "detail": "Independent static source-to-sink review distinguished the post-readiness client redial/allow-result path from the final cleanup race. The former has conditional integrity and confidentiality impact but no current end-to-end identity-bound mitigation or host reproduction."
+    }
+  ]
+}

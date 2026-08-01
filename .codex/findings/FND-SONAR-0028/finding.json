@@ -1,0 +1,215 @@
+{
+  "id": "FND-SONAR-0028",
+  "title": "Common runtime contains eighteen current SonarQube Cloud maintainability findings",
+  "title_de": "Common-Runtime enthält achtzehn aktuelle SonarQube-Cloud-Maintainability-Befunde",
+  "category": "maintainability",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "security_relevant_http_lifecycle_refactor_with_no_validated_security_finding",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "Common Runtime HTTP request, response, configuration, and decision-event lifecycle",
+  "profile": "Initial SonarQube Cloud current-master directory inventory for common/runtime at 979e50b9d7d9a914e102465814e7f2fd4cd853eb; final resulting-master recheck at 3270ab5bdcc86ddab50e9be00db7611aae7fd937",
+  "affected_files": [
+    "common/runtime/msconnector_runtime.c",
+    "common/runtime/http_authorization_service.c"
+  ],
+  "affected_symbols": [
+    "msconnector_runtime_apply_config_entry",
+    "validate_runtime_config",
+    "emit_decision_event",
+    "msconnector_runtime_transaction_begin",
+    "read_http_request",
+    "parse_header_lines",
+    "load_runtime_config"
+  ],
+  "summary": "The initial Parent SonarQube Cloud inventory reported eighteen open Common Runtime C maintainability findings. Earlier resulting-master evidence retained historical c:S3776 issue AZ9MwjLo-bUaKQ_zSGBC in load_runtime_config. PR #221 was normal-merged at exact head dcfc64044d0f34b852a1b5cbc0cecd66cf6d1f9d, producing master 3270ab5bdcc86ddab50e9be00db7611aae7fd937. Direct resulting-master SonarQube Cloud evidence now reports that original issue FIXED/CLOSED; the PR had zero open issues, zero new violations, and 0.0% New-Code duplication.",
+  "summary_de": "Das initiale Parent-SonarQube-Cloud-Inventar meldete achtzehn offene Common-Runtime-C-Maintainability-Befunde. Frühere Resulting-Master-Evidence bewahrte den historischen c:S3776-Befund AZ9MwjLo-bUaKQ_zSGBC in load_runtime_config. PR #221 wurde am exakten Head dcfc64044d0f34b852a1b5cbc0cecd66cf6d1f9d normal gemergt und erzeugte master 3270ab5bdcc86ddab50e9be00db7611aae7fd937. Direkte Resulting-Master-SonarQube-Cloud-Evidence meldet diesen Originalbefund nun als FIXED/CLOSED; der PR besaß null offene Issues, null New-Violations und 0,0 % New-Code-Duplikation.",
+  "observed_behavior": "The runtime combined configuration dispatch, lifecycle validation, event serialization, and transaction start work in long functions; a private transaction structure had too many independently tracked fields; and HTTP request parsing used mutable pointers for read-only data. PR #216 remediated the applicable changed code without a new Sonar issue, but resulting master still reproduces the historical cognitive-complexity finding in load_runtime_config.",
+  "observed_behavior_de": "Die Runtime vereinte Konfigurations-Dispatch, Lifecycle-Validierung, Event-Serialisierung und Transaction-Start-Arbeit in langen Funktionen; eine private Transaction-Struktur besaß zu viele unabhängig verfolgte Felder; und HTTP-Request-Parsing verwendete veränderbare Pointer für schreibgeschützte Daten. PR #216 remedierte den anwendbaren geänderten Code ohne neues Sonar-Issue, aber der Resulting-Master reproduziert weiterhin den historischen Cognitive-Complexity-Befund in load_runtime_config.",
+  "expected_behavior": "The Common Runtime must preserve configuration interpretation, body-limit decisions, native ModSecurity phase order, request/response enforcement, decision-event fields and integrity chaining, and HTTP parsing behavior while the affected functions meet Sonar maintainability thresholds.",
+  "expected_behavior_de": "Die Common Runtime muss Konfigurationsinterpretation, Body-Limit-Entscheidungen, native ModSecurity-Phase-Reihenfolge, Request-/Response-Enforcement, Decision-Event-Felder und Integrity-Chaining sowie HTTP-Parsing-Verhalten bewahren, während die betroffenen Funktionen Sonars Maintainability-Grenzen einhalten.",
+  "impact": "These are confirmed maintainability findings, not evidenced security vulnerabilities. The affected code processes HTTP input and ModSecurity enforcement state, so a mistaken refactor could affect policy application or recorded evidence. PR #221 has focused C17 and contract evidence, a complete security-diff review with zero reportable findings, and a clean exact-head hosted Sonar result; direct resulting-master verification remains the only condition before verified or closed.",
+  "impact_de": "Dies sind bestätigte Maintainability-Befunde, keine belegten Security-Vulnerabilities. Der betroffene Code verarbeitet HTTP-Eingaben und ModSecurity-Enforcement-State, daher könnte ein fehlerhafter Refactor Policy-Anwendung oder aufgezeichnete Evidenz beeinflussen. PR #221 besitzt fokussierte C17- und Contract-Evidence, einen vollständigen Security-Diff-Review ohne reportable Befund und ein sauberes Exact-Head-Hosted-Sonar-Ergebnis; die direkte Resulting-Master-Verifikation bleibt die einzige Bedingung vor verified oder closed.",
+  "preconditions": [
+    "SonarQube Cloud analyzes the Parent current-master Common Runtime sources in the retained inventory.",
+    "The local task branch starts from the recorded Parent master revision and retains the existing Common Runtime source contracts."
+  ],
+  "reproduction": [
+    "Read the retained current-master Sonar inventory and inspect the two listed sources.",
+    "Run the focused Common Runtime C17, contract, security, memory-safety, flow-integrity, and HTTP authorization controls after the refactor.",
+    "For the final Draft PR head, query SonarQube Cloud OPEN/CONFIRMED pull-request issues and New-Code duplication without changing scanner controls.",
+    "For the resulting master revision, query the direct Common Runtime file issue endpoint and confirm whether the original c:S3776 issue is absent."
+  ],
+  "evidence": [
+    {
+      "run_id": "common-runtime-sonar-maintainability-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/common-runtime-sonar-maintainability-20260801/evidence/sonar-current-runtime-inventory.md",
+      "artifact_type": "bounded_current_master_sonar_inventory",
+      "sha256": "b955ad65a2e36748344a39362178a2e46fd72297b7d18a1ddf55d42b0b6c962f",
+      "command": "Read-only SonarQube Cloud component-measure and OPEN/CONFIRMED issue queries for Easton97-Jens_ModSecurity-conector:common/runtime.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T10:12:24Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Eighteen OPEN Common Runtime code smells; zero directory bugs, vulnerabilities, security hotspots, duplicate lines, and duplicated-lines density."
+    },
+    {
+      "run_id": "common-runtime-sonar-maintainability-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/common-runtime-sonar-maintainability-20260801/security-diff-scan/report.md",
+      "artifact_type": "sealed_local_security_diff_review",
+      "sha256": "72989b19f803956b284f04ce8fc24b6bb52f95d7413ddbeed26cdd226c10d01d",
+      "command": "Codex Security complete-coverage diff scan of the Common Runtime remediation and direct contract adaptation.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/common-runtime-sonar-maintainability-20260801",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T10:06:44Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Complete coverage with zero reportable diff-induced security findings; lifecycle, configuration, event-integrity, and HTTP parsing invariants were reviewed."
+    },
+    {
+      "run_id": "common-runtime-sonar-maintainability-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/common-runtime-sonar-maintainability-20260801/security-diff-scan-amendment/report.md",
+      "artifact_type": "incremental_security_sensitive_diff_review",
+      "sha256": "a061e8aa74e838e2bbc9e7450b794f1944edf5ff9110d4c70f6bca6d87e4d8ea",
+      "command": "Focused final-delta security review of the header-end const-correctness amendment plus focused Common Runtime controls.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/common-runtime-sonar-maintainability-20260801",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T10:28:00Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The const qualifier removes write capability and introduces no reportable diff-induced security finding."
+    },
+    {
+      "run_id": "common-runtime-sonar-maintainability-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/common-runtime-sonar-maintainability-20260801/evidence/pr-216-exact-head-verification.md",
+      "artifact_type": "exact_draft_pr_sonar_and_hosted_readback",
+      "sha256": "36f9d8c1584b3e3f6506f2ca147829164ddb8b6720fbf355ad416f1659cd6185",
+      "command": "GitHub PR head/check/review readback plus SonarQube Cloud Quality Gate, OPEN/CONFIRMED issue, and New-Code measure endpoints for pull request 216.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T10:29:10Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Exact Draft PR #216 head ad2f8e9a90af8981c060fe025b8ef5705556b9cf has Quality Gate OK, zero OPEN/CONFIRMED PR issues, zero new violations, zero new duplicated lines, 0.0% New-Code duplication, and 33 passed / zero failed terminal GitHub checks."
+    },
+    {
+      "run_id": "common-runtime-sonar-maintainability-20260801",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/common-runtime-sonar-maintainability-20260801/evidence/pr-216-merge-master-verification.md",
+      "artifact_type": "resulting_master_merge_and_sonar_readback",
+      "sha256": "f3ba578d29e255b93342d79d6faaead84a49e66dc4a767f53d865d5b4ed34661",
+      "command": "GitHub PR/commit/workflow readback plus public SonarQube Cloud PR and resulting-master analysis, quality-gate, measure, and direct file-issue endpoints.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T11:01:02Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR #216 normal-merged as master 63f6baed5ea6f650aeb5372e148b32aa062a326b with an identical reviewed tree and 14 successful master workflows. PR Sonar has zero new issues and duplicate lines, while direct resulting-master source evidence retains historical issue AZ9MwjLo-bUaKQ_zSGBC (c:S3776) in load_runtime_config."
+    },
+    {
+      "run_id": "parent-common-sonar-remediation-20260801",
+      "artifact_path": "/root/git/ModSecurity-conector/.codex/runs/parent-common-sonar-remediation-20260801/evidence/pr221-exact-head-verification.md",
+      "artifact_type": "exact_draft_pr_sonar_and_hosted_readback",
+      "sha256": "3420784833530d12802cebd9f98825eaa8e3cd45f584b6502ff3c22269db7efb",
+      "command": "GitHub PR head/check readback plus public SonarQube Cloud issue and New-Code measure queries for pull request 221.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/20260801-common-sonar-remediation",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T13:12:18Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Exact Draft PR #221 head 482ba035ed53b3668009b7158c656214d6924e6f has zero open PR issues, zero new violations, 0.0% New-Code duplication, all applicable hosted checks passed, and a complete security-diff review with zero reportable findings."
+    },
+    {
+      "run_id": "parent-common-sonar-remediation-20260801",
+      "artifact_path": "/root/git/ModSecurity-conector/.codex/runs/parent-common-sonar-remediation-20260801/evidence/pr221-merge-master-verification.md",
+      "artifact_type": "resulting_master_merge_and_sonar_readback",
+      "sha256": "c852730b467d505652414dd68124de553991efe9c46a8a67b45fbe9c1b014f17",
+      "command": "Exact-head-bound GitHub normal merge readback, resulting-master workflow readback, and direct SonarQube Cloud original-issue query for PR 221.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-08-01T13:39:56Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR #221 exact final head dcfc64044d0f34b852a1b5cbc0cecd66cf6d1f9d normal-merged as master 3270ab5bdcc86ddab50e9be00db7611aae7fd937; all 14 exact-master workflows passed and original c:S3776 issue AZ9MwjLo-bUaKQ_zSGBC is FIXED/CLOSED."
+    }
+  ],
+  "root_cause": "Configuration, validation, event construction, and transaction-start responsibilities accumulated in a few lifecycle functions, while private state used separate fields for cohesive metadata and body-progress groups. Read-only HTTP parsing values were not declared const. The remaining historical issue is the still branch-dense load_runtime_config parser.",
+  "root_cause_de": "Konfiguration, Validierung, Event-Konstruktion und Transaction-Start-Verantwortlichkeiten sammelten sich in wenigen Lifecycle-Funktionen, während privater State separate Felder für zusammenhängende Metadata- und Body-Progress-Gruppen verwendete. Schreibgeschützte HTTP-Parsing-Werte waren nicht als const deklariert. Der verbleibende historische Befund ist der weiterhin branch-dichte load_runtime_config-Parser.",
+  "proposed_remediation": "Refactor only the two affected Parent Common Runtime C sources and the direct SDK source-contract test; group cohesive private state, extract narrowly named helpers, use const-correct parsing pointers, and retain the bilingual Change Record. A follow-up must additionally decompose load_runtime_config while preserving line-numbered parser errors and file-close behavior. Do not change Sonar rules, Quality Gates, exclusions, suppressions, NOSONAR, Framework/MRTS source, Gitlinks, or master.",
+  "proposed_remediation_de": "Nur die zwei betroffenen Parent-Common-Runtime-C-Sources und den direkten SDK-Source-Contract-Test refaktorieren; zusammenhängenden privaten State gruppieren, eng benannte Helper extrahieren, const-korrekte Parsing-Pointer verwenden und den zweisprachigen Change Record beibehalten. Ein Follow-up muss zusätzlich load_runtime_config zerlegen und dabei zeilennummerierte Parser-Fehler sowie das File-Close-Verhalten bewahren. Keine Sonar-Regeln, Quality Gates, Exclusions, Suppressions, NOSONAR, Framework-/MRTS-Source, Gitlinks oder master ändern.",
+  "acceptance_criteria": [
+    "All eighteen retained Sonar findings are absent from a direct resulting-master SonarQube Cloud readback, while the exact final PR head has zero new issues and 0.0% New-Code duplication.",
+    "The focused Common Runtime C17, source-contract, security, memory-safety, flow-integrity, and HTTP authorization controls pass.",
+    "A complete security-diff review finds no reportable diff-induced security finding and preserves configuration, lifecycle, enforcement, event-integrity, and parser invariants.",
+    "No Sonar rule, Quality Gate, exclusion, suppression, NOSONAR, Framework, MRTS, Gitlink, direct-master change, or security-control weakening occurs."
+  ],
+  "validation_plan": [
+    "Run GCC and Clang C17 syntax checks with -Wall -Wextra -Werror and the focused Common Runtime make/test controls.",
+    "Run a complete security-sensitive diff review for all changed source and direct contract code.",
+    "Create one Draft PR, bind local/remote/GitHub heads, and verify terminal hosted checks, Sonar issue absence, and New-Code duplication.",
+    "After any merge, bind the resulting master SHA to its analysis and rerun the direct original file-issue query before moving the finding to verified."
+  ],
+  "regression_tests": [
+    "make check-common-helpers-c17",
+    "make check-common-sdk-contract",
+    "tests/test_sonar_reliability_contract.py",
+    "make check-http-authorization-service-timeout MSCONNECTOR_C_STD=c17"
+  ],
+  "legitimate_control_tests": [
+    "make check-common-security-contract",
+    "make check-common-memory-safety",
+    "make check-common-flow-integrity",
+    "GCC and Clang C17 syntax checks with warnings treated as errors"
+  ],
+  "dependencies": [
+    "SonarQube Cloud pull-request analysis and GitHub hosted checks are required for exact-head verification."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0001",
+    "FND-SONAR-0016",
+    "FND-SONAR-0024"
+  ],
+  "source_run_ids": [
+    "common-runtime-sonar-maintainability-20260801"
+  ],
+  "residual_risk": "The remediated original c:S3776 issue is verified FIXED/CLOSED on resulting master. The project-wide master Quality Gate remains ERROR because of the separate FND-SONAR-0001 new-security-rating baseline; no Sonar policy or security control changed in this task.",
+  "residual_risk_de": "Der remedierte Original-c:S3776-Befund ist auf dem Resulting Master als FIXED/CLOSED verifiziert. Das projektweite Master-Quality-Gate bleibt wegen der getrennten FND-SONAR-0001-New-Security-Rating-Baseline ERROR; in dieser Aufgabe änderten sich keine Sonar-Policy und kein Security-Control.",
+  "created_at": "2026-08-01T10:12:24Z",
+  "updated_at": "2026-08-01T13:39:56Z",
+  "final_disposition": "verified_on_resulting_master_3270ab5bdcc86ddab50e9be00db7611aae7fd937",
+  "history": [
+    {
+      "at": "2026-08-01T10:12:24Z",
+      "event": "current_runtime_sonar_inventory_triaged_and_remediation_started",
+      "detail": "Allocated FND-SONAR-0028 after retained current-master evidence confirmed eighteen coherent Common Runtime maintainability findings. Local remediation and focused validation started; no commit, PR, merge, Sonar policy change, or master action existed at allocation."
+    },
+    {
+      "at": "2026-08-01T10:29:10Z",
+      "event": "exact_draft_pr216_head_fixed",
+      "detail": "Draft PR #216 exact head ad2f8e9a90af8981c060fe025b8ef5705556b9cf has 33 passed, zero failed, and zero non-terminal GitHub checks; SonarQube Cloud Quality Gate OK; zero OPEN/CONFIRMED PR issues; zero new violations; and 0.0% / zero New-Code duplication. The prior transient c:S5350 header_end pointer result was corrected by a const qualifier and its final delta security review is retained. No merge or master action was authorized or performed."
+    },
+    {
+      "at": "2026-08-01T10:36:38Z",
+      "event": "documentation_only_head_requires_bilingual_identity_remediation",
+      "detail": "A newer PR #216 documentation-only head 146ddd95e92e32d7fb6dbe796ece36eeead872ee failed scaffold-lint and common-structure because the English and German Change Record Base revision values added different explanatory prose after the identical revision. The underlying runtime source controls passed in common-structure. This known direct PR defect requires a focused documentation parity correction and fresh exact-head hosted/Sonar readback before fixed disposition is restored."
+    },
+    {
+      "at": "2026-08-01T11:01:02Z",
+      "event": "pr216_merged_and_resulting_master_recheck_keeps_finding_in_progress",
+      "detail": "GitHub normal-merged final PR #216 head 2c49e0de7aa163252e2105a916c3bfca530cc1a7 as resulting master 63f6baed5ea6f650aeb5372e148b32aa062a326b; the trees are identical and all 14 exact-master Actions workflows succeeded. Sonar PR #216 remains Quality Gate OK with zero OPEN/CONFIRMED issues, zero new violations, and zero new duplicate lines. Direct resulting-master source evidence still reports historical AZ9MwjLo-bUaKQ_zSGBC (c:S3776) in load_runtime_config, so the original 18-finding scope cannot be marked fixed, verified, or closed. The project-wide master Quality Gate ERROR is separately tracked by FND-SONAR-0001."
+    },
+    {
+      "at": "2026-08-01T13:12:18Z",
+      "event": "exact_draft_pr221_head_remediation_fixed",
+      "detail": "Exact local, remote, and GitHub Draft PR #221 head 482ba035ed53b3668009b7158c656214d6924e6f matches. It extracts load_runtime_config's existing line parser into a C17 private helper while retaining parser validation, line-numbered errors, and caller-owned file-close behavior. All applicable hosted checks passed; SonarQube Cloud reports zero open PR issues, zero new violations, and 0.0% New-Code duplication. The complete security-diff review reports zero findings. This is fixed, not verified or closed, because no merge was authorized and the original query must be rerun on resulting master."
+    },
+    {
+      "at": "2026-08-01T13:39:56Z",
+      "event": "pr221_merged_and_resulting_master_remediation_verified",
+      "detail": "GitHub normal-merged exact PR #221 head dcfc64044d0f34b852a1b5cbc0cecd66cf6d1f9d as resulting master 3270ab5bdcc86ddab50e9be00db7611aae7fd937 at 2026-08-01T13:36:33Z. All 14 exact-master push workflows completed successfully. Direct SonarQube Cloud recheck records original issue AZ9MwjLo-bUaKQ_zSGBC as FIXED/CLOSED at 2026-08-01T13:37:19Z; the local C17, contract, and security controls already passed on the unchanged reviewed head. The finding is verified; FND-SONAR-0001 remains separate."
+    }
+  ]
+}

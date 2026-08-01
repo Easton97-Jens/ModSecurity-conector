@@ -1,0 +1,132 @@
+{
+  "id": "FND-FRAMEWORK-0024",
+  "title": "Framework PR #30 Change Record pair violates the current canonical heading contract",
+  "title_de": "Framework-PR-#30-Change-Record-Paar verletzt den aktuellen kanonischen Überschriftenvertrag",
+  "category": "ci_failure",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "reproduced",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "reports/audits/change-records/20260719-01-remediate-framework-sonarcloud-quality-gate.md",
+    "reports/audits/change-records/20260719-01-remediate-framework-sonarcloud-quality-gate.de.md"
+  ],
+  "affected_symbols": [
+    "ci/checks/documentation/check-change-records.py ENGLISH_HEADINGS",
+    "ci/checks/documentation/check-change-records.py GERMAN_HEADINGS",
+    "tests/ci_security/test_change_record_contract.py ChangeRecordContractTest.test_checked_in_change_records_pass"
+  ],
+  "summary": "After PR #30 was normally updated with current Framework master, the CI-security Change Record contract rejected the PR's English and German records because four historical follow-up sections used level-2 headings. At refreshed exact head a448d056ef98e745d8551c198b2e56d33fe38194, the unchanged CI-security suite passed all 69 tests, documentation checks passed, and all terminal non-skipped hosted checks succeeded. The finding is fixed on the verified PR head; master integration is not authorized in this task.",
+  "summary_de": "Nachdem PR #30 normal mit dem aktuellen Framework-master aktualisiert wurde, lehnte der CI-Security-Change-Record-Vertrag die englischen und deutschen Records des PR ab, weil vier historische Follow-up-Abschnitte Überschriften auf Ebene 2 verwendeten. Auf dem aktualisierten exakten Head a448d056ef98e745d8551c198b2e56d33fe38194 bestand die unveränderte CI-Security-Suite alle 69 Tests, Dokumentationsprüfungen bestanden und alle terminalen nicht übersprungenen Hosted Checks waren erfolgreich. Der Befund ist auf dem verifizierten PR-Head fixed; eine Master-Integration ist in dieser Aufgabe nicht autorisiert.",
+  "observed_behavior": "Historically, make test-ci-security-contract ran 69 tests; 68 passed and ChangeRecordContractTest.test_checked_in_change_records_pass failed because the paired 20260719-01-remediate-framework-sonarcloud-quality-gate records had headings that did not match the template. At exact head a448d056ef98e745d8551c198b2e56d33fe38194, the unchanged CI-security suite passed all 69 tests and the original failure no longer reproduces.",
+  "observed_behavior_de": "Historisch führte make test-ci-security-contract 69 Tests aus; 68 bestanden und ChangeRecordContractTest.test_checked_in_change_records_pass schlug fehl, weil die gepaarten Records 20260719-01-remediate-framework-sonarcloud-quality-gate Überschriften hatten, die nicht dem Template entsprachen. Auf dem exakten Head a448d056ef98e745d8551c198b2e56d33fe38194 bestand die unveränderte CI-Security-Suite alle 69 Tests und der ursprüngliche Fehler reproduziert nicht mehr.",
+  "expected_behavior": "Both Change Records must retain their reciprocal links, matching Change ID, English/German parity, and all historical information while exposing exactly the canonical 13 level-2 headings required by the current checker. The CI-security Change Record contract must pass unchanged.",
+  "expected_behavior_de": "Beide Change Records müssen ihre reziproken Links, passende Change-ID, Englisch-/Deutsch-Parität und alle historischen Informationen bewahren, während sie exakt die vom aktuellen Checker verlangten kanonischen 13 Überschriften auf Ebene 2 enthalten. Der CI-Security-Change-Record-Vertrag muss unverändert bestehen.",
+  "impact": "This is a reproducible required CI failure and a task delivery blocker. It does not establish a vulnerability, but bypassing or changing the checker would weaken release traceability; the repair must therefore be confined to the two records.",
+  "impact_de": "Dies ist ein reproduzierbarer erforderlicher CI-Fehler und ein Task-Delivery-Blocker. Er belegt keine Schwachstelle, aber ein Umgehen oder Ändern des Checkers würde die Release-Traceability abschwächen; die Reparatur muss daher auf die beiden Records beschränkt bleiben.",
+  "preconditions": [
+    "PR #30 master-update worktree contains current Framework master 9a729226d2e040d07d7e7a4acebf201faf06ab37.",
+    "The two existing PR #30 Change Records retain four extra level-2 historical follow-up headings.",
+    "The current Change Record checker and its 69-test CI-security suite are present."
+  ],
+  "reproduction": [
+    "rtk proxy env <task-owned roots> make -C <Framework PR30 worktree> test-ci-security-contract",
+    "rtk rg -n '^## ' reports/audits/change-records/20260719-01-remediate-framework-sonarcloud-quality-gate.md reports/audits/change-records/20260719-01-remediate-framework-sonarcloud-quality-gate.de.md",
+    "rtk sed -n '1,160p' ci/checks/documentation/check-change-records.py"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260719T230508Z-framework-pr30-duplication-master-37469460",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T230508Z-framework-pr30-duplication-master-37469460/evidence/pr30-merge-change-record-contract-failure.md",
+      "artifact_type": "focused_ci_security_change_record_contract_failure",
+      "sha256": "1b0055525f231fc5584fff88b49e357ffbb92228f77a56ae0736a78ee1e321da",
+      "command": "rtk proxy env task-owned-roots make -C Framework-PR30-worktree test-ci-security-contract",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 2,
+      "observed_at": "2026-07-19T23:35:54Z",
+      "retention_status": "retained",
+      "summary": "One Change Record heading-contract assertion failed while 68 other CI-security tests passed. The retained output identifies both paired PR #30 Change Records and the canonical-heading cause."
+    },
+    {
+      "run_id": "20260720T061746Z-framework-pr-30-refresh-remediation-f8407eef",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T061746Z-framework-pr-30-refresh-remediation-f8407eef/evidence/pr30-refresh-summary.md",
+      "artifact_type": "framework_pr30_refresh_ci_contract_and_exact_head_verification",
+      "sha256": "04a0b6891f92b0485c298bb939e57fb464cea2bd5872eb74c65d97f6450f4255",
+      "command": "Task-root CI-security and documentation checks plus GitHub exact-head check-run/review readback; retained sanitized summary",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T06:43:42Z",
+      "retention_status": "retained",
+      "summary": "At exact PR #30 head a448d056ef98e745d8551c198b2e56d33fe38194, the unchanged CI-security suite passed all 69 tests, documentation checks passed, and all terminal non-skipped hosted checks succeeded. No checker, template, traceability control, or exception was changed."
+    }
+  ],
+  "root_cause": "The historical PR #30 Change Record pair predates the current strict Change Record checker. It added later historical follow-up narratives as additional level-2 headings rather than as level-3 subsections under the required final review section.",
+  "root_cause_de": "Das historische PR-#30-Change-Record-Paar stammt vor dem aktuellen strikten Change-Record-Checker. Es fügte spätere historische Follow-up-Narrative als zusätzliche Überschriften auf Ebene 2 statt als Unterabschnitte auf Ebene 3 unter dem erforderlichen finalen Review-Abschnitt hinzu.",
+  "proposed_remediation": "Demote only the four extra historical follow-up headings in each paired record from level 2 to level 3, preserving their text, canonical headings, Change IDs, links, and language parity. Do not change the checker, test, template, historical content, or CI-security enforcement.",
+  "proposed_remediation_de": "Nur die vier zusätzlichen historischen Follow-up-Überschriften in jedem gepaarten Record von Ebene 2 auf Ebene 3 herabstufen und Text, kanonische Überschriften, Change-IDs, Links und Sprachparität bewahren. Checker, Test, Template, historischen Inhalt und CI-Security-Enforcement nicht ändern.",
+  "acceptance_criteria": [
+    "Both paired Change Records contain exactly the canonical 13 level-2 headings for their language.",
+    "All historical follow-up information remains present as level-3 subsections.",
+    "The reciprocal English/German links and matching Change ID remain valid.",
+    "make test-ci-security-contract and the direct Change Record contract test pass without any checker or enforcement change.",
+    "The final PR #30 diff contains only the paired record formatting/content update for this finding."
+  ],
+  "validation_plan": [
+    "Inspect the exact heading lists in both records before and after the minimal formatting repair.",
+    "Run the direct Change Record contract module and make test-ci-security-contract with task-owned roots.",
+    "Review the paired diff for unchanged record text and English/German parity, then include it in the exact-head CI round."
+  ],
+  "regression_tests": [
+    "tests/ci_security/test_change_record_contract.py ChangeRecordContractTest.test_checked_in_change_records_pass",
+    "make test-ci-security-contract"
+  ],
+  "legitimate_control_tests": [
+    "The unchanged checker continues to reject missing or noncanonical headings.",
+    "The repaired canonical pair is accepted without a legacy exception.",
+    "The records retain their reciprocal language links and matching Change ID."
+  ],
+  "dependencies": [
+    "Current Framework master Change Record contract",
+    "Task-owned normal PR #30 merge worktree",
+    "Exact-head CI revalidation after normal push"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0023"
+  ],
+  "deduplication_note": "Not a duplicate of FND-FRAMEWORK-0023. FND-FRAMEWORK-0023 owns SonarQube Cloud duplicate source blocks and shared-helper remediation; this finding owns the independent Change Record structure failure introduced by the normal master update.",
+  "source_run_ids": [
+    "20260719T230508Z-framework-pr30-duplication-master-37469460",
+    "20260720T061746Z-framework-pr-30-refresh-remediation-f8407eef"
+  ],
+  "evidence_limitations": [
+    "The retained failure proves the current local CI-security contract result; exact-head hosted CI remains required after the later normal push.",
+    "The failure does not identify a runtime or exploitable security defect."
+  ],
+  "residual_risk": "The original heading-contract failure no longer reproduces on exact head a448d056ef98e745d8551c198b2e56d33fe38194: the unchanged CI-security suite passed all 69 tests and hosted checks are terminal-success. This finding remains fixed rather than verified because current authority excludes Framework-master integration and resulting-master revalidation. No traceability or CI-security control is waived.",
+  "residual_risk_de": "Der ursprüngliche Überschriftenvertragsfehler reproduziert auf dem exakten Head a448d056ef98e745d8551c198b2e56d33fe38194 nicht mehr: Die unveränderte CI-Security-Suite bestand alle 69 Tests und die Hosted Checks sind terminal-success. Dieser Befund bleibt fixed statt verified, weil die aktuelle Autorisierung Framework-master-Integration und Resulting-Master-Revalidation ausschließt. Kein Traceability- oder CI-Security-Control wird waived.",
+  "history": [
+    {
+      "at": "2026-07-19T23:35:54Z",
+      "event": "change_record_contract_failure_confirmed_after_normal_master_update",
+      "detail": "The current master-provided CI-security suite ran 69 tests; only the paired PR #30 Change Record heading contract failed. The targeted repair is a level-2-to-level-3 heading adjustment in both records, with no checker or control change."
+    },
+    {
+      "at": "2026-07-20T06:43:42Z",
+      "event": "exact_refreshed_pr_head_passes_unchanged_contract",
+      "detail": "Exact PR #30 head a448d056ef98e745d8551c198b2e56d33fe38194 passed the unchanged 69-test CI-security suite, documentation checks, and all current hosted checks. The normal master refresh retains the repaired paired records; master integration remains outside the current authorization."
+    }
+  ],
+  "created_at": "2026-07-19T23:35:54Z",
+  "updated_at": "2026-07-20T06:43:42Z",
+  "final_disposition": "fixed_on_verified_pr_head_pending_authorized_master_integration"
+}

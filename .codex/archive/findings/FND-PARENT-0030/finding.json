@@ -1,0 +1,247 @@
+{
+  "id": "FND-PARENT-0030",
+  "title": "Strict report-evidence gate accepts missing and hash-inconsistent runtime results",
+  "title_de": "Striktes Report-Evidence-Gate akzeptiert fehlende und hash-inkonsistente Runtime-Resultate",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "high",
+  "confidence": "reproduced",
+  "status": "closed",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "validated",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "CI report and runtime-evidence integrity",
+  "profile": "verified full runtime matrix",
+  "affected_files": [
+    "ci/checks/documentation/check-generated-report-layout.py",
+    "ci/evidence/reports/generate-full-matrix-job-completeness.py",
+    "ci/evidence/reports/refresh-connector-reports.py",
+    "ci/runtime/lifecycle/run-full-matrix-parallel.sh",
+    "ci/runtime/lifecycle/run-verified-report-run.py"
+  ],
+  "affected_symbols": [
+    "check_manifest",
+    "check_critical_report_run_consistency",
+    "validate_critical_input_records",
+    "trusted_input_roots",
+    "input_root_for_path",
+    "is_within",
+    "has_symlink_component",
+    "check_verified_runtime_diagnostics",
+    "check_verified_runtime_artifact_chain",
+    "generated_output_records",
+    "rewrite_manifest",
+    "full_matrix_job_artifacts",
+    "build_governance_record"
+  ],
+  "source_commits": [
+    "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+    "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
+    "fcdf9b2479486ad25c1e4bd4f28556b9339a1287",
+    "b9b22cc36958ba506278f3aa3fbc1d383ea6a151",
+    "5a22cbf5206dbc2b7f53a9f961d72e37d567e188"
+  ],
+  "summary": "The strict verified-report evidence gate originally accepted critical missing input status and did not recompute declared output hashes or byte counts. PR #59 revalidation also proved that a `present` critical input using lexical `..` traversal could authenticate a correctly hashed external regular file because root containment used `.absolute()` rather than normalized paths.",
+  "summary_de": "Das strikte Verified-Report-Evidence-Gate akzeptierte ursprünglich kritischen fehlenden Input-Status und berechnete deklarierte Output-Hashes oder Byte-Zahlen nicht neu. Die PR-#59-Revalidierung bewies zusätzlich, dass ein `present`-kritischer Input mit lexikalischer `..`-Traversal eine korrekt gehashte externe reguläre Datei authentifizieren konnte, weil das Root-Containment `.absolute()` statt normalisierter Pfade verwendete.",
+  "observed_behavior": "On the strict gate path verified-report-governance.yml:49 → Makefile:392 → check-generated-report-layout.py, critical report-refresh records full_runtime_matrix, full_matrix_job_completeness, and verified_runtime_mismatch_analysis have input_status=missing but are not named by the strict checker. The canonical verified-run manifest declares full-runtime-matrix.generated.json as SHA-256 e3510bad867fdcf97ee0892378b608c484c081b568334b85f55784354d103711 and 12419 bytes; the checked file is SHA-256 3f41446a7fb73a361c12e31507673774698ec41d108f2c8e75c8c57b8d2ef007 and 12418 bytes, but strict output emits no mismatch. A focused current-worktree fixture additionally showed that `BUILD_ROOT:../outside-runtime.json`, `framework:../outside-runtime.json`, and `../outside-runtime.json` each passed with a matching hash for an external regular file. Governance-only passes while strict fails only for unrelated stale reports.",
+  "observed_behavior_de": "Auf dem strikten Gate-Pfad verified-report-governance.yml:49 → Makefile:392 → check-generated-report-layout.py haben die kritischen Report-Refresh-Records full_runtime_matrix, full_matrix_job_completeness und verified_runtime_mismatch_analysis input_status=missing, werden aber vom strikten Checker nicht benannt. Das kanonische Verified-Run-Manifest deklariert full-runtime-matrix.generated.json mit SHA-256 e3510bad867fdcf97ee0892378b608c484c081b568334b85f55784354d103711 und 12419 Bytes; die geprüfte Datei hat SHA-256 3f41446a7fb73a361c12e31507673774698ec41d108f2c8e75c8c57b8d2ef007 und 12418 Bytes, aber die strikte Ausgabe meldet keinen Mismatch. Ein fokussiertes Current-Worktree-Fixture zeigte zusätzlich, dass `BUILD_ROOT:../outside-runtime.json`, `framework:../outside-runtime.json` und `../outside-runtime.json` jeweils mit passendem Hash einer externen regulären Datei bestanden. Governance-only besteht, während strict nur wegen unabhängiger veralteter Reports scheitert.",
+  "expected_behavior": "Strict evidence acceptance requires a valid run ID, a detached command receipt and full twelve-cell runtime matrix, job-local regular artifact paths, matching connector/profile/run identity, and freshly recomputed hashes and byte counts. Critical input containment is compared after path/root normalization and still rejects any leaf or intermediate symlink. Missing, empty, unknown, partial, stale, blocked, skipped, failed, or interrupted critical runtime inputs fail closed. A dashboard or report name cannot create runtime authenticity.",
+  "expected_behavior_de": "Strikte Evidence-Akzeptanz verlangt eine valide Run-ID, einen abgekoppelten Command-Receipt und eine vollständige Runtime-Matrix mit zwölf Zellen, job-lokale reguläre Artefaktpfade, passende Connector-/Profil-/Run-Identität sowie neu berechnete Hashes und Byte-Zahlen. Kritisches Input-Containment wird nach Pfad-/Root-Normalisierung verglichen und weist weiterhin jede Leaf- oder Zwischen-Symlink-Komponente zurück. Fehlende, leere, unbekannte, partielle, veraltete, blockierte, übersprungene, fehlgeschlagene oder unterbrochene kritische Runtime-Inputs scheitern geschlossen. Ein Dashboard oder Report-Dateiname kann keine Runtime-Authentizität erzeugen.",
+  "impact": "A forged or copied report/manifest can make derived full-matrix and mismatch diagnostics look complete without proving that a matching raw runtime run, artifact chain, checksum, connector, or profile exists. A forged critical-input receipt could also use lexical traversal and a known digest to make an external regular file appear trusted. The workflow wiring in FND-PARENT-0024 is correct but its strict gate must enforce this result-file authenticity boundary.",
+  "impact_de": "Ein gefälschter oder kopierter Report bzw. ein Manifest kann abgeleitete Full-Matrix- und Mismatch-Diagnostik vollständig aussehen lassen, ohne einen passenden Raw-Runtime-Run, eine Artefaktkette, Prüfsumme, Connector oder Profil nachzuweisen. Ein gefälschtes Critical-Input-Receipt konnte außerdem lexikalische Traversal und einen bekannten Digest verwenden, um eine externe reguläre Datei vertrauenswürdig erscheinen zu lassen. Die Workflow-Verdrahtung in FND-PARENT-0024 ist korrekt, aber ihr striktes Gate muss diese Result-File-Authentizitätsgrenze erzwingen.",
+  "preconditions": [
+    "The verified-report workflow invokes the strict generated-report layout checker.",
+    "A generated report, manifest, or dashboard is present with attacker-controlled or stale declared status, size, hash, or identity fields.",
+    "A critical input receipt can name a path and a matching digest for an external readable regular file.",
+    "The absent or inconsistent raw runtime receipt is not independently recomputed by the checker."
+  ],
+  "reproduction": [
+    "Run the layout checker in governance-only mode and observe PASS.",
+    "Run it in strict mode and observe unrelated stale-report failures but no error for the named critical missing input records or the declared full-runtime-matrix hash/byte mismatch.",
+    "Run the focused critical-input fixture with BUILD_ROOT:, framework:, and unprefixed ../ traversal values plus matching external-file SHA-256 values; before the normalized containment fix, each is accepted.",
+    "Inspect check_manifest, check_critical_report_run_consistency, and check_verified_runtime_diagnostics to confirm that only stale/blocked status is rejected and no declared output checksum is recomputed."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/05_findings/FND-PARENT-0030-result-file-authenticity/strict-gate-pre-fix-analysis.json",
+      "artifact_type": "strict_gate_result_authenticity_validation",
+      "sha256": "9a5def690f41d36ae5fd63a7dd0c95e08803d25f7dd4c1f005a9e84de3bcc0f5",
+      "command": "rtk /root/git/ModSecurity-conector/.venv/bin/python ci/checks/documentation/check-generated-report-layout.py --connector-root /var/tmp/codex/worktrees/parent-evidence-integrity [--governance-only]",
+      "working_directory": "/var/tmp/codex/worktrees/parent-evidence-integrity",
+      "exit_code": 1,
+      "observed_at": "2026-07-18T12:50:18Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T092959Z-parent-pr-53-60-integration-faf6e938",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T092959Z-parent-pr-53-60-integration-faf6e938/evidence/codex-security-scans/ModSecurity-conector/ffa7776ad43a851a78de87306ab846a35ae2fabb_20260719T093141Z/artifacts/05_findings/FND-PARENT-0030-critical-input-receipts/validation_report.md",
+      "artifact_type": "pr59_critical_input_receipt_validation",
+      "sha256": "5d6f8d62ee7d44e097b1c036480d3ee5dd2c885aa87eec69802da9e6ddeabf87",
+      "command": "rtk run /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_generated_report_evidence_integrity",
+      "working_directory": "/var/tmp/codex/worktrees/parent-evidence-result-authenticity",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T10:00:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/05_findings/FND-PARENT-0030-result-file-authenticity/post-fix-validation.json",
+      "artifact_type": "focused_post_fix_result_authenticity_validation",
+      "sha256": "49e9463ca746524cacb82e8355a488a2caec8c32b6b2a22d6d474741582e24ea",
+      "command": "rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_generated_report_evidence_integrity; rtk sh -n ci/runtime/lifecycle/run-full-matrix-parallel.sh; rtk git diff --check",
+      "working_directory": "/var/tmp/codex/worktrees/parent-evidence-result-authenticity",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T13:53:55Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T134234Z-pr59-containment-evidence-61aae959",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T134234Z-pr59-containment-evidence-61aae959/evidence/pr59-critical-input-containment-validation.md",
+      "artifact_type": "pr59_critical_input_containment_reproduction_and_regression",
+      "sha256": "6f79cc322e568d8943434db95abd98caa5d6ad37dc06f2df7a6b468f8d41f1f3",
+      "command": "rtk proxy /usr/bin/env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 $PARENT_PYTHON -m unittest -v tests.test_generated_report_evidence_integrity",
+      "working_directory": "/var/tmp/codex/worktrees/parent-evidence-result-authenticity",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T13:43:18Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T141048Z-pr59-final-security-diff-98aafaa7",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T141048Z-pr59-final-security-diff-98aafaa7/evidence/pr59-final-security-diff-report.md",
+      "artifact_type": "pr59_final_exact_head_security_diff_scan",
+      "sha256": "2a37f50ff38fca2613fe2851d54463b41f121fd88d806b80f90cb439676ed369",
+      "command": "rtk proxy $PARENT_PYTHON finalize_scan_contract.py --scan-dir <final-pr59-scan-dir> --source-root /var/tmp/codex/worktrees/parent-evidence-result-authenticity",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T14:19:05Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T080314Z-parent-pr55-57-59-framework-update-3443af13",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T080314Z-parent-pr55-57-59-framework-update-3443af13/evidence/pr59-d4-current-head-verification.md",
+      "artifact_type": "pr59_d4_current_head_verification",
+      "sha256": "38e88188683330e57704bb3d4559c5604dbea303c1f305fb17e695545267107d",
+      "command": "gh pr checks 59 --repo Easton97-Jens/ModSecurity-conector; gh api repos/Easton97-Jens/ModSecurity-conector/commits/d4f88b886dac6fd5f483940015d6310bc239f814/check-runs --paginate; gh api repos/Easton97-Jens/ModSecurity-conector/code-scanning/alerts --method GET -f ref=d4f88b886dac6fd5f483940015d6310bc239f814 -f state=open --paginate; git -C /var/tmp/codex/worktrees/parent-evidence-result-authenticity diff --check 1fc2321cff39193f70113a3aefee49bae68db4c1 d4f88b886dac6fd5f483940015d6310bc239f814",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T09:57:03Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T141403Z-pr55-pr59-master-integration-8a0b8640",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T141403Z-pr55-pr59-master-integration-8a0b8640/evidence/pr59-5a22cbf-postmerge-validation.json",
+      "artifact_type": "pr59_protected_squash_merge_postmerge_security_finding_verification",
+      "sha256": "7749e6c6fd1ab198b54eb9704221d30aa150954db6130bec0317801a8afddc51",
+      "command": "Protected PR #59 squash merge with --match-head-commit from exact source head b9b22cc36958ba506278f3aa3fbc1d383ea6a151 to Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188; retained detached-master validation runs the 57/57 evidence-integrity suite, including valid full-matrix and forged identity/result/path/symlink/hash/seal/swap controls, plus bilingual 11/11, shell syntax, git diff --check, and clean/no-.pyc checks.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T15:09:01Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "All non-skipped PR checks, protected required contexts, CodeQL, SonarQube Cloud Quality Gate, issue query, and review/thread controls passed before merge; resulting master tree is identical to source head."
+    }
+  ],
+  "root_cause": "The strict consumer validated only selected derived-report status claims and file existence. It rejected stale/blocked values but not missing or other non-verified states, did not require list-typed aggregate status fields, and never recomputed detached artifact hashes or validated the raw full-matrix job chain. The producer's manifest rewrite also dropped evidence identity and hash fields that the consumer would need to verify. In the PR #59 present-input correction, `resolve_input_reference()` retained `..` and `is_within()` compared `.absolute()` paths, so lexical containment could disagree with the physical file target. This is distinct from FND-PARENT-0031: even a mutually consistent mutable job/raw/leaf chain still lacks a detached Parent producer receipt.",
+  "root_cause_de": "Der strikte Consumer validierte nur ausgewählte abgeleitete Report-Status-Claims und die Datei-Existenz. Er wies stale/blocked zurück, aber nicht missing oder andere nicht verifizierte Zustände, verlangte keine listen-typisierten aggregierten Statusfelder und berechnete keine abgekoppelten Artefakt-Hashes neu bzw. validierte keine Raw-Full-Matrix-Jobkette. Das Manifest-Rewrite des Producers verwarf außerdem Evidence-Identity- und Hash-Felder, die der Consumer zur Prüfung benötigt. In der PR-#59-Present-Input-Korrektur bewahrte `resolve_input_reference()` `..`, während `is_within()` `.absolute()`-Pfade verglich, sodass lexikalisches Containment vom physischen Dateiziel abweichen konnte. Dies ist von FND-PARENT-0031 getrennt: Selbst eine gegenseitig konsistente veränderbare Job/Raw/Leaf-Kette besitzt noch keinen abgekoppelten Parent-Producer-Receipt.",
+  "proposed_remediation": "On a separate Parent-only branch, introduce a strict verifier that starts at a validated run ID and detached verified-commands receipt, derives the complete twelve-cell raw matrix path topology rather than trusting free-form report paths, validates job identity/status/schema and job-local regular artifacts, and recomputes hashes and sizes. Require allowlisted critical input states and list-typed aggregate/input records, preserve evidence identity fields during raw-manifest rewrite, and emit list-typed refresh records. Normalize both claimed input paths and trusted roots before containment comparison while continuing to reject intermediate and leaf symlink components. Preserve self-generated manifest exclusions rather than attempting a self-referential hash fixed point. The follow-on detached aggregate producer receipt is deliberately FND-PARENT-0031, not part of this change.",
+  "proposed_remediation_de": "Auf einem separaten Parent-only-Branch einen strikten Verifier einführen, der bei einer validierten Run-ID und einem abgekoppelten verified-commands-Receipt beginnt, die Topologie der vollständigen Raw-Matrix mit zwölf Zellen ableitet statt frei formatierte Report-Pfade zu vertrauen, Job-Identity/Status/Schema und job-lokale reguläre Artefakte validiert sowie Hashes und Größen neu berechnet. Allowlist-kritische Input-Zustände und listen-typisierte aggregierte/Input-Records verlangen, Evidence-Identity-Felder beim Raw-Manifest-Rewrite bewahren und listen-typisierte Refresh-Records ausgeben. Beanspruchte Input-Pfade und vertrauenswürdige Roots vor dem Containment-Vergleich normalisieren und weiterhin Zwischen- sowie Leaf-Symlink-Komponenten ablehnen. Self-generated-Manifest-Exclusions bewahren statt einen selbstreferenziellen Hash-Fixpunkt zu versuchen. Der Folge-Receipt eines abgekoppelten Aggregate-Producers ist absichtlich FND-PARENT-0031 und nicht Teil dieser Änderung.",
+  "acceptance_criteria": [
+    "Strict mode rejects missing runtime manifests, foreign run IDs, copied connector/profile records, unsafe artifact paths, checksum/byte mismatches, and incomplete matrix jobs.",
+    "Strict mode recomputes detached artifact hashes/sizes and derives expected job paths rather than trusting report filenames or PASS strings.",
+    "A complete twelve-cell canonical run with matching hashes, identities, and regular job-local artifacts passes the focused verifier.",
+    "The strict checker rejects all non-verified critical input states while governance-only remains explicitly non-runtime evidence.",
+    "Critical-input receipts with BUILD_ROOT:, framework:, or unprefixed lexical parent traversal fail closed even when the external file digest matches.",
+    "Self-generated manifest records are excluded or modeled as detached receipts without accepting a self-reference as proof.",
+    "The existing FND-PARENT-0024 workflow wiring remains unchanged; no Framework/MRTS change, report hand-edit, suppression, or merge occurs."
+  ],
+  "validation_plan": [
+    "Add temporary fixture builders and negative tests before changing the strict verifier.",
+    "Show the pre-fix fixture acceptance gap where feasible, then rerun missing-manifest, checksum/byte, incomplete-run, foreign-identity, path-escape, copied connector/profile, and valid-control tests after the fix.",
+    "Rerun BUILD_ROOT:, framework:, and unprefixed parent-traversal receipts with matching external SHA-256 values; preserve a matching in-root present-input control and manifest/metadata digest-mismatch controls.",
+    "Completed: exact PR #59 source head b9b22cc36958ba506278f3aa3fbc1d383ea6a151 passed all non-skipped protected checks, required contexts, CodeQL, SonarQube Cloud Quality Gate, issue query, and zero-review/thread controls; protected squash merge produced Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 with an identical tree, where detached-master 57/57 original-reproduction and legitimate-control evidence, bilingual 11/11, shell syntax, diff, and clean/no-.pyc checks passed.",
+    "Treat current Cross runtime freshness failure FND-CROSS-0001 as an expected strict-gate blocker, never as justification to weaken the new verifier.",
+    "The FND-SONAR-0001 global master error is independent of this verification and is neither accepted nor suppressed."
+  ],
+  "regression_tests": [
+    "tests/test_generated_report_evidence_integrity.py",
+    "tests/test_runtime_path_policy.py",
+    "tests/test_resolve_runtime_paths.py",
+    "Focused generated-report layout and report-generator tests.",
+    "PR #59 exact-head focused controls: paired mutable result/job/raw forgery, raw-only rewrite, receipt symlinks, deterministic intermediate-read and verified-runs publication swaps, post-validation swaps, foreign-run selection, complete twelve-cell control, and owner-read-only 0400 assertion."
+  ],
+  "legitimate_control_tests": [
+    "A full twelve-cell Parent canonical runtime run with matching detached hashes and identities passes.",
+    "Governance-only continues to validate report layout without claiming runtime evidence.",
+    "A real full-matrix producer record with completed_with_mismatches status and authentic required artifacts remains acceptable when its schema and hashes match.",
+    "A present critical input physically inside its selected trusted root with a matching SHA-256 remains accepted."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0024",
+    "FND-PARENT-0031",
+    "FND-CROSS-0001",
+    "FND-SONAR-0001"
+  ],
+  "deduplication_note": "Not a duplicate of FND-PARENT-0024. FND-PARENT-0024 corrects workflow selection of the strict gate; this finding concerns the authenticity, integrity, and raw-run binding of the artifacts the strict gate consumes.",
+  "source_run_ids": [
+    "20260718T075200Z-parent-evidence-integrity-ade378cf",
+    "20260719T092959Z-parent-pr-53-60-integration-faf6e938",
+    "20260719T134234Z-pr59-containment-evidence-61aae959",
+    "20260719T141048Z-pr59-final-security-diff-98aafaa7",
+    "20260720T080314Z-parent-pr55-57-59-framework-update-3443af13",
+    "20260720T141403Z-pr55-pr59-master-integration-8a0b8640"
+  ],
+  "residual_risk": "Verified on Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 after protected PR #59 source head b9b22cc36958ba506278f3aa3fbc1d383ea6a151 and post-merge original-reproduction plus legitimate-control validation. It is not closed or risk-accepted. The receipt chain is not a signature, ACL, process-identity, UID-isolation, or external-attestation boundary: mode 0400 limits group/other access only, while arbitrary same-UID write access to the Parent evidence namespace is outside this local filesystem trust model. FND-PARENT-0031 is separately verified; FND-CROSS-0001 remains an independent stale-Cross-evidence condition and does not reopen this verified finding. The FND-SONAR-0001 global master error is independent of this verification and is neither accepted nor suppressed. No risk is accepted.",
+  "residual_risk_de": "Auf Parent-Master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 nach geschütztem PR-#59-Source-Head b9b22cc36958ba506278f3aa3fbc1d383ea6a151 sowie Post-Merge-Originalreproduktion und Legitimate-Control-Validierung verifiziert. Es ist nicht closed oder risikakzeptiert. Die Receipt-Kette ist keine Signatur-, ACL-, Prozessidentitäts-, UID-Isolations- oder External-Attestation-Grenze: Modus 0400 begrenzt nur Gruppen-/Other-Zugriff, während beliebiger Same-UID-Schreibzugriff auf den Parent-Evidence-Namespace außerhalb dieses lokalen Dateisystem-Trust-Modells liegt. FND-PARENT-0031 ist getrennt verifiziert; FND-CROSS-0001 bleibt eine unabhängige stale-Cross-Evidence-Bedingung und eröffnet dieses verifizierte Finding nicht erneut. Der globale Master-Fehler FND-SONAR-0001 ist von dieser Verifikation unabhängig und wird weder akzeptiert noch unterdrückt. Es wird kein Risiko akzeptiert.",
+  "created_at": "2026-07-18T12:50:18Z",
+  "updated_at": "2026-07-26T14:09:02Z",
+  "final_disposition": "closed_by_current_user_after_current_master_unchanged_evidence_integrity_validation_archived_20260726",
+  "history": [
+    {
+      "at": "2026-07-18T12:50:18Z",
+      "event": "validated_strict_result_file_authenticity_gap",
+      "detail": "Direct strict/gov-only executions and canonical manifest comparison confirmed that strict mode omits critical missing-input and declared hash/byte mismatch errors. Separate Parent fixture-first remediation is authorized; PR #55 remains unchanged."
+    },
+    {
+      "at": "2026-07-18T13:53:55Z",
+      "event": "fixture_first_remediation_locally_validated",
+      "detail": "The isolated Parent implementation rejects forged checksum/PASS content, missing raw manifests, incomplete and foreign runs, copied connector/profile receipts, direct and intermediate symlink escapes, malformed or unrecognized critical status schemas, and retains a twelve-cell valid control. Governance-only remains non-runtime evidence; strict mode now fails closed on retained stale/missing Cross inputs. FND-PARENT-0031 was allocated separately after a coordinated mutable-receipt forgery reproduction."
+    },
+    {
+      "at": "2026-07-19T10:00:00Z",
+      "event": "pr59_revalidation_found_unverified_present_input_receipts",
+      "detail": "A focused security diff review of PR #59 confirmed that its new strict status allowlist still accepted a non-existent or substituted critical input when metadata self-declared status=present. The current task-owned correction requires a trusted regular file and matching SHA-256, with missing, empty, symlink, and digest-mismatch negative controls plus a legitimate control passing locally. The separate mutable producer-anchor gap remains FND-PARENT-0031; no finding is closed or risk accepted."
+    },
+    {
+      "at": "2026-07-19T13:43:18Z",
+      "event": "pr59_lexical_parent_traversal_reproduced_and_locally_fixed",
+      "detail": "A fixture-first current-worktree test proved that BUILD_ROOT:, framework:, and unprefixed parent traversal each accepted a correctly hashed external regular file because containment used .absolute() lexical paths. The narrow fix compares resolve(strict=False) path/root values while retaining leaf/intermediate symlink rejection. The 32-test focused suite passes the original and alternate traversal controls, manifest/metadata digest mismatch controls, summary/JSONL fallback, and a legitimate in-root receipt; the exact PR-head/master delivery cycle remains pending."
+    },
+    {
+      "at": "2026-07-19T14:19:05Z",
+      "event": "pr59_final_synchronized_security_diff_scan_completed",
+      "detail": "The bounded containment correction was committed as fcdf9b2479486ad25c1e4bd4f28556b9339a1287, normally synchronized with master aabde81a9a315bf3e494e595ab0399357c596f9c, and pushed at exact head fb9becc76f903d68fa36c212cc60940a5e6e20c5. The sealed final security-diff scan covers all ten actual diff rows and found no new reportable issue; required remote checks, reviews, SonarCloud, merge, and resulting-master verification remain pending."
+    },
+    {
+      "at": "2026-07-20T09:57:03Z",
+      "event": "pr59_d4_current_head_fixed_pending_master_sync_and_post_merge_reproduction",
+      "detail": "Retained artifact SHA-256 38e88188683330e57704bb3d4559c5604dbea303c1f305fb17e695545267107d verifies PR #59 exact head d4f88b886dac6fd5f483940015d6310bc239f814: 33 successful checks, 6 expected skips, successful active required contexts, CodeQL with 0 open alerts, a passing SonarQube Cloud Quality Gate, 0 submitted reviews/requests/threads, and a passing local exact-diff check. The PR remains Draft and two commits behind Parent master 9ef0619b9c00729c16b7056943d7843785223095; the finding is fixed, not verified or closed, pending normal synchronization, fresh exact-head validation, authorized merge, and post-merge original reproduction."
+    },
+    {
+      "at": "2026-07-20T15:09:01Z",
+      "event": "verified_on_protected_pr59_squash_merge_parent_master",
+      "detail": "Exact source head b9b22cc36958ba506278f3aa3fbc1d383ea6a151 passed all non-skipped PR #59 checks, required protected contexts, CodeQL, SonarQube Cloud Quality Gate, issue query, and zero-review/thread controls. Matching remote refs were protected-squash-merged with --match-head-commit as Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188; its tree matches the source head. Retained detached-master evidence records 57/57 integrity controls, including original forged identity/result/path/symlink/hash/seal/swap reproductions failing closed and a valid full-matrix control passing, plus bilingual 11/11, shell syntax, diff, and clean/no-.pyc. The finding transitions fixed to verified, never closed; its own release blocker is false and no risk is accepted. The FND-SONAR-0001 global master error is independent and neither accepted nor suppressed."
+    },
+    {
+      "at": "2026-07-26T14:09:02Z",
+      "event": "closed_by_current_user_after_current_master_unchanged_path_validation",
+      "detail": "The current user authorized closure and archival. All affected paths remain unchanged from verified Parent master 5a22cbf5206dbc2b7f53a9f961d72e37d567e188 to current master 6ca7e1536ce7e93da68099db9c586b88852ff13e, and tests.test_generated_report_evidence_integrity passed in the 144-test current-master control suite."
+    }
+  ]
+}

@@ -1,0 +1,197 @@
+{
+  "id": "FND-FRAMEWORK-0036",
+  "title": "Fresh ModSecurity v3 provisioning honors local Git worktree and attribute configuration before provenance validation",
+  "title_de": "Frische ModSecurity-v3-Bereitstellung honoriert lokale Git-Worktree- und Attribute-Konfiguration vor der Provenance-Validierung",
+  "category": "security_validated",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P0",
+  "severity": "high",
+  "confidence": "validated",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "Fresh Git checkout provisioning, worktree confinement, and Git attribute filter execution",
+  "profile": "Parent PR #55 runtime-evidence remediation, re-opened by static review of the isolated f98a8739cb13b583f23d646784b144e596b61441-based Framework candidate",
+  "affected_revision": "f98a8739cb13b583f23d646784b144e596b61441",
+  "historical_validated_revision": "784977615acfc55567e37b863309abc4a38ac877",
+  "reassessed_candidate_base_revision": "f98a8739cb13b583f23d646784b144e596b61441",
+  "affected_files": [
+    "ci/provisioning/fetch-smoke-sources.sh",
+    "ci/lib/common.sh",
+    "tests/security_regression/test_modsecurity_v3_git_ref_provenance.py"
+  ],
+  "affected_symbols": [
+    "provision_fresh_modsecurity_v3",
+    "ci_modsecurity_v3_git",
+    "ci_require_approved_modsecurity_v3_root_checkout"
+  ],
+  "technical_claim": "After git init creates MODSECURITY_V3_SOURCE_DIR/.git, an actor able to modify that local config before checkout can set core.worktree to redirect checkout writes or core.attributesfile plus filter.<name>.smudge to execute a local filter. The reviewed f98-based candidate again performs remote add, fetch, checkout --detach, and recursive submodule update through the generic wrapper without the required dedicated fresh-root helper that binds --git-dir/--work-tree, neutralizes attributes/sparse state, and scrubs local recursive-update configuration before those operations.",
+  "entry_point": "provision_fresh_modsecurity_v3 creates the source directory, initializes Git, and in the reviewed f98-based candidate calls ci_modsecurity_v3_git for remote add, fetch, checkout --detach, and recursive initialization without a dedicated fresh-root containment helper before ci_require_approved_modsecurity_v3_checkout.",
+  "source_to_sink_or_broken_control": "Newly written local .git/config reaches Git through the generic hardened wrapper. The wrapper clears inherited/global/system configuration but intentionally honors local configuration. Without explicit --git-dir/--work-tree, core.attributesfile=/dev/null, core.sparseCheckout=false, and immediate local-key scrubbing, Git can apply core.worktree, external attributes/filter configuration, or recursive update configuration before a later validator can reject the result.",
+  "attacker_prerequisites": [
+    "Ability to modify the newly created source .git/config between git init and the first checkout.",
+    "A Framework fresh ModSecurity v3 provisioning path using the configured source root."
+  ],
+  "observed_behavior": "A fully task-owned actual-wrapper fixture set core.worktree=<external>; checkout --detach <pinned> returned 0 and wrote payload.txt only under the external worktree, then the later guard returned 77. A second fixture set core.attributesfile plus filter.evil.smudge; checkout returned 0 and created the benign filter marker before validation. A clean control wrote the payload only under the intended source directory. On 2026-07-23, static review of the isolated f98-based candidate found only generic ci_modsecurity_v3_git calls for the fresh route and no dedicated helper or required explicit containment/scrubbing options; this reopens the previously fixed-local claim pending a new exact candidate remediation and dynamic rerun.",
+  "expected_behavior": "Before any checkout writes a worktree file or evaluates an attribute/filter, the fresh root checkout must be bound explicitly to the intended .git directory and physical worktree, must ignore external attribute configuration and unsafe sparse state, and must fail closed without an external write or command execution. Recursive initialization must receive an equivalent review rather than inheriting an unexamined local-config path.",
+  "impact": "An actor racing a shared fresh source root can redirect checkout output outside the permitted source directory or execute a repository-local filter with the Framework/CI identity before provenance validation. This is a high-impact supply-chain provisioner compromise. The original proof used only temporary benign payloads, markers, and local Git objects; it did not access Parent, authoritative Framework, or MRTS sources. The current re-open is static evidence that the required containment is absent from the reviewed candidate, not a second dynamic exploit run.",
+  "preconditions": [
+    "The source root permits a competing actor to alter the fresh .git/config after initialization.",
+    "The provisioner reaches the pinned root checkout before its post-checkout provenance guard."
+  ],
+  "reproduction": [
+    "Create a task-owned local Git repository/object and an empty source directory.",
+    "Run the candidate wrapper after setting source/.git/config core.worktree=<external>; observe checkout success and payload.txt only in the external worktree before the guard fails.",
+    "Set core.attributesfile=<attacker attributes> and filter.evil.smudge=<benign marker script>; observe checkout success and the marker before any guard.",
+    "Confirm the clean same-boundary checkout writes payload.txt only under its intended source directory."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260720T173133Z-pr55-runtime-remediation-7e38e876",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T173133Z-pr55-runtime-remediation-7e38e876/evidence/framework-fresh-checkout-config-race-validation.md",
+      "artifact_type": "task_owned_real_git_fresh_checkout_config_race_validation",
+      "sha256": "af927b36a6221b831c47446f15aa0ce25258dff1bad5325f933f686aa896eb81",
+      "command": "RTK-wrapped task-owned invoke-wrapper.sh experiments for checkout, require-worktree, worktree redirect, external attributes/filter, clean control, and explicit --git-dir/--work-tree containment",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T19:59:28Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "core.worktree redirected a successful checkout before the later guard; external attributes/filter executed a benign marker before the guard. Explicit --git-dir/--work-tree plus core.attributesfile=/dev/null and core.sparseCheckout=false contained the same controlled checkout."
+    },
+    {
+      "run_id": "20260720T201536Z-pr55-runtime-snapshot-revalidation-20f91607",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T201536Z-pr55-runtime-snapshot-revalidation-20f91607/evidence/framework-modsecurity-v3-provenance-remediation-postfix.md",
+      "artifact_type": "framework_postfix_security_validation_report",
+      "sha256": "b20ccffd871b9e4d821f5bdf08bb98061a0d7e6ed41a8921551b8fa2ec542aec",
+      "command": "RTK-wrapped focused provenance suite, real-Git custom submodule update control, Framework Make provenance contract, documentation checks, and full Framework lint",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260720T173133Z-pr55-runtime-remediation-7e38e876/tmp/framework-worktree",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T21:07:10Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Post-fix local controls passed: fresh checkout containment and attributes control, private source-parent rejection before Git, local custom submodule update marker did not execute, full lint, and independent review without a remaining high or critical cross-UID blocker."
+    },
+    {
+      "run_id": "20260723T162517Z-fnd-cross-0001-runtime-evidence-bcda7d1d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T162517Z-fnd-cross-0001-runtime-evidence-bcda7d1d/tmp/parent/modules/ModSecurity-test-Framework/ci/lib/common.sh",
+      "artifact_type": "isolated_f98_based_framework_candidate_static_fresh_root_common_review",
+      "sha256": "46744e1ad7f1b6dd4817984586985b6841085589d307b86fe963aed12c57ca62",
+      "command": "RTK-wrapped git diff -- ci/lib/common.sh, rg for fresh-root containment options, and sha256sum in the isolated f98-based Framework candidate",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T17:31:41Z",
+      "retention_status": "isolated_task_candidate_source_snapshot",
+      "summary": "The candidate expands topology validation but has no dedicated fresh-root checkout helper and no --git-dir, --work-tree, core.attributesfile=/dev/null, or core.sparseCheckout=false containment on ci_modsecurity_v3_git."
+    },
+    {
+      "run_id": "20260723T162517Z-fnd-cross-0001-runtime-evidence-bcda7d1d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260723T162517Z-fnd-cross-0001-runtime-evidence-bcda7d1d/tmp/parent/modules/ModSecurity-test-Framework/ci/provisioning/fetch-smoke-sources.sh",
+      "artifact_type": "isolated_f98_based_framework_candidate_static_fresh_root_fetch_review",
+      "sha256": "97f3026f1958f0af08de69f90458e3236e310f7d140bd825cccae185dd476a19",
+      "command": "RTK-wrapped git diff -- ci/provisioning/fetch-smoke-sources.sh, fresh-route context inspection, and sha256sum in the isolated f98-based Framework candidate",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T17:31:41Z",
+      "retention_status": "isolated_task_candidate_source_snapshot",
+      "summary": "provision_fresh_modsecurity_v3 calls generic ci_modsecurity_v3_git for init, remote add, fetch, checkout, and recursive initialization; the added topology call does not restore the required pre-checkout fresh-root containment boundary."
+    },
+    {
+      "run_id": "20260726-framework-findings-batch",
+      "artifact_path": ".codex/runs/20260726-framework-findings-batch/evidence/current-master-revalidation.md",
+      "artifact_type": "current_framework_master_finding_revalidation",
+      "sha256": "6912df100503c87123b72e4fac4cc76d6c8bf9f40f884786eeedfcebe0614f3c",
+      "command": "make test-modsecurity-v3-provenance-contract; python -m unittest discover -s tests/security_regression -p test_modsecurity_v3_git_ref_provenance.py -q; make lint; PR #44 and current-master hosted-check readback",
+      "working_directory": "/var/tmp/codex/worktrees/framework/20260726-framework-findings-batch",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T18:28:05Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Current Framework master 47e50e7bc43ba7a3b5bad1a9448111794f664cc0 contains the PR #44 hardening and passes real-Git worktree-redirect, attributes/filter, recursive-update, fake-PATH, and clean legitimate controls before source provenance validation."
+    }
+  ],
+  "root_cause": "ci_modsecurity_v3_git correctly removes caller environment/global/system settings but is generic and does not force Git's repository and worktree identities for fresh commands that follow git init. It also does not neutralize core.attributesfile/sparse state or scrub local recursive-update configuration. The earlier local candidate had a dedicated containment helper, but the current f98-based candidate's topology patch does not include it; a later validator therefore remains too late to prevent the write, filter execution, or custom update.",
+  "proposed_remediation": "Restore and review a dedicated fresh-root checkout/acquisition helper before every fresh remote add, fetch, checkout, and recursive submodule command. It must establish a private source root before Git, use explicit --git-dir=<source>/.git and --work-tree=<source>, set -c core.attributesfile=/dev/null and -c core.sparseCheckout=false, and clear local core.worktree, core.attributesfile, core.sparseCheckout, and every local submodule.*.update key immediately before the relevant Git commands. Retain explicit checkout semantics and rerun real-Git worktree/attribute/filter/custom-update regressions plus a clean control on the exact candidate.",
+  "acceptance_criteria": [
+    "With an injected core.worktree, the fresh checkout writes no file outside the intended source directory and fails safely or remains contained before provenance validation.",
+    "With injected core.attributesfile and a local smudge filter, the marker is never created before validation.",
+    "A clean fresh checkout retains the legitimate pinned payload under the intended source directory.",
+    "The hardened fresh checkout uses explicit --git-dir and --work-tree, neutralizes external attributes, disables unsafe sparse state, and retains existing origin/TLS/hooks/fsmonitor/optional-lock controls.",
+    "The recursive submodule initialization path is dynamically assessed for the same local-config class and receives any required equivalent correction.",
+    "Focused security regressions, complete provenance tests, syntax, Make, documentation, Change Record, lint, retained-source checks, and independent bypass review pass before Framework delivery."
+  ],
+  "validation_plan": [
+    "Restore the dedicated fresh-root helper, then rerun the real-Git worktree redirect and attribute/filter regressions on the exact candidate before and after that correction.",
+    "Run the clean fresh checkout control through the same helper and prove that it remains contained before later provenance validation.",
+    "Assess recursive submodule initialization for root/child local configuration, worktree, attributes, filters, and update command paths after immediate local-key scrubbing.",
+    "Run the full ModSecurity v3 provenance suite and selected Framework documentation/lint checks on the exact PR head, then collect review, CI/Sonar, and resulting-master evidence."
+  ],
+  "regression_tests": [
+    "tests/security_regression/test_modsecurity_v3_git_ref_provenance.py",
+    "make test-modsecurity-v3-provenance-contract"
+  ],
+  "legitimate_control_tests": [
+    "A clean local pinned checkout writes payload.txt only under the intended source directory.",
+    "The real retained clean approved root plus eight initialized pinned children remains accepted and materializable."
+  ],
+  "bypass_review": "Review root and child fresh checkout options, core.worktree, core.attributesfile, filter and sparse checkout configuration, hooks/fsmonitor/optional locks, fetch and submodule settings, source-root permissions, post-checkout guard order, and same-UID filesystem race limitations.",
+  "dependencies": [
+    "FND-FRAMEWORK-0030 static recursive topology remediation",
+    "FND-FRAMEWORK-0032 local-Git configuration/read-only remediation",
+    "FND-FRAMEWORK-0034 mutable worktree-byte integrity remediation",
+    "FND-FRAMEWORK-0035 object materialization destination containment remediation"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0030",
+    "FND-FRAMEWORK-0032",
+    "FND-FRAMEWORK-0034",
+    "FND-FRAMEWORK-0035",
+    "FND-FRAMEWORK-0054",
+    "FND-CROSS-0001"
+  ],
+  "deduplication_note": "Not a duplicate of FND-FRAMEWORK-0032. FND-FRAMEWORK-0032 owns local configuration execution during provenance inspection and metadata mutation; this finding owns a distinct fresh-provisioning pre-validation checkout write/filter-execution path. It is also distinct from FND-FRAMEWORK-0034 source-byte integrity and FND-FRAMEWORK-0035 materialization output containment.",
+  "source_run_ids": [
+    "20260720T173133Z-pr55-runtime-remediation-7e38e876",
+    "20260720T201536Z-pr55-runtime-snapshot-revalidation-20f91607",
+    "20260723T162517Z-fnd-cross-0001-runtime-evidence-bcda7d1d"
+  ],
+  "evidence_limitations": [
+    "The dynamic proof seeds only task-owned local Git objects and uses a benign payload and marker script.",
+    "The HTTPS fetch path was not used to seed the local fixture; the vulnerability is in the candidate's subsequent actual hardened checkout invocation.",
+    "The 2026-07-23 reopening is a static inspection of an isolated f98-based candidate, not a dynamic rerun; it proves that the historical local fix is absent from that candidate but does not replace a fresh exploit/control validation after remediation."
+  ],
+  "residual_risk": "The reintroduced f98-based candidate is historical. Current Framework master has the PR #44 fresh-root containment and immediate local-configuration scrubbing controls, verified by focused real-Git regression and clean controls. Portable path-based shell controls do not claim isolation from a concurrent same-UID writer; that bounded limitation remains a separate hardening consideration, not a re-opened instance of this verified finding.",
+  "delivery_evidence": null,
+  "history": [
+    {
+      "at": "2026-07-20T19:59:28Z",
+      "event": "validated_task_owned_real_git_fresh_checkout_config_race",
+      "detail": "core.worktree redirected a successful pinned checkout before the later guard, and core.attributesfile plus filter.evil.smudge executed a benign marker. A clean control and explicit --git-dir/--work-tree containment experiment behaved safely."
+    },
+    {
+      "at": "2026-07-20T19:59:28Z",
+      "event": "deduplicated_and_started_framework_remediation",
+      "detail": "The fresh-provisioning pre-validation sink is independently remediable and distinct from inspection configuration, mutable source bytes, and materialization output containment. It is P0/high/validated, in_progress, and blocks Framework delivery and Parent PR #55 runtime evidence until fixed and verified."
+    },
+    {
+      "at": "2026-07-20T21:20:47Z",
+      "event": "local_remediation_fixed_pending_framework_delivery",
+      "detail": "The then-reviewed candidate established private source parents, explicit fresh-checkout containment, and recursive local-config scrubbing. Worktree, attributes/filter, custom submodule update, public-parent, clean-control, Make, lint, documentation, and independent-review controls passed. That was a historical fixed-local disposition, not Framework master verification."
+    },
+    {
+      "at": "2026-07-23T17:31:41Z",
+      "event": "reopened_static_f98_based_candidate_missing_fresh_root_containment",
+      "detail": "Independent security review and static candidate inspection found that the f98a8739cb13b583f23d646784b144e596b61441-based fresh-fetch patch calls the generic wrapper for remote add, fetch, checkout, and recursive initialization without the previously required dedicated --git-dir/--work-tree containment, attributes/sparse neutralization, or immediate local recursive-update scrubbing. The original P0/high validated class is therefore in_progress again pending a corrected exact candidate and fresh dynamic controls. No product source, Framework branch/PR, Parent gitlink, or MRTS state changed by this tracking update."
+    },
+    {
+      "at": "2026-07-26T18:28:05Z",
+      "event": "verified_on_current_framework_master",
+      "detail": "The PR #44 source hardening was confirmed merged and current master 47e50e7bc43ba7a3b5bad1a9448111794f664cc0 passed focused real-Git worktree redirect, attribute/filter, recursive-update, fake-PATH, and clean legitimate controls plus full lint. The finding is verified; no Parent Gitlink or MRTS change was made in this revalidation."
+    }
+  ],
+  "created_at": "2026-07-20T19:59:28Z",
+  "updated_at": "2026-07-26T18:28:05Z",
+  "final_disposition": null
+}

@@ -1,0 +1,121 @@
+{
+  "id": "FND-PARENT-0058",
+  "title": "Full-matrix parallel jobs overlap response-header backend port ranges",
+  "title_de": "Full-Matrix-Parallel-Jobs überlappen Response-Header-Backend-Portbereiche",
+  "category": "test_failure",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+"status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": "loopback runtime matrix",
+  "profile": "FORCE_ALL_CASES=1 with global CPU parallelism",
+  "affected_files": [
+    "ci/runtime/lifecycle/run-full-matrix-parallel.sh",
+    "ci/runtime/lifecycle/plan_full_matrix_ports.py",
+    "connectors/apache/harness/run_apache_smoke.sh",
+    "connectors/nginx/harness/run_nginx_smoke.sh"
+  ],
+  "affected_symbols": [
+    "variant_base_port",
+    "connector_offset",
+    "run_batch",
+    "run_job",
+    "PORT_SEARCH_LIMIT",
+    "full-matrix port-plan validation",
+    "start_response_header_backend",
+    "RESPONSE_HEADER_BACKEND_PORT"
+  ],
+  "observed_behavior": "The legacy Parent full-matrix runner assigned Apache, NGINX, and HAProxy main ports at variant base offsets 0, +1000, and +2000, then started connector jobs concurrently. Apache and NGINX response-header backends independently selected from PORT+1000 through PORT_SEARCH_LIMIT, allowing Apache-backend/NGINX-main and NGINX-backend/HAProxy-main overlap under FORCE_ALL_CASES=1. The current local Parent runner/test remediation introduces ci/runtime/lifecycle/plan_full_matrix_ports.py and validates every possible case/search interval in the fail-closed 1024..65000 range (1024 is the first unprivileged port), rejects malformed or unpackable plans before make, serializes preparation, and applies the bounded global CPU cap only after artifacts are ready. Final full-suite and hosted validation are still pending.",
+  "expected_behavior": "Every concurrently scheduled main service and response-header backend receives a disjoint dynamically allocated loopback port range. The plan validates full possible case/search intervals before make across 1024..65000, the complete twelve-job two-search-window plan fits there, malformed or unpackable data fails closed, preparation is serialized, and ready-artifact runtime jobs alone enter the bounded global CPU scheduler.",
+  "impact": "A full-matrix result can fail, block, attach to the wrong listener, or become nondeterministic solely because concurrent jobs overlap port ranges. This invalidates test/runtime evidence reliability and is a release blocker while unfixed. It is distinct from the FND-PARENT-0057 workflow template-injection/S8707 trust-boundary correction and from the aggregate Sonar Quality-Gate state in FND-SONAR-0016.",
+  "preconditions": [
+    "FULL_MATRIX_CONNECTORS includes Apache, NGINX, and HAProxy",
+    "The runner schedules connector jobs concurrently for a variant",
+    "FORCE_ALL_CASES=1 enables response-header cases for Apache and NGINX",
+    "The response-header backend uses PORT+1000 and the runner retains the 0/+1000/+2000 connector-offset layout"
+  ],
+  "reproduction": [
+    "Inspect variant_base_port and connector_offset in ci/runtime/lifecycle/run-full-matrix-parallel.sh and observe base, base+1000, and base+2000 main-port ranges.",
+    "Inspect start_response_header_backend in connectors/apache/harness/run_apache_smoke.sh:1924 and connectors/nginx/harness/run_nginx_smoke.sh:1260; both select from PORT+1000.",
+    "Run an applicable concurrent full-matrix variant with FORCE_ALL_CASES=1 and observe that the response-header backend selection is not globally reserved against the next connector main range.",
+    "Verify the successor correction with simultaneous Apache, NGINX, and HAProxy jobs, including an intentional busy-port control and a legitimate all-cases completion."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T185607Z-pr74-fast-validation-hosted-followup",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T185607Z-pr74-fast-validation-hosted-followup/evidence/hosted-observation.md",
+      "artifact_type": "retained_pr74_followup_receipt_for_validated_full_matrix_port_range_observation",
+      "sha256": "5c64b4fe03ed670b0d2c25c58c2f770b59ae53bab10851ced35bd9012117d956",
+      "command": "Validated current-task review of the Parent full-matrix scheduler and Apache/NGINX response-header backend port arithmetic, retained with the bounded PR #74 hosted follow-up receipt",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T18:56:07Z",
+      "retention_status": "retained_external"
+    }
+  ],
+  "root_cause": "The runner's static connector offsets reserve only nominal main-port starts while each Apache and NGINX harness independently scans from its PORT+1000. That makes one connector's auxiliary backend range overlap the next connector's main range; independent free-port checks have no cross-job reservation and retain a TOCTOU window.",
+  "proposed_remediation": "The current local Parent runner/test correction uses plan_full_matrix_ports.py to allocate and validate disjoint dynamic ranges for every possible main and auxiliary service interval across the fail-closed 1024..65000 range. It rejects malformed or unpackable plans before make, serializes preparation, and applies the bounded global CPU scheduler only after required artifacts are ready. Complete focused, full-suite, and hosted revalidation remains required; retain per-job isolation, fail-closed port-start controls, and FORCE_ALL_CASES rather than serializing away coverage.",
+  "acceptance_criteria": [
+    "Apache, NGINX, and HAProxy concurrent jobs receive pairwise-disjoint main and response-header-backend port allocations for every supported variant.",
+    "A full concurrent FORCE_ALL_CASES=1 matrix has no inherited 0/+1000/+2000 overlap and completes or reports only genuine runtime outcomes.",
+    "A focused regression proves no allocated auxiliary port equals another concurrently allocated main or auxiliary port.",
+    "The plan validates all possible case/search intervals across 1024..65000, including the complete twelve-job two-search-window plan, and rejects a malformed or unpackable plan before make.",
+    "An intentional busy-port control fails clearly without reassigning an already reserved port, while a legitimate all-cases control succeeds.",
+    "Preparation is serialized and the global CPU cap starts only when artifacts are ready.",
+    "The bounded global scheduler preserves configured concurrency and cleans reservations/processes after job completion.",
+    "Fresh retained runtime evidence and the original collision reproduction are re-read before any fixed or verified disposition."
+  ],
+  "validation_plan": [
+    "Run focused Parent port-plan, runner allocation, and scheduler tests, including malformed/unpackable-plan rejection, full interval validation, a collision-negative test, and an all-cases legitimate control.",
+    "Run the applicable concurrent full-matrix lifecycle subset with FORCE_ALL_CASES=1 and inspect its validated plan, per-job port records, serialized preparation, and ready-artifact scheduler admission.",
+    "Run the final full suite and hosted exact-successor evidence producer after the correction without changing connector coverage, port-search controls, or result policy."
+  ],
+  "regression_tests": [
+    "Focused full-matrix port-plan interval-validation and malformed-plan contract",
+    "Focused full-matrix runner port-allocation, serialized-preparation, and global scheduler bound/cleanup contract",
+    "Concurrent Apache/NGINX/HAProxy FORCE_ALL_CASES=1 port-disjointness control"
+  ],
+  "legitimate_control_tests": [
+    "An approved dynamically allocated response-header backend serves its intended connector.",
+    "A busy-port failure remains visible and does not attach a connector to another job's listener.",
+    "The complete all-cases matrix retains intended parallelism within its configured global CPU bound."
+  ],
+  "dependencies": [
+    "FND-CROSS-0001 evidence-freshness handling for successor full-matrix retained evidence",
+    "Exact successor Parent runner/test patch and fresh full-matrix runtime evidence"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0001",
+    "FND-PARENT-0057",
+    "FND-SONAR-0016"
+  ],
+  "deduplication_note": "Not a duplicate of FND-PARENT-0057: this finding owns a validated test/runtime evidence-reliability defect in port allocation and scheduling, while FND-PARENT-0057 owns the distinct plausible workflow template-to-shell and S8707 trust boundaries. FND-SONAR-0016 remains the aggregate PR Quality-Gate record.",
+  "source_run_ids": [
+    "20260726T185607Z-pr74-fast-validation-hosted-followup"
+  ],
+  "residual_risk": "The local plan/scheduler correction has not yet received final full-suite or hosted exact-successor validation. Until its interval checks, malformed-plan rejection, serialized preparation, ready-artifact admission, and full-matrix behavior are revalidated, FORCE_ALL_CASES=1 concurrent evidence can remain nondeterministic or attach to an unintended loopback listener. PR #74 remains Draft; no Framework/MRTS action, Gitlink update, close, merge, or delivery is claimed.",
+  "residual_risk_de": "Die lokale Plan-/Scheduler-Korrektur hat noch keine finale Full-Suite- oder Hosted-Exact-Successor-Validierung. Bis ihre Intervallprüfungen, Malformed-Plan-Ablehnung, serialisierte Vorbereitung, Ready-Artifact-Admission und Full-Matrix-Verhalten revalidiert sind, kann parallele FORCE_ALL_CASES=1-Evidence weiterhin nichtdeterministisch sein oder einen unbeabsichtigten Loopback-Listener verwenden. PR #74 bleibt Draft; es werden weder Framework-/MRTS-Aktion, Gitlink-Update, Close, Merge noch Delivery behauptet.",
+  "created_at": "2026-07-26T18:56:07Z",
+  "updated_at": "2026-08-01T17:36:54Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-26T18:56:07Z",
+      "event": "full_matrix_parallel_port_range_overlap_validated",
+      "detail": "Validated Parent-source observation established that the 0/+1000/+2000 connector layout overlaps Apache and NGINX PORT+1000 response-header backend ranges under FORCE_ALL_CASES=1. The separately scoped P1 release blocker is in_progress/feasible_now; remediation and fresh runtime proof remain pending."
+    },
+    {
+      "at": "2026-07-26T19:46:59Z",
+      "event": "local_port_plan_and_ready_artifact_scheduler_remediation_recorded",
+      "detail": "The local Parent runner/test patch adds plan_full_matrix_ports.py to validate all possible case/search intervals across the fail-closed 1024..65000 range. It rejects malformed or unpackable plans before make, serializes preparation, and applies the global CPU cap only after artifacts are ready. FND-PARENT-0058 remains in_progress pending final full-suite and hosted evidence."
+    }
+  ]
+}

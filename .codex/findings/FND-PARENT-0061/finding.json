@@ -1,0 +1,113 @@
+{
+  "id": "FND-PARENT-0061",
+  "title": "Worker-wrapper death before FIFO completion can stall the full-matrix scheduler",
+  "title_de": "Worker-Wrapper-Abbruch vor FIFO-Completion kann den Full-Matrix-Scheduler blockieren",
+  "category": "lifecycle_defect",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": false,
+  "security_assessment": "not_applicable",
+  "connector": null,
+  "protocol": null,
+  "profile": "full-matrix parallel scheduler",
+  "affected_files": [
+    "ci/runtime/lifecycle/run-full-matrix-parallel.sh",
+    "tests/test_full_matrix_parallel_scheduler.py"
+  ],
+  "affected_symbols": [
+    "worker wrapper",
+    "FIFO completion token",
+    "read <&8",
+    "VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS",
+    "FD 9 full-matrix lock"
+  ],
+  "trust_boundary": null,
+  "sink": "Full-matrix worker-completion coordination; a missing FIFO token previously left the parent scheduler indefinitely blocked on read <&8.",
+  "observed_behavior": "Before the local watchdog remediation, a worker wrapper killed after fake Make started but before emitting its FIFO completion token left the parent scheduler blocked indefinitely on read <&8. The wrapper could no longer report completion, while the parent had no bounded failure path for the missing token.",
+  "expected_behavior": "A worker wrapper that dies before emitting its completion token causes a bounded scheduler failure rather than an indefinite wait. With VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS=1, the runner exits 77 after the timeout. Once the child exits, the FD 9 full-matrix lock becomes reusable; this local behavior is fixed but awaits hosted-successor verification.",
+  "impact": "A failed worker wrapper could indefinitely stall a full-matrix run, delay or prevent release evidence, and leave the scheduler unavailable to follow-up work. This is a validated P1 lifecycle/reliability release blocker, not a security finding.",
+  "preconditions": [
+    "A full-matrix worker wrapper starts fake Make.",
+    "The wrapper is killed before emitting its FIFO completion token.",
+    "The parent scheduler waits for completion on read <&8."
+  ],
+  "reproduction": [
+    "Start the focused worker-wrapper lifecycle control so fake Make has started.",
+    "Kill the worker wrapper before it emits its FIFO completion token.",
+    "Set VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS=1 and observe the runner exit 77 rather than remain blocked on read <&8.",
+    "After the child exits, confirm that the FD 9 full-matrix lock is reusable."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260726T212307Z-parent-task-conversation-worker-wrapper-watchdog",
+      "artifact_path": "task-conversation://root/finding_followup/2026-07-26/fnd-parent-0061-worker-wrapper-watchdog",
+      "artifact_type": "parent_supplied_task_conversation_local_remediation_validation",
+      "sha256": null,
+      "hash_status": "not_available_task_conversation_only_no_filesystem_receipt_supplied",
+      "command": "Parent-supplied task-conversation execution of tests.test_full_matrix_parallel_scheduler.test_scheduler_times_out_when_a_job_wrapper_dies_before_completion",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T21:23:07Z",
+      "retention_status": "task_conversation_only; local remediation validated; hosted successor pending",
+      "result": "Parent-confirmed: the focused test passed. It kills the wrapper after fake Make starts, the runner exits 77 with VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS=1, and the FD 9 lock becomes reusable after child exit."
+    }
+  ],
+  "root_cause": "The parent scheduler depended on a FIFO completion token from the worker wrapper. If the wrapper died after fake Make started but before token emission, read <&8 had no completion token and no bounded failure path, so the parent could wait indefinitely.",
+  "proposed_remediation": "The local watchdog remediation bounds the missing-token wait and reports the controlled runner failure with exit 77. Retain the focused wrapper-death regression and FD 9 reuse control, then obtain fresh hosted-successor evidence before moving beyond fixed. No hosted verification, closure, or delivery disposition is claimed.",
+  "acceptance_criteria": [
+    "When a worker wrapper dies after fake Make starts and before FIFO completion, the scheduler does not remain indefinitely blocked on read <&8.",
+    "With VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS=1, the runner exits 77 through the bounded watchdog path.",
+    "After the child exits, the FD 9 full-matrix lock is reusable.",
+    "The focused worker-wrapper lifecycle regression passes.",
+    "Existing scheduler cap, port-plan, manifest, and result-policy controls remain effective.",
+    "Fresh hosted-successor evidence is obtained before verified or closed status."
+  ],
+  "validation_plan": [
+    "Retain an exact local receipt for tests.test_full_matrix_parallel_scheduler.test_scheduler_times_out_when_a_job_wrapper_dies_before_completion, including the fake-Make start, wrapper death, timeout, exit 77, and FD 9 reuse assertions.",
+    "Run the applicable combined scheduler controls and preserve cap, port-plan, manifest, result-policy, and FD 9 lock behavior.",
+    "Obtain fresh hosted-successor full-matrix and protected-integration evidence before verified or closed status."
+  ],
+  "regression_tests": [
+    "tests.test_full_matrix_parallel_scheduler.test_scheduler_times_out_when_a_job_wrapper_dies_before_completion"
+  ],
+  "legitimate_control_tests": [
+    "Fake Make starts before the wrapper-death injection.",
+    "The runner exits 77 after VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS=1 rather than hanging on read <&8.",
+    "The FD 9 lock is reusable only after child exit.",
+    "Concurrent scheduler cap, port allocation, manifest publication, and result-policy controls remain intact."
+  ],
+  "dependencies": [
+    "Local watchdog remediation in the Parent full-matrix scheduler",
+    "FND-PARENT-0059 FD 9 lock-reuse control",
+    "Fresh hosted-successor evidence"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0058",
+    "FND-PARENT-0059",
+    "FND-PARENT-0060",
+    "FND-SONAR-0016"
+  ],
+  "source_run_ids": [
+    "20260726T212307Z-parent-task-conversation-worker-wrapper-watchdog"
+  ],
+  "residual_risk": "The watchdog remediation and focused local control are parent-confirmed task-conversation evidence only; no retained filesystem receipt or hosted-successor result has been supplied. The finding is fixed locally, not verified or closed, and remains a P1 release blocker until the required hosted-successor evidence exists.",
+  "residual_risk_de": "Die Watchdog-Remediation und der fokussierte lokale Control sind nur vom Parent bestätigte Task-Konversations-Evidence; es wurden keine aufbewahrte Filesystem-Receipt und kein Hosted-Successor-Ergebnis geliefert. Das Finding ist lokal fixed, nicht verified oder closed, und bleibt ein P1-Release-Blocker, bis die erforderliche Hosted-Successor-Evidence vorliegt.",
+  "created_at": "2026-07-26T21:23:07Z",
+  "updated_at": "2026-07-26T21:23:07Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-26T21:23:07Z",
+      "event": "local_watchdog_remediation_validated_hosted_successor_pending",
+      "detail": "Parent-confirmed focused local regression proves bounded exit 77 and FD 9 reuse after wrapper death before FIFO completion. The finding is fixed locally only; no hosted verification, closure, or delivery disposition is claimed."
+    }
+  ]
+}

@@ -1,0 +1,290 @@
+{
+  "id": "FND-FRAMEWORK-0006",
+  "title": "NGINX archive digest can be unset before Framework provisioning",
+  "title_de": "NGINX-Archiv-Digest kann vor Framework-Provisioning unset sein",
+  "category": "security_validated",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "medium",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "modules/ModSecurity-test-Framework/ci/lib/common.sh",
+    "modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh",
+    "modules/ModSecurity-test-Framework/ci/tools/check-common-versions.py",
+    "modules/ModSecurity-test-Framework/tests/security_regression/test_nginx_archive_digest.py",
+    "modules/ModSecurity-test-Framework/tests/security_regression/test_nginx_release_provenance.py",
+    "modules/ModSecurity-test-Framework/tests/fixtures/nginx-archive-digest/"
+  ],
+  "affected_symbols": [
+    "NGINX_SHA256",
+    "NGINX_RELEASE_ASSET_NAME",
+    "validate_nginx_archive_configuration",
+    "verify_nginx_archive_digest",
+    "stage_verified_nginx_archive",
+    "resolve_nginx_release_tag",
+    "download_nginx_source"
+  ],
+  "summary": "The Framework NGINX release-archive path accepted an empty digest and extracted the archive after recording a local-only hash. The reviewed release-1.31.2 tag, nginx-1.31.2.tar.gz asset, and published SHA-256 repair was squash-merged into Framework master 9954b99a31fab0006cdf903ab477c8158c50fea8. Exact post-merge lint, common-structure, and CodeQL passed; the independent master Sonar backlog failed, so the finding remains fixed pending current-master Quality-Gate verification.",
+  "summary_de": "Der Framework-NGINX-Release-Archivpfad akzeptierte einen leeren Digest und extrahierte das Archiv nach Aufzeichnung eines nur lokalen Hashes. Die Reparatur mit überprüftem Tag release-1.31.2, Asset nginx-1.31.2.tar.gz und veröffentlichtem SHA-256 wurde per Squash in Framework-master 9954b99a31fab0006cdf903ab477c8158c50fea8 gemergt. Exakter Post-Merge-Lint, common-structure und CodeQL bestanden; der unabhängige Master-Sonar-Backlog schlug fehl, daher bleibt das Finding fixed bis zur Current-Master-Quality-Gate-Verifikation.",
+  "observed_behavior": "Before the fix, an unset, whitespace-only, whitespace-appended, or malformed NGINX_SHA256 was not rejected before the archive selection/download path, and the old code accepted an empty value by recording a local hash instead of enforcing equality before tar extraction.",
+  "observed_behavior_de": "Vor dem Fix wurde ein nicht gesetztes, nur aus Whitespace bestehendes, mit nachgestelltem Whitespace versehenes oder malformedes NGINX_SHA256 nicht vor dem Archive-Selection-/Download-Pfad zurückgewiesen, und der alte Code akzeptierte einen leeren Wert, indem er einen lokalen Hash aufzeichnete statt Gleichheit vor der tar-Extraction durchzusetzen.",
+  "expected_behavior": "Every NGINX github-release archive candidate must have a non-empty syntactically valid digest before latest resolution, cache use, download, or extraction. A fixed release's source ref, expected asset name, and digest are one reviewed tuple; the exact private archive input passed to tar must be reverified against that digest.",
+  "expected_behavior_de": "Jeder NGINX-github-release-Archive-Candidate muss vor Latest-Resolution, Cache-Nutzung, Download oder Extraction einen nicht leeren syntaktisch gültigen Digest besitzen. Source-Ref, erwarteter Asset-Name und Digest eines festen Releases bilden ein überprüftes Tupel; die exakte private Archive-Eingabe für tar muss erneut gegen diesen Digest verifiziert werden.",
+  "impact": "Before the fix, substituted NGINX release-archive bytes could be extracted and built when the digest was absent. The task branch closes that source-archive integrity boundary; post-merge verification remains required before the finding can become verified.",
+  "impact_de": "Vor dem Fix konnten ersetzte NGINX-Release-Archivbytes bei fehlendem Digest extrahiert und gebaut werden. Der Task-Branch schließt diese Source-Archive-Integrity-Grenze; vor dem Status verified bleibt eine Post-Merge-Verifikation erforderlich.",
+  "preconditions": [
+    "The Framework github-release NGINX source-build path is invoked.",
+    "A caller supplies NGINX_SHA256, NGINX_RELEASE_TAG, source, cache, or refresh configuration for the selected archive.",
+    "The retained assessment and task-run evidence remain available."
+  ],
+  "reproduction": [
+    "Pre-fix: run tests.security_regression.test_nginx_archive_digest and observe empty/whitespace/trailing-whitespace/malformed digest assertions fail because the archive path is reached.",
+    "Post-fix: run rtk env TMPDIR=<task-run>/tmp python3 -B -m unittest tests.security_regression.test_nginx_archive_digest tests.security_regression.test_nginx_release_provenance -v and verify all twelve local cases pass."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260716T193351Z-repository-full-assessment-0cb855ad",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:221-227,238-244",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '221,227p;238,244p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-16T22:46:50Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260718T092116Z-fnd-framework-0006-nginx-digest-5251a4f1",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T092116Z-fnd-framework-0006-nginx-digest-5251a4f1/evidence/fnd-framework-0006-local-validation.md",
+      "artifact_type": "post_fix_nginx_archive_digest_local_validation",
+      "sha256": "dd220e8700629516ceb87c3a330b2ad6d8b9f8ebf64f010f46457ec4fa11a488",
+      "command": "rtk sh -n ci/lib/common.sh ci/provisioning/prepare-nginx-build.sh; rtk env TMPDIR=<task-run>/tmp python3 -B -m unittest tests.security_regression.test_nginx_archive_digest -v; rtk make check-documentation; rtk env BUILD_ROOT=<task-run>/build TMPDIR=<task-run>/tmp PYTHONDONTWRITEBYTECODE=1 FRAMEWORK_ROOT=<task-worktree> make lint; rtk git diff --check",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/fw-nginx-digest",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T10:15:25Z",
+      "retention_status": "retained_task_run"
+    },
+    {
+      "run_id": "20260718T192214Z-framework-pr-resolution-20260718-b30403da",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T192214Z-framework-pr-resolution-20260718-b30403da/evidence/pr25-current-blocker-receipt.json",
+      "artifact_type": "synchronized_pr25_exact_head_blocker_receipt",
+      "sha256": "b0ac58f0ee57f215829bd185de73c09ff1221e38a5356c9270e9ec274a972e00",
+      "command": "rtk git merge origin/master; focused NGINX regression; shell syntax; make lint; rtk gh pr view 25; rtk gh pr comment 25",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/fw-nginx-digest",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T20:15:30Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T092116Z-fnd-framework-0006-nginx-digest-5251a4f1",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T092116Z-fnd-framework-0006-nginx-digest-5251a4f1/evidence/fnd-framework-0006-delivery-blocker.md",
+      "artifact_type": "framework_draft_pr_delivery_blocker",
+      "sha256": "89e9d095ee8648b7970919ae5913a5a1624590b0a14bdeb0d994721dc259d162",
+      "command": "rtk git rev-parse HEAD; rtk git rev-parse origin/codex/fix-framework-nginx-digest; rtk gh pr view 25; rtk gh run view 29640815155 --log-failed; rtk gh run list --branch master --workflow test-common --limit 5",
+      "working_directory": "/var/tmp/codex/ModSecurity-test-Framework/worktrees/fw-nginx-digest",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T10:35:27Z",
+      "retention_status": "retained_task_run"
+    },
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/evidence/nginx-release-1.31.2-provenance.md",
+      "artifact_type": "official_nginx_release_metadata_provenance",
+      "sha256": "037826df6ebd25594a9b4cc7068cf72aeb804aa43672ccb6f44d8890df863c53",
+      "command": "rtk gh api repos/nginx/nginx/git/ref/tags/release-1.31.2; rtk gh api repos/nginx/nginx/git/tags/fe0e735ee2f17967871863b0d25607990eda0ce9; rtk gh api repos/nginx/nginx/releases/tags/release-1.31.2",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T08:10:17Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/evidence/nginx-release-1.31.2-asset-verification.md",
+      "artifact_type": "official_nginx_release_asset_digest_verification",
+      "sha256": "d2d27b6770d7d6c345762b771e7dde3bcda021c729d8fb887aa25c739c8efcd5",
+      "command": "rtk proxy curl --fail --location --proto '=https' --tlsv1.2 --connect-timeout 20 --max-time 120 --output <task-run>/tmp/nginx-1.31.2.tar.gz https://github.com/nginx/nginx/releases/download/release-1.31.2/nginx-1.31.2.tar.gz; rtk sha256sum <task-run>/tmp/nginx-1.31.2.tar.gz",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T08:10:17Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/evidence/pr25-release-provenance-local-validation.md",
+      "artifact_type": "post_fix_release_provenance_local_validation",
+      "sha256": "6b448efd1ca708e7e51a74f181dc320e6115743f4d7a937492861c1f651fb2af",
+      "command": "rtk env TMPDIR=<task-run>/tmp PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest tests.security_regression.test_nginx_archive_digest tests.security_regression.test_nginx_release_provenance -v; rtk env ... make ... lint; rtk env BUILD_ROOT=<task-run>/build python3 -B ci/tools/check-common-versions.py --check --json --timeout 20; rtk git diff --check",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/worktrees/fw-nginx-release-provenance",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T09:15:37Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/evidence/pr25-9954b99-post-merge-master-verification.md",
+      "artifact_type": "framework_pr25_authorized_merge_and_exact_master_check_disposition",
+      "sha256": "fdda0551354ccc8cb28794a1f7ca8e35f6aa333a9d6272743e15e7e12aacca34",
+      "command": "rtk gh pr view 25; rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/git/ref/heads/master; rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/9954b99a31fab0006cdf903ab477c8158c50fea8/check-runs; rtk gh run list --commit 9954b99a31fab0006cdf903ab477c8158c50fea8",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T09:52:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/analysis/direct-merge-hazards.md",
+      "artifact_type": "direct_current_master_stale_pr_reintroduction_analysis",
+      "sha256": "d28d88c9b1f034e1798cfa805d3b4e7210e3e3742dc4014d19ef78238c5c2004",
+      "command": "rtk git -C <Framework-worktree> diff --name-status 9954b99a31fab0006cdf903ab477c8158c50fea8 <PR-head>; RTK-prefixed static NGINX source-to-sink review",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T12:01:55Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The NGINX release-archive path conditionally compared NGINX_SHA256 only when it was nonempty; otherwise it recorded a local hash and extracted the candidate archive.",
+  "root_cause_de": "Der NGINX-Release-Archivpfad verglich NGINX_SHA256 nur bedingt, wenn es nicht leer war; andernfalls zeichnete er einen lokalen Hash auf und extrahierte das Candidate-Archiv.",
+  "proposed_remediation": "Require NGINX_SHA256 before NGINX preparation and again at the archive use point; bind a fixed tag to its expected official release asset and reviewed published SHA-256, validate fixed/latest-resolved tags, verify cached or refreshed candidates, stage a private copy under NGINX_BUILD_DIR, reverify it, and pass only that copy to tar.",
+  "proposed_remediation_de": "NGINX_SHA256 vor der NGINX-Preparation und erneut am Archive-Use-Point verlangen; einen festen Tag an sein erwartetes offizielles Release-Asset und den überprüften veröffentlichten SHA-256 binden, feste/per-latest-aufgelöste Tags validieren, gecachte oder per Refresh erneuerte Candidates verifizieren, eine private Kopie unter NGINX_BUILD_DIR stagen, erneut verifizieren und nur diese Kopie an tar übergeben.",
+  "acceptance_criteria": [
+    "Unset, whitespace-only, trailing-whitespace, malformed, and mismatching NGINX digests fail before tar extraction.",
+    "A matching digest succeeds and tar receives only the reverified private archive copy.",
+    "The fixed tag, matching source ref, expected release asset name, and published SHA-256 remain a reviewed tuple; a newer tag produces no automatic partial update.",
+    "Latest resolution, release/source overrides, cache/refresh, existing archives, and candidate-path replacement retain the same enforcement.",
+    "The Framework change remains separate from FND-FRAMEWORK-0005, Parent Gitlink work, and MRTS."
+  ],
+  "validation_plan": [
+    "Run the twelve-case local NGINX archive digest and release-provenance suites plus shell/Python syntax checks.",
+    "Run Framework documentation, static lint, live release-metadata updater readback, and diff validation in the task worktree.",
+    "Create a Framework-only Draft PR and verify its exact head, applicable checks, review state, and Sonar disposition before verified_pr.",
+    "After an explicitly authorized merge, rerun the original condition on current master before changing the finding from fixed to verified."
+  ],
+  "regression_tests": [
+    "modules/ModSecurity-test-Framework/tests/security_regression/test_nginx_archive_digest.py",
+    "modules/ModSecurity-test-Framework/tests/security_regression/test_nginx_release_provenance.py"
+  ],
+  "legitimate_control_tests": [
+    "A matching deterministic local archive digest reaches tar through verified-archives.",
+    "The default release tag, ref, asset name, and SHA-256 resolve as the reviewed tuple.",
+    "A latest-release cache fallback with the matching digest succeeds.",
+    "A REFRESH=1 archive replacement downloads, verifies, and extracts only the private verified copy."
+  ],
+  "dependencies": [
+    "Framework PR #25 is merged at master 9954b99a31fab0006cdf903ab477c8158c50fea8; the exact post-merge SonarCloud master Quality Gate is failed under independent FND-SONAR-0002, so verification/closure remains blocked without an unrelated Sonar remediation authorization.",
+    "Future NGINX upgrades require a reviewed atomic release-tag, asset-name, and published-SHA-256 change; the updater intentionally produces no partial update."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0005"
+  ],
+  "source_run_ids": [
+    "20260716T193351Z-repository-full-assessment-0cb855ad",
+    "20260718T092116Z-fnd-framework-0006-nginx-digest-5251a4f1",
+    "20260719T081017Z-framework-pr-resolution-20260719-840082e0"
+  ],
+  "root_cause_triage": {
+    "triaged_at": "2026-07-18T08:09:21Z",
+    "framework_sha": "cdc91a398d6c156eaff927d742b23018a3817fb6",
+    "triage_verdict": "confirmed",
+    "static_confidence": "medium",
+    "root_cause_group": "RC-FW-004-nginx-archive-digest-fail-closed",
+    "group_members": [
+      "FND-FRAMEWORK-0006"
+    ],
+    "shared_fix": false,
+    "separate_pr": true,
+    "entry_points": [
+      "ci/lib/common.sh: NGINX_SHA256",
+      "ci/provisioning/prepare-nginx-build.sh: validate_nginx_archive_configuration",
+      "ci/provisioning/prepare-nginx-build.sh: download_nginx_source",
+      "ci/provisioning/prepare-nginx-build.sh: stage_verified_nginx_archive"
+    ],
+    "source": "Downloaded NGINX GitHub release archive bytes while NGINX_SHA256 defaulted to an empty value in ci/lib/common.sh.",
+    "broken_control_or_sink": "Pre-fix download_nginx_source accepted an empty NGINX_SHA256 after local hash recording and passed the selected candidate directly to tar extraction.",
+    "attacker_preconditions": [
+      "The github-release NGINX source-build path ran with NGINX_SHA256 unset, whitespace-only, trailing-whitespace, malformed, or mismatching.",
+      "The selected release archive was substituted or differed from the intended release before Framework consumption.",
+      "No substituted real upstream archive was fetched or executed during this local-fixture remediation."
+    ],
+    "impact": "Unverified NGINX archive contents could be extracted and built in the Framework NGINX provisioning path before the repair.",
+    "countercontrols": [
+      "The source repository remains constrained to an HTTPS GitHub owner/repo URL and release references are validated.",
+      "The repaired path defaults to the reviewed release tag/asset/digest tuple, verifies candidate and staged extraction copies, and blocks explicit-empty, mismatching, or tuple-inconsistent input before tar."
+    ],
+    "root_control_boundary": "Framework NGINX release-archive integrity enforcement before extraction.",
+    "parent_impact": "None for this remediation. A Framework fix has no Parent source change and requires a separately authorized gitlink update if consumed by Parent.",
+    "mrts_impact": "none; no MRTS path is involved.",
+    "required_regression_tests": [
+      "Unset, whitespace-only, trailing-whitespace, malformed, and mismatched NGINX digests fail before tar extraction using isolated fixtures.",
+      "A matching reviewed NGINX digest allows the fixture archive to reach tar through the private verified path.",
+      "Candidate replacement, latest resolution, overrides, cache, and refresh retain fail-closed verification."
+    ],
+    "required_legitimate_control_cases": [
+      "A correct digest for a fixed supported github-release fixture archive succeeds under the existing external build-root contract."
+    ],
+    "bypass_review": [
+      "latest-release resolution, source-repository and release-tag overrides, cache/refresh behavior, whitespace digest values, pre-existing archives, and archive-path replacement."
+    ],
+    "delivery_boundary": "Framework-only PR #25 was squash-merged at 9954b99a31fab0006cdf903ab477c8158c50fea8; Parent gitlink unchanged and MRTS untouched. Exact PR-head checks passed, but the resulting master SonarCloud Quality Gate failed under independent FND-SONAR-0002, so the finding remains fixed rather than verified.",
+    "proof_gaps": [
+      "No real upstream archive substitution was attempted; deterministic local archive fixtures exercise the control boundary.",
+      "The fixed release tuple was directly verified; a future release requires fresh upstream metadata and asset-digest review."
+    ]
+  },
+  "residual_risk": "The fixed default relies on GitHub's published release-asset digest and HTTPS metadata availability. Future upgrades require fresh reviewed atomic provenance. The code is merged, but FND-SONAR-0002's failed exact resulting-master Quality Gate prevents verified/closed. No risk has been accepted.",
+  "residual_risk_de": "Der feste Standard stützt sich auf GitHubs veröffentlichten Release-Asset-Digest und die Verfügbarkeit der HTTPS-Metadaten. Künftige Upgrades erfordern frisch überprüfte atomare Provenance. Der Code ist gemergt, aber FND-SONAR-0002s fehlgeschlagenes exaktes resultierendes Master-Quality-Gate verhindert verified/closed. Es wurde kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-19T12:08:02Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-18T08:09:21Z",
+      "event": "root_cause_triaged",
+      "detail": "Current Framework static evidence at cdc91a398d6c156eaff927d742b23018a3817fb6 confirmed optional NGINX digest enforcement before extraction. It remains separate from the PCRE2 digest finding because the consumer, helpers, patch, and regression fixtures differ."
+    },
+    {
+      "at": "2026-07-18T10:15:25Z",
+      "event": "local_fail_closed_remediation_validated",
+      "detail": "The Framework task branch requires an exactly 64-character syntactically valid NGINX digest before archive use, including rejection of trailing whitespace; it revalidates cached/refreshed candidates and the private extraction copy, and passed the seven-test local regression plus shell, documentation, lint, and diff checks. The finding is fixed pending Framework Draft-PR exact-head and post-merge master verification."
+    },
+    {
+      "at": "2026-07-18T10:35:27Z",
+      "event": "delivery_blocked_preexisting_ci_baseline",
+      "detail": "Framework Draft PR #25 matched local, remote, and PR-head SHA 7a61a34ed5531f1f399a88e26e6242c7cacae412; SonarCloud and scaffold-lint passed, and no review threads existed. The applicable test-common/common-structure check failed with expected 141 YAML cases, found 179, which also fails on master at cdc91a398d6c156eaff927d742b23018a3817fb6. The unrelated workflow/case-count repair is outside this task, so delivery is blocked rather than verified_pr."
+    },
+    {
+      "at": "2026-07-18T20:15:30Z",
+      "event": "synchronized_pr25_revalidated_and_blocked_on_digest_evidence",
+      "detail": "PR #25 synchronized to c5e7553cf5f3eb7c5535e392798e03ae21f81981 after the common-structure and action-pin merges. The focused NGINX regression passed 7/7, shell syntax and aggregate lint passed, and all exact-head GitHub checks passed including common-structure, CodeQL, and SonarCloud. The former YAML-count blocker is resolved; delivery remains blocked because no repository-configured or authorized nonempty NGINX_SHA256 source exists for a real upstream github-release archive. A PR comment records the no-invented-digest/no-weakened-control disposition."
+    },
+    {
+      "at": "2026-07-19T09:15:37Z",
+      "event": "release_provenance_default_locally_validated",
+      "detail": "Official nginx/nginx release-1.31.2 metadata and a direct HTTPS asset download established the reviewed nginx-1.31.2.tar.gz / af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c tuple. The twelve focused archive/provenance tests, shell/Python syntax checks, full native Framework lint, live updater no-partial-update readback, Parent-clean check, and no-MRTS-diff check passed. New exact-head delivery and post-merge master verification remain pending."
+    },
+    {
+      "at": "2026-07-19T09:52:00Z",
+      "event": "pr25_squash_merged_master_gate_blocked",
+      "detail": "PR #25 exact head c6ba5e11359d6eb30e8717b766d49697f9bed74f was squash-merged at master 9954b99a31fab0006cdf903ab477c8158c50fea8. Exact master lint, test-common/common-structure, and CodeQL passed, but SonarCloud failed under independent FND-SONAR-0002. The finding remains fixed, not verified or closed; Parent and MRTS remain unchanged."
+    },
+    {
+      "at": "2026-07-19T12:08:02Z",
+      "event": "stale_pr_reintroduction_hazard_observed",
+      "detail": "Direct current-master comparisons show that stale PR heads #24, #26, #27, and #29 remove the merged reviewed release-tag, asset, and nonempty SHA-256 binding and restore a tag-only/archive path with a conditional digest comparison before extraction. This is an unmerged merge blocker only; Framework master 9954b99a31fab0006cdf903ab477c8158c50fea8 retains the fixed control."
+    }
+  ]
+}

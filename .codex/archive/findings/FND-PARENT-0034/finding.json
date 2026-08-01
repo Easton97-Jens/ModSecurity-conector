@@ -1,0 +1,89 @@
+{
+  "id": "FND-PARENT-0034",
+  "title": "Temporary report writers can clobber foreign files through symlinked roots or report leaves",
+  "title_de": "Temporäre Report-Writer können fremde Dateien über symlinkte Wurzeln oder Report-Leaves überschreiben",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P0",
+  "severity": "high",
+  "confidence": "reproduced",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "validated",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "report publication filesystem boundary",
+  "profile": "generated report refresh",
+  "affected_files": [
+    "ci/lib/report_path_safety.py",
+    "ci/evidence/reports/refresh-connector-reports.py",
+    "ci/evidence/reports/generate-connector-roadmap.py",
+    "scripts/generate_repository_organization_inventory.py"
+  ],
+  "affected_symbols": [
+    "allocate_private_output_directory",
+    "prepare_report_directory",
+    "write_report_index",
+    "run_command"
+  ],
+  "summary": "Predictable temporary report roots and pathname-based report/index/log/cleanup writes allowed a pre-created symlink to redirect a report writer into a foreign path.",
+  "summary_de": "Vorhersehbare temporäre Report-Wurzeln und pfadbasierte Report-/Index-/Log-/Cleanup-Writes erlaubten einem vorangelegten Symlink, einen Report-Writer in einen fremden Pfad umzuleiten.",
+  "observed_behavior": "Before the fix, a real TMP_ROOT/modsecurity-doc-cleanup directory symlink made generate-connector-roadmap.py overwrite an external sentinel and return 0.",
+  "observed_behavior_de": "Vor dem Fix ließ ein echter TMP_ROOT/modsecurity-doc-cleanup-Verzeichnis-Symlink generate-connector-roadmap.py einen externen Sentinel überschreiben und Return Code 0 liefern.",
+  "expected_behavior": "Temporary report output uses a random private root and descriptor-bound canonical write authority; parent/final symlinks, foreign files, unsafe children, and cleanup substitutions are rejected or unlinked only as a leaf.",
+  "expected_behavior_de": "Temporäre Report-Ausgabe verwendet eine zufällige private Wurzel und deskriptorgebundene kanonische Schreibautorität; Parent-/Final-Symlinks, Fremddateien, unsichere Children und Cleanup-Substitutionen werden abgewiesen oder nur als Leaf unlinked.",
+  "impact": "A local attacker could overwrite or corrupt arbitrary same-user files reachable through a report temporary-root or final-leaf symlink, including documentation/evidence publication targets.",
+  "impact_de": "Ein lokaler Angreifer konnte beliebige über einen Report-Temp-Root- oder Final-Leaf-Symlink erreichbare Same-User-Dateien überschreiben oder korrumpieren, einschließlich Dokumentations-/Evidence-Publikationszielen.",
+  "preconditions": [
+    "The attacker can prepare a directory or leaf symlink under a report temporary/output ancestor.",
+    "A report generator or refresh publisher executes its legacy pathname write or cleanup path."
+  ],
+  "reproduction": [
+    "Create TMP_ROOT/modsecurity-doc-cleanup as a directory symlink to a directory containing a sentinel.",
+    "Run the roadmap/report publisher and observe the sentinel overwrite before the fix.",
+    "Repeat with parent/final symlinks and a validation-to-publish swap."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T075146Z-harden-temp-paths-97486abe",
+      "artifact_path": ".codex/runs/20260718T075146Z-harden-temp-paths-97486abe/evidence/report-temp-writer-revalidation.md",
+      "artifact_type": "report_temp_writer_revalidation",
+      "sha256": "c4dc1573be22442521af0e6254bff8c205068fad51feb5d68b0d3775a80d1660",
+      "command": "rtk env PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-run>/tmp /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_report_temp_path_findings_poc",
+      "working_directory": "/var/tmp/codex/worktrees/parent-temp-report-writers-pr",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T14:46:42Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The report publisher treated lexical Path objects and a predictable temporary directory as write authority. It did not bind writes/cleanup to directory FDs, distinguish trusted reads from writes, enforce final-leaf no-follow/exclusive publication, or limit README/legacy cleanup names.",
+  "root_cause_de": "Der Report-Publisher behandelte lexikalische Path-Objekte und ein vorhersehbares temporäres Verzeichnis als Schreibautorität. Er band Writes/Cleanup nicht an Verzeichnis-FDs, unterschied vertrauenswürdige Reads nicht von Writes, erzwingte kein Final-Leaf-No-Follow/exklusive Publikation und begrenzte README-/Legacy-Cleanup-Namen nicht.",
+  "proposed_remediation": "PR B introduces separate canonical read/write report authorities, descriptor-relative lstat/no-follow traversal, atomic allowlisted publication, CSPRNG private temporary roots, strict child validation, and symlink-leaf-only cleanup.",
+  "proposed_remediation_de": "PR B führt getrennte kanonische Read-/Write-Report-Autoritäten, deskriptorrelative lstat/No-Follow-Traversierung, atomare allowlistete Publikation, CSPRNG-private temporäre Wurzeln, strikte Child-Validierung und Symlink-Leaf-only-Cleanup ein.",
+  "acceptance_criteria": [
+    "The original legacy temporary-root symlink and parent/final/swap variants do not change foreign sentinels.",
+    "Unsafe child forms and foreign files are rejected; parallel private allocation and legitimate controlled publication succeed.",
+    "Only allowlisted README leaves and registered generated reports may be written or removed."
+  ],
+  "validation_plan": [
+    "Run the retained pre-fix/post-fix symlink PoC and 18 focused report-path controls on the exact PR head.",
+    "Compile changed Python source in memory and review direct writer/cleanup sinks.",
+    "Verify exact delivery PR head and record Framework-dependent full refresh as a gap if unavailable."
+  ],
+  "regression_tests": ["tests/test_report_temp_path_findings_poc.py"],
+  "legitimate_control_tests": ["Private random report root creation", "allowlisted README.md and README.de.md publication", "isolated --render-index-only control"],
+  "dependencies": ["FND-PARENT-0033 provides the verified runtime-root capability used when runtime generator logs are present."],
+  "blocked_by": ["Framework-backed full refresh/layout validation is blocked_missing_evidence."],
+  "duplicates": [],
+  "related_findings": ["FND-PARENT-0033", "FND-PARENT-0035"],
+  "deduplication_note": "Distinct from FND-PARENT-0033 because report publication has its own canonical write authority and direct report/index/cleanup sinks; distinct from FND-PARENT-0035 because no Library rule parser is involved.",
+  "source_run_ids": ["20260718T075146Z-harden-temp-paths-97486abe"],
+  "residual_risk": "The demonstrated Parent report boundary is fixed locally but delivery-pending until remote exact-head CI/review. Framework-backed full refresh is not a passing result and is retained as an evidence gap.",
+  "residual_risk_de": "Die demonstrierte Parent-Report-Grenze ist lokal fixed, aber delivery-pending bis zu Remote-Exact-Head-CI/Review. Framework-gestützter Full Refresh ist kein bestandenes Ergebnis und bleibt eine Evidenzlücke.",
+  "created_at": "2026-07-18T14:46:42Z",
+  "updated_at": "2026-07-18T14:46:42Z",
+  "final_disposition": null,
+  "history": [{"at": "2026-07-18T14:46:42Z", "event": "validated_and_fixed_pending_verified_pr", "detail": "The real legacy symlink clobber was reproduced before the fix; exact-head focused controls passed after descriptor-bound remediation."}]
+}

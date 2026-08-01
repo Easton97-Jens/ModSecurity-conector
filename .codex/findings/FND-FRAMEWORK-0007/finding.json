@@ -1,0 +1,131 @@
+{
+  "id": "FND-FRAMEWORK-0007",
+  "title": "Apache canonical full-lifecycle finalizer exits 77 after live traffic",
+  "title_de": "Apache-kanonischer Full-Lifecycle-Finalizer beendet sich nach Live-Traffic mit 77",
+  "category": "lifecycle_defect",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "blocked",
+  "feasibility_status": "blocked_missing_evidence",
+  "release_blocker": true,
+  "security_relevant": false,
+  "connector": "Apache",
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md"
+  ],
+  "affected_symbols": [
+    "exit 77",
+    "finalizer symptom assertion_failed"
+  ],
+  "summary": "The Apache retry had live first-byte/H1 traffic but its retained canonical full-lifecycle finalizer returned exit 77; the report classifies it as a harness failure, not a product failure.",
+  "summary_de": "Der Apache-Retry hatte Live-First-Byte/H1-Traffic, aber sein zurückgehaltener kanonischer Full-Lifecycle-Finalizer gab Exit 77 zurück; der Bericht klassifiziert dies als Harness-Fehler, nicht als Produktfehler.",
+  "observed_behavior": "The Apache retry had live first-byte/H1 traffic but its retained canonical full-lifecycle finalizer returned exit 77; the report classifies it as a harness failure, not a product failure.",
+  "observed_behavior_de": "Der Apache-Retry hatte Live-First-Byte/H1-Traffic, aber sein zurückgehaltener kanonischer Full-Lifecycle-Finalizer gab Exit 77 zurück; der Bericht klassifiziert dies als Harness-Fehler, nicht als Produktfehler.",
+  "expected_behavior": "Current evidence must be rerun against a known revision before this finding can advance beyond validated.",
+  "expected_behavior_de": "Die aktuelle Evidence muss gegen eine bekannte Revision erneut ausgeführt werden, bevor dieses Finding über validated hinaus fortschreiten kann.",
+  "impact": "Release and assurance claims remain bounded by the recorded evidence.",
+  "impact_de": "Release- und Assurance-Aussagen bleiben durch die dokumentierte Evidence begrenzt.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "sed -n '399,403p;580,594p' .codex/reports/repository-full-assessment.md"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:399-403,580-594",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '399,403p;580,594p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T09:23:19Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/039-phase-b-blocker-source-preflight.log",
+      "artifact_type": "phase_b_source_preflight_log",
+      "sha256": "bd04a04698986fd23669aef44c81eff94d1e7c1da2df367858c72257e1d17329",
+      "command": "read-only source/tool preflight for NGINX worker identity, Apache C17/finalizer, and MRTS profile semantics; no host runtime or MRTS mutation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T13:02:47Z",
+      "retention_status": "retained_task_log"
+    }
+  ],
+  "current_task_update": {
+    "original_status": "validated",
+    "root_cause": "Historical evidence recorded live traffic and exit 77, but no current raw finalizer artifact or controlled reproduction proves which precondition, assertion, cleanup, or harness path produced the exit.",
+    "changed_files": [],
+    "security_assessment": "No Framework finalizer was changed because a skip or environmental exit must not be converted into a lifecycle pass without reproduction.",
+    "next_action": "Run the canonical Apache lifecycle in an authorized Framework task with raw finalizer, process, listener, audit, Allow, Block, shutdown, and cleanup evidence.",
+    "evidence": {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/039-phase-b-blocker-source-preflight.log",
+      "artifact_type": "read_only_source_preflight_log",
+      "sha256": "bd04a04698986fd23669aef44c81eff94d1e7c1da2df367858c72257e1d17329",
+      "command": "read-only source/tool preflight for NGINX worker identity, Apache C17/finalizer, and MRTS profile semantics; no host runtime or MRTS mutation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T13:02:47Z",
+      "retention_status": "retained_task_log"
+    }
+  },
+  "root_cause": "Historical evidence is not enough to justify an assertion or finalizer source patch in the separate Framework boundary.",
+  "root_cause_de": "Die retained Evidence belegt den Zustand, aber keine Produktcode-Grundursache.",
+  "proposed_remediation": "Diagnose and correct the Framework finalizer assertion, then retain a full lifecycle rerun with process/port cleanup controls.",
+  "proposed_remediation_de": "Die Framework-Finalizer-Assertion diagnostizieren und korrigieren; anschließend einen Full-Lifecycle-Rerun mit Prozess-/Port-Cleanup-Controls aufbewahren.",
+  "acceptance_criteria": [
+    "Apache full lifecycle completes without exit 77 after real traffic.",
+    "First-byte, allow, block, process, and port-release controls all pass."
+  ],
+  "validation_plan": [
+    "Rerun the canonical Apache full lifecycle in task-owned storage.",
+    "Verify the same legitimate allow and expected block controls before and after finalization."
+  ],
+  "regression_tests": [
+    "Add or retain a focused regression/evidence control for the recorded condition."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-CROSS-0003"
+  ],
+  "source_run_ids": [
+    "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc"
+  ],
+  "residual_risk": "The condition remains open; no risk has been accepted by the current user.",
+  "residual_risk_de": "Der Zustand bleibt offen; der aktuelle Benutzer hat kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-17T14:06:23Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-17T13:12:00Z",
+      "event": "phase_b_preflight_blocked",
+      "detail": "The historical validation was retained, but this task has blocked_missing_evidence for a current raw Apache full-lifecycle reproduction. No Framework change occurred."
+    },
+    {
+      "at": "2026-07-17T14:06:23Z",
+      "event": "phase_b_evidence_synchronized",
+      "detail": "The retained active-run source-preflight log was added to canonical evidence; the blocked_missing_evidence disposition is unchanged."
+    }
+  ]
+}

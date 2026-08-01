@@ -1,0 +1,144 @@
+{
+  "id": "FND-CROSS-0006",
+  "title": "Framework authoritative Phase-4 checker does not bind promoted events to selected workload identity",
+  "title_de": "Framework-autoritärer Phase-4-Checker bindet promotete Events nicht an die ausgewählte Workload-Identität",
+  "category": "security_validated",
+  "repository": "parent_and_framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "high",
+  "confidence": "verified",
+  "status": "verified",
+  "feasibility_status": "already_fixed",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "modules/ModSecurity-test-Framework/ci/checks/evidence/check_full_lifecycle_evidence.py",
+    "modules/ModSecurity-test-Framework/tests/no_crs/test_no_crs_baseline.py",
+    "Makefile"
+  ],
+  "affected_symbols": [
+    "_matching_first_byte_event",
+    "_strict_first_byte_errors",
+    "first_byte_errors",
+    "no_full_response_buffering_errors",
+    "promotion_errors",
+    "RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK"
+  ],
+  "source_commits": [
+    "428dfb2741785adabad7a6280882ea5251e00324",
+    "8b7b13b294fe4043fb4002c1cb96ba3de72986f8",
+    "4fc22651ab2da652cbcaa7026258506d79b9af9c",
+    "3d6f51a2a2eeff6f3bcecff203f1e6ed1e240e4f"
+  ],
+  "summary": "Framework PR #34 binds authoritative Phase-4 promotion to selected result, manifest, PASS-record, and event workload identity. The original foreign or missing identity reproducer now fails closed on Framework master.",
+  "summary_de": "Framework-PR #34 bindet die autoritative Phase-4-Promotion an die Workload-Identität von ausgewähltem Resultat, Manifest, PASS-Record und Event. Der ursprüngliche Reproducer für fremde oder fehlende Identität schlägt auf Framework-master nun fail-closed fehl.",
+  "observed_behavior": "At Framework revision cdc91a398d6c156eaff927d742b23018a3817fb6, the checker functions around lines 151-269 accept a phase-4 rule-1100301 event with matching first-byte fields without a selected run-ID/integration identity. Its positive Framework fixture around lines 1100-1176 has no run_id and uses integration_mode=unit-test-host-model.",
+  "observed_behavior_de": "Auf Framework-Revision cdc91a398d6c156eaff927d742b23018a3817fb6 akzeptieren die Checker-Funktionen um Zeilen 151-269 ein Phase-4-Rule-1100301-Event mit passenden First-Byte-Feldern ohne ausgewählte Run-ID-/Integrationsidentität. Das positive Framework-Fixture um Zeilen 1100-1176 hat keine run_id und verwendet integration_mode=unit-test-host-model.",
+  "expected_behavior": "Every authoritative Phase-4 promotion checker must bind event, canonical result, manifest, connector, run ID, selected native host/profile or canonical integration mode, transaction, rule, and phase. Missing or mismatched identity must fail closed.",
+  "expected_behavior_de": "Jeder autoritative Phase-4-Promotion-Checker muss Event, kanonisches Resultat, Manifest, Connector, Run-ID, ausgewählten nativen Host/Profil oder kanonischen Integrationsmodus, Transaktion, Rule und Phase binden. Fehlende oder abweichende Identität muss geschlossen fehlschlagen.",
+  "impact": "A copied or pre-positioned event can remain acceptable to the Framework-authoritative component of a strict gate even when it does not originate from the selected workload. Parent target wiring now adds a Parent consumer guard, but that does not repair the Framework producer/checker boundary.",
+  "impact_de": "Ein kopiertes oder vorab platziertes Event kann für die Framework-autoritative Komponente eines strikten Gates weiter akzeptabel bleiben, obwohl es nicht vom ausgewählten Workload stammt. Die Parent-Target-Verdrahtung fügt nun einen Parent-Consumer-Guard hinzu, repariert aber nicht die Framework-Producer-/Checker-Grenze.",
+  "preconditions": [
+    "The Framework checker is invoked as an authoritative strict Phase-4 check.",
+    "A syntactically valid phase-4 event carries the expected rule and causal metadata but belongs to a foreign or missing workload identity."
+  ],
+  "reproduction": [
+    "Inspect the retained Parent security review and the Framework checker source at the recorded revision.",
+    "Run the Framework checker with foreign-run, foreign-connector, foreign-profile, foreign-transaction, and missing-identity fixtures before a Framework fix.",
+    "Confirm that an identity-consistent selected native-host control remains accepted after the Framework fix."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/06_delivery/security_diff_review.md",
+      "artifact_type": "focused_security_diff_review",
+      "sha256": "3d5014e36faebffd46bcd83ed7ee59f8582d1ea9ec6e1b3dfe16e98444c6836e",
+      "command": "Independent focused Codex Security review of Parent PR 57 and direct Framework checker source-to-sink inspection",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T10:47:59Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T075200Z-parent-evidence-integrity-ade378cf",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T075200Z-parent-evidence-integrity-ade378cf/evidence/codex-security-scan-c8ca0d9-20260718T075200Z/artifacts/05_findings/CAND-CROSS-007-framework-phase4-authoritative-gate/framework_task_request.md",
+      "artifact_type": "framework_task_request",
+      "sha256": "ea1ff30c2a35514350b143f3b11b2befce60078886cdc468099d587ca11a63ef",
+      "command": "Parent ownership boundary assessment and separate Framework task request creation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T10:47:59Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260720T042405Z-framework-pr-34-master-integration-31a1528d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T042405Z-framework-pr-34-master-integration-31a1528d/evidence/master-postmerge-verification.md",
+      "artifact_type": "post_merge_framework_security_remediation_verification",
+      "sha256": "7471054c232a5e2ad26c3327894535ff9d2245e3ec0f37ec60e077a57caea19a",
+      "command": "Exact-head PR checks/Sonar/review readback; exact-master merge/ref/tree verification; four focused Phase-4 identity tests on Framework master",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260720T042405Z-framework-pr-34-master-integration-31a1528d/tmp/framework-pr34",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T04:52:04Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The Framework strict-event predicate does not receive or derive the selected result identity and its tests normalize a unit-test-host-model event without a run ID as a sufficient positive case.",
+  "root_cause_de": "Das strikte Framework-Event-Prädikat erhält oder leitet die ausgewählte Resultatidentität nicht ab, und seine Tests normalisieren ein unit-test-host-model-Event ohne Run-ID als ausreichenden positiven Fall.",
+  "proposed_remediation": "Completed by Framework PR #34: derive a selected identity from result and manifest, require matching live PASS-record identity and supplied transaction identity per promoted claim, then require the event to match before evaluating first-byte fields. The PR was normally merged without Parent or MRTS changes.",
+  "proposed_remediation_de": "Durch Framework-PR #34 abgeschlossen: ausgewählte Identität aus Resultat und Manifest ableiten, passende live-PASS-Record-Identität und gelieferte Transaktionsidentität je promotiendem Claim verlangen und erst dann das Event vor der First-Byte-Prüfung abgleichen. Der PR wurde normal ohne Parent- oder MRTS-Änderung gemergt.",
+  "acceptance_criteria": [
+    "The Framework authoritative checker rejects foreign or missing run, connector, profile/integration-mode, and transaction identity.",
+    "The checker binds the selected canonical result and manifest to the promoted event without a filename/PASS-only decision.",
+    "A selected native-host legitimate control remains accepted.",
+    "Framework runtime, security review, CodeQL, SonarQube Cloud, and exact-head evidence are retained."
+  ],
+  "validation_plan": [
+    "Completed: exact PR #34 head passed focused/full Framework validation, CodeQL, GitHub checks, review inspection, and SonarQube Cloud PR Quality Gate.",
+    "Completed: resulting Framework master 3d6f51a2a2eeff6f3bcecff203f1e6ed1e240e4f contains the reviewed head and reran the foreign/missing identity and legitimate-control tests successfully.",
+    "Retain the independent default-branch SonarQube Cloud backlog under FND-SONAR-0002; it is not evidence that this finding remains reproducible."
+  ],
+  "regression_tests": [
+    "Framework full-lifecycle evidence checker identity fixtures",
+    "Framework No-CRS baseline native-host control"
+  ],
+  "legitimate_control_tests": [
+    "Selected run, connector, native integration mode, transaction, event, result, and manifest agree.",
+    "A real native-host control cannot be substituted by unit-test-host-model metadata."
+  ],
+  "dependencies": [
+    "FND-PARENT-0027"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0027",
+    "FND-CROSS-0001",
+    "FND-CROSS-0005",
+    "FND-SONAR-0002"
+  ],
+  "source_run_ids": [
+    "20260718T075200Z-parent-evidence-integrity-ade378cf",
+    "20260720T042405Z-framework-pr-34-master-integration-31a1528d"
+  ],
+  "residual_risk": "No observed FND-CROSS-0006 bypass remains on Framework master. The failed default-branch SonarQube Cloud gate is the independent FND-SONAR-0002 multi-file backlog; it is neither attributed to this remediation nor silently risk-accepted for PR #34.",
+  "residual_risk_de": "Auf Framework-master verbleibt kein beobachteter FND-CROSS-0006-Bypass. Das fehlgeschlagene Default-Branch-SonarQube-Cloud-Gate ist der unabhängige Multi-File-Backlog FND-SONAR-0002; er wird weder dieser Remediation zugeschrieben noch für PR #34 stillschweigend risikoakzeptiert.",
+  "created_at": "2026-07-18T10:47:59Z",
+  "updated_at": "2026-07-20T04:52:04Z",
+  "final_disposition": "verified_on_framework_master_3d6f51a2a2eeff6f3bcecff203f1e6ed1e240e4f",
+  "history": [
+    {
+      "at": "2026-07-18T10:47:59Z",
+      "event": "validated_framework_authoritative_gate_boundary",
+      "detail": "Independent Phase-4 diff review showed that the Framework authoritative checker does not bind selected workload identity; a Parent consumer-wiring remediation and separate Framework task request were created."
+    },
+    {
+      "at": "2026-07-20T04:52:04Z",
+      "event": "verified_after_framework_pr_34_master_merge",
+      "detail": "Framework PR #34 head 4fc22651ab2da652cbcaa7026258506d79b9af9c was normally merged as master 3d6f51a2a2eeff6f3bcecff203f1e6ed1e240e4f. Exact PR checks and SonarQube Cloud passed; four focused foreign/missing identity and legitimate-control tests reran successfully on master. The separate master-only FND-SONAR-0002 gate failure remains unwaived for this PR and is not attributed to this finding."
+    }
+  ]
+}

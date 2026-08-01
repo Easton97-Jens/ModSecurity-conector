@@ -1,0 +1,175 @@
+{
+  "id": "FND-GITHUB-0003",
+  "title": "Framework CodeQL clear-text logging alert #1 is a static checker false positive",
+  "title_de": "Framework-CodeQL-Klartext-Logging-Alert #1 ist ein False Positive des statischen Checkers",
+  "category": "static_analysis_finding",
+  "repository": "framework",
+  "ownership": "external_tool",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "not_applicable",
+  "feasibility_status": "not_applicable",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": "Framework static CI security-data-flow checker",
+  "affected_files": [
+    "ci/checks/security/check-security-data-flow-cases.py:8",
+    "ci/checks/security/check-security-data-flow-cases.py:18-32",
+    "Makefile:116,124-125"
+  ],
+  "affected_symbols": [
+    "py/clear-text-logging-sensitive-data",
+    "SECRET_PATTERNS",
+    "errors",
+    "check-security-data-flow-cases",
+    "GitHub Code Scanning alert #1"
+  ],
+  "summary": "After PR #23 merged, GitHub CodeQL opened High-severity alert #1 (`py/clear-text-logging-sensitive-data`) on Framework master commit `e482549b93d95ba85830a208e99a2ba0331ec351`. Exact source-to-sink triage proves that CodeQL follows the static detector-pattern list at line 8 into the error printer at line 32. The checker reads fixtures only for predicates and never prints a fixture match or file content: its diagnostic strings contain only fixed required paths, fixed phrases, detector-pattern literals, or allow-listed field names. The alert was authoritatively dismissed as `false positive`; no Framework source, Parent gitlink, MRTS state, PR, permission, or branch-protection change was made.",
+  "summary_de": "Nach dem Merge von PR #23 eröffnete GitHub CodeQL den High-Severity-Alert #1 (`py/clear-text-logging-sensitive-data`) auf dem Framework-Master-Commit `e482549b93d95ba85830a208e99a2ba0331ec351`. Die exakte Source-to-Sink-Triage beweist, dass CodeQL die statische Detector-Pattern-Liste in Zeile 8 bis zum Error-Printer in Zeile 32 verfolgt. Der Checker liest Fixtures nur für Prädikate und gibt weder einen Fixture-Treffer noch Dateiinhalte aus: Seine Diagnostic-Strings enthalten ausschließlich feste Required-Pfade, feste Phrasen, Detector-Pattern-Literale oder allow-gelistete Feldnamen. Der Alert wurde autoritativ als `false positive` dismissed; es gab keine Änderung an Framework-Source, Parent-Gitlink, MRTS-Status, PR, Berechtigungen oder Branch-Protection.",
+  "observed_behavior": "Immediately before the authorized PATCH, GitHub showed alert #1 as open on exact master `e482549b93d95ba85830a208e99a2ba0331ec351`, with source `ci/checks/security/check-security-data-flow-cases.py:8:17-8:102` and sink `:32:15-32:32`. Static inspection of identical blob `8d8e273d48bd4cfcd6b59fff99222cb5df12f217` shows `text = p.read_text()` influences only boolean validations. All `errors.append(...)` values are built from a fixed path, a fixed phrase, a detector-pattern literal, or an allow-listed field name. The only sink prints `\"\\n\".join(errors)` to stderr. GitHub immediately read back state `dismissed`, reason `false positive`, and `fixed_at: null`.",
+  "observed_behavior_de": "Unmittelbar vor dem autorisierten PATCH zeigte GitHub Alert #1 als offen auf dem exakten Master `e482549b93d95ba85830a208e99a2ba0331ec351`, mit Source `ci/checks/security/check-security-data-flow-cases.py:8:17-8:102` und Sink `:32:15-32:32`. Die statische Inspektion des identischen Blobs `8d8e273d48bd4cfcd6b59fff99222cb5df12f217` zeigt, dass `text = p.read_text()` ausschließlich boolesche Validierungen beeinflusst. Alle `errors.append(...)`-Werte werden aus einem festen Pfad, einer festen Phrase, einem Detector-Pattern-Literal oder einem allow-gelisteten Feldnamen gebildet. Der einzige Sink gibt `\"\\n\".join(errors)` nach stderr aus. GitHub meldete unmittelbar danach den Status `dismissed`, Grund `false positive` und `fixed_at: null` zurück.",
+  "expected_behavior": "The security-data-flow checker may identify an invalid fixture without writing fixture content, matched secret material, request bodies, or credentials to CI output. CodeQL findings must remain open unless an exact current source-to-sink analysis establishes a non-exploitable false positive or a fix is verified.",
+  "expected_behavior_de": "Der Security-Data-Flow-Checker darf ein ungültiges Fixture identifizieren, ohne Fixture-Inhalte, gematchtes Secret-Material, Request-Bodies oder Credentials in CI-Output zu schreiben. CodeQL-Findings bleiben offen, sofern nicht eine exakte aktuelle Source-to-Sink-Analyse einen nicht ausnutzbaren False Positive belegt oder ein Fix verifiziert ist.",
+  "impact": "No clear-text credential or sensitive fixture content reaches the reported sink in the scoped source. A source-code change to silence the alert would not improve the control and could weaken its diagnostics. The evidence-backed GitHub disposition removes this scanner-only master-integration blocker; the independent master SonarQube blocker remains unchanged.",
+  "impact_de": "Kein Klartext-Credential und kein sensibler Fixture-Inhalt erreicht im abgegrenzten Source den gemeldeten Sink. Eine Source-Code-Änderung nur zum Unterdrücken des Alerts würde den Control nicht verbessern und könnte seine Diagnostik schwächen. Die evidenzbasierte GitHub-Disposition entfernt diesen reinen Scanner-Master-Integrationsblocker; der unabhängige Master-SonarQube-Blocker bleibt unverändert.",
+  "preconditions": [
+    "The checked source blob is `8d8e273d48bd4cfcd6b59fff99222cb5df12f217` at Framework master `e482549b93d95ba85830a208e99a2ba0331ec351`.",
+    "The alert source remains line 8 and the only reported sink remains line 32 of `ci/checks/security/check-security-data-flow-cases.py`.",
+    "The checker is invoked as the static `make lint` / `check-security-data-flow-cases` control and is not a supported request-processing surface."
+  ],
+  "reproduction": [
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/code-scanning/alerts/1",
+    "rtk sed -n '1,40p' ci/checks/security/check-security-data-flow-cases.py",
+    "rtk rg -n -C 3 'check-security-data-flow-cases\\.py|security-data-flow' Makefile .github ci tests --glob '!tests/mrts/**'"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T192214Z-framework-pr-resolution-20260718-b30403da",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T192214Z-framework-pr-resolution-20260718-b30403da/evidence/codeql-alert-1-triage.json",
+      "artifact_type": "static_codeql_source_to_sink_triage",
+      "sha256": "c8e8c052add0c6d1d54b152f2ebacf9141d1009aa0e4df8cc95636b0ef664b1b",
+      "command": "rtk gh api alert metadata/instances plus rtk sed static source inspection and source-blob equality readback",
+      "working_directory": "/var/tmp/codex/worktrees/framework-common-structure",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T19:42:18Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T192214Z-framework-pr-resolution-20260718-b30403da",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T192214Z-framework-pr-resolution-20260718-b30403da/evidence/codeql-alert-1-dismissal-receipt.json",
+      "artifact_type": "github_code_scanning_alert_pre_patch_and_post_patch_receipt",
+      "sha256": "74882ca084034fb5f9b96949734143d7ec9f30a3927ddc5056dac186cff1f449",
+      "command": "rtk gh api GET/PATCH/GET alert #1 with exact master SHA, source, and sink readback",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T19:45:12Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "CodeQL's generic clear-text logging query treats the fixed detector-pattern list as sensitive data when the checker incorporates the currently selected pattern into a static validation diagnostic. The query does not distinguish a pattern literal from a matched credential and does not model that the fixture text is never emitted.",
+  "root_cause_de": "Die generische CodeQL-Query für Klartext-Logging behandelt die feste Detector-Pattern-Liste als sensible Daten, wenn der Checker das aktuell gewählte Pattern in eine statische Validation-Diagnostik aufnimmt. Die Query unterscheidet ein Pattern-Literal nicht von einem gematchten Credential und modelliert nicht, dass der Fixture-Text nie ausgegeben wird.",
+  "proposed_remediation": "No Framework code remediation is required. Preserve the checker and its secret-pattern control, retain the exact static triage and GitHub receipt, and dismiss alert #1 only with reason `false positive` plus the source-to-sink rationale. Reopen/retriage if the alert's analyzed SHA, source/sink coordinates, or emitted dataflow changes.",
+  "proposed_remediation_de": "Keine Framework-Code-Remediation ist erforderlich. Checker und Secret-Pattern-Control bewahren, die exakte statische Triage und den GitHub-Receipt aufbewahren und Alert #1 nur mit Grund `false positive` plus Source-to-Sink-Begründung dismissen. Wieder öffnen/triagieren, falls sich analysierter SHA, Source-/Sink-Koordinaten oder ausgegebener Datenfluss des Alerts ändern.",
+  "acceptance_criteria": [
+    "The exact source blob and alert source/sink coordinates match the retained static source-to-sink triage.",
+    "Static inspection proves that fixture text, match objects, request bodies, and credential values never enter `errors` or the printer.",
+    "GitHub alert #1 is read back as `dismissed` with reason `false positive`, the documented rationale, exact analyzed SHA `e482549b93d95ba85830a208e99a2ba0331ec351`, and `fixed_at: null`.",
+    "No source, Parent gitlink, MRTS, branch, PR, permission, rule, or security-control change is used to obtain the disposition."
+  ],
+  "validation_plan": [
+    "Before relying on this disposition after a source change, compare the alert's current analyzed SHA, source, and sink to the retained triage evidence.",
+    "Reinspect every `errors.append(...)` value and the final printer for any newly introduced user-controlled or fixture-content dataflow.",
+    "Read back GitHub Code Scanning alert #1 after any dismissal, reopening, or later CodeQL analysis."
+  ],
+  "regression_tests": [
+    "The existing `make lint` invocation retains `check-security-data-flow-cases.py` as an active static control.",
+    "The checker continues to reject its fixed fixture-policy violations without including fixture content in an error string."
+  ],
+  "legitimate_control_tests": [
+    "A safe fixture set produces the bounded success message with the number of required cases only.",
+    "A fixture-policy violation reports its fixed path and fixed diagnostic category, not the matched fixture text."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": ["FND-SONAR-0002"],
+  "source_run_ids": ["20260718T192214Z-framework-pr-resolution-20260718-b30403da"],
+  "github_code_scanning_alerts": [
+    {
+      "number": 1,
+      "rule_id": "py/clear-text-logging-sensitive-data",
+      "state": "dismissed",
+      "dismissed_reason": "false positive",
+      "dismissed_at": "2026-07-18T19:45:12Z",
+      "dismissed_by": "Easton97-Jens",
+      "dismissed_comment": "Exact master e482549b93d95ba85830a208e99a2ba0331ec351: source is a hard-coded detector-pattern list. Diagnostics emit fixed paths, pattern literals, and allow-listed names--never fixture matches or content. Static source-to-sink triage: false positive.",
+      "fixed_at": null,
+      "analyzed_sha": "e482549b93d95ba85830a208e99a2ba0331ec351",
+      "source": "ci/checks/security/check-security-data-flow-cases.py:8:17-8:102",
+      "sink": "ci/checks/security/check-security-data-flow-cases.py:32:15-32:32",
+      "evidence_match": true
+    }
+  ],
+  "residual_risk": "The scoped checker may disclose a fixed workspace path, detector-pattern literal, or allow-listed field name in CI diagnostics, but it does not disclose matched fixture content or a credential. A future code change that appends text, a match object, or an untrusted path to `errors` invalidates this disposition and requires fresh triage. The unrelated Framework master SonarQube quality-gate failure remains blocked under `FND-SONAR-0002`.",
+  "residual_risk_de": "Der abgegrenzte Checker kann einen festen Workspace-Pfad, ein Detector-Pattern-Literal oder einen allow-gelisteten Feldnamen in CI-Diagnostik offenlegen, aber keinen gematchten Fixture-Inhalt und kein Credential. Eine zukünftige Codeänderung, die `text`, ein Match-Objekt oder einen nicht vertrauenswürdigen Pfad an `errors` anhängt, macht diese Disposition ungültig und erfordert eine frische Triage. Der nicht zusammenhängende Framework-Master-SonarQube-Quality-Gate-Fehler bleibt unter `FND-SONAR-0002` blockiert.",
+  "current_github_reconciliation_20260726": {
+    "observed_at": "2026-07-26T13:29:40Z",
+    "framework_head": "a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6",
+    "github_alert": {
+      "number": 1,
+      "rule_id": "py/clear-text-logging-sensitive-data",
+      "state": "dismissed",
+      "dismissed_reason": "false positive",
+      "dismissed_at": "2026-07-18T19:45:12Z",
+      "fixed_at": "2026-07-20T07:31:30Z"
+    },
+    "current_instance": {
+      "ref": "refs/heads/master",
+      "commit_sha": "3d6f51a2a2eeff6f3bcecff203f1e6ed1e240e4f",
+      "path": "ci/checks/security/check-security-data-flow-cases.py",
+      "start_line": 32
+    },
+    "static_source_recheck": {
+      "source": "SECRET_PATTERNS is a static tuple; fixture text is used for validation predicates.",
+      "control": "Every errors value is constructed from a bounded path, fixed phrase, static detector pattern, or allow-listed field name.",
+      "sink": "The only sink prints the joined bounded errors list to stderr.",
+      "counterevidence": "No fixture text, match object, request body, or credential value is appended to errors."
+    },
+    "validation_artifacts": {
+      "run_id": "20260726T133000Z-github-finding-status-reconciliation",
+      "report_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T133000Z-github-finding-status-reconciliation/artifacts/05_findings/FND-GITHUB-0003/validation_report.md",
+      "report_sha256": "280114437fecadf21eccba0be1f31a2c066ff48884581c64f86fe7b198aa318e",
+      "ledger_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T133000Z-github-finding-status-reconciliation/artifacts/05_findings/FND-GITHUB-0003/candidate_ledger.jsonl",
+      "ledger_sha256": "63d6262bd6366e438edd973c99db6987bf3daa4ada0f70aaedc628dc010b1612"
+    },
+    "disposition": "The false-positive counterevidence remains current; status stays not_applicable and the triplet is archive eligible."
+  },
+  "created_at": "2026-07-18T19:15:30Z",
+  "updated_at": "2026-07-26T13:29:40Z",
+  "final_disposition": "false_positive_static_ci_checker",
+  "history": [
+    {
+      "at": "2026-07-18T19:15:30Z",
+      "event": "github_codeql_alert_opened_on_current_master",
+      "detail": "GitHub CodeQL opened High-severity alert #1 for py/clear-text-logging-sensitive-data at master e482549b93d95ba85830a208e99a2ba0331ec351, source line 8 and sink line 32. It was treated as a master-integration blocker pending static validation."
+    },
+    {
+      "at": "2026-07-18T19:42:18Z",
+      "event": "exact_static_source_to_sink_triage_completed",
+      "detail": "The exact source blob and alert coordinates were compared. Static inspection established that only fixed paths, phrases, detector-pattern literals, and allow-listed field names reach the printer; fixture text and matches do not. Verdict: not_actionable, high confidence."
+    },
+    {
+      "at": "2026-07-18T19:45:12Z",
+      "event": "github_code_scanning_alert_dismissed_as_false_positive",
+      "detail": "Immediately before the authorized PATCH, alert #1 was open at exact master e482549b93d95ba85830a208e99a2ba0331ec351 with matching source and sink. GitHub then returned dismissed, false positive, fixed_at null, and the recorded static-triage rationale. No Framework/Parent/MRTS source, gitlink, branch, PR, permission, rule, or security-control change occurred."
+    },
+    {
+      "at": "2026-07-26T13:29:40Z",
+      "event": "current_github_codeql_false_positive_reconciled_for_archive",
+      "detail": "Read-only GitHub evidence still reports alert #1 dismissed false positive. The current alert instance remains at the intended checker sink, and current Framework source preserves the static tuple to bounded-diagnostic-to-stderr counterevidence. No Framework, Parent, Gitlink, permission, or security-control mutation occurred. Status remains not_applicable and is archive eligible; future source-to-sink changes require fresh triage."
+    }
+  ]
+}

@@ -1,0 +1,178 @@
+{
+  "id": "FND-SONAR-0005",
+  "title": "Framework PR #29 SonarQube Quality Gate failed on workflow-checker path containment and complexity findings",
+  "title_de": "Framework-PR #29: SonarQube-Quality-Gate scheiterte an Workflow-Checker-Pfad-Containment- und Komplexitätsbefunden",
+  "category": "sonarqube_finding",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "ci/checks/security/check-github-actions-workflows.py",
+    "tests/security_regression/test_workflow_security_contract.py",
+    "docs/github-actions-workflow-security.md",
+    "docs/github-actions-workflow-security.de.md",
+    "reports/audits/change-records/20260718-01-harden-github-actions-workflows.md",
+    "reports/audits/change-records/20260718-01-harden-github-actions-workflows.de.md"
+  ],
+  "affected_symbols": [
+    "resolve_repository_path",
+    "contained_workflow_path",
+    "workflow_paths",
+    "read_workflow_text",
+    "source_uses",
+    "validate_permissions",
+    "SonarCloud Check Run 88075927543",
+    "SonarCloud Check Run 88202399163"
+  ],
+  "summary": "The old exact PR #29 head 191b7e3 failed SonarQube Cloud's Quality Gate with Security Rating C and eleven annotations in the GitHub Actions workflow checker. A normal master reconciliation and focused non-suppressive remediation at fdb400b added repository-root containment, recursive workflow discovery, symlink-escape rejection, and decomposed high-complexity helpers. The final synchronized PR head 5fa814d passed all ten fresh PR checks, including SonarCloud, and merged as Framework master 7a12073c. The identical master tree passed the original workflow-security and legitimate-control matrix, so the finding is verified, not closed.",
+  "summary_de": "Der alte exakte PR-#29-Head 191b7e3 scheiterte am SonarQube-Cloud-Quality-Gate mit Security Rating C und elf Annotationen im GitHub-Actions-Workflow-Checker. Eine normale Master-Reconciliation und fokussierte nicht-unterdrückende Remediation am Head fdb400b ergänzte Repository-Root-Containment, rekursive Workflow-Erkennung, Symlink-Escape-Ablehnung und zerlegte hochkomplexe Helfer. Der finale synchronisierte PR-Head 5fa814d bestand alle zehn frischen PR-Checks, einschließlich SonarCloud, und wurde als Framework-Master 7a12073c gemergt. Der identische Master-Tree bestand die ursprüngliche Workflow-Security- und Legitimate-Control-Matrix; deshalb ist das Finding verified, nicht closed.",
+  "observed_behavior": "SonarCloud Check Run 88075927543 for PR #29 head 191b7e3d1999c7ffb39ad16bfaff7821bfc09825 completed with failure on 2026-07-18. The Quality Gate reported Security Rating C on New Code where A is required and emitted eleven annotations in ci/checks/security/check-github-actions-workflows.py, including failure-level annotations at lines 122, 126, 284, and 313.",
+  "observed_behavior_de": "SonarCloud-Check-Run 88075927543 für PR-#29-Head 191b7e3d1999c7ffb39ad16bfaff7821bfc09825 endete am 2026-07-18 mit failure. Das Quality Gate meldete Security Rating C auf New Code, obwohl A erforderlich ist, und erzeugte elf Annotationen in ci/checks/security/check-github-actions-workflows.py, darunter Failure-Level-Annotationen an den Zeilen 122, 126, 284 und 313.",
+  "expected_behavior": "The workflow-security checker must scan nested YAML workflows while resolving every supplied root, discovered candidate, and read target beneath the invocation repository root. It must reject outside roots and symlink escapes, retain strict YAML and trust-boundary checks, and pass the exact PR-head SonarQube Quality Gate without a suppression, exclusion, disabled scanner, or weakened control.",
+  "expected_behavior_de": "Der Workflow-Security-Checker muss verschachtelte YAML-Workflows scannen und dabei jede übergebene Root, jeden erkannten Kandidaten und jedes Leseziel unterhalb der Repository-Root des Aufrufs auflösen. Er muss externe Roots und Symlink-Escapes ablehnen, strikte YAML- und Trust-Boundary-Checks erhalten und das exakte PR-Head-SonarQube-Quality-Gate ohne Suppression, Exclusion, deaktivierten Scanner oder abgeschwächtes Control bestehen.",
+  "impact": "The failed external Quality Gate blocked PR #29 integration. The scanner findings concern a security-relevant workflow-validation boundary, but this record does not assert a separately proven exploitable product vulnerability; its security severity is therefore not_applicable. Fresh PR-head and resulting-master verification now prove that this specific gate failure no longer reproduces; the separate default-branch Sonar condition remains tracked only by FND-SONAR-0002.",
+  "impact_de": "Das fehlgeschlagene externe Quality Gate blockierte die Integration von PR #29. Die Scannerbefunde betreffen eine sicherheitsrelevante Workflow-Validierungsgrenze, aber dieser Record behauptet keine separat bewiesene ausnutzbare Produktvulnerabilität; seine Security-Schwere ist daher not_applicable. Die Verifikation des frischen PR-Heads und des resultierenden Masters belegt nun, dass dieses spezifische Gate-Scheitern nicht mehr reproduzierbar ist; die separate Default-Branch-Sonar-Bedingung wird ausschließlich durch FND-SONAR-0002 verfolgt.",
+  "preconditions": [
+    "Framework PR #29 is the task-owned workflow-trust-boundary branch in Easton97-Jens/ModSecurity-test-Framework.",
+    "The historical check is bound to head 191b7e3d1999c7ffb39ad16bfaff7821bfc09825 and the first remediation check to head fdb400b85bfd2779e95cc3ab8fb29a3e2e3793bf.",
+    "Final PR #29 head 5fa814d19b86f5c0a406b95914d6121af83ffe07 merged as Framework master 7a12073c28e62a67492dd501b6513b9914fe5df8 at 2026-07-19T15:12:26Z; their resulting tree is 25dae479a3f23e12a69db0ef9e034edae218f6d9.",
+    "Parent product and Framework gitlink remain unchanged, and MRTS remains read-only."
+  ],
+  "reproduction": [
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/check-runs/88075927543",
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/check-runs/88075927543/annotations --paginate",
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/fdb400b85bfd2779e95cc3ab8fb29a3e2e3793bf/check-runs",
+    "rtk env BUILD_ROOT=/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/tmp/pr29-sync-lint-build PYTHONPYCACHEPREFIX=/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/tmp/pr29-sync-lint-build/pycache make -s lint"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/evidence/pr29-fdb400b-sonar-remediation.md",
+      "artifact_type": "exact_pr_head_sonarqube_cloud_failure_and_remediation_receipt",
+      "sha256": "65ce440af9e7ee53221ef36980581bad5f66e9e3273bf611135ceabcf8c9a8ee",
+      "command": "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/check-runs/88075927543; rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/check-runs/88075927543/annotations --paginate; rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/fdb400b85bfd2779e95cc3ab8fb29a3e2e3793bf/check-runs",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T14:33:47Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/evidence/fnd-sonar-0005-pr29-master-verification.md",
+      "artifact_type": "framework_pr29_master_verification_receipt",
+      "sha256": "ad53a13fb5d9c8364da23433c0caabe9dd5a980e007413505d84bb1eb7944171",
+      "command": "PR #29 exact-head/master verification: GitHub PR and check observation, tree equality, and rtk env BUILD_ROOT=/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/tmp/pr29-sync-lint-build PYTHONPYCACHEPREFIX=/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/tmp/pr29-sync-lint-build/pycache make -s lint; the retained receipt records the complete result.",
+      "working_directory": "/var/tmp/codex/worktrees/framework-workflow-hardening",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T15:16:31Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The old workflow checker did not apply one resolved repository-root containment boundary to every requested, discovered, and read workflow path, and tightly coupled code paths produced the scanner's constructed-path and cognitive-complexity findings. The issue was independently remediable in the Framework checker and distinct from the default-branch Sonar backlog.",
+  "root_cause_de": "Der alte Workflow-Checker wendete keine einheitliche aufgelöste Repository-Root-Containment-Grenze auf jeden angeforderten, erkannten und gelesenen Workflow-Pfad an, und eng gekoppelte Codepfade erzeugten die Scannerbefunde zu konstruierten Pfaden und kognitiver Komplexität. Das Problem war im Framework-Checker unabhängig behebbar und vom Default-Branch-Sonar-Backlog verschieden.",
+  "proposed_remediation": "Implemented and verified on Framework master: resolve the repository root and all workflow paths strictly; require candidate paths to remain under the workflow root; recursively discover .yml/.yaml files; reject explicit outside roots and escaping symlinks; revalidate before reading; and split source_uses and validate_permissions into small helpers. Nested-workflow, outside-root, and symlink-escape regressions remain active together with the existing YAML, permission, token, checkout, and Action-pin controls.",
+  "proposed_remediation_de": "Auf Framework-Master implementiert und verifiziert: Repository-Root und alle Workflow-Pfade strikt auflösen; verlangen, dass Kandidatenpfade unter der Workflow-Root bleiben; .yml/.yaml-Dateien rekursiv erkennen; explizite externe Roots und entweichende Symlinks ablehnen; vor dem Lesen erneut validieren; und source_uses sowie validate_permissions in kleine Helfer zerlegen. Verschachtelte-Workflow-, Outside-Root- und Symlink-Escape-Regressionen bleiben zusammen mit den bestehenden YAML-, Permission-, Token-, Checkout- und Action-Pin-Controls aktiv.",
+  "acceptance_criteria": [
+    "The historical exact-head failure and its eleven annotations are retained with a hash-addressed evidence receipt.",
+    "The local workflow-security regression suite proves nested discovery, outside-root rejection, and symlink-escape rejection without relaxing existing trust controls.",
+    "The final exact PR #29 head 5fa814d19b86f5c0a406b95914d6121af83ffe07 passed all ten fresh PR checks, including SonarCloud, without scanner suppression or Quality Gate modification and without reviews or review threads.",
+    "The resulting Framework master 7a12073c28e62a67492dd501b6513b9914fe5df8 has the identical tree, reran the original reproduction and legitimate controls successfully, and passed applicable terminal master checks apart from the separately accepted FND-SONAR-0002 master-only Sonar result."
+  ],
+  "validation_plan": [
+    "Completed: inspect the direct workflow-checker diff and independently review path containment, recursive discovery, symlink handling, strict YAML, and trust-boundary invariants.",
+    "Completed: run focused workflow-security tests, the checker over real workflows, Action-pin regression, relevant archive regressions, documentation checks, Python/Ruff checks, and Framework lint.",
+    "Completed: observe all ten fresh final PR-head checks, then fetch resulting master, establish tree equality, and rerun the original failure and legitimate-control matrix."
+  ],
+  "regression_tests": [
+    "tests/security_regression/test_workflow_security_contract.py: nested workflow discovery",
+    "tests/security_regression/test_workflow_security_contract.py: explicit outside workflow-root rejection",
+    "tests/security_regression/test_workflow_security_contract.py: symlink escape rejection",
+    "Existing workflow token, permissions, checkout, pull_request_target, and immutable Action-pin controls"
+  ],
+  "legitimate_control_tests": [
+    "All five real Framework workflows pass the canonical workflow-security checker on the final master tree.",
+    "The final PR #29 head 5fa814d19b86f5c0a406b95914d6121af83ffe07 passes all ten fresh PR checks, including SonarCloud Code Analysis.",
+    "The full native master lint passes seven workflow-security tests, twenty-one Action-pin tests, ten CRS provenance tests, and the remaining repository-native controls."
+  ],
+  "dependencies": [
+    "FND-SONAR-0002 remains a separate accepted-risk default-branch Sonar backlog and does not waive this PR-head gate."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0002"
+  ],
+  "source_run_ids": [
+    "20260719T081017Z-framework-pr-resolution-20260719-840082e0"
+  ],
+  "remediation_validation": {
+    "final_pr_head": "5fa814d19b86f5c0a406b95914d6121af83ffe07",
+    "final_pr_checks": "All ten fresh PR checks passed, including SonarCloud Code Analysis, CodeQL Actions/C++/Python, scaffold-lint, and common-structure; no reviews or review threads were present.",
+    "framework_master_sha": "7a12073c28e62a67492dd501b6513b9914fe5df8",
+    "framework_master_tree": "25dae479a3f23e12a69db0ef9e034edae218f6d9",
+    "post_merge_controls": "The final PR tree equals master. Native full lint passed seven workflow-security tests including nested discovery, explicit outside-root rejection, and symlink-escape rejection; it also passed twenty-one Action-pin tests, ten CRS provenance tests, and the remaining repository-native controls.",
+    "post_merge_checks": "CodeQL C++/Actions/Python, scaffold-lint, and common-structure passed on master. SonarCloud master check 88207281607 failed with Security E and Reliability D and zero annotations only under distinct accepted-risk FND-SONAR-0002; it is not a fresh PR-head waiver.",
+    "delivery_state": "verified_on_master"
+  },
+  "delivery": {
+    "pull_request": {
+      "number": 29,
+      "url": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/29",
+      "state": "MERGED",
+      "base": "master",
+      "head": "agent/harden-framework-workflows",
+      "head_sha": "5fa814d19b86f5c0a406b95914d6121af83ffe07"
+    },
+    "merge_commit": "7a12073c28e62a67492dd501b6513b9914fe5df8",
+    "merged_at": "2026-07-19T15:12:26Z",
+    "tree": "25dae479a3f23e12a69db0ef9e034edae218f6d9",
+    "exact_sha_verification": "Final PR head 5fa814d19b86f5c0a406b95914d6121af83ffe07 and current Framework master 7a12073c28e62a67492dd501b6513b9914fe5df8 have tree 25dae479a3f23e12a69db0ef9e034edae218f6d9.",
+    "github_actions": "All ten required fresh PR checks passed on the final head; master CodeQL C++/Actions/Python, scaffold-lint, and common-structure passed.",
+    "sonarcloud": "Fresh final PR-head SonarCloud Code Analysis passed. Master-only SonarCloud check 88207281607 failed separately under FND-SONAR-0002 accepted risk and is not a fresh-head waiver.",
+    "reviews": "No reviews and no review threads blocked the merge.",
+    "delivery_state": "verified_on_master",
+    "overall_task_outcome": "verified",
+    "verified_pr": true,
+    "verified_on_master": true,
+    "parent_gitlink_update_authorized": false,
+    "mrts_change_authorized": false,
+    "parent_gitlink_unchanged": true,
+    "mrts_unchanged": true
+  },
+  "residual_risk": "The historical PR #29 Sonar gate condition is verified remediated on Framework master. Master SonarCloud check 88207281607 remains a separate accepted FND-SONAR-0002 condition with Security E and Reliability D and zero annotations; it neither waives nor reopens this fresh PR-head finding. This verified record is not closed: its historical evidence remains retained, and any lifecycle closure requires separate authorization.",
+  "residual_risk_de": "Die historische Sonar-Gate-Bedingung von PR #29 ist auf Framework-Master verifiziert behoben. Der Master-SonarCloud-Check 88207281607 bleibt eine separate akzeptierte FND-SONAR-0002-Bedingung mit Security E und Reliability D sowie null Annotationen; sie waivt dieses frische PR-Head-Finding weder noch eröffnet sie es erneut. Dieser verifizierte Record ist nicht closed: Seine historische Evidence bleibt aufbewahrt, und jeder Lifecycle-Abschluss erfordert eine separate Autorisierung.",
+  "created_at": "2026-07-19T14:33:47Z",
+  "updated_at": "2026-07-19T15:16:31Z",
+  "final_disposition": "verified_on_framework_master_not_closed",
+  "history": [
+    {
+      "at": "2026-07-18T11:33:49Z",
+      "event": "exact_pr_head_sonar_failure_validated",
+      "detail": "PR #29 head 191b7e3 received failed SonarCloud check 88075927543 with Security Rating C on New Code and eleven annotations in the workflow checker."
+    },
+    {
+      "at": "2026-07-19T14:18:07Z",
+      "event": "non_suppressive_remediation_fixed_on_exact_pr_head",
+      "detail": "Normal reconciliation and focused containment/complexity remediation at fdb400b passed SonarCloud check 88202399163. Post-merge master verification remains required before verified or closed."
+    },
+    {
+      "at": "2026-07-19T15:12:26Z",
+      "event": "final_synchronized_pr_head_merged",
+      "detail": "Final PR #29 head 5fa814d19b86f5c0a406b95914d6121af83ffe07 passed all ten fresh PR checks with no reviews or review threads and merged as Framework master 7a12073c28e62a67492dd501b6513b9914fe5df8."
+    },
+    {
+      "at": "2026-07-19T15:16:31Z",
+      "event": "verified_on_master",
+      "detail": "The final PR tree equals Framework master tree 25dae479a3f23e12a69db0ef9e034edae218f6d9. Native full lint reran the original workflow-security and legitimate-control matrix successfully; master non-Sonar checks passed, while separate FND-SONAR-0002 remains accepted risk. The finding is verified, not closed."
+    }
+  ]
+}

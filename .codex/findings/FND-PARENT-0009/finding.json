@@ -1,0 +1,87 @@
+{
+  "id": "FND-PARENT-0009",
+  "title": "Apache binary hardening profile has stale RUNPATH and incomplete full-RELRO proof",
+  "title_de": "Apache-Binary-Hardening-Profil hat stale RUNPATH und unvollständigen Full-RELRO-Nachweis",
+  "category": "binary_hardening_gap",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "informational",
+  "confidence": "candidate",
+  "status": "triaged",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": "Apache",
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md"
+  ],
+  "affected_symbols": [],
+  "summary": "Task-built HTTPD retained a temporary-build RUNPATH, while the module and libmodsecurity lacked observed BIND_NOW; the report does not validate reachable impact.",
+  "summary_de": "Task-built HTTPD behielt einen temporary-build RUNPATH, während Modul und libmodsecurity kein beobachtetes BIND_NOW hatten; der Bericht validiert keinen erreichbaren Impact.",
+  "observed_behavior": "Task-built HTTPD retained a temporary-build RUNPATH, while the module and libmodsecurity lacked observed BIND_NOW; the report does not validate reachable impact.",
+  "observed_behavior_de": "Task-built HTTPD behielt einen temporary-build RUNPATH, während Modul und libmodsecurity kein beobachtetes BIND_NOW hatten; der Bericht validiert keinen erreichbaren Impact.",
+  "expected_behavior": "Current evidence must be rerun against a known revision before this finding can advance beyond triaged.",
+  "expected_behavior_de": "Die aktuelle Evidence muss gegen eine bekannte Revision erneut ausgeführt werden, bevor dieses Finding über triaged hinaus fortschreiten kann.",
+  "impact": "Release and assurance claims remain bounded by the recorded evidence.",
+  "impact_de": "Release- und Assurance-Aussagen bleiben durch die dokumentierte Evidence begrenzt.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "sed -n '605,620p' .codex/reports/repository-full-assessment.md"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:605-620",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '605,620p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T09:23:19Z",
+      "retention_status": "retained_local_report"
+    }
+  ],
+  "root_cause": "The retained evidence identifies the condition but does not establish a product-code root cause.",
+  "root_cause_de": "Die retained Evidence belegt den Zustand, aber keine Produktcode-Grundursache.",
+  "proposed_remediation": "Establish the intended linker-hardening baseline, assess runtime reachability, and avoid promoting this candidate to a vulnerability without evidence.",
+  "proposed_remediation_de": "Die beabsichtigte Linker-Hardening-Baseline festlegen, Runtime-Reachability bewerten und diesen Kandidaten ohne Evidence nicht zur Vulnerability befördern.",
+  "acceptance_criteria": [
+    "The intended RUNPATH/RELRO policy is documented and measured on released artifacts.",
+    "Any reachable impact is validated or the candidate has technical counter-evidence."
+  ],
+  "validation_plan": [
+    "Inspect the rebuilt artifacts with available ELF tooling.",
+    "Run a legitimate host startup/control after any linker configuration change."
+  ],
+  "regression_tests": [
+    "Add or retain a focused regression/evidence control for the recorded condition."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0008"
+  ],
+  "source_run_ids": [
+    "20260717T085050Z-mrts-protocol-hardening-readiness-57010656"
+  ],
+  "residual_risk": "The condition remains open; no risk has been accepted by the current user.",
+  "residual_risk_de": "Der Zustand bleibt offen; der aktuelle Benutzer hat kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-17T10:43:59Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    }
+  ]
+}

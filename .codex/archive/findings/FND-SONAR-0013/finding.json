@@ -1,0 +1,290 @@
+{
+  "id": "FND-SONAR-0013",
+  "title": "Common runtime CRS source, generated-output, and direct CLI output containment remain an unverified local configuration-integrity candidate",
+  "title_de": "Common-Runtime-CRS-Quelle, generierte Ausgabe und direkte CLI-Output-Containment bleiben ein unverifizierter lokaler Konfigurationsintegritätskandidat",
+  "category": "security_candidate",
+  "sonarqube_classification": "python:S5443_and_pythonsecurity:S8707_security_candidate",
+  "sonarqube_rules": [
+    "python:S5443",
+    "pythonsecurity:S8707"
+  ],
+  "sonarqube_issue_references": [
+    "AZ70UrU3IhrooTjfZnAX",
+    "AZ70UrU3IhrooTjfZnAY",
+    "AZ70UrU3IhrooTjfZnAZ",
+    "AZ-PstOVmYfklgBeDadY"
+  ],
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "high",
+  "confidence": "candidate",
+  "status": "accepted_risk",
+  "verification_status": "current_source_already_safe_pending_hosted_per_rule_and_live_smoke_evidence",
+  "remediation_status": "current_source_already_safe_pending_hosted_per_rule_and_live_smoke_evidence",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "common",
+  "protocol": null,
+  "profile": "Parent PR #97 local Common runtime CRS smoke and direct CLI output-path boundary",
+  "delivery_state": "protected_merge_observed_master_sha_prefix_7f72325_master_push_workflows_14_passed_pending_full_master_receipt",
+  "affected_files": [
+    "common/scripts/run_local_runtime_smoke.py",
+    "tests/test_common_runtime_smoke_crs_source_security.py",
+    "docs/reference/variables.md",
+    "docs/reference/variables.de.md",
+    "reports/audits/change-records/CR-20260723-sonar-common-crs-source-integrity.md",
+    "reports/audits/change-records/CR-20260723-sonar-common-crs-source-integrity.de.md"
+  ],
+  "affected_symbols": [
+    "crs_source_candidate_roots",
+    "resolve_crs_source_dir",
+    "validate_crs_source_dir",
+    "prepare_crs_smoke_config",
+    "validate_runtime_output_paths",
+    "require_verified_runtime_output_path",
+    "secure_crs_output_file",
+    "write_trusted_crs_output",
+    "run_smoke"
+  ],
+  "source_commits": [
+    "2fb994324c097a846ed6f6d93126cb8def391f0d",
+    "b3860aac005a98244f5e880efc26a74449b11989",
+    "7f72325cbd177e4bd98b3511a58344c04d41b06b"
+  ],
+  "source_revisions": {
+    "original_pr97_feature_head": "2fb994324c097a846ed6f6d93126cb8def391f0d",
+    "local_pr97_worktree_snapshot": "b3860aac005a98244f5e880efc26a74449b11989",
+    "local_snapshot_base": "38752600e4823fc5a16f3e155047da2d660b9897",
+    "protected_merge_commit": "7f72325cbd177e4bd98b3511a58344c04d41b06b",
+    "current_parent_head": "3c99b88e1c73dcf7b79c0ea6dd189cb4383d13dd",
+    "scope_limit": "Local Git ancestry confirms that the full protected merge commit is reachable from the current Parent head. The retained task-owned local validation proves current source/control/sink behavior, not hosted per-rule SonarQube state or a live libmodsecurity/connector smoke."
+  },
+  "summary": "PR #97 corrected a local cross-user configuration-integrity candidate in Common runtime CRS source selection, generated configuration/audit output, and direct CLI output paths. The full protected merge commit 7f72325cbd177e4bd98b3511a58344c04d41b06b is locally reachable from current Parent head 3c99b88e1c73dcf7b79c0ea6dd189cb4383d13dd. Retained current-source validation passed 26 focused CRS/output tests, 6 runtime-path-policy tests, syntax, CLI help, whitespace, merge ancestry, and static source/control/sink review. At the stated cross-user POSIX owner/mode boundary the security assessment is already_safe. The current user selected a local archive-only accepted-risk disposition for the still-missing hosted per-rule SonarQube and live libmodsecurity/connector evidence; this is not a fix, closure, production-safety, or release claim.",
+  "summary_de": "PR #97 korrigierte einen lokalen Cross-User-Konfigurationsintegritätskandidaten bei der Common-Runtime-CRS-Quellenauswahl, generierter Konfigurations-/Audit-Ausgabe und direkten CLI-Ausgabepfaden. Der vollständige geschützte Merge-Commit 7f72325cbd177e4bd98b3511a58344c04d41b06b ist vom aktuellen Parent-Head 3c99b88e1c73dcf7b79c0ea6dd189cb4383d13dd lokal erreichbar. Aufbewahrte Current-Source-Validierung bestand 26 fokussierte CRS-/Output-Tests, 6 Runtime-Path-Policy-Tests, Syntax, CLI-Hilfe, Whitespace, Merge-Ancestry und statischen Source-/Control-/Sink-Review. An der angegebenen Cross-User-POSIX-Owner-/Mode-Grenze ist die Sicherheitsbewertung already_safe. Der aktuelle Nutzer wählte eine ausschließlich lokale Archiv-Risikoakzeptanz für die weiterhin fehlende Hosted-Per-Rule-SonarQube- und Live-libmodsecurity-/Connector-Evidenz; dies ist kein Fix-, Abschluss-, Produktionssicherheits- oder Release-Claim.",
+  "observed_behavior": "The reviewed local PR #97 diff removes ambient RUNNER_TEMP, TMPDIR, /tmp, and /var/tmp CRS candidate discovery from crs_source_candidate_roots(). It routes selectable CRS trees through trusted ownership, mode, symlink-component, and cross-user-ancestor checks before Include paths are generated. prepare_crs_smoke_config() creates generated setup, rule, payload, and audit artifacts through O_NOFOLLOW plus exclusive creation and revalidates the generated CRS rule before evaluator use. validate_runtime_output_paths() requires the six direct output destinations evidence_root, results_dir, tmp_root, log_root, log_dir, and config_root to be absolute, symlink-free, resolved beneath VERIFIED_RUN_ROOT, and validated before run_smoke() proceeds to a write-capable path.",
+  "observed_behavior_de": "Der geprüfte lokale PR-#97-Diff entfernt die Ambient-CRS-Kandidatensuche über RUNNER_TEMP, TMPDIR, /tmp und /var/tmp aus crs_source_candidate_roots(). Er führt auswählbare CRS-Bäume durch Prüfungen für vertrauenswürdigen Besitzer, Modus, Symlink-Komponenten und Cross-User-Parent, bevor Include-Pfade erzeugt werden. prepare_crs_smoke_config() erzeugt generierte Setup-, Rule-, Payload- und Audit-Artefakte mit O_NOFOLLOW und exklusiver Erstellung und validiert die generierte CRS-Rule vor der Evaluator-Nutzung erneut. validate_runtime_output_paths() verlangt für die sechs direkten Ausgabeziele evidence_root, results_dir, tmp_root, log_root, log_dir und config_root absolute, symlinkfreie und unter VERIFIED_RUN_ROOT aufgelöste Pfade und validiert sie, bevor run_smoke() einen schreibfähigen Pfad erreicht.",
+  "expected_behavior": "Only an explicit CRS_SOURCE_DIR or paths derived from an explicit runtime lookup root may become CRS Include input. Selected source and generated output paths must establish local provenance and containment before generated configuration reaches the evaluator. Each direct CLI output path must be rejected with SmokeBlocked / exit 77 before the runner creates, unlinks, passes, or writes outside the verified invocation root. Valid explicit trusted sources and a valid verified-root layout must remain usable.",
+  "expected_behavior_de": "Nur ein explizites CRS_SOURCE_DIR oder aus einer expliziten Runtime-Lookup-Root abgeleitete Pfade dürfen zu CRS-Include-Input werden. Ausgewählte Quellen und generierte Ausgabepfade müssen lokale Provenance und Containment herstellen, bevor generierte Konfiguration den Evaluator erreicht. Jeder direkte CLI-Ausgabepfad muss mit SmokeBlocked / Exit 77 zurückgewiesen werden, bevor der Runner außerhalb der verifizierten Invocation-Root erzeugt, unlinkt, übergibt oder schreibt. Gültige explizite vertrauenswürdige Quellen und ein gültiges Verified-Root-Layout müssen weiter verwendbar bleiben.",
+  "impact": "If the pre-follow-up local path selection were reachable in a direct smoke invocation, another local user able to preseed a shared temporary path or an unsafe output path could influence CRS configuration input or induce runner output outside the intended verified invocation tree. This is a local configuration/file-integrity candidate only. The bounded evidence does not establish a remote request-to-parser path, arbitrary CRS code execution, a current-master exploit, or a successful runtime attack.",
+  "impact_de": "Wenn die lokale Pfadauswahl vor dem Follow-up in einer direkten Smoke-Invocation erreichbar wäre, könnte ein anderer lokaler Benutzer mit der Möglichkeit, einen gemeinsam genutzten temporären Pfad oder unsicheren Ausgabepfad vorzubereiten, CRS-Konfigurationsinput beeinflussen oder Runner-Ausgabe außerhalb des vorgesehenen verifizierten Invocation-Baums verursachen. Dies ist nur ein lokaler Konfigurations-/Dateiintegritätskandidat. Die begrenzte Evidenz belegt weder einen Remote-Request-zu-Parser-Pfad noch beliebige CRS-Code-Ausführung, einen Current-Master-Exploit oder einen erfolgreichen Runtime-Angriff.",
+  "preconditions": [
+    "A direct Common runtime smoke invocation selects CRS input or one of its direct output roots through the reviewed path.",
+    "Before the intended control is active, another local user can preseed a shared temporary CRS-looking tree, a replaceable path component, or an outside output target.",
+    "The CRS smoke reaches generated configuration/audit output or the local libmodsecurity evaluator path."
+  ],
+  "reproduction": [
+    "Inspect the local PR #97 diff from base 38752600e4823fc5a16f3e155047da2d660b9897 to local snapshot b3860aac005a98244f5e880efc26a74449b11989 for the listed symbols.",
+    "Run env PYTHONDONTWRITEBYTECODE=1 python -m unittest -v tests.test_common_runtime_smoke_crs_source_security in a task-owned environment; exercise preseeded ambient CRS candidates, unsafe source/generated-output variants, each of the six outside CLI output roots, a relative output, a symlink escape, a symlink loop, and a pre-existing CRS-suffix symlink.",
+    "Exercise a current-user- or root-owned, non-group/world-writable explicit CRS source and a contained verified runtime output layout as legitimate controls.",
+    "Obtain a fresh exact-head SonarQube Cloud issue/Quality-Gate receipt for the recorded rule references without changing a Sonar control."
+  ],
+  "security_assessment": {
+    "assessment_status": "already_safe",
+    "security_invariant": "Untrusted local path selection must not become generated CRS parser input or a runner write outside the verified runtime root.",
+    "trust_boundary": "direct CLI and environment-selected CRS/output paths -> Common runtime smoke -> generated configuration/audit artifacts -> local libmodsecurity evaluator or result writer",
+    "controlled_inputs": [
+      "CRS_SOURCE_DIR",
+      "--runtime-lookup-root",
+      "--evidence-root",
+      "--results-dir",
+      "--tmp-root",
+      "--log-root",
+      "--log-dir",
+      "--config-root",
+      "VERIFIED_RUN_ROOT"
+    ],
+    "sinks": [
+      "generated ModSecurity Include configuration",
+      "generated audit and payload files",
+      "local libmodsecurity evaluator rule-file input",
+      "runner result-writing path"
+    ],
+    "counterevidence_and_limits": "At current Parent head 3c99b88e1c73dcf7b79c0ea6dd189cb4383d13dd, the full PR #97 merge commit is reachable; a retained 26-case focused suite and static source/control/sink review show explicit-only CRS selection, trusted no-symlink generation, and output-root validation before writes. The conclusion is limited to the stated cross-user POSIX owner/mode model: it does not provide hosted per-rule SonarQube evidence, a live connector/libmodsecurity smoke, same-UID race proof, or filesystem-ACL proof."
+  },
+  "evidence": [
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/worktrees/pr55/reports/audits/change-records/CR-20260723-sonar-common-crs-source-integrity.md",
+      "artifact_type": "local_pr97_change_record_with_focused_validation_statement",
+      "sha256": "d07f3fb43265c7acfad64934c0b73c859ac3c30a048fff0b7e6064a0e334a8c9",
+      "command": "rtk proxy git diff --name-status origin/master...HEAD; rtk proxy git diff --check origin/master...HEAD; rtk proxy sha256sum reports/audits/change-records/CR-20260723-sonar-common-crs-source-integrity.md",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/worktrees/pr55",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T07:58:00Z",
+      "retention_status": "volatile_task_worktree_source_not_a_sealed_execution_receipt",
+      "scope_limit": "The Change Record reports 26 focused local test cases as passed, but this bounded finding-record task did not independently rerun or retain the raw test log. Parent-provided exact-head hosted evidence is recorded separately; neither source proves protected merge or resulting-master validation."
+    },
+    {
+      "run_id": "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/worktrees/pr55/reports/audits/change-records/CR-20260723-sonar-common-crs-source-integrity.de.md",
+      "artifact_type": "paired_german_local_pr97_change_record",
+      "sha256": "e7b9461f09f84cb43b8f736806743d0d83b7ea028507e25b88666f4c22182e24",
+      "command": "rtk proxy sha256sum reports/audits/change-records/CR-20260723-sonar-common-crs-source-integrity.de.md",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b/worktrees/pr55",
+      "exit_code": 0,
+      "observed_at": "2026-07-24T07:58:00Z",
+      "retention_status": "volatile_task_worktree_source_not_a_sealed_execution_receipt",
+      "scope_limit": "Paired change-record source only; not independent proof of runtime execution, hosted analysis, or delivery."
+    },
+    {
+      "run_id": "20260726T171128Z-fnd-sonar-remediation",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T171128Z-fnd-sonar-remediation/validation_report.md",
+      "artifact_type": "retained_current_parent_security_validation_report",
+      "sha256": "fe74a68f330bdd262e612a0a92ffafe8a558e9bbdad2fff4b1a6776f887dccf1",
+      "command": "rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-temp> <Parent-.venv>/bin/python -m unittest -v tests.test_common_runtime_smoke_crs_source_security; rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-temp> <Parent-.venv>/bin/python -m unittest -v tests.test_runtime_path_policy; rtk proxy env PYTHONPYCACHEPREFIX=<task-artifacts>/pycache <Parent-.venv>/bin/python -m compileall -q common/scripts/run_local_runtime_smoke.py tests/test_common_runtime_smoke_crs_source_security.py; rtk proxy git merge-base --is-ancestor 7f72325cbd177e4bd98b3511a58344c04d41b06b HEAD",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T17:18:12Z",
+      "retention_status": "retained_task_owned_validation_evidence",
+      "scope_limit": "26 focused CRS/output tests, 6 runtime-path-policy tests, syntax/help, whitespace, static caller review, and merge ancestry passed. No hosted per-rule SonarQube receipt or live libmodsecurity/connector smoke was run."
+    },
+    {
+      "run_id": "20260726T182851Z-user-selected-parent-sonar-archive",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260726T182851Z-user-selected-parent-sonar-archive/decision.md",
+      "artifact_type": "explicit_user_directed_local_archive_accepted_risk_decision",
+      "sha256": "d5dc1ed08dfca22b841c02eee45e0459665f026924ff531f158d1e5dd0145cdf",
+      "command": "Current user selected FND-SONAR-0010, FND-SONAR-0013, and FND-SONAR-0014 for a lossless local archive move after the current SonarQube Cloud/GitHub reconciliation.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T18:28:51Z",
+      "retention_status": "retained_task_owned_external_evidence",
+      "scope_limit": "This is a local archive decision only. It does not establish a fix, technical closure, production safety, release readiness, hosted per-rule SonarQube evidence, or live CRS/libmodsecurity/connector behavior."
+    }
+  ],
+  "current_exact_evidence": {
+    "source": "parent-provided current PR #97 evidence for this bounded finding-record task",
+    "observed_at": "2026-07-24T08:04:28Z",
+    "head_sha": "b3860aac005a98244f5e880efc26a74449b11989",
+    "local_validation": {
+      "focused_test_count": 26,
+      "focused_tests": "passed",
+      "compileall": "passed",
+      "help": "passed"
+    },
+    "hosted_validation": {
+      "required_checks": "passed",
+      "current_pr_checks": "passed",
+      "sonarqube_quality_gate": "OK",
+      "current_pr_issue_disposition": "8 issues CLOSED/FIXED",
+      "explicitly_identified_closed_fixed_issue": {
+        "rule": "pythonsecurity:S8707",
+        "key": "AZ-PstOVmYfklgBeDadY"
+      }
+    },
+    "delivery": {
+      "protected_merge": "not_observed",
+      "resulting_master_validation": "not_observed"
+    },
+    "retention_status": "parent_supplied_summary_source_receipt_path_not_provided_to_this_bounded_record_update",
+    "scope_limit": "The supplied aggregate issue disposition does not provide a retained raw per-key receipt for every historical S5443 reference. It is current exact-head evidence, not proof of a protected merge or resulting-master state."
+  },
+  "current_delivery_evidence": {
+    "source": "parent-provided protected-merge and resulting-master workflow summary for this bounded finding-record task",
+    "observed_at": "2026-07-24T08:13:51Z",
+    "protected_merge": "observed",
+    "master_sha_prefix": "7f72325",
+    "master_sha": "7f72325cbd177e4bd98b3511a58344c04d41b06b",
+    "current_parent_head": "3c99b88e1c73dcf7b79c0ea6dd189cb4383d13dd",
+    "current_head_reachability": "rtk git merge-base --is-ancestor 7f72325cbd177e4bd98b3511a58344c04d41b06b HEAD exited 0 at 2026-07-26T17:18:12Z",
+    "master_push_workflows": {
+      "count": 14,
+      "result": "passed"
+    },
+    "retention_status": "parent_summary_plus_retained_local_git_ancestry_and_validation_report",
+    "scope_limit": "The full merge SHA and its reachability from the current Parent head are locally evidenced. Hosted workflow receipts, hosted per-rule SonarQube state, and a live libmodsecurity/connector smoke remain outside this retained local evidence."
+  },
+  "root_cause": "Before the reviewed PR diff, ambient temporary roots were candidates for CRS selection and generated CRS/configuration output was derived from selected path values without the documented end-to-end trusted-source, no-symlink, provenance, and verified-output-root boundary. The direct runner path therefore warranted investigation where its file and parser-facing sinks could be reached from locally selected paths.",
+  "root_cause_de": "Vor dem geprüften PR-Diff waren Ambient-Temporary-Roots Kandidaten für die CRS-Auswahl und generierte CRS-/Konfigurationsausgabe wurde aus ausgewählten Pfadwerten ohne die dokumentierte End-to-End-Grenze für vertrauenswürdige Quelle, Symlinkfreiheit, Provenance und verifizierte Output-Root abgeleitet. Der direkte Runner-Pfad erforderte daher Untersuchung, wenn seine Datei- und Parser-nahen Sinks aus lokal ausgewählten Pfaden erreichbar waren.",
+  "proposed_remediation": "Keep the PR #97 boundary narrow: accept only explicit CRS source candidates, validate every selected source and generated output component, create generated artifacts with no-follow/exclusive semantics, revalidate the generated rule immediately before evaluator use, and validate all six direct CLI output roots before the runner's first write-capable action. Preserve explicit valid-source and verified-root controls. Do not satisfy the finding by a Sonar suppression, exclusion, rule/profile change, Quality-Gate change, false-positive disposition, or risk acceptance.",
+  "proposed_remediation_de": "Die PR-#97-Grenze eng beibehalten: nur explizite CRS-Quellkandidaten akzeptieren, jede ausgewählte Quelle und generierte Ausgabe-Komponente validieren, generierte Artefakte mit No-Follow-/Exklusiv-Semantik erstellen, die generierte Rule unmittelbar vor der Evaluator-Nutzung erneut validieren und alle sechs direkten CLI-Output-Roots vor der ersten schreibfähigen Runner-Aktion validieren. Gültige explizite Quellen und Verified-Root-Controls bewahren. Der Befund darf nicht durch Sonar-Suppression, Exclusion, Regel-/Profiländerung, Quality-Gate-Änderung, False-Positive-Disposition oder Risikoakzeptanz erledigt werden.",
+  "acceptance_criteria": [
+    "The current exact PR #97 head has no ambient shared-temporary CRS source fallback and rejects untrusted, symlinked, replaceable, group/world-writable, malformed-directive, or unsafe generated CRS inputs before evaluator rule-file use.",
+    "Every direct output destination evidence_root, results_dir, tmp_root, log_root, log_dir, and config_root is absolute, canonicalized, no-symlink, and contained below a safe VERIFIED_RUN_ROOT before any runner filesystem operation; rejected inputs return exit 77 without a runner write.",
+    "Valid explicit trusted CRS sources and valid contained verified-runtime output layouts remain accepted by the same production resolver boundary.",
+    "The focused CRS-source security suite, syntax/help checks, exact diff review, and an alternate-bypass/source-to-sink review pass for the current exact head.",
+    "The confirmed exact head retains Quality Gate OK and the current PR issue set CLOSED/FIXED without weakening Sonar controls; any later head requires a fresh receipt.",
+    "A real CRS/libmodsecurity smoke is run only when documented prerequisites exist; otherwise its absence remains explicitly not_run or blocked."
+  ],
+  "validation_plan": [
+    "Refresh and identify the exact PR #97 head before any delivery decision; do not reuse a local worktree snapshot as remote-head proof.",
+    "Run env PYTHONDONTWRITEBYTECODE=1 python -m unittest -v tests.test_common_runtime_smoke_crs_source_security and retain its exact output in a task-owned evidence run.",
+    "Run syntax compilation, --help, git diff --check, and direct negative/control probes with output below the configured external task root.",
+    "Review every direct caller and alternate CLI/environment override for pre-write containment, symlink, ancestor-replacement, malformed-directive, stale-output, and outside-root bypasses.",
+    "After any head change, obtain fresh exact-head hosted GitHub and SonarQube Cloud issue/Quality-Gate evidence without changing any scanner or Quality-Gate control.",
+    "After protected merge, verify the resulting master SHA and rerun the original legitimate control and applicable master checks before marking the finding verified.",
+    "Run a real CRS/libmodsecurity smoke only after its documented local components are available; otherwise record not_run or blocked rather than inferring runtime success."
+  ],
+  "regression_tests": [
+    "tests/test_common_runtime_smoke_crs_source_security.py — the Change Record reports 26 passing focused cases; raw output was not retained by this bounded finding-record task."
+  ],
+  "legitimate_control_tests": [
+    "A trusted explicit CRS source with a regular setup template, rules directory, and allowed Include paths is accepted through resolve_crs_source_dir().",
+    "A current-user-owned contained verified-runtime output layout is accepted and normalized through validate_runtime_output_paths()."
+  ],
+  "dependencies": [
+    "A current exact Parent PR #97 head and normal current-master synchronization when delivery proceeds.",
+    "A Parent Python environment for the focused suite.",
+    "Read access to current exact-head GitHub and SonarQube Cloud results for delivery verification.",
+    "Documented local libmodsecurity/CRS/host-connector prerequisites only if a real smoke is attempted."
+  ],
+  "blocked_by": [
+    "The full resulting-master SHA and a retained master source-to-sink/legitimate-control rerun are not supplied to this bounded finding-record task.",
+    "No real CRS/libmodsecurity or host-connector smoke result is in scope or asserted.",
+    "The parent-provided hosted summary lacks a retained raw per-key receipt for each historical S5443 reference."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0014"
+  ],
+  "source_run_ids": [
+    "20260724T064103Z-sequential-non-mrts-pr-master-integration-9f1bf22b",
+    "20260726T171128Z-fnd-sonar-remediation",
+    "20260726T182851Z-user-selected-parent-sonar-archive"
+  ],
+  "evidence_limitations": [
+    "The evidence is a local PR-worktree diff and Change Record snapshot, not a sealed raw test receipt.",
+    "The reported 26 focused tests are local boundary coverage; they do not start a host connector or libmodsecurity evaluator.",
+    "Parent-provided current exact-head evidence reports passed checks, Quality Gate OK, and eight CLOSED/FIXED current PR issues, but its source receipt path and full per-key raw responses were not supplied to this bounded record update.",
+    "The full protected-merge SHA is now locally reachable from current Parent HEAD and a retained local source/control/sink rerun exists; hosted workflow receipts and per-rule SonarQube responses remain unavailable.",
+    "The candidate is limited to cross-user local configuration/file-integrity assumptions; same-UID races and filesystem ACL semantics are outside the stated POSIX owner/mode claim."
+  ],
+  "residual_risk": "The current-source candidate is locally already_safe only for the stated cross-user POSIX owner/mode boundary. The current user accepts, solely for a local archive, the absent retained hosted per-rule SonarQube evidence and intentionally unrun live CRS/libmodsecurity/connector smoke; same-UID races, filesystem ACL semantics, current scanner signals, production safety, release readiness, and technical closure remain unverified.",
+  "residual_risk_de": "Der Current-Source-Kandidat ist nur für die angegebene Cross-User-POSIX-Owner-/Mode-Grenze lokal already_safe. Der aktuelle Nutzer akzeptiert ausschließlich für ein lokales Archiv die fehlende aufbewahrte Hosted-Per-Rule-SonarQube-Evidenz und den bewusst nicht ausgeführten Live-CRS-/libmodsecurity-/Connector-Smoke; Same-UID-Races, Dateisystem-ACL-Semantik, aktuelle Scanner-Signale, Produktionssicherheit, Release-Readiness und technischer Abschluss bleiben unverifiziert.",
+  "history": [
+    {
+      "at": "2026-07-24T07:58:00Z",
+      "status": "in_progress",
+      "event": "canonical_candidate_record_created_from_pr97_local_scope",
+      "detail": "Allocated from the local PR #97 diff and paired Change Record. The supplied 26-case local test statement is recorded with its limitation; hosted and merge evidence are intentionally not asserted."
+    },
+    {
+      "at": "2026-07-24T08:04:28Z",
+      "status": "in_progress",
+      "event": "parent_provided_exact_head_validation_recorded",
+      "detail": "Parent confirmed exact head b3860aac005a98244f5e880efc26a74449b11989; 26 focused tests, compileall, --help, required/current PR checks passed, SonarQube Cloud Quality Gate was OK, and eight current PR issues were CLOSED/FIXED including S8707 AZ-PstOVmYfklgBeDadY. PR #97 remains unmerged."
+    },
+    {
+      "at": "2026-07-24T08:13:51Z",
+      "status": "in_progress",
+      "event": "parent_provided_protected_merge_and_master_workflow_summary_recorded",
+      "detail": "Parent confirmed protected merge of PR #97 to master SHA prefix 7f72325 and 14 green master-push workflows. No full resulting-master SHA or retained source-to-sink/legitimate-control master rerun was supplied, so the finding remains in_progress."
+    },
+    {
+      "at": "2026-07-26T17:18:12Z",
+      "status": "in_progress",
+      "event": "current_parent_source_validation_and_full_merge_ancestry_recorded",
+      "detail": "Local Git proves full merge commit 7f72325cbd177e4bd98b3511a58344c04d41b06b is an ancestor of current Parent HEAD 3c99b88e1c73dcf7b79c0ea6dd189cb4383d13dd. Retained task evidence records 26 focused CRS/output tests, 6 runtime-path-policy tests, syntax/help, whitespace, and static source/control/sink review. The current source is already_safe for the stated cross-user POSIX owner/mode claim; hosted per-rule SonarQube and live libmodsecurity/connector evidence remain open."
+    },
+    {
+      "at": "2026-07-26T18:28:51Z",
+      "status": "accepted_risk",
+      "event": "current_user_directed_local_archive_accepted_risk",
+      "detail": "After the current master/SonarQube Cloud reconciliation, the current user explicitly selected this record for a lossless local archive move. The decision accepts only the documented residual uncertainty for local archival; it does not mark the candidate fixed, verified, closed, safe for production, or release-ready."
+    }
+  ],
+  "created_at": "2026-07-24T07:58:00Z",
+  "updated_at": "2026-07-26T18:28:51Z",
+  "final_disposition": "accepted_risk_user_directed_local_archive_only_20260726"
+}

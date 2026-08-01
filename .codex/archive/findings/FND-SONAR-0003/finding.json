@@ -1,0 +1,126 @@
+{
+  "id": "FND-SONAR-0003",
+  "title": "Exact Framework PR head has a SonarQube Cloud Critical S5443 security signal in a CRS regression assertion",
+  "title_de": "Exakter Framework-PR-Head hat ein kritisches SonarQube-Cloud-S5443-Security-Signal in einer CRS-Regressions-Assertion",
+  "category": "sonarqube_finding",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "tests/ci_security/test_ci_security_contract.py:287",
+    "ci/checks/catalog/check-crs-version-pinning.sh"
+  ],
+  "affected_symbols": [
+    "CiSecurityContractTest.test_crs_version_pinning_uses_a_safe_runtime_temp_file",
+    "python:S5443",
+    "SonarQube Cloud issue AZ91jsG8DeeK920-OlE3",
+    "SonarQube Cloud check 88088009441",
+    "SonarQube Cloud check 88089324795"
+  ],
+  "summary": "SonarQube Cloud initially marked Draft PR #27 head 15e9a034 with Critical python:S5443 because a negative CRS regression assertion contained a retired /tmp pathname literal. Source-to-sink validation proved the line only compares checked-in script text and has no filesystem or process sink. Follow-up commit 66d9087 asserts the actual retired predictable `crs-version-pinning.$$` form; exact-head SonarQube Cloud now passes with zero open pull-request vulnerabilities.",
+  "summary_de": "SonarQube Cloud markierte zunächst den Draft-PR-#27-Head 15e9a034 mit Critical python:S5443, weil eine negative CRS-Regressions-Assertion ein ausgemustertes /tmp-Pathname-Literal enthielt. Die Source-to-Sink-Validierung bewies, dass die Zeile nur eingecheckten Skripttext vergleicht und keinen Filesystem- oder Process-Sink hat. Follow-up-Commit 66d9087 prüft die tatsächlich ausgemusterte vorhersagbare Form `crs-version-pinning.$$`; SonarQube Cloud besteht auf dem Exact-Head jetzt mit null offenen Pull-Request-Vulnerabilities.",
+  "observed_behavior": "Check 88088009441 failed with `D Security Rating on New Code` and one python:S5443 vulnerability annotation on `self.assertNotIn(\"/tmp/crs-version-pinning\", script)`. Exact final-head check 88089324795 passed; the public Quality Gate API reports Security Rating A and the open-vulnerability query returns total 0.",
+  "observed_behavior_de": "Check 88088009441 schlug mit `D Security Rating on New Code` und einer python:S5443-Vulnerability-Annotation auf `self.assertNotIn(\"/tmp/crs-version-pinning\", script)` fehl. Der Exact-Final-Head-Check 88089324795 bestand; die öffentliche Quality-Gate-API meldet Security Rating A und die Open-Vulnerability-Abfrage liefert total 0.",
+  "expected_behavior": "The regression test must prove that the production script does not use the retired predictable path, while no test expression may be misclassified as an unsafe public-directory file operation. The exact remote PR-head SonarQube Quality Gate must pass without suppressing, excluding, disabling, or weakening any control.",
+  "expected_behavior_de": "Der Regressionstest muss beweisen, dass das Produktionsskript den ausgemusterten vorhersagbaren Pfad nicht verwendet, während kein Testausdruck als unsichere Public-Directory-Dateioperation fehlklassifiziert werden darf. Das exakte Remote-PR-Head-SonarQube-Quality-Gate muss ohne Unterdrückung, Exclusion, Deaktivierung oder Abschwächung eines Controls bestehen.",
+  "impact": "The scanner signal temporarily caused a required external Quality Gate to fail. It was validated as test-only rather than a product security vulnerability, and a semantics-preserving regression correction restores the exact-head Quality Gate without weakening a control.",
+  "impact_de": "Das Scanner-Signal ließ ein erforderliches externes Quality Gate vorübergehend fehlschlagen. Es wurde als test-only statt als Produkt-Sicherheitsvulnerabilität validiert, und eine semantikerhaltende Regression-Korrektur stellt das Exact-Head-Quality-Gate ohne Abschwächung eines Controls wieder her.",
+  "preconditions": [
+    "Framework Draft PR #27 is bound to exact final head 66d90872cfc0125536267d574b776d2e88d26b23.",
+    "The source test and CRS version-pinning script remain available in the Framework worktree.",
+    "The task must preserve scanner, quality-gate, regression-test, Parent-boundary, and MRTS read-only controls."
+  ],
+  "reproduction": [
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/commits/15e9a034e929fc56bd77c92d783ca2637042e24e/check-runs --jq '.check_runs[] | select(.name == \"SonarCloud Code Analysis\")'",
+    "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/check-runs/88088009441/annotations --paginate",
+    "rtk nl -ba tests/ci_security/test_ci_security_contract.py | sed -n '278,289p'"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260718T084030Z-expand-framework-ci-security-be8fb24d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T084030Z-expand-framework-ci-security-be8fb24d/evidence/sonar-pr27-final-head-failure.md",
+      "artifact_type": "exact_pr_head_sonarqube_cloud_failure",
+      "sha256": "52187029ea9ce58070f5150655dc77766c301552c601c365b5234e4212379a95",
+      "command": "rtk gh api repos/Easton97-Jens/ModSecurity-test-Framework/check-runs/88088009441/annotations --paginate",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T14:12:00Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260718T084030Z-expand-framework-ci-security-be8fb24d",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260718T084030Z-expand-framework-ci-security-be8fb24d/evidence/framework-pr27-final-remote-status.md",
+      "artifact_type": "exact_final_pr_head_remote_disposition",
+      "sha256": "ccedabbe5e020bf43eb91ccf93b1e1484b8d11471e2817b6d078a95eeddb3552",
+      "command": "rtk curl --fail --silent --show-error \"https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-test-Framework&pullRequest=27\"; rtk curl --fail --silent --show-error \"https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-test-Framework&pullRequest=27&types=VULNERABILITY&statuses=OPEN\"",
+      "working_directory": "/var/tmp/codex/worktrees/framework-ci-security",
+      "exit_code": 0,
+      "observed_at": "2026-07-18T14:26:12Z",
+      "retention_status": "retained_task_evidence"
+    }
+  ],
+  "root_cause": "The Sonar rule matched the retired `/tmp` pathname literal inside a negative unit-test assertion. Source-to-sink validation proves that the assertion only compares already-read checked-in script text and has no writable-directory file-creation, file-open, or subprocess sink; it is therefore not a product security vulnerability.",
+  "root_cause_de": "Die Sonar-Regel matchte das ausgemusterte `/tmp`-Pathname-Literal innerhalb einer negativen Unit-Test-Assertion. Die Source-to-Sink-Validierung beweist, dass die Assertion nur bereits gelesenen eingecheckten Skripttext vergleicht und keinen Writable-Directory-File-Creation-, File-Open- oder Subprocess-Sink hat; sie ist daher keine Produkt-Sicherheitsvulnerabilität.",
+  "proposed_remediation": "Implemented the focused source-to-sink validation and replaced the broad pathname-prefix assertion with the exact retired predictable `crs-version-pinning.$$` form. The positive safe-runtime-path and private-mktemp controls remain intact. Local and exact-head remote checks passed without a scanner suppression, workflow change, or Quality Gate change.",
+  "proposed_remediation_de": "Die fokussierte Source-to-Sink-Validierung wurde implementiert und die breite Pathname-Prefix-Assertion durch die exakte ausgemusterte vorhersagbare Form `crs-version-pinning.$$` ersetzt. Die positiven Safe-Runtime-Path- und Private-mktemp-Controls bleiben intakt. Lokale und Exact-Head-Remote-Checks bestanden ohne Scanner-Suppression, Workflow-Änderung oder Quality-Gate-Änderung.",
+  "acceptance_criteria": [
+    "Source-to-sink validation establishes whether the line-287 signal is reachable as an unsafe writable-directory operation or is test-only.",
+    "The test rejects the exact retired `crs-version-pinning.$$` predictable form and still requires the safe private mktemp controls in the production script.",
+    "Focused regression and legitimate-control tests pass without a scanner suppression, exclusion, or gate change.",
+    "The exact final Draft PR #27 head receives a passing SonarQube Cloud Quality Gate, Security Rating A, and no open pull-request vulnerabilities."
+  ],
+  "validation_plan": [
+    "Trace the assertion input from the checked script text to its unittest assertion and confirm the absence of filesystem/process sinks.",
+    "Run the focused CRS version-pinning and CI-security test suite plus the normal Framework lint target.",
+    "Run the static action/workflow and security checks affected by the refactor.",
+    "Push only a normal non-force Framework commit after local evidence, then observe the exact final PR-head SonarQube Cloud and related controls. (Passed at 66d90872cfc0125536267d574b776d2e88d26b23.)"
+  ],
+  "regression_tests": [
+    "CiSecurityContractTest.test_crs_version_pinning_uses_a_safe_runtime_temp_file",
+    "Existing CI security evidence-contract negative and legitimate-control tests"
+  ],
+  "legitimate_control_tests": [
+    "The current CRS script retains `assert_safe_runtime_path`, private `mktemp`, and NUL-safe path iteration assertions.",
+    "The semantic checker continues to accept directly reachable legitimate OSV helper commands."
+  ],
+  "dependencies": [
+    "FND-SONAR-0002 remains a separate historical default-branch SonarQube backlog.",
+    "FND-FRAMEWORK-0001 and FND-GITHUB-0002 remain separate required-CI delivery blockers."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0014",
+    "FND-FRAMEWORK-0017",
+    "FND-SONAR-0002"
+  ],
+  "source_run_ids": [
+    "20260718T084030Z-expand-framework-ci-security-be8fb24d"
+  ],
+  "residual_risk": "This test-only signal is fixed on the exact PR head, but the record is not closed before a merged-current-master verification. The final Sonar check retains 17 non-security new issues while Quality Gate, Security, Reliability, and Maintainability ratings pass; the unrelated required-CI blockers remain outside this finding's remediation scope.",
+  "residual_risk_de": "Dieses Test-only-Signal ist auf dem exakten PR-Head repariert, aber der Record wird vor einer verifizierten gemergten Current-Master-Prüfung nicht geschlossen. Der finale Sonar-Check behält 17 nicht-sicherheitsrelevante New-Issues, während Quality-Gate-, Security-, Reliability- und Maintainability-Ratings bestehen; die nicht zusammenhängenden Required-CI-Blocker bleiben außerhalb des Remediation-Scopes dieses Findings.",
+  "created_at": "2026-07-18T14:12:00Z",
+  "updated_at": "2026-07-18T14:26:12Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-18T14:12:00Z",
+      "event": "exact_final_head_sonar_signal_triaged",
+      "detail": "Exact Draft PR #27 head check 88088009441 reported open Critical python:S5443 with Security Impact High at a negative CRS path assertion. The signal is tracked as a candidate while focused source-to-sink validation and a non-suppressive remediation are planned."
+    },
+    {
+      "at": "2026-07-18T14:26:12Z",
+      "event": "test_only_signal_fixed_on_exact_pr_head",
+      "detail": "Source-to-sink validation found no file or process sink in the assertion. Follow-up Framework commit 66d9087 preserves the regression with the exact retired predictable form; exact-head Sonar check 88089324795 passed with Security Rating A and zero open pull-request vulnerabilities."
+    }
+  ]
+}

@@ -1,0 +1,156 @@
+{
+  "id": "FND-PARENT-0008",
+  "title": "Clang Werror rejects Apache msc_config.c missing field initializer",
+  "title_de": "Clang Werror lehnt fehlenden Field-Initializer in Apache msc_config.c ab",
+  "category": "compiler_warning",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "connector": "apache",
+  "protocol": "Apache C17 module directive initializer",
+  "profile": "exact Draft PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118",
+  "affected_files": [
+    "connectors/apache/src/msc_config.c"
+  ],
+  "affected_symbols": [
+    "module_directives terminator"
+  ],
+  "summary": "Historical Apache C17 evidence recorded a Clang Werror missing-field-initializer failure at the module_directives terminator. Current Draft PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 contains the designated { .name = NULL } terminator. The latest follow-up adds only a behavior-neutral explanatory comment in the APR harness, so supplied local compiler, structural/C-standard, DSO, and Apache controls remain source-applicable. The compiler warning is fixed on the exact Draft head, pending hosted validation and resulting-master reproduction; it is neither verified nor closed.",
+  "summary_de": "Historische Apache-C17-Evidence zeichnete einen Clang-Werror-missing-field-initializer-Fehler am module_directives-Terminator auf. Der aktuelle Draft-PR-#183-Head f88ea5c907ce996b0648cfd98d9aa2fcd51b2718 enthält den designierten Terminator { .name = NULL }. Sein finaler Follow-up ändert nur bilinguale Change-Record-Schema-Dokumentation, daher bleiben die bereitgestellten lokalen Compiler-, Structural-/C-Standard-, DSO- und Apache-Controls source-anwendbar. Die Compiler-Warnung ist auf dem exakten Draft-Head fixed und wartet auf Hosted-Validierung sowie Reproduktion auf dem resultierenden Master; sie ist weder verified noch closed.",
+  "observed_behavior": "The historic source used the positional terminator {NULL}, which Clang Werror diagnosed as an incomplete command_rec field initializer. The exact local commit uses the designated terminator { .name = NULL }. Parent task evidence reports GCC and Clang RulesSet cleanup harnesses, lint wrapper, Apache/Common structural and C-standard wiring controls, a fresh materialized DSO make, and Apache legitimate controls pass on the exact clean commit.",
+  "observed_behavior_de": "Der historische Source verwendete den positionalen Terminator {NULL}, den Clang Werror als unvollständigen command_rec-Field-Initializer diagnostizierte. Der exakte lokale Commit verwendet den designierten Terminator { .name = NULL }. Parent-Task-Evidence meldet, dass GCC- und Clang-RulesSet-Cleanup-Harnesses, Lint-Wrapper, Apache/Common-Structural- und C-Standard-Wiring-Controls, ein frischer materialisierter DSO-make und Apache-Legitimate-Controls auf dem exakten sauberen Commit bestehen.",
+  "expected_behavior": "The Apache connector's module_directives terminator must satisfy the configured GCC and Clang C17 warning policy while preserving the ordinary Apache configuration and request lifecycle.",
+  "expected_behavior_de": "Der module_directives-Terminator des Apache-Connectors muss die konfigurierte GCC- und Clang-C17-Warning-Policy erfüllen und zugleich den normalen Apache-Konfigurations- und Request-Lifecycle bewahren.",
+  "impact": "The exact local compiler repair removes the recorded warning-policy failure without changing a request-facing behavior. Assurance remains incomplete until the committed candidate has PR exact-head hosted evidence and resulting-master reproduction. No attacker-controlled security boundary is established.",
+  "impact_de": "Die exakte lokale Compiler-Reparatur entfernt den aufgezeichneten Warning-Policy-Fehler ohne Änderung eines request-facing Verhaltens. Assurance bleibt unvollständig, bis der committete Kandidat PR-Exact-Head-Hosted-Evidence und Reproduktion auf dem resultierenden Master besitzt. Es wird keine attacker-kontrollierte Security-Grenze etabliert.",
+  "preconditions": [
+    "The Parent Apache connector is compiled through the approved APXS/APR/libModSecurity environment.",
+    "The exact local commit remains clean and available for PR-head validation."
+  ],
+  "reproduction": [
+    "Inspect the historical positional terminator {NULL} in the pre-fix msc_config.c source.",
+    "Inspect exact Draft PR #183 head f88ea5c907ce996b0648cfd98d9aa2fcd51b2718, where the terminator is { .name = NULL }.",
+    "Run GCC and Clang make check-apache-ruleset-cleanup plus the focused Apache/Common structural and C-standard wiring controls on the exact PR head."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:594-613",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '594,613p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T09:23:19Z",
+      "retention_status": "retained_local_report"
+    },
+    {
+      "run_id": "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-runtime-remediation-838d9adc/logs/039-phase-b-blocker-source-preflight.log",
+      "artifact_type": "phase_b_source_preflight_log",
+      "sha256": "bd04a04698986fd23669aef44c81eff94d1e7c1da2df367858c72257e1d17329",
+      "command": "read-only source/tool preflight for NGINX worker identity, Apache C17/finalizer, and MRTS profile semantics; no host runtime or MRTS mutation",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T13:02:47Z",
+      "retention_status": "retained_task_log"
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "exact Draft PR #183 head f88ea5c907ce996b0648cfd98d9aa2fcd51b2718",
+      "artifact_type": "parent_task_exact_commit_local_validation_summary",
+      "sha256": "834d7ba4ff1bcbe2998c86608a6bba4280cc5992164f36622bb51fa10d5d6d31",
+      "command": "Parent task local validation plus record-task source-identity comparison: GCC and Clang make check-apache-ruleset-cleanup; lint wrapper; Apache/Common structural and C-standard wiring; fresh materialized DSO make; H1 phase2_args_block=403; SIGUSR1 graceful readiness; six focused Python contracts. The current PR-head master update differs only in unrelated tests/test_focused_analysis_utils.py among bounded validation paths.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:45:45Z",
+      "retention_status": "parent_task_exact_commit_evidence",
+      "result": "The exact Draft head uses { .name = NULL }; source identity preserves applicability of the supplied local compiler and legitimate controls. No hosted check, merge, or resulting-master result is claimed."
+    }
+  ],
+  "current_task_update": {
+    "original_status": "blocked",
+    "root_cause": "The positional {NULL} terminator did not initialize every command_rec field under the configured Clang Werror policy. The exact candidate uses { .name = NULL }.",
+    "changed_files": [
+      "connectors/apache/src/msc_config.c"
+    ],
+    "security_assessment": "The exact commit has a narrowly scoped designated initializer correction and passed supplied GCC/Clang and Apache legitimate controls. It establishes no attacker-controlled boundary and awaits ordinary PR hosted validation.",
+    "next_action": "Collect exact Draft PR #183 hosted checks and review evidence, then reproduce the compiler condition on resulting master before verified or closed status.",
+    "evidence": {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "exact Draft PR #183 head f88ea5c907ce996b0648cfd98d9aa2fcd51b2718",
+      "artifact_type": "parent_task_exact_commit_local_validation_summary",
+      "sha256": "834d7ba4ff1bcbe2998c86608a6bba4280cc5992164f36622bb51fa10d5d6d31",
+      "command": "Parent task local validation summary and record-task source-identity comparison to current Draft PR #183 head",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:45:45Z",
+      "retention_status": "parent_task_exact_commit_evidence"
+    }
+  },
+  "root_cause": "The positional {NULL} terminator initialized only the first command_rec field, which violates the configured Clang missing-field-initializer Werror policy. The exact candidate replaces it with the semantically explicit designated terminator { .name = NULL }.",
+  "root_cause_de": "Der positionale Terminator {NULL} initialisierte nur das erste command_rec-Feld und verletzt damit die konfigurierte Clang-missing-field-initializer-Werror-Policy. Der exakte Kandidat ersetzt ihn durch den semantisch expliziten designierten Terminator { .name = NULL }.",
+  "proposed_remediation": "Retain the exact designated-initializer correction in Draft PR #183, collect exact-head hosted checks and review, and rerun the original compiler condition on resulting master before verified or closed status.",
+  "proposed_remediation_de": "Die exakte designierte Initializer-Korrektur in Draft PR #183 beibehalten, Exact-Head-Hosted-Checks und Review erfassen und den ursprünglichen Compiler-Zustand auf dem resultierenden Master erneut ausführen, bevor verified oder closed gesetzt wird.",
+  "acceptance_criteria": [
+    "Both GCC and Clang C17 RulesSet cleanup builds pass with the required warning policy on the committed PR head.",
+    "The designated terminator and affected Apache configuration semantics are covered by structural, C-standard, materialized-DSO, and legitimate runtime controls.",
+    "Draft PR #183 receives exact-head hosted checks and review, followed by a resulting-master reproduction before verified or closed status."
+  ],
+  "validation_plan": [
+    "Rerun GCC and Clang RulesSet cleanup compilation on the exact Draft PR #183 head.",
+    "Rerun the affected configuration/control case and then the original compiler condition on resulting master."
+  ],
+  "regression_tests": [
+    "tests/test_apache_rules_set_cleanup.py and the GCC/Clang check-apache-ruleset-cleanup harness."
+  ],
+  "legitimate_control_tests": [
+    "Fresh materialized DSO build, Apache HTTP/1.1 phase2_args_block=403, and SIGUSR1 graceful-readiness controls."
+  ],
+  "dependencies": [
+    "Draft PR #183 exact-head hosted validation and review.",
+    "Resulting-master GCC/Clang compiler reproduction."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [],
+  "source_run_ids": [
+    "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+    "20260717T114213Z-feasibility-runtime-remediation-838d9adc",
+    "selective-apache-prs-master-20260729"
+  ],
+  "residual_risk": "Exact Draft PR #183 head f88ea5c907ce996b0648cfd98d9aa2fcd51b2718 has no observed passing hosted result, review, merge, or resulting-master reproduction. It is fixed, not verified or closed; no risk is accepted.",
+  "residual_risk_de": "Der exakte Draft-PR-#183-Head f88ea5c907ce996b0648cfd98d9aa2fcd51b2718 besitzt kein beobachtetes bestandenes Hosted-Resultat, kein Review, keinen Merge und keine Reproduktion auf dem resultierenden Master. Er ist fixed, nicht verified oder closed; kein Risiko ist akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-29T10:45:45Z",
+  "final_disposition": "fixed_exact_draft_pr_183_head_4e4dfb36e1b05f7eda38450fd3710e3a04905118_pending_hosted_validation_and_resulting_master_reproduction",
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    },
+    {
+      "at": "2026-07-17T13:12:00Z",
+      "event": "phase_b_preflight_blocked",
+      "detail": "The current Apache C17 prerequisite check is blocked_environment; no speculative msc_config.c initializer patch or warning-policy change was made."
+    },
+    {
+      "at": "2026-07-17T14:06:23Z",
+      "event": "phase_b_evidence_synchronized",
+      "detail": "The retained active-run source-preflight log was added to canonical evidence; the blocked_environment disposition is unchanged."
+    },
+    {
+      "at": "2026-07-29T10:45:45Z",
+      "event": "exact_commit_initializer_repair_locally_validated_and_draft_pr_published",
+      "detail": "Exact Draft PR #183 head f88ea5c907ce996b0648cfd98d9aa2fcd51b2718 carries the module_directives { .name = NULL } terminator. The final follow-up repairs only bilingual Change Record schema documentation; Parent-supplied local compiler, structural, DSO, and Apache controls remain applicable. Status is fixed only, pending hosted validation and resulting-master reproduction."
+    }
+  ]
+}

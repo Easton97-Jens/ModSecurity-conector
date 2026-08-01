@@ -1,0 +1,188 @@
+{
+  "id": "FND-SONAR-0022",
+  "title": "Block-status generator permits CLI-selected output to escape its selected root",
+  "title_de": "Block-Status-Generator erlaubt, dass CLI-ausgewählte Ausgabe ihre gewählte Root verlässt",
+  "category": "security_validated",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "medium",
+  "confidence": "confirmed",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "validated_cli_to_filesystem_output_containment_bypass",
+  "release_blocker": true,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "CI block-status generated configuration output",
+  "profile": "SonarQube Cloud analysis 00fc69e7-8a50-4c44-9eae-abaf077610f5 for Parent master 77947c2ebe9523a24054b90bc1339657bed07ddb at inventory time",
+  "affected_files": [
+    "ci/tools/generate-block-status-config.py",
+    "ci/checks/common/check-block-status-generator.py"
+  ],
+  "affected_symbols": [
+    "generate",
+    "resolve_output_dir",
+    "open_output_dir",
+    "write_generated_file"
+  ],
+  "summary": "The inventory-bound SonarQube Cloud vulnerability pythonsecurity:S8707, key AZ8d8_sBE36x1qGA4xhY, identified that the generator accepted a CLI-selected output directory that could escape the caller-selected root. A direct baseline reproduction used ../generator-outside/baseline-escape and created generated files outside that root.",
+  "summary_de": "Die an das Inventar gebundene SonarQube-Cloud-Vulnerabilität pythonsecurity:S8707, Key AZ8d8_sBE36x1qGA4xhY, identifizierte, dass der Generator ein CLI-ausgewähltes Ausgabeverzeichnis akzeptierte, das die vom Aufrufer gewählte Root verlassen konnte. Eine direkte Baseline-Reproduktion verwendete ../generator-outside/baseline-escape und erzeugte generierte Dateien außerhalb dieser Root.",
+  "observed_behavior": "Before the task patch, a relative traversal value for --out-dir could cause generated header and source output to be created outside the selected current-working-directory root. The inventory recorded the issue as one ci/tools vulnerability under pythonsecurity:S8707.",
+  "observed_behavior_de": "Vor dem Task-Patch konnte ein relativer Traversal-Wert für --out-dir die generierte Header- und Source-Ausgabe außerhalb der gewählten Current-Working-Directory-Root erzeugen. Das Inventar erfasste das Issue als eine ci/tools-Vulnerabilität unter pythonsecurity:S8707.",
+  "expected_behavior": "Only a relative descendant of the deliberately selected current working directory is accepted. Absolute paths, parent traversal, intermediate symlink escape, and final generated-file symlink targeting must not create or alter an external target; ordinary nested in-root output must continue to work.",
+  "expected_behavior_de": "Nur ein relativer Nachkomme des bewusst ausgewählten aktuellen Arbeitsverzeichnisses wird akzeptiert. Absolute Pfade, Parent-Traversal, Intermediate-Symlink-Escape und Final-Generated-File-Symlink-Targeting dürfen kein externes Ziel erzeugen oder ändern; gewöhnliche verschachtelte Ausgabe innerhalb der Root muss weiter funktionieren.",
+  "impact": "A caller able to control --out-dir could make a CI/developer generator write fixed generated filenames outside the selected root. Protected-squash PR #200 delivered the direct input-to-filesystem repair as resulting master 13890da56ad19a105629243349f39ea8c084f396. Its original containment and legitimate-output controls passed, and SHA-bound default-branch analysis no longer reports the original key. The finding remains fixed/P1/release-blocking rather than verified because the non-ignored default-branch Quality Gate is ERROR; no risk acceptance or control weakening occurred.",
+  "impact_de": "Ein Aufrufer, der --out-dir kontrollieren kann, konnte einen CI-/Developer-Generator dazu bringen, feste generierte Dateinamen außerhalb der ausgewählten Root zu schreiben. Geschützter Squash-PR #200 lieferte die direkte Input-zu-Dateisystem-Reparatur als resultierenden Master 13890da56ad19a105629243349f39ea8c084f396 aus. Seine ursprünglichen Containment- und legitimen Output-Controls bestanden, und SHA-gebundene Default-Branch-Analyse meldet den ursprünglichen Key nicht mehr. Das Finding bleibt fixed/P1/Release-Blocker statt verified, weil das nicht ignorierte Default-Branch-Quality-Gate ERROR ist; keine Risikoakzeptanz oder Control-Abschwächung erfolgte.",
+  "preconditions": [
+    "The generator is invoked with an attacker-controlled --out-dir value.",
+    "The caller-selected current working directory has a writable sibling or externally resolving path entry available to the process.",
+    "The historical generator implementation is used before the task patch."
+  ],
+  "reproduction": [
+    "From a task-owned current working directory, invoke the historical generator with --out-dir ../generator-outside/baseline-escape and observe generated files outside the selected root.",
+    "Run the focused checker against the task patch: a nested in-root destination passes, while traversal, absolute, intermediate-symlink, and final-file-symlink cases are rejected or safely replaced without changing an external target.",
+    "Review the sealed focused security-diff report and attack-path analysis for the exact local task worktree."
+  ],
+  "evidence": [
+    {
+      "run_id": "ci-tools-sonar-remediation-20260730",
+      "artifact_path": ".codex/plans/ci-tools-sonar-remediation.md",
+      "artifact_type": "inventory_and_baseline_reproduction_contract",
+      "sha256": "0029f0724d663e1d84408d56af69e71724a79f79dbb24c862aa0f628ffc0852c",
+      "command": "Read-only review of the task execution contract, which records analysis 00fc69e7-8a50-4c44-9eae-abaf077610f5, issue AZ8d8_sBE36x1qGA4xhY, and the baseline traversal reproduction.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T10:46:48Z",
+      "retention_status": "active_local_control_plane",
+      "result": "The inventory identified one pythonsecurity:S8707 ci/tools vulnerability at the generator output boundary and recorded direct traversal-bearing baseline output outside the selected root."
+    },
+    {
+      "run_id": "ci-tools-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-tools-sonar-remediation-20260730/security-diff-scan-20260730T100735Z/report.md",
+      "artifact_type": "sealed_focused_security_diff_report",
+      "sha256": "9d4b50736c29628147b053cd869e9253c1f95bf681e849174829929ec99b69d7",
+      "command": "Codex Security focused security-diff scan finalizer over the task worktree diff from 77947c2ebe9523a24054b90bc1339657bed07ddb.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/ci-tools-sonar-remediation-20260730-v2",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T10:07:35Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "Complete review reports zero diff-introduced findings; focused traversal, absolute-path, intermediate-symlink, and final-file-symlink controls pass locally."
+    },
+    {
+      "run_id": "ci-tools-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-tools-sonar-remediation-20260730/security-diff-scan-20260730T100735Z/artifacts/05_findings/attack_path_analysis_report.md",
+      "artifact_type": "sealed_security_attack_path_analysis",
+      "sha256": "9cb84a91230740f9ca22f10e64c98cf1900edc6ab9fe581d5dd8dc2c14d30d92",
+      "command": "Codex Security attack-path analysis for the final generator output-boundary patch.",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/ci-tools-sonar-remediation-20260730-v2",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T10:07:35Z",
+      "retention_status": "sealed_retained_task_evidence",
+      "result": "The reviewed implementation rejects absolute and parent traversal, anchors directory traversal to no-follow descriptors, and atomically replaces only fixed generated filenames inside the opened directory."
+    },
+    {
+      "run_id": "ci-tools-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-tools-sonar-remediation-20260730/evidence/pr200-exact-head-verification.md",
+      "artifact_type": "exact_draft_pr_head_hosted_sonar_verification_receipt",
+      "sha256": "42ba7a4ff8ff0172997a935f04a7fdf560b7b6ce9c70daab97fa24e69024f3be",
+      "command": "rtk proxy -- gh pr view 200 --repo Easton97-Jens/ModSecurity-conector --json number,url,state,isDraft,mergeable,mergeStateStatus,baseRefName,headRefName,headRefOid,reviews,comments,reviewDecision,updatedAt; rtk proxy -- gh pr checks 200 --repo Easton97-Jens/ModSecurity-conector --required; official SonarQube Cloud PR #200 quality-gate, issue, and measure readbacks.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T11:07:21Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Draft PR #200 exact head 2bc97ac058725fdba6a36ad93307487c160b1f05 is OPEN/Draft/CLEAN and MERGEABLE; required checks pass; SonarQube Cloud Quality Gate is OK with zero PR issues, zero new violations, and 0.0% new-code duplication. Current master remains unmerged and requires post-merge verification."
+    },
+    {
+      "run_id": "ci-tools-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-tools-sonar-remediation-20260730/evidence/pr200-66db7e3f-exact-head-verification.md",
+      "artifact_type": "refreshed_exact_draft_pr_head_hosted_sonar_verification_receipt",
+      "sha256": "33cc911a5ee393fb44906c3e4dac76634df86d99fe07b3e105be9962148c840a",
+      "command": "rtk proxy -- gh pr view 200 --repo Easton97-Jens/ModSecurity-conector --json number,url,state,isDraft,mergeable,mergeStateStatus,baseRefName,headRefName,headRefOid,reviews,comments,reviewDecision,updatedAt; rtk proxy -- gh pr checks 200 --repo Easton97-Jens/ModSecurity-conector --required; official SonarQube Cloud PR #200 quality-gate, issue, and measure readbacks after refreshed head push.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T11:33:48Z",
+      "retention_status": "retained_task_evidence",
+      "result": "After normal master refresh, Draft PR #200 exact head 66db7e3f2de324c960d8db36b4b6760d958cd7e1 against base 726322b17d6423c7f9e3bba0e6affc051dbf94cd is OPEN/Draft/CLEAN and MERGEABLE; required checks pass; SonarQube Cloud Quality Gate is OK with zero PR issues (including original key AZ8d8_sBE36x1qGA4xhY), zero new violations, and 0.0% new-code duplication."
+    },
+    {
+      "run_id": "ci-tools-sonar-remediation-20260730",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/ci-tools-sonar-remediation-20260730/evidence/pr200-master-integration-13890da5.md",
+      "artifact_type": "resulting_master_pr200_integration_and_sonarqube_verification_receipt",
+      "sha256": "69cdb1bbdc92c4faa82e2e722dd27d5eac32b3d33df50cc64fc7ed110d9da48a",
+      "command": "Protected GitHub squash merge of PR #200 with expected_head_sha 5b7487824ae5ca4a14a48b0d743cf4a1cc817da0; resulting-master local checks, GitHub Actions, and SonarQube Cloud default-branch analysis/query as recorded by the retained receipt.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T12:16:21Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR #200 produced master 13890da56ad19a105629243349f39ea8c084f396. make check-block-status-generator, 12 reliability tests, 22 bilingual-document tests, diff --check, and 14 GitHub Actions runs including CodeQL 30541533676 passed; analysis c1f32224-aa05-4202-9b10-65c15165ff35 is bound to master and AZ8d8_sBE36x1qGA4xhY is absent. Default Quality Gate remains ERROR, not ignored, due to unrelated security-rating/hotspot/backlog conditions; this security finding stays fixed and release-blocking."
+    }
+  ],
+  "root_cause": "The historical generator joined a caller-controlled output path with generated filenames using ordinary path operations, without a root-containment contract or descriptor-anchored no-follow traversal.",
+  "root_cause_de": "Der historische Generator verband einen vom Aufrufer kontrollierten Ausgabepfad mit generierten Dateinamen über gewöhnliche Pfadoperationen, ohne Root-Containment-Vertrag oder descriptor-verankerte No-Follow-Traversal.",
+  "proposed_remediation": "The task patch rejects absolute and parent-traversal values, requires a relative descendant of the selected current working directory, opens each output-directory component with no-follow descriptor semantics, and writes only fixed generated filenames through an exclusive temporary file plus descriptor-relative atomic replacement. The direct checker covers the legitimate nested destination and hostile traversal/symlink cases. No Sonar rule, Quality Gate, exclusion, NOSONAR, or suppression is changed.",
+  "proposed_remediation_de": "Der Task-Patch weist absolute und Parent-Traversal-Werte zurück, verlangt einen relativen Nachkommen des gewählten aktuellen Arbeitsverzeichnisses, öffnet jede Output-Directory-Komponente mit No-Follow-Descriptor-Semantik und schreibt nur feste generierte Dateinamen über eine exklusive temporäre Datei plus descriptor-relative atomare Ersetzung. Der direkte Checker deckt das legitime verschachtelte Ziel und feindliche Traversal-/Symlink-Fälle ab. Keine Sonar-Rule, kein Quality Gate, keine Exclusion, kein NOSONAR und keine Suppression werden geändert.",
+  "acceptance_criteria": [
+    "Traversal and absolute --out-dir values cannot create generated files outside the selected root.",
+    "Intermediate and final-file symlink controls cannot alter an external target.",
+    "A nested in-root output remains successful and generated output remains byte-compatible for the exercised representative status set.",
+    "Default-branch analysis c1f32224-aa05-4202-9b10-65c15165ff35 bound to resulting master 13890da56ad19a105629243349f39ea8c084f396 no longer reports AZ8d8_sBE36x1qGA4xhY or a task-owned replacement vulnerability, without scanner-control changes.",
+    "The non-ignored default-branch Quality Gate must be OK before setting this security finding to verified or closed; it remains ERROR, so the finding remains fixed and release-blocking."
+  ],
+  "validation_plan": [
+    "Run make check-block-status-generator and the focused Sonar reliability contract suite on the exact candidate.",
+    "Review the generated output byte comparison and the complete focused security-diff scan.",
+    "Resulting master 13890da56ad19a105629243349f39ea8c084f396 completed the original output-boundary reproduction and default-branch Sonar readback; repeat them only for a future source change or before a later status promotion."
+  ],
+  "regression_tests": [
+    "ci/checks/common/check-block-status-generator.py",
+    "tests/test_sonar_reliability_contract.py"
+  ],
+  "legitimate_control_tests": [
+    "Nested relative output under the caller-selected root succeeds.",
+    "Generated header, C source, and HAProxy configuration bytes match the recorded base output for statuses 501,403."
+  ],
+  "dependencies": [
+    "The non-ignored default-branch Quality Gate reaches OK before security promotion beyond fixed."
+  ],
+  "blocked_by": [
+    "The exact default-branch Quality Gate for resulting master 13890da56ad19a105629243349f39ea8c084f396 is non-ignored ERROR because of retained project security-rating/hotspot conditions; the security workflow requires Quality Gate OK before promotion beyond fixed."
+  ],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0001",
+    "FND-SONAR-0016",
+    "FND-PARENT-0036"
+  ],
+  "source_run_ids": [
+    "ci-tools-sonar-remediation-20260730"
+  ],
+  "residual_risk": "The selected current-working-directory root remains a trusted, exclusive caller/environment assumption. Resulting master 13890da56ad19a105629243349f39ea8c084f396 has the same generator/checker blobs as the reviewed candidate, passes the original containment and legitimate-control suites, and no longer has AZ8d8_sBE36x1qGA4xhY or a task-owned vulnerability/bug in the changed source paths. The non-ignored default-branch Quality Gate remains ERROR from retained unrelated project conditions, so this security finding is not risk-accepted and remains fixed/release-blocking rather than verified.",
+  "residual_risk_de": "Die ausgewählte Current-Working-Directory-Root bleibt eine Annahme über einen vertrauenswürdigen, exklusiven Aufrufer/Umgebung. Resultierender Master 13890da56ad19a105629243349f39ea8c084f396 besitzt dieselben Generator-/Checker-Blobs wie der geprüfte Kandidat, besteht die ursprünglichen Containment- und legitimen Kontroll-Suiten und hat weder AZ8d8_sBE36x1qGA4xhY noch eine task-eigene Vulnerability/einen Bug in den geänderten Source-Pfaden. Das nicht ignorierte Default-Branch-Quality-Gate bleibt wegen zurückgehaltener unabhängiger Projektbedingungen ERROR; daher ist dieses Security-Finding nicht risikoakzeptiert und bleibt fixed/Release-Blocker statt verified.",
+  "created_at": "2026-07-30T10:46:48Z",
+  "updated_at": "2026-07-30T12:16:21Z",
+  "final_disposition": "fixed_on_resulting_master_global_quality_gate_blocked",
+  "history": [
+    {
+      "at": "2026-07-30T10:46:48Z",
+      "event": "inventory_validated_local_remediation_pending_exact_pr_head",
+      "detail": "Allocated after the task inventory and baseline traversal reproduction established an independently remediable CLI-to-filesystem containment boundary. The focused patch and security review pass locally; exact PR-head hosted SonarQube Cloud verification is still required."
+    },
+    {
+      "at": "2026-07-30T11:07:21Z",
+      "event": "exact_draft_pr200_head_fixed_pending_resulting_master_verification",
+      "detail": "Draft PR #200 exact head 2bc97ac058725fdba6a36ad93307487c160b1f05 passed required GitHub checks and SonarQube Cloud Quality Gate/readbacks: zero PR issues, zero new violations, and 0.0% new-code duplication. The finding is fixed on the candidate but remains release-blocking on current master until authorized integration and resulting-master revalidation."
+    },
+    {
+      "at": "2026-07-30T11:33:48Z",
+      "event": "refreshed_exact_draft_pr200_head_hosted_sonar_verified_pending_resulting_master",
+      "detail": "After master advanced to 726322b17d6423c7f9e3bba0e6affc051dbf94cd, normal merge commit 66db7e3f2de324c960d8db36b4b6760d958cd7e1 retained both Change-Record index entries. Draft PR #200 is CLEAN/MERGEABLE at the refreshed exact head; required checks and SonarQube Cloud Quality Gate/readbacks pass with zero PR issues, zero new violations, and 0.0% new-code duplication. Status remains fixed pending authorized integration and resulting-master revalidation."
+    },
+    {
+      "at": "2026-07-30T12:16:21Z",
+      "event": "resulting_master_pr200_security_finding_stays_fixed_due_global_quality_gate_error",
+      "detail": "PR #200 exact head 5b7487824ae5ca4a14a48b0d743cf4a1cc817da0 was protected-squash-merged at 2026-07-30T12:11:32Z to master 13890da56ad19a105629243349f39ea8c084f396. make check-block-status-generator, 12 reliability tests, 22 bilingual-document tests, diff --check, and 14 exact-master GitHub Actions runs including CodeQL 30541533676 passed; analysis c1f32224-aa05-4202-9b10-65c15165ff35 is bound to master and AZ8d8_sBE36x1qGA4xhY is absent. Generator blob a2fbe345f956561d7389dcde5dd97c83b208fc03 and checker blob 5df8dcd48a6ffeb98c249ddf2cab2edd2ed27069 equal the prior candidate. Default Quality Gate remains ERROR, not ignored, because of unrelated security-rating/hotspot/backlog conditions; security review retains fixed P1 release-blocking status without weakening any control."
+    }
+  ]
+}

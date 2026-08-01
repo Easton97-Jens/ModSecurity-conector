@@ -1,0 +1,120 @@
+{
+  "id": "FND-FRAMEWORK-0018",
+  "title": "CRS testing guidance contradicts fail-closed existing-checkout provenance control",
+  "title_de": "CRS-Testleitfaden widerspricht der fail-closed-Provenance-Kontrolle für vorhandene Checkouts",
+  "category": "documentation_drift",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "low",
+  "confidence": "validated",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "docs/testing-and-evidence.md",
+    "docs/testing-and-evidence.de.md",
+    "docs/reference/variables.md",
+    "docs/reference/variables.de.md",
+    "tests/security_regression/test_crs_git_ref_provenance.py"
+  ],
+  "affected_symbols": [
+    "CRS_SOURCE_DIR",
+    "test_existing_checkout_fails_closed"
+  ],
+  "summary": "The English and German CRS testing guides say that the reviewed full commit works for existing checkouts, while the exact provenance implementation and regression test require an absent source directory and reject existing directories or symlinks.",
+  "summary_de": "Die englischen und deutschen CRS-Testleitfäden sagen, dass der geprüfte vollständige Commit für vorhandene Checkouts funktioniert, während die exakte Provenance-Implementierung und der Regressionstest ein fehlendes Source-Verzeichnis verlangen und vorhandene Verzeichnisse oder Symlinks abweisen.",
+  "observed_behavior": "Both testing-and-evidence guides describe existing checkout support. The variable references and the regression test instead enforce fail-closed rejection before any Git invocation.",
+  "observed_behavior_de": "Beide Testing-and-Evidence-Leitfäden beschreiben Unterstützung für vorhandene Checkouts. Die Variablenreferenzen und der Regressionstest erzwingen dagegen eine fail-closed-Abweisung vor jeder Git-Invocation.",
+  "expected_behavior": "All reader-facing CRS provenance guidance must state that only a fresh, absent source directory is accepted; existing directories and symlinks are rejected and must not be reused.",
+  "expected_behavior_de": "Jede leserorientierte CRS-Provenance-Dokumentation muss festhalten, dass nur ein frisches, fehlendes Source-Verzeichnis akzeptiert wird; vorhandene Verzeichnisse und Symlinks werden abgewiesen und dürfen nicht wiederverwendet werden.",
+  "impact": "The mismatch can lead operators or automation to expect unsupported reuse, causing failed provisioning and encouraging unsafe manual workarounds. Static evidence does not show a runtime provenance bypass because the implementation rejects the path.",
+  "impact_de": "Der Widerspruch kann dazu führen, dass Operatoren oder Automatisierung nicht unterstützte Wiederverwendung erwarten, was Provisioning-Fehler und unsichere manuelle Umgehungen begünstigt. Die statische Evidenz zeigt keinen Runtime-Provenance-Bypass, weil die Implementierung den Pfad abweist.",
+  "preconditions": [
+    "An operator or automation follows the testing guide and supplies an existing CRS_SOURCE_DIR.",
+    "The existing directory could contain stale or attacker-controlled content."
+  ],
+  "reproduction": [
+    "Inspect PR #26 exact head 63c42e97b86acbae1374efa9f1c4209ce2ce673b.",
+    "Compare docs/testing-and-evidence.md:99-108 and docs/testing-and-evidence.de.md:103-114 with docs/reference/variables.md:167-173, docs/reference/variables.de.md:171-179, and tests/security_regression/test_crs_git_ref_provenance.py:247-251.",
+    "Observe that the test requires exit 77, no Git invocation, and sentinel preservation for an existing checkout."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260719T081017Z-framework-pr-resolution-20260719-840082e0",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/analysis/security-diff-pr26/artifacts/05_findings/FND-FRAMEWORK-0018-evidence.md",
+      "artifact_type": "security_diff_documentation_contract_review",
+      "sha256": "2b363eb35e8ada3bd9302bbc356159fe9d15ff3b17269e2baafda0a4a14403e8",
+      "command": "rtk git diff --check origin/master...HEAD; RTK-prefixed targeted reads of the exact PR #26 test and documentation paths",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260719T081017Z-framework-pr-resolution-20260719-840082e0/worktrees/fw-crs-provenance-reconcile",
+      "exit_code": 0,
+      "observed_at": "2026-07-19T10:29:22Z",
+      "retention_status": "retained_task_evidence"
+    },
+    {
+      "run_id": "20260726-framework-findings-batch",
+      "artifact_path": ".codex/runs/20260726-framework-findings-batch/evidence/current-master-revalidation.md",
+      "artifact_type": "current_framework_master_finding_revalidation",
+      "sha256": "6912df100503c87123b72e4fac4cc76d6c8bf9f40f884786eeedfcebe0614f3c",
+      "command": "make test-crs-provenance-contract check-documentation; PR #26 exact-head and resulting-master hosted-check readback",
+      "working_directory": "/var/tmp/codex/worktrees/framework/20260726-framework-findings-batch",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T18:28:05Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Current Framework master 47e50e7bc43ba7a3b5bad1a9448111794f664cc0 accepts only a fresh absent CRS source directory, rejects existing directories and symlinks before Git, and has technically equivalent English/German documentation."
+    }
+  ],
+  "root_cause": "The revised testing guides retained an inaccurate existing-checkout statement while the provenance implementation was intentionally changed to reject pre-existing source paths.",
+  "root_cause_de": "Die überarbeiteten Testing-Leitfäden behielten eine unzutreffende Aussage zu vorhandenen Checkouts bei, obwohl die Provenance-Implementierung bewusst auf die Abweisung bereits vorhandener Source-Pfade geändert wurde.",
+  "proposed_remediation": "Replace the existing-checkout statement in both testing guides with the exact fail-closed fresh-directory contract, preserve the English/German technical parity, and re-run the focused provenance regression and documentation checks on the reconciled exact head.",
+  "proposed_remediation_de": "Die Aussage zu vorhandenen Checkouts in beiden Testing-Leitfäden durch den exakten fail-closed-Frischverzeichnisvertrag ersetzen, die technische Englisch-/Deutsch-Parität erhalten und den fokussierten Provenance-Regressionstest sowie die Dokumentationsprüfungen auf dem abgeglichenen Exact Head erneut ausführen.",
+  "acceptance_criteria": [
+    "Both testing guides state that CRS_SOURCE_DIR must be absent/fresh and that existing directories or symlinks are rejected.",
+    "The English and German statements remain technically equivalent.",
+    "The focused CRS provenance regression retains the existing-checkout fail-closed case and a fresh-checkout legitimate control.",
+    "Relevant documentation validation passes on the reconciled exact PR head."
+  ],
+  "validation_plan": [
+    "Run the focused test-crs-provenance-contract target in an authorized task-owned external temporary environment.",
+    "Run the repository documentation and bilingual checks selected by the final reconciled scope.",
+    "Re-review the exact PR head and verify that no reader-facing statement promises reuse."
+  ],
+  "regression_tests": [
+    "tests/security_regression/test_crs_git_ref_provenance.py"
+  ],
+  "legitimate_control_tests": [
+    "An absent source directory with the approved HTTPS origin and full commit reaches fresh initialization and exact-object verification."
+  ],
+  "dependencies": [
+    "PR #26 exact-head reconciliation and documentation correction"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0004"
+  ],
+  "source_run_ids": [
+    "20260719T081017Z-framework-pr-resolution-20260719-840082e0"
+  ],
+  "residual_risk": "The current implementation fails closed, but incorrect guidance can still cause operational failure or unsafe manual reuse attempts until the PR documentation is corrected.",
+  "residual_risk_de": "Die aktuelle Implementierung schlägt fail-closed fehl, aber die falsche Anleitung kann bis zur Korrektur der PR-Dokumentation weiterhin Betriebsfehler oder unsichere manuelle Wiederverwendungsversuche auslösen.",
+  "created_at": "2026-07-19T10:29:22Z",
+  "updated_at": "2026-07-26T18:28:05Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-19T10:29:22Z",
+      "event": "validated_exact_diff_documentation_contract_conflict",
+      "detail": "Read-only security diff review confirmed that both testing guides promise existing-checkout support while the exact test and variable references require fail-closed rejection."
+    },
+    {
+      "at": "2026-07-26T18:28:05Z",
+      "event": "verified_on_current_framework_master",
+      "detail": "PR #26 exact-head and resulting-master checks were confirmed successful, and current master 47e50e7bc43ba7a3b5bad1a9448111794f664cc0 passed the CRS provenance contract and documentation checks with the fresh-directory fail-closed guidance."
+    }
+  ]
+}

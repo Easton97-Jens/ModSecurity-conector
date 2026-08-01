@@ -1,0 +1,88 @@
+{
+  "id": "FND-FRAMEWORK-0009",
+  "title": "NGINX HTTP/2 route lacks protocol-correlated case execution",
+  "title_de": "NGINX-HTTP/2-Route hat keine protokollkorrelierte Case-Execution",
+  "category": "protocol_gap",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "blocked",
+  "release_blocker": true,
+  "security_relevant": false,
+  "connector": "NGINX",
+  "protocol": "HTTP/2",
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md"
+  ],
+  "affected_symbols": [],
+  "summary": "A separate NGINX H1/H2 TLS-ALPN route exists, but no protocol-correlated case execution is wired; H1 results cannot promote it.",
+  "summary_de": "Eine separate NGINX-H1/H2-TLS-ALPN-Route existiert, aber keine protokollkorrelierte Case-Execution ist verdrahtet; H1-Ergebnisse können sie nicht promoten.",
+  "observed_behavior": "A separate NGINX H1/H2 TLS-ALPN route exists, but no protocol-correlated case execution is wired; H1 results cannot promote it.",
+  "observed_behavior_de": "Eine separate NGINX-H1/H2-TLS-ALPN-Route existiert, aber keine protokollkorrelierte Case-Execution ist verdrahtet; H1-Ergebnisse können sie nicht promoten.",
+  "expected_behavior": "Current evidence must be rerun against a known revision before this finding can advance beyond blocked.",
+  "expected_behavior_de": "Die aktuelle Evidence muss gegen eine bekannte Revision erneut ausgeführt werden, bevor dieses Finding über blocked hinaus fortschreiten kann.",
+  "impact": "Release and assurance claims remain bounded by the recorded evidence.",
+  "impact_de": "Release- und Assurance-Aussagen bleiben durch die dokumentierte Evidence begrenzt.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "sed -n '561,570p' .codex/reports/repository-full-assessment.md"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:561-570",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '561,570p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T09:23:19Z",
+      "retention_status": "retained_local_report"
+    }
+  ],
+  "root_cause": "The retained evidence identifies the condition but does not establish a product-code root cause.",
+  "root_cause_de": "Die retained Evidence belegt den Zustand, aber keine Produktcode-Grundursache.",
+  "proposed_remediation": "Wire an isolated H2 case runner with protocol correlation and allow/block controls.",
+  "proposed_remediation_de": "Einen isolierten H2-Case-Runner mit Protokollkorrelation und Allow-/Block-Controls verdrahten.",
+  "acceptance_criteria": [
+    "NGINX H2 has a retained protocol-correlated allow and block result.",
+    "H1 evidence is not substituted for H2 evidence."
+  ],
+  "validation_plan": [
+    "Run the H2 TLS-ALPN case with protocol diagnostics.",
+    "Run an H1 control separately to demonstrate non-substitution."
+  ],
+  "regression_tests": [
+    "Add or retain a focused regression/evidence control for the recorded condition."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-HOST-0004",
+    "FND-CROSS-0004"
+  ],
+  "source_run_ids": [
+    "20260717T085050Z-mrts-protocol-hardening-readiness-57010656"
+  ],
+  "residual_risk": "The condition remains open; no risk has been accepted by the current user.",
+  "residual_risk_de": "Der Zustand bleibt offen; der aktuelle Benutzer hat kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-17T10:43:59Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    }
+  ]
+}

@@ -1,0 +1,166 @@
+{
+  "id": "FND-FRAMEWORK-0028",
+  "title": "Framework automatic ModSecurity v3 updater can plan an incomplete provenance identity change",
+  "title_de": "Framework-Autoupdater für ModSecurity v3 kann eine unvollständige Provenance-Identitätsänderung planen",
+  "category": "security_hardening",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "medium",
+  "confidence": "validated",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    "ci/tools/check-common-versions.py",
+    ".github/workflows/check-common-versions.yml",
+    "ci/lib/common.sh",
+    "tests/security_regression/test_common_versions_sonar_provenance.py"
+  ],
+  "affected_symbols": [
+    "check_github_release_ref",
+    "check_all",
+    "MODSECURITY_V3_GIT_REF",
+    "MODSECURITY_V3_RELEASE_TAG",
+    "MODSECURITY_V3_APPROVED_COMMIT",
+    "ci_require_approved_modsecurity_v3_provenance"
+  ],
+  "observed_behavior": "After the parser repair makes ModSecurity v3 approved literals visible, a live check reports v3.0.15 outdated and plans to change only MODSECURITY_V3_GIT_REF at line 184 to v3.0.16. The scheduled privileged workflow writes common.sh and creates a pull request, but it cannot simultaneously establish the reviewed release-tag-to-immutable-commit identity.",
+  "expected_behavior": "The automated updater must not write a partial ModSecurity v3 identity. A new release must remain an explicit review item unless the updater can atomically verify and update the release tag, repository identity, and approved immutable commit.",
+  "impact": "Runtime provenance validation rejects the inconsistent alias fail-closed, so this is not a confirmed supply-chain bypass. However, the privileged scheduled workflow could create unusable update pull requests and pressure an operator to weaken a provenance control. Preventing partial automation preserves the approved tag-to-commit boundary.",
+  "preconditions": [
+    "The parser resolves MODSECURITY_V3_APPROVED_* literals.",
+    "GitHub reports a ModSecurity v3 release newer than MODSECURITY_V3_RELEASE_TAG.",
+    "The scheduled workflow runs --update with contents and pull-requests write permissions."
+  ],
+  "reproduction": [
+    "Run python3 ci/tools/check-common-versions.py --check --json --timeout 20 after the parser resolves the approved literals.",
+    "Observe an outdated ModSecurity v3 component and an update plan for only MODSECURITY_V3_GIT_REF.",
+    "Inspect the scheduled workflow write mode and ci_require_approved_modsecurity_v3_provenance invariant.",
+    "Confirm the plan does not update MODSECURITY_V3_RELEASE_TAG or MODSECURITY_V3_APPROVED_COMMIT atomically."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260720T080314Z-parent-pr55-57-59-framework-update-3443af13",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T080314Z-parent-pr55-57-59-framework-update-3443af13/evidence/framework-common-version-parser/modsecurity-v3-auto-update-plan.json",
+      "artifact_type": "framework_modsecurity_v3_partial_auto_update_plan",
+      "sha256": "93f14b78781506a54f7d04f36067b50f47d95c1f94eb9147e309eb7435597368",
+      "command": "python3 ci/tools/check-common-versions.py --check --json --timeout 20; source and scheduled-workflow review",
+      "working_directory": "/var/tmp/codex/worktrees/framework-common-version-parser",
+      "exit_code": 1,
+      "observed_at": "2026-07-20T09:01:13Z",
+      "retention_status": "retained",
+      "summary": "The exact update plan changes only MODSECURITY_V3_GIT_REF from its release-tag alias to v3.0.16 while the approved tag and immutable commit remain unchanged."
+    },
+    {
+      "run_id": "20260720T113905Z-framework-pr35-36-integration-de98515c",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260720T113905Z-framework-pr35-36-integration-de98515c/analysis/pr36-master-common-version-original-reproduction.json",
+      "artifact_type": "framework_modsecurity_v3_partial_update_original_reproduction_on_exact_master",
+      "sha256": "4d2311ab1287b3943633b5f9d5243451ad697d66726d6a6d57012b3fae7eb1ab",
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=<task-build>/pycache TMPDIR=<task-tmp> /root/git/ModSecurity-conector/.venv/bin/python ci/tools/check-common-versions.py --check --json --timeout 20",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260720T113905Z-framework-pr35-36-integration-de98515c/worktrees/framework-master-post36",
+      "exit_code": 0,
+      "observed_at": "2026-07-20T13:10:07Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "On exact Framework master 784977615acfc55567e37b863309abc4a38ac877, the newer ModSecurity v3 release is visible as unknown/manual review with an empty update list and no partial alias update."
+    }
+  ],
+  "root_cause": "check_all invokes the generic check_github_release_ref with the compatibility alias MODSECURITY_V3_GIT_REF as ref_var. The generic updater has no mechanism to authenticate a release tag to its immutable commit or to update the coupled approved identity atomically.",
+  "proposed_remediation": "Model ModSecurity v3 after the existing CRS provenance path: check the approved repository/release tag, report a newer release as unknown/manual review, and clear automated updates. Add a focused regression proving that an outdated ModSecurity v3 release produces no applied update and cannot change the compatibility alias alone.",
+  "acceptance_criteria": [
+    "An outdated ModSecurity v3 release produces no automatic update for MODSECURITY_V3_GIT_REF.",
+    "The component reports a review-required unknown/manual-review state rather than a partial update.",
+    "The candidate component result yields exit code zero when only review-required unknown states remain.",
+    "The existing runtime exact-commit and alias-equality provenance checks remain unchanged.",
+    "No Parent, Sonar control, or MRTS file changes."
+  ],
+  "validation_plan": [
+    "Add focused in-memory release-client coverage for the outdated ModSecurity v3 path.",
+    "Run the focused common-version provenance suite and ModSecurity v3 provenance contract.",
+    "Review the candidate's empty update list and exact diff; never run update mode against canonical common.sh.",
+    "Collect exact-head Framework PR checks."
+  ],
+  "regression_tests": [
+    "tests/security_regression/test_common_versions_sonar_provenance.py",
+    "make test-modsecurity-v3-provenance-contract"
+  ],
+  "legitimate_control_tests": [
+    "The current approved ModSecurity v3 release remains current with no update.",
+    "A newer release remains visible for manual review without changing common.sh.",
+    "Runtime provenance still rejects mismatched aliases or immutable commits."
+  ],
+  "dependencies": [
+    "GitHub Releases API availability for the check",
+    "Framework exact-head GitHub Actions execution"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0027"
+  ],
+  "deduplication_note": "Not a duplicate of FND-FRAMEWORK-0027. FND-FRAMEWORK-0027 owns missing parser resolution of approved literals. This finding owns the separately remediable partial automatic-update behavior that becomes reachable once those literals resolve.",
+  "source_run_ids": [
+    "20260720T080314Z-parent-pr55-57-59-framework-update-3443af13",
+    "20260720T113905Z-framework-pr35-36-integration-de98515c"
+  ],
+  "evidence_limitations": [
+    "The retained proof is a live check-mode update plan plus static workflow/control review; update mode was not run against canonical common.sh to avoid source mutation.",
+    "The candidate uses an empty update list and independent source-security review confirmed that the scheduled update applicator has no ModSecurity v3 write to perform; the historical exact-head PR evidence remains retained separately from the resulting-master verification.",
+    "The runtime control currently rejects the inconsistent outcome, so no successful malicious or compromised dependency update was reproduced.",
+    "The current user boundedly accepted the unrelated FND-SONAR-0002 master-only gate only for protected PR #36 delivery; it did not waive this finding's PR controls or establish any general acceptance.",
+    "No Parent gitlink or MRTS action occurred."
+  ],
+  "residual_risk": "Manual ModSecurity v3 release maintenance remains necessary until a safe tag-to-immutable-commit resolver is designed and reviewed. This repair intentionally preserves manual review rather than synthesizing a commit pin from an unverified release tag.",
+  "delivery_evidence": {
+    "pull_request": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/36",
+    "pull_request_number": 36,
+    "base_sha": "4907f6ca6ea996f8d4bc6e426d7875bd4c0805d5",
+    "head_sha": "1608352912a755f0f8639eddfa2350436446067e",
+    "merge_commit": "784977615acfc55567e37b863309abc4a38ac877",
+    "state": "merged",
+    "draft": false,
+    "merge_state": "MERGED",
+    "terminal_checks": {
+      "success": 11,
+      "expected_skipped": 3,
+      "failed": 0,
+      "cancelled": 0,
+      "pending": 0
+    },
+    "reviews": 0,
+    "unresolved_review_threads": 0,
+    "observed_at": "2026-07-20T13:10:07Z",
+    "original_reproduction_artifact": "/var/tmp/codex/ModSecurity-conector/runs/20260720T113905Z-framework-pr35-36-integration-de98515c/analysis/pr36-master-common-version-original-reproduction.json",
+    "original_reproduction_sha256": "4d2311ab1287b3943633b5f9d5243451ad697d66726d6a6d57012b3fae7eb1ab",
+    "limitations": "The exact resulting master was verified with the original non-writing check-mode reproducer. The separate FND-SONAR-0002 master-only Security E remains globally blocked and is not treated as a source-fix failure for this finding."
+  },
+  "history": [
+    {
+      "at": "2026-07-20T09:01:13Z",
+      "event": "confirmed_during_fnd_framework_0027_security_review",
+      "detail": "The live check planned only MODSECURITY_V3_GIT_REF=v3.0.16. Security review confirmed the runtime contract remains fail-closed but the scheduled privileged updater could otherwise create an inconsistent pull request."
+    },
+    {
+      "at": "2026-07-20T09:36:58Z",
+      "event": "local_remediation_validated",
+      "detail": "The provenance wrapper returns a manual-review result with an empty update list for a newer ModSecurity v3 release. Focused, provenance-contract, documentation, lint, and independent security review controls passed; exact-head Framework Draft PR evidence remains pending and no Framework master, Parent, or MRTS Git action occurred."
+    },
+    {
+      "at": "2026-07-20T10:14:31Z",
+      "event": "fixed_on_framework_pr_36_exact_head_validated",
+      "detail": "Framework Draft PR #36 exact head 2bf862e1a5f262251043ec421447f6e4db11e17d against master efdbcbd98afeed0f39f8912ce1140aaa5742f507 is CLEAN with 11 successful and 3 expected-skipped terminal checks, no failed/cancelled/pending check, and no review or unresolved review thread. Framework master merge and current-master reproduction remain unauthorized and pending; FND-SONAR-0002 stays separate and blocked."
+    },
+    {
+      "at": "2026-07-20T13:10:07Z",
+      "event": "verified_on_framework_master_after_pr36_normal_merge",
+      "detail": "PR #36 refreshed exact head 1608352912a755f0f8639eddfa2350436446067e was normally merged as Framework master 784977615acfc55567e37b863309abc4a38ac877; the head is an ancestor with an identical tree. Fresh PR-head controls passed before merge. The original check-mode reproducer reran on exact master with exit 0 and reports the newer ModSecurity v3 release as unknown/manual review with an empty update list, preventing a partial alias update. Parent and MRTS remained unchanged. Separate FND-SONAR-0002 stayed globally blocked, but its bounded master-only acceptance was used only for this protected delivery."
+    }
+  ],
+  "created_at": "2026-07-20T09:01:13Z",
+  "updated_at": "2026-07-20T13:10:07Z",
+  "final_disposition": "verified_on_framework_master_784977615acfc55567e37b863309abc4a38ac877_after_pr36_normal_merge_and_original_reproduction"
+}

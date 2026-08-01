@@ -1,0 +1,229 @@
+{
+  "id": "FND-PARENT-0045",
+  "title": "Update-submodules validation tests expect a prohibited shared-cache HAProxy runtime binary",
+  "title_de": "Update-Submodules-Validierungstests erwarten ein verbotenes HAProxy-Runtime-Binärprogramm aus dem Shared Cache",
+  "category": "ci_failure",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": "haproxy",
+  "protocol": "GitHub Actions Update submodules read-only validation",
+  "source_base_revision": "961b4fa37cee257a9d50542b3968005e0e21f556",
+  "delivery_state": "parent_fixture_remediation_fixed_current_master_candidate_validation_now_blocked_by_distinct_fnd_parent_0048_corrective_pr",
+  "local_validation_status": "initial_exact_head_failed_due_to_legacy_gitlink_followup_then_06a4e71_exact_head_ordinary_ci_and_sonar_passed_then_current_master_validation_reached_fixture_syntax_and_exposed_distinct_pyyaml_dependency_preparation_failure",
+  "security_assessment": "The failing Parent tests configure HAPROXY_RUNTIME_BUILD_DIR, HAPROXY_RUNTIME_BUILD_WORKTREE, HAPROXY_RUNTIME_DIR, and HAPROXY_BIN below a shared component-cache entry while BUILD_ROOT is separate. Current Framework master correctly rejects that runtime/build output outside BUILD_ROOT. This is a CI-control compatibility failure, not evidence of an exploitable Framework defect; the remediation must preserve the containment rejection.",
+  "security_assessment_de": "Die fehlschlagenden Parent-Tests konfigurieren HAPROXY_RUNTIME_BUILD_DIR, HAPROXY_RUNTIME_BUILD_WORKTREE, HAPROXY_RUNTIME_DIR und HAPROXY_BIN unterhalb eines Shared-Component-Cache-Eintrags, während BUILD_ROOT getrennt ist. Der aktuelle Framework-Master weist diese Runtime-/Build-Ausgabe außerhalb von BUILD_ROOT korrekt zurück. Dies ist ein CI-Control-Kompatibilitätsfehler und kein Beleg für einen ausnutzbaren Framework-Defekt; die Reparatur muss die Containment-Sperre bewahren.",
+  "affected_files": [
+    "tests/test_prepare_runtime_components.py",
+    "ci/provisioning/components/prepare-runtime-components.py",
+    ".github/workflows/update-submodules.yml"
+  ],
+  "affected_control_inputs": [
+    "modules/ModSecurity-test-Framework/ci/provisioning/prepare-haproxy-runtime.sh",
+    "BUILD_ROOT",
+    "CONNECTOR_COMPONENT_CACHE",
+    "HAPROXY_RUNTIME_*"
+  ],
+  "technical_claim": "A cache entry may provide source, archive, and extraction assets. HAProxy build, worktree, runtime directory, and executable must remain below the effective BUILD_ROOT. Parent component preparation is already internally consistent because it uses its managed connector entry as BUILD_ROOT; only the direct Parent regression fixture models the invalid split-root combination.",
+  "technical_claim_de": "Ein Cache-Eintrag darf Source-, Archiv- und Extract-Assets bereitstellen. HAProxy-Build, Worktree, Runtime-Verzeichnis und Executable müssen unter dem effektiven BUILD_ROOT bleiben. Die Parent-Komponentenpräparation ist bereits intern konsistent, weil sie ihren gemanagten Connector-Eintrag als BUILD_ROOT verwendet; nur die direkte Parent-Regression-Fixture modelliert die ungültige Split-Root-Kombination.",
+  "entry_point": "The read-only Validate submodule update job in GitHub Actions run 29945542984 executes make quick-check after resolving Framework candidate f73f8842f45318e2df8aff1d31855eeb7c20a22f.",
+  "entry_point_de": "Der read-only-Job Validate submodule update im GitHub-Actions-Run 29945542984 führt nach Auflösung des Framework-Candidates f73f8842f45318e2df8aff1d31855eeb7c20a22f make quick-check aus.",
+  "source_to_sink_or_broken_control": "The three test helpers construct a shared-cache runtime binary but invoke the Framework prepare script with a distinct BUILD_ROOT. The Framework path validator detects the disallowed runtime output root and returns 77, so the pre-publish validation fails and the narrowly privileged publisher is correctly skipped.",
+  "source_to_sink_or_broken_control_de": "Die drei Test-Helper konstruieren ein Runtime-Binärprogramm im Shared Cache, rufen aber das Framework-Prepare-Script mit einem abweichenden BUILD_ROOT auf. Der Framework-Pfadvalidator erkennt die unzulässige Runtime-Output-Root und liefert 77 zurück; daher schlägt die Pre-Publish-Validierung fehl und der eng privilegierte Publisher wird korrekt übersprungen.",
+  "attacker_prerequisites": [],
+  "attacker_prerequisites_de": [],
+  "observed_behavior": "Run 29945542984 resolves and checks out the Framework candidate successfully, then fails exactly three Parent HAProxy cache tests with 'haproxy_prepare: blocked HAPROXY_RUNTIME_BUILD_DIR must be under BUILD_ROOT'. The publisher job does not run.",
+  "observed_behavior_de": "Run 29945542984 löst den Framework-Candidate auf und checkt ihn erfolgreich aus, scheitert danach aber in exakt drei Parent-HAProxy-Cache-Tests mit 'haproxy_prepare: blocked HAPROXY_RUNTIME_BUILD_DIR must be under BUILD_ROOT'. Der Publisher-Job läuft nicht.",
+  "expected_behavior": "The Parent regression suite accepts the legitimate managed-entry layout where the effective build root is the managed entry, and explicitly rejects a shared-cache runtime binary when BUILD_ROOT is separate. The existing read-only validation and publisher permission separation remain unchanged.",
+  "expected_behavior_de": "Die Parent-Regression-Suite akzeptiert das legitime Managed-Entry-Layout, bei dem die effektive Build-Root der Managed Entry ist, und weist ein Runtime-Binärprogramm im Shared Cache bei getrenntem BUILD_ROOT explizit zurück. Die vorhandene read-only-Validierung und die Publisher-Berechtigungstrennung bleiben unverändert.",
+  "impact": "A valid Framework candidate cannot be proposed by the automated submodule updater because an obsolete Parent test asserts behavior the candidate intentionally blocks. The failure prevents an unsafe publication rather than granting an unsafe write path.",
+  "impact_de": "Ein gültiger Framework-Candidate kann vom automatischen Submodule-Updater nicht vorgeschlagen werden, weil ein veralteter Parent-Test Verhalten erwartet, das der Candidate absichtlich blockiert. Der Fehler verhindert eine unsichere Veröffentlichung, statt einen unsicheren Schreibpfad zu eröffnen.",
+  "reproduction": [
+    "Use Parent master 961b4fa37cee257a9d50542b3968005e0e21f556 and Framework candidate f73f8842f45318e2df8aff1d31855eeb7c20a22f in read-only test scope.",
+    "Run the three managed HAProxy cache tests in tests/test_prepare_runtime_components.py.",
+    "Observe exit 77 with the BUILD_ROOT containment message while the Publisher job remains skipped."
+  ],
+  "reproduction_de": [
+    "Parent-Master 961b4fa37cee257a9d50542b3968005e0e21f556 und Framework-Candidate f73f8842f45318e2df8aff1d31855eeb7c20a22f im read-only-Test-Scope verwenden.",
+    "Die drei Managed-HAProxy-Cache-Tests in tests/test_prepare_runtime_components.py ausführen.",
+    "Exit 77 mit der BUILD_ROOT-Containment-Meldung beobachten, während der Publisher-Job übersprungen bleibt."
+  ],
+  "evidence": [
+    {
+      "artifact_type": "github_actions_failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/29945542984",
+      "run_id": "29945542984",
+      "candidate_framework_sha": "f73f8842f45318e2df8aff1d31855eeb7c20a22f",
+      "summary": "Resolver and candidate checkout succeeded; read-only quick-check failed three obsolete Parent HAProxy cache tests; publisher skipped."
+    },
+    {
+      "artifact_type": "framework_source_control",
+      "revision": "f73f8842f45318e2df8aff1d31855eeb7c20a22f",
+      "path": "tests/security_regression/test_ci_root_bootstrap_hardening.py",
+      "summary": "A Framework regression explicitly requires rejection of a shared component-cache HAProxy binary outside BUILD_ROOT."
+    },
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/evidence/local-validation-summary.md",
+      "artifact_type": "local_validation_summary",
+      "sha256": "e977cdd6b21a0992315553faa08bd9168ac49a1a8a33b8a0065b69a847cecad1",
+      "command": "focused 61-test suite with MODSECURITY_FRAMEWORK_TEST_ROOT; make check-go-version-contract check-python-version-contract check-ci-security-contract; tests.test_bilingual_docs",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/pr80-central-go-submodule-20260722",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T20:18:14Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/tmp/codex-security-scans/ModSecurity-conector/961b4fa37cee_20260722T195014Z/report.md",
+      "artifact_type": "security_diff_scan_report",
+      "sha256": "975835843f8b7476c40e7cf616bb00f0bd2049977be3c213788dcbfee24c7b83",
+      "command": "codex-security security-diff-scan finalization and report-format validation",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/pr80-central-go-submodule-20260722",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T20:18:14Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/evidence/followup-validation-summary.md",
+      "artifact_type": "followup_validation_summary",
+      "sha256": "20a09708242b2b7140b62fbc5c2fc52c9fc5de35c2b240e5db10903285ed1f23",
+      "command": "focused 61-test suite with reviewed F73 root; tests.test_bilingual_docs; make Go/Python/CI contracts; git diff --check; final Codex Security diff scan",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/pr80-central-go-submodule-20260722",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T21:06:32Z",
+      "retention_status": "retained"
+    },
+    {
+      "run_id": "20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/evidence/hosted-pr90-06a4e71-validation.json",
+      "artifact_type": "github_and_sonarqube_cloud_exact_head_validation_receipt",
+      "sha256": "db38c89e5c1646e343ec022466d7fec899998dda05558ccf85789196d273ea20",
+      "command": "rtk proxy gh api repos/Easton97-Jens/ModSecurity-conector/commits/06a4e71408a60e5a72a55065a653b9c4e79a1ecf/check-runs --paginate; rtk proxy curl -fsSL 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-conector&pullRequest=90'",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T23:02:27Z",
+      "retention_status": "retained"
+    }
+  ],
+  "root_cause": "The Parent direct test fixture predates or diverged from the Framework's current runtime-output containment contract. It models shared-cache reuse as a runtime-binary reuse while independently setting BUILD_ROOT, although the production Parent component preparer sets the managed connector entry itself as BUILD_ROOT when it invokes the Framework script.",
+  "root_cause_de": "Die direkte Parent-Test-Fixture datiert vor oder divergiert vom aktuellen Runtime-Output-Containment-Vertrag des Frameworks. Sie modelliert Shared-Cache-Reuse als Runtime-Binary-Reuse und setzt BUILD_ROOT unabhängig, obwohl der produktive Parent-Komponentenpräparer beim Aufruf des Framework-Scripts den Managed-Connector-Entry selbst als BUILD_ROOT setzt.",
+  "proposed_remediation": "Correct the Parent fixture/invocation seam and replace obsolete positive assertions with a legitimate managed-entry control plus an explicit separate-BUILD_ROOT rejection control. Do not alter the Framework containment implementation, the Parent workflow's read-only validation, or publisher permissions.",
+  "proposed_remediation_de": "Parent-Fixture-/Invocation-Seam korrigieren und veraltete positive Assertions durch einen legitimen Managed-Entry-Control sowie einen expliziten Rejection-Control für getrenntes BUILD_ROOT ersetzen. Weder die Framework-Containment-Implementierung noch die Parent-read-only-Validierung oder Publisher-Berechtigungen ändern.",
+  "acceptance_criteria": [
+    "The original three-test failure mode is represented by an explicit negative test that expects exit 77 and the BUILD_ROOT containment reason.",
+    "A legitimate managed-entry layout with runtime paths below its effective BUILD_ROOT succeeds without rebuilding or modifying the shared entry.",
+    "The Parent helper uses a deliberately supplied read-only Framework root rather than assuming the uninitialized Parent gitlink is executable.",
+    "Update-submodules retains its resolve/read-only-validate/narrow-publisher flow and permissions.",
+    "Focused Parent tests and a fresh exact-head hosted candidate validation pass before the finding is verified."
+  ],
+  "acceptance_criteria_de": [
+    "Der ursprüngliche Drei-Test-Fehlermodus ist durch einen expliziten Negativtest abgebildet, der Exit 77 und den BUILD_ROOT-Containment-Grund erwartet.",
+    "Ein legitimes Managed-Entry-Layout mit Runtime-Pfaden unter seiner effektiven BUILD_ROOT besteht ohne Rebuild oder Änderung des Shared Entry.",
+    "Der Parent-Helper verwendet eine bewusst übergebene read-only-Framework-Root, statt anzunehmen, dass der uninitialisierte Parent-Gitlink ausführbar ist.",
+    "Update-submodules behält seinen Resolve/read-only-Validate/narrow-Publisher-Flow und seine Berechtigungen.",
+    "Fokussierte Parent-Tests und eine frische Exact-Head-Hosted-Candidate-Validierung bestehen, bevor das Finding verifiziert wird."
+  ],
+  "validation_plan": [
+    "Run the focused Parent HAProxy cache regression suite against the read-only Framework candidate.",
+    "Run the Parent CI security workflow contract and inspect update-submodules permissions and job ordering.",
+    "Review the exact diff to prove no Framework, MRTS, gitlink, workflow-permission, or Go-module change is introduced by this remediation.",
+    "Require an exact-head Update submodules hosted validation before verification or closure."
+  ],
+  "validation_plan_de": [
+    "Die fokussierte Parent-HAProxy-Cache-Regression-Suite gegen den read-only-Framework-Candidate ausführen.",
+    "Den Parent-CI-Sicherheitsworkflow-Vertrag ausführen sowie Update-submodules-Berechtigungen und Job-Reihenfolge prüfen.",
+    "Den exakten Diff prüfen, um nachzuweisen, dass durch diese Reparatur keine Framework-, MRTS-, Gitlink-, Workflow-Berechtigungs- oder Go-Module-Änderung eingeführt wird.",
+    "Eine Exact-Head-Update-submodules-Hosted-Validierung vor Verifikation oder Closure verlangen."
+  ],
+  "regression_tests": [
+    "tests/test_prepare_runtime_components.py",
+    "tests/test_ci_security_workflows.py",
+    "make check-ci-security-contract"
+  ],
+  "legitimate_control_tests": [
+    "Managed cache source/assets remain below the component cache while runtime outputs are below the effective BUILD_ROOT.",
+    "A separate BUILD_ROOT with a shared-cache runtime binary is rejected fail-closed.",
+    "The Publisher only becomes eligible after read-only validation succeeds."
+  ],
+  "legitimate_control_tests_de": [
+    "Managed-Cache-Source/Assets bleiben unter dem Component Cache, während Runtime-Outputs unter der effektiven BUILD_ROOT liegen.",
+    "Ein getrenntes BUILD_ROOT mit Runtime-Binärprogramm im Shared Cache wird fail-closed zurückgewiesen.",
+    "Der Publisher wird erst nach erfolgreicher read-only-Validierung berechtigt."
+  ],
+  "bypass_review": "Reject any proposal that makes HAPROXY_RUNTIME_* paths outside BUILD_ROOT acceptable, changes the Framework security regression, initializes or changes the Parent gitlink, broadens GitHub token permissions, skips quick-check, or allows the publisher to run after validation failure.",
+  "bypass_review_de": "Jeden Vorschlag zurückweisen, der HAPROXY_RUNTIME_*-Pfade außerhalb von BUILD_ROOT akzeptabel macht, die Framework-Sicherheitsregression ändert, den Parent-Gitlink initialisiert oder ändert, GitHub-Token-Berechtigungen erweitert, quick-check überspringt oder den Publisher nach einem Validierungsfehler laufen lässt.",
+  "dependencies": [
+    "Separately authorized fresh read-only Update submodules candidate validation"
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": ["FND-PARENT-0042", "FND-SONAR-0010", "FND-PARENT-0048"],
+  "deduplication_note": "Not a duplicate of FND-PARENT-0042: that finding owns the NGINX release-asset/runtime prerequisite. This finding owns the separate Parent HAProxy shared-cache test contract that blocks the Update submodules candidate-validation workflow.",
+  "source_run_ids": ["29945542984", "29955277020", "29955277057", "29955276989", "29955277045", "29955277071"],
+  "evidence_limitations": [
+    "The current evidence proves a controlled CI-validation failure, not an exploitable runtime connector vulnerability.",
+    "Initial Draft PR #90 head 0acba7768848651758610928e89f4481dbb90c81 reached five ordinary push workflows, all of which failed at the legacy Parent exit-77 assertion. Corrected exact head 06a4e71408a60e5a72a55065a653b9c4e79a1ecf has ordinary checks terminal success or skipped and a passed SonarQube Cloud Quality Gate. Update submodules remains deliberately undispatched and is the only required hosted evidence for this finding.",
+    "The local Go 1.26.0 executable fail-closed before module test or vet because both module roots require Go 1.26.5 under GOTOOLCHAIN=local; hosted 1.26.5 validation remains required."
+  ],
+  "residual_risk": "Until a replacement Parent candidate passes the exact-head hosted Update submodules validation, future Framework candidates remain blocked by this obsolete Parent test contract. No security risk is accepted.",
+  "residual_risk_de": "Bis ein Replacement-Parent-Candidate die Exact-Head-Hosted-Update-submodules-Validierung besteht, bleiben künftige Framework-Candidates durch diesen veralteten Parent-Testvertrag blockiert. Es wird kein Sicherheitsrisiko akzeptiert.",
+  "delivery_evidence": {
+    "status": "ordinary_exact_head_actions_and_sonarqube_quality_gate_passed_pending_authorized_update_submodules_validation",
+    "reason": "Initial task-owned Draft PR #90 head 0acba7768848651758610928e89f4481dbb90c81 failed five completed push workflows at the common legacy Parent HAProxy exit-77 assertion. Bounded correction 06a4e71408a60e5a72a55065a653b9c4e79a1ecf is committed and normally pushed; local, remote, and PR heads match, ordinary exact-head checks are terminal success or skipped, and SonarQube Cloud Quality Gate is OK. No Update submodules candidate result, merge, Framework change, gitlink update, or MRTS action is asserted."
+  },
+  "initial_pr_failure_evidence": {
+    "pull_request": 90,
+    "head_sha": "0acba7768848651758610928e89f4481dbb90c81",
+    "run_ids": [29955277020, 29955277057, 29955276989, 29955277045, 29955277071],
+    "common_authenticated_failure": "test_haproxy_prepare_rejects_shared_cache_runtime_with_separate_build_root: AssertionError: 77 != 0 from legacy managed-cache reuse",
+    "validated_at": "2026-07-22T21:06:32Z"
+  },
+  "followup_security_scan": {
+    "report": "/var/tmp/codex/ModSecurity-conector/runs/20260722T183342Z-pr80-go-toolchain-submodule-c30d4a37/tmp/codex-security-scans/ModSecurity-conector/0acba7768848_20260722T205355Z/report.md",
+    "sha256": "64e9dc2fba39c869caf8a3b7325d14a7cecc6049f24793be990e12cd9efe252c",
+    "result": "complete coverage; zero reportable findings; historical hosted-run attribution candidate suppressed with authenticated direct logs"
+  },
+  "history": [
+    {
+      "at": "2026-07-22T18:45:02Z",
+      "event": "root_cause_confirmed",
+      "detail": "Framework candidate containment and its security regression were reviewed. The correct owner is Parent test/invocation semantics, not Framework source."
+    },
+    {
+      "at": "2026-07-22T18:51:17Z",
+      "event": "finding_allocated",
+      "detail": "The distinct Parent CI compatibility blocker was allocated before remediation."
+    },
+    {
+      "at": "2026-07-22T20:18:14Z",
+      "event": "local_remediation_validated",
+      "detail": "Parent-only fixture correction, focused 61-test controls, static CI contract, bilingual tests, and exact-diff security review passed. Hosted exact-head Update submodules validation remains required before verification or closure."
+    },
+    {
+      "at": "2026-07-22T21:06:32Z",
+      "event": "initial_pr_exact_head_failed_and_followup_revalidated",
+      "detail": "Initial Draft PR #90 head 0acba7768848651758610928e89f4481dbb90c81 reached five completed push workflows and all failed at the same legacy Parent HAProxy exit-77 assertion. The narrowed SHA-specific follow-up passed 61 focused tests, bilingual and contract checks, and a complete zero-reportable-findings final security scan; its new exact head is still pending commit/push and hosted validation."
+    },
+    {
+      "at": "2026-07-22T21:25:24Z",
+      "event": "followup_pushed_exact_head_actions_passed_sonar_blocker_allocated",
+      "detail": "Follow-up d99eafd76d9fdbef5b63a19d084fd2d7caff6c08 is committed and normally pushed to Draft PR #90; local, remote, and PR heads match. All applicable ordinary exact-head Actions passed. SonarQube Cloud check 89053617816 fails on a distinct task-owned Quality Gate condition, now FND-SONAR-0010; Update submodules remains undispatched and requires separate authorization."
+    },
+    {
+      "at": "2026-07-22T23:02:27Z",
+      "event": "post_sonar_remediation_exact_head_verified_update_submodules_pending",
+      "detail": "Exact head 06a4e71408a60e5a72a55065a653b9c4e79a1ecf has ordinary hosted checks terminal success or skipped and SonarQube Cloud Quality Gate OK. This finding remains fixed, not verified, because Update submodules was not dispatched and requires separate authorization."
+    }
+  ],
+  "created_at": "2026-07-22T18:51:17Z",
+  "updated_at": "2026-07-23T05:48:04Z",
+  "final_disposition": "fixed_pending_authorized_update_submodules_exact_head_validation"
+}

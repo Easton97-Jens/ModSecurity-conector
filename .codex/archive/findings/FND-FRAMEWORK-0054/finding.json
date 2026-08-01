@@ -1,0 +1,147 @@
+{
+  "id": "FND-FRAMEWORK-0054",
+  "title": "Framework ModSecurity v3 Git wrapper does not bind a verified host Git executable before provenance validation",
+  "title_de": "Framework-ModSecurity-v3-Git-Wrapper bindet vor der Provenance-Validierung kein verifiziertes Host-Git-Programm",
+  "category": "security_candidate",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P2",
+  "severity": "medium",
+  "confidence": "probable",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": "ModSecurity v3 source provisioning",
+  "profile": "standalone Framework fetch and provenance boundary at Framework master f98a8739cb13b583f23d646784b144e596b61441",
+  "affected_revision": "f98a8739cb13b583f23d646784b144e596b61441",
+  "affected_files": [
+    "ci/lib/common.sh",
+    "ci/provisioning/fetch-smoke-sources.sh",
+    "tests/security_regression/test_modsecurity_v3_git_ref_provenance.py"
+  ],
+  "affected_symbols": [
+    "ci_modsecurity_v3_git",
+    "provision_fresh_modsecurity_v3",
+    "ModSecurityV3GitProvenanceRegressionTest.create_fixture"
+  ],
+  "summary": "The standalone Framework ModSecurity v3 provenance wrapper sanitizes Git configuration and transport inputs but invokes an unqualified `git` resolved from the caller's PATH before it can verify source provenance. Existing regressions intentionally substitute a fake Git through PATH to model approved Git arguments, so they do not establish a verified host-executable boundary.",
+  "summary_de": "Der eigenständige Framework-ModSecurity-v3-Provenance-Wrapper bereinigt Git-Konfigurations- und Transporteingaben, ruft aber vor der Source-Provenance-Prüfung ein unqualifiziertes über den aufrufenden PATH aufgelöstes `git` auf. Bestehende Regressionen ersetzen Git absichtlich über PATH durch ein Fake-Git, um freigegebene Git-Argumente zu modellieren; sie belegen daher keine verifizierte Host-Executable-Grenze.",
+  "observed_behavior": "At exact clean Framework master f98a8739cb13b583f23d646784b144e596b61441, ci_modsecurity_v3_git clears inherited Git state and then executes bare `git -c ... \"$@\"`. The source path has no absolute host-Git binding or PATH reset. The provenance regression creates a temporary bin/git and prepends it to PATH, which proves argument/provenance handling with a model Git rather than which host executable production invokes.",
+  "observed_behavior_de": "Auf dem exakten sauberen Framework-master f98a8739cb13b583f23d646784b144e596b61441 löscht ci_modsecurity_v3_git geerbten Git-Zustand und führt anschließend nacktes `git -c ... \"$@\"` aus. Der Source-Pfad besitzt weder eine absolute Host-Git-Bindung noch ein PATH-Reset. Die Provenance-Regression erstellt ein temporäres bin/git und stellt es PATH voran; das beweist Argument-/Provenance-Behandlung mit einem Modell-Git, nicht welches Host-Programm die Produktion ausführt.",
+  "expected_behavior": "Before any standalone fresh fetch, checkout, or recursive submodule command reaches Git, the Framework must resolve and bind an approved host Git executable independently of a caller-controlled PATH, fail closed when that trusted executable cannot be established, and retain regressions that distinguish test-only fake Git injection from production host-executable selection.",
+  "expected_behavior_de": "Bevor ein eigenständiger Fresh-Fetch-, Checkout- oder rekursiver Submodule-Befehl Git erreicht, muss das Framework ein freigegebenes Host-Git-Programm unabhängig von einem aufruferkontrollierten PATH auflösen und binden, beim Fehlen dieses vertrauenswürdigen Programms fail closed enden und Regressionen behalten, die Test-only-Fake-Git-Injektion von der Produktionsauswahl des Host-Programms trennen.",
+  "impact": "If a lower-privileged actor can influence PATH in a supported standalone Framework fetch invocation, a substituted Git program can run with the Framework/CI identity before source provenance validation. The static review has not demonstrated such a supported untrusted PATH source, so this is a plausible medium hardening gap rather than a validated exploit or high/critical finding.",
+  "impact_de": "Falls ein weniger privilegierter Akteur PATH in einer unterstützten eigenständigen Framework-Fetch-Invocation beeinflussen kann, kann ein ersetztes Git-Programm mit der Framework-/CI-Identität vor der Source-Provenance-Validierung laufen. Das statische Review hat eine solche unterstützte untrusted-PATH-Quelle nicht belegt; dies ist daher eine plausible mittlere Hardening-Lücke und kein validierter Exploit oder High-/Critical-Finding.",
+  "preconditions": [
+    "A supported standalone Framework fetch/provisioning invocation inherits a PATH whose earlier entry can be controlled by a less-trusted actor.",
+    "The invocation reaches ci_modsecurity_v3_git before a verified absolute Git executable is bound.",
+    "The substituted executable is executable by the Framework/CI process."
+  ],
+  "reproduction": [
+    "Inspect exact Framework master f98a8739cb13b583f23d646784b144e596b61441 ci/lib/common.sh around ci_modsecurity_v3_git and confirm that the invoked command is bare git.",
+    "Inspect tests/security_regression/test_modsecurity_v3_git_ref_provenance.py and confirm that create_fixture writes bin/git and prepends that directory to PATH for its model-Git controls.",
+    "Do not treat the test-only fake Git as proof of a productive untrusted PATH actor; establish that supported actor/control boundary before any exploit classification."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260723T162517Z-fnd-cross-0001-runtime-evidence-bcda7d1d",
+      "artifact_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/lib/common.sh",
+      "artifact_type": "exact_framework_master_static_host_git_resolution_review",
+      "sha256": "de97949bf36a409f4520b462f73dbb11b0033d70392c329c39d20f2131ccac6a",
+      "command": "RTK-wrapped git rev-parse/status, rg -n -C 14 ci_modsecurity_v3_git, and sha256sum on the clean exact Framework master source",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T17:31:41Z",
+      "retention_status": "repository_source_snapshot",
+      "summary": "Exact clean Framework master is f98a8739cb13b583f23d646784b144e596b61441 and ci_modsecurity_v3_git invokes bare git from PATH at the provenance boundary."
+    },
+    {
+      "run_id": "20260723T162517Z-fnd-cross-0001-runtime-evidence-bcda7d1d",
+      "artifact_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/security_regression/test_modsecurity_v3_git_ref_provenance.py",
+      "artifact_type": "exact_framework_master_static_fake_git_regression_review",
+      "sha256": "d7e07d63c8bffb5526d13cf36159aa73b478879f68803bc92c8a0b56db2a1050",
+      "command": "RTK-wrapped rg -n -C 8 fake_bin|fake Git|fake_git_script|PATH and sha256sum on the clean exact Framework master regression source",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T17:31:41Z",
+      "retention_status": "repository_source_snapshot",
+      "summary": "The regression intentionally writes a fake git executable and prepends its directory to PATH; it validates modeled Git arguments but not production host-Git identity."
+    },
+    {
+      "run_id": "20260726-framework-findings-batch",
+      "artifact_path": ".codex/runs/20260726-framework-findings-batch/evidence/current-master-revalidation.md",
+      "artifact_type": "current_framework_master_finding_revalidation",
+      "sha256": "6912df100503c87123b72e4fac4cc76d6c8bf9f40f884786eeedfcebe0614f3c",
+      "command": "make test-modsecurity-v3-provenance-contract; python -m unittest discover -s tests/security_regression -p test_modsecurity_v3_git_ref_provenance.py -q; PR #44 and current-master hosted-check readback",
+      "working_directory": "/var/tmp/codex/worktrees/framework/20260726-framework-findings-batch",
+      "exit_code": 0,
+      "observed_at": "2026-07-26T18:28:05Z",
+      "retention_status": "retained_task_evidence",
+      "summary": "Current Framework master 47e50e7bc43ba7a3b5bad1a9448111794f664cc0 binds the approved host Git before provenance commands; focused fake-PATH rejection and approved-host legitimate controls pass without relaxing source provenance or FND-FRAMEWORK-0036 containment."
+    }
+  ],
+  "root_cause": "The provenance wrapper was designed to remove inherited Git configuration, hooks, transports, credentials, and selected Git behavior, but it retained ambient command resolution. No Framework-local host-tool trust contract resolves an approved absolute Git program before the standalone source-provisioning boundary.",
+  "root_cause_de": "Der Provenance-Wrapper wurde entworfen, um geerbte Git-Konfiguration, Hooks, Transporte, Credentials und ausgewähltes Git-Verhalten zu entfernen, behielt aber die umgebende Command-Auflösung. Kein Framework-lokaler Host-Tool-Trust-Contract löst vor der eigenständigen Source-Provisioning-Grenze ein freigegebenes absolutes Git-Programm auf.",
+  "proposed_remediation": "Define the supported host-tool trust contract, resolve a trusted absolute Git executable before the boundary without trusting caller PATH, verify its permitted location/ownership or other approved provenance, and make ci_modsecurity_v3_git fail closed when that contract is unmet. Add focused regressions proving a non-approved PATH Git is not invoked while an approved host-Git control still completes the legitimate pinned fetch/check-out path. Preserve the separate FND-FRAMEWORK-0036 fresh-root containment controls.",
+  "proposed_remediation_de": "Den unterstützten Host-Tool-Trust-Contract definieren, vor der Grenze ein vertrauenswürdiges absolutes Git-Programm ohne Vertrauen in den aufrufenden PATH auflösen, dessen zulässigen Ort/Ownership oder andere freigegebene Provenance prüfen und ci_modsecurity_v3_git bei nicht erfülltem Contract fail closed machen. Fokussierte Regressionen ergänzen, die belegen, dass nicht freigegebenes PATH-Git nicht aufgerufen wird, während ein freigegebenes Host-Git-Control den legitimen gepinnten Fetch-/Checkout-Pfad abschließt. Die getrennten FND-FRAMEWORK-0036-Fresh-Root-Containment-Controls erhalten.",
+  "acceptance_criteria": [
+    "The production standalone ModSecurity v3 wrapper cannot resolve Git from an untrusted caller PATH.",
+    "The selected Git executable has an explicit, documented, fail-closed host trust contract before it receives fetch, checkout, or submodule arguments.",
+    "A focused regression proves that a fake Git earlier on PATH is not invoked by the production wrapper.",
+    "A legitimate approved host-Git control still fetches/checks out the pinned ModSecurity v3 graph under the existing provenance and FND-FRAMEWORK-0036 containment controls.",
+    "The exact Framework PR head receives security review, focused tests, relevant CI/Sonar evidence, and resulting-master verification without weakening PATH, provenance, or quality controls."
+  ],
+  "validation_plan": [
+    "Establish whether any supported Framework or CI caller gives a less-trusted actor PATH control and document the result before changing severity or exploitability.",
+    "Implement the approved host-Git binding only in an isolated Framework task/PR and run focused fake-PATH block and approved-host-Git legitimate controls.",
+    "Re-run FND-FRAMEWORK-0036 fresh-root worktree, attribute/filter, and recursive-update regressions because both findings share the same pre-provenance Git command boundary.",
+    "Collect exact-head review, CI, Sonar, and resulting-master evidence before changing this status from triaged/fixed to verified."
+  ],
+  "regression_tests": [
+    "tests/security_regression/test_modsecurity_v3_git_ref_provenance.py with a non-approved fake Git earlier on PATH and an approved host-Git control.",
+    "Focused standalone fetch-smoke-sources invocation that reaches init, fetch, checkout, and recursive submodule handling without ambient PATH Git resolution."
+  ],
+  "legitimate_control_tests": [
+    "The approved host Git can complete the pinned legitimate ModSecurity v3 fetch/check-out graph.",
+    "Existing source-origin, commit, TLS, hook, fsmonitor, optional-lock, submodule, and fresh-root containment controls remain enforced."
+  ],
+  "dependencies": [
+    "A Framework-approved host-tool provenance contract for Git.",
+    "FND-FRAMEWORK-0036 fresh-root checkout containment and recursive local-configuration scrubbing remediation."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0032",
+    "FND-FRAMEWORK-0034",
+    "FND-FRAMEWORK-0035",
+    "FND-FRAMEWORK-0036"
+  ],
+  "source_run_ids": [
+    "20260723T162517Z-fnd-cross-0001-runtime-evidence-bcda7d1d"
+  ],
+  "evidence_limitations": [
+    "This is a static source-and-regression review; no exploit, untrusted productive PATH source, or runtime command substitution was exercised.",
+    "The test fake Git is an intentional model control and is not evidence that a supported production caller permits hostile PATH injection.",
+    "The Parent invocation may bind PATH separately; this finding is limited to the standalone Framework fetch/provenance path."
+  ],
+  "residual_risk": "The ambient-PATH source review applies to historical revision f98a8739cb13b583f23d646784b144e596b61441. Current Framework master binds approved host Git before provenance commands and rejects the fake-PATH negative control; the successful legitimate control preserves the remaining source-origin, commit, TLS, hook, fsmonitor, optional-lock, submodule, and fresh-root containment controls. No risk acceptance is recorded.",
+  "residual_risk_de": "Das Review der umgebenden PATH-Auflösung betrifft die historische Revision f98a8739cb13b583f23d646784b144e596b61441. Der aktuelle Framework-master bindet freigegebenes Host-Git vor Provenance-Befehlen und weist das Fake-PATH-Negativ-Control ab; das erfolgreiche legitime Control erhält die übrigen Source-Origin-, Commit-, TLS-, Hook-, fsmonitor-, optional-lock-, Submodule- und Fresh-Root-Containment-Controls. Es ist keine Risikoakzeptanz erfasst.",
+  "created_at": "2026-07-23T17:31:41Z",
+  "updated_at": "2026-07-26T18:28:05Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-23T17:31:41Z",
+      "event": "static_host_git_path_boundary_triaged",
+      "detail": "Exact clean Framework master f98a8739cb13b583f23d646784b144e596b61441 invokes bare git through PATH at the ModSecurity v3 provenance boundary. The test suite intentionally supplies fake Git through PATH but does not establish a productive untrusted actor. This is a separate P2/medium/probable candidate, not a duplicate of the local-config, mutable-byte, materialization, or fresh-root findings. No product source, Framework branch/PR, Parent gitlink, or MRTS state changed."
+    },
+    {
+      "at": "2026-07-26T18:28:05Z",
+      "event": "verified_on_current_framework_master",
+      "detail": "PR #44 source hardening and current master 47e50e7bc43ba7a3b5bad1a9448111794f664cc0 provide the host-Git binding. The focused fake-PATH rejection and approved-host legitimate controls passed together with the FND-FRAMEWORK-0036 containment regressions; no security control was weakened."
+    }
+  ]
+}

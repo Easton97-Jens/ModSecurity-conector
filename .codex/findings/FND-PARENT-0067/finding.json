@@ -1,0 +1,121 @@
+{
+  "id": "FND-PARENT-0067",
+  "title": "Apache name_for_debug uses an unowned strdup allocation across configuration lifecycle",
+  "title_de": "Apache name_for_debug verwendet über den Konfigurations-Lifecycle hinweg eine nicht besessene strdup-Allocation",
+  "category": "lifecycle_defect",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "validated",
+  "feasibility_status": "feasible_now",
+  "release_blocker": false,
+  "security_relevant": false,
+  "security_assessment": "not_applicable_trusted_apache_configuration_lifecycle_no_attacker_boundary",
+  "connector": "apache",
+  "protocol": "Apache configuration-pool lifecycle and graceful restart",
+  "profile": "Private Apache graceful-restart Memcheck control",
+  "affected_files": [
+    "connectors/apache/src/msc_config.c"
+  ],
+  "affected_symbols": [
+    "msc_hook_create_config_directory",
+    "msc_conf_t.name_for_debug",
+    "strdup"
+  ],
+  "trust_boundary": "trusted Apache operator configuration path and private process lifecycle; no attacker-controlled input or security boundary has been established",
+  "sink": "libc heap allocation from strdup(path) assigned to cnf->name_for_debug without a matching APR-pool or dedicated cleanup ownership path",
+  "summary": "A private Apache graceful-restart Memcheck run validates a distinct Parent lifecycle leak: current master assigns strdup(path) to name_for_debug in msc_hook_create_config_directory at connectors/apache/src/msc_config.c:416. The retained log reports 66 bytes definitely lost in 3 blocks, with stacks through strdup and connector DSO address 0x53D1BEB. It contains no Invalid free/read/write or UAF diagnostic. This is separate from FND-PARENT-0064 RulesSet cleanup and no source fix is included in the current task.",
+  "summary_de": "Ein privater Apache-Graceful-Restart-Memcheck-Lauf validiert einen getrennten Parent-Lifecycle-Leak: Aktueller Master weist in msc_hook_create_config_directory bei connectors/apache/src/msc_config.c:416 strdup(path) an name_for_debug zu. Der aufbewahrte Log meldet 66 definitiv verlorene Bytes in 3 Blöcken mit Stacks über strdup und die Connector-DSO-Adresse 0x53D1BEB. Er enthält keine Invalid-free/read/write- oder UAF-Diagnose. Dies ist getrennt vom RulesSet-Cleanup in FND-PARENT-0064 und in der aktuellen Aufgabe ist kein Source-Fix enthalten.",
+  "observed_behavior": "On Parent master 9f23ae2c5fe908cef38f203be03f93fda75a8dd7, msc_hook_create_config_directory assigns cnf->name_for_debug = strdup(path) when path is non-null at connectors/apache/src/msc_config.c:416. In the private Apache graceful-restart Memcheck run, memcheck.8.log reports two definite-leak contexts totaling 66 bytes in three blocks. Both allocation stacks include strdup and connector DSO address 0x53D1BEB before Apache configuration traversal. The configured error-exitcode makes that leak result exit 99.",
+  "observed_behavior_de": "Auf Parent-master 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 weist msc_hook_create_config_directory bei nicht nullwertigem path in connectors/apache/src/msc_config.c:416 cnf->name_for_debug = strdup(path) zu. Im privaten Apache-Graceful-Restart-Memcheck-Lauf meldet memcheck.8.log zwei Definitive-Leak-Kontexte mit insgesamt 66 Bytes in drei Blöcken. Beide Allocation-Stacks enthalten strdup und die Connector-DSO-Adresse 0x53D1BEB vor der Apache-Konfigurationstraversierung. Der konfigurierte error-exitcode führt für dieses Leak-Ergebnis zu Exit 99.",
+  "expected_behavior": "Debug-name storage associated with a configuration generation has an explicit owner and is released when that generation is destroyed, while debug-name reads remain valid for the configuration generation's normal lifetime.",
+  "expected_behavior_de": "Debug-Name-Storage, der zu einer Konfigurationsgeneration gehört, besitzt einen expliziten Owner und wird bei Zerstörung dieser Generation freigegeben, während Debug-Name-Reads während der normalen Lebenszeit der Konfigurationsgeneration gültig bleiben.",
+  "impact": "The observed private run loses 66 bytes in three blocks. Repeated configuration creation and graceful restarts can accumulate the trusted-lifecycle allocation. The evidence does not establish attacker control, external exploitability, corruption, invalid free, use-after-free, a release blocker, or a security impact.",
+  "impact_de": "Der beobachtete private Lauf verliert 66 Bytes in drei Blöcken. Wiederholte Konfigurationserzeugung und Graceful-Restarts können die vertrauenswürdige Lifecycle-Allocation akkumulieren. Die Evidence belegt weder Angreiferkontrolle, externe Ausnutzbarkeit, Korruption, Invalid-Free, Use-After-Free, einen Release-Blocker noch einen Sicherheitsimpact.",
+  "preconditions": [
+    "The Parent Apache connector is built and loaded in a private Apache process.",
+    "Apache creates one or more per-directory configuration objects with non-null path values.",
+    "The process performs SIGUSR1 graceful restart and termination under Memcheck."
+  ],
+  "reproduction": [
+    "Inspect Parent master 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 at connectors/apache/src/msc_config.c:414-417 and observe the non-null path strdup assignment to name_for_debug.",
+    "Run the retained task-owned private Apache graceful Memcheck control with --leak-check=full, --show-leak-kinds=definite, --errors-for-leak-kinds=definite, and --error-exitcode=99.",
+    "Read graceful-memcheck/memcheck.8.log: it reports 22 bytes in one block and 44 bytes in two blocks definitely lost, totaling 66 bytes in three blocks, with strdup and DSO address 0x53D1BEB allocation stacks."
+  ],
+  "evidence": [
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/logs/graceful-memcheck/memcheck.8.log",
+      "artifact_type": "private_apache_graceful_memcheck_lifecycle_leak",
+      "sha256": "a49ca3a72f06aef4f4e67bab0b57056fe785c95a1dfba2361a892fbbf497b931",
+      "command": "run-graceful-memcheck.sh with Valgrind Memcheck --leak-check=full --show-leak-kinds=definite --errors-for-leak-kinds=definite --error-exitcode=99",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime",
+      "exit_code": 99,
+      "observed_at": "2026-07-29T08:58:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "66 bytes definitely lost in three blocks: 22 bytes in one block and 44 bytes in two blocks. Both stacks pass through strdup and connector DSO address 0x53D1BEB. No Invalid free/read/write or UAF diagnostic appears."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime/logs/apache-runtime/error.log",
+      "artifact_type": "private_apache_graceful_restart_log",
+      "sha256": "d65d607196ecc06f09179a5db5cc11ffb5fa332185d0f4d5125a3f47923165b4",
+      "command": "Task-owned private Apache HTTP/1.1 control followed by SIGUSR1 graceful restart and SIGTERM termination",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T08:58:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "AH00493 records SIGUSR1 graceful restart, AH00489 records resumed normal operation, and AH00491 records clean SIGTERM shutdown."
+    }
+  ],
+  "root_cause": "The configuration factory allocates name_for_debug with libc strdup rather than storage owned by the APR configuration pool, and current source has no corresponding dedicated cleanup registration. The observed Memcheck stacks correlate this allocation path with Apache configuration traversal. This root cause is independent from RulesSet ownership and must not be silently hidden by the RulesSet cleanup candidate.",
+  "root_cause_de": "Die Konfigurationsfabrik alloziert name_for_debug mit libc-strdup statt mit Storage, der dem APR-Konfigurationspool gehört, und der aktuelle Source besitzt keine entsprechende dedizierte Cleanup-Registrierung. Die beobachteten Memcheck-Stacks korrelieren diesen Allocation-Pfad mit der Apache-Konfigurationstraversierung. Diese Root Cause ist unabhängig von RulesSet-Ownership und darf nicht still durch den RulesSet-Cleanup-Kandidaten verborgen werden.",
+  "proposed_remediation": "Select a separate lifecycle-safe ownership contract before source modification. The follow-up must determine whether the debug name should be APR-pool-owned or receive a narrowly scoped cleanup, verify merge and failure paths, and prove that no caller or later debug use observes a freed string. Add a focused regression and rerun the same private graceful-restart Memcheck control. No source repair for this finding is included in the current task.",
+  "proposed_remediation_de": "Vor einer Source-Änderung einen getrennten lifecycle-sicheren Ownership-Vertrag auswählen. Das Follow-up muss bestimmen, ob der Debug-Name dem APR-Pool gehören oder einen eng begrenzten Cleanup erhalten soll, Merge- und Failure-Paths verifizieren und beweisen, dass kein Caller oder späterer Debug-Use einen freigegebenen String beobachtet. Eine fokussierte Regression ergänzen und denselben privaten Graceful-Restart-Memcheck-Control erneut ausführen. In der aktuellen Aufgabe ist keine Source-Reparatur für dieses Finding enthalten.",
+  "acceptance_criteria": [
+    "A separately reviewed ownership design establishes one valid cleanup owner for name_for_debug without shortening any legitimate debug-use lifetime.",
+    "Focused tests cover non-null path creation, merge/error paths, pool destruction, and legitimate debug-name access where applicable.",
+    "The private Apache graceful-restart Memcheck reproduction no longer reports the strdup-backed 66-byte definite leak.",
+    "The resulting change receives focused security/lifecycle review and exact-head validation before a fixed or verified status."
+  ],
+  "validation_plan": [
+    "Reproduce the current Memcheck result before selecting a repair.",
+    "Exercise allocation, configuration merge, graceful restart, and clean shutdown paths with the selected ownership design.",
+    "Re-run the exact private Memcheck control and ensure no new invalid-free, UAF, or premature-debug-lifetime diagnostic appears.",
+    "Run relevant C compilation and Apache request controls before delivery."
+  ],
+  "regression_tests": [
+    "No source regression is included in the current task; a separate follow-up must add a lifecycle regression for name_for_debug ownership."
+  ],
+  "legitimate_control_tests": [
+    "Private Apache configuration loads and serves the HTTP/1.1 readiness control before and after SIGUSR1 restart.",
+    "The configured phase-2 deny control remains HTTP 403.",
+    "The private process terminates cleanly without an invalid-free or UAF diagnostic."
+  ],
+  "dependencies": [
+    "Task-owned Parent worktree and private Apache/APXS/APR/libmodsecurity/Valgrind environment for follow-up validation."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0064"
+  ],
+  "deduplication_note": "Distinct from FND-PARENT-0064: FND-PARENT-0064 owns RulesSet heap cleanup through APR configuration pools, while this finding owns libc strdup(path) storage for name_for_debug. They require independently safe remediation decisions and separate regression evidence.",
+  "source_run_ids": [
+    "selective-apache-prs-master-20260729"
+  ],
+  "residual_risk": "The validated 66-byte private lifecycle leak remains on Parent master and in the current RulesSet-cleanup candidate because no source repair for name_for_debug is in scope. The evidence establishes neither a security vulnerability nor a release blocker. A follow-up must not assume that freeing the string is safe without verifying its complete configuration and debug-use lifetime.",
+  "residual_risk_de": "Der validierte 66-Byte-private-Lifecycle-Leak bleibt auf Parent-master und im aktuellen RulesSet-Cleanup-Kandidaten, weil keine Source-Reparatur für name_for_debug im Scope liegt. Die Evidence belegt weder eine Sicherheitslücke noch einen Release-Blocker. Ein Follow-up darf nicht annehmen, dass das Freigeben des Strings sicher ist, ohne seine vollständige Konfigurations- und Debug-Use-Lebenszeit zu verifizieren.",
+  "created_at": "2026-07-29T09:04:55Z",
+  "updated_at": "2026-07-29T09:04:55Z",
+  "final_disposition": "validated_separate_lifecycle_leak_no_source_fix_in_current_task",
+  "history": [
+    {
+      "at": "2026-07-29T09:04:55Z",
+      "event": "private_graceful_memcheck_lifecycle_leak_validated",
+      "detail": "Retained Memcheck evidence established the separate strdup(path) lifecycle leak. It was assigned FND-PARENT-0067 rather than conflated with RulesSet cleanup."
+    }
+  ]
+}

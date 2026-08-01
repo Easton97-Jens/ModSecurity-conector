@@ -1,0 +1,237 @@
+{
+  "id": "FND-PARENT-0071",
+  "title": "Apache smoke runtime does not materialize MIME configuration at every ServerRoot-resolved location",
+  "title_de": "Apache-Smoke-Runtime materialisiert die MIME-Konfiguration nicht an jeder von ServerRoot aufgelösten Stelle",
+  "category": "runtime_defect",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
+  "release_blocker": true,
+  "candidate_integration_blocker": false,
+  "security_relevant": true,
+  "security_assessment": "runtime_configuration_artifact_resolution_failure_without_attacker_controlled_boundary",
+  "security_invariant": "For every generated Apache smoke runtime, every default Apache configuration file resolved relative to ServerRoot must be materialized at the actual runtime path before process start; a successful configuration parse alone is insufficient evidence of process liveness or request handling.",
+  "security_invariant_de": "Für jede erzeugte Apache-Smoke-Runtime muss jede relativ zu ServerRoot aufgelöste Standard-Apache-Konfigurationsdatei vor dem Prozessstart am tatsächlichen Runtime-Pfad materialisiert sein; ein erfolgreicher Konfigurationsparse allein ist keine ausreichende Evidence für Prozess-Liveness oder Request-Handling.",
+  "connector": "apache",
+  "protocol": "Apache smoke runtime startup, HTTP/1.1 phase-2 deny, and SIGUSR1 graceful-restart boundary",
+  "profile": "resulting Parent master 154ee724eba4653fa6378fc3c8729ae433e65697, tree-identical to final PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118",
+  "affected_files": [
+    "connectors/apache/harness/run_apache_smoke.sh",
+    "connectors/apache/harness/apache_smoke.conf",
+    "tests/test_apache_smoke_mime_types.py"
+  ],
+  "affected_symbols": [
+    "MIME_TYPES_FILE",
+    "MIME_TYPES_ROOT_FILE",
+    "ServerRoot",
+    "mod_mime default mime.types resolution",
+    "phase2_args_block runtime root"
+  ],
+  "summary": "The Apache smoke harness generated only $RUNTIME_ROOT/conf/mime.types although ServerRoot resolves default mime.types at $RUNTIME_ROOT/mime.types. Pre-fix parsing returned Syntax OK, but startup failed with AH01597 before a request. Final PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 carries the dual-location MIME repair and was merged as Parent master 154ee724eba4653fa6378fc3c8729ae433e65697 with the same tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0. All 14 master-SHA workflows succeeded; detached-master focused Apache/MIME unit checks and make check-apache-common-adoption passed. No fresh master live start/readiness/403/SIGUSR1 run was supplied, so the P1 Apache smoke/runtime condition remains fixed, not verified or closed.",
+  "summary_de": "Der Apache-Smoke-Harness erzeugte nur $RUNTIME_ROOT/conf/mime.types, obwohl ServerRoot Standard-mime.types bei $RUNTIME_ROOT/mime.types auflöst. Pre-Fix-Parsing ergab Syntax OK, aber der Start schlug vor einem Request mit AH01597 fehl. Der finale PR-#183-Head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 enthält die Dual-Location-MIME-Reparatur und wurde als Parent-master 154ee724eba4653fa6378fc3c8729ae433e65697 mit demselben Tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0 gemergt. Alle 14 Master-SHA-Workflows waren erfolgreich; fokussierte Apache/MIME-Unit-Checks und make check-apache-common-adoption auf detached Master bestanden. Es wurde kein frischer Master-Live-Start-/Readiness-/403-/SIGUSR1-Lauf geliefert, daher bleibt der P1-Apache-Smoke-/Runtime-Zustand fixed, nicht verified oder closed.",
+  "observed_behavior": "Pre-fix, run_apache_smoke.sh defined and populated only MIME_TYPES_FILE=$RUNTIME_ROOT/conf/mime.types. The generated apache_smoke.conf sets ServerRoot to RUNTIME_ROOT. The retained configtest log says Syntax OK, while the retained Apache error log records AH01597: it cannot open RUNTIME_ROOT/mime.types. Thus configuration parsing did not prove the process could start. The mutable repair defines MIME_TYPES_ROOT_FILE=$RUNTIME_ROOT/mime.types and copies or creates the same generated artifact in both paths. The post-fix retained phase2 result reports expected_status=403, actual_status=403, status=pass, and live_executed=true; its error log records SIGUSR1 received and graceful restart. The local repair is not a committed PR head.",
+  "observed_behavior_de": "Pre-Fix definierte und befüllte run_apache_smoke.sh nur MIME_TYPES_FILE=$RUNTIME_ROOT/conf/mime.types. Die erzeugte apache_smoke.conf setzt ServerRoot auf RUNTIME_ROOT. Das zurückgehaltene Configtest-Log sagt Syntax OK, während das zurückgehaltene Apache-Error-Log AH01597 aufzeichnet: RUNTIME_ROOT/mime.types kann nicht geöffnet werden. Konfigurationsparsing bewies daher nicht, dass der Prozess starten kann. Die mutierbare Reparatur definiert MIME_TYPES_ROOT_FILE=$RUNTIME_ROOT/mime.types und kopiert oder erzeugt dasselbe generierte Artefakt an beiden Pfaden. Das post-fix zurückgehaltene phase2-Ergebnis meldet expected_status=403, actual_status=403, status=pass und live_executed=true; sein Error-Log zeichnet SIGUSR1 received und graceful restart auf. Die lokale Reparatur ist kein committeter PR-Head.",
+  "expected_behavior": "The smoke harness must generate a MIME artifact at every Apache path that the rendered ServerRoot-relative default configuration resolves before process start. Apache configuration parsing, startup/readiness, the legitimate phase-2 HTTP/1.1 deny control, and a SIGUSR1 graceful-restart/readiness control must all pass without relying on unrelated source-tree files. The repair must be independently committed and exact-head validated before a resulting-master rerun can support verified or closed status.",
+  "expected_behavior_de": "Der Smoke-Harness muss vor dem Prozessstart ein MIME-Artefakt an jedem Apache-Pfad erzeugen, den die gerenderte ServerRoot-relative Standardkonfiguration auflöst. Apache-Konfigurationsparsing, Start/Readiness, der legitime phase-2-HTTP/1.1-Deny-Control und ein SIGUSR1-Graceful-Restart-/Readiness-Control müssen alle ohne Abhängigkeit von fremden Source-Tree-Dateien bestehen. Die Reparatur muss unabhängig committet und auf einem exakten Head validiert sein, bevor ein Rerun auf dem resultierenden Master einen verified- oder closed-Status stützen kann.",
+  "impact": "A cleanly parsed Apache smoke configuration can still fail before serving a single request, invalidating the normal Apache runtime acceptance path and blocking release delivery for that path. The evidence establishes no attacker-controlled input, remote execution, secret exposure, or request-processing exploit. The P1 release blocker applies to Apache smoke/runtime acceptance, not to the independent selective #94A attribution.",
+  "impact_de": "Eine sauber geparste Apache-Smoke-Konfiguration kann dennoch vor dem ersten Request fehlschlagen, invalidiert damit den normalen Apache-Runtime-Akzeptanzpfad und blockiert die Release-Delivery für diesen Pfad. Die Evidence etabliert keinen attacker-kontrollierten Input, keine Remote-Execution, keine Secret-Exposition und keinen Request-Processing-Exploit. Der P1-Release-Blocker gilt für Apache-Smoke-/Runtime-Akzeptanz, nicht für die unabhängige Attribution von selektivem #94A.",
+  "preconditions": [
+    "An Apache smoke runtime uses connectors/apache/harness/apache_smoke.conf with ServerRoot equal to its generated runtime root.",
+    "The available Apache mod_mime uses its default relative mime.types resolution.",
+    "The runtime root is fresh and does not accidentally contain a pre-existing root-level mime.types file."
+  ],
+  "reproduction": [
+    "Generate a fresh Apache smoke runtime with the baseline harness and confirm it creates conf/mime.types but not ServerRoot/mime.types.",
+    "Run apache2 -t against the generated configuration; observe that Syntax OK does not prove a successful process start.",
+    "Start Apache and retain the error log showing AH01597 for the missing ServerRoot-relative mime.types before any request is served.",
+    "Apply the dual-location MIME artifact repair in an isolated task candidate and assert both runtime files exist with the same digest.",
+    "Run the phase2_args_block HTTP/1.1 control and the SIGUSR1 graceful-restart/readiness control; then repeat them from a committed PR exact head and resulting master."
+  ],
+  "evidence": [
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime-post-build-fix/logs/phase2_args_block/configtest.log",
+      "artifact_type": "retained_prefixed_apache_configtest_log",
+      "sha256": "bbafef10c22b9323fa5589564990f57fbf57f9a632381d5e765dc5a3b25b4a1b",
+      "command": "sha256sum retained configtest.log; apache2 -t reported Syntax OK",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:33:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The exact generated configuration parses successfully, proving that config parsing alone does not establish process liveness."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime-post-build-fix/logs/phase2_args_block/error.log",
+      "artifact_type": "retained_prefixed_apache_startup_failure_log",
+      "sha256": "0c7791f4b9935d6eda358d1c47dfcee2cc0baf547331b776ea3ea6ae5ded6fff",
+      "command": "sha256sum retained error.log; rg AH01597 error.log",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:33:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Apache fails before a request with AH01597 because ServerRoot/mime.types is absent even though conf/mime.types exists."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729/connectors/apache/harness/run_apache_smoke.sh",
+      "artifact_type": "mutable_task_worktree_mime_repair_snapshot",
+      "sha256": "9046a8caff239fa0bfe430224eb2819e2f01fa1e49fb50a16c21bf37fee7ece2",
+      "command": "sha256sum task-worktree run_apache_smoke.sh; git diff -- connectors/apache/harness/run_apache_smoke.sh",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:33:55Z",
+      "retention_status": "mutable_candidate_source_observation",
+      "result": "An uncommitted harness snapshot defines MIME_TYPES_ROOT_FILE and writes the generated MIME artifact at both ServerRoot-relative and conf paths; Git HEAD remains 9f23ae2c5fe908cef38f203be03f93fda75a8dd7."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729/tests/test_apache_smoke_mime_types.py",
+      "artifact_type": "mutable_task_worktree_static_regression_test",
+      "sha256": "167413ac60fee5dd215d2c9524d0bded1d344ee1425bc3284193ede9502e8399",
+      "command": "sha256sum task-worktree tests/test_apache_smoke_mime_types.py",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/worktrees/parent/selective-apache-prs-master-20260729",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:33:55Z",
+      "retention_status": "mutable_candidate_source_observation",
+      "result": "The uncommitted focused static contract is associated with the local repair and must be run again from a committed PR exact head."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime-post-build-fix-control2/apache-runtime/phase2_args_block/mime.types",
+      "candidate_artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime-post-build-fix-control2/apache-runtime/phase2_args_block/conf/mime.types",
+      "artifact_type": "retained_dual_location_generated_mime_artifacts",
+      "sha256": "fafe925e793113aff60a22955ace0e8ddc4c3b068117f71b97d1897a58983317",
+      "command": "sha256sum both generated MIME artifact paths",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:33:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Both required generated MIME artifacts exist and have equal content in the local repair control."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime-post-build-fix-control2/logs/phase2_args_block/result.json",
+      "artifact_type": "retained_postfix_http1_phase2_control",
+      "sha256": "cbfb2a07f77347b3554933173065063b237eca437e11882fe45db407afc11f1c",
+      "command": "sha256sum retained result.json",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:33:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The local repair control reports expected_status=403, actual_status=403, status=pass, and live_executed=true for phase2_args_block."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime-post-build-fix-control2/logs/phase2_args_block/error.log",
+      "artifact_type": "retained_postfix_graceful_restart_log",
+      "sha256": "ac01ca9bf7ea2615e4c02842b1b1dfd06ef0404962957ca68737406673f6566d",
+      "command": "sha256sum retained error.log; rg SIGUSR1 error.log",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:33:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The local repair runtime log records SIGUSR1 received and a graceful restart, followed by normal Apache operation."
+    },
+    {
+      "run_id": "selective-apache-prs-master-20260729",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/selective-apache-prs-master-20260729/validation/apache-runtime-post-build-fix-control2/run-graceful-control.sh",
+      "artifact_type": "retained_graceful_control_procedure",
+      "sha256": "47889d2f99d4fc43feb2eb6e93630b4e30c8fa433e4f28647a63b8ab9416a231",
+      "command": "sha256sum retained run-graceful-control.sh",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T10:33:55Z",
+      "retention_status": "retained_task_evidence",
+      "result": "The control starts Apache, confirms HTTP/1.1 readiness, sends SIGUSR1, and confirms readiness again. It is local candidate evidence, not a committed exact-PR-head receipt."
+    },
+    {
+      "run_id": "parent-pr183-resulting-master-20260729",
+      "artifact_path": "Parent-supplied PR #183 resulting-master delivery and focused Apache/MIME-check summary",
+      "artifact_type": "resulting_master_tree_workflow_and_focused_source_check_revalidation",
+      "sha256": null,
+      "command": "git show -s --format='%H%n%T%n%ci%n%s' 154ee724eba4653fa6378fc3c8729ae433e65697; git show -s --format='%H%n%T%n%ci%n%s' 4e4dfb36e1b05f7eda38450fd3710e3a04905118; git diff --quiet 154ee724eba4653fa6378fc3c8729ae433e65697 4e4dfb36e1b05f7eda38450fd3710e3a04905118; Parent-supplied master workflow and local-check summary",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-29T11:27:25Z",
+      "retention_status": "parent_supplied_resulting_master_delivery_evidence",
+      "result": "PR #183 merged as master 154ee724eba4653fa6378fc3c8729ae433e65697 with tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0 equal to final head 4e4dfb36e1b05f7eda38450fd3710e3a04905118. All 14 master-SHA workflows succeeded; detached-master focused Apache/MIME unit checks and make check-apache-common-adoption passed. No fresh master live start/readiness/403/SIGUSR1 run was supplied."
+    }
+  ],
+  "root_cause": "The Parent-owned smoke harness creates only the conf-relative MIME artifact even though the rendered configuration's ServerRoot is the runtime root and the available Apache mod_mime resolves default mime.types relative to that root. A syntax-only configuration test does not open the default file on the process-start path, so it does not detect the missing root-level artifact.",
+  "root_cause_de": "Der Parent-eigene Smoke-Harness erzeugt nur das conf-relative MIME-Artefakt, obwohl ServerRoot der gerenderten Konfiguration der Runtime-Root ist und das verfügbare Apache-mod_mime standardmäßig mime.types relativ zu diesem Root auflöst. Ein reiner Syntax-Konfigurationstest öffnet die Standarddatei nicht auf dem Prozessstart-Pfad und erkennt daher das fehlende Root-Level-Artefakt nicht.",
+  "proposed_remediation": "Keep the merged dual-location MIME repair and focused static contract. To verify it, create a fresh resulting-master runtime and run apache2 -t, live start/readiness, phase2_args_block HTTP/1.1 403, and SIGUSR1 graceful restart/readiness with retained logs and status receipts. Do not infer those live controls from tree identity, focused unit tests, or successful workflows.",
+  "proposed_remediation_de": "Die gemergte Dual-Location-MIME-Reparatur und den fokussierten Static-Contract beibehalten. Zur Verifikation eine frische Resulting-Master-Runtime erzeugen und apache2 -t, Live-Start-/Readiness, phase2_args_block-HTTP/1.1-403 sowie SIGUSR1-Graceful-Restart-/Readiness mit aufbewahrten Logs und Status-Receipts ausführen. Diese Live-Controls nicht aus Tree-Identität, fokussierten Unit-Tests oder erfolgreichen Workflows ableiten.",
+  "acceptance_criteria": [
+    "A fresh smoke runtime contains both ServerRoot/mime.types and ServerRoot/conf/mime.types with the expected source digest before Apache starts.",
+    "apache2 -t and an actual Apache process start/readiness control pass against the generated runtime without fallback to unrelated source-tree files.",
+    "The selected HTTP/1.1 phase2_args_block legitimate control returns 403 from a live Apache process.",
+    "A SIGUSR1 graceful restart is followed by successful readiness and selected legitimate request handling.",
+    "A focused regression contract rejects a harness that writes only one of the required generated MIME locations.",
+    "A fresh resulting-master live start/readiness/403/SIGUSR1 sequence exists before verified or closed status; tree identity, focused unit tests, and successful workflows alone are insufficient."
+  ],
+  "validation_plan": [
+    "Retain the passed detached-master focused Apache/MIME unit checks and make check-apache-common-adoption as source-level evidence only.",
+    "Create a fresh resulting-master runtime and hash both generated MIME locations before Apache starts.",
+    "Run apache2 -t, live start/readiness, phase2_args_block HTTP/1.1, and SIGUSR1 graceful-restart/readiness controls with retained logs and status receipts.",
+    "Run live start/readiness, phase2_args_block HTTP/1.1 403, and SIGUSR1 graceful-restart/readiness on resulting master before terminal disposition."
+  ],
+  "regression_tests": [
+    "tests/test_apache_smoke_mime_types.py",
+    "Fresh Apache smoke-harness runtime configuration/start control.",
+    "phase2_args_block HTTP/1.1 403 control.",
+    "Apache SIGUSR1 graceful-restart/readiness control."
+  ],
+  "legitimate_control_tests": [
+    "apache2 -t against the generated configuration returns Syntax OK.",
+    "A live Apache process exposes the normal readiness endpoint before and after SIGUSR1.",
+    "The normal phase2_args_block request receives expected HTTP 403 from the live process."
+  ],
+  "dependencies": [
+    "Approved Apache/httpd, APXS, APR, and libModSecurity runtime environment.",
+    "Fresh resulting-master Apache smoke runtime root for terminal validation."
+  ],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-PARENT-0008",
+    "FND-PARENT-0064",
+    "FND-PARENT-0068",
+    "FND-PARENT-0069",
+    "FND-PARENT-0070"
+  ],
+  "deduplication_note": "This is distinct from FND-PARENT-0070: 0070 owns APXS DSO source-materialization completeness in connectors/apache/build/apxs-wrapper.in, whereas this record owns generated Apache smoke-runtime configuration artifact placement in connectors/apache/harness/run_apache_smoke.sh. It is also distinct from FND-PARENT-0008 (historical Clang initializer), FND-PARENT-0064 (RulesSet APR lifecycle cleanup), FND-PARENT-0068 (cleanup-runner output confinement), and FND-PARENT-0069 (GCC C17 mod_security3.c diagnostics).",
+  "deduplication_note_de": "Dies ist von FND-PARENT-0070 getrennt: 0070 besitzt die APXS-DSO-Source-Materialisierungs-Vollständigkeit in connectors/apache/build/apxs-wrapper.in, während dieser Record die Platzierung generierter Apache-Smoke-Runtime-Konfigurationsartefakte in connectors/apache/harness/run_apache_smoke.sh besitzt. Er ist auch von FND-PARENT-0008 (historischer Clang-Initializer), FND-PARENT-0064 (RulesSet-APR-Lifecycle-Cleanup), FND-PARENT-0068 (Cleanup-Runner-Output-Confinement) und FND-PARENT-0069 (GCC-C17-mod_security3.c-Diagnosen) getrennt.",
+  "scope_disposition": "Fixed on resulting master 154ee724eba4653fa6378fc3c8729ae433e65697 because its tree equals final PR #183 head 4e4dfb36e1b05f7eda38450fd3710e3a04905118. It remains a normal Apache smoke/runtime release blocker until fresh resulting-master live start/readiness/403/SIGUSR1 evidence exists. The MIME repair does not prove that the separate APR RulesSet lifecycle finding is resolved.",
+  "scope_disposition_de": "Auf Resulting Master 154ee724eba4653fa6378fc3c8729ae433e65697 fixed, weil sein Tree dem finalen PR-#183-Head 4e4dfb36e1b05f7eda38450fd3710e3a04905118 entspricht. Es bleibt ein normaler Apache-Smoke-/Runtime-Release-Blocker, bis frische Resulting-Master-Live-Start-/Readiness-/403-/SIGUSR1-Evidence vorliegt. Die MIME-Reparatur beweist nicht, dass das getrennte APR-RulesSet-Lifecycle-Finding gelöst ist.",
+  "source_run_ids": [
+    "selective-apache-prs-master-20260729",
+    "parent-pr183-resulting-master-20260729"
+  ],
+  "residual_risk": "The repair is merged and all 14 master-SHA workflows succeeded, but no fresh resulting-master live Apache start/readiness/403/SIGUSR1 receipt is recorded. A hidden runtime mismatch could still invalidate startup or post-restart service. The scoped defect establishes no attacker-controlled vulnerability and is fixed, not verified or closed.",
+  "residual_risk_de": "Die Reparatur ist gemergt und alle 14 Master-SHA-Workflows waren erfolgreich, aber es ist kein frischer Resulting-Master-Live-Apache-Start-/Readiness-/403-/SIGUSR1-Receipt erfasst. Ein verdeckter Runtime-Mismatch könnte Start oder Dienst nach Restart weiterhin invalidieren. Der begrenzte Defekt etabliert keine attacker-kontrollierte Vulnerability und ist fixed, nicht verified oder closed.",
+  "created_at": "2026-07-29T10:33:55Z",
+  "updated_at": "2026-07-29T11:27:25Z",
+  "final_disposition": "fixed_resulting_master_154ee724eba4653fa6378fc3c8729ae433e65697_pending_fresh_master_live_start_readiness_403_sigusr1_validation",
+  "history": [
+    {
+      "at": "2026-07-29T10:33:55Z",
+      "event": "apache_smoke_mime_dual_location_runtime_defect_validated_and_locally_fixed",
+      "detail": "Retained pre-fix evidence records AH01597 after a successful config parse, while retained local-repair controls record dual MIME artifacts, live HTTP/1.1 phase-2 403, and SIGUSR1 graceful restart. The repair remains uncommitted and non-terminal."
+    },
+    {
+      "at": "2026-07-29T10:45:45Z",
+      "event": "exact_draft_pr_183_mime_runtime_repair_published",
+      "detail": "Draft PR #183 exact head f88ea5c907ce996b0648cfd98d9aa2fcd51b2718 contains the dual-location MIME repair. Parent reports retained H1 403 and SIGUSR1 controls pass. Status remains fixed only pending hosted validation and resulting-master reproduction."
+    },
+    {
+      "at": "2026-07-29T11:27:25Z",
+      "event": "pr_183_resulting_master_delivery_reconciled",
+      "detail": "PR #183 merged as Parent master 154ee724eba4653fa6378fc3c8729ae433e65697 with tree c4d08e66d9b1929f4a56c81f3d5a021ea6ce4ef0 equal to final head 4e4dfb36e1b05f7eda38450fd3710e3a04905118; all 14 master-SHA workflows succeeded. Detached-master focused Apache/MIME unit checks and make check-apache-common-adoption passed, but no fresh master live start/readiness/403/SIGUSR1 run was supplied, so status remains fixed."
+    }
+  ]
+}

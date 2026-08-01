@@ -1,0 +1,89 @@
+{
+  "id": "FND-CROSS-0004",
+  "title": "Selected CRS profile routes remain unavailable for multiple connectors",
+  "title_de": "Ausgewählte CRS-Profilrouten bleiben für mehrere Connectoren nicht verfügbar",
+  "category": "crs_gap",
+  "repository": "parent_and_framework",
+  "ownership": "cross_repository",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "validated",
+  "status": "blocked",
+  "release_blocker": true,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": null,
+  "profile": null,
+  "affected_files": [
+    ".codex/reports/repository-full-assessment.md"
+  ],
+  "affected_symbols": [],
+  "summary": "Current profile evidence retains blocked CRS routes for HAProxy, Envoy, Traefik, and lighttpd.",
+  "summary_de": "Aktuelle Profilevidence hält blockierte CRS-Routen für HAProxy, Envoy, Traefik und lighttpd fest.",
+  "observed_behavior": "Current profile evidence retains blocked CRS routes for HAProxy, Envoy, Traefik, and lighttpd.",
+  "observed_behavior_de": "Aktuelle Profilevidence hält blockierte CRS-Routen für HAProxy, Envoy, Traefik und lighttpd fest.",
+  "expected_behavior": "Current evidence must be rerun against a known revision before this finding can advance beyond blocked.",
+  "expected_behavior_de": "Die aktuelle Evidence muss gegen eine bekannte Revision erneut ausgeführt werden, bevor dieses Finding über blocked hinaus fortschreiten kann.",
+  "impact": "Release and assurance claims remain bounded by the recorded evidence.",
+  "impact_de": "Release- und Assurance-Aussagen bleiben durch die dokumentierte Evidence begrenzt.",
+  "preconditions": [
+    "The retained assessment evidence and its referenced revision remain available."
+  ],
+  "reproduction": [
+    "sed -n '520,549p' .codex/reports/repository-full-assessment.md"
+  ],
+  "evidence": [
+    {
+      "run_id": "20260717T085050Z-mrts-protocol-hardening-readiness-57010656",
+      "artifact_path": ".codex/reports/repository-full-assessment.md:520-549",
+      "artifact_type": "bilingual_assessment_report",
+      "sha256": "5721a77efe2baf948a163ae0ee1d981fbba37119b89b9becdd5ccebdf99c5ed4",
+      "command": "sed -n '520,549p' .codex/reports/repository-full-assessment.md",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-17T09:23:19Z",
+      "retention_status": "retained_local_report"
+    }
+  ],
+  "root_cause": "The retained evidence identifies the condition but does not establish a product-code root cause.",
+  "root_cause_de": "Die retained Evidence belegt den Zustand, aber keine Produktcode-Grundursache.",
+  "proposed_remediation": "Provide connector-specific, isolated CRS profile runners without weakening MRTS or runtime safety boundaries.",
+  "proposed_remediation_de": "Connector-spezifische, isolierte CRS-Profilrunner bereitstellen, ohne MRTS- oder Runtime-Sicherheitsgrenzen zu schwächen.",
+  "acceptance_criteria": [
+    "Each listed connector/profile has a retained allow and block control or an evidence-backed unsupported disposition.",
+    "No original MRTS checkout is modified during profile execution."
+  ],
+  "validation_plan": [
+    "Run the required no-CRS and with-CRS profile cases in task-owned paths.",
+    "Retain result records, process manifests, and control HTTP statuses."
+  ],
+  "regression_tests": [
+    "Add or retain a focused regression/evidence control for the recorded condition."
+  ],
+  "legitimate_control_tests": [
+    "Run the unaffected allow/control behavior in the same scoped environment."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-MRTS-0001",
+    "FND-FRAMEWORK-0008",
+    "FND-HOST-0003"
+  ],
+  "source_run_ids": [
+    "20260717T085050Z-mrts-protocol-hardening-readiness-57010656"
+  ],
+  "residual_risk": "The condition remains open; no risk has been accepted by the current user.",
+  "residual_risk_de": "Der Zustand bleibt offen; der aktuelle Benutzer hat kein Risiko akzeptiert.",
+  "created_at": "2026-07-17T10:43:59Z",
+  "updated_at": "2026-07-17T10:43:59Z",
+  "final_disposition": null,
+  "history": [
+    {
+      "at": "2026-07-17T10:43:59Z",
+      "event": "bootstrap_created",
+      "detail": "Created by the one-time finding-management bootstrap from retained evidence; no remediation, verification, closure, or risk acceptance was performed."
+    }
+  ]
+}

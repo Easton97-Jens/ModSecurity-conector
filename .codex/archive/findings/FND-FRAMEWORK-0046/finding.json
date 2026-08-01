@@ -1,0 +1,273 @@
+{
+  "id": "FND-FRAMEWORK-0046",
+  "title": "Framework PR #42 OSV trusted-base interpreter and lock ABI mismatch during CPython 3.14 transition",
+  "title_de": "Framework-PR #42: OSV-Trusted-Base-Interpreter- und Lock-ABI-Mismatch während der CPython-3.14-Umstellung",
+  "category": "ci_failure",
+  "repository": "framework",
+  "ownership": "framework",
+  "priority": "P1",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "already_fixed",
+  "release_blocker": false,
+  "security_relevant": true,
+  "connector": null,
+  "protocol": null,
+  "profile": "Framework PR #42 hosted OSV trusted-base CPython 3.14 transition follow-up with an exact-SHA-bound CPython 3.13.14 missing-selector bridge",
+  "affected_revision": "e0564d219980d62bc37162ac6c11641f289f1b71",
+  "fixed_revision": "2930e04e1558b5b10bdeb87a76abb077a2085566",
+  "merged_pr_head_revision": "dc6cf411e78b3f37f1e4be52edef59894560b1ae",
+  "resulting_master_revision": "935cf14c676a24672be5c336e92cd13457cc35c8",
+  "affected_files": [
+    ".github/workflows/ci-security-osv.yml",
+    ".python-version",
+    "requirements-ci.lock",
+    "ci/checks/security/check-ci-security-contract.py",
+    "ci/checks/security/check-python-version.py",
+    "tests/ci_security/test_framework_ci_security_contract.py",
+    "tests/ci_security/test_python_version_contract.py"
+  ],
+  "affected_symbols": [
+    "pull-request-head / Materialize trusted base Python version",
+    "pull-request-head / Set up reviewed Python",
+    "OSV trusted-base interpreter/requirements-ci.lock ABI pairing"
+  ],
+  "technical_claim": "The OSV pull-request-head job intentionally installs the checked-out trusted base requirements-ci.lock, but the prior remediation selected the PR-head .python-version as its interpreter. For exact PR #42 head e0564d2, this combines the trusted base CP313-only PyYAML hash with CPython 3.14.6, so pip correctly rejects the CP314 wheel. This is a deterministic trusted-base interpreter/lock ABI mismatch, not an invalid CP314 tuple.",
+  "entry_point": "GitHub Actions pull_request execution of .github/workflows/ci-security-osv.yml on Framework PR #42.",
+  "source_to_sink_or_broken_control": "A bounded but untrusted HEAD_SHA:.python-version blob flowed into the private setup-python version file and selected the interpreter that runs python3 -m pip install against the trusted base checkout's requirements-ci.lock. The current base f73f8842f45318e2df8aff1d31855eeb7c20a22f has the CP313-only PyYAML hash. The mismatch produces an intentional pip hash rejection before the OSV scanner can perform its base/head manifest comparison.",
+  "attacker_prerequisites": [
+    "A pull request changes or introduces a CPython baseline while its trusted base uses an ABI-specific hash lock for a different interpreter.",
+    "The OSV pull-request-head job retains its required trusted-base checkout and installs that base lock."
+  ],
+  "observed_behavior": "Exact PR #42 head e0564d219980d62bc37162ac6c11641f289f1b71 fails OSV run 29956021487, job 89045175516, after hosted setup-python selects 3.14.6. Pip installs the trusted base lock, expects CP313 digest 0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6, downloads the CP314 wheel, and correctly reports digest c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5 instead.",
+  "expected_behavior": "The OSV PR-head job must select an interpreter ABI-compatible with the trusted base lock while preserving its trusted-base checkout, SHA validation, read-only permissions, bounded base/head manifest reads, and no-execution treatment of the PR head. Only exact trusted base f73f8842f45318e2df8aff1d31855eeb7c20a22f with its missing selector may use the bounded CPython 3.13.14 bridge; all other base/selector states, including a present selector for that base or a missing selector at any other base, must fail closed rather than inherit a generic fallback.",
+  "impact": "The historical e056 exact head had a failed mandatory CI/security check and could not enter protected Framework master. Exact current PR head 2930e04e1558b5b10bdeb87a76abb077a2085566 passes the repaired OSV control and all current hosted PR checks. PR #42 was then normally merged as resulting Framework master 935cf14c676a24672be5c336e92cd13457cc35c8, whose exact-master GitHub Actions workflows completed successfully. The defect is verified and no longer a release blocker. This remains a control-availability and provenance-consistency finding, not a confirmed product exploit; installing the PR-head lock, loosening hash enforcement, or executing the PR head would weaken the security boundary.",
+  "preconditions": [
+    "PR #42 head e0564d2 selects stable CPython 3.14.6 through the bounded PR-head temporary file.",
+    "The PR base revision f73f8842f45318e2df8aff1d31855eeb7c20a22f has no .python-version and its requirements-ci.lock accepts the CP313 PyYAML wheel digest only.",
+    "The pull-request-head job checks out github.event.pull_request.base.sha before installing requirements-ci.lock."
+  ],
+  "reproduction": [
+    "rtk gh run view 29956021487 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed",
+    "rtk git -C <task-worktree> show f73f8842f45318e2df8aff1d31855eeb7c20a22f:requirements-ci.lock",
+    "rtk git -C <task-worktree> show e0564d219980d62bc37162ac6c11641f289f1b71:.github/workflows/ci-security-osv.yml",
+    "Verify the retained e056 hosted-failure receipt at /var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-e056-hosted-ci-failures.md against SHA-256 5940246feb917a3d83a7372ef09f2f54673cf506ec24d457d5dec5dfeaa381be."
+  ],
+  "evidence": [
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/delivery/pr42-exact-head-hosted-verification.md",
+      "artifact_type": "exact_pr_head_hosted_verification",
+      "sha256": "07d30f93ab9bda5fb03fb22b20b9755aba2b8567b67678a34ec3ff7927bcb853",
+      "command": "RTK-wrapped GitHub PR/check/review/thread readback plus retained hosted verification receipt",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/tmp/framework-worktree-v3",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T17:42:25Z",
+      "retention_status": "task_owned_temporary_evidence",
+      "summary": "The corrected PR #42 head 1fd3b362e0fed9766c6920e3c7bd1939535850f2 passes the hosted OSV pull-request-head check while retaining the reviewed PR boundary."
+    },
+    {
+      "run_id": "20260722T145132Z-framework-pr-39-41-master-integration-9a3c7dc7",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T145132Z-framework-pr-39-41-master-integration-9a3c7dc7/evidence/pr39-osv-trusted-base-python-version-failure.md",
+      "artifact_type": "exact_pr_head_ci_failure_and_trusted_base_control_review",
+      "sha256": "a0d6e64e4acfaabab6cda79704a28f3e9a7257897e0ebe8fc3e168152cc9bf76",
+      "command": "RTK-wrapped GitHub failed-job log and job API readback plus exact Framework workflow/tree inspection",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T15:07:13Z",
+      "retention_status": "task_owned_temporary_evidence",
+      "summary": "The failed exact-head job and the missing base-tree file are both reproduced; the PR's subsequent OSV comparison steps are skipped."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/security-diff/consolidation-local-security-closure.md",
+      "artifact_type": "consolidation_local_security_remediation_validation",
+      "sha256": "6a5f626d9f574841484055431c33fb8dcfc47bc0029d641ea48359c1a9764719",
+      "command": "RTK-wrapped workflow/security-contract checks, focused CI-security tests, actionlint, and checksum-verified offline Zizmor in the task-owned consolidation worktree",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/tmp/framework-worktree-v3",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T17:04:03Z",
+      "retention_status": "task_owned_temporary_evidence",
+      "summary": "The consolidation preserves the trusted-base, SHA-verified, read-only, no-untrusted-code-execution boundary and passes the focused bootstrap regression locally."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/security-diff/consolidation-commit-receipt.md",
+      "artifact_type": "committed_consolidation_head_receipt",
+      "sha256": "c07815638b747cb80002db2f34ff18028d80d0241eb7c7248488d5c8fe6f9e1c",
+      "command": "RTK-wrapped clean-worktree, exact range whitespace, and native make lint verification after committing the consolidation head",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/tmp/framework-worktree-v3",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T17:24:06Z",
+      "retention_status": "task_owned_temporary_evidence",
+      "summary": "The locally fixed remediation is bound to committed Framework head 22747d460a9f7be02760edf05c311be376492457; hosted OSV evidence remains required."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-e056-hosted-ci-failures.md",
+      "artifact_type": "task_owned_framework_pr42_e056_hosted_osv_interpreter_lock_mismatch_receipt",
+      "sha256": "5940246feb917a3d83a7372ef09f2f54673cf506ec24d457d5dec5dfeaa381be",
+      "command": "Producer command is not recorded in the retained receipt; this Parent control-plane task verified the receipt SHA-256 and recorded its GitHub Actions run/job facts.",
+      "working_directory": "GitHub Actions hosted runner (external); retained receipt is under the task-owned Parent run root.",
+      "exit_code": 1,
+      "observed_at": "2026-07-22",
+      "retention_status": "task_owned_retained_evidence",
+      "summary": "Exact PR #42 head e0564d219980d62bc37162ac6c11641f289f1b71 selected CPython 3.14.6 from PR-head data while installing trusted-base f73f8842f45318e2df8aff1d31855eeb7c20a22f requirements-ci.lock; pip correctly rejected the CP314 PyYAML wheel against the CP313-only hash."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-2930e04-hosted-verification.md",
+      "artifact_type": "exact_pr_head_hosted_verification",
+      "sha256": "4f7de2c315aa3f262b7a237b7228d5e682529065b28c8ce1046f2519752418b0",
+      "command": "RTK-wrapped GitHub PR/check/review/thread/Sonar readback",
+      "working_directory": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/tmp/framework-worktree-v4",
+      "exit_code": 0,
+      "observed_at": "2026-07-22T22:29:11Z",
+      "retention_status": "task_owned_retained_evidence",
+      "summary": "Exact PR #42 head 2930e04e1558b5b10bdeb87a76abb077a2085566 passes the repaired OSV pull-request-head control and all current hosted PR checks while retaining the trusted-base, read-only, no-untrusted-code-execution boundary."
+    },
+    {
+      "run_id": "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/runs/20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e/evidence/framework-pr42-20260723-postmerge-verification.md",
+      "artifact_type": "framework_pr42_resulting_master_osv_delivery_verification",
+      "sha256": "0a0421f70cf39df8f6f31ef12b4a461f05bd9875fb61775094c5031aef489ce1",
+      "command": "RTK-wrapped GitHub PR/master/workflow/check-suite and SonarCloud readback; the exact commands are retained in the receipt.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-23T07:51:09Z",
+      "retention_status": "task_owned_retained_evidence",
+      "summary": "PR #42 merged normally at 2026-07-23T07:41:13Z as Framework master 935cf14c676a24672be5c336e92cd13457cc35c8 from predecessor f73f8842f45318e2df8aff1d31855eeb7c20a22f and merged head dc6cf411e78b3f37f1e4be52edef59894560b1ae; the resulting tree equals the reviewed PR-head tree. Eight exact-master GitHub Actions workflows succeeded. The PR-only pull-request-head job is skipped on the push event as expected; together with the retained exact PR-head OSV pass, this verifies the repaired control."
+    }
+  ],
+  "root_cause": "The earlier PR #39 remediation correctly avoided checking out or executing PR-head code by treating its .python-version as bounded SHA-verified data. On current PR #42 head e0564d2, that data selects CPython 3.14.6 while the retained trusted base f73f8842f45318e2df8aff1d31855eeb7c20a22f still has a CP313-only requirements-ci.lock. The workflow therefore coupled the trusted-base lock installation to the PR-head interpreter rather than an exact trusted-base interpreter/lock pair.",
+  "proposed_remediation": "Replace unconditional PR-head interpreter selection with the reported uncommitted exact-SHA-bound trusted-base bridge: only when the checked-out trusted base is f73f8842f45318e2df8aff1d31855eeb7c20a22f and its selector is missing, select reviewed CPython 3.13.14 for installing that base lock. Every other base/selector state, including a present selector for that base or a missing selector at a different base, must fail closed. Preserve trusted-base checkout, base/head SHA verification, read-only permissions, bounded data-only PR-head reads, manifest comparison, and the prohibition on PR-head checkout or execution. Do not install the PR-head lock, loosen hashes, add credentials, or use a generic version fallback.",
+  "acceptance_criteria": [
+    "Only exact trusted base f73f8842f45318e2df8aff1d31855eeb7c20a22f with its missing selector selects the SHA-bound reviewed CPython 3.13.14 bridge for requirements-ci.lock installation; all other base/selector states, including a present selector for that base or a missing selector at any other base, fail closed.",
+    "The job continues to check out the trusted exact base, validates base and head SHAs, and compares bounded dependency manifests without checking out or executing untrusted PR code.",
+    "The PR-head CPython 3.14 transition remains data-only at the OSV boundary; neither the PR-head lock nor a generic fallback replaces the trusted-base pair.",
+    "Focused workflow/version-contract regression coverage proves the absent-base-.python-version and CP313-lock/CP314-head cases without weakening hash, permission, or provenance controls.",
+    "Completed: a new exact PR head containing the bridge passed OSV pull-request-head and complete applicable PR controls; PR #42 then merged normally as 935cf14c676a24672be5c336e92cd13457cc35c8, with successful exact-master GitHub Actions workflows."
+  ],
+  "validation_plan": [
+    "Review the exact Framework follow-up diff for a literal trusted-base f73f8842f45318e2df8aff1d31855eeb7c20a22f plus missing-selector match, fixed CPython 3.13.14 bridge, bounded data-only PR-head handling, and fail-closed behavior for every other case.",
+    "Run the focused workflow/version-contract regression for the absent-base-version-file and interpreter/lock ABI cases in the Framework-owned environment.",
+    "Verify a new exact-head OSV pull-request-head run, the complete applicable PR check set, Sonar Quality Gate, and review/thread state before merge; the retained 2930 receipt records the successful repaired PR-head OSV control.",
+    "Completed: after the normal protected merge, the retained postmerge receipt verifies resulting Framework master 935cf14c676a24672be5c336e92cd13457cc35c8 and eight successful exact-master GitHub Actions workflows without weakening any gate."
+  ],
+  "regression_tests": [
+    "Framework CI-security workflow/version-contract test for the OSV PR-head trusted-base bootstrap path, including CP313-lock/CP314-head mismatch and rejection of every non-f73 or non-missing-selector fallback case.",
+    "GitHub Actions OSV pull-request-head run on a new exact head containing the SHA-bound CP313 bridge."
+  ],
+  "legitimate_control_tests": [
+    "The OSV comparison still reads only bounded manifest files from SHA-verified base and head revisions, and only f73f8842f45318e2df8aff1d31855eeb7c20a22f with a missing selector installs its trusted-base lock with CPython 3.13.14.",
+    "The correction does not replace the trusted-base checkout with an untrusted PR checkout, install the PR-head lock, loosen hash enforcement, or add write-capable credentials."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-FRAMEWORK-0044",
+    "FND-FRAMEWORK-0049",
+    "FND-FRAMEWORK-0051",
+    "FND-SONAR-0009",
+    "FND-SONAR-0002",
+    "FND-GITHUB-0007"
+  ],
+  "source_run_ids": [
+    "20260722T145132Z-framework-pr-39-41-master-integration-9a3c7dc7",
+    "20260722T153352Z-framework-pr-39-41-consolidation-54ccc60e"
+  ],
+  "evidence_limitations": [
+    "The retained e056 receipt proves the original exact CI control failure and interpreter/lock mismatch; it does not claim a malicious PR can exploit the workflow or that the CP314 tuple is invalid.",
+    "The exact 2930 receipt proves the direct PR-only OSV control; the postmerge receipt proves the normal merge and successful exact-master workflow suite. The pull-request-head job is designed to skip on a push event, so that postmerge result is not represented as an independent execution of a PR-only job.",
+    "The earlier 1fd3b362e0fed9766c6920e3c7bd1939535850f2 hosted pass remains historical evidence only."
+  ],
+  "residual_risk": "The repaired OSV control passes on exact PR head 2930e04e1558b5b10bdeb87a76abb077a2085566 and is verified after normal PR #42 merge as resulting Framework master 935cf14c676a24672be5c336e92cd13457cc35c8. No risk is accepted for this OSV defect. FND-SONAR-0002 and FND-GITHUB-0007 are separately user-bounded PR #42 delivery limitations; their global findings remain independently tracked and neither condition blocks or reopens this verified repair. The finding is not closed.",
+  "current_transition": {
+    "failed_head": "e0564d219980d62bc37162ac6c11641f289f1b71",
+    "fixed_head": "2930e04e1558b5b10bdeb87a76abb077a2085566",
+    "trusted_base": "f73f8842f45318e2df8aff1d31855eeb7c20a22f",
+    "hosted_bootstrap_interpreter": "CPython 3.14.6 from bounded PR-head data",
+    "trusted_base_lock_pair": "CP313-only PyYAML hash in requirements-ci.lock",
+    "implemented_follow_up": "committed exact-SHA-bound trusted-base CPython 3.13.14 bridge",
+    "fallback_precondition": "only exact base f73f8842f45318e2df8aff1d31855eeb7c20a22f with a missing selector; every other base or selector state fails closed",
+    "framework_local_validation": "passed",
+    "fresh_hosted_verification": "passed_exact_pr_head_2930e04",
+    "merged_pr_head": "dc6cf411e78b3f37f1e4be52edef59894560b1ae",
+    "resulting_master": "935cf14c676a24672be5c336e92cd13457cc35c8",
+    "normal_merge_at": "2026-07-23T07:41:13Z",
+    "resulting_master_verification": "eight exact-master GitHub Actions workflows completed success; PR-only pull-request-head skipped on push event as expected",
+    "status_transition": "fixed_to_verified_not_closed"
+  },
+  "delivery_evidence": {
+    "state": "verified_after_normal_protected_merge",
+    "pull_request": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/42",
+    "failed_head": "e0564d219980d62bc37162ac6c11641f289f1b71",
+    "fixed_head": "2930e04e1558b5b10bdeb87a76abb077a2085566",
+    "merged_pr_head": "dc6cf411e78b3f37f1e4be52edef59894560b1ae",
+    "predecessor_master": "f73f8842f45318e2df8aff1d31855eeb7c20a22f",
+    "merge_commit": "935cf14c676a24672be5c336e92cd13457cc35c8",
+    "resulting_master": "935cf14c676a24672be5c336e92cd13457cc35c8",
+    "resulting_tree": "5df6cce7d7385a041a817ff54fae777902645f1d",
+    "normal_merge_at": "2026-07-23T07:41:13Z",
+    "osv_control": "passed_exact_current_pr_head_2930e04",
+    "hosted_verification_receipt_sha256": "4f7de2c315aa3f262b7a237b7228d5e682529065b28c8ce1046f2519752418b0",
+    "resulting_master_github_actions": "eight workflows completed success",
+    "pull_request_head_on_push": "skipped_as_expected",
+    "postmerge_receipt_sha256": "0a0421f70cf39df8f6f31ef12b4a461f05bd9875fb61775094c5031aef489ce1",
+    "separate_delivery_limitations": "FND-SONAR-0002 and FND-GITHUB-0007 were user-bounded only for PR #42 delivery; they do not block this verified OSV repair",
+    "parent_gitlink_update_authorized": false,
+    "mrts_change_authorized": false
+  },
+  "history": [
+    {
+      "at": "2026-07-23T07:51:09Z",
+      "event": "verified_after_pr42_normal_merge_and_resulting_master",
+      "detail": "PR #42 merged normally at 2026-07-23T07:41:13Z as Framework master 935cf14c676a24672be5c336e92cd13457cc35c8 from predecessor f73f8842f45318e2df8aff1d31855eeb7c20a22f and merged head dc6cf411e78b3f37f1e4be52edef59894560b1ae. The retained postmerge receipt SHA-256 0a0421f70cf39df8f6f31ef12b4a461f05bd9875fb61775094c5031aef489ce1 records eight successful exact-master GitHub Actions workflows; the PR-only pull-request-head job is correctly skipped on the push event. With the prior exact PR-head OSV pass, the finding transitions from fixed to verified, not closed. FND-SONAR-0002 and FND-GITHUB-0007 remain separate bounded delivery limitations, not blockers of this repair."
+    },
+    {
+      "at": "2026-07-22T22:35:46Z",
+      "event": "framework_pr42_2930_exact_head_osv_fixed",
+      "detail": "Exact PR #42 head 2930e04e1558b5b10bdeb87a76abb077a2085566 passes the repaired OSV pull-request-head control and all current PR checks. Retained hosted-verification receipt SHA-256 4f7de2c315aa3f262b7a237b7228d5e682529065b28c8ce1046f2519752418b0 records the trusted-base security boundary, clean mergeability, Sonar pass, and no reviews or inline comments. Status moves to fixed only; normal master and resulting-master evidence remain absent."
+    },
+    {
+      "at": "2026-07-22T21:23:05Z",
+      "event": "current_e056_trusted_base_interpreter_lock_mismatch_confirmed",
+      "detail": "Retained receipt framework-pr42-e056-hosted-ci-failures.md, SHA-256 5940246feb917a3d83a7372ef09f2f54673cf506ec24d457d5dec5dfeaa381be, records exact PR #42 head e0564d219980d62bc37162ac6c11641f289f1b71 failing OSV run 29956021487/job 89045175516 when CPython 3.14.6 installs trusted-base f73f8842f45318e2df8aff1d31855eeb7c20a22f requirements-ci.lock with a CP313-only PyYAML hash."
+    },
+    {
+      "at": "2026-07-22T21:23:05Z",
+      "event": "sha_bound_cp313_bridge_recorded_as_uncommitted_follow_up",
+      "detail": "The current Framework follow-up is reported as an exact-SHA-bound trusted-base CPython 3.13.14 bridge only for base f73f8842f45318e2df8aff1d31855eeb7c20a22f with its missing selector; every other base or selector state fails closed. It remains in_progress: no Framework source inspection, local validation, new exact-head hosted OSV result, merge, or resulting-master evidence is claimed by this Parent control-plane record."
+    },
+    {
+      "at": "2026-07-22T17:42:25Z",
+      "event": "exact_pr_head_hosted_controls_passed",
+      "detail": "Open Framework PR #42 head 1fd3b362e0fed9766c6920e3c7bd1939535850f2 passed the hosted OSV pull-request-head and complete applicable PR controls. This strengthens the fixed disposition, but the finding is neither verified nor closed before a normal master integration and resulting-master evidence."
+    },
+    {
+      "at": "2026-07-22T17:24:06Z",
+      "event": "consolidation_remediation_committed",
+      "detail": "The locally fixed trusted-base OSV bootstrap is now bound to Framework commit 22747d460a9f7be02760edf05c311be376492457. Clean-worktree, exact-range whitespace, and native make lint validation passed; hosted exact-head OSV evidence remains required."
+    },
+    {
+      "at": "2026-07-22T17:04:03Z",
+      "event": "consolidation_remediation_locally_fixed",
+      "detail": "The task-owned consolidation preserves trusted-base execution, fetches and SHA-verifies the numbered PR head without checkout, bounds and validates only its .python-version blob into a private runner-temporary setup input, and passes focused contracts/tests locally. Hosted exact-head OSV evidence remains required before verification."
+    },
+    {
+      "at": "2026-07-22T16:00:00Z",
+      "event": "consolidation_remediation_authorized_and_started",
+      "detail": "The user authorized one Framework-only consolidation PR and protected master delivery if controls pass. A registered task-owned branch now carries the remediation scope; the trusted-base, SHA-verified, read-only, no-untrusted-code-execution boundary remains mandatory."
+    },
+    {
+      "at": "2026-07-22T15:07:13Z",
+      "event": "exact_head_ci_failure_reproduced_and_tracked",
+      "detail": "The exact PR #39 OSV job fails at setup-python because the trusted base lacks the .python-version file introduced by the PR head; no source, branch, PR, Parent, or MRTS change was made."
+    }
+  ],
+  "created_at": "2026-07-22T15:07:13Z",
+  "updated_at": "2026-07-23T07:51:09Z",
+  "final_disposition": null
+}

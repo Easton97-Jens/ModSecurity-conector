@@ -1,0 +1,142 @@
+{
+  "id": "FND-SONAR-0026",
+  "title": "PR #198 test bootstrap uses an optimization-sensitive composite assert",
+  "title_de": "PR-#198-Test-Bootstrap verwendet eine optimierungssensitive zusammengesetzte Assert-Anweisung",
+  "category": "maintainability",
+  "repository": "parent",
+  "ownership": "parent",
+  "priority": "P2",
+  "severity": "not_applicable",
+  "confidence": "confirmed",
+  "status": "verified",
+  "feasibility_status": "feasible_now",
+  "security_assessment": "not_security_relevant_maintainability_only",
+  "release_blocker": false,
+  "candidate_integration_blocker": false,
+  "security_relevant": false,
+  "connector": null,
+  "protocol": "Python unittest dynamic test-module bootstrap",
+  "profile": "SonarQube Cloud resulting-master analysis 32425f2d-a1e8-47bb-b22a-276b1f93cd6b for protected PR #198 squash result 4e5d45072bf32ff822f4b1039517026416259493",
+  "affected_files": [
+    "tests/test_prepare_runtime_components.py"
+  ],
+  "affected_symbols": [
+    "module-level SPEC assertion",
+    "components dynamic module-loading sequence"
+  ],
+  "summary": "The original PR #198 SonarQube Cloud MAJOR code smell python:S9073, key AZ-zgsKSuhGCH8wggCxz at tests/test_prepare_runtime_components.py:22, was CLOSED/FIXED on exact remediation head b55eedd470df4e3395a6833f7814363c8beb1974. Protected squash merge produced resulting master 4e5d45072bf32ff822f4b1039517026416259493 with an identical tree. Its SHA-bound Sonar analysis 32425f2d-a1e8-47bb-b22a-276b1f93cd6b has no open S9073 issue at the affected path and the original key is absent from the current index. The focused test-only ImportError guard replaces the compound assert before module_from_spec and exec_module; the finding is verified, not automatically closed.",
+  "summary_de": "Der ursprüngliche SonarQube-Cloud-MAJOR-Code-Smell python:S9073, Key AZ-zgsKSuhGCH8wggCxz in tests/test_prepare_runtime_components.py:22, war auf dem exakten Remediation-Head b55eedd470df4e3395a6833f7814363c8beb1974 CLOSED/FIXED. Der Protected-Squash-Merge erzeugte den resultierenden Master 4e5d45072bf32ff822f4b1039517026416259493 mit identischem Tree. Seine SHA-gebundene Sonar-Analyse 32425f2d-a1e8-47bb-b22a-276b1f93cd6b hat kein offenes S9073-Issue am betroffenen Pfad, und der ursprüngliche Key fehlt im aktuellen Index. Der eng begrenzte testseitige ImportError-Guard ersetzt die zusammengesetzte Assert-Anweisung vor module_from_spec und exec_module; der Befund ist verified, nicht automatisch closed.",
+  "observed_behavior": "At the recorded exact PR head, the module-level statement `assert SPEC is not None and SPEC.loader is not None` controls whether the test bootstrap can safely call `importlib.util.module_from_spec(SPEC)` and `SPEC.loader.exec_module(components)`. Python removes assert statements under -O, and SonarQube Cloud reports python:S9073 with the message `Split this composite assertion into separate assertions.`",
+  "observed_behavior_de": "Am aufgezeichneten exakten PR-Head steuert die Modul-Level-Anweisung `assert SPEC is not None and SPEC.loader is not None`, ob der Test-Bootstrap sicher `importlib.util.module_from_spec(SPEC)` und `SPEC.loader.exec_module(components)` aufrufen kann. Python entfernt Assert-Anweisungen unter -O, und SonarQube Cloud meldet python:S9073 mit der Meldung `Split this composite assertion into separate assertions.`.",
+  "expected_behavior": "If the test bootstrap cannot obtain an executable module specification and loader, collection/import must fail explicitly in both normal and optimized Python execution. With a valid specification, the existing dynamic module must still be created and executed exactly once and all focused runtime-component contract tests must retain their behavior.",
+  "expected_behavior_de": "Falls der Test-Bootstrap keine ausführbare Modulspezifikation und keinen Loader erhalten kann, muss Collection/Import sowohl in normaler als auch optimierter Python-Ausführung explizit fehlschlagen. Mit einer gültigen Spezifikation muss das bestehende dynamische Modul weiterhin genau einmal erzeugt und ausgeführt werden, und alle fokussierten Runtime-Component-Vertragstests müssen ihr Verhalten beibehalten.",
+  "impact": "The issue is a maintainability and test-bootstrap correctness concern, not an evidenced security vulnerability. Exact-head local controls, the sealed security-diff review, terminal hosted checks, governance evidence, and PR Sonar reanalysis showed the original issue FIXED. The protected resulting master retains the exact reviewed tree, its SHA-bound Sonar analysis has no open S9073 at the affected path, and the original key is absent from the current index. This establishes verified status; closure is intentionally not inferred from an index absence alone.",
+  "impact_de": "Das Issue ist ein Maintainability- und Test-Bootstrap-Korrektheitsthema, keine belegte Security-Vulnerabilität. Exact-Head-lokale Controls, der versiegelte Security-Diff-Review, terminale Hosted-Checks, Governance-Evidence und PR-Sonar-Reanalyse zeigten den ursprünglichen Befund als FIXED. Der geschützte resultierende Master behält den exakt geprüften Tree, seine SHA-gebundene Sonar-Analyse hat kein offenes S9073 am betroffenen Pfad, und der ursprüngliche Key fehlt im aktuellen Index. Das begründet den Status verified; aus einer bloßen Index-Abwesenheit wird bewusst kein closed abgeleitet.",
+  "preconditions": [
+    "The test module builds a module specification from ci/provisioning/components/prepare-runtime-components.py.",
+    "The module specification or its loader is unusable, or Python executes the test module with optimization enabled.",
+    "SonarQube Cloud analyzes the exact PR #198 head recorded by the retained evidence."
+  ],
+  "reproduction": [
+    "Review retained Sonar evidence for PR #198, analysis dfe0aaad-3fc8-428c-aa03-a1eb3cc684f1, issue AZ-zgsKSuhGCH8wggCxz and line 22.",
+    "Inspect the exact-head module-level SPEC assertion and the following module_from_spec/exec_module calls.",
+    "After remediation, execute the focused test suite normally and under Python -O, plus a controlled missing-spec/loader import rejection."
+  ],
+  "evidence": [
+    {
+      "run_id": "fnd-sonar-0026-20260730T145943Z",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-186-199-20260730T072658Z/fnd-sonar-0026-20260730T145943Z/evidence/sonar-pr198-initial.json",
+      "artifact_type": "bounded_exact_pr_sonar_finding_observation",
+      "sha256": "6cd1dafc4d62b5d17a2e94196afc36007b43f2a4a4b8c776447b6282df059e3a",
+      "command": "rtk curl -fsS 'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&pullRequest=198&issueStatuses=OPEN&ps=100'; exact head binding was cross-checked with the SonarCloud Code Analysis GitHub check run and PR readback.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T14:59:43Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR #198 head 6a9f1d21a927405833aa0f07ae6e09e5aa3fd07d has Quality Gate OK but one task-owned OPEN MAJOR CODE_SMELL: AZ-zgsKSuhGCH8wggCxz / python:S9073 at tests/test_prepare_runtime_components.py:22; its last-change analysis matches dfe0aaad-3fc8-428c-aa03-a1eb3cc684f1."
+    },
+    {
+      "run_id": "fnd-sonar-0026-20260730T164415Z",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-186-199-20260730T072658Z/fnd-sonar-0026-20260730T164415Z/evidence/sonar-pr198-remediated.json",
+      "artifact_type": "bounded_exact_pr_sonar_remediation_verification",
+      "sha256": "9b59e06506d7d513f9939a77bfaaa6ad316971ee9a8164a6363e82d95abc7c07",
+      "command": "Retained composite of read-only SonarQube Cloud PR-list, CE-component, Quality-Gate and issue queries plus GitHub commit check-runs for exact head b55eedd470df4e3395a6833f7814363c8beb1974; commands are recorded in the artifact.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T16:41:38Z",
+      "retention_status": "retained_task_evidence",
+      "result": "PR #198 exact head b55eedd470df4e3395a6833f7814363c8beb1974 has Sonar Quality Gate OK, zero open/confirmed task-owned PR issues and the original AZ-zgsKSuhGCH8wggCxz / python:S9073 issue CLOSED/FIXED by analysis 5ef72438-492c-43d3-8ca5-4572826a993f."
+    },
+    {
+      "run_id": "fnd-sonar-0026-20260730T170400Z",
+      "artifact_path": "/var/tmp/codex/ModSecurity-conector/pr-integration-186-199-20260730T072658Z/fnd-sonar-0026-20260730T170400Z/evidence/sonar-pr198-resulting-master.json",
+      "artifact_type": "bounded_resulting_master_sonar_verification",
+      "sha256": "814cd1406300a5d5475c21fc7951018635a7836c67f4f377650cca898a03195d",
+      "command": "Retained composite of resulting-master fetch/tree/diff/Gitlink evidence, GitHub merge/Ruleset/check/scanning/deployment readbacks, and SonarQube Cloud master analysis, Quality-Gate, hotspot, and affected-path issue queries; exact commands and observed values are recorded in the artifact.",
+      "working_directory": "/root/git/ModSecurity-conector",
+      "exit_code": 0,
+      "observed_at": "2026-07-30T17:06:29Z",
+      "retention_status": "retained_task_evidence",
+      "result": "Protected PR #198 squash produced master 4e5d45072bf32ff822f4b1039517026416259493 with a tree identical to b55eedd470df4e3395a6833f7814363c8beb1974. SHA-bound Sonar analysis 32425f2d-a1e8-47bb-b22a-276b1f93cd6b has zero open python:S9073 issues at tests/test_prepare_runtime_components.py; original key AZ-zgsKSuhGCH8wggCxz is absent from the accessible resulting-master index. The only failing master Sonar check is the separately accepted, unchanged FND-SONAR-0001 signature."
+    }
+  ],
+  "root_cause": "A top-level compound assert was used as a dynamic-import guard and type-narrowing mechanism rather than a unittest assertion. It is both a composite assertion reported by Sonar and an optimization-sensitive runtime guard because -O removes assert statements.",
+  "root_cause_de": "Eine Top-Level-Assert-Anweisung mit zusammengesetzter Bedingung wurde als Dynamic-Import-Guard und Type-Narrowing-Mechanismus statt als unittest-Assertion verwendet. Sie ist sowohl eine von Sonar gemeldete zusammengesetzte Assertion als auch ein optimierungssensitiver Runtime-Guard, weil -O Assert-Anweisungen entfernt.",
+  "proposed_remediation": "Replace only the module-level compound assert with an explicit `if SPEC is None or SPEC.loader is None: raise ImportError(...)` guard. Preserve the existing module_from_spec and exec_module sequence and update the bilingual Change Record with the issue key, scope, rationale, and controls. Do not introduce NOSONAR, suppression, type-ignore/cast, Sonar policy changes, Quality Gate changes, exclusions, Framework/MRTS changes, or Gitlink changes.",
+  "proposed_remediation_de": "Nur die Modul-Level-Assert-Anweisung mit zusammengesetzter Bedingung durch einen expliziten `if SPEC is None or SPEC.loader is None: raise ImportError(...)`-Guard ersetzen. Die bestehende module_from_spec- und exec_module-Sequenz beibehalten und den zweisprachigen Change Record mit Issue-Key, Scope, Begründung und Controls aktualisieren. Kein NOSONAR, keine Suppression, kein type-ignore/cast, keine Sonar-Policy- oder Quality-Gate-Änderung, keine Exclusion sowie keine Framework-/MRTS- oder Gitlink-Änderung einführen.",
+  "acceptance_criteria": [
+    "A missing or loader-less module specification raises the explicit ImportError during test import in normal and Python -O execution.",
+    "A valid module specification continues to create and execute the runtime-component module exactly once; the focused suite and its canonical/rejection/managed-checkout controls pass.",
+    "The final exact PR #198 head has terminal required hosted checks, no unresolved review threads, and a SonarQube Cloud readback with the original issue key absent and no task-owned replacement issue.",
+    "No Sonar rule, Quality Gate, exclusion, suppression, NOSONAR, Gitlink, Framework, or MRTS configuration changes occur."
+  ],
+  "validation_plan": [
+    "Run pip consistency, Python compilation, direct valid/rejection/managed-checkout controls, and the full focused runtime-component unittest module both normally and with Python -O.",
+    "Run bilingual documentation validation and whitespace validation; record the known external Framework documentation-link limitation without treating it as a pass.",
+    "Commit and push only the narrow task-owned remediation through the normal protected PR path, then repeat the exact-head security-diff review, required hosted-check, governance, and Sonar queries before considering integration."
+  ],
+  "regression_tests": [
+    "tests.test_prepare_runtime_components"
+  ],
+  "legitimate_control_tests": [
+    "Valid dynamic import and exactly-once module execution through the focused runtime-component suite.",
+    "Canonical, rejection, and managed-checkout runtime-component controls.",
+    "Explicit invalid-SPEC bootstrap rejection under normal Python and Python -O."
+  ],
+  "dependencies": [],
+  "blocked_by": [],
+  "duplicates": [],
+  "related_findings": [
+    "FND-SONAR-0001",
+    "FND-SONAR-0016",
+    "FND-SONAR-0024"
+  ],
+  "source_run_ids": [
+    "pr-integration-186-199-20260730T072658Z",
+    "fnd-sonar-0026-20260730T145943Z",
+    "fnd-sonar-0026-20260730T164415Z",
+    "fnd-sonar-0026-20260730T170400Z"
+  ],
+  "residual_risk": "No task-owned S9073 residual is observed at the resulting-master affected path. The original issue key is absent rather than directly retrievable, so the record remains verified and is not automatically closed. The user's separate acceptance applies only to the unchanged FND-SONAR-0001 master signature and does not accept a different master or PR failure.",
+  "residual_risk_de": "Am task-eigenen S9073-betroffenen Resulting-Master-Pfad ist kein Restrisiko beobachtet. Der ursprüngliche Issue-Key ist abwesend statt direkt abrufbar; daher bleibt der Record verified und wird nicht automatisch closed. Die separate Risikoakzeptanz des Users gilt nur für die unveränderte FND-SONAR-0001-Master-Signatur und akzeptiert keinen abweichenden Master- oder PR-Fehler.",
+  "created_at": "2026-07-30T14:59:43Z",
+  "updated_at": "2026-07-30T17:06:29Z",
+  "final_disposition": "verified_on_resulting_master_4e5d45072bf32ff822f4b1039517026416259493",
+  "history": [
+    {
+      "at": "2026-07-30T14:59:43Z",
+      "event": "new_triaged_validated_planned_and_in_progress",
+      "detail": "Allocated as a distinct task-owned PR #198 maintainability finding after exact-head Sonar evidence confirmed AZ-zgsKSuhGCH8wggCxz / python:S9073. The Quality Gate is OK but the issue remains OPEN, so no merge is authorized; narrow explicit-guard remediation and final exact-head verification are required."
+    },
+    {
+      "at": "2026-07-30T16:41:38Z",
+      "event": "remediated_and_fixed_on_exact_pr_head",
+      "detail": "The narrow test-only ImportError guard is committed on b55eedd470df4e3395a6833f7814363c8beb1974. Targeted normal and Python -O controls, the sealed final security-diff scan, terminal GitHub/Ruleset/governance checks and PR-bound Sonar analysis 5ef72438-492c-43d3-8ca5-4572826a993f passed. Sonar reports AZ-zgsKSuhGCH8wggCxz / python:S9073 CLOSED/FIXED with no task-owned replacement issue. The record is fixed pending protected merge and resulting-master verification; no suppression, policy/gate change, or risk-acceptance expansion occurred."
+    },
+    {
+      "at": "2026-07-30T17:06:29Z",
+      "event": "resulting_master_s9073_verified",
+      "detail": "The SHA-bound protected squash of PR #198 produced resulting master 4e5d45072bf32ff822f4b1039517026416259493 with a tree identical to reviewed head b55eedd470df4e3395a6833f7814363c8beb1974. Sonar master analysis 32425f2d-a1e8-47bb-b22a-276b1f93cd6b is bound to that revision; it has zero open python:S9073 issues at tests/test_prepare_runtime_components.py, and original key AZ-zgsKSuhGCH8wggCxz is absent from the accessible current index. Required master contexts, CodeQL, and available Secret Scanning evidence passed. The sole Sonar check failure is separately confirmed as the exact accepted FND-SONAR-0001 baseline. The record transitions fixed to verified; it is deliberately not closed because direct original-key detail is no longer retrievable."
+    }
+  ]
+}
