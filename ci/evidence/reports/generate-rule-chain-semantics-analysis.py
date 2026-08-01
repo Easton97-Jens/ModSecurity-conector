@@ -217,13 +217,14 @@ def chain_intervention_created(detection_only: bool, actual_status: Any) -> str:
     return "yes" if actual_status in {401, 403, 302} else "unknown"
 
 
-def chain_row(entry: dict[str, Any], framework_root: Path) -> dict[str, Any]:
-    evidence = read_json(entry.get("evidence"))
-    case = load_case(evidence.get("path"))
-    rules = parse_rules(str(case.get("rules") or ""))
-    family = chain_family(rules)
-    parent = family.get("parent") or {}
-    children = family.get("children") or []
+def chain_observation(
+    entry: dict[str, Any],
+    case: dict[str, Any],
+    family: dict[str, Any],
+    parent: dict[str, Any],
+    children: list[dict[str, Any]],
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
     literal = request_literal(case)
     logs = evidence_text(evidence)
     parent_expected = token_present(parent, literal)
@@ -242,9 +243,28 @@ def chain_row(entry: dict[str, Any], framework_root: Path) -> dict[str, Any]:
     )
     intervention_created = chain_intervention_created(detection_only, entry.get("actual_status"))
     return {
-        "connector": entry.get("connector", "-"),
-        "variant": variant(entry),
-        "case_id": entry.get("case_id", "-"),
+        "logs": logs,
+        "parent_observed": parent_observed,
+        "child_observed": child_observed,
+        "full_chain_observed": full_chain_observed,
+        "intervention_created": intervention_created,
+        "classification": classification,
+        "fixability": fixability,
+        "risk": risk,
+        "root_cause": root_cause,
+    }
+
+
+def chain_rule_fields(
+    entry: dict[str, Any],
+    case: dict[str, Any],
+    evidence: dict[str, Any],
+    family: dict[str, Any],
+    parent: dict[str, Any],
+    children: list[dict[str, Any]],
+    framework_root: Path,
+) -> dict[str, Any]:
+    return {
         "source": case.get("source", "-"),
         "source_kind": entry.get("source_kind", "-"),
         "corpus": entry.get("mrts_corpus", "-"),
@@ -257,22 +277,46 @@ def chain_row(entry: dict[str, Any], framework_root: Path) -> dict[str, Any]:
         "operators": [parent.get("operator", "-")] + [child.get("operator", "-") for child in children],
         "transformations": [item for rule in [parent] + children for item in rule.get("transformations", [])],
         "actions": parent.get("actions", []),
+    }
+
+
+def chain_outcome_fields(
+    entry: dict[str, Any], rules: list[dict[str, Any]], observation: dict[str, Any]
+) -> dict[str, Any]:
+    return {
         "expected_status": entry.get("expected_status", "-"),
         "actual_status": entry.get("actual_status", "-"),
         "rule_loaded": bool(rules),
-        "chain_parent_matched": "yes" if parent_observed else "unknown",
-        "chain_child_matched": "yes" if child_observed else "unknown",
-        "full_chain_matched": "yes" if full_chain_observed else "unknown",
-        "intervention_created": intervention_created,
+        "chain_parent_matched": "yes" if observation["parent_observed"] else "unknown",
+        "chain_child_matched": "yes" if observation["child_observed"] else "unknown",
+        "full_chain_matched": "yes" if observation["full_chain_observed"] else "unknown",
+        "intervention_created": observation["intervention_created"],
         "backend_reached": entry.get("actual_status") == 200,
-        "audit_error_debug_evidence": "yes" if logs else "no",
+        "audit_error_debug_evidence": "yes" if observation["logs"] else "no",
         "current_classification": entry.get("classification", "-"),
         "current_work_direction": as_list(entry.get("work_direction")) or ["-"],
         "current_priority": entry.get("priority", "-"),
-        "analysis_classification": classification,
-        "fixability": fixability,
-        "risk": risk,
-        "root_cause": root_cause,
+        "analysis_classification": observation["classification"],
+        "fixability": observation["fixability"],
+        "risk": observation["risk"],
+        "root_cause": observation["root_cause"],
+    }
+
+
+def chain_row(entry: dict[str, Any], framework_root: Path) -> dict[str, Any]:
+    evidence = read_json(entry.get("evidence"))
+    case = load_case(evidence.get("path"))
+    rules = parse_rules(str(case.get("rules") or ""))
+    family = chain_family(rules)
+    parent = family.get("parent") or {}
+    children = family.get("children") or []
+    observation = chain_observation(entry, case, family, parent, children, evidence)
+    return {
+        "connector": entry.get("connector", "-"),
+        "variant": variant(entry),
+        "case_id": entry.get("case_id", "-"),
+        **chain_rule_fields(entry, case, evidence, family, parent, children, framework_root),
+        **chain_outcome_fields(entry, rules, observation),
     }
 
 

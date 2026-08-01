@@ -644,13 +644,37 @@ def connector_build_target(root: Path, name: str) -> bool:
     )
 
 
+def connector_source_presence(root: Path, name: str, build_target: bool) -> dict[str, str]:
+    connector_root = f"connectors/{name}"
+    return {
+        "readme": "yes" if exists(root, f"{connector_root}/README.md") else "no",
+        "build_scripts": "yes" if has_files(root, f"{connector_root}/build", ("*.sh", "*")) or build_target else "no",
+        "runtime_harness": "yes" if has_files(root, f"{connector_root}/harness", ("*.sh", "*.conf")) else "no",
+        "example_config": "yes"
+        if has_files(root, f"{connector_root}/harness", ("*.conf", "*.example"))
+        or has_files(root, f"{connector_root}/poc", ("**/*.example", "**/*.cfg"))
+        else "no",
+    }
+
+
+def connector_delivery_status(name: str, build_target: bool, makefile_text: str) -> dict[str, str]:
+    production = name in PRODUCTION
+    return {
+        "modsecurity_integration": connector_modsecurity_integration(name),
+        "tests": "framework_owned" if production or name in PARTIAL else "no",
+        "build_target": "yes" if build_target else "no",
+        "make_targets": "yes" if name in {"apache", "nginx", "haproxy", "envoy", "lighttpd", "traefik"} else "no",
+        "report_integration": "yes" if production else "roadmap_only",
+        "verified_case": "yes" if production and f"verified-{name}-case" in makefile_text else "no",
+        "verified_root_runtime_components": "yes" if production else "no",
+    }
+
+
 def connector_row(root: Path, name: str) -> dict[str, Any]:
     directory = exists(root, f"connectors/{name}")
     status = connector_status(name, directory)
     build_target = connector_build_target(root, name)
     makefile_text = (root / "Makefile").read_text(encoding="utf-8")
-    verified_case = name in PRODUCTION and f"verified-{name}-case" in makefile_text
-    full_matrix = "yes" if name in PRODUCTION else "no"
     details = STATUS_DETAILS[name]
     return {
         "connector": name,
@@ -659,18 +683,9 @@ def connector_row(root: Path, name: str) -> dict[str, Any]:
         "why": details["why"],
         "next_step": details["next_step"],
         "runtime_evidence": connector_runtime_evidence(name),
-        "full_matrix": full_matrix,
-        "readme": "yes" if exists(root, f"connectors/{name}/README.md") else "no",
-        "build_scripts": "yes" if has_files(root, f"connectors/{name}/build", ("*.sh", "*")) or build_target else "no",
-        "runtime_harness": "yes" if has_files(root, f"connectors/{name}/harness", ("*.sh", "*.conf")) else "no",
-        "example_config": "yes" if has_files(root, f"connectors/{name}/harness", ("*.conf", "*.example")) or has_files(root, f"connectors/{name}/poc", ("**/*.example", "**/*.cfg")) else "no",
-        "modsecurity_integration": connector_modsecurity_integration(name),
-        "tests": "framework_owned" if name in PRODUCTION or name in PARTIAL else "no",
-        "build_target": "yes" if build_target else "no",
-        "make_targets": "yes" if name in {"apache", "nginx", "haproxy", "envoy", "lighttpd", "traefik"} else "no",
-        "report_integration": "yes" if name in PRODUCTION else "roadmap_only",
-        "verified_case": "yes" if verified_case else "no",
-        "verified_root_runtime_components": "yes" if name in PRODUCTION else "no",
+        "full_matrix": "yes" if name in PRODUCTION else "no",
+        **connector_source_presence(root, name, build_target),
+        **connector_delivery_status(name, build_target, makefile_text),
     }
 
 

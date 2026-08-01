@@ -201,35 +201,54 @@ def is_phase4_entry(entry: dict[str, Any]) -> bool:
     )
 
 
-def phase4_detail_category(entry: dict[str, Any]) -> str:
+def phase4_detail_context(entry: dict[str, Any]) -> dict[str, Any]:
     evidence = read_json(entry.get("evidence"))
-    connector = str(entry.get("connector") or "")
-    case_id = str(entry.get("case_id") or "")
-    reason = str(entry.get("reason") or evidence.get("reason") or "")
-    classification = str(entry.get("classification") or "")
-    known_limitations = " ".join(normalize_list(evidence.get("known_limitations"))).lower()
     phase4_log = read_text(evidence.get("connector_phase4_log_path"))
     decision_log = read_text(evidence.get("decision_log_path") or evidence.get("decision_log"))
-    expected_action = phase4_expected_action(entry, evidence)
-    hard_abort = phase4_has_hard_abort(evidence, phase4_log)
-    has_log_evidence = bool(phase4_log.strip() or decision_log.strip())
-    if hard_abort and has_log_evidence:
+    return {
+        "evidence": evidence,
+        "connector": str(entry.get("connector") or ""),
+        "case_id": str(entry.get("case_id") or ""),
+        "reason": str(entry.get("reason") or evidence.get("reason") or ""),
+        "classification": str(entry.get("classification") or ""),
+        "known_limitations": " ".join(normalize_list(evidence.get("known_limitations"))).lower(),
+        "expected_action": phase4_expected_action(entry, evidence),
+        "hard_abort": phase4_has_hard_abort(evidence, phase4_log),
+        "has_log_evidence": bool(phase4_log.strip() or decision_log.strip()),
+        "phase4_log": phase4_log,
+    }
+
+
+def phase4_precedence_category(context: dict[str, Any]) -> str | None:
+    if context["hard_abort"] and context["has_log_evidence"]:
         return "phase4_hard_abort_evidence"
-    if "native" in classification:
+    if "native" in context["classification"]:
         return "phase4_native_semantics"
-    if phase4_is_log_only(reason, case_id, phase4_log):
+    if phase4_is_log_only(context["reason"], context["case_id"], context["phase4_log"]):
         return "phase4_log_only_no_abort"
-    if evidence.get("response_body_truncated") is True:
+    if context["evidence"].get("response_body_truncated") is True:
         return "phase4_truncated_not_accepted"
-    if expected_action == "deny" and phase4_is_connector_gap(
-        connector, classification, known_limitations, case_id
+    return None
+
+
+def phase4_action_category(entry: dict[str, Any], context: dict[str, Any]) -> str:
+    if context["expected_action"] != "deny":
+        if not context["has_log_evidence"] and entry.get("runtime_status") == "FAIL":
+            return "phase4_missing_abort_evidence"
+        return "phase4_no_hard_abort_required"
+    if phase4_is_connector_gap(
+        context["connector"], context["classification"], context["known_limitations"], context["case_id"]
     ):
         return "phase4_connector_gap"
-    if expected_action == "deny":
-        return "phase4_missing_abort_evidence"
-    if not has_log_evidence and entry.get("runtime_status") == "FAIL":
-        return "phase4_missing_abort_evidence"
-    return "phase4_no_hard_abort_required"
+    return "phase4_missing_abort_evidence"
+
+
+def phase4_detail_category(entry: dict[str, Any]) -> str:
+    context = phase4_detail_context(entry)
+    precedence = phase4_precedence_category(context)
+    if precedence is not None:
+        return precedence
+    return phase4_action_category(entry, context)
 
 
 def phase4_expected_action(entry: dict[str, Any], evidence: dict[str, Any]) -> str:

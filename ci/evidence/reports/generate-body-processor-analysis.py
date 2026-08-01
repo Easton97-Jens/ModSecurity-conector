@@ -265,6 +265,61 @@ def request_body_access_state(config: str) -> str:
     return "unknown"
 
 
+def body_payload_fields(config_path: Path | None, request: dict[str, Any], content_type: str) -> dict[str, Any]:
+    kind = body_kind(request, content_type)
+    body = request_body_bytes(config_path, request)
+    multipart = multipart_details(content_type, body) if kind == "multipart" else {}
+    return {
+        "body_kind": kind,
+        "body_length": len(body) if body else generated_body_length(config_path, request),
+        "body_sha256": hashlib.sha256(body).hexdigest() if body else "-",
+        "body_preview": body_preview(body) if body else "-",
+        "multipart_boundary": multipart.get("boundary", "-"),
+        "multipart_boundary_status": multipart.get("boundary_status", "not_applicable"),
+        "multipart_part_count": multipart.get("part_count", 0),
+        "multipart_field_names": multipart.get("field_names", []),
+        "multipart_filenames": multipart.get("filenames", []),
+    }
+
+
+def body_rule_fields(rule: dict[str, Any], entry: dict[str, Any], config: str) -> dict[str, Any]:
+    rule_id = str(rule["rule_id"])
+    return {
+        "rule_id": rule_id,
+        "phase": str(rule["phase"] if rule["phase"] != "-" else entry.get("phase") or "-"),
+        "target": str(rule["target"] or "-"),
+        "operator": str(rule["operator"] or "-"),
+        "transformations": rule["transformations"],
+        "actions": rule["actions"],
+        "rule_in_loadfile": bool(rule_id != "-" and rule_id in config),
+    }
+
+
+def body_observation_fields(
+    entry: dict[str, Any],
+    loaded: dict[str, Any],
+    request_body_access: str,
+    config: str,
+    content_type: str,
+    request: dict[str, Any],
+    logs: str,
+    rule_id: str,
+) -> dict[str, Any]:
+    matched = rule_logged(logs, rule_id)
+    return {
+        "request_body_access": request_body_access,
+        "xml_processor": "yes" if "ctl:requestBodyProcessor=XML" in config else "unknown",
+        "multipart_parser": "yes" if request_body_access == "yes" and body_kind(request, content_type) == "multipart" else "unknown",
+        "request_body_seen": request_body_seen(logs),
+        "rule_matched": matched,
+        "collection_evidence": "yes" if matched else "no",
+        "parse_error": bool(re.search(r"parse|parser|multipart|xml|json", logs, re.IGNORECASE))
+        and "Warning. Matched" not in logs,
+        "backend_reached": entry.get("actual_status") == 200,
+        "known_limitations": as_list(loaded.get("known_limitations")),
+    }
+
+
 def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_root: Path) -> dict[str, Any]:
     case_path = safe_existing_file(evidence.get("path"))
     raw, loaded = loaded_case_data(case_path)
@@ -276,42 +331,24 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
     config = read_text(config_path)
     logs = "\n".join(read_text(path_item) for path_item in log_paths(evidence))
     request_body_access = request_body_access_state(config)
-    xml_processor = "yes" if "ctl:requestBodyProcessor=XML" in config else "unknown"
-    rule_id = str(rule["rule_id"])
-    matched = rule_logged(logs, rule_id)
-    body = request_body_bytes(config_path, request)
-    multipart = multipart_details(content_type, body) if body_kind(request, content_type) == "multipart" else {}
     return {
         "case_path": display_case_path(case_path, framework_root),
         "method": str(request.get("method") or "-"),
         "path": path,
         "query": query,
         "content_type": content_type,
-        "body_kind": body_kind(request, content_type),
-        "body_length": len(body) if body else generated_body_length(config_path, request),
-        "body_sha256": hashlib.sha256(body).hexdigest() if body else "-",
-        "body_preview": body_preview(body) if body else "-",
-        "multipart_boundary": multipart.get("boundary", "-"),
-        "multipart_boundary_status": multipart.get("boundary_status", "not_applicable"),
-        "multipart_part_count": multipart.get("part_count", 0),
-        "multipart_field_names": multipart.get("field_names", []),
-        "multipart_filenames": multipart.get("filenames", []),
-        "rule_id": rule_id,
-        "phase": str(rule["phase"] if rule["phase"] != "-" else entry.get("phase") or "-"),
-        "target": str(rule["target"] or "-"),
-        "operator": str(rule["operator"] or "-"),
-        "transformations": rule["transformations"],
-        "actions": rule["actions"],
-        "rule_in_loadfile": bool(rule_id != "-" and rule_id in config),
-        "request_body_access": request_body_access,
-        "xml_processor": xml_processor,
-        "multipart_parser": "yes" if request_body_access == "yes" and body_kind(request, content_type) == "multipart" else "unknown",
-        "request_body_seen": request_body_seen(logs),
-        "rule_matched": matched,
-        "collection_evidence": "yes" if matched else "no",
-        "parse_error": bool(re.search(r"parse|parser|multipart|xml|json", logs, re.IGNORECASE)) and "Warning. Matched" not in logs,
-        "backend_reached": entry.get("actual_status") == 200,
-        "known_limitations": as_list(loaded.get("known_limitations")),
+        **body_payload_fields(config_path, request, content_type),
+        **body_rule_fields(rule, entry, config),
+        **body_observation_fields(
+            entry,
+            loaded,
+            request_body_access,
+            config,
+            content_type,
+            request,
+            logs,
+            str(rule["rule_id"]),
+        ),
     }
 
 
