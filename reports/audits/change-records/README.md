@@ -11,6 +11,8 @@ must not claim unobserved CI, runtime, review, or delivery results.
   processor semantics and encrypting the fixture upstream hop; exact-head
   hosted verification remains required before any merge decision.
 
+- [Parent Traefik runtime and lifecycle remediation](CR-20260730-sonar-traefik-runtime-lifecycle.md)
+
 - [Parent Envoy maintainability remediation](CR-20260730-sonar-envoy-maintainability-remediation.md)
   — preserves C17 bridge and ext_proc lifecycle behavior; local source,
   native-build, and loopback-TLS controls passed, while exact-head hosted

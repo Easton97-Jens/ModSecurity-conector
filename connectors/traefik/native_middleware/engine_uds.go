@@ -244,7 +244,7 @@ func (transaction *unixSocketTransaction) exchangeLocked(ctx context.Context, op
 	if err := transaction.connection.SetDeadline(deadline); err != nil {
 		return udsResult{}, err
 	}
-	if err := writeUDSFrame(transaction.connection, opcode, payload); err != nil {
+	if err := writeUDSConnectionFrame(transaction.connection, opcode, payload); err != nil {
 		return udsResult{}, err
 	}
 	responseOpcode, response, err := readUDSFrame(transaction.connection)
@@ -268,27 +268,33 @@ func (result udsResult) decision() Decision {
 	}
 }
 
-func writeUDSFrame(writer io.Writer, opcode byte, payload []byte) error {
-	if len(payload) > udsMaxPayload {
-		return errUDSEngineProtocol
-	}
-	header := make([]byte, udsFrameHeaderSize)
-	copy(header, "MSE1")
-	header[4] = udsProtocolVersion
-	header[5] = opcode
-	binary.BigEndian.PutUint32(header[8:], uint32(len(payload)))
-	if err := writeUDSAll(writer, header); err != nil {
+// writeUDSConnectionFrame is intentionally limited to the bidirectional local
+// engine connection. A protocol request must never be emitted through an
+// arbitrary io.Writer such as an HTTP response writer.
+func writeUDSConnectionFrame(connection net.Conn, opcode byte, payload []byte) error {
+	frame, err := makeUDSFrame(opcode, payload)
+	if err != nil {
 		return err
 	}
-	if len(payload) == 0 {
-		return nil
-	}
-	return writeUDSAll(writer, payload)
+	return writeUDSAllToConnection(connection, frame)
 }
 
-func writeUDSAll(writer io.Writer, payload []byte) error {
+func makeUDSFrame(opcode byte, payload []byte) ([]byte, error) {
+	if len(payload) > udsMaxPayload {
+		return nil, errUDSEngineProtocol
+	}
+	frame := make([]byte, udsFrameHeaderSize+len(payload))
+	copy(frame, "MSE1")
+	frame[4] = udsProtocolVersion
+	frame[5] = opcode
+	binary.BigEndian.PutUint32(frame[8:], uint32(len(payload)))
+	copy(frame[udsFrameHeaderSize:], payload)
+	return frame, nil
+}
+
+func writeUDSAllToConnection(connection net.Conn, payload []byte) error {
 	for len(payload) > 0 {
-		count, err := writer.Write(payload)
+		count, err := connection.Write(payload)
 		if count > 0 {
 			payload = payload[count:]
 		}
@@ -447,9 +453,9 @@ func clampPort(port int) int {
 }
 
 var (
-	_ Engine                    = (*unixSocketEngine)(nil)
-	_ Transaction               = (*unixSocketTransaction)(nil)
-	_ responseHeaderTransaction = (*unixSocketTransaction)(nil)
-	_ responseCommitTransaction = (*unixSocketTransaction)(nil)
-	_ outcomeTransaction        = (*unixSocketTransaction)(nil)
+	_ Engine                  = (*unixSocketEngine)(nil)
+	_ Transaction             = (*unixSocketTransaction)(nil)
+	_ responseHeaderProcessor = (*unixSocketTransaction)(nil)
+	_ responseCommitter       = (*unixSocketTransaction)(nil)
+	_ outcomeAcknowledger     = (*unixSocketTransaction)(nil)
 )

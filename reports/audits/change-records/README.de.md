@@ -12,6 +12,8 @@ Review- oder Delivery-Ergebnisse behaupten.
   bewahrte Processor-Semantik und einen verschlüsselten Fixture-Upstream-Hop;
   Exact-Head-Hosted-Verifikation bleibt vor jeder Merge-Entscheidung notwendig.
 
+- [Parent-Traefik-Runtime- und Lifecycle-Remediation](CR-20260730-sonar-traefik-runtime-lifecycle.de.md)
+
 - [Parent-Envoy-Maintainability-Bereinigung](CR-20260730-sonar-envoy-maintainability-remediation.de.md)
   — bewahrt C17-Bridge- und ext_proc-Lifecycle-Verhalten; lokale Source-,
   Native-Build- und Loopback-TLS-Controls bestanden, während die
