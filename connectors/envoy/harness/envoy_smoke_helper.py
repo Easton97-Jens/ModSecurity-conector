@@ -39,6 +39,8 @@ TEXT_PLAIN_CONTENT_TYPE = "text/plain"
 LOOPBACK_HOST = "127.0.0.1"
 COMMON_EVENT_LOG_LABEL = "Common event log"
 NOFOLLOW_WRITE_ERROR = "safe runtime artifact writes require O_NOFOLLOW"
+LOOPBACK_TLS_CERTIFICATE_LABEL = "loopback TLS certificate"
+LOOPBACK_TLS_PRIVATE_KEY_LABEL = "loopback TLS private key"
 
 
 def verified_runtime_root(value: str) -> Path:
@@ -106,9 +108,9 @@ def create_runtime_marker(root: Path, value: str | Path, label: str) -> Path:
 def trusted_loopback_tls_context(root: Path, certificate_path: str) -> ssl.SSLContext:
     """Trust a regular certificate under ``root`` for one loopback client."""
 
-    certificate = runtime_artifact(root, certificate_path, "loopback TLS certificate")
+    certificate = runtime_artifact(root, certificate_path, LOOPBACK_TLS_CERTIFICATE_LABEL)
     if not certificate.is_file() or certificate.is_symlink():
-        raise ValueError("loopback TLS certificate must be a regular file")
+        raise ValueError(f"{LOOPBACK_TLS_CERTIFICATE_LABEL} must be a regular file")
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_verify_locations(cafile=str(certificate))
@@ -118,9 +120,9 @@ def trusted_loopback_tls_context(root: Path, certificate_path: str) -> ssl.SSLCo
 def loopback_tls_server_files(root: Path, certificate_path: str, private_key_path: str) -> tuple[Path, Path]:
     """Return regular, runtime-confined certificate files for the fixture server."""
 
-    certificate = runtime_artifact(root, certificate_path, "loopback TLS certificate")
-    private_key = runtime_artifact(root, private_key_path, "loopback TLS private key")
-    for path, label in ((certificate, "loopback TLS certificate"), (private_key, "loopback TLS private key")):
+    certificate = runtime_artifact(root, certificate_path, LOOPBACK_TLS_CERTIFICATE_LABEL)
+    private_key = runtime_artifact(root, private_key_path, LOOPBACK_TLS_PRIVATE_KEY_LABEL)
+    for path, label in ((certificate, LOOPBACK_TLS_CERTIFICATE_LABEL), (private_key, LOOPBACK_TLS_PRIVATE_KEY_LABEL)):
         if not path.is_file() or path.is_symlink():
             raise ValueError(f"{label} must be a regular file")
     return certificate, private_key

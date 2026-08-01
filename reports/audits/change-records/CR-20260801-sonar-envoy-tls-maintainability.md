@@ -9,7 +9,7 @@
 | Change ID | `CR-20260801-sonar-envoy-tls-maintainability` |
 | Date (UTC) | 2026-08-01 |
 | Base revision | `3ff87de53df34cecbc9c6489c858e64bdf3fd198` |
-| Tracking | Five current SonarQube Cloud rows below `connectors/envoy/`: `go:S3776` `AZ9cRyqvHhV2CayPTP0G`, `godre:S8193` `AZ9cRyq6HhV2CayPTP0I` and `AZ9cRyq6HhV2CayPTP0J`, `godre:S8196` `AZ9cRyqvHhV2CayPTP0H`, and `python:S5332` `AZ9MwivX-bUaKQ_zSGAh`. |
+| Tracking | Five current master rows below `connectors/envoy/`: `go:S3776` `AZ9cRyqvHhV2CayPTP0G`, `godre:S8193` `AZ9cRyq6HhV2CayPTP0I` and `AZ9cRyq6HhV2CayPTP0J`, `godre:S8196` `AZ9cRyqvHhV2CayPTP0H`, and `python:S5332` `AZ9MwivX-bUaKQ_zSGAh`; plus PR-specific `python:S1192` `AZ-8cqgs_sm3M2mrbmAj`, discovered by the first exact-head analysis. |
 | Boundary | Parent Envoy processor, smoke-helper, Envoy fixture configuration, focused Parent tests, and this paired Change Record/index documentation only. Framework, MRTS, and gitlinks remain unchanged. |
 
 ## Motivation and problem statement
@@ -21,9 +21,14 @@ test-only values are unnecessary. The upstream fixture server still accepts
 cleartext HTTP even though the downstream client probes already require
 certificate-verified loopback HTTPS.
 
+The first exact-head analysis also identified one task-owned new
+`python:S1192` row because the TLS certificate label was introduced as a
+duplicate literal. It is remediated immediately through named constants; no
+suppression or baseline change is used.
+
 ## Acceptance criteria
 
-- All five listed rows have repository-native source remediations without a
+- All six listed rows have repository-native source remediations without a
   scanner suppression, `NOSONAR`, Quality Gate change, rule exclusion, or
   external false-positive disposition.
 - Request pseudo-header/attribute mapping, bounded metadata errors, response
@@ -53,6 +58,10 @@ fixture. Both local Envoy templates configure `UpstreamTlsContext` with the
 per-run certificate as `trusted_ca`, so the Envoy-to-fixture hop is encrypted
 and certificate-validated as well.
 
+The certificate and private-key diagnostic labels are named once and reused
+across the client and server validation paths, removing the PR-specific
+duplicate-literal row without changing any validation or error meaning.
+
 ## Changed files
 
 - `connectors/envoy/config/envoy-ext-authz-smoke.yaml.in`
@@ -79,6 +88,7 @@ and certificate-validated as well.
 | `gofmt -d` for the changed Go files | passed with no output. |
 | Direct task-owned fixture smoke using `serve-upstream`, a one-day loopback certificate, and `probe` | passed: the HTTPS legitimate control returned `200`; a direct plaintext `http://127.0.0.1` request was rejected. |
 | `check-bilingual-docs.py` with the repository Python | blocked only by 20 pre-existing missing links into the unpopulated Framework gitlink; it reported no record-pair or structural error for this change. |
+| Focused transport contract and `py_compile` after the `python:S1192` follow-up | passed: 17 tests and Python syntax compilation. |
 
 ## Security impact
 
@@ -120,7 +130,7 @@ does not establish a problem in this Parent-only Change Record pair.
 
 ## Remaining risks
 
-The five current source rows are externally closed only when SonarQube Cloud
+The six task-associated source rows are externally closed only when SonarQube Cloud
 analyses the exact PR head and reports no task-owned new issue or duplication.
 The local TLS smoke demonstrates the helper boundary, but it is not a
 substitute for the unavailable pinned Envoy runtime or a full transport matrix.

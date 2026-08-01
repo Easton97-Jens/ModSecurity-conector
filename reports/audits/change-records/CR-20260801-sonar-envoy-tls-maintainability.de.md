@@ -9,7 +9,7 @@
 | Change-ID | `CR-20260801-sonar-envoy-tls-maintainability` |
 | Datum (UTC) | 2026-08-01 |
 | Basis-Revision | `3ff87de53df34cecbc9c6489c858e64bdf3fd198` |
-| Tracking | Fünf aktuelle SonarQube-Cloud-Zeilen unter `connectors/envoy/`: `go:S3776` `AZ9cRyqvHhV2CayPTP0G`, `godre:S8193` `AZ9cRyq6HhV2CayPTP0I` und `AZ9cRyq6HhV2CayPTP0J`, `godre:S8196` `AZ9cRyqvHhV2CayPTP0H` sowie `python:S5332` `AZ9MwivX-bUaKQ_zSGAh`. |
+| Tracking | Fünf aktuelle Master-Zeilen unter `connectors/envoy/`: `go:S3776` `AZ9cRyqvHhV2CayPTP0G`, `godre:S8193` `AZ9cRyq6HhV2CayPTP0I` und `AZ9cRyq6HhV2CayPTP0J`, `godre:S8196` `AZ9cRyqvHhV2CayPTP0H` sowie `python:S5332` `AZ9MwivX-bUaKQ_zSGAh`; zusätzlich das durch die erste Exact-Head-Analyse gefundene PR-spezifische `python:S1192` `AZ-8cqgs_sm3M2mrbmAj`. |
 | Grenze | Nur Parent-Envoy-Processor, Smoke-Helper, Envoy-Fixture-Konfiguration, fokussierte Parent-Tests und dieses deutsch/englische Change-Record-/Index-Paar. Framework, MRTS und Gitlinks bleiben unverändert. |
 
 ## Motivation und Problemstellung
@@ -21,9 +21,14 @@ Konvention und zwei testexklusive Werte sind unnötig. Der Upstream-Fixture-
 Server akzeptiert noch Klartext-HTTP, obwohl die Downstream-Client-Probes
 bereits zertifikatverifiziertes Loopback-HTTPS verlangen.
 
+Die erste Exact-Head-Analyse fand zudem eine task-eigene neue
+`python:S1192`-Zeile, weil das TLS-Zertifikatlabel als doppeltes Literal
+eingeführt war. Sie wird sofort durch benannte Konstanten behoben; weder
+Suppression noch Baseline-Änderung werden verwendet.
+
 ## Akzeptanzkriterien
 
-- Für alle fünf genannten Zeilen gibt es repository-native Source-Änderungen
+- Für alle sechs genannten Zeilen gibt es repository-native Source-Änderungen
   ohne Scanner-Suppression, `NOSONAR`, Quality-Gate-Änderung,
   Regelausschluss oder externe False-Positive-Disposition.
 - Request-Pseudoheader-/Attribut-Mapping, begrenzte Metadatenfehler,
@@ -56,6 +61,11 @@ das Fixture. Beide lokalen Envoy-Templates konfigurieren `UpstreamTlsContext`
 mit dem laufbezogenen Zertifikat als `trusted_ca`, sodass auch der Envoy-zu-
 Fixture-Hop verschlüsselt und zertifikatvalidiert ist.
 
+Die Diagnose-Labels für Zertifikat und Private Key werden einmal benannt und
+über Client- und Server-Validierungspfade wiederverwendet. Damit verschwindet
+die PR-spezifische Duplicate-Literal-Zeile ohne Änderung der Validierung oder
+Fehlerbedeutung.
+
 ## Geänderte Dateien
 
 - `connectors/envoy/config/envoy-ext-authz-smoke.yaml.in`
@@ -82,6 +92,7 @@ Fixture-Hop verschlüsselt und zertifikatvalidiert ist.
 | `gofmt -d` für die geänderten Go-Dateien | bestanden ohne Ausgabe. |
 | Direkter task-eigener Fixture-Smoke mit `serve-upstream`, einem Ein-Tages-Loopback-Zertifikat und `probe` | bestanden: Der HTTPS-Legitimate-Control lieferte `200`; eine direkte Klartext-`http://127.0.0.1`-Anfrage wurde abgewiesen. |
 | `check-bilingual-docs.py` mit dem Repository-Python | nur durch 20 bereits bestehende fehlende Links in den nicht populierten Framework-Gitlink blockiert; kein Record-Pair- oder Strukturfehler dieser Änderung wurde gemeldet. |
+| Fokussierter Transport-Contract und `py_compile` nach dem `python:S1192`-Follow-up | bestanden: 17 Tests und Python-Syntaxkompilierung. |
 
 ## Security-Auswirkung
 
@@ -126,7 +137,7 @@ Parent-only-Change-Record-Paars.
 
 ## Verbleibende Risiken
 
-Die fünf aktuellen Source-Zeilen sind extern erst geschlossen, wenn
+Die sechs task-assoziierten Source-Zeilen sind extern erst geschlossen, wenn
 SonarQube Cloud den exakten PR-Head analysiert und kein task-eigenes neues
 Issue oder Duplikat meldet. Der lokale TLS-Smoke demonstriert die Helper-
 Grenze, ersetzt aber weder die nicht verfügbare gepinnte Envoy-Runtime noch
