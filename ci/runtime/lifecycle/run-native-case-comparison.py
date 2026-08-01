@@ -97,14 +97,62 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def load_runtime_env() -> dict[str, str]:
-    env = dict(os.environ)
+def runtime_component_paths(env: dict[str, str]) -> tuple[Path, Path] | None:
+    """Return verified build and component-cache roots when available."""
+
     try:
         paths = verified_runtime_paths(env)
-        build_root = Path(paths["BUILD_ROOT"])
-        component_cache = Path(paths["VERIFIED_COMPONENT_CACHE"])
     except ValueError:
-        return env
+        return None
+    return Path(paths["BUILD_ROOT"]), Path(paths["VERIFIED_COMPONENT_CACHE"])
+
+
+def invocation_runtime_environment(
+    build_root: Path,
+    report_root_value: str,
+    snapshot_value: str,
+) -> Path | None:
+    """Return the validated invocation-local environment snapshot, if present."""
+
+    if not report_root_value:
+        return None
+    try:
+        report_root = runtime_artifact_path(
+            build_root, report_root_value, "runtime report output root"
+        )
+        if not report_root.is_dir() or report_root.is_symlink():
+            return None
+        return runtime_artifact_path(
+            report_root,
+            snapshot_value,
+            "runtime environment snapshot",
+            must_exist=True,
+        )
+    except ValueError:
+        return None
+
+
+def shared_runtime_environment(component_cache: Path) -> Path | None:
+    """Return the validated compatibility export for direct/report-only callers."""
+
+    try:
+        return runtime_artifact_path(
+            component_cache,
+            component_cache / "runtime-env.sh",
+            "shared runtime environment",
+            must_exist=True,
+        )
+    except ValueError:
+        return None
+
+
+def runtime_environment_path(env: dict[str, str]) -> Path | None:
+    """Choose the invocation snapshot or direct-caller compatibility export."""
+
+    paths = runtime_component_paths(env)
+    if paths is None:
+        return None
+    build_root, component_cache = paths
     snapshot_value = env.get("RUNTIME_COMPONENT_ENV_SNAPSHOT", "").strip()
     if snapshot_value:
         # The with-runtime wrapper already validates and materializes this
@@ -112,36 +160,19 @@ def load_runtime_env() -> dict[str, str]:
         # here: another target may republish that compatibility export while
         # this native comparison is compiling or running a case.
         report_root_value = env.get("RUNTIME_REPORT_OUTPUT_ROOT", "").strip()
-        if not report_root_value:
-            return env
-        try:
-            report_root = runtime_artifact_path(
-                build_root, report_root_value, "runtime report output root"
-            )
-            if not report_root.is_dir() or report_root.is_symlink():
-                return env
-            runtime_env = runtime_artifact_path(
-                report_root,
-                snapshot_value,
-                "runtime environment snapshot",
-                must_exist=True,
-            )
-        except ValueError:
-            return env
-    else:
-        # Retain the documented shared export only for direct/report-only
-        # callers that are outside a with-runtime invocation.
-        try:
-            runtime_env = runtime_artifact_path(
-                component_cache,
-                component_cache / "runtime-env.sh",
-                "shared runtime environment",
-                must_exist=True,
-            )
-        except ValueError:
-            return env
+        return invocation_runtime_environment(
+            build_root, report_root_value, snapshot_value
+        )
+    # Retain the documented shared export only for direct/report-only callers
+    # that are outside a with-runtime invocation.
+    return shared_runtime_environment(component_cache)
+
+
+def imported_environment(runtime_env: Path) -> dict[str, str] | None:
+    """Read exports from one validated shell file without sharing its process."""
+
     if not runtime_env.is_file() or runtime_env.is_symlink():
-        return env
+        return None
     command = f". {sh_quote(str(runtime_env))}; env"
     proc = subprocess.run(
         ["sh", "-c", command],
@@ -151,12 +182,26 @@ def load_runtime_env() -> dict[str, str]:
         check=False,
     )
     if proc.returncode != 0:
+        return None
+    return {
+        key: value
+        for line in proc.stdout.splitlines()
+        if "=" in line
+        for key, value in (line.split("=", 1),)
+    }
+
+
+def load_runtime_env() -> dict[str, str]:
+    """Overlay verified runtime exports on the inherited environment."""
+
+    env = dict(os.environ)
+    runtime_env = runtime_environment_path(env)
+    if runtime_env is None:
         return env
-    for line in proc.stdout.splitlines():
-        if "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        env[key] = value
+    imported = imported_environment(runtime_env)
+    if imported is None:
+        return env
+    env.update(imported)
     return env
 
 

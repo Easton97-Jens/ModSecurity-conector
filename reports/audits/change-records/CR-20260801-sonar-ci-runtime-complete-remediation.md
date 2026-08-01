@@ -94,11 +94,13 @@ issue-state change would require a separate current explicit authorization.
 | `python3 tests/test_engine_lifecycle_artifacts.py` | passed: 5 tests. |
 | `python3 tests/test_full_lifecycle_profiles.py` | passed: 5 tests. |
 | `python3 tests/test_full_lifecycle_evidence.py` | passed: 19 tests, including the restored same-directory sanitizer compatibility path and rejection of cross-directory use without a named runtime root. |
+| `python3 tests/test_runtime_env_snapshot_contract.py RuntimeEnvironmentSnapshotContractTest.test_native_comparison_uses_the_wrapper_snapshot_not_shared_env RuntimeEnvironmentSnapshotContractTest.test_native_comparison_does_not_fallback_to_shared_env_for_an_invalid_snapshot` | passed: 2 direct snapshot-selection controls. |
 | `python3 tests/test_collect_no_crs_source_helpers.py` | passed: 3 Framework-independent collector helper tests. |
 | `python3 tests/test_bilingual_docs.py` | passed: 22 documentation-checker unit tests. |
 | `sh -n ci/runtime/lifecycle/run-no-crs-baseline.sh` and `sh -n ci/runtime/lifecycle/run-mrts-native-full.sh` | passed. |
 | `git diff --check` | passed at the recorded local revision before delivery. |
 | `python3 tests/test_collect_no_crs_source.py` | blocked before tests: the Parent-pinned Framework checkout lacks `ci/checks/catalog/no_crs_baseline.py`. |
+| `python3 tests/test_runtime_env_snapshot_contract.py` | blocked after 8 passing tests: its wrapper integration requires the same absent Parent-pinned Framework `ci/lib/common.sh`; the native snapshot-selection controls pass separately. |
 | `python3 ci/checks/documentation/check-bilingual-docs.py` | blocked only by pre-existing links into the absent Parent-pinned Framework checkout; it reported no Change Record error. |
 
 ## Security impact
@@ -122,6 +124,13 @@ positively bounds persisted diagnostics and labels, validates relative report
 components before construction, and renders the child timeout only after a
 numeric bound check with `shell=False`. The new exact-head SonarQube Cloud
 analysis remains the required verification; no issue state was changed.
+
+The first corrected exact head removed those five findings and passed the
+Quality Gate, but its exact SonarQube Cloud inventory then exposed one
+`python:S3776` row in `load_runtime_env()`. This update decomposes runtime
+root selection, invocation-snapshot validation, shared-export validation, and
+export parsing into bounded helpers while retaining the same no-fallback
+snapshot contract. The exact next-head analysis remains required verification.
 
 ## Compatibility and generated artifacts
 

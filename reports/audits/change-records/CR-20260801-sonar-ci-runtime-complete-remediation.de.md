@@ -99,11 +99,13 @@ Issue-State-Änderung erfordert eine getrennte aktuelle explizite Autorisierung.
 | `python3 tests/test_engine_lifecycle_artifacts.py` | bestanden: 5 Tests. |
 | `python3 tests/test_full_lifecycle_profiles.py` | bestanden: 5 Tests. |
 | `python3 tests/test_full_lifecycle_evidence.py` | bestanden: 19 Tests einschließlich des wiederhergestellten Same-Directory-Kompatibilitätspfads des Sanitizers und der Zurückweisung bereichsübergreifender Verwendung ohne benannte Runtime-Root. |
+| `python3 tests/test_runtime_env_snapshot_contract.py RuntimeEnvironmentSnapshotContractTest.test_native_comparison_uses_the_wrapper_snapshot_not_shared_env RuntimeEnvironmentSnapshotContractTest.test_native_comparison_does_not_fallback_to_shared_env_for_an_invalid_snapshot` | bestanden: 2 direkte Snapshot-Selection-Controls. |
 | `python3 tests/test_collect_no_crs_source_helpers.py` | bestanden: 3 Framework-unabhängige Collector-Helper-Tests. |
 | `python3 tests/test_bilingual_docs.py` | bestanden: 22 Unit-Tests des Documentation-Checkers. |
 | `sh -n ci/runtime/lifecycle/run-no-crs-baseline.sh` und `sh -n ci/runtime/lifecycle/run-mrts-native-full.sh` | bestanden. |
 | `git diff --check` | am dokumentierten lokalen Stand vor der Delivery bestanden. |
 | `python3 tests/test_collect_no_crs_source.py` | vor Testbeginn blockiert: Der Parent-gebundene Framework-Checkout enthält `ci/checks/catalog/no_crs_baseline.py` nicht. |
+| `python3 tests/test_runtime_env_snapshot_contract.py` | nach 8 bestandenen Tests blockiert: Seine Wrapper-Integration benötigt dasselbe fehlende Parent-gebundene Framework-`ci/lib/common.sh`; die nativen Snapshot-Selection-Controls bestehen getrennt. |
 | `python3 ci/checks/documentation/check-bilingual-docs.py` | nur durch vorbestehende Links in den fehlenden Parent-gebundenen Framework-Checkout blockiert; es wurde kein Change-Record-Fehler gemeldet. |
 
 ## Security-Auswirkung
@@ -129,6 +131,14 @@ positiv, validiert relative Report-Komponenten vor der Konstruktion und
 rendert den Child-Timeout nur nach einer numerischen Grenzprüfung mit
 `shell=False`. Die neue Exact-Head-SonarQube-Cloud-Analyse bleibt die
 erforderliche Verifikation; es wurde kein Issue-Status geändert.
+
+Der erste korrigierte Exact-Head entfernte diese fünf Befunde und bestand das
+Quality Gate, aber sein exaktes SonarQube-Cloud-Inventar zeigte danach eine
+`python:S3776`-Zeile in `load_runtime_env()`. Dieses Update zerlegt
+Runtime-Root-Auswahl, Invocation-Snapshot-Validierung, Shared-Export-
+Validierung und Export-Parsing in begrenzte Helper und bewahrt dabei denselben
+No-Fallback-Snapshot-Vertrag. Die Analyse des nächsten exakten Heads bleibt
+die erforderliche Verifikation.
 
 ## Kompatibilität und generierte Artefakte
 
