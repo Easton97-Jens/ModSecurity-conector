@@ -54,6 +54,11 @@ static ngx_int_t ngx_http_modsecurity_phase4_validate_content_type(u_char *s, si
 static ngx_int_t ngx_http_modsecurity_is_mime_char(unsigned char c);
 static ngx_int_t ngx_http_modsecurity_validate_strict_mime_token(const char *token);
 static char *ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+static ngx_int_t ngx_http_modsecurity_process_redirect_intervention(
+    ngx_http_request_t *r, ModSecurityIntervention *intervention);
+static ngx_int_t ngx_http_modsecurity_process_status_intervention(
+    ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
+    ModSecurityIntervention *intervention, ngx_int_t early_log);
 
 /*
  * PCRE malloc/free workaround, based on
@@ -152,6 +157,82 @@ ngx_inline char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p)
     return str;
 }
 
+static ngx_int_t
+ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
+    ModSecurityIntervention *intervention)
+{
+    ngx_str_t location_value;
+    ngx_table_elt_t *location;
+
+    dd("intervention -- redirecting to: %s with status code: %d",
+        intervention->url, intervention->status);
+
+    if (r->header_sent) {
+        dd("Headers are already sent. Cannot perform the redirection at this point.");
+        return -1;
+    }
+
+    /* The Location header follows NGINX's error-page allocation and hash
+     * conventions, independently of the phase that produced the redirect. */
+    location_value.len = ngx_strlen(intervention->url);
+    if (location_value.len > NGX_MAX_SIZE_T_VALUE - 1U) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "modsecurity intervention redirect URL is too long");
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    location_value.data = ngx_pnalloc(r->pool, location_value.len + 1U);
+    if (location_value.data == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "modsecurity intervention redirect URL allocation failed");
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    ngx_memcpy(location_value.data, intervention->url, location_value.len);
+    location_value.data[location_value.len] = '\0';
+
+    location = ngx_list_push(&r->headers_out.headers);
+    if (location == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "modsecurity intervention Location header allocation failed");
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    ngx_http_clear_location(r);
+    ngx_str_set(&location->key, "Location");
+    location->value = location_value;
+    r->headers_out.location = location;
+    r->headers_out.location->hash = 1;
+
+#if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
+    ngx_http_modsecurity_store_ctx_header(r, &location->key, &location->value);
+#endif
+
+    return intervention->status;
+}
+
+static ngx_int_t
+ngx_http_modsecurity_process_status_intervention(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, ModSecurityIntervention *intervention,
+    ngx_int_t early_log)
+{
+    /* Preserve the intervention status in the audit log when an NGINX
+     * error-page redirect changes the later response lifecycle. */
+    msc_update_status_code(ctx->modsec_transaction, intervention->status);
+
+    if (early_log) {
+        dd("intervention -- calling log handler manually with code: %d",
+            intervention->status);
+        ngx_http_modsecurity_log_handler(r);
+        ctx->logged = 1;
+    }
+
+    if (r->header_sent) {
+        dd("Headers are already sent. Cannot perform the redirection at this point.");
+        return -1;
+    }
+
+    dd("intervention -- returning code: %d", intervention->status);
+    return intervention->status;
+}
+
 
 int
 ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_request_t *r, ngx_int_t early_log)
@@ -159,8 +240,6 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
     const char *log = NULL;
     ModSecurityIntervention intervention;
     ngx_int_t result = 0;
-    ngx_str_t location_value;
-    ngx_table_elt_t *location = NULL;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_http_modsecurity_conf_t  *mcf;
 
@@ -208,88 +287,15 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
 
     if (intervention.url != NULL && intervention.url[0] != '\0')
     {
-        dd("intervention -- redirecting to: %s with status code: %d", intervention.url, intervention.status);
-
-        if (r->header_sent)
-        {
-            dd("Headers are already sent. Cannot perform the redirection at this point.");
-            result = -1;
-            goto cleanup;
-        }
-
-        /**
-         * Not sure if it sane to do this indepent of the phase
-         * but, here we go...
-         *
-         * This code cames from: http/ngx_http_special_response.c
-         * function: ngx_http_send_error_page
-         * src/http/ngx_http_core_module.c
-         * From src/http/ngx_http_core_module.c (line 1910) i learnt
-         * that location->hash should be set to 1.
-         *
-         */
-        location_value.len = ngx_strlen(intervention.url);
-        if (location_value.len > NGX_MAX_SIZE_T_VALUE - 1) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "modsecurity intervention redirect URL is too long");
-            result = NGX_HTTP_INTERNAL_SERVER_ERROR;
-            goto cleanup;
-        }
-        location_value.data = ngx_pnalloc(r->pool, location_value.len + 1U);
-        if (location_value.data == NULL) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "modsecurity intervention redirect URL allocation failed");
-            result = NGX_HTTP_INTERNAL_SERVER_ERROR;
-            goto cleanup;
-        }
-        ngx_memcpy(location_value.data, intervention.url, location_value.len);
-        location_value.data[location_value.len] = '\0';
-
-        location = ngx_list_push(&r->headers_out.headers);
-        if (location == NULL) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "modsecurity intervention Location header allocation failed");
-            result = NGX_HTTP_INTERNAL_SERVER_ERROR;
-            goto cleanup;
-        }
-        ngx_http_clear_location(r);
-        ngx_str_set(&location->key, "Location");
-        location->value = location_value;
-        r->headers_out.location = location;
-        r->headers_out.location->hash = 1;
-
-#if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
-        ngx_http_modsecurity_store_ctx_header(r, &location->key, &location->value);
-#endif
-
-        result = intervention.status;
+        result = ngx_http_modsecurity_process_redirect_intervention(r,
+            &intervention);
         goto cleanup;
     }
 
     if (intervention.status != 200)
     {
-        /**
-         * FIXME: this will bring proper response code to audit log in case
-         * when e.g. error_page redirect was triggered, but there still won't be another
-         * required pieces like response headers etc.
-         *
-         */
-        msc_update_status_code(ctx->modsec_transaction, intervention.status);
-
-        if (early_log) {
-            dd("intervention -- calling log handler manually with code: %d", intervention.status);
-            ngx_http_modsecurity_log_handler(r);
-            ctx->logged = 1;
-	}
-
-        if (r->header_sent)
-        {
-            dd("Headers are already sent. Cannot perform the redirection at this point.");
-            result = -1;
-            goto cleanup;
-        }
-        dd("intervention -- returning code: %d", intervention.status);
-        result = intervention.status;
+        result = ngx_http_modsecurity_process_status_intervention(r, ctx,
+            &intervention, early_log);
     }
 
 cleanup:
@@ -999,13 +1005,7 @@ ngx_http_modsecurity_init(ngx_conf_t *cf)
     *h_access = ngx_http_modsecurity_access_handler;
 
 
-    /**
-     * Process the log phase.
-     *
-     * TODO: check if the log phase happens like it happens on Apache.
-     *       check if last phase will not hold the request.
-     *
-     */
+    /* Process the final native NGINX log phase for this transaction. */
     h_log = ngx_array_push(&cmcf->phases[NGX_HTTP_LOG_PHASE].handlers);
     if (h_log == NULL)
     {

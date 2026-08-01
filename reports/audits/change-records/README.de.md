@@ -9,6 +9,13 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-Traefik-Runtime- und Lifecycle-Remediation](CR-20260730-sonar-traefik-runtime-lifecycle.de.md)
 
+- [Parent-Apache-Maintainability-Remediation](CR-20260730-sonar-apache-maintainability.de.md)
+  — remediiert das aktuelle 13er-Apache-SonarQube-Cloud-Maintainability-
+  Inventar mit fokussierter C17- und Native-Harness-Evidence; Exact-Head-
+  Hosted-Verifikation bleibt vor jeder Integration erforderlich.
+
+- [Parent-CI-Bereinigung eines ungenutzten Parameters der GitHub-URL-Validierung für SonarQube Cloud S1172](CR-20260730-sonar-ci-github-url-unused-label.de.md)
+
 - [Parent-Common Event-JSON Optional-Field-Zerlegung](CR-20260730-sonar-common-event-json-complexity.de.md)
 
 - [Parent-Common HTTP-Autorisierungsservice-Const-Korrektheit](CR-20260730-sonar-common-http-auth-maintenance.de.md)
@@ -47,6 +54,7 @@ Review- oder Delivery-Ergebnisse behaupten.
   Hosted-Verifikation bleibt vor der Integration erforderlich.
 - [Parent-CI-Nolog- und Response-Header-Report-Lifecycle-Deduplizierung](CR-20260729-sonar-ci-nolog-response-header-lifecycle-deduplication.de.md)
 - [Parent-CI-NGINX-HTTP-500-Literal-Deduplizierung](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.de.md)
+- [Parent-NGINX-Maintainability-Remediation](CR-20260730-sonar-nginx-maintainability.de.md)
 - [Parent-CI-Deduplizierung des Case-Metadata-Parsings](CR-20260729-sonar-ci-case-metadata-duplication.de.md)
 - [Parent-Lighttpd-Runtime-Output-Containment](CR-20260729-sonar-lighttpd-runtime-output-containment.de.md)
 

@@ -56,6 +56,23 @@ fi
 if [ -z "$APR_LINK_FLAGS" ]; then
     skip_blocked "apache_request_transaction_cleanup could not obtain APR link flags"
 fi
+APR_UTIL_CONFIG=
+for APR_UTIL_CONFIG_CANDIDATE in "$APXS_BINDIR/apu-1-config" "$APXS_BINDIR/apu-2-config" apu-1-config apu-2-config; do
+    APR_UTIL_CONFIG=$(ci_command_path "$APR_UTIL_CONFIG_CANDIDATE" 2>/dev/null || true)
+    if [ -n "$APR_UTIL_CONFIG" ]; then
+        break
+    fi
+done
+if [ -z "$APR_UTIL_CONFIG" ]; then
+    skip_blocked "apache_request_transaction_cleanup missing apu-1-config/apu-2-config"
+fi
+APR_UTIL_LINK_FLAGS=$($APR_UTIL_CONFIG --link-ld 2>/dev/null || true)
+if [ -z "$APR_UTIL_LINK_FLAGS" ]; then
+    APR_UTIL_LINK_FLAGS=$($APR_UTIL_CONFIG --libs 2>/dev/null || true)
+fi
+if [ -z "$APR_UTIL_LINK_FLAGS" ]; then
+    skip_blocked "apache_request_transaction_cleanup could not obtain APR-util link flags"
+fi
 APR_LIBDIR=
 for APR_LINK_FLAG in $APR_LINK_FLAGS; do
     case "$APR_LINK_FLAG" in
@@ -85,5 +102,5 @@ BIN="$OUT/apache-request-transaction-cleanup"
 
 "$CC_BIN" -std=c17 -Wall -Wextra -Werror -ffunction-sections -fdata-sections \
     $APXS_CFLAGS $APXS_CPPFLAGS $INCLUDES "$HARNESS" "$UTILS" \
-    -Wl,--gc-sections $APR_RPATH_FLAG $APR_LINK_FLAGS -o "$BIN"
+    -Wl,--gc-sections $APR_RPATH_FLAG $APR_LINK_FLAGS $APR_UTIL_LINK_FLAGS -o "$BIN"
 "$BIN"
