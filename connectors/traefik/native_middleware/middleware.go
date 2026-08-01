@@ -168,7 +168,7 @@ const (
 	DirectionResponse Direction = "response"
 )
 
-// Header is a bounded borrowed view passed to an Engine callback. Implementers
+// Header is a bounded borrowed view passed to a TransactionOpener callback. Implementers
 // must consume it synchronously and must not retain header values.
 type Header struct {
 	Name  string
@@ -232,13 +232,16 @@ type Summary struct {
 	LateAction          string
 }
 
-// Engine is the explicit bridge seam to Common/libmodsecurity. `uds` selects
-// the persistent local service; PassthroughEngine remains the intentional
-// source-only default. An Engine receives bounded, incremental callbacks only
-// and must never retain borrowed body slices.
-type Engine interface {
+// TransactionOpener is the explicit bridge seam to Common/libmodsecurity.
+// `uds` selects the persistent local service; PassthroughEngine remains the
+// intentional source-only default. An opener receives bounded, incremental
+// callbacks only and must never retain borrowed body slices.
+type TransactionOpener interface {
 	Open(context.Context, Metadata) (Transaction, error)
 }
+
+// Engine remains a source-compatible name for existing plugin consumers.
+type Engine = TransactionOpener
 
 // Transaction consumes the request/response lifecycle for one HTTP request.
 // Body slices are borrowed and valid only for the duration of the callback.
@@ -297,7 +300,7 @@ func (passthroughTransaction) Close(_ context.Context, _ Summary) {
 type Middleware struct {
 	next   http.Handler
 	config Config
-	engine Engine
+	engine TransactionOpener
 	name   string
 }
 
@@ -312,16 +315,16 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	if err != nil {
 		return nil, err
 	}
-	var engine Engine = PassthroughEngine{}
+	var engine TransactionOpener = PassthroughEngine{}
 	if normalized.EngineMode == "uds" {
 		engine = newUnixSocketEngine(normalized.EngineSocketPath)
 	}
 	return newMiddleware(next, normalized, name, engine)
 }
 
-// NewWithEngine is an explicit test/future-bridge seam. A nil Engine is never
+// NewWithEngine is an explicit test/future-bridge seam. A nil TransactionOpener is never
 // silently replaced because doing so would hide a missing security integration.
-func NewWithEngine(next http.Handler, config *Config, name string, engine Engine) (*Middleware, error) {
+func NewWithEngine(next http.Handler, config *Config, name string, engine TransactionOpener) (*Middleware, error) {
 	normalized, err := normalizedConfig(config)
 	if err != nil {
 		return nil, err
@@ -329,7 +332,7 @@ func NewWithEngine(next http.Handler, config *Config, name string, engine Engine
 	return newMiddleware(next, normalized, name, engine)
 }
 
-func newMiddleware(next http.Handler, config Config, name string, engine Engine) (*Middleware, error) {
+func newMiddleware(next http.Handler, config Config, name string, engine TransactionOpener) (*Middleware, error) {
 	if next == nil {
 		return nil, errors.New("modsecurity native middleware: next handler is required")
 	}
