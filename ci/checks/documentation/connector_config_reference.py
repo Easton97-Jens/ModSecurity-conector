@@ -102,6 +102,9 @@ class StackEntry:
     kind: str
 
 
+YAML_BARE_KEY_RE = re.compile(r"[A-Za-z_@][A-Za-z0-9_@-]*\Z")
+
+
 def _read(root: Path, relative: str) -> str:
     return (root / relative).read_text(encoding="utf-8")
 
@@ -965,6 +968,58 @@ def extract_host_example_fields(root: Path, existing: Iterable[dict[str, Any]]) 
     return result
 
 
+def _yaml_content(raw: str) -> tuple[int, str] | None:
+    if not raw.strip() or raw.lstrip().startswith("#"):
+        return None
+    return len(raw) - len(raw.lstrip(" ")), raw.strip()
+
+
+def _prepare_yaml_stack(stack: list[StackEntry], indent: int, list_item: bool) -> None:
+    if list_item:
+        while stack and (stack[-1].indent > indent or (stack[-1].indent == indent and stack[-1].kind == "item")):
+            stack.pop()
+        parent = stack[-1].path if stack else ""
+        stack.append(StackEntry(indent, f"{parent}[]" if parent else "[]", "item"))
+        return
+    while stack and stack[-1].indent >= indent:
+        stack.pop()
+
+
+def _yaml_mapping_entry(body: str) -> tuple[str, str] | None:
+    separator = body.find(":")
+    if separator < 0:
+        return None
+    raw_key = body[:separator].strip()
+    if raw_key.startswith('"') and raw_key.endswith('"'):
+        return raw_key[1:-1], body[separator + 1:].strip()
+    if YAML_BARE_KEY_RE.fullmatch(raw_key):
+        return raw_key, body[separator + 1:].strip()
+    return None
+
+
+def _yaml_body_after_list_marker(body: str, list_item: bool) -> str:
+    return body[2:].strip() if list_item else body
+
+
+def _append_yaml_scalar_item(
+    result: list[tuple[str, str]], stack: list[StackEntry], body: str, list_item: bool,
+) -> None:
+    if list_item:
+        result.append((stack[-1].path, body))
+
+
+def _append_inline_yaml_fields(result: list[tuple[str, str]], field: str, value: str) -> None:
+    # The checked-in compatibility templates use small inline mappings and
+    # lists (for example socket_address and entryPoints).  Keep their nested
+    # fields in the inventory instead of hiding them in one scalar.
+    if value.startswith("{") and value.endswith("}"):
+        for inline_key, inline_value in re.findall(r"([A-Za-z_@][A-Za-z0-9_@-]*)\s*:\s*([^,}]+)", value[1:-1]):
+            result.append((f"{field}.{inline_key}", inline_value.strip()))
+    elif value.startswith("[") and value.endswith("]") and value != "[]":
+        for inline_value in value[1:-1].split(","):
+            result.append((f"{field}[]", inline_value.strip()))
+
+
 def extract_yaml_fields(path: Path) -> list[tuple[str, str]]:
     """Extract YAML mapping paths using indentation and list structure.
 
@@ -974,50 +1029,25 @@ def extract_yaml_fields(path: Path) -> list[tuple[str, str]]:
     """
     result: list[tuple[str, str]] = []
     stack: list[StackEntry] = []
-    bare_key_re = re.compile(r"[A-Za-z_@][A-Za-z0-9_@-]*\Z")
     for raw in path.read_text(encoding="utf-8").splitlines():
-        if not raw.strip() or raw.lstrip().startswith("#"):
+        parsed_line = _yaml_content(raw)
+        if parsed_line is None:
             continue
-        indent = len(raw) - len(raw.lstrip(" "))
-        body = raw.strip()
+        indent, body = parsed_line
         list_item = body.startswith("- ")
-        if list_item:
-            while stack and (stack[-1].indent > indent or (stack[-1].indent == indent and stack[-1].kind == "item")):
-                stack.pop()
-            parent = stack[-1].path if stack else ""
-            item_path = f"{parent}[]" if parent else "[]"
-            stack.append(StackEntry(indent, item_path, "item"))
-            body = body[2:].strip()
-            if not body:
-                continue
-        else:
-            while stack and stack[-1].indent >= indent:
-                stack.pop()
-        separator = body.find(":")
-        if separator < 0:
-            if list_item and body:
-                result.append((stack[-1].path, body))
+        _prepare_yaml_stack(stack, indent, list_item)
+        body = _yaml_body_after_list_marker(body, list_item)
+        if not body:
             continue
-        raw_key = body[:separator].strip()
-        if raw_key.startswith('"') and raw_key.endswith('"'):
-            key = raw_key[1:-1]
-        elif bare_key_re.fullmatch(raw_key):
-            key = raw_key
-        else:
+        mapping = _yaml_mapping_entry(body)
+        if mapping is None:
+            _append_yaml_scalar_item(result, stack, body, list_item)
             continue
-        value = body[separator + 1:].strip()
+        key, value = mapping
         parent = stack[-1].path if stack else ""
         field = f"{parent}.{key}" if parent else key
         result.append((field, value))
-        # The checked-in compatibility templates use small inline mappings and
-        # lists (for example socket_address and entryPoints).  Keep their
-        # nested fields in the inventory instead of hiding them in one scalar.
-        if value.startswith("{") and value.endswith("}"):
-            for inline_key, inline_value in re.findall(r"([A-Za-z_@][A-Za-z0-9_@-]*)\s*:\s*([^,}]+)", value[1:-1]):
-                result.append((f"{field}.{inline_key}", inline_value.strip()))
-        elif value.startswith("[") and value.endswith("]") and value != "[]":
-            for inline_value in value[1:-1].split(","):
-                result.append((f"{field}[]", inline_value.strip()))
+        _append_inline_yaml_fields(result, field, value)
         if not value or value in {"{}", "[]"}:
             stack.append(StackEntry(indent, field, "mapping"))
     return result
@@ -1081,6 +1111,80 @@ def _without_compatibility_prefix(path: str) -> str:
     return remaining
 
 
+@dataclass(frozen=True)
+class EnvoyListenerContext:
+    listener_phase: str
+    policy_filter: str
+    routing_phase: str
+    filter_pair: str
+    filter_lifecycle: str
+    selected_filters: str
+    first_filter: str
+    filter_name_lifecycle: str
+    selected_type: str
+    typed_config_lifecycle: str
+    typed_config_type_lifecycle: str
+
+
+def _envoy_listener_context(compatibility: bool) -> EnvoyListenerContext:
+    if compatibility:
+        return EnvoyListenerContext(
+            "Compatibility bootstrap only; this listener carries ext_authz request authorization before the router and does not establish selected native P2/P3/P4 visibility.",
+            "ext_authz compatibility",
+            "Compatibility route selection follows ext_authz P1 request authorization and forwards an allowed request; the compatibility filter has no selected P2/P3/P4 response lifecycle.",
+            "ext_authz then router",
+            "The selected order enables compatibility P1 request authorization before the router; it does not create P2/P3/P4 coverage.",
+            "envoy.filters.http.ext_authz and envoy.filters.http.router",
+            "ext_authz",
+            "ext_authz is compatibility request authorization; router forwards after it and no selected P2/P3/P4 path exists.",
+            "ExtAuthz",
+            "The ExtAuthz payload controls compatibility P1 request authorization; the Router payload forwards the allowed request.",
+            "ExtAuthz performs compatibility P1 request authorization; Router is terminal forwarding and does not expose selected P2/P3/P4 callbacks.",
+        )
+    return EnvoyListenerContext(
+        "Bootstrap only; this listener carries the selected ext_proc HTTP filter chain, whose processing_mode exposes P1 request headers, P2 request body chunks, P3 response headers, and P4 response body chunks.",
+        "ext_proc",
+        "Routes are consulted after P1 request-header filtering; they direct the upstream response that later reaches P3/P4.",
+        "ext_proc then router",
+        "The selected order enables P1/P2/P3/P4 ext_proc callbacks before traffic is handed to the router.",
+        "envoy.filters.http.ext_proc and envoy.filters.http.router",
+        "ext_proc",
+        "ext_proc exposes P1–P4; router terminates the filter chain and forwards to the upstream.",
+        "ExternalProcessor",
+        "The ExternalProcessor payload sets concrete P1–P4 visibility; the Router payload forwards the post-filter request.",
+        "ExternalProcessor chooses P1–P4 callbacks; Router supplies the terminal forwarding stage.",
+    )
+
+
+def _selected_direction(path: str, request: str, response: str) -> str:
+    return request if "request_" in path else response
+
+
+def _listener_address_visibility(example_value: str) -> str:
+    if example_value in {"127.0.0.1", "::1"}:
+        return "The selected value is loopback-only."
+    return "A wildcard or public value exposes the listener before ext_proc policy can run."
+
+
+def _route_mapping_metadata(path: str) -> tuple[str, str]:
+    if path.endswith("match"):
+        return "RouteMatch mapping", "Groups the prefix matcher for the selected route."
+    return "RouteAction mapping", "Groups the cluster action selected after the route match."
+
+
+def _envoy_virtual_host_domain_detail(item: bool, base_default_source: str) -> dict[str, str]:
+    """Describe the VirtualHost domain collection or one selected item."""
+    return _yaml_detail(
+        "repeated Envoy VirtualHost domain matcher" if not item else "Envoy VirtualHost domain-pattern string",
+        "a list of Envoy domain patterns" if not item else "exact host, suffix/wildcard domain pattern, or *; selected item is *",
+        _selected_template_default("virtual-host domain matcher", "the catch-all `*` pattern"),
+        "Selects which Host/:authority values enter this virtual host's route list.",
+        "The selected `*` catches all hosts; replace it with intended domains before exposure.",
+        "Host matching precedes upstream routing after request-header P1 processing.",
+        default_source=base_default_source,
+    )
+
+
 def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bool = False) -> dict[str, str] | None:
     """Describe the selected Envoy listener/HCM/ext_proc path exactly.
 
@@ -1092,19 +1196,10 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
     prefix = "static_resources.listeners[]"
     tail = path.removeprefix(prefix).lstrip(".")
     base_default_source = DEFAULT_SOURCE_ENVOY_TEMPLATE
-    listener_phase = (
-        "Compatibility bootstrap only; this listener carries ext_authz request authorization before the router and does not establish selected native P2/P3/P4 visibility."
-        if compatibility else
-        "Bootstrap only; this listener carries the selected ext_proc HTTP filter chain, "
-        "whose processing_mode exposes P1 request headers, P2 request body chunks, "
-        "P3 response headers, and P4 response body chunks."
-    )
-    policy_filter = "ext_authz compatibility" if compatibility else "ext_proc"
-    routing_phase = (
-        "Compatibility route selection follows ext_authz P1 request authorization and forwards an allowed request; the compatibility filter has no selected P2/P3/P4 response lifecycle."
-        if compatibility else
-        "Routes are consulted after P1 request-header filtering; they direct the upstream response that later reaches P3/P4."
-    )
+    context = _envoy_listener_context(compatibility)
+    listener_phase = context.listener_phase
+    policy_filter = context.policy_filter
+    routing_phase = context.routing_phase
     match tail:
       case "name":
         return _yaml_detail(
@@ -1137,10 +1232,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             default_source=base_default_source,
         )
       case "address.socket_address.address":
-        selected_visibility = (
-            "The selected value is loopback-only." if example_value in {"127.0.0.1", "::1"}
-            else "A wildcard or public value exposes the listener before ext_proc policy can run."
-        )
+        selected_visibility = _listener_address_visibility(example_value)
         return _yaml_detail(
             "Envoy SocketAddress host/IP string",
             "a valid listener host or IP literal; selected value is 127.0.0.1",
@@ -1266,16 +1358,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             default_source=base_default_source,
         )
       case "route_config.virtual_hosts[].domains" | "route_config.virtual_hosts[].domains[]":
-        item = hcm_tail.endswith("[]")
-        return _yaml_detail(
-            "repeated Envoy VirtualHost domain matcher" if not item else "Envoy VirtualHost domain-pattern string",
-            "a list of Envoy domain patterns" if not item else "exact host, suffix/wildcard domain pattern, or *; selected item is *",
-            _selected_template_default("virtual-host domain matcher", "the catch-all `*` pattern"),
-            "Selects which Host/:authority values enter this virtual host's route list.",
-            "The selected `*` catches all hosts; replace it with intended domains before exposure.",
-            "Host matching precedes upstream routing after request-header P1 processing.",
-            default_source=base_default_source,
-        )
+        return _envoy_virtual_host_domain_detail(hcm_tail.endswith("[]"), base_default_source)
       case "route_config.virtual_hosts[].routes":
         return _yaml_detail(
             "repeated Envoy Route mapping",
@@ -1287,12 +1370,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             default_source=base_default_source,
         )
       case "route_config.virtual_hosts[].routes[].match" | "route_config.virtual_hosts[].routes[].match.route" | "route_config.virtual_hosts[].routes[].route":
-        kind = "RouteMatch mapping" if hcm_tail.endswith("match") else "RouteAction mapping"
-        purpose = (
-            "Groups the prefix matcher for the selected route."
-            if hcm_tail.endswith("match") else
-            "Groups the cluster action selected after the route match."
-        )
+        kind, purpose = _route_mapping_metadata(hcm_tail)
         return _yaml_detail(
             f"Envoy {kind}",
             "the child fields shown in this template",
@@ -1323,19 +1401,13 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             default_source=base_default_source,
         )
       case "http_filters":
-        filter_pair = "ext_authz then router" if compatibility else "ext_proc then router"
-        filter_lifecycle = (
-            "The selected order enables compatibility P1 request authorization before the router; it does not create P2/P3/P4 coverage."
-            if compatibility else
-            "The selected order enables P1/P2/P3/P4 ext_proc callbacks before traffic is handed to the router."
-        )
         return _yaml_detail(
             "ordered repeated Envoy HTTP filter mapping",
-            f"HTTP filters with factory name and typed_config; selected order is {filter_pair}",
-            _selected_template_default("HTTP-filter chain", f"{filter_pair} ordered pair"),
-            f"Orders HTTP processing: {filter_pair.split(' then ')[0]} runs before the router forwards upstream.",
-            f"Moving router ahead of {filter_pair.split(' then ')[0]} bypasses the selected inspection/authorization path.",
-            filter_lifecycle,
+            f"HTTP filters with factory name and typed_config; selected order is {context.filter_pair}",
+            _selected_template_default("HTTP-filter chain", f"{context.filter_pair} ordered pair"),
+            f"Orders HTTP processing: {context.first_filter} runs before the router forwards upstream.",
+            f"Moving router ahead of {context.first_filter} bypasses the selected inspection/authorization path.",
+            context.filter_lifecycle,
             default_source=base_default_source,
         )
     http_prefix = "http_filters[]"
@@ -1344,56 +1416,33 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
     http_tail = hcm_tail.removeprefix(http_prefix).lstrip(".")
     match http_tail:
       case "name":
-        selected_filters = (
-            "envoy.filters.http.ext_authz and envoy.filters.http.router"
-            if compatibility else
-            "envoy.filters.http.ext_proc and envoy.filters.http.router"
-        )
-        first_filter = "ext_authz" if compatibility else "ext_proc"
-        lifecycle = (
-            "ext_authz is compatibility request authorization; router forwards after it and no selected P2/P3/P4 path exists."
-            if compatibility else
-            "ext_proc exposes P1–P4; router terminates the filter chain and forwards to the upstream."
-        )
         return _yaml_detail(
             "Envoy HTTP filter factory-name string",
-            f"registered HTTP filter name; selected values are {selected_filters}",
-            _selected_template_default("HTTP-filter factories", f"the {first_filter}/router ordered pair"),
-            f"Selects the {first_filter} policy filter and terminal router implementations in the HCM chain.",
-            f"Filter order is an enforcement boundary: {first_filter} must remain before router for the selected path.",
-            lifecycle,
+            f"registered HTTP filter name; selected values are {context.selected_filters}",
+            _selected_template_default("HTTP-filter factories", f"the {context.first_filter}/router ordered pair"),
+            f"Selects the {context.first_filter} policy filter and terminal router implementations in the HCM chain.",
+            f"Filter order is an enforcement boundary: {context.first_filter} must remain before router for the selected path.",
+            context.filter_name_lifecycle,
             default_source=base_default_source,
         )
       case "typed_config":
-        selected_type = "ExtAuthz" if compatibility else "ExternalProcessor"
-        lifecycle = (
-            "The ExtAuthz payload controls compatibility P1 request authorization; the Router payload forwards the allowed request."
-            if compatibility else
-            "The ExternalProcessor payload sets concrete P1–P4 visibility; the Router payload forwards the post-filter request."
-        )
         return _yaml_detail(
             "repeated google.protobuf.Any HTTP-filter configuration mapping",
-            f"Any payloads whose @type values select {selected_type} and Router",
-            _selected_template_default("HTTP typed configurations", f"the explicit {selected_type} and Router payloads"),
+            f"Any payloads whose @type values select {context.selected_type} and Router",
+            _selected_template_default("HTTP typed configurations", f"the explicit {context.selected_type} and Router payloads"),
             "Holds the per-filter configuration corresponding to each HTTP filter item.",
             "A mismatched Any payload/name pair can invalidate or bypass the intended inspection chain.",
-            lifecycle,
+            context.typed_config_lifecycle,
             default_source=base_default_source,
         )
       case "typed_config.@type":
-        selected_type = "ExtAuthz" if compatibility else "ExternalProcessor"
-        lifecycle = (
-            "ExtAuthz performs compatibility P1 request authorization; Router is terminal forwarding and does not expose selected P2/P3/P4 callbacks."
-            if compatibility else
-            "ExternalProcessor chooses P1–P4 callbacks; Router supplies the terminal forwarding stage."
-        )
         return _yaml_detail(
             "protobuf Any type URL string",
-            f"{selected_type} and Router v3 type URLs in the same order as the HTTP filters",
-            _selected_template_default("HTTP Any type URLs", f"the explicit {selected_type} and Router v3 URLs"),
+            f"{context.selected_type} and Router v3 type URLs in the same order as the HTTP filters",
+            _selected_template_default("HTTP Any type URLs", f"the explicit {context.selected_type} and Router v3 URLs"),
             "Lets Envoy decode each HTTP filter's typed configuration.",
             "The type URL must match the neighboring filter factory; otherwise Envoy cannot apply the selected lifecycle policy.",
-            lifecycle,
+            context.typed_config_type_lifecycle,
             default_source=base_default_source,
         )
       case "typed_config.grpc_service":
@@ -1447,7 +1496,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             default_source="Envoy ext_proc v3 ProcessingMode API pinned by connectors/envoy/ext_proc/go.mod",
         )
       case "typed_config.processing_mode.request_body_mode" | "typed_config.processing_mode.response_body_mode":
-        direction = "request/P2" if "request_" in http_tail else "response/P4"
+        direction = _selected_direction(http_tail, "request/P2", "response/P4")
         return _yaml_detail(
             "Envoy ext_proc BodySendMode enum",
             ALLOWED_VALUES_BODY_SEND_MODE,
@@ -1458,7 +1507,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             default_source="Envoy ext_proc v3 ProcessingMode.BodySendMode API pinned by connectors/envoy/ext_proc/go.mod",
         )
       case "typed_config.processing_mode.request_header_mode" | "typed_config.processing_mode.response_header_mode":
-        direction = "request/P1" if "request_" in http_tail else "response/P3"
+        direction = _selected_direction(http_tail, "request/P1", "response/P3")
         return _yaml_detail(
             "Envoy ext_proc HeaderSendMode enum",
             ALLOWED_VALUES_HEADER_SEND_MODE,
@@ -1469,7 +1518,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             default_source="Envoy ext_proc v3 ProcessingMode.HeaderSendMode API pinned by connectors/envoy/ext_proc/go.mod",
         )
       case "typed_config.processing_mode.request_trailer_mode" | "typed_config.processing_mode.response_trailer_mode":
-        direction = "request" if "request_" in http_tail else "response"
+        direction = _selected_direction(http_tail, "request", "response")
         return _yaml_detail(
             "Envoy ext_proc HeaderSendMode enum for trailers",
             ALLOWED_VALUES_HEADER_SEND_MODE,
@@ -1889,6 +1938,101 @@ def _envoy_yaml_detail(path: str, example_value: str) -> dict[str, str] | None:
     return None
 
 
+def _traefik_router_entrypoint_detail(selected_path: str, host_source: str) -> dict[str, str]:
+    """Describe the selected router's static listener binding."""
+    item = selected_path.endswith("[]")
+    return _yaml_detail(
+        "Traefik router entry-point name list" if not item else "Traefik entry-point name string",
+        "defined static entry-point names" if not item else "name declared under static entryPoints; selected value is web",
+        _selected_template_default("router entry-point binding", "the web entry point"),
+        "Restricts the app router to the named static listener.",
+        "Binding a router to a public entry point exposes its middleware/service path to that listener's clients.",
+        "Selects which listener traffic can reach the attached native P1–P4 middleware or compatibility request path.",
+        default_source=host_source,
+    )
+
+
+def _traefik_router_middleware_detail(
+    selected_path: str,
+    compatibility: bool,
+    lifecycle: str,
+    host_source: str,
+) -> dict[str, str]:
+    """Describe the selected router's ordered security middleware binding."""
+    item = selected_path.endswith("[]")
+    mode = "compatibility forwardAuth" if compatibility else "native UDS"
+    return _yaml_detail(
+        "ordered Traefik middleware-name list" if not item else "Traefik middleware-name string",
+        "names declared under http.middlewares" if not item else f"selected {mode} middleware name",
+        _selected_template_default("router middleware list", f"the selected {mode} middleware"),
+        "Attaches middleware to the router in listed order before forwarding to the app service.",
+        "Removing/reordering this reference can bypass inspection or authorization; retain the reviewed middleware before the service.",
+        lifecycle,
+        default_source=host_source,
+    )
+
+
+def _traefik_middleware_yaml_detail(
+    selected_path: str,
+    native_lifecycle: str,
+    compatibility_lifecycle: str,
+    host_source: str,
+) -> dict[str, str] | None:
+    """Describe a concrete native-plugin or forwardAuth middleware path."""
+    tail = selected_path.rsplit(".", 1)[-1]
+    if tail == "plugin":
+        return _yaml_detail(
+            "Traefik plugin middleware mapping",
+            "named local-plugin child mapping; selected child is modsecurityNative",
+            _selected_template_default("plugin middleware mapping", "the modsecurityNative local plugin"),
+            "Selects the local-plugin configuration for the named native middleware.",
+            "The plugin reference chooses code that processes requests and responses; preserve the reviewed local plugin name.",
+            native_lifecycle,
+            default_source=host_source,
+        )
+    if tail == "modsecurityNative":
+        return _yaml_detail(
+            "Traefik local-plugin configuration mapping",
+            "the seven native middleware Config fields documented from CreateConfig/normalizedConfig",
+            "Plugin CreateConfig supplies bounded defaults; this template explicitly sets all seven selected fields.",
+            "Groups limits, transaction ID, and engine connection fields passed to the repository native middleware.",
+            "The UDS fields and bounds are enforcement-relevant; passthrough is not rule evaluation.",
+            native_lifecycle,
+            default_source="connectors/traefik/native_middleware/middleware.go:CreateConfig/normalizedConfig",
+        )
+    if tail == "forwardAuth":
+        return _yaml_detail(
+            "Traefik ForwardAuth middleware mapping (compatibility only)",
+            "address and trustForwardHeader child fields",
+            "No selected native default; compatibility template explicitly configures a local forwardAuth service.",
+            "Groups the request-only external authorization service settings.",
+            "Do not present forwardAuth as the native UDS rule-evaluating path; its service receives request authorization data.",
+            compatibility_lifecycle,
+            default_source="compatibility template and docs/connectors/traefik.md",
+        )
+    if tail == "address" and ".forwardAuth." in selected_path:
+        return _yaml_detail(
+            "Traefik ForwardAuth HTTP URL string (compatibility only)",
+            "absolute HTTP/HTTPS authorization-service URL; selected value is http://127.0.0.1:9000/authorize",
+            "No selected native default; compatibility template explicitly supplies the loopback authorization URL.",
+            "Targets the external forwardAuth decision service before the app service is contacted.",
+            "Use a trusted, private service and do not embed credentials in the URL; it is distinct from the native UDS engine.",
+            compatibility_lifecycle,
+            default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
+        )
+    if tail == "trustForwardHeader":
+        return _yaml_detail(
+            "Traefik ForwardAuth boolean (compatibility only)",
+            ALLOWED_VALUES_TRUE_FALSE,
+            "No selected native default; compatibility template explicitly sets false.",
+            "Controls whether forwarded request headers are trusted when calling the compatibility authorization service.",
+            "false avoids trusting client-supplied forwarded identity/route headers by default; deploy explicit proxy trust boundaries if changing it.",
+            compatibility_lifecycle,
+            default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
+        )
+    return None
+
+
 def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None:
     """Return exact metadata for static, native dynamic, and forwardAuth YAML.
 
@@ -2111,28 +2255,9 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             default_source=host_source,
         )
       case "http.routers.app.entryPoints" | "http.routers.app.entryPoints[]":
-        item = selected_path.endswith("[]")
-        return _yaml_detail(
-            "Traefik router entry-point name list" if not item else "Traefik entry-point name string",
-            "defined static entry-point names" if not item else "name declared under static entryPoints; selected value is web",
-            _selected_template_default("router entry-point binding", "the web entry point"),
-            "Restricts the app router to the named static listener.",
-            "Binding a router to a public entry point exposes its middleware/service path to that listener's clients.",
-            "Selects which listener traffic can reach the attached native P1–P4 middleware or compatibility request path.",
-            default_source=host_source,
-        )
+        return _traefik_router_entrypoint_detail(selected_path, host_source)
       case "http.routers.app.middlewares" | "http.routers.app.middlewares[]":
-        item = selected_path.endswith("[]")
-        mode = "compatibility forwardAuth" if compatibility else "native UDS"
-        return _yaml_detail(
-            "ordered Traefik middleware-name list" if not item else "Traefik middleware-name string",
-            "names declared under http.middlewares" if not item else f"selected {mode} middleware name",
-            _selected_template_default("router middleware list", f"the selected {mode} middleware"),
-            "Attaches middleware to the router in listed order before forwarding to the app service.",
-            "Removing/reordering this reference can bypass inspection or authorization; retain the reviewed middleware before the service.",
-            lifecycle,
-            default_source=host_source,
-        )
+        return _traefik_router_middleware_detail(selected_path, compatibility, lifecycle, host_source)
       case "http.routers.app.service":
         return _yaml_detail(
             "Traefik service-name string",
@@ -2166,57 +2291,9 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             default_source=host_source,
         )
       case path if path.startswith("http.middlewares."):
-        tail = selected_path.rsplit(".", 1)[-1]
-        if tail == "plugin":
-            return _yaml_detail(
-                "Traefik plugin middleware mapping",
-                "named local-plugin child mapping; selected child is modsecurityNative",
-                _selected_template_default("plugin middleware mapping", "the modsecurityNative local plugin"),
-                "Selects the local-plugin configuration for the named native middleware.",
-                "The plugin reference chooses code that processes requests and responses; preserve the reviewed local plugin name.",
-                native_lifecycle,
-                default_source=host_source,
-            )
-        if tail == "modsecurityNative":
-            return _yaml_detail(
-                "Traefik local-plugin configuration mapping",
-                "the seven native middleware Config fields documented from CreateConfig/normalizedConfig",
-                "Plugin CreateConfig supplies bounded defaults; this template explicitly sets all seven selected fields.",
-                "Groups limits, transaction ID, and engine connection fields passed to the repository native middleware.",
-                "The UDS fields and bounds are enforcement-relevant; passthrough is not rule evaluation.",
-                native_lifecycle,
-                default_source="connectors/traefik/native_middleware/middleware.go:CreateConfig/normalizedConfig",
-            )
-        if tail == "forwardAuth":
-            return _yaml_detail(
-                "Traefik ForwardAuth middleware mapping (compatibility only)",
-                "address and trustForwardHeader child fields",
-                "No selected native default; compatibility template explicitly configures a local forwardAuth service.",
-                "Groups the request-only external authorization service settings.",
-                "Do not present forwardAuth as the native UDS rule-evaluating path; its service receives request authorization data.",
-                compatibility_lifecycle,
-                default_source="compatibility template and docs/connectors/traefik.md",
-            )
-        if tail == "address" and ".forwardAuth." in selected_path:
-            return _yaml_detail(
-                "Traefik ForwardAuth HTTP URL string (compatibility only)",
-                "absolute HTTP/HTTPS authorization-service URL; selected value is http://127.0.0.1:9000/authorize",
-                "No selected native default; compatibility template explicitly supplies the loopback authorization URL.",
-                "Targets the external forwardAuth decision service before the app service is contacted.",
-                "Use a trusted, private service and do not embed credentials in the URL; it is distinct from the native UDS engine.",
-                compatibility_lifecycle,
-                default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
-            )
-        if tail == "trustForwardHeader":
-            return _yaml_detail(
-                "Traefik ForwardAuth boolean (compatibility only)",
-                ALLOWED_VALUES_TRUE_FALSE,
-                "No selected native default; compatibility template explicitly sets false.",
-                "Controls whether forwarded request headers are trusted when calling the compatibility authorization service.",
-                "false avoids trusting client-supplied forwarded identity/route headers by default; deploy explicit proxy trust boundaries if changing it.",
-                compatibility_lifecycle,
-                default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
-            )
+        return _traefik_middleware_yaml_detail(
+            selected_path, native_lifecycle, compatibility_lifecycle, host_source,
+        )
       case "http.services":
         return _yaml_detail(
             "Traefik dynamic service registry mapping",
@@ -2580,14 +2657,8 @@ def extract_traefik(root: Path) -> list[dict[str, Any]]:
     return options
 
 
-def _assert_source_default_contracts(root: Path, options: Iterable[dict[str, Any]]) -> None:
-    """Reject generated defaults that no longer match source constants.
-
-    This makes a default change fail the source-to-documentation check even if
-    no parser name changed.  Values intentionally described as ``none`` or
-    host-defined are not guessed here.
-    """
-    by_key = {(item["connector"], item["name"]): item["default"] for item in options}
+def _assert_common_source_defaults(root: Path) -> None:
+    """Reject drift in the C constants that own shared documentation defaults."""
     options_header = _read(root, "common/include/msconnector/options.h")
     config_header = _read(root, "common/include/msconnector/block_statuses.h")
     limits_header = _read(root, "common/include/msconnector/limits.h")
@@ -2611,6 +2682,10 @@ def _assert_source_default_contracts(root: Path, options: Iterable[dict[str, Any
     ):
         if token not in limits_header:
             raise ValueError(f"resource-limit default source constant changed: expected {token!r}")
+
+
+def _assert_documented_defaults(by_key: dict[tuple[str, str], str]) -> None:
+    """Reject source-backed inventory defaults that no longer render exactly."""
     expected_defaults = {
         ("common", "enabled"): "off", ("common", "use_error_log"): "on", ("common", "phase4_mode"): "safe",
         ("common", "request_body_limit"): "1048576", ("common", "response_body_limit"): "1048576",
@@ -2629,6 +2704,10 @@ def _assert_source_default_contracts(root: Path, options: Iterable[dict[str, Any
         actual = by_key.get(key)
         if actual != expected:
             raise ValueError(f"documented default drift for {key[0]}:{key[1]}: {actual!r} != {expected!r}")
+
+
+def _assert_traefik_defaults(root: Path, by_key: dict[tuple[str, str], str]) -> None:
+    """Reject drift in native Traefik defaults and their rendered inventory rows."""
     traefik_source = _read(root, "connectors/traefik/native_middleware/middleware.go")
     for token in ("defaultMaxHeaderCount        = 128", "defaultMaxHeaderBytes        = 64 << 10", "defaultMaxRequestChunkBytes  = 32 << 10", "defaultMaxResponseChunkBytes = 32 << 10"):
         if token not in traefik_source:
@@ -2640,6 +2719,19 @@ def _assert_source_default_contracts(root: Path, options: Iterable[dict[str, Any
         matches = [value for (connector, name), value in by_key.items() if connector == "traefik" and name.endswith(suffix)]
         if not matches or any(value != expected for value in matches):
             raise ValueError(f"Traefik documented default drift for {suffix}: {matches!r}")
+
+
+def _assert_source_default_contracts(root: Path, options: Iterable[dict[str, Any]]) -> None:
+    """Reject generated defaults that no longer match source constants.
+
+    This makes a default change fail the source-to-documentation check even if
+    no parser name changed.  Values intentionally described as ``none`` or
+    host-defined are not guessed here.
+    """
+    by_key = {(item["connector"], item["name"]): item["default"] for item in options}
+    _assert_common_source_defaults(root)
+    _assert_documented_defaults(by_key)
+    _assert_traefik_defaults(root, by_key)
 
 
 def build_inventory(root: Path = ROOT) -> list[dict[str, Any]]:

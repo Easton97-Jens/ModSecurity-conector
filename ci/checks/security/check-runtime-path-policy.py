@@ -26,6 +26,7 @@ FRAMEWORK_ROOT = CONNECTOR_ROOT / "modules/ModSecurity-test-Framework"
 # exact policy location while avoiding a second, unchecked temporary-root
 # construction in this control script.
 VERIFIED_ROOT = fixed_runtime_temp_parent() / DEFAULT_RUN_BASENAME
+RUNTIME_POLICY_CONTROL_ROOT = VERIFIED_ROOT / "runtime-policy-control"
 RUNTIME_PATH_OVERRIDES = (
     "VERIFIED_RUN_ROOT",
     "VERIFIED_STATE_ROOT",
@@ -91,8 +92,8 @@ def policy_environment() -> dict[str, str]:
             "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
             "REPO_ROOT": str(CONNECTOR_ROOT),
             "VERIFIED_RUN_ROOT": str(VERIFIED_ROOT),
-            "RUNNER_TEMP": "/tmp/runner-temp",
-            "TMPDIR": "/tmp",
+            "RUNNER_TEMP": str(VERIFIED_ROOT),
+            "TMPDIR": str(VERIFIED_ROOT),
         }
     )
     return env
@@ -156,7 +157,7 @@ def check_shell_policy() -> None:
         str(VERIFIED_ROOT),
         str(VERIFIED_ROOT / "cache-v2"),
         str(VERIFIED_ROOT / "cache-v2" / "shared"),
-        "/tmp/ModSecurity-conector-verified",
+        str(RUNTIME_POLICY_CONTROL_ROOT),
         "/src",
         "/src/ModSecurity-conector-build",
         str(CONNECTOR_ROOT),
