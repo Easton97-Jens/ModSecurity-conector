@@ -20,6 +20,11 @@ The current-master SonarQube Cloud inventory filtered by the canonical
 that entire current scope to be remediated in one focused PR without changing
 Sonar rules, exclusions, quality gates, or scanner suppressions.
 
+The first exact-head analysis of Draft PR #210 identified three additional
+PR-owned reliability rows in the refactored runtime: two `c:S995` constness
+rows and one `c:S836` uninitialized-value error path. This follow-up commits
+the narrow type/initialization repair before a new exact-head analysis.
+
 | Rule | Count | Remediation disposition |
 | --- | ---: | --- |
 | `python:S5332` | 1 | Replaced the generic URL opener with the already constrained direct loopback HTTPS client. |
@@ -32,6 +37,8 @@ Sonar rules, exclusions, quality gates, or scanner suppressions.
 | `c:S5350` | 1 | Restored a read-only configuration value pointer. |
 | `c:S5955` | 2 | Replaced fragile indexed command loops with an explicit cursor helper. |
 | `c:S886` | 4 | Kept loop-control variables local to their command-parser helpers. |
+| `c:S995` (PR follow-up) | 2 | Marks read-only notify inputs as `const`. |
+| `c:S836` (PR follow-up) | 1 | Initializes the error-path value pointer before it can be logged. |
 
 ## Acceptance criteria
 
@@ -61,6 +68,11 @@ the prior bounded parser primitives and the distinction between request body
 limits, optionally configured response body limits, and legacy unbounded
 evaluation.
 
+The PR follow-up makes the two helper input pointers read-only and initializes
+the configuration-loader value pointer to a known null value. The latter keeps
+the existing error message deterministic when a trailing `--config` lacks its
+argument; it does not change accepted command-line syntax.
+
 ## Security impact
 
 The changed paths process untrusted SPOP frames, HTTP request metadata/body,
@@ -73,9 +85,12 @@ No authentication, parser, TLS, file-containment, logging, test, scanner, or
 quality-gate control was weakened. No `NOSONAR`, suppression, exclusion, or
 Sonar configuration change was used.
 
-The sealed local security-diff review of the exact four-file patch recorded
-zero new reportable security findings. Its retained report is
-`/var/tmp/codex/ModSecurity-conector/runs/haproxy-complete-sonar-pr-20260801/security-diff-scan-c3319575/report.md`.
+The sealed local security-diff review of the initial exact four-file patch and
+the subsequent three-file PR follow-up both recorded zero new reportable
+security findings. Their retained reports are
+`/var/tmp/codex/ModSecurity-conector/runs/haproxy-complete-sonar-pr-20260801/security-diff-scan-c3319575/report.md`
+and
+`/var/tmp/codex/ModSecurity-conector/runs/haproxy-complete-sonar-pr-20260801/security-diff-scan-follow-up-4b364607/report.md`.
 
 ## Changed files
 
@@ -89,7 +104,7 @@ zero new reportable security findings. Its retained report is
 
 | Control | Result |
 | --- | --- |
-| `cc -std=c17 -Wall -Wextra -Werror -fsyntax-only -Icommon/include -Iconnectors/haproxy/src connectors/haproxy/src/haproxy_modsecurity_binding.c` | passed |
+| `cc -std=c17 -Wall -Wextra -Werror -fsyntax-only -Icommon/include -Iconnectors/haproxy/src connectors/haproxy/src/haproxy_modsecurity_binding.c` | blocked: installed libmodsecurity headers do not declare `msc_get_rules_messages_rule_ids` |
 | `cc -std=c17 -Wall -Wextra -Werror -fsyntax-only -Icommon/include -Iconnectors/haproxy/src connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c` | passed |
 | `python3 -m unittest tests.test_sonar_reliability_contract tests.test_haproxy_htx_transaction_id` | passed: 15 tests |
 | `python3 ci/checks/connectors/haproxy/check-haproxy-common-adoption.py` | passed |
@@ -97,7 +112,7 @@ zero new reportable security findings. Its retained report is
 | `python3 -m py_compile connectors/haproxy/harness/haproxy_htx_smoke_helper.py connectors/haproxy/harness/test_haproxy_htx_smoke_helper.py` | passed |
 | `python3 ci/checks/documentation/check-bilingual-docs.py` | blocked only by missing links into the deliberately uninitialized Framework submodule; no error named either new Change Record or index |
 | `git diff --check` | passed |
-| Codex Security security-diff finalization | passed: complete four-file coverage, zero reportable findings |
+| Codex Security security-diff finalization | passed: initial four-file and follow-up three-file coverage, zero reportable findings |
 
 ## Runtime evidence
 
@@ -118,6 +133,11 @@ or bypass was introduced to alter that boundary. The local Sonar scanner is
 not installed; therefore SonarQube Cloud verification must occur on the exact
 published PR head.
 
+The independent Binding syntax command reaches the installed, incompatible
+libmodsecurity declaration set: it lacks
+`msc_get_rules_messages_rule_ids`. This is also an external dependency limit;
+no artificial declaration or compiler-warning relaxation was added.
+
 The whole-tree bilingual-documentation checker was run after this record was
 added. It reports only existing links into the same deliberately uninitialized
 Framework submodule; no new Change Record or index diagnostic remains. The
@@ -126,9 +146,11 @@ green.
 
 ## Known limitations
 
-This record documents local remediation and validation, not a hosted result.
-It does not claim a commit, push, PR number, Quality Gate, review result, or
-merge until each has been observed for the exact delivery head.
+Draft PR #210 was created from the initial remediation commit. Its first
+exact-head analysis correctly exposed the three PR-owned rows documented above;
+the follow-up source changes await a fresh exact-head hosted result. This
+record does not claim a passing Quality Gate, review result, or merge until
+each has been observed for the final delivery head.
 
 ## Remaining risks
 

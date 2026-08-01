@@ -21,6 +21,12 @@ fordert die Remediation dieses gesamten aktuellen Bereichs in einem fokussierten
 PR, ohne Sonar-Regeln, Exclusions, Quality Gates oder Scanner-Suppressions zu
 ändern.
 
+Die erste Exact-Head-Analyse des Draft-PR #210 identifizierte drei zusätzliche
+PR-eigene Reliability-Zeilen in der refaktorierten Runtime: zwei `c:S995`-
+Constness-Zeilen und einen `c:S836`-Uninitialized-Value-Error-Path. Dieses
+Follow-up committet die enge Typ-/Initialisierungsbehebung vor einer neuen
+Exact-Head-Analyse.
+
 | Regel | Anzahl | Remediation-Dispositon |
 | --- | ---: | --- |
 | `python:S5332` | 1 | Den generischen URL-Öffner durch den bereits eingeschränkten direkten Loopback-HTTPS-Client ersetzt. |
@@ -33,6 +39,8 @@ PR, ohne Sonar-Regeln, Exclusions, Quality Gates oder Scanner-Suppressions zu
 | `c:S5350` | 1 | Einen read-only Pointer für den Konfigurationswert wiederhergestellt. |
 | `c:S5955` | 2 | Fragile indizierte Command-Loops durch einen expliziten Cursor-Helper ersetzt. |
 | `c:S886` | 4 | Loop-Control-Variablen lokal in ihren Command-Parser-Helpern gehalten. |
+| `c:S995` (PR-Follow-up) | 2 | Read-only-Notify-Inputs als `const` markiert. |
+| `c:S836` (PR-Follow-up) | 1 | Den Error-Path-Value-Pointer initialisiert, bevor er geloggt werden kann. |
 
 ## Akzeptanzkriterien
 
@@ -63,6 +71,12 @@ bewahren die bisherigen begrenzten Parser-Primitiven sowie die Unterscheidung
 zwischen Request-Body-Limits, optionalen Response-Body-Limits und Legacy-
 Evaluation ohne Limit.
 
+Das PR-Follow-up markiert die beiden Helper-Input-Pointer read-only und
+initialisiert den Config-Loader-Value-Pointer auf einen bekannten Nullwert. Das
+letztere hält die bestehende Fehlermeldung deterministisch, wenn einem
+abschließenden `--config` sein Argument fehlt; akzeptierte Command-Line-Syntax
+ändert sich nicht.
+
 ## Security-Auswirkung
 
 Die geänderten Pfade verarbeiten nicht vertrauenswürdige SPOP-Frames, HTTP-
@@ -76,9 +90,12 @@ Keine Authentifizierungs-, Parser-, TLS-, File-Containment-, Logging-, Test-,
 Scanner- oder Quality-Gate-Kontrolle wurde geschwächt. Es wurde keine
 `NOSONAR`-, Suppression-, Exclusion- oder Sonar-Konfigurationsänderung genutzt.
 
-Der versiegelte lokale Security-Diff-Review des exakten Four-File-Patches
-erfasst null neue reportbare Security-Findings. Sein aufbewahrter Report ist
-`/var/tmp/codex/ModSecurity-conector/runs/haproxy-complete-sonar-pr-20260801/security-diff-scan-c3319575/report.md`.
+Der versiegelte lokale Security-Diff-Review des initialen exakten Four-File-
+Patches und des nachfolgenden Three-File-PR-Follow-ups erfassen jeweils null
+neue reportbare Security-Findings. Ihre aufbewahrten Reports sind
+`/var/tmp/codex/ModSecurity-conector/runs/haproxy-complete-sonar-pr-20260801/security-diff-scan-c3319575/report.md`
+und
+`/var/tmp/codex/ModSecurity-conector/runs/haproxy-complete-sonar-pr-20260801/security-diff-scan-follow-up-4b364607/report.md`.
 
 ## Geänderte Dateien
 
@@ -92,7 +109,7 @@ erfasst null neue reportbare Security-Findings. Sein aufbewahrter Report ist
 
 | Kontrolle | Ergebnis |
 | --- | --- |
-| `cc -std=c17 -Wall -Wextra -Werror -fsyntax-only -Icommon/include -Iconnectors/haproxy/src connectors/haproxy/src/haproxy_modsecurity_binding.c` | bestanden |
+| `cc -std=c17 -Wall -Wextra -Werror -fsyntax-only -Icommon/include -Iconnectors/haproxy/src connectors/haproxy/src/haproxy_modsecurity_binding.c` | blockiert: installierte libmodsecurity-Header deklarieren `msc_get_rules_messages_rule_ids` nicht |
 | `cc -std=c17 -Wall -Wextra -Werror -fsyntax-only -Icommon/include -Iconnectors/haproxy/src connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c` | bestanden |
 | `python3 -m unittest tests.test_sonar_reliability_contract tests.test_haproxy_htx_transaction_id` | bestanden: 15 Tests |
 | `python3 ci/checks/connectors/haproxy/check-haproxy-common-adoption.py` | bestanden |
@@ -100,7 +117,7 @@ erfasst null neue reportbare Security-Findings. Sein aufbewahrter Report ist
 | `python3 -m py_compile connectors/haproxy/harness/haproxy_htx_smoke_helper.py connectors/haproxy/harness/test_haproxy_htx_smoke_helper.py` | bestanden |
 | `python3 ci/checks/documentation/check-bilingual-docs.py` | nur durch fehlende Links in das bewusst nicht initialisierte Framework-Submodul blockiert; kein Fehler nennt das neue Change Record oder den Index |
 | `git diff --check` | bestanden |
-| Codex Security Security-Diff-Finalisierung | bestanden: vollständige Four-File-Abdeckung, null reportbare Findings |
+| Codex Security Security-Diff-Finalisierung | bestanden: initiale Four-File- und Follow-up-Three-File-Abdeckung, null reportbare Findings |
 
 ## Runtime-Evidence
 
@@ -121,6 +138,11 @@ Framework-Source, Gitlink, Stub oder Bypass eingeführt, um diese Grenze zu
 ändern. Der lokale Sonar-Scanner ist nicht installiert; die SonarQube-Cloud-
 Verifikation muss deshalb am exakten veröffentlichten PR-Head erfolgen.
 
+Der unabhängige Binding-Syntax-Befehl erreicht das installierte, inkompatible
+libmodsecurity-Declaration-Set: `msc_get_rules_messages_rule_ids` fehlt. Auch
+dies ist eine externe Dependency-Grenze; es wurde keine künstliche Deklaration
+oder Compiler-Warning-Lockerung ergänzt.
+
 Der Whole-Tree-Checker für bilinguale Dokumentation wurde nach dem Hinzufügen
 dieses Records ausgeführt. Er meldet nur bestehende Links in dasselbe bewusst
 nicht initialisierte Framework-Submodul; kein neues Change-Record- oder
@@ -129,9 +151,11 @@ Parent-only-Dokumentationsprüfung grün zu machen.
 
 ## Bekannte Einschränkungen
 
-Dieser Record dokumentiert lokale Remediation und Validierung, kein Hosted-
-Ergebnis. Er beansprucht keinen Commit, Push, PR-Nummer, Quality Gate,
-Review-Resultat oder Merge, bevor jedes davon am exakten Delivery-Head
+Draft PR #210 wurde aus dem initialen Remediation-Commit erstellt. Seine erste
+Exact-Head-Analyse hat korrekt die oben dokumentierten drei PR-eigenen Zeilen
+offengelegt; die Follow-up-Source-Änderungen warten auf ein frisches
+Exact-Head-Hosted-Ergebnis. Dieser Record beansprucht kein bestehendes Quality
+Gate, Review-Resultat oder Merge, bevor jedes davon am finalen Delivery-Head
 beobachtet wurde.
 
 ## Verbleibende Risiken

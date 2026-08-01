@@ -2360,7 +2360,7 @@ static void build_response_from_notify(
 
 static void process_production_response_notify(
         agent_state *state,
-        notify_request *request,
+        const notify_request *request,
         haproxy_modsecurity_decision *decision,
         int *modsec_processed,
         const char **decision_text) {
@@ -2448,7 +2448,7 @@ static void finish_or_store_request_transaction(
 
 static void process_production_request_notify(
         agent_state *state,
-        notify_request *request,
+        const notify_request *request,
         haproxy_modsecurity_decision *decision,
         int *modsec_processed,
         const char **decision_text) {
@@ -3125,7 +3125,7 @@ static int load_production_config_files(
 
     while (index < argc) {
         const char *option = argv[index++];
-        const char *value;
+        const char *value = 0;
 
         if (strcmp(option, "--config") != 0) {
             continue;
