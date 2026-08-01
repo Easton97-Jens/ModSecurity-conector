@@ -433,7 +433,7 @@ static int parse_header_lines(
     size_t max_header_count,
     char *error,
     size_t error_len) {
-    char *cursor = request->header_buffer +
+    const char *cursor = request->header_buffer +
         (first_line_end - request->header_buffer) + 2;
     request->headers = calloc(max_header_count, sizeof(*request->headers));
     if (request->headers == NULL) {
@@ -568,9 +568,9 @@ static int read_http_request(
     size_t header_limit = msconnector_runtime_total_header_limit(runtime);
     size_t header_capacity;
     size_t used = 0U;
-    char *header_end;
+    const char *header_end;
     char *first_line_end;
-    char *body_start;
+    const char *body_start;
     size_t buffered_body_size;
     if (header_limit > SIZE_MAX - AUTH_REQUEST_LINE_OVERHEAD - 1U) {
         (void)snprintf(error, error_len, "%s", "configured header limit is too large");

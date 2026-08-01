@@ -9,6 +9,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Common-Runtime-SonarQube-Cloud-Maintainability-Remediation](CR-20260801-sonar-common-runtime-maintainability.de.md)
+  — deckt das aktuelle 18er-`common/runtime/`-Inventar mit begrenzter
+  Transaction-State-Gruppierung, const-korrekten Parser-/Runtime-Views,
+  C17-Checks und finalisiertem lokalem Security-Diff-Review ab;
+  Exact-Head-Hosted-Verifikation bleibt vor jeder Integration erforderlich.
+
 - [Parent-CI-Evidence-SonarQube-Cloud-Bereinigung](CR-20260801-sonar-ci-evidence-remediation.de.md)
   — Source-Level-Behebungen decken das aktuelle `ci/evidence`-Security-,
   Hotspot-, Maintainability- und Duplikatinventar ohne Scanner-Workarounds ab;
