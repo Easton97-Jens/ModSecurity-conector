@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
+import tempfile
 import unittest
 
 
@@ -31,6 +33,25 @@ COLLECTOR = load_collector()
 
 
 class CollectNoCrsSourceHelpersTest(unittest.TestCase):
+    def test_metadata_dispatch_retains_allow_lists_and_scalar_rejection(self) -> None:
+        self.assertEqual(
+            COLLECTOR.safe_metadata_value("actual_action", "connection_abort"),
+            "abort_connection",
+        )
+        self.assertEqual(
+            COLLECTOR.safe_metadata_value("requested_protocol", "http2"), "h2"
+        )
+        self.assertEqual(
+            COLLECTOR.safe_metadata_value("transport_case_id", "case-1"), "case-1"
+        )
+        self.assertIsNone(COLLECTOR.safe_metadata_value("actual_action", True))
+        self.assertIsNone(
+            COLLECTOR.safe_metadata_value("late_intervention_mode", "late-403")
+        )
+        self.assertIsNone(
+            COLLECTOR.safe_metadata_value("transport_case_id", "../outside")
+        )
+
     def test_first_byte_record_requires_real_host_contract_and_normalizes_counters(self) -> None:
         record = {
             "evidence_type": "synchronized_first_byte",
@@ -93,6 +114,188 @@ class CollectNoCrsSourceHelpersTest(unittest.TestCase):
                 "phase4_deny_after_commit_log_only", {"1100301"}, [],
             )
         )
+
+    def test_case_observations_retain_transaction_binding(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-helper-transaction-") as temporary:
+            root = Path(temporary)
+            decision_path = root / "decision.jsonl"
+            decision_path.write_text(
+                "\n".join(
+                    json.dumps(event)
+                    for event in (
+                        {
+                            "connector": "apache",
+                            "transaction_id": "tx-current",
+                            "rule_id": 1100201,
+                            "phase": "response_headers",
+                            "status": "blocked",
+                            "headers_sent": False,
+                        },
+                        {
+                            "connector": "apache",
+                            "transaction_id": "tx-other",
+                            "rule_id": 1100201,
+                            "phase": "response_headers",
+                            "status": "blocked",
+                            "headers_sent": True,
+                        },
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            results_path = root / "results.jsonl"
+            results_path.write_text(
+                json.dumps(
+                    {
+                        "case_id": "phase3_deny_before_commit",
+                        "status": "PASS",
+                        "live_executed": True,
+                        "actual_status": 403,
+                        "transaction_id": "tx-current",
+                        "decision_log_path": str(decision_path),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            cases, events = COLLECTOR.case_observations(
+                [results_path],
+                "apache",
+                "1100001",
+                {"phase3_deny_before_commit": (403, "1100201", 3)},
+                allowed_source_root=root,
+            )
+
+        self.assertEqual(cases[0]["status"], "PASS")
+        self.assertEqual(cases[0]["transaction_ids"], ["tx-current"])
+        self.assertFalse(cases[0]["headers_sent"])
+        self.assertEqual(len(events), 1)
+
+    def test_phase4_audit_fallback_remains_forbidden(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-helper-phase4-") as temporary:
+            root = Path(temporary)
+            audit_path = root / "audit.log"
+            audit_path.write_text(
+                '[id "1100301"] (phase 4) [unique_id "tx-audit"]\n',
+                encoding="utf-8",
+            )
+            results_path = root / "results.jsonl"
+            results_path.write_text(
+                json.dumps(
+                    {
+                        "case_id": "phase4_rule_observed",
+                        "status": "PASS",
+                        "live_executed": True,
+                        "actual_status": 200,
+                        "audit_log_path": str(audit_path),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            cases, events = COLLECTOR.case_observations(
+                [results_path],
+                "apache",
+                "1100001",
+                {"phase4_rule_observed": (None, "1100301", 4)},
+                allowed_source_root=root,
+            )
+
+        self.assertEqual(events, [])
+        self.assertEqual(cases[0]["status"], "FAIL")
+        self.assertFalse(cases[0]["event_metadata_verified"])
+
+    def test_collector_status_preserves_terminal_precedence(self) -> None:
+        events = {
+            "event_metadata_verified": True,
+            "body_payload_absent_from_events": True,
+        }
+        self.assertEqual(
+            COLLECTOR.collector_status(
+                77, False, False, [], True, "1100001", ["1100001"], events
+            ),
+            "BLOCKED",
+        )
+        self.assertEqual(
+            COLLECTOR.collector_status(
+                77, True, False, [], True, "1100001", ["1100001"], events
+            ),
+            "FAIL",
+        )
+        self.assertEqual(
+            COLLECTOR.collector_status(
+                0,
+                False,
+                True,
+                [],
+                True,
+                "1100001",
+                ["1100001"],
+                events,
+            ),
+            "NOT_EXECUTED",
+        )
+        self.assertEqual(
+            COLLECTOR.collector_status(
+                0,
+                True,
+                False,
+                [],
+                True,
+                "1100001",
+                ["1100001"],
+                events,
+            ),
+            "PASS",
+        )
+
+    def test_core_response_statuses_keep_case_evidence_precedence(self) -> None:
+        allowed, blocked = COLLECTOR.core_response_statuses(
+            [
+                {
+                    "allowed_request_status": 201,
+                    "baseline_status": 200,
+                    "blocked_request_status": 401,
+                    "block_status": 403,
+                }
+            ],
+            [
+                {"case_id": "allow_without_marker", "actual_status": 200},
+                {"case_id": "deny_header_marker_403", "actual_status": 403},
+            ],
+        )
+
+        self.assertEqual((allowed, blocked), (200, 403))
+
+    def test_scrub_uses_no_follow_artifact_removal_and_log_writer(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-helper-scrub-") as temporary:
+            root = Path(temporary)
+            event = root / "decision.jsonl"
+            event.write_text('{"transaction_id":"tx-one"}\n', encoding="utf-8")
+            log = root / "logs" / "scrub.log"
+            removed = COLLECTOR.scrub_source_event_paths([event], root, log)
+
+            self.assertEqual(removed, [event])
+            self.assertFalse(event.exists())
+            self.assertEqual(
+                log.read_text(encoding="utf-8"),
+                f"removed_after_allowlist_normalization={event}\n",
+            )
+
+    def test_scrub_rejects_final_symlink_without_touching_target(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-helper-scrub-") as temporary:
+            root = Path(temporary)
+            target = root / "target.jsonl"
+            target.write_text("unchanged\n", encoding="utf-8")
+            event = root / "decision.jsonl"
+            event.symlink_to(target)
+
+            with self.assertRaisesRegex(ValueError, "contains a symlink"):
+                COLLECTOR.scrub_source_event_paths([event], root)
+            self.assertEqual(target.read_text(encoding="utf-8"), "unchanged\n")
 
 
 if __name__ == "__main__":

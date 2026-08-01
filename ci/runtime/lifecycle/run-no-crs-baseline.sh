@@ -853,10 +853,25 @@ fi
 # host run.  They do not feed capability selection or promotion: canonical
 # PASS still requires the normal transaction-bound host event evidence.
 if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ] && [ "$stage_rc" -eq 0 ]; then
-    libmodsecurity_library=${MODSECURITY_LIB_FILE:-}
-    if [ -z "$libmodsecurity_library" ] || [ ! -f "$libmodsecurity_library" ]; then
-        libmodsecurity_library=${MODSECURITY_LIB_DIR:-}/libmodsecurity.so
+    modsecurity_build_id=${MODSECURITY_BUILD_ID:-}
+    case "$modsecurity_build_id" in
+        ""|.|..|*[!A-Za-z0-9_-]*)
+            echo "FAIL: full-lifecycle modsecurity build identity is unsafe" >&2
+            exit 1
+            ;;
+        *)
+            # The rejection pattern above leaves only a non-empty managed-cache
+            # identifier consisting of ASCII letters, digits, underscores, or dashes.
+            ;;
+    esac
+    modsecurity_prefix=$CACHE_ROOT/prefix/modsecurity/$modsecurity_build_id
+    modsecurity_library_root=$modsecurity_prefix/lib
+    if [ "${MODSECURITY_PREFIX:-}" != "$modsecurity_prefix" ] || \
+       [ "${MODSECURITY_LIB_DIR:-}" != "$modsecurity_library_root" ]; then
+        echo "FAIL: full-lifecycle library path is not bound to the managed modsecurity cache entry" >&2
+        exit 1
     fi
+    libmodsecurity_library=$modsecurity_library_root/libmodsecurity.so
     if [ ! -f "$libmodsecurity_library" ]; then
         echo "FAIL: full-lifecycle engine library is unavailable for provenance: $libmodsecurity_library" >&2
         exit 1
@@ -868,6 +883,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ] && [ "$stage_rc" -eq 0 ]; the
         --rules-file "$NO_CRS_RULES_FILE" \
         --libmodsecurity-version "$libmodsecurity_version" \
         --libmodsecurity-library "$libmodsecurity_library" \
+        --libmodsecurity-library-root "$modsecurity_library_root" \
         --stage-exit-code "$stage_rc" \
         --runtime-root "$CONNECTOR_RUN_ROOT" \
         --transport-lifecycle "$CONNECTION_LIFECYCLE_ARTIFACT" \

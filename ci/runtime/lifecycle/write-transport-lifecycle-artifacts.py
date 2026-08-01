@@ -27,6 +27,7 @@ from runtime_path_utils import (
     prepare_verified_runtime_artifact_root,
     runtime_artifact_path,
     runtime_or_source_artifact_path,
+    write_runtime_artifact_text_atomic,
 )
 
 
@@ -108,14 +109,21 @@ def load_events(path: Path) -> list[dict[str, Any]]:
     return records
 
 
-def write_json(path: Path, value: object) -> None:
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def write_json(runtime_root: Path, path: Path, value: object, label: str) -> None:
+    write_runtime_artifact_text_atomic(
+        runtime_root,
+        path,
+        json.dumps(value, indent=2, sort_keys=True) + "\n",
+        label,
+    )
 
 
-def write_jsonl(path: Path, values: Iterable[object]) -> None:
-    path.write_text(
+def write_jsonl(runtime_root: Path, path: Path, values: Iterable[object], label: str) -> None:
+    write_runtime_artifact_text_atomic(
+        runtime_root,
+        path,
         "".join(json.dumps(value, sort_keys=True) + "\n" for value in values),
-        encoding="utf-8",
+        label,
     )
 
 
@@ -431,21 +439,28 @@ def build_artifacts(connector: str, run_id: str, events: list[dict[str, Any]]) -
     return observations_document, lifecycle_document, barriers, counters
 
 
-def write_logs(output_dir: Path, connector: str, counters: dict[str, int]) -> None:
+def write_logs(runtime_root: Path, output_dir: Path, connector: str, counters: dict[str, int]) -> None:
     common = [
         f"connector={connector}",
         "artifact_scope=payload_free_inventory_only",
         f"events={counters['events']}",
         f"transactions={counters['transactions']}",
     ]
-    (output_dir / "client.log").write_text(
-        "\n".join([*common, "client_result=not_observed"]) + "\n", encoding="utf-8"
+    write_runtime_artifact_text_atomic(
+        runtime_root,
+        output_dir / "client.log",
+        "\n".join([*common, "client_result=not_observed"]) + "\n",
+        "transport client log",
     )
-    (output_dir / "upstream.log").write_text(
+    write_runtime_artifact_text_atomic(
+        runtime_root,
+        output_dir / "upstream.log",
         "\n".join([*common, f"upstream_disconnects={counters['upstream_disconnects']}"]) + "\n",
-        encoding="utf-8",
+        "transport upstream log",
     )
-    (output_dir / "transport.log").write_text(
+    write_runtime_artifact_text_atomic(
+        runtime_root,
+        output_dir / "transport.log",
         "\n".join(
             [
                 *common,
@@ -456,11 +471,13 @@ def write_logs(output_dir: Path, connector: str, counters: dict[str, int]) -> No
                 f"write_would_block={counters['write_would_block']}",
             ]
         ) + "\n",
-        encoding="utf-8",
+        "transport summary log",
     )
-    (output_dir / "cleanup.log").write_text(
+    write_runtime_artifact_text_atomic(
+        runtime_root,
+        output_dir / "cleanup.log",
         "\n".join([*common, "process_cleanup=recorded_by_canonical_runner"]) + "\n",
-        encoding="utf-8",
+        "transport cleanup log",
     )
 
 
@@ -491,19 +508,24 @@ def write_effective_config(
     values: Iterable[str],
     runtime_root: Path,
 ) -> None:
+    output_dir = runtime_artifact_path(
+        runtime_root,
+        output_dir,
+        "effective configuration output directory",
+    )
     output_dir = ensure_safe_runtime_directory(output_dir)
     files = []
     for value in values:
         label, path = parse_config_file(value, runtime_root)
         files.append({"path": label, "sha256": sha256_file(path)})
     files.sort(key=lambda item: str(item["path"]))
-    write_json(output_dir / "manifest.json", {
+    write_json(runtime_root, output_dir / "manifest.json", {
         "schema_version": 1,
         "connector": connector,
         "integration_mode": CONNECTOR_INTEGRATION_MODES[connector],
         "run_id": run_id,
         "files": files,
-    })
+    }, "effective configuration manifest")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -534,10 +556,25 @@ def main(argv: list[str] | None = None) -> int:
         output_dir = ensure_safe_runtime_directory(output_dir)
         events = load_events(events_path)
         observations, lifecycle, barriers, counters = build_artifacts(args.connector, run_id, events)
-        write_json(output_dir / "transport-observations.json", observations)
-        write_json(output_dir / "connection-lifecycle.json", lifecycle)
-        write_jsonl(output_dir / "barrier-events.jsonl", barriers)
-        write_logs(output_dir, args.connector, counters)
+        write_json(
+            runtime_root,
+            output_dir / "transport-observations.json",
+            observations,
+            "transport observations",
+        )
+        write_json(
+            runtime_root,
+            output_dir / "connection-lifecycle.json",
+            lifecycle,
+            "transport lifecycle",
+        )
+        write_jsonl(
+            runtime_root,
+            output_dir / "barrier-events.jsonl",
+            barriers,
+            "transport barrier events",
+        )
+        write_logs(runtime_root, output_dir, args.connector, counters)
     if args.effective_config_dir is not None:
         effective_config_dir = runtime_artifact_path(
             runtime_root, args.effective_config_dir, "effective config directory"
