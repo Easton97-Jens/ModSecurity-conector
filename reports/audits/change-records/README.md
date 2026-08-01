@@ -14,6 +14,12 @@ must not claim unobserved CI, runtime, review, or delivery results.
   and a finalized local security-diff review; exact-head hosted verification
   remains required before any integration.
 
+- [Parent common/scripts SonarQube Cloud remediation](CR-20260801-sonar-common-scripts-remediation.md)
+  — remediates the current local-smoke security and maintainability inventory
+  through fixed loopback protocol, verified local execution/output boundaries,
+  C++17 RAII cleanup, and decomposed control flow; exact-head hosted
+  verification remains required before integration.
+
 - [Parent CI evidence SonarQube Cloud remediation](CR-20260801-sonar-ci-evidence-remediation.md)
   — source-level fixes cover the current `ci/evidence` security, hotspot,
   maintainability, and duplication inventory without scanner workarounds;

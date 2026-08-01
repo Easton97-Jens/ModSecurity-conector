@@ -15,6 +15,12 @@ Review- oder Delivery-Ergebnisse behaupten.
   C17-Checks und finalisiertem lokalem Security-Diff-Review ab;
   Exact-Head-Hosted-Verifikation bleibt vor jeder Integration erforderlich.
 
+- [Parent-`common/scripts`-SonarQube-Cloud-Remediation](CR-20260801-sonar-common-scripts-remediation.de.md)
+  — remediiert das aktuelle Local-Smoke-Security- und Maintainability-Inventar
+  durch festes Loopback-Protokoll, verifizierte lokale Ausführungs-/Output-
+  Grenzen, C++17-RAII-Cleanup und zerlegten Kontrollfluss; SHA-gebundene
+  Hosted-Verifikation bleibt vor einer Integration erforderlich.
+
 - [Parent-CI-Evidence-SonarQube-Cloud-Bereinigung](CR-20260801-sonar-ci-evidence-remediation.de.md)
   — Source-Level-Behebungen decken das aktuelle `ci/evidence`-Security-,
   Hotspot-, Maintainability- und Duplikatinventar ohne Scanner-Workarounds ab;
