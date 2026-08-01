@@ -19,7 +19,8 @@ import report_path_safety
 
 def load_report_module(relative_path: str, module_name: str):
     specification = importlib.util.spec_from_file_location(module_name, ROOT / relative_path)
-    assert specification is not None and specification.loader is not None
+    assert specification is not None
+    assert specification.loader is not None
     module = importlib.util.module_from_spec(specification)
     sys.modules[module_name] = module
     specification.loader.exec_module(module)

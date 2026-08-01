@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
     "transport_lifecycle_artifacts", ROOT / "ci" / "runtime" / "lifecycle" / "write-transport-lifecycle-artifacts.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 artifacts = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(artifacts)
 

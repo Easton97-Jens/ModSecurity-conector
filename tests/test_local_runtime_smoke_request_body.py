@@ -15,7 +15,8 @@ import unittest
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "common/scripts/run_local_runtime_smoke.py"
 SPEC = importlib.util.spec_from_file_location("local_runtime_smoke", SCRIPT_PATH)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 SMOKE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = SMOKE
 SPEC.loader.exec_module(SMOKE)

@@ -18,34 +18,40 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 CHECKER_PATH = ROOT / "ci/checks/documentation/check-generated-report-layout.py"
 SPEC = importlib.util.spec_from_file_location("generated_report_layout", CHECKER_PATH)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 CHECKER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CHECKER)
 GENERATOR_PATH = ROOT / "ci/evidence/reports/generate-full-matrix-job-completeness.py"
 GENERATOR_SPEC = importlib.util.spec_from_file_location("full_matrix_completeness", GENERATOR_PATH)
-assert GENERATOR_SPEC is not None and GENERATOR_SPEC.loader is not None
+assert GENERATOR_SPEC is not None
+assert GENERATOR_SPEC.loader is not None
 GENERATOR = importlib.util.module_from_spec(GENERATOR_SPEC)
 GENERATOR_SPEC.loader.exec_module(GENERATOR)
 REFRESH_PATH = ROOT / "ci/evidence/reports/refresh-connector-reports.py"
 REFRESH_SPEC = importlib.util.spec_from_file_location("refresh_connector_reports", REFRESH_PATH)
-assert REFRESH_SPEC is not None and REFRESH_SPEC.loader is not None
+assert REFRESH_SPEC is not None
+assert REFRESH_SPEC.loader is not None
 REFRESH = importlib.util.module_from_spec(REFRESH_SPEC)
 sys.modules[REFRESH_SPEC.name] = REFRESH
 REFRESH_SPEC.loader.exec_module(REFRESH)
 RUNNER_PATH = ROOT / "ci/runtime/lifecycle/run-verified-report-run.py"
 RUNNER_SPEC = importlib.util.spec_from_file_location("verified_report_runner", RUNNER_PATH)
-assert RUNNER_SPEC is not None and RUNNER_SPEC.loader is not None
+assert RUNNER_SPEC is not None
+assert RUNNER_SPEC.loader is not None
 RUNNER = importlib.util.module_from_spec(RUNNER_SPEC)
 RUNNER_SPEC.loader.exec_module(RUNNER)
 RECEIPT_PATH = ROOT / "ci/lib/verified_full_matrix_receipt.py"
 RECEIPT_SPEC = importlib.util.spec_from_file_location("verified_full_matrix_receipt_test", RECEIPT_PATH)
-assert RECEIPT_SPEC is not None and RECEIPT_SPEC.loader is not None
+assert RECEIPT_SPEC is not None
+assert RECEIPT_SPEC.loader is not None
 RECEIPT = importlib.util.module_from_spec(RECEIPT_SPEC)
 sys.modules[RECEIPT_SPEC.name] = RECEIPT
 RECEIPT_SPEC.loader.exec_module(RECEIPT)
 STAGER_PATH = ROOT / "ci/evidence/reports/stage-verified-full-matrix-evidence.py"
 STAGER_SPEC = importlib.util.spec_from_file_location("verified_full_matrix_stager_test", STAGER_PATH)
-assert STAGER_SPEC is not None and STAGER_SPEC.loader is not None
+assert STAGER_SPEC is not None
+assert STAGER_SPEC.loader is not None
 STAGER = importlib.util.module_from_spec(STAGER_SPEC)
 sys.modules[STAGER_SPEC.name] = STAGER
 STAGER_SPEC.loader.exec_module(STAGER)
