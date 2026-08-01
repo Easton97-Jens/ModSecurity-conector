@@ -18,7 +18,8 @@ FRAMEWORK_SPEC = importlib.util.spec_from_file_location(
     "framework_no_crs_baseline_for_traefik_transport",
     ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "checks" / "catalog" / "no_crs_baseline.py",
 )
-assert FRAMEWORK_SPEC is not None and FRAMEWORK_SPEC.loader is not None
+assert FRAMEWORK_SPEC is not None
+assert FRAMEWORK_SPEC.loader is not None
 framework_baseline = importlib.util.module_from_spec(FRAMEWORK_SPEC)
 FRAMEWORK_SPEC.loader.exec_module(framework_baseline)
 

@@ -10,7 +10,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 GENERATOR_PATH = ROOT / "ci" / "evidence" / "reports" / "generate-remaining-failure-analysis.py"
 SPEC = importlib.util.spec_from_file_location("remaining_failure_analysis", GENERATOR_PATH)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 GENERATOR = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = GENERATOR
 SPEC.loader.exec_module(GENERATOR)

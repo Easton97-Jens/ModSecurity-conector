@@ -13,6 +13,7 @@ import json
 import os
 import re
 from pathlib import Path
+import stat
 import sys
 from typing import Any
 
@@ -23,8 +24,10 @@ if str(_CI_ROOT / "lib") not in sys.path:
 
 from runtime_path_utils import (
     canonical_project_roots,
+    open_runtime_artifact_parent,
     prepare_verified_runtime_artifact_root,
     runtime_artifact_path,
+    write_runtime_artifact_text_atomic,
 )
 
 
@@ -620,40 +623,87 @@ def metadata_token(value: Any, target: str) -> str | None:
     return text if re.fullmatch(r"[A-Za-z0-9:._-]+", text) else None
 
 
-def safe_metadata_value(target: str, value: Any) -> Any | None:
-    if target in INTEGER_METADATA_FIELDS:
-        return scalar_int(value)
-    if target in NONNEGATIVE_INTEGER_METADATA_FIELDS:
-        return nonnegative_metadata_integer(value)
-    if target == "phase":
-        return phase_metadata_value(value)
-    if target in BOOLEAN_METADATA_FIELDS:
-        return scalar_bool(value)
-    if target in {"requested_action", "actual_action"}:
-        allowed = REQUESTED_ACTIONS if target == "requested_action" else ACTUAL_ACTIONS
-        return normalized_metadata_enum(
-            value, allowed, aliases={"connection_abort": "abort_connection"}
-        )
-    if target == "transport_result":
-        return normalized_metadata_enum(
-            value,
-            TRANSPORT_RESULTS,
-            aliases={"connection_abort": "connection_aborted"},
-        )
-    if target in {"protocol", "requested_protocol", "downstream_protocol", "upstream_protocol", "negotiated_protocol"}:
-        return normalized_metadata_enum(
-            value, CANONICAL_PROTOCOLS, aliases={"http2": "h2"}
-        )
-    if target == "transport":
-        return normalized_metadata_enum(value, CANONICAL_TRANSPORTS)
-    if target == "late_intervention_mode":
-        return normalized_metadata_enum(value, {"minimal", "safe", "strict"})
+_UNHANDLED_METADATA_VALUE = object()
+
+
+def requested_action_metadata_value(value: Any) -> str | None:
+    return normalized_metadata_enum(
+        value, REQUESTED_ACTIONS, aliases={"connection_abort": "abort_connection"}
+    )
+
+
+def actual_action_metadata_value(value: Any) -> str | None:
+    return normalized_metadata_enum(
+        value, ACTUAL_ACTIONS, aliases={"connection_abort": "abort_connection"}
+    )
+
+
+def transport_result_metadata_value(value: Any) -> str | None:
+    return normalized_metadata_enum(
+        value,
+        TRANSPORT_RESULTS,
+        aliases={"connection_abort": "connection_aborted"},
+    )
+
+
+def protocol_metadata_value(value: Any) -> str | None:
+    return normalized_metadata_enum(
+        value, CANONICAL_PROTOCOLS, aliases={"http2": "h2"}
+    )
+
+
+def transport_metadata_value(value: Any) -> str | None:
+    return normalized_metadata_enum(value, CANONICAL_TRANSPORTS)
+
+
+def late_intervention_mode_metadata_value(value: Any) -> str | None:
+    return normalized_metadata_enum(value, {"minimal", "safe", "strict"})
+
+
+_KNOWN_METADATA_NORMALIZERS = (
+    (INTEGER_METADATA_FIELDS, scalar_int),
+    (NONNEGATIVE_INTEGER_METADATA_FIELDS, nonnegative_metadata_integer),
+    ({"phase"}, phase_metadata_value),
+    (BOOLEAN_METADATA_FIELDS, scalar_bool),
+    ({"requested_action"}, requested_action_metadata_value),
+    ({"actual_action"}, actual_action_metadata_value),
+    ({"transport_result"}, transport_result_metadata_value),
+    (
+        {
+            "protocol",
+            "requested_protocol",
+            "downstream_protocol",
+            "upstream_protocol",
+            "negotiated_protocol",
+        },
+        protocol_metadata_value,
+    ),
+    ({"transport"}, transport_metadata_value),
+    ({"late_intervention_mode"}, late_intervention_mode_metadata_value),
+)
+
+
+def known_metadata_value(target: str, value: Any) -> Any:
+    for fields, normalizer in _KNOWN_METADATA_NORMALIZERS:
+        if target in fields:
+            return normalizer(value)
     if target in TRANSPORT_TOKEN_FIELDS:
         return metadata_token(value, target)
+    return _UNHANDLED_METADATA_VALUE
+
+
+def sanitized_metadata_text(target: str, value: Any) -> str | None:
     if not isinstance(value, (str, int)) or isinstance(value, bool):
         return None
     text = "".join(character for character in str(value) if character >= " " and character != "\x7f")
     return text[: MAX_METADATA_LENGTH.get(target, 256)] or None
+
+
+def safe_metadata_value(target: str, value: Any) -> Any | None:
+    normalized = known_metadata_value(target, value)
+    if normalized is not _UNHANDLED_METADATA_VALUE:
+        return normalized
+    return sanitized_metadata_text(target, value)
 
 
 def sanitized_event(record: dict[str, Any]) -> dict[str, Any]:
@@ -796,14 +846,44 @@ def scrub_source_event_paths(
         if candidate in seen:
             continue
         seen.add(candidate)
-        if candidate.is_file():
-            candidate.unlink()
+        if unlink_contained_source_event(candidate, allowed_root):
             removed.append(candidate)
     if log_path is not None:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
         lines = [f"removed_after_allowlist_normalization={path}" for path in removed]
-        log_path.write_text("\n".join(lines or ["not_produced"]) + "\n", encoding="utf-8")
+        write_runtime_artifact_text_atomic(
+            allowed_root,
+            log_path,
+            "\n".join(lines or ["not_produced"]) + "\n",
+            "source event scrub log",
+        )
     return removed
+
+
+def unlink_contained_source_event(candidate: Path, allowed_root: Path) -> bool:
+    """Remove one regular run-local source event through no-follow descriptors."""
+
+    target = runtime_artifact_path(
+        allowed_root,
+        candidate,
+        "source event",
+        must_exist=True,
+    )
+    parent_descriptor = open_runtime_artifact_parent(target)
+    try:
+        try:
+            target_stat = os.stat(
+                target.name,
+                dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+        except FileNotFoundError:
+            return False
+        if not stat.S_ISREG(target_stat.st_mode):
+            return False
+        os.unlink(target.name, dir_fd=parent_descriptor)
+        return True
+    finally:
+        os.close(parent_descriptor)
 
 
 def audit_event(path: Path, connector: str, http_status: int | None) -> dict[str, Any] | None:
@@ -1277,6 +1357,197 @@ def case_passes(
     return status == "PASS" and live and status_matches and rule_matches and phase_matches
 
 
+def default_case_expectations(expected_rule_id: str) -> dict[str, tuple[int, str | None]]:
+    return {
+        case_id: (status, expected_rule_id if case_id == "deny_header_marker_403" else None)
+        for case_id, status in CORE_CASES.items()
+    }
+
+
+def source_case_rows(paths: list[Path]) -> list[dict[str, Any]]:
+    return [row for path in paths for row in load_jsonl(path)]
+
+
+def audit_fallback_events(
+    case_id: str,
+    expected_phase: int | None,
+    canonical_records: list[dict[str, Any]],
+    audit_path: Path | None,
+    connector: str,
+    actual: int | None,
+) -> list[dict[str, Any]]:
+    """Use an audit event only where it cannot compete with a native event.
+
+    An audit log can corroborate older request-path cases only when the host
+    supplied no structured event at all. Once a native writer has published a
+    raw event, an audit-derived duplicate would lose the selected integration
+    mode and let weaker evidence compete with causal host evidence. Phase-4
+    cases always require their structured producer event for the same reason.
+    """
+
+    phase4_case = expected_phase == 4 or case_id.startswith("phase4_")
+    if phase4_case or canonical_records or audit_path is None:
+        return []
+    event = audit_event(audit_path, connector, actual)
+    return [event] if event else []
+
+
+def event_metadata_is_verified(
+    canonical_records: list[dict[str, Any]],
+    transaction_ids: set[str],
+    expected_rule_id: str | None,
+    observed_rule_ids: set[str],
+    expected_phase: int | None,
+) -> bool:
+    structured_runtime_case = expected_phase in {3, 4}
+    phase_matches = any(
+        record.get("phase") == expected_phase for record in canonical_records
+    )
+    return bool(
+        canonical_records
+        and transaction_ids
+        and expected_rule_id is not None
+        and expected_rule_id in observed_rule_ids
+        and (not structured_runtime_case or phase_matches)
+    )
+
+
+def case_observation_payload(
+    row: dict[str, Any],
+    case_id: str,
+    actual: int | None,
+    expected_status: int | None,
+    expected_rule_id: str | None,
+    expected_phase: int | None,
+    status: str,
+    live: bool,
+    observed_rule_ids: set[str],
+    canonical_records: list[dict[str, Any]],
+    runtime_records: list[dict[str, Any]],
+) -> dict[str, Any]:
+    transaction_ids = {
+        str(record["transaction_id"])
+        for record in canonical_records
+        if record.get("transaction_id") not in (None, "")
+    }
+    observed_event_fields = sorted({field for record in canonical_records for field in record})
+    event_metadata_verified = event_metadata_is_verified(
+        canonical_records,
+        transaction_ids,
+        expected_rule_id,
+        observed_rule_ids,
+        expected_phase,
+    )
+    return {
+        "case_id": case_id,
+        "actual_status": actual,
+        "expected_status": expected_status,
+        "live_executed": live,
+        "observed_rule_ids": sorted(observed_rule_ids),
+        "transaction_ids": sorted(transaction_ids),
+        "observed_event_fields": observed_event_fields,
+        "event_metadata_verified": event_metadata_verified,
+        "source_status": status,
+        "status": case_status_value(status)
+        or (
+            "PASS"
+            if case_passes(
+                status,
+                live,
+                actual,
+                expected_status,
+                expected_rule_id,
+                expected_phase,
+                case_id,
+                observed_rule_ids,
+                canonical_records,
+            )
+            else "FAIL"
+        ),
+        **canonical_semantics([row, *runtime_records]),
+    }
+
+
+def case_alias_observations(
+    connector: str,
+    case_id: str,
+    canonical_records: list[dict[str, Any]],
+    expectations: dict[str, tuple[Any, ...]],
+    observation: dict[str, Any],
+) -> list[dict[str, Any]]:
+    alias_case_id = native_runner_core_case_alias(
+        connector, case_id, canonical_records
+    )
+    if (
+        alias_case_id is None
+        or alias_case_id not in expectations
+        or observation["status"] != "PASS"
+    ):
+        return []
+    alias = dict(observation)
+    alias["case_id"] = alias_case_id
+    alias["reason"] = (
+        f"reused native {connector} event from {case_id} for compact core evidence"
+    )
+    return [alias]
+
+
+def case_row_observations(
+    row: dict[str, Any],
+    connector: str,
+    expectations: dict[str, tuple[Any, ...]],
+    allowed_source_root: Path | None,
+    consumed_event_paths: list[Path] | None,
+    runner_case_index: dict[Path, str] | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    case_id = observed_case_id(row, expectations, runner_case_index)
+    if case_id not in expectations:
+        return [], []
+    decision_path = row_log_path(
+        row, ("decision_log_path", "decision_log"), allowed_source_root, consumed_event_paths
+    )
+    audit_path = row_log_path(
+        row, ("audit_log_path",), allowed_source_root, consumed_event_paths
+    )
+    expected_status, expected_rule_id, expected_phase = expected_case_values(
+        expectations[case_id]
+    )
+    actual = scalar_int(row.get("actual_status", row.get("observed_status")))
+    status = str(row.get("status") or row.get("result") or "").upper()
+    live = row.get("live_executed", True) is not False
+    runtime_records = row_runtime_records(
+        row, decision_path, allowed_source_root, consumed_event_paths
+    )
+    observed_rule_ids = row_rule_ids(row, runtime_records)
+    canonical_records = [sanitized_event(record) for record in runtime_records]
+    fallback_events = audit_fallback_events(
+        case_id,
+        expected_phase,
+        canonical_records,
+        audit_path,
+        connector,
+        actual,
+    )
+    observed_rule_ids.update(str(event["rule_id"]) for event in fallback_events)
+    observation = case_observation_payload(
+        row,
+        case_id,
+        actual,
+        expected_status,
+        expected_rule_id,
+        expected_phase,
+        status,
+        live,
+        observed_rule_ids,
+        canonical_records,
+        runtime_records,
+    )
+    aliases = case_alias_observations(
+        connector, case_id, canonical_records, expectations, observation
+    )
+    return [observation, *aliases], [*runtime_records, *fallback_events]
+
+
 def case_observations(
     paths: list[Path],
     connector: str,
@@ -1286,108 +1557,20 @@ def case_observations(
     consumed_event_paths: list[Path] | None = None,
     runner_case_index: dict[Path, str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    expectations = expectations or {
-        case_id: (status, expected_rule_id if case_id == "deny_header_marker_403" else None)
-        for case_id, status in CORE_CASES.items()
-    }
-    rows: list[dict[str, Any]] = []
-    for path in paths:
-        rows.extend(load_jsonl(path))
+    expectations = expectations or default_case_expectations(expected_rule_id)
     observations: list[dict[str, Any]] = []
     derived_events: list[dict[str, Any]] = []
-    for row in rows:
-        case_id = observed_case_id(row, expectations, runner_case_index)
-        if case_id not in expectations:
-            continue
-        decision_path = row_log_path(
-            row, ("decision_log_path", "decision_log"), allowed_source_root, consumed_event_paths
+    for row in source_case_rows(paths):
+        row_observations, row_events = case_row_observations(
+            row,
+            connector,
+            expectations,
+            allowed_source_root,
+            consumed_event_paths,
+            runner_case_index,
         )
-        audit_path = row_log_path(
-            row, ("audit_log_path",), allowed_source_root, consumed_event_paths
-        )
-        expected_status, case_expected_rule_id, expected_phase = expected_case_values(
-            expectations[case_id]
-        )
-        actual = scalar_int(row.get("actual_status", row.get("observed_status")))
-        status = str(row.get("status") or row.get("result") or "").upper()
-        live = row.get("live_executed", True) is not False
-        runtime_records = row_runtime_records(
-            row, decision_path, allowed_source_root, consumed_event_paths
-        )
-        observed_rule_ids = row_rule_ids(row, runtime_records)
-        derived_events.extend(runtime_records)
-        canonical_records = [sanitized_event(record) for record in runtime_records]
-        phase4_case = expected_phase == 4 or case_id.startswith("phase4_")
-        structured_runtime_case = expected_phase in {3, 4}
-        # An audit log can corroborate older request-path cases only when the
-        # host supplied no structured event at all.  Once a native writer has
-        # published a raw event, appending an audit-derived duplicate would
-        # lose its selected integration mode and let a weaker record compete
-        # with the causal host evidence.  Phase-4 cases always require their
-        # structured producer event for the same reason.
-        if not phase4_case and not canonical_records and audit_path is not None:
-            event = audit_event(audit_path, connector, actual)
-            if event:
-                derived_events.append(event)
-                observed_rule_ids.add(str(event["rule_id"]))
-        passed = case_passes(
-            status,
-            live,
-            actual,
-            expected_status,
-            case_expected_rule_id,
-            expected_phase,
-            case_id,
-            observed_rule_ids,
-            canonical_records,
-        )
-        semantic = canonical_semantics([row, *runtime_records])
-        transaction_ids = {
-            str(record["transaction_id"])
-            for record in canonical_records
-            if record.get("transaction_id") not in (None, "")
-        }
-        observed_event_fields = sorted({
-            field for record in canonical_records for field in record
-        })
-        event_metadata_verified = bool(
-            canonical_records
-            and transaction_ids
-            and case_expected_rule_id is not None
-            and case_expected_rule_id in observed_rule_ids
-            and (
-                not structured_runtime_case
-                or any(record.get("phase") == expected_phase for record in canonical_records)
-            )
-        )
-        observation = {
-            "case_id": case_id,
-            "actual_status": actual,
-            "expected_status": expected_status,
-            "live_executed": live,
-            "observed_rule_ids": sorted(observed_rule_ids),
-            "transaction_ids": sorted(transaction_ids),
-            "observed_event_fields": observed_event_fields,
-            "event_metadata_verified": event_metadata_verified,
-            "source_status": status,
-            "status": case_status_value(status) or ("PASS" if passed else "FAIL"),
-            **semantic,
-        }
-        observations.append(observation)
-        alias_case_id = native_runner_core_case_alias(
-            connector, case_id, canonical_records
-        )
-        if (
-            alias_case_id is not None
-            and alias_case_id in expectations
-            and observation["status"] == "PASS"
-        ):
-            alias = dict(observation)
-            alias["case_id"] = alias_case_id
-            alias["reason"] = (
-                f"reused native {connector} event from {case_id} for compact core evidence"
-            )
-            observations.append(alias)
+        observations.extend(row_observations)
+        derived_events.extend(row_events)
     return observations, derived_events
 
 
@@ -1504,7 +1687,17 @@ def nonpromoted_host_success(objects: list[dict[str, Any]]) -> bool:
     return False
 
 
-def main() -> int:
+def default_catalog_path() -> Path:
+    repository_root = next(
+        parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file()
+    )
+    return (
+        repository_root
+        / "modules/ModSecurity-test-Framework/tests/cases/no-crs-baseline/catalog.json"
+    )
+
+
+def collector_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--connector", required=True)
     parser.add_argument("--stage-rc", required=True, type=int)
@@ -1512,8 +1705,7 @@ def main() -> int:
     parser.add_argument(
         "--catalog",
         type=Path,
-        default=next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
-        / "modules/ModSecurity-test-Framework/tests/cases/no-crs-baseline/catalog.json",
+        default=default_catalog_path(),
     )
     parser.add_argument("--source-result", action="append", type=Path, default=[])
     parser.add_argument("--source-results-jsonl", action="append", type=Path, default=[])
@@ -1525,7 +1717,12 @@ def main() -> int:
     parser.add_argument("--stdout", type=Path)
     parser.add_argument("--stderr", type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    args = parser.parse_args()
+    return parser
+
+
+def prepare_collector_arguments(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> Path:
     if args.allowed_source_root is None:
         parser.error("--allowed-source-root is required to confine runtime artifacts")
     try:
@@ -1559,15 +1756,23 @@ def main() -> int:
             )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
+    return source_root
 
+
+def source_objects_from_arguments(args: argparse.Namespace) -> list[dict[str, Any]]:
     objects = source_objects(args.source_result)
     if args.stdout:
         objects.append(parse_key_value_text(args.stdout))
+    return objects
+
+
+def collector_cases_and_events(
+    args: argparse.Namespace, source_root: Path, objects: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], dict[str, Any], list[Path], list[Path]]:
     consumed_event_paths: list[Path] = []
-    source_events = list(args.source_events)
     source_events = [
         contained_source_event_path(path, source_root)
-        for path in source_events
+        for path in args.source_events
     ]
     expectations, runner_case_index = catalog_contract(args.catalog)
     cases, derived_events = case_observations(
@@ -1587,26 +1792,44 @@ def main() -> int:
         for record in native_host_summary_cases(objects)
         if record["case_id"] not in observed_case_ids
     )
-    events = event_evidence(source_events, args.expected_rule_id, derived_events)
+    return (
+        cases,
+        event_evidence(source_events, args.expected_rule_id, derived_events),
+        source_events,
+        consumed_event_paths,
+    )
 
-    allowed = first_status(objects, "allowed_request_status")
-    blocked = first_status(objects, "blocked_request_status")
-    if allowed is None:
-        allowed = first_status(objects, "baseline_status")
-    if allowed is None:
-        allowed = first_status(objects, "p1_allow_status")
-    if blocked is None:
-        blocked = first_status(objects, "block_status")
-    if blocked is None:
-        blocked = first_status(objects, "phase1_deny_status")
-    if blocked is None:
-        blocked = first_status(objects, "p1_deny_status")
+
+def first_available_status(objects: list[dict[str, Any]], names: tuple[str, ...]) -> int | None:
+    for name in names:
+        value = first_status(objects, name)
+        if value is not None:
+            return value
+    return None
+
+
+def core_response_statuses(
+    objects: list[dict[str, Any]], cases: list[dict[str, Any]]
+) -> tuple[int | None, int | None]:
+    allowed = first_available_status(
+        objects,
+        ("allowed_request_status", "baseline_status", "p1_allow_status"),
+    )
+    blocked = first_available_status(
+        objects,
+        ("blocked_request_status", "block_status", "phase1_deny_status", "p1_deny_status"),
+    )
     for case in cases:
         if case["case_id"] == "allow_without_marker":
             allowed = scalar_int(case["actual_status"])
         elif case["case_id"] == "deny_header_marker_403":
             blocked = scalar_int(case["actual_status"])
+    return allowed, blocked
 
+
+def collector_observed_rule_ids(
+    objects: list[dict[str, Any]], events: dict[str, Any]
+) -> list[str]:
     object_rule_ids = {
         str(value)
         for obj in objects
@@ -1616,37 +1839,54 @@ def main() -> int:
         )
         if value not in (None, "")
     }
-    observed_rule_ids = sorted(object_rule_ids | set(events["observed_rule_ids"]))
-    nonpromoted_host = nonpromoted_host_success(objects)
-    explicit_runtime = allowed is not None or blocked is not None or bool(cases) or nonpromoted_host
-    core_status_ok = allowed == 200 and blocked == 403
+    return sorted(object_rule_ids | set(events["observed_rule_ids"]))
 
-    if args.stage_rc == 77:
-        status = "FAIL" if explicit_runtime else "BLOCKED"
-    elif args.stage_rc != 0:
-        status = "FAIL"
-    elif nonpromoted_host:
-        status = "NOT_EXECUTED"
-    elif only_nonexecuted_cases(cases):
-        status = "NOT_EXECUTED"
-    elif (
+
+def collector_status(
+    stage_rc: int,
+    explicit_runtime: bool,
+    nonpromoted_host: bool,
+    cases: list[dict[str, Any]],
+    core_status_ok: bool,
+    expected_rule_id: str,
+    observed_rule_ids: list[str],
+    events: dict[str, Any],
+) -> str:
+    if stage_rc == 77:
+        return "FAIL" if explicit_runtime else "BLOCKED"
+    if stage_rc != 0:
+        return "FAIL"
+    if nonpromoted_host or only_nonexecuted_cases(cases):
+        return "NOT_EXECUTED"
+    if (
         core_status_ok
-        and args.expected_rule_id in observed_rule_ids
+        and expected_rule_id in observed_rule_ids
         and events["event_metadata_verified"]
         and events["body_payload_absent_from_events"]
     ):
-        status = "PASS"
-    else:
-        status = "FAIL"
+        return "PASS"
+    return "FAIL"
 
+
+def collector_payload(
+    args: argparse.Namespace,
+    status: str,
+    explicit_runtime: bool,
+    nonpromoted_host: bool,
+    allowed: int | None,
+    blocked: int | None,
+    observed_rule_ids: list[str],
+    core_status_ok: bool,
+    cases: list[dict[str, Any]],
+    events: dict[str, Any],
+) -> dict[str, Any]:
     # A non-promoted native transport may return a 200 from its pass-through
-    # host probe.  That response is host-selection metadata, not a canonical
+    # host probe. That response is host-selection metadata, not a canonical
     # Phase-1 allow result, so do not let the Framework derive a case PASS
     # from it later.
     reported_allowed = None if nonpromoted_host else allowed
     reported_blocked = None if nonpromoted_host else blocked
-
-    payload = {
+    return {
         "schema_version": 1,
         "connector": args.connector,
         "status": status,
@@ -1669,19 +1909,81 @@ def main() -> int:
         "event_validation_errors": events["event_validation_errors"],
         "forbidden_event_keys": events["forbidden_event_keys"],
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def write_collector_artifacts(
+    args: argparse.Namespace,
+    payload: dict[str, Any],
+    events: dict[str, Any],
+    source_events: list[Path],
+    consumed_event_paths: list[Path],
+    source_root: Path,
+) -> None:
+    write_runtime_artifact_text_atomic(
+        source_root,
+        args.output,
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        "collector output",
+    )
     if args.events_output:
-        args.events_output.parent.mkdir(parents=True, exist_ok=True)
-        with args.events_output.open("w", encoding="utf-8") as handle:
-            for record in events["records"]:
-                handle.write(json.dumps(record, sort_keys=True) + "\n")
+        write_runtime_artifact_text_atomic(
+            source_root,
+            args.events_output,
+            "".join(json.dumps(record, sort_keys=True) + "\n" for record in events["records"]),
+            "collector events output",
+        )
     if args.scrub_source_events:
         scrub_source_event_paths(
             [*source_events, *consumed_event_paths],
             source_root,
             args.source_event_scrub_log,
         )
+
+
+def main() -> int:
+    parser = collector_argument_parser()
+    args = parser.parse_args()
+    source_root = prepare_collector_arguments(parser, args)
+
+    objects = source_objects_from_arguments(args)
+    cases, events, source_events, consumed_event_paths = collector_cases_and_events(
+        args, source_root, objects
+    )
+    allowed, blocked = core_response_statuses(objects, cases)
+    observed_rule_ids = collector_observed_rule_ids(objects, events)
+    nonpromoted_host = nonpromoted_host_success(objects)
+    explicit_runtime = allowed is not None or blocked is not None or bool(cases) or nonpromoted_host
+    core_status_ok = allowed == 200 and blocked == 403
+    status = collector_status(
+        args.stage_rc,
+        explicit_runtime,
+        nonpromoted_host,
+        cases,
+        core_status_ok,
+        args.expected_rule_id,
+        observed_rule_ids,
+        events,
+    )
+    payload = collector_payload(
+        args,
+        status,
+        explicit_runtime,
+        nonpromoted_host,
+        allowed,
+        blocked,
+        observed_rule_ids,
+        core_status_ok,
+        cases,
+        events,
+    )
+    write_collector_artifacts(
+        args,
+        payload,
+        events,
+        source_events,
+        consumed_event_paths,
+        source_root,
+    )
     return 0
 
 

@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
     "transport_lifecycle_artifacts", ROOT / "ci" / "runtime" / "lifecycle" / "write-transport-lifecycle-artifacts.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 artifacts = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(artifacts)
 
@@ -181,6 +182,28 @@ class TransportLifecycleArtifactsTest(unittest.TestCase):
                 manifest["files"][0]["sha256"],
             )
             self.assertNotIn("secret-looking", (output / "manifest.json").read_text(encoding="utf-8"))
+
+    def test_rejects_symlinked_transport_artifact_destination(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="transport-lifecycle-") as temporary:
+            root = Path(temporary)
+            events = root / "events.jsonl"
+            events.write_text("{}\n", encoding="utf-8")
+            output = root / "transport-artifacts"
+            output.mkdir()
+            victim = root / "victim.json"
+            victim.write_text("unchanged\n", encoding="utf-8")
+            (output / "transport-observations.json").symlink_to(victim)
+            with self.assertRaisesRegex(ValueError, "must not be a symbolic link"):
+                artifacts.main(
+                    [
+                        "--connector", "apache",
+                        "--run-id", "run-one",
+                        "--runtime-root", str(root),
+                        "--events", str(events),
+                        "--output-dir", str(output),
+                    ]
+                )
+            self.assertEqual(victim.read_text(encoding="utf-8"), "unchanged\n")
 
 
 if __name__ == "__main__":

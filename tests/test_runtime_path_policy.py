@@ -27,7 +27,8 @@ from runtime_path_utils import (
 
 def load_checker() -> ModuleType:
     spec = importlib.util.spec_from_file_location("runtime_path_policy_checker", CHECKER)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     checker = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = checker
     spec.loader.exec_module(checker)

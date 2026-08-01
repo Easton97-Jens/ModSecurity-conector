@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -35,6 +36,7 @@ from runtime_path_utils import (
     prepare_verified_runtime_artifact_root,
     runtime_artifact_path,
     verified_runtime_paths,
+    write_runtime_artifact_text_atomic,
 )
 
 try:
@@ -57,8 +59,43 @@ NATIVE_CASE_RUN_FILENAME = "native-case-run.json"
 NATIVE_ORACLE_SOURCE = Path("ci/tools/native_modsecurity_oracle.c")
 NATIVE_RUNNER_PATH = "ci/runtime/lifecycle/run-native-case-comparison.py"
 NATIVE_ACTUAL_LABEL = "Native Actual"
+NATIVE_RESULT_LABEL = "native result"
 GENERATED_MANIFEST_COMPONENTS = ("reports", "testing", "generated", "manifest")
 SAFE_REPORT_COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
+
+
+@dataclass(frozen=True)
+class NativeCaseContext:
+    """Validated paths and immutable inputs for one native comparison."""
+
+    case: str
+    connector_root: Path
+    framework_root: Path
+    run_root: Path
+    run_dir: Path
+    logs_dir: Path
+    env: dict[str, str]
+    started: datetime
+
+
+@dataclass(frozen=True)
+class NativeCaseInputs:
+    """Materialized request/rules inputs for the native oracle."""
+
+    request: dict[str, Any]
+    rules_path: Path
+    request_paths: dict[str, str]
+    expected: int
+
+
+@dataclass(frozen=True)
+class NativeOracleExecution:
+    """Native oracle result and its observable execution metadata."""
+
+    native_result: dict[str, Any]
+    compile_info: dict[str, Any]
+    return_code: int
+    native_result_path: Path
 
 
 def utc_now() -> datetime:
@@ -93,8 +130,15 @@ def read_json(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def write_json(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def write_json(root: Path, path: Path, data: dict[str, Any], label: str) -> None:
+    """Atomically write a JSON artifact beneath one verified private root."""
+
+    write_runtime_artifact_text_atomic(
+        root,
+        path,
+        json.dumps(data, indent=2, sort_keys=True) + "\n",
+        label,
+    )
 
 
 def runtime_component_paths(env: dict[str, str]) -> tuple[Path, Path] | None:
@@ -296,7 +340,7 @@ def write_request_artifacts(request: dict[str, Any], run_dir: Path) -> dict[str,
         "body_bytes": len(body_bytes),
         "body_preview": body_bytes[:200].decode("utf-8", errors="replace"),
     }
-    write_json(request_path, request_payload)
+    write_json(run_dir, request_path, request_payload, "native request")
     return {"body": str(body_path), "headers": str(headers_path), "request": str(request_path)}
 
 
@@ -370,134 +414,262 @@ def matched_data_values(text: str) -> list[str]:
     return values
 
 
-def run_native_case(
-    case: str,
-    connector_root: Path,
-    framework_root: Path,
+def native_case_runtime_directories(
     verified_run_root: Path,
-    env: dict[str, str],
-) -> dict[str, Any]:
-    started = utc_now()
+    case: str,
+    started: datetime,
+) -> tuple[Path, Path, Path]:
+    """Create the private directories for one native comparison run."""
+
     run_root = ensure_safe_runtime_directory(verified_run_root / "native-case-runs")
     run_dir = ensure_safe_runtime_directory(
         run_root / f"{started.strftime('%Y%m%dT%H%M%SZ')}-{safe_name(case)}"
     )
     logs_dir = ensure_safe_runtime_directory(run_dir / "logs")
+    return run_root, run_dir, logs_dir
 
-    case_path = find_case_path(framework_root, case)
+
+def native_case_context(
+    case: str,
+    connector_root: Path,
+    framework_root: Path,
+    verified_run_root: Path,
+    env: dict[str, str],
+    started: datetime,
+) -> NativeCaseContext:
+    """Create the immutable context after validating this run's directories."""
+
+    run_root, run_dir, logs_dir = native_case_runtime_directories(
+        verified_run_root, case, started
+    )
+    return NativeCaseContext(
+        case=case,
+        connector_root=connector_root,
+        framework_root=framework_root,
+        run_root=run_root,
+        run_dir=run_dir,
+        logs_dir=logs_dir,
+        env=env,
+        started=started,
+    )
+
+
+def blocked_native_case_report(
+    context: NativeCaseContext,
+    reason: str,
+    case_path: Path | None = None,
+) -> dict[str, Any]:
+    """Persist the established blocked-case result shape."""
+
+    result = {
+        "case": context.case,
+        "status": "blocked",
+        "native_actual": None,
+        "reason": reason,
+        "run_dir": str(context.run_dir),
+    }
+    if case_path is not None:
+        result["case_path"] = str(case_path)
+    write_json(
+        context.run_dir,
+        context.run_dir / NATIVE_CASE_RUN_FILENAME,
+        result,
+        "native case run",
+    )
+    return result
+
+
+def load_native_case_or_block(
+    context: NativeCaseContext,
+) -> tuple[Path, dict[str, Any]] | dict[str, Any]:
+    """Load the requested Framework case or persist its blocked result."""
+
+    case_path = find_case_path(context.framework_root, context.case)
     if case_path is None:
-        result = {
-            "case": case,
-            "status": "blocked",
-            "native_actual": None,
-            "reason": "case YAML not found",
-            "run_dir": str(run_dir),
-        }
-        write_json(run_dir / NATIVE_CASE_RUN_FILENAME, result)
-        return result
+        return blocked_native_case_report(context, "case YAML not found")
     try:
-        case_data = load_case(case_path)
+        return case_path, load_case(case_path)
     except Exception as exc:
-        result = {
-            "case": case,
-            "status": "blocked",
-            "native_actual": None,
-            "reason": str(exc),
-            "case_path": str(case_path),
-            "run_dir": str(run_dir),
-        }
-        write_json(run_dir / NATIVE_CASE_RUN_FILENAME, result)
-        return result
+        return blocked_native_case_report(context, str(exc), case_path)
+
+
+def prepare_native_case_inputs(
+    case_data: dict[str, Any],
+    run_dir: Path,
+) -> NativeCaseInputs:
+    """Materialize the request and rules used by the native oracle."""
 
     request = normalize_request(case_data)
-    rules = materialize_rules(str(case_data.get("rules") or ""), run_dir)
     rules_path = run_dir / "rules.conf"
-    rules_path.write_text(rules, encoding="utf-8")
+    rules_path.write_text(
+        materialize_rules(str(case_data.get("rules") or ""), run_dir),
+        encoding="utf-8",
+    )
     request_paths = write_request_artifacts(request, run_dir)
-    expected = expected_status(case_data)
-    binary, compile_info = compile_oracle(connector_root, run_root, env)
-    native_result_path = run_dir / "native-result.json"
-    server_log_path = logs_dir / "server-log.log"
+    return NativeCaseInputs(
+        request=request,
+        rules_path=rules_path,
+        request_paths=request_paths,
+        expected=expected_status(case_data),
+    )
 
-    return_code = 77
-    if binary is None:
-        native_result = {
-            "status": "blocked",
-            "reason": compile_info.get("reason", "oracle binary unavailable"),
-            "expected_status": expected,
-            "actual_status": None,
-            "native_match": False,
-        }
-        write_json(native_result_path, native_result)
-    else:
-        run_env = dict(env)
-        lib_dir = env.get("MODSECURITY_LIB_DIR", "")
-        existing_ld = run_env.get("LD_LIBRARY_PATH", "")
-        if lib_dir:
-            run_env["LD_LIBRARY_PATH"] = lib_dir + (":" + existing_ld if existing_ld else "")
-        cmd = [
-            str(binary),
-            str(rules_path),
-            request_paths["headers"],
-            request_paths["body"],
-            request["method"],
-            request["path"],
-            str(expected),
-            str(native_result_path),
-            str(server_log_path),
-        ]
-        command_log = logs_dir / "command.log"
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False, env=run_env)
-        command_log.write_text("$ " + " ".join(cmd) + "\n" + proc.stdout, encoding="utf-8")
-        return_code = proc.returncode
-        native_result = read_json(native_result_path)
-        if not native_result:
-            native_result = {
-                "status": "blocked",
-                "reason": "oracle did not produce native-result.json",
-                "expected_status": expected,
-                "actual_status": None,
-                "native_match": False,
-            }
-            write_json(native_result_path, native_result)
-    if str(native_result.get("status") or "") in {"blocked", "setup_error", "not_executable"}:
+
+def native_oracle_environment(env: dict[str, str]) -> dict[str, str]:
+    """Add the verified libmodsecurity directory for the oracle process."""
+
+    run_env = dict(env)
+    lib_dir = env.get("MODSECURITY_LIB_DIR", "")
+    existing_ld = run_env.get("LD_LIBRARY_PATH", "")
+    if lib_dir:
+        run_env["LD_LIBRARY_PATH"] = lib_dir + (":" + existing_ld if existing_ld else "")
+    return run_env
+
+
+def unavailable_native_result(compile_info: dict[str, Any], expected: int) -> dict[str, Any]:
+    """Return the canonical record when the native oracle cannot be built."""
+
+    return {
+        "status": "blocked",
+        "reason": compile_info.get("reason", "oracle binary unavailable"),
+        "expected_status": expected,
+        "actual_status": None,
+        "native_match": False,
+    }
+
+
+def missing_native_result(expected: int) -> dict[str, Any]:
+    """Return the canonical record when the oracle omits its JSON output."""
+
+    return {
+        "status": "blocked",
+        "reason": "oracle did not produce native-result.json",
+        "expected_status": expected,
+        "actual_status": None,
+        "native_match": False,
+    }
+
+
+def normalize_unavailable_native_result(
+    run_dir: Path,
+    native_result_path: Path,
+    native_result: dict[str, Any],
+) -> dict[str, Any]:
+    """Keep unavailable-oracle records distinct from executable observations."""
+
+    status = str(native_result.get("status") or "")
+    if status in {"blocked", "setup_error", "not_executable"}:
         native_result["actual_status"] = None
         native_result["native_match"] = False
-        write_json(native_result_path, native_result)
+        write_json(run_dir, native_result_path, native_result, NATIVE_RESULT_LABEL)
+    return native_result
+
+
+def execute_native_oracle(
+    context: NativeCaseContext,
+    inputs: NativeCaseInputs,
+) -> NativeOracleExecution:
+    """Compile and run the list-form native oracle command for one case."""
+
+    binary, compile_info = compile_oracle(
+        context.connector_root, context.run_root, context.env
+    )
+    native_result_path = context.run_dir / "native-result.json"
+    server_log_path = context.logs_dir / "server-log.log"
+    if binary is None:
+        native_result = unavailable_native_result(compile_info, inputs.expected)
+        write_json(context.run_dir, native_result_path, native_result, NATIVE_RESULT_LABEL)
+        return NativeOracleExecution(native_result, compile_info, 77, native_result_path)
+
+    cmd = [
+        str(binary),
+        str(inputs.rules_path),
+        inputs.request_paths["headers"],
+        inputs.request_paths["body"],
+        inputs.request["method"],
+        inputs.request["path"],
+        str(inputs.expected),
+        str(native_result_path),
+        str(server_log_path),
+    ]
+    proc = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+        env=native_oracle_environment(context.env),
+    )
+    (context.logs_dir / "command.log").write_text(
+        "$ " + " ".join(cmd) + "\n" + proc.stdout,
+        encoding="utf-8",
+    )
+    native_result = read_json(native_result_path)
+    if not native_result:
+        native_result = missing_native_result(inputs.expected)
+        write_json(context.run_dir, native_result_path, native_result, NATIVE_RESULT_LABEL)
+    return NativeOracleExecution(
+        normalize_unavailable_native_result(
+            context.run_dir,
+            native_result_path,
+            native_result,
+        ),
+        compile_info,
+        proc.returncode,
+        native_result_path,
+    )
+
+
+def native_case_log_evidence(logs_dir: Path) -> dict[str, Any]:
+    """Extract report evidence from the established log file selection."""
 
     log_text_parts = []
     for path in sorted(logs_dir.rglob("*")):
         if path.is_file() and path.suffix in {".log", ".txt"}:
             log_text_parts.append(path.read_text(encoding="utf-8", errors="replace"))
-    log_evidence = extract_log_evidence("\n".join(log_text_parts))
-    official = official_context(connector_root, case)
-    comparison = compare_native_to_connectors(native_result, official)
+    return extract_log_evidence("\n".join(log_text_parts))
+
+
+def write_native_case_report(
+    context: NativeCaseContext,
+    case_path: Path,
+    inputs: NativeCaseInputs,
+    execution: NativeOracleExecution,
+    log_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    """Persist one complete native-case report with its comparison context."""
+
+    official = official_context(context.connector_root, context.case)
+    comparison = compare_native_to_connectors(execution.native_result, official)
     ended = utc_now()
     report = {
         "schema_version": 1,
         "report_kind": "native-case-run",
-        "case": case,
+        "case": context.case,
         "case_path": str(case_path),
-        "run_dir": str(run_dir),
-        "started_at": iso_utc(started),
+        "run_dir": str(context.run_dir),
+        "started_at": iso_utc(context.started),
         "ended_at": iso_utc(ended),
-        "duration_seconds": round((ended - started).total_seconds(), 3),
-        "expected_status": expected,
-        "native_actual": native_result.get("actual_status"),
-        "native_match": bool(native_result.get("native_match")),
-        "status": native_result.get("status", "unknown"),
-        "return_code": return_code,
-        "reason": native_result.get("reason", ""),
-        "request": read_json(Path(request_paths["request"])),
-        "rules_sha256": sha256_file(rules_path),
-        "request_sha256": sha256_file(Path(request_paths["request"])),
-        "input_hash": combined_hash([case_path, rules_path, Path(request_paths["request"])]),
-        "rules_path": str(rules_path),
-        "request_path": request_paths["request"],
-        "native_result_path": str(native_result_path),
-        "logs_dir": str(logs_dir),
-        "compile": compile_info,
-        "libmodsecurity": native_result.get("libmodsecurity") or env.get("MODSECURITY_SOURCE_SHA") or "unknown",
+        "duration_seconds": round((ended - context.started).total_seconds(), 3),
+        "expected_status": inputs.expected,
+        "native_actual": execution.native_result.get("actual_status"),
+        "native_match": bool(execution.native_result.get("native_match")),
+        "status": execution.native_result.get("status", "unknown"),
+        "return_code": execution.return_code,
+        "reason": execution.native_result.get("reason", ""),
+        "request": read_json(Path(inputs.request_paths["request"])),
+        "rules_sha256": sha256_file(inputs.rules_path),
+        "request_sha256": sha256_file(Path(inputs.request_paths["request"])),
+        "input_hash": combined_hash(
+            [case_path, inputs.rules_path, Path(inputs.request_paths["request"])]
+        ),
+        "rules_path": str(inputs.rules_path),
+        "request_path": inputs.request_paths["request"],
+        "native_result_path": str(execution.native_result_path),
+        "logs_dir": str(context.logs_dir),
+        "compile": execution.compile_info,
+        "libmodsecurity": execution.native_result.get("libmodsecurity")
+        or context.env.get("MODSECURITY_SOURCE_SHA")
+        or "unknown",
         "log_evidence": log_evidence,
         "official_mismatch_context": official,
         "connector_comparison": comparison["rows"],
@@ -507,9 +679,48 @@ def run_native_case(
             bool(row.get("full_matrix_refresh_needed")) for row in comparison["rows"]
         ),
     }
-    write_json(run_dir / NATIVE_CASE_RUN_FILENAME, report)
-    (run_dir / "native-case-run.md").write_text(render_case_markdown(report), encoding="utf-8")
+    write_json(
+        context.run_dir,
+        context.run_dir / NATIVE_CASE_RUN_FILENAME,
+        report,
+        "native case report",
+    )
+    (context.run_dir / "native-case-run.md").write_text(
+        render_case_markdown(report),
+        encoding="utf-8",
+    )
     return report
+
+
+def run_native_case(
+    case: str,
+    connector_root: Path,
+    framework_root: Path,
+    verified_run_root: Path,
+    env: dict[str, str],
+) -> dict[str, Any]:
+    started = utc_now()
+    context = native_case_context(
+        case,
+        connector_root,
+        framework_root,
+        verified_run_root,
+        env,
+        started,
+    )
+    case_input = load_native_case_or_block(context)
+    if isinstance(case_input, dict):
+        return case_input
+    case_path, case_data = case_input
+    inputs = prepare_native_case_inputs(case_data, context.run_dir)
+    execution = execute_native_oracle(context, inputs)
+    return write_native_case_report(
+        context,
+        case_path,
+        inputs,
+        execution,
+        native_case_log_evidence(context.logs_dir),
+    )
 
 
 def combined_hash(paths: list[Path]) -> str:

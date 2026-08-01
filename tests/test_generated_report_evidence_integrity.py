@@ -18,34 +18,40 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 CHECKER_PATH = ROOT / "ci/checks/documentation/check-generated-report-layout.py"
 SPEC = importlib.util.spec_from_file_location("generated_report_layout", CHECKER_PATH)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 CHECKER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CHECKER)
 GENERATOR_PATH = ROOT / "ci/evidence/reports/generate-full-matrix-job-completeness.py"
 GENERATOR_SPEC = importlib.util.spec_from_file_location("full_matrix_completeness", GENERATOR_PATH)
-assert GENERATOR_SPEC is not None and GENERATOR_SPEC.loader is not None
+assert GENERATOR_SPEC is not None
+assert GENERATOR_SPEC.loader is not None
 GENERATOR = importlib.util.module_from_spec(GENERATOR_SPEC)
 GENERATOR_SPEC.loader.exec_module(GENERATOR)
 REFRESH_PATH = ROOT / "ci/evidence/reports/refresh-connector-reports.py"
 REFRESH_SPEC = importlib.util.spec_from_file_location("refresh_connector_reports", REFRESH_PATH)
-assert REFRESH_SPEC is not None and REFRESH_SPEC.loader is not None
+assert REFRESH_SPEC is not None
+assert REFRESH_SPEC.loader is not None
 REFRESH = importlib.util.module_from_spec(REFRESH_SPEC)
 sys.modules[REFRESH_SPEC.name] = REFRESH
 REFRESH_SPEC.loader.exec_module(REFRESH)
 RUNNER_PATH = ROOT / "ci/runtime/lifecycle/run-verified-report-run.py"
 RUNNER_SPEC = importlib.util.spec_from_file_location("verified_report_runner", RUNNER_PATH)
-assert RUNNER_SPEC is not None and RUNNER_SPEC.loader is not None
+assert RUNNER_SPEC is not None
+assert RUNNER_SPEC.loader is not None
 RUNNER = importlib.util.module_from_spec(RUNNER_SPEC)
 RUNNER_SPEC.loader.exec_module(RUNNER)
 RECEIPT_PATH = ROOT / "ci/lib/verified_full_matrix_receipt.py"
 RECEIPT_SPEC = importlib.util.spec_from_file_location("verified_full_matrix_receipt_test", RECEIPT_PATH)
-assert RECEIPT_SPEC is not None and RECEIPT_SPEC.loader is not None
+assert RECEIPT_SPEC is not None
+assert RECEIPT_SPEC.loader is not None
 RECEIPT = importlib.util.module_from_spec(RECEIPT_SPEC)
 sys.modules[RECEIPT_SPEC.name] = RECEIPT
 RECEIPT_SPEC.loader.exec_module(RECEIPT)
 STAGER_PATH = ROOT / "ci/evidence/reports/stage-verified-full-matrix-evidence.py"
 STAGER_SPEC = importlib.util.spec_from_file_location("verified_full_matrix_stager_test", STAGER_PATH)
-assert STAGER_SPEC is not None and STAGER_SPEC.loader is not None
+assert STAGER_SPEC is not None
+assert STAGER_SPEC.loader is not None
 STAGER = importlib.util.module_from_spec(STAGER_SPEC)
 sys.modules[STAGER_SPEC.name] = STAGER
 STAGER_SPEC.loader.exec_module(STAGER)
@@ -2042,6 +2048,25 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
         self.assertIn("full-runtime-matrix.generated.json", recorded_names)
         self.assertNotIn("verified-run-manifest.generated.json", recorded_names)
         self.assertNotIn("verified-run-manifest.generated.md", recorded_names)
+
+    def test_verified_command_file_is_private_and_rejects_a_final_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime_root = (Path(temporary) / "runtime").resolve()
+            runtime_root.mkdir()
+            commands_path = runtime_root / "verified-commands.json"
+            payload = {"verified_run_id": "verified-run-20260801", "commands": []}
+
+            RUNNER.write_commands_file(runtime_root, commands_path, payload)
+
+            self.assertEqual(payload, json.loads(commands_path.read_text(encoding="utf-8")))
+            self.assertEqual(stat.S_IRUSR | stat.S_IWUSR, stat.S_IMODE(commands_path.stat().st_mode))
+            victim = Path(temporary) / "victim.json"
+            victim.write_text("do not replace\n", encoding="utf-8")
+            commands_path.unlink()
+            commands_path.symlink_to(victim)
+            with self.assertRaisesRegex(ValueError, "below the runtime root|symbolic link|regular file"):
+                RUNNER.write_commands_file(runtime_root, commands_path, payload)
+            self.assertEqual(victim.read_text(encoding="utf-8"), "do not replace\n")
 
 
 if __name__ == "__main__":

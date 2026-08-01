@@ -23,7 +23,8 @@ def load_checker() -> object:
     specification = importlib.util.spec_from_file_location(
         "python_version_contract_checker", CHECKER_PATH
     )
-    assert specification is not None and specification.loader is not None
+    assert specification is not None
+    assert specification.loader is not None
     module = importlib.util.module_from_spec(specification)
     sys.modules[specification.name] = module
     specification.loader.exec_module(module)

@@ -21,7 +21,8 @@ DOCUMENT_DIAGNOSTICS_ATTRIBUTE = "document_diagnostics"
 SOURCE_DOCUMENT = "docs/source.md"
 UNREADABLE_ERROR = "unreadable"
 SPEC = importlib.util.spec_from_file_location("repository_path_references_checker", CHECKER_PATH)
-assert SPEC and SPEC.loader
+assert SPEC
+assert SPEC.loader
 CHECKER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CHECKER)
 

@@ -19,7 +19,8 @@ import generated_report_utils
 SPEC = importlib.util.spec_from_file_location(
     "connector_capabilities", ROOT / "ci/evidence/collectors/connector_capabilities.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 connector_capabilities = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(connector_capabilities)
 

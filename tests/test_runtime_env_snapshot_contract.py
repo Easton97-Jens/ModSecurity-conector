@@ -19,14 +19,16 @@ sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
     "runtime_env_snapshot_prepare_runtime_components", PREPARE_PATH
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 components = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = components
 SPEC.loader.exec_module(components)
 NATIVE_SPEC = importlib.util.spec_from_file_location(
     "runtime_env_snapshot_native_case_comparison", NATIVE_COMPARISON_PATH
 )
-assert NATIVE_SPEC is not None and NATIVE_SPEC.loader is not None
+assert NATIVE_SPEC is not None
+assert NATIVE_SPEC.loader is not None
 native_comparison = importlib.util.module_from_spec(NATIVE_SPEC)
 sys.modules[NATIVE_SPEC.name] = native_comparison
 NATIVE_SPEC.loader.exec_module(native_comparison)
@@ -34,7 +36,8 @@ MISMATCH_PATH = ROOT / "ci" / "evidence" / "reports" / "generate-verified-runtim
 MISMATCH_SPEC = importlib.util.spec_from_file_location(
     "runtime_env_snapshot_verified_runtime_mismatch", MISMATCH_PATH
 )
-assert MISMATCH_SPEC is not None and MISMATCH_SPEC.loader is not None
+assert MISMATCH_SPEC is not None
+assert MISMATCH_SPEC.loader is not None
 runtime_mismatch = importlib.util.module_from_spec(MISMATCH_SPEC)
 sys.modules[MISMATCH_SPEC.name] = runtime_mismatch
 MISMATCH_SPEC.loader.exec_module(runtime_mismatch)

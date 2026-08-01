@@ -17,7 +17,8 @@ sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
     "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 components = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(components)
 
@@ -107,6 +108,52 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     self.assertIsNone(lock.handle)
                     self.assertTrue((lock.mkdir_lock / "owner").is_file())
             self.assertFalse(directory_lock_path.with_suffix(".lock.dir").exists())
+
+    def test_optional_connector_staging_prepares_unkeyed_plan_directly(self) -> None:
+        prepared_plans: list[dict[str, str] | None] = []
+
+        result = components.prepare_connector_with_optional_staging(
+            "apache",
+            Path("/cache"),
+            None,
+            False,
+            lambda active_plan: prepared_plans.append(active_plan) or {"status": "prepared"},
+        )
+
+        self.assertEqual(result, {"status": "prepared"})
+        self.assertEqual(prepared_plans, [None])
+
+    def test_optional_connector_staging_prepares_keyed_plan_from_staging(self) -> None:
+        final_plan = {"root": "/cache/final"}
+        staged_plan = {"root": "/cache/staged"}
+        prepared_plans: list[dict[str, str] | None] = []
+
+        def prepare_transactionally(
+            connector: str,
+            cache_root: Path,
+            active_plan: dict[str, str],
+            prepare: Callable[[dict[str, str], bool], dict[str, str]],
+        ) -> dict[str, str]:
+            self.assertEqual(connector, "apache")
+            self.assertEqual(Path("/cache"), cache_root)
+            self.assertIs(final_plan, active_plan)
+            return prepare(staged_plan, True)
+
+        with mock.patch.object(
+            components,
+            "prepare_connector_transactionally",
+            side_effect=prepare_transactionally,
+        ):
+            result = components.prepare_connector_with_optional_staging(
+                "apache",
+                Path("/cache"),
+                final_plan,
+                False,
+                lambda active_plan: prepared_plans.append(active_plan) or {"status": "prepared"},
+            )
+
+        self.assertEqual(result, {"status": "prepared"})
+        self.assertEqual(prepared_plans, [staged_plan])
 
     def test_incomplete_connector_entry_removal_remains_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:

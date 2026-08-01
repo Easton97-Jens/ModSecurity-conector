@@ -40,9 +40,9 @@ from runtime_path_utils import (
     ensure_safe_runtime_directory,
     ensure_safe_writable_runtime_paths,
     is_under_root_home,
-    runtime_artifact_path,
     runtime_path_rows,
     verified_runtime_paths,
+    write_runtime_artifact_text_atomic,
 )
 from verified_run_id import VerifiedRunIdError, validate_verified_run_id
 from verified_full_matrix_receipt import (
@@ -63,6 +63,7 @@ UTC_OFFSET = "+00:00"
 FIELD_VALUE_TABLE_HEADER = "| Field | Value |"
 FIELD_VALUE_TABLE_DIVIDER = "|---|---|"
 FOUR_COLUMN_TABLE_DIVIDER = "|---|---|---|---|"
+ARGPARSE_ERROR_TERMINATION_ASSERTION = "argparse.error must terminate execution"
 
 
 def git_output(args: list[str], cwd: Path) -> str:
@@ -109,8 +110,12 @@ def command_status(return_code: int, *, optional: bool = False, classification: 
 
 
 def write_commands_file(root: Path, path: Path, payload: dict[str, Any]) -> None:
-    path = runtime_artifact_path(root, path, "verified commands file")
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_runtime_artifact_text_atomic(
+        root,
+        path,
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        "verified commands file",
+    )
 
 
 def canonical_roots(connector_root: str, framework_root: str | None) -> tuple[Path, Path]:
@@ -187,6 +192,159 @@ def full_matrix_job_artifacts(env: dict[str, str], logical_target: str) -> dict[
     }
 
 
+def command_log_path(logs_dir: Path, index: int, command: list[str]) -> Path:
+    slug = "".join(ch if ch.isalnum() else "-" for ch in "-".join(command)).strip("-")[:96] or "command"
+    return logs_dir / f"{index:02d}-{slug}.log"
+
+
+def send_process_group_signal(process: subprocess.Popen[str], signal_value: signal.Signals) -> None:
+    try:
+        os.killpg(process.pid, signal_value)
+    except ProcessLookupError:
+        pass
+
+
+def terminate_timed_out_process(process: subprocess.Popen[str]) -> int:
+    send_process_group_signal(process, signal.SIGTERM)
+    try:
+        return process.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        send_process_group_signal(process, signal.SIGKILL)
+        return process.wait()
+
+
+def wait_for_full_matrix_finalization(
+    process: subprocess.Popen[str],
+    *,
+    env: dict[str, str],
+    logical_target: str,
+    finalize_grace_seconds: int,
+    log_handle: Any,
+) -> int | None:
+    if not logical_target.startswith(FULL_MATRIX_JOB_PREFIX) or finalize_grace_seconds <= 0:
+        return None
+    log_handle.write(
+        f"verified-report-run: waiting {finalize_grace_seconds} seconds for full-matrix job finalization\n"
+    )
+    try:
+        return process.wait(timeout=finalize_grace_seconds)
+    except subprocess.TimeoutExpired:
+        artifacts = full_matrix_job_artifacts(env, logical_target)
+        if artifacts.get("complete"):
+            log_handle.write(
+                "verified-report-run: full-matrix job artifacts completed during timeout finalization\n"
+            )
+        return None
+
+
+def timeout_return_code(
+    process: subprocess.Popen[str],
+    *,
+    env: dict[str, str],
+    logical_target: str,
+    finalize_grace_seconds: int,
+    log_handle: Any,
+) -> tuple[int, bool]:
+    finalization_return_code = wait_for_full_matrix_finalization(
+        process,
+        env=env,
+        logical_target=logical_target,
+        finalize_grace_seconds=finalize_grace_seconds,
+        log_handle=log_handle,
+    )
+    if finalization_return_code is not None:
+        return finalization_return_code, True
+    artifacts = full_matrix_job_artifacts(env, logical_target)
+    if artifacts.get("complete"):
+        return int(artifacts.get("job", {}).get("return_code", 2)), False
+    return terminate_timed_out_process(process), False
+
+
+def wait_for_command_process(
+    process: subprocess.Popen[str],
+    *,
+    env: dict[str, str],
+    logical_target: str,
+    timeout_seconds: int | None,
+    finalize_grace_seconds: int,
+    log_handle: Any,
+) -> tuple[int, str]:
+    try:
+        return process.wait(timeout=timeout_seconds), ""
+    except subprocess.TimeoutExpired:
+        log_handle.write(
+            f"\nverified-report-run: timeout after {timeout_seconds} seconds; terminating process group\n"
+        )
+        return_code, completed_during_finalization = timeout_return_code(
+            process,
+            env=env,
+            logical_target=logical_target,
+            finalize_grace_seconds=finalize_grace_seconds,
+            log_handle=log_handle,
+        )
+        return return_code, "" if completed_during_finalization else "blocked_timeout"
+
+
+def execute_command_process(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    log_path: Path,
+    logical_target: str,
+    timeout_seconds: int | None,
+    finalize_grace_seconds: int,
+) -> tuple[int, str]:
+    with log_path.open("w", encoding="utf-8") as log_handle:
+        process = subprocess.Popen(
+            command,
+            cwd=str(cwd),
+            env=env,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+        try:
+            return wait_for_command_process(
+                process,
+                env=env,
+                logical_target=logical_target,
+                timeout_seconds=timeout_seconds,
+                finalize_grace_seconds=finalize_grace_seconds,
+                log_handle=log_handle,
+            )
+        except KeyboardInterrupt:
+            log_handle.write("\nverified-report-run: interrupted; terminating process group\n")
+            send_process_group_signal(process, signal.SIGTERM)
+            return process.wait(), "interrupted"
+
+
+def interrupted_signal_name(return_code: int) -> str:
+    if return_code >= 0:
+        return ""
+    try:
+        return signal.Signals(-return_code).name
+    except ValueError:
+        return f"SIG{-return_code}"
+
+
+def classify_command_log(
+    return_code: int,
+    classification: str,
+    log_text: str,
+    *,
+    optional: bool,
+) -> str:
+    if return_code == 0 or classification:
+        return classification
+    if "HTTP Error 504" in log_text or "Gateway Timeout" in log_text:
+        return "blocked_network_optional" if optional else "blocked_network"
+    if WORKER_BLOCKED_REASON in log_text:
+        return "nginx_worker_docroot_blocked"
+    return classification
+
+
 def run_command(
     command: list[str],
     *,
@@ -204,83 +362,23 @@ def run_command(
 ) -> dict[str, Any]:
     started_at = utc_now()
     started = time.monotonic()
-    slug = "".join(ch if ch.isalnum() else "-" for ch in "-".join(command)).strip("-")[:96] or "command"
-    log_path = logs_dir / f"{index:02d}-{slug}.log"
+    log_path = command_log_path(logs_dir, index, command)
     print("verified-report-run: RUN " + " ".join(command), flush=True)
-    return_code = 0
-    classification = ""
-    signal_name = ""
-    with log_path.open("w", encoding="utf-8") as log_handle:
-        process = subprocess.Popen(
-            command,
-            cwd=str(cwd),
-            env=env,
-            stdout=log_handle,
-            stderr=subprocess.STDOUT,
-            text=True,
-            start_new_session=True,
-        )
-        try:
-            return_code = process.wait(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired:
-            classification = "blocked_timeout"
-            return_code = None
-            log_handle.write(
-                f"\nverified-report-run: timeout after {timeout_seconds} seconds; terminating process group\n"
-            )
-            if logical_target.startswith(FULL_MATRIX_JOB_PREFIX) and finalize_grace_seconds > 0:
-                log_handle.write(
-                    f"verified-report-run: waiting {finalize_grace_seconds} seconds for full-matrix job finalization\n"
-                )
-                try:
-                    return_code = process.wait(timeout=finalize_grace_seconds)
-                    classification = ""
-                except subprocess.TimeoutExpired:
-                    artifacts = full_matrix_job_artifacts(env, logical_target)
-                    if artifacts.get("complete"):
-                        log_handle.write(
-                            "verified-report-run: full-matrix job artifacts completed during timeout finalization\n"
-                        )
-                    else:
-                        return_code = None
-            if return_code is None:
-                artifacts = full_matrix_job_artifacts(env, logical_target)
-                if artifacts.get("complete"):
-                    return_code = int(artifacts.get("job", {}).get("return_code", 2))
-                else:
-                    return_code = 0
-                    try:
-                        os.killpg(process.pid, signal.SIGTERM)
-                    except ProcessLookupError:
-                        pass
-                    try:
-                        return_code = process.wait(timeout=30)
-                    except subprocess.TimeoutExpired:
-                        try:
-                            os.killpg(process.pid, signal.SIGKILL)
-                        except ProcessLookupError:
-                            pass
-                        return_code = process.wait()
-        except KeyboardInterrupt:
-            classification = "interrupted"
-            log_handle.write("\nverified-report-run: interrupted; terminating process group\n")
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            return_code = process.wait()
+    return_code, classification = execute_command_process(
+        command,
+        cwd=cwd,
+        env=env,
+        log_path=log_path,
+        logical_target=logical_target,
+        timeout_seconds=timeout_seconds,
+        finalize_grace_seconds=finalize_grace_seconds,
+    )
     finished_at = utc_now()
-    if return_code < 0:
-        try:
-            signal_name = signal.Signals(-return_code).name
-        except ValueError:
-            signal_name = f"SIG{-return_code}"
+    signal_name = interrupted_signal_name(return_code)
+    if signal_name:
         classification = classification or "interrupted"
     log_text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.is_file() else ""
-    if return_code != 0 and not classification and ("HTTP Error 504" in log_text or "Gateway Timeout" in log_text):
-        classification = "blocked_network_optional" if optional else "blocked_network"
-    if return_code != 0 and not classification and WORKER_BLOCKED_REASON in log_text:
-        classification = "nginx_worker_docroot_blocked"
+    classification = classify_command_log(return_code, classification, log_text, optional=optional)
     log_hash = sha256_file(log_path)
     status = command_status(return_code, optional=optional, classification=classification)
     print(f"verified-report-run: {status} rc={return_code} log={log_path}", flush=True)
@@ -475,18 +573,16 @@ def runtime_path_report_rows(paths: dict[str, str], connector_root: Path, framew
     return runtime_path_rows(paths, connector_root=connector_root, framework_root=framework_root)
 
 
-def worker_preflight_rows(paths: dict[str, str], build_root: Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    harness_parent = Path(paths["NGINX_HARNESS_PARENT"])
+def harness_parent_preflight_rows(harness_parent: Path) -> list[dict[str, Any]]:
     root_status = "FAIL" if is_under_root_home(harness_parent) else "PASS"
-    rows.append(
+    rows = [
         {
             "check": "Path under /root",
             "status": root_status,
             "path": str(harness_parent),
             "notes": "NGINX_HARNESS_PARENT must be outside /root" if root_status == "FAIL" else "outside /root",
         }
-    )
+    ]
     if harness_parent.exists():
         traverse_status = "PASS" if os.access(harness_parent, os.X_OK) else "FAIL"
         rows.append(
@@ -506,13 +602,25 @@ def worker_preflight_rows(paths: dict[str, str], build_root: Path) -> list[dict[
                 "notes": "harness parent has not been created yet",
             }
         )
+    return rows
 
+
+def worker_preflight_candidates(harness_parent: Path, build_root: Path) -> list[Path]:
     candidates: list[Path] = []
     for root in (harness_parent, build_root):
         if root.exists():
             candidates.extend(root.rglob("nginx-worker-preflight.jsonl"))
+    return sorted(
+        candidates,
+        key=lambda item: item.stat().st_mtime if item.exists() else 0,
+        reverse=True,
+    )
+
+
+def worker_preflight_evidence_rows(candidates: list[Path], maximum_rows: int) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for path in sorted(candidates, key=lambda item: item.stat().st_mtime if item.exists() else 0, reverse=True):
+    for path in candidates:
         key = str(path)
         if key in seen:
             continue
@@ -520,17 +628,29 @@ def worker_preflight_rows(paths: dict[str, str], build_root: Path) -> list[dict[
         for record in read_jsonl(path):
             if not isinstance(record, dict):
                 continue
-            row = {
-                "check": record.get("check", "unknown"),
-                "status": record.get("status", "UNKNOWN"),
-                "path": record.get("path", str(path)),
-                "notes": record.get("notes", "-"),
-                "source_file": str(path),
-                "source_hash": sha256_file(path),
-            }
-            rows.append(row)
-            if len(rows) >= 60:
+            rows.append(
+                {
+                    "check": record.get("check", "unknown"),
+                    "status": record.get("status", "UNKNOWN"),
+                    "path": record.get("path", str(path)),
+                    "notes": record.get("notes", "-"),
+                    "source_file": str(path),
+                    "source_hash": sha256_file(path),
+                }
+            )
+            if len(rows) >= maximum_rows:
                 return rows
+    return rows
+
+
+def worker_preflight_rows(paths: dict[str, str], build_root: Path) -> list[dict[str, Any]]:
+    harness_parent = Path(paths["NGINX_HARNESS_PARENT"])
+    rows = harness_parent_preflight_rows(harness_parent)
+    evidence_rows = worker_preflight_evidence_rows(
+        worker_preflight_candidates(harness_parent, build_root),
+        60 - len(rows),
+    )
+    rows.extend(evidence_rows)
     return rows
 
 
@@ -742,42 +862,50 @@ def simple_runtime_state(record: dict[str, Any]) -> dict[str, Any]:
     return {"runtime_status": runtime_status, "runtime_complete": runtime_status != "runtime_timeout"}
 
 
-def full_matrix_job_state(record: dict[str, Any], env: dict[str, str]) -> dict[str, Any]:
-    artifacts = full_matrix_job_artifacts(env, str(record.get("logical_target") or ""))
-    if artifacts.get("complete"):
-        job = artifacts.get("job", {}) if isinstance(artifacts.get("job"), dict) else {}
-        status = str(job.get("status") or "completed")
-        return_code = job.get("return_code", record.get("return_code"))
-        try:
-            duration_seconds = float(record.get("duration_seconds") or 0)
-            timeout_seconds = float(record.get("timeout_seconds") or 0)
-        except (TypeError, ValueError):
-            duration_seconds = 0
-            timeout_seconds = 0
-        wrapper_status = (
-            "timeout_after_completion"
-            if record.get("classification") in {"blocked_timeout", "timeout_after_completion"}
-            or record.get("wrapper_status") == "timeout_after_completion"
-            or (bool(record.get("signal")) and timeout_seconds > 0 and duration_seconds >= timeout_seconds)
-            else "completed"
-        )
-        return {
-            "wrapper_status": wrapper_status,
-            "runtime_status": status,
-            "runtime_complete": True,
-            "overall_job_status": status,
-            "return_code": return_code,
-            "job_artifact_path": artifacts.get("job_path"),
-            "summary_path": artifacts.get("summary_path"),
-            "results_jsonl": artifacts.get("results_jsonl"),
-            "result_rows": artifacts.get("result_rows"),
-            "summary_cases": artifacts.get("summary_cases"),
-            "classification": "timeout_after_completion" if wrapper_status == "timeout_after_completion" else "completed",
-            "status": "FAIL" if return_code not in {0, None} else "PASS",
-            "notes": "wrapper timed out after completed job artifacts were written"
-            if wrapper_status == "timeout_after_completion"
-            else "job artifacts completed; job.json is source of truth",
-        }
+def float_record_value(record: dict[str, Any], name: str) -> float:
+    try:
+        return float(record.get(name) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def timed_out_after_completed_artifacts(record: dict[str, Any]) -> bool:
+    if record.get("classification") in {"blocked_timeout", "timeout_after_completion"}:
+        return True
+    if record.get("wrapper_status") == "timeout_after_completion":
+        return True
+    return (
+        bool(record.get("signal"))
+        and float_record_value(record, "timeout_seconds") > 0
+        and float_record_value(record, "duration_seconds") >= float_record_value(record, "timeout_seconds")
+    )
+
+
+def completed_full_matrix_job_state(record: dict[str, Any], artifacts: dict[str, Any]) -> dict[str, Any]:
+    job = artifacts.get("job", {}) if isinstance(artifacts.get("job"), dict) else {}
+    status = str(job.get("status") or "completed")
+    return_code = job.get("return_code", record.get("return_code"))
+    wrapper_status = "timeout_after_completion" if timed_out_after_completed_artifacts(record) else "completed"
+    return {
+        "wrapper_status": wrapper_status,
+        "runtime_status": status,
+        "runtime_complete": True,
+        "overall_job_status": status,
+        "return_code": return_code,
+        "job_artifact_path": artifacts.get("job_path"),
+        "summary_path": artifacts.get("summary_path"),
+        "results_jsonl": artifacts.get("results_jsonl"),
+        "result_rows": artifacts.get("result_rows"),
+        "summary_cases": artifacts.get("summary_cases"),
+        "classification": "timeout_after_completion" if wrapper_status == "timeout_after_completion" else "completed",
+        "status": "FAIL" if return_code not in {0, None} else "PASS",
+        "notes": "wrapper timed out after completed job artifacts were written"
+        if wrapper_status == "timeout_after_completion"
+        else "job artifacts completed; job.json is source of truth",
+    }
+
+
+def incomplete_full_matrix_job_state(record: dict[str, Any]) -> dict[str, Any]:
     if record.get("classification") == "blocked_timeout" or record.get("return_code") == 77:
         runtime_status = "runtime_timeout"
     elif record.get("return_code") == 0:
@@ -792,6 +920,13 @@ def full_matrix_job_state(record: dict[str, Any], env: dict[str, str]) -> dict[s
         "runtime_complete": runtime_status != "runtime_timeout",
         "overall_job_status": runtime_status,
     }
+
+
+def full_matrix_job_state(record: dict[str, Any], env: dict[str, str]) -> dict[str, Any]:
+    artifacts = full_matrix_job_artifacts(env, str(record.get("logical_target") or ""))
+    if artifacts.get("complete"):
+        return completed_full_matrix_job_state(record, artifacts)
+    return incomplete_full_matrix_job_state(record)
 
 
 def refresh_state(record: dict[str, Any]) -> dict[str, Any]:
@@ -1179,10 +1314,182 @@ def duration_seconds(start: str, end: str) -> float | str:
     return round((end_dt - start_dt).total_seconds(), 3)
 
 
-def render_markdown(payload: dict[str, Any]) -> str:
-    def cell(value: Any) -> str:
-        return str(value if value is not None else "-").replace("|", "/").replace("\n", " ")
+def markdown_cell(value: Any) -> str:
+    return str(value if value is not None else "-").replace("|", "/").replace("\n", " ")
 
+
+def markdown_summary_lines(payload: dict[str, Any]) -> list[str]:
+    return [
+        "# Verified Run Manifest",
+        "",
+        "## Summary",
+        "",
+        FIELD_VALUE_TABLE_HEADER,
+        FIELD_VALUE_TABLE_DIVIDER,
+        f"| Verified run id | `{markdown_cell(payload.get('verified_run_id', 'unknown'))}` |",
+        f"| Data source policy | `{markdown_cell(payload.get('data_source_policy', DATA_SOURCE_POLICY))}` |",
+        f"| Profile | `{markdown_cell(payload.get('profile', 'full'))}` |",
+        f"| Start time UTC | `{markdown_cell(payload.get('started_at_utc', 'unknown'))}` |",
+        f"| End time UTC | `{markdown_cell(payload.get('finished_at_utc', 'unknown'))}` |",
+        f"| Duration seconds | `{markdown_cell(payload.get('duration_seconds', 'unknown'))}` |",
+        f"| Input status | `{markdown_cell(payload.get('input_status', 'unknown'))}` |",
+        "",
+    ]
+
+
+def markdown_runtime_environment_lines(payload: dict[str, Any]) -> list[str]:
+    return [
+        "## Runtime Environment",
+        "",
+        FIELD_VALUE_TABLE_HEADER,
+        FIELD_VALUE_TABLE_DIVIDER,
+        f"| Connector SHA | `{markdown_cell(payload.get('connector_sha', 'unknown'))}` |",
+        f"| Framework SHA | `{markdown_cell(payload.get('framework_sha', 'unknown'))}` |",
+        f"| MRTS SHA | `{markdown_cell(payload.get('mrts_sha', 'unknown'))}` |",
+        f"| Connector branch | `{markdown_cell(payload.get('branches', {}).get('connector', 'unknown'))}` |",
+        f"| Framework branch | `{markdown_cell(payload.get('branches', {}).get('framework', 'unknown'))}` |",
+        f"| Dirty status | `{markdown_cell(payload.get('dirty_status', {}).get('connector', 'unknown'))}` / `{markdown_cell(payload.get('dirty_status', {}).get('framework', 'unknown'))}` |",
+        f"| Runtime matrix timeout seconds | `{markdown_cell(payload.get('timeout_budgets', {}).get('runtime_matrix', 'none'))}` |",
+        f"| Full matrix runtime timeout seconds | `{markdown_cell(payload.get('timeout_budgets', {}).get('full_matrix_runtime', 'none'))}` |",
+        f"| Report refresh timeout seconds | `{markdown_cell(payload.get('timeout_budgets', {}).get('report_refresh', 'none'))}` |",
+        f"| Native MRTS timeout seconds | `{markdown_cell(payload.get('timeout_budgets', {}).get('native_mrts', 'none'))}` |",
+        "",
+    ]
+
+
+def markdown_runtime_path_lines(payload: dict[str, Any]) -> list[str]:
+    lines = [
+        "## Runtime Paths",
+        "",
+        "| Variable | Value | Status | Notes |",
+        FOUR_COLUMN_TABLE_DIVIDER,
+    ]
+    for item in payload.get("runtime_path_rows", []):
+        lines.append(
+            f"| `{markdown_cell(item.get('variable'))}` | `{markdown_cell(item.get('value'))}` | {markdown_cell(item.get('status'))} | {markdown_cell(item.get('notes'))} |"
+        )
+    if not payload.get("runtime_path_rows"):
+        lines.append("| `-` | `-` | UNKNOWN | no runtime path rows recorded |")
+    return lines
+
+
+def markdown_worker_preflight_lines(payload: dict[str, Any]) -> list[str]:
+    lines = [
+        "",
+        "## Worker Accessibility / Preflight",
+        "",
+        "| Check | Status | Path | Notes |",
+        "|---|---|---|---|",
+    ]
+    for item in payload.get("worker_preflight", []):
+        lines.append(
+            f"| {markdown_cell(item.get('check'))} | {markdown_cell(item.get('status'))} | `{markdown_cell(item.get('path'))}` | {markdown_cell(item.get('notes'))} |"
+        )
+    if not payload.get("worker_preflight"):
+        lines.append("| NGINX worker preflight | UNKNOWN | `-` | no preflight evidence recorded |")
+    return lines
+
+def runtime_producer_readiness(payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    producer_check = payload.get("runtime_producer_readiness_check", {})
+    if not isinstance(producer_check, dict):
+        return {}, {}
+    nginx_readiness = producer_check.get("nginx_runtime_module_readiness", {})
+    return producer_check, nginx_readiness if isinstance(nginx_readiness, dict) else {}
+
+
+def markdown_producer_readiness_lines(producer_check: dict[str, Any]) -> list[str]:
+    lines = [
+        "",
+        "## Runtime Producer Readiness",
+        "",
+        f"- Status: `{producer_check.get('status', 'unknown')}`",
+        f"- Runtime env loaded: `{producer_check.get('runtime_env_loaded', False)}`",
+        f"- Runtime env path: `{producer_check.get('runtime_env_path', '-')}`",
+        "",
+        "| Component | Required | Status | Path | Fix |",
+        "|---|---|---|---|---|",
+    ]
+    components = producer_check.get("components", [])
+    for item in components:
+        if isinstance(item, dict):
+            lines.append(
+                f"| {markdown_cell(item.get('component', '-'))} | {markdown_cell(item.get('required', '-'))} | {markdown_cell(item.get('status', 'unknown'))} | "
+                f"`{markdown_cell(item.get('path', '-'))}` | `{markdown_cell(item.get('fix', '-'))}` |"
+            )
+    if not components:
+        lines.append("| - | - | unknown | `-` | `make check-runtime-producer-readiness` |")
+    return lines
+
+
+def markdown_nginx_module_readiness_lines(nginx_readiness: dict[str, Any]) -> list[str]:
+    return [
+        "",
+        "## NGINX Runtime Module Readiness",
+        "",
+        FIELD_VALUE_TABLE_HEADER,
+        FIELD_VALUE_TABLE_DIVIDER,
+        f"| NGINX_BIN | `{markdown_cell(nginx_readiness.get('NGINX_BIN', ''))}` |",
+        f"| NGINX_MODULE_DIR | `{markdown_cell(nginx_readiness.get('NGINX_MODULE_DIR', ''))}` |",
+        f"| ModSecurity module path | `{markdown_cell(nginx_readiness.get('ModSecurity module path', ''))}` |",
+        f"| Module exists | `{markdown_cell(str(nginx_readiness.get('Module exists', False)).lower())}` |",
+        f"| How to prepare | `{markdown_cell(nginx_readiness.get('How to prepare', 'make prepare-runtime-components'))}` |",
+    ]
+
+
+def markdown_network_cache_lines(producer_check: dict[str, Any]) -> list[str]:
+    lines = [
+        "",
+        "## Runtime Network / Cache Readiness",
+        "",
+        "| Source | Status | Path | Notes |",
+        FOUR_COLUMN_TABLE_DIVIDER,
+    ]
+    network_cache = producer_check.get("network_cache", [])
+    for item in network_cache:
+        if isinstance(item, dict):
+            lines.append(
+                f"| {markdown_cell(item.get('source', '-'))} | {markdown_cell(item.get('status', 'unknown'))} | `{markdown_cell(item.get('path', '-'))}` | {markdown_cell(item.get('notes', '-'))} |"
+            )
+    if not network_cache:
+        lines.append("| - | unknown | `-` | No runtime producer cache rows recorded. |")
+    return lines
+
+def markdown_command_table(
+    payload: dict[str, Any],
+    title: str,
+    targets: set[str],
+    *,
+    include_full_matrix_jobs: bool = False,
+) -> list[str]:
+    lines = [
+        "",
+        title,
+        "",
+        "| Command | Status | RC | Duration | Runtime Status | Refresh Status | Log |",
+        "|---|---:|---:|---:|---|---|---|",
+    ]
+    rows = [
+        command
+        for command in payload.get("commands", [])
+        if str(command.get("logical_target", "")) in targets
+        or (
+            include_full_matrix_jobs
+            and str(command.get("logical_target", "")).startswith(FULL_MATRIX_JOB_PREFIX)
+        )
+    ]
+    for command in rows:
+        command_text = " ".join(command.get("command", []))
+        lines.append(
+            f"| `{markdown_cell(command_text)}` | {markdown_cell(command.get('status', 'unknown'))} | {markdown_cell(command.get('return_code', '-'))} | "
+            f"{markdown_cell(command.get('duration_seconds', '-'))} | {markdown_cell(command.get('runtime_status', '-'))} | "
+            f"{markdown_cell(command.get('refresh_status', '-'))} | `{markdown_cell(command.get('log_path', '-'))}` |"
+        )
+    if not rows:
+        lines.append("| `-` | not_run | - | - | - | - | `-` |")
+    return lines
+
+
+def markdown_command_lines(payload: dict[str, Any]) -> list[str]:
     producer_targets = {
         "git-submodule-update",
         "prepare-runtime-components",
@@ -1194,187 +1501,125 @@ def render_markdown(payload: dict[str, Any]) -> str:
     }
     consumer_targets = {"refresh-all-reports", "generate-system-environment-proof"}
     check_targets = {"check-generated-report-layout", "lint", "quick-check"}
-
-    lines = [
-        "# Verified Run Manifest",
-        "",
-        "## Summary",
-        "",
-        FIELD_VALUE_TABLE_HEADER,
-        FIELD_VALUE_TABLE_DIVIDER,
-        f"| Verified run id | `{cell(payload.get('verified_run_id', 'unknown'))}` |",
-        f"| Data source policy | `{cell(payload.get('data_source_policy', DATA_SOURCE_POLICY))}` |",
-        f"| Profile | `{cell(payload.get('profile', 'full'))}` |",
-        f"| Start time UTC | `{cell(payload.get('started_at_utc', 'unknown'))}` |",
-        f"| End time UTC | `{cell(payload.get('finished_at_utc', 'unknown'))}` |",
-        f"| Duration seconds | `{cell(payload.get('duration_seconds', 'unknown'))}` |",
-        f"| Input status | `{cell(payload.get('input_status', 'unknown'))}` |",
-        "",
-        "## Runtime Environment",
-        "",
-        FIELD_VALUE_TABLE_HEADER,
-        FIELD_VALUE_TABLE_DIVIDER,
-        f"| Connector SHA | `{cell(payload.get('connector_sha', 'unknown'))}` |",
-        f"| Framework SHA | `{cell(payload.get('framework_sha', 'unknown'))}` |",
-        f"| MRTS SHA | `{cell(payload.get('mrts_sha', 'unknown'))}` |",
-        f"| Connector branch | `{cell(payload.get('branches', {}).get('connector', 'unknown'))}` |",
-        f"| Framework branch | `{cell(payload.get('branches', {}).get('framework', 'unknown'))}` |",
-        f"| Dirty status | `{cell(payload.get('dirty_status', {}).get('connector', 'unknown'))}` / `{cell(payload.get('dirty_status', {}).get('framework', 'unknown'))}` |",
-        f"| Runtime matrix timeout seconds | `{cell(payload.get('timeout_budgets', {}).get('runtime_matrix', 'none'))}` |",
-        f"| Full matrix runtime timeout seconds | `{cell(payload.get('timeout_budgets', {}).get('full_matrix_runtime', 'none'))}` |",
-        f"| Report refresh timeout seconds | `{cell(payload.get('timeout_budgets', {}).get('report_refresh', 'none'))}` |",
-        f"| Native MRTS timeout seconds | `{cell(payload.get('timeout_budgets', {}).get('native_mrts', 'none'))}` |",
-        "",
-        "## Runtime Paths",
-        "",
-        "| Variable | Value | Status | Notes |",
-        FOUR_COLUMN_TABLE_DIVIDER,
-    ]
-    for item in payload.get("runtime_path_rows", []):
-        lines.append(
-            f"| `{cell(item.get('variable'))}` | `{cell(item.get('value'))}` | {cell(item.get('status'))} | {cell(item.get('notes'))} |"
-        )
-    if not payload.get("runtime_path_rows"):
-        lines.append("| `-` | `-` | UNKNOWN | no runtime path rows recorded |")
-
-    lines.extend(["", "## Worker Accessibility / Preflight", "", "| Check | Status | Path | Notes |", "|---|---|---|---|"])
-    for item in payload.get("worker_preflight", []):
-        lines.append(f"| {cell(item.get('check'))} | {cell(item.get('status'))} | `{cell(item.get('path'))}` | {cell(item.get('notes'))} |")
-    if not payload.get("worker_preflight"):
-        lines.append("| NGINX worker preflight | UNKNOWN | `-` | no preflight evidence recorded |")
-
-    producer_check = payload.get("runtime_producer_readiness_check", {})
-    nginx_readiness = producer_check.get("nginx_runtime_module_readiness", {}) if isinstance(producer_check, dict) else {}
-    lines.extend(
-        [
-            "",
-            "## Runtime Producer Readiness",
-            "",
-            f"- Status: `{producer_check.get('status', 'unknown') if isinstance(producer_check, dict) else 'unknown'}`",
-            f"- Runtime env loaded: `{producer_check.get('runtime_env_loaded', False) if isinstance(producer_check, dict) else False}`",
-            f"- Runtime env path: `{producer_check.get('runtime_env_path', '-') if isinstance(producer_check, dict) else '-'}`",
-            "",
-            "| Component | Required | Status | Path | Fix |",
-            "|---|---|---|---|---|",
-        ]
+    lines = markdown_command_table(
+        payload,
+        "## Producer Commands",
+        producer_targets,
+        include_full_matrix_jobs=True,
     )
-    components = producer_check.get("components", []) if isinstance(producer_check, dict) else []
-    for item in components:
-        if isinstance(item, dict):
-            lines.append(
-                f"| {cell(item.get('component', '-'))} | {cell(item.get('required', '-'))} | {cell(item.get('status', 'unknown'))} | "
-                f"`{cell(item.get('path', '-'))}` | `{cell(item.get('fix', '-'))}` |"
-            )
-    if not components:
-        lines.append("| - | - | unknown | `-` | `make check-runtime-producer-readiness` |")
-    lines.extend(
-        [
-            "",
-            "## NGINX Runtime Module Readiness",
-            "",
-            FIELD_VALUE_TABLE_HEADER,
-            FIELD_VALUE_TABLE_DIVIDER,
-            f"| NGINX_BIN | `{cell(nginx_readiness.get('NGINX_BIN', ''))}` |",
-            f"| NGINX_MODULE_DIR | `{cell(nginx_readiness.get('NGINX_MODULE_DIR', ''))}` |",
-            f"| ModSecurity module path | `{cell(nginx_readiness.get('ModSecurity module path', ''))}` |",
-            f"| Module exists | `{cell(str(nginx_readiness.get('Module exists', False)).lower())}` |",
-            f"| How to prepare | `{cell(nginx_readiness.get('How to prepare', 'make prepare-runtime-components'))}` |",
-            "",
-            "## Runtime Network / Cache Readiness",
-            "",
-            "| Source | Status | Path | Notes |",
-            FOUR_COLUMN_TABLE_DIVIDER,
-        ]
-    )
-    network_cache = producer_check.get("network_cache", []) if isinstance(producer_check, dict) else []
-    for item in network_cache:
-        if isinstance(item, dict):
-            lines.append(f"| {cell(item.get('source', '-'))} | {cell(item.get('status', 'unknown'))} | `{cell(item.get('path', '-'))}` | {cell(item.get('notes', '-'))} |")
-    if not network_cache:
-        lines.append("| - | unknown | `-` | No runtime producer cache rows recorded. |")
+    lines.extend(markdown_command_table(payload, "## Consumer / Refresh Commands", consumer_targets))
+    lines.extend(markdown_command_table(payload, "## Checks", check_targets))
+    return lines
 
-    def command_table(title: str, targets: set[str]) -> None:
-        lines.extend(["", title, "", "| Command | Status | RC | Duration | Runtime Status | Refresh Status | Log |", "|---|---:|---:|---:|---|---|---|"])
-        rows = [
-            command for command in payload.get("commands", [])
-            if str(command.get("logical_target", "")) in targets
-            or (title == "## Producer Commands" and str(command.get("logical_target", "")).startswith(FULL_MATRIX_JOB_PREFIX))
-        ]
-        for command in rows:
-            command_text = " ".join(command.get("command", []))
-            lines.append(
-                f"| `{cell(command_text)}` | {cell(command.get('status', 'unknown'))} | {cell(command.get('return_code', '-'))} | "
-                f"{cell(command.get('duration_seconds', '-'))} | {cell(command.get('runtime_status', '-'))} | "
-                f"{cell(command.get('refresh_status', '-'))} | `{cell(command.get('log_path', '-'))}` |"
-            )
-        if not rows:
-            lines.append("| `-` | not_run | - | - | - | - | `-` |")
 
-    command_table("## Producer Commands", producer_targets)
-    command_table("## Consumer / Refresh Commands", consumer_targets)
-    command_table("## Checks", check_targets)
-
+def markdown_full_matrix_completeness_lines(payload: dict[str, Any]) -> list[str]:
     completeness = payload.get("full_matrix_job_completeness", {})
-    lines.extend(["", "## Full-Matrix Job Completeness", "", FIELD_VALUE_TABLE_HEADER, FIELD_VALUE_TABLE_DIVIDER])
-    lines.append(f"| Completeness | `{cell(completeness.get('complete_jobs', 0))}/{cell(completeness.get('total_jobs', 0))}` |")
-    lines.append(f"| Overall status | `{cell(completeness.get('status', 'unknown'))}` |")
-    lines.append(f"| Missing jobs | `{cell(', '.join(completeness.get('missing_jobs', [])) or '-')}` |")
-    lines.append(f"| Timeout jobs | `{cell(', '.join(completeness.get('timeout_jobs', [])) or '-')}` |")
+    lines = ["", "## Full-Matrix Job Completeness", "", FIELD_VALUE_TABLE_HEADER, FIELD_VALUE_TABLE_DIVIDER]
+    lines.append(
+        f"| Completeness | `{markdown_cell(completeness.get('complete_jobs', 0))}/{markdown_cell(completeness.get('total_jobs', 0))}` |"
+    )
+    lines.append(f"| Overall status | `{markdown_cell(completeness.get('status', 'unknown'))}` |")
+    lines.append(f"| Missing jobs | `{markdown_cell(', '.join(completeness.get('missing_jobs', [])) or '-')}` |")
+    lines.append(f"| Timeout jobs | `{markdown_cell(', '.join(completeness.get('timeout_jobs', [])) or '-')}` |")
     lines.extend(["", "| Slowest Job | Duration Seconds | Status |", "|---|---:|---|"])
     for job in completeness.get("slowest_jobs", []):
-        lines.append(f"| `{cell(job.get('job_id'))}` | {cell(job.get('duration_seconds'))} | {cell(job.get('status'))} |")
+        lines.append(
+            f"| `{markdown_cell(job.get('job_id'))}` | {markdown_cell(job.get('duration_seconds'))} | {markdown_cell(job.get('status'))} |"
+        )
     if not completeness.get("slowest_jobs"):
         lines.append("| `-` | - | unknown |")
+    return lines
 
+
+def markdown_runtime_mismatch_lines(payload: dict[str, Any]) -> list[str]:
     mismatch = payload.get("runtime_mismatch_summary", {})
-    lines.extend(["", "## Runtime Mismatch Summary", "", FIELD_VALUE_TABLE_HEADER, FIELD_VALUE_TABLE_DIVIDER])
-    lines.append(f"| Total mismatches | `{cell(mismatch.get('total_mismatches', 'unknown'))}` |")
-    lines.append(f"| Critical mismatches | `{cell(mismatch.get('critical_mismatches', 'unknown'))}` |")
-    lines.append(f"| Top connector | `{cell(mismatch.get('top_connector', 'unknown'))}` |")
-    lines.append(f"| Primary blocker | `{cell(mismatch.get('primary_blocker', 'unknown'))}` |")
-    lines.append(f"| Merge readiness | `{cell(mismatch.get('merge_readiness', 'unknown'))}` |")
+    return [
+        "",
+        "## Runtime Mismatch Summary",
+        "",
+        FIELD_VALUE_TABLE_HEADER,
+        FIELD_VALUE_TABLE_DIVIDER,
+        f"| Total mismatches | `{markdown_cell(mismatch.get('total_mismatches', 'unknown'))}` |",
+        f"| Critical mismatches | `{markdown_cell(mismatch.get('critical_mismatches', 'unknown'))}` |",
+        f"| Top connector | `{markdown_cell(mismatch.get('top_connector', 'unknown'))}` |",
+        f"| Primary blocker | `{markdown_cell(mismatch.get('primary_blocker', 'unknown'))}` |",
+        f"| Merge readiness | `{markdown_cell(mismatch.get('merge_readiness', 'unknown'))}` |",
+    ]
 
-    lines.extend(["", "## Blocked / Stale Inputs", "", "| Item | Status | Reason | Affected Reports |", FOUR_COLUMN_TABLE_DIVIDER])
-    rows = []
+def blocked_or_stale_input_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
     for key in ("missing_inputs", "skipped_reports", "blocked_reports", "failed_reports", "stale_inputs"):
         for item in payload.get(key, []):
             rows.append(item)
+    return rows
+
+
+def markdown_blocked_or_stale_input_lines(payload: dict[str, Any]) -> list[str]:
+    lines = ["", "## Blocked / Stale Inputs", "", "| Item | Status | Reason | Affected Reports |", FOUR_COLUMN_TABLE_DIVIDER]
+    rows = blocked_or_stale_input_rows(payload)
     for item in rows:
         affected = ", ".join(str(value) for value in item.get("outputs", [])) or "-"
         lines.append(
-            f"| `{cell(item.get('report_name', item.get('path', 'unknown')))}` | {cell(item.get('status', 'unknown'))} | "
-            f"{cell(item.get('reason', item.get('notes', 'unknown')))} | {cell(affected)} |"
+            f"| `{markdown_cell(item.get('report_name', item.get('path', 'unknown')))}` | {markdown_cell(item.get('status', 'unknown'))} | "
+            f"{markdown_cell(item.get('reason', item.get('notes', 'unknown')))} | {markdown_cell(affected)} |"
         )
     if not rows:
         lines.append("| `-` | zero_result_verified | No missing, skipped, blocked, stale, or failed reports were recorded. | - |")
+    return lines
 
-    lines.extend(["", "## Tool Versions", "", "| Tool | Status | Version / Output |", "|---|---|---|"])
+
+def markdown_tool_version_lines(payload: dict[str, Any]) -> list[str]:
+    lines = ["", "## Tool Versions", "", "| Tool | Status | Version / Output |", "|---|---|---|"]
     for tool in payload.get("tool_versions", []):
         version = str(tool.get("version") or tool.get("version_output") or "-").splitlines()[0]
-        lines.append(f"| {cell(tool.get('tool', '-'))} | {cell(tool.get('status', 'unknown'))} | `{cell(version)}` |")
+        lines.append(
+            f"| {markdown_cell(tool.get('tool', '-'))} | {markdown_cell(tool.get('status', 'unknown'))} | `{markdown_cell(version)}` |"
+        )
     if not payload.get("tool_versions"):
         lines.append("| `-` | unknown | `system-environment-proof unavailable` |")
+    return lines
 
-    lines.extend(
-        [
-            "",
-            "## Git Evidence",
-            "",
-            "| Repository | SHA | Branch | Dirty Status |",
-            FOUR_COLUMN_TABLE_DIVIDER,
-            f"| connector | `{cell(payload.get('connector_sha', 'unknown'))}` | `{cell(payload.get('branches', {}).get('connector', 'unknown'))}` | `{cell(payload.get('dirty_status', {}).get('connector', 'unknown'))}` |",
-            f"| framework | `{cell(payload.get('framework_sha', 'unknown'))}` | `{cell(payload.get('branches', {}).get('framework', 'unknown'))}` | `{cell(payload.get('dirty_status', {}).get('framework', 'unknown'))}` |",
-            f"| MRTS | `{cell(payload.get('mrts_sha', 'unknown'))}` | `{cell(payload.get('branches', {}).get('mrts', 'unknown'))}` | `{cell(payload.get('dirty_status', {}).get('mrts', 'unknown'))}` |",
-            "",
-            "## Proof Summary",
-            "",
-            "| Claim | Status | Evidence |",
-            "|---|---|---|",
-            f"| Runtime paths outside /root by default | `{cell('PASS' if not is_under_root_home(Path(payload.get('runtime_paths', {}).get('VERIFIED_RUN_ROOT', '/root'))) else 'FAIL')}` | `VERIFIED_RUN_ROOT={cell(payload.get('runtime_paths', {}).get('VERIFIED_RUN_ROOT', 'unknown'))}` |",
-            f"| NGINX docroot preflight evidence | `{cell('PASS' if payload.get('worker_preflight') else 'UNKNOWN')}` | `nginx-worker-preflight.jsonl` rows are included when NGINX smoke ran |",
-            f"| Verified inputs only | `PASS` | `{DATA_SOURCE_POLICY}` |",
-        ]
+def markdown_git_evidence_lines(payload: dict[str, Any]) -> list[str]:
+    return [
+        "",
+        "## Git Evidence",
+        "",
+        "| Repository | SHA | Branch | Dirty Status |",
+        FOUR_COLUMN_TABLE_DIVIDER,
+        f"| connector | `{markdown_cell(payload.get('connector_sha', 'unknown'))}` | `{markdown_cell(payload.get('branches', {}).get('connector', 'unknown'))}` | `{markdown_cell(payload.get('dirty_status', {}).get('connector', 'unknown'))}` |",
+        f"| framework | `{markdown_cell(payload.get('framework_sha', 'unknown'))}` | `{markdown_cell(payload.get('branches', {}).get('framework', 'unknown'))}` | `{markdown_cell(payload.get('dirty_status', {}).get('framework', 'unknown'))}` |",
+        f"| MRTS | `{markdown_cell(payload.get('mrts_sha', 'unknown'))}` | `{markdown_cell(payload.get('branches', {}).get('mrts', 'unknown'))}` | `{markdown_cell(payload.get('dirty_status', {}).get('mrts', 'unknown'))}` |",
+        "",
+        "## Proof Summary",
+        "",
+        "| Claim | Status | Evidence |",
+        "|---|---|---|",
+        f"| Runtime paths outside /root by default | `{markdown_cell('PASS' if not is_under_root_home(Path(payload.get('runtime_paths', {}).get('VERIFIED_RUN_ROOT', '/root'))) else 'FAIL')}` | `VERIFIED_RUN_ROOT={markdown_cell(payload.get('runtime_paths', {}).get('VERIFIED_RUN_ROOT', 'unknown'))}` |",
+        f"| NGINX docroot preflight evidence | `{markdown_cell('PASS' if payload.get('worker_preflight') else 'UNKNOWN')}` | `nginx-worker-preflight.jsonl` rows are included when NGINX smoke ran |",
+        f"| Verified inputs only | `PASS` | `{DATA_SOURCE_POLICY}` |",
+    ]
+
+
+def render_markdown(payload: dict[str, Any]) -> str:
+    producer_check, nginx_readiness = runtime_producer_readiness(payload)
+    sections = (
+        markdown_summary_lines(payload),
+        markdown_runtime_environment_lines(payload),
+        markdown_runtime_path_lines(payload),
+        markdown_worker_preflight_lines(payload),
+        markdown_producer_readiness_lines(producer_check),
+        markdown_nginx_module_readiness_lines(nginx_readiness),
+        markdown_network_cache_lines(producer_check),
+        markdown_command_lines(payload),
+        markdown_full_matrix_completeness_lines(payload),
+        markdown_runtime_mismatch_lines(payload),
+        markdown_blocked_or_stale_input_lines(payload),
+        markdown_tool_version_lines(payload),
+        markdown_git_evidence_lines(payload),
     )
+    lines: list[str] = []
+    for section in sections:
+        lines.extend(section)
     return "\n".join(lines) + "\n"
 
 
@@ -1479,7 +1724,34 @@ def write_verified_manifest(
     md_path.write_text(generated_markdown_text(render_markdown(payload), metadata), encoding="utf-8")
 
 
-def main() -> int:
+class VerifiedRunContext:
+    def __init__(
+        self,
+        *,
+        connector_root: Path,
+        framework_root: Path,
+        build_root: Path,
+        verified_run_id: str,
+        started_at: str,
+        run_root: Path,
+        logs_dir: Path,
+        commands_file: Path,
+        env: dict[str, str],
+        timeout_budgets: dict[str, int],
+    ) -> None:
+        self.connector_root = connector_root
+        self.framework_root = framework_root
+        self.build_root = build_root
+        self.verified_run_id = verified_run_id
+        self.started_at = started_at
+        self.run_root = run_root
+        self.logs_dir = logs_dir
+        self.commands_file = commands_file
+        self.env = env
+        self.timeout_budgets = timeout_budgets
+
+
+def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", default=".")
     parser.add_argument("--framework-root", default=None)
@@ -1504,52 +1776,65 @@ def main() -> int:
     parser.add_argument("--mode", choices=("strict", "soft"), default="strict")
     parser.add_argument("--profile", choices=("full", "smoke"), default="full")
     parser.add_argument("--soft", action="store_true")
-    parser.add_argument("--manifest-only", action="store_true", help="rewrite verified-run manifest from existing verified command records without running commands")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--manifest-only",
+        action="store_true",
+        help="rewrite verified-run manifest from existing verified command records without running commands",
+    )
+    return parser
 
+
+def canonical_roots_from_arguments(
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+) -> tuple[Path, Path]:
     try:
-        connector_root, framework_root = canonical_roots(
-            args.connector_root, args.framework_root
-        )
+        return canonical_roots(args.connector_root, args.framework_root)
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
-    initial_paths = verified_runtime_paths(os.environ)
-    build_root = Path(os.path.abspath(args.build_root or initial_paths["BUILD_ROOT"]))
+    raise AssertionError(ARGPARSE_ERROR_TERMINATION_ASSERTION)
+
+
+def initial_verified_run_id(parser: argparse.ArgumentParser) -> str:
     initial_run_id = os.environ.get("VERIFIED_RUN_ID", "") or "pending"
     try:
-        initial_run_id = validate_verified_run_id(initial_run_id)
+        return validate_verified_run_id(initial_run_id)
     except VerifiedRunIdError as exc:
         parser.error(str(exc))
-    paths = runtime_paths(dict(os.environ), build_root, initial_run_id)
-    current_run_file = Path(paths["VERIFIED_RUNS_ROOT"]) / "current-run-id"
-    if not os.environ.get("VERIFIED_RUN_ID") and args.phase in {
+    raise AssertionError(ARGPARSE_ERROR_TERMINATION_ASSERTION)
+
+
+def restore_current_verified_run_id(args: argparse.Namespace, current_run_file: Path) -> None:
+    append_phases = {
         "report-refresh",
         "consumers",
         "checks",
         "full-matrix-job",
         "full-matrix-resume",
-    }:
-        try:
-            previous_run_id = current_run_file.read_text(encoding="utf-8").strip()
-        except OSError:
-            previous_run_id = ""
-        if previous_run_id:
-            os.environ["VERIFIED_RUN_ID"] = previous_run_id
+    }
+    if os.environ.get("VERIFIED_RUN_ID") or args.phase not in append_phases:
+        return
+    try:
+        previous_run_id = current_run_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        previous_run_id = ""
+    if previous_run_id:
+        os.environ["VERIFIED_RUN_ID"] = previous_run_id
+
+
+def current_verified_run_id_or_error(
+    parser: argparse.ArgumentParser,
+    connector_root: Path,
+) -> str:
     os.environ.setdefault("VERIFIED_RUN_ID", current_verified_run_id(connector_root))
     try:
-        verified_run_id = validate_verified_run_id(os.environ["VERIFIED_RUN_ID"])
+        return validate_verified_run_id(os.environ["VERIFIED_RUN_ID"])
     except VerifiedRunIdError as exc:
         parser.error(str(exc))
-    os.environ["VERIFIED_RUN_ID"] = verified_run_id
-    started_at = utc_now()
-    paths = runtime_paths(dict(os.environ), build_root, verified_run_id)
-    prepare_runtime_roots(paths)
-    run_root = Path(paths["VERIFIED_RUN_INSTANCE_ROOT"])
-    logs_dir = Path(paths["VERIFIED_RUN_INSTANCE_LOG_ROOT"])
-    current_run_file.write_text(verified_run_id + "\n", encoding="utf-8")
-    commands_file = run_root / "verified-commands.json"
+    raise AssertionError(ARGPARSE_ERROR_TERMINATION_ASSERTION)
 
-    env = dict(os.environ)
+
+def verified_run_timeout_budgets(env: dict[str, str]) -> dict[str, int]:
     runtime_matrix_timeout = timeout_from_env(env, "VERIFIED_RUN_RUNTIME_MATRIX_TIMEOUT_SECONDS", 1800)
     full_matrix_runtime_timeout = timeout_from_env(
         env,
@@ -1557,11 +1842,32 @@ def main() -> int:
         7200,
         aliases=("VERIFIED_RUN_FULL_MATRIX_TIMEOUT_SECONDS",),
     )
-    report_refresh_timeout = timeout_from_env(env, "VERIFIED_RUN_REPORT_REFRESH_TIMEOUT_SECONDS", 1800)
-    native_mrts_timeout = timeout_from_env(env, "VERIFIED_RUN_NATIVE_MRTS_TIMEOUT_SECONDS", 1800)
-    full_matrix_job_timeout = timeout_from_env(env, "VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS", 3600)
-    full_matrix_total_timeout = timeout_from_env(env, "VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS", 14400)
-    job_finalize_grace = timeout_from_env(env, "VERIFIED_RUN_JOB_FINALIZE_GRACE_SECONDS", 60)
+    return {
+        "runtime_matrix": runtime_matrix_timeout,
+        "full_matrix_runtime": full_matrix_runtime_timeout,
+        "report_refresh": timeout_from_env(env, "VERIFIED_RUN_REPORT_REFRESH_TIMEOUT_SECONDS", 1800),
+        "native_mrts": timeout_from_env(env, "VERIFIED_RUN_NATIVE_MRTS_TIMEOUT_SECONDS", 1800),
+        "full_matrix_job": timeout_from_env(env, "VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS", 3600),
+        "full_matrix_total": timeout_from_env(env, "VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS", 14400),
+        "job_finalize_grace": timeout_from_env(env, "VERIFIED_RUN_JOB_FINALIZE_GRACE_SECONDS", 60),
+    }
+
+
+def configure_verified_run_environment(
+    env: dict[str, str],
+    *,
+    connector_root: Path,
+    framework_root: Path,
+    build_root: Path,
+    paths: dict[str, str],
+    verified_run_id: str,
+    started_at: str,
+    logs_dir: Path,
+    commands_file: Path,
+    profile: str,
+    timeout_budgets: dict[str, int],
+) -> None:
+    full_matrix_runtime_timeout = timeout_budgets["full_matrix_runtime"]
     env.update(
         {
             "CONNECTOR_ROOT": str(connector_root),
@@ -1587,284 +1893,452 @@ def main() -> int:
             "VERIFIED_RUN_STARTED_AT": started_at,
             "VERIFIED_RUN_LOG_ROOT": str(logs_dir),
             "VERIFIED_RUN_COMMANDS_FILE": str(commands_file),
-            "VERIFIED_RUN_PROFILE": args.profile,
-            "VERIFIED_RUN_RUNTIME_MATRIX_TIMEOUT_SECONDS": str(runtime_matrix_timeout),
+            "VERIFIED_RUN_PROFILE": profile,
+            "VERIFIED_RUN_RUNTIME_MATRIX_TIMEOUT_SECONDS": str(timeout_budgets["runtime_matrix"]),
             "VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS": str(full_matrix_runtime_timeout),
             "VERIFIED_RUN_FULL_MATRIX_TIMEOUT_SECONDS": str(full_matrix_runtime_timeout),
-            "VERIFIED_RUN_REPORT_REFRESH_TIMEOUT_SECONDS": str(report_refresh_timeout),
-            "VERIFIED_RUN_NATIVE_MRTS_TIMEOUT_SECONDS": str(native_mrts_timeout),
-            "VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS": str(full_matrix_job_timeout),
-            "VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS": str(full_matrix_total_timeout),
-            "VERIFIED_RUN_JOB_FINALIZE_GRACE_SECONDS": str(job_finalize_grace),
+            "VERIFIED_RUN_REPORT_REFRESH_TIMEOUT_SECONDS": str(timeout_budgets["report_refresh"]),
+            "VERIFIED_RUN_NATIVE_MRTS_TIMEOUT_SECONDS": str(timeout_budgets["native_mrts"]),
+            "VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS": str(timeout_budgets["full_matrix_job"]),
+            "VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS": str(timeout_budgets["full_matrix_total"]),
+            "VERIFIED_RUN_JOB_FINALIZE_GRACE_SECONDS": str(timeout_budgets["job_finalize_grace"]),
             "PYTHONDONTWRITEBYTECODE": env.get("PYTHONDONTWRITEBYTECODE", "1"),
         }
     )
 
-    if args.phase == "full-matrix-job":
-        if not args.connector or not args.crs or not args.mrts:
-            parser.error("--phase full-matrix-job requires --connector, --crs, and --mrts")
-        plan = [
-            {
-                "phase": "full-matrix-job",
-                "command": [
-                    "make",
-                    "full-matrix-single-job-runtime",
-                    f"CONNECTOR={args.connector}",
-                    f"CRS={args.crs}",
-                    f"MRTS={args.mrts}",
-                ],
-                "logical_target": f"{FULL_MATRIX_JOB_PREFIX}{args.connector}:{args.crs}:{args.mrts}",
-                "required": True,
-                "optional": False,
-                "affected_reports": ["full_matrix_job_completeness", "verified_runtime_mismatch_analysis"],
-                "timeout_seconds": full_matrix_job_timeout,
-            },
-            {
-                "phase": "full-matrix-job",
-                "command": ["make", "generate-full-matrix-job-completeness"],
-                "logical_target": "generate-full-matrix-job-completeness",
-                "required": False,
-                "optional": True,
-                "affected_reports": ["full_matrix_job_completeness"],
-                "timeout_seconds": report_refresh_timeout,
-            },
-        ]
-    elif args.phase == "full-matrix-resume":
-        plan = [
-            {
-                "phase": "full-matrix-resume",
-                "command": ["make", "full-matrix-resume-runtime"],
-                "logical_target": "full-matrix-resume",
-                "required": True,
-                "optional": False,
-                "affected_reports": ["full_matrix_job_completeness", "verified_runtime_mismatch_analysis"],
-                "timeout_seconds": full_matrix_total_timeout,
-            },
-            {
-                "phase": "full-matrix-resume",
-                "command": ["make", "generate-full-matrix-job-completeness"],
-                "logical_target": "generate-full-matrix-job-completeness",
-                "required": False,
-                "optional": True,
-                "affected_reports": ["full_matrix_job_completeness"],
-                "timeout_seconds": report_refresh_timeout,
-            },
-            {
-                "phase": "full-matrix-resume",
-                "command": ["make", "generate-verified-runtime-mismatch-analysis"],
-                "logical_target": "generate-verified-runtime-mismatch-analysis",
-                "required": False,
-                "optional": True,
-                "affected_reports": ["verified_runtime_mismatch_analysis"],
-                "timeout_seconds": report_refresh_timeout,
-            },
-        ]
-    else:
-        plan = select_commands(
-            command_plan(
-                runtime_matrix_timeout=runtime_matrix_timeout,
-                full_matrix_runtime_timeout=full_matrix_runtime_timeout,
-                report_refresh_timeout=report_refresh_timeout,
-                native_mrts_timeout=native_mrts_timeout,
-                profile=args.profile,
-            ),
-            args.phase,
-        )
-    timeout_budgets = {
-        "runtime_matrix": runtime_matrix_timeout,
-        "full_matrix_runtime": full_matrix_runtime_timeout,
-        "full_matrix_job": full_matrix_job_timeout,
-        "full_matrix_total": full_matrix_total_timeout,
-        "job_finalize_grace": job_finalize_grace,
-        "report_refresh": report_refresh_timeout,
-        "native_mrts": native_mrts_timeout,
-    }
-    existing_payload = read_json(commands_file)
-    existing_commands = existing_payload.get("commands") if isinstance(existing_payload.get("commands"), list) else []
-    append_phases = {"report-refresh", "consumers", "checks", "full-matrix-job", "full-matrix-resume"}
-    command_records: list[dict[str, Any]] = (
-        normalize_existing_command_records(existing_commands, env, args.profile)
-        if args.manifest_only or args.phase in append_phases
-        else []
+
+def prepare_verified_run_context(
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+) -> VerifiedRunContext:
+    connector_root, framework_root = canonical_roots_from_arguments(parser, args)
+    initial_paths = verified_runtime_paths(os.environ)
+    build_root = Path(os.path.abspath(args.build_root or initial_paths["BUILD_ROOT"]))
+    pending_run_id = initial_verified_run_id(parser)
+    initial_runtime_paths = runtime_paths(dict(os.environ), build_root, pending_run_id)
+    current_run_file = Path(initial_runtime_paths["VERIFIED_RUNS_ROOT"]) / "current-run-id"
+    restore_current_verified_run_id(args, current_run_file)
+    verified_run_id = current_verified_run_id_or_error(parser, connector_root)
+    os.environ["VERIFIED_RUN_ID"] = verified_run_id
+    started_at = utc_now()
+    paths = runtime_paths(dict(os.environ), build_root, verified_run_id)
+    prepare_runtime_roots(paths)
+    run_root = Path(paths["VERIFIED_RUN_INSTANCE_ROOT"])
+    logs_dir = Path(paths["VERIFIED_RUN_INSTANCE_LOG_ROOT"])
+    current_run_file.write_text(verified_run_id + "\n", encoding="utf-8")
+    commands_file = run_root / "verified-commands.json"
+    env = dict(os.environ)
+    timeout_budgets = verified_run_timeout_budgets(env)
+    configure_verified_run_environment(
+        env,
+        connector_root=connector_root,
+        framework_root=framework_root,
+        build_root=build_root,
+        paths=paths,
+        verified_run_id=verified_run_id,
+        started_at=started_at,
+        logs_dir=logs_dir,
+        commands_file=commands_file,
+        profile=args.profile,
+        timeout_budgets=timeout_budgets,
     )
-    run_started_at = str(existing_payload.get("started_at_utc") or started_at) if command_records else started_at
-    if args.manifest_only:
-        finished_at = str(existing_payload.get("finished_at_utc") or utc_now())
-        write_verified_manifest(
-            connector_root=connector_root,
-            framework_root=framework_root,
-            build_root=build_root,
-            verified_run_id=verified_run_id,
-            started_at=run_started_at,
-            finished_at=finished_at,
-            commands=command_records,
-            commands_file=commands_file,
-            env=env,
-            profile=args.profile,
-            full_matrix_timeout=full_matrix_runtime_timeout,
-            timeout_budgets=timeout_budgets,
-        )
-        return 0
-    write_commands_file(
-        run_root,
-        commands_file,
-        {
-            "verified_run_id": verified_run_id,
-            "data_source_policy": DATA_SOURCE_POLICY,
-            "profile": args.profile,
-            "phase": args.phase,
-            "started_at_utc": run_started_at,
-            "commands": command_records,
-        },
-    )
-    write_verified_manifest(
+    return VerifiedRunContext(
         connector_root=connector_root,
         framework_root=framework_root,
         build_root=build_root,
         verified_run_id=verified_run_id,
-        started_at=run_started_at,
-        finished_at=started_at,
-        commands=command_records,
+        started_at=started_at,
+        run_root=run_root,
+        logs_dir=logs_dir,
         commands_file=commands_file,
         env=env,
-        profile=args.profile,
-        full_matrix_timeout=full_matrix_runtime_timeout,
         timeout_budgets=timeout_budgets,
     )
-    next_log_index = len(command_records) + 1
+
+
+def full_matrix_job_command_plan(
+    args: argparse.Namespace,
+    timeout_budgets: dict[str, int],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "phase": "full-matrix-job",
+            "command": [
+                "make",
+                "full-matrix-single-job-runtime",
+                f"CONNECTOR={args.connector}",
+                f"CRS={args.crs}",
+                f"MRTS={args.mrts}",
+            ],
+            "logical_target": f"{FULL_MATRIX_JOB_PREFIX}{args.connector}:{args.crs}:{args.mrts}",
+            "required": True,
+            "optional": False,
+            "affected_reports": ["full_matrix_job_completeness", "verified_runtime_mismatch_analysis"],
+            "timeout_seconds": timeout_budgets["full_matrix_job"],
+        },
+        {
+            "phase": "full-matrix-job",
+            "command": ["make", "generate-full-matrix-job-completeness"],
+            "logical_target": "generate-full-matrix-job-completeness",
+            "required": False,
+            "optional": True,
+            "affected_reports": ["full_matrix_job_completeness"],
+            "timeout_seconds": timeout_budgets["report_refresh"],
+        },
+    ]
+
+
+def full_matrix_resume_command_plan(timeout_budgets: dict[str, int]) -> list[dict[str, Any]]:
+    return [
+        {
+            "phase": "full-matrix-resume",
+            "command": ["make", "full-matrix-resume-runtime"],
+            "logical_target": "full-matrix-resume",
+            "required": True,
+            "optional": False,
+            "affected_reports": ["full_matrix_job_completeness", "verified_runtime_mismatch_analysis"],
+            "timeout_seconds": timeout_budgets["full_matrix_total"],
+        },
+        {
+            "phase": "full-matrix-resume",
+            "command": ["make", "generate-full-matrix-job-completeness"],
+            "logical_target": "generate-full-matrix-job-completeness",
+            "required": False,
+            "optional": True,
+            "affected_reports": ["full_matrix_job_completeness"],
+            "timeout_seconds": timeout_budgets["report_refresh"],
+        },
+        {
+            "phase": "full-matrix-resume",
+            "command": ["make", "generate-verified-runtime-mismatch-analysis"],
+            "logical_target": "generate-verified-runtime-mismatch-analysis",
+            "required": False,
+            "optional": True,
+            "affected_reports": ["verified_runtime_mismatch_analysis"],
+            "timeout_seconds": timeout_budgets["report_refresh"],
+        },
+    ]
+
+
+def selected_command_plan(
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+    timeout_budgets: dict[str, int],
+) -> list[dict[str, Any]]:
+    if args.phase == "full-matrix-job":
+        if not args.connector or not args.crs or not args.mrts:
+            parser.error("--phase full-matrix-job requires --connector, --crs, and --mrts")
+        return full_matrix_job_command_plan(args, timeout_budgets)
+    if args.phase == "full-matrix-resume":
+        return full_matrix_resume_command_plan(timeout_budgets)
+    return select_commands(
+        command_plan(
+            runtime_matrix_timeout=timeout_budgets["runtime_matrix"],
+            full_matrix_runtime_timeout=timeout_budgets["full_matrix_runtime"],
+            report_refresh_timeout=timeout_budgets["report_refresh"],
+            native_mrts_timeout=timeout_budgets["native_mrts"],
+            profile=args.profile,
+        ),
+        args.phase,
+    )
+
+
+def existing_command_state(
+    context: VerifiedRunContext,
+    args: argparse.Namespace,
+) -> tuple[dict[str, Any], list[dict[str, Any]], str]:
+    existing_payload = read_json(context.commands_file)
+    existing_commands = (
+        existing_payload.get("commands")
+        if isinstance(existing_payload.get("commands"), list)
+        else []
+    )
+    append_phases = {
+        "report-refresh",
+        "consumers",
+        "checks",
+        "full-matrix-job",
+        "full-matrix-resume",
+    }
+    command_records = (
+        normalize_existing_command_records(existing_commands, context.env, args.profile)
+        if args.manifest_only or args.phase in append_phases
+        else []
+    )
+    run_started_at = (
+        str(existing_payload.get("started_at_utc") or context.started_at)
+        if command_records
+        else context.started_at
+    )
+    return existing_payload, command_records, run_started_at
+
+
+def command_records_payload(
+    args: argparse.Namespace,
+    context: VerifiedRunContext,
+    command_records: list[dict[str, Any]],
+    run_started_at: str,
+    *,
+    timestamp_name: str | None = None,
+    timestamp_value: str | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "verified_run_id": context.verified_run_id,
+        "data_source_policy": DATA_SOURCE_POLICY,
+        "profile": args.profile,
+        "phase": args.phase,
+        "started_at_utc": run_started_at,
+        "commands": command_records,
+    }
+    if timestamp_name is not None and timestamp_value is not None:
+        payload[timestamp_name] = timestamp_value
+    return payload
+
+
+def write_command_records(
+    args: argparse.Namespace,
+    context: VerifiedRunContext,
+    command_records: list[dict[str, Any]],
+    run_started_at: str,
+    *,
+    timestamp_name: str | None = None,
+    timestamp_value: str | None = None,
+) -> None:
+    write_commands_file(
+        context.run_root,
+        context.commands_file,
+        command_records_payload(
+            args,
+            context,
+            command_records,
+            run_started_at,
+            timestamp_name=timestamp_name,
+            timestamp_value=timestamp_value,
+        ),
+    )
+
+
+def write_context_manifest(
+    args: argparse.Namespace,
+    context: VerifiedRunContext,
+    command_records: list[dict[str, Any]],
+    run_started_at: str,
+    finished_at: str,
+) -> None:
+    write_verified_manifest(
+        connector_root=context.connector_root,
+        framework_root=context.framework_root,
+        build_root=context.build_root,
+        verified_run_id=context.verified_run_id,
+        started_at=run_started_at,
+        finished_at=finished_at,
+        commands=command_records,
+        commands_file=context.commands_file,
+        env=context.env,
+        profile=args.profile,
+        full_matrix_timeout=context.timeout_budgets["full_matrix_runtime"],
+        timeout_budgets=context.timeout_budgets,
+    )
+
+
+def rewrite_manifest_only(
+    args: argparse.Namespace,
+    context: VerifiedRunContext,
+    existing_payload: dict[str, Any],
+    command_records: list[dict[str, Any]],
+    run_started_at: str,
+) -> int:
+    finished_at = str(existing_payload.get("finished_at_utc") or utc_now())
+    write_context_manifest(args, context, command_records, run_started_at, finished_at)
+    return 0
+
+
+def write_initial_run_artifacts(
+    args: argparse.Namespace,
+    context: VerifiedRunContext,
+    command_records: list[dict[str, Any]],
+    run_started_at: str,
+) -> None:
+    write_command_records(args, context, command_records, run_started_at)
+    write_context_manifest(
+        args,
+        context,
+        command_records,
+        run_started_at,
+        context.started_at,
+    )
+
+
+def planned_command_target(item: dict[str, Any], command: list[str]) -> str:
+    fallback_target = command[1] if len(command) == 2 and command[0] == "make" else ""
+    return str(item.get("logical_target") or fallback_target)
+
+
+def runtime_producer_readiness_blocked(command_records: list[dict[str, Any]]) -> bool:
+    return any(
+        record.get("logical_target") == "check-runtime-producer-readiness"
+        and record.get("return_code") != 0
+        for record in command_records
+    )
+
+
+def skipped_redundant_full_matrix_resume(
+    command: list[str],
+    *,
+    context: VerifiedRunContext,
+    index: int,
+    item: dict[str, Any],
+    target: str,
+) -> dict[str, Any]:
+    record = skipped_command_record(
+        command,
+        logs_dir=context.logs_dir,
+        index=index,
+        phase=str(item["phase"]),
+        required=False,
+        optional=True,
+        affected_reports=list(item.get("affected_reports", [])),
+        reason="a completed required full-matrix producer already exists for this verified run",
+        logical_target=target,
+    )
+    record.update(
+        {
+            "runtime_complete": False,
+            "runtime_status": "runtime_not_required",
+            "overall_status": "runtime_not_required",
+        }
+    )
+    print(
+        f"verified-report-run: {record['status']} {target}: {record['notes']} log={record['log_path']}",
+        flush=True,
+    )
+    return record
+
+
+def skipped_not_ready_runtime_producer(
+    command: list[str],
+    *,
+    context: VerifiedRunContext,
+    index: int,
+    item: dict[str, Any],
+    target: str,
+) -> dict[str, Any]:
+    record = skipped_command_record(
+        command,
+        logs_dir=context.logs_dir,
+        index=index,
+        phase=str(item["phase"]),
+        required=bool(item["required"]),
+        optional=bool(item["optional"]),
+        affected_reports=list(item.get("affected_reports", [])),
+        reason="check-runtime-producer-readiness did not pass",
+        logical_target=target,
+    )
+    print(
+        f"verified-report-run: {record['status']} {target}: {record['notes']} log={record['log_path']}",
+        flush=True,
+    )
+    return record
+
+
+def planned_command_record(
+    item: dict[str, Any],
+    *,
+    context: VerifiedRunContext,
+    index: int,
+    command_records: list[dict[str, Any]],
+    profile: str,
+) -> dict[str, Any]:
+    command = list(item["command"])
+    target = planned_command_target(item, command)
+    redundant_resume = (
+        target == "full-matrix-resume"
+        and has_completed_full_matrix_producer(command_records)
+    )
+    if redundant_resume:
+        return skipped_redundant_full_matrix_resume(
+            command,
+            context=context,
+            index=index,
+            item=item,
+            target=target,
+        )
+    readiness_blocked = runtime_producer_readiness_blocked(command_records)
+    if readiness_blocked and target in {"runtime-matrix-all", "full-matrix-parallel", "mrts-native-full-run"}:
+        record = skipped_not_ready_runtime_producer(
+            command,
+            context=context,
+            index=index,
+            item=item,
+            target=target,
+        )
+    else:
+        record = run_command(
+            command,
+            cwd=context.connector_root,
+            env=context.env,
+            logs_dir=context.logs_dir,
+            index=index,
+            phase=str(item["phase"]),
+            required=bool(item["required"]),
+            optional=bool(item["optional"]),
+            timeout_seconds=item.get("timeout_seconds"),
+            finalize_grace_seconds=context.timeout_budgets["job_finalize_grace"],
+            affected_reports=list(item.get("affected_reports", [])),
+            logical_target=target,
+        )
+    return apply_command_semantics(record, context.env, profile)
+
+
+def execute_command_plan(
+    plan: list[dict[str, Any]],
+    *,
+    args: argparse.Namespace,
+    context: VerifiedRunContext,
+    command_records: list[dict[str, Any]],
+    run_started_at: str,
+) -> bool:
     aggregate_receipt_failed = False
+    next_log_index = len(command_records) + 1
     for index, item in enumerate(plan, start=next_log_index):
-        command = list(item["command"])
-        target = str(item.get("logical_target") or (command[1] if len(command) == 2 and command[0] == "make" else ""))
-        redundant_full_matrix_resume = (
-            target == "full-matrix-resume" and has_completed_full_matrix_producer(command_records)
+        record = planned_command_record(
+            item,
+            context=context,
+            index=index,
+            command_records=command_records,
+            profile=args.profile,
         )
-        readiness_blocked = any(
-            record.get("logical_target") == "check-runtime-producer-readiness"
-            and record.get("return_code") != 0
-            for record in command_records
-        )
-        if redundant_full_matrix_resume:
-            record = skipped_command_record(
-                command,
-                logs_dir=logs_dir,
-                index=index,
-                phase=str(item["phase"]),
-                required=False,
-                optional=True,
-                affected_reports=list(item.get("affected_reports", [])),
-                reason="a completed required full-matrix producer already exists for this verified run",
-                logical_target=target,
-            )
-            record.update(
-                {
-                    "runtime_complete": False,
-                    "runtime_status": "runtime_not_required",
-                    "overall_status": "runtime_not_required",
-                }
-            )
-            print(f"verified-report-run: {record['status']} {target}: {record['notes']} log={record['log_path']}", flush=True)
-        elif readiness_blocked and target in {"runtime-matrix-all", "full-matrix-parallel", "mrts-native-full-run"}:
-            record = skipped_command_record(
-                command,
-                logs_dir=logs_dir,
-                index=index,
-                phase=str(item["phase"]),
-                required=bool(item["required"]),
-                optional=bool(item["optional"]),
-                affected_reports=list(item.get("affected_reports", [])),
-                reason="check-runtime-producer-readiness did not pass",
-                logical_target=target,
-            )
-            print(f"verified-report-run: {record['status']} {target}: {record['notes']} log={record['log_path']}", flush=True)
-        else:
-            record = run_command(
-                command,
-                cwd=connector_root,
-                env=env,
-                logs_dir=logs_dir,
-                index=index,
-                phase=str(item["phase"]),
-                required=bool(item["required"]),
-                optional=bool(item["optional"]),
-                timeout_seconds=item.get("timeout_seconds"),
-                finalize_grace_seconds=job_finalize_grace,
-                affected_reports=list(item.get("affected_reports", [])),
-                logical_target=target,
-            )
-        if not redundant_full_matrix_resume:
-            record = apply_command_semantics(record, env, args.profile)
         if (
             qualifies_for_full_matrix_receipt(record, args.profile)
             and not seal_full_matrix_receipt_for_record(
                 record=record,
-                connector_root=connector_root,
-                framework_root=framework_root,
-                build_root=build_root,
-                verified_run_id=verified_run_id,
+                connector_root=context.connector_root,
+                framework_root=context.framework_root,
+                build_root=context.build_root,
+                verified_run_id=context.verified_run_id,
                 profile=args.profile,
             )
         ):
             aggregate_receipt_failed = True
         command_records.append(record)
         last_updated = utc_now()
-        write_commands_file(
-            run_root,
-            commands_file,
-            {
-                "verified_run_id": verified_run_id,
-                "data_source_policy": DATA_SOURCE_POLICY,
-                "profile": args.profile,
-                "phase": args.phase,
-                "started_at_utc": run_started_at,
-                "last_updated_at_utc": last_updated,
-                "commands": command_records,
-            },
+        write_command_records(
+            args,
+            context,
+            command_records,
+            run_started_at,
+            timestamp_name="last_updated_at_utc",
+            timestamp_value=last_updated,
         )
-        write_verified_manifest(
-            connector_root=connector_root,
-            framework_root=framework_root,
-            build_root=build_root,
-            verified_run_id=verified_run_id,
-            started_at=run_started_at,
-            finished_at=last_updated,
-            commands=command_records,
-            commands_file=commands_file,
-            env=env,
-            profile=args.profile,
-            full_matrix_timeout=full_matrix_runtime_timeout,
-            timeout_budgets=timeout_budgets,
-        )
+        write_context_manifest(args, context, command_records, run_started_at, last_updated)
+    return aggregate_receipt_failed
 
-    finished_at = utc_now()
-    write_commands_file(
-        run_root,
-        commands_file,
-        {
-            "verified_run_id": verified_run_id,
-            "data_source_policy": DATA_SOURCE_POLICY,
-            "profile": args.profile,
-            "phase": args.phase,
-            "started_at_utc": run_started_at,
-            "finished_at_utc": finished_at,
-            "commands": command_records,
-        },
-    )
-    write_verified_manifest(
-        connector_root=connector_root,
-        framework_root=framework_root,
-        build_root=build_root,
-        verified_run_id=verified_run_id,
-        started_at=run_started_at,
-        finished_at=finished_at,
-        commands=command_records,
-        commands_file=commands_file,
-        env=env,
-        profile=args.profile,
-        full_matrix_timeout=full_matrix_runtime_timeout,
-        timeout_budgets=timeout_budgets,
-    )
 
+def final_exit_status(
+    args: argparse.Namespace,
+    command_records: list[dict[str, Any]],
+    aggregate_receipt_failed: bool,
+) -> int:
     failed = [
         record
         for record in command_records
@@ -1875,6 +2349,56 @@ def main() -> int:
         return 1
     return 0
 
+
+def finish_verified_run(
+    args: argparse.Namespace,
+    context: VerifiedRunContext,
+    command_records: list[dict[str, Any]],
+    run_started_at: str,
+    aggregate_receipt_failed: bool,
+) -> int:
+    finished_at = utc_now()
+    write_command_records(
+        args,
+        context,
+        command_records,
+        run_started_at,
+        timestamp_name="finished_at_utc",
+        timestamp_value=finished_at,
+    )
+    write_context_manifest(args, context, command_records, run_started_at, finished_at)
+    return final_exit_status(args, command_records, aggregate_receipt_failed)
+
+
+def main() -> int:
+    parser = build_argument_parser()
+    args = parser.parse_args()
+    context = prepare_verified_run_context(parser, args)
+    plan = selected_command_plan(parser, args, context.timeout_budgets)
+    existing_payload, command_records, run_started_at = existing_command_state(context, args)
+    if args.manifest_only:
+        return rewrite_manifest_only(
+            args,
+            context,
+            existing_payload,
+            command_records,
+            run_started_at,
+        )
+    write_initial_run_artifacts(args, context, command_records, run_started_at)
+    aggregate_receipt_failed = execute_command_plan(
+        plan,
+        args=args,
+        context=context,
+        command_records=command_records,
+        run_started_at=run_started_at,
+    )
+    return finish_verified_run(
+        args,
+        context,
+        command_records,
+        run_started_at,
+        aggregate_receipt_failed,
+    )
 
 if __name__ == "__main__":
     raise SystemExit(main())
