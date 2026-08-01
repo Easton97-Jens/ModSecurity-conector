@@ -15,7 +15,7 @@ from pathlib import Path
 _CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
 if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
-from typing import Any
+from typing import Any, Callable
 
 from best_effort_evidence_readers import (
     read_json_object as read_json,
@@ -126,11 +126,17 @@ SEMICOLON_COLLECTION_CASES = {
     "edge_semicolon_query_args_names",
 }
 SEMICOLON_COLLECTION_CONNECTORS = {"apache", "haproxy", "nginx"}
+WITH_CRS_NO_MRTS = "with-crs/no-mrts"
+WITH_CRS_WITH_MRTS = "with-crs/with-mrts"
+WITH_MRTS_SUFFIX = "/with-mrts"
+SPOA_RUNTIME_STDERR_LOG = "spoa-runtime.stderr.log"
+DETECTION_ONLY_DIRECTIVE = "ctl:ruleEngine=DetectionOnly"
+MARKDOWN_NUMERIC_TABLE_SEPARATOR = "|---|---:|"
 SEMICOLON_COLLECTION_VARIANTS = {
     "no-crs/no-mrts",
     "no-crs/with-mrts",
-    "with-crs/no-mrts",
-    "with-crs/with-mrts",
+    WITH_CRS_NO_MRTS,
+    WITH_CRS_WITH_MRTS,
 }
 ARGS_NAMES_CONTROL_CASE = "v3_args_names_get_block"
 COLLECTION_NAME_CASE_CASES = {
@@ -473,36 +479,43 @@ def rule_ids_from_decision_log(path: Path) -> set[str]:
     return ids
 
 
-def detection_only_rule_paths_from_smoke_file(smoke_rules_file: Path) -> list[Path]:
+def read_text_or_none(path: Path) -> str | None:
     try:
-        smoke_text = smoke_rules_file.read_text(encoding="utf-8", errors="replace")
+        return path.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return []
+        return None
+
+
+def included_path(parent: Path, include: str) -> Path:
+    candidate = Path(include)
+    return candidate if candidate.is_absolute() else parent / candidate
+
+
+def detection_only_paths_included_by(source_path: Path, source_text: str) -> list[Path]:
     candidate_paths: list[Path] = []
-    if "ctl:ruleEngine=DetectionOnly" in smoke_text:
-        candidate_paths.append(smoke_rules_file)
-    for include in INCLUDE_RE.findall(smoke_text):
-        include_path = Path(include)
-        if not include_path.is_absolute():
-            include_path = smoke_rules_file.parent / include_path
-        if include_path.name == "mrts.load" or "mrts" in str(include_path):
-            try:
-                load_text = include_path.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            if "ctl:ruleEngine=DetectionOnly" in load_text:
-                candidate_paths.append(include_path)
-            for nested in INCLUDE_RE.findall(load_text):
-                nested_path = Path(nested)
-                if not nested_path.is_absolute():
-                    nested_path = include_path.parent / nested_path
-                try:
-                    nested_text = nested_path.read_text(encoding="utf-8", errors="replace")
-                except OSError:
-                    continue
-                if "ctl:ruleEngine=DetectionOnly" in nested_text:
-                    candidate_paths.append(nested_path)
+    for include in INCLUDE_RE.findall(source_text):
+        include_path = included_path(source_path.parent, include)
+        if include_path.name != "mrts.load" and "mrts" not in str(include_path):
+            continue
+        load_text = read_text_or_none(include_path)
+        if load_text is None:
+            continue
+        if DETECTION_ONLY_DIRECTIVE in load_text:
+            candidate_paths.append(include_path)
+        for nested in INCLUDE_RE.findall(load_text):
+            nested_path = included_path(include_path.parent, nested)
+            nested_text = read_text_or_none(nested_path)
+            if nested_text is not None and DETECTION_ONLY_DIRECTIVE in nested_text:
+                candidate_paths.append(nested_path)
     return candidate_paths
+
+
+def detection_only_rule_paths_from_smoke_file(smoke_rules_file: Path) -> list[Path]:
+    smoke_text = read_text_or_none(smoke_rules_file)
+    if smoke_text is None:
+        return []
+    direct = [smoke_rules_file] if DETECTION_ONLY_DIRECTIVE in smoke_text else []
+    return [*direct, *detection_only_paths_included_by(smoke_rules_file, smoke_text)]
 
 
 def secaction_smoke_rules_file(
@@ -551,11 +564,35 @@ def _no_mrts_control_identity(
     return crs, control_root
 
 
-def no_mrts_control_evidence(
+def nginx_summary_case(control_root: Path, case_name: str) -> dict[str, Any] | None:
+    summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
+    summary = read_json(summary_path)
+    return next(
+        (
+            item
+            for item in walk_dicts(summary)
+            if isinstance(item, dict) and str(item.get("name") or item.get("case") or "") == case_name
+        ),
+        None,
+    )
+
+
+def no_mrts_control_result_path(control_root: Path, connector: str, case_name: str) -> Path | None:
+    if connector in {"apache", "haproxy"}:
+        return control_root / "logs" / f"{connector}-runtime" / case_name / "result.json"
+    if connector != "nginx":
+        return None
+    item = nginx_summary_case(control_root, case_name)
+    evidence_path = str(item.get("evidence_path") or "") if item else ""
+    return Path(evidence_path) if evidence_path else None
+
+
+def passing_no_mrts_control(
     row: dict[str, Any],
     *,
     build_root: Path,
-) -> dict[str, str] | None:
+    case_name: str,
+) -> tuple[str, str, Path, dict[str, Any]] | None:
     connector = str(row.get("connector") or "")
     identity = _no_mrts_control_identity(
         build_root=build_root,
@@ -565,24 +602,26 @@ def no_mrts_control_evidence(
     if identity is None:
         return None
     crs, control_root = identity
-    result_path: Path | None = None
-    if connector in {"apache", "haproxy"}:
-        result_path = control_root / "logs" / f"{connector}-runtime" / SECACTION_DETECTION_ONLY_CASE / "result.json"
-    if connector == "nginx":
-        summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
-        summary = read_json(summary_path)
-        for item in walk_dicts(summary):
-            if str(item.get("name") or item.get("case") or "") != SECACTION_DETECTION_ONLY_CASE:
-                continue
-            result_path = Path(str(item.get("evidence_path") or ""))
-            break
-    if not result_path or not result_path.is_file():
+    result_path = no_mrts_control_result_path(control_root, connector, case_name)
+    if result_path is None or not result_path.is_file():
         return None
     result = read_json(result_path)
     actual = str(result.get("actual_status", result.get("observed_status")) or "")
-    status = str(result.get("status") or "")
-    if status != "pass" or actual != "403":
+    if str(result.get("status") or "") != "pass" or actual != "403":
         return None
+    return crs, connector, result_path, result
+
+
+def no_mrts_control_evidence(
+    row: dict[str, Any],
+    *,
+    build_root: Path,
+) -> dict[str, str] | None:
+    control = passing_no_mrts_control(row, build_root=build_root, case_name=SECACTION_DETECTION_ONLY_CASE)
+    if control is None:
+        return None
+    crs, connector, result_path, result = control
+    actual = str(result.get("actual_status", result.get("observed_status")) or "")
     error_log = result_error_log_path(result_path, result)
     rule_ids = rule_ids_from_text_log(error_log)
     decision_log = result_decision_log_path(result_path, result)
@@ -604,39 +643,56 @@ def no_mrts_case_control_evidence(
     build_root: Path,
     case_name: str,
 ) -> dict[str, str] | None:
-    connector = str(row.get("connector") or "")
-    identity = _no_mrts_control_identity(
-        build_root=build_root,
-        connector=connector,
-        variant=str(row.get("variant") or ""),
-    )
-    if identity is None:
+    control = passing_no_mrts_control(row, build_root=build_root, case_name=case_name)
+    if control is None:
         return None
-    crs, control_root = identity
-    result_path: Path | None = None
-    if connector in {"apache", "haproxy"}:
-        result_path = control_root / "logs" / f"{connector}-runtime" / case_name / "result.json"
-    elif connector == "nginx":
-        summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
-        summary = read_json(summary_path)
-        for item in walk_dicts(summary):
-            if str(item.get("name") or item.get("case") or "") != case_name:
-                continue
-            result_path = Path(str(item.get("evidence_path") or ""))
-            break
-    if not result_path or not result_path.is_file():
-        return None
-    result = read_json(result_path)
+    crs, _connector, result_path, result = control
     actual = str(result.get("actual_status", result.get("observed_status")) or "")
-    status = str(result.get("status") or "")
-    if status != "pass" or actual != "403":
-        return None
     return {
         "variant": f"{crs}/no-mrts",
         "result": rel(result_path, build_root),
-        "status": status,
+        "status": "pass",
         "actual": actual,
     }
+
+
+def nginx_phase4_enforcement_rule(row: dict[str, Any]) -> str | None:
+    expected_rule_id = NGINX_PHASE4_RESPONSE_BODY_ENFORCEMENT_CASES.get(str(row.get("case") or ""))
+    row_matches = (
+        expected_rule_id is not None,
+        row.get("full_matrix_refresh_needed") is not True,
+        row.get("connector") == "nginx",
+        str(row.get("variant") or "").endswith("/no-mrts"),
+        row.get("category") in {"response-body", "audit-log"},
+        row.get("status") == "fail",
+        row.get("expected") == "403",
+        row.get("actual") == "200",
+    )
+    return expected_rule_id if all(row_matches) else None
+
+
+def phase4_log_artifacts(result_path: Path, result: dict[str, Any]) -> tuple[Path, Path, str, str]:
+    error_log_path = result_error_log_path(result_path, result)
+    audit_log_path = Path(str(result.get("audit_log_path") or result_path.parent / "audit.log"))
+    return (
+        error_log_path,
+        audit_log_path,
+        read_text_or_none(error_log_path) or "",
+        read_text_or_none(audit_log_path) or "",
+    )
+
+
+def phase4_response_body_match(
+    expected_rule_id: str,
+    *,
+    error_log_path: Path,
+    audit_log_path: Path,
+    error_text: str,
+    audit_text: str,
+) -> bool:
+    observed_rule_ids = rule_ids_from_text_log(error_log_path) | rule_ids_from_text_log(audit_log_path)
+    required_markers = "RESPONSE_BODY" in f"{error_text}\n{audit_text}" and "Access denied with code 403 (phase 4)" in f"{error_text}\n{audit_text}"
+    return expected_rule_id in observed_rule_ids and required_markers
 
 
 def nginx_phase4_response_body_enforcement_gap(
@@ -646,36 +702,21 @@ def nginx_phase4_response_body_enforcement_gap(
     connector_root: Path,
     build_root: Path,
 ) -> dict[str, str] | None:
-    case_name = str(row.get("case") or "")
-    expected_rule_id = NGINX_PHASE4_RESPONSE_BODY_ENFORCEMENT_CASES.get(case_name)
+    expected_rule_id = nginx_phase4_enforcement_rule(row)
     if expected_rule_id is None:
-        return None
-    if row.get("full_matrix_refresh_needed") is True:
-        return None
-    if row.get("connector") != "nginx" or not str(row.get("variant") or "").endswith("/no-mrts"):
-        return None
-    if row.get("category") not in {"response-body", "audit-log"} or row.get("status") != "fail":
-        return None
-    if row.get("expected") != "403" or row.get("actual") != "200":
         return None
     result_path = resolve_evidence_file(evidence, connector_root=connector_root, build_root=build_root)
     result = read_json(result_path)
     if result.get("live_executed") is not True or str(result.get("phase") or "") != "4":
         return None
-    error_log_path = result_error_log_path(result_path, result)
-    audit_log_path = Path(str(result.get("audit_log_path") or result_path.parent / "audit.log"))
-    try:
-        error_text = error_log_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        error_text = ""
-    try:
-        audit_text = audit_log_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        audit_text = ""
-    combined = f"{error_text}\n{audit_text}"
-    if expected_rule_id not in rule_ids_from_text_log(error_log_path) | rule_ids_from_text_log(audit_log_path):
-        return None
-    if "RESPONSE_BODY" not in combined or "Access denied with code 403 (phase 4)" not in combined:
+    error_log_path, audit_log_path, error_text, audit_text = phase4_log_artifacts(result_path, result)
+    if not phase4_response_body_match(
+        expected_rule_id,
+        error_log_path=error_log_path,
+        audit_log_path=audit_log_path,
+        error_text=error_text,
+        audit_text=audit_text,
+    ):
         return None
     intervention = result.get("intervention")
     if not isinstance(intervention, dict) or intervention.get("disruptive") is not True:
@@ -699,6 +740,38 @@ def nginx_phase4_response_body_enforcement_gap(
     }
 
 
+def nginx_summary_case_items(control_root: Path) -> list[dict[str, Any]]:
+    summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
+    cases = read_json(summary_path).get("nginx", {}).get("cases")
+    if isinstance(cases, dict):
+        return [item for item in cases.values() if isinstance(item, dict)]
+    return [item for item in cases if isinstance(item, dict)] if isinstance(cases, list) else []
+
+
+def nginx_phase4_log_control_evidence(
+    item: dict[str, Any],
+    *,
+    crs: str,
+    build_root: Path,
+) -> dict[str, str] | None:
+    if str(item.get("status") or "").lower() != "pass":
+        return None
+    evidence_path = Path(str(item.get("evidence_path") or ""))
+    if not evidence_path.is_file():
+        return None
+    result = read_json(evidence_path)
+    phase4_log_path = Path(str(result.get("connector_phase4_log_path") or evidence_path.parent / "phase4.log"))
+    phase4_log = read_text_or_none(phase4_log_path)
+    if phase4_log is None or "phase4_intervention" not in phase4_log:
+        return None
+    return {
+        "variant": f"{crs}/no-mrts",
+        "result": rel(evidence_path, build_root),
+        "phase4_log": rel(phase4_log_path, build_root),
+        "status": "pass",
+    }
+
+
 def nginx_no_mrts_phase4_log_control(
     row: dict[str, Any],
     *,
@@ -712,41 +785,35 @@ def nginx_no_mrts_phase4_log_control(
     if identity is None:
         return None
     crs, control_root = identity
-    summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
-    summary = read_json(summary_path)
-    cases = summary.get("nginx", {}).get("cases")
-    if isinstance(cases, dict):
-        case_items = list(cases.values())
-    elif isinstance(cases, list):
-        case_items = cases
-    else:
-        return None
     case_name = str(row.get("case") or "")
-    for item in case_items:
-        if not isinstance(item, dict):
-            continue
-        if str(item.get("name") or item.get("case") or "") != case_name:
-            continue
-        if str(item.get("status") or "").lower() != "pass":
-            return None
-        evidence_path = Path(str(item.get("evidence_path") or ""))
-        if not evidence_path.is_file():
-            return None
-        result = read_json(evidence_path)
-        phase4_log_path = Path(str(result.get("connector_phase4_log_path") or evidence_path.parent / "phase4.log"))
-        try:
-            phase4_log = phase4_log_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            return None
-        if "phase4_intervention" not in phase4_log:
-            return None
-        return {
-            "variant": f"{crs}/no-mrts",
-            "result": rel(evidence_path, build_root),
-            "phase4_log": rel(phase4_log_path, build_root),
-            "status": "pass",
-        }
-    return None
+    item = next(
+        (item for item in nginx_summary_case_items(control_root) if str(item.get("name") or item.get("case") or "") == case_name),
+        None,
+    )
+    return nginx_phase4_log_control_evidence(item, crs=crs, build_root=build_root) if item else None
+
+
+def nginx_phase4_log_only_rule(row: dict[str, Any]) -> str | None:
+    expected_rule_id = NGINX_PHASE4_LOG_ONLY_CASES.get(str(row.get("case") or ""))
+    row_matches = (
+        expected_rule_id is not None,
+        row.get("connector") == "nginx",
+        str(row.get("variant") or "").endswith(WITH_MRTS_SUFFIX),
+        row.get("category") == "response-body",
+        row.get("status") == "fail",
+        row.get("expected") == "200",
+        row.get("actual") == "200",
+    )
+    return expected_rule_id if all(row_matches) else None
+
+
+def smoke_detection_only_evidence(log_text: str) -> tuple[Path, list[Path]] | None:
+    smoke_match = MODSECURITY_SMOKE_FILE_RE.search(log_text)
+    if not smoke_match:
+        return None
+    smoke_rules_file = Path(smoke_match.group(1))
+    detection_only_paths = detection_only_rule_paths_from_smoke_file(smoke_rules_file)
+    return (smoke_rules_file, detection_only_paths) if detection_only_paths else None
 
 
 def nginx_phase4_rule_match_no_disruptive_intervention(
@@ -756,15 +823,8 @@ def nginx_phase4_rule_match_no_disruptive_intervention(
     connector_root: Path,
     build_root: Path,
 ) -> dict[str, str] | None:
-    case_name = str(row.get("case") or "")
-    expected_rule_id = NGINX_PHASE4_LOG_ONLY_CASES.get(case_name)
+    expected_rule_id = nginx_phase4_log_only_rule(row)
     if expected_rule_id is None:
-        return None
-    if row.get("connector") != "nginx" or not str(row.get("variant") or "").endswith("/with-mrts"):
-        return None
-    if row.get("category") != "response-body" or row.get("status") != "fail":
-        return None
-    if row.get("expected") != "200" or row.get("actual") != "200":
         return None
     result_path = resolve_evidence_file(evidence, connector_root=connector_root, build_root=build_root)
     result = read_json(result_path)
@@ -774,19 +834,15 @@ def nginx_phase4_rule_match_no_disruptive_intervention(
     if result.get("live_executed") is not True or str(result.get("phase") or "") != "4":
         return None
     error_log_path = result_error_log_path(result_path, result)
-    try:
-        error_text = error_log_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    error_text = read_text_or_none(error_log_path)
+    if error_text is None:
         return None
     if "RESPONSE_BODY" not in error_text or expected_rule_id not in rule_ids_from_text_log(error_log_path):
         return None
-    smoke_match = MODSECURITY_SMOKE_FILE_RE.search(error_text)
-    if not smoke_match:
+    smoke_evidence = smoke_detection_only_evidence(error_text)
+    if smoke_evidence is None:
         return None
-    smoke_rules_file = Path(smoke_match.group(1))
-    detection_only_paths = detection_only_rule_paths_from_smoke_file(smoke_rules_file)
-    if not detection_only_paths:
-        return None
+    smoke_rules_file, detection_only_paths = smoke_evidence
     control = nginx_no_mrts_phase4_log_control(row, build_root=build_root)
     if control is None:
         return None
@@ -850,7 +906,7 @@ def haproxy_with_mrts_detection_only_overlay(
     decisions_ok, decision_evidence = haproxy_report_only_decisions(decision_log_path)
     if not decisions_ok:
         return None
-    spoa_runtime_log_path = result_path.parent / "spoa-runtime.stderr.log"
+    spoa_runtime_log_path = result_path.parent / SPOA_RUNTIME_STDERR_LOG
     try:
         spoa_runtime_text = spoa_runtime_log_path.read_text(encoding="utf-8", errors="replace")
     except OSError:
@@ -893,7 +949,7 @@ def with_mrts_detection_only_overlay(
     connector_root: Path,
     build_root: Path,
 ) -> dict[str, str] | None:
-    if row["connector"] not in {"apache", "haproxy", "nginx"} or not row["variant"].endswith("/with-mrts"):
+    if row["connector"] not in {"apache", "haproxy", "nginx"} or not row["variant"].endswith(WITH_MRTS_SUFFIX):
         return None
     if row["status"] != "fail" or row["actual"] != "200" or row["expected"] not in DISRUPTIVE_EXPECTED_STATUSES:
         return None
@@ -923,6 +979,62 @@ def with_mrts_detection_only_overlay(
     }
 
 
+def crs_sqli_overlay_row_matches(row: dict[str, Any]) -> bool:
+    return all(
+        (
+            row.get("case") == CRS_SQLI_WITH_MRTS_DETECTION_ONLY_CASE,
+            row.get("connector") in {"apache", "haproxy", "nginx"},
+            row.get("variant") == WITH_CRS_WITH_MRTS,
+            row.get("status") == "fail",
+            row.get("expected") == "403",
+            row.get("actual") == "200",
+            row.get("full_matrix_refresh_needed") is not True,
+        )
+    )
+
+
+def crs_sqli_intervention(result: dict[str, Any]) -> dict[str, Any] | None:
+    intervention = result.get("intervention")
+    intervention_matches = (
+        result.get("live_executed") is True
+        and isinstance(intervention, dict)
+        and intervention.get("disruptive") is True
+        and str(intervention.get("status") or "") == "403"
+    )
+    return intervention if intervention_matches else None
+
+
+def smoke_detection_only_evidence_from_file(smoke_rules_file: Path | None) -> list[Path] | None:
+    if smoke_rules_file is None:
+        return None
+    detection_only_paths = detection_only_rule_paths_from_smoke_file(smoke_rules_file)
+    return detection_only_paths or None
+
+
+def crs_sqli_log_evidence(
+    result_path: Path,
+    result: dict[str, Any],
+    *,
+    connector: str,
+) -> tuple[list[Path], set[str]] | None:
+    log_paths = [result_error_log_path(result_path, result)]
+    if connector == "haproxy":
+        log_paths.extend([result_path.parent / SPOA_RUNTIME_STDERR_LOG, result_path.parent / "spoa-agent.log"])
+    combined_rule_ids: set[str] = set()
+    matched_data_seen = False
+    anomaly_seen = False
+    for log_path in log_paths:
+        log_text = read_text_or_none(log_path)
+        if log_text is None:
+            continue
+        combined_rule_ids |= rule_ids_from_text_log(log_path)
+        matched_data_seen |= "UNION SELECT" in log_text or "SQL Injection Attack Detected" in log_text
+        anomaly_seen |= "Inbound Anomaly Score Exceeded" in log_text
+    if not matched_data_seen or not anomaly_seen:
+        return None
+    return log_paths, combined_rule_ids
+
+
 def crs_sqli_with_mrts_detection_only_overlay(
     row: dict[str, Any],
     *,
@@ -930,48 +1042,27 @@ def crs_sqli_with_mrts_detection_only_overlay(
     connector_root: Path,
     build_root: Path,
 ) -> dict[str, str] | None:
-    if row.get("case") != CRS_SQLI_WITH_MRTS_DETECTION_ONLY_CASE:
-        return None
-    if row.get("connector") not in {"apache", "haproxy", "nginx"} or row.get("variant") != "with-crs/with-mrts":
-        return None
-    if row.get("status") != "fail" or row.get("expected") != "403" or row.get("actual") != "200":
-        return None
-    if row.get("full_matrix_refresh_needed") is True:
+    if not crs_sqli_overlay_row_matches(row):
         return None
     result_path = resolve_evidence_file(evidence, connector_root=connector_root, build_root=build_root)
     result = read_json(result_path)
-    if result.get("live_executed") is not True:
-        return None
-    intervention = result.get("intervention")
-    if not isinstance(intervention, dict) or intervention.get("disruptive") is not True:
-        return None
-    if str(intervention.get("status") or "") != "403":
+    intervention = crs_sqli_intervention(result)
+    if intervention is None:
         return None
     smoke_rules_file = secaction_smoke_rules_file(result_path, connector=str(row["connector"]))
-    if smoke_rules_file is None:
+    smoke_evidence = smoke_detection_only_evidence_from_file(smoke_rules_file)
+    if smoke_evidence is None:
         return None
-    detection_only_paths = detection_only_rule_paths_from_smoke_file(smoke_rules_file)
-    if not detection_only_paths:
+    detection_only_paths = smoke_evidence
+    log_evidence = crs_sqli_log_evidence(result_path, result, connector=str(row["connector"]))
+    if log_evidence is None:
         return None
-    log_paths = [result_error_log_path(result_path, result)]
-    if row["connector"] == "haproxy":
-        log_paths.extend([result_path.parent / "spoa-runtime.stderr.log", result_path.parent / "spoa-agent.log"])
-    combined_rule_ids: set[str] = set()
-    matched_data_seen = False
-    anomaly_seen = False
-    for log_path in log_paths:
-        try:
-            log_text = log_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        combined_rule_ids |= rule_ids_from_text_log(log_path)
-        matched_data_seen = matched_data_seen or "UNION SELECT" in log_text or "SQL Injection Attack Detected" in log_text
-        anomaly_seen = anomaly_seen or "Inbound Anomaly Score Exceeded" in log_text
+    log_paths, combined_rule_ids = log_evidence
     decision_log_path = result_decision_log_path(result_path, result)
     combined_rule_ids |= rule_ids_from_decision_log(decision_log_path)
     if not (combined_rule_ids & CRS_SQLI_WITH_MRTS_RULE_IDS):
         return None
-    if "949110" not in combined_rule_ids or not matched_data_seen or not anomaly_seen:
+    if "949110" not in combined_rule_ids:
         return None
     control = no_mrts_case_control_evidence(
         row,
@@ -1013,7 +1104,7 @@ def secaction_with_mrts_detection_only_overlay(
 ) -> dict[str, str] | None:
     if row["case"] != SECACTION_DETECTION_ONLY_CASE:
         return None
-    if row["connector"] not in {"apache", "haproxy", "nginx"} or not row["variant"].endswith("/with-mrts"):
+    if row["connector"] not in {"apache", "haproxy", "nginx"} or not row["variant"].endswith(WITH_MRTS_SUFFIX):
         return None
     if row["status"] != "fail" or row["actual"] != "200" or row["expected"] != "403":
         return None
@@ -1067,6 +1158,47 @@ def secaction_with_mrts_detection_only_overlay(
     return evidence_out
 
 
+def multipart_candidate_log_paths(result_path: Path, result: dict[str, Any]) -> list[Path]:
+    candidates = [
+        result_path.parent / "configtest.log",
+        result_path.parent / SPOA_RUNTIME_STDERR_LOG,
+        result_path.parent / "haproxy-configtest.log",
+        result_path.parent / "error.log",
+    ]
+    candidates.extend(Path(value) for value in result.values() if isinstance(value, str) and value.endswith((".log", ".txt")))
+    return candidates
+
+
+def multipart_parse_error_evidence(
+    result_path: Path,
+    log_path: Path,
+    *,
+    build_root: Path,
+) -> dict[str, str] | None:
+    log_text = read_text_or_none(log_path)
+    required_markers = (
+        log_text is not None
+        and "Rules error" in log_text
+        and "syntax error" in log_text
+        and ("unexpected Id" in log_text or "unexpected id" in log_text)
+    )
+    if not required_markers:
+        return None
+    smoke_match = RULES_ERROR_SMOKE_FILE_RE.search(log_text)
+    if not smoke_match:
+        return None
+    smoke_rules_file = Path(smoke_match.group(1))
+    smoke_text = read_text_or_none(smoke_rules_file)
+    if smoke_text is None or not EMPTY_MULTIPART_OPERATOR_RE.search(smoke_text):
+        return None
+    return {
+        "result": rel(result_path, build_root),
+        "parse_error_log": rel(log_path, build_root),
+        "rules_file": rel(smoke_rules_file, build_root),
+        "note": "Multipart fixture generated an invalid empty-argument ModSecurity rule; no comparable runtime decision was produced.",
+    }
+
+
 def multipart_fixture_gap(
     row: dict[str, Any],
     *,
@@ -1078,42 +1210,14 @@ def multipart_fixture_gap(
         return None
     result_path = resolve_evidence_file(evidence, connector_root=connector_root, build_root=build_root)
     result = read_json(result_path)
-    candidates = [
-        result_path.parent / "configtest.log",
-        result_path.parent / "spoa-runtime.stderr.log",
-        result_path.parent / "haproxy-configtest.log",
-        result_path.parent / "error.log",
-    ]
-    for value in result.values():
-        if isinstance(value, str) and value.endswith((".log", ".txt")):
-            candidates.append(Path(value))
-
-    for log_path in candidates:
-        try:
-            log_text = log_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if "Rules error" not in log_text or "syntax error" not in log_text:
-            continue
-        if "unexpected Id" not in log_text and "unexpected id" not in log_text:
-            continue
-        smoke_match = RULES_ERROR_SMOKE_FILE_RE.search(log_text)
-        if not smoke_match:
-            continue
-        smoke_rules_file = Path(smoke_match.group(1))
-        try:
-            smoke_text = smoke_rules_file.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if not EMPTY_MULTIPART_OPERATOR_RE.search(smoke_text):
-            continue
-        return {
-            "result": rel(result_path, build_root),
-            "parse_error_log": rel(log_path, build_root),
-            "rules_file": rel(smoke_rules_file, build_root),
-            "note": "Multipart fixture generated an invalid empty-argument ModSecurity rule; no comparable runtime decision was produced.",
-        }
-    return None
+    return next(
+        (
+            parsed
+            for log_path in multipart_candidate_log_paths(result_path, result)
+            if (parsed := multipart_parse_error_evidence(result_path, log_path, build_root=build_root)) is not None
+        ),
+        None,
+    )
 
 
 def full_matrix_summary_case(build_root: Path, connector: str, variant: str, case_name: str) -> dict[str, Any]:
@@ -1144,7 +1248,7 @@ def full_matrix_control_evidence(build_root: Path) -> dict[str, dict[str, str]]:
 def full_matrix_case_control_evidence(build_root: Path, control_case_name: str) -> dict[str, dict[str, str]]:
     evidence: dict[str, dict[str, str]] = {}
     for connector in sorted(SEMICOLON_COLLECTION_CONNECTORS):
-        for variant in ("no-crs/no-mrts", "with-crs/no-mrts"):
+        for variant in ("no-crs/no-mrts", WITH_CRS_NO_MRTS):
             case = full_matrix_summary_case(build_root, connector, variant, control_case_name)
             key = f"{connector}:{variant}:{control_case_name}"
             if (
@@ -1172,42 +1276,90 @@ def full_matrix_case_control_evidence(build_root: Path, control_case_name: str) 
     return evidence
 
 
+def matching_runtime_result(
+    row: dict[str, Any],
+    *,
+    case_names: set[str],
+    category: str,
+    expected_status: str,
+    actual_status: str,
+    connector_root: Path,
+    build_root: Path,
+    require_stable_matrix: bool = False,
+) -> tuple[Path, dict[str, Any]] | None:
+    row_matches = (
+        row.get("connector") in SEMICOLON_COLLECTION_CONNECTORS
+        and row.get("variant") in SEMICOLON_COLLECTION_VARIANTS
+        and row.get("case") in case_names
+        and row.get("category") == category
+        and row.get("status") == "fail"
+        and row.get("expected") == expected_status
+        and row.get("actual") == actual_status
+    )
+    if not row_matches or (require_stable_matrix and row.get("full_matrix_refresh_needed") is not False):
+        return None
+    result_path = resolve_evidence_file(str(row.get("evidence_file") or ""), connector_root=connector_root, build_root=build_root)
+    result = read_json(result_path)
+    result_matches = (
+        result.get("live_executed") is True
+        and status_string(result.get("expected_status")) == expected_status
+        and status_string(result.get("actual_status", result.get("observed_status"))) == actual_status
+        and str(result.get("observed_transport_result") or "") in {"", "http_status"}
+    )
+    if not result_matches:
+        return None
+    if row["connector"] == "haproxy" and result.get("modsecurity_processed") is not True:
+        return None
+    return result_path, result
+
+
+def standard_runtime_result_evidence(
+    row: dict[str, Any],
+    *,
+    case_names: set[str],
+    category: str,
+    expected_status: str,
+    actual_status: str,
+    connector_root: Path,
+    build_root: Path,
+) -> dict[str, str] | None:
+    matched = matching_runtime_result(
+        row,
+        case_names=case_names,
+        category=category,
+        expected_status=expected_status,
+        actual_status=actual_status,
+        connector_root=connector_root,
+        build_root=build_root,
+    )
+    if matched is None:
+        return None
+    result_path, result = matched
+    return {
+        "result": rel(result_path, build_root),
+        "expected": expected_status,
+        "actual": actual_status,
+        "live_executed": "true",
+        "observed_transport_result": str(result.get("observed_transport_result") or "http_status"),
+        "modsecurity_processed": str(result.get("modsecurity_processed", "n/a")).lower(),
+    }
+
+
 def semicolon_collection_result_evidence(
     row: dict[str, Any],
     *,
     connector_root: Path,
     build_root: Path,
 ) -> dict[str, str] | None:
-    if row["connector"] not in SEMICOLON_COLLECTION_CONNECTORS:
-        return None
-    if row["variant"] not in SEMICOLON_COLLECTION_VARIANTS:
-        return None
-    if row["case"] not in SEMICOLON_COLLECTION_CASES:
-        return None
-    if row["category"] != "collections":
-        return None
-    if row["status"] != "fail" or row["expected"] != "403" or row["actual"] != "200":
-        return None
-    result_path = resolve_evidence_file(str(row.get("evidence_file") or ""), connector_root=connector_root, build_root=build_root)
-    result = read_json(result_path)
-    if result.get("live_executed") is not True:
-        return None
-    if str(result.get("expected_status") or "") != "403":
-        return None
-    if str(result.get("actual_status", result.get("observed_status")) or "") != "200":
-        return None
-    if str(result.get("observed_transport_result") or "") not in {"", "http_status"}:
-        return None
-    if row["connector"] == "haproxy" and result.get("modsecurity_processed") is not True:
-        return None
-    return {
-        "result": rel(result_path, build_root),
-        "expected": "403",
-        "actual": "200",
-        "live_executed": "true",
-        "observed_transport_result": str(result.get("observed_transport_result") or "http_status"),
-        "modsecurity_processed": str(result.get("modsecurity_processed", "n/a")).lower(),
-    }
+    return standard_runtime_result_evidence(
+        row,
+        case_names=SEMICOLON_COLLECTION_CASES,
+        category="collections",
+        expected_status="403",
+        actual_status="200",
+        connector_root=connector_root,
+        build_root=build_root,
+    )
 
 
 def apply_semicolon_collection_semantics_classification(
@@ -1230,18 +1382,18 @@ def apply_semicolon_collection_semantics_classification(
         and row.get("variant") in SEMICOLON_COLLECTION_VARIANTS
     }
     if set(candidates) != expected_matrix:
-        return mismatches
+        return list(mismatches)
 
     row_evidence: dict[tuple[str, str, str], dict[str, str]] = {}
     for key, row in candidates.items():
         evidence = semicolon_collection_result_evidence(row, connector_root=connector_root, build_root=build_root)
         if evidence is None:
-            return mismatches
+            return list(mismatches)
         row_evidence[key] = evidence
 
     control_evidence = full_matrix_control_evidence(build_root)
     if not control_evidence or any(item.get("status") != "pass" for item in control_evidence.values()):
-        return mismatches
+        return list(mismatches)
 
     for key, row in candidates.items():
         row["classification"] = COLLECTION_SEMANTICS_CLASSIFICATION
@@ -1256,7 +1408,7 @@ def apply_semicolon_collection_semantics_classification(
             "control_case": ARGS_NAMES_CONTROL_CASE,
             "control_evidence": control_evidence,
         }
-    return mismatches
+    return list(mismatches)
 
 
 def collection_name_case_result_evidence(
@@ -1265,36 +1417,15 @@ def collection_name_case_result_evidence(
     connector_root: Path,
     build_root: Path,
 ) -> dict[str, str] | None:
-    if row["connector"] not in SEMICOLON_COLLECTION_CONNECTORS:
-        return None
-    if row["variant"] not in SEMICOLON_COLLECTION_VARIANTS:
-        return None
-    if row["case"] not in COLLECTION_NAME_CASE_CASES:
-        return None
-    if row["category"] != "collections":
-        return None
-    if row["status"] != "fail" or row["expected"] != "403" or row["actual"] != "200":
-        return None
-    result_path = resolve_evidence_file(str(row.get("evidence_file") or ""), connector_root=connector_root, build_root=build_root)
-    result = read_json(result_path)
-    if result.get("live_executed") is not True:
-        return None
-    if str(result.get("expected_status") or "") != "403":
-        return None
-    if str(result.get("actual_status", result.get("observed_status")) or "") != "200":
-        return None
-    if str(result.get("observed_transport_result") or "") not in {"", "http_status"}:
-        return None
-    if row["connector"] == "haproxy" and result.get("modsecurity_processed") is not True:
-        return None
-    return {
-        "result": rel(result_path, build_root),
-        "expected": "403",
-        "actual": "200",
-        "live_executed": "true",
-        "observed_transport_result": str(result.get("observed_transport_result") or "http_status"),
-        "modsecurity_processed": str(result.get("modsecurity_processed", "n/a")).lower(),
-    }
+    return standard_runtime_result_evidence(
+        row,
+        case_names=COLLECTION_NAME_CASE_CASES,
+        category="collections",
+        expected_status="403",
+        actual_status="200",
+        connector_root=connector_root,
+        build_root=build_root,
+    )
 
 
 def apply_collection_name_case_semantics_classification(
@@ -1317,20 +1448,20 @@ def apply_collection_name_case_semantics_classification(
         and row.get("variant") in SEMICOLON_COLLECTION_VARIANTS
     }
     if set(candidates) != expected_matrix:
-        return mismatches
+        return list(mismatches)
 
     row_evidence: dict[tuple[str, str, str], dict[str, str]] = {}
     for key, row in candidates.items():
         evidence = collection_name_case_result_evidence(row, connector_root=connector_root, build_root=build_root)
         if evidence is None:
-            return mismatches
+            return list(mismatches)
         row_evidence[key] = evidence
 
     control_evidence_by_case: dict[str, dict[str, dict[str, str]]] = {}
     for control_case in sorted(set(COLLECTION_NAME_CASE_CONTROL_CASES.values())):
         control_evidence = full_matrix_case_control_evidence(build_root, control_case)
         if not control_evidence or any(item.get("status") != "pass" for item in control_evidence.values()):
-            return mismatches
+            return list(mismatches)
         control_evidence_by_case[control_case] = control_evidence
 
     for key, row in candidates.items():
@@ -1347,7 +1478,7 @@ def apply_collection_name_case_semantics_classification(
             "control_case": control_case,
             "control_evidence": control_evidence_by_case[control_case],
         }
-    return mismatches
+    return list(mismatches)
 
 
 def nolog_expected_no_audit_evidence(
@@ -1403,23 +1534,23 @@ def apply_nolog_expected_no_audit_classification(
     expected_matrix = {
         (NOLOG_EXPECTED_NO_AUDIT_CASE, connector, variant)
         for connector in SEMICOLON_COLLECTION_CONNECTORS
-        for variant in ("with-crs/no-mrts", "with-crs/with-mrts")
+        for variant in (WITH_CRS_NO_MRTS, WITH_CRS_WITH_MRTS)
     }
     candidates = {
         (row["case"], row["connector"], row["variant"]): row
         for row in mismatches
         if row.get("case") == NOLOG_EXPECTED_NO_AUDIT_CASE
         and row.get("connector") in SEMICOLON_COLLECTION_CONNECTORS
-        and row.get("variant") in {"with-crs/no-mrts", "with-crs/with-mrts"}
+        and row.get("variant") in {WITH_CRS_NO_MRTS, WITH_CRS_WITH_MRTS}
     }
     if set(candidates) != expected_matrix:
-        return mismatches
+        return list(mismatches)
 
     row_evidence: dict[tuple[str, str, str], dict[str, Any]] = {}
     for key, row in candidates.items():
         evidence = nolog_expected_no_audit_evidence(row, connector_root=connector_root, build_root=build_root)
         if evidence is None:
-            return mismatches
+            return list(mismatches)
         row_evidence[key] = evidence
 
     for key, row in candidates.items():
@@ -1433,7 +1564,7 @@ def apply_nolog_expected_no_audit_classification(
             "note": NOLOG_EXPECTED_NO_AUDIT_NOTE,
             "row_evidence": row_evidence[key],
         }
-    return mismatches
+    return list(mismatches)
 
 
 def status_string(value: Any) -> str:
@@ -1442,10 +1573,166 @@ def status_string(value: Any) -> str:
     return str(value)
 
 
+def documented_native_case_run(
+    native_case_run: dict[str, Any],
+    *,
+    case_name: str | None = None,
+    require_stable_matrix: bool = False,
+) -> tuple[str, str, str] | None:
+    if case_name is not None and str(native_case_run.get("case") or "") != case_name:
+        return None
+    required_values_match = (
+        str(native_case_run.get("status") or "") == "fail"
+        and str(native_case_run.get("decision") or "") == "DOCUMENT"
+        and str(native_case_run.get("classification_hint") or "")
+        == "likely_framework_expected_behavior_gap_or_libmodsecurity_semantics"
+        and native_case_run.get("native_match") is False
+    )
+    if not required_values_match:
+        return None
+    if require_stable_matrix and native_case_run.get("full_matrix_refresh_needed") is not False:
+        return None
+    input_hash = str(native_case_run.get("input_hash") or "")
+    expected_status = status_string(native_case_run.get("expected_status"))
+    native_actual = status_string(native_case_run.get("native_actual"))
+    if not input_hash or expected_status != "403" or native_actual != "200":
+        return None
+    return expected_status, native_actual, input_hash
+
+
+def validated_native_comparison_evidence(
+    native_case_run: dict[str, Any],
+    candidates: dict[tuple[str, str], dict[str, Any]],
+    *,
+    expected_status: str,
+    native_actual: str,
+    evidence_builder: Callable[[dict[str, Any]], dict[str, Any] | None],
+    require_stable_matrix: bool = False,
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]] | None:
+    expected_matrix = {
+        (connector, variant)
+        for connector in SEMICOLON_COLLECTION_CONNECTORS
+        for variant in SEMICOLON_COLLECTION_VARIANTS
+    }
+    comparisons = native_case_run.get("connector_comparison")
+    if not isinstance(comparisons, list) or set(candidates) != expected_matrix:
+        return None
+    comparison_by_key = {
+        (str(item.get("connector") or ""), str(item.get("variant") or "")): item
+        for item in comparisons
+        if isinstance(item, dict)
+    }
+    if len(comparison_by_key) != len(comparisons) or set(comparison_by_key) != expected_matrix:
+        return None
+    row_evidence: dict[str, dict[str, Any]] = {}
+    comparison_evidence: dict[str, dict[str, Any]] = {}
+    for key, item in comparison_by_key.items():
+        comparison_matches = (
+            item.get("same") is True
+            and status_string(item.get("native_actual")) == native_actual
+            and status_string(item.get("connector_actual")) == native_actual
+            and str(item.get("meaning") or "") == "same_as_native"
+        )
+        if require_stable_matrix and item.get("full_matrix_refresh_needed") is not False:
+            return None
+        evidence = evidence_builder(candidates[key]) if comparison_matches else None
+        if evidence is None:
+            return None
+        evidence_key = f"{key[0]}:{key[1]}"
+        row_evidence[evidence_key] = evidence
+        comparison_evidence[evidence_key] = {
+            "connector_actual": status_string(item.get("connector_actual")),
+            "native_actual": status_string(item.get("native_actual")),
+            "same": True,
+            "meaning": str(item.get("meaning") or ""),
+        }
+    return row_evidence, comparison_evidence
+
+
+def native_evidence_metadata(
+    native_case_run: dict[str, Any],
+    *,
+    expected_status: str,
+    native_actual: str,
+    input_hash: str,
+    row_evidence: dict[str, dict[str, Any]],
+    comparison_evidence: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "expected": expected_status,
+        "native_actual": native_actual,
+        "input_hash": input_hash,
+        "request_sha256": str(native_case_run.get("request_sha256") or ""),
+        "rules_sha256": str(native_case_run.get("rules_sha256") or ""),
+        "libmodsecurity": str(native_case_run.get("libmodsecurity") or ""),
+        "native_result_path": str(native_case_run.get("native_result_path") or ""),
+        "run_dir": str(native_case_run.get("run_dir") or ""),
+        "row_evidence": row_evidence,
+        "connector_comparison": comparison_evidence,
+    }
+
+
+def native_semantics_row_evidence(
+    *,
+    native_path: Path,
+    evidence: dict[str, Any],
+    evidence_key: str,
+    note: str,
+    extra_evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    row_evidence = {
+        "note": note,
+        "native_case_run": str(native_path),
+        "native_run_dir": evidence["run_dir"],
+        "native_result_path": evidence["native_result_path"],
+        "expected": evidence["expected"],
+        "native_actual": evidence["native_actual"],
+        "input_hash": evidence["input_hash"],
+        "request_sha256": evidence["request_sha256"],
+        "rules_sha256": evidence["rules_sha256"],
+        "libmodsecurity": evidence["libmodsecurity"],
+        "row_evidence": evidence["row_evidence"][evidence_key],
+        "connector_comparison": evidence["connector_comparison"][evidence_key],
+    }
+    if extra_evidence:
+        row_evidence.update(extra_evidence)
+    return row_evidence
+
+
+def classify_native_semantics_rows(
+    candidates: dict[tuple[str, str], dict[str, Any]],
+    *,
+    native_path: Path,
+    evidence: dict[str, Any],
+    classification: str,
+    note: str,
+    extra_evidence: dict[str, Any] | None = None,
+) -> None:
+    for key, row in candidates.items():
+        evidence_key = f"{key[0]}:{key[1]}"
+        row.update(
+            {
+                "classification": classification,
+                "technical_cause": note,
+                "code_fix_needed": False,
+                "test_expectation_wrong": False,
+                "document_only": True,
+                "classification_note": note,
+                "classification_evidence": native_semantics_row_evidence(
+                    native_path=native_path,
+                    evidence=evidence,
+                    evidence_key=evidence_key,
+                    note=note,
+                    extra_evidence=extra_evidence,
+                ),
+            }
+        )
+
+
 def latest_native_case_run(verified_run_root: Path, case_name: str) -> tuple[dict[str, Any], Path] | None:
     native_root = verified_run_root / "native-case-runs"
-    paths = sorted(native_root.glob(f"*-{case_name}/native-case-run.json"))
-    for path in reversed(paths):
+    paths = sorted(native_root.glob(f"*-{case_name}/native-case-run.json"), reverse=True)
+    for path in paths:
         data = read_json(path)
         if data.get("case") == case_name:
             return data, path
@@ -1460,36 +1747,15 @@ def native_semantics_result_evidence(
     expected_status: str,
     native_actual: str,
 ) -> dict[str, str] | None:
-    if row.get("connector") not in SEMICOLON_COLLECTION_CONNECTORS:
-        return None
-    if row.get("variant") not in SEMICOLON_COLLECTION_VARIANTS:
-        return None
-    if row.get("case") not in TRANSFORMATION_NATIVE_SEMANTICS_CASES:
-        return None
-    if row.get("category") != "transformations":
-        return None
-    if row.get("status") != "fail" or row.get("expected") != expected_status or row.get("actual") != native_actual:
-        return None
-    result_path = resolve_evidence_file(str(row.get("evidence_file") or ""), connector_root=connector_root, build_root=build_root)
-    result = read_json(result_path)
-    if result.get("live_executed") is not True:
-        return None
-    if status_string(result.get("expected_status")) != expected_status:
-        return None
-    if status_string(result.get("actual_status", result.get("observed_status"))) != native_actual:
-        return None
-    if str(result.get("observed_transport_result") or "") not in {"", "http_status"}:
-        return None
-    if row["connector"] == "haproxy" and result.get("modsecurity_processed") is not True:
-        return None
-    return {
-        "result": rel(result_path, build_root),
-        "expected": expected_status,
-        "actual": native_actual,
-        "live_executed": "true",
-        "observed_transport_result": str(result.get("observed_transport_result") or "http_status"),
-        "modsecurity_processed": str(result.get("modsecurity_processed", "n/a")).lower(),
-    }
+    return standard_runtime_result_evidence(
+        row,
+        case_names=TRANSFORMATION_NATIVE_SEMANTICS_CASES,
+        category="transformations",
+        expected_status=expected_status,
+        actual_status=native_actual,
+        connector_root=connector_root,
+        build_root=build_root,
+    )
 
 
 def valid_native_transformation_semantics_evidence(
@@ -1499,86 +1765,34 @@ def valid_native_transformation_semantics_evidence(
     connector_root: Path,
     build_root: Path,
 ) -> dict[str, Any] | None:
-    if str(native_case_run.get("status") or "") != "fail":
+    documented = documented_native_case_run(native_case_run)
+    if documented is None:
         return None
-    if str(native_case_run.get("decision") or "") != "DOCUMENT":
-        return None
-    if str(native_case_run.get("classification_hint") or "") != "likely_framework_expected_behavior_gap_or_libmodsecurity_semantics":
-        return None
-    if native_case_run.get("native_match") is not False:
-        return None
-    input_hash = str(native_case_run.get("input_hash") or "")
-    if not input_hash:
-        return None
-
-    expected_status = status_string(native_case_run.get("expected_status"))
-    native_actual = status_string(native_case_run.get("native_actual"))
-    if expected_status != "403" or native_actual != "200":
-        return None
-    if expected_status == native_actual:
-        return None
-
-    expected_matrix = {
-        (connector, variant)
-        for connector in SEMICOLON_COLLECTION_CONNECTORS
-        for variant in SEMICOLON_COLLECTION_VARIANTS
-    }
-    comparisons = native_case_run.get("connector_comparison")
-    if not isinstance(comparisons, list):
-        return None
-    comparison_by_key: dict[tuple[str, str], dict[str, Any]] = {}
-    for item in comparisons:
-        if not isinstance(item, dict):
-            return None
-        key = (str(item.get("connector") or ""), str(item.get("variant") or ""))
-        comparison_by_key[key] = item
-    if set(comparison_by_key) != expected_matrix:
-        return None
-    if set(candidates) != expected_matrix:
-        return None
-
-    row_evidence: dict[str, dict[str, str]] = {}
-    comparison_evidence: dict[str, dict[str, Any]] = {}
-    for key, item in comparison_by_key.items():
-        if item.get("same") is not True:
-            return None
-        if status_string(item.get("native_actual")) != native_actual:
-            return None
-        if status_string(item.get("connector_actual")) != native_actual:
-            return None
-        if str(item.get("meaning") or "") != "same_as_native":
-            return None
-        row = candidates[key]
-        evidence = native_semantics_result_evidence(
+    expected_status, native_actual, input_hash = documented
+    comparison = validated_native_comparison_evidence(
+        native_case_run,
+        candidates,
+        expected_status=expected_status,
+        native_actual=native_actual,
+        evidence_builder=lambda row: native_semantics_result_evidence(
             row,
             connector_root=connector_root,
             build_root=build_root,
             expected_status=expected_status,
             native_actual=native_actual,
-        )
-        if evidence is None:
-            return None
-        evidence_key = f"{key[0]}:{key[1]}"
-        row_evidence[evidence_key] = evidence
-        comparison_evidence[evidence_key] = {
-            "connector_actual": status_string(item.get("connector_actual")),
-            "native_actual": status_string(item.get("native_actual")),
-            "same": True,
-            "meaning": str(item.get("meaning") or ""),
-        }
-
-    return {
-        "expected": expected_status,
-        "native_actual": native_actual,
-        "input_hash": input_hash,
-        "request_sha256": str(native_case_run.get("request_sha256") or ""),
-        "rules_sha256": str(native_case_run.get("rules_sha256") or ""),
-        "libmodsecurity": str(native_case_run.get("libmodsecurity") or ""),
-        "native_result_path": str(native_case_run.get("native_result_path") or ""),
-        "run_dir": str(native_case_run.get("run_dir") or ""),
-        "row_evidence": row_evidence,
-        "connector_comparison": comparison_evidence,
-    }
+        ),
+    )
+    if comparison is None:
+        return None
+    row_evidence, comparison_evidence = comparison
+    return native_evidence_metadata(
+        native_case_run,
+        expected_status=expected_status,
+        native_actual=native_actual,
+        input_hash=input_hash,
+        row_evidence=row_evidence,
+        comparison_evidence=comparison_evidence,
+    )
 
 
 def apply_native_transformation_semantics_classification(
@@ -1610,28 +1824,13 @@ def apply_native_transformation_semantics_classification(
         if evidence is None:
             continue
         native_inputs.append(native_path)
-        for key, row in candidates.items():
-            evidence_key = f"{key[0]}:{key[1]}"
-            row["classification"] = TRANSFORMATION_NATIVE_SEMANTICS_CLASSIFICATION
-            row["technical_cause"] = TRANSFORMATION_NATIVE_SEMANTICS_NOTE
-            row["code_fix_needed"] = False
-            row["test_expectation_wrong"] = False
-            row["document_only"] = True
-            row["classification_note"] = TRANSFORMATION_NATIVE_SEMANTICS_NOTE
-            row["classification_evidence"] = {
-                "note": TRANSFORMATION_NATIVE_SEMANTICS_NOTE,
-                "native_case_run": str(native_path),
-                "native_run_dir": evidence["run_dir"],
-                "native_result_path": evidence["native_result_path"],
-                "expected": evidence["expected"],
-                "native_actual": evidence["native_actual"],
-                "input_hash": evidence["input_hash"],
-                "request_sha256": evidence["request_sha256"],
-                "rules_sha256": evidence["rules_sha256"],
-                "libmodsecurity": evidence["libmodsecurity"],
-                "row_evidence": evidence["row_evidence"][evidence_key],
-                "connector_comparison": evidence["connector_comparison"][evidence_key],
-            }
+        classify_native_semantics_rows(
+            candidates,
+            native_path=native_path,
+            evidence=evidence,
+            classification=TRANSFORMATION_NATIVE_SEMANTICS_CLASSIFICATION,
+            note=TRANSFORMATION_NATIVE_SEMANTICS_NOTE,
+        )
     return mismatches, native_inputs
 
 
@@ -1643,28 +1842,19 @@ def xml_parser_semantics_result_evidence(
     expected_status: str,
     native_actual: str,
 ) -> dict[str, Any] | None:
-    if row.get("case") != XML_PARSER_SEMANTICS_CASE:
+    matched = matching_runtime_result(
+        row,
+        case_names={XML_PARSER_SEMANTICS_CASE},
+        category="body-processors",
+        expected_status=expected_status,
+        actual_status=native_actual,
+        connector_root=connector_root,
+        build_root=build_root,
+        require_stable_matrix=True,
+    )
+    if matched is None:
         return None
-    if row.get("connector") not in SEMICOLON_COLLECTION_CONNECTORS:
-        return None
-    if row.get("variant") not in SEMICOLON_COLLECTION_VARIANTS:
-        return None
-    if row.get("category") != "body-processors":
-        return None
-    if row.get("status") != "fail" or row.get("expected") != expected_status or row.get("actual") != native_actual:
-        return None
-    if row.get("full_matrix_refresh_needed") is not False:
-        return None
-    result_path = resolve_evidence_file(str(row.get("evidence_file") or ""), connector_root=connector_root, build_root=build_root)
-    result = read_json(result_path)
-    if result.get("live_executed") is not True:
-        return None
-    if status_string(result.get("expected_status")) != expected_status:
-        return None
-    if status_string(result.get("actual_status", result.get("observed_status"))) != native_actual:
-        return None
-    if str(result.get("observed_transport_result") or "") not in {"", "http_status"}:
-        return None
+    result_path, result = matched
 
     evidence: dict[str, Any] = {
         "result": rel(result_path, build_root),
@@ -1700,56 +1890,18 @@ def xml_parser_semantics_result_evidence(
     return evidence
 
 
-def valid_xml_parser_semantics_evidence(
-    native_case_run: dict[str, Any],
-    candidates: dict[tuple[str, str], dict[str, Any]],
-    *,
-    connector_root: Path,
-    build_root: Path,
-) -> dict[str, Any] | None:
-    if str(native_case_run.get("case") or "") != XML_PARSER_SEMANTICS_CASE:
-        return None
-    if str(native_case_run.get("status") or "") != "fail":
-        return None
-    if str(native_case_run.get("decision") or "") != "DOCUMENT":
-        return None
-    if str(native_case_run.get("classification_hint") or "") != "likely_framework_expected_behavior_gap_or_libmodsecurity_semantics":
-        return None
-    if native_case_run.get("native_match") is not False:
-        return None
-    if native_case_run.get("full_matrix_refresh_needed") is not False:
-        return None
-    input_hash = str(native_case_run.get("input_hash") or "")
-    if not input_hash:
-        return None
-
-    expected_status = status_string(native_case_run.get("expected_status"))
-    native_actual = status_string(native_case_run.get("native_actual"))
-    if expected_status != "403" or native_actual != "200":
-        return None
-
+def xml_parser_fixture_evidence(native_case_run: dict[str, Any]) -> dict[str, Any] | None:
     case_path = Path(str(native_case_run.get("case_path") or ""))
-    try:
-        case_text = case_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    case_text = read_text_or_none(case_path)
+    if case_text is None or "ctl:requestBodyProcessor=XML" not in case_text or "SecRule XML" not in case_text:
         return None
-    if "ctl:requestBodyProcessor=XML" not in case_text or "SecRule XML" not in case_text:
-        return None
-
     log_evidence = native_case_run.get("log_evidence")
-    if not isinstance(log_evidence, dict):
-        return None
-    if log_evidence.get("rule_ids") not in ([], None):
+    if not isinstance(log_evidence, dict) or log_evidence.get("rule_ids") not in ([], None):
         return None
     if log_evidence.get("matched_data") not in ([], None):
         return None
-
-    logs_dir = Path(str(native_case_run.get("logs_dir") or ""))
-    debug_log = logs_dir / "debug.log"
-    try:
-        debug_text = debug_log.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
+    debug_log = Path(str(native_case_run.get("logs_dir") or "")) / "debug.log"
+    debug_text = read_text_or_none(debug_log)
     required_debug_markers = [
         "XML: Initialising parser.",
         "XML: Parsing complete (well_formed 0).",
@@ -1757,73 +1909,59 @@ def valid_xml_parser_semantics_evidence(
         "(Rule: 4408) Executing operator",
         "Rule returned 0.",
     ]
-    if any(marker not in debug_text for marker in required_debug_markers):
+    if debug_text is None or any(marker not in debug_text for marker in required_debug_markers):
         return None
-
-    expected_matrix = {
-        (connector, variant)
-        for connector in SEMICOLON_COLLECTION_CONNECTORS
-        for variant in SEMICOLON_COLLECTION_VARIANTS
+    return {
+        "native_case_path": str(case_path),
+        "debug_log": str(debug_log),
+        "xml_processor_control_present": True,
+        "parser_debug_markers": required_debug_markers,
     }
-    comparisons = native_case_run.get("connector_comparison")
-    if not isinstance(comparisons, list):
-        return None
-    comparison_by_key: dict[tuple[str, str], dict[str, Any]] = {}
-    for item in comparisons:
-        if not isinstance(item, dict):
-            return None
-        key = (str(item.get("connector") or ""), str(item.get("variant") or ""))
-        comparison_by_key[key] = item
-    if set(comparison_by_key) != expected_matrix or set(candidates) != expected_matrix:
-        return None
 
-    row_evidence: dict[str, dict[str, Any]] = {}
-    comparison_evidence: dict[str, dict[str, Any]] = {}
-    for key, item in comparison_by_key.items():
-        if item.get("same") is not True:
-            return None
-        if status_string(item.get("native_actual")) != native_actual:
-            return None
-        if status_string(item.get("connector_actual")) != native_actual:
-            return None
-        if str(item.get("meaning") or "") != "same_as_native":
-            return None
-        if item.get("full_matrix_refresh_needed") is not False:
-            return None
-        row = candidates[key]
-        evidence = xml_parser_semantics_result_evidence(
+
+def valid_xml_parser_semantics_evidence(
+    native_case_run: dict[str, Any],
+    candidates: dict[tuple[str, str], dict[str, Any]],
+    *,
+    connector_root: Path,
+    build_root: Path,
+) -> dict[str, Any] | None:
+    documented = documented_native_case_run(
+        native_case_run,
+        case_name=XML_PARSER_SEMANTICS_CASE,
+        require_stable_matrix=True,
+    )
+    fixture = xml_parser_fixture_evidence(native_case_run)
+    if documented is None or fixture is None:
+        return None
+    expected_status, native_actual, input_hash = documented
+    comparison = validated_native_comparison_evidence(
+        native_case_run,
+        candidates,
+        expected_status=expected_status,
+        native_actual=native_actual,
+        evidence_builder=lambda row: xml_parser_semantics_result_evidence(
             row,
             connector_root=connector_root,
             build_root=build_root,
             expected_status=expected_status,
             native_actual=native_actual,
-        )
-        if evidence is None:
-            return None
-        evidence_key = f"{key[0]}:{key[1]}"
-        row_evidence[evidence_key] = evidence
-        comparison_evidence[evidence_key] = {
-            "connector_actual": status_string(item.get("connector_actual")),
-            "native_actual": status_string(item.get("native_actual")),
-            "same": True,
-            "meaning": str(item.get("meaning") or ""),
-        }
-
+        ),
+        require_stable_matrix=True,
+    )
+    if comparison is None:
+        return None
+    row_evidence, comparison_evidence = comparison
     return {
-        "expected": expected_status,
-        "native_actual": native_actual,
-        "input_hash": input_hash,
-        "request_sha256": str(native_case_run.get("request_sha256") or ""),
-        "rules_sha256": str(native_case_run.get("rules_sha256") or ""),
-        "libmodsecurity": str(native_case_run.get("libmodsecurity") or ""),
-        "native_result_path": str(native_case_run.get("native_result_path") or ""),
-        "native_case_path": str(case_path),
-        "run_dir": str(native_case_run.get("run_dir") or ""),
-        "debug_log": str(debug_log),
-        "xml_processor_control_present": True,
-        "parser_debug_markers": required_debug_markers,
-        "row_evidence": row_evidence,
-        "connector_comparison": comparison_evidence,
+        **native_evidence_metadata(
+            native_case_run,
+            expected_status=expected_status,
+            native_actual=native_actual,
+            input_hash=input_hash,
+            row_evidence=row_evidence,
+            comparison_evidence=comparison_evidence,
+        ),
+        **fixture,
     }
 
 
@@ -1854,33 +1992,44 @@ def apply_xml_parser_semantics_classification(
     if evidence is None:
         return mismatches, []
 
-    for key, row in candidates.items():
-        evidence_key = f"{key[0]}:{key[1]}"
-        row["classification"] = XML_PARSER_SEMANTICS_CLASSIFICATION
-        row["technical_cause"] = XML_PARSER_SEMANTICS_NOTE
-        row["code_fix_needed"] = False
-        row["test_expectation_wrong"] = False
-        row["document_only"] = True
-        row["classification_note"] = XML_PARSER_SEMANTICS_NOTE
-        row["classification_evidence"] = {
-            "note": XML_PARSER_SEMANTICS_NOTE,
-            "native_case_run": str(native_path),
+    classify_native_semantics_rows(
+        candidates,
+        native_path=native_path,
+        evidence=evidence,
+        classification=XML_PARSER_SEMANTICS_CLASSIFICATION,
+        note=XML_PARSER_SEMANTICS_NOTE,
+        extra_evidence={
             "native_case_path": evidence["native_case_path"],
-            "native_run_dir": evidence["run_dir"],
-            "native_result_path": evidence["native_result_path"],
             "debug_log": evidence["debug_log"],
-            "expected": evidence["expected"],
-            "native_actual": evidence["native_actual"],
-            "input_hash": evidence["input_hash"],
-            "request_sha256": evidence["request_sha256"],
-            "rules_sha256": evidence["rules_sha256"],
-            "libmodsecurity": evidence["libmodsecurity"],
             "xml_processor_control_present": evidence["xml_processor_control_present"],
             "parser_debug_markers": evidence["parser_debug_markers"],
-            "row_evidence": evidence["row_evidence"][evidence_key],
-            "connector_comparison": evidence["connector_comparison"][evidence_key],
-        }
+        },
+    )
     return mismatches, [native_path]
+
+
+def apply_critical_classification(
+    row: dict[str, Any],
+    evidence: dict[str, Any] | None,
+    *,
+    classification: str,
+    technical_cause: str,
+    note: str,
+    code_fix_needed: bool = False,
+) -> None:
+    if evidence is None or row["classification"] not in CRITICAL_CATEGORIES:
+        return
+    row.update(
+        {
+            "classification": classification,
+            "technical_cause": technical_cause,
+            "code_fix_needed": code_fix_needed,
+            "test_expectation_wrong": False,
+            "document_only": True,
+            "classification_note": note,
+            "classification_evidence": evidence,
+        }
+    )
 
 
 def row_from_case(
@@ -1938,109 +2087,108 @@ def row_from_case(
         connector_root=connector_root,
         build_root=build_root,
     )
-    if fixture_evidence is not None and row["classification"] in CRITICAL_CATEGORIES:
-        row["classification"] = "multipart_fixture_gap"
-        row["technical_cause"] = (
+    apply_critical_classification(
+        row,
+        fixture_evidence,
+        classification="multipart_fixture_gap",
+        technical_cause=(
             "Multipart smoke fixture emitted an empty-argument ModSecurity operator, so the connector rejected "
             "the generated rules before a live runtime result could be compared."
-        )
-        row["code_fix_needed"] = True
-        row["test_expectation_wrong"] = False
-        row["document_only"] = True
-        row["classification_note"] = fixture_evidence["note"]
-        row["classification_evidence"] = fixture_evidence
+        ),
+        note=str(fixture_evidence.get("note") or "") if fixture_evidence else "",
+        code_fix_needed=True,
+    )
     detection_only_evidence = with_mrts_detection_only_overlay(
         row,
         evidence=evidence,
         connector_root=connector_root,
         build_root=build_root,
     )
-    if detection_only_evidence is not None and row["classification"] in CRITICAL_CATEGORIES:
+    if detection_only_evidence is not None:
         connector_label = {"apache": "Apache", "haproxy": "HAProxy", "nginx": "NGINX"}[row["connector"]]
         classification_note = str(detection_only_evidence.get("note") or MRTS_DETECTION_ONLY_NOTE)
-        row["classification"] = MRTS_DETECTION_ONLY_CLASSIFICATION
-        row["technical_cause"] = (
+    else:
+        connector_label = ""
+        classification_note = ""
+    apply_critical_classification(
+        row,
+        detection_only_evidence,
+        classification=MRTS_DETECTION_ONLY_CLASSIFICATION,
+        technical_cause=(
             f"{connector_label} with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; "
             "the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay."
-        )
-        row["code_fix_needed"] = False
-        row["test_expectation_wrong"] = False
-        row["document_only"] = True
-        row["classification_note"] = classification_note
-        row["classification_evidence"] = detection_only_evidence
+        ),
+        note=classification_note,
+    )
     crs_detection_only_evidence = crs_sqli_with_mrts_detection_only_overlay(
         row,
         evidence=evidence,
         connector_root=connector_root,
         build_root=build_root,
     )
-    if crs_detection_only_evidence is not None and row["classification"] in CRITICAL_CATEGORIES:
-        row["classification"] = MRTS_DETECTION_ONLY_CLASSIFICATION
-        row["technical_cause"] = (
+    apply_critical_classification(
+        row,
+        crs_detection_only_evidence,
+        classification=MRTS_DETECTION_ONLY_CLASSIFICATION,
+        technical_cause=(
             "The CRS SQLi fixture matches CRS request rules and reaches the inbound anomaly blocking rule, "
             "but the with-MRTS variant loads MRTS_001_INIT DetectionOnly. The no-MRTS control blocks with "
             "HTTP 403, while the with-MRTS overlay records a report-only intervention and returns HTTP 200."
-        )
-        row["code_fix_needed"] = False
-        row["test_expectation_wrong"] = False
-        row["document_only"] = True
-        row["classification_note"] = CRS_SQLI_WITH_MRTS_DETECTION_ONLY_NOTE
-        row["classification_evidence"] = crs_detection_only_evidence
+        ),
+        note=CRS_SQLI_WITH_MRTS_DETECTION_ONLY_NOTE,
+    )
     nginx_phase4_enforcement_evidence = nginx_phase4_response_body_enforcement_gap(
         row,
         evidence=evidence,
         connector_root=connector_root,
         build_root=build_root,
     )
-    if nginx_phase4_enforcement_evidence is not None and row["classification"] in CRITICAL_CATEGORIES:
-        row["classification"] = NGINX_PHASE4_RESPONSE_BODY_ENFORCEMENT_CLASSIFICATION
-        row["technical_cause"] = (
+    apply_critical_classification(
+        row,
+        nginx_phase4_enforcement_evidence,
+        classification=NGINX_PHASE4_RESPONSE_BODY_ENFORCEMENT_CLASSIFICATION,
+        technical_cause=(
             "NGINX records a libmodsecurity phase-4 RESPONSE_BODY disruptive match in error/audit evidence, "
             "but the response has already been sent through the current connector path and the observed HTTP "
             "status remains 200. Apache and HAProxy controls can satisfy the same generic deny fixture; this "
             "row documents the NGINX Phase-4 response-body enforcement boundary."
-        )
-        row["code_fix_needed"] = False
-        row["test_expectation_wrong"] = False
-        row["document_only"] = True
-        row["classification_note"] = NGINX_PHASE4_RESPONSE_BODY_ENFORCEMENT_NOTE
-        row["classification_evidence"] = nginx_phase4_enforcement_evidence
+        ),
+        note=NGINX_PHASE4_RESPONSE_BODY_ENFORCEMENT_NOTE,
+    )
     phase4_no_disruptive_evidence = nginx_phase4_rule_match_no_disruptive_intervention(
         row,
         evidence=evidence,
         connector_root=connector_root,
         build_root=build_root,
     )
-    if phase4_no_disruptive_evidence is not None and row["classification"] in CRITICAL_CATEGORIES:
-        row["classification"] = PHASE4_RULE_MATCH_NO_DISRUPTIVE_INTERVENTION_CLASSIFICATION
-        row["technical_cause"] = (
+    apply_critical_classification(
+        row,
+        phase4_no_disruptive_evidence,
+        classification=PHASE4_RULE_MATCH_NO_DISRUPTIVE_INTERVENTION_CLASSIFICATION,
+        technical_cause=(
             "The NGINX with-MRTS log-only fixture reaches HTTP 200 as expected and the error log shows the "
             "phase-4 RESPONSE_BODY rule match. The only failed assertion is connector phase4.log content; "
             "with MRTS_001_INIT DetectionOnly active there is no disruptive connector intervention event to emit."
-        )
-        row["code_fix_needed"] = False
-        row["test_expectation_wrong"] = False
-        row["document_only"] = True
-        row["classification_note"] = PHASE4_RULE_MATCH_NO_DISRUPTIVE_INTERVENTION_NOTE
-        row["classification_evidence"] = phase4_no_disruptive_evidence
+        ),
+        note=PHASE4_RULE_MATCH_NO_DISRUPTIVE_INTERVENTION_NOTE,
+    )
     secaction_detection_only_evidence = secaction_with_mrts_detection_only_overlay(
         row,
         evidence=evidence,
         connector_root=connector_root,
         build_root=build_root,
     )
-    if secaction_detection_only_evidence is not None and row["classification"] in CRITICAL_CATEGORIES:
-        row["classification"] = SECACTION_DETECTION_ONLY_CLASSIFICATION
-        row["technical_cause"] = (
+    apply_critical_classification(
+        row,
+        secaction_detection_only_evidence,
+        classification=SECACTION_DETECTION_ONLY_CLASSIFICATION,
+        technical_cause=(
             "The v3 SecAction block fixture is loaded as id 3312, and no-MRTS/native controls block with HTTP 403. "
             "The with-MRTS variant loads MRTS_001_INIT, which sets ctl:ruleEngine=DetectionOnly for the transaction, "
             "so the disruptive SecAction is report-only and the observed HTTP status remains 200."
-        )
-        row["code_fix_needed"] = False
-        row["test_expectation_wrong"] = False
-        row["document_only"] = True
-        row["classification_note"] = SECACTION_DETECTION_ONLY_NOTE
-        row["classification_evidence"] = secaction_detection_only_evidence
+        ),
+        note=SECACTION_DETECTION_ONLY_NOTE,
+    )
     return row
 
 
@@ -2059,6 +2207,41 @@ def variant_from_result_path(path: Path, root: Path, source_scope: str) -> str:
     return "default"
 
 
+def summary_rows_from_file(
+    summary_path: Path,
+    *,
+    root: Path,
+    connector_root: Path,
+    build_root: Path,
+    source_scope: str,
+    min_mtime: float | None,
+) -> list[dict[str, Any]]:
+    if not new_enough(summary_path, min_mtime):
+        return []
+    rows: list[dict[str, Any]] = []
+    variant = variant_from_result_path(summary_path, root, source_scope)
+    for connector, summary in read_json(summary_path).items():
+        if not isinstance(summary, dict) or not isinstance(summary.get("cases"), dict):
+            continue
+        result_file = Path(str(summary.get("jsonl_path") or summary_path))
+        for case in summary["cases"].values():
+            if not isinstance(case, dict):
+                continue
+            row = row_from_case(
+                case=case,
+                connector=str(case.get("executed_connector") or connector),
+                variant=variant,
+                evidence_file=result_file,
+                source_file=summary_path,
+                source_scope=source_scope,
+                connector_root=connector_root,
+                build_root=build_root,
+            )
+            if row is not None:
+                rows.append(row)
+    return rows
+
+
 def collect_summary_rows(
     root: Path,
     connector_root: Path,
@@ -2068,37 +2251,19 @@ def collect_summary_rows(
     search_roots: list[Path] | None = None,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    summary_paths: list[Path] = []
     for search_root in search_roots or [root]:
         if search_root.exists():
-            summary_paths.extend(sorted(search_root.rglob("*-summary.json")))
-    for summary_path in summary_paths:
-        if not new_enough(summary_path, min_mtime):
-            continue
-        data = read_json(summary_path)
-        for connector, summary in data.items():
-            if not isinstance(summary, dict):
-                continue
-            cases = summary.get("cases")
-            if not isinstance(cases, dict):
-                continue
-            variant = variant_from_result_path(summary_path, root, source_scope)
-            result_file = Path(str(summary.get("jsonl_path") or summary_path))
-            for case in cases.values():
-                if not isinstance(case, dict):
-                    continue
-                row = row_from_case(
-                    case=case,
-                    connector=str(case.get("executed_connector") or connector),
-                    variant=variant,
-                    evidence_file=result_file,
-                    source_file=summary_path,
-                    source_scope=source_scope,
-                    connector_root=connector_root,
-                    build_root=build_root,
+            for summary_path in sorted(search_root.rglob("*-summary.json")):
+                rows.extend(
+                    summary_rows_from_file(
+                        summary_path,
+                        root=root,
+                        connector_root=connector_root,
+                        build_root=build_root,
+                        source_scope=source_scope,
+                        min_mtime=min_mtime,
+                    )
                 )
-                if row is not None:
-                    rows.append(row)
     return rows
 
 
@@ -2284,13 +2449,13 @@ def render_markdown(payload: dict[str, Any]) -> str:
     ]
     for item in payload["inputs"]:
         lines.append(f"| `{item['path']}` | {item['status']} | `{item.get('sha256', '-')}` |")
-    lines.extend(["", "## By Connector", "", "| Connector | Count |", "|---|---:|"])
+    lines.extend(["", "## By Connector", "", "| Connector | Count |", MARKDOWN_NUMERIC_TABLE_SEPARATOR])
     for connector, count in sorted(payload["by_connector"].items()):
         lines.append(f"| {connector} | {count} |")
-    lines.extend(["", "## By Category", "", "| Category | Count |", "|---|---:|"])
+    lines.extend(["", "## By Category", "", "| Category | Count |", MARKDOWN_NUMERIC_TABLE_SEPARATOR])
     for category, count in sorted(payload["by_classification"].items()):
         lines.append(f"| {category} | {count} |")
-    lines.extend(["", "## Top Cases", "", "| Case | Count |", "|---|---:|"])
+    lines.extend(["", "## Top Cases", "", "| Case | Count |", MARKDOWN_NUMERIC_TABLE_SEPARATOR])
     for item in payload["top_cases"][:20]:
         lines.append(f"| `{item['case']}` | {item['count']} |")
     lines.extend(
@@ -2312,7 +2477,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> int:
+def parse_arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", default=".")
     parser.add_argument("--framework-root", default=None)
@@ -2320,144 +2485,227 @@ def main() -> int:
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--verified-run-id", default=os.environ.get("VERIFIED_RUN_ID"))
     parser.add_argument("--verified-commands-file", default=os.environ.get("VERIFIED_RUN_COMMANDS_FILE"))
-    args = parser.parse_args()
+    return parser, parser.parse_args()
 
+
+def analysis_configuration(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict[str, Path | str]:
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
     default_paths = verified_runtime_paths(os.environ)
     build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
     verified_run_root = Path(default_paths["VERIFIED_RUN_ROOT"]).resolve()
     try:
-        verified_run_id = validate_verified_run_id(
-            args.verified_run_id or current_verified_run_id(connector_root)
-        )
+        verified_run_id = validate_verified_run_id(args.verified_run_id or current_verified_run_id(connector_root))
     except VerifiedRunIdError as exc:
         parser.error(str(exc))
     os.environ["VERIFIED_RUN_ID"] = verified_run_id
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / "reports/testing/generated/manifest"
     commands_file = Path(args.verified_commands_file).resolve() if args.verified_commands_file else build_root / "verified-runs" / verified_run_id / "verified-commands.json"
-    results_root = build_root / "results"
-    full_matrix_root = build_root / "full-matrix"
-    manifest_path = full_matrix_root / "full-runtime-matrix-runs.jsonl"
-    completeness_path = report_path(connector_root, "full_matrix_job_completeness", "json")
+    return {
+        "connector_root": connector_root,
+        "framework_root": framework_root,
+        "build_root": build_root,
+        "verified_run_root": verified_run_root,
+        "verified_run_id": verified_run_id,
+        "output_dir": output_dir,
+        "commands_file": commands_file,
+    }
+
+
+def update_command_state_from_completeness(
+    command_state: dict[str, Any],
+    completeness: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    completeness_jobs = completeness.get("jobs") if isinstance(completeness.get("jobs"), list) else []
+    completed_jobs = [job for job in completeness_jobs if job.get("status") in {"completed", "completed_with_mismatches"}]
+    missing_jobs = [str(job.get("job_id")) for job in completeness_jobs if job.get("status") not in {"completed", "completed_with_mismatches"}]
+    if not completeness_jobs:
+        return completeness_jobs, completed_jobs, missing_jobs
+    expected_jobs = int(completeness.get("total_jobs") or command_state["full_matrix_expected_jobs"] or 0)
+    completed_count = int(completeness.get("complete_jobs") or len(completed_jobs))
+    full_complete = expected_jobs > 0 and completed_count >= expected_jobs
+    command_state.update(
+        {
+            "full_matrix_expected_jobs": expected_jobs,
+            "full_matrix_completed_jobs": completed_count,
+            "full_matrix_complete": full_complete,
+            "full_matrix_job_statuses": [
+                {
+                    "connector": job.get("connector"),
+                    "variant": f"{job.get('crs')}/{job.get('mrts')}",
+                    "status": job.get("status"),
+                    "return_code": job.get("return_code"),
+                    "duration_seconds": job.get("duration_seconds"),
+                    "summary_path": job.get("summary_path"),
+                    "log_path": job.get("log_path"),
+                    "manifest_recorded": job.get("manifest_recorded"),
+                }
+                for job in completeness_jobs
+            ],
+        }
+    )
+    if full_complete:
+        mismatched_jobs = any(job.get("return_code") not in {0, None} for job in completed_jobs)
+        command_state.update(
+            {
+                "full_matrix_runtime_status": "completed_with_mismatches" if mismatched_jobs else "runtime_completed",
+                "full_matrix_timeout": False,
+                "full_matrix_refresh_timeout": False,
+                "full_matrix_status": "complete",
+                "full_matrix_classification": "completed_with_mismatches" if mismatched_jobs else "complete",
+            }
+        )
+    else:
+        command_state.update({"full_matrix_runtime_status": "runtime_timeout", "full_matrix_timeout": True})
+    return completeness_jobs, completed_jobs, missing_jobs
+
+
+def verified_command_state(
+    *,
+    commands_file: Path,
+    manifest_path: Path,
+    completeness_path: Path,
+) -> dict[str, Any]:
     completeness = read_json(completeness_path)
     manifest_rows = read_jsonl(manifest_path)
     commands_payload = load_commands_payload(commands_file)
     commands = commands_payload.get("commands") if isinstance(commands_payload.get("commands"), list) else []
     profile = str(commands_payload.get("profile") or os.environ.get("VERIFIED_RUN_PROFILE") or "full")
     command_state = command_summary(commands, manifest_rows, profile)
-    runtime_command = command_state.get("runtime_matrix_all") if isinstance(command_state.get("runtime_matrix_all"), dict) else {}
-    full_command = command_state.get("full_matrix_parallel") if isinstance(command_state.get("full_matrix_parallel"), dict) else {}
-    completeness_jobs = completeness.get("jobs") if isinstance(completeness.get("jobs"), list) else []
-    completed_completeness_jobs = [
-        job for job in completeness_jobs if job.get("status") in {"completed", "completed_with_mismatches"}
-    ]
-    completeness_total_jobs = int(completeness.get("total_jobs") or command_state["full_matrix_expected_jobs"] or 0)
-    completeness_completed_jobs = int(completeness.get("complete_jobs") or len(completed_completeness_jobs))
-    completeness_missing_jobs = [
-        str(job.get("job_id"))
-        for job in completeness_jobs
-        if job.get("status") not in {"completed", "completed_with_mismatches"}
-    ]
-    if completeness_jobs:
-        command_state["full_matrix_expected_jobs"] = completeness_total_jobs
-        command_state["full_matrix_completed_jobs"] = completeness_completed_jobs
-        command_state["full_matrix_complete"] = completeness_total_jobs > 0 and completeness_completed_jobs >= completeness_total_jobs
-        command_state["full_matrix_job_statuses"] = [
-            {
-                "connector": job.get("connector"),
-                "variant": f"{job.get('crs')}/{job.get('mrts')}",
-                "status": job.get("status"),
-                "return_code": job.get("return_code"),
-                "duration_seconds": job.get("duration_seconds"),
-                "summary_path": job.get("summary_path"),
-                "log_path": job.get("log_path"),
-                "manifest_recorded": job.get("manifest_recorded"),
-            }
-            for job in completeness_jobs
-        ]
-        if command_state["full_matrix_complete"]:
-            mismatched_jobs = any(job.get("return_code") not in {0, None} for job in completed_completeness_jobs)
-            command_state["full_matrix_runtime_status"] = (
-                "completed_with_mismatches"
-                if mismatched_jobs
-                else "runtime_completed"
-            )
-            command_state["full_matrix_timeout"] = False
-            command_state["full_matrix_refresh_timeout"] = False
-            command_state["full_matrix_status"] = "complete"
-            command_state["full_matrix_classification"] = "completed_with_mismatches" if mismatched_jobs else "complete"
-        else:
-            command_state["full_matrix_runtime_status"] = "runtime_timeout"
-            command_state["full_matrix_timeout"] = True
-    run_cutoff = parse_time(str(commands_payload.get("started_at_utc") or ""))
-    runtime_cutoff = parse_time(runtime_command.get("started_at") if isinstance(runtime_command, dict) else None) or run_cutoff
-    full_cutoff = parse_time(full_command.get("started_at") if isinstance(full_command, dict) else None)
+    completeness_jobs, completed_jobs, missing_jobs = update_command_state_from_completeness(command_state, completeness)
+    return {
+        "completeness": completeness,
+        "manifest_rows": manifest_rows,
+        "commands_payload": commands_payload,
+        "profile": profile,
+        "command_state": command_state,
+        "runtime_command": command_state.get("runtime_matrix_all") if isinstance(command_state.get("runtime_matrix_all"), dict) else {},
+        "full_command": command_state.get("full_matrix_parallel") if isinstance(command_state.get("full_matrix_parallel"), dict) else {},
+        "completeness_jobs": completeness_jobs,
+        "completed_completeness_jobs": completed_jobs,
+        "completeness_missing_jobs": missing_jobs,
+    }
 
-    rows = []
-    rows.extend(collect_summary_rows(results_root, connector_root, build_root, "runtime_matrix", runtime_cutoff))
-    rows.extend(collect_jsonl_rows(results_root, connector_root, build_root, "runtime_matrix", runtime_cutoff))
-    if full_command or completeness_jobs:
-        full_search_roots = [
-            Path(str(job.get("result_path") or job.get("summary_path") or "")).resolve().parent
-            for job in completed_completeness_jobs
-            if job.get("result_path") or job.get("summary_path")
-        ] or [
-            Path(str(item.get("results_dir"))).resolve()
-            for item in manifest_rows
-            if isinstance(item, dict) and item.get("results_dir")
-        ]
-        rows.extend(
-            collect_summary_rows(
-                full_matrix_root,
-                connector_root,
-                build_root,
-                "full_matrix",
-                full_cutoff,
-                full_search_roots,
-            )
-        )
-        rows.extend(
-            collect_jsonl_rows(
-                full_matrix_root,
-                connector_root,
-                build_root,
-                "full_matrix",
-                full_cutoff,
-                full_search_roots,
-            )
-        )
-        rows.extend(collect_incomplete_jobs(full_matrix_root, build_root, full_cutoff))
+
+def full_matrix_search_roots(
+    completed_completeness_jobs: list[dict[str, Any]],
+    manifest_rows: list[dict[str, Any]],
+) -> list[Path]:
+    from_completeness = [
+        Path(str(job.get("result_path") or job.get("summary_path") or "")).resolve().parent
+        for job in completed_completeness_jobs
+        if job.get("result_path") or job.get("summary_path")
+    ]
+    if from_completeness:
+        return from_completeness
+    return [
+        Path(str(item.get("results_dir"))).resolve()
+        for item in manifest_rows
+        if isinstance(item, dict) and item.get("results_dir")
+    ]
+
+
+def collected_runtime_rows(
+    *,
+    connector_root: Path,
+    build_root: Path,
+    results_root: Path,
+    full_matrix_root: Path,
+    runtime_cutoff: float | None,
+    full_cutoff: float | None,
+    full_command: dict[str, Any],
+    completeness_jobs: list[dict[str, Any]],
+    completed_completeness_jobs: list[dict[str, Any]],
+    manifest_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows = [
+        *collect_summary_rows(results_root, connector_root, build_root, "runtime_matrix", runtime_cutoff),
+        *collect_jsonl_rows(results_root, connector_root, build_root, "runtime_matrix", runtime_cutoff),
+    ]
+    if not full_command and not completeness_jobs:
+        return rows
+    search_roots = full_matrix_search_roots(completed_completeness_jobs, manifest_rows)
+    rows.extend(collect_summary_rows(full_matrix_root, connector_root, build_root, "full_matrix", full_cutoff, search_roots))
+    rows.extend(collect_jsonl_rows(full_matrix_root, connector_root, build_root, "full_matrix", full_cutoff, search_roots))
+    rows.extend(collect_incomplete_jobs(full_matrix_root, build_root, full_cutoff))
+    return rows
+
+
+def classified_runtime_mismatches(
+    rows: list[dict[str, Any]],
+    *,
+    connector_root: Path,
+    build_root: Path,
+    verified_run_root: Path,
+) -> tuple[list[dict[str, Any]], list[Path]]:
     mismatches = dedupe_rows(rows)
-    mismatches = apply_semicolon_collection_semantics_classification(
-        mismatches,
-        connector_root=connector_root,
-        build_root=build_root,
-    )
-    mismatches = apply_collection_name_case_semantics_classification(
-        mismatches,
-        connector_root=connector_root,
-        build_root=build_root,
-    )
-    mismatches = apply_nolog_expected_no_audit_classification(
-        mismatches,
-        connector_root=connector_root,
-        build_root=build_root,
-    )
-    mismatches, native_semantics_inputs = apply_native_transformation_semantics_classification(
+    mismatches = apply_semicolon_collection_semantics_classification(mismatches, connector_root=connector_root, build_root=build_root)
+    mismatches = apply_collection_name_case_semantics_classification(mismatches, connector_root=connector_root, build_root=build_root)
+    mismatches = apply_nolog_expected_no_audit_classification(mismatches, connector_root=connector_root, build_root=build_root)
+    mismatches, native_inputs = apply_native_transformation_semantics_classification(
         mismatches,
         connector_root=connector_root,
         build_root=build_root,
         verified_run_root=verified_run_root,
     )
-    mismatches, xml_semantics_inputs = apply_xml_parser_semantics_classification(
+    mismatches, xml_inputs = apply_xml_parser_semantics_classification(
         mismatches,
         connector_root=connector_root,
         build_root=build_root,
         verified_run_root=verified_run_root,
     )
-    native_semantics_inputs.extend(xml_semantics_inputs)
+    return mismatches, [*native_inputs, *xml_inputs]
 
+
+def main() -> int:
+    parser, args = parse_arguments()
+    configuration = analysis_configuration(args, parser)
+    connector_root = configuration["connector_root"]
+    framework_root = configuration["framework_root"]
+    build_root = configuration["build_root"]
+    verified_run_root = configuration["verified_run_root"]
+    verified_run_id = configuration["verified_run_id"]
+    output_dir = configuration["output_dir"]
+    commands_file = configuration["commands_file"]
+    results_root = build_root / "results"
+    full_matrix_root = build_root / "full-matrix"
+    manifest_path = full_matrix_root / "full-runtime-matrix-runs.jsonl"
+    completeness_path = report_path(connector_root, "full_matrix_job_completeness", "json")
+    state = verified_command_state(
+        commands_file=commands_file,
+        manifest_path=manifest_path,
+        completeness_path=completeness_path,
+    )
+    run_cutoff = parse_time(str(state["commands_payload"].get("started_at_utc") or ""))
+    runtime_cutoff = parse_time(state["runtime_command"].get("started_at")) or run_cutoff
+    full_cutoff = parse_time(state["full_command"].get("started_at"))
+
+    rows = collected_runtime_rows(
+        connector_root=connector_root,
+        build_root=build_root,
+        results_root=results_root,
+        full_matrix_root=full_matrix_root,
+        runtime_cutoff=runtime_cutoff,
+        full_cutoff=full_cutoff,
+        full_command=state["full_command"],
+        completeness_jobs=state["completeness_jobs"],
+        completed_completeness_jobs=state["completed_completeness_jobs"],
+        manifest_rows=state["manifest_rows"],
+    )
+    mismatches, native_semantics_inputs = classified_runtime_mismatches(
+        rows,
+        connector_root=connector_root,
+        build_root=build_root,
+        verified_run_root=verified_run_root,
+    )
+
+    completeness = state["completeness"]
+    manifest_rows = state["manifest_rows"]
+    command_state = state["command_state"]
+    runtime_command = state["runtime_command"]
+    full_command = state["full_command"]
+    profile = state["profile"]
+    completeness_missing_jobs = state["completeness_missing_jobs"]
     by_connector = Counter(row["connector"] for row in mismatches)
     by_classification = Counter(row["classification"] for row in mismatches)
     top_cases = Counter(row["case"] for row in mismatches).most_common(50)
