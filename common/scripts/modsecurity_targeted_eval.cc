@@ -396,30 +396,6 @@ void write_success_json(
     std::cout << "}\n";
 }
 
-struct ModSecurityDeleter {
-    void operator()(modsecurity::ModSecurity *engine_instance) const noexcept {
-        if (engine_instance != nullptr) {
-            modsecurity::msc_cleanup(engine_instance);
-        }
-    }
-};
-
-struct RulesSetDeleter {
-    void operator()(modsecurity::RulesSet *rules_instance) const noexcept {
-        if (rules_instance != nullptr) {
-            modsecurity::msc_rules_cleanup(rules_instance);
-        }
-    }
-};
-
-struct TransactionDeleter {
-    void operator()(modsecurity::Transaction *transaction_instance) const noexcept {
-        if (transaction_instance != nullptr) {
-            modsecurity::msc_transaction_cleanup(transaction_instance);
-        }
-    }
-};
-
 struct RuleErrorCleanup {
     const char *value = nullptr;
 
@@ -430,9 +406,15 @@ struct RuleErrorCleanup {
     }
 };
 
-using ModSecurityHandle = std::unique_ptr<modsecurity::ModSecurity, ModSecurityDeleter>;
-using RulesSetHandle = std::unique_ptr<modsecurity::RulesSet, RulesSetDeleter>;
-using TransactionHandle = std::unique_ptr<modsecurity::Transaction, TransactionDeleter>;
+using ModSecurityHandle = std::unique_ptr<
+    modsecurity::ModSecurity,
+    decltype(&modsecurity::msc_cleanup)>;
+using RulesSetHandle = std::unique_ptr<
+    modsecurity::RulesSet,
+    decltype(&modsecurity::msc_rules_cleanup)>;
+using TransactionHandle = std::unique_ptr<
+    modsecurity::Transaction,
+    decltype(&modsecurity::msc_transaction_cleanup)>;
 
 }  // namespace
 
@@ -443,7 +425,7 @@ int main(int argc, char **argv) {
         return fail_json(option_error);
     }
 
-    const ModSecurityHandle modsec(modsecurity::msc_init());
+    const ModSecurityHandle modsec(modsecurity::msc_init(), modsecurity::msc_cleanup);
     if (modsec == nullptr) {
         return fail_json("msc_init failed");
     }
@@ -451,7 +433,8 @@ int main(int argc, char **argv) {
     const char *who = modsecurity::msc_who_am_i(modsec.get());
     const std::string whoami = who == nullptr ? "unknown" : who;
 
-    const RulesSetHandle rules(modsecurity::msc_create_rules_set());
+    const RulesSetHandle rules(
+        modsecurity::msc_create_rules_set(), modsecurity::msc_rules_cleanup);
     if (rules == nullptr) {
         return fail_json("msc_create_rules_set failed");
     }
@@ -467,7 +450,9 @@ int main(int argc, char **argv) {
         return fail_json(message);
     }
 
-    const TransactionHandle tx(modsecurity::msc_new_transaction(modsec.get(), rules.get(), nullptr));
+    const TransactionHandle tx(
+        modsecurity::msc_new_transaction(modsec.get(), rules.get(), nullptr),
+        modsecurity::msc_transaction_cleanup);
     if (tx == nullptr) {
         return fail_json("msc_new_transaction failed");
     }

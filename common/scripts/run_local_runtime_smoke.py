@@ -1985,7 +1985,6 @@ def lighttpd_artifacts(runtime_paths: RuntimeOutputPaths) -> LighttpdArtifacts:
 
 
 def prepare_lighttpd_artifacts(
-    args: argparse.Namespace,
     artifacts: LighttpdArtifacts,
     binary: Path,
     upstream_port: int,
@@ -2042,7 +2041,6 @@ def prepare_lighttpd_artifacts(
                 f"lighttpd_config={artifacts.config_path}",
                 f"lighttpd_upstream_port={upstream_port}",
                 f"sidecar_listen_port={listen_port}",
-                f"decision_backend={args.decision_backend}",
             )
         )
         + "\n",
@@ -2216,7 +2214,7 @@ def run_lighttpd_sidecar_smoke(
     sidecar_server: http.server.ThreadingHTTPServer | None = None
     try:
         binary_verified = prepare_lighttpd_artifacts(
-            args, artifacts, binary, upstream_port, listen_port, decision_log_path
+            artifacts, binary, upstream_port, listen_port, decision_log_path
         )
         process, sidecar_server, probe = run_lighttpd_probes(
             args, artifacts, decision_backend, binary, upstream_port, listen_port

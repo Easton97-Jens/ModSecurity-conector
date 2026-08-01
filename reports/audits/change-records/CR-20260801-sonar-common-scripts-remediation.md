@@ -70,7 +70,7 @@ configuration changes.
 | Selected Parent Python: `python -m unittest -q tests.test_local_runtime_smoke_request_body tests.test_common_runtime_smoke_crs_source_security tests.test_write_smoke_result_security tests.test_c_cpp_diagnostics` | passed: 56 tests. |
 | `make check-targeted-evaluator-cpp17` with a task-owned build root and the available dynamic `libmodsecurity.so.3.0.15` | passed: the targeted C++17 evaluator compiled; it was not executed. |
 | `git diff --check` | passed before documentation delivery; rerun is required before commit. |
-| Sealed Codex Security diff reviews | passed: complete coverage of the initial three changed product sources plus both Sonar-remediation amendments; zero reportable findings. |
+| Sealed Codex Security diff reviews | passed: complete coverage of the initial three changed product sources plus all three Sonar-remediation amendments; zero reportable findings. |
 
 ## Security impact
 
@@ -120,12 +120,14 @@ change or a claimed runtime result.
 
 ## Final diff and review status
 
-The initial and two amendment sealed security-diff reviews are retained outside the checkout at
+The initial and three amendment sealed security-diff reviews are retained outside the checkout at
 `/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/security-diff-scan/report.md`.
 The amendment receipts are at
 `/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/security-diff-scan-amendment/report.md`
 and
 `/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/security-diff-scan-final-amendment/report.md`.
+The terminal amendment receipt is at
+`/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/security-diff-scan-terminal-amendment/report.md`.
 Together they cover every changed product source file and the direct amendment
 test, and found no reportable security finding. This record intentionally does not claim a commit, push, PR number,
 hosted check, SonarQube Cloud result, merge, or resulting `master` revision

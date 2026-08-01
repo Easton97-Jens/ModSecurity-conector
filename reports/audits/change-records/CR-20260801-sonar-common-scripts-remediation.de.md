@@ -72,7 +72,7 @@ Duplizierung ohne Scanner-Konfigurationsänderung nachweisen.
 | Gewähltes Parent-Python: `python -m unittest -q tests.test_local_runtime_smoke_request_body tests.test_common_runtime_smoke_crs_source_security tests.test_write_smoke_result_security tests.test_c_cpp_diagnostics` | bestanden: 56 Tests. |
 | `make check-targeted-evaluator-cpp17` mit task-eigenem Build-Root und der verfügbaren dynamischen `libmodsecurity.so.3.0.15` | bestanden: der Targeted-C++17-Evaluator kompilierte; er wurde nicht ausgeführt. |
 | `git diff --check` | vor der Dokumentationsauslieferung bestanden; erneute Ausführung vor dem Commit erforderlich. |
-| Versiegelte Codex-Security-Diff-Reviews | bestanden: vollständige Abdeckung der initial drei geänderten Produktquellen und beider Sonar-Remediation-Amendments; null reportbare Befunde. |
+| Versiegelte Codex-Security-Diff-Reviews | bestanden: vollständige Abdeckung der initial drei geänderten Produktquellen und aller drei Sonar-Remediation-Amendments; null reportbare Befunde. |
 
 ## Security-Auswirkung
 
@@ -126,12 +126,14 @@ Runtime-Ergebnis.
 
 ## Finaler Diff- und Review-Status
 
-Die initialen und zwei Amendment-versiegelten Security-Diff-Reviews liegen außerhalb des Checkouts unter
+Die initialen und drei Amendment-versiegelten Security-Diff-Reviews liegen außerhalb des Checkouts unter
 `/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/security-diff-scan/report.md`.
 Die Amendment-Receipts liegen unter
 `/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/security-diff-scan-amendment/report.md`
 und
 `/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/security-diff-scan-final-amendment/report.md`.
+Der finale Amendment-Receipt liegt unter
+`/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/security-diff-scan-terminal-amendment/report.md`.
 Zusammen decken sie jede geänderte Produktquell-Datei und den direkten
 Amendment-Test ab und fanden keinen reportbaren Security-Befund. Dieser Record beansprucht bewusst keinen Commit, Push, keine
 PR-Nummer, keinen Hosted-Check, kein SonarQube-Cloud-Ergebnis, keinen Merge
