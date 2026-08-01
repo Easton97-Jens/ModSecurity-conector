@@ -49,6 +49,8 @@ PHASE4_BARRIER_TIMEOUT=${ENVOY_PHASE4_BARRIER_TIMEOUT_SECONDS:-10}
 PHASE4_BARRIER_TRANSACTION_ID=envoy-ext-proc-phase4-safe
 READINESS_TRANSACTION_ID=envoy-ext-proc-readiness-1
 ALLOW_TRANSACTION_ID=envoy-ext-proc-allow-1
+readonly ENVIRONMENT_LOG_LINES='1,160p'
+readonly NO_CRS_REQUEST_BODY_MARKER=no-crs-request-body-marker
 READINESS_PROBE_EVIDENCE="$RUNTIME_ROOT/readiness-probe.json"
 ALLOW_PROBE_EVIDENCE="$RUNTIME_ROOT/allow-probe.json"
 TLS_CERTIFICATE="$RUNTIME_ROOT/envoy-loopback.crt"
@@ -251,12 +253,14 @@ if ! "$ENVOY_BIN" --mode validate -c "$ENVOY_CONFIG" \
     --base-id "$base_id" --disable-hot-restart >"$RUNTIME_ROOT/envoy-validate.stdout.log" \
     2>"$RUNTIME_ROOT/envoy-validate.stderr.log"; then
     echo "envoy_ext_proc_runtime: FAIL - Envoy rejected generated config" >&2
-    sed -n '1,160p' "$RUNTIME_ROOT/envoy-validate.stderr.log" >&2 || true
+    sed -n "$ENVIRONMENT_LOG_LINES" "$RUNTIME_ROOT/envoy-validate.stderr.log" >&2 || true
     exit 1
 fi
 
 "$PYTHON_BIN" "$HELPER" serve-upstream --port "$upstream_port" \
     --runtime-root "$RUNTIME_ROOT" \
+    --tls-certificate "$TLS_CERTIFICATE" \
+    --tls-private-key "$TLS_PRIVATE_KEY" \
     --client-cancel-delay "${ENVOY_CLIENT_CANCEL_DELAY_SECONDS:-5}" \
     --phase4-barrier-dir "$PHASE4_BARRIER_DIR" \
     --phase4-barrier-timeout "$PHASE4_BARRIER_TIMEOUT" \
@@ -283,8 +287,8 @@ while [ "$attempt" -lt 30 ]; do
         process_id=${process_pair##*:}
         if ! kill -0 "$process_id" 2>/dev/null; then
             echo "envoy_ext_proc_runtime: FAIL - $process_name process exited early" >&2
-            sed -n '1,160p' "$ENVOY_STDERR" >&2 || true
-            sed -n '1,160p' "$SERVICE_STDERR" >&2 || true
+            sed -n "$ENVIRONMENT_LOG_LINES" "$ENVOY_STDERR" >&2 || true
+            sed -n "$ENVIRONMENT_LOG_LINES" "$SERVICE_STDERR" >&2 || true
             exit 1
         fi
     done
@@ -349,7 +353,7 @@ fi
 if ! phase2_deny_status=$("$PYTHON_BIN" "$HELPER" probe \
     --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
     --url "https://127.0.0.1:$listen_port/phase2-deny" --method POST \
-    --data "no-crs-request-body-marker" \
+    --data "$NO_CRS_REQUEST_BODY_MARKER" \
     --header "X-Request-Id: envoy-ext-proc-phase2-deny"); then
     echo "envoy_ext_proc_runtime: FAIL - phase-2 deny probe could not be completed" >&2
     exit 1
@@ -435,7 +439,7 @@ if [ "$event_ready" -ne 1 ]; then
 fi
 if grep -Fq 'request-body-for-ext-proc' "$COMPLETION_LOG_PATH" || \
     grep -Fq 'envoy connector upstream ok' "$COMPLETION_LOG_PATH" || \
-    grep -Fq 'no-crs-request-body-marker' "$COMPLETION_LOG_PATH" || \
+    grep -Fq "$NO_CRS_REQUEST_BODY_MARKER" "$COMPLETION_LOG_PATH" || \
     grep -Fq 'no-crs-response-body-marker' "$COMPLETION_LOG_PATH"; then
     echo "envoy_ext_proc_runtime: FAIL - metadata evidence contains a body payload" >&2
     exit 1
@@ -463,12 +467,12 @@ while [ "$attempt" -lt 20 ]; do
 done
 if [ "$raw_event_ready" -ne 1 ]; then
     echo "envoy_ext_proc_runtime: FAIL - missing Common/libmodsecurity raw decision evidence" >&2
-    sed -n '1,160p' "$COMMON_EVENT_LOG_PATH" >&2 || true
+    sed -n "$ENVIRONMENT_LOG_LINES" "$COMMON_EVENT_LOG_PATH" >&2 || true
     exit 1
 fi
 if grep -Fq 'request-body-for-ext-proc' "$COMMON_EVENT_LOG_PATH" || \
     grep -Fq 'envoy connector upstream ok' "$COMMON_EVENT_LOG_PATH" || \
-    grep -Fq 'no-crs-request-body-marker' "$COMMON_EVENT_LOG_PATH" || \
+    grep -Fq "$NO_CRS_REQUEST_BODY_MARKER" "$COMMON_EVENT_LOG_PATH" || \
     grep -Fq 'no-crs-response-body-marker' "$COMMON_EVENT_LOG_PATH"; then
     echo "envoy_ext_proc_runtime: FAIL - Common raw event evidence contains a body payload" >&2
     exit 1
@@ -504,7 +508,7 @@ if [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ] && [ ! -s "$FULL_LIFECYCLE_EVIDENCE_
     exit 1
 fi
 if grep -Fq 'no-crs-response-body-marker' "$COMMON_EVENT_LOG_PATH" || \
-    grep -Fq 'no-crs-request-body-marker' "$COMMON_EVENT_LOG_PATH"; then
+    grep -Fq "$NO_CRS_REQUEST_BODY_MARKER" "$COMMON_EVENT_LOG_PATH"; then
     echo "envoy_ext_proc_runtime: FAIL - phase-4 barrier event persisted a body payload" >&2
     exit 1
 fi

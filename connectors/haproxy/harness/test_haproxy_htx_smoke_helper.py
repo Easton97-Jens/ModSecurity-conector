@@ -15,12 +15,14 @@ import unittest
 HELPER_PATH = Path(__file__).with_name("haproxy_htx_smoke_helper.py")
 RUNTIME_PATH = Path(__file__).with_name("run_haproxy_htx_runtime.sh")
 SPEC = importlib.util.spec_from_file_location("haproxy_htx_smoke_helper", HELPER_PATH)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 HELPER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(HELPER)
 COLLECTOR_PATH = HELPER.REPO_ROOT / "ci/runtime/lifecycle/collect-no-crs-source.py"
 COLLECTOR_SPEC = importlib.util.spec_from_file_location("collect_no_crs_source", COLLECTOR_PATH)
-assert COLLECTOR_SPEC is not None and COLLECTOR_SPEC.loader is not None
+assert COLLECTOR_SPEC is not None
+assert COLLECTOR_SPEC.loader is not None
 COLLECTOR = importlib.util.module_from_spec(COLLECTOR_SPEC)
 COLLECTOR_SPEC.loader.exec_module(COLLECTOR)
 SYNCHRONIZED_UPSTREAM_PATH = (
@@ -30,7 +32,8 @@ SYNCHRONIZED_UPSTREAM_PATH = (
 SYNCHRONIZED_UPSTREAM_SPEC = importlib.util.spec_from_file_location(
     "synchronized_upstream", SYNCHRONIZED_UPSTREAM_PATH,
 )
-assert SYNCHRONIZED_UPSTREAM_SPEC is not None and SYNCHRONIZED_UPSTREAM_SPEC.loader is not None
+assert SYNCHRONIZED_UPSTREAM_SPEC is not None
+assert SYNCHRONIZED_UPSTREAM_SPEC.loader is not None
 SYNCHRONIZED_UPSTREAM = importlib.util.module_from_spec(SYNCHRONIZED_UPSTREAM_SPEC)
 sys.modules[SYNCHRONIZED_UPSTREAM_SPEC.name] = SYNCHRONIZED_UPSTREAM
 SYNCHRONIZED_UPSTREAM_SPEC.loader.exec_module(SYNCHRONIZED_UPSTREAM)

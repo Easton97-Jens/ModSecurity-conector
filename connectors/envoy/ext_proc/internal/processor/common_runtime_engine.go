@@ -115,30 +115,38 @@ func (transaction *commonRuntimeTransaction) ProcessHeaders(ctx context.Context,
 		return Decision{}, err
 	}
 	if direction == DirectionRequest {
-		if transaction.begun {
-			return Decision{}, fmt.Errorf("duplicate Common request headers")
-		}
-		request, cleanup, err := newCommonRequest(transaction.metadata, headers)
-		if err != nil {
-			return Decision{}, err
-		}
-		defer cleanup()
-		var native *C.msc_envoy_ext_proc_transaction
-		var nativeDecision C.msc_envoy_ext_proc_decision
-		var nativeError [commonRuntimeErrorBufferSize]C.char
-		if C.msc_envoy_ext_proc_transaction_begin(transaction.engine.runtime,
-			request.value, cBoolean(endOfStream), &native, &nativeDecision,
-			&nativeError[0], C.size_t(len(nativeError))) == 0 {
-			return Decision{}, fmt.Errorf("Common request headers: %s", nativeErrorText(nativeError[:]))
-		}
-		if native == nil {
-			return Decision{}, fmt.Errorf("Common request headers returned no transaction")
-		}
-		transaction.native = native
-		transaction.begun = true
-		transaction.updateTransactionIDLocked()
-		return commonDecision(nativeDecision), nil
+		return transaction.processRequestHeadersLocked(headers, endOfStream)
 	}
+	return transaction.processResponseHeadersLocked(direction, headers, endOfStream)
+}
+
+func (transaction *commonRuntimeTransaction) processRequestHeadersLocked(headers []Header, endOfStream bool) (Decision, error) {
+	if transaction.begun {
+		return Decision{}, fmt.Errorf("duplicate Common request headers")
+	}
+	request, cleanup, err := newCommonRequest(transaction.metadata, headers)
+	if err != nil {
+		return Decision{}, err
+	}
+	defer cleanup()
+	var native *C.msc_envoy_ext_proc_transaction
+	var nativeDecision C.msc_envoy_ext_proc_decision
+	var nativeError [commonRuntimeErrorBufferSize]C.char
+	if C.msc_envoy_ext_proc_transaction_begin(transaction.engine.runtime,
+		request.value, cBoolean(endOfStream), &native, &nativeDecision,
+		&nativeError[0], C.size_t(len(nativeError))) == 0 {
+		return Decision{}, fmt.Errorf("Common request headers: %s", nativeErrorText(nativeError[:]))
+	}
+	if native == nil {
+		return Decision{}, fmt.Errorf("Common request headers returned no transaction")
+	}
+	transaction.native = native
+	transaction.begun = true
+	transaction.updateTransactionIDLocked()
+	return commonDecision(nativeDecision), nil
+}
+
+func (transaction *commonRuntimeTransaction) processResponseHeadersLocked(direction Direction, headers []Header, endOfStream bool) (Decision, error) {
 	if direction != DirectionResponse || !transaction.begun || transaction.native == nil {
 		return Decision{}, fmt.Errorf("response headers before Common request transaction")
 	}
@@ -181,11 +189,16 @@ func (transaction *commonRuntimeTransaction) ProcessBody(ctx context.Context, di
 		nativeBody = C.CBytes(body)
 		defer C.free(nativeBody)
 	}
+	nativeRequest := C.msc_envoy_ext_proc_body{
+		response_direction: cBoolean(direction == DirectionResponse),
+		body:               (*C.uchar)(nativeBody),
+		body_size:          C.size_t(len(body)),
+		end_of_stream:      cBoolean(endOfStream),
+	}
 	var nativeDecision C.msc_envoy_ext_proc_decision
 	var nativeError [commonRuntimeErrorBufferSize]C.char
-	if C.msc_envoy_ext_proc_transaction_process_body(transaction.native,
-		cBoolean(direction == DirectionResponse), (*C.uchar)(nativeBody), C.size_t(len(body)),
-		cBoolean(endOfStream), &nativeDecision, &nativeError[0],
+	if C.msc_envoy_ext_proc_transaction_process_body(transaction.native, &nativeRequest,
+		&nativeDecision, &nativeError[0],
 		C.size_t(len(nativeError))) == 0 {
 		return Decision{}, fmt.Errorf("Common %s body: %s", direction, nativeErrorText(nativeError[:]))
 	}

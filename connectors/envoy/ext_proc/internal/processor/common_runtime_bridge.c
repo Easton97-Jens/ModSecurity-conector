@@ -422,10 +422,7 @@ int msc_envoy_ext_proc_transaction_process_response_headers(
 
 int msc_envoy_ext_proc_transaction_process_body(
     msc_envoy_ext_proc_transaction *transaction,
-    int response_direction,
-    const unsigned char *body,
-    size_t body_size,
-    int end_of_stream,
+    const msc_envoy_ext_proc_body *body,
     msc_envoy_ext_proc_decision *decision,
     char *error,
     size_t error_len)
@@ -435,45 +432,45 @@ int msc_envoy_ext_proc_transaction_process_body(
     int result;
 
     if (transaction == NULL || transaction->transaction == NULL ||
-        decision == NULL || transaction->terminal ||
-        (body_size > 0U && body == NULL)) {
+        body == NULL || decision == NULL || transaction->terminal ||
+        (body->body_size > 0U && body->body == NULL)) {
         msc_envoy_ext_proc_set_error(error, error_len,
             "invalid Common body lifecycle");
         return 0;
     }
-    if ((!response_direction && transaction->request_finished) ||
-        (response_direction && (!transaction->response_headers_processed ||
+    if ((!body->response_direction && transaction->request_finished) ||
+        (body->response_direction && (!transaction->response_headers_processed ||
             transaction->response_finished))) {
         msc_envoy_ext_proc_set_error(error, error_len,
             "body arrived after Common end-of-stream");
         return 0;
     }
-    if (response_direction) {
+    if (body->response_direction) {
         msc_envoy_ext_proc_transaction_mark_response_committed(transaction, 1);
     }
     msconnector_error_init(&runtime_error);
-    if (response_direction) {
+    if (body->response_direction) {
         result = msconnector_runtime_transaction_append_response_body_chunk(
-            transaction->transaction, body, body_size, &runtime_error);
+            transaction->transaction, body->body, body->body_size, &runtime_error);
     } else {
         result = msconnector_runtime_transaction_append_request_body_chunk(
-            transaction->transaction, body, body_size, &runtime_error);
+            transaction->transaction, body->body, body->body_size, &runtime_error);
     }
     if (!result) {
         msc_envoy_ext_proc_set_runtime_error(error, error_len, &runtime_error,
-            response_direction ? "Common response-body append failed" :
+            body->response_direction ? "Common response-body append failed" :
             "Common request-body append failed");
         return 0;
     }
     msconnector_decision_init(&native_decision);
-    native_decision.phase = response_direction ? MSCONNECTOR_PHASE_RESPONSE_BODY :
+    native_decision.phase = body->response_direction ? MSCONNECTOR_PHASE_RESPONSE_BODY :
         MSCONNECTOR_PHASE_REQUEST_BODY;
     msc_envoy_ext_proc_set_decision(decision, &native_decision,
         transaction->transaction);
-    if (!end_of_stream) {
+    if (!body->end_of_stream) {
         return 1;
     }
-    if (response_direction) {
+    if (body->response_direction) {
         return msc_envoy_ext_proc_finish_response(transaction, decision, error,
             error_len);
     }

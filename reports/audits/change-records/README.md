@@ -6,6 +6,36 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent HAProxy complete SonarQube Cloud remediation](CR-20260801-sonar-haproxy-complete-remediation.md)
+  — covers the current 33-item HAProxy inventory with C17, focused contracts,
+  and a sealed security-diff review; exact-head hosted/SonarQube Cloud
+  verification remains required before it can be considered mergeable.
+
+- [Parent Envoy TLS and maintainability remediation](CR-20260801-sonar-envoy-tls-maintainability.md)
+  — removes the current five Envoy SonarQube Cloud source rows by preserving
+  processor semantics and encrypting the fixture upstream hop; exact-head
+  hosted verification remains required before any merge decision.
+
+- [Parent Traefik runtime and lifecycle remediation](CR-20260730-sonar-traefik-runtime-lifecycle.md)
+
+- [Parent Envoy maintainability remediation](CR-20260730-sonar-envoy-maintainability-remediation.md)
+  — preserves C17 bridge and ext_proc lifecycle behavior; local source,
+  native-build, and loopback-TLS controls passed, while exact-head hosted
+  verification remains required.
+
+- [Parent Apache maintainability remediation](CR-20260730-sonar-apache-maintainability.md)
+  — remediates the current 13-item Apache SonarQube Cloud maintainability
+  inventory with focused C17 and native-harness evidence; exact-head hosted
+  verification remains required before integration.
+
+- [Parent CI GitHub URL-validation unused-parameter cleanup for SonarQube Cloud S1172](CR-20260730-sonar-ci-github-url-unused-label.md)
+
+- [Parent HAProxy runtime maintainability remediation](CR-20260730-sonar-haproxy-runtime-maintenance.md)
+  — table-driven SPOP parsing, explicit HTX EOS helpers, deterministic overlay
+  artifact hashing, and CRS-load cleanup passed focused local controls. The
+  Draft PR retains historical baseline work; exact-head hosted/SonarQube Cloud
+  verification remains required before it can be considered mergeable.
+
 - [Parent Common event JSON optional-field decomposition](CR-20260730-sonar-common-event-json-complexity.md)
 
 - [Parent Lighttpd runtime-input containment](CR-20260730-sonar-lighttpd-runtime-input-containment.md)
@@ -45,7 +75,11 @@ must not claim unobserved CI, runtime, review, or delivery results.
   remains required before integration.
 - [Parent CI Nolog and response-header report-lifecycle deduplication](CR-20260729-sonar-ci-nolog-response-header-lifecycle-deduplication.md)
 - [Parent CI NGINX HTTP-500 literal deduplication](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.md)
+- [Parent NGINX maintainability remediation](CR-20260730-sonar-nginx-maintainability.md)
 - [Parent CI case-metadata parsing deduplication](CR-20260729-sonar-ci-case-metadata-duplication.md)
+
+- [Parent CI No-CRS missing-case diagnostic literal deduplication for SonarQube Cloud S1192](CR-20260730-sonar-ci-no-crs-diagnostic-literal.md)
+
 - [Parent Lighttpd runtime-output containment](CR-20260729-sonar-lighttpd-runtime-output-containment.md)
 
 - [Parent HAProxy binding body-phase deduplication](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.md)

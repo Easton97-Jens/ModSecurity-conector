@@ -27,78 +27,108 @@ type engineCloser interface {
 }
 
 func main() {
-	var configPath string
-	var listenOverride string
-	var eventLogPath string
-	var runtimeConfigPath string
-	var checkConfig bool
-	flag.StringVar(&configPath, "config", "", "path to ext_proc JSON config")
-	flag.StringVar(&listenOverride, "listen", "", "optional host:port override")
-	flag.StringVar(&eventLogPath, "event-log", "", "optional absolute metadata-only JSONL evidence path")
-	flag.StringVar(&runtimeConfigPath, "runtime-config", "", "path to Common/libmodsecurity runtime config")
-	flag.BoolVar(&checkConfig, "check-config", false, "validate config and exit")
-	flag.Parse()
-	if configPath == "" {
-		fmt.Fprintln(os.Stderr, "usage: msconnector_envoy_ext_proc --config PATH [--runtime-config PATH] [--listen HOST:PORT] [--event-log PATH] [--check-config]")
-		os.Exit(2)
-	}
-
-	config, err := processor.LoadConfig(configPath)
+	exitCode, err := run()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "envoy_ext_proc: invalid config: %v\n", err)
-		os.Exit(2)
+		if _, ok := err.(usageError); ok {
+			fmt.Fprintln(os.Stderr, err)
+		} else {
+			fmt.Fprintf(os.Stderr, "envoy_ext_proc: %v\n", err)
+		}
+		os.Exit(exitCode)
 	}
-	if listenOverride != "" {
-		config.ListenAddress = listenOverride
+}
+
+type usageError struct{}
+
+func (usageError) Error() string {
+	return "usage: msconnector_envoy_ext_proc --config PATH [--runtime-config PATH] [--listen HOST:PORT] [--event-log PATH] [--check-config]"
+}
+
+type commandLineOptions struct {
+	configPath        string
+	listenOverride    string
+	eventLogPath      string
+	runtimeConfigPath string
+	checkConfig       bool
+}
+
+func run() (int, error) {
+	options, err := parseCommandLine()
+	if err != nil {
+		return 2, err
+	}
+	config, err := loadServiceConfig(options)
+	if err != nil {
+		return 2, err
+	}
+	if options.checkConfig && options.runtimeConfigPath == "" {
+		fmt.Printf("envoy_ext_proc: config-check-pass config=%s listen=%s\n", options.configPath, config.ListenAddress)
+		return 0, nil
+	}
+	runtime, err := configuredEngine(options.runtimeConfigPath)
+	if err != nil {
+		return 2, fmt.Errorf("engine setup: %w", err)
+	}
+	defer closeEngine(runtime)
+	if options.checkConfig {
+		fmt.Printf("envoy_ext_proc: config-check-pass config=%s runtime_config=%s engine=%s listen=%s\n", options.configPath, options.runtimeConfigPath, runtime.description, config.ListenAddress)
+		return 0, nil
+	}
+	return serve(config, runtime, options.eventLogPath)
+}
+
+func parseCommandLine() (commandLineOptions, error) {
+	var options commandLineOptions
+	flag.StringVar(&options.configPath, "config", "", "path to ext_proc JSON config")
+	flag.StringVar(&options.listenOverride, "listen", "", "optional host:port override")
+	flag.StringVar(&options.eventLogPath, "event-log", "", "optional absolute metadata-only JSONL evidence path")
+	flag.StringVar(&options.runtimeConfigPath, "runtime-config", "", "path to Common/libmodsecurity runtime config")
+	flag.BoolVar(&options.checkConfig, "check-config", false, "validate config and exit")
+	flag.Parse()
+	if options.configPath == "" {
+		return commandLineOptions{}, usageError{}
+	}
+	return options, nil
+}
+
+func loadServiceConfig(options commandLineOptions) (processor.Config, error) {
+	config, err := processor.LoadConfig(options.configPath)
+	if err != nil {
+		return processor.Config{}, fmt.Errorf("invalid config: %w", err)
+	}
+	if options.listenOverride != "" {
+		config.ListenAddress = options.listenOverride
 		if err := config.Validate(); err != nil {
-			fmt.Fprintf(os.Stderr, "envoy_ext_proc: invalid listen override: %v\n", err)
-			os.Exit(2)
+			return processor.Config{}, fmt.Errorf("invalid listen override: %w", err)
 		}
 	}
-	if checkConfig && runtimeConfigPath == "" {
-		fmt.Printf("envoy_ext_proc: config-check-pass config=%s listen=%s\n", configPath, config.ListenAddress)
-		return
-	}
+	return config, nil
+}
 
-	runtime, err := configuredEngine(runtimeConfigPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "envoy_ext_proc: engine setup: %v\n", err)
-		os.Exit(2)
-	}
+func closeEngine(runtime engineRuntime) {
 	if closer, ok := runtime.engine.(engineCloser); ok {
-		defer func() {
-			if err := closer.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "envoy_ext_proc: Common runtime cleanup: %v\n", err)
-			}
-		}()
+		if err := closer.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "envoy_ext_proc: Common runtime cleanup: %v\n", err)
+		}
 	}
-	if checkConfig {
-		fmt.Printf("envoy_ext_proc: config-check-pass config=%s runtime_config=%s engine=%s listen=%s\n", configPath, runtimeConfigPath, runtime.description, config.ListenAddress)
-		return
-	}
+}
 
+func serve(config processor.Config, runtime engineRuntime, eventLogPath string) (int, error) {
 	listener, err := net.Listen("tcp", config.ListenAddress)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "envoy_ext_proc: listen %s: %v\n", config.ListenAddress, err)
-		os.Exit(1)
+		return 1, fmt.Errorf("listen %s: %w", config.ListenAddress, err)
 	}
 	defer listener.Close()
-
-	var observer processor.Observer
-	var jsonlObserver *processor.JSONLObserver
-	if eventLogPath != "" {
-		jsonlObserver, err = processor.NewJSONLObserverWithMode(eventLogPath, runtime.evaluationMode, runtime.ruleEvaluation)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "envoy_ext_proc: event log: %v\n", err)
-			os.Exit(2)
-		}
-		defer jsonlObserver.Close()
-		observer = jsonlObserver
+	observer, observerCloser, err := newObserver(eventLogPath, runtime)
+	if err != nil {
+		return 2, fmt.Errorf("event log: %w", err)
+	}
+	if observerCloser != nil {
+		defer observerCloser.Close()
 	}
 	service, err := processor.NewServiceWithObserver(config, runtime.engine, observer)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "envoy_ext_proc: service setup: %v\n", err)
-		os.Exit(1)
+		return 1, fmt.Errorf("service setup: %w", err)
 	}
 	grpcServer := grpc.NewServer(
 		grpc.MaxRecvMsgSize(config.MaxGRPCMessageBytes),
@@ -106,7 +136,21 @@ func main() {
 	)
 	extprocv3.RegisterExternalProcessorServer(grpcServer, service)
 	fmt.Printf("envoy_ext_proc: serving integration_mode=ext_proc evaluation_mode=%s rule_evaluation=%s engine=%s listen=%s\n", runtime.evaluationMode, runtime.ruleEvaluation, runtime.description, config.ListenAddress)
+	return waitForServerTermination(grpcServer, listener, config.ShutdownTimeoutMS)
+}
 
+func newObserver(eventLogPath string, runtime engineRuntime) (processor.Observer, *processor.JSONLObserver, error) {
+	if eventLogPath == "" {
+		return nil, nil, nil
+	}
+	observer, err := processor.NewJSONLObserverWithMode(eventLogPath, runtime.evaluationMode, runtime.ruleEvaluation)
+	if err != nil {
+		return nil, nil, err
+	}
+	return observer, observer, nil
+}
+
+func waitForServerTermination(grpcServer *grpc.Server, listener net.Listener, shutdownTimeoutMS int) (int, error) {
 	serveResult := make(chan error, 1)
 	go func() {
 		serveResult <- grpcServer.Serve(listener)
@@ -118,10 +162,9 @@ func main() {
 	select {
 	case err := <-serveResult:
 		if err != nil && !errors.Is(err, grpc.ErrServerStopped) {
-			fmt.Fprintf(os.Stderr, "envoy_ext_proc: serve: %v\n", err)
-			os.Exit(1)
+			return 1, fmt.Errorf("serve: %w", err)
 		}
-		return
+		return 0, nil
 	case <-signals:
 	}
 
@@ -132,8 +175,9 @@ func main() {
 	}()
 	select {
 	case <-stopped:
-	case <-time.After(time.Duration(config.ShutdownTimeoutMS) * time.Millisecond):
+	case <-time.After(time.Duration(shutdownTimeoutMS) * time.Millisecond):
 		grpcServer.Stop()
 		<-stopped
 	}
+	return 0, nil
 }

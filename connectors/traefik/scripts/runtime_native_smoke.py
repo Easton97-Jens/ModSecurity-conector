@@ -40,6 +40,8 @@ PLUGIN_ID = "modsecurityNative"
 REQUEST_BODY = b"native-traefik-request-body"
 P2_BODY = b"no-crs-request-body-marker"
 P1_ALLOW_TRANSACTION_ID = "traefik-native-p1-allow"
+NATIVE_REQUEST_PATH = "/native"
+PLAIN_TEXT_CONTENT_TYPE = "text/plain"
 ENGINE_BUILD_SCRIPT = REPO_ROOT / "connectors/traefik/build/build-engine-service.sh"
 STANDALONE_ENGINE_RULES = REPO_ROOT / "connectors/traefik/config/traefik-native-engine-rules.conf"
 
@@ -139,6 +141,14 @@ def assert_private_engine_socket_parent_ancestors_are_safe(parent: Path, label: 
 
 
 def assert_runtime_root(path: Path) -> Path:
+    """Validate the selected native runtime output before creating it.
+
+    This path becomes the parent of staged plugin sources, generated configs,
+    logs and a locally compiled engine. It may therefore be created only below
+    an existing, owner-controlled ancestor that cannot be replaced by another
+    user. An existing selected root must keep those same protections.
+    """
+
     resolved = Path(os.path.abspath(path))
     if not resolved.is_absolute():
         raise MissingDependency("native runtime root must be absolute")
@@ -151,6 +161,31 @@ def assert_runtime_root(path: Path) -> Path:
     else:
         raise MissingDependency(f"native runtime root must be outside checkout: {resolved}")
     assert_no_symlink_components(resolved)
+    existing_ancestor = resolved
+    while not existing_ancestor.exists():
+        existing_ancestor = existing_ancestor.parent
+    try:
+        ancestor_stat = existing_ancestor.lstat()
+    except OSError as exc:
+        raise MissingDependency(
+            f"native runtime root ancestor is unavailable: {existing_ancestor}"
+        ) from exc
+    if not stat.S_ISDIR(ancestor_stat.st_mode):
+        raise MissingDependency(
+            f"native runtime root ancestor must be a directory: {existing_ancestor}"
+        )
+    if ancestor_stat.st_uid != os.geteuid():
+        raise MissingDependency(
+            f"native runtime root ancestor must be owned by the current user: {existing_ancestor}"
+        )
+    if stat.S_IMODE(ancestor_stat.st_mode) & (stat.S_IWGRP | stat.S_IWOTH):
+        raise MissingDependency(
+            "native runtime root ancestor must not be group or world writable: "
+            f"{existing_ancestor}"
+        )
+    assert_private_engine_socket_parent_ancestors_are_safe(
+        existing_ancestor, "native runtime root"
+    )
     return resolved
 
 
@@ -371,8 +406,9 @@ def read_plugin_module(source: Path) -> str:
             raise MissingDependency(f"native plugin source must not contain symlinks: {candidate}")
     module_match = re.search(r"(?m)^module\s+([^\s]+)\s*$", go_mod.read_text(encoding="utf-8"))
     package_match = re.search(
-        r"(?m)^package\s+([A-Za-z_][A-Za-z0-9_]*)\s*$",
+        r"(?m)^package\s+([A-Za-z_]\w*)\s*$",
         middleware.read_text(encoding="utf-8"),
+        flags=re.ASCII,
     )
     if module_match is None or package_match is None:
         raise MissingDependency("native plugin must declare a Go module and package")
@@ -543,7 +579,7 @@ def upstream_handler(state: UpstreamState) -> type[http.server.BaseHTTPRequestHa
                 state.p3_requests += int(p3_requested)
                 state.p4_requests += int(p4_requested)
             self.send_response(200)
-            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Type", PLAIN_TEXT_CONTENT_TYPE)
             if p3_requested:
                 self.send_header("X-Modsec-Upstream", "block")
             self.send_header("Content-Length", str(sum(len(chunk) for chunk in chunks)))
@@ -650,14 +686,14 @@ def request_through_traefik(
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
         try:
             headers = {
-                "Content-Type": "text/plain",
+                "Content-Type": PLAIN_TEXT_CONTENT_TYPE,
                 "X-Request-Id": request_id,
             }
             if extra_headers:
                 headers.update(extra_headers)
             connection.request(
                 "POST",
-                "/native",
+                NATIVE_REQUEST_PATH,
                 body=body,
                 headers=headers,
             )
@@ -749,6 +785,82 @@ def read_response_after_first_byte(
     return status, body_bytes
 
 
+def synchronized_safe_followup_attempt(
+    port: int,
+    state: UpstreamState,
+    body: bytes,
+    safe_request_id: str,
+    followup_request_id: str,
+) -> dict[str, int | bool]:
+    """Run one first-byte proof attempt on one HTTP/1.1 connection."""
+
+    state.barrier_reached.clear()
+    state.barrier_release.clear()
+    with state.lock:
+        state.barrier_first_chunk_size = 0
+        state.barrier_response_bytes = 0
+        state.barrier_eos_sent = False
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        connection.request(
+            "POST",
+            NATIVE_REQUEST_PATH,
+            body=body,
+            headers={
+                "Content-Type": PLAIN_TEXT_CONTENT_TYPE,
+                "X-Request-Id": safe_request_id,
+                "X-Native-P4-Rule": "block",
+                "X-Native-P4-Barrier": "true",
+            },
+        )
+        safe_response = connection.getresponse()
+        if not state.barrier_reached.wait(timeout=5):
+            raise RuntimeError("upstream did not reach the Phase-4 first-byte barrier")
+        first_byte = safe_response.read(1)
+        with state.lock:
+            upstream_paused = state.barrier_reached.is_set() and not state.barrier_eos_sent
+            first_chunk_size = state.barrier_first_chunk_size
+            response_bytes = state.barrier_response_bytes
+        if not first_byte or not upstream_paused or first_chunk_size < 1:
+            raise RuntimeError("client did not receive a first body byte while upstream was paused")
+        state.barrier_release.set()
+        safe_status, safe_bytes = read_response_after_first_byte(safe_response, len(first_byte))
+        first_socket = connection.sock
+        if safe_status != http.HTTPStatus.OK or safe_bytes != response_bytes or first_socket is None:
+            raise RuntimeError("native safe barrier response did not complete correctly")
+        if safe_response.will_close:
+            raise RuntimeError("native safe barrier response closed the HTTP/1.1 connection")
+        connection.request(
+            "POST",
+            NATIVE_REQUEST_PATH,
+            body=body,
+            headers={
+                "Content-Type": PLAIN_TEXT_CONTENT_TYPE,
+                "X-Request-Id": followup_request_id,
+            },
+        )
+        followup_response = connection.getresponse()
+        followup_status, followup_bytes, followup_first_byte = read_complete_response(followup_response)
+        if followup_status != http.HTTPStatus.OK or not followup_first_byte:
+            raise RuntimeError("native first-byte follow-up did not complete")
+        if first_socket is not connection.sock:
+            raise RuntimeError("native first-byte follow-up opened a different TCP connection")
+        return {
+            "connection_reused": True,
+            "first_chunk_size": first_chunk_size,
+            "followup_first_byte_received": followup_first_byte,
+            "followup_response_bytes": followup_bytes,
+            "followup_status": followup_status,
+            "safe_first_byte_received": True,
+            "safe_response_bytes": safe_bytes,
+            "safe_status": safe_status,
+            "upstream_eos_sent_at_first_byte": False,
+            "upstream_paused": True,
+        }
+    finally:
+        connection.close()
+
+
 def synchronized_safe_followup(
     port: int,
     state: UpstreamState,
@@ -756,85 +868,18 @@ def synchronized_safe_followup(
     safe_request_id: str,
     followup_request_id: str,
 ) -> dict[str, int | bool]:
-    """Prove a real Traefik byte crossed the host before upstream EOS.
+    """Prove a real Traefik byte crossed the host before upstream EOS."""
 
-    The upstream handler emits one entity chunk and pauses.  The client must
-    receive a body byte while that handler is paused, then releases it and
-    verifies that a follow-up HTTP/1.1 request reuses the same connection.
-    """
     deadline = time.monotonic() + 15
     last_error: Exception | None = None
     while time.monotonic() < deadline:
-        state.barrier_reached.clear()
-        state.barrier_release.clear()
-        with state.lock:
-            state.barrier_first_chunk_size = 0
-            state.barrier_response_bytes = 0
-            state.barrier_eos_sent = False
-        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
         try:
-            connection.request(
-                "POST",
-                "/native",
-                body=body,
-                headers={
-                    "Content-Type": "text/plain",
-                    "X-Request-Id": safe_request_id,
-                    "X-Native-P4-Rule": "block",
-                    "X-Native-P4-Barrier": "true",
-                },
+            return synchronized_safe_followup_attempt(
+                port, state, body, safe_request_id, followup_request_id
             )
-            safe_response = connection.getresponse()
-            if not state.barrier_reached.wait(timeout=5):
-                raise RuntimeError("upstream did not reach the Phase-4 first-byte barrier")
-            first_byte = safe_response.read(1)
-            with state.lock:
-                upstream_paused = state.barrier_reached.is_set() and not state.barrier_eos_sent
-                first_chunk_size = state.barrier_first_chunk_size
-                response_bytes = state.barrier_response_bytes
-            if not first_byte or not upstream_paused or first_chunk_size < 1:
-                raise RuntimeError("client did not receive a first body byte while upstream was paused")
-            state.barrier_release.set()
-            safe_status, safe_bytes = read_response_after_first_byte(safe_response, len(first_byte))
-            first_socket = connection.sock
-            if safe_status != http.HTTPStatus.OK or safe_bytes != response_bytes or first_socket is None:
-                raise RuntimeError("native safe barrier response did not complete correctly")
-            if safe_response.will_close:
-                raise RuntimeError("native safe barrier response closed the HTTP/1.1 connection")
-
-            connection.request(
-                "POST",
-                "/native",
-                body=body,
-                headers={
-                    "Content-Type": "text/plain",
-                    "X-Request-Id": followup_request_id,
-                },
-            )
-            followup_response = connection.getresponse()
-            followup_status, followup_bytes, followup_first_byte = read_complete_response(followup_response)
-            second_socket = connection.sock
-            if followup_status != http.HTTPStatus.OK or not followup_first_byte:
-                raise RuntimeError("native first-byte follow-up did not complete")
-            if first_socket is not second_socket:
-                raise RuntimeError("native first-byte follow-up opened a different TCP connection")
-            return {
-                "connection_reused": True,
-                "first_chunk_size": first_chunk_size,
-                "followup_first_byte_received": followup_first_byte,
-                "followup_response_bytes": followup_bytes,
-                "followup_status": followup_status,
-                "safe_first_byte_received": True,
-                "safe_response_bytes": safe_bytes,
-                "safe_status": safe_status,
-                "upstream_eos_sent_at_first_byte": False,
-                "upstream_paused": True,
-            }
         except (OSError, http.client.HTTPException, RuntimeError) as exc:
             last_error = exc
             state.barrier_release.set()
-        finally:
-            connection.close()
         time.sleep(0.2)
     raise RuntimeError(f"native first-byte barrier probe did not complete: {last_error}")
 
@@ -858,10 +903,10 @@ def keepalive_safe_followup(
         try:
             connection.request(
                 "POST",
-                "/native",
+                NATIVE_REQUEST_PATH,
                 body=body,
                 headers={
-                    "Content-Type": "text/plain",
+                    "Content-Type": PLAIN_TEXT_CONTENT_TYPE,
                     "X-Request-Id": safe_request_id,
                     "X-Native-P4-Rule": "block",
                 },
@@ -876,10 +921,10 @@ def keepalive_safe_followup(
 
             connection.request(
                 "POST",
-                "/native",
+                NATIVE_REQUEST_PATH,
                 body=body,
                 headers={
-                    "Content-Type": "text/plain",
+                    "Content-Type": PLAIN_TEXT_CONTENT_TYPE,
                     "X-Request-Id": followup_request_id,
                 },
             )

@@ -509,23 +509,18 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_HEADER);
     ctx->common_response_validated = 1;
 
-/* XXX: can it happen ?  already processed i mean */
-/* XXX: check behaviour on 'ModSecurity off' */
+/* The context may already have been processed by an earlier header-filter
+ * invocation; preserve NGINX's next-filter behavior in that case. */
 
     if (ctx && ctx->processed)
     {
-        /*
-         * FIXME: verify if this request is already processed.
-         */
         dd("Already processed... going to the next header...");
         return ngx_http_next_header_filter(r);
     }
 
-    /*
-     * Lets ask nginx to keep the response body in memory
-     *
-     * FIXME: I don't see a reason to keep it `1' when SecResponseBody is disabled.
-     */
+    /* Keep the response body in memory for the native response inspection
+     * path. This remains enabled independently of SecResponseBody so the
+     * filter lifecycle is consistent for every processed request. */
     r->filter_need_in_memory = 1;
 
     ctx->processed = 1;

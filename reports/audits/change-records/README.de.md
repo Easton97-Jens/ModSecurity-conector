@@ -7,6 +7,37 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Vollständige Parent-HAProxy-SonarQube-Cloud-Remediation](CR-20260801-sonar-haproxy-complete-remediation.de.md)
+  — deckt das aktuelle 33er-HAProxy-Inventar mit C17, fokussierten Contracts
+  und einem versiegelten Security-Diff-Review ab; SHA-gebundene Hosted- und
+  SonarQube-Cloud-Verifikation bleiben vor einer Merge-Betrachtung erforderlich.
+
+- [Parent-Envoy-TLS- und Maintainability-Bereinigung](CR-20260801-sonar-envoy-tls-maintainability.de.md)
+  — entfernt die aktuellen fünf Envoy-SonarQube-Cloud-Source-Zeilen durch
+  bewahrte Processor-Semantik und einen verschlüsselten Fixture-Upstream-Hop;
+  Exact-Head-Hosted-Verifikation bleibt vor jeder Merge-Entscheidung notwendig.
+
+- [Parent-Traefik-Runtime- und Lifecycle-Remediation](CR-20260730-sonar-traefik-runtime-lifecycle.de.md)
+
+- [Parent-Envoy-Maintainability-Bereinigung](CR-20260730-sonar-envoy-maintainability-remediation.de.md)
+  — bewahrt C17-Bridge- und ext_proc-Lifecycle-Verhalten; lokale Source-,
+  Native-Build- und Loopback-TLS-Controls bestanden, während die
+  SHA-gebundene Hosted-Verifikation noch erforderlich bleibt.
+
+- [Parent-Apache-Maintainability-Remediation](CR-20260730-sonar-apache-maintainability.de.md)
+  — remediiert das aktuelle 13er-Apache-SonarQube-Cloud-Maintainability-
+  Inventar mit fokussierter C17- und Native-Harness-Evidence; Exact-Head-
+  Hosted-Verifikation bleibt vor jeder Integration erforderlich.
+
+- [Parent-CI-Bereinigung eines ungenutzten Parameters der GitHub-URL-Validierung für SonarQube Cloud S1172](CR-20260730-sonar-ci-github-url-unused-label.de.md)
+
+- [Parent-HAProxy-Runtime-Maintainability-Behebung](CR-20260730-sonar-haproxy-runtime-maintenance.de.md)
+  — tabellengesteuertes SPOP-Parsing, explizite HTX-EOS-Helper,
+  deterministisches Overlay-Artefakt-Hashing und CRS-Load-Cleanup bestanden
+  fokussierte lokale Controls. Der Draft-PR behält historische Baseline-Arbeit;
+  Exact-Head-Hosted-/SonarQube-Cloud-Verifikation bleibt vor einer
+  Merge-Betrachtung erforderlich.
+
 - [Parent-Common Event-JSON Optional-Field-Zerlegung](CR-20260730-sonar-common-event-json-complexity.de.md)
 
 - [Parent-Lighttpd-Runtime-Input-Containment](CR-20260730-sonar-lighttpd-runtime-input-containment.de.md)
@@ -47,7 +78,11 @@ Review- oder Delivery-Ergebnisse behaupten.
   Hosted-Verifikation bleibt vor der Integration erforderlich.
 - [Parent-CI-Nolog- und Response-Header-Report-Lifecycle-Deduplizierung](CR-20260729-sonar-ci-nolog-response-header-lifecycle-deduplication.de.md)
 - [Parent-CI-NGINX-HTTP-500-Literal-Deduplizierung](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.de.md)
+- [Parent-NGINX-Maintainability-Remediation](CR-20260730-sonar-nginx-maintainability.de.md)
 - [Parent-CI-Deduplizierung des Case-Metadata-Parsings](CR-20260729-sonar-ci-case-metadata-duplication.de.md)
+
+- [Parent-CI-No-CRS-Missing-Case-Diagnostikliteral-Deduplizierung für SonarQube Cloud S1192](CR-20260730-sonar-ci-no-crs-diagnostic-literal.de.md)
+
 - [Parent-Lighttpd-Runtime-Output-Containment](CR-20260729-sonar-lighttpd-runtime-output-containment.de.md)
 
 - [Parent-HAProxy-Binding-Body-Phase-Deduplizierung](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.de.md)

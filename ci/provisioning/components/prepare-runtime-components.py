@@ -242,7 +242,7 @@ def require_https_url(url: str, label: str) -> str:
     return raw
 
 
-def require_https_github_repo_url(url: str, label: str) -> str:
+def require_https_github_repo_url(url: str) -> str:
     repo = github_repo_path(url)
     return f"https://github.com/{repo}"
 
@@ -251,7 +251,7 @@ def validate_https_url_config(env: dict[str, str]) -> None:
     for key in GITHUB_REPO_URL_KEYS:
         value = env.get(key, "").strip()
         if value:
-            require_https_github_repo_url(value, key)
+            require_https_github_repo_url(value)
     for key in HTTPS_URL_KEYS:
         value = env.get(key, "").strip()
         if value:

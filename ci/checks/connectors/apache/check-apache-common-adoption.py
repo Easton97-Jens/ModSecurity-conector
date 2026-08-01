@@ -47,6 +47,11 @@ intervention_event_helper = source_section(
     "static void apache_log_intervention_event",
     "static void apache_phase4_log_event",
 )
+intervention_http_helper = source_section(
+    filters_c,
+    "static void apache_intervention_set_http",
+    "static void apache_intervention_write_event",
+)
 phase4_event_wrapper = source_section(
     filters_c,
     "static void apache_phase4_log_event",
@@ -60,8 +65,8 @@ phase3_event_wrapper = source_section(
 
 checks.append(("msconnector_config common_config" in config_h, "Apache config embeds msconnector_config common_config"))
 checks.append(("msconnector_config_init(&cnf->common_config)" in config_c, "Apache config init uses msconnector_config_init"))
-checks.append(("msconnector_config_merge(&cnf_new->common_config" in config_c, "Apache config merge uses msconnector_config_merge"))
-checks.append(("msconnector_config_validate(&cnf_new->common_config" in config_c, "Apache config validation path uses msconnector_config_validate"))
+checks.append(("msconnector_config_merge(&destination->common_config" in config_c, "Apache config merge uses msconnector_config_merge"))
+checks.append(("msconnector_config_validate(&destination->common_config" in config_c, "Apache config validation path uses msconnector_config_validate"))
 checks.append(("msconnector_parse_bool" in config_c, "Apache bool parsing uses Common parser"))
 checks.append(("msconnector_parse_phase4_mode" in config_c, "Apache phase4 parsing uses Common parser"))
 checks.append(("msconnector_parse_size" in config_c, "Apache size parsing uses Common parser"))
@@ -75,17 +80,18 @@ checks.append(("msconnector_headers_host" in mapper_c, "Apache mapper uses Commo
 checks.append(("msconnector_event_write_jsonl_line" in filters_c and "msconnector_event_init" in filters_c, "Apache event JSONL uses Common event primitives"))
 checks.append(("event.decision.status = MSCONNECTOR_STATUS_BLOCKED" in intervention_event_helper, "Apache P3/P4 intervention events set a non-OK status"))
 checks.append((
-    "event.meta.event = event_name" in intervention_event_helper
+    "event.meta.event = input->event_name" in intervention_event_helper
     and "\"phase4_intervention\"" in phase4_event_wrapper
     and "MSCONNECTOR_PHASE_RESPONSE_BODY" in phase4_event_wrapper
     and "\"phase3_intervention\"" in phase3_event_wrapper
     and "MSCONNECTOR_PHASE_RESPONSE_HEADERS" in phase3_event_wrapper
     and "\"response_headers_before_commit\"" in phase3_event_wrapper
-    and "original_status, 0" in phase3_event_wrapper,
+    and "input.original_status = original_status" in phase3_event_wrapper
+    and "input.response_already_committed = 0" in phase3_event_wrapper,
     "Apache P3 and P4 wrappers retain distinct event names, phases, and pre-commit P3 status context",
 ))
 checks.append((
-    "phase == MSCONNECTOR_PHASE_RESPONSE_BODY" in intervention_event_helper
+    "input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY" in intervention_event_helper
     and "MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200" in intervention_event_helper
     and "MSCONN_EVENT_PHASE4_LATE_INTERVENTION" in intervention_event_helper
     and "MSCONN_EVENT_RESPONSE_BLOCKED" in intervention_event_helper
@@ -101,22 +107,22 @@ checks.append((
 ))
 checks.append(("body_truncated" in filters_c and "json_truncated" in filters_c and "event.flags.truncated = msr->body_truncated" not in filters_c, "Response body truncation is separate from JSON serialization truncation"))
 checks.append((
-    "event.http.original_http_status = original_status" in intervention_event_helper
-    and "event.http.visible_http_status = msr->last_intervention_status" in intervention_event_helper
-    and "event.flags.late_intervention = response_committed" in intervention_event_helper
-    and "event.flags.headers_sent = response_committed" in intervention_event_helper
-    and "event.flags.body_started = phase == MSCONNECTOR_PHASE_RESPONSE_BODY" in intervention_event_helper
-    and "response_committed;" in intervention_event_helper
-    and "msr != NULL ? msr->response_committed : 0" in phase4_event_wrapper
-    and "original_status, 0" in phase3_event_wrapper,
+    "event->http.original_http_status = input->original_status" in filters_c
+    and "event->http.visible_http_status = msr->last_intervention_status" in filters_c
+    and "event.flags.late_intervention = input->response_already_committed" in filters_c
+    and "event.flags.headers_sent = input->response_already_committed" in filters_c
+    and "event.flags.body_started = input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY" in filters_c
+    and "input.response_already_committed = msr != NULL ? msr->response.committed : 0" in phase4_event_wrapper
+    and "input.original_status = original_status" in phase3_event_wrapper,
     "Apache P3/P4 events preserve original and visible status while deriving commit flags from the actual phase",
 ))
 checks.append(("msconnector_late_intervention_policy_init" in filters_c and "msconnector_late_intervention_resolve" in filters_c and "msconnector_late_intervention_action_name" in filters_c, "Apache Phase4 handling uses the Common late-intervention policy"))
-checks.append(("strcmp(actual, \"deny\")" in filters_c and "event.http.visible_http_status = msr->last_intervention_status" in filters_c and "response_not_committed" in filters_c, "Pre-commit deny events report the deny status as visible"))
+checks.append(("strcmp(input->actual, \"deny\")" in filters_c and "event->http.visible_http_status = msr->last_intervention_status" in filters_c and "response_not_committed" in filters_c, "Pre-commit deny events report the deny status as visible"))
 checks.append((
-    "apr_bucket_brigade *response_brigade;" in config_h
+    "apr_bucket_brigade *brigade;" in config_h
     and "response_body_scope_decided" not in config_h
-    and "ap_save_brigade(f, &msr->response_brigade, &bb_in, r->pool)" in filters_c
+    and "apache_output_filter_prepare_response_brigade(msr, conf, f, &bb_in," in filters_c
+    and "ap_save_brigade(filter, &msr->response_brigade, brigade," in filters_c
     and "apache_phase4_release_response_brigade" in filters_c
     and "apache_phase4_normalize_response_brigade" in filters_c
     and "APR_BUCKET_IS_FLUSH(bucket)" in filters_c
@@ -150,7 +156,7 @@ checks.append((
 ))
 checks.append(("msc_finalize_request_body" in filters_c and "request_body_processed" in filters_c and "APR_BUCKET_REMOVE(pbktIn)" in filters_c, "Apache request chunks are borrowed and phase 2 finalizes once at EOS"))
 input_filter_c = filters_c.split("apr_status_t input_filter", 1)[1].split("static const char *apache_response_content_type", 1)[0]
-checks.append((input_filter_c.count("send_input_error_bucket") == 3 and "send_error_bucket(msr, f" not in input_filter_c, "Apache input-filter errors use the input-specific output-chain bridge"))
+checks.append((input_filter_c.count("send_input_error_bucket") == 2 and "apache_input_filter_handle_eos" in input_filter_c and "send_input_error_bucket" in filters_c and "send_error_bucket(msr, f" not in input_filter_c, "Apache input-filter errors use the input-specific output-chain bridge"))
 checks.append(("return pass_error_bucket(f, status, f->r->output_filters);" in utils_c and "return ap_pass_brigade(destination, brigade);" in utils_c, "Apache input-error bridge propagates the output-chain filter result"))
 checks.append(("msc_process_request_body(msr->t)" not in module_c, "Apache does not finalize Phase 2 before the input filter reaches EOS"))
 checks.append(("ap_request_has_body(r)" in module_c and "msc_finalize_request_body(msr, r)" in module_c, "Apache completes Phase 2 for a known empty request body"))
@@ -170,7 +176,7 @@ checks.append(("msconnector_rule_id_extract_from_message" in filters_c, "Apache 
 checks.append(("apache_json_escape" not in apache_text, "Duplicate Apache JSON escape helper is removed"))
 checks.append(("apache_phase4_rule_id" not in apache_text, "Duplicate Apache rule-id helper is removed"))
 checks.append(("char *end = NULL" not in config_c and "strtoul" not in config_c, "Duplicate Apache size parser is removed"))
-checks.append(("else if (cnf_new->common_config.transaction_id != NULL)" in config_c and "cnf_new->transaction_id_expr = NULL" in config_c, "Child static transaction IDs override parent expressions"))
+checks.append(("else if (destination->common_config.transaction_id != NULL)" in config_c and "destination->transaction_id_expr = NULL" in config_c, "Child static transaction IDs override parent expressions"))
 apxs_wrapper = read(ROOT / "connectors/apache/build/apxs-wrapper.in")
 checks.append((
     "MSCONNECTOR_COMMON_SOURCES" in apxs_wrapper
@@ -178,8 +184,9 @@ checks.append((
     and "header_validation_internal.h" in apxs_wrapper,
     "Apache APXS wrapper materializes Common SDK sources and their private validation header",
 ))
-for field in ["msc_state", "use_error_log;", "const char *transaction_id;", "int phase4_mode;", "const char *phase4_log_path;", "apr_size_t phase4_body_limit;"]:
+for field in ["msc_state", "use_error_log;", "int phase4_mode;", "const char *phase4_log_path;", "apr_size_t phase4_body_limit;"]:
     checks.append((field not in config_h, f"Duplicate config field removed: {field}"))
+checks.append((config_h.count("const char *transaction_id;") == 1, "Transaction ID state has one lifecycle-owned field"))
 
 for forbidden in ["production-ready", "production ready", "runtime-verified", "full-matrix ready", "CRS PASS"]:
     checks.append((forbidden.lower() not in docs_text.lower(), f"No new forbidden claim: {forbidden}"))

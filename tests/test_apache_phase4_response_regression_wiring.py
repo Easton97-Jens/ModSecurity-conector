@@ -158,7 +158,8 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
     def test_all_mime_phase4_gate_uses_setaside_and_terminal_cleanup(self) -> None:
         filters = FILTERS.read_text(encoding="utf-8")
         utils = UTILS.read_text(encoding="utf-8")
-        self.assertIn("ap_save_brigade(f, &msr->response_brigade, &bb_in, r->pool)", filters)
+        self.assertIn("apache_output_filter_prepare_response_brigade(msr, conf, f, &bb_in,", filters)
+        self.assertIn("ap_save_brigade(filter, &msr->response_brigade, brigade,", filters)
         self.assertIn("apache_phase4_release_response_brigade", filters)
         self.assertIn("apache_phase4_normalize_response_brigade", filters)
         self.assertIn("APR_BUCKET_IS_FLUSH(bucket)", filters)

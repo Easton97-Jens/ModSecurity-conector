@@ -425,6 +425,45 @@ static int load_rules_dir(
     return 0;
 }
 
+static int load_crs_rules(
+        RulesSet *rules,
+        const char *crs_root,
+        haproxy_modsecurity_decision *decision,
+        int *loaded) {
+    char *crs_setup;
+    char *crs_setup_example;
+    char *crs_rules;
+    const char *setup_file = 0;
+    int rc = 0;
+
+    if (!dir_exists(crs_root)) {
+        return 0;
+    }
+    crs_setup = join_path(crs_root, "crs-setup.conf");
+    crs_setup_example = join_path(crs_root, "crs-setup.conf.example");
+    crs_rules = join_path(crs_root, "rules");
+    if (crs_setup != 0 && file_exists(crs_setup)) {
+        setup_file = crs_setup;
+    } else if (crs_setup_example != 0 && file_exists(crs_setup_example)) {
+        setup_file = crs_setup_example;
+    }
+    if (setup_file != 0 && load_rules_file(rules, setup_file, decision) != 0) {
+        rc = -1;
+    } else if (setup_file != 0) {
+        *loaded = 1;
+    }
+    if (rc == 0 && crs_rules != 0 && load_rules_dir(rules, crs_rules, decision) != 0) {
+        rc = -1;
+    }
+    if (rc == 0 && crs_rules != 0 && dir_exists(crs_rules)) {
+        *loaded = 1;
+    }
+    free(crs_setup);
+    free(crs_setup_example);
+    free(crs_rules);
+    return rc;
+}
+
 static int load_configured_rules(
         RulesSet *rules,
         const haproxy_modsecurity_engine_config *config,
@@ -438,39 +477,8 @@ static int load_configured_rules(
         }
         loaded = 1;
     }
-    if (config != 0 && dir_exists(config->crs_root)) {
-        char *crs_setup = join_path(config->crs_root, "crs-setup.conf");
-        char *crs_setup_example = join_path(config->crs_root, "crs-setup.conf.example");
-        char *crs_rules = join_path(config->crs_root, "rules");
-        if (crs_setup != 0 && file_exists(crs_setup)) {
-            if (load_rules_file(rules, crs_setup, decision) != 0) {
-                free(crs_setup);
-                free(crs_setup_example);
-                free(crs_rules);
-                return -1;
-            }
-            loaded = 1;
-        } else if (crs_setup_example != 0 && file_exists(crs_setup_example)) {
-            if (load_rules_file(rules, crs_setup_example, decision) != 0) {
-                free(crs_setup);
-                free(crs_setup_example);
-                free(crs_rules);
-                return -1;
-            }
-            loaded = 1;
-        }
-        if (crs_rules != 0 && load_rules_dir(rules, crs_rules, decision) != 0) {
-            free(crs_setup);
-            free(crs_setup_example);
-            free(crs_rules);
-            return -1;
-        }
-        if (crs_rules != 0 && dir_exists(crs_rules)) {
-            loaded = 1;
-        }
-        free(crs_setup);
-        free(crs_setup_example);
-        free(crs_rules);
+    if (config != 0 && load_crs_rules(rules, config->crs_root, decision, &loaded) != 0) {
+        return -1;
     }
     if (config != 0 && dir_exists(config->rules_dir)) {
         if (load_rules_dir(rules, config->rules_dir, decision) != 0) {
@@ -498,6 +506,99 @@ static int load_configured_rules(
     return 0;
 }
 
+static const char *request_text_or_default(const char *value, const char *fallback) {
+    return value != 0 && value[0] != '\0' ? value : fallback;
+}
+
+static int load_request_rules(
+        RulesSet *rules,
+        const haproxy_modsecurity_request *request,
+        const char *rules_text,
+        haproxy_modsecurity_decision *decision) {
+    haproxy_modsecurity_engine_config config;
+
+    memset(&config, 0, sizeof(config));
+    config.rules_file = request->rules_file;
+    return load_configured_rules(rules, &config, rules_text, decision);
+}
+
+static Transaction *create_request_transaction(
+        ModSecurity *modsec,
+        RulesSet *rules,
+        const haproxy_modsecurity_request *request) {
+    if (request->request_id != 0 && request->request_id[0] != '\0') {
+        return msc_new_transaction_with_id(modsec, rules, request->request_id, 0);
+    }
+    return msc_new_transaction(modsec, rules, 0);
+}
+
+static int process_request_connection(
+        Transaction *transaction,
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision) {
+    const char *client_ip = request_text_or_default(request->client_ip, "127.0.0.1");
+    const char *server_ip = request_text_or_default(request->server_ip, "127.0.0.1");
+    int client_port = request->client_port > 0 ? request->client_port : 49152;
+    int server_port = request->server_port > 0 ? request->server_port : 80;
+
+    if (msc_process_connection(transaction, client_ip, client_port, server_ip, server_port) < 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "msc_process_connection failed");
+        return -1;
+    }
+    return 0;
+}
+
+static int process_request_headers(
+        Transaction *transaction,
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision) {
+    unsigned int i;
+
+    for (i = 0; i < request->header_count; ++i) {
+        const char *name = request->headers[i].name;
+        const char *value = request->headers[i].value;
+
+        if (name == 0 || name[0] == '\0') {
+            continue;
+        }
+        if (value == 0) {
+            value = "";
+        }
+        if (msc_add_request_header(transaction, (const unsigned char *)name,
+                (const unsigned char *)value) < 0) {
+            copy_message(decision->log_message, sizeof(decision->log_message),
+                "msc_add_request_header failed");
+            return -1;
+        }
+    }
+    if (msc_process_request_headers(transaction) < 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "msc_process_request_headers failed");
+        return -1;
+    }
+    return 0;
+}
+
+static int process_request_body(
+        Transaction *transaction,
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision) {
+    if (request->body != 0 && request->body_len > 0 &&
+            msc_append_request_body(transaction, request->body,
+                (size_t)request->body_len) < 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "msc_append_request_body failed");
+        return -1;
+    }
+    if (msc_process_request_body(transaction) < 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "msc_process_request_body failed");
+        return -1;
+    }
+    return 0;
+}
+
 static int eval_request_internal(
         const haproxy_modsecurity_request *request,
         const char *rules_text,
@@ -506,16 +607,15 @@ static int eval_request_internal(
     RulesSet *rules = 0;
     Transaction *transaction = 0;
     int rc = 1;
-    const char *safe_method = request != 0 && request->method != 0 &&
-        request->method[0] != '\0' ? request->method : "GET";
-    const char *safe_uri = request != 0 && request->uri != 0 &&
-        request->uri[0] != '\0' ? request->uri : "/";
-    unsigned int i;
+    const char *safe_method;
+    const char *safe_uri;
 
     if (decision == 0 || request == 0) {
         return 1;
     }
     init_decision(decision, 0);
+    safe_method = request_text_or_default(request->method, "GET");
+    safe_uri = request_text_or_default(request->uri, "/");
 
     modsec = msc_init();
     if (modsec == 0) {
@@ -532,32 +632,16 @@ static int eval_request_internal(
             "msc_create_rules_set returned null");
         goto cleanup;
     }
-    {
-        haproxy_modsecurity_engine_config config;
-        memset(&config, 0, sizeof(config));
-        config.rules_file = request->rules_file;
-        if (load_configured_rules(rules, &config, rules_text, decision) != 0) {
-            goto cleanup;
-        }
+    if (load_request_rules(rules, request, rules_text, decision) != 0) {
+        goto cleanup;
     }
-
-    transaction = request->request_id != 0 && request->request_id[0] != '\0' ?
-        msc_new_transaction_with_id(modsec, rules, request->request_id, 0) :
-        msc_new_transaction(modsec, rules, 0);
+    transaction = create_request_transaction(modsec, rules, request);
     if (transaction == 0) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_new_transaction returned null");
         goto cleanup;
     }
-    if (msc_process_connection(transaction,
-            request->client_ip != 0 && request->client_ip[0] != '\0' ?
-                request->client_ip : "127.0.0.1",
-            request->client_port > 0 ? request->client_port : 49152,
-            request->server_ip != 0 && request->server_ip[0] != '\0' ?
-                request->server_ip : "127.0.0.1",
-            request->server_port > 0 ? request->server_port : 80) < 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_process_connection failed");
+    if (process_request_connection(transaction, request, decision) != 0) {
         goto cleanup;
     }
     if (msc_process_uri(transaction, safe_uri, safe_method, "1.1") < 0) {
@@ -565,26 +649,7 @@ static int eval_request_internal(
             "msc_process_uri failed");
         goto cleanup;
     }
-    for (i = 0; i < request->header_count; ++i) {
-        const char *name = request->headers[i].name;
-        const char *value = request->headers[i].value;
-        if (name == 0 || name[0] == '\0') {
-            continue;
-        }
-        if (value == 0) {
-            value = "";
-        }
-        if (msc_add_request_header(transaction,
-                (const unsigned char *)name,
-                (const unsigned char *)value) < 0) {
-            copy_message(decision->log_message, sizeof(decision->log_message),
-                "msc_add_request_header failed");
-            goto cleanup;
-        }
-    }
-    if (msc_process_request_headers(transaction) < 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_process_request_headers failed");
+    if (process_request_headers(transaction, request, decision) != 0) {
         goto cleanup;
     }
     capture_intervention(transaction, 1, decision);
@@ -594,17 +659,7 @@ static int eval_request_internal(
         goto cleanup;
     }
 
-    if (request->body != 0 && request->body_len > 0) {
-        if (msc_append_request_body(transaction,
-                request->body, (size_t)request->body_len) < 0) {
-            copy_message(decision->log_message, sizeof(decision->log_message),
-                "msc_append_request_body failed");
-            goto cleanup;
-        }
-    }
-    if (msc_process_request_body(transaction) < 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_process_request_body failed");
+    if (process_request_body(transaction, request, decision) != 0) {
         goto cleanup;
     }
     capture_intervention(transaction, 2, decision);
@@ -714,15 +769,54 @@ static void transaction_cleanup(haproxy_modsecurity_transaction *transaction, in
     free(transaction);
 }
 
+static void validate_common_mapped_request(
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision) {
+    haproxy_modsecurity_mapped_request mapped_request;
+    msconnector_request_mapper_contract contract;
+    char mapper_error[256];
+
+    mapper_error[0] = '\0';
+    msconnector_request_mapper_contract_init(&contract);
+    if (haproxy_modsecurity_map_owned_request(request, &contract, &mapped_request,
+            mapper_error, sizeof(mapper_error)) != 1 &&
+            decision->log_message[0] == '\0') {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            mapper_error[0] != '\0' ? mapper_error :
+            "common request mapper validation skipped");
+    }
+    haproxy_modsecurity_mapped_request_cleanup(&mapped_request);
+}
+
+static int begin_transaction_protocol(
+        haproxy_modsecurity_transaction *transaction,
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision) {
+    const char *safe_method = request_text_or_default(request->method, "GET");
+    const char *safe_uri = request_text_or_default(request->uri, "/");
+
+    if (process_request_connection(transaction->transaction, request, decision) != 0) {
+        return -1;
+    }
+    if (msc_process_uri(transaction->transaction, safe_uri, safe_method, "1.1") < 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "msc_process_uri failed");
+        return -1;
+    }
+    if (process_request_headers(transaction->transaction, request, decision) != 0) {
+        return -1;
+    }
+    transaction->request_headers_processed = 1;
+    capture_intervention(transaction->transaction, 1, decision);
+    return 0;
+}
+
 int haproxy_modsecurity_transaction_begin_request(
         haproxy_modsecurity_engine *engine,
         const haproxy_modsecurity_request *request,
         haproxy_modsecurity_decision *decision,
         haproxy_modsecurity_transaction **transaction) {
     haproxy_modsecurity_transaction *created;
-    const char *safe_method;
-    const char *safe_uri;
-    unsigned int i;
 
     if (transaction != 0) {
         *transaction = 0;
@@ -733,25 +827,7 @@ int haproxy_modsecurity_transaction_begin_request(
             "missing engine, request, or transaction output");
         return 1;
     }
-    {
-        haproxy_modsecurity_mapped_request mapped_request;
-        msconnector_request_mapper_contract contract;
-        char mapper_error[256];
-        mapper_error[0] = '\0';
-        msconnector_request_mapper_contract_init(&contract);
-        if (haproxy_modsecurity_map_owned_request(request, &contract, &mapped_request,
-                mapper_error, sizeof(mapper_error)) != 1 &&
-                decision->log_message[0] == '\0') {
-            copy_message(decision->log_message, sizeof(decision->log_message),
-                mapper_error[0] != '\0' ? mapper_error :
-                "common request mapper validation skipped");
-        }
-        haproxy_modsecurity_mapped_request_cleanup(&mapped_request);
-    }
-    safe_method = request->method != 0 && request->method[0] != '\0' ?
-        request->method : "GET";
-    safe_uri = request->uri != 0 && request->uri[0] != '\0' ?
-        request->uri : "/";
+    validate_common_mapped_request(request, decision);
     created = (haproxy_modsecurity_transaction *)calloc(1U, sizeof(*created));
     if (created == 0) {
         copy_message(decision->log_message, sizeof(decision->log_message),
@@ -762,61 +838,18 @@ int haproxy_modsecurity_transaction_begin_request(
     if (request->request_id != 0 && request->request_id[0] != '\0') {
         copy_message(created->request_id, sizeof(created->request_id),
             request->request_id);
-        created->transaction = msc_new_transaction_with_id(
-            engine->modsec, engine->rules, request->request_id, 0);
-    } else {
-        created->transaction = msc_new_transaction(engine->modsec, engine->rules, 0);
     }
+    created->transaction = create_request_transaction(engine->modsec, engine->rules, request);
     if (created->transaction == 0) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_new_transaction returned null");
         transaction_cleanup(created, 0);
         return 1;
     }
-    if (msc_process_connection(created->transaction,
-            request->client_ip != 0 && request->client_ip[0] != '\0' ?
-                request->client_ip : "127.0.0.1",
-            request->client_port > 0 ? request->client_port : 49152,
-            request->server_ip != 0 && request->server_ip[0] != '\0' ?
-                request->server_ip : "127.0.0.1",
-            request->server_port > 0 ? request->server_port : 80) < 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_process_connection failed");
+    if (begin_transaction_protocol(created, request, decision) != 0) {
         transaction_cleanup(created, 0);
         return 1;
     }
-    if (msc_process_uri(created->transaction, safe_uri, safe_method, "1.1") < 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_process_uri failed");
-        transaction_cleanup(created, 0);
-        return 1;
-    }
-    for (i = 0; i < request->header_count; ++i) {
-        const char *name = request->headers[i].name;
-        const char *value = request->headers[i].value;
-        if (name == 0 || name[0] == '\0') {
-            continue;
-        }
-        if (value == 0) {
-            value = "";
-        }
-        if (msc_add_request_header(created->transaction,
-                (const unsigned char *)name,
-                (const unsigned char *)value) < 0) {
-            copy_message(decision->log_message, sizeof(decision->log_message),
-                "msc_add_request_header failed");
-            transaction_cleanup(created, 0);
-            return 1;
-        }
-    }
-    if (msc_process_request_headers(created->transaction) < 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_process_request_headers failed");
-        transaction_cleanup(created, 0);
-        return 1;
-    }
-    created->request_headers_processed = 1;
-    capture_intervention(created->transaction, 1, decision);
     *transaction = created;
     return 0;
 }
