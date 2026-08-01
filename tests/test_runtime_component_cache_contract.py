@@ -1248,7 +1248,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     str(cache_root / "builds" / "connectors"),
                     build_env["NGINX_BUILD_OWNER_ROOT"],
                 )
-                self.assertEqual("h1", build_env["NGINX_PROTOCOL_PROFILE"])
+                self.assertEqual(build_env["NGINX_PROTOCOL_PROFILE"], "h1")
                 binary = active_nginx_prefix / "sbin/nginx"
                 binary.parent.mkdir(parents=True, exist_ok=True)
                 binary.write_text("#!/bin/sh\n", encoding="utf-8")

@@ -70,6 +70,14 @@ NGINX-Buildprofil aus den bereits aufgelösten Protokollinputs ab. Diese
 Nachbesserung erhält alle Cache-, Provenance- und Build-Contracts; sie ändert
 weder Sonar-Regeln, Quality Gate, Exclusions noch Suppressions.
 
+Der nächste SonarQube-Cloud-Readback für den exakten PR-Head meldete zwei
+S3415-Testdiagnosen in den zwei neu ergänzten Assertions: Sie übergaben den
+Sollwert vor dem Istwert. Beide Aufrufe verwenden jetzt die frameworkübliche
+Reihenfolge Istwert, Sollwert. Das korrigiert nur Diagnose- und
+Reporting-Semantik; der getestete Expat-Fehler- beziehungsweise NGINX-
+Profilvertrag bleibt unverändert. Der Hosted-Rerun für den exakten Head bleibt
+vor einer Verifikationsaussage erforderlich.
+
 ## Security-Auswirkung
 
 Keine Vertrauensgrenze wird gelockert. Manifest-Pfadwerte werden nur als Daten

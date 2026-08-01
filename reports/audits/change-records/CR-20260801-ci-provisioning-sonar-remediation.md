@@ -66,6 +66,13 @@ and derives the NGINX build profile from the already resolved protocol inputs.
 This follow-up preserves every cache, provenance, and build contract; it is not
 a Sonar rule, Quality-Gate, exclusion, or suppression change.
 
+The next exact PR-head SonarQube Cloud readback found two S3415 test
+diagnostics in the two newly added assertions: they supplied expected value
+before actual value. Both calls now use the framework's actual-then-expected
+order. This corrects diagnostic/reporting semantics only; it does not change
+the tested Expat failure or NGINX profile contract. The exact-head hosted
+rerun remains required before the candidate is reported verified.
+
 ## Security impact
 
 No trust boundary is relaxed. Manifest path values are compared as data only;

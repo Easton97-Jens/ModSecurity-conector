@@ -317,7 +317,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
 
         self.assertFalse(result)
         run_step.assert_called_once()
-        self.assertEqual("expat-autoreconf", run_step.call_args.args[0])
+        self.assertEqual(run_step.call_args.args[0], "expat-autoreconf")
 
     def test_nginx_blocker_reports_connector_compile_error_before_missing_outputs(self) -> None:
         compiler_error = "src/module.c:123:28: error: field 'phase' has incomplete type\n"
