@@ -7,6 +7,11 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Vollständige Parent-HAProxy-SonarQube-Cloud-Remediation](CR-20260801-sonar-haproxy-complete-remediation.de.md)
+  — deckt das aktuelle 33er-HAProxy-Inventar mit C17, fokussierten Contracts
+  und einem versiegelten Security-Diff-Review ab; SHA-gebundene Hosted- und
+  SonarQube-Cloud-Verifikation bleiben vor einer Merge-Betrachtung erforderlich.
+
 - [Parent-Traefik-Runtime- und Lifecycle-Remediation](CR-20260730-sonar-traefik-runtime-lifecycle.de.md)
 
 - [Parent-Envoy-Maintainability-Bereinigung](CR-20260730-sonar-envoy-maintainability-remediation.de.md)

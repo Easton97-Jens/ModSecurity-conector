@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent HAProxy complete SonarQube Cloud remediation](CR-20260801-sonar-haproxy-complete-remediation.md)
+  — covers the current 33-item HAProxy inventory with C17, focused contracts,
+  and a sealed security-diff review; exact-head hosted/SonarQube Cloud
+  verification remains required before it can be considered mergeable.
+
 - [Parent Traefik runtime and lifecycle remediation](CR-20260730-sonar-traefik-runtime-lifecycle.md)
 
 - [Parent Envoy maintainability remediation](CR-20260730-sonar-envoy-maintainability-remediation.md)
