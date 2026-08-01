@@ -76,6 +76,7 @@ Repository-Grenze ändert sich.
 | GitHub Actions für PR-#211-Head \`0c9e2f495b2d913d3d79a5bfd66217e56e0f2993\` | bestanden: alle 66 abgeschlossenen Checks; scope-inapplicable Checks wurden übersprungen. |
 | SonarQube Cloud für PR-#211-Head \`0c9e2f495b2d913d3d79a5bfd66217e56e0f2993\` | Quality Gate \`OK\`; 0 offene/bestätigte New Issues, 0 neue Duplikatzeilen, 0,0 % New-Code-Duplizierung. |
 | \`git merge --no-edit origin/master\` | als reguläre Task-Branch-Synchronisierung auf \`30f7f58097d8b9659e27c64afde1c394c2f5f308\` abgeschlossen; die Change-Record-Indizes wurden manuell zusammengeführt, ohne einen Eintrag wegzulassen. |
+| Zweites \`git merge --no-edit origin/master\` | als reguläre Task-Branch-Synchronisierung auf \`f335965fd5f7b9640fc39a1dd7873d46d7c989c5\` abgeschlossen; die Change-Record-Indizes wurden konfliktfrei zusammengeführt. |
 
 ## Security-Auswirkung
 
@@ -146,6 +147,8 @@ anderes Repository noch Direct Push, Force-Push, administrativen Bypass,
 Framework-/MRTS-Aktion, Gitlink-Änderung, Release, Deployment oder
 Branch-Löschung. Zum Zeitpunkt der Autorisierung war \`master\` auf
 \`30f7f58097d8b9659e27c64afde1c394c2f5f308\` weitergelaufen; deshalb wurde der
-Branch vor dieser Record-Korrektur synchronisiert. Ein Merge-Ergebnis wird
-erst beansprucht, wenn die refreshed Exact-Head-, Review-/Thread-, Ruleset-
-und Post-Merge-Workflow-Evidence vorliegt.
+Branch vor dieser Record-Korrektur synchronisiert. Er lief anschließend auf
+\`f335965fd5f7b9640fc39a1dd7873d46d7c989c5\` weiter und erhielt die oben
+erfasste zweite reguläre Synchronisierung. Ein Merge-Ergebnis wird erst
+beansprucht, wenn die refreshed Exact-Head-, Review-/Thread-, Ruleset- und
+Post-Merge-Workflow-Evidence vorliegt.

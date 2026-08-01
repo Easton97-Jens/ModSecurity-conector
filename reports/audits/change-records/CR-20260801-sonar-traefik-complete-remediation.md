@@ -73,6 +73,7 @@ Record pair and indexes. No other repository boundary changes.
 | GitHub Actions for PR #211 head \`0c9e2f495b2d913d3d79a5bfd66217e56e0f2993\` | passed: all 66 completed checks; scope-inapplicable checks were skipped. |
 | SonarQube Cloud for PR #211 head \`0c9e2f495b2d913d3d79a5bfd66217e56e0f2993\` | Quality Gate \`OK\`; 0 open/confirmed new issues, 0 new duplicated lines, 0.0% New-Code duplication. |
 | \`git merge --no-edit origin/master\` | completed as normal task-branch synchronization to \`30f7f58097d8b9659e27c64afde1c394c2f5f308\`; the Change-Record indexes were manually merged without dropping either record. |
+| Second \`git merge --no-edit origin/master\` | completed as normal task-branch synchronization to \`f335965fd5f7b9640fc39a1dd7873d46d7c989c5\`; the Change-Record indexes merged cleanly. |
 
 ## Security impact
 
@@ -137,6 +138,7 @@ The current user explicitly authorized this exact Parent integration with:
 force-push, administrative bypass, Framework/MRTS action, Gitlink change,
 release, deployment, or branch deletion. At authorization time, \`master\`
 had advanced to \`30f7f58097d8b9659e27c64afde1c394c2f5f308\`, so the branch
-was synchronized before this record correction. No merge outcome is claimed
-until the refreshed exact-head, review/thread, ruleset, and post-merge
-workflow evidence exists.
+was synchronized before this record correction. It subsequently advanced to
+\`f335965fd5f7b9640fc39a1dd7873d46d7c989c5\` and received the second normal
+synchronization above. No merge outcome is claimed until the refreshed
+exact-head, review/thread, ruleset, and post-merge workflow evidence exists.
