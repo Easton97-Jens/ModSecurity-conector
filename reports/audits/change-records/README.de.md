@@ -15,6 +15,11 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-CI-Provisioning-SonarQube-Cloud-Folgekorrektur mit vier Befunden](CR-20260801-ci-provisioning-four-sonar-followup.de.md)
+  — entfernt die vier verbleibenden Provisioning-Maintainability-Ursachen mit
+  Lock-/Cache-Control-Regressionen; Exact-Head-Hosted-Verifikation bleibt vor
+  jeder Merge-Entscheidung erforderlich.
+
 - [Parent-CI-Provisioning-SonarQube-Cloud-Remediation](CR-20260801-ci-provisioning-sonar-remediation.de.md)
   — zerlegt das aktuelle Provisioner-Inventar ohne Suppressions, bewahrt Cache-
   und Provenance-Controls und ergänzt pro Override negative Pfadabdeckung;

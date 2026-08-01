@@ -3673,34 +3673,43 @@ class BuildLock:
         self.handle: Any = None
         self.mkdir_lock = lock_path.with_suffix(lock_path.suffix + ".dir")
 
+    def _acquire_file_lock(self) -> "BuildLock":
+        import fcntl  # type: ignore
+
+        self.handle = self.lock_path.open("w", encoding="utf-8")
+        deadline = time.time() + self.timeout
+        while True:
+            try:
+                fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                self.handle.write(f"pid={os.getpid()} acquired_at={utc_now()}\n")
+                self.handle.flush()
+                return self
+            except BlockingIOError:
+                if time.time() > deadline:
+                    raise TimeoutError(f"lock_timeout: {self.lock_path}")
+                time.sleep(1)
+
+    def _acquire_directory_lock(self) -> "BuildLock":
+        deadline = time.time() + self.timeout
+        while True:
+            try:
+                self.mkdir_lock.mkdir()
+                (self.mkdir_lock / "owner").write_text(
+                    f"pid={os.getpid()} acquired_at={utc_now()}\n",
+                    encoding="utf-8",
+                )
+                return self
+            except FileExistsError:
+                if time.time() > deadline:
+                    raise TimeoutError(f"lock_timeout: {self.mkdir_lock}")
+                time.sleep(1)
+
     def __enter__(self) -> "BuildLock":
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            import fcntl  # type: ignore
-
-            self.handle = self.lock_path.open("w", encoding="utf-8")
-            deadline = time.time() + self.timeout
-            while True:
-                try:
-                    fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    self.handle.write(f"pid={os.getpid()} acquired_at={utc_now()}\n")
-                    self.handle.flush()
-                    return self
-                except BlockingIOError:
-                    if time.time() > deadline:
-                        raise TimeoutError(f"lock_timeout: {self.lock_path}")
-                    time.sleep(1)
+            return self._acquire_file_lock()
         except ImportError:
-            deadline = time.time() + self.timeout
-            while True:
-                try:
-                    self.mkdir_lock.mkdir()
-                    (self.mkdir_lock / "owner").write_text(f"pid={os.getpid()} acquired_at={utc_now()}\n", encoding="utf-8")
-                    return self
-                except FileExistsError:
-                    if time.time() > deadline:
-                        raise TimeoutError(f"lock_timeout: {self.mkdir_lock}")
-                    time.sleep(1)
+            return self._acquire_directory_lock()
 
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         if self.handle is not None:
@@ -5834,13 +5843,13 @@ def remove_incomplete_connector_cache_entry(
     """Remove only an owned stale connector entry before making staging."""
     if not final_root.exists():
         return True
-    if not managed_cache_entry_valid(final_root, managed_root):
-        if not migrate_legacy_cache_entry_for_removal(
-            final_root,
-            managed_root,
-            component=f"connector:{connector}",
-        ):
-            return False
+    migration_required = not managed_cache_entry_valid(final_root, managed_root)
+    if migration_required and not migrate_legacy_cache_entry_for_removal(
+        final_root,
+        managed_root,
+        component=f"connector:{connector}",
+    ):
+        return False
     safe_remove_dir(final_root, managed_root)
     return True
 
@@ -6151,6 +6160,11 @@ def finish_planned_connector_record(plan: dict[str, Any], record: dict[str, Any]
     if plan:
         write_connector_manifest(plan, record)
     return record
+
+
+def requires_transactional_connector_prepare(plan: dict[str, Any] | None, transactional: bool) -> bool:
+    """Return whether a keyed connector plan must be prepared via staging."""
+    return bool(plan and plan.get("root") and not transactional)
 
 
 def apache_runtime_context(
@@ -6529,7 +6543,7 @@ def prepare_apache_httpd(
     plan: dict[str, Any] | None = None,
     _transactional: bool = False,
 ) -> dict[str, Any]:
-    if plan and plan.get("root") and not _transactional:
+    if requires_transactional_connector_prepare(plan, _transactional):
         return prepare_connector_transactionally(
             "apache",
             cache_root,
@@ -6801,6 +6815,11 @@ def nginx_cached_entry_reusable(plan: dict[str, Any], local_ready: bool, effecti
     return bool(plan) and local_ready and effective_ready and connector_manifest_ready(plan)
 
 
+def nginx_source_build_required(local_ready: bool, effective_ready: bool) -> bool:
+    """Build only when neither local nor configured NGINX artifacts are ready."""
+    return not effective_ready and not local_ready
+
+
 def claim_nginx_cache_entry(plan: dict[str, Any], cache_root: Path) -> str:
     root_value = plan.get("root")
     if not root_value:
@@ -6973,7 +6992,7 @@ def prepare_nginx_runtime(
     plan: dict[str, Any] | None = None,
     _transactional: bool = False,
 ) -> dict[str, Any]:
-    if plan and plan.get("root") and not _transactional:
+    if requires_transactional_connector_prepare(plan, _transactional):
         return prepare_connector_transactionally(
             "nginx",
             cache_root,
@@ -7054,7 +7073,7 @@ def prepare_nginx_runtime(
     if claim_error:
         record.update(status="blocked", blocker_reason=claim_error)
         return finish_planned_connector_record(plan, record)
-    if not effective_ready and not local_ready:
+    if nginx_source_build_required(local_ready, effective_ready):
         local_ready, local_missing, build_succeeded = build_nginx_source(
             env,
             connector_root,
