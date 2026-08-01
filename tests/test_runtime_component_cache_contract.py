@@ -92,6 +92,49 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
 
         return git_record, toolchain, configured_prefix, fake_run_env
 
+    def test_build_lock_preserves_file_and_directory_fallback_contracts(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            file_lock_path = root / "locks/file.lock"
+            with components.BuildLock(file_lock_path, timeout=1) as lock:
+                self.assertIsNotNone(lock.handle)
+                self.assertTrue(file_lock_path.is_file())
+                self.assertIn("pid=", file_lock_path.read_text(encoding="utf-8"))
+
+            directory_lock_path = root / "locks/directory.lock"
+            with mock.patch.dict(sys.modules, {"fcntl": None}):
+                with components.BuildLock(directory_lock_path, timeout=1) as lock:
+                    self.assertIsNone(lock.handle)
+                    self.assertTrue((lock.mkdir_lock / "owner").is_file())
+            self.assertFalse(directory_lock_path.with_suffix(".lock.dir").exists())
+
+    def test_incomplete_connector_entry_removal_remains_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            cache_root = components.ensure_managed_cache_root(Path(temporary) / "cache")
+            entry = cache_root / "builds/connectors/test/cache-key"
+            entry.mkdir(parents=True)
+            (entry / "partial-artifact").write_text("partial\n", encoding="utf-8")
+
+            with mock.patch.object(components, "migrate_legacy_cache_entry_for_removal", return_value=False):
+                self.assertFalse(
+                    components.remove_incomplete_connector_cache_entry(entry, cache_root, "test")
+                )
+            self.assertTrue(entry.exists())
+
+            owned_entry = cache_root / "builds/connectors/test/owned-cache-key"
+            components.mark_managed_cache_entry(
+                owned_entry,
+                cache_root,
+                component="connector:test",
+                cache_key="owned-cache-key",
+            )
+            owned_entry.mkdir(parents=True)
+            (owned_entry / "partial-artifact").write_text("partial\n", encoding="utf-8")
+            self.assertTrue(
+                components.remove_incomplete_connector_cache_entry(owned_entry, cache_root, "test")
+            )
+            self.assertFalse(owned_entry.exists())
+
     def test_canonical_identity_covers_schema_patchset_toolchain_architecture_and_flags(self) -> None:
         baseline = self.identity()
         self.assertEqual(baseline, self.identity())

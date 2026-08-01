@@ -13,6 +13,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI provisioning four-item SonarQube Cloud follow-up](CR-20260801-ci-provisioning-four-sonar-followup.md)
+  — removes the four remaining provisioning maintainability causes with
+  lock/cache-control regressions; exact-head hosted verification remains
+  required before any merge decision.
+
 - [Parent CI provisioning SonarQube Cloud remediation](CR-20260801-ci-provisioning-sonar-remediation.md)
   — decomposes the current provisioner inventory without suppressions, keeps
   cache/provenance controls intact, and adds per-override negative path
