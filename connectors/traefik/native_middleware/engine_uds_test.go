@@ -101,7 +101,62 @@ func writeUDSTestResult(writer io.Writer, command byte, result udsTestResult) er
 	payload[1] = udsResultOK
 	payload[2] = result.action
 	binary.BigEndian.PutUint16(payload[4:6], uint16(result.status))
-	return writeUDSFrame(writer, udsOpcodeResult, payload)
+	return writeUDSTestFrame(writer, udsOpcodeResult, payload)
+}
+
+// writeUDSTestFrame keeps byte-buffer test construction independent from the
+// production UDS connection contract.
+func writeUDSTestFrame(writer io.Writer, opcode byte, payload []byte) error {
+	frame, err := makeUDSFrame(opcode, payload)
+	if err != nil {
+		return err
+	}
+	return writeUDSTestAll(writer, frame)
+}
+
+func writeUDSTestAll(writer io.Writer, payload []byte) error {
+	for len(payload) > 0 {
+		count, err := writer.Write(payload)
+		if count > 0 {
+			payload = payload[count:]
+		}
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			return io.ErrShortWrite
+		}
+	}
+	return nil
+}
+
+func TestWriteUDSConnectionFrameUsesDuplexConnection(t *testing.T) {
+	client, server := net.Pipe()
+	t.Cleanup(func() {
+		_ = client.Close()
+		_ = server.Close()
+	})
+
+	result := make(chan error, 1)
+	go func() {
+		opcode, payload, err := readUDSFrame(server)
+		if err != nil {
+			result <- err
+			return
+		}
+		if opcode != udsOpcodeBegin || !bytes.Equal(payload, []byte("header-check")) {
+			result <- errors.New("connection frame did not preserve opcode and payload")
+			return
+		}
+		result <- nil
+	}()
+
+	if err := writeUDSConnectionFrame(client, udsOpcodeBegin, []byte("header-check")); err != nil {
+		t.Fatalf("writeUDSConnectionFrame() error = %v", err)
+	}
+	if err := <-result; err != nil {
+		t.Fatal(err)
+	}
 }
 
 func (server *udsTestServer) wait(t *testing.T) []udsTestCall {
