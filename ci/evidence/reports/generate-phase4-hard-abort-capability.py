@@ -87,9 +87,8 @@ def first_rule_metadata(text: str) -> dict[str, str]:
     }
 
 
-def case_metadata(entry: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
-    path = safe_existing_file(evidence.get("path"))
-    metadata: dict[str, Any] = {
+def initial_phase4_metadata(entry: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
+    return {
         "case_id": entry.get("case_id", "-"),
         "method": "-",
         "path": "-",
@@ -104,30 +103,90 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any]) -> dict[str, 
         "content_type_scope": "-",
         "rule_excerpt": "-",
     }
+
+
+def phase4_metadata_variable(source_metadata: dict[str, Any]) -> str:
+    variables = source_metadata.get("variables")
+    if isinstance(variables, list):
+        return ", ".join(str(item) for item in variables)
+    return str(variables or "-")
+
+
+def phase4_metadata_expected_action(
+    entry: dict[str, Any], expect: dict[str, Any], existing_action: Any
+) -> str:
+    expected_action = str(expect.get("intervention") or existing_action or "-")
+    if expected_action not in ("", "-"):
+        return expected_action
+    return "deny" if entry.get("expected_status") in (401, 403, 302) else "pass"
+
+
+def phase4_metadata_phase(
+    entry: dict[str, Any], evidence: dict[str, Any], rule: dict[str, str], source_metadata: dict[str, Any]
+) -> str:
+    explicit_phase = evidence.get("phase")
+    if explicit_phase:
+        return str(explicit_phase)
+    if rule["phase"] != "-":
+        return rule["phase"]
+    return str(source_metadata.get("phase") or entry.get("phase") or "-")
+
+
+def phase4_metadata_updates(
+    entry: dict[str, Any],
+    evidence: dict[str, Any],
+    metadata: dict[str, Any],
+    parsed: dict[str, Any],
+    request: dict[str, Any],
+    expect: dict[str, Any],
+    source_metadata: dict[str, Any],
+    request_path: str,
+    query: str,
+    raw: str,
+    rule: dict[str, str],
+) -> dict[str, Any]:
+    metadata_variable = phase4_metadata_variable(source_metadata)
+    rule_variable = rule["variable"] if rule["variable"] != "-" else metadata_variable
+    expected_response = (expect.get("response") or {}).get("body") or expect.get("response_body") or ""
+    return {
+        "method": str(request.get("method") or "-"),
+        "path": request_path,
+        "query": query,
+        "rule_id": first_value(
+            evidence.get("rule_id"), rule["rule_id"], expect.get("rule_id"), source_metadata.get("mrts_rule_id")
+        ),
+        "phase": phase4_metadata_phase(entry, evidence, rule, source_metadata),
+        "variable": rule_variable,
+        "target": rule_variable,
+        "expected_action": phase4_metadata_expected_action(entry, expect, metadata["expected_action"]),
+        "expected_response_body": str(expected_response),
+        "phase4_mode": phase4_mode(parsed, raw),
+        "content_type_scope": content_type_scope(parsed, raw),
+        "rule_excerpt": rule["rule_excerpt"],
+    }
+
+
+def case_metadata(entry: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
+    path = safe_existing_file(evidence.get("path"))
+    metadata = initial_phase4_metadata(entry, evidence)
     raw = read_text(path) if path is not None and path.is_file() else ""
     parsed, request, expect, source_metadata, request_path, query = parse_case_document(raw, yaml)
     rules = str(parsed.get("rules") or raw)
     rule = first_rule_metadata(rules)
-    variables = source_metadata.get("variables")
-    metadata_variable = ", ".join(str(item) for item in variables) if isinstance(variables, list) else str(variables or "-")
-    expected_action = str(expect.get("intervention") or metadata["expected_action"] or "-")
-    if expected_action in ("", "-"):
-        expected_action = "deny" if entry.get("expected_status") in (401, 403, 302) else "pass"
     metadata.update(
-        {
-            "method": str(request.get("method") or "-"),
-            "path": request_path,
-            "query": query,
-            "rule_id": first_value(evidence.get("rule_id"), rule["rule_id"], expect.get("rule_id"), source_metadata.get("mrts_rule_id")),
-            "phase": str(evidence.get("phase") or (rule["phase"] if rule["phase"] != "-" else source_metadata.get("phase") or entry.get("phase") or "-")),
-            "variable": rule["variable"] if rule["variable"] != "-" else metadata_variable,
-            "target": rule["variable"] if rule["variable"] != "-" else metadata_variable,
-            "expected_action": expected_action,
-            "expected_response_body": str((expect.get("response") or {}).get("body") or expect.get("response_body") or ""),
-            "phase4_mode": phase4_mode(parsed, raw),
-            "content_type_scope": content_type_scope(parsed, raw),
-            "rule_excerpt": rule["rule_excerpt"],
-        }
+        phase4_metadata_updates(
+            entry,
+            evidence,
+            metadata,
+            parsed,
+            request,
+            expect,
+            source_metadata,
+            request_path,
+            query,
+            raw,
+            rule,
+        )
     )
     return metadata
 

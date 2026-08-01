@@ -1245,34 +1245,34 @@ def full_matrix_control_evidence(build_root: Path) -> dict[str, dict[str, str]]:
     return full_matrix_case_control_evidence(build_root, ARGS_NAMES_CONTROL_CASE)
 
 
+def full_matrix_control_record(case: dict[str, Any]) -> dict[str, str]:
+    expected = str(case.get("expected_status") or "-")
+    actual = str(case.get("actual_status", case.get("observed_status")) or "-")
+    status = str(case.get("status") or "missing")
+    if status.lower() == "pass" and expected == "403" and actual == "403" and case.get("live_executed") is True:
+        return {
+            "status": "pass",
+            "expected": "403",
+            "actual": "403",
+            "evidence_file": str(case.get("evidence_path") or "-"),
+        }
+    if status.lower() == "pass":
+        status = "fail"
+    return {
+        "status": status,
+        "expected": expected,
+        "actual": actual,
+        "evidence_file": str(case.get("evidence_path") or "-"),
+    }
+
+
 def full_matrix_case_control_evidence(build_root: Path, control_case_name: str) -> dict[str, dict[str, str]]:
     evidence: dict[str, dict[str, str]] = {}
     for connector in sorted(SEMICOLON_COLLECTION_CONNECTORS):
         for variant in ("no-crs/no-mrts", WITH_CRS_NO_MRTS):
             case = full_matrix_summary_case(build_root, connector, variant, control_case_name)
             key = f"{connector}:{variant}:{control_case_name}"
-            if (
-                str(case.get("status") or "").lower() == "pass"
-                and str(case.get("expected_status") or "") == "403"
-                and str(case.get("actual_status", case.get("observed_status")) or "") == "403"
-                and case.get("live_executed") is True
-            ):
-                evidence[key] = {
-                    "status": "pass",
-                    "expected": "403",
-                    "actual": "403",
-                    "evidence_file": str(case.get("evidence_path") or "-"),
-                }
-            else:
-                status = str(case.get("status") or "missing")
-                if status.lower() == "pass":
-                    status = "fail"
-                evidence[key] = {
-                    "status": status,
-                    "expected": str(case.get("expected_status") or "-"),
-                    "actual": str(case.get("actual_status", case.get("observed_status")) or "-"),
-                    "evidence_file": str(case.get("evidence_path") or "-"),
-                }
+            evidence[key] = full_matrix_control_record(case)
     return evidence
 
 
@@ -1850,6 +1850,48 @@ def apply_native_transformation_semantics_classification(
     return mismatches, native_inputs
 
 
+def xml_runtime_evidence(
+    result_path: Path, result: dict[str, Any], build_root: Path, expected_status: str, native_actual: str
+) -> dict[str, Any]:
+    return {
+        "result": rel(result_path, build_root),
+        "expected": expected_status,
+        "actual": native_actual,
+        "live_executed": "true",
+        "full_matrix_refresh_needed": "false",
+        "observed_transport_result": str(result.get("observed_transport_result") or "http_status"),
+        "modsecurity_processed": str(result.get("modsecurity_processed", "n/a")).lower(),
+        "request_body_seen": str(result.get("request_body_seen", "n/a")).lower(),
+    }
+
+
+def haproxy_xml_decision_evidence(
+    result_path: Path, result: dict[str, Any], build_root: Path
+) -> dict[str, Any] | None:
+    if result.get("modsecurity_processed") is not True or result.get("request_body_seen") is not True:
+        return None
+    decision_log_path = result_decision_log_path(result_path, result)
+    entries = read_jsonl(decision_log_path)
+    if len(entries) != 1:
+        return None
+    decision = entries[0]
+    if decision.get("live_executed") is not True or decision.get("modsecurity_processed") is not True:
+        return None
+    if decision.get("request_body_seen") is not True:
+        return None
+    if decision.get("decision") != "pass" or decision.get("disruptive") is not False:
+        return None
+    if str(decision.get("matched_variable") or "") or str(decision.get("matched_value_snippet") or ""):
+        return None
+    return {
+        "decision_log": rel(decision_log_path, build_root),
+        "decision": "pass",
+        "rule_id": str(decision.get("rule_id") or "0"),
+        "matched_variable": str(decision.get("matched_variable") or ""),
+        "matched_value_snippet": str(decision.get("matched_value_snippet") or ""),
+    }
+
+
 def xml_parser_semantics_result_evidence(
     row: dict[str, Any],
     *,
@@ -1871,39 +1913,13 @@ def xml_parser_semantics_result_evidence(
     if matched is None:
         return None
     result_path, result = matched
-
-    evidence: dict[str, Any] = {
-        "result": rel(result_path, build_root),
-        "expected": expected_status,
-        "actual": native_actual,
-        "live_executed": "true",
-        "full_matrix_refresh_needed": "false",
-        "observed_transport_result": str(result.get("observed_transport_result") or "http_status"),
-        "modsecurity_processed": str(result.get("modsecurity_processed", "n/a")).lower(),
-        "request_body_seen": str(result.get("request_body_seen", "n/a")).lower(),
-    }
-    if row["connector"] == "haproxy":
-        if result.get("modsecurity_processed") is not True or result.get("request_body_seen") is not True:
-            return None
-        decision_log_path = result_decision_log_path(result_path, result)
-        entries = read_jsonl(decision_log_path)
-        if len(entries) != 1:
-            return None
-        decision = entries[0]
-        if decision.get("live_executed") is not True or decision.get("modsecurity_processed") is not True:
-            return None
-        if decision.get("request_body_seen") is not True:
-            return None
-        if decision.get("decision") != "pass" or decision.get("disruptive") is not False:
-            return None
-        if str(decision.get("matched_variable") or "") or str(decision.get("matched_value_snippet") or ""):
-            return None
-        evidence["decision_log"] = rel(decision_log_path, build_root)
-        evidence["decision"] = "pass"
-        evidence["rule_id"] = str(decision.get("rule_id") or "0")
-        evidence["matched_variable"] = str(decision.get("matched_variable") or "")
-        evidence["matched_value_snippet"] = str(decision.get("matched_value_snippet") or "")
-    return evidence
+    evidence = xml_runtime_evidence(result_path, result, build_root, expected_status, native_actual)
+    if row["connector"] != "haproxy":
+        return evidence
+    decision_evidence = haproxy_xml_decision_evidence(result_path, result, build_root)
+    if decision_evidence is None:
+        return None
+    return {**evidence, **decision_evidence}
 
 
 def xml_parser_fixture_evidence(native_case_run: dict[str, Any]) -> dict[str, Any] | None:
@@ -2047,8 +2063,16 @@ def apply_critical_classification(
     )
 
 
-def row_from_case(
-    *,
+def normalize_case_row_paths(
+    row: dict[str, Any], evidence: str, source_file: Path, build_root: Path
+) -> None:
+    if row["evidence_file"].startswith("/"):
+        row["evidence_file"] = rel(evidence, build_root)
+    if row["source_file"].startswith("/"):
+        row["source_file"] = rel(source_file, build_root)
+
+
+def base_case_row(
     case: dict[str, Any],
     connector: str,
     variant: str,
@@ -2057,10 +2081,8 @@ def row_from_case(
     source_scope: str,
     connector_root: Path,
     build_root: Path,
-) -> dict[str, Any] | None:
+) -> tuple[dict[str, Any], str]:
     status = str(case.get("status") or "").lower()
-    if status in {"", "pass"}:
-        return None
     expected, actual = expected_actual(case)
     classification, cause, code_fix, expectation_wrong, document_only = classify_case(case)
     evidence = str(case.get("evidence_path") or evidence_file)
@@ -2092,10 +2114,13 @@ def row_from_case(
         "capabilities": case.get("capabilities") or [],
         "known_limitations": case.get("known_limitations") or [],
     }
-    if row["evidence_file"].startswith("/"):
-        row["evidence_file"] = rel(evidence, build_root)
-    if row["source_file"].startswith("/"):
-        row["source_file"] = rel(source_file, build_root)
+    normalize_case_row_paths(row, evidence, source_file, build_root)
+    return row, evidence
+
+
+def apply_case_critical_overlays(
+    row: dict[str, Any], evidence: str, connector_root: Path, build_root: Path
+) -> None:
     fixture_evidence = multipart_fixture_gap(
         row,
         evidence=evidence,
@@ -2204,6 +2229,33 @@ def row_from_case(
         ),
         note=SECACTION_DETECTION_ONLY_NOTE,
     )
+
+
+def row_from_case(
+    *,
+    case: dict[str, Any],
+    connector: str,
+    variant: str,
+    evidence_file: Path,
+    source_file: Path,
+    source_scope: str,
+    connector_root: Path,
+    build_root: Path,
+) -> dict[str, Any] | None:
+    status = str(case.get("status") or "").lower()
+    if status in {"", "pass"}:
+        return None
+    row, evidence = base_case_row(
+        case,
+        connector,
+        variant,
+        evidence_file,
+        source_file,
+        source_scope,
+        connector_root,
+        build_root,
+    )
+    apply_case_critical_overlays(row, evidence, connector_root, build_root)
     return row
 
 

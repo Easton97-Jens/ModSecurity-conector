@@ -148,10 +148,15 @@ def rewrite_error_patterns(line: str) -> list[str]:
 def permission_error_patterns(line: str) -> list[str]:
     if PERMISSION_DENIED_TEXT not in line:
         return []
-    patterns = ["nginx_crit_permission_denied"] if "[crit]" in line else []
     if DOCROOT_INDEX_PATH in line:
-        return [*patterns, "docroot_index_permission_denied"]
-    return [*patterns, "docroot_directory_permission_denied"] if "/htdocs/" in line else patterns
+        patterns = ["docroot_index_permission_denied"]
+    elif "/htdocs/" in line:
+        patterns = ["docroot_directory_permission_denied"]
+    else:
+        patterns = []
+    if "[crit]" in line:
+        patterns.append("nginx_crit_permission_denied")
+    return patterns
 
 
 def modsecurity_warning_patterns(line: str) -> list[str]:
@@ -278,24 +283,38 @@ def classification_for_family(family: str) -> str:
     return "harness_environment_error"
 
 
+def rollup_patterns_for_row(row: dict[str, Any], prefix: str) -> list[str]:
+    patterns = error_patterns_for_case(row, prefix)
+    return patterns or ["no_matching_error_pattern"]
+
+
+def pattern_rollup_example(row: dict[str, Any], prefix: str, pattern: str) -> str:
+    if pattern == "no_matching_error_pattern":
+        return next(iter(representative_error_excerpt(row, prefix, 1)), "-")
+    return example_line_for_pattern(row, prefix, pattern)
+
+
+def collect_pattern_rollup(
+    counter: Counter[str],
+    examples: dict[str, str],
+    affected: defaultdict[str, list[str]],
+    row: dict[str, Any],
+    prefix: str,
+) -> None:
+    for pattern in rollup_patterns_for_row(row, prefix):
+        counter[pattern] += 1
+        if pattern not in examples:
+            examples[pattern] = pattern_rollup_example(row, prefix, pattern)
+        if len(affected[pattern]) < 8:
+            affected[pattern].append(str(row.get("name") or "-"))
+
+
 def pattern_rollup(rows: list[dict[str, Any]], prefix: str) -> list[dict[str, Any]]:
     counter: Counter[str] = Counter()
     examples: dict[str, str] = {}
     affected: defaultdict[str, list[str]] = defaultdict(list)
     for row in rows:
-        patterns = error_patterns_for_case(row, prefix)
-        if not patterns:
-            patterns = ["no_matching_error_pattern"]
-        for pattern in patterns:
-            counter[pattern] += 1
-            if pattern not in examples:
-                examples[pattern] = (
-                    example_line_for_pattern(row, prefix, pattern)
-                    if pattern != "no_matching_error_pattern"
-                    else next(iter(representative_error_excerpt(row, prefix, 1)), "-")
-                )
-            if len(affected[pattern]) < 8:
-                affected[pattern].append(str(row.get("name") or "-"))
+        collect_pattern_rollup(counter, examples, affected, row, prefix)
     return [
         {
             "pattern": pattern,
