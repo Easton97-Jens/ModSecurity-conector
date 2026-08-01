@@ -54,6 +54,10 @@ class ApacheRulesSetCleanupTests(unittest.TestCase):
             self.source,
             "void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,",
         )
+        self.rules_merge = c_function(
+            self.source,
+            "static int msc_merge_directory_rules(msc_conf_t *destination,",
+        )
 
     def test_cleanup_adapter_accepts_only_non_null_rules_sets(self) -> None:
         self.assertIn("if (data != NULL)", self.cleanup)
@@ -77,7 +81,8 @@ class ApacheRulesSetCleanupTests(unittest.TestCase):
 
     def test_merge_creates_a_new_owned_rules_set_without_manual_cleanup(self) -> None:
         self.assertEqual(self.merge.count("msc_hook_create_config_directory(mp,"), 1)
-        self.assertEqual(self.merge.count("msc_rules_merge("), 2)
+        self.assertIn("msc_merge_directory_rules(cnf_new, cnf_p, cnf_c, mp)", self.merge)
+        self.assertEqual(self.rules_merge.count("msc_merge_rule_set("), 2)
         self.assertNotIn("apr_pool_cleanup_register(", self.merge)
         self.assertNotIn("msc_rules_cleanup(", self.merge)
 

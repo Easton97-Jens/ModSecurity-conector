@@ -12,6 +12,11 @@ Review- oder Delivery-Ergebnisse behaupten.
   Native-Build- und Loopback-TLS-Controls bestanden, während die
   SHA-gebundene Hosted-Verifikation noch erforderlich bleibt.
 
+- [Parent-Apache-Maintainability-Remediation](CR-20260730-sonar-apache-maintainability.de.md)
+  — remediiert das aktuelle 13er-Apache-SonarQube-Cloud-Maintainability-
+  Inventar mit fokussierter C17- und Native-Harness-Evidence; Exact-Head-
+  Hosted-Verifikation bleibt vor jeder Integration erforderlich.
+
 - [Parent-CI-Bereinigung eines ungenutzten Parameters der GitHub-URL-Validierung für SonarQube Cloud S1172](CR-20260730-sonar-ci-github-url-unused-label.de.md)
 
 - [Parent-Common Event-JSON Optional-Field-Zerlegung](CR-20260730-sonar-common-event-json-complexity.de.md)
