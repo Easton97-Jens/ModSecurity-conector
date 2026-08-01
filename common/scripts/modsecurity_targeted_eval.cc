@@ -8,6 +8,7 @@
 #include <functional>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -36,10 +37,10 @@ std::string json_escape(const std::string &value) {
     for (char ch : value) {
         switch (ch) {
             case '\\':
-                out += "\\\\";
+                out += R"(\\)";
                 break;
             case '"':
-                out += "\\\"";
+                out += R"(\")";
                 break;
             case '\n':
                 out += "\\n";
@@ -395,6 +396,26 @@ void write_success_json(
     std::cout << "}\n";
 }
 
+struct RuleErrorCleanup {
+    const char *value = nullptr;
+
+    ~RuleErrorCleanup() {
+        if (value != nullptr) {
+            modsecurity::msc_rules_error_cleanup(value);
+        }
+    }
+};
+
+using ModSecurityHandle = std::unique_ptr<
+    modsecurity::ModSecurity,
+    decltype(&modsecurity::msc_cleanup)>;
+using RulesSetHandle = std::unique_ptr<
+    modsecurity::RulesSet,
+    decltype(&modsecurity::msc_rules_cleanup)>;
+using TransactionHandle = std::unique_ptr<
+    modsecurity::Transaction,
+    decltype(&modsecurity::msc_transaction_cleanup)>;
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -404,48 +425,47 @@ int main(int argc, char **argv) {
         return fail_json(option_error);
     }
 
-    modsecurity::ModSecurity *modsec = modsecurity::msc_init();
+    const ModSecurityHandle modsec(modsecurity::msc_init(), modsecurity::msc_cleanup);
     if (modsec == nullptr) {
         return fail_json("msc_init failed");
     }
-    modsecurity::msc_set_connector_info(modsec, "ModSecurity-conector targeted smoke");
-    const char *who = modsecurity::msc_who_am_i(modsec);
+    modsecurity::msc_set_connector_info(modsec.get(), "ModSecurity-conector targeted smoke");
+    const char *who = modsecurity::msc_who_am_i(modsec.get());
     const std::string whoami = who == nullptr ? "unknown" : who;
 
-    modsecurity::RulesSet *rules = modsecurity::msc_create_rules_set();
+    const RulesSetHandle rules(
+        modsecurity::msc_create_rules_set(), modsecurity::msc_rules_cleanup);
     if (rules == nullptr) {
-        modsecurity::msc_cleanup(modsec);
         return fail_json("msc_create_rules_set failed");
     }
 
-    const char *rule_error = nullptr;
-    const int rule_count = modsecurity::msc_rules_add_file(rules, options.rule_file.c_str(), &rule_error);
+    RuleErrorCleanup rule_error;
+    const int rule_count = modsecurity::msc_rules_add_file(
+        rules.get(), options.rule_file.c_str(), &rule_error.value);
     const bool rule_loaded = rule_count >= 0;
     if (!rule_loaded) {
-        const std::string message = rule_error == nullptr ? "msc_rules_add_file failed" : rule_error;
-        modsecurity::msc_rules_error_cleanup(rule_error);
-        modsecurity::msc_rules_cleanup(rules);
-        modsecurity::msc_cleanup(modsec);
+        const std::string message = rule_error.value == nullptr
+                                        ? "msc_rules_add_file failed"
+                                        : rule_error.value;
         return fail_json(message);
     }
 
-    modsecurity::Transaction *tx = modsecurity::msc_new_transaction(modsec, rules, nullptr);
+    const TransactionHandle tx(
+        modsecurity::msc_new_transaction(modsec.get(), rules.get(), nullptr),
+        modsecurity::msc_transaction_cleanup);
     if (tx == nullptr) {
-        modsecurity::msc_rules_cleanup(rules);
-        modsecurity::msc_cleanup(modsec);
         return fail_json("msc_new_transaction failed");
     }
 
-    configure_request({tx}, options);
+    const RequestSetupContext setup_context{tx.get()};
+    configure_request(setup_context, options);
 
-    modsecurity::ModSecurityIntervention intervention;
-    const EvaluationResult result = evaluate_request({tx, &intervention}, options);
+    modsecurity::ModSecurityIntervention intervention{};
+    const RequestEvaluationContext evaluation_context{tx.get(), &intervention};
+    const EvaluationResult result = evaluate_request(evaluation_context, options);
     append_decision_log(decision_log_input(options, whoami, rule_loaded, result));
     write_success_json(options, whoami, rule_loaded, result);
 
     modsecurity::msc_intervention_cleanup(&intervention);
-    modsecurity::msc_transaction_cleanup(tx);
-    modsecurity::msc_rules_cleanup(rules);
-    modsecurity::msc_cleanup(modsec);
     return 0;
 }
