@@ -7,6 +7,8 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Traefik-Runtime- und Lifecycle-Remediation](CR-20260730-sonar-traefik-runtime-lifecycle.de.md)
+
 - [Parent-Envoy-Maintainability-Bereinigung](CR-20260730-sonar-envoy-maintainability-remediation.de.md)
   — bewahrt C17-Bridge- und ext_proc-Lifecycle-Verhalten; lokale Source-,
   Native-Build- und Loopback-TLS-Controls bestanden, während die

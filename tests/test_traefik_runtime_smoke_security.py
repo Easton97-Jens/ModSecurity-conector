@@ -15,7 +15,8 @@ SPEC = importlib.util.spec_from_file_location(
     "traefik_runtime_smoke_security",
     ROOT / "connectors/traefik/scripts/runtime_smoke.py",
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 RUNNER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(RUNNER)
 
@@ -107,11 +108,33 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
                 },
                 clear=False,
             ):
-                connector, traefik = RUNNER.resolve_runtime_binaries(
+                resolved_build_root, connector, traefik = RUNNER.resolve_runtime_paths(
                     self.runtime_args(connector_binary, traefik_binary), ROOT
                 )
+                self.assertEqual(resolved_build_root, build_root)
                 self.assertEqual(connector, connector_binary)
                 self.assertEqual(traefik, traefik_binary)
                 outside_arguments = self.runtime_args(outside_binary, traefik_binary)
                 with self.assertRaisesRegex(RUNNER.MissingDependency, "must remain below"):
-                    RUNNER.resolve_runtime_binaries(outside_arguments, ROOT)
+                    RUNNER.resolve_runtime_paths(outside_arguments, ROOT)
+
+    def test_result_root_must_be_a_private_build_root_descendant(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="traefik-runtime-root-") as temporary:
+            temporary_root = Path(temporary)
+            build_root = temporary_root / "build"
+            build_root.mkdir(mode=0o700)
+            output_root = build_root / "traefik-connector" / "runtime-smoke"
+            self.assertEqual(
+                RUNNER.require_private_result_root(output_root, build_root), output_root
+            )
+
+            with self.assertRaisesRegex(RUNNER.MissingDependency, "must remain below"):
+                RUNNER.require_private_result_root(temporary_root / "outside", build_root)
+            with self.assertRaisesRegex(RUNNER.MissingDependency, "must not be the build root"):
+                RUNNER.require_private_result_root(build_root, build_root)
+
+            replaceable = build_root / "replaceable"
+            replaceable.mkdir(mode=0o777)
+            replaceable.chmod(0o777)
+            with self.assertRaisesRegex(RUNNER.MissingDependency, "must not be group or world writable"):
+                RUNNER.require_private_result_root(replaceable / "result", build_root)

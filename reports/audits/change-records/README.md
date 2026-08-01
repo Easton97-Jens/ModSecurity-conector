@@ -6,6 +6,8 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Traefik runtime and lifecycle remediation](CR-20260730-sonar-traefik-runtime-lifecycle.md)
+
 - [Parent Envoy maintainability remediation](CR-20260730-sonar-envoy-maintainability-remediation.md)
   — preserves C17 bridge and ext_proc lifecycle behavior; local source,
   native-build, and loopback-TLS controls passed, while exact-head hosted
