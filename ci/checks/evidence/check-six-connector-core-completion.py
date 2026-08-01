@@ -204,32 +204,39 @@ def barrier_event(event: dict[str, Any], *, require_no_buffer: bool) -> bool:
     return True
 
 
-def check_connector(run_dir: Path, connector: str) -> list[str]:
+def required_artifact_errors(run_dir: Path, connector: str) -> list[str]:
     errors: list[str] = []
     for relative in REQUIRED_ARTIFACTS:
         artifact = run_dir / relative
         if not artifact.is_file() or artifact.is_symlink():
             errors.append(f"{connector}: missing required artifact {relative}")
-    if errors:
-        return errors
-    try:
-        result = load_json(run_dir / "result.json")
-        events = load_jsonl(run_dir / "events.jsonl")
-        rows = load_jsonl(run_dir / "results.jsonl")
-        first_byte = load_json(run_dir / "inventory/first-byte-evidence.json")
-        lifecycle = load_json(run_dir / "lifecycle-counters.json")
-    except (OSError, ValueError) as exc:
-        return [f"{connector}: cannot read canonical core artifacts: {exc}"]
+    return errors
 
-    host_profile, integration_mode, target = IDENTITIES[connector]
-    if result.get("artifact_profile") != "full_lifecycle":
-        errors.append(f"{connector}: artifact profile is not full_lifecycle")
-    if result.get("host_profile") != host_profile:
-        errors.append(f"{connector}: host profile is not {host_profile}")
-    if result.get("integration_mode") != integration_mode:
-        errors.append(f"{connector}: result integration mode is not {integration_mode}")
-    if result.get("executed_targets") != [target]:
-        errors.append(f"{connector}: executed target is not {target}")
+
+def load_core_artifacts(
+    run_dir: Path,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
+    return (
+        load_json(run_dir / "result.json"),
+        load_jsonl(run_dir / "events.jsonl"),
+        load_jsonl(run_dir / "results.jsonl"),
+        load_json(run_dir / "inventory/first-byte-evidence.json"),
+        load_json(run_dir / "lifecycle-counters.json"),
+    )
+
+
+def result_contract_errors(
+    connector: str, result: dict[str, Any], first_byte: dict[str, Any], host_profile: str, integration_mode: str, target: str,
+) -> list[str]:
+    errors: list[str] = []
+    for field, expected, label in (
+        ("artifact_profile", "full_lifecycle", "artifact profile"),
+        ("host_profile", host_profile, "host profile"),
+        ("integration_mode", integration_mode, "result integration mode"),
+        ("executed_targets", [target], "executed target"),
+    ):
+        if result.get(field) != expected:
+            errors.append(f"{connector}: {label} is not {expected}")
     if result.get("exit_code") != 0 or result.get("started") is not True:
         errors.append(f"{connector}: selected host did not complete successfully")
     if not isinstance(result.get("transaction_ids"), list) or not result["transaction_ids"]:
@@ -238,9 +245,10 @@ def check_connector(run_dir: Path, connector: str) -> list[str]:
         errors.append(f"{connector}: first-byte proof is synthetic or not promotion-eligible")
     if first_byte.get("outcome") != "PASS" or first_byte.get("body_payload_persisted") is not False:
         errors.append(f"{connector}: first-byte evidence is not a payload-free PASS")
-    if contains_forbidden(events):
-        errors.append(f"{connector}: events contain body payload or sensitive metadata")
+    return errors
 
+
+def canonical_records(rows: list[dict[str, Any]], connector: str, errors: list[str]) -> dict[str, dict[str, Any]]:
     records: dict[str, dict[str, Any]] = {}
     for row in rows:
         case_id = row.get("case_id")
@@ -249,29 +257,38 @@ def check_connector(run_dir: Path, connector: str) -> list[str]:
         if case_id in records:
             errors.append(f"{connector}: duplicate canonical result for {case_id}")
         records[case_id] = row
-    matched: dict[str, list[dict[str, Any]]] = {}
-    for case_id, (phase, rule_id) in CORE_CASES.items():
-        _record, candidates = require_case(
+    return records
+
+
+def required_case_matches(
+    connector: str, records: dict[str, dict[str, Any]], integration_mode: str, events: list[dict[str, Any]], errors: list[str],
+) -> dict[str, list[dict[str, Any]]]:
+    return {
+        case_id: require_case(
             connector=connector, records=records, case_id=case_id, phase=phase,
             rule_id=rule_id, integration_mode=integration_mode, events=events, errors=errors,
-        )
-        matched[case_id] = candidates
+        )[1]
+        for case_id, (phase, rule_id) in CORE_CASES.items()
+    }
 
-    alternative_passed = False
+
+def alternative_case_errors(
+    connector: str, records: dict[str, dict[str, Any]], integration_mode: str, events: list[dict[str, Any]], errors: list[str],
+) -> None:
     for case_id, (phase, rule_id) in ALTERNATIVE_CASES.items():
         record = records.get(case_id)
         if record is None or record.get("status") != "PASS":
             continue
-        _record, candidates = require_case(
+        if require_case(
             connector=connector, records=records, case_id=case_id, phase=phase,
             rule_id=rule_id, integration_mode=integration_mode, events=events, errors=errors,
-        )
-        if candidates:
-            alternative_passed = True
-            break
-    if not alternative_passed:
-        errors.append(f"{connector}: neither alternative-status nor pre-commit redirect has real host evidence")
+        )[1]:
+            return
+    errors.append(f"{connector}: neither alternative-status nor pre-commit redirect has real host evidence")
 
+
+def client_status_errors(connector: str, records: dict[str, dict[str, Any]]) -> list[str]:
+    errors: list[str] = []
     for case_id, expected_status in (
         ("allow_without_marker", 200),
         ("deny_header_marker_403", 403),
@@ -281,45 +298,43 @@ def check_connector(run_dir: Path, connector: str) -> list[str]:
         record = records.get(case_id)
         if record is not None and record.get("status") == "PASS" and normalized_int(record.get("actual_status")) != expected_status:
             errors.append(f"{connector}: {case_id} client status is not {expected_status}")
+    return errors
 
+
+def phase4_evidence_errors(
+    connector: str, matched: dict[str, list[dict[str, Any]]],
+) -> tuple[list[str], list[dict[str, Any]], list[dict[str, Any]]]:
+    errors: list[str] = []
     safe_candidates = matched.get("phase4_deny_after_commit_log_only_safe", [])
     phase2_candidates = matched.get("deny_request_body_marker_403", [])
     if not any(safe_event(event) for event in safe_candidates):
         errors.append(f"{connector}: P4 Safe lacks requested/actual action and preserved HTTP/200 host evidence")
     if not any(event.get("eos_seen") is True for event in safe_candidates):
         errors.append(f"{connector}: P4 Safe lacks a real EOS evaluation event")
-    if not any(barrier_event(event, require_no_buffer=False)
-               for event in matched.get("phase4_first_byte_before_response_end", [])):
+    if not any(barrier_event(event, require_no_buffer=False) for event in matched.get("phase4_first_byte_before_response_end", [])):
         errors.append(f"{connector}: first byte was not observed before upstream EOS")
-    if not any(barrier_event(event, require_no_buffer=True)
-               for event in matched.get("phase4_no_full_response_buffering", [])):
+    if not any(barrier_event(event, require_no_buffer=True) for event in matched.get("phase4_no_full_response_buffering", [])):
         errors.append(f"{connector}: no-full-response-buffer evidence is missing")
+    return errors, safe_candidates, phase2_candidates
 
-    safe_transactions = {
-        str(event.get("transaction_id")) for event in safe_candidates
-        if str(event.get("transaction_id") or "")
-    }
+
+def lifecycle_eos_errors(
+    connector: str, integration_mode: str, events: list[dict[str, Any]], lifecycle: dict[str, Any],
+    safe_candidates: list[dict[str, Any]], phase2_candidates: list[dict[str, Any]],
+) -> list[str]:
+    errors: list[str] = []
+    safe_transactions = {str(event.get("transaction_id")) for event in safe_candidates if str(event.get("transaction_id") or "")}
     if not safe_transactions:
         errors.append(f"{connector}: P4 Safe has no transaction to audit for EOS")
     for transaction_id in safe_transactions:
-        eos_events = [
-            event for event in events
-            if normalized_int(event.get("phase")) == 4
-            and str(event.get("transaction_id") or "") == transaction_id
-            and event.get("eos_seen") is True
-        ]
+        eos_events = [event for event in events if normalized_int(event.get("phase")) == 4 and str(event.get("transaction_id") or "") == transaction_id and event.get("eos_seen") is True]
         if len(eos_events) != 1:
             errors.append(f"{connector}: P4 Safe transaction {transaction_id} does not have exactly one EOS event")
-    phase2_transactions = {
-        str(event.get("transaction_id")) for event in phase2_candidates
-        if str(event.get("transaction_id") or "")
-    }
+    phase2_transactions = {str(event.get("transaction_id")) for event in phase2_candidates if str(event.get("transaction_id") or "")}
     all_phase2_transactions = {
         str(event.get("transaction_id")) for event in events
-        if event.get("connector") == connector
-        and event.get("integration_mode") == integration_mode
-        and normalized_int(event.get("phase")) == 2
-        and str(event.get("transaction_id") or "")
+        if event.get("connector") == connector and event.get("integration_mode") == integration_mode
+        and normalized_int(event.get("phase")) == 2 and str(event.get("transaction_id") or "")
     }
     if not phase2_transactions:
         errors.append(f"{connector}: P2 has no transaction to audit for EOS")
@@ -327,21 +342,38 @@ def check_connector(run_dir: Path, connector: str) -> list[str]:
         errors.append(f"{connector}: P2 case transaction is absent from the raw Phase-2 event set")
     request_finishes = normalized_int(lifecycle.get("request_body_finishes"))
     if request_finishes is None or request_finishes != len(all_phase2_transactions):
-        errors.append(
-            f"{connector}: request-body EOS count is not exactly once per observed Phase-2 transaction"
-        )
+        errors.append(f"{connector}: request-body EOS count is not exactly once per observed Phase-2 transaction")
     response_finishes = normalized_int(lifecycle.get("response_body_finishes"))
     if response_finishes is None or response_finishes < len(safe_transactions):
         errors.append(f"{connector}: lifecycle inventory lacks the P4 Safe response-body finish")
-    counts = (
-        normalized_int(lifecycle.get("transactions_started")),
-        normalized_int(lifecycle.get("transactions_finished")),
-        normalized_int(lifecycle.get("transactions_destroyed")),
-    )
+    counts = tuple(normalized_int(lifecycle.get(name)) for name in ("transactions_started", "transactions_finished", "transactions_destroyed"))
     if None in counts or counts[0] is None or counts[0] < 1 or not (counts[0] == counts[1] == counts[2]):
         errors.append(f"{connector}: transaction lifecycle cleanup is not balanced")
     if normalized_int(lifecycle.get("unexpected_engine_errors")) != 0:
         errors.append(f"{connector}: lifecycle inventory records unexpected engine errors")
+    return errors
+
+
+def check_connector(run_dir: Path, connector: str) -> list[str]:
+    errors = required_artifact_errors(run_dir, connector)
+    if errors:
+        return errors
+    try:
+        result, events, rows, first_byte, lifecycle = load_core_artifacts(run_dir)
+    except (OSError, ValueError) as exc:
+        return [f"{connector}: cannot read canonical core artifacts: {exc}"]
+
+    host_profile, integration_mode, target = IDENTITIES[connector]
+    errors.extend(result_contract_errors(connector, result, first_byte, host_profile, integration_mode, target))
+    if contains_forbidden(events):
+        errors.append(f"{connector}: events contain body payload or sensitive metadata")
+    records = canonical_records(rows, connector, errors)
+    matched = required_case_matches(connector, records, integration_mode, events, errors)
+    alternative_case_errors(connector, records, integration_mode, events, errors)
+    errors.extend(client_status_errors(connector, records))
+    phase_errors, safe_candidates, phase2_candidates = phase4_evidence_errors(connector, matched)
+    errors.extend(phase_errors)
+    errors.extend(lifecycle_eos_errors(connector, integration_mode, events, lifecycle, safe_candidates, phase2_candidates))
     return errors
 
 

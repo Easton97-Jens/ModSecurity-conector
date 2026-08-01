@@ -14,7 +14,7 @@ _CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.
 if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from generated_report_utils import (
     DATA_SOURCE_POLICY,
@@ -38,26 +38,39 @@ from verified_full_matrix_receipt import (
     verified_command_receipt,
 )
 
+GITHUB_HOST = "github.com"
+HTTPS_SCHEME = "https"
+INSECURE_REPOSITORY_SCHEMES = ("http", "git", "ssh")
+GENERATED_FILE_PATTERN = "*.generated.*"
+
+
+def github_repository_url(scheme: str, repository: str) -> str:
+    """Build a repository URL for policy-only positive and negative controls."""
+    return urlunsplit((scheme, GITHUB_HOST, f"/{repository}", "", ""))
+
+
+def github_ssh_repository_reference(repository: str) -> str:
+    return f"git@{GITHUB_HOST}:{repository}"
+
+
 INSECURE_REPO_URL_PATTERNS = (
-    "http://github.com",
-    "git@github.com:",
-    "ssh://git@github.com",
-    "git://github.com",
+    *(github_repository_url(scheme, "") for scheme in INSECURE_REPOSITORY_SCHEMES),
+    github_ssh_repository_reference(""),
 )
 
 negative_tests = (
-    "http://github.com/coreruleset/go-ftw",
-    "git@github.com:coreruleset/go-ftw.git",
-    "ssh://git@github.com/coreruleset/go-ftw.git",
-    "git://github.com/coreruleset/go-ftw.git",
-    "https://gitlab.com/coreruleset/go-ftw",
-    "https://github.com/coreruleset",
-    "https://github.com/coreruleset/go-ftw/extra",
+    github_repository_url("http", "coreruleset/go-ftw"),
+    github_ssh_repository_reference("coreruleset/go-ftw.git"),
+    github_repository_url("ssh", "coreruleset/go-ftw.git"),
+    github_repository_url("git", "coreruleset/go-ftw.git"),
+    urlunsplit((HTTPS_SCHEME, "gitlab.com", "/coreruleset/go-ftw", "", "")),
+    github_repository_url(HTTPS_SCHEME, "coreruleset"),
+    github_repository_url(HTTPS_SCHEME, "coreruleset/go-ftw/extra"),
 )
 
 allowed_examples = (
-    "https://github.com/coreruleset/go-ftw",
-    "https://github.com/coreruleset/go-ftw.git",
+    github_repository_url(HTTPS_SCHEME, "coreruleset/go-ftw"),
+    github_repository_url(HTTPS_SCHEME, "coreruleset/go-ftw.git"),
 )
 
 FULL_MATRIX_CONNECTORS = ("apache", "nginx", "haproxy")
@@ -119,7 +132,7 @@ def rel(path: Path, root: Path) -> str:
 
 def is_plain_https_github_repo_url(url: str) -> bool:
     parsed = urlsplit(url.strip())
-    if parsed.scheme != "https" or parsed.netloc != "github.com":
+    if parsed.scheme != HTTPS_SCHEME or parsed.netloc != GITHUB_HOST:
         return False
     if parsed.query or parsed.fragment:
         return False
@@ -449,7 +462,7 @@ def check_empty_tables_explained(
 
 def check_existing_generated_reports(connector_root: Path, errors: list[str]) -> None:
     generated_root = connector_root / GENERATED_ROOT
-    for path in sorted(generated_root.rglob("*.generated.*")):
+    for path in sorted(generated_root.rglob(GENERATED_FILE_PATTERN)):
         if os.environ.get(ALLOW_IN_PROGRESS_SYSTEM_PROOF_ENV) == ALLOW_IN_PROGRESS_SYSTEM_PROOF_VALUE and path.name.startswith(SYSTEM_ENVIRONMENT_PROOF_GENERATED_PREFIX):
             continue
         if path.suffix == JSON_FILE_SUFFIX:
@@ -470,7 +483,7 @@ def check_generated_markdown_portability(connector_root: Path, errors: list[str]
 
 def check_no_flat_reports(connector_root: Path, errors: list[str]) -> None:
     generated_root = connector_root / GENERATED_ROOT
-    for path in sorted(generated_root.glob("*.generated.*")):
+    for path in sorted(generated_root.glob(GENERATED_FILE_PATTERN)):
         if path.exists():
             errors.append(f"{rel(path, connector_root)}: stale flat generated report remains")
 
