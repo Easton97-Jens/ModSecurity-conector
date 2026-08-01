@@ -25,7 +25,7 @@ Scanner-Policy zu ändern oder Befunde zu verstecken.
 | `c:S1820` | 1 | Kohäsiven privaten Transaction-State gruppiert. |
 | `c:S107` | 1 | Die breite Body-Limit-Helper-Argumentliste durch typisierten Progress- und Policy-Kontext ersetzt. |
 | `c:S995` | 2 | Read-only-Runtime-/Parser-Pointer als `const` markiert. |
-| `c:S5350` | 8 | Immutable Views für Read-only-Runtime- und Parser-Operationen erhalten. |
+| `c:S5350` | 10 | Immutable Views für Read-only-Runtime- und Parser-Operationen erhalten. |
 | `c:S3776` | 3 | Konfigurationsvalidierung, Event-Konstruktion und Transaction-Start-Phasen in benannte private Helper getrennt. |
 | `c:S1912` | 1 | Nicht-reentrante Kalenderumwandlung durch plattformsichere reentrante Umwandlung ersetzt. |
 | Gesamt | 18 | 16 Zeilen in `msconnector_runtime.c` und 2 Zeilen in `http_authorization_service.c`. |

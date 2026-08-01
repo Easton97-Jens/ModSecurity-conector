@@ -568,7 +568,7 @@ static int read_http_request(
     size_t header_limit = msconnector_runtime_total_header_limit(runtime);
     size_t header_capacity;
     size_t used = 0U;
-    char *header_end;
+    const char *header_end;
     char *first_line_end;
     const char *body_start;
     size_t buffered_body_size;

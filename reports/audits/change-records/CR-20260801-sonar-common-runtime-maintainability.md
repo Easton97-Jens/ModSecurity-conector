@@ -24,7 +24,7 @@ one Parent pull request without changing scanner policy or hiding findings.
 | `c:S1820` | 1 | Grouped cohesive private transaction state. |
 | `c:S107` | 1 | Replaced the wide body-limit helper argument list with typed progress and policy context. |
 | `c:S995` | 2 | Marked read-only runtime/parser pointers as `const`. |
-| `c:S5350` | 8 | Preserved immutable views for read-only runtime and parser operations. |
+| `c:S5350` | 10 | Preserved immutable views for read-only runtime and parser operations. |
 | `c:S3776` | 3 | Separated configuration validation, event construction, and transaction-start phases into named private helpers. |
 | `c:S1912` | 1 | Replaced non-reentrant calendar conversion with platform-safe reentrant conversion. |
 | Total | 18 | 16 rows in `msconnector_runtime.c` and 2 rows in `http_authorization_service.c`. |
