@@ -174,6 +174,19 @@ class FullLifecycleEvidenceTest(unittest.TestCase):
             self.assertIn("[body payload line omitted]", text)
             self.assertIn("normal diagnostic", text)
 
+    def test_log_sanitizer_requires_named_root_across_directories(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="full-lifecycle-log-input-") as input_temp:
+            with tempfile.TemporaryDirectory(prefix="full-lifecycle-log-output-") as output_temp:
+                source = Path(input_temp) / "raw.log"
+                destination = Path(output_temp) / "canonical.log"
+                source.write_text("normal diagnostic\n", encoding="utf-8")
+                with self.assertRaises(SystemExit) as raised:
+                    sanitizer.main([
+                        "--input", str(source), "--output", str(destination), "--label", "unit",
+                    ])
+                self.assertEqual(raised.exception.code, 2)
+                self.assertFalse(destination.exists())
+
     def test_first_byte_promotion_requires_causal_metadata(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-lifecycle-evidence-") as temporary:
             root = Path(temporary)

@@ -93,6 +93,7 @@ issue-state change would require a separate current explicit authorization.
 | `python3 tests/test_resolve_runtime_paths.py` | passed: 8 tests. |
 | `python3 tests/test_engine_lifecycle_artifacts.py` | passed: 5 tests. |
 | `python3 tests/test_full_lifecycle_profiles.py` | passed: 5 tests. |
+| `python3 tests/test_full_lifecycle_evidence.py` | passed: 19 tests, including the restored same-directory sanitizer compatibility path and rejection of cross-directory use without a named runtime root. |
 | `python3 tests/test_collect_no_crs_source_helpers.py` | passed: 3 Framework-independent collector helper tests. |
 | `python3 tests/test_bilingual_docs.py` | passed: 22 documentation-checker unit tests. |
 | `sh -n ci/runtime/lifecycle/run-no-crs-baseline.sh` and `sh -n ci/runtime/lifecycle/run-mrts-native-full.sh` | passed. |

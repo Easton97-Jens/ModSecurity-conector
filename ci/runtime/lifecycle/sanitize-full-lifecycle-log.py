@@ -71,17 +71,37 @@ def sanitize_line(line: str) -> tuple[str, bool]:
     return cleaned, changed
 
 
+def compatible_runtime_root(input_path: Path, output_path: Path) -> Path:
+    """Preserve the single-directory CLI contract without widening path authority.
+
+    Older focused callers provide a private input/output pair in the same
+    directory rather than a separate root option. That directory is still
+    passed through the descriptor-based runtime-root validator. Calls spanning
+    directories must name their reviewed runtime root explicitly.
+    """
+
+    if input_path.parent != output_path.parent:
+        raise ValueError(
+            "--runtime-root is required when input and output use different directories"
+        )
+    return input_path.parent
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--runtime-root", required=True, type=Path)
+    parser.add_argument("--runtime-root", type=Path)
     parser.add_argument("--label", default="host")
     args = parser.parse_args(argv)
 
-    runtime_root = prepare_verified_runtime_artifact_root(args.runtime_root)
-    input_path = runtime_artifact_path(runtime_root, args.input, "input log")
-    output_path = runtime_artifact_path(runtime_root, args.output, "output log")
+    try:
+        selected_root = args.runtime_root or compatible_runtime_root(args.input, args.output)
+        runtime_root = prepare_verified_runtime_artifact_root(selected_root)
+        input_path = runtime_artifact_path(runtime_root, args.input, "input log")
+        output_path = runtime_artifact_path(runtime_root, args.output, "output log")
+    except ValueError as exc:
+        parser.error(str(exc))
     raw = input_path.read_bytes() if input_path.is_file() else b""
     text = raw.decode("utf-8", errors="replace")
     lines: list[str] = []

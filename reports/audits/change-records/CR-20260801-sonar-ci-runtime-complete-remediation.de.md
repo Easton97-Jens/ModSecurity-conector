@@ -98,6 +98,7 @@ Issue-State-Änderung erfordert eine getrennte aktuelle explizite Autorisierung.
 | `python3 tests/test_resolve_runtime_paths.py` | bestanden: 8 Tests. |
 | `python3 tests/test_engine_lifecycle_artifacts.py` | bestanden: 5 Tests. |
 | `python3 tests/test_full_lifecycle_profiles.py` | bestanden: 5 Tests. |
+| `python3 tests/test_full_lifecycle_evidence.py` | bestanden: 19 Tests einschließlich des wiederhergestellten Same-Directory-Kompatibilitätspfads des Sanitizers und der Zurückweisung bereichsübergreifender Verwendung ohne benannte Runtime-Root. |
 | `python3 tests/test_collect_no_crs_source_helpers.py` | bestanden: 3 Framework-unabhängige Collector-Helper-Tests. |
 | `python3 tests/test_bilingual_docs.py` | bestanden: 22 Unit-Tests des Documentation-Checkers. |
 | `sh -n ci/runtime/lifecycle/run-no-crs-baseline.sh` und `sh -n ci/runtime/lifecycle/run-mrts-native-full.sh` | bestanden. |
