@@ -18,6 +18,12 @@ must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Parent CI GitHub URL-validation unused-parameter cleanup for SonarQube Cloud S1172](CR-20260730-sonar-ci-github-url-unused-label.md)
 
+- [Parent HAProxy runtime maintainability remediation](CR-20260730-sonar-haproxy-runtime-maintenance.md)
+  — table-driven SPOP parsing, explicit HTX EOS helpers, deterministic overlay
+  artifact hashing, and CRS-load cleanup passed focused local controls. The
+  Draft PR retains historical baseline work; exact-head hosted/SonarQube Cloud
+  verification remains required before it can be considered mergeable.
+
 - [Parent Common event JSON optional-field decomposition](CR-20260730-sonar-common-event-json-complexity.md)
 
 - [Parent Common HTTP authorization-service const correctness](CR-20260730-sonar-common-http-auth-maintenance.md)
