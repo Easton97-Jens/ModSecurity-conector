@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | `CR-20260801-ci-provisioning-four-sonar-followup` |
 | Date (UTC) | `2026-08-01` |
-| Base revision | `e1a656798efb89e77e0526ffc7698cbd02b104b1` |
+| Base revision | `62f7e13f35edd3f73661f724fd5208dcf1584d18` |
 | Tracking | `FND-SONAR-0030`; `AZ9cRyj3HhV2CayPTPzC`, `AZ9cRyj3HhV2CayPTPzB`, `AZ9cRyj3HhV2CayPTPys`, and `AZ9cRyj3HhV2CayPTPy2` |
 | Boundary | Parent `ci/provisioning` and one direct Parent cache-contract test; Framework, MRTS, Gitlinks, `.github`, SonarQube Cloud settings, dependencies, and `master` are unchanged. |
 
@@ -50,7 +50,7 @@ The source handles cache paths, managed-root deletion, downloaded build inputs, 
 | `PYTHON=/root/git/ModSecurity-conector/.venv/bin/python FRAMEWORK_ROOT=modules/ModSecurity-test-Framework make check-doc-links` | passed |
 | `git diff --check` | passed |
 
-The first broad run stopped six Framework-fixture cases because the new worktree had no initialized submodule. The isolated worktree then initialized only its Parent-pinned `6400ee882afa0527e5c0763fa6efb850ffa403f2` test fixture; the re-run passed and made no Framework source or Gitlink change.
+The first broad run stopped six Framework-fixture cases because the new worktree had no initialized submodule. The isolated worktree then initialized only its current Parent-pinned `3743a4cb8ce32ef09f43ba53efa0957a98c81003` test fixture; the re-run passed and made no Framework source or Gitlink change.
 
 ## Commands executed
 
