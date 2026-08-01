@@ -1185,13 +1185,11 @@ def case_observations(
                 or any(record.get("phase") == expected_phase for record in canonical_records)
             )
         )
-        preserved_status = (
-            "NOT_EXECUTED"
-            if status in {"NOT_EXECUTABLE", "SKIPPED"}
-            else status
-            if status in {"BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"}
-            else None
-        )
+        preserved_status = None
+        if status in {"NOT_EXECUTABLE", "SKIPPED"}:
+            preserved_status = "NOT_EXECUTED"
+        elif status in {"BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"}:
+            preserved_status = status
         observation = {
             "case_id": case_id,
             "actual_status": actual,

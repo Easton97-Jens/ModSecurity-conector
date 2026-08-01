@@ -25,6 +25,28 @@ class MissingDependency(RuntimeError):
 
 
 RUNTIME_ROOT_ENVIRONMENTS = ("BUILD_ROOT", "CONNECTOR_COMPONENT_CACHE")
+RESULT_FILE_NAME = "result.json"
+SERVICE_CONFIG_FILE_NAME = "traefik-forwardauth.conf"
+
+
+class TrustedExecutable:
+    """A regular local executable validated below an owner-controlled root."""
+
+    __slots__ = ("path",)
+
+    def __init__(self, path: Path) -> None:
+        object.__setattr__(self, "path", path)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        del value
+        raise AttributeError(f"{self.__class__.__name__} instances are immutable: {name}")
+
+    def arguments(self, *values: str) -> tuple[str, ...]:
+        """Build a shell-free command and reject malformed dynamic arguments."""
+
+        if any(any(ord(character) < 0x20 or ord(character) == 0x7F for character in value) for value in values):
+            raise MissingDependency("runtime command arguments must not contain control characters")
+        return (str(self.path), *values)
 
 
 class UpstreamHandler(http.server.BaseHTTPRequestHandler):
@@ -122,7 +144,7 @@ def require_runtime_root_from_environment(label: str, repo_root: Path) -> Path:
     return require_trusted_runtime_root(Path(value), label, repo_root)
 
 
-def require_local_executable(path: Path, label: str, root: Path) -> Path:
+def require_local_executable(path: Path, label: str, root: Path) -> TrustedExecutable:
     """Require a trusted regular executable below its validated runtime root."""
 
     if not path.is_absolute():
@@ -146,7 +168,9 @@ def require_local_executable(path: Path, label: str, root: Path) -> Path:
     assert_path_ancestors_are_safe(executable, label, stop_at=root)
     if not os.access(executable, os.X_OK):
         raise MissingDependency(f"{label} is not executable: {executable}")
-    return executable
+    if any(ord(character) < 0x20 or ord(character) == 0x7F for character in str(executable)):
+        raise MissingDependency(f"{label} must not contain control characters: {executable}")
+    return TrustedExecutable(executable)
 
 
 def require_private_result_root(path: Path, build_root: Path) -> Path:
@@ -192,7 +216,9 @@ def require_private_result_root(path: Path, build_root: Path) -> Path:
     return result_root
 
 
-def resolve_runtime_paths(args: argparse.Namespace, repo_root: Path) -> tuple[Path, Path, Path]:
+def resolve_runtime_paths(
+    args: argparse.Namespace, repo_root: Path
+) -> tuple[Path, TrustedExecutable, TrustedExecutable]:
     """Resolve the build root and both local binaries before process startup."""
 
     build_root = require_runtime_root_from_environment(RUNTIME_ROOT_ENVIRONMENTS[0], repo_root)
@@ -248,9 +274,38 @@ def assert_no_symlink_components(path: Path) -> None:
             break
 
 
-def write_json(path: Path, payload: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def write_runtime_result(result_root: Path, payload: dict[str, object]) -> Path:
+    """Write the fixed-name result only below the validated result root."""
+
+    return write_fixed_runtime_text(
+        result_root,
+        RESULT_FILE_NAME,
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+    )
+
+
+def write_fixed_runtime_text(directory: Path, filename: str, contents: str) -> Path:
+    """Write one fixed regular artifact beneath a private, non-symlink directory."""
+
+    if filename not in {RESULT_FILE_NAME, SERVICE_CONFIG_FILE_NAME}:
+        raise MissingDependency(f"unexpected runtime artifact name: {filename}")
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    artifact_flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+    try:
+        directory_descriptor = os.open(directory, directory_flags)
+    except OSError as exc:
+        raise MissingDependency(f"runtime artifact directory is unsafe: {directory}") from exc
+    try:
+        artifact_descriptor = os.open(filename, artifact_flags, 0o600, dir_fd=directory_descriptor)
+    except OSError as exc:
+        raise MissingDependency(f"runtime artifact path is unsafe: {directory / filename}") from exc
+    finally:
+        os.close(directory_descriptor)
+    with os.fdopen(artifact_descriptor, "w", encoding="utf-8") as artifact:
+        if not stat.S_ISREG(os.fstat(artifact.fileno()).st_mode):
+            raise MissingDependency(f"runtime artifact is not a regular file: {directory / filename}")
+        artifact.write(contents)
+    return directory / filename
 
 
 def verify_block_event(path: Path, expected_rule_id: str) -> dict[str, object]:
@@ -280,7 +335,11 @@ def verify_block_event(path: Path, expected_rule_id: str) -> dict[str, object]:
     )
 
 
-def concrete_service_config(template: Path, destination: Path, rules_file: Path, event_path: Path) -> None:
+def write_concrete_service_config(
+    template: Path, config_dir: Path, rules_file: Path, event_path: Path
+) -> Path:
+    """Materialize the fixed service config below the validated runtime root."""
+
     lines: list[str] = []
     for line in template.read_text(encoding="utf-8").splitlines():
         if line.startswith("rules_file="):
@@ -288,7 +347,7 @@ def concrete_service_config(template: Path, destination: Path, rules_file: Path,
         elif line.startswith("event_path="):
             line = f"event_path={event_path}"
         lines.append(line)
-    destination.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return write_fixed_runtime_text(config_dir, SERVICE_CONFIG_FILE_NAME, "\n".join(lines) + "\n")
 
 
 def dynamic_config(upstream_port: int, auth_port: int) -> str:
@@ -413,7 +472,6 @@ def run(args: argparse.Namespace) -> int:
     consume_no_crs_selected_cases(repo_root)
     build_root, connector_binary, traefik_binary = resolve_runtime_paths(args, repo_root)
     result_root = require_private_result_root(args.result_root, build_root)
-    result_path = result_root / "result.json"
     expected_rule_id = os.environ.get("MSCONNECTOR_EXPECTED_RULE_ID", "1000001")
     template = args.config_template.resolve()
     rules_file = Path(
@@ -434,10 +492,9 @@ def run(args: argparse.Namespace) -> int:
     config_dir = result_root / "config"
     log_dir.mkdir(parents=True, exist_ok=True)
     config_dir.mkdir(parents=True, exist_ok=True)
-    service_config = config_dir / "traefik-forwardauth.conf"
     traefik_config = config_dir / "traefik-dynamic.yml"
     event_path = log_dir / "events.jsonl"
-    concrete_service_config(template, service_config, rules_file, event_path)
+    service_config = write_concrete_service_config(template, config_dir, rules_file, event_path)
 
     upstream_port = free_port()
     auth_port = free_port()
@@ -460,9 +517,10 @@ def run(args: argparse.Namespace) -> int:
     traefik_access_path = log_dir / "traefik-access.log"
     try:
         check = subprocess.run(
-            [str(connector_binary), "--check-config", "--config", str(service_config)],
+            connector_binary.arguments("--check-config", "--config", str(service_config)),
             cwd=repo_root,
             check=False,
+            shell=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -474,22 +532,21 @@ def run(args: argparse.Namespace) -> int:
 
         with service_stdout_path.open("wb") as service_stdout, service_stderr_path.open("wb") as service_stderr:
             service_process = subprocess.Popen(
-                [
-                    str(connector_binary),
+                connector_binary.arguments(
                     "--serve",
                     "--config",
                     str(service_config),
                     "--listen",
                     f"127.0.0.1:{auth_port}",
-                ],
+                ),
                 cwd=repo_root,
+                shell=False,
                 stdout=service_stdout,
                 stderr=service_stderr,
             )
             wait_for_tcp(auth_port, service_process, "Traefik forwardAuth service")
 
-            command = [
-                str(traefik_binary),
+            command = traefik_binary.arguments(
                 f"--entryPoints.web.address=127.0.0.1:{traefik_port}",
                 f"--providers.file.filename={traefik_config}",
                 "--providers.file.watch=false",
@@ -498,12 +555,13 @@ def run(args: argparse.Namespace) -> int:
                 "--global.sendAnonymousUsage=false",
                 "--accesslog=true",
                 f"--accesslog.filepath={traefik_access_path}",
-            ]
+            )
             (config_dir / "traefik-command.txt").write_text(" ".join(command) + "\n", encoding="utf-8")
             with traefik_stdout_path.open("wb") as traefik_stdout, traefik_stderr_path.open("wb") as traefik_stderr:
                 traefik_process = subprocess.Popen(
                     command,
                     cwd=repo_root,
+                    shell=False,
                     stdout=traefik_stdout,
                     stderr=traefik_stderr,
                 )
@@ -530,14 +588,14 @@ def run(args: argparse.Namespace) -> int:
             raise RuntimeError(f"Traefik exited with code {traefik_process.returncode}")
         blocked_event = verify_block_event(event_path, expected_rule_id)
 
-        write_json(
-            result_path,
+        result_path = write_runtime_result(
+            result_root,
             {
                 "allowed_request_status": allowed_status,
                 "blocked_request_status": blocked_status,
                 "common_runtime_path_verified": True,
                 "connector": "traefik",
-                "connector_binary": str(connector_binary),
+                "connector_binary": str(connector_binary.path),
                 "crs_complete": False,
                 "event_path": str(event_path),
                 "full_matrix_ready": False,
@@ -552,14 +610,14 @@ def run(args: argparse.Namespace) -> int:
                 "response_processing_supported": False,
                 "runtime_verified": True,
                 "status": "PASS",
-                "traefik_binary": str(traefik_binary),
+                "traefik_binary": str(traefik_binary.path),
             },
         )
         print(f"PASS: Traefik forwardAuth runtime smoke (200/403), result={result_path}")
         return 0
     except Exception as exc:
-        write_json(
-            result_path,
+        result_path = write_runtime_result(
+            result_root,
             {
                 "allowed_request_status": allowed_status,
                 "blocked_request_status": blocked_status,

@@ -6,6 +6,12 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Traefik complete SonarQube Cloud remediation](CR-20260801-sonar-traefik-complete-remediation.md)
+  — validates local executable and artefact boundaries, preserves native UDS
+  lifecycle cleanup, and decomposes the current Traefik runner without scanner
+  suppressions; the previous exact head passed hosted verification, while the
+  current post-base-refresh head requires its own verification before merging.
+
 - [Parent HAProxy complete SonarQube Cloud remediation](CR-20260801-sonar-haproxy-complete-remediation.md)
   — covers the current 33-item HAProxy inventory with C17, focused contracts,
   and a sealed security-diff review; exact-head hosted/SonarQube Cloud
@@ -17,6 +23,11 @@ must not claim unobserved CI, runtime, review, or delivery results.
   hosted verification remains required before any merge decision.
 
 - [Parent Traefik runtime and lifecycle remediation](CR-20260730-sonar-traefik-runtime-lifecycle.md)
+
+- [Parent CI runtime SonarQube Cloud remediation and verified-root hardening](CR-20260730-sonar-ci-runtime-security-root-remediation.md)
+  — records the replacement diff’s verified focused local controls and bounded
+  security impact; fresh exact-head hosted GitHub Actions and SonarQube Cloud
+  verification remains required before integration.
 
 - [Parent Envoy maintainability remediation](CR-20260730-sonar-envoy-maintainability-remediation.md)
   — preserves C17 bridge and ext_proc lifecycle behavior; local source,
