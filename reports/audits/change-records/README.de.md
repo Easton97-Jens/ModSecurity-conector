@@ -19,6 +19,12 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-Traefik-Runtime- und Lifecycle-Remediation](CR-20260730-sonar-traefik-runtime-lifecycle.de.md)
 
+- [Parent-CI-Runtime-SonarQube-Cloud-Remediation und Verified-Root-Hardening](CR-20260730-sonar-ci-runtime-security-root-remediation.de.md)
+  — dokumentiert die verifizierten fokussierten lokalen Controls und die
+  begrenzte Sicherheitsauswirkung des Ersatz-Diffs; vor der Integration bleiben
+  frische Exact-Head-Hosted-GitHub-Actions- und SonarQube-Cloud-Verifikation
+  erforderlich.
+
 - [Parent-Envoy-Maintainability-Bereinigung](CR-20260730-sonar-envoy-maintainability-remediation.de.md)
   — bewahrt C17-Bridge- und ext_proc-Lifecycle-Verhalten; lokale Source-,
   Native-Build- und Loopback-TLS-Controls bestanden, während die

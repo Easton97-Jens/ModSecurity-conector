@@ -28,7 +28,8 @@ import runtime_path_utils as RUNTIME_PATH_UTILS
 
 def load_script(name: str, relative_path: str):
     spec = importlib.util.spec_from_file_location(name, ROOT / relative_path)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)
@@ -81,13 +82,115 @@ ORGANIZATION_INVENTORY = load_script(
     "organization_inventory_temporary_output_security",
     "scripts/generate_repository_organization_inventory.py",
 )
+NATIVE_CASE_RUNNER = load_script(
+    "native_case_runner_runtime_path_security",
+    "ci/runtime/lifecycle/run-native-case-comparison.py",
+)
 NGINX_HTTP500_ANALYSIS = load_script(
     "nginx_http500_runtime_path_security",
     "ci/evidence/reports/generate-nginx-mrts-http500-cluster-analysis.py",
 )
+VERIFIED_CASE_RUNNER = load_script(
+    "verified_case_runner_runtime_path_security",
+    "ci/runtime/lifecycle/run-verified-case.py",
+)
 
 
 class RuntimePathSecurityTest(unittest.TestCase):
+    def test_case_runners_reject_symlinked_verified_roots_before_runtime_actions(self) -> None:
+        framework_root = ROOT / "modules" / "ModSecurity-test-Framework"
+        with tempfile.TemporaryDirectory(prefix="runtime-case-runner-symlink-") as temporary:
+            parent = Path(temporary)
+            for variant in ("final", "parent"):
+                for name, runner in (
+                    ("native", NATIVE_CASE_RUNNER),
+                    ("verified", VERIFIED_CASE_RUNNER),
+                ):
+                    with self.subTest(variant=variant, runner=name):
+                        victim = parent / f"{variant}-{name}-victim"
+                        victim.mkdir()
+                        runner_parent = parent / f"{variant}-{name}-root"
+                        if variant == "final":
+                            runner_root = runner_parent
+                            runner_root.symlink_to(victim, target_is_directory=True)
+                        else:
+                            runner_parent.symlink_to(victim, target_is_directory=True)
+                            runner_root = runner_parent / "verified-root"
+                        output_dir = parent / f"{variant}-{name}-output"
+                        if name == "native":
+                            arguments = [
+                                "run-native-case-comparison.py",
+                                "--case",
+                                "allow_without_marker",
+                                "--connector-root",
+                                str(ROOT),
+                                "--framework-root",
+                                str(framework_root),
+                                "--verified-run-root",
+                                str(runner_root),
+                                "--output-dir",
+                                str(output_dir),
+                                "--report-only",
+                            ]
+                        else:
+                            arguments = [
+                                "run-verified-case.py",
+                                "--connector",
+                                "apache",
+                                "--case",
+                                "allow_without_marker",
+                                "--crs",
+                                "no-crs",
+                                "--mrts",
+                                "no-mrts",
+                                "--connector-root",
+                                str(ROOT),
+                                "--framework-root",
+                                str(framework_root),
+                                "--build-root",
+                                str(parent / f"{variant}-{name}-build"),
+                                "--verified-run-root",
+                                str(runner_root),
+                            ]
+
+                        with mock.patch.object(sys, "argv", arguments):
+                            with contextlib.redirect_stderr(io.StringIO()):
+                                self.assertEqual(runner.main(), 77)
+
+                        self.assertEqual(list(victim.iterdir()), [])
+                        self.assertFalse(output_dir.exists())
+
+    def test_verified_case_explain_does_not_materialize_a_runtime_root(self) -> None:
+        framework_root = ROOT / "modules" / "ModSecurity-test-Framework"
+        with tempfile.TemporaryDirectory(prefix="runtime-case-explain-") as temporary:
+            runtime_root = Path(temporary) / "uncreated-root"
+            arguments = [
+                "run-verified-case.py",
+                "--connector",
+                "apache",
+                "--case",
+                "allow_without_marker",
+                "--crs",
+                "no-crs",
+                "--mrts",
+                "no-mrts",
+                "--connector-root",
+                str(ROOT),
+                "--framework-root",
+                str(framework_root),
+                "--build-root",
+                str(Path(temporary) / "build"),
+                "--verified-run-root",
+                str(runtime_root),
+                "--explain",
+            ]
+
+            with mock.patch.object(sys, "argv", arguments):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(VERIFIED_CASE_RUNNER.main(), 0)
+
+            self.assertFalse(runtime_root.exists())
+
     def test_precreated_verified_runtime_root_symlink_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-path-symlink-") as temporary:
             parent = Path(temporary)

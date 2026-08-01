@@ -13,7 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
     "collect_no_crs_source", ROOT / "ci/runtime/lifecycle/collect-no-crs-source.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 collector = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(collector)
 
@@ -21,14 +22,16 @@ FRAMEWORK_SPEC = importlib.util.spec_from_file_location(
     "framework_no_crs_baseline",
     ROOT / "modules/ModSecurity-test-Framework/ci/checks/catalog/no_crs_baseline.py",
 )
-assert FRAMEWORK_SPEC is not None and FRAMEWORK_SPEC.loader is not None
+assert FRAMEWORK_SPEC is not None
+assert FRAMEWORK_SPEC.loader is not None
 framework_baseline = importlib.util.module_from_spec(FRAMEWORK_SPEC)
 FRAMEWORK_SPEC.loader.exec_module(framework_baseline)
 
 TRAEFIK_SPEC = importlib.util.spec_from_file_location(
     "traefik_runtime_smoke", ROOT / "connectors/traefik/scripts/runtime_smoke.py"
 )
-assert TRAEFIK_SPEC is not None and TRAEFIK_SPEC.loader is not None
+assert TRAEFIK_SPEC is not None
+assert TRAEFIK_SPEC.loader is not None
 traefik_smoke = importlib.util.module_from_spec(TRAEFIK_SPEC)
 TRAEFIK_SPEC.loader.exec_module(traefik_smoke)
 
@@ -74,6 +77,40 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             )
             self.assertEqual(cases[0]["status"], "NOT_EXECUTED")
             self.assertTrue(collector.only_nonexecuted_cases(cases))
+
+    def test_explicit_terminal_statuses_keep_their_existing_precedence(self) -> None:
+        expected_statuses = {
+            "NOT_EXECUTABLE": "NOT_EXECUTED",
+            "SKIPPED": "NOT_EXECUTED",
+            "BLOCKED": "BLOCKED",
+            "UNSUPPORTED": "UNSUPPORTED",
+            "NOT_APPLICABLE": "NOT_APPLICABLE",
+            "NOT_EXECUTED": "NOT_EXECUTED",
+            "PASS": "PASS",
+        }
+        with tempfile.TemporaryDirectory(prefix="no-crs-terminal-status-") as temporary:
+            source = Path(temporary) / "cases.jsonl"
+            for source_status, expected_status in expected_statuses.items():
+                with self.subTest(source_status=source_status):
+                    source.write_text(
+                        json.dumps(
+                            {
+                                "case_id": "allow_without_marker",
+                                "status": source_status,
+                                "actual_status": 200,
+                                "live_executed": source_status == "PASS",
+                            }
+                        )
+                        + "\n",
+                        encoding="utf-8",
+                    )
+                    cases, _ = collector.case_observations(
+                        [source],
+                        "nginx",
+                        "1100001",
+                        {"allow_without_marker": (200, None)},
+                    )
+                    self.assertEqual(cases[0]["status"], expected_status)
 
     def test_native_rule_engine_summary_keeps_explicit_case_evidence(self) -> None:
         summary = {
