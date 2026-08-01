@@ -107,10 +107,13 @@ Sie beanspruchen keine vollständige Connector-Runtime-Matrix.
 - Es wurde keine lokale SonarQube-Cloud-Analyse ausgeführt, weil diese
   Task-Umgebung keinen konfigurierten Scanner-Credential besitzt. Der exakte
   gehostete PR-Head muss das autoritative SonarQube-Cloud-Ergebnis liefern.
-- Keine Connector-Matrix, kein Download, keine Package-Installation, keine
-  Framework-/MRTS-Aktion, keine Gitlink-Änderung, keine `.github/`-Aktion und
-  keine `master`-Integration wurden ausgeführt, weil der angeforderte Scope
-  ausschließlich die Parent-`ci/lib`-Behebung umfasst.
+- Während der ursprünglichen Behebungsphase wurden keine Connector-Matrix,
+  kein Download, keine Package-Installation, keine Framework-/MRTS-Aktion,
+  keine Gitlink-Änderung, keine `.github/`-Aktion und keine
+  `master`-Integration ausgeführt, weil ihr Scope ausschließlich die
+  Parent-`ci/lib`-Behebung umfasste. Eine spätere, getrennte Autorisierung des
+  aktuellen Nutzers für den bereits erstellten Parent-PR ist nachfolgend
+  dokumentiert; sie erweitert nicht den Product-Scope.
 
 ## Bekannte Einschränkungen
 
@@ -128,7 +131,25 @@ gehostete SonarQube-Cloud-Analyse bleibt die finale Static-Analysis-Evidence.
 
 ## Finaler Diff- und Review-Status
 
-Die Aufgabe ist noch nicht ausgeliefert. Ein task-owned Branch wird erst nach
-bestandenen finalen Full-Diff-, Dokumentations- und Security-Contract-Checks
-committet und als Draft-PR veröffentlicht. Ein Merge nach `master` ist weder
-autorisiert noch beansprucht.
+Die ursprüngliche Behebung ist als task-owned Draft-PR #217 veröffentlicht.
+Die Source-Change-Validierung und der versiegelte Security-Review binden an
+den vorherigen exakten PR-Head; der aktuelle Delivery-Head muss nach der
+dokumentierten Basis-Synchronisierung und diesem Record-Update erneut
+verifiziert werden.
+
+### Aktuelle Master-Integrationsautorisierung
+
+Am 2026-08-01 hat der aktuelle Nutzer ausschließlich Parent-PR #217 für die
+Integration nach `master` ausdrücklich autorisiert (`bringe das pr 217 in den
+master`). Die Autorisierung schließt direkte Pushes, Force-Operationen,
+administrative Bypässe, andere PRs, Framework-/MRTS-Aktionen,
+Gitlink-Änderungen und Releases aus.
+
+Das aktive `master`-Ruleset erlaubt einen normalen Merge-Commit und verlangt
+keine bestätigende Review, aber aufgelöste Review-Threads und die benannten
+Status-Checks für den exakten Head. Die autorisierte Auslieferung verwendet
+nur diese normale Merge-Methode, nachdem die erneuerten Exact-Head-Checks,
+das SonarQube-Cloud-Ergebnis, Review-/Conversation-Status und Mergeability
+sämtlich bestanden beobachtet wurden. Die spätere Merge-Evidence wird im
+Task-Lifecycle-Record festgehalten; dieser Pre-Merge-Change-Record behauptet
+kein Ergebnis, bevor GitHub eines erzeugt hat.

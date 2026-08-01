@@ -100,9 +100,12 @@ claim that a complete connector runtime matrix was executed.
 - No local SonarQube Cloud analysis was run because this task environment has
   no configured scanner credential. The exact hosted PR head must provide the
   authoritative SonarQube Cloud result.
-- No connector matrix, download, package installation, Framework/MRTS action,
-  Gitlink change, `.github/` action, or `master` integration was run because
-  the requested scope is the Parent `ci/lib` remediation only.
+- During the original remediation phase, no connector matrix, download,
+  package installation, Framework/MRTS action, Gitlink change, `.github/`
+  action, or `master` integration was run because its scope was the Parent
+  `ci/lib` remediation only. A later, separate current-user authorization for
+  the already-created Parent PR is recorded below; it does not expand product
+  scope.
 
 ## Known limitations
 
@@ -119,7 +122,23 @@ static-analysis evidence.
 
 ## Final diff and review status
 
-The task is not yet delivered. A task-owned branch will be committed and
-published as a draft PR only after the final full-diff, documentation, and
-security-contract checks pass. No merge into `master` is authorized or
-claimed.
+The original remediation is published as task-owned Draft PR #217. The
+source-change validation and the sealed security review bind to the preceding
+exact PR head; the current delivery head must be verified again after the
+documented base synchronization and this record update.
+
+### Current master-integration authorization
+
+On 2026-08-01 the current user explicitly authorized only Parent PR #217 for
+integration into `master` (`bringe das pr 217 in den master`). The
+authorization excludes direct pushes, force operations, administrative
+bypasses, other PRs, Framework/MRTS actions, Gitlink changes, and releases.
+
+The active `master` ruleset permits a normal merge commit and requires no
+approving review, but requires all review threads resolved and the named
+status checks for the exact head. The authorized delivery will use that normal
+merge method only after the refreshed exact-head checks, SonarQube Cloud
+result, review/conversation state, and mergeability are all observed to pass.
+The eventual merge evidence is recorded in the task lifecycle record; this
+pre-merge Change Record does not claim a result before GitHub has produced
+one.
