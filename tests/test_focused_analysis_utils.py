@@ -29,7 +29,8 @@ import report_path_safety
 def load_report_module(relative_path: str, module_name: str):
     path = ROOT / relative_path
     spec = importlib.util.spec_from_file_location(module_name, path)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
