@@ -18,6 +18,19 @@ GENERATED_TEST_MATRIX_REPORTS = (
     Path("reports/testing/generated/runtime/runtime-matrix.generated.md"),
     Path("reports/testing/test-coverage-overview.md"),
 )
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+
+
+def trusted_report_path(relative: Path) -> Path | None:
+    """Return a regular report below this checkout, rejecting symlink escapes."""
+    candidate = REPOSITORY_ROOT / relative
+    if candidate.is_symlink() or not candidate.is_file():
+        return None
+    try:
+        candidate.resolve(strict=True).relative_to(REPOSITORY_ROOT.resolve(strict=True))
+    except (OSError, ValueError):
+        return None
+    return candidate
 
 
 def german_counterpart(path: Path) -> Path:
@@ -29,6 +42,12 @@ def english_counterpart(path: Path) -> Path:
 
 
 def ensure_switch(path: Path, switch: str, prefix: str) -> bool:
+    if path.is_symlink():
+        raise ValueError(f"refusing to rewrite symbolic-link report: {path}")
+    try:
+        path.resolve(strict=True).relative_to(REPOSITORY_ROOT.resolve(strict=True))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"refusing to rewrite report outside this checkout: {path}") from exc
     text = path.read_text(encoding="utf-8", errors="replace")
     lines = [line for line in text.splitlines() if not line.startswith(prefix)]
     try:
@@ -54,14 +73,16 @@ def ensure_switch(path: Path, switch: str, prefix: str) -> bool:
 
 def main() -> int:
     changed = 0
-    for english_path in GENERATED_TEST_MATRIX_REPORTS:
-        if not english_path.is_file():
+    for english_relative in GENERATED_TEST_MATRIX_REPORTS:
+        english_path = trusted_report_path(english_relative)
+        if english_path is None:
             continue
-        german_path = german_counterpart(english_path)
-        english_switch = f"**Language:** English | [Deutsch]({german_path.name})"
+        german_relative = german_counterpart(english_relative)
+        german_path = trusted_report_path(german_relative)
+        english_switch = f"**Language:** English | [Deutsch]({german_relative.name})"
         if ensure_switch(english_path, english_switch, "**Language:**"):
             changed += 1
-        if german_path.is_file():
+        if german_path is not None:
             source_path = english_counterpart(german_path)
             german_switch = f"**Sprache:** [English]({source_path.name}) | Deutsch"
             if ensure_switch(german_path, german_switch, "**Sprache:**"):

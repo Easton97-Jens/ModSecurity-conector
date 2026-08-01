@@ -33,8 +33,7 @@ def require(errors: list[str], condition: bool, message: str) -> None:
         errors.append(message)
 
 
-def connector_checks(connector: str, errors: list[str]) -> None:
-    base = ROOT / "connectors" / connector
+def mapper_checks(connector: str, base: Path, errors: list[str]) -> None:
     mapper_header = base / "src" / f"{connector}_modsecurity_mapper.h"
     mapper_source = base / "src" / f"{connector}_modsecurity_mapper.c"
     header_text = read(mapper_header)
@@ -57,6 +56,9 @@ def connector_checks(connector: str, errors: list[str]) -> None:
         f"{connector}: config is not initialized through Common",
     )
 
+
+def configuration_checks(connector: str, base: Path, errors: list[str]) -> None:
+
     config_dir = base / "config"
     configs = list(config_dir.glob("*.conf")) if config_dir.is_dir() else []
     require(errors, bool(configs), f"{connector}: connector runtime config missing")
@@ -76,6 +78,9 @@ def connector_checks(connector: str, errors: list[str]) -> None:
     ):
         require(errors, key in config_text, f"{connector}: config does not map {key[:-1]}")
 
+
+def evidence_metadata_checks(connector: str, base: Path, errors: list[str]) -> None:
+
     metadata = read(base / "metadata.c")
     require(
         errors,
@@ -93,6 +98,9 @@ def connector_checks(connector: str, errors: list[str]) -> None:
         any(status in source_map for status in ALLOWED_EVIDENCE_STATUS),
         f"{connector}: SOURCE_MAP has no allowed evidence status",
     )
+
+
+def generic_source_contract_checks(connector: str, base: Path, errors: list[str]) -> None:
 
     tree_text = "\n".join(
         read(path)
@@ -117,6 +125,9 @@ def connector_checks(connector: str, errors: list[str]) -> None:
         "free((void *)" not in tree_text,
         f"{connector}: const-dropping ownership cleanup found",
     )
+
+
+def connector_specific_checks(connector: str, base: Path, errors: list[str]) -> None:
 
     if connector == "envoy":
         host = read(base / "src" / "envoy_ext_authz_service_main.c")
@@ -191,6 +202,15 @@ def connector_checks(connector: str, errors: list[str]) -> None:
             "MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION" not in module,
             "lighttpd: strict P4 must remain non-promoted without a client-visible abort",
         )
+
+
+def connector_checks(connector: str, errors: list[str]) -> None:
+    base = ROOT / "connectors" / connector
+    mapper_checks(connector, base, errors)
+    configuration_checks(connector, base, errors)
+    evidence_metadata_checks(connector, base, errors)
+    generic_source_contract_checks(connector, base, errors)
+    connector_specific_checks(connector, base, errors)
 
 
 def shared_runtime_checks(errors: list[str]) -> None:

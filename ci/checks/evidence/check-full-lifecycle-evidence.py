@@ -232,6 +232,74 @@ def canonical_transport_value(value: object) -> str:
     return str(value or "").strip().lower().replace("-", "_")
 
 
+def lifecycle_counter_errors(counters: dict[str, Any], connector: str) -> list[str]:
+    errors: list[str] = []
+    if counters.get("connector") != connector:
+        errors.append("lifecycle counters connector does not match run")
+    for name in LIFECYCLE_COUNTERS:
+        if not nonnegative_integer(counters.get(name)):
+            errors.append(f"lifecycle counter {name} must be a nonnegative integer")
+    bound = counters.get("transport_counters_bound")
+    if bound is not None and not isinstance(bound, bool):
+        errors.append("transport_counters_bound must be Boolean when present")
+    return errors
+
+
+def lifecycle_balance_errors(counters: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    started = counters["transactions_started"]
+    finished = counters["transactions_finished"]
+    destroyed = counters["transactions_destroyed"]
+    if not (started >= finished >= destroyed):
+        errors.append("lifecycle counters violate started >= finished >= destroyed")
+    if started != finished or finished != destroyed:
+        errors.append("completed selected host run leaves transaction lifecycle counts unbalanced")
+    return errors
+
+
+def record_counter(records: list[dict[str, Any]], name: str) -> int:
+    return sum(
+        value
+        for record in records
+        if isinstance((value := record.get(name, 0)), int)
+        and not isinstance(value, bool)
+        and value >= 0
+    )
+
+
+def expected_bound_lifecycle_counters(records: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        "client_disconnects": record_counter(records, "client_disconnect"),
+        "upstream_disconnects": record_counter(records, "upstream_disconnect"),
+        "stream_resets": record_counter(records, "stream_reset"),
+        "timeouts": record_counter(records, "timeout"),
+        "short_writes": record_counter(records, "short_writes"),
+        "write_would_block": record_counter(records, "write_would_block"),
+        "cleanup_normal": sum(record.get("cleanup_reason") == "normal" for record in records),
+        "cleanup_cancel": sum(record.get("cleanup_reason") in {"cancelled", "client_disconnected", "upstream_disconnected"} for record in records),
+        "cleanup_abort": sum(record.get("cleanup_reason") in {"strict_abort", "stream_reset"} for record in records),
+    }
+
+
+def bound_lifecycle_errors(
+    counters: dict[str, Any], records: list[dict[str, Any]], events: list[dict[str, Any]],
+) -> list[str]:
+    errors: list[str] = []
+    for name, expected_value in expected_bound_lifecycle_counters(records).items():
+        if counters[name] != expected_value:
+            errors.append(f"lifecycle counter {name} does not match bound connection lifecycle")
+    if counters["intentional_aborts"] < record_counter(records, "intentional_abort"):
+        errors.append("intentional_aborts is below bound strict lifecycle accounting")
+    observed_aborts = event_transaction_ids(
+        events,
+        lambda event: event.get("intentional_abort") is True
+        or canonical_transport_value(event.get("actual_action")) in {"abort_connection", "stream_reset"},
+    )
+    if counters["intentional_aborts"] > len(observed_aborts):
+        errors.append("intentional_aborts has no matching strict action event")
+    return errors
+
+
 def lifecycle_errors(
     run_dir: Path, connector: str, result: dict[str, Any] | None = None,
 ) -> list[str]:
@@ -251,29 +319,14 @@ def lifecycle_errors(
         events = load_jsonl(run_dir / EVENTS_FILENAME)
     except (OSError, ValueError) as exc:
         return [f"cannot read lifecycle inventory: {exc}"]
-    errors: list[str] = []
-    if counters.get("connector") != connector:
-        errors.append("lifecycle counters connector does not match run")
-    for name in LIFECYCLE_COUNTERS:
-        if not nonnegative_integer(counters.get(name)):
-            errors.append(f"lifecycle counter {name} must be a nonnegative integer")
+    errors = lifecycle_counter_errors(counters, connector)
     if errors:
         return errors
-    started = counters["transactions_started"]
-    finished = counters["transactions_finished"]
-    destroyed = counters["transactions_destroyed"]
-    if not (started >= finished >= destroyed):
-        errors.append("lifecycle counters violate started >= finished >= destroyed")
-    if started != finished or finished != destroyed:
-        errors.append("completed selected host run leaves transaction lifecycle counts unbalanced")
-
+    errors.extend(lifecycle_balance_errors(counters))
     bound = counters.get("transport_counters_bound")
     # JSON numbers compare equal to booleans in Python (`1 == True`).  The
     # sidecar contract deliberately requires a JSON Boolean, so use an
     # identity/type check rather than membership equality here.
-    if bound is not None and not isinstance(bound, bool):
-        errors.append("transport_counters_bound must be Boolean when present")
-        return errors
     if bound is not True:
         # Generic host events may expose a local cancellation or write error
         # without the full case/transaction/lifecycle correlation needed for a
@@ -288,46 +341,7 @@ def lifecycle_errors(
     if not isinstance(records, list) or any(not isinstance(record, dict) for record in records):
         return [*errors, "bound connection lifecycle records must be an object list"]
 
-    def counter(name: str) -> int:
-        return sum(
-            value
-            for record in records
-            if isinstance((value := record.get(name, 0)), int)
-            and not isinstance(value, bool)
-            and value >= 0
-        )
-
-    expected = {
-        "client_disconnects": counter("client_disconnect"),
-        "upstream_disconnects": counter("upstream_disconnect"),
-        "stream_resets": counter("stream_reset"),
-        "timeouts": counter("timeout"),
-        "short_writes": counter("short_writes"),
-        "write_would_block": counter("write_would_block"),
-        "cleanup_normal": sum(record.get("cleanup_reason") == "normal" for record in records),
-        "cleanup_cancel": sum(
-            record.get("cleanup_reason") in {"cancelled", "client_disconnected", "upstream_disconnected"}
-            for record in records
-        ),
-        "cleanup_abort": sum(
-            record.get("cleanup_reason") in {"strict_abort", "stream_reset"}
-            for record in records
-        ),
-    }
-    for name, expected_value in expected.items():
-        if counters[name] != expected_value:
-            errors.append(f"lifecycle counter {name} does not match bound connection lifecycle")
-    if counters["intentional_aborts"] < counter("intentional_abort"):
-        errors.append("intentional_aborts is below bound strict lifecycle accounting")
-    observed_aborts = event_transaction_ids(
-        events,
-        lambda event: event.get("intentional_abort") is True
-        or canonical_transport_value(event.get("actual_action"))
-        in {"abort_connection", "stream_reset"},
-    )
-    if counters["intentional_aborts"] > len(observed_aborts):
-        errors.append("intentional_aborts has no matching strict action event")
-    return errors
+    return [*errors, *bound_lifecycle_errors(counters, records, events)]
 
 
 def contains_forbidden_key(value: object) -> bool:
@@ -339,21 +353,27 @@ def contains_forbidden_key(value: object) -> bool:
     return False
 
 
-def transport_artifact_errors(run_dir: Path, connector: str) -> list[str]:
+def missing_transport_artifact_errors(run_dir: Path) -> list[str]:
     errors: list[str] = []
     for name, relative in TRANSPORT_LIFECYCLE_ARTIFACTS.items():
         path = run_dir / relative
         if not path.is_file() or path.is_symlink():
             errors.append(f"missing payload-free transport artifact {name}")
-    if errors:
-        return errors
-    try:
-        observations = load_json(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["transport_observations"])
-        connections = load_json(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["connection_lifecycle"])
-        effective_config = load_json(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["effective_config"])
-        barriers = load_jsonl(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["barrier_events"])
-    except (OSError, ValueError) as exc:
-        return [f"cannot read transport artifacts: {exc}"]
+    return errors
+
+
+def load_transport_artifacts(run_dir: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
+    observations = load_json(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["transport_observations"])
+    connections = load_json(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["connection_lifecycle"])
+    effective_config = load_json(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["effective_config"])
+    barriers = load_jsonl(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["barrier_events"])
+    return observations, connections, effective_config, barriers
+
+
+def transport_document_errors(
+    connector: str, observations: dict[str, Any], connections: dict[str, Any], barriers: list[dict[str, Any]],
+) -> list[str]:
+    errors: list[str] = []
     for label, document in (("transport observations", observations), ("connection lifecycle", connections)):
         if document.get("connector") != connector:
             errors.append(f"{label} connector does not match run")
@@ -363,23 +383,31 @@ def transport_artifact_errors(run_dir: Path, connector: str) -> list[str]:
             errors.append(f"{label} contains forbidden payload metadata")
     if contains_forbidden_key(barriers):
         errors.append("barrier events contain forbidden payload metadata")
-    observation_records = observations.get("observations")
-    if not isinstance(observation_records, list):
-        errors.append("transport observations observations must be a list")
-    else:
-        required = {
-            "protocol", "case_id", "transport_case_id", "transaction_id", "rule_id",
-            "phase", "event", "message_id", "requested_action", "actual_action",
-            "response_committed", "first_byte_received", "eos_received",
-            "client_result", "transport_result", "host_survived", "followup_request_result",
-        }
-        for record in observation_records:
-            if not isinstance(record, dict) or not required.issubset(record):
-                errors.append("transport observation is missing required causal fields")
-                break
-            if record.get("host_survived") is True and record.get("followup_request_result") != "completed":
-                errors.append("host_survived=true requires an independent follow-up observation")
-                break
+    return errors
+
+
+def transport_observation_errors(observations: dict[str, Any]) -> list[str]:
+    records = observations.get("observations")
+    if not isinstance(records, list):
+        return ["transport observations observations must be a list"]
+    required = {
+        "protocol", "case_id", "transport_case_id", "transaction_id", "rule_id",
+        "phase", "event", "message_id", "requested_action", "actual_action",
+        "response_committed", "first_byte_received", "eos_received",
+        "client_result", "transport_result", "host_survived", "followup_request_result",
+    }
+    for record in records:
+        if not isinstance(record, dict) or not required.issubset(record):
+            return ["transport observation is missing required causal fields"]
+        if record.get("host_survived") is True and record.get("followup_request_result") != "completed":
+            return ["host_survived=true requires an independent follow-up observation"]
+    return []
+
+
+def transport_connection_and_config_errors(
+    connector: str, connections: dict[str, Any], effective_config: dict[str, Any],
+) -> list[str]:
+    errors: list[str] = []
     if not isinstance(connections.get("records"), list):
         errors.append("connection lifecycle records must be a list")
     if effective_config.get("connector") != connector:
@@ -388,6 +416,20 @@ def transport_artifact_errors(run_dir: Path, connector: str) -> list[str]:
         errors.append("effective config files must be a list")
     if contains_forbidden_key(effective_config):
         errors.append("effective config contains forbidden payload metadata")
+    return errors
+
+
+def transport_artifact_errors(run_dir: Path, connector: str) -> list[str]:
+    errors = missing_transport_artifact_errors(run_dir)
+    if errors:
+        return errors
+    try:
+        observations, connections, effective_config, barriers = load_transport_artifacts(run_dir)
+    except (OSError, ValueError) as exc:
+        return [f"cannot read transport artifacts: {exc}"]
+    errors.extend(transport_document_errors(connector, observations, connections, barriers))
+    errors.extend(transport_observation_errors(observations))
+    errors.extend(transport_connection_and_config_errors(connector, connections, effective_config))
     return errors
 
 
