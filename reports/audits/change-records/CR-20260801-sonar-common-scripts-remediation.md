@@ -11,7 +11,7 @@
 | Base revision | `6b4aca18d390363764b96d85cd31969b9bb114a1` |
 | Tracking | Current SonarQube Cloud `common/scripts/` inventory: 15 Security and 12 Maintainability rows. |
 | Boundary | Parent `common/scripts/`, direct Parent tests, and this English/German Change Record pair and indexes only. |
-| Delivery state | A task-owned Draft PR is authorized; no commit, push, PR, hosted analysis, or merge is claimed by this pre-delivery record. |
+| Delivery state | Task-owned PR #218 exists. The current user explicitly authorized its Parent `master` integration; a fresh exact-head verification is required, and this record does not claim an unobserved merge or resulting `master` revision. |
 
 ## Motivation and problem statement
 
@@ -41,7 +41,9 @@ evaluator uses RAII for engine, rules, transaction, and rule-error cleanup;
 the resulting source is C++17-compatible.
 
 No SonarQube Cloud rule, Quality Gate, exclusion, suppression, `NOSONAR`,
-workflow, Framework, MRTS, Gitlink, or `master` change is part of this work.
+workflow, Framework, MRTS, or Gitlink change is part of this work. The
+separately authorized #218 integration is a protected GitHub delivery action,
+not a direct `master` source change.
 
 ## Acceptance criteria
 
@@ -114,9 +116,9 @@ change or a claimed runtime result.
 - A static targeted-evaluator link was not accepted as evidence because the
   available static libmodsecurity artifact lacked its transitive YAJL, Lua, and
   XML link inputs. The dynamic C++17 compilation control passed instead.
-- GitHub Actions and SonarQube Cloud checks cannot exist until the authorized
-  task-owned Draft PR is committed and published. Their results are required
-  for the exact PR head before any merge consideration.
+- Post-merge `master` workflows cannot exist until GitHub has completed an
+  authorized protected merge. They must be monitored for the resulting exact
+  `master` SHA and are not claimed by this source-level Change Record.
 
 ## Final diff and review status
 
@@ -129,6 +131,14 @@ and
 The terminal amendment receipt is at
 `/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/security-diff-scan-terminal-amendment/report.md`.
 Together they cover every changed product source file and the direct amendment
-test, and found no reportable security finding. This record intentionally does not claim a commit, push, PR number,
-hosted check, SonarQube Cloud result, merge, or resulting `master` revision
-before those facts are observed.
+test, and found no reportable security finding.
+
+## Master integration authorization
+
+The current user authorized Parent PR #218 only with the wording “bringe das
+pr 218 in den master”. This amendment records that authorization before a
+delivery action. The integration is limited to the task-owned Parent branch;
+it authorizes neither a Framework/MRTS action, Gitlink update, direct
+`master` push, force push, bypass, release, nor another pull request. The
+exact final PR head, merge result, resulting `master` SHA, and post-merge
+workflow status are recorded only after GitHub actually provides them.

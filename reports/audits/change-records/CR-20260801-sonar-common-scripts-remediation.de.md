@@ -11,7 +11,7 @@
 | Basis-Revision | `6b4aca18d390363764b96d85cd31969b9bb114a1` |
 | Tracking | Aktuelles SonarQube-Cloud-Inventar für `common/scripts/`: 15 Security- und 12 Maintainability-Zeilen. |
 | Grenze | Nur Parent `common/scripts/`, direkte Parent-Tests sowie dieses englisch/deutsche Change-Record-Paar und die Indizes. |
-| Delivery-Status | Ein task-eigener Draft-PR ist autorisiert; dieser Pre-Delivery-Record beansprucht keinen Commit, Push, PR, keine Hosted-Analyse und keinen Merge. |
+| Delivery-Status | Der task-eigene PR #218 existiert. Der aktuelle Nutzer autorisierte seine Parent-`master`-Integration ausdrücklich; eine frische Exact-Head-Verifikation ist erforderlich, und dieser Record beansprucht keinen unbeobachteten Merge oder resultierende `master`-Revision. |
 
 ## Motivation und Problemstellung
 
@@ -42,8 +42,9 @@ C++-Evaluator nutzt RAII für Engine-, Rules-, Transaction- und Rule-Error-
 Cleanup; der resultierende Source ist C++17-kompatibel.
 
 Keine SonarQube-Cloud-Regel, kein Quality Gate, keine Exclusion, Suppression,
-`NOSONAR`, Workflow-, Framework-, MRTS-, Gitlink- oder `master`-Änderung ist
-Teil dieser Arbeit.
+`NOSONAR`, Workflow-, Framework-, MRTS- oder Gitlink-Änderung ist Teil dieser
+Arbeit. Die separat autorisierte #218-Integration ist eine geschützte
+GitHub-Delivery-Aktion und keine direkte `master`-Source-Änderung.
 
 ## Akzeptanzkriterien
 
@@ -120,9 +121,10 @@ Runtime-Ergebnis.
   weil dem verfügbaren statischen libmodsecurity-Artefakt seine transitiven
   YAJL-, Lua- und XML-Link-Inputs fehlen. Der dynamische C++17-
   Kompilierungscontrol bestand stattdessen.
-- GitHub-Actions- und SonarQube-Cloud-Checks können erst existieren, nachdem
-  der autorisierte task-eigene Draft-PR committed und veröffentlicht ist. Ihre
-  Ergebnisse sind vor jeder Merge-Betrachtung für den exakten PR-Head nötig.
+- Post-Merge-`master`-Workflows können erst existieren, nachdem GitHub einen
+  autorisierten geschützten Merge abgeschlossen hat. Sie müssen für die
+  resultierende exakte `master`-SHA überwacht werden und werden von diesem
+  Source-Level-Change-Record nicht beansprucht.
 
 ## Finaler Diff- und Review-Status
 
@@ -135,6 +137,15 @@ und
 Der finale Amendment-Receipt liegt unter
 `/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/security-diff-scan-terminal-amendment/report.md`.
 Zusammen decken sie jede geänderte Produktquell-Datei und den direkten
-Amendment-Test ab und fanden keinen reportbaren Security-Befund. Dieser Record beansprucht bewusst keinen Commit, Push, keine
-PR-Nummer, keinen Hosted-Check, kein SonarQube-Cloud-Ergebnis, keinen Merge
-und keine resultierende `master`-Revision, bevor diese Fakten beobachtet sind.
+Amendment-Test ab und fanden keinen reportbaren Security-Befund.
+
+## Master-Integrationsautorisierung
+
+Der aktuelle Nutzer autorisierte nur Parent-PR #218 mit dem Wortlaut „bringe
+das pr 218 in den master“. Dieses Amendment dokumentiert diese Autorisierung
+vor einer Delivery-Aktion. Die Integration ist auf den task-eigenen
+Parent-Branch begrenzt; sie autorisiert weder eine Framework-/MRTS-Aktion,
+Gitlink-Update, direkten `master`-Push, Force-Push, Bypass, Release noch einen
+anderen Pull Request. Der exakte finale PR-Head, Merge-Result, die
+resultierende `master`-SHA und der Post-Merge-Workflow-Status werden erst
+dokumentiert, nachdem GitHub sie tatsächlich bereitstellt.
