@@ -69,10 +69,10 @@ Duplizierung ohne Scanner-Konfigurationsänderung nachweisen.
 | Befehl | Ergebnis |
 | --- | --- |
 | Gewähltes Parent-Python: `python -m py_compile common/scripts/run_local_runtime_smoke.py common/scripts/write_smoke_result.py` | bestanden. |
-| Gewähltes Parent-Python: `python -m unittest -q tests.test_local_runtime_smoke_request_body tests.test_common_runtime_smoke_crs_source_security tests.test_write_smoke_result_security tests.test_c_cpp_diagnostics` | bestanden: 55 Tests. |
+| Gewähltes Parent-Python: `python -m unittest -q tests.test_local_runtime_smoke_request_body tests.test_common_runtime_smoke_crs_source_security tests.test_write_smoke_result_security tests.test_c_cpp_diagnostics` | bestanden: 56 Tests. |
 | `make check-targeted-evaluator-cpp17` mit task-eigenem Build-Root und der verfügbaren dynamischen `libmodsecurity.so.3.0.15` | bestanden: der Targeted-C++17-Evaluator kompilierte; er wurde nicht ausgeführt. |
 | `git diff --check` | vor der Dokumentationsauslieferung bestanden; erneute Ausführung vor dem Commit erforderlich. |
-| Versiegelter Codex-Security-Diff-Review | bestanden: vollständige Abdeckung der drei geänderten Produktquellen und null reportbare Befunde. |
+| Versiegelte Codex-Security-Diff-Reviews | bestanden: vollständige Abdeckung der initial drei geänderten Produktquellen und des finalen Sonar-Remediation-Amendments; null reportbare Befunde. |
 
 ## Security-Auswirkung
 
@@ -126,9 +126,11 @@ Runtime-Ergebnis.
 
 ## Finaler Diff- und Review-Status
 
-Der versiegelte Security-Diff-Review liegt außerhalb des Checkouts unter
+Die initialen und finalen Amendment-versiegelten Security-Diff-Reviews liegen außerhalb des Checkouts unter
 `/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/security-diff-scan/report.md`.
-Er deckte jede geänderte Produktquell-Datei ab und fand keinen reportbaren
-Security-Befund. Dieser Record beansprucht bewusst keinen Commit, Push, keine
+Der finale Amendment-Receipt liegt unter
+`/var/tmp/codex/ModSecurity-conector/runs/common-scripts-sonar-remediation-20260801/security-diff-scan-amendment/report.md`.
+Zusammen decken sie jede geänderte Produktquell-Datei und den direkten
+Amendment-Test ab und fanden keinen reportbaren Security-Befund. Dieser Record beansprucht bewusst keinen Commit, Push, keine
 PR-Nummer, keinen Hosted-Check, kein SonarQube-Cloud-Ergebnis, keinen Merge
 und keine resultierende `master`-Revision, bevor diese Fakten beobachtet sind.

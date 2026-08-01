@@ -49,7 +49,15 @@ class RequestBodyReader:
 class LocalRuntimeSmokeRequestBodyTest(unittest.TestCase):
     def test_shared_http_literals_preserve_the_smoke_contract(self) -> None:
         self.assertEqual(SMOKE.DEFAULT_TEXT_CONTENT_TYPE, "text/plain")
+        self.assertEqual(SMOKE.DEFAULT_ALLOWED_PATH, "/allowed")
         self.assertEqual(SMOKE.DEFAULT_BLOCKED_PATH, "/blocked")
+
+    def test_explicit_loopback_ports_reject_zero_and_out_of_range_values(self) -> None:
+        self.assertEqual(SMOKE.require_loopback_port(8080), 8080)
+        self.assertEqual(SMOKE.require_loopback_port(0, allow_ephemeral=True), 0)
+        for value in (0, -1, 65536):
+            with self.subTest(value=value), self.assertRaises(SMOKE.RequestBodyError):
+                SMOKE.require_loopback_port(value)
 
     def test_loopback_url_builder_rejects_authority_and_preserves_origin_form(self) -> None:
         self.assertEqual(

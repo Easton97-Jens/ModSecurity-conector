@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 import http.client
 import http.server
 import json
@@ -46,6 +46,7 @@ REQUEST_BODY_BLOCK_BODY = b"payload=modsec-request-body-block"
 REQUEST_BODY_CONTENT_TYPE = "application/x-www-form-urlencoded"
 DEFAULT_TEXT_CONTENT_TYPE = "text/plain"
 DEFAULT_BLOCKED_PATH = "/blocked"
+DEFAULT_ALLOWED_PATH = "/allowed"
 LOOPBACK_HOST = "127.0.0.1"
 MAX_REQUEST_BODY_BYTES = 64 * 1024
 MAX_CHUNK_LINE_BYTES = 128
@@ -116,12 +117,8 @@ def configured_smoke_target(value: str) -> str:
     """Return a fixed protocol probe selected from the local smoke contract."""
 
     target = require_local_request_target(value)
-    if target == "/":
-        return "/"
-    if target == "/allowed":
-        return "/allowed"
-    if target == DEFAULT_BLOCKED_PATH:
-        return DEFAULT_BLOCKED_PATH
+    if target in {"/", DEFAULT_ALLOWED_PATH, DEFAULT_BLOCKED_PATH}:
+        return target
     for details in CRS_SMOKE_CASES.values():
         blocked_path = str(details["blocked_path"])
         if target == blocked_path:
@@ -132,11 +129,19 @@ def configured_smoke_target(value: str) -> str:
 def require_loopback_port(value: int, *, allow_ephemeral: bool = False) -> int:
     """Return one permitted local TCP port, retaining `0` only for bind tests."""
 
-    if allow_ephemeral and value == 0:
-        return value
+    if value == 0:
+        if allow_ephemeral:
+            return 0
+        raise RequestBodyError("invalid loopback TCP port: 0")
     if not 1 <= value <= 65535:
         raise RequestBodyError(f"invalid loopback TCP port: {value}")
     return value
+
+
+def selected_loopback_port(value: int) -> int:
+    """Use the configured loopback port or allocate one through the local binder."""
+
+    return free_port() if value == 0 else require_loopback_port(value)
 
 
 def local_smoke_url(port: int, target: str) -> str:
@@ -205,6 +210,44 @@ class BackendEvidence:
     crs_secondary_smoke_verified: bool = False
     crs_rule_id: str = ""
     crs_rule_message: str = ""
+
+
+def backend_evidence_with_crs_rules(
+    evidence: BackendEvidence, crs_rule_id: str, crs_rule_message: str
+) -> BackendEvidence:
+    """Retain backend facts while replacing only audit-derived CRS rule details."""
+
+    return BackendEvidence(
+        evidence.modsecurity_backend_verified,
+        evidence.modsecurity_rule_loaded,
+        evidence.intervention_status,
+        evidence.request_body_smoke_verified,
+        evidence.request_body_access_enabled,
+        evidence.request_body_rule_loaded,
+        evidence.crs_minimal_smoke_verified,
+        evidence.crs_secondary_smoke_verified,
+        crs_rule_id,
+        crs_rule_message,
+    )
+
+
+def backend_evidence_with_crs_verification(
+    evidence: BackendEvidence, minimal_verified: bool, secondary_verified: bool
+) -> BackendEvidence:
+    """Retain backend facts while setting the two derived CRS verification flags."""
+
+    return BackendEvidence(
+        evidence.modsecurity_backend_verified,
+        evidence.modsecurity_rule_loaded,
+        evidence.intervention_status,
+        evidence.request_body_smoke_verified,
+        evidence.request_body_access_enabled,
+        evidence.request_body_rule_loaded,
+        minimal_verified,
+        secondary_verified,
+        evidence.crs_rule_id,
+        evidence.crs_rule_message,
+    )
 
 
 @dataclass(frozen=True)
@@ -1877,10 +1920,7 @@ def writer_args(args: argparse.Namespace, result: SmokeResult) -> list[str]:
 
 
 def write_result(args: argparse.Namespace, result: SmokeResult) -> None:
-    try:
-        exit_code = write_smoke_result_main(writer_args(args, result))
-    except SystemExit as exc:
-        raise RuntimeError(f"runtime-smoke result writer rejected its inputs: {exc}") from exc
+    exit_code = write_smoke_result_main(writer_args(args, result))
     if exit_code != 0:
         raise RuntimeError(f"runtime-smoke result writer failed with exit code {exit_code}")
 
@@ -1924,6 +1964,16 @@ def lighttpd_evidence_names(args: argparse.Namespace) -> tuple[str, str]:
     return "lighttpd-upstream.log", "request-transcript.jsonl"
 
 
+def runtime_artifact_path(
+    runtime_paths: RuntimeOutputPaths, root: Path, name: str, label: str
+) -> Path:
+    """Return a fixed-name artifact path under an already verified runtime root."""
+
+    return require_verified_runtime_output_path(
+        str(root / name), label, runtime_paths.runtime_root
+    )
+
+
 def lighttpd_artifacts(args: argparse.Namespace, runtime_paths: RuntimeOutputPaths) -> LighttpdArtifacts:
     work_dir = runtime_paths.config_root
     log_dir = runtime_paths.log_dir
@@ -1931,17 +1981,17 @@ def lighttpd_artifacts(args: argparse.Namespace, runtime_paths: RuntimeOutputPat
     return LighttpdArtifacts(
         work_dir=work_dir,
         log_dir=log_dir,
-        document_root=work_dir / "docroot",
-        upload_root=work_dir / "upload",
-        lighttpd_log_path=log_dir / "lighttpd-error.log",
-        upstream_log_path=log_dir / upstream_log_name,
-        request_transcript_path=log_dir / transcript_name,
-        stdout_path=log_dir / "lighttpd.stdout.log",
-        stderr_path=log_dir / "lighttpd.stderr.log",
-        config_path=work_dir / "lighttpd.conf",
-        pid_path=work_dir / "lighttpd.pid",
-        version_path=log_dir / "lighttpd-version.txt",
-        command_path=work_dir / "lighttpd-command.txt",
+        document_root=runtime_artifact_path(runtime_paths, work_dir, "docroot", "CONFIG_ROOT"),
+        upload_root=runtime_artifact_path(runtime_paths, work_dir, "upload", "CONFIG_ROOT"),
+        lighttpd_log_path=runtime_artifact_path(runtime_paths, log_dir, "lighttpd-error.log", "LOG_DIR"),
+        upstream_log_path=runtime_artifact_path(runtime_paths, log_dir, upstream_log_name, "LOG_DIR"),
+        request_transcript_path=runtime_artifact_path(runtime_paths, log_dir, transcript_name, "LOG_DIR"),
+        stdout_path=runtime_artifact_path(runtime_paths, log_dir, "lighttpd.stdout.log", "LOG_DIR"),
+        stderr_path=runtime_artifact_path(runtime_paths, log_dir, "lighttpd.stderr.log", "LOG_DIR"),
+        config_path=runtime_artifact_path(runtime_paths, work_dir, "lighttpd.conf", "CONFIG_ROOT"),
+        pid_path=runtime_artifact_path(runtime_paths, work_dir, "lighttpd.pid", "CONFIG_ROOT"),
+        version_path=runtime_artifact_path(runtime_paths, log_dir, "lighttpd-version.txt", "LOG_DIR"),
+        command_path=runtime_artifact_path(runtime_paths, work_dir, "lighttpd-command.txt", "CONFIG_ROOT"),
     )
 
 
@@ -2034,7 +2084,7 @@ def run_lighttpd_probes(
     try:
         with artifacts.stdout_path.open("wb") as stdout, artifacts.stderr_path.open("wb") as stderr:
             process = subprocess.Popen(command, stdout=stdout, stderr=stderr)
-            direct_url = local_smoke_url(upstream_port, "/allowed")
+            direct_url = local_smoke_url(upstream_port, DEFAULT_ALLOWED_PATH)
             wait_for_http_url(direct_url, time.monotonic() + 12, process=process, label="lighttpd")
             direct_status = http_status(direct_url)
             sidecar_server = start_http_server(
@@ -2043,7 +2093,7 @@ def run_lighttpd_probes(
                 ),
                 listen_port,
             )
-            sidecar_url = local_smoke_url(listen_port, "/allowed")
+            sidecar_url = local_smoke_url(listen_port, DEFAULT_ALLOWED_PATH)
             wait_for_http_url(sidecar_url, time.monotonic() + 8, label="lighttpd sidecar proxy")
             allowed_status, blocked_path, blocked_headers, blocked_method, blocked_body = lighttpd_probe_request(args)
             if request_body_smoke_enabled(args):
@@ -2095,7 +2145,7 @@ def lighttpd_result_context(
     }
 
 
-def lighttpd_evidence(args: argparse.Namespace, decision_backend: object, probe: LighttpdProbe, sidecar_verified: bool) -> BackendEvidence:
+def lighttpd_evidence(args: argparse.Namespace, decision_backend: object, sidecar_verified: bool) -> BackendEvidence:
     evidence = collect_backend_evidence(decision_backend)
     if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
         crs_rule_id, crs_rule_message = crs_detection_from_audit_log(
@@ -2103,17 +2153,17 @@ def lighttpd_evidence(args: argparse.Namespace, decision_backend: object, probe:
             evidence.crs_rule_id,
             evidence.crs_rule_message,
         )
-        evidence = replace(evidence, crs_rule_id=crs_rule_id, crs_rule_message=crs_rule_message)
+        evidence = backend_evidence_with_crs_rules(evidence, crs_rule_id, crs_rule_message)
     crs_verified = (
         args.modsecurity_ruleset == "crs"
         and sidecar_verified
         and evidence.modsecurity_backend_verified
         and bool(evidence.crs_rule_id)
     )
-    return replace(
+    return backend_evidence_with_crs_verification(
         evidence,
-        crs_minimal_smoke_verified=crs_verified and args.crs_smoke_case == "minimal",
-        crs_secondary_smoke_verified=crs_verified and args.crs_smoke_case == "secondary",
+        crs_verified and args.crs_smoke_case == "minimal",
+        crs_verified and args.crs_smoke_case == "secondary",
     )
 
 
@@ -2168,8 +2218,8 @@ def run_lighttpd_sidecar_smoke(
     decision_backend: SimpleDecisionBackend | ModSecurityDecisionBackend,
     decision_log_path: Path | None,
 ) -> int:
-    upstream_port = args.upstream_port or free_port()
-    listen_port = args.listen_port or free_port()
+    upstream_port = selected_loopback_port(args.upstream_port)
+    listen_port = selected_loopback_port(args.listen_port)
     artifacts = lighttpd_artifacts(args, runtime_paths)
     binary_verified = False
     probe: LighttpdProbe | None = None
@@ -2183,7 +2233,7 @@ def run_lighttpd_sidecar_smoke(
             args, artifacts, decision_backend, binary, upstream_port, listen_port
         )
         sidecar_verified = probe.lighttpd_http_verified and probe.allowed_status == 200 and probe.blocked_status == 403
-        evidence = lighttpd_evidence(args, decision_backend, probe, sidecar_verified)
+        evidence = lighttpd_evidence(args, decision_backend, sidecar_verified)
         return lighttpd_outcome(
             args, artifacts, decision_log_path, binary_verified, probe, evidence
         )
@@ -2244,7 +2294,15 @@ def normalize_smoke_options(args: argparse.Namespace, runtime_paths: RuntimeOutp
         str(runtime_paths.config_root / suffix), "CONFIG_ROOT", runtime_paths.runtime_root
     )
     args.config_root = str(config_root)
-    return replace(runtime_paths, config_root=config_root)
+    return RuntimeOutputPaths(
+        runtime_paths.runtime_root,
+        runtime_paths.evidence_root,
+        runtime_paths.results_dir,
+        runtime_paths.tmp_root,
+        runtime_paths.log_root,
+        runtime_paths.log_dir,
+        config_root,
+    )
 
 
 def smoke_decision_log_path(args: argparse.Namespace, log_dir: Path) -> Path | None:
@@ -2353,7 +2411,7 @@ def run_proxy_probes(
         )
         with artifacts.stdout_path.open("wb") as stdout, artifacts.stderr_path.open("wb") as stderr:
             process = subprocess.Popen(command, stdout=stdout, stderr=stderr)
-            allowed_url = local_smoke_url(listen_port, "/allowed")
+            allowed_url = local_smoke_url(listen_port, DEFAULT_ALLOWED_PATH)
             wait_for_proxy(allowed_url, process, time.monotonic() + 12)
             if request_body_enabled:
                 allowed_status = http_status(
@@ -2385,7 +2443,7 @@ def proxy_evidence(args: argparse.Namespace, decision_backend: object, probe: Pr
             evidence.crs_rule_id,
             evidence.crs_rule_message,
         )
-        evidence = replace(evidence, crs_rule_id=crs_rule_id, crs_rule_message=crs_rule_message)
+        evidence = backend_evidence_with_crs_rules(evidence, crs_rule_id, crs_rule_message)
     crs_verified = (
         args.modsecurity_ruleset == "crs"
         and probe.allowed_status == 200
@@ -2393,10 +2451,10 @@ def proxy_evidence(args: argparse.Namespace, decision_backend: object, probe: Pr
         and evidence.modsecurity_backend_verified
         and bool(evidence.crs_rule_id)
     )
-    return replace(
+    return backend_evidence_with_crs_verification(
         evidence,
-        crs_minimal_smoke_verified=crs_verified and args.crs_smoke_case == "minimal",
-        crs_secondary_smoke_verified=crs_verified and args.crs_smoke_case == "secondary",
+        crs_verified and args.crs_smoke_case == "minimal",
+        crs_verified and args.crs_smoke_case == "secondary",
     )
 
 
@@ -2482,9 +2540,9 @@ def run_proxy_smoke(
             artifacts,
             binary,
             decision_backend,
-            args.upstream_port or free_port(),
-            args.authz_port or free_port(),
-            args.listen_port or free_port(),
+            selected_loopback_port(args.upstream_port),
+            selected_loopback_port(args.authz_port),
+            selected_loopback_port(args.listen_port),
         )
         return proxy_outcome(
             args,
