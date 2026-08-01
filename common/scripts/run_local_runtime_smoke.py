@@ -1954,16 +1954,6 @@ class LighttpdProbe:
     lighttpd_http_verified: bool
 
 
-def lighttpd_evidence_names(args: argparse.Namespace) -> tuple[str, str]:
-    if args.modsecurity_ruleset == "crs":
-        if args.crs_smoke_case == "secondary":
-            return "crs-secondary-lighttpd-upstream.log", "crs-secondary-request-transcript.jsonl"
-        return "crs-lighttpd-upstream.log", "crs-request-transcript.jsonl"
-    if request_body_smoke_enabled(args):
-        return "request-body-lighttpd-upstream.log", "request-body-request-transcript.jsonl"
-    return "lighttpd-upstream.log", "request-transcript.jsonl"
-
-
 def runtime_artifact_path(
     runtime_paths: RuntimeOutputPaths, root: Path, name: str, label: str
 ) -> Path:
@@ -1974,18 +1964,17 @@ def runtime_artifact_path(
     )
 
 
-def lighttpd_artifacts(args: argparse.Namespace, runtime_paths: RuntimeOutputPaths) -> LighttpdArtifacts:
+def lighttpd_artifacts(runtime_paths: RuntimeOutputPaths) -> LighttpdArtifacts:
     work_dir = runtime_paths.config_root
     log_dir = runtime_paths.log_dir
-    upstream_log_name, transcript_name = lighttpd_evidence_names(args)
     return LighttpdArtifacts(
         work_dir=work_dir,
         log_dir=log_dir,
         document_root=runtime_artifact_path(runtime_paths, work_dir, "docroot", "CONFIG_ROOT"),
         upload_root=runtime_artifact_path(runtime_paths, work_dir, "upload", "CONFIG_ROOT"),
         lighttpd_log_path=runtime_artifact_path(runtime_paths, log_dir, "lighttpd-error.log", "LOG_DIR"),
-        upstream_log_path=runtime_artifact_path(runtime_paths, log_dir, upstream_log_name, "LOG_DIR"),
-        request_transcript_path=runtime_artifact_path(runtime_paths, log_dir, transcript_name, "LOG_DIR"),
+        upstream_log_path=runtime_artifact_path(runtime_paths, log_dir, "lighttpd-upstream.log", "LOG_DIR"),
+        request_transcript_path=runtime_artifact_path(runtime_paths, log_dir, "request-transcript.jsonl", "LOG_DIR"),
         stdout_path=runtime_artifact_path(runtime_paths, log_dir, "lighttpd.stdout.log", "LOG_DIR"),
         stderr_path=runtime_artifact_path(runtime_paths, log_dir, "lighttpd.stderr.log", "LOG_DIR"),
         config_path=runtime_artifact_path(runtime_paths, work_dir, "lighttpd.conf", "CONFIG_ROOT"),
@@ -2220,7 +2209,7 @@ def run_lighttpd_sidecar_smoke(
 ) -> int:
     upstream_port = selected_loopback_port(args.upstream_port)
     listen_port = selected_loopback_port(args.listen_port)
-    artifacts = lighttpd_artifacts(args, runtime_paths)
+    artifacts = lighttpd_artifacts(runtime_paths)
     binary_verified = False
     probe: LighttpdProbe | None = None
     process: subprocess.Popen[object] | None = None

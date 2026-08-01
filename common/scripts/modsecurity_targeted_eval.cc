@@ -397,25 +397,25 @@ void write_success_json(
 }
 
 struct ModSecurityDeleter {
-    void operator()(modsecurity::ModSecurity *resource) const noexcept {
-        if (resource != nullptr) {
-            modsecurity::msc_cleanup(resource);
+    void operator()(modsecurity::ModSecurity *engine_instance) const noexcept {
+        if (engine_instance != nullptr) {
+            modsecurity::msc_cleanup(engine_instance);
         }
     }
 };
 
 struct RulesSetDeleter {
-    void operator()(modsecurity::RulesSet *resource) const noexcept {
-        if (resource != nullptr) {
-            modsecurity::msc_rules_cleanup(resource);
+    void operator()(modsecurity::RulesSet *rules_instance) const noexcept {
+        if (rules_instance != nullptr) {
+            modsecurity::msc_rules_cleanup(rules_instance);
         }
     }
 };
 
 struct TransactionDeleter {
-    void operator()(modsecurity::Transaction *resource) const noexcept {
-        if (resource != nullptr) {
-            modsecurity::msc_transaction_cleanup(resource);
+    void operator()(modsecurity::Transaction *transaction_instance) const noexcept {
+        if (transaction_instance != nullptr) {
+            modsecurity::msc_transaction_cleanup(transaction_instance);
         }
     }
 };
