@@ -19,7 +19,8 @@ sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
     "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+if SPEC is None or SPEC.loader is None:
+    raise ImportError("unable to load prepare-runtime-components test module")
 components = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(components)
 
@@ -44,6 +45,30 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         mutable_or_abbreviated_ref,
                         "EXPAT_GIT_REF",
                     )
+
+    def test_github_repo_url_config_preserves_canonical_and_rejection_policy(self) -> None:
+        github = "https://github.com"
+        repo = "owner/repo"
+        canonical = f"{github}/{repo}"
+
+        self.assertEqual(
+            components.require_https_github_repo_url(f" {canonical}.git "),
+            canonical,
+        )
+        components.validate_https_url_config({"CRS_REPO_URL": canonical})
+
+        for invalid_url in (
+            f"http://github.com/{repo}",
+            f"https://example.invalid/{repo}",
+            f"{github}:443/{repo}",
+            f"{canonical}?ref=main",
+            f"{canonical}#release",
+            f"{github}/owner",
+            f"{canonical}/extra",
+        ):
+            with self.subTest(url=invalid_url):
+                with self.assertRaises(RuntimeError):
+                    components.validate_https_url_config({"CRS_REPO_URL": invalid_url})
 
     def test_runtime_component_report_describes_strict_expat_and_cache_fsck_accurately(self) -> None:
         report = components.markdown_report(
