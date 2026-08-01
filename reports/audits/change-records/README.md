@@ -19,6 +19,12 @@ must not claim unobserved CI, runtime, review, or delivery results.
   and a sealed security-diff review; exact-head hosted/SonarQube Cloud
   verification remains required before it can be considered mergeable.
 
+- [Parent Envoy transaction-opener interface naming](CR-20260801-sonar-envoy-transaction-opener.md)
+  — renames the remaining one-method internal Go interface to preserve its
+  exact transaction-opening method set while meeting Go naming conventions;
+  exact-head hosted/SonarQube Cloud verification remains required before any
+  merge decision.
+
 - [Parent Envoy TLS and maintainability remediation](CR-20260801-sonar-envoy-tls-maintainability.md)
   — removes the current five Envoy SonarQube Cloud source rows by preserving
   processor semantics and encrypting the fixture upstream hop; exact-head

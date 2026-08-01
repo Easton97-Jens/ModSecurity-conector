@@ -16,7 +16,7 @@ import (
 )
 
 type engineRuntime struct {
-	engine         processor.Engine
+	engine         processor.TransactionOpener
 	evaluationMode string
 	ruleEvaluation string
 	description    string

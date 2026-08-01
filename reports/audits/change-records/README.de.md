@@ -21,6 +21,12 @@ Review- oder Delivery-Ergebnisse behaupten.
   und einem versiegelten Security-Diff-Review ab; SHA-gebundene Hosted- und
   SonarQube-Cloud-Verifikation bleiben vor einer Merge-Betrachtung erforderlich.
 
+- [Parent-Envoy-Transaction-Opener-Interfacebenennung](CR-20260801-sonar-envoy-transaction-opener.de.md)
+  — benennt das verbleibende interne Go-Ein-Methoden-Interface um, bewahrt
+  seinen exakten transaktionsöffnenden Methodensatz und erfüllt die Go-
+  Namenskonvention; Exact-Head-Hosted-/SonarQube-Cloud-Verifikation bleibt
+  vor jeder Merge-Entscheidung erforderlich.
+
 - [Parent-Envoy-TLS- und Maintainability-Bereinigung](CR-20260801-sonar-envoy-tls-maintainability.de.md)
   — entfernt die aktuellen fünf Envoy-SonarQube-Cloud-Source-Zeilen durch
   bewahrte Processor-Semantik und einen verschlüsselten Fixture-Upstream-Hop;
