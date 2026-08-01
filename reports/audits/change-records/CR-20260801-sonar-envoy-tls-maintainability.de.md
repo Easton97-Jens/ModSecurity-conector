@@ -97,12 +97,14 @@ Response-Commit-Grenze und Event-Redaction-Controls bleiben erhalten.
 
 ## Runtime-Evidence
 
-Der task-eigene Loopback-Smoke erzeugte ein selbstsigniertes Zertifikat mit IP
-SAN für `127.0.0.1`, startete den geänderten Helper und schloss eine
-zertifikatverifizierende HTTPS-Anfrage ab. Derselbe laufende Helper wies eine
-Klartext-HTTP-Anfrage zurück. Der fokussierte Transport-Contract prüft zudem
-einen Symlink-Key-Pfad als Alternate-Bypass-Klasse und bewahrt den gültigen
-Regular-File-Control.
+Es wird keine promotionsfähige Runtime-Evidence erhoben oder beansprucht. Der
+task-eigene Loopback-Smoke erzeugte ein selbstsigniertes Zertifikat mit IP SAN
+für `127.0.0.1`, startete den geänderten Helper, schloss eine
+zertifikatverifizierende HTTPS-Anfrage ab und wies eine Klartext-HTTP-Anfrage
+zurück; er ist als fokussierter lokaler Test statt als Ersatz für eine
+Envoy-Runtime-Matrix dokumentiert. Der fokussierte Transport-Contract prüft
+zudem einen Symlink-Key-Pfad als Alternate-Bypass-Klasse und bewahrt den
+gültigen Regular-File-Control.
 
 ## Bekannte Einschränkungen
 

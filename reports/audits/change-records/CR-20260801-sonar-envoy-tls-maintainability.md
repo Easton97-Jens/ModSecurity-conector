@@ -94,12 +94,13 @@ controls remain intact.
 
 ## Runtime evidence
 
-The task-owned loopback smoke constructed a self-signed certificate with an
-IP SAN for `127.0.0.1`, started the changed helper, and completed a
-certificate-verifying HTTPS request. The same running helper rejected a
-cleartext HTTP request. The focused transport contract also checks a
-symlinked key path as an alternate bypass class while preserving the valid
-regular-file control.
+No promotion-grade runtime evidence is collected or claimed. The task-owned
+loopback smoke constructed a self-signed certificate with an IP SAN for
+`127.0.0.1`, started the changed helper, completed a certificate-verifying
+HTTPS request, and rejected a cleartext HTTP request; it is recorded as a
+focused local test rather than a substitute for an Envoy runtime matrix. The
+focused transport contract also checks a symlinked key path as an alternate
+bypass class while preserving the valid regular-file control.
 
 ## Known limitations
 
