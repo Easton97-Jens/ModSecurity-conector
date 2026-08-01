@@ -68,8 +68,9 @@ vollständiger Repository-Security-Scan und kein Runtime-Build-Ergebnis.
 | --- | --- |
 | `PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m py_compile ci/provisioning/components/prepare-runtime-components.py tests/test_runtime_component_cache_contract.py` | bestanden |
 | `PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest tests.test_runtime_component_cache_contract` | bestanden: 34 Tests |
-| `git diff --check` | vor der finalen Dokumentationsvalidierung bestanden; finale eingegrenzte Wiederholung bleibt vor Delivery erforderlich |
-| Erste Exact-Head-SonarQube-Cloud-Analyse für PR #226 | Quality Gate `OK` und null New-Code-Duplikation, aber fünf task-eigene `python:S3415`-Assertion-Order-Zeilen wurden gefunden und im aktuellen Follow-up korrigiert; frische Exact-Head-Analyse steht aus |
+| `git diff --check` | bestanden |
+| Initiale Exact-Head-SonarQube-Cloud-Analyse für PR #226 | Quality Gate `OK` und null New-Code-Duplikation, aber fünf task-eigene `python:S3415`-Assertion-Order-Zeilen wurden im Follow-up korrigiert |
+| Finale Exact-Head-Hosted-Runde von PR #226 für `c19defa183e133cfa64853e9bfe62569237c450d` | bestanden: SonarQube-Cloud-Quality-Gate `OK`, null New Issues, null New-Code-Duplikation und alle abgeschlossenen GitHub-Actions-Checks bestanden |
 
 Der ausgewählte Interpreter ist `/root/git/ModSecurity-conector/.venv/bin/python`
 (Python `3.14.4`) mit `PYTHONNOUSERSITE=1`,
@@ -80,12 +81,12 @@ externem Storage.
 ## Ausgeführte Befehle
 
 Die Befehle und Ergebnisse in der vorstehenden Tabelle bilden den vollständigen
-lokalen Ausführungsnachweis zum Zeitpunkt der Autorenschaft. Auch
-`make check-no-crs-source-normalization` und `make check-bilingual-docs`
-wurden ausgeführt; ihre exakten blockierten beziehungsweise Remediation-
-Zustände stehen unter **Nicht ausgeführte Prüfungen mit Begründung** und im
-Task-Plan. Kein Build-, Dependency-Installation-, Commit-, Push-, PR- oder
-Merge-Befehl lief bei der Record-Autorenschaft.
+lokalen Ausführungsnachweis. Auch `make check-no-crs-source-normalization` und
+`make check-bilingual-docs` wurden ausgeführt; ihre exakten blockierten
+beziehungsweise Remediation-Zustände stehen unter **Nicht ausgeführte
+Prüfungen mit Begründung** und im Task-Plan. Der initiale Record entstand vor
+der Delivery; PR #226 wurde danach committed, gepusht und verifiziert. Weder
+ein Build noch eine Dependency-Installation liefen, und es gab keinen Merge.
 
 ## Runtime-Evidence
 
@@ -117,15 +118,15 @@ nativer Connector-Build lief.
 - Ruff und Pyright liefen nicht, weil die ausgewählte Parent-virtuelle Umgebung
   keines der beiden Tools enthält; kein Paket- oder Dependency-Contract änderte
   sich.
-- Exact-Head-GitHub-Actions und SonarQube-Cloud-Analyse liefen noch nicht, weil
-  bei der Record-Autorenschaft kein Commit, Push oder Pull Request existiert.
+- Exact-Head-GitHub-Actions und SonarQube-Cloud-Analyse bestanden für den
+  aktuellen Source-Head vor diesem reinen Record-Follow-up.
 
 ## Bekannte Einschränkungen
 
-Lokale Checks können die Hosted-Disposition der zwei historischen SonarQube-
-Cloud-Zeilen nicht beweisen. Die Exact-Head-PR-Analyse muss ihre Schließung,
-null neue Issues und null New-Code-Duplikation zeigen, bevor der Draft-PR
-`verified_pr` erreichen kann.
+Die finale Hosted-Runde beweist den PR-Head, kann aber nicht den resultierenden
+`master`-Zustand beweisen. Eine separat autorisierte Integration und eine
+Prüfung des resultierenden `master` bleiben erforderlich; dieser Draft-PR
+bleibt absichtlich ungemergt.
 
 ## Verbleibende Risiken
 
@@ -134,6 +135,9 @@ Diese Änderung autorisiert keine `master`-Integration.
 
 ## Finaler Diff- und Review-Status
 
-Dieser Pre-Delivery-Record berichtet nur beobachtete lokale Ergebnisse. Er
-behauptet keinen Commit, Pull Request, Hosted-Check, Quality Gate, Approval,
-Merge oder Release.
+Draft-PR #226 ist gegen `master` offen; sein final verifizierter Source-Head
+ist `c19defa183e133cfa64853e9bfe62569237c450d`. Der PR hat einen sauberen
+Merge-Status, kein Approval und keine Review-Entscheidung sowie keinen Merge
+oder Release. Seine Hosted-Evidence ist im Task-Run erhalten; ein reiner
+Record-Follow-up benötigt seine eigene Exact-Head-CI-Runde, bevor der PR als
+`verified_pr` berichtet werden kann.

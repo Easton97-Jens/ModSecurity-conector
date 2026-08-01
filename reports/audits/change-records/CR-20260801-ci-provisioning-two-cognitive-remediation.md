@@ -65,8 +65,9 @@ runtime build result.
 | --- | --- |
 | `PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m py_compile ci/provisioning/components/prepare-runtime-components.py tests/test_runtime_component_cache_contract.py` | passed |
 | `PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest tests.test_runtime_component_cache_contract` | passed: 34 tests |
-| `git diff --check` | passed before final documentation validation; final scoped repeat remains required before delivery |
-| First exact-head SonarQube Cloud analysis for PR #226 | Quality Gate `OK` and zero New-Code duplication, but five task-owned `python:S3415` assertion-order rows were found and corrected in the current follow-up; fresh exact-head analysis is pending |
+| `git diff --check` | passed |
+| Initial exact-head SonarQube Cloud analysis for PR #226 | Quality Gate `OK` and zero New-Code duplication, but five task-owned `python:S3415` assertion-order rows were found and corrected in the follow-up |
+| Final exact-head PR #226 hosted round for `c19defa183e133cfa64853e9bfe62569237c450d` | passed: SonarQube Cloud Quality Gate `OK`, zero New issues, zero New-Code duplication, and all completed GitHub Actions checks passed |
 
 The selected interpreter is `/root/git/ModSecurity-conector/.venv/bin/python`
 (Python `3.14.4`), with `PYTHONNOUSERSITE=1`,
@@ -77,11 +78,12 @@ storage.
 ## Commands executed
 
 The commands and outcomes in the preceding table are the complete local
-execution record at authoring time. `make check-no-crs-source-normalization`
-and `make check-bilingual-docs` were also executed; their exact blocked and
+execution record. `make check-no-crs-source-normalization` and
+`make check-bilingual-docs` were also executed; their exact blocked and
 remediation states are recorded under **Checks not run and rationale** and in
-the task plan. No build, dependency installation, commit, push, PR, or merge
-command has been executed at record authoring.
+the task plan. The initial record was written before delivery; PR #226 was
+subsequently committed, pushed, and verified. No build or dependency
+installation occurred, and no merge was performed.
 
 ## Runtime evidence
 
@@ -109,15 +111,14 @@ delegation controls. No third-party download or native connector build ran.
   compiles third-party components, beyond this structural remediation.
 - Ruff and Pyright were not run because the selected Parent virtual environment
   contains neither tool; no package or dependency contract changed.
-- Exact-head GitHub Actions and SonarQube Cloud analysis are not yet run because
-  no commit, push, or pull request exists at record authoring.
+- Exact-head GitHub Actions and SonarQube Cloud analysis passed for the current
+  source head before this record-only follow-up.
 
 ## Known limitations
 
-Local checks cannot prove the hosted disposition of the two historical
-SonarQube Cloud rows. Exact-head PR analysis must show their closure, zero new
-issues, and zero new-code duplication before the draft PR can reach
-`verified_pr`.
+The final hosted round proves the PR head but cannot prove the resulting
+`master` state. A separately authorized integration and resulting-`master`
+verification remain necessary; this Draft PR intentionally stays unmerged.
 
 ## Remaining risks
 
@@ -126,6 +127,8 @@ not authorize a `master` integration.
 
 ## Final diff and review status
 
-This pre-delivery record reports observed local results only. It does not claim
-a commit, pull request, hosted check, Quality Gate, approval, merge, or
-release.
+Draft PR #226 is open against `master`; its final verified source head is
+`c19defa183e133cfa64853e9bfe62569237c450d`. The PR has a clean merge state,
+no approval or review decision, and no merge or release. Its hosted evidence is
+retained in the task run; a record-only follow-up requires its own exact-head
+CI cycle before the PR can be reported as `verified_pr`.
