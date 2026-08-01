@@ -145,36 +145,37 @@ def detect_job_status(job: dict[str, Any], log_path: Path, jsonl_path: Path) -> 
     return "not_started", "no job.json or run.log found"
 
 
+def nginx_log_observations(lines: list[str]) -> dict[str, Any]:
+    running_cases = [line.split("case=", 1)[1].split()[0] for line in lines if "nginx_smoke: running case=" in line]
+    fail_cases = [line.split(None, 1)[1] if " " in line else line for line in lines if line.startswith("FAIL ")]
+    observed_500 = sum("observed=500" in line or "observed 500" in line for line in lines)
+    terminated = any("Terminated" in line or ("lock-release" in line and "Bad file descriptor" in line) for line in lines)
+    return {
+        "running_cases": running_cases,
+        "fail_cases": fail_cases,
+        "observed_500": observed_500,
+        "terminated": terminated,
+    }
+
+
 def analyze_nginx_with_crs_mrts(matrix_root: Path) -> dict[str, Any]:
     job_root = matrix_root / "with-crs" / "with-mrts" / "nginx"
     log_path = job_root / "run.log"
     jsonl_path = result_jsonl_path(job_root, "nginx")
     lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines() if log_path.is_file() else []
-    running_cases = []
-    fail_cases = []
-    observed_500 = 0
-    terminated = False
-    for line in lines:
-        if "nginx_smoke: running case=" in line:
-            running_cases.append(line.split("case=", 1)[1].split()[0])
-        if line.startswith("FAIL "):
-            fail_cases.append(line.split(None, 1)[1] if " " in line else line)
-        if "observed=500" in line or "observed 500" in line:
-            observed_500 += 1
-        if "Terminated" in line or "lock-release" in line and "Bad file descriptor" in line:
-            terminated = True
+    observations = nginx_log_observations(lines)
     partial = count_jsonl_cases(jsonl_path) if jsonl_path.is_file() else {}
     return {
         "job_id": job_id("nginx", "with-crs", "with-mrts"),
         "log_path": str(log_path),
         "results_jsonl": str(jsonl_path),
         "run_log_lines": len(lines),
-        "running_case_lines": len(running_cases),
-        "fail_lines": len(fail_cases),
-        "observed_500_lines": observed_500,
-        "terminated": terminated,
-        "last_running_case": running_cases[-1] if running_cases else "",
-        "last_fail_case": fail_cases[-1] if fail_cases else "",
+        "running_case_lines": len(observations["running_cases"]),
+        "fail_lines": len(observations["fail_cases"]),
+        "observed_500_lines": observations["observed_500"],
+        "terminated": observations["terminated"],
+        "last_running_case": observations["running_cases"][-1] if observations["running_cases"] else "",
+        "last_fail_case": observations["fail_cases"][-1] if observations["fail_cases"] else "",
         "partial_result_counts": partial,
         "findings": [
             "The previous run was killed while NGINX with-crs/with-mrts was still executing MRTS request-cookie-name cases.",

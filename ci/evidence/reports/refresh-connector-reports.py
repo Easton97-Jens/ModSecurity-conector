@@ -41,8 +41,14 @@ from generated_report_utils import (
     resolve_input_reference,
     sanitize_generated_markdown_tree,
 )
+from report_path_safety import add_report_roots, add_safe_roots, safe_existing_file, safe_path, write_text_file
 
 REPORT_DIR = GENERATED_ROOT
+UTC_OFFSET = "+00:00"
+GERMAN_MARKDOWN_SUFFIX = ".de.md"
+VERIFIED_COMMANDS_FILENAME = "verified-commands.json"
+FRAMEWORK_SUBMODULE_PATH = "modules/ModSecurity-test-Framework"
+NATIVE_CASE_COMPARISON_GENERATOR = "ci/runtime/lifecycle/run-native-case-comparison.py"
 RETIRED_REPORT_NAMES = frozenset(
     {
         "connector_roadmap",
@@ -57,13 +63,13 @@ RETIRED_REPORT_TOKENS = RETIRED_REPORT_MARKERS + tuple(RETIRED_REPORT_NAMES)
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace(UTC_OFFSET, "Z")
 
 
 def iso_from_timestamp(value: float | None) -> str:
     if value is None:
         return "-"
-    return datetime.fromtimestamp(value, timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.fromtimestamp(value, timezone.utc).replace(microsecond=0).isoformat().replace(UTC_OFFSET, "Z")
 
 
 def path_mtime(path: Path) -> float | None:
@@ -173,14 +179,14 @@ def run_command(cmd: list[str], cwd: Path, env: dict[str, str]) -> tuple[int, st
     }
     log_root = env.get("VERIFIED_RUN_LOG_ROOT")
     if log_root:
-        logs_dir = Path(log_root) / "generator-logs"
-        logs_dir.mkdir(parents=True, exist_ok=True)
-        slug_source = cmd[-1] if cmd else "command"
-        slug = "".join(ch if ch.isalnum() else "-" for ch in slug_source).strip("-") or "command"
-        log_path = logs_dir / f"{int(time.time() * 1000)}-{slug[:80]}.log"
-        log_path.write_text(output, encoding="utf-8")
-        log_info["log_path"] = str(log_path)
-        log_info["log_hash"] = sha256_file(log_path)
+        logs_dir = safe_path(Path(log_root) / "generator-logs", must_exist=False)
+        if logs_dir is not None:
+            slug_source = cmd[-1] if cmd else "command"
+            slug = "".join(ch if ch.isalnum() else "-" for ch in slug_source).strip("-") or "command"
+            log_path = logs_dir / f"{int(time.time() * 1000)}-{slug[:80]}.log"
+            write_text_file(log_path, output)
+            log_info["log_path"] = str(log_path)
+            log_info["log_hash"] = sha256_file(log_path)
     return proc.returncode, output, log_info
 
 
@@ -232,70 +238,92 @@ def prune_retired_report_records(payload: dict[str, Any]) -> bool:
     runtime-producing report generators merely to rewrite their catalog.
     """
 
-    changed = False
+    records_changed = _prune_retired_records(payload)
+    metadata_changed = _prune_retired_metadata_inputs(payload.get("metadata"))
+    return records_changed or metadata_changed
+
+
+def _prune_retired_records(payload: dict[str, Any]) -> bool:
     records = payload.get("reports")
-    if isinstance(records, list):
-        retained = []
-        for record in records:
-            if isinstance(record, dict) and str(record.get("report_name") or "") in RETIRED_REPORT_NAMES:
-                changed = True
-                continue
-            if isinstance(record, dict):
-                changed = prune_retired_record_fields(record) or changed
-            retained.append(record)
-        if len(retained) != len(records):
-            payload["reports"] = retained
+    if not isinstance(records, list):
+        return False
+    retained: list[object] = []
+    changed = False
+    for record in records:
+        if isinstance(record, dict) and str(record.get("report_name") or "") in RETIRED_REPORT_NAMES:
             changed = True
-    metadata = payload.get("metadata")
-    if not isinstance(metadata, dict):
-        return changed
-    inputs = metadata.get("inputs")
-    if isinstance(inputs, list):
-        retained_inputs = [
-            item for item in inputs if not contains_retired_report_reference(item.get("path") if isinstance(item, dict) else item)
-        ]
-        if len(retained_inputs) != len(inputs):
-            metadata["inputs"] = retained_inputs
-            for field, status in (("missing_inputs", "missing"), ("empty_inputs", "empty"), ("unknown_inputs", "unknown")):
-                values = metadata.get(field)
-                if isinstance(values, list):
-                    metadata[field] = [
-                        value
-                        for value in values
-                        if not contains_retired_report_reference(value)
-                    ]
-            changed = True
+            continue
+        if isinstance(record, dict):
+            changed = prune_retired_record_fields(record) or changed
+        retained.append(record)
+    if changed:
+        payload["reports"] = retained
     return changed
+
+
+def _prune_retired_metadata_inputs(metadata: object) -> bool:
+    if not isinstance(metadata, dict):
+        return False
+    inputs = metadata.get("inputs")
+    if not isinstance(inputs, list):
+        return False
+    retained = [
+        item
+        for item in inputs
+        if not contains_retired_report_reference(
+            item.get("path") if isinstance(item, dict) else item
+        )
+    ]
+    if len(retained) == len(inputs):
+        return False
+    metadata["inputs"] = retained
+    _prune_retired_metadata_statuses(metadata)
+    return True
+
+
+def _prune_retired_metadata_statuses(metadata: dict[str, Any]) -> None:
+    for field in ("missing_inputs", "empty_inputs", "unknown_inputs"):
+        values = metadata.get(field)
+        if isinstance(values, list):
+            metadata[field] = [
+                value
+                for value in values
+                if not contains_retired_report_reference(value)
+            ]
 
 
 def prune_retired_markdown_rows(path: Path) -> bool:
     """Remove retired generated-output rows from a retained language companion."""
 
-    if not path.is_file():
+    safe_report_path = safe_existing_file(path)
+    if safe_report_path is None:
         return False
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = safe_report_path.read_text(encoding="utf-8", errors="replace")
     lines = text.splitlines(keepends=True)
     retained = [line for line in lines if not contains_retired_report_reference(line)]
     if len(retained) == len(lines):
         return False
-    path.write_text("".join(retained), encoding="utf-8")
+    write_text_file(safe_report_path, "".join(retained))
     return True
 
 
 def prune_retired_freshness_report(connector_root: Path) -> bool:
     """Refresh the retained freshness view without invoking runtime producers."""
 
-    json_path = report_path(connector_root, "report_freshness", "json")
+    add_safe_roots(connector_root, connector_root / REPORT_DIR)
+    json_path = safe_existing_file(report_path(connector_root, "report_freshness", "json"))
+    if json_path is None:
+        return False
     payload = read_json(json_path)
     if not payload or not prune_retired_report_records(payload):
         return False
     metadata = payload.pop("metadata", {})
     if not isinstance(metadata, dict):
         raise ValueError(f"cannot preserve metadata while pruning {json_path}")
-    json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
+    write_text_file(json_path, generated_json_text(payload, metadata))
     md_path = report_path(connector_root, "report_freshness", "md")
-    md_path.write_text(generated_markdown_text(render_freshness_md(payload), metadata), encoding="utf-8")
-    prune_retired_markdown_rows(md_path.with_name(md_path.name.removesuffix(".md") + ".de.md"))
+    write_text_file(md_path, generated_markdown_text(render_freshness_md(payload), metadata))
+    prune_retired_markdown_rows(german_markdown_companion(md_path) or md_path)
     return True
 
 
@@ -411,9 +439,17 @@ FINAL_CONSISTENCY_OUTPUTS = generated_report_outputs(["final_consistency_audit"]
 REMAINING_OUTPUTS = generated_report_outputs(["remaining_failure_analysis", "next_fix_plan"])
 
 
+def verified_commands_path(build_root: Path, connector_root: Path) -> Path:
+    configured = os.environ.get("VERIFIED_RUN_COMMANDS_FILE")
+    if configured:
+        return Path(configured)
+    return build_root / "verified-runs" / current_verified_run_id(connector_root) / VERIFIED_COMMANDS_FILENAME
+
+
 def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, native_root: Path, python: str) -> list[ReportSpec]:
     report_dir = connector_root / REPORT_DIR
-    verified_run_root = Path(os.environ.get("VERIFIED_RUN_ROOT", "/var/tmp/ModSecurity-conector-verified"))
+    default_verified_run_root = Path.home() / ".cache" / "ModSecurity-conector" / "verified"
+    verified_run_root = Path(os.environ.get("VERIFIED_RUN_ROOT", default_verified_run_root))
     component_cache_root = Path(
         os.environ.get("CONNECTOR_COMPONENT_CACHE")
         or os.environ.get("VERIFIED_COMPONENT_CACHE")
@@ -498,7 +534,7 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
             generator="ci/evidence/reports/generate-full-matrix-job-completeness.py",
             make_target="generate-full-matrix-job-completeness",
             inputs=(
-                str(Path(os.environ.get("VERIFIED_RUN_COMMANDS_FILE", str(build_root / "verified-runs" / current_verified_run_id(connector_root) / "verified-commands.json")))),
+                str(verified_commands_path(build_root, connector_root)),
                 str(full_matrix_manifest),
             ),
             outputs=FULL_MATRIX_JOB_COMPLETENESS_OUTPUTS,
@@ -516,7 +552,7 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
                 "--verified-run-id",
                 current_verified_run_id(connector_root),
                 "--verified-commands-file",
-                str(Path(os.environ.get("VERIFIED_RUN_COMMANDS_FILE", str(build_root / "verified-runs" / current_verified_run_id(connector_root) / "verified-commands.json")))),
+                str(verified_commands_path(build_root, connector_root)),
                 "--rewrite-manifest",
             ),
             requires_runtime=True,
@@ -528,7 +564,7 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
             generator="ci/evidence/reports/generate-verified-runtime-mismatch-analysis.py",
             make_target="generate-verified-runtime-mismatch-analysis",
             inputs=(
-                str(Path(os.environ.get("VERIFIED_RUN_COMMANDS_FILE", str(build_root / "verified-runs" / current_verified_run_id(connector_root) / "verified-commands.json")))),
+                str(verified_commands_path(build_root, connector_root)),
                 str(full_matrix_manifest),
             ),
             outputs=VERIFIED_RUNTIME_MISMATCH_OUTPUTS,
@@ -546,7 +582,7 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
                 "--verified-run-id",
                 current_verified_run_id(connector_root),
                 "--verified-commands-file",
-                str(Path(os.environ.get("VERIFIED_RUN_COMMANDS_FILE", str(build_root / "verified-runs" / current_verified_run_id(connector_root) / "verified-commands.json")))),
+                str(verified_commands_path(build_root, connector_root)),
             ),
             requires_runtime=True,
         ),
@@ -556,7 +592,7 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
             generator="ci/evidence/reports/generate-nginx-mrts-http500-cluster-analysis.py",
             make_target="generate-nginx-mrts-http500-cluster-analysis",
             inputs=(
-                str(Path(os.environ.get("VERIFIED_RUN_COMMANDS_FILE", str(build_root / "verified-runs" / current_verified_run_id(connector_root) / "verified-commands.json")))),
+                str(verified_commands_path(build_root, connector_root)),
                 str(full_matrix_manifest),
                 report_relpath("full_matrix_job_completeness", "json"),
                 report_relpath("verified_runtime_mismatch_analysis", "json"),
@@ -659,17 +695,17 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
         ReportSpec(
             name="native_semantics_comparison",
             owner="connector",
-            generator="ci/runtime/lifecycle/run-native-case-comparison.py",
+            generator=NATIVE_CASE_COMPARISON_GENERATOR,
             make_target="generate-native-semantics-comparison",
             inputs=(
-                "ci/runtime/lifecycle/run-native-case-comparison.py",
+                NATIVE_CASE_COMPARISON_GENERATOR,
                 "ci/tools/native_modsecurity_oracle.c",
                 report_relpath("verified_runtime_mismatch_analysis", "json"),
             ),
             outputs=NATIVE_SEMANTICS_OUTPUTS,
             command=(
                 python,
-                "ci/runtime/lifecycle/run-native-case-comparison.py",
+                NATIVE_CASE_COMPARISON_GENERATOR,
                 "--connector-root",
                 str(connector_root),
                 "--framework-root",
@@ -1040,11 +1076,11 @@ def retained_notice(status: str, reason: str, *, german: bool) -> str:
 def mark_retained_markdown(path: Path, status: str, reason: str) -> None:
     """Mark a retained generated snapshot without changing its evidence rows."""
 
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
+    safe_report_path = safe_existing_file(path)
+    if safe_report_path is None:
         return
-    notice = retained_notice(status, reason, german=path.name.endswith(".de.md"))
+    text = safe_report_path.read_text(encoding="utf-8")
+    notice = retained_notice(status, reason, german=path.name.endswith(GERMAN_MARKDOWN_SUFFIX))
     marker = "<!-- retained-historical-generated-output -->"
     if marker in text:
         text = re.sub(
@@ -1060,13 +1096,13 @@ def mark_retained_markdown(path: Path, status: str, reason: str) -> None:
             text = text[: heading + 2] + notice + text[heading + 2 :]
         else:
             text += "\n" + notice
-    path.write_text(text, encoding="utf-8")
+    write_text_file(safe_report_path, text)
 
 
 def german_markdown_companion(path: Path) -> Path | None:
     if not path.name.endswith(".generated.md"):
         return None
-    return path.with_name(path.name.removesuffix(".md") + ".de.md")
+    return path.with_name(path.name.removesuffix(".md") + GERMAN_MARKDOWN_SUFFIX)
 
 
 def write_placeholder_outputs(
@@ -1116,11 +1152,10 @@ def write_placeholder_outputs(
             "rows": [],
             "empty_reason": "producer command was not run or verified input is unavailable",
         }
-        path.parent.mkdir(parents=True, exist_ok=True)
         if path.suffix == ".json":
-            path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
+            write_text_file(path, generated_json_text(payload, metadata))
         elif path.suffix == ".md":
-            path.write_text(generated_markdown_text(placeholder_markdown(key, status, reason, spec), metadata), encoding="utf-8")
+            write_text_file(path, generated_markdown_text(placeholder_markdown(key, status, reason, spec), metadata))
 
 
 def run_spec(
@@ -1135,83 +1170,108 @@ def run_spec(
     input_paths = [resolve_input(raw, connector_root, framework_root, build_root) for raw in spec.inputs]
     output_paths = [resolve_output(raw, connector_root) for raw in spec.outputs]
     records = [input_record(raw, connector_root, framework_root, build_root) for raw in spec.inputs]
-    missing_inputs = [path for path in input_paths if not path.exists()]
-    stale_inputs = [record["path"] for record in records if record.get("status") == "stale"]
-    blocked_inputs = [
-        record["path"]
-        for record in records
-        if str(record.get("status", "")) in {"blocked", "failed", "interrupted"}
-        or str(record.get("status", "")).startswith("blocked")
-        or str(record.get("status", "")).startswith("skipped")
-    ]
-    empty_inputs = [record["path"] for record in records if record.get("status") == "empty"]
-    unknown_inputs = [record["path"] for record in records if record.get("status") == "unknown"]
-    raw_stale_inputs = stale_runtime_raw_inputs(spec, input_paths, env)
-    stale_inputs.extend(raw_stale_inputs)
-    producer_block_status, producer_block_reason = full_matrix_producer_block(spec, env)
-    skip_status = ""
-    blocked_reason = ""
-    if producer_block_status:
-        skip_status = producer_block_status
-        blocked_reason = producer_block_reason
-    elif blocked_inputs:
-        skip_status = "blocked"
-        blocked_reason = "required generated input is blocked"
-    elif missing_inputs or empty_inputs:
-        skip_status = "skipped_missing_input"
-        blocked_reason = "required input missing or empty"
-    elif stale_inputs:
-        skip_status = "skipped_stale_input"
-        blocked_reason = "required generated input is stale"
-    elif unknown_inputs:
-        skip_status = "blocked"
-        blocked_reason = "required input status is unknown"
+    inputs = report_input_state(spec, input_paths, records, env)
+    skip_status, blocked_reason = report_skip_status(spec, env, inputs)
     if skip_status:
-        finished_at = utc_now()
-        print(
-            f"refresh-connector-reports: {skip_status.upper()} {spec.name}: {blocked_reason}"
+        return skipped_spec_record(
+            spec, skip_status, blocked_reason, input_paths, output_paths, inputs,
+            connector_root, framework_root, build_root, started_at, started,
         )
-        write_placeholder_outputs(
-            spec,
-            skip_status,
-            blocked_reason,
-            output_paths,
-            connector_root,
-            framework_root,
-            finished_at,
-            preserve_existing=True,
-        )
-        record = report_record(spec, skip_status, input_paths, output_paths, connector_root, framework_root, build_root, missing_inputs)
-        record.update(
-            {
-                "started_at": started_at,
-                "finished_at": finished_at,
-                "duration_seconds": round(time.monotonic() - started, 3),
-                "return_code": 0,
-                "command": list(spec.command),
-                "blocked_reason": blocked_reason,
-                "blocked_inputs": blocked_inputs,
-            }
-        )
-        return record
+    return generated_spec_record(
+        spec, input_paths, output_paths, inputs, connector_root, framework_root,
+        build_root, env, started_at, started,
+    )
 
-    command_env = dict(env)
-    if spec.name != "remaining_failure_analysis":
-        command_env["SUPPRESS_FULL_RUN_EVIDENCE_SIDE_EFFECTS"] = "1"
+
+def report_input_state(
+    spec: ReportSpec,
+    input_paths: list[Path],
+    records: list[dict[str, Any]],
+    env: dict[str, str],
+) -> dict[str, list[Any]]:
+    stale = [record["path"] for record in records if record.get("status") == "stale"]
+    stale.extend(stale_runtime_raw_inputs(spec, input_paths, env))
+    return {
+        "missing": [path for path in input_paths if not path.exists()],
+        "stale": stale,
+        "blocked": [
+            record["path"]
+            for record in records
+            if is_blocked_input_status(str(record.get("status", "")))
+        ],
+        "empty": [record["path"] for record in records if record.get("status") == "empty"],
+        "unknown": [record["path"] for record in records if record.get("status") == "unknown"],
+    }
+
+
+def is_blocked_input_status(status: str) -> bool:
+    return status in {"blocked", "failed", "interrupted"} or status.startswith(("blocked", "skipped"))
+
+
+def report_skip_status(
+    spec: ReportSpec, env: dict[str, str], inputs: dict[str, list[Any]]
+) -> tuple[str, str]:
+    producer_status, producer_reason = full_matrix_producer_block(spec, env)
+    if producer_status:
+        return producer_status, producer_reason
+    if inputs["blocked"]:
+        return "blocked", "required generated input is blocked"
+    if inputs["missing"] or inputs["empty"]:
+        return "skipped_missing_input", "required input missing or empty"
+    if inputs["stale"]:
+        return "skipped_stale_input", "required generated input is stale"
+    if inputs["unknown"]:
+        return "blocked", "required input status is unknown"
+    return "", ""
+
+
+def skipped_spec_record(
+    spec: ReportSpec, status: str, reason: str, input_paths: list[Path],
+    output_paths: list[Path], inputs: dict[str, list[Any]], connector_root: Path,
+    framework_root: Path, build_root: Path, started_at: str, started: float,
+) -> dict[str, Any]:
+    finished_at = utc_now()
+    print(f"refresh-connector-reports: {status.upper()} {spec.name}: {reason}")
+    write_placeholder_outputs(
+        spec, status, reason, output_paths, connector_root, framework_root,
+        finished_at, preserve_existing=True,
+    )
+    record = report_record(
+        spec, status, input_paths, output_paths, connector_root, framework_root,
+        build_root, inputs["missing"],
+    )
+    record.update(
+        {
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "duration_seconds": round(time.monotonic() - started, 3),
+            "return_code": 0,
+            "command": list(spec.command),
+            "blocked_reason": reason,
+            "blocked_inputs": inputs["blocked"],
+        }
+    )
+    return record
+
+
+def generated_spec_record(
+    spec: ReportSpec, input_paths: list[Path], output_paths: list[Path],
+    inputs: dict[str, list[Any]], connector_root: Path, framework_root: Path,
+    build_root: Path, env: dict[str, str], started_at: str, started: float,
+) -> dict[str, Any]:
+    command_env = command_environment(spec, env)
     rc, _output, log_info = run_command(list(spec.command), connector_root, command_env)
     finished_at = utc_now()
     missing_outputs = [path for path in output_paths if not path.is_file()]
-    if rc == 77:
-        status = "blocked"
-    elif rc != 0 or missing_outputs:
-        status = "failed"
-    else:
-        status = "generated"
+    status = generator_status(rc, missing_outputs)
     if status in {"failed", "blocked"}:
-        reason = f"generator returned {rc}" if rc != 0 else "generator did not produce all expected outputs"
+        reason = generator_failure_reason(rc)
         write_placeholder_outputs(spec, status, reason, output_paths, connector_root, framework_root, finished_at)
         missing_outputs = [path for path in output_paths if not path.is_file()]
-    record = report_record(spec, status, input_paths, output_paths, connector_root, framework_root, build_root, missing_inputs)
+    record = report_record(
+        spec, status, input_paths, output_paths, connector_root, framework_root,
+        build_root, inputs["missing"],
+    )
     record.update(
         {
             "started_at": started_at,
@@ -1226,9 +1286,27 @@ def run_spec(
     )
     if missing_outputs:
         record["missing_outputs"] = [
-            display_path(path, connector_root, framework_root, build_root) for path in missing_outputs
+            display_path(path, connector_root, framework_root, build_root)
+            for path in missing_outputs
         ]
     return record
+
+
+def command_environment(spec: ReportSpec, env: dict[str, str]) -> dict[str, str]:
+    command_env = dict(env)
+    if spec.name != "remaining_failure_analysis":
+        command_env["SUPPRESS_FULL_RUN_EVIDENCE_SIDE_EFFECTS"] = "1"
+    return command_env
+
+
+def generator_status(return_code: int, missing_outputs: list[Path]) -> str:
+    if return_code == 77:
+        return "blocked"
+    return "failed" if return_code != 0 or missing_outputs else "generated"
+
+
+def generator_failure_reason(return_code: int) -> str:
+    return f"generator returned {return_code}" if return_code != 0 else "generator did not produce all expected outputs"
 
 
 def stale_runtime_raw_inputs(spec: ReportSpec, input_paths: list[Path], env: dict[str, str]) -> list[str]:
@@ -1238,7 +1316,7 @@ def stale_runtime_raw_inputs(spec: ReportSpec, input_paths: list[Path], env: dic
     if not started_at:
         return []
     try:
-        start_ts = datetime.fromisoformat(started_at.replace("Z", "+00:00")).timestamp()
+        start_ts = datetime.fromisoformat(started_at.replace("Z", UTC_OFFSET)).timestamp()
     except ValueError:
         return []
     stale: list[str] = []
@@ -1491,7 +1569,7 @@ def submodule_report(connector_root: Path, framework_root: Path) -> list[dict[st
         },
         {
             "name": "framework_submodule",
-            "path": "modules/ModSecurity-test-Framework",
+            "path": FRAMEWORK_SUBMODULE_PATH,
             "sha": git_sha(framework_root),
             "branch": git_branch(framework_root),
             "dirty": git_dirty_status(framework_root),
@@ -1499,7 +1577,7 @@ def submodule_report(connector_root: Path, framework_root: Path) -> list[dict[st
         },
         {
             "name": "mrts_submodule",
-            "path": "modules/ModSecurity-test-Framework/tools/MRTS",
+            "path": f"{FRAMEWORK_SUBMODULE_PATH}/tools/MRTS",
             "sha": git_sha(mrts_root),
             "branch": git_branch(mrts_root) if mrts_root.exists() else "not_found",
             "dirty": git_dirty_status(mrts_root) if mrts_root.exists() else "not_found",
@@ -1520,9 +1598,9 @@ def submodule_report(connector_root: Path, framework_root: Path) -> list[dict[st
     for line in expected.splitlines():
         clean = line.strip()
         parts = clean.split()
-        if len(parts) >= 2 and parts[1] == "modules/ModSecurity-test-Framework":
+        if len(parts) >= 2 and parts[1] == FRAMEWORK_SUBMODULE_PATH:
             rows[1]["expected"] = parts[0].lstrip("+-")
-        if len(parts) >= 2 and parts[1] == "modules/ModSecurity-test-Framework/tools/MRTS":
+        if len(parts) >= 2 and parts[1] == f"{FRAMEWORK_SUBMODULE_PATH}/tools/MRTS":
             rows[2]["expected"] = parts[0].lstrip("+-")
     if sibling.exists() and rows[1]["sha"] != rows[3]["sha"]:
         rows[3]["status"] = "differs"
@@ -1605,165 +1683,267 @@ def build_governance_record(
     return record
 
 
-def merge_dashboard_payload(manifest: dict[str, Any], freshness: dict[str, Any], submodules: list[dict[str, str]], connector_root: Path) -> dict[str, Any]:
-    full_matrix = read_json(report_path(connector_root, "full_runtime_matrix", "json"))
-    final_audit = read_json(report_path(connector_root, "final_consistency_audit", "json"))
-    next_plan = read_json(report_path(connector_root, "next_fix_plan", "json"))
-    system_proof = read_json(report_path(connector_root, "system_environment_proof", "json"))
-    mismatch_analysis = read_json(report_path(connector_root, "verified_runtime_mismatch_analysis", "json"))
-    job_completeness = read_json(report_path(connector_root, "full_matrix_job_completeness", "json"))
-    nginx_http500 = read_json(report_path(connector_root, "nginx_mrts_http500_cluster_analysis", "json"))
-    reports = manifest.get("reports", [])
-    failed = [report for report in reports if report.get("status") == "failed" and not report.get("optional")]
-    optional_failed = [report for report in reports if report.get("status") == "failed" and report.get("optional")]
-    skipped = [
-        report
-        for report in reports
-        if str(report.get("status", "")).startswith("skipped") and not report.get("optional")
-    ]
-    optional_skipped = [
-        report
-        for report in reports
-        if str(report.get("status", "")).startswith("skipped") and report.get("optional")
-    ]
-    optional_blocked = [report for report in reports if report.get("status") == "blocked" and report.get("optional")]
-    stale = [
-        report
-        for report in freshness.get("reports", [])
-        if report.get("freshness_status") in {"stale", "input-newer-than-output", "missing-output", "missing-input"}
-    ]
-    dirty = [item for item in submodules if item.get("dirty") == "dirty" or item.get("status") == "differs"]
-    verified_run_id = str(manifest.get("verified_run_id") or current_verified_run_id(connector_root))
-    critical_reports = [report for report in reports if report.get("severity") == "critical" and not report.get("optional")]
-    critical_missing = [report for report in critical_reports if report.get("status") != "generated"]
-    critical_stale = [
-        report
-        for report in critical_reports
-        if report.get("freshness_status") in {"stale", "input-newer-than-output", "missing-output", "missing-input"}
-        or report.get("input_status") in {"stale", "blocked", "missing", "partial", "unknown"}
-        or report.get("stale_inputs")
-    ]
-    critical_run_mismatches = [
-        report.get("report_name", "unknown")
-        for report in critical_reports
-        if str(report.get("verified_run_id") or "") not in {"", verified_run_id}
-    ]
-    metadata_verified_run_ids = {
-        "full_runtime_matrix": (full_matrix.get("metadata") if isinstance(full_matrix.get("metadata"), dict) else {}).get("verified_run_id"),
-        "final_consistency_audit": (final_audit.get("metadata") if isinstance(final_audit.get("metadata"), dict) else {}).get("verified_run_id"),
-        "system_environment_proof": (system_proof.get("metadata") if isinstance(system_proof.get("metadata"), dict) else {}).get("verified_run_id"),
-        "verified_runtime_mismatch_analysis": (mismatch_analysis.get("metadata") if isinstance(mismatch_analysis.get("metadata"), dict) else {}).get("verified_run_id"),
+def dashboard_sources(connector_root: Path) -> dict[str, dict[str, Any]]:
+    return {
+        key: read_json(report_path(connector_root, key, "json"))
+        for key in (
+            "full_runtime_matrix",
+            "final_consistency_audit",
+            "next_fix_plan",
+            "system_environment_proof",
+            "verified_runtime_mismatch_analysis",
+            "full_matrix_job_completeness",
+            "nginx_mrts_http500_cluster_analysis",
+        )
     }
-    metadata_run_mismatches = [
-        name for name, run_id in metadata_verified_run_ids.items() if run_id != verified_run_id
-    ]
-    critical_producer_not_run = [
-        report for report in critical_reports if report.get("requires_full_matrix") and report.get("status") != "generated"
-    ]
-    verified_commands = manifest.get("verified_commands") if isinstance(manifest.get("verified_commands"), list) else []
-    refresh_timeout = any(
+
+
+def dashboard_report_groups(
+    reports: list[dict[str, Any]], freshness: dict[str, Any], submodules: list[dict[str, str]]
+) -> dict[str, list[dict[str, Any]]]:
+    is_skipped = lambda report: str(report.get("status", "")).startswith("skipped")
+    stale_statuses = {"stale", "input-newer-than-output", "missing-output", "missing-input"}
+    return {
+        "failed": [report for report in reports if report.get("status") == "failed" and not report.get("optional")],
+        "optional_failed": [report for report in reports if report.get("status") == "failed" and report.get("optional")],
+        "skipped": [report for report in reports if is_skipped(report) and not report.get("optional")],
+        "optional_skipped": [report for report in reports if is_skipped(report) and report.get("optional")],
+        "optional_blocked": [report for report in reports if report.get("status") == "blocked" and report.get("optional")],
+        "stale": [report for report in freshness.get("reports", []) if report.get("freshness_status") in stale_statuses],
+        "dirty": [item for item in submodules if item.get("dirty") == "dirty" or item.get("status") == "differs"],
+    }
+
+
+def dashboard_critical_groups(reports: list[dict[str, Any]], verified_run_id: str) -> dict[str, list[dict[str, Any]] | list[str]]:
+    stale_statuses = {"stale", "input-newer-than-output", "missing-output", "missing-input"}
+    unacceptable_inputs = {"stale", "blocked", "missing", "partial", "unknown"}
+    critical = [report for report in reports if report.get("severity") == "critical" and not report.get("optional")]
+    return {
+        "missing": [report for report in critical if report.get("status") != "generated"],
+        "stale": [
+            report
+            for report in critical
+            if report.get("freshness_status") in stale_statuses
+            or report.get("input_status") in unacceptable_inputs
+            or report.get("stale_inputs")
+        ],
+        "run_mismatches": [
+            str(report.get("report_name") or "unknown")
+            for report in critical
+            if str(report.get("verified_run_id") or "") not in {"", verified_run_id}
+        ],
+        "producer_not_run": [
+            report for report in critical if report.get("requires_full_matrix") and report.get("status") != "generated"
+        ],
+    }
+
+
+def metadata_verified_run_ids(sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    required = (
+        "full_runtime_matrix",
+        "final_consistency_audit",
+        "system_environment_proof",
+        "verified_runtime_mismatch_analysis",
+    )
+    return {
+        key: (sources[key].get("metadata") if isinstance(sources[key].get("metadata"), dict) else {}).get("verified_run_id")
+        for key in required
+    }
+
+
+def refresh_timed_out(manifest: dict[str, Any]) -> bool:
+    commands = manifest.get("verified_commands") if isinstance(manifest.get("verified_commands"), list) else []
+    return any(
         command.get("refresh_status") == "refresh_timeout"
         or command.get("overall_status") == "blocked_refresh_timeout"
         or (
             command.get("logical_target") in {"refresh-all-reports", "generate-system-environment-proof"}
             and command.get("classification") == "blocked_timeout"
         )
-        for command in verified_commands
+        for command in commands
         if isinstance(command, dict)
     )
-    mismatch_full_matrix = mismatch_analysis.get("full_matrix") if isinstance(mismatch_analysis.get("full_matrix"), dict) else {}
-    full_matrix_complete = bool(mismatch_full_matrix.get("complete"))
-    full_matrix_timeout = bool(mismatch_full_matrix.get("timeout"))
-    full_matrix_completed_jobs = int(mismatch_full_matrix.get("completed_jobs") or job_completeness.get("complete_jobs") or 0)
-    full_matrix_expected_jobs = int(mismatch_full_matrix.get("expected_jobs") or job_completeness.get("total_jobs") or 0)
-    missing_jobs = mismatch_full_matrix.get("missing_jobs")
-    if isinstance(missing_jobs, list):
-        full_matrix_missing_jobs = missing_jobs
-    else:
-        missing_job_ids = job_completeness.get("missing_job_ids")
-        if isinstance(missing_job_ids, list):
-            full_matrix_missing_jobs = missing_job_ids
-        else:
-            full_matrix_missing_jobs = []
-    full_matrix_refresh_timeout = bool(mismatch_full_matrix.get("refresh_timeout")) or refresh_timeout
-    evidence_scope = str(mismatch_analysis.get("evidence_scope") or "")
-    critical_mismatch_count = int(mismatch_analysis.get("critical_mismatch_count") or 0)
-    mismatch_count = int(mismatch_analysis.get("mismatch_count") or 0)
-    smoke_only = evidence_scope == "smoke-only"
-    full_matrix_incomplete = bool(mismatch_analysis) and (smoke_only or not full_matrix_complete)
+
+
+def dashboard_matrix_state(
+    mismatch_analysis: dict[str, Any], job_completeness: dict[str, Any], refresh_timeout: bool
+) -> dict[str, Any]:
+    matrix = mismatch_analysis.get("full_matrix") if isinstance(mismatch_analysis.get("full_matrix"), dict) else {}
+    missing_jobs = matrix.get("missing_jobs")
+    if not isinstance(missing_jobs, list):
+        missing_jobs = job_completeness.get("missing_job_ids")
+    return {
+        "complete": bool(matrix.get("complete")),
+        "timeout": bool(matrix.get("timeout")),
+        "completed_jobs": int(matrix.get("completed_jobs") or job_completeness.get("complete_jobs") or 0),
+        "expected_jobs": int(matrix.get("expected_jobs") or job_completeness.get("total_jobs") or 0),
+        "missing_jobs": missing_jobs if isinstance(missing_jobs, list) else [],
+        "refresh_timeout": bool(matrix.get("refresh_timeout")) or refresh_timeout,
+    }
+
+
+def dashboard_primary_blocker(
+    nginx_http500: dict[str, Any],
+    matrix: dict[str, Any],
+    critical_mismatch_count: int,
+    next_plan: dict[str, Any],
+    final_audit: dict[str, Any],
+) -> str:
     primary_blocker = str(nginx_http500.get("primary_blocker") or "")
     if primary_blocker == "none":
         primary_blocker = ""
-    if not primary_blocker and full_matrix_complete and critical_mismatch_count > 0:
-        primary_blocker = str(
+    if not primary_blocker and matrix["complete"] and critical_mismatch_count > 0:
+        return str(
             next_plan.get("recommendation", {}).get("recommended_next_fix_cluster")
             or final_audit.get("recommended_next_fix_cluster", {}).get("value", "unknown")
         )
-    core_ok = (
-        not failed
-        and not skipped
-        and not stale
-        and not dirty
-        and not critical_missing
-        and not critical_stale
-        and not critical_run_mismatches
-        and not metadata_run_mismatches
-        and critical_mismatch_count == 0
-        and final_audit.get("release_readiness") in {"ready", "ready_with_known_reported_gaps"}
+    return primary_blocker
+
+
+def merge_readiness(
+    groups: dict[str, list[dict[str, Any]]],
+    critical: dict[str, list[dict[str, Any]] | list[str]],
+    matrix: dict[str, Any],
+    *,
+    metadata_run_mismatches: list[str],
+    final_audit: dict[str, Any],
+    mismatch_analysis: dict[str, Any],
+) -> tuple[str, str]:
+    critical_mismatch_count = int(mismatch_analysis.get("critical_mismatch_count") or 0)
+    evidence_scope = str(mismatch_analysis.get("evidence_scope") or "")
+    smoke_only = evidence_scope == "smoke-only"
+    full_matrix_incomplete = bool(mismatch_analysis) and (smoke_only or not matrix["complete"])
+    core_ok = all(
+        (
+            not groups["failed"],
+            not groups["skipped"],
+            not groups["stale"],
+            not groups["dirty"],
+            not critical["missing"],
+            not critical["stale"],
+            not critical["run_mismatches"],
+            not metadata_run_mismatches,
+            critical_mismatch_count == 0,
+            final_audit.get("release_readiness") in {"ready", "ready_with_known_reported_gaps"},
+        )
+    )
+    warning_conditions = any(
+        (
+            groups["skipped"],
+            groups["optional_failed"],
+            groups["optional_skipped"],
+            groups["optional_blocked"],
+            groups["stale"],
+            groups["dirty"],
+            critical["missing"],
+            critical["stale"],
+            critical["run_mismatches"],
+            metadata_run_mismatches,
+        )
     )
     if full_matrix_incomplete:
         readiness = "UNKNOWN"
-    elif failed:
+    elif groups["failed"] or (matrix["complete"] and critical_mismatch_count > 0):
         readiness = "FAIL"
-    elif full_matrix_complete and critical_mismatch_count > 0:
-        readiness = "FAIL"
-    elif critical_producer_not_run:
+    elif critical["producer_not_run"]:
         readiness = "UNKNOWN"
-    elif (
-        skipped
-        or optional_failed
-        or optional_skipped
-        or optional_blocked
-        or stale
-        or dirty
-        or critical_missing
-        or critical_stale
-        or critical_run_mismatches
-        or metadata_run_mismatches
-    ):
+    elif warning_conditions:
         readiness = "WARN"
     elif core_ok:
         readiness = "PASS"
     else:
         readiness = "UNKNOWN"
+    return readiness, merge_readiness_reason(
+        readiness,
+        groups,
+        critical,
+        matrix,
+        critical_mismatch_count=critical_mismatch_count,
+        smoke_only=smoke_only,
+        full_matrix_incomplete=full_matrix_incomplete,
+    )
+
+
+def merge_readiness_reason(
+    readiness: str,
+    groups: dict[str, list[dict[str, Any]]],
+    critical: dict[str, list[dict[str, Any]] | list[str]],
+    matrix: dict[str, Any],
+    *,
+    critical_mismatch_count: int,
+    smoke_only: bool,
+    full_matrix_incomplete: bool,
+) -> str:
     if smoke_only:
-        reason = "Smoke-only evidence is not a full verified matrix run; merge readiness remains UNKNOWN."
-    elif full_matrix_incomplete:
-        reason = (
-            "Full-Matrix evidence is incomplete; "
-            f"{full_matrix_completed_jobs}/{full_matrix_expected_jobs} jobs complete; "
-            f"missing jobs: {', '.join(str(item) for item in full_matrix_missing_jobs) or 'unknown'}."
-        )
-    elif failed:
-        reason = "Failed generator records block merge readiness."
-    elif full_matrix_complete and critical_mismatch_count > 0 and full_matrix_refresh_timeout:
-        reason = "Full-Matrix runtime completed with critical mismatches; downstream report refresh timed out."
-    elif full_matrix_complete and critical_mismatch_count > 0 and (
-        full_matrix_refresh_timeout or stale or critical_stale
-    ):
-        reason = "Full-Matrix runtime completed with critical mismatches; downstream reports remain blocked, stale, or unknown."
-    elif full_matrix_complete and critical_mismatch_count > 0:
-        reason = "Full-Matrix completed and critical runtime mismatches are present."
-    elif readiness == "UNKNOWN":
-        reason = "Critical producer evidence was not generated in this verified run."
-    elif optional_failed or optional_skipped or optional_blocked:
-        reason = "Optional producer evidence is unavailable; required critical inputs are tracked separately."
-    elif readiness == "WARN":
-        reason = "Core canonical reports are generated; warning conditions are documented."
-    elif readiness == "PASS":
-        reason = "Core canonical reports are generated and no warning conditions were found."
-    else:
-        reason = "Merge readiness could not be determined from available reports."
+        return "Smoke-only evidence is not a full verified matrix run; merge readiness remains UNKNOWN."
+    if full_matrix_incomplete:
+        missing = ", ".join(str(item) for item in matrix["missing_jobs"]) or "unknown"
+        return f"Full-Matrix evidence is incomplete; {matrix['completed_jobs']}/{matrix['expected_jobs']} jobs complete; missing jobs: {missing}."
+    critical_reason = critical_mismatch_reason(groups, critical, matrix, critical_mismatch_count)
+    if critical_reason:
+        return critical_reason
+    if readiness == "UNKNOWN":
+        return "Critical producer evidence was not generated in this verified run."
+    if groups["optional_failed"] or groups["optional_skipped"] or groups["optional_blocked"]:
+        return "Optional producer evidence is unavailable; required critical inputs are tracked separately."
+    if readiness == "WARN":
+        return "Core canonical reports are generated; warning conditions are documented."
+    if readiness == "PASS":
+        return "Core canonical reports are generated and no warning conditions were found."
+    return "Merge readiness could not be determined from available reports."
+
+
+def critical_mismatch_reason(
+    groups: dict[str, list[dict[str, Any]]],
+    critical: dict[str, list[dict[str, Any]] | list[str]],
+    matrix: dict[str, Any],
+    critical_mismatch_count: int,
+) -> str | None:
+    if groups["failed"]:
+        return "Failed generator records block merge readiness."
+    if not matrix["complete"] or critical_mismatch_count == 0:
+        return None
+    if matrix["refresh_timeout"]:
+        return "Full-Matrix runtime completed with critical mismatches; downstream report refresh timed out."
+    if groups["stale"] or critical["stale"]:
+        return "Full-Matrix runtime completed with critical mismatches; downstream reports remain blocked, stale, or unknown."
+    return "Full-Matrix completed and critical runtime mismatches are present."
+
+
+def merge_dashboard_payload(manifest: dict[str, Any], freshness: dict[str, Any], submodules: list[dict[str, str]], connector_root: Path) -> dict[str, Any]:
+    sources = dashboard_sources(connector_root)
+    reports = manifest.get("reports", [])
+    groups = dashboard_report_groups(reports, freshness, submodules)
+    verified_run_id = str(manifest.get("verified_run_id") or current_verified_run_id(connector_root))
+    critical = dashboard_critical_groups(reports, verified_run_id)
+    metadata_ids = metadata_verified_run_ids(sources)
+    metadata_run_mismatches = [name for name, run_id in metadata_ids.items() if run_id != verified_run_id]
+    mismatch_analysis = sources["verified_runtime_mismatch_analysis"]
+    matrix = dashboard_matrix_state(
+        mismatch_analysis,
+        sources["full_matrix_job_completeness"],
+        refresh_timed_out(manifest),
+    )
+    critical_mismatch_count = int(mismatch_analysis.get("critical_mismatch_count") or 0)
+    primary_blocker = dashboard_primary_blocker(
+        sources["nginx_mrts_http500_cluster_analysis"],
+        matrix,
+        critical_mismatch_count,
+        sources["next_fix_plan"],
+        sources["final_consistency_audit"],
+    )
+    readiness, reason = merge_readiness(
+        groups,
+        critical,
+        matrix,
+        metadata_run_mismatches=metadata_run_mismatches,
+        final_audit=sources["final_consistency_audit"],
+        mismatch_analysis=mismatch_analysis,
+    )
+    full_matrix = sources["full_runtime_matrix"]
+    final_audit = sources["final_consistency_audit"]
+    next_plan = sources["next_fix_plan"]
+    mismatch_count = int(mismatch_analysis.get("mismatch_count") or 0)
     return {
         "status": readiness,
         "verified_run_id": verified_run_id,
@@ -1772,13 +1952,13 @@ def merge_dashboard_payload(manifest: dict[str, Any], freshness: dict[str, Any],
         "connector_sha": manifest.get("connector_sha"),
         "framework_sha": manifest.get("framework_sha"),
         "full_matrix_totals": full_matrix.get("totals", {}),
-        "full_matrix_complete": full_matrix_complete,
-        "full_matrix_completed_jobs": full_matrix_completed_jobs,
-        "full_matrix_expected_jobs": full_matrix_expected_jobs,
-        "full_matrix_missing_jobs": full_matrix_missing_jobs,
-        "full_matrix_timeout": full_matrix_timeout,
-        "full_matrix_refresh_timeout": full_matrix_refresh_timeout,
-        "evidence_scope": evidence_scope or "unknown",
+        "full_matrix_complete": matrix["complete"],
+        "full_matrix_completed_jobs": matrix["completed_jobs"],
+        "full_matrix_expected_jobs": matrix["expected_jobs"],
+        "full_matrix_missing_jobs": matrix["missing_jobs"],
+        "full_matrix_timeout": matrix["timeout"],
+        "full_matrix_refresh_timeout": matrix["refresh_timeout"],
+        "evidence_scope": str(mismatch_analysis.get("evidence_scope") or "unknown"),
         "runtime_mismatch_count": mismatch_count,
         "critical_runtime_mismatch_count": critical_mismatch_count,
         "runtime_mismatch_categories": mismatch_analysis.get("by_classification", {}) if isinstance(mismatch_analysis.get("by_classification"), dict) else {},
@@ -1786,19 +1966,19 @@ def merge_dashboard_payload(manifest: dict[str, Any], freshness: dict[str, Any],
         "primary_blocker": primary_blocker or "unknown",
         "recommended_next_fix_cluster": next_plan.get("recommendation", {}).get("recommended_next_fix_cluster")
         or final_audit.get("recommended_next_fix_cluster", {}).get("value", "unknown"),
-        "failed_reports": [report.get("report_name") for report in failed],
-        "skipped_reports": [report.get("report_name") for report in skipped],
-        "optional_failed_reports": [report.get("report_name") for report in optional_failed],
-        "optional_skipped_reports": [report.get("report_name") for report in optional_skipped],
-        "optional_blocked_reports": [report.get("report_name") for report in optional_blocked],
-        "stale_reports": [report.get("report_name") for report in stale],
-        "critical_missing_reports": [report.get("report_name") for report in critical_missing],
-        "critical_stale_reports": [report.get("report_name") for report in critical_stale],
-        "critical_run_mismatches": critical_run_mismatches,
+        "failed_reports": [report.get("report_name") for report in groups["failed"]],
+        "skipped_reports": [report.get("report_name") for report in groups["skipped"]],
+        "optional_failed_reports": [report.get("report_name") for report in groups["optional_failed"]],
+        "optional_skipped_reports": [report.get("report_name") for report in groups["optional_skipped"]],
+        "optional_blocked_reports": [report.get("report_name") for report in groups["optional_blocked"]],
+        "stale_reports": [report.get("report_name") for report in groups["stale"]],
+        "critical_missing_reports": [report.get("report_name") for report in critical["missing"]],
+        "critical_stale_reports": [report.get("report_name") for report in critical["stale"]],
+        "critical_run_mismatches": critical["run_mismatches"],
         "metadata_run_mismatches": metadata_run_mismatches,
-        "metadata_verified_run_ids": metadata_verified_run_ids,
-        "critical_producer_not_run": [report.get("report_name") for report in critical_producer_not_run],
-        "dirty_submodules": dirty,
+        "metadata_verified_run_ids": metadata_ids,
+        "critical_producer_not_run": [report.get("report_name") for report in critical["producer_not_run"]],
+        "dirty_submodules": groups["dirty"],
         "submodules": submodules,
         "reason": reason,
     }
@@ -1893,31 +2073,59 @@ def report_record_for_output(manifest: dict[str, Any], output_path: str) -> dict
     return {}
 
 
-def render_report_index_md(
-    manifest: dict[str, Any], *, german: bool = False, connector_root: Path | None = None
-) -> str:
-    """Render the bilingual index from manifest records without local paths."""
+def report_index_text(german: bool) -> dict[str, str]:
+    if german:
+        return {
+            "title": "# Testberichte",
+            "language": "**Sprache:** [English](README.md) | Deutsch",
+            "intro": "Dieser Index wird mit `make refresh-connector-reports` aktualisiert. Generierte Berichte liegen unter",
+            "notice": "`reports/testing/generated/<category>/`; generierte Berichtsdateien nicht manuell bearbeiten.",
+            "phases": "## Phasen des verifizierten Laufs",
+            "phase_intro": "Runtime-erzeugende Befehle und die Berichtserneuerung sind absichtlich getrennt. Runtime-Evidence bleibt gültig,",
+            "phase_explanation": "wenn eine spätere Berichtserneuerung abläuft oder nachgelagerte fokussierte Berichte stale sind.",
+            "long_runs": "Für lange Full-Matrix-Läufe:",
+            "compatibility": "Kompatibilität: `VERIFIED_RUN_FULL_MATRIX_TIMEOUT_SECONDS` wird weiterhin als Alias für",
+            "compatibility_target": "`VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS` akzeptiert.",
+            "index": "## Index der generierten Berichte",
+            "columns": "| Kategorie | Owner | Schweregrad | Berichtsdatei | Zweck | Generator | Make-Ziel | Eingaben | Ausgabepfad | Zuletzt generiert | Art |",
+            "migration": "## Migrationshinweise",
+            "flat_layout": "- Das bisherige flache `reports/testing/generated/*.generated.*`-Layout ist veraltet.",
+            "category_paths": "- Generatorcode schreibt Kategoriepfade direkt; die Aktualisierung entfernt veraltete flach generierte Berichtsdateien.",
+            "runtime_caches": "- Runtime-Caches und native MRTS-Nachweise werden durch ihre Generatorziele neu erzeugt, wenn lokale Eingaben verfügbar sind.",
+        }
+    return {
+        "title": "# Testing Reports",
+        "language": "**Language:** English | [Deutsch](README.de.md)",
+        "intro": "This index is refreshed by `make refresh-connector-reports`. Generated reports live under",
+        "notice": "`reports/testing/generated/<category>/`; do not edit generated report files manually.",
+        "phases": "## Verified Run Phases",
+        "phase_intro": "Runtime-producing commands and report refresh are intentionally separated. Runtime evidence remains valid",
+        "phase_explanation": "when a later report refresh times out or downstream focused reports are stale.",
+        "long_runs": "For long full-matrix runs:",
+        "compatibility": "Compatibility: `VERIFIED_RUN_FULL_MATRIX_TIMEOUT_SECONDS` is still accepted as an alias for",
+        "compatibility_target": "`VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS`.",
+        "index": "## Generated Report Index",
+        "columns": "| Category | Owner | Severity | Report file | Purpose | Generator | Make target | Inputs | Output path | Last generated | Kind |",
+        "migration": "## Migration Notes",
+        "flat_layout": "- The previous flat `reports/testing/generated/*.generated.*` layout is deprecated.",
+        "category_paths": "- Generator code writes category paths directly; refresh removes stale flat generated report files.",
+        "runtime_caches": "- Runtime caches and native MRTS evidence are regenerated by their generator targets when local inputs are available.",
+    }
 
-    lines = [
-        "# Testberichte" if german else "# Testing Reports",
+
+def report_index_header(text: dict[str, str]) -> list[str]:
+    return [
+        text["title"],
         "",
-        "**Sprache:** [English](README.md) | Deutsch" if german else "**Language:** English | [Deutsch](README.de.md)",
+        text["language"],
         "",
-        "Dieser Index wird mit `make refresh-connector-reports` aktualisiert. Generierte Berichte liegen unter"
-        if german
-        else "This index is refreshed by `make refresh-connector-reports`. Generated reports live under",
-        "`reports/testing/generated/<category>/`; generierte Berichtsdateien nicht manuell bearbeiten."
-        if german
-        else "`reports/testing/generated/<category>/`; do not edit generated report files manually.",
+        text["intro"],
+        text["notice"],
         "",
-        "## Phasen des verifizierten Laufs" if german else "## Verified Run Phases",
+        text["phases"],
         "",
-        "Runtime-erzeugende Befehle und die Berichtserneuerung sind absichtlich getrennt. Runtime-Evidence bleibt gültig,"
-        if german
-        else "Runtime-producing commands and report refresh are intentionally separated. Runtime evidence remains valid",
-        "wenn eine spätere Berichtserneuerung abläuft oder nachgelagerte fokussierte Berichte stale sind."
-        if german
-        else "when a later report refresh times out or downstream focused reports are stale.",
+        text["phase_intro"],
+        text["phase_explanation"],
         "",
         "```sh",
         "make verified-runtime-producers",
@@ -1925,7 +2133,7 @@ def render_report_index_md(
         "make verified-report-checks",
         "```",
         "",
-        "Für lange Full-Matrix-Läufe:" if german else "For long full-matrix runs:",
+        text["long_runs"],
         "",
         "```sh",
         "export VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS=7200",
@@ -1933,73 +2141,94 @@ def render_report_index_md(
         "make verified-report-run",
         "```",
         "",
-        "Kompatibilität: `VERIFIED_RUN_FULL_MATRIX_TIMEOUT_SECONDS` wird weiterhin als Alias für"
-        if german
-        else "Compatibility: `VERIFIED_RUN_FULL_MATRIX_TIMEOUT_SECONDS` is still accepted as an alias for",
-        "`VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS` akzeptiert."
-        if german
-        else "`VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS`.",
+        text["compatibility"],
+        text["compatibility_target"],
         "",
-        "## Index der generierten Berichte" if german else "## Generated Report Index",
+        text["index"],
         "",
-        "| Kategorie | Owner | Schweregrad | Berichtsdatei | Zweck | Generator | Make-Ziel | Eingaben | Ausgabepfad | Zuletzt generiert | Art |"
-        if german
-        else "| Category | Owner | Severity | Report file | Purpose | Generator | Make target | Inputs | Output path | Last generated | Kind |",
+        text["columns"],
         "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
-    for key, report in sorted(GENERATED_REPORTS.items(), key=lambda item: (item[1].category, item[1].stem)):
-        for ext in report.formats:
-            output_path = report_relpath(key, ext)
-            record = report_record_for_output(manifest, output_path)
-            inputs = (
-                "<br>".join(
-                    f"`{portable_path_reference(item)}`"
-                    for item in record.get("input_files", report.inputs)
-                )
-                or "`-`"
-            )
-            generated_at = record.get("generated_at", "-") if record else "-"
-            link_path = output_path
-            if german and ext == "md" and connector_root is not None:
-                german_companion = output_path.removesuffix(".md") + ".de.md"
-                if (connector_root / german_companion).is_file():
-                    link_path = german_companion
-            link = link_path.removeprefix("reports/testing/")
-            lines.append(
-                "| "
-                + " | ".join(
-                    [
-                        report.category,
-                        report.owner,
-                        report.severity,
-                        f"[{Path(link_path).name}](./{link})",
-                        report.purpose.replace("|", "\\|"),
-                        report.generator,
-                        report.make_target,
-                        inputs,
-                        f"`{output_path}`",
-                        generated_at,
-                        report.kind,
-                    ]
-                )
-                + " |"
-            )
-    lines.extend(
+
+
+def report_index_link_path(
+    output_path: str, *, german: bool, connector_root: Path | None
+) -> str:
+    if not german or not output_path.endswith(".md") or connector_root is None:
+        return output_path
+    companion = output_path.removesuffix(".md") + GERMAN_MARKDOWN_SUFFIX
+    return companion if (connector_root / companion).is_file() else output_path
+
+
+def report_index_row(
+    key: str,
+    report: Any,
+    ext: str,
+    manifest: dict[str, Any],
+    *,
+    german: bool,
+    connector_root: Path | None,
+) -> str:
+    output_path = report_relpath(key, ext)
+    record = report_record_for_output(manifest, output_path)
+    inputs = "<br>".join(
+        f"`{portable_path_reference(item)}`" for item in record.get("input_files", report.inputs)
+    ) or "`-`"
+    link_path = report_index_link_path(output_path, german=german, connector_root=connector_root)
+    link = link_path.removeprefix("reports/testing/")
+    return "| " + " | ".join(
         [
-            "",
-            "## Migrationshinweise" if german else "## Migration Notes",
-            "",
-            "- Das bisherige flache `reports/testing/generated/*.generated.*`-Layout ist veraltet."
-            if german
-            else "- The previous flat `reports/testing/generated/*.generated.*` layout is deprecated.",
-            "- Generatorcode schreibt Kategoriepfade direkt; die Aktualisierung entfernt veraltete flach generierte Berichtsdateien."
-            if german
-            else "- Generator code writes category paths directly; refresh removes stale flat generated report files.",
-            "- Runtime-Caches und native MRTS-Nachweise werden durch ihre Generatorziele neu erzeugt, wenn lokale Eingaben verfügbar sind."
-            if german
-            else "- Runtime caches and native MRTS evidence are regenerated by their generator targets when local inputs are available.",
+            report.category,
+            report.owner,
+            report.severity,
+            f"[{Path(link_path).name}](./{link})",
+            report.purpose.replace("|", "\\|"),
+            report.generator,
+            report.make_target,
+            inputs,
+            f"`{output_path}`",
+            record.get("generated_at", "-") if record else "-",
+            report.kind,
         ]
-    )
+    ) + " |"
+
+
+def report_index_rows(manifest: dict[str, Any], *, german: bool, connector_root: Path | None) -> list[str]:
+    rows: list[str] = []
+    for key, report in sorted(GENERATED_REPORTS.items(), key=lambda item: (item[1].category, item[1].stem)):
+        rows.extend(
+            report_index_row(
+                key,
+                report,
+                ext,
+                manifest,
+                german=german,
+                connector_root=connector_root,
+            )
+            for ext in report.formats
+        )
+    return rows
+
+
+def report_index_migration_notes(text: dict[str, str]) -> list[str]:
+    return [
+        "",
+        text["migration"],
+        "",
+        text["flat_layout"],
+        text["category_paths"],
+        text["runtime_caches"],
+    ]
+
+
+def render_report_index_md(
+    manifest: dict[str, Any], *, german: bool = False, connector_root: Path | None = None
+) -> str:
+    """Render the bilingual index from manifest records without local paths."""
+    text = report_index_text(german)
+    lines = report_index_header(text)
+    lines.extend(report_index_rows(manifest, german=german, connector_root=connector_root))
+    lines.extend(report_index_migration_notes(text))
     return "\n".join(lines) + "\n"
 
 
@@ -2015,7 +2244,7 @@ def cleanup_legacy_flat_reports(connector_root: Path) -> list[str]:
     return removed
 
 
-def main() -> int:
+def refresh_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", default=".")
     parser.add_argument("--framework-root", default=None)
@@ -2027,47 +2256,52 @@ def main() -> int:
         action="store_true",
         help="Re-render the bilingual index and prune retired catalog records without running generators.",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
+
+
+def refresh_roots(args: argparse.Namespace) -> tuple[Path, Path, Path, Path, Path]:
     connector_root = Path(args.connector_root).resolve()
-    framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
+    framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / FRAMEWORK_SUBMODULE_PATH
     from runtime_path_utils import verified_runtime_paths
 
     default_paths = verified_runtime_paths(os.environ)
     build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
     native_root = Path(args.native_root or build_root / "mrts-native").resolve()
     report_dir = connector_root / REPORT_DIR
-    report_dir.mkdir(parents=True, exist_ok=True)
-    if args.render_index_only:
-        manifest_path = report_path(connector_root, "report_refresh_manifest", "json")
-        manifest = read_json(manifest_path)
-        if not manifest.get("reports"):
-            raise SystemExit(f"cannot render report index without manifest reports: {manifest_path}")
-        if prune_retired_report_records(manifest):
-            metadata = manifest.pop("metadata", {})
-            if not isinstance(metadata, dict):
-                raise SystemExit(f"cannot preserve metadata while pruning {manifest_path}")
-            manifest_path.write_text(generated_json_text(manifest, metadata), encoding="utf-8")
-            manifest_md_path = report_path(connector_root, "report_refresh_manifest", "md")
-            manifest_md_path.write_text(
-                generated_markdown_text(render_manifest_md(manifest), metadata), encoding="utf-8"
-            )
-            prune_retired_markdown_rows(
-                manifest_md_path.with_name(manifest_md_path.name.removesuffix(".md") + ".de.md")
-            )
-        prune_retired_freshness_report(connector_root)
-        index_root = connector_root / "reports/testing"
-        (index_root / "README.md").write_text(
-            render_report_index_md(manifest, connector_root=connector_root), encoding="utf-8"
+    add_safe_roots(connector_root, framework_root, build_root, native_root, report_dir)
+    add_report_roots(report_dir)
+    return connector_root, framework_root, build_root, native_root, report_dir
+
+
+def render_index_only(connector_root: Path) -> int:
+    manifest_path = report_path(connector_root, "report_refresh_manifest", "json")
+    manifest = read_json(manifest_path)
+    if not manifest.get("reports"):
+        raise SystemExit(f"cannot render report index without manifest reports: {manifest_path}")
+    if prune_retired_report_records(manifest):
+        metadata = manifest.pop("metadata", {})
+        if not isinstance(metadata, dict):
+            raise SystemExit(f"cannot preserve metadata while pruning {manifest_path}")
+        write_text_file(manifest_path, generated_json_text(manifest, metadata))
+        manifest_md_path = report_path(connector_root, "report_refresh_manifest", "md")
+        write_text_file(manifest_md_path, generated_markdown_text(render_manifest_md(manifest), metadata))
+        prune_retired_markdown_rows(
+            manifest_md_path.with_name(manifest_md_path.name.removesuffix(".md") + GERMAN_MARKDOWN_SUFFIX)
         )
-        (index_root / "README.de.md").write_text(
-            render_report_index_md(manifest, german=True, connector_root=connector_root), encoding="utf-8"
-        )
-        print(f"refresh-connector-reports: rendered indexes from {manifest_path}")
-        return 0
+    prune_retired_freshness_report(connector_root)
+    index_root = connector_root / "reports/testing"
+    write_text_file(index_root / "README.md", render_report_index_md(manifest, connector_root=connector_root))
+    write_text_file(index_root / "README.de.md", render_report_index_md(manifest, german=True, connector_root=connector_root))
+    print(f"refresh-connector-reports: rendered indexes from {manifest_path}")
+    return 0
+
+
+def refresh_environment(
+    connector_root: Path, framework_root: Path, build_root: Path, native_root: Path
+) -> tuple[str, dict[str, str]]:
     verified_run_id = current_verified_run_id(connector_root)
     os.environ.setdefault("VERIFIED_RUN_ID", verified_run_id)
-    python = sys.executable
     env = dict(os.environ)
     env.update(
         {
@@ -2079,166 +2313,161 @@ def main() -> int:
             "VERIFIED_RUN_ID": verified_run_id,
         }
     )
+    return verified_run_id, env
 
-    catalog = make_catalog(connector_root, framework_root, build_root, native_root, python)
-    reports: list[dict[str, Any]] = []
-    for spec in catalog:
-        reports.append(run_spec(spec, connector_root, framework_root, build_root, env))
 
-    submodule_root = connector_root / "modules/ModSecurity-test-Framework"
+def report_outputs(records: list[dict[str, Any]], exclude: set[str] | None = None) -> tuple[str, ...]:
+    excluded = exclude or set()
+    return tuple(
+        output
+        for record in records
+        if str(record.get("report_name") or "") not in excluded
+        for output in record.get("output_files", [])
+    )
+
+
+def governance_record_with_outputs(
+    key: str,
+    payload: dict[str, Any],
+    markdown: str,
+    *,
+    connector_root: Path,
+    framework_root: Path,
+    build_root: Path,
+    generated_at: str,
+    inputs: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    metadata = build_metadata(
+        generated_by=GENERATED_REPORTS[key].generator,
+        make_target=GENERATED_REPORTS[key].make_target,
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=inputs,
+        generated_at=generated_at,
+        report_key=key,
+    )
+    report = GENERATED_REPORTS[key]
+    if "json" in report.formats:
+        write_text_file(report_path(connector_root, key, "json"), generated_json_text(payload, metadata))
+    if "md" in report.formats:
+        write_text_file(report_path(connector_root, key, "md"), generated_markdown_text(markdown, metadata))
+    return build_governance_record(key, connector_root, framework_root, build_root, generated_at, inputs)
+
+
+def dashboard_inputs() -> tuple[str, ...]:
+    return (
+        report_relpath("full_runtime_matrix", "json"),
+        report_relpath("verified_runtime_mismatch_analysis", "json"),
+        report_relpath("final_consistency_audit", "json"),
+        report_relpath("next_fix_plan", "json"),
+        report_relpath("full_run_evidence", "json"),
+        report_relpath("report_freshness", "json"),
+    )
+
+
+def refresh_governance_reports(
+    reports: list[dict[str, Any]],
+    *,
+    connector_root: Path,
+    framework_root: Path,
+    build_root: Path,
+    report_dir: Path,
+    verified_run_id: str,
+    environment: dict[str, str],
+) -> Path:
+    submodule_root = connector_root / FRAMEWORK_SUBMODULE_PATH
     mrts_root = framework_root / "tools/MRTS"
     submodules = submodule_report(connector_root, framework_root)
     generated_at = utc_now()
-    cyclic_governance_reports = {
-        "merge_readiness_dashboard",
-        "report_freshness",
-        "report_refresh_manifest",
-    }
-
-    def record_outputs(records: list[dict[str, Any]], exclude: set[str] | None = None) -> tuple[str, ...]:
-        excluded = exclude or set()
-        return tuple(
-            output
-            for record in records
-            if str(record.get("report_name") or "") not in excluded
-            for output in record.get("output_files", [])
-        )
-
-    def write_governance_json_md(key: str, payload: dict[str, Any], markdown: str, inputs: tuple[str, ...] = ()) -> dict[str, Any]:
-        metadata = build_metadata(
-            generated_by=GENERATED_REPORTS[key].generator,
-            make_target=GENERATED_REPORTS[key].make_target,
-            connector_root=connector_root,
-            framework_root=framework_root,
-            inputs=inputs,
-            generated_at=generated_at,
-            report_key=key,
-        )
-        json_path = report_path(connector_root, key, "json") if "json" in GENERATED_REPORTS[key].formats else None
-        md_path = report_path(connector_root, key, "md") if "md" in GENERATED_REPORTS[key].formats else None
-        if json_path is not None:
-            json_path.parent.mkdir(parents=True, exist_ok=True)
-            json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
-        if md_path is not None:
-            md_path.parent.mkdir(parents=True, exist_ok=True)
-            md_path.write_text(generated_markdown_text(markdown, metadata), encoding="utf-8")
-        return build_governance_record(key, connector_root, framework_root, build_root, generated_at, inputs)
-
-    governance_records: list[dict[str, Any]] = []
-
+    cyclic_governance_reports = {"merge_readiness_dashboard", "report_freshness", "report_refresh_manifest"}
     manifest_record = build_governance_record("report_refresh_manifest", connector_root, framework_root, build_root, generated_at)
-    freshness_record_placeholder = build_governance_record("report_freshness", connector_root, framework_root, build_root, generated_at)
-    dashboard_record_placeholder = build_governance_record("merge_readiness_dashboard", connector_root, framework_root, build_root, generated_at)
-    all_records = reports + governance_records + [freshness_record_placeholder, dashboard_record_placeholder, manifest_record]
+    freshness_placeholder = build_governance_record("report_freshness", connector_root, framework_root, build_root, generated_at)
+    dashboard_placeholder = build_governance_record("merge_readiness_dashboard", connector_root, framework_root, build_root, generated_at)
+    all_records = reports + [freshness_placeholder, dashboard_placeholder, manifest_record]
     freshness = {"generated_at": generated_at, "reports": all_records}
-    freshness_record = write_governance_json_md(
-        "report_freshness",
-        freshness,
-        render_freshness_md(freshness),
-        record_outputs(all_records, cyclic_governance_reports),
+    freshness_record = governance_record_with_outputs(
+        "report_freshness", freshness, render_freshness_md(freshness),
+        connector_root=connector_root, framework_root=framework_root, build_root=build_root,
+        generated_at=generated_at, inputs=report_outputs(all_records, cyclic_governance_reports),
     )
-    all_records = reports + governance_records + [freshness_record, dashboard_record_placeholder, manifest_record]
+    all_records = reports + [freshness_record, dashboard_placeholder, manifest_record]
     manifest = {
-        "verified_run_id": verified_run_id,
-        "data_source_policy": DATA_SOURCE_POLICY,
-        "generated_at": generated_at,
-        "connector_sha": git_sha(connector_root),
-        "framework_sha": git_sha(framework_root),
-        "framework_submodule_sha": git_sha(submodule_root),
-        "mrts_sha": git_sha(mrts_root),
-        "parent_branch": git_branch(connector_root),
-        "parent_dirty": git_dirty_status(connector_root),
-        "framework_branch": git_branch(framework_root),
-        "framework_dirty": git_dirty_status(framework_root),
-        "submodules": submodules,
-        "verified_commands": read_verified_commands(env),
-        "inputs": manifest_inputs(report_dir),
-        "reports": all_records,
+        "verified_run_id": verified_run_id, "data_source_policy": DATA_SOURCE_POLICY, "generated_at": generated_at,
+        "connector_sha": git_sha(connector_root), "framework_sha": git_sha(framework_root),
+        "framework_submodule_sha": git_sha(submodule_root), "mrts_sha": git_sha(mrts_root),
+        "parent_branch": git_branch(connector_root), "parent_dirty": git_dirty_status(connector_root),
+        "framework_branch": git_branch(framework_root), "framework_dirty": git_dirty_status(framework_root),
+        "submodules": submodules, "verified_commands": read_verified_commands(environment),
+        "inputs": manifest_inputs(report_dir), "reports": all_records,
     }
     dashboard = merge_dashboard_payload(manifest, freshness, submodules, connector_root)
-    dashboard_record = write_governance_json_md(
-        "merge_readiness_dashboard",
-        dashboard,
-        render_merge_dashboard_md(dashboard),
-        (
-            report_relpath("full_runtime_matrix", "json"),
-            report_relpath("verified_runtime_mismatch_analysis", "json"),
-            report_relpath("final_consistency_audit", "json"),
-            report_relpath("next_fix_plan", "json"),
-            report_relpath("full_run_evidence", "json"),
-            report_relpath("report_freshness", "json"),
-        ),
+    dashboard_record = governance_record_with_outputs(
+        "merge_readiness_dashboard", dashboard, render_merge_dashboard_md(dashboard),
+        connector_root=connector_root, framework_root=framework_root, build_root=build_root,
+        generated_at=generated_at, inputs=dashboard_inputs(),
     )
-    manifest["reports"] = reports + governance_records + [freshness_record, dashboard_record, manifest_record]
+    manifest["reports"] = reports + [freshness_record, dashboard_record, manifest_record]
     freshness = {"generated_at": generated_at, "reports": manifest["reports"]}
-    freshness_record = write_governance_json_md(
-        "report_freshness",
-        freshness,
-        render_freshness_md(freshness),
-        record_outputs(manifest["reports"], cyclic_governance_reports),
+    freshness_record = governance_record_with_outputs(
+        "report_freshness", freshness, render_freshness_md(freshness),
+        connector_root=connector_root, framework_root=framework_root, build_root=build_root,
+        generated_at=generated_at, inputs=report_outputs(manifest["reports"], cyclic_governance_reports),
     )
-    manifest["reports"] = reports + governance_records + [freshness_record, dashboard_record, manifest_record]
+    manifest["reports"] = reports + [freshness_record, dashboard_record, manifest_record]
     dashboard = merge_dashboard_payload(manifest, freshness, submodules, connector_root)
-    dashboard_record = write_governance_json_md(
-        "merge_readiness_dashboard",
-        dashboard,
-        render_merge_dashboard_md(dashboard),
-        (
-            report_relpath("full_runtime_matrix", "json"),
-            report_relpath("verified_runtime_mismatch_analysis", "json"),
-            report_relpath("final_consistency_audit", "json"),
-            report_relpath("next_fix_plan", "json"),
-            report_relpath("full_run_evidence", "json"),
-            report_relpath("report_freshness", "json"),
-        ),
+    dashboard_record = governance_record_with_outputs(
+        "merge_readiness_dashboard", dashboard, render_merge_dashboard_md(dashboard),
+        connector_root=connector_root, framework_root=framework_root, build_root=build_root,
+        generated_at=generated_at, inputs=dashboard_inputs(),
     )
-    manifest["reports"] = reports + governance_records + [freshness_record, dashboard_record, manifest_record]
+    manifest["reports"] = reports + [freshness_record, dashboard_record, manifest_record]
     metadata = build_metadata(
-        generated_by="ci/evidence/reports/refresh-connector-reports.py",
-        make_target="refresh-connector-reports",
-        connector_root=connector_root,
-        framework_root=framework_root,
-        inputs=record_outputs(manifest["reports"], {"report_refresh_manifest"}),
-        generated_at=manifest["generated_at"],
+        generated_by="ci/evidence/reports/refresh-connector-reports.py", make_target="refresh-connector-reports",
+        connector_root=connector_root, framework_root=framework_root,
+        inputs=report_outputs(manifest["reports"], {"report_refresh_manifest"}), generated_at=manifest["generated_at"],
         report_key="report_refresh_manifest",
-        extra={
-            "framework_submodule_sha": manifest["framework_submodule_sha"],
-            "mrts_sha": manifest["mrts_sha"],
-            "submodules": submodules,
-        },
+        extra={"framework_submodule_sha": manifest["framework_submodule_sha"], "mrts_sha": manifest["mrts_sha"], "submodules": submodules},
     )
     json_path = report_path_from_root(report_dir, "report_refresh_manifest", "json")
     md_path = report_path_from_root(report_dir, "report_refresh_manifest", "md")
-    json_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(generated_json_text(manifest, metadata), encoding="utf-8")
-    md_path.write_text(generated_markdown_text(render_manifest_md(manifest), metadata), encoding="utf-8")
+    write_text_file(json_path, generated_json_text(manifest, metadata))
+    write_text_file(md_path, generated_markdown_text(render_manifest_md(manifest), metadata))
     index_root = connector_root / "reports/testing"
-    (index_root / "README.md").write_text(
-        render_report_index_md(manifest, connector_root=connector_root), encoding="utf-8"
-    )
-    (index_root / "README.de.md").write_text(
-        render_report_index_md(manifest, german=True, connector_root=connector_root), encoding="utf-8"
-    )
+    write_text_file(index_root / "README.md", render_report_index_md(manifest, connector_root=connector_root))
+    write_text_file(index_root / "README.de.md", render_report_index_md(manifest, german=True, connector_root=connector_root))
     removed_legacy = cleanup_legacy_flat_reports(connector_root)
     if removed_legacy:
         print("refresh-connector-reports: removed legacy flat reports: " + ", ".join(removed_legacy))
     sanitized_paths = sanitize_generated_markdown_tree(report_dir)
     if sanitized_paths:
-        print(
-            "refresh-connector-reports: normalized portable Markdown paths: "
-            + ", ".join(str(path.relative_to(connector_root)) for path in sanitized_paths)
-        )
+        print("refresh-connector-reports: normalized portable Markdown paths: " + ", ".join(str(path.relative_to(connector_root)) for path in sanitized_paths))
     print(f"refresh-connector-reports: manifest={md_path}")
+    return md_path
 
+
+def refresh_exit_code(reports: list[dict[str, Any]], strict_inputs: bool) -> int:
     failed = [item for item in reports if item["status"] == "failed" and not item.get("optional")]
     skipped_required = [
-        item
-        for item in reports
-        if (str(item["status"]).startswith("skipped") or str(item["status"]).startswith("blocked") or item["status"] == "interrupted") and not item.get("optional")
+        item for item in reports
+        if (str(item["status"]).startswith("skipped") or str(item["status"]).startswith("blocked") or item["status"] == "interrupted")
+        and not item.get("optional")
     ]
-    if failed or (args.strict_inputs and skipped_required):
-        return 2
-    return 0
+    return 2 if failed or (strict_inputs and skipped_required) else 0
+
+
+def main() -> int:
+    args = refresh_arguments()
+    connector_root, framework_root, build_root, native_root, report_dir = refresh_roots(args)
+    if args.render_index_only:
+        return render_index_only(connector_root)
+    verified_run_id, environment = refresh_environment(connector_root, framework_root, build_root, native_root)
+    catalog = make_catalog(connector_root, framework_root, build_root, native_root, sys.executable)
+    reports = [run_spec(spec, connector_root, framework_root, build_root, environment) for spec in catalog]
+    refresh_governance_reports(
+        reports, connector_root=connector_root, framework_root=framework_root, build_root=build_root,
+        report_dir=report_dir, verified_run_id=verified_run_id, environment=environment,
+    )
+    return refresh_exit_code(reports, args.strict_inputs)
 
 
 if __name__ == "__main__":
