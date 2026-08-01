@@ -102,6 +102,21 @@ CACHE_SCHEMA_VERSION = 2
 CACHE_ROOT_MARKER = ".msconnector-runtime-cache-root.json"
 CACHE_ENTRY_MARKER_DIRECTORY = ".msconnector-runtime-cache-entries"
 CACHE_MANIFEST_STATUS_COMPLETE = "complete"
+CACHE_MANIFEST_FILENAME = "manifest.json"
+COMPONENT_MANIFEST_FILENAME = "component-manifest.json"
+EXPAT_HEADER_FILENAME = "expat.h"
+EXPAT_HEADER_RELATIVE_PATH = f"include/{EXPAT_HEADER_FILENAME}"
+EXPAT_BUILDCONF_FILENAME = "buildconf.sh"
+MISSING_COMMAND_TEXT = "not found"
+MISSING_FILE_TEXT = "no such file"
+MODSECURITY_LIBRARY_FILENAME = "libmodsecurity.so"
+NGINX_MODULE_FILENAME = "ngx_http_modsecurity_module.so"
+NATIVE_NGINX_OVERRIDE_ENV = "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR"
+APACHE_APXS_RELATIVE_PATH = "bin/apxs"
+UNMANAGED_CACHE_ENTRY_MARKER_MISSING_PREFIX = "unmanaged_cache_entry_marker_missing: "
+READY_COMPONENT_STATUSES = frozenset({"present", "built", "reused"})
+CONNECTOR_BUILD_ID_LABEL = "Connector build ID"
+USES_MODSECURITY_BUILD_ID_LABEL = "Uses ModSecurity build ID"
 RUNTIME_ENV_SNAPSHOT_SCHEMA_VERSION = 1
 _TRUSTED_FRAMEWORK_GUARD_SHELL = Path("/bin/sh")
 _TRUSTED_FRAMEWORK_GUARD_GIT = Path("/usr/bin/git")
@@ -124,7 +139,7 @@ APACHE_INSTALL_TEXT_PATHS = (
     "bin/apachectl-mrts",
     "bin/apr-1-config",
     "bin/apu-1-config",
-    "bin/apxs",
+    APACHE_APXS_RELATIVE_PATH,
     "bin/envvars",
     "bin/envvars-std",
     "build/apr_rules.mk",
@@ -807,6 +822,44 @@ def migrate_legacy_cache_entry_for_removal(
     return True
 
 
+def cache_manifest_paths(entry: Path) -> tuple[Path, Path]:
+    return (
+        entry / CACHE_MANIFEST_FILENAME,
+        entry / COMPONENT_MANIFEST_FILENAME,
+    )
+
+
+def cache_manifest_identity_is_complete(manifest: dict[str, Any]) -> bool:
+    if manifest.get("status") != CACHE_MANIFEST_STATUS_COMPLETE:
+        return False
+    if manifest.get("cache_schema_version") != CACHE_SCHEMA_VERSION:
+        return False
+    identity = manifest.get("cache_identity")
+    if not isinstance(identity, dict):
+        return False
+    if identity.get("cache_schema_version") != CACHE_SCHEMA_VERSION:
+        return False
+    cache_key = manifest.get("cache_key")
+    if not isinstance(cache_key, str) or not cache_key:
+        return False
+    if identity.get("cache_key") != cache_key:
+        return False
+    identity_payload = dict(identity)
+    identity_payload.pop("cache_key", None)
+    return stable_hash(identity_payload) == cache_key
+
+
+def cache_manifest_explicitly_binds_entry(
+    manifest_path: Path,
+    manifest: dict[str, Any],
+    entry: Path,
+) -> bool:
+    for key in ("prefix", "build_root", "root", "build_path", "path", "source_path"):
+        if manifest_path_value_matches_entry(manifest.get(key), entry):
+            return True
+    return manifest_path.parent == entry and entry.name == manifest.get("cache_key")
+
+
 def validated_cache_manifest_for_entry(entry: Path) -> dict[str, Any] | None:
     """Return a complete, self-consistent local manifest for exactly ``entry``.
 
@@ -816,38 +869,34 @@ def validated_cache_manifest_for_entry(entry: Path) -> dict[str, Any] | None:
     this directory.
     """
     resolved_entry = entry.resolve(strict=False)
-    for manifest_path in (resolved_entry / "manifest.json", resolved_entry / "component-manifest.json"):
+    for manifest_path in cache_manifest_paths(resolved_entry):
         manifest = read_json(manifest_path)
-        if not manifest:
-            continue
-        identity = manifest.get("cache_identity")
-        cache_key = manifest.get("cache_key")
-        if (
-            manifest.get("status") != CACHE_MANIFEST_STATUS_COMPLETE
-            or manifest.get("cache_schema_version") != CACHE_SCHEMA_VERSION
-            or not isinstance(identity, dict)
-            or identity.get("cache_schema_version") != CACHE_SCHEMA_VERSION
-            or not isinstance(cache_key, str)
-            or not cache_key
-            or identity.get("cache_key") != cache_key
+        if cache_manifest_identity_is_complete(manifest) and cache_manifest_explicitly_binds_entry(
+            manifest_path,
+            manifest,
+            resolved_entry,
         ):
-            continue
-        identity_payload = dict(identity)
-        identity_payload.pop("cache_key", None)
-        if stable_hash(identity_payload) != cache_key:
-            continue
-        for key in ("prefix", "build_root", "root", "build_path", "path", "source_path"):
-            raw_path = manifest.get(key)
-            if not isinstance(raw_path, str) or not raw_path:
-                continue
-            try:
-                if Path(raw_path).resolve(strict=False) == resolved_entry:
-                    return manifest
-            except OSError:
-                continue
-        if manifest_path.parent == resolved_entry and resolved_entry.name == cache_key:
             return manifest
     return None
+
+
+def manifest_path_value_matches_entry(raw_path: Any, entry: Path) -> bool:
+    """Compare a manifest string as data without making it a path authority.
+
+    The manifest path is used only as a normalized equality proof for an
+    already-resolved cache entry.  It must not become a new filesystem path
+    for a write, deletion, or subprocess operation.
+    """
+    if not isinstance(raw_path, str) or not raw_path:
+        return False
+    try:
+        return os.path.realpath(raw_path) == str(entry)
+    except (OSError, ValueError):
+        return False
+
+
+def unmanaged_cache_entry_marker_missing(path: Path) -> str:
+    return f"{UNMANAGED_CACHE_ENTRY_MARKER_MISSING_PREFIX}{path}"
 
 
 def cache_manifest_owns_entry(entry: Path) -> bool:
@@ -879,7 +928,7 @@ def mark_managed_cache_entry(
         # must remove that entry and build a newly marked staging entry.
         if manifest is not None:
             raise RuntimeError(f"managed_cache_entry_requires_rebuild: {resolved_entry}")
-        raise RuntimeError(f"unmanaged_cache_entry_marker_missing: {resolved_entry}")
+        raise RuntimeError(unmanaged_cache_entry_marker_missing(resolved_entry))
     if marker_path.exists() and not cache_entry_marker_valid(resolved_entry, resolved_root):
         raise RuntimeError(f"invalid_managed_cache_entry_marker: {marker_path}")
     if existing_marker and cache_entry_marker_valid(resolved_entry, resolved_root):
@@ -945,13 +994,14 @@ def atomic_publish_dir(
     if not staging.is_dir():
         raise RuntimeError(f"cache_staging_directory_missing: {staging}")
     if not managed_cache_entry_valid(staging, resolved_root):
-        raise RuntimeError(f"unmanaged_cache_entry_marker_missing: {staging}")
+        raise RuntimeError(unmanaged_cache_entry_marker_missing(staging))
     if final.exists():
         raise RuntimeError(f"cache_publish_destination_exists: {final}")
     staging_marker = read_json(cache_entry_marker_path(staging, resolved_root))
     if require_complete and (
         staging_marker.get("status") != CACHE_MANIFEST_STATUS_COMPLETE
-        and read_json(staging / "manifest.json").get("status") != CACHE_MANIFEST_STATUS_COMPLETE
+        and read_json(staging / CACHE_MANIFEST_FILENAME).get("status")
+        != CACHE_MANIFEST_STATUS_COMPLETE
     ):
         raise RuntimeError(f"cache_staging_manifest_incomplete: {staging}")
     publish_lock = final.parent / f".{final.name}.publish.lock"
@@ -997,7 +1047,7 @@ def safe_remove_dir(
     if not resolved_path.exists():
         return
     if not managed_cache_entry_valid(resolved_path, resolved_root):
-        raise RuntimeError(f"unmanaged_cache_entry_marker_missing: {resolved_path}")
+        raise RuntimeError(unmanaged_cache_entry_marker_missing(resolved_path))
     shutil.rmtree(resolved_path)
     remove_managed_cache_entry_marker(resolved_path, resolved_root)
 
@@ -1015,7 +1065,7 @@ def safe_remove_file(
     if not resolved_path.is_file() and not resolved_path.is_symlink():
         raise RuntimeError(f"unsafe_remove_file_not_regular: {resolved_path}")
     if not managed_cache_entry_valid(resolved_path, resolved_root):
-        raise RuntimeError(f"unmanaged_cache_entry_marker_missing: {resolved_path}")
+        raise RuntimeError(unmanaged_cache_entry_marker_missing(resolved_path))
     resolved_path.unlink()
     remove_managed_cache_entry_marker(resolved_path, resolved_root)
 
@@ -1248,20 +1298,8 @@ def reusable_git_source_record(
     }
 
 
-def prepare_git_component(
-    name: str,
-    url: str,
-    expected_ref: str,
-    path: Path,
-    previous_records: dict[str, dict[str, Any]],
-    strict: bool,
-    cache_root: Path | None = None,
-    _recovery_attempt: bool = False,
-    _lock_held: bool = False,
-) -> dict[str, Any]:
-    managed_root: Path | None = None
-    checkout_path = Path(path)
-    record: dict[str, Any] = {
+def git_component_record(name: str, url: str, expected_ref: str, checkout_path: Path) -> dict[str, Any]:
+    return {
         "name": name,
         "url": url,
         "expected_ref": expected_ref,
@@ -1273,221 +1311,366 @@ def prepare_git_component(
         "status": "unknown",
         "blocker_reason": "",
     }
+
+
+def git_component_request_blocker(url: str, expected_ref: str) -> str:
     if not url or not expected_ref:
-        record.update(status="blocked", blocker_reason="missing_url_or_ref")
-        return record
+        return "missing_url_or_ref"
     try:
         github_repo_path(url)
     except RuntimeError as exc:
-        record.update(status="blocked", blocker_reason=f"https_github_url_policy:{exc}")
-        return record
+        return f"https_github_url_policy:{exc}"
+    return ""
+
+
+def git_component_checkout_location(
+    path: Path,
+    cache_root: Path | None,
+) -> tuple[Path, Path | None, str]:
+    checkout_path = Path(path)
+    managed_root: Path | None = None
     if cache_root is not None:
         try:
             managed_root = ensure_managed_cache_root(cache_root)
             checkout_path, _ = validate_managed_cache_child(checkout_path, managed_root)
-            record["path"] = str(checkout_path)
         except RuntimeError as exc:
-            record.update(status="blocked", blocker_reason=str(exc))
-            return record
+            return checkout_path, None, str(exc)
     if is_system_path(checkout_path):
-        record.update(status="blocked", blocker_reason="system_path_write_forbidden")
-        return record
-    # The lock is deliberately keyed by the requested ref, not the eventual
-    # commit: a moving ref must serialize its resolve/build/publish sequence.
-    ref_lock_identity = source_cache_identity(name, url, expected_ref)
-    ref_lock_key = str(ref_lock_identity["cache_key"])
-    if managed_root is not None and not _lock_held:
-        try:
-            with BuildLock(cache_entry_lock_path(managed_root, f"source-{name}", ref_lock_key)):
-                return prepare_git_component(
-                    name,
-                    url,
-                    expected_ref,
-                    checkout_path,
-                    previous_records,
-                    strict,
-                    cache_root=managed_root,
-                    _recovery_attempt=_recovery_attempt,
-                    _lock_held=True,
-                )
-        except TimeoutError as exc:
-            record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc))
-            return record
-    staging_path: Path | None = None
+        return checkout_path, managed_root, "system_path_write_forbidden"
+    return checkout_path, managed_root, ""
 
+
+def prepare_git_component_with_lock(
+    record: dict[str, Any],
+    name: str,
+    url: str,
+    expected_ref: str,
+    checkout_path: Path,
+    previous_records: dict[str, dict[str, Any]],
+    strict: bool,
+    managed_root: Path,
+    recovery_attempt: bool,
+) -> dict[str, Any]:
+    ref_lock_key = str(source_cache_identity(name, url, expected_ref)["cache_key"])
     try:
-        if managed_root is None and checkout_path.exists():
+        with BuildLock(cache_entry_lock_path(managed_root, f"source-{name}", ref_lock_key)):
+            return prepare_git_component(
+                name,
+                url,
+                expected_ref,
+                checkout_path,
+                previous_records,
+                strict,
+                cache_root=managed_root,
+                _recovery_attempt=recovery_attempt,
+                _lock_held=True,
+            )
+    except TimeoutError as exc:
+        record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc))
+        return record
+
+
+def reuse_git_component_record(
+    record: dict[str, Any],
+    checkout_path: Path,
+    managed_root: Path,
+    name: str,
+    url: str,
+    expected_ref: str,
+    previous_records: dict[str, dict[str, Any]],
+) -> bool:
+    previous = previous_records.get(name, {})
+    if not isinstance(previous, dict):
+        return False
+    reusable = reusable_git_source_record(
+        checkout_path,
+        managed_root,
+        name=name,
+        expected_url=url,
+        expected_ref=expected_ref,
+        previous=previous,
+    )
+    if reusable is None:
+        return False
+    record.update(
+        reusable,
+        path=str(checkout_path),
+        manifest=str(cache_entry_marker_path(checkout_path, managed_root)),
+        status="present",
+    )
+    return True
+
+
+def git_working_path_for_preparation(
+    record: dict[str, Any],
+    checkout_path: Path,
+    managed_root: Path | None,
+    name: str,
+    url: str,
+    expected_ref: str,
+    previous_records: dict[str, dict[str, Any]],
+    ref_lock_key: str,
+) -> tuple[Path | None, Path | None]:
+    if managed_root is None:
+        if checkout_path.exists():
             record.update(status="blocked", blocker_reason="unmanaged_source_checkout_requires_cache_root")
-            return record
-        if managed_root is not None:
-            previous = previous_records.get(name, {})
-            if isinstance(previous, dict):
-                reusable = reusable_git_source_record(
-                    checkout_path,
-                    managed_root,
-                    name=name,
-                    expected_url=url,
-                    expected_ref=expected_ref,
-                    previous=previous,
-                )
-                if reusable is not None:
-                    record.update(
-                        reusable,
-                        path=str(checkout_path),
-                        manifest=str(cache_entry_marker_path(checkout_path, managed_root)),
-                        status="present",
-                    )
-                    return record
-            # Always resolve and verify in a new entry.  A completed final
-            # checkout that did not pass the prior-record reuse check is never
-            # fetched, checked out, reset, or otherwise mutated in place.
-            staging_path = temporary_cache_dir(
-                checkout_path,
-                managed_root,
-                component=f"source:{name}",
-                cache_key=ref_lock_key,
-            )
-            working_path = staging_path
-        else:
-            checkout_path.parent.mkdir(parents=True, exist_ok=True)
-            working_path = checkout_path
-        run(["git", "clone", "--recursive", url, str(working_path)], check=True)
-        remote_url = git_output(working_path, "config", "--get", "remote.origin.url")
-        if remote_url and remote_url != url:
-            record.update(status="blocked", blocker_reason=f"unexpected_origin:{remote_url}")
-            return record
-        fetch = run(["git", "-C", str(working_path), "fetch", "--tags", "--prune", "origin"])
-        if fetch.returncode != 0:
-            record.update(status="blocked", blocker_reason="git_fetch_failed", details=(fetch.stdout + fetch.stderr).strip())
-            return record
-        checkout_candidates = [expected_ref]
-        if (
-            not expected_ref.startswith(("origin/", "refs/"))
-            and not FULL_GIT_COMMIT_ID.fullmatch(expected_ref)
-        ):
-            # Prefer the freshly fetched remote tracking ref for branches;
-            # tags and other refs still fall back to the requested spelling.
-            checkout_candidates.insert(0, f"origin/{expected_ref}")
-        checkout_ref = checkout_candidates[0]
-        checkout = subprocess.CompletedProcess([], 1, "", "")
-        for candidate in checkout_candidates:
-            checkout_ref = candidate
-            checkout = run(["git", "-C", str(working_path), "checkout", "--detach", candidate])
-            if checkout.returncode == 0:
-                break
-        if checkout.returncode != 0:
-            record.update(status="blocked", blocker_reason="git_checkout_failed", details=(checkout.stdout + checkout.stderr).strip())
-            return record
-        record["checkout_ref"] = checkout_ref
-        for cmd in (
-            ["git", "-C", str(working_path), "submodule", "sync", "--recursive"],
-            ["git", "-C", str(working_path), "submodule", "update", "--init", "--recursive"],
-        ):
-            proc = run(cmd)
-            if proc.returncode != 0:
-                record.update(status="blocked", blocker_reason="submodule_update_failed", details=(proc.stdout + proc.stderr).strip())
-                return record
-        actual_head = git_output(working_path, "rev-parse", "HEAD")
-        if not actual_head:
-            record.update(status="blocked", blocker_reason="git_resolved_commit_missing")
-            return record
-        source_identity = source_cache_identity(name, url, expected_ref, actual_head)
-        source_cache_key = str(source_identity["cache_key"])
-        status_short = git_output(
-            working_path,
-            *GIT_STATUS_SHORT_ARGS,
-        )
-        submodules = git_output(working_path, *GIT_SUBMODULE_STATUS_RECURSIVE_ARGS)
-        clean, reason = submodule_status_clean(submodules)
+            return None, None
+        checkout_path.parent.mkdir(parents=True, exist_ok=True)
+        return checkout_path, None
+    if reuse_git_component_record(
+        record,
+        checkout_path,
+        managed_root,
+        name,
+        url,
+        expected_ref,
+        previous_records,
+    ):
+        return None, None
+    staging_path = temporary_cache_dir(
+        checkout_path,
+        managed_root,
+        component=f"source:{name}",
+        cache_key=ref_lock_key,
+    )
+    return staging_path, staging_path
+
+
+def clone_git_checkout(url: str, working_path: Path) -> str:
+    run(["git", "clone", "--recursive", url, str(working_path)], check=True)
+    remote_url = git_output(working_path, "config", "--get", "remote.origin.url")
+    if remote_url and remote_url != url:
+        return f"unexpected_origin:{remote_url}"
+    return ""
+
+
+def checkout_fresh_git_source(
+    working_path: Path,
+    expected_ref: str,
+) -> tuple[str, str, str]:
+    fetch = run(["git", "-C", str(working_path), "fetch", "--tags", "--prune", "origin"])
+    if fetch.returncode != 0:
+        return "", "git_fetch_failed", (fetch.stdout + fetch.stderr).strip()
+    checkout_candidates = [expected_ref]
+    if not expected_ref.startswith(("origin/", "refs/")) and not FULL_GIT_COMMIT_ID.fullmatch(expected_ref):
+        # Prefer the freshly fetched remote tracking ref for branches; tags and
+        # other refs still fall back to the requested spelling.
+        checkout_candidates.insert(0, f"origin/{expected_ref}")
+    checkout_ref = checkout_candidates[0]
+    checkout = subprocess.CompletedProcess([], 1, "", "")
+    for candidate in checkout_candidates:
+        checkout_ref = candidate
+        checkout = run(["git", "-C", str(working_path), "checkout", "--detach", candidate])
+        if checkout.returncode == 0:
+            break
+    if checkout.returncode != 0:
+        return "", "git_checkout_failed", (checkout.stdout + checkout.stderr).strip()
+    return checkout_ref, "", ""
+
+
+def initialize_git_submodules(working_path: Path) -> tuple[bool, str]:
+    for command in (
+        ["git", "-C", str(working_path), "submodule", "sync", "--recursive"],
+        ["git", "-C", str(working_path), "submodule", "update", "--init", "--recursive"],
+    ):
+        proc = run(command)
+        if proc.returncode != 0:
+            return False, (proc.stdout + proc.stderr).strip()
+    return True, ""
+
+
+def record_fresh_git_checkout(
+    record: dict[str, Any],
+    working_path: Path,
+    name: str,
+    url: str,
+    expected_ref: str,
+) -> bool:
+    actual_head = git_output(working_path, "rev-parse", "HEAD")
+    if not actual_head:
+        record.update(status="blocked", blocker_reason="git_resolved_commit_missing")
+        return False
+    source_identity = source_cache_identity(name, url, expected_ref, actual_head)
+    status_short = git_output(working_path, *GIT_STATUS_SHORT_ARGS)
+    submodules = git_output(working_path, *GIT_SUBMODULE_STATUS_RECURSIVE_ARGS)
+    clean, reason = submodule_status_clean(submodules)
+    record.update(
+        actual_head=actual_head,
+        status_short=status_short,
+        submodule_status=submodules,
+        submodule_count=len([line for line in submodules.splitlines() if line.strip()]),
+        submodule_status_clean=clean,
+        tree=tree_manifest(working_path),
+        cache_schema_version=CACHE_SCHEMA_VERSION,
+        cache_identity=source_identity,
+        cache_key=source_identity["cache_key"],
+    )
+    if status_short:
+        record.update(status="blocked", blocker_reason="dirty_source_checkout", details=status_short)
+        return False
+    if not clean:
+        record.update(status="blocked", blocker_reason=reason)
+        return False
+    fsck = run(["git", "-C", str(working_path), "fsck", "--full"])
+    record["git_fsck"] = "PASS" if fsck.returncode == 0 else "FAIL"
+    if fsck.returncode != 0:
         record.update(
-            actual_head=actual_head,
-            status_short=status_short,
-            submodule_status=submodules,
-            submodule_count=len([line for line in submodules.splitlines() if line.strip()]),
-            submodule_status_clean=clean,
-            tree=tree_manifest(working_path),
-            cache_schema_version=CACHE_SCHEMA_VERSION,
-            cache_identity=source_identity,
-            cache_key=source_cache_key,
+            status="corrupt",
+            blocker_reason="git_fsck_failed",
+            details=(fsck.stdout + fsck.stderr).strip(),
         )
-        if status_short:
-            record.update(
-                status="blocked",
-                blocker_reason="dirty_source_checkout",
-                details=status_short,
-            )
+        return False
+    return True
+
+
+def prepare_fresh_git_checkout(
+    record: dict[str, Any],
+    working_path: Path,
+    name: str,
+    url: str,
+    expected_ref: str,
+) -> bool:
+    clone_blocker = clone_git_checkout(url, working_path)
+    if clone_blocker:
+        record.update(status="blocked", blocker_reason=clone_blocker)
+        return False
+    checkout_ref, checkout_blocker, details = checkout_fresh_git_source(working_path, expected_ref)
+    if checkout_blocker:
+        record.update(status="blocked", blocker_reason=checkout_blocker, details=details)
+        return False
+    record["checkout_ref"] = checkout_ref
+    submodules_ready, submodule_details = initialize_git_submodules(working_path)
+    if not submodules_ready:
+        record.update(status="blocked", blocker_reason="submodule_update_failed", details=submodule_details)
+        return False
+    return record_fresh_git_checkout(record, working_path, name, url, expected_ref)
+
+
+def git_checkout_removal_blocker(checkout_path: Path, managed_root: Path, component: str) -> str:
+    if not checkout_path.exists():
+        return ""
+    marker = read_json(cache_entry_marker_path(checkout_path, managed_root))
+    if cache_entry_marker_valid(checkout_path, managed_root):
+        if marker.get("component") != component:
+            return f"managed_cache_entry_identity_mismatch: {checkout_path}"
+        return ""
+    if cache_manifest_owns_entry(checkout_path):
+        return ""
+    if migrate_legacy_cache_entry_for_removal(checkout_path, managed_root, component=component):
+        return ""
+    return unmanaged_cache_entry_marker_missing(checkout_path)
+
+
+def remove_existing_git_checkout_for_rebuild(
+    record: dict[str, Any],
+    checkout_path: Path,
+    managed_root: Path,
+    component: str,
+) -> bool:
+    blocker = git_checkout_removal_blocker(checkout_path, managed_root, component)
+    if blocker:
+        record.update(status="blocked", blocker_reason=blocker)
+        return False
+    if not checkout_path.exists():
+        return True
+    safe_remove_dir(checkout_path, managed_root)
+    record.update(
+        rebuild_required=True,
+        invalidation_reason="resolved_source_commit_changed_or_incomplete",
+        old_entry_removed=True,
+        previous_path=str(checkout_path),
+    )
+    return True
+
+
+def publish_fresh_git_checkout(
+    record: dict[str, Any],
+    checkout_path: Path,
+    staging_path: Path,
+    managed_root: Path,
+    name: str,
+    url: str,
+) -> dict[str, Any]:
+    component = f"source:{name}"
+    source_identity = record["cache_identity"]
+    source_cache_key = str(record["cache_key"])
+    actual_head = str(record["actual_head"])
+    if git_checkout_is_reusable(
+        checkout_path,
+        managed_root,
+        component=component,
+        cache_identity=source_identity,
+        expected_url=url,
+        actual_head=actual_head,
+    ):
+        record.update(
+            path=str(checkout_path),
+            manifest=str(cache_entry_marker_path(checkout_path, managed_root)),
+            status="present",
+            tree=tree_manifest(checkout_path),
+        )
+        return record
+    if not remove_existing_git_checkout_for_rebuild(record, checkout_path, managed_root, component):
+        return record
+    staging_path = require_staging_path(staging_path)
+    retag_staging_cache_entry(
+        staging_path,
+        managed_root,
+        component=component,
+        cache_key=source_cache_key,
+    )
+    write_cache_entry_completion(
+        staging_path,
+        managed_root,
+        component=component,
+        cache_key=source_cache_key,
+        cache_identity=source_identity,
+    )
+    atomic_publish_dir(staging_path, checkout_path, managed_root, require_complete=True)
+    record.update(
+        path=str(checkout_path),
+        manifest=str(cache_entry_marker_path(checkout_path, managed_root)),
+        status="present",
+        tree=tree_manifest(checkout_path),
+    )
+    return record
+
+
+def prepare_git_component_unlocked(
+    record: dict[str, Any],
+    name: str,
+    url: str,
+    expected_ref: str,
+    checkout_path: Path,
+    previous_records: dict[str, dict[str, Any]],
+    managed_root: Path | None,
+) -> dict[str, Any]:
+    ref_lock_key = str(source_cache_identity(name, url, expected_ref)["cache_key"])
+    staging_path: Path | None = None
+    try:
+        working_path, staging_path = git_working_path_for_preparation(
+            record,
+            checkout_path,
+            managed_root,
+            name,
+            url,
+            expected_ref,
+            previous_records,
+            ref_lock_key,
+        )
+        if working_path is None:
             return record
-        if not clean:
-            record.update(status="blocked", blocker_reason=reason)
-            return record
-        # Resolution happens in a fresh clone, so always verify that clone
-        # before it is eligible to replace the published checkout.
-        fsck = run(["git", "-C", str(working_path), "fsck", "--full"])
-        record["git_fsck"] = "PASS" if fsck.returncode == 0 else "FAIL"
-        if fsck.returncode != 0:
-            record.update(status="corrupt", blocker_reason="git_fsck_failed", details=(fsck.stdout + fsck.stderr).strip())
+        if not prepare_fresh_git_checkout(record, working_path, name, url, expected_ref):
             return record
         if managed_root is not None:
-            component = f"source:{name}"
-            if git_checkout_is_reusable(
+            return publish_fresh_git_checkout(
+                record,
                 checkout_path,
+                require_staging_path(staging_path),
                 managed_root,
-                component=component,
-                cache_identity=source_identity,
-                expected_url=url,
-                actual_head=actual_head,
-            ):
-                record.update(
-                    path=str(checkout_path),
-                    manifest=str(cache_entry_marker_path(checkout_path, managed_root)),
-                    status="present",
-                    tree=tree_manifest(checkout_path),
-                )
-                return record
-
-            if checkout_path.exists():
-                marker = read_json(cache_entry_marker_path(checkout_path, managed_root))
-                if cache_entry_marker_valid(checkout_path, managed_root):
-                    if marker.get("component") != component:
-                        record.update(status="blocked", blocker_reason=f"managed_cache_entry_identity_mismatch: {checkout_path}")
-                        return record
-                elif cache_manifest_owns_entry(checkout_path):
-                    # Markerless local manifests are deletion-only proofs.
-                    pass
-                elif not migrate_legacy_cache_entry_for_removal(checkout_path, managed_root, component=component):
-                    record.update(status="blocked", blocker_reason=f"unmanaged_cache_entry_marker_missing: {checkout_path}")
-                    return record
-                safe_remove_dir(checkout_path, managed_root)
-                record.update(
-                    rebuild_required=True,
-                    invalidation_reason="resolved_source_commit_changed_or_incomplete",
-                    old_entry_removed=True,
-                    previous_path=str(checkout_path),
-                )
-
-            staging_path = require_staging_path(staging_path)
-            retag_staging_cache_entry(
-                staging_path,
-                managed_root,
-                component=component,
-                cache_key=source_cache_key,
+                name,
+                url,
             )
-            write_cache_entry_completion(
-                staging_path,
-                managed_root,
-                component=component,
-                cache_key=source_cache_key,
-                cache_identity=source_identity,
-            )
-            atomic_publish_dir(staging_path, checkout_path, managed_root, require_complete=True)
-            staging_path = None
-            record.update(
-                path=str(checkout_path),
-                manifest=str(cache_entry_marker_path(checkout_path, managed_root)),
-                status="present",
-                tree=tree_manifest(checkout_path),
-            )
-            return record
         record.update(path=str(checkout_path), status="present")
         return record
     except Exception as exc:
@@ -1499,6 +1682,51 @@ def prepare_git_component(
                 safe_remove_dir(staging_path, managed_root)
             except RuntimeError:
                 pass
+
+
+def prepare_git_component(
+    name: str,
+    url: str,
+    expected_ref: str,
+    path: Path,
+    previous_records: dict[str, dict[str, Any]],
+    strict: bool,
+    cache_root: Path | None = None,
+    _recovery_attempt: bool = False,
+    _lock_held: bool = False,
+) -> dict[str, Any]:
+    checkout_path = Path(path)
+    record = git_component_record(name, url, expected_ref, checkout_path)
+    blocker = git_component_request_blocker(url, expected_ref)
+    if blocker:
+        record.update(status="blocked", blocker_reason=blocker)
+        return record
+    checkout_path, managed_root, blocker = git_component_checkout_location(checkout_path, cache_root)
+    if blocker:
+        record.update(status="blocked", blocker_reason=blocker)
+        return record
+    record["path"] = str(checkout_path)
+    if managed_root is not None and not _lock_held:
+        return prepare_git_component_with_lock(
+            record,
+            name,
+            url,
+            expected_ref,
+            checkout_path,
+            previous_records,
+            strict,
+            managed_root,
+            _recovery_attempt,
+        )
+    return prepare_git_component_unlocked(
+        record,
+        name,
+        url,
+        expected_ref,
+        checkout_path,
+        previous_records,
+        managed_root,
+    )
 
 
 def resolve_latest_github_release_tag(source_url: str, cache_path: Path | None = None) -> tuple[str, str, str]:
@@ -1716,6 +1944,211 @@ def require_literal_sha256(value: str, label: str) -> str:
     return digest.lower()
 
 
+def archive_cache_component(name: str) -> str:
+    return f"archive:{name}"
+
+
+def archive_cache_entry_action(
+    path: Path,
+    cache_root: Path,
+    component: str,
+    cache_key: str,
+    cache_identity: dict[str, Any],
+) -> tuple[str, str]:
+    if not path.exists():
+        return "create", ""
+    marker = read_json(cache_entry_marker_path(path, cache_root))
+    if not cache_entry_marker_valid(path, cache_root):
+        if migrate_legacy_cache_entry_for_removal(path, cache_root, component=component):
+            return "replace", "cache_schema_changed"
+        return "blocked", unmanaged_cache_entry_marker_missing(path)
+    if marker.get("component") != component:
+        return "blocked", f"managed_cache_entry_identity_mismatch: {path}"
+    if marker.get("cache_key") != cache_key:
+        return "replace", "archive_cache_identity_changed"
+    if not cache_entry_complete(
+        path,
+        cache_root,
+        component=component,
+        cache_key=cache_key,
+        cache_identity=cache_identity,
+    ):
+        return "replace", "incomplete_archive_cache_entry"
+    return "keep", ""
+
+
+def reconcile_archive_cache_entry(
+    record: dict[str, Any],
+    path: Path,
+    cache_root: Path,
+    component: str,
+    cache_key: str,
+    cache_identity: dict[str, Any],
+) -> bool:
+    action, reason = archive_cache_entry_action(
+        path,
+        cache_root,
+        component,
+        cache_key,
+        cache_identity,
+    )
+    if action == "blocked":
+        record.update(status="blocked", blocker_reason=reason)
+        return False
+    if action == "keep":
+        return True
+    if path.exists():
+        safe_remove_file(path, cache_root)
+    mark_managed_cache_entry(path, cache_root, component=component, cache_key=cache_key)
+    if reason:
+        record.update(
+            rebuild_required=True,
+            invalidation_reason=reason,
+            old_entry_removed=True,
+        )
+    return True
+
+
+def remove_archive_path(path: Path, cache_root: Path | None) -> None:
+    if cache_root is None:
+        path.unlink()
+        return
+    safe_remove_file(path, cache_root)
+
+
+def archive_requires_download(path: Path) -> bool:
+    if not path.is_file():
+        return True
+    if path.stat().st_size <= 0:
+        return True
+    return not archive_can_list(path)
+
+
+def download_archive_if_needed(
+    url: str,
+    path: Path,
+    cache_root: Path | None,
+    component: str,
+    cache_key: str,
+) -> None:
+    if not archive_requires_download(path):
+        return
+    if path.exists():
+        remove_archive_path(path, cache_root)
+    if cache_root is not None:
+        mark_managed_cache_entry(path, cache_root, component=component, cache_key=cache_key)
+    download(url, path)
+
+
+def corrupt_archive_record(
+    record: dict[str, Any],
+    path: Path,
+    cache_root: Path | None,
+    blocker_reason: str,
+) -> dict[str, Any]:
+    remove_archive_path(path, cache_root)
+    record.update(status="corrupt", blocker_reason=blocker_reason)
+    return record
+
+
+def archive_expected_checksum(
+    expected_sha: str,
+    sha_url: str,
+    archive_name: str,
+    dest_dir: Path,
+    name: str,
+) -> str:
+    if expected_sha or not sha_url:
+        return expected_sha
+    return expected_sha_from_url(sha_url, archive_name, dest_dir / f"{name}.sha256")
+
+
+def archive_managed_root(dest_dir: Path, cache_root: Path | None) -> Path | None:
+    if cache_root is None:
+        return None
+    managed_root = ensure_managed_cache_root(cache_root)
+    validate_managed_cache_child(dest_dir, managed_root)
+    return managed_root
+
+
+def prepare_archive_with_lock(
+    record: dict[str, Any],
+    name: str,
+    url: str,
+    expected_sha: str,
+    sha_url: str,
+    dest_dir: Path,
+    managed_root: Path,
+    required_literal_sha256: bool,
+    cache_key: str,
+) -> dict[str, Any]:
+    try:
+        with BuildLock(cache_entry_lock_path(managed_root, f"archive-{name}", cache_key)):
+            return prepare_archive(
+                name,
+                url,
+                expected_sha,
+                sha_url,
+                dest_dir,
+                managed_root,
+                required_literal_sha256=required_literal_sha256,
+                _lock_held=True,
+            )
+    except TimeoutError as exc:
+        record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc))
+        return record
+
+
+def prepare_archive_unlocked(
+    record: dict[str, Any],
+    name: str,
+    url: str,
+    expected_sha: str,
+    sha_url: str,
+    archive_name: str,
+    path: Path,
+    dest_dir: Path,
+    managed_root: Path | None,
+    archive_identity: dict[str, Any],
+) -> dict[str, Any]:
+    component = archive_cache_component(name)
+    cache_key = str(archive_identity["cache_key"])
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    if managed_root is not None and not reconcile_archive_cache_entry(
+        record,
+        path,
+        managed_root,
+        component,
+        cache_key,
+        archive_identity,
+    ):
+        return record
+    download_archive_if_needed(url, path, managed_root, component, cache_key)
+    size = path.stat().st_size
+    if size <= 0:
+        return corrupt_archive_record(record, path, managed_root, "empty_archive")
+    if not archive_can_list(path):
+        return corrupt_archive_record(record, path, managed_root, "archive_list_failed")
+    local_sha = sha256_file(path)
+    record.update(size=size, sha256=local_sha, archive_list="PASS")
+    expected = archive_expected_checksum(expected_sha, sha_url, archive_name, dest_dir, name)
+    if expected:
+        record["expected_sha256"] = expected
+        record["checksum_status"] = "PASS" if expected == local_sha else "FAIL"
+        if expected != local_sha:
+            return corrupt_archive_record(record, path, managed_root, "sha256_mismatch")
+    if managed_root is not None:
+        write_cache_entry_completion(
+            path,
+            managed_root,
+            component=component,
+            cache_key=cache_key,
+            cache_identity=archive_identity,
+        )
+    record["status"] = "present"
+    return record
+
+
 def prepare_archive(
     name: str,
     url: str,
@@ -1749,151 +2182,33 @@ def prepare_archive(
             # retained as metadata but must not turn an absent override into
             # a cacheable/downloadable archive.
             expected_sha = require_literal_sha256(expected_sha, name)
-        managed_root: Path | None = None
         archive_identity = archive_cache_identity(name, url, expected_sha, sha_url)
         archive_cache_key = str(archive_identity["cache_key"])
-        if cache_root is not None:
-            managed_root = ensure_managed_cache_root(cache_root)
-            _, _ = validate_managed_cache_child(dest_dir, managed_root)
+        managed_root = archive_managed_root(dest_dir, cache_root)
         if managed_root is not None and not _lock_held:
-            try:
-                with BuildLock(cache_entry_lock_path(managed_root, f"archive-{name}", archive_cache_key)):
-                    return prepare_archive(
-                        name,
-                        url,
-                        expected_sha,
-                        sha_url,
-                        dest_dir,
-                        managed_root,
-                        required_literal_sha256=required_literal_sha256,
-                        _lock_held=True,
-                    )
-            except TimeoutError as exc:
-                record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc))
-                return record
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        if managed_root is not None:
-            if path.exists():
-                marker = read_json(cache_entry_marker_path(path, managed_root))
-                if not cache_entry_marker_valid(path, managed_root):
-                    if not migrate_legacy_cache_entry_for_removal(
-                        path,
-                        managed_root,
-                        component=f"archive:{name}",
-                    ):
-                        record.update(status="blocked", blocker_reason=f"unmanaged_cache_entry_marker_missing: {path}")
-                        return record
-                    safe_remove_file(path, managed_root)
-                    mark_managed_cache_entry(
-                        path,
-                        managed_root,
-                        component=f"archive:{name}",
-                        cache_key=archive_cache_key,
-                    )
-                    record.update(
-                        rebuild_required=True,
-                        invalidation_reason="cache_schema_changed",
-                        old_entry_removed=True,
-                    )
-                elif marker.get("component") != f"archive:{name}":
-                    record.update(status="blocked", blocker_reason=f"managed_cache_entry_identity_mismatch: {path}")
-                    return record
-                elif marker.get("cache_key") != archive_cache_key:
-                    # The basename is intentionally stable for many upstream
-                    # URLs.  A matching archive owner but different canonical
-                    # identity is stale, so discard it before downloading.
-                    safe_remove_file(path, managed_root)
-                    mark_managed_cache_entry(
-                        path,
-                        managed_root,
-                        component=f"archive:{name}",
-                        cache_key=archive_cache_key,
-                    )
-                    record.update(
-                        rebuild_required=True,
-                        invalidation_reason="archive_cache_identity_changed",
-                        old_entry_removed=True,
-                    )
-                elif not cache_entry_complete(
-                    path,
-                    managed_root,
-                    component=f"archive:{name}",
-                    cache_key=archive_cache_key,
-                    cache_identity=archive_identity,
-                ):
-                    safe_remove_file(path, managed_root)
-                    mark_managed_cache_entry(
-                        path,
-                        managed_root,
-                        component=f"archive:{name}",
-                        cache_key=archive_cache_key,
-                    )
-                    record.update(
-                        rebuild_required=True,
-                        invalidation_reason="incomplete_archive_cache_entry",
-                        old_entry_removed=True,
-                    )
-            else:
-                mark_managed_cache_entry(
-                    path,
-                    managed_root,
-                    component=f"archive:{name}",
-                    cache_key=archive_cache_key,
-                )
-        if not path.is_file() or path.stat().st_size <= 0 or not archive_can_list(path):
-            if path.exists():
-                if managed_root is not None:
-                    safe_remove_file(path, managed_root)
-                else:
-                    path.unlink()
-            if managed_root is not None:
-                mark_managed_cache_entry(
-                    path,
-                    managed_root,
-                    component=f"archive:{name}",
-                    cache_key=archive_cache_key,
-                )
-            download(url, path)
-        size = path.stat().st_size
-        if size <= 0:
-            if managed_root is not None:
-                safe_remove_file(path, managed_root)
-            else:
-                path.unlink()
-            record.update(status="corrupt", blocker_reason="empty_archive")
-            return record
-        if not archive_can_list(path):
-            if managed_root is not None:
-                safe_remove_file(path, managed_root)
-            else:
-                path.unlink()
-            record.update(status="corrupt", blocker_reason="archive_list_failed")
-            return record
-        local_sha = sha256_file(path)
-        record.update(size=size, sha256=local_sha, archive_list="PASS")
-        expected = expected_sha
-        if not expected and sha_url:
-            expected = expected_sha_from_url(sha_url, archive_name, dest_dir / f"{name}.sha256")
-        if expected:
-            record["expected_sha256"] = expected
-            record["checksum_status"] = "PASS" if expected == local_sha else "FAIL"
-            if expected != local_sha:
-                if managed_root is not None:
-                    safe_remove_file(path, managed_root)
-                else:
-                    path.unlink()
-                record.update(status="corrupt", blocker_reason="sha256_mismatch")
-                return record
-        if managed_root is not None:
-            write_cache_entry_completion(
-                path,
+            return prepare_archive_with_lock(
+                record,
+                name,
+                url,
+                expected_sha,
+                sha_url,
+                dest_dir,
                 managed_root,
-                component=f"archive:{name}",
-                cache_key=archive_cache_key,
-                cache_identity=archive_identity,
+                required_literal_sha256,
+                archive_cache_key,
             )
-        record["status"] = "present"
-        return record
+        return prepare_archive_unlocked(
+            record,
+            name,
+            url,
+            expected_sha,
+            sha_url,
+            archive_name,
+            path,
+            dest_dir,
+            managed_root,
+            archive_identity,
+        )
     except Exception as exc:
         record.update(status="blocked", blocker_reason=str(exc))
         return record
@@ -1915,32 +2230,42 @@ def github_repo_path(url: str) -> str:
     return f"{parts[0]}/{parts[1]}"
 
 
-def resolve_nginx_archive(env: dict[str, str], latest_cache_path: Path | None = None) -> tuple[str, str, str]:
+def nginx_archive_source_settings(env: dict[str, str]) -> tuple[str, str]:
     mode = env.get("NGINX_SOURCE_MODE", "github-release")
     if mode != "github-release":
         raise RuntimeError(f"unsupported NGINX_SOURCE_MODE={mode}")
     repo_url = env.get("NGINX_SOURCE_REPO_URL") or env.get("NGINX_GITHUB_REPO")
-    tag = env.get("NGINX_RELEASE_TAG") or env.get("NGINX_SOURCE_GIT_REF") or "latest"
     if not repo_url:
         raise RuntimeError("missing NGINX_SOURCE_REPO_URL")
+    tag = env.get("NGINX_RELEASE_TAG") or env.get("NGINX_SOURCE_GIT_REF") or "latest"
+    return repo_url, tag
+
+
+def latest_nginx_release_tag(repo: str, latest_cache_path: Path | None) -> tuple[str, str]:
+    api_url = f"https://api.github.com/repos/{repo}/releases/latest"
+    lookup_status = "network"
+    try:
+        raw = urlopen_bytes(api_url, timeout=60)
+        data = json.loads(raw.decode("utf-8"))
+        if latest_cache_path is not None:
+            atomic_write_bytes(latest_cache_path, raw)
+    except Exception as exc:
+        if latest_cache_path is None or not latest_cache_path.is_file():
+            raise
+        data = json.loads(latest_cache_path.read_text(encoding="utf-8"))
+        lookup_status = f"cached_after_network_error:{exc}"
+    tag = data.get("tag_name")
+    if not isinstance(tag, str) or not tag:
+        raise RuntimeError("GitHub latest release response missing tag_name")
+    return tag, lookup_status
+
+
+def resolve_nginx_archive(env: dict[str, str], latest_cache_path: Path | None = None) -> tuple[str, str, str]:
+    repo_url, tag = nginx_archive_source_settings(env)
     repo = github_repo_path(repo_url)
     lookup_status = "configured"
     if tag == "latest":
-        api_url = f"https://api.github.com/repos/{repo}/releases/latest"
-        lookup_status = "network"
-        try:
-            raw = urlopen_bytes(api_url, timeout=60)
-            data = json.loads(raw.decode("utf-8"))
-            if latest_cache_path is not None:
-                atomic_write_bytes(latest_cache_path, raw)
-        except Exception as exc:
-            if latest_cache_path is None or not latest_cache_path.is_file():
-                raise
-            data = json.loads(latest_cache_path.read_text(encoding="utf-8"))
-            lookup_status = f"cached_after_network_error:{exc}"
-        tag = data.get("tag_name")
-        if not isinstance(tag, str) or not tag:
-            raise RuntimeError("GitHub latest release response missing tag_name")
+        tag, lookup_status = latest_nginx_release_tag(repo, latest_cache_path)
     return tag, f"https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz", lookup_status
 
 
@@ -2116,30 +2441,50 @@ def hash_file_contents(path: Path, digest: Any) -> None:
     digest.update(b"\0")
 
 
+def hash_missing_input_root(root: Path, digest: Any) -> None:
+    digest.update(f"missing:{root}".encode("utf-8", "surrogateescape"))
+    digest.update(b"\0")
+
+
+def skip_input_hash_path(item: Path) -> bool:
+    if ".git" in item.parts:
+        return True
+    if "__pycache__" in item.parts:
+        return True
+    if not item.is_file():
+        return True
+    return item.suffix in {".o", ".so", ".a", ".la", ".lo", ".log"}
+
+
+def hash_directory_input_file(root: Path, item: Path, digest: Any) -> None:
+    try:
+        relative_path = item.relative_to(root)
+    except ValueError:
+        relative_path = item
+    digest.update(
+        f"{root.as_posix()}:{relative_path.as_posix()}".encode("utf-8", "surrogateescape")
+    )
+    digest.update(hashlib.sha256(item.read_bytes()).hexdigest().encode("ascii"))
+    digest.update(b"\0")
+
+
+def hash_directory_input_paths(root: Path, digest: Any) -> None:
+    for item in sorted(root.rglob("*")):
+        if skip_input_hash_path(item):
+            continue
+        hash_directory_input_file(root, item, digest)
+
+
 def hash_input_paths(paths: list[Path]) -> str:
     digest = hashlib.sha256()
     for root in paths:
         if not root.exists():
-            digest.update(f"missing:{root}".encode("utf-8", "surrogateescape"))
-            digest.update(b"\0")
+            hash_missing_input_root(root, digest)
             continue
         if root.is_file():
             hash_file_contents(root, digest)
             continue
-        for item in sorted(root.rglob("*")):
-            if ".git" in item.parts or "__pycache__" in item.parts:
-                continue
-            if not item.is_file():
-                continue
-            if item.suffix in {".o", ".so", ".a", ".la", ".lo", ".log"}:
-                continue
-            try:
-                rel = item.relative_to(root)
-            except ValueError:
-                rel = item
-            digest.update(f"{root.as_posix()}:{rel.as_posix()}".encode("utf-8", "surrogateescape"))
-            digest.update(hashlib.sha256(item.read_bytes()).hexdigest().encode("ascii"))
-            digest.update(b"\0")
+        hash_directory_input_paths(root, digest)
     return digest.hexdigest()
 
 
@@ -2212,13 +2557,13 @@ def expat_libs(lib_dir: Path) -> list[Path]:
 
 
 def expat_artifacts_ready(prefix: Path) -> bool:
-    return (prefix / "include/expat.h").is_file() and bool(expat_libs(prefix / "lib"))
+    return (prefix / EXPAT_HEADER_RELATIVE_PATH).is_file() and bool(expat_libs(prefix / "lib"))
 
 
 def expat_source_dir(repo_path: Path) -> Path:
     for candidate in (repo_path / "expat", repo_path):
         if (
-            (candidate / "buildconf.sh").is_file()
+            (candidate / EXPAT_BUILDCONF_FILENAME).is_file()
             or (candidate / "configure").is_file()
             or (candidate / "configure.ac").is_file()
             or (candidate / "CMakeLists.txt").is_file()
@@ -2227,19 +2572,29 @@ def expat_source_dir(repo_path: Path) -> Path:
     return repo_path
 
 
+def make_command_is_missing(text: str) -> bool:
+    """Match the original same-line, post-command ``make`` diagnostic."""
+    for line in text.splitlines():
+        for match in re.finditer(r"\bmake\b", line):
+            suffix = line[match.end() :]
+            if MISSING_COMMAND_TEXT in suffix or MISSING_FILE_TEXT in suffix:
+                return True
+    return False
+
+
 def map_expat_build_failure(text: str) -> str:
     lowered = text.lower()
-    if "cmake" in lowered and "not found" in lowered:
+    if "cmake" in lowered and MISSING_COMMAND_TEXT in lowered:
         return "missing_cmake"
-    if "autoconf" in lowered and ("not found" in lowered or "no such file" in lowered):
+    if "autoconf" in lowered and (MISSING_COMMAND_TEXT in lowered or MISSING_FILE_TEXT in lowered):
         return "missing_autoconf"
     if "automake" in lowered or "aclocal" in lowered:
         return "missing_automake"
     if "libtoolize" in lowered or "glibtoolize" in lowered or "libtool" in lowered:
         return "missing_libtool"
-    if re.search(r"\bmake\b.*(not found|no such file)", lowered):
+    if make_command_is_missing(lowered):
         return "missing_make"
-    if "c compiler" in lowered or "compiler" in lowered and "not found" in lowered:
+    if "c compiler" in lowered or "compiler" in lowered and MISSING_COMMAND_TEXT in lowered:
         return "missing_compiler"
     return "expat_build_failed"
 
@@ -2255,7 +2610,7 @@ def expat_override_entries_complete(
     cache_key = str(cache_identity["cache_key"])
     return (
         expat_artifacts_ready(prefix)
-        and cache_manifest_complete(prefix / "component-manifest.json", cache_identity)
+        and cache_manifest_complete(prefix / COMPONENT_MANIFEST_FILENAME, cache_identity)
         and build_dir.is_dir()
         and source_copy.is_dir()
         and cache_entry_complete(
@@ -2282,6 +2637,183 @@ def expat_override_entries_complete(
     )
 
 
+def expat_override_final_entries(
+    prefix: Path,
+    build_dir: Path,
+    source_copy: Path,
+) -> tuple[tuple[str, Path], ...]:
+    return (
+        ("expat-prefix", prefix),
+        ("expat-build", build_dir),
+        ("expat-source", source_copy),
+    )
+
+
+def resolved_expat_override_entries(
+    prefix: Path,
+    build_dir: Path,
+    source_copy: Path,
+    cache_root: Path,
+) -> tuple[tuple[str, Path], ...]:
+    final_entries = expat_override_final_entries(prefix, build_dir, source_copy)
+    resolved_entries = tuple(
+        (component, validate_managed_cache_child(path, cache_root)[0])
+        for component, path in final_entries
+    )
+    for index, (_, first) in enumerate(resolved_entries):
+        for _, second in resolved_entries[index + 1 :]:
+            if paths_overlap(first, second):
+                raise RuntimeError("expat_override_paths_overlap")
+    return resolved_entries
+
+
+def update_expat_override_record_paths(
+    record: dict[str, Any],
+    prefix: Path,
+    build_dir: Path,
+    source_copy: Path,
+) -> None:
+    record.update(
+        prefix=str(prefix),
+        expat_h=str(prefix / EXPAT_HEADER_RELATIVE_PATH),
+        include=str(prefix / EXPAT_HEADER_RELATIVE_PATH),
+        lib_dir=str(prefix / "lib"),
+        library=str(prefix / "lib"),
+        build_path=str(build_dir),
+        build_source_copy=str(source_copy),
+        manifest=str(prefix / COMPONENT_MANIFEST_FILENAME),
+    )
+
+
+def expat_override_present_record(
+    record: dict[str, Any],
+    prefix: Path,
+    build_dir: Path,
+    source_copy: Path,
+) -> dict[str, Any]:
+    previous = read_json(prefix / COMPONENT_MANIFEST_FILENAME)
+    update_expat_override_record_paths(record, prefix, build_dir, source_copy)
+    record.update(
+        status="present",
+        libraries=[str(path) for path in expat_libs(prefix / "lib")],
+        build_system=previous.get("build_system", ""),
+        tree=tree_manifest(prefix),
+    )
+    return record
+
+
+def expat_override_entries_rebuildable(
+    entries: tuple[tuple[str, Path], ...],
+    cache_root: Path,
+    record: dict[str, Any],
+) -> str:
+    for component, final_path in entries:
+        if not final_path.exists():
+            continue
+        if not managed_cache_entry_valid(final_path, cache_root):
+            if not migrate_legacy_cache_entry_for_removal(final_path, cache_root, component=component):
+                return unmanaged_cache_entry_marker_missing(final_path)
+        record.update(
+            rebuild_required=True,
+            invalidation_reason="missing_or_incomplete_expat_override_cache",
+            old_entry_removed=True,
+        )
+    return ""
+
+
+def create_expat_override_staging_entries(
+    entries: tuple[tuple[str, Path], ...],
+    cache_root: Path,
+    cache_key: str,
+) -> dict[str, Path | None]:
+    return {
+        component: temporary_cache_dir(
+            final_path,
+            cache_root,
+            component=component,
+            cache_key=cache_key,
+        )
+        for component, final_path in entries
+    }
+
+
+def staged_expat_override_environment(
+    env: dict[str, str],
+    staging_entries: dict[str, Path | None],
+) -> dict[str, str]:
+    staged_env = dict(env)
+    staged_env.update(
+        EXPAT_PREFIX=str(require_staging_path(staging_entries["expat-prefix"])),
+        EXPAT_BUILD_DIR=str(require_staging_path(staging_entries["expat-build"])),
+        EXPAT_SOURCE_COPY=str(require_staging_path(staging_entries["expat-source"])),
+    )
+    return staged_env
+
+
+def complete_expat_override_staging_entries(
+    staging_entries: dict[str, Path | None],
+    cache_root: Path,
+    cache_key: str,
+    cache_identity: dict[str, Any],
+) -> None:
+    for component, staging_path in staging_entries.items():
+        write_cache_entry_completion(
+            require_staging_path(staging_path),
+            cache_root,
+            component=component,
+            cache_key=cache_key,
+            cache_identity=cache_identity,
+        )
+
+
+def replace_expat_override_entries(
+    entries: tuple[tuple[str, Path], ...],
+    staging_entries: dict[str, Path | None],
+    cache_root: Path,
+) -> None:
+    for _, final_path in entries:
+        if final_path.exists():
+            safe_remove_dir(final_path, cache_root)
+    for component, final_path in entries:
+        staging_path = require_staging_path(staging_entries[component])
+        atomic_publish_dir(staging_path, final_path, cache_root, require_complete=True)
+        staging_entries[component] = None
+
+
+def expat_override_failed_record(
+    staged_record: dict[str, Any],
+    prefix: Path,
+    build_dir: Path,
+    source_copy: Path,
+) -> dict[str, Any]:
+    failed_record = dict(staged_record)
+    update_expat_override_record_paths(failed_record, prefix, build_dir, source_copy)
+    return failed_record
+
+
+def expat_override_published_record(
+    staged_record: dict[str, Any],
+    prefix: Path,
+    build_dir: Path,
+    source_copy: Path,
+) -> dict[str, Any]:
+    published_record = dict(staged_record)
+    update_expat_override_record_paths(published_record, prefix, build_dir, source_copy)
+    published_record.update(status="built", tree=tree_manifest(prefix))
+    write_cache_manifest(prefix / COMPONENT_MANIFEST_FILENAME, published_record)
+    return published_record
+
+
+def cleanup_expat_staging_entries(staging_entries: dict[str, Path | None], cache_root: Path) -> None:
+    for staging_path in staging_entries.values():
+        if staging_path is None or not staging_path.exists():
+            continue
+        try:
+            safe_remove_dir(staging_path, cache_root)
+        except RuntimeError:
+            pass
+
+
 def prepare_expat_managed_overrides(
     env: dict[str, str],
     cache_root: Path,
@@ -2302,115 +2834,32 @@ def prepare_expat_managed_overrides(
     entry.  This makes an interrupted override build non-reusable and keeps
     external/unowned directories out of the cache mutation path.
     """
-    final_entries = (
-        ("expat-prefix", prefix),
-        ("expat-build", build_dir),
-        ("expat-source", source_copy),
-    )
     try:
-        resolved_entries = tuple(
-            (component, validate_managed_cache_child(path, cache_root)[0])
-            for component, path in final_entries
-        )
+        resolved_entries = resolved_expat_override_entries(prefix, build_dir, source_copy, cache_root)
     except RuntimeError as exc:
         record.update(status="blocked", blocker_reason=str(exc))
         return record
-    for index, (_, first) in enumerate(resolved_entries):
-        if any(paths_overlap(first, second) for _, second in resolved_entries[index + 1 :]):
-            record.update(status="blocked", blocker_reason="expat_override_paths_overlap")
-            return record
 
     cache_key = str(cache_identity["cache_key"])
     staging_entries: dict[str, Path | None] = {}
     try:
         with BuildLock(cache_entry_lock_path(cache_root, "expat", cache_key)):
             if expat_override_entries_complete(prefix, build_dir, source_copy, cache_root, cache_identity):
-                previous = read_json(prefix / "component-manifest.json")
-                record.update(
-                    status="present",
-                    manifest=str(prefix / "component-manifest.json"),
-                    libraries=[str(path) for path in expat_libs(prefix / "lib")],
-                    build_system=previous.get("build_system", ""),
-                    tree=tree_manifest(prefix),
-                )
+                return expat_override_present_record(record, prefix, build_dir, source_copy)
+            blocker = expat_override_entries_rebuildable(resolved_entries, cache_root, record)
+            if blocker:
+                record.update(status="blocked", blocker_reason=blocker)
                 return record
-
-            for component, final_path in resolved_entries:
-                if not final_path.exists():
-                    continue
-                if not managed_cache_entry_valid(final_path, cache_root):
-                    if not migrate_legacy_cache_entry_for_removal(final_path, cache_root, component=component):
-                        record.update(status="blocked", blocker_reason=f"unmanaged_cache_entry_marker_missing: {final_path}")
-                        return record
-                record.update(
-                    rebuild_required=True,
-                    invalidation_reason="missing_or_incomplete_expat_override_cache",
-                    old_entry_removed=True,
-                )
-
-            for component, final_path in resolved_entries:
-                staging_entries[component] = temporary_cache_dir(
-                    final_path,
-                    cache_root,
-                    component=component,
-                    cache_key=cache_key,
-                )
-            staged_env = dict(env)
-            staged_env.update(
-                EXPAT_PREFIX=str(staging_entries["expat-prefix"]),
-                EXPAT_BUILD_DIR=str(staging_entries["expat-build"]),
-                EXPAT_SOURCE_COPY=str(staging_entries["expat-source"]),
-            )
+            staging_entries = create_expat_override_staging_entries(resolved_entries, cache_root, cache_key)
+            staged_env = staged_expat_override_environment(env, staging_entries)
             staged_record = prepare_expat(staged_env, cache_root, build_root, git_record, _transactional=True)
             if staged_record.get("status") != "built":
-                failed_record = dict(staged_record)
-                failed_record.update(
-                    prefix=str(prefix),
-                    expat_h=str(prefix / "include/expat.h"),
-                    include=str(prefix / "include/expat.h"),
-                    lib_dir=str(prefix / "lib"),
-                    library=str(prefix / "lib"),
-                    build_path=str(build_dir),
-                    build_source_copy=str(source_copy),
-                    manifest=str(prefix / "component-manifest.json"),
-                )
-                return failed_record
-
-            for component, staging_path in staging_entries.items():
-                staging_path = require_staging_path(staging_path)
-                write_cache_entry_completion(
-                    staging_path,
-                    cache_root,
-                    component=component,
-                    cache_key=cache_key,
-                    cache_identity=cache_identity,
-                )
+                return expat_override_failed_record(staged_record, prefix, build_dir, source_copy)
+            complete_expat_override_staging_entries(staging_entries, cache_root, cache_key, cache_identity)
             # Validate/build before removing an old final entry; a failed
             # staging build therefore leaves a known-good prior cache intact.
-            for _, final_path in resolved_entries:
-                if final_path.exists():
-                    safe_remove_dir(final_path, cache_root)
-            for component, final_path in resolved_entries:
-                staging_path = staging_entries[component]
-                staging_path = require_staging_path(staging_path)
-                atomic_publish_dir(staging_path, final_path, cache_root, require_complete=True)
-                staging_entries[component] = None
-
-            published_record = dict(staged_record)
-            published_record.update(
-                status="built",
-                prefix=str(prefix),
-                expat_h=str(prefix / "include/expat.h"),
-                include=str(prefix / "include/expat.h"),
-                lib_dir=str(prefix / "lib"),
-                library=str(prefix / "lib"),
-                build_path=str(build_dir),
-                build_source_copy=str(source_copy),
-                manifest=str(prefix / "component-manifest.json"),
-                tree=tree_manifest(prefix),
-            )
-            write_cache_manifest(prefix / "component-manifest.json", published_record)
-            return published_record
+            replace_expat_override_entries(resolved_entries, staging_entries, cache_root)
+            return expat_override_published_record(staged_record, prefix, build_dir, source_copy)
     except TimeoutError as exc:
         record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc))
         return record
@@ -2418,12 +2867,7 @@ def prepare_expat_managed_overrides(
         record.update(status="blocked", blocker_reason=str(exc))
         return record
     finally:
-        for staging_path in staging_entries.values():
-            if staging_path is not None and staging_path.exists():
-                try:
-                    safe_remove_dir(staging_path, cache_root)
-                except RuntimeError:
-                    pass
+        cleanup_expat_staging_entries(staging_entries, cache_root)
 
 
 def prepare_expat(
@@ -2440,10 +2884,10 @@ def prepare_expat(
     prefix = Path(env.get("EXPAT_PREFIX", str(cache_root / "prefix/expat"))).resolve()
     build_dir = Path(env.get("EXPAT_BUILD_DIR", str(cache_root / "build/expat"))).resolve()
     build_source_copy = Path(env.get("EXPAT_SOURCE_COPY", str(cache_root / "build/expat-source"))).resolve()
-    expat_h = prefix / "include/expat.h"
+    expat_h = prefix / EXPAT_HEADER_RELATIVE_PATH
     lib_dir = prefix / "lib"
     log_path = build_root / "logs/runtime-components/expat-build.log"
-    marker_path = prefix / "component-manifest.json"
+    marker_path = prefix / COMPONENT_MANIFEST_FILENAME
     source_path = Path(git_record.get("path", "")).resolve() if git_record.get("path") else Path()
     expat_source = git_record.get("source") or git_record.get("url") or env.get("EXPAT_SOURCE_URL", "")
     record: dict[str, Any] = {
@@ -2519,103 +2963,197 @@ def prepare_expat(
             cache_identity=cache_identity,
         )
     if not _transactional:
-        entry_root = (cache_root / "builds/expat" / str(cache_identity["cache_key"])).resolve()
-        final_prefix = entry_root / "prefix"
-        final_build_dir = entry_root / "build"
-        final_source_copy = entry_root / "source"
-        final_manifest = entry_root / "manifest.json"
-        record.update(
-            prefix=str(final_prefix),
-            expat_h=str(final_prefix / "include/expat.h"),
-            include=str(final_prefix / "include/expat.h"),
-            lib_dir=str(final_prefix / "lib"),
-            library=str(final_prefix / "lib"),
-            build_path=str(final_build_dir),
-            build_source_copy=str(final_source_copy),
-            manifest=str(final_manifest),
+        return prepare_default_expat_cache_entry(
+            env,
+            cache_root,
+            build_root,
+            git_record,
+            record,
+            cache_identity,
         )
-        staging_root: Path | None = None
-        try:
-            with BuildLock(cache_entry_lock_path(cache_root, "expat", str(cache_identity["cache_key"]))):
-                if (
-                    expat_artifacts_ready(final_prefix)
-                    and cache_manifest_complete(final_manifest, cache_identity)
-                    and cache_entry_complete(
-                        entry_root,
-                        cache_root,
-                        component="expat",
-                        cache_key=str(cache_identity["cache_key"]),
-                        cache_identity=cache_identity,
-                    )
-                ):
-                    previous = read_json(final_manifest)
-                    record.update(
-                        status="present",
-                        libraries=[str(path) for path in expat_libs(final_prefix / "lib")],
-                        build_system=previous.get("build_system", ""),
-                        tree=tree_manifest(final_prefix),
-                    )
-                    return record
-                if entry_root.exists():
-                    if not managed_cache_entry_valid(entry_root, cache_root):
-                        if not migrate_legacy_cache_entry_for_removal(entry_root, cache_root, component="expat"):
-                            record.update(status="blocked", blocker_reason=f"unmanaged_cache_entry_marker_missing: {entry_root}")
-                            return record
-                    safe_remove_dir(entry_root, cache_root)
-                    record.update(rebuild_required=True, invalidation_reason="missing_or_incomplete_expat_cache", old_entry_removed=True)
-                staging_root = temporary_cache_dir(
-                    entry_root,
-                    cache_root,
-                    component="expat",
-                    cache_key=str(cache_identity["cache_key"]),
-                )
-                staged_env = dict(env)
-                staged_env.update(
-                    EXPAT_PREFIX=str(staging_root / "prefix"),
-                    EXPAT_BUILD_DIR=str(staging_root / "build"),
-                    EXPAT_SOURCE_COPY=str(staging_root / "source"),
-                )
-                staged_record = prepare_expat(staged_env, cache_root, build_root, git_record, _transactional=True)
-                if staged_record.get("status") != "built":
-                    return rebase_cache_record(staged_record, staging_root, entry_root)
-                published_record = rebase_cache_record(staged_record, staging_root, entry_root)
-                published_record.update(
-                    prefix=str(final_prefix),
-                    expat_h=str(final_prefix / "include/expat.h"),
-                    include=str(final_prefix / "include/expat.h"),
-                    lib_dir=str(final_prefix / "lib"),
-                    library=str(final_prefix / "lib"),
-                    build_path=str(final_build_dir),
-                    build_source_copy=str(final_source_copy),
-                    manifest=str(final_manifest),
-                    tree=tree_manifest(staging_root / "prefix"),
-                )
-                write_cache_manifest(staging_root / "manifest.json", published_record)
-                write_cache_entry_completion(
-                    staging_root,
-                    cache_root,
-                    component="expat",
-                    cache_key=str(cache_identity["cache_key"]),
-                    cache_identity=cache_identity,
-                )
-                for child in (staging_root / "build", staging_root / "source", staging_root / "prefix"):
-                    remove_managed_cache_entry_marker(child, cache_root)
-                atomic_publish_dir(staging_root, entry_root, cache_root, require_complete=True)
-                staging_root = None
-                published_record["tree"] = tree_manifest(final_prefix)
-                write_cache_manifest(final_manifest, published_record)
-                return published_record
-        except TimeoutError as exc:
-            record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc))
-            return record
-        finally:
-            if staging_root is not None and staging_root.exists():
-                try:
-                    safe_remove_dir(staging_root, cache_root)
-                except RuntimeError:
-                    pass
-    previous = read_json(marker_path)
-    if (
+    return prepare_expat_transactional_build(
+        env,
+        cache_root,
+        build_root,
+        source_path,
+        record,
+        cache_identity,
+        prefix,
+        build_dir,
+        build_source_copy,
+        marker_path,
+    )
+
+
+def expat_default_cache_paths(cache_root: Path, cache_key: str) -> dict[str, Path]:
+    entry_root = (cache_root / "builds/expat" / cache_key).resolve()
+    return {
+        "entry_root": entry_root,
+        "prefix": entry_root / "prefix",
+        "build_dir": entry_root / "build",
+        "source_copy": entry_root / "source",
+        "manifest": entry_root / CACHE_MANIFEST_FILENAME,
+    }
+
+
+def update_expat_default_cache_record_paths(record: dict[str, Any], paths: dict[str, Path]) -> None:
+    prefix = paths["prefix"]
+    record.update(
+        prefix=str(prefix),
+        expat_h=str(prefix / EXPAT_HEADER_RELATIVE_PATH),
+        include=str(prefix / EXPAT_HEADER_RELATIVE_PATH),
+        lib_dir=str(prefix / "lib"),
+        library=str(prefix / "lib"),
+        build_path=str(paths["build_dir"]),
+        build_source_copy=str(paths["source_copy"]),
+        manifest=str(paths["manifest"]),
+    )
+
+
+def expat_default_cache_is_ready(
+    paths: dict[str, Path],
+    cache_root: Path,
+    cache_identity: dict[str, Any],
+) -> bool:
+    return (
+        expat_artifacts_ready(paths["prefix"])
+        and cache_manifest_complete(paths["manifest"], cache_identity)
+        and cache_entry_complete(
+            paths["entry_root"],
+            cache_root,
+            component="expat",
+            cache_key=str(cache_identity["cache_key"]),
+            cache_identity=cache_identity,
+        )
+    )
+
+
+def expat_default_cache_hit_record(
+    record: dict[str, Any],
+    paths: dict[str, Path],
+) -> dict[str, Any]:
+    previous = read_json(paths["manifest"])
+    record.update(
+        status="present",
+        libraries=[str(path) for path in expat_libs(paths["prefix"] / "lib")],
+        build_system=previous.get("build_system", ""),
+        tree=tree_manifest(paths["prefix"]),
+    )
+    return record
+
+
+def discard_incomplete_expat_default_cache_entry(
+    record: dict[str, Any],
+    entry_root: Path,
+    cache_root: Path,
+) -> bool:
+    if not entry_root.exists():
+        return True
+    if not managed_cache_entry_valid(entry_root, cache_root):
+        if not migrate_legacy_cache_entry_for_removal(entry_root, cache_root, component="expat"):
+            record.update(status="blocked", blocker_reason=unmanaged_cache_entry_marker_missing(entry_root))
+            return False
+    safe_remove_dir(entry_root, cache_root)
+    record.update(
+        rebuild_required=True,
+        invalidation_reason="missing_or_incomplete_expat_cache",
+        old_entry_removed=True,
+    )
+    return True
+
+
+def cleanup_expat_staging_root(staging_root: Path | None, cache_root: Path) -> None:
+    if staging_root is None or not staging_root.exists():
+        return
+    try:
+        safe_remove_dir(staging_root, cache_root)
+    except RuntimeError:
+        pass
+
+
+def build_and_publish_default_expat_cache_entry(
+    env: dict[str, str],
+    cache_root: Path,
+    build_root: Path,
+    git_record: dict[str, Any],
+    cache_identity: dict[str, Any],
+    paths: dict[str, Path],
+) -> dict[str, Any]:
+    staging_root: Path | None = None
+    try:
+        staging_root = temporary_cache_dir(
+            paths["entry_root"],
+            cache_root,
+            component="expat",
+            cache_key=str(cache_identity["cache_key"]),
+        )
+        staged_env = dict(env)
+        staged_env.update(
+            EXPAT_PREFIX=str(staging_root / "prefix"),
+            EXPAT_BUILD_DIR=str(staging_root / "build"),
+            EXPAT_SOURCE_COPY=str(staging_root / "source"),
+        )
+        staged_record = prepare_expat(staged_env, cache_root, build_root, git_record, _transactional=True)
+        if staged_record.get("status") != "built":
+            return rebase_cache_record(staged_record, staging_root, paths["entry_root"])
+        published_record = rebase_cache_record(staged_record, staging_root, paths["entry_root"])
+        update_expat_default_cache_record_paths(published_record, paths)
+        published_record["tree"] = tree_manifest(staging_root / "prefix")
+        write_cache_manifest(staging_root / CACHE_MANIFEST_FILENAME, published_record)
+        write_cache_entry_completion(
+            staging_root,
+            cache_root,
+            component="expat",
+            cache_key=str(cache_identity["cache_key"]),
+            cache_identity=cache_identity,
+        )
+        for child in (staging_root / "build", staging_root / "source", staging_root / "prefix"):
+            remove_managed_cache_entry_marker(child, cache_root)
+        atomic_publish_dir(staging_root, paths["entry_root"], cache_root, require_complete=True)
+        staging_root = None
+        published_record["tree"] = tree_manifest(paths["prefix"])
+        write_cache_manifest(paths["manifest"], published_record)
+        return published_record
+    finally:
+        cleanup_expat_staging_root(staging_root, cache_root)
+
+
+def prepare_default_expat_cache_entry(
+    env: dict[str, str],
+    cache_root: Path,
+    build_root: Path,
+    git_record: dict[str, Any],
+    record: dict[str, Any],
+    cache_identity: dict[str, Any],
+) -> dict[str, Any]:
+    paths = expat_default_cache_paths(cache_root, str(cache_identity["cache_key"]))
+    update_expat_default_cache_record_paths(record, paths)
+    try:
+        with BuildLock(cache_entry_lock_path(cache_root, "expat", str(cache_identity["cache_key"]))):
+            if expat_default_cache_is_ready(paths, cache_root, cache_identity):
+                return expat_default_cache_hit_record(record, paths)
+            if not discard_incomplete_expat_default_cache_entry(record, paths["entry_root"], cache_root):
+                return record
+            return build_and_publish_default_expat_cache_entry(
+                env,
+                cache_root,
+                build_root,
+                git_record,
+                cache_identity,
+                paths,
+            )
+    except TimeoutError as exc:
+        record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc))
+        return record
+
+
+def expat_transactional_cache_is_ready(
+    prefix: Path,
+    marker_path: Path,
+    cache_root: Path,
+    cache_identity: dict[str, Any],
+) -> bool:
+    return (
         expat_artifacts_ready(prefix)
         and cache_manifest_complete(marker_path, cache_identity)
         and cache_entry_complete(
@@ -2625,31 +3163,37 @@ def prepare_expat(
             cache_key=str(cache_identity["cache_key"]),
             cache_identity=cache_identity,
         )
-    ):
-        record.update(
-            status="present",
-            libraries=[str(path) for path in expat_libs(lib_dir)],
-            build_system=previous.get("build_system", ""),
-            tree=tree_manifest(prefix),
-        )
-        return record
+    )
 
+
+def expat_transactional_cache_hit_record(
+    record: dict[str, Any],
+    prefix: Path,
+    lib_dir: Path,
+    marker_path: Path,
+) -> dict[str, Any]:
+    previous = read_json(marker_path)
+    record.update(
+        status="present",
+        libraries=[str(path) for path in expat_libs(lib_dir)],
+        build_system=previous.get("build_system", ""),
+        tree=tree_manifest(prefix),
+    )
+    return record
+
+
+def expat_build_selection(env: dict[str, str], source_path: Path) -> dict[str, Any]:
     missing = first_missing_tool([("make", "missing_make")])
     compiler = resolve_compiler(env)
     if not compiler:
         missing = "missing_compiler"
     if missing:
-        record.update(status="blocked", blocker_reason=missing)
-        return record
-
+        return {"blocker": missing}
     git_source_dir = expat_source_dir(source_path)
-    record["git_source_dir"] = str(git_source_dir)
-    has_autotools = (
-        (git_source_dir / "buildconf.sh").is_file()
-        or (git_source_dir / "configure").is_file()
-        or (git_source_dir / "configure.ac").is_file()
+    has_autotools = any(
+        (git_source_dir / filename).is_file()
+        for filename in (EXPAT_BUILDCONF_FILENAME, "configure", "configure.ac")
     )
-    has_cmake = (git_source_dir / "CMakeLists.txt").is_file()
     if has_autotools:
         if not (git_source_dir / "configure").is_file():
             missing = first_missing_tool(
@@ -2661,153 +3205,276 @@ def prepare_expat(
                 ]
             )
             if missing:
-                record.update(status="blocked", blocker_reason=missing)
-                return record
-        build_system = "autotools"
-    elif has_cmake:
+                return {"blocker": missing}
+        return {"build_system": "autotools", "compiler": compiler, "source_dir": git_source_dir}
+    if (git_source_dir / "CMakeLists.txt").is_file():
         if not shutil.which("cmake"):
-            record.update(status="blocked", blocker_reason="missing_cmake")
-            return record
-        build_system = "cmake"
-    else:
-        record.update(status="blocked", blocker_reason="missing_expat_build_system")
-        return record
+            return {"blocker": "missing_cmake"}
+        return {"build_system": "cmake", "compiler": compiler, "source_dir": git_source_dir}
+    return {"blocker": "missing_expat_build_system"}
 
-    log_parts: list[str] = []
+
+def expat_build_environment(
+    env: dict[str, str],
+    compiler: str,
+    prefix: Path,
+) -> dict[str, str]:
     build_env_vars = dict(os.environ)
     build_env_vars.update(env)
     build_env_vars["CC"] = env.get("CC", compiler)
-    build_env_vars["PKG_CONFIG_PATH"] = f"{prefix / 'lib/pkgconfig'}{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep)
+    build_env_vars["PKG_CONFIG_PATH"] = (
+        f"{prefix / 'lib/pkgconfig'}{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep)
+    )
+    return build_env_vars
+
+
+def expat_build_cache_paths(
+    build_dir: Path,
+    source_copy: Path,
+    prefix: Path,
+) -> tuple[tuple[str, Path], ...]:
+    return (
+        ("expat-build", build_dir),
+        ("expat-source", source_copy),
+        ("expat-prefix", prefix),
+    )
+
+
+def prepare_expat_transactional_cache_paths(
+    cache_root: Path,
+    cache_key: str,
+    build_dir: Path,
+    source_copy: Path,
+    prefix: Path,
+    git_source_dir: Path,
+) -> str:
+    cache_paths = expat_build_cache_paths(build_dir, source_copy, prefix)
+    for label, cache_path in cache_paths:
+        if cache_path.exists() and not managed_cache_entry_valid(cache_path, cache_root):
+            if not migrate_legacy_cache_entry_for_removal(cache_path, cache_root, component=label):
+                return unmanaged_cache_entry_marker_missing(cache_path)
+    for _, cache_path in cache_paths:
+        safe_remove_dir(cache_path, cache_root)
+    for label, cache_path in cache_paths:
+        mark_managed_cache_entry(cache_path, cache_root, component=label, cache_key=cache_key)
+    shutil.copytree(
+        git_source_dir,
+        source_copy,
+        ignore=shutil.ignore_patterns(".git", ".github", "autom4te.cache", "__pycache__"),
+    )
+    mark_managed_cache_entry(source_copy, cache_root, component="expat-source", cache_key=cache_key)
+    build_dir.mkdir(parents=True, exist_ok=True)
+    mark_managed_cache_entry(build_dir, cache_root, component="expat-build", cache_key=cache_key)
+    prefix.mkdir(parents=True, exist_ok=True)
+    mark_managed_cache_entry(prefix, cache_root, component="expat-prefix", cache_key=cache_key)
+    return ""
+
+
+def run_expat_build_step(
+    label: str,
+    command: list[str],
+    *,
+    cwd: Path | None,
+    env: dict[str, str],
+    log_parts: list[str],
+    log_path: Path,
+    record: dict[str, Any],
+) -> bool:
+    proc = run_env(command, cwd=cwd, env=env)
+    append_command_log(log_parts, label, proc)
+    if proc.returncode == 0:
+        return True
+    write_component_log(log_path, log_parts)
+    record.update(
+        status="failed",
+        blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr),
+        build_exit_code=proc.returncode,
+    )
+    return False
+
+
+def runtime_make_jobs(env: dict[str, str]) -> str:
+    return env.get("MAKE_JOBS") or str(os.cpu_count() or 2)
+
+
+def run_expat_autotools_build(
+    source_dir: Path,
+    build_dir: Path,
+    prefix: Path,
+    env: dict[str, str],
+    log_parts: list[str],
+    log_path: Path,
+    record: dict[str, Any],
+) -> bool:
+    if (source_dir / EXPAT_BUILDCONF_FILENAME).is_file():
+        if not run_expat_build_step(
+            "expat-buildconf",
+            ["sh", str(source_dir / EXPAT_BUILDCONF_FILENAME)],
+            cwd=source_dir,
+            env=env,
+            log_parts=log_parts,
+            log_path=log_path,
+            record=record,
+        ):
+            return False
+    elif not (source_dir / "configure").is_file() and not run_expat_build_step(
+            "expat-autoreconf",
+            ["autoreconf", "-fi"],
+            cwd=source_dir,
+            env=env,
+            log_parts=log_parts,
+            log_path=log_path,
+            record=record,
+        ):
+        return False
+    if not run_expat_build_step(
+        "expat-configure",
+        [str(source_dir / "configure"), f"--prefix={prefix}"],
+        cwd=build_dir,
+        env=env,
+        log_parts=log_parts,
+        log_path=log_path,
+        record=record,
+    ):
+        return False
+    for label, command in (
+        ("expat-make", ["make", f"-j{runtime_make_jobs(env)}"]),
+        ("expat-make-install", ["make", "install"]),
+    ):
+        if not run_expat_build_step(
+            label,
+            command,
+            cwd=build_dir,
+            env=env,
+            log_parts=log_parts,
+            log_path=log_path,
+            record=record,
+        ):
+            return False
+    return True
+
+
+def run_expat_cmake_build(
+    source_dir: Path,
+    build_dir: Path,
+    prefix: Path,
+    env: dict[str, str],
+    log_parts: list[str],
+    log_path: Path,
+    record: dict[str, Any],
+) -> bool:
+    if not run_expat_build_step(
+        "expat-cmake-configure",
+        [
+            "cmake",
+            "-S",
+            str(source_dir),
+            "-B",
+            str(build_dir),
+            f"-DCMAKE_INSTALL_PREFIX={prefix}",
+            "-DEXPAT_BUILD_TESTS=OFF",
+            "-DEXPAT_BUILD_EXAMPLES=OFF",
+            "-DEXPAT_BUILD_TOOLS=OFF",
+        ],
+        cwd=None,
+        env=env,
+        log_parts=log_parts,
+        log_path=log_path,
+        record=record,
+    ):
+        return False
+    for label, command in (
+        ("expat-cmake-build", ["cmake", "--build", str(build_dir), "--parallel", runtime_make_jobs(env)]),
+        ("expat-cmake-install", ["cmake", "--install", str(build_dir)]),
+    ):
+        if not run_expat_build_step(
+            label,
+            command,
+            cwd=None,
+            env=env,
+            log_parts=log_parts,
+            log_path=log_path,
+            record=record,
+        ):
+            return False
+    return True
+
+
+def run_selected_expat_build(
+    build_system: str,
+    source_dir: Path,
+    build_dir: Path,
+    prefix: Path,
+    env: dict[str, str],
+    log_parts: list[str],
+    log_path: Path,
+    record: dict[str, Any],
+) -> bool:
+    if build_system == "autotools":
+        return run_expat_autotools_build(source_dir, build_dir, prefix, env, log_parts, log_path, record)
+    return run_expat_cmake_build(source_dir, build_dir, prefix, env, log_parts, log_path, record)
+
+
+def prepare_expat_transactional_build(
+    env: dict[str, str],
+    cache_root: Path,
+    build_root: Path,
+    source_path: Path,
+    record: dict[str, Any],
+    cache_identity: dict[str, Any],
+    prefix: Path,
+    build_dir: Path,
+    source_copy: Path,
+    marker_path: Path,
+) -> dict[str, Any]:
+    lib_dir = prefix / "lib"
+    if expat_transactional_cache_is_ready(prefix, marker_path, cache_root, cache_identity):
+        return expat_transactional_cache_hit_record(record, prefix, lib_dir, marker_path)
+    selection = expat_build_selection(env, source_path)
+    blocker = str(selection.get("blocker", ""))
+    if blocker:
+        record.update(status="blocked", blocker_reason=blocker)
+        return record
+    log_path = build_root / "logs/runtime-components/expat-build.log"
+    log_parts: list[str] = []
     try:
-        for label, cache_path in (
-            ("expat-build", build_dir),
-            ("expat-source", build_source_copy),
-            ("expat-prefix", prefix),
-        ):
-            if cache_path.exists() and not managed_cache_entry_valid(cache_path, cache_root):
-                if not migrate_legacy_cache_entry_for_removal(
-                    cache_path,
-                    cache_root,
-                    component=label,
-                ):
-                    record.update(status="blocked", blocker_reason=f"unmanaged_cache_entry_marker_missing: {cache_path}")
-                    return record
-        safe_remove_dir(build_dir, cache_root)
-        safe_remove_dir(build_source_copy, cache_root)
-        safe_remove_dir(prefix, cache_root)
-        for label, cache_path in (
-            ("expat-build", build_dir),
-            ("expat-source", build_source_copy),
-            ("expat-prefix", prefix),
-        ):
-            mark_managed_cache_entry(
-                cache_path,
-                cache_root,
-                component=label,
-                cache_key=record["cache_key"],
-            )
-        shutil.copytree(
-            git_source_dir,
-            build_source_copy,
-            ignore=shutil.ignore_patterns(".git", ".github", "autom4te.cache", "__pycache__"),
-        )
-        source_dir = build_source_copy
-        mark_managed_cache_entry(
-            build_source_copy,
+        source_dir = Path(selection["source_dir"])
+        record["git_source_dir"] = str(source_dir)
+        cache_error = prepare_expat_transactional_cache_paths(
             cache_root,
-            component="expat-source",
-            cache_key=record["cache_key"],
-        )
-        record["build_source_dir"] = str(source_dir)
-        build_dir.mkdir(parents=True, exist_ok=True)
-        mark_managed_cache_entry(
+            str(record["cache_key"]),
             build_dir,
-            cache_root,
-            component="expat-build",
-            cache_key=record["cache_key"],
-        )
-        prefix.mkdir(parents=True, exist_ok=True)
-        mark_managed_cache_entry(
+            source_copy,
             prefix,
-            cache_root,
-            component="expat-prefix",
-            cache_key=record["cache_key"],
+            source_dir,
         )
-        if build_system == "autotools":
-            if (source_dir / "buildconf.sh").is_file():
-                proc = run_env(["sh", str(source_dir / "buildconf.sh")], cwd=source_dir, env=build_env_vars)
-                append_command_log(log_parts, "expat-buildconf", proc)
-                if proc.returncode != 0:
-                    write_component_log(log_path, log_parts)
-                    record.update(status="failed", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
-                    return record
-            elif not (source_dir / "configure").is_file():
-                proc = run_env(["autoreconf", "-fi"], cwd=source_dir, env=build_env_vars)
-                append_command_log(log_parts, "expat-autoreconf", proc)
-                if proc.returncode != 0:
-                    write_component_log(log_path, log_parts)
-                    record.update(status="failed", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
-                    return record
-            configure = source_dir / "configure"
-            proc = run_env([str(configure), f"--prefix={prefix}"], cwd=build_dir, env=build_env_vars)
-            append_command_log(log_parts, "expat-configure", proc)
-            if proc.returncode != 0:
-                write_component_log(log_path, log_parts)
-                record.update(status="failed", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
-                return record
-            jobs = env.get("MAKE_JOBS") or str(os.cpu_count() or 2)
-            for label, cmd in (
-                ("expat-make", ["make", f"-j{jobs}"]),
-                ("expat-make-install", ["make", "install"]),
-            ):
-                proc = run_env(cmd, cwd=build_dir, env=build_env_vars)
-                append_command_log(log_parts, label, proc)
-                if proc.returncode != 0:
-                    write_component_log(log_path, log_parts)
-                    record.update(status="failed", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
-                    return record
-        else:
-            proc = run_env(
-                [
-                    "cmake",
-                    "-S",
-                    str(source_dir),
-                    "-B",
-                    str(build_dir),
-                    f"-DCMAKE_INSTALL_PREFIX={prefix}",
-                    "-DEXPAT_BUILD_TESTS=OFF",
-                    "-DEXPAT_BUILD_EXAMPLES=OFF",
-                    "-DEXPAT_BUILD_TOOLS=OFF",
-                ],
-                env=build_env_vars,
-            )
-            append_command_log(log_parts, "expat-cmake-configure", proc)
-            if proc.returncode != 0:
-                write_component_log(log_path, log_parts)
-                record.update(status="failed", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
-                return record
-            for label, cmd in (
-                ("expat-cmake-build", ["cmake", "--build", str(build_dir), "--parallel", env.get("MAKE_JOBS") or str(os.cpu_count() or 2)]),
-                ("expat-cmake-install", ["cmake", "--install", str(build_dir)]),
-            ):
-                proc = run_env(cmd, env=build_env_vars)
-                append_command_log(log_parts, label, proc)
-                if proc.returncode != 0:
-                    write_component_log(log_path, log_parts)
-                    record.update(status="failed", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
-                    return record
+        if cache_error:
+            record.update(status="blocked", blocker_reason=cache_error)
+            return record
+        record["build_source_dir"] = str(source_copy)
+        build_environment = expat_build_environment(env, str(selection["compiler"]), prefix)
+        if not run_selected_expat_build(
+            str(selection["build_system"]),
+            source_copy,
+            build_dir,
+            prefix,
+            build_environment,
+            log_parts,
+            log_path,
+            record,
+        ):
+            return record
         write_component_log(log_path, log_parts)
     except Exception as exc:
         write_component_log(log_path, log_parts + [str(exc)])
         record.update(status="failed", blocker_reason=str(exc), build_exit_code=1)
         return record
-
     if not expat_artifacts_ready(prefix):
         record.update(status="failed", blocker_reason="expat_artifacts_missing", build_exit_code=0)
         return record
     record.update(
         status="built",
-        build_system=build_system,
+        build_system=str(selection["build_system"]),
         libraries=[str(path) for path in expat_libs(lib_dir)],
         tree=tree_manifest(prefix),
         generated_at=utc_now(),
@@ -2827,13 +3494,13 @@ def shared_modsecurity_paths(cache_root: Path, build_id: str) -> dict[str, Path]
     return {
         "build_root": cache_root / "builds/modsecurity" / build_id,
         "prefix": cache_root / "prefix/modsecurity" / build_id,
-        "manifest": cache_root / "builds/modsecurity" / build_id / "manifest.json",
+        "manifest": cache_root / "builds/modsecurity" / build_id / CACHE_MANIFEST_FILENAME,
         "lock": cache_root / "locks" / f"modsecurity-{build_id}.lock",
     }
 
 
 def modsecurity_lib_file(prefix: Path) -> Path:
-    return prefix / "lib/libmodsecurity.so"
+    return prefix / "lib" / MODSECURITY_LIBRARY_FILENAME
 
 
 def modsecurity_ready(prefix: Path) -> bool:
@@ -2851,17 +3518,14 @@ def modsecurity_build_manifest_binds_prefix(
     prefix whose registry marker was lost, while never turning the build
     manifest into a cache-hit or post-hoc ownership marker for that prefix.
     """
-    manifest_path = build_root / "manifest.json"
+    manifest_path = build_root / CACHE_MANIFEST_FILENAME
     if not cache_manifest_complete(manifest_path, cache_identity):
         return False
     manifest = read_json(manifest_path)
-    try:
-        return (
-            Path(str(manifest.get("build_root", ""))).resolve(strict=False) == build_root.resolve(strict=False)
-            and Path(str(manifest.get("prefix", ""))).resolve(strict=False) == prefix.resolve(strict=False)
-        )
-    except OSError:
-        return False
+    return (
+        manifest_path_value_matches_entry(manifest.get("build_root"), build_root.resolve(strict=False))
+        and manifest_path_value_matches_entry(manifest.get("prefix"), prefix.resolve(strict=False))
+    )
 
 
 def safe_remove_modsecurity_prefix_bound_by_build_manifest(
@@ -2879,67 +3543,73 @@ def safe_remove_modsecurity_prefix_bound_by_build_manifest(
         safe_remove_dir(resolved_prefix, resolved_root)
         return
     if not modsecurity_build_manifest_binds_prefix(build_root, resolved_prefix, cache_identity):
-        raise RuntimeError(f"unmanaged_cache_entry_marker_missing: {resolved_prefix}")
+        raise RuntimeError(unmanaged_cache_entry_marker_missing(resolved_prefix))
     shutil.rmtree(resolved_prefix)
     remove_managed_cache_entry_marker(resolved_prefix, resolved_root)
 
 
-def modsecurity_build_inputs(
-    env: dict[str, str],
-    git_record: dict[str, Any],
-    expat: dict[str, Any],
-    connector_root: Path | None = None,
-) -> dict[str, Any]:
+def modsecurity_expat_dependency(expat: dict[str, Any]) -> tuple[str, str, dict[str, Any]]:
     expat_prefix = str(expat.get("prefix", ""))
     expat_lib_dir = str(expat.get("lib_dir", ""))
-    # Expat publishes a component-manifest below its prefix.  Its contents
-    # contain timestamps and its own tree summary, so using a freshly walked
-    # prefix tree here would make the ModSecurity cache key depend on cache
-    # publication order.  Bind the dependency to Expat's immutable cache
-    # identity instead.  This keeps standard and full-lifecycle invocations
-    # on the same shared key while still invalidating ModSecurity whenever the
-    # Expat source, patchset, toolchain, or build flags change.
     expat_cache_identity = expat.get("cache_identity")
     if isinstance(expat_cache_identity, dict) and expat_cache_identity:
-        expat_dependency: dict[str, Any] = {
-            "cache_identity": expat_cache_identity,
-            "cache_key": str(
-                expat.get("cache_key", expat_cache_identity.get("cache_key", ""))
-            ),
-            "prefix": expat_prefix,
-        }
-    else:
-        # Keep the legacy fallback for callers which provide an external
-        # dependency record without a Cache-v2 identity.  Such a record is not
-        # used as a managed-cache hit, but its declared tree remains the best
-        # available invalidation input.
-        expat_dependency = {
+        return (
+            expat_prefix,
+            expat_lib_dir,
+            {
+                "cache_identity": expat_cache_identity,
+                "cache_key": str(expat.get("cache_key", expat_cache_identity.get("cache_key", ""))),
+                "prefix": expat_prefix,
+            },
+        )
+    return (
+        expat_prefix,
+        expat_lib_dir,
+        {
             "actual_head": expat.get("actual_head", ""),
             "prefix": expat_prefix,
             "tree": expat.get("tree", {}),
-        }
-    dependency_payload = {
+        },
+    )
+
+
+def modsecurity_build_flags(env: dict[str, str], expat_prefix: str, expat_lib_dir: str) -> dict[str, str]:
+    include_flag = f"-I{Path(expat_prefix) / 'include'}" if expat_prefix else ""
+    library_flag = f"-L{expat_lib_dir}" if expat_lib_dir else ""
+    pkg_config_path = env.get("PKG_CONFIG_PATH", "")
+    if expat_prefix:
+        pkg_config_path = f"{expat_prefix}/lib/pkgconfig{os.pathsep}{pkg_config_path}".rstrip(os.pathsep)
+    return {
+        "configure_args": env.get("MODSECURITY_CONFIGURE_ARGS", ""),
+        "CPPFLAGS": " ".join(part for part in (include_flag, env.get("CPPFLAGS", "")) if part).strip(),
+        "CFLAGS": env.get("CFLAGS", ""),
+        "CXXFLAGS": env.get("CXXFLAGS", ""),
+        "LDFLAGS": " ".join(part for part in (library_flag, env.get("LDFLAGS", "")) if part).strip(),
+        "LIBS": env.get("LIBS", ""),
+        "PKG_CONFIG_PATH": pkg_config_path,
+    }
+
+
+def modsecurity_dependency_payload(
+    env: dict[str, str],
+    expat_dependency: dict[str, Any],
+) -> dict[str, Any]:
+    return {
         "expat": expat_dependency,
         "pkg_config_path": env.get("PKG_CONFIG_PATH", ""),
         "ld_library_path": env.get("LD_LIBRARY_PATH", ""),
     }
-    build_flags = {
-        "configure_args": env.get("MODSECURITY_CONFIGURE_ARGS", ""),
-        "CPPFLAGS": " ".join(part for part in (f"-I{Path(expat_prefix) / 'include'}" if expat_prefix else "", env.get("CPPFLAGS", "")) if part).strip(),
-        "CFLAGS": env.get("CFLAGS", ""),
-        "CXXFLAGS": env.get("CXXFLAGS", ""),
-        "LDFLAGS": " ".join(part for part in (f"-L{expat_lib_dir}" if expat_lib_dir else "", env.get("LDFLAGS", "")) if part).strip(),
-        "LIBS": env.get("LIBS", ""),
-        "PKG_CONFIG_PATH": (
-            f"{expat_prefix}/lib/pkgconfig{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep)
-            if expat_prefix
-            else env.get("PKG_CONFIG_PATH", "")
-        ),
-    }
-    dependency_hash = stable_hash(dependency_payload)
-    toolchain = toolchain_identity(env)
-    patchset = patchset_identity(component_patchset_roots(connector_root, "modsecurity"))
-    cache_identity = canonical_cache_identity(
+
+
+def modsecurity_cache_identity(
+    env: dict[str, str],
+    git_record: dict[str, Any],
+    build_flags: dict[str, str],
+    dependency_hash: str,
+    patchset: dict[str, Any],
+    toolchain: dict[str, Any],
+) -> dict[str, Any]:
+    return canonical_cache_identity(
         "modsecurity",
         env=env,
         upstream_url=str(git_record.get("url", git_record.get("source", ""))),
@@ -2953,6 +3623,28 @@ def modsecurity_build_inputs(
             "dependency_hash": dependency_hash,
             "recursive_submodule_status": git_record.get("submodule_status", ""),
         },
+    )
+
+
+def modsecurity_build_inputs(
+    env: dict[str, str],
+    git_record: dict[str, Any],
+    expat: dict[str, Any],
+    connector_root: Path | None = None,
+) -> dict[str, Any]:
+    expat_prefix, expat_lib_dir, expat_dependency = modsecurity_expat_dependency(expat)
+    dependency_payload = modsecurity_dependency_payload(env, expat_dependency)
+    build_flags = modsecurity_build_flags(env, expat_prefix, expat_lib_dir)
+    dependency_hash = stable_hash(dependency_payload)
+    toolchain = toolchain_identity(env)
+    patchset = patchset_identity(component_patchset_roots(connector_root, "modsecurity"))
+    cache_identity = modsecurity_cache_identity(
+        env,
+        git_record,
+        build_flags,
+        dependency_hash,
+        patchset,
+        toolchain,
     )
     inputs = {
         "source_url": git_record.get("url", git_record.get("source", "")),
@@ -3043,14 +3735,14 @@ def copy_modsecurity_outputs(source_dir: Path, prefix: Path) -> None:
     libs = source_dir / "src/.libs"
     if not (headers / "modsecurity/modsecurity.h").is_file():
         raise RuntimeError("modsecurity_headers_missing_after_build")
-    if not (libs / "libmodsecurity.so").is_file():
+    if not (libs / MODSECURITY_LIBRARY_FILENAME).is_file():
         raise RuntimeError("modsecurity_library_missing_after_build")
     include_dir = prefix / "include"
     lib_dir = prefix / "lib"
     include_dir.mkdir(parents=True, exist_ok=True)
     lib_dir.mkdir(parents=True, exist_ok=True)
     shutil.copytree(headers, include_dir, dirs_exist_ok=True, symlinks=True)
-    for item in libs.glob("libmodsecurity.so*"):
+    for item in libs.glob(f"{MODSECURITY_LIBRARY_FILENAME}*"):
         dest = lib_dir / item.name
         if dest.exists() or dest.is_symlink():
             dest.unlink()
@@ -3441,7 +4133,7 @@ def remove_replaceable_framework_approved_modsecurity_v3_cache_entry(
             component=component,
         )
     ):
-        raise RuntimeError(f"unmanaged_cache_entry_marker_missing: {checkout_path}")
+        raise RuntimeError(unmanaged_cache_entry_marker_missing(checkout_path))
     safe_remove_dir(checkout_path, cache_root)
     return {
         "rebuild_required": True,
@@ -3601,6 +4293,367 @@ def prepare_framework_approved_modsecurity_v3_source(
         discard_unpublished_framework_approved_modsecurity_v3_staging_entry(staging_path, managed_root)
 
 
+MODSECURITY_BUILD_FAILURE_BLOCKER = "modsecurity_build_failed"
+
+
+def modsecurity_cache_path_blocker(paths: dict[str, Path], cache_root: Path) -> str:
+    for label in ("build_root", "prefix", "lock"):
+        path = paths[label]
+        if is_system_path(path) or not is_within(path, cache_root):
+            return f"{label}:{path}"
+    return ""
+
+
+def modsecurity_source_preflight(
+    env: dict[str, str],
+    git_record: dict[str, Any],
+    framework_root: Path | None,
+    source_path: Path,
+) -> tuple[dict[str, Any] | None, str, str]:
+    if git_record.get("status") != "present":
+        return None, "", ""
+    if not git_record.get("submodule_status_clean", False):
+        return None, "modsecurity_submodule_missing", ""
+    provenance = verify_framework_approved_modsecurity_v3_checkout(env, framework_root, source_path)
+    if provenance.get("status") == "passed":
+        return provenance, "", ""
+    details = str(provenance.get("details") or provenance.get("blocker_reason", ""))
+    return provenance, "modsecurity_v3_provenance_guard_failed", details
+
+
+def prepare_modsecurity_build_root(
+    record: dict[str, Any],
+    paths: dict[str, Path],
+    cache_root: Path,
+    inputs: dict[str, Any],
+) -> str:
+    build_root = paths["build_root"]
+    if build_root.exists() and not cache_entry_marker_valid(build_root, cache_root):
+        if cache_manifest_owns_entry(build_root):
+            safe_remove_dir(build_root, cache_root)
+            record.update(
+                rebuild_required=True,
+                invalidation_reason="missing_modsecurity_cache_registry_marker",
+                old_entry_removed=True,
+            )
+        elif migrate_legacy_cache_entry_for_removal(build_root, cache_root, component="modsecurity-build"):
+            safe_remove_dir(build_root, cache_root)
+            record.update(
+                rebuild_required=True,
+                invalidation_reason="cache_schema_changed",
+                old_entry_removed=True,
+            )
+        else:
+            return unmanaged_cache_entry_marker_missing(build_root)
+    try:
+        mark_managed_cache_entry(
+            build_root,
+            cache_root,
+            component="modsecurity-build",
+            cache_key=str(inputs["cache_key"]),
+        )
+    except RuntimeError as exc:
+        return str(exc)
+    return ""
+
+
+def modsecurity_cache_is_ready(
+    record: dict[str, Any],
+    paths: dict[str, Path],
+    cache_root: Path,
+    inputs: dict[str, Any],
+) -> bool:
+    prefix = paths["prefix"]
+    cache_identity = inputs["cache_identity"]
+    if not (
+        modsecurity_ready(prefix)
+        and cache_manifest_complete(paths["manifest"], cache_identity)
+        and cache_entry_complete(
+            paths["build_root"],
+            cache_root,
+            component="modsecurity-build",
+            cache_key=str(inputs["cache_key"]),
+            cache_identity=cache_identity,
+        )
+        and cache_entry_complete(
+            prefix,
+            cache_root,
+            component="modsecurity-prefix",
+            cache_key=str(inputs["cache_key"]),
+            cache_identity=cache_identity,
+        )
+    ):
+        return False
+    record.update(status="reused", tree=tree_manifest(prefix), generated_at=utc_now())
+    write_cache_manifest(paths["manifest"], record)
+    return True
+
+
+def missing_modsecurity_build_dependency(env: dict[str, str]) -> str:
+    missing = first_missing_tool([("make", "missing_make"), ("git", "missing_git")])
+    if not resolve_compiler(env):
+        return "missing_compiler"
+    return missing
+
+
+def discard_incomplete_modsecurity_cache_entries(
+    record: dict[str, Any],
+    paths: dict[str, Path],
+    cache_root: Path,
+    inputs: dict[str, Any],
+) -> str:
+    prefix = paths["prefix"]
+    for label, cache_path, component in (
+        ("modsecurity-build", paths["build_root"], "modsecurity-build"),
+        ("modsecurity-prefix", prefix, "modsecurity-prefix"),
+    ):
+        if not cache_path.exists() or managed_cache_entry_valid(cache_path, cache_root):
+            continue
+        if label == "modsecurity-prefix" and modsecurity_build_manifest_binds_prefix(
+            paths["build_root"],
+            prefix,
+            inputs["cache_identity"],
+        ):
+            # The build manifest grants deletion only.  It never admits the
+            # markerless prefix as a reusable cache entry.
+            safe_remove_modsecurity_prefix_bound_by_build_manifest(
+                prefix,
+                cache_root,
+                build_root=paths["build_root"],
+                cache_identity=inputs["cache_identity"],
+            )
+            record.update(
+                rebuild_required=True,
+                invalidation_reason="missing_modsecurity_prefix_registry_marker",
+                old_entry_removed=True,
+            )
+            continue
+        if not migrate_legacy_cache_entry_for_removal(cache_path, cache_root, component=component):
+            return unmanaged_cache_entry_marker_missing(cache_path)
+    safe_remove_dir(paths["build_root"], cache_root)
+    safe_remove_dir(prefix, cache_root)
+    return ""
+
+
+def modsecurity_staging_paths(
+    paths: dict[str, Path],
+    cache_root: Path,
+    cache_key: str,
+) -> tuple[Path, Path]:
+    return (
+        temporary_cache_dir(
+            paths["build_root"],
+            cache_root,
+            component="modsecurity-build",
+            cache_key=cache_key,
+        ),
+        temporary_cache_dir(
+            paths["prefix"],
+            cache_root,
+            component="modsecurity-prefix",
+            cache_key=cache_key,
+        ),
+    )
+
+
+def modsecurity_build_environment(
+    env: dict[str, str],
+    inputs: dict[str, Any],
+    expat: dict[str, Any],
+) -> dict[str, str]:
+    build_env_vars = dict(os.environ)
+    build_env_vars.update(env)
+    flag_payload = json.loads(str(inputs["build_flags_text"]))
+    for key in ("CPPFLAGS", "CFLAGS", "CXXFLAGS", "LDFLAGS", "LIBS", "PKG_CONFIG_PATH"):
+        if flag_payload.get(key):
+            build_env_vars[key] = str(flag_payload[key])
+    expat_lib_dir = expat.get("lib_dir")
+    if expat_lib_dir:
+        build_env_vars["LD_LIBRARY_PATH"] = (
+            f"{expat_lib_dir}{os.pathsep}{env.get('LD_LIBRARY_PATH', '')}".rstrip(os.pathsep)
+        )
+    return build_env_vars
+
+
+def modsecurity_build_commands(env: dict[str, str], staging_prefix: Path) -> list[tuple[str, list[str]]]:
+    configure_command = ["./configure", f"--prefix={staging_prefix}"]
+    configure_command.extend(env.get("MODSECURITY_CONFIGURE_ARGS", "").split())
+    return [
+        ("modsecurity-build-sh", ["sh", "./build.sh"]),
+        ("modsecurity-configure", configure_command),
+        ("modsecurity-make", ["make", f"-j{runtime_make_jobs(env)}"]),
+    ]
+
+
+def record_modsecurity_build_failure(
+    record: dict[str, Any],
+    staging_build: Path,
+    log_path: Path,
+    return_code: int,
+) -> None:
+    record.update(
+        status="failed",
+        blocker_reason=MODSECURITY_BUILD_FAILURE_BLOCKER,
+        build_exit_code=return_code,
+        build_log=str(log_path),
+    )
+    write_cache_manifest(staging_build / CACHE_MANIFEST_FILENAME, record)
+
+
+def build_modsecurity_staging_entry(
+    env: dict[str, str],
+    inputs: dict[str, Any],
+    expat: dict[str, Any],
+    source_path: Path,
+    staging_build: Path,
+    staging_prefix: Path,
+    log_path: Path,
+    record: dict[str, Any],
+) -> bool:
+    build_source = staging_build / "source"
+    shutil.copytree(
+        source_path,
+        build_source,
+        ignore=shutil.ignore_patterns(
+            ".git", ".github", "__pycache__", "autom4te.cache", "*.o", "*.lo", "*.la", "*.log"
+        ),
+    )
+    build_env_vars = modsecurity_build_environment(env, inputs, expat)
+    log_parts: list[str] = []
+    for label, command in modsecurity_build_commands(env, staging_prefix):
+        proc = run_env(command, cwd=build_source, env=build_env_vars)
+        append_command_log(log_parts, label, proc)
+        if proc.returncode != 0:
+            write_component_log(log_path, log_parts)
+            record_modsecurity_build_failure(record, staging_build, log_path, proc.returncode)
+            return False
+    copy_modsecurity_outputs(build_source, staging_prefix)
+    write_component_log(log_path, log_parts)
+    if not modsecurity_ready(staging_prefix):
+        record_modsecurity_build_failure(record, staging_build, log_path, 0)
+        return False
+    record.update(
+        status="built",
+        build_log=str(log_path),
+        tree=tree_manifest(staging_prefix),
+        generated_at=utc_now(),
+    )
+    write_cache_manifest(staging_build / CACHE_MANIFEST_FILENAME, record)
+    return True
+
+
+def publish_modsecurity_staging_entries(
+    record: dict[str, Any],
+    paths: dict[str, Path],
+    cache_root: Path,
+    inputs: dict[str, Any],
+    staging_build: Path,
+    staging_prefix: Path,
+) -> None:
+    cache_identity = inputs["cache_identity"]
+    cache_key = str(inputs["cache_key"])
+    write_cache_entry_completion(
+        staging_build,
+        cache_root,
+        component="modsecurity-build",
+        cache_key=cache_key,
+        cache_identity=cache_identity,
+    )
+    write_cache_entry_completion(
+        staging_prefix,
+        cache_root,
+        component="modsecurity-prefix",
+        cache_key=cache_key,
+        cache_identity=cache_identity,
+    )
+    atomic_publish_dir(staging_prefix, paths["prefix"], cache_root, require_complete=True)
+    atomic_publish_dir(staging_build, paths["build_root"], cache_root, require_complete=True)
+    record.update(tree=tree_manifest(paths["prefix"]), generated_at=utc_now())
+    write_cache_manifest(paths["manifest"], record)
+
+
+def cleanup_modsecurity_staging_entry(staging_path: Path | None, cache_root: Path) -> None:
+    if staging_path is None or not staging_path.exists():
+        return
+    try:
+        safe_remove_dir(staging_path, cache_root)
+    except RuntimeError:
+        pass
+
+
+def build_shared_modsecurity_cache(
+    env: dict[str, str],
+    cache_root: Path,
+    build_root: Path,
+    expat: dict[str, Any],
+    inputs: dict[str, Any],
+    paths: dict[str, Path],
+    source_path: Path,
+    record: dict[str, Any],
+) -> dict[str, Any]:
+    log_path = build_root / "logs/runtime-components" / f"modsecurity-{str(inputs['build_id'])[:16]}-build.log"
+    staging_build: Path | None = None
+    staging_prefix: Path | None = None
+    try:
+        with BuildLock(paths["lock"]):
+            if modsecurity_cache_is_ready(record, paths, cache_root, inputs):
+                return record
+            missing = missing_modsecurity_build_dependency(env)
+            if missing:
+                record.update(
+                    status="blocked",
+                    blocker_reason="missing_modsecurity_dependency",
+                    missing_dependency=missing,
+                )
+                write_cache_manifest(paths["manifest"], record)
+                return record
+            cache_error = discard_incomplete_modsecurity_cache_entries(record, paths, cache_root, inputs)
+            if cache_error:
+                record.update(status="blocked", blocker_reason=cache_error)
+                return record
+            staging_build, staging_prefix = modsecurity_staging_paths(paths, cache_root, str(inputs["cache_key"]))
+            if not build_modsecurity_staging_entry(
+                env,
+                inputs,
+                expat,
+                source_path,
+                staging_build,
+                staging_prefix,
+                log_path,
+                record,
+            ):
+                return record
+            publish_modsecurity_staging_entries(
+                record,
+                paths,
+                cache_root,
+                inputs,
+                staging_build,
+                staging_prefix,
+            )
+            staging_build = None
+            staging_prefix = None
+            return record
+    except TimeoutError as exc:
+        record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc), build_log=str(log_path))
+        write_cache_manifest(paths["manifest"], record)
+        return record
+    except Exception as exc:
+        write_component_log(log_path, [str(exc)])
+        record.update(
+            status="failed",
+            blocker_reason=MODSECURITY_BUILD_FAILURE_BLOCKER,
+            details=str(exc),
+            build_exit_code=1,
+            build_log=str(log_path),
+        )
+        write_cache_manifest(paths["manifest"], record)
+        return record
+    finally:
+        cleanup_modsecurity_staging_entry(staging_build, cache_root)
+        cleanup_modsecurity_staging_entry(staging_prefix, cache_root)
+
+
 def prepare_shared_modsecurity(
     env: dict[str, str],
     cache_root: Path,
@@ -3619,7 +4672,6 @@ def prepare_shared_modsecurity(
     paths = shared_modsecurity_paths(cache_root, build_id)
     prefix = paths["prefix"]
     manifest_path = paths["manifest"]
-    log_path = build_root / "logs/runtime-components" / f"modsecurity-{build_id[:16]}-build.log"
     source_path = Path(str(git_record.get("path", ""))).resolve() if git_record.get("path") else Path()
     record: dict[str, Any] = {
         "component": "modsecurity",
@@ -3649,223 +4701,46 @@ def prepare_shared_modsecurity(
         "status": "unknown",
         "blocker_reason": "",
     }
-    for label, path in (("build_root", paths["build_root"]), ("prefix", prefix), ("lock", paths["lock"])):
-        if is_system_path(path) or not is_within(path, cache_root):
-            record.update(status="blocked", blocker_reason="system_path_write_forbidden", blocked_path=f"{label}:{path}")
-            return record
-    if git_record.get("status") == "present":
-        if not git_record.get("submodule_status_clean", False):
-            record.update(status="blocked", blocker_reason="modsecurity_submodule_missing")
-            return record
-        provenance = verify_framework_approved_modsecurity_v3_checkout(env, framework_root, source_path)
-        record["provenance_verification"] = provenance
-        if provenance.get("status") != "passed":
-            record.update(
-                status="blocked",
-                blocker_reason="modsecurity_v3_provenance_guard_failed",
-                details=provenance.get("details") or provenance.get("blocker_reason", ""),
-            )
-            return record
-    if paths["build_root"].exists() and not cache_entry_marker_valid(paths["build_root"], cache_root):
-        # A complete local manifest is sufficient to safely discard a stale
-        # entry, never to claim it or treat it as reusable cache state.
-        if cache_manifest_owns_entry(paths["build_root"]):
-            safe_remove_dir(paths["build_root"], cache_root)
-            record.update(
-                rebuild_required=True,
-                invalidation_reason="missing_modsecurity_cache_registry_marker",
-                old_entry_removed=True,
-            )
-        elif migrate_legacy_cache_entry_for_removal(
-            paths["build_root"],
-            cache_root,
-            component="modsecurity-build",
-        ):
-            safe_remove_dir(paths["build_root"], cache_root)
-            record.update(rebuild_required=True, invalidation_reason="cache_schema_changed", old_entry_removed=True)
-        else:
-            record.update(status="blocked", blocker_reason=f"unmanaged_cache_entry_marker_missing: {paths['build_root']}")
-            return record
-    try:
-        # `manifest_path` lives below this entry.  Claim a fresh entry before
-        # any early-return status can create that directory.  An existing
-        # markerless local manifest was discarded above rather than claimed.
-        mark_managed_cache_entry(
-            paths["build_root"],
-            cache_root,
-            component="modsecurity-build",
-            cache_key=inputs["cache_key"],
+    blocked_path = modsecurity_cache_path_blocker(paths, cache_root)
+    if blocked_path:
+        record.update(
+            status="blocked",
+            blocker_reason="system_path_write_forbidden",
+            blocked_path=blocked_path,
         )
-    except RuntimeError as exc:
-        record.update(status="blocked", blocker_reason=str(exc))
+        return record
+    provenance, preflight_blocker, details = modsecurity_source_preflight(
+        env,
+        git_record,
+        framework_root,
+        source_path,
+    )
+    if provenance is not None:
+        record["provenance_verification"] = provenance
+    if preflight_blocker:
+        record.update(status="blocked", blocker_reason=preflight_blocker, details=details)
+        return record
+    root_blocker = prepare_modsecurity_build_root(record, paths, cache_root, inputs)
+    if root_blocker:
+        record.update(status="blocked", blocker_reason=root_blocker)
         return record
     if git_record.get("status") != "present":
-        record.update(status="blocked", blocker_reason=git_record.get("blocker_reason") or "modsecurity_source_unavailable")
+        record.update(
+            status="blocked",
+            blocker_reason=git_record.get("blocker_reason") or "modsecurity_source_unavailable",
+        )
         write_cache_manifest(manifest_path, record)
         return record
-
-    def reuse_if_ready(status: str) -> bool:
-        if (
-            modsecurity_ready(prefix)
-            and cache_manifest_complete(manifest_path, inputs["cache_identity"])
-            and cache_entry_complete(
-                paths["build_root"],
-                cache_root,
-                component="modsecurity-build",
-                cache_key=inputs["cache_key"],
-                cache_identity=inputs["cache_identity"],
-            )
-            and cache_entry_complete(
-                prefix,
-                cache_root,
-                component="modsecurity-prefix",
-                cache_key=inputs["cache_key"],
-                cache_identity=inputs["cache_identity"],
-            )
-        ):
-            record.update(status=status, tree=tree_manifest(prefix), generated_at=utc_now())
-            write_cache_manifest(manifest_path, record)
-            return True
-        return False
-
-    try:
-        with BuildLock(paths["lock"]):
-            if reuse_if_ready("reused"):
-                return record
-            missing = first_missing_tool([("make", "missing_make"), ("git", "missing_git")])
-            compiler = resolve_compiler(env)
-            if not compiler:
-                missing = "missing_compiler"
-            if missing:
-                record.update(status="blocked", blocker_reason="missing_modsecurity_dependency", missing_dependency=missing)
-                write_cache_manifest(manifest_path, record)
-                return record
-            for label, cache_path, component in (
-                ("modsecurity-build", paths["build_root"], "modsecurity-build"),
-                ("modsecurity-prefix", prefix, "modsecurity-prefix"),
-            ):
-                if cache_path.exists() and not managed_cache_entry_valid(cache_path, cache_root):
-                    if label == "modsecurity-prefix" and modsecurity_build_manifest_binds_prefix(
-                        paths["build_root"],
-                        prefix,
-                        inputs["cache_identity"],
-                    ):
-                        # The bound build manifest grants deletion only.  Do
-                        # not re-claim this markerless prefix; discard it and
-                        # create a fresh staged entry below.
-                        safe_remove_modsecurity_prefix_bound_by_build_manifest(
-                            prefix,
-                            cache_root,
-                            build_root=paths["build_root"],
-                            cache_identity=inputs["cache_identity"],
-                        )
-                        record.update(
-                            rebuild_required=True,
-                            invalidation_reason="missing_modsecurity_prefix_registry_marker",
-                            old_entry_removed=True,
-                        )
-                        continue
-                    if not migrate_legacy_cache_entry_for_removal(
-                        cache_path,
-                        cache_root,
-                        component=component,
-                    ):
-                        record.update(status="blocked", blocker_reason=f"unmanaged_cache_entry_marker_missing: {cache_path}")
-                        return record
-            safe_remove_dir(paths["build_root"], cache_root)
-            safe_remove_dir(prefix, cache_root)
-            staging_build = temporary_cache_dir(
-                paths["build_root"],
-                cache_root,
-                component="modsecurity-build",
-                cache_key=inputs["cache_key"],
-            )
-            staging_prefix = temporary_cache_dir(
-                prefix,
-                cache_root,
-                component="modsecurity-prefix",
-                cache_key=inputs["cache_key"],
-            )
-            try:
-                build_source = staging_build / "source"
-                shutil.copytree(
-                    source_path,
-                    build_source,
-                    ignore=shutil.ignore_patterns(".git", ".github", "__pycache__", "autom4te.cache", "*.o", "*.lo", "*.la", "*.log"),
-                )
-                build_env_vars = dict(os.environ)
-                build_env_vars.update(env)
-                flag_payload = json.loads(inputs["build_flags_text"])
-                for key in ("CPPFLAGS", "CFLAGS", "CXXFLAGS", "LDFLAGS", "LIBS", "PKG_CONFIG_PATH"):
-                    if flag_payload.get(key):
-                        build_env_vars[key] = str(flag_payload[key])
-                if expat.get("lib_dir"):
-                    build_env_vars["LD_LIBRARY_PATH"] = f"{expat.get('lib_dir')}{os.pathsep}{env.get('LD_LIBRARY_PATH', '')}".rstrip(os.pathsep)
-                log_parts: list[str] = []
-                configure_cmd = ["./configure", f"--prefix={staging_prefix}"]
-                configure_cmd.extend(env.get("MODSECURITY_CONFIGURE_ARGS", "").split())
-                commands: list[tuple[str, list[str]]] = [
-                    ("modsecurity-build-sh", ["sh", "./build.sh"]),
-                    ("modsecurity-configure", configure_cmd),
-                    ("modsecurity-make", ["make", f"-j{env.get('MAKE_JOBS') or str(os.cpu_count() or 2)}"]),
-                ]
-                for label, cmd in commands:
-                    proc = run_env(cmd, cwd=build_source, env=build_env_vars)
-                    append_command_log(log_parts, label, proc)
-                    if proc.returncode != 0:
-                        write_component_log(log_path, log_parts)
-                        record.update(status="failed", blocker_reason="modsecurity_build_failed", build_exit_code=proc.returncode, build_log=str(log_path))
-                        write_cache_manifest(staging_build / "manifest.json", record)
-                        return record
-                copy_modsecurity_outputs(build_source, staging_prefix)
-                write_component_log(log_path, log_parts)
-                if not modsecurity_ready(staging_prefix):
-                    record.update(status="failed", blocker_reason="modsecurity_build_failed", build_exit_code=0, build_log=str(log_path))
-                    write_cache_manifest(staging_build / "manifest.json", record)
-                    return record
-                record.update(status="built", build_log=str(log_path), tree=tree_manifest(staging_prefix), generated_at=utc_now())
-                write_cache_manifest(staging_build / "manifest.json", record)
-                write_cache_entry_completion(
-                    staging_build,
-                    cache_root,
-                    component="modsecurity-build",
-                    cache_key=inputs["cache_key"],
-                    cache_identity=inputs["cache_identity"],
-                )
-                write_cache_entry_completion(
-                    staging_prefix,
-                    cache_root,
-                    component="modsecurity-prefix",
-                    cache_key=inputs["cache_key"],
-                    cache_identity=inputs["cache_identity"],
-                )
-                atomic_publish_dir(staging_prefix, prefix, cache_root, require_complete=True)
-                staging_prefix = None
-                atomic_publish_dir(staging_build, paths["build_root"], cache_root, require_complete=True)
-                staging_build = None
-                record.update(tree=tree_manifest(prefix), generated_at=utc_now())
-                write_cache_manifest(manifest_path, record)
-                return record
-            finally:
-                if staging_build is not None and staging_build.exists():
-                    try:
-                        safe_remove_dir(staging_build, cache_root)
-                    except RuntimeError:
-                        pass
-                if staging_prefix is not None and staging_prefix.exists():
-                    try:
-                        safe_remove_dir(staging_prefix, cache_root)
-                    except RuntimeError:
-                        pass
-    except TimeoutError as exc:
-        record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc), build_log=str(log_path))
-        write_cache_manifest(manifest_path, record)
-        return record
-    except Exception as exc:
-        write_component_log(log_path, [str(exc)])
-        record.update(status="failed", blocker_reason="modsecurity_build_failed", details=str(exc), build_exit_code=1, build_log=str(log_path))
-        write_cache_manifest(manifest_path, record)
-        return record
+    return build_shared_modsecurity_cache(
+        env,
+        cache_root,
+        build_root,
+        expat,
+        inputs,
+        paths,
+        source_path,
+        record,
+    )
 
 
 def connector_input_paths(connector_root: Path, framework_root: Path, connector: str) -> list[Path]:
@@ -3885,21 +4760,13 @@ def connector_input_paths(connector_root: Path, framework_root: Path, connector:
     return paths
 
 
-def connector_plan(
-    connector_root: Path,
-    framework_root: Path,
-    cache_root: Path,
+def connector_build_flags(
     env: dict[str, str],
     connector: str,
-    modsecurity: dict[str, Any],
-    expat: dict[str, Any],
-    archives: list[dict[str, Any]],
-) -> dict[str, Any]:
-    source_paths = connector_input_paths(connector_root, framework_root, connector)
-    source_hash = hash_input_paths(source_paths)
-    patchset = patchset_identity(component_patchset_roots(connector_root, connector))
-    nginx_protocol_inputs = nginx_protocol_build_inputs(env) if connector == "nginx" else {}
-    build_flags = {
+    nginx_protocol_inputs: dict[str, Any],
+) -> dict[str, str]:
+    """Return every cache-relevant connector build flag."""
+    flags = {
         key: env.get(key, "")
         for key in (
             "CPPFLAGS",
@@ -3929,10 +4796,7 @@ def connector_plan(
         )
     }
     if connector == "nginx":
-        # Store the effective profile fields, not merely raw environment
-        # strings: unused QUIC source overrides must not churn an H1 cache,
-        # while every H3 TLS input is an explicit cache boundary.
-        build_flags.update(
+        flags.update(
             {
                 "NGINX_PROTOCOL_PROFILE": str(nginx_protocol_inputs["profile"]),
                 "NGINX_PROTOCOL_CONFIGURE_FLAGS": " ".join(
@@ -3944,12 +4808,19 @@ def connector_plan(
                 "NGINX_QUIC_TLS_SOURCE_SHA256": str(nginx_protocol_inputs["tls_source_sha256"]),
             }
         )
+    return flags
+
+
+def connector_archive_inputs(
+    connector: str,
+    archives: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
     archive_names = {
         "apache": {"httpd", "apr", "apr-util", "pcre2"},
         "nginx": {"nginx", "nginx-quic-tls"},
         "haproxy": {"haproxy"},
     }[connector]
-    archive_inputs = {
+    return {
         str(item.get("name")): {
             key: item.get(key, "")
             for key in ("url", "sha256", "expected_sha256", "resolved_tag", "checksum_status")
@@ -3957,23 +4828,105 @@ def connector_plan(
         for item in archives
         if isinstance(item, dict) and item.get("name") in archive_names
     }
+
+
+def connector_upstream_details(connector: str, env: dict[str, str]) -> tuple[str, str, str]:
+    """Return the version, source URL, and pinned commit for one connector."""
+    if connector == "apache":
+        return env.get("HTTPD_VERSION", ""), env.get("HTTPD_SOURCE_URL", ""), ""
+    if connector == "nginx":
+        return (
+            env.get("NGINX_RELEASE_TAG", "") or env.get("NGINX_SOURCE_GIT_REF", ""),
+            env.get("NGINX_SOURCE_REPO_URL", ""),
+            env.get("NGINX_SOURCE_GIT_REF", ""),
+        )
+    return env.get("HAPROXY_VERSION", ""), env.get("HAPROXY_SOURCE_URL", ""), ""
+
+
+def connector_cache_extra_inputs(
+    connector: str,
+    connector_root: Path,
+    framework_root: Path,
+    env: dict[str, str],
+    archive_inputs: dict[str, dict[str, Any]],
+    archive_source_hash: str,
+    source_hash: str,
+    modsecurity: dict[str, Any],
+    expat: dict[str, Any],
+    nginx_protocol_inputs: dict[str, Any],
+) -> dict[str, Any]:
+    common_commit = ""
+    nginx_commit = ""
+    if connector == "nginx":
+        common_commit = git_revision(connector_root / "common")
+        nginx_commit = env.get("NGINX_SOURCE_GIT_REF", "")
+    return {
+        "archives": archive_inputs,
+        "archive_source_hash": archive_source_hash,
+        "connector_source_hash": source_hash,
+        "modsecurity_build_id": modsecurity.get("build_id", ""),
+        "expat_build_id": expat.get("build_id", ""),
+        "common_commit": common_commit,
+        "nginx_protocol_build": nginx_protocol_inputs,
+        "nginx_commit": nginx_commit,
+        "connector_commit": git_revision(connector_root),
+        "framework_commit": git_revision(framework_root),
+    }
+
+
+def connector_output_layout(connector: str, root: Path) -> dict[str, Any]:
+    """Describe the connector-specific cache layout without sharing build logic."""
+    if connector == "apache":
+        return {
+            "build_root": str(root / "build"),
+            "httpd_prefix": str(root / "httpd"),
+            "output_paths": {
+                "binary": str(root / "httpd/bin/httpd"),
+                "module": str(root / "build/output/apache/mod_security3.so"),
+                "config": str(root / "httpd/conf/httpd.conf"),
+            },
+        }
+    if connector == "nginx":
+        return {
+            "build_root": str(root / "build"),
+            "nginx_prefix": str(root / "nginx"),
+            "output_paths": {
+                "binary": str(root / "nginx/sbin/nginx"),
+                "module": str(root / "nginx/modules" / NGINX_MODULE_FILENAME),
+                "config": str(root / "nginx/conf/nginx.conf"),
+            },
+        }
+    if connector == "haproxy":
+        return {
+            "build_root": str(root),
+            "output_paths": {
+                "binary": str(root / "haproxy-runtime/haproxy/sbin/haproxy"),
+                "module": str(root / "haproxy-spoa-runtime/haproxy-modsecurity-spoa"),
+                "config": str(root / "haproxy-modsecurity-binding/paths.env"),
+            },
+        }
+    return {}
+
+
+def connector_plan(
+    connector_root: Path,
+    framework_root: Path,
+    cache_root: Path,
+    env: dict[str, str],
+    connector: str,
+    modsecurity: dict[str, Any],
+    expat: dict[str, Any],
+    archives: list[dict[str, Any]],
+) -> dict[str, Any]:
+    source_paths = connector_input_paths(connector_root, framework_root, connector)
+    source_hash = hash_input_paths(source_paths)
+    patchset = patchset_identity(component_patchset_roots(connector_root, connector))
+    nginx_protocol_inputs = nginx_protocol_build_inputs(env) if connector == "nginx" else {}
+    build_flags = connector_build_flags(env, connector, nginx_protocol_inputs)
+    archive_inputs = connector_archive_inputs(connector, archives)
     toolchain = toolchain_identity(env)
     archive_source_hash = stable_hash(archive_inputs)
-    upstream_version = (
-        env.get("HTTPD_VERSION", "")
-        if connector == "apache"
-        else env.get("NGINX_RELEASE_TAG", "") or env.get("NGINX_SOURCE_GIT_REF", "")
-        if connector == "nginx"
-        else env.get("HAPROXY_VERSION", "")
-    )
-    upstream_url = (
-        env.get("HTTPD_SOURCE_URL", "")
-        if connector == "apache"
-        else env.get("NGINX_SOURCE_REPO_URL", "")
-        if connector == "nginx"
-        else env.get("HAPROXY_SOURCE_URL", "")
-    )
-    upstream_commit = env.get("NGINX_SOURCE_GIT_REF", "") if connector == "nginx" else ""
+    upstream_version, upstream_url, upstream_commit = connector_upstream_details(connector, env)
     cache_identity = canonical_cache_identity(
         connector,
         env=env,
@@ -3984,18 +4937,18 @@ def connector_plan(
         patchset_sha256=str(patchset["sha256"]),
         configuration_flags=build_flags,
         toolchain=toolchain,
-        extra_inputs={
-            "archives": archive_inputs,
-            "archive_source_hash": archive_source_hash,
-            "connector_source_hash": source_hash,
-            "modsecurity_build_id": modsecurity.get("build_id", ""),
-            "expat_build_id": expat.get("build_id", ""),
-            "common_commit": git_revision(connector_root / "common") if connector == "nginx" else "",
-            "nginx_protocol_build": nginx_protocol_inputs,
-            "nginx_commit": env.get("NGINX_SOURCE_GIT_REF", "") if connector == "nginx" else "",
-            "connector_commit": git_revision(connector_root),
-            "framework_commit": git_revision(framework_root),
-        },
+        extra_inputs=connector_cache_extra_inputs(
+            connector,
+            connector_root,
+            framework_root,
+            env,
+            archive_inputs,
+            archive_source_hash,
+            source_hash,
+            modsecurity,
+            expat,
+            nginx_protocol_inputs,
+        ),
     )
     payload = {
         "connector": connector,
@@ -4034,33 +4987,11 @@ def connector_plan(
         "target_architecture": cache_identity["target_architecture"],
         "cache_root": str(cache_root),
         "root": str(root),
-        "manifest": str(root / "manifest.json"),
+        "manifest": str(root / CACHE_MANIFEST_FILENAME),
         "status": "unknown",
         "blocker_reason": "",
     }
-    if connector == "apache":
-        plan["build_root"] = str(root / "build")
-        plan["httpd_prefix"] = str(root / "httpd")
-        plan["output_paths"] = {
-            "binary": str(root / "httpd/bin/httpd"),
-            "module": str(root / "build/output/apache/mod_security3.so"),
-            "config": str(root / "httpd/conf/httpd.conf"),
-        }
-    elif connector == "nginx":
-        plan["build_root"] = str(root / "build")
-        plan["nginx_prefix"] = str(root / "nginx")
-        plan["output_paths"] = {
-            "binary": str(root / "nginx/sbin/nginx"),
-            "module": str(root / "nginx/modules/ngx_http_modsecurity_module.so"),
-            "config": str(root / "nginx/conf/nginx.conf"),
-        }
-    elif connector == "haproxy":
-        plan["build_root"] = str(root)
-        plan["output_paths"] = {
-            "binary": str(root / "haproxy-runtime/haproxy/sbin/haproxy"),
-            "module": str(root / "haproxy-spoa-runtime/haproxy-modsecurity-spoa"),
-            "config": str(root / "haproxy-modsecurity-binding/paths.env"),
-        }
+    plan.update(connector_output_layout(connector, root))
     return reuse_connector_cache_entry_if_only_commit_changed(plan)
 
 
@@ -4149,28 +5080,29 @@ def go_main_packages(source_path: Path, env: dict[str, str], log_parts: list[str
     return packages, proc
 
 
-def prepare_go_tool(
+def go_tool_blocked_record(
+    record: dict[str, Any],
+    optional: bool,
+    reason: str,
+    **extra: Any,
+) -> dict[str, Any]:
+    record.update(
+        status="blocked_optional" if optional else "blocked",
+        blocker_reason=reason,
+        **extra,
+    )
+    return record
+
+
+def go_tool_record(
     dependency: str,
     env_var: str,
-    cache_root: Path,
     build_root: Path,
     git_record: dict[str, Any],
-    optional: bool = False,
 ) -> dict[str, Any]:
-    env = dict(os.environ)
-    try:
-        cache_root = ensure_managed_cache_root(cache_root)
-    except RuntimeError as exc:
-        return {
-            "dependency": dependency,
-            "name": dependency,
-            "status": "blocked_optional" if optional else "blocked",
-            "blocker_reason": str(exc),
-            "optional": optional,
-        }
     log_path = build_root / f"logs/runtime-components/{dependency}-build.log"
     source_path = Path(git_record.get("path", "")).resolve() if git_record.get("path") else Path()
-    record: dict[str, Any] = {
+    return {
         "dependency": dependency,
         "name": dependency,
         "source": git_record.get("source", git_record.get("url", "")),
@@ -4197,17 +5129,219 @@ def prepare_go_tool(
         "build_log": str(log_path),
         "status": "unknown",
         "blocker_reason": "",
-        "optional": optional,
+        "optional": False,
     }
-    def block(reason: str, **extra: Any) -> dict[str, Any]:
-        record.update(status="blocked_optional" if optional else "blocked", blocker_reason=reason, **extra)
+
+
+def go_tool_cache_hit(
+    binary_path: Path,
+    manifest_path: Path,
+    entry_root: Path,
+    cache_root: Path,
+    dependency: str,
+    cache_identity: dict[str, Any],
+) -> bool:
+    return (
+        executable(binary_path)
+        and cache_manifest_complete(manifest_path, cache_identity)
+        and cache_entry_complete(
+            entry_root,
+            cache_root,
+            component=f"go:{dependency}",
+            cache_key=str(cache_identity["cache_key"]),
+            cache_identity=cache_identity,
+        )
+    )
+
+
+def remove_stale_go_cache_entry(
+    entry_root: Path,
+    cache_root: Path,
+    dependency: str,
+    record: dict[str, Any],
+) -> bool:
+    if not entry_root.exists():
+        return True
+    if not managed_cache_entry_valid(entry_root, cache_root):
+        if not migrate_legacy_cache_entry_for_removal(
+            entry_root,
+            cache_root,
+            component=f"go:{dependency}",
+        ):
+            return False
+        record.update(
+            rebuild_required=True,
+            invalidation_reason="cache_schema_changed",
+            old_entry_removed=True,
+        )
+    safe_remove_dir(entry_root, cache_root)
+    record.setdefault("rebuild_required", True)
+    record.setdefault("invalidation_reason", "missing_or_incomplete_go_cache")
+    record.setdefault("old_entry_removed", True)
+    return True
+
+
+def build_go_tool_in_staging(
+    dependency: str,
+    source_path: Path,
+    cache_root: Path,
+    entry_root: Path,
+    staging_path: Path,
+    cache_identity: dict[str, Any],
+    record: dict[str, Any],
+    optional: bool,
+    log_path: Path,
+) -> dict[str, Any]:
+    staging_binary = staging_path / "bin" / dependency
+    staging_manifest = staging_path / CACHE_MANIFEST_FILENAME
+    build_env_vars = local_build_env(os.environ, cache_root)
+    build_env_vars["PATH"] = os.environ.get("PATH", "")
+    log_parts: list[str] = []
+    version_proc = run_env(["go", "version"], env=build_env_vars)
+    append_command_log(log_parts, "go-version", version_proc)
+    packages, list_proc = go_main_packages(source_path, build_env_vars, log_parts)
+    if list_proc.returncode != 0:
+        write_component_log(log_path, log_parts)
+        return go_tool_blocked_record(record, optional, "go_list_failed", build_exit_code=list_proc.returncode)
+    if not packages:
+        write_component_log(log_path, log_parts)
+        return go_tool_blocked_record(record, optional, "go_main_package_not_found")
+    if len(packages) > 1:
+        write_component_log(log_path, log_parts)
+        return go_tool_blocked_record(record, optional, "go_multiple_main_packages", main_packages=packages)
+    build_package = packages[0]
+    staging_binary.parent.mkdir(parents=True, exist_ok=True)
+    proc = run_env(
+        ["go", "build", "-trimpath", "-mod=readonly", "-o", str(staging_binary), build_package],
+        cwd=source_path,
+        env=build_env_vars,
+    )
+    append_command_log(log_parts, "go-build", proc)
+    write_component_log(log_path, log_parts)
+    if proc.returncode != 0:
+        return go_tool_blocked_record(record, optional, "go_build_failed", build_exit_code=proc.returncode)
+    if not executable(staging_binary):
+        return go_tool_blocked_record(record, optional, "go_binary_missing_after_build")
+    staged_record = dict(record)
+    staged_record.update(
+        status="built",
+        build_package=build_package,
+        go_version=version_proc.stdout.strip(),
+        tree=tree_manifest(staging_path),
+        generated_at=utc_now(),
+    )
+    write_cache_manifest(staging_manifest, staged_record)
+    write_cache_entry_completion(
+        staging_path,
+        cache_root,
+        component=f"go:{dependency}",
+        cache_key=str(cache_identity["cache_key"]),
+        cache_identity=cache_identity,
+    )
+    atomic_publish_dir(staging_path, entry_root, cache_root, require_complete=True)
+    record.update(
+        status="built",
+        build_package=build_package,
+        go_version=version_proc.stdout.strip(),
+        tree=tree_manifest(entry_root),
+        generated_at=utc_now(),
+    )
+    return record
+
+
+def prepare_go_tool_cache_entry(
+    dependency: str,
+    cache_root: Path,
+    entry_root: Path,
+    binary_path: Path,
+    manifest_path: Path,
+    source_path: Path,
+    cache_identity: dict[str, Any],
+    record: dict[str, Any],
+    optional: bool,
+    log_path: Path,
+) -> dict[str, Any]:
+    previous = read_json(manifest_path)
+    if go_tool_cache_hit(
+        binary_path,
+        manifest_path,
+        entry_root,
+        cache_root,
+        dependency,
+        cache_identity,
+    ):
+        record.update(
+            status="present",
+            build_package=previous.get("build_package", ""),
+            go_version=previous.get("go_version", ""),
+        )
         return record
+    if not remove_stale_go_cache_entry(entry_root, cache_root, dependency, record):
+        return go_tool_blocked_record(
+            record,
+            optional,
+            unmanaged_cache_entry_marker_missing(entry_root),
+        )
+    staging_path: Path | None = None
+    try:
+        staging_path = temporary_cache_dir(
+            entry_root,
+            cache_root,
+            component=f"go:{dependency}",
+            cache_key=str(cache_identity["cache_key"]),
+        )
+        return build_go_tool_in_staging(
+            dependency,
+            source_path,
+            cache_root,
+            entry_root,
+            staging_path,
+            cache_identity,
+            record,
+            optional,
+            log_path,
+        )
+    finally:
+        if staging_path is not None and staging_path.exists():
+            try:
+                safe_remove_dir(staging_path, cache_root)
+            except RuntimeError:
+                pass
+
+
+def prepare_go_tool(
+    dependency: str,
+    env_var: str,
+    cache_root: Path,
+    build_root: Path,
+    git_record: dict[str, Any],
+    optional: bool = False,
+) -> dict[str, Any]:
+    env = dict(os.environ)
+    try:
+        cache_root = ensure_managed_cache_root(cache_root)
+    except RuntimeError as exc:
+        return {
+            "dependency": dependency,
+            "name": dependency,
+            "status": "blocked_optional" if optional else "blocked",
+            "blocker_reason": str(exc),
+            "optional": optional,
+        }
+    record = go_tool_record(dependency, env_var, build_root, git_record)
+    record["optional"] = optional
+    source_path = Path(str(record["source_path"])) if record["source_path"] else Path()
+    log_path = Path(str(record["build_log"]))
 
     if git_record.get("status") != "present":
-        return block(git_record.get("blocker_reason") or f"{dependency}_source_unavailable")
+        return go_tool_blocked_record(
+            record,
+            optional,
+            git_record.get("blocker_reason") or f"{dependency}_source_unavailable",
+        )
     go_bin = shutil.which("go")
     if not go_bin:
-        return block("missing_go")
+        return go_tool_blocked_record(record, optional, "missing_go")
     go_toolchain = toolchain_identity(env)
     go_toolchain["go"] = command_text([go_bin, "version"], env=env)
     cache_identity = canonical_cache_identity(
@@ -4228,9 +5362,9 @@ def prepare_go_tool(
     )
     entry_root = (cache_root / "builds/go" / dependency / str(cache_identity["cache_key"])).resolve()
     binary_path = entry_root / "bin" / dependency
-    manifest_path = entry_root / "manifest.json"
+    manifest_path = entry_root / CACHE_MANIFEST_FILENAME
     if is_system_path(entry_root) or not is_within(entry_root, cache_root):
-        return block("system_path_write_forbidden")
+        return go_tool_blocked_record(record, optional, "system_path_write_forbidden")
     record.update(
         path=str(binary_path),
         binary=str(binary_path),
@@ -4238,114 +5372,40 @@ def prepare_go_tool(
         build_path=str(entry_root),
         manifest=str(manifest_path),
     )
-    staging_path: Path | None = None
     try:
         with BuildLock(cache_entry_lock_path(cache_root, f"go-{dependency}", str(cache_identity["cache_key"]))):
-            previous = read_json(manifest_path)
-            if (
-                executable(binary_path)
-                and cache_manifest_complete(manifest_path, cache_identity)
-                and cache_entry_complete(
-                    entry_root,
-                    cache_root,
-                    component=f"go:{dependency}",
-                    cache_key=str(cache_identity["cache_key"]),
-                    cache_identity=cache_identity,
-                )
-            ):
-                record.update(
-                    status="present",
-                    build_package=previous.get("build_package", ""),
-                    go_version=previous.get("go_version", ""),
-                )
-                return record
-            if entry_root.exists():
-                if not managed_cache_entry_valid(entry_root, cache_root):
-                    if not migrate_legacy_cache_entry_for_removal(
-                        entry_root,
-                        cache_root,
-                        component=f"go:{dependency}",
-                    ):
-                        return block(f"unmanaged_cache_entry_marker_missing: {entry_root}")
-                    record.update(
-                        rebuild_required=True,
-                        invalidation_reason="cache_schema_changed",
-                        old_entry_removed=True,
-                    )
-                safe_remove_dir(entry_root, cache_root)
-                record.setdefault("rebuild_required", True)
-                record.setdefault("invalidation_reason", "missing_or_incomplete_go_cache")
-                record.setdefault("old_entry_removed", True)
-            staging_path = temporary_cache_dir(
+            return prepare_go_tool_cache_entry(
+                dependency,
+                cache_root,
                 entry_root,
-                cache_root,
-                component=f"go:{dependency}",
-                cache_key=str(cache_identity["cache_key"]),
+                binary_path,
+                manifest_path,
+                source_path,
+                cache_identity,
+                record,
+                optional,
+                log_path,
             )
-            staging_binary = staging_path / "bin" / dependency
-            staging_manifest = staging_path / "manifest.json"
-            build_env_vars = local_build_env(os.environ, cache_root)
-            build_env_vars["PATH"] = os.environ.get("PATH", "")
-            log_parts: list[str] = []
-            version_proc = run_env(["go", "version"], env=build_env_vars)
-            append_command_log(log_parts, "go-version", version_proc)
-            packages, list_proc = go_main_packages(source_path, build_env_vars, log_parts)
-            if list_proc.returncode != 0:
-                write_component_log(log_path, log_parts)
-                return block("go_list_failed", build_exit_code=list_proc.returncode)
-            if not packages:
-                write_component_log(log_path, log_parts)
-                return block("go_main_package_not_found")
-            if len(packages) > 1:
-                write_component_log(log_path, log_parts)
-                return block("go_multiple_main_packages", main_packages=packages)
-            build_package = packages[0]
-            staging_binary.parent.mkdir(parents=True, exist_ok=True)
-            proc = run_env(
-                ["go", "build", "-trimpath", "-mod=readonly", "-o", str(staging_binary), build_package],
-                cwd=source_path,
-                env=build_env_vars,
-            )
-            append_command_log(log_parts, "go-build", proc)
-            write_component_log(log_path, log_parts)
-            if proc.returncode != 0:
-                return block("go_build_failed", build_exit_code=proc.returncode)
-            if not executable(staging_binary):
-                return block("go_binary_missing_after_build")
-            staged_record = dict(record)
-            staged_record.update(
-                status="built",
-                build_package=build_package,
-                go_version=version_proc.stdout.strip(),
-                tree=tree_manifest(staging_path),
-                generated_at=utc_now(),
-            )
-            write_cache_manifest(staging_manifest, staged_record)
-            write_cache_entry_completion(
-                staging_path,
-                cache_root,
-                component=f"go:{dependency}",
-                cache_key=str(cache_identity["cache_key"]),
-                cache_identity=cache_identity,
-            )
-            atomic_publish_dir(staging_path, entry_root, cache_root, require_complete=True)
-            staging_path = None
-            record.update(
-                status="built",
-                build_package=build_package,
-                go_version=version_proc.stdout.strip(),
-                tree=tree_manifest(entry_root),
-                generated_at=utc_now(),
-            )
-            return record
     except TimeoutError as exc:
-        return block("cache_lock_timeout", details=str(exc))
-    finally:
-        if staging_path is not None and staging_path.exists():
-            try:
-                safe_remove_dir(staging_path, cache_root)
-            except RuntimeError:
-                pass
+        return go_tool_blocked_record(record, optional, "cache_lock_timeout", details=str(exc))
+
+
+def apache_log_reports_missing_expat_header(text: str) -> bool:
+    """Match the compiler's single-line Expat-header diagnostic safely.
+
+    This keeps the former diagnosis order (``error:``, then ``expat.h``, then
+    the missing-file phrase) without applying an unbounded wildcard to a
+    build log whose length is outside this function's control.
+    """
+    for line in text.lower().splitlines():
+        error_index = line.find("error:")
+        header_index = line.find(EXPAT_HEADER_FILENAME, error_index + 1)
+        if error_index < 0 or header_index < 0:
+            continue
+        suffix = line[header_index + len(EXPAT_HEADER_FILENAME) :]
+        if MISSING_FILE_TEXT in suffix or MISSING_COMMAND_TEXT in suffix:
+            return True
+    return False
 
 
 def map_apache_blocker(text: str, missing: list[str]) -> str:
@@ -4355,9 +5415,9 @@ def map_apache_blocker(text: str, missing: list[str]) -> str:
     # Build commands legitimately contain the managed Expat prefix.  Do not
     # turn an unrelated connector compilation error into a missing-header
     # diagnosis merely because that prefix appears in the command line.
-    if re.search(r"(?:fatal )?error:.*expat\.h.*(?:no such file|not found)", lowered):
+    if apache_log_reports_missing_expat_header(text):
         return "missing_expat_headers"
-    if "missing required command" in lowered or "not found" in lowered:
+    if "missing required command" in lowered or MISSING_COMMAND_TEXT in lowered:
         return "missing_apache_build_dependency"
     if any(item.startswith("modsecurity_lib:") for item in missing) or "libmodsecurity" in lowered:
         return "missing_libmodsecurity_build"
@@ -4370,7 +5430,7 @@ def map_nginx_blocker(text: str, missing: list[str]) -> str:
     lowered = text.lower()
     if any(item.startswith("modsecurity_lib:") for item in missing) or "libmodsecurity" in lowered:
         return "missing_libmodsecurity_build"
-    if "missing required command" in lowered or "not found" in lowered:
+    if "missing required command" in lowered or MISSING_COMMAND_TEXT in lowered:
         return "missing_nginx_build_dependency"
     if re.search(r"(?m)^.+:\d+(?::\d+)?: (?:fatal )?error:", text):
         return "nginx_connector_build_failed"
@@ -4388,7 +5448,7 @@ def apache_apxs_includedir_usable(httpd_prefix: Path) -> bool:
     the reported directory belongs to the published prefix.
     """
     prefix = httpd_prefix.resolve(strict=False)
-    apxs_bin = prefix / "bin/apxs"
+    apxs_bin = prefix / APACHE_APXS_RELATIVE_PATH
     expected_include = prefix / "include"
     if not executable(apxs_bin) or not expected_include.is_dir():
         return False
@@ -4415,6 +5475,59 @@ def apache_install_text_paths(httpd_prefix: Path) -> list[Path]:
     return paths
 
 
+def apache_publication_paths(
+    staged_plan: dict[str, Any],
+    final_root: Path,
+) -> tuple[Path, Path, Path]:
+    """Validate the staging and final paths used by Apache publication."""
+    root_value = staged_plan.get("root")
+    prefix_value = staged_plan.get("httpd_prefix")
+    if not isinstance(root_value, str) or not root_value:
+        raise RuntimeError("apache_publication_paths_missing")
+    if not isinstance(prefix_value, str) or not prefix_value:
+        raise RuntimeError("apache_publication_paths_missing")
+    return (
+        Path(root_value).resolve(),
+        Path(prefix_value).resolve(),
+        final_root.resolve(strict=False),
+    )
+
+
+def validate_apache_staging_prefix(staging_root: Path, staging_prefix: Path) -> None:
+    if not is_within(staging_prefix, staging_root):
+        raise RuntimeError(f"apache_publication_prefix_outside_staging_root: {staging_prefix}")
+    if not staging_prefix.is_dir() or staging_prefix.is_symlink():
+        raise RuntimeError(f"apache_publication_prefix_missing: {staging_prefix}")
+
+
+def rebase_apache_install_text_path(
+    path: Path,
+    staging_bytes: bytes,
+    published_bytes: bytes,
+) -> None:
+    if not path.exists():
+        return
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError(f"apache_publication_text_path_invalid: {path}")
+    content = path.read_bytes()
+    if staging_bytes not in content:
+        return
+    if b"\0" in content:
+        raise RuntimeError(f"apache_publication_text_path_contains_nul: {path}")
+    mode = path.stat().st_mode & 0o777
+    atomic_write_bytes(path, content.replace(staging_bytes, published_bytes))
+    path.chmod(mode)
+
+
+def validate_apache_published_text_paths(staging_prefix: Path, staging_bytes: bytes) -> None:
+    for relative in (APACHE_APXS_RELATIVE_PATH, "build/config_vars.mk"):
+        path = staging_prefix / relative
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError(f"apache_publication_required_text_path_missing: {path}")
+        if staging_bytes in path.read_bytes():
+            raise RuntimeError(f"apache_publication_staging_reference_remaining: {path}")
+
+
 def rebase_apache_install_text_paths_for_publish(
     staged_plan: dict[str, Any],
     final_root: Path,
@@ -4427,53 +5540,29 @@ def rebase_apache_install_text_paths_for_publish(
     only the allowlisted text artifacts here; linked executables and modules
     are intentionally left byte-for-byte untouched.
     """
-    root_value = staged_plan.get("root")
-    prefix_value = staged_plan.get("httpd_prefix")
-    if (
-        not isinstance(root_value, str)
-        or not root_value
-        or not isinstance(prefix_value, str)
-        or not prefix_value
-    ):
-        raise RuntimeError("apache_publication_paths_missing")
-    staging_root = Path(root_value).resolve()
-    staging_prefix = Path(prefix_value).resolve()
-    published_root = final_root.resolve(strict=False)
-    if not is_within(staging_prefix, staging_root):
-        raise RuntimeError(f"apache_publication_prefix_outside_staging_root: {staging_prefix}")
-    if not staging_prefix.is_dir() or staging_prefix.is_symlink():
-        raise RuntimeError(f"apache_publication_prefix_missing: {staging_prefix}")
+    staging_root, staging_prefix, published_root = apache_publication_paths(staged_plan, final_root)
+    validate_apache_staging_prefix(staging_root, staging_prefix)
 
     staging_bytes = os.fsencode(str(staging_root))
     published_bytes = os.fsencode(str(published_root))
     for path in apache_install_text_paths(staging_prefix):
-        if not path.exists():
-            continue
-        if path.is_symlink() or not path.is_file():
-            raise RuntimeError(f"apache_publication_text_path_invalid: {path}")
-        content = path.read_bytes()
-        if staging_bytes not in content:
-            continue
-        if b"\0" in content:
-            raise RuntimeError(f"apache_publication_text_path_contains_nul: {path}")
-        mode = path.stat().st_mode & 0o777
-        atomic_write_bytes(path, content.replace(staging_bytes, published_bytes))
-        path.chmod(mode)
+        rebase_apache_install_text_path(path, staging_bytes, published_bytes)
 
     # These are the two files required for `apxs -q INCLUDEDIR`; ensure a
     # staging reference can never reach the final cache entry unnoticed.
-    for relative in ("bin/apxs", "build/config_vars.mk"):
-        path = staging_prefix / relative
-        if path.is_symlink() or not path.is_file():
-            raise RuntimeError(f"apache_publication_required_text_path_missing: {path}")
-        if staging_bytes in path.read_bytes():
-            raise RuntimeError(f"apache_publication_staging_reference_remaining: {path}")
+    validate_apache_published_text_paths(staging_prefix, staging_bytes)
 
 
 def connector_cache_entry_complete(plan: dict[str, Any]) -> bool:
     """A connector entry is a hit only with its manifest and declared outputs."""
     if not connector_manifest_ready(plan):
         return False
+    if not connector_output_paths_ready(plan):
+        return False
+    return connector_apache_artifacts_ready(plan)
+
+
+def connector_output_paths_ready(plan: dict[str, Any]) -> bool:
     output_paths = plan.get("output_paths")
     if not isinstance(output_paths, dict):
         return False
@@ -4486,15 +5575,16 @@ def connector_cache_entry_complete(plan: dict[str, Any]) -> bool:
                 return False
         elif not path.is_file():
             return False
-    if plan.get("connector") == "apache":
-        httpd_prefix = plan.get("httpd_prefix")
-        if (
-            not isinstance(httpd_prefix, str)
-            or not httpd_prefix
-            or not apache_apxs_includedir_usable(Path(httpd_prefix))
-        ):
-            return False
     return True
+
+
+def connector_apache_artifacts_ready(plan: dict[str, Any]) -> bool:
+    if plan.get("connector") != "apache":
+        return True
+    httpd_prefix = plan.get("httpd_prefix")
+    return isinstance(httpd_prefix, str) and bool(httpd_prefix) and apache_apxs_includedir_usable(
+        Path(httpd_prefix)
+    )
 
 
 def cache_identity_is_self_consistent(identity: Any) -> bool:
@@ -4549,6 +5639,97 @@ def connector_cache_identity_equivalent_ignoring_connector_commit(
     )
 
 
+def connector_cache_reuse_request(plan: dict[str, Any]) -> dict[str, Any] | None:
+    connector = plan.get("connector")
+    cache_root_value = plan.get("cache_root")
+    requested_identity = plan.get("cache_identity")
+    requested_key = plan.get("cache_key")
+    if not isinstance(connector, str) or not connector:
+        return None
+    if not isinstance(cache_root_value, str) or not cache_root_value:
+        return None
+    if not isinstance(requested_key, str) or not requested_key:
+        return None
+    if not cache_identity_is_self_consistent(requested_identity):
+        return None
+    requested_inputs = requested_identity.get("extra_inputs")
+    requested_commit = ""
+    if isinstance(requested_inputs, dict):
+        requested_commit = str(requested_inputs.get("connector_commit", ""))
+    return {
+        "connector": connector,
+        "cache_root": Path(cache_root_value),
+        "requested_identity": requested_identity,
+        "requested_key": requested_key,
+        "requested_commit": requested_commit,
+    }
+
+
+def connector_cache_reuse_candidates(
+    cache_root: Path,
+    connector: str,
+) -> tuple[Path, list[Path]] | None:
+    if not cache_root_marker_valid(cache_root):
+        return None
+    candidate_parent = cache_root / "builds" / "connectors" / connector
+    try:
+        candidates = sorted(candidate_parent.iterdir(), key=lambda path: path.name)
+    except OSError:
+        return None
+    return candidate_parent, candidates
+
+
+def managed_connector_cache_candidate(
+    candidate_root: Path,
+    candidate_parent: Path,
+    cache_root: Path,
+) -> Path | None:
+    if candidate_root.is_symlink() or not candidate_root.is_dir():
+        return None
+    try:
+        resolved_candidate, _ = validate_managed_cache_child(candidate_root, cache_root)
+    except RuntimeError:
+        return None
+    if resolved_candidate.parent != candidate_parent.resolve(strict=False):
+        return None
+    return resolved_candidate
+
+
+def connector_reusable_candidate_plan(
+    plan: dict[str, Any],
+    candidate_root: Path,
+    connector: str,
+    requested_identity: dict[str, Any],
+    requested_key: str,
+    requested_commit: str,
+) -> dict[str, Any] | None:
+    manifest = read_json(candidate_root / CACHE_MANIFEST_FILENAME)
+    candidate_identity = manifest.get("cache_identity")
+    candidate_key = manifest.get("cache_key")
+    if manifest.get("connector") != connector:
+        return None
+    if not isinstance(candidate_key, str) or candidate_key != candidate_root.name:
+        return None
+    if not connector_cache_identity_equivalent_ignoring_connector_commit(
+        candidate_identity,
+        requested_identity,
+    ):
+        return None
+    candidate_inputs = candidate_identity["extra_inputs"]
+    candidate_plan = staged_connector_plan(plan, candidate_root)
+    candidate_plan.update(
+        connector_build_id=candidate_key,
+        cache_identity=candidate_identity,
+        cache_key=candidate_key,
+        requested_cache_identity=requested_identity,
+        requested_cache_key=requested_key,
+        requested_connector_commit=requested_commit,
+        reused_from_connector_commit=str(candidate_inputs["connector_commit"]),
+        cache_reuse_reason="connector_commit_only",
+    )
+    return candidate_plan
+
+
 def reuse_connector_cache_entry_if_only_commit_changed(plan: dict[str, Any]) -> dict[str, Any]:
     """Adopt one complete managed connector entry with matching scoped inputs.
 
@@ -4557,65 +5738,30 @@ def reuse_connector_cache_entry_if_only_commit_changed(plan: dict[str, Any]) -> 
     uses the current canonical layout rebased to the candidate root instead
     of accepting output paths embedded in a cache manifest.
     """
-    connector = plan.get("connector")
-    cache_root_value = plan.get("cache_root")
-    requested_identity = plan.get("cache_identity")
-    requested_key = plan.get("cache_key")
-    if (
-        not isinstance(connector, str)
-        or not connector
-        or not isinstance(cache_root_value, str)
-        or not cache_root_value
-        or not isinstance(requested_key, str)
-        or not requested_key
-        or not cache_identity_is_self_consistent(requested_identity)
-    ):
+    request = connector_cache_reuse_request(plan)
+    if request is None:
         return plan
-    cache_root = Path(cache_root_value)
-    if not cache_root_marker_valid(cache_root):
+    candidates = connector_cache_reuse_candidates(request["cache_root"], request["connector"])
+    if candidates is None:
         return plan
-    candidate_parent = cache_root / "builds" / "connectors" / connector
-    try:
-        candidates = sorted(candidate_parent.iterdir(), key=lambda path: path.name)
-    except OSError:
-        return plan
-    requested_inputs = requested_identity.get("extra_inputs")
-    requested_commit = (
-        str(requested_inputs.get("connector_commit", "")) if isinstance(requested_inputs, dict) else ""
-    )
-    for candidate_root in candidates:
-        if candidate_root.is_symlink() or not candidate_root.is_dir():
-            continue
-        try:
-            resolved_candidate, _ = validate_managed_cache_child(candidate_root, cache_root)
-        except RuntimeError:
-            continue
-        if resolved_candidate.parent != candidate_parent.resolve(strict=False):
-            continue
-        manifest = read_json(resolved_candidate / "manifest.json")
-        candidate_identity = manifest.get("cache_identity")
-        candidate_key = manifest.get("cache_key")
-        if (
-            manifest.get("connector") != connector
-            or not isinstance(candidate_key, str)
-            or candidate_key != resolved_candidate.name
-            or not connector_cache_identity_equivalent_ignoring_connector_commit(
-                candidate_identity, requested_identity
-            )
-        ):
-            continue
-        candidate_plan = staged_connector_plan(plan, resolved_candidate)
-        candidate_plan.update(
-            connector_build_id=candidate_key,
-            cache_identity=candidate_identity,
-            cache_key=candidate_key,
-            requested_cache_identity=requested_identity,
-            requested_cache_key=requested_key,
-            requested_connector_commit=requested_commit,
-            reused_from_connector_commit=str(candidate_identity["extra_inputs"]["connector_commit"]),
-            cache_reuse_reason="connector_commit_only",
+    candidate_parent, candidate_roots = candidates
+    for candidate_root in candidate_roots:
+        resolved_candidate = managed_connector_cache_candidate(
+            candidate_root,
+            candidate_parent,
+            request["cache_root"],
         )
-        if connector_cache_entry_complete(candidate_plan):
+        if resolved_candidate is None:
+            continue
+        candidate_plan = connector_reusable_candidate_plan(
+            plan,
+            resolved_candidate,
+            request["connector"],
+            request["requested_identity"],
+            request["requested_key"],
+            request["requested_commit"],
+        )
+        if candidate_plan is not None and connector_cache_entry_complete(candidate_plan):
             return candidate_plan
     return plan
 
@@ -4680,6 +5826,154 @@ def rebase_cache_record(value: Any, source_root: Path, destination_root: Path) -
     return value
 
 
+def remove_incomplete_connector_cache_entry(
+    final_root: Path,
+    managed_root: Path,
+    connector: str,
+) -> bool:
+    """Remove only an owned stale connector entry before making staging."""
+    if not final_root.exists():
+        return True
+    if not managed_cache_entry_valid(final_root, managed_root):
+        if not migrate_legacy_cache_entry_for_removal(
+            final_root,
+            managed_root,
+            component=f"connector:{connector}",
+        ):
+            return False
+    safe_remove_dir(final_root, managed_root)
+    return True
+
+
+def rebase_apache_staging_for_publication(
+    connector: str,
+    staged_plan: dict[str, Any],
+    final_root: Path,
+    record: dict[str, Any],
+    staging_root: Path,
+) -> dict[str, Any] | None:
+    if connector != "apache":
+        return None
+    try:
+        rebase_apache_install_text_paths_for_publish(staged_plan, final_root)
+    except RuntimeError as exc:
+        failed_record = rebase_cache_record(record, staging_root, final_root)
+        failed_record.update(
+            status="failed",
+            blocker_reason="apache_publication_relocation_failed",
+            details=str(exc),
+        )
+        return failed_record
+    return None
+
+
+def apache_publish_validation_failure(
+    connector: str,
+    plan: dict[str, Any],
+    final_root: Path,
+    managed_root: Path,
+    published_record: dict[str, Any],
+) -> dict[str, Any] | None:
+    if connector != "apache":
+        return None
+    if apache_apxs_includedir_usable(Path(str(plan.get("httpd_prefix", "")))):
+        return None
+    try:
+        safe_remove_dir(final_root, managed_root)
+    except RuntimeError as exc:
+        published_record.update(
+            status="failed",
+            blocker_reason="apache_apxs_publish_validation_failed",
+            details=str(exc),
+        )
+    else:
+        published_record.update(
+            status="failed",
+            blocker_reason="apache_apxs_publish_validation_failed",
+        )
+    return published_record
+
+
+def publish_connector_staging(
+    connector: str,
+    cache_key: str,
+    plan: dict[str, Any],
+    prepare: Any,
+    staging_root: Path,
+    final_root: Path,
+    managed_root: Path,
+) -> dict[str, Any]:
+    staged_plan = staged_connector_plan(plan, staging_root)
+    record = prepare(staged_plan, True)
+    if record.get("status") != "built" or not connector_manifest_contract_ready(staged_plan):
+        return rebase_cache_record(record, staging_root, final_root)
+    apache_relocation_failure = rebase_apache_staging_for_publication(
+        connector,
+        staged_plan,
+        final_root,
+        record,
+        staging_root,
+    )
+    if apache_relocation_failure is not None:
+        return apache_relocation_failure
+    write_cache_entry_completion(
+        staging_root,
+        managed_root,
+        component=f"connector:{connector}",
+        cache_key=cache_key,
+        cache_identity=staged_plan["cache_identity"],
+    )
+    atomic_publish_dir(staging_root, final_root, managed_root, require_complete=True)
+    published_record = rebase_cache_record(record, staging_root, final_root)
+    apache_failure = apache_publish_validation_failure(
+        connector,
+        plan,
+        final_root,
+        managed_root,
+        published_record,
+    )
+    if apache_failure is not None:
+        return apache_failure
+    write_connector_manifest(plan, published_record)
+    return published_record
+
+
+def prepare_connector_under_lock(
+    connector: str,
+    cache_key: str,
+    plan: dict[str, Any],
+    prepare: Any,
+    final_root: Path,
+    managed_root: Path,
+) -> dict[str, Any]:
+    if connector_cache_entry_complete(plan):
+        return prepare(plan, True)
+    if not remove_incomplete_connector_cache_entry(final_root, managed_root, connector):
+        return prepare(plan, True)
+    staging_root = temporary_cache_dir(
+        final_root,
+        managed_root,
+        component=f"connector:{connector}",
+        cache_key=cache_key,
+    )
+    try:
+        return publish_connector_staging(
+            connector,
+            cache_key,
+            plan,
+            prepare,
+            staging_root,
+            final_root,
+            managed_root,
+        )
+    finally:
+        if staging_root.exists():
+            try:
+                safe_remove_dir(staging_root, managed_root)
+            except RuntimeError:
+                pass
+
+
 def prepare_connector_transactionally(
     connector: str,
     cache_root: Path,
@@ -4697,73 +5991,14 @@ def prepare_connector_transactionally(
         return prepare(plan, True)
     try:
         with BuildLock(cache_entry_lock_path(managed_root, f"connector-{connector}", cache_key)):
-            if connector_cache_entry_complete(plan):
-                return prepare(plan, True)
-            if final_root.exists():
-                if not managed_cache_entry_valid(final_root, managed_root):
-                    if not migrate_legacy_cache_entry_for_removal(
-                        final_root,
-                        managed_root,
-                        component=f"connector:{connector}",
-                    ):
-                        return prepare(plan, True)
-                safe_remove_dir(final_root, managed_root)
-            staging_root = temporary_cache_dir(
+            return prepare_connector_under_lock(
+                connector,
+                cache_key,
+                plan,
+                prepare,
                 final_root,
                 managed_root,
-                component=f"connector:{connector}",
-                cache_key=cache_key,
             )
-            try:
-                staged_plan = staged_connector_plan(plan, staging_root)
-                record = prepare(staged_plan, True)
-                if record.get("status") != "built" or not connector_manifest_contract_ready(staged_plan):
-                    return rebase_cache_record(record, staging_root, final_root)
-                if connector == "apache":
-                    try:
-                        rebase_apache_install_text_paths_for_publish(staged_plan, final_root)
-                    except RuntimeError as exc:
-                        failed_record = rebase_cache_record(record, staging_root, final_root)
-                        failed_record.update(
-                            status="failed",
-                            blocker_reason="apache_publication_relocation_failed",
-                            details=str(exc),
-                        )
-                        return failed_record
-                write_cache_entry_completion(
-                    staging_root,
-                    managed_root,
-                    component=f"connector:{connector}",
-                    cache_key=cache_key,
-                    cache_identity=staged_plan["cache_identity"],
-                )
-                atomic_publish_dir(staging_root, final_root, managed_root, require_complete=True)
-                published_record = rebase_cache_record(record, staging_root, final_root)
-                if connector == "apache" and not apache_apxs_includedir_usable(
-                    Path(str(plan.get("httpd_prefix", "")))
-                ):
-                    try:
-                        safe_remove_dir(final_root, managed_root)
-                    except RuntimeError as exc:
-                        published_record.update(
-                            status="failed",
-                            blocker_reason="apache_apxs_publish_validation_failed",
-                            details=str(exc),
-                        )
-                    else:
-                        published_record.update(
-                            status="failed",
-                            blocker_reason="apache_apxs_publish_validation_failed",
-                        )
-                    return published_record
-                write_connector_manifest(plan, published_record)
-                return published_record
-            finally:
-                if staging_root.exists():
-                    try:
-                        safe_remove_dir(staging_root, managed_root)
-                    except RuntimeError:
-                        pass
     except TimeoutError as exc:
         return {
             "connector": connector,
@@ -4911,6 +6146,376 @@ exec "$HTTPD_BIN" "$@"
     wrapper_path.chmod(0o755)
 
 
+def finish_planned_connector_record(plan: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    """Persist a record only when it belongs to a keyed connector plan."""
+    if plan:
+        write_connector_manifest(plan, record)
+    return record
+
+
+def apache_runtime_context(
+    env: dict[str, str],
+    plan: dict[str, Any],
+    build_root: Path,
+    modsecurity: dict[str, Any],
+    expat: dict[str, Any],
+) -> dict[str, Any]:
+    apache_build_root = Path(
+        env.get("APACHE_BUILD_ROOT", str(plan.get("build_root") or build_root / "apache-build"))
+    ).resolve()
+    httpd_prefix = Path(
+        env.get("HTTPD_PREFIX", str(plan.get("httpd_prefix") or build_root / "apache-runtime/httpd"))
+    ).resolve()
+    httpd_bin = Path(
+        env.get("APACHE_HTTPD") or env.get("APACHE") or str(httpd_prefix / "bin/httpd")
+    ).resolve()
+    apxs_bin = Path(
+        env.get("APXS") or env.get("APXS_BIN") or str(httpd_prefix / APACHE_APXS_RELATIVE_PATH)
+    ).resolve()
+    apache_module = Path(
+        env.get("APACHE_MODULE", str(apache_build_root / "output/apache/mod_security3.so"))
+    ).resolve()
+    modsecurity_lib_dir = Path(
+        env.get(
+            "APACHE_MRTS_MODSECURITY_LIB_DIR",
+            str(modsecurity.get("lib_dir") or apache_build_root / "output/modsecurity/lib"),
+        )
+    ).resolve()
+    pcre2_prefix = Path(env.get("PCRE2_PREFIX", str(apache_build_root / "output/pcre2"))).resolve()
+    expat_prefix = Path(str(expat.get("prefix", ""))).resolve() if expat.get("prefix") else None
+    expat_lib_dir = Path(str(expat.get("lib_dir", ""))).resolve() if expat.get("lib_dir") else None
+    expat_cppflags = f"-I{expat_prefix / 'include'}" if expat_prefix else ""
+    expat_ldflags = f"-L{expat_lib_dir}" if expat_lib_dir else ""
+    expat_pkg_config_path = str(expat_prefix / "lib/pkgconfig") if expat_prefix else ""
+    crypt = crypt_diagnostics(env)
+    crypt_link_arg = str(crypt.get("crypt_link_arg", ""))
+    apache_libs = " ".join(part for part in (env.get("LIBS", ""), crypt_link_arg) if part).strip()
+    override_apachectl = env.get("APACHECTL_BIN", "")
+    wrapper_path = httpd_prefix / "bin/apachectl-mrts"
+    effective_apachectl = Path(override_apachectl).resolve() if override_apachectl else wrapper_path
+    artifacts = {
+        "httpd_bin": httpd_bin,
+        "apxs_bin": apxs_bin,
+        "module_file": apache_module,
+        "modsecurity_lib": modsecurity_lib_dir / MODSECURITY_LIBRARY_FILENAME,
+    }
+    return {
+        "apache_build_root": apache_build_root,
+        "httpd_prefix": httpd_prefix,
+        "httpd_bin": httpd_bin,
+        "apxs_bin": apxs_bin,
+        "apache_module": apache_module,
+        "modsecurity_lib_dir": modsecurity_lib_dir,
+        "pcre2_prefix": pcre2_prefix,
+        "pcre2_lib_dir": pcre2_prefix / "lib",
+        "expat_prefix": expat_prefix,
+        "expat_lib_dir": expat_lib_dir,
+        "expat_cppflags": expat_cppflags,
+        "expat_ldflags": expat_ldflags,
+        "expat_pkg_config_path": expat_pkg_config_path,
+        "crypt": crypt,
+        "crypt_link_arg": crypt_link_arg,
+        "apache_libs": apache_libs,
+        "override_apachectl": override_apachectl,
+        "wrapper_path": wrapper_path,
+        "effective_apachectl": effective_apachectl,
+        "artifacts": artifacts,
+    }
+
+
+def apache_runtime_record(
+    env: dict[str, str],
+    plan: dict[str, Any],
+    archives_root: Path,
+    modsecurity: dict[str, Any],
+    expat: dict[str, Any],
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    artifacts = context["artifacts"]
+    crypt = context["crypt"]
+    return {
+        "source": "connector-local-build",
+        "connector": "apache",
+        "connector_build_id": plan.get("connector_build_id", ""),
+        "modsecurity_build_id": modsecurity.get("build_id", ""),
+        "cache_schema_version": plan.get("cache_schema_version", ""),
+        "cache_key": plan.get("cache_key", ""),
+        "patchset_sha256": plan.get("patchset_sha256", ""),
+        "target_architecture": plan.get("target_architecture", ""),
+        "expected_ref": env.get("HTTPD_VERSION", ""),
+        "cache_path": str(archives_root / "apache"),
+        "build_path": str(context["apache_build_root"]),
+        "httpd_prefix": str(context["httpd_prefix"]),
+        "pcre2_prefix": str(context["pcre2_prefix"]),
+        "httpd_bin": str(context["httpd_bin"]),
+        "apxs_bin": str(context["apxs_bin"]),
+        "module_file": str(context["apache_module"]),
+        "modsecurity_lib_dir": str(context["modsecurity_lib_dir"]),
+        "apachectl_bin": str(context["effective_apachectl"]),
+        "expat_source": expat.get("source", ""),
+        "expat_release_tag": expat.get("release_tag", expat.get("expected_ref", "")),
+        "expat_actual_head": expat.get("actual_head", ""),
+        "expat_prefix": str(context["expat_prefix"]) if context["expat_prefix"] else "",
+        "expat_h": str(expat.get("expat_h", "")),
+        "expat_lib_dir": str(context["expat_lib_dir"]) if context["expat_lib_dir"] else "",
+        "cppflags": " ".join(
+            part for part in (context["expat_cppflags"], env.get("CPPFLAGS", "")) if part
+        ).strip(),
+        "ldflags": " ".join(
+            part for part in (context["expat_ldflags"], env.get("LDFLAGS", "")) if part
+        ).strip(),
+        "libs": context["apache_libs"],
+        "crypt_lib": context["crypt_link_arg"],
+        "crypt_h_status": crypt.get("crypt_h_status", ""),
+        "crypt_h_path": crypt.get("crypt_h_path", ""),
+        "libcrypt_status": crypt.get("libcrypt_status", ""),
+        "libcrypt_paths": crypt.get("libcrypt_paths", []),
+        "crypt_link_mode": crypt.get("crypt_link_mode", ""),
+        "crypt_config_cache": context["crypt_link_arg"],
+        "aprutil_libs": context["crypt_link_arg"],
+        "pkg_config_path": (
+            f"{context['expat_pkg_config_path']}{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(
+                os.pathsep
+            )
+            if context["expat_pkg_config_path"]
+            else env.get("PKG_CONFIG_PATH", "")
+        ),
+        "status": "unknown",
+        "blocker_reason": "",
+        "searched_paths": [str(path) for path in artifacts.values()],
+        "env_override": "APACHECTL_BIN",
+        "output_paths": {
+            "binary": str(context["httpd_bin"]),
+            "module": str(context["apache_module"]),
+            "config": str(context["httpd_prefix"] / "conf/httpd.conf"),
+        },
+    }
+
+
+def apache_preflight_blocked(
+    record: dict[str, Any],
+    modsecurity: dict[str, Any],
+    override_apachectl: str,
+) -> bool:
+    if modsecurity.get("status") == "blocked":
+        record.update(
+            status="blocked",
+            blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed",
+        )
+        return True
+    if override_apachectl and not executable(Path(override_apachectl)):
+        record.update(
+            status="blocked",
+            blocker_reason="missing_local_httpd_build",
+            missing_file=override_apachectl,
+        )
+        return True
+    return False
+
+
+def reconcile_apache_cached_entry(
+    plan: dict[str, Any],
+    cache_root: Path,
+    artifacts: dict[str, Path],
+    ready: bool,
+    missing: list[str],
+    manifest_ready: bool,
+    record: dict[str, Any],
+) -> tuple[bool, list[str], str]:
+    root_value = plan.get("root")
+    if not root_value:
+        return ready, missing, ""
+    stale_root = Path(str(root_value))
+    if not stale_root.exists() or (ready and manifest_ready):
+        return ready, missing, ""
+    try:
+        safe_remove_dir(stale_root, cache_root)
+    except RuntimeError as exc:
+        return ready, missing, str(exc)
+    record["invalidation_reason"] = (
+        "missing_or_incomplete_connector_manifest" if not manifest_ready else "connector_artifact_missing"
+    )
+    ready, missing = artifact_status(artifacts, {"httpd_bin", "apxs_bin"})
+    if ready:
+        return ready, missing, "connector_manifest_missing_for_external_artifacts"
+    return ready, missing, ""
+
+
+def apache_cached_entry_reusable(
+    plan: dict[str, Any],
+    ready: bool,
+    httpd_prefix: Path,
+) -> bool:
+    return bool(plan) and ready and connector_manifest_ready(plan) and apache_apxs_includedir_usable(httpd_prefix)
+
+
+def claim_apache_cache_entry(plan: dict[str, Any], cache_root: Path) -> str:
+    root_value = plan.get("root")
+    if not root_value:
+        return ""
+    try:
+        mark_managed_cache_entry(
+            Path(str(root_value)),
+            cache_root,
+            component="connector:apache",
+            cache_key=str(plan.get("cache_key", plan.get("connector_build_id", ""))),
+        )
+    except RuntimeError as exc:
+        return str(exc)
+    return ""
+
+
+def apache_blocker_details(blocker: str, env: dict[str, str]) -> dict[str, Any]:
+    if blocker == "missing_expat_headers":
+        return {
+            "missing_file": EXPAT_HEADER_FILENAME,
+            "build_component": "apache_httpd_source_build",
+            "env_variable_can_set": "CPPFLAGS/LDFLAGS",
+            "dependency_searched_paths": [env.get("CPPFLAGS") or "<compiler default include paths>"],
+        }
+    if blocker == "missing_crypt_library":
+        return {
+            "missing_file": "libcrypt.so development link target or explicit -lcrypt linkage",
+            "build_component": "apache_httpd_source_build",
+            "env_variable_can_set": "LIBS/LDFLAGS",
+            "dependency_searched_paths": [env.get("LIBS") or "<configure default libraries>"],
+        }
+    return {}
+
+
+def apache_build_environment(
+    env: dict[str, str],
+    connector_root: Path,
+    framework_root: Path,
+    cache_root: Path,
+    build_root: Path,
+    sources_root: Path,
+    archives_root: Path,
+    modsecurity: dict[str, Any],
+    context: dict[str, Any],
+) -> dict[str, str]:
+    expat_lib_dir = context["expat_lib_dir"]
+    expat_pkg_config_path = context["expat_pkg_config_path"]
+    return build_env(
+        env,
+        FRAMEWORK_ROOT=str(framework_root),
+        CONNECTOR_ROOT=str(connector_root),
+        CONNECTOR_COMPONENT_CACHE=str(cache_root),
+        SOURCE_ROOT=str(sources_root),
+        MODSECURITY_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
+        MODSECURITY_V3_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
+        MODSECURITY_V3_ROOT=str(sources_root / "ModSecurity_V3"),
+        BUILD_ROOT=str(build_root),
+        TMP_ROOT=str(build_root / "tmp"),
+        LOG_ROOT=str(build_root / "logs"),
+        APACHE_BUILD_ROOT=str(context["apache_build_root"]),
+        APACHE_BUILD_OWNER_ROOT=str(cache_root / "builds" / "connectors"),
+        HTTPD_PREFIX=str(context["httpd_prefix"]),
+        APACHE_DOWNLOAD_DIR=str(archives_root / "apache"),
+        MODSECURITY_SHARED_PREFIX=str(modsecurity.get("prefix", "")),
+        MODSECURITY_BUILD_ID=str(modsecurity.get("build_id", "")),
+        CPPFLAGS=" ".join(part for part in (context["expat_cppflags"], env.get("CPPFLAGS", "")) if part).strip(),
+        LDFLAGS=" ".join(part for part in (context["expat_ldflags"], env.get("LDFLAGS", "")) if part).strip(),
+        LIBS=context["apache_libs"],
+        CRYPT_LIBS=context["crypt_link_arg"] if context["crypt_link_arg"] else None,
+        APRUTIL_LIBS=context["crypt_link_arg"] if context["crypt_link_arg"] else None,
+        ac_cv_search_crypt=context["crypt_link_arg"] if context["crypt_link_arg"] else None,
+        PKG_CONFIG_PATH=(
+            f"{expat_pkg_config_path}{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep)
+            if expat_pkg_config_path
+            else env.get("PKG_CONFIG_PATH", "")
+        ),
+        LD_LIBRARY_PATH=(
+            f"{expat_lib_dir}{os.pathsep}{env.get('LD_LIBRARY_PATH', '')}".rstrip(os.pathsep)
+            if expat_lib_dir
+            else env.get("LD_LIBRARY_PATH", "")
+        ),
+        BUILD_HTTPD_FROM_SOURCE="1",
+        BUILD_PCRE2_FROM_SOURCE="1",
+        AUTO_FETCH_SMOKE_SOURCES="0",
+        REFRESH="1",
+        SKIP_RUNTIME_COMPONENT_PREPARE="1",
+    )
+
+
+def build_apache_source(
+    env: dict[str, str],
+    connector_root: Path,
+    framework_root: Path,
+    cache_root: Path,
+    build_root: Path,
+    sources_root: Path,
+    archives_root: Path,
+    modsecurity: dict[str, Any],
+    context: dict[str, Any],
+    record: dict[str, Any],
+) -> tuple[bool, list[str], bool]:
+    log_path = build_root / "logs/runtime-components/apache-build.log"
+    proc = run_build(
+        framework_root / "ci/provisioning/prepare-apache-build.sh",
+        apache_build_environment(
+            env,
+            connector_root,
+            framework_root,
+            cache_root,
+            build_root,
+            sources_root,
+            archives_root,
+            modsecurity,
+            context,
+        ),
+        connector_root,
+        log_path,
+    )
+    record["build_log"] = str(log_path)
+    record["build_exit_code"] = proc.returncode
+    artifacts_file = context["apache_build_root"] / "logs/apache/artifacts.txt"
+    if artifacts_file.is_file():
+        record["artifacts"] = read_key_values(artifacts_file)
+    ready, missing = artifact_status(context["artifacts"], {"httpd_bin", "apxs_bin"})
+    if proc.returncode == 0 and ready:
+        return ready, missing, True
+    apache_log_dir = build_root / "logs/apache"
+    diagnostic_text = "\n".join(
+        [
+            proc.stdout,
+            read_text_if_file(log_path),
+            read_text_if_file(apache_log_dir / "check-expat.h.log"),
+            read_text_if_file(apache_log_dir / "httpd-configure.log"),
+            read_text_if_file(apache_log_dir / "httpd-make.log"),
+            read_text_if_file(apache_log_dir / "apache-configure.log"),
+            read_text_if_file(apache_log_dir / "apache-make.log"),
+        ]
+    )
+    blocker = map_apache_blocker(diagnostic_text, missing)
+    record.update(
+        status="failed",
+        blocker_reason=blocker,
+        missing_files=missing,
+        **apache_blocker_details(blocker, env),
+    )
+    return ready, missing, False
+
+
+def write_apache_runtime_wrapper(context: dict[str, Any]) -> str:
+    override_apachectl = context["override_apachectl"]
+    try:
+        if not override_apachectl:
+            write_apachectl_wrapper(
+                context["wrapper_path"],
+                context["httpd_bin"],
+                context["httpd_prefix"],
+                context["modsecurity_lib_dir"],
+                context["pcre2_lib_dir"],
+                context["expat_lib_dir"],
+            )
+        elif not executable(Path(override_apachectl)):
+            raise RuntimeError(f"APACHECTL_BIN is not executable: {override_apachectl}")
+    except Exception as exc:
+        return str(exc)
+    return ""
+
+
 def prepare_apache_httpd(
     env: dict[str, str],
     connector_root: Path,
@@ -4945,237 +6550,415 @@ def prepare_apache_httpd(
         )
     modsecurity = modsecurity or {}
     plan = plan or {}
-    apache_build_root = Path(env.get("APACHE_BUILD_ROOT", str(plan.get("build_root") or build_root / "apache-build"))).resolve()
-    httpd_prefix = Path(env.get("HTTPD_PREFIX", str(plan.get("httpd_prefix") or build_root / "apache-runtime/httpd"))).resolve()
-    httpd_bin = Path(env.get("APACHE_HTTPD") or env.get("APACHE") or str(httpd_prefix / "bin/httpd")).resolve()
-    apxs_bin = Path(env.get("APXS") or env.get("APXS_BIN") or str(httpd_prefix / "bin/apxs")).resolve()
-    apache_module = Path(env.get("APACHE_MODULE", str(apache_build_root / "output/apache/mod_security3.so"))).resolve()
-    modsecurity_lib_dir = Path(
-        env.get("APACHE_MRTS_MODSECURITY_LIB_DIR", str(modsecurity.get("lib_dir") or apache_build_root / "output/modsecurity/lib"))
-    ).resolve()
-    pcre2_prefix = Path(env.get("PCRE2_PREFIX", str(apache_build_root / "output/pcre2"))).resolve()
-    pcre2_lib_dir = pcre2_prefix / "lib"
     expat = expat or {}
-    expat_prefix = Path(str(expat.get("prefix", ""))).resolve() if expat.get("prefix") else None
-    expat_lib_dir = Path(str(expat.get("lib_dir", ""))).resolve() if expat.get("lib_dir") else None
-    expat_cppflags = f"-I{expat_prefix / 'include'}" if expat_prefix else ""
-    expat_ldflags = f"-L{expat_lib_dir}" if expat_lib_dir else ""
-    expat_pkg_config_path = str(expat_prefix / "lib/pkgconfig") if expat_prefix else ""
-    crypt = crypt_diagnostics(env)
-    crypt_link_arg = str(crypt.get("crypt_link_arg", ""))
-    apache_libs = " ".join(part for part in (env.get("LIBS", ""), crypt_link_arg) if part).strip()
-    wrapper_path = httpd_prefix / "bin/apachectl-mrts"
-    override_apachectl = env.get("APACHECTL_BIN", "")
-    effective_apachectl = Path(override_apachectl).resolve() if override_apachectl else wrapper_path
-    artifacts = {
-        "httpd_bin": httpd_bin,
-        "apxs_bin": apxs_bin,
-        "module_file": apache_module,
-        "modsecurity_lib": modsecurity_lib_dir / "libmodsecurity.so",
+    context = apache_runtime_context(env, plan, build_root, modsecurity, expat)
+    record = apache_runtime_record(env, plan, archives_root, modsecurity, expat, context)
+    if apache_preflight_blocked(record, modsecurity, context["override_apachectl"]):
+        return finish_planned_connector_record(plan, record)
+    ready, missing = artifact_status(context["artifacts"], {"httpd_bin", "apxs_bin"})
+    manifest_ready = connector_manifest_ready(plan) if plan else False
+    ready, missing, cache_blocker = reconcile_apache_cached_entry(
+        plan,
+        cache_root,
+        context["artifacts"],
+        ready,
+        missing,
+        manifest_ready,
+        record,
+    )
+    if cache_blocker:
+        record.update(status="blocked", blocker_reason=cache_blocker)
+        return finish_planned_connector_record(plan, record)
+    if apache_cached_entry_reusable(plan, ready, context["httpd_prefix"]):
+        record.update(
+            status="reused",
+            tree=tree_manifest(context["apache_build_root"]),
+            apachectl_bin=str(context["effective_apachectl"]),
+        )
+        return finish_planned_connector_record(plan, record)
+    claim_error = claim_apache_cache_entry(plan, cache_root)
+    if claim_error:
+        record.update(status="blocked", blocker_reason=claim_error)
+        return finish_planned_connector_record(plan, record)
+    if not ready:
+        ready, missing, build_succeeded = build_apache_source(
+            env,
+            connector_root,
+            framework_root,
+            cache_root,
+            build_root,
+            sources_root,
+            archives_root,
+            modsecurity,
+            context,
+            record,
+        )
+        if not build_succeeded:
+            return finish_planned_connector_record(plan, record)
+    wrapper_error = write_apache_runtime_wrapper(context)
+    if wrapper_error:
+        record.update(
+            status="blocked",
+            blocker_reason="missing_local_httpd_build",
+            details=wrapper_error,
+        )
+        return finish_planned_connector_record(plan, record)
+    record.update(
+        status="built" if plan else "present",
+        invalidation_reason=record.get("invalidation_reason")
+        or ("missing_or_stale_connector_build" if plan else ""),
+        tree=tree_manifest(context["apache_build_root"]),
+        apachectl_bin=str(context["effective_apachectl"]),
+    )
+    return finish_planned_connector_record(plan, record)
+
+
+def nginx_protocol_context(
+    env: dict[str, str],
+    plan: dict[str, Any],
+    archives_root: Path,
+) -> tuple[dict[str, Any], str, str, str]:
+    """Resolve the effective NGINX protocol profile and optional TLS archive."""
+    protocol_inputs = plan.get("nginx_protocol_build")
+    if not isinstance(protocol_inputs, dict) or not protocol_inputs:
+        protocol_inputs = nginx_protocol_build_inputs(env)
+    protocol_profile = str(protocol_inputs.get("profile", "h1"))
+    if not bool(protocol_inputs.get("quic_enabled")):
+        return protocol_inputs, protocol_profile, "", ""
+    quic_source_url = str(protocol_inputs.get("tls_source_url", ""))
+    quic_archive_name = Path(urlsplit(quic_source_url).path).name
+    if not quic_archive_name:
+        return protocol_inputs, protocol_profile, "", "invalid_nginx_quic_tls_archive_name"
+    return protocol_inputs, protocol_profile, str((archives_root / "nginx" / quic_archive_name).resolve()), ""
+
+
+def nginx_runtime_context(
+    env: dict[str, str],
+    plan: dict[str, Any],
+    build_root: Path,
+    modsecurity: dict[str, Any],
+) -> dict[str, Any]:
+    nginx_build_root = Path(
+        env.get("NGINX_BUILD_DIR", str(plan.get("build_root") or build_root / "nginx-build"))
+    ).resolve()
+    nginx_prefix = Path(
+        env.get("NGINX_PREFIX", str(plan.get("nginx_prefix") or build_root / "nginx-runtime/nginx"))
+    ).resolve()
+    local_nginx_bin = Path(env.get("NGINX_BINARY", str(nginx_prefix / "sbin/nginx"))).resolve()
+    local_module = Path(
+        env.get("NGINX_MODULE", str(nginx_prefix / "modules" / NGINX_MODULE_FILENAME))
+    ).resolve()
+    modsecurity_lib_dir = Path(
+        env.get(
+            "NGINX_MRTS_MODSECURITY_LIB_DIR",
+            str(modsecurity.get("lib_dir") or nginx_build_root / "output/modsecurity/lib"),
+        )
+    ).resolve()
+    override_bin = env.get("MRTS_NATIVE_NGINX_BIN", "")
+    override_module_dir = env.get("MRTS_NATIVE_NGINX_MODULE_DIR", "")
+    effective_bin = Path(override_bin).resolve() if override_bin else local_nginx_bin
+    effective_module = (
+        Path(override_module_dir).resolve() / NGINX_MODULE_FILENAME
+        if override_module_dir
+        else local_module
+    )
+    return {
+        "nginx_build_root": nginx_build_root,
+        "nginx_prefix": nginx_prefix,
+        "local_nginx_bin": local_nginx_bin,
+        "local_module": local_module,
+        "modsecurity_lib_dir": modsecurity_lib_dir,
+        "override_bin": override_bin,
+        "override_module_dir": override_module_dir,
+        "effective_bin": effective_bin,
+        "effective_module": effective_module,
+        "local_artifacts": {
+            "nginx_bin": local_nginx_bin,
+            "module_file": local_module,
+            "modsecurity_lib": modsecurity_lib_dir / MODSECURITY_LIBRARY_FILENAME,
+        },
+        "effective_artifacts": {
+            "nginx_bin": effective_bin,
+            "module_file": effective_module,
+        },
     }
-    ready, missing = artifact_status(artifacts, {"httpd_bin", "apxs_bin"})
-    record: dict[str, Any] = {
+
+
+def nginx_runtime_record(
+    env: dict[str, str],
+    plan: dict[str, Any],
+    archives_root: Path,
+    modsecurity: dict[str, Any],
+    protocol_inputs: dict[str, Any],
+    protocol_profile: str,
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    return {
         "source": "connector-local-build",
-        "connector": "apache",
+        "connector": "nginx",
         "connector_build_id": plan.get("connector_build_id", ""),
         "modsecurity_build_id": modsecurity.get("build_id", ""),
         "cache_schema_version": plan.get("cache_schema_version", ""),
         "cache_key": plan.get("cache_key", ""),
         "patchset_sha256": plan.get("patchset_sha256", ""),
         "target_architecture": plan.get("target_architecture", ""),
-        "expected_ref": env.get("HTTPD_VERSION", ""),
-        "cache_path": str(archives_root / "apache"),
-        "build_path": str(apache_build_root),
-        "httpd_prefix": str(httpd_prefix),
-        "pcre2_prefix": str(pcre2_prefix),
-        "httpd_bin": str(httpd_bin),
-        "apxs_bin": str(apxs_bin),
-        "module_file": str(apache_module),
-        "modsecurity_lib_dir": str(modsecurity_lib_dir),
-        "apachectl_bin": str(effective_apachectl),
-        "expat_source": expat.get("source", ""),
-        "expat_release_tag": expat.get("release_tag", expat.get("expected_ref", "")),
-        "expat_actual_head": expat.get("actual_head", ""),
-        "expat_prefix": str(expat_prefix) if expat_prefix else "",
-        "expat_h": str(expat.get("expat_h", "")),
-        "expat_lib_dir": str(expat_lib_dir) if expat_lib_dir else "",
-        "cppflags": " ".join(part for part in (expat_cppflags, env.get("CPPFLAGS", "")) if part).strip(),
-        "ldflags": " ".join(part for part in (expat_ldflags, env.get("LDFLAGS", "")) if part).strip(),
-        "libs": apache_libs,
-        "crypt_lib": crypt_link_arg,
-        "crypt_h_status": crypt.get("crypt_h_status", ""),
-        "crypt_h_path": crypt.get("crypt_h_path", ""),
-        "libcrypt_status": crypt.get("libcrypt_status", ""),
-        "libcrypt_paths": crypt.get("libcrypt_paths", []),
-        "crypt_link_mode": crypt.get("crypt_link_mode", ""),
-        "crypt_config_cache": crypt_link_arg,
-        "aprutil_libs": crypt_link_arg,
-        "pkg_config_path": f"{expat_pkg_config_path}{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep)
-        if expat_pkg_config_path
-        else env.get("PKG_CONFIG_PATH", ""),
+        "expected_ref": env.get("NGINX_RELEASE_TAG") or env.get("NGINX_SOURCE_GIT_REF", ""),
+        "protocol_profile": protocol_profile,
+        "protocol_build_inputs": protocol_inputs,
+        "cache_path": str(archives_root / "nginx"),
+        "build_path": str(context["nginx_build_root"]),
+        "nginx_prefix": str(context["nginx_prefix"]),
+        "nginx_bin": str(context["effective_bin"]),
+        "module_dir": str(context["effective_module"].parent),
+        "module_file": str(context["effective_module"]),
+        "local_nginx_bin": str(context["local_nginx_bin"]),
+        "local_module_file": str(context["local_module"]),
+        "modsecurity_lib_dir": str(context["modsecurity_lib_dir"]),
         "status": "unknown",
         "blocker_reason": "",
-        "searched_paths": [str(path) for path in artifacts.values()],
-        "env_override": "APACHECTL_BIN",
+        "searched_paths": [str(path) for path in context["local_artifacts"].values()],
+        "env_override": NATIVE_NGINX_OVERRIDE_ENV,
         "output_paths": {
-            "binary": str(httpd_bin),
-            "module": str(apache_module),
-            "config": str(httpd_prefix / "conf/httpd.conf"),
+            "binary": str(context["effective_bin"]),
+            "module": str(context["effective_module"]),
+            "config": str(context["nginx_prefix"] / "conf/nginx.conf"),
         },
     }
+
+
+def nginx_preflight_blocked(
+    record: dict[str, Any],
+    modsecurity: dict[str, Any],
+    context: dict[str, Any],
+) -> bool:
     if modsecurity.get("status") == "blocked":
-        record.update(status="blocked", blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed")
-        write_connector_manifest(plan, record) if plan else None
-        return record
-    if override_apachectl and not executable(Path(override_apachectl)):
-        record.update(status="blocked", blocker_reason="missing_local_httpd_build", missing_file=override_apachectl)
-        write_connector_manifest(plan, record) if plan else None
-        return record
-    manifest_ready = connector_manifest_ready(plan) if plan else False
-    if plan.get("root") and Path(str(plan["root"])).exists() and not (ready and manifest_ready):
-        try:
-            stale_root = Path(str(plan["root"]))
-            safe_remove_dir(stale_root, cache_root)
-        except RuntimeError as exc:
-            record.update(status="blocked", blocker_reason=str(exc))
-            write_connector_manifest(plan, record)
-            return record
-        record["invalidation_reason"] = (
-            "missing_or_incomplete_connector_manifest" if not manifest_ready else "connector_artifact_missing"
+        record.update(
+            status="blocked",
+            blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed",
         )
-        ready, missing = artifact_status(artifacts, {"httpd_bin", "apxs_bin"})
-        if ready:
-            record.update(status="blocked", blocker_reason="connector_manifest_missing_for_external_artifacts")
-            write_connector_manifest(plan, record)
-            return record
-    if (
-        ready
-        and plan
-        and connector_manifest_ready(plan)
-        and apache_apxs_includedir_usable(httpd_prefix)
-    ):
-        record.update(status="reused", tree=tree_manifest(apache_build_root), apachectl_bin=str(effective_apachectl))
-        write_connector_manifest(plan, record)
-        return record
-    if plan.get("root"):
-        try:
-            mark_managed_cache_entry(
-                Path(str(plan["root"])),
-                cache_root,
-                component="connector:apache",
-                cache_key=str(plan.get("cache_key", plan.get("connector_build_id", ""))),
-            )
-        except RuntimeError as exc:
-            record.update(status="blocked", blocker_reason=str(exc))
-            write_connector_manifest(plan, record)
-            return record
-    if not ready:
-        log_path = build_root / "logs/runtime-components/apache-build.log"
-        proc = run_build(
-            framework_root / "ci/provisioning/prepare-apache-build.sh",
-            build_env(
-                env,
-                FRAMEWORK_ROOT=str(framework_root),
-                CONNECTOR_ROOT=str(connector_root),
-                CONNECTOR_COMPONENT_CACHE=str(cache_root),
-                SOURCE_ROOT=str(sources_root),
-                MODSECURITY_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
-                MODSECURITY_V3_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
-                MODSECURITY_V3_ROOT=str(sources_root / "ModSecurity_V3"),
-                BUILD_ROOT=str(build_root),
-                TMP_ROOT=str(build_root / "tmp"),
-                LOG_ROOT=str(build_root / "logs"),
-                APACHE_BUILD_ROOT=str(apache_build_root),
-                APACHE_BUILD_OWNER_ROOT=str(cache_root / "builds" / "connectors"),
-                HTTPD_PREFIX=str(httpd_prefix),
-                APACHE_DOWNLOAD_DIR=str(archives_root / "apache"),
-                MODSECURITY_SHARED_PREFIX=str(modsecurity.get("prefix", "")),
-                MODSECURITY_BUILD_ID=str(modsecurity.get("build_id", "")),
-                CPPFLAGS=" ".join(part for part in (expat_cppflags, env.get("CPPFLAGS", "")) if part).strip(),
-                LDFLAGS=" ".join(part for part in (expat_ldflags, env.get("LDFLAGS", "")) if part).strip(),
-                LIBS=apache_libs,
-                CRYPT_LIBS=crypt_link_arg if crypt_link_arg else None,
-                APRUTIL_LIBS=crypt_link_arg if crypt_link_arg else None,
-                ac_cv_search_crypt=crypt_link_arg if crypt_link_arg else None,
-                PKG_CONFIG_PATH=(
-                    f"{expat_pkg_config_path}{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep)
-                    if expat_pkg_config_path
-                    else env.get("PKG_CONFIG_PATH", "")
-                ),
-                LD_LIBRARY_PATH=(
-                    f"{expat_lib_dir}{os.pathsep}{env.get('LD_LIBRARY_PATH', '')}".rstrip(os.pathsep)
-                    if expat_lib_dir
-                    else env.get("LD_LIBRARY_PATH", "")
-                ),
-                BUILD_HTTPD_FROM_SOURCE="1",
-                BUILD_PCRE2_FROM_SOURCE="1",
-                AUTO_FETCH_SMOKE_SOURCES="0",
-                REFRESH="1",
-                SKIP_RUNTIME_COMPONENT_PREPARE="1",
-            ),
-            connector_root,
-            log_path,
+        return True
+    if context["override_bin"] and not executable(Path(context["override_bin"])):
+        record.update(
+            status="blocked",
+            blocker_reason="missing_local_nginx_build",
+            missing_file=context["override_bin"],
         )
-        record["build_log"] = str(log_path)
-        record["build_exit_code"] = proc.returncode
-        artifacts_file = apache_build_root / "logs/apache/artifacts.txt"
-        if artifacts_file.is_file():
-            record["artifacts"] = read_key_values(artifacts_file)
-        ready, missing = artifact_status(artifacts, {"httpd_bin", "apxs_bin"})
-        if proc.returncode != 0 or not ready:
-            apache_log_dir = build_root / "logs/apache"
-            diagnostic_text = "\n".join(
-                [
-                    proc.stdout,
-                    read_text_if_file(log_path),
-                    read_text_if_file(apache_log_dir / "check-expat.h.log"),
-                    read_text_if_file(apache_log_dir / "httpd-configure.log"),
-                    read_text_if_file(apache_log_dir / "httpd-make.log"),
-                    read_text_if_file(apache_log_dir / "apache-configure.log"),
-                    read_text_if_file(apache_log_dir / "apache-make.log"),
-                ]
-            )
-            blocker = map_apache_blocker(diagnostic_text, missing)
-            blocker_details: dict[str, Any] = {}
-            if blocker == "missing_expat_headers":
-                blocker_details = {
-                    "missing_file": "expat.h",
-                    "build_component": "apache_httpd_source_build",
-                    "env_variable_can_set": "CPPFLAGS/LDFLAGS",
-                    "dependency_searched_paths": [env.get("CPPFLAGS") or "<compiler default include paths>"],
-                }
-            elif blocker == "missing_crypt_library":
-                blocker_details = {
-                    "missing_file": "libcrypt.so development link target or explicit -lcrypt linkage",
-                    "build_component": "apache_httpd_source_build",
-                    "env_variable_can_set": "LIBS/LDFLAGS",
-                    "dependency_searched_paths": [env.get("LIBS") or "<configure default libraries>"],
-                }
-            record.update(
-                status="failed",
-                blocker_reason=blocker,
-                missing_files=missing,
-                **blocker_details,
-            )
-            write_connector_manifest(plan, record) if plan else None
-            return record
+        return True
+    override_module_dir = context["override_module_dir"]
+    if override_module_dir and not (Path(override_module_dir) / NGINX_MODULE_FILENAME).is_file():
+        record.update(
+            status="blocked",
+            blocker_reason="missing_nginx_modsecurity_module",
+            missing_file=str(Path(override_module_dir) / NGINX_MODULE_FILENAME),
+        )
+        return True
+    return False
+
+
+def nginx_artifact_statuses(context: dict[str, Any]) -> tuple[bool, list[str], bool, list[str]]:
+    local_ready, local_missing = artifact_status(context["local_artifacts"], {"nginx_bin"})
+    effective_ready, effective_missing = artifact_status(context["effective_artifacts"], {"nginx_bin"})
+    return local_ready, local_missing, effective_ready, effective_missing
+
+
+def reconcile_nginx_cached_entry(
+    plan: dict[str, Any],
+    cache_root: Path,
+    context: dict[str, Any],
+    local_ready: bool,
+    local_missing: list[str],
+    effective_ready: bool,
+    effective_missing: list[str],
+    manifest_ready: bool,
+    record: dict[str, Any],
+) -> tuple[bool, list[str], bool, list[str], str]:
+    root_value = plan.get("root")
+    if not root_value:
+        return local_ready, local_missing, effective_ready, effective_missing, ""
+    stale_root = Path(str(root_value))
+    if not stale_root.exists() or (local_ready and effective_ready and manifest_ready):
+        return local_ready, local_missing, effective_ready, effective_missing, ""
     try:
-        if not override_apachectl:
-            write_apachectl_wrapper(wrapper_path, httpd_bin, httpd_prefix, modsecurity_lib_dir, pcre2_lib_dir, expat_lib_dir)
-        elif not executable(Path(override_apachectl)):
-            raise RuntimeError(f"APACHECTL_BIN is not executable: {override_apachectl}")
-    except Exception as exc:
-        record.update(status="blocked", blocker_reason="missing_local_httpd_build", details=str(exc))
-        write_connector_manifest(plan, record) if plan else None
-        return record
-    record.update(
-        status="built" if plan else "present",
-        invalidation_reason=record.get("invalidation_reason") or ("missing_or_stale_connector_build" if plan else ""),
-        tree=tree_manifest(apache_build_root),
-        apachectl_bin=str(effective_apachectl),
+        safe_remove_dir(stale_root, cache_root)
+    except RuntimeError as exc:
+        return local_ready, local_missing, effective_ready, effective_missing, str(exc)
+    record["invalidation_reason"] = (
+        "missing_or_incomplete_connector_manifest" if not manifest_ready else "connector_artifact_missing"
     )
-    write_connector_manifest(plan, record) if plan else None
-    return record
+    local_ready, local_missing, effective_ready, effective_missing = nginx_artifact_statuses(context)
+    if local_ready and effective_ready:
+        return (
+            local_ready,
+            local_missing,
+            effective_ready,
+            effective_missing,
+            "connector_manifest_missing_for_external_artifacts",
+        )
+    return local_ready, local_missing, effective_ready, effective_missing, ""
+
+
+def nginx_cached_entry_reusable(plan: dict[str, Any], local_ready: bool, effective_ready: bool) -> bool:
+    return bool(plan) and local_ready and effective_ready and connector_manifest_ready(plan)
+
+
+def claim_nginx_cache_entry(plan: dict[str, Any], cache_root: Path) -> str:
+    root_value = plan.get("root")
+    if not root_value:
+        return ""
+    try:
+        mark_managed_cache_entry(
+            Path(str(root_value)),
+            cache_root,
+            component="connector:nginx",
+            cache_key=str(plan.get("cache_key", plan.get("connector_build_id", ""))),
+        )
+    except RuntimeError as exc:
+        return str(exc)
+    return ""
+
+
+def copy_nginx_common_sources(connector_root: Path, plan: dict[str, Any]) -> Path:
+    common_source_root = connector_root / "common/src"
+    common_build_source_root = Path(str(plan["root"])) / "common-src"
+    common_build_source_root.mkdir(parents=True, exist_ok=True)
+    for common_source in sorted(common_source_root.glob("*.c")):
+        shutil.copy2(common_source, common_build_source_root / common_source.name)
+    return common_build_source_root
+
+
+def nginx_build_environment(
+    env: dict[str, str],
+    connector_root: Path,
+    framework_root: Path,
+    cache_root: Path,
+    build_root: Path,
+    sources_root: Path,
+    archives_root: Path,
+    modsecurity: dict[str, Any],
+    protocol_inputs: dict[str, Any],
+    protocol_profile: str,
+    quic_tls_archive: str,
+    common_build_source_root: Path,
+    context: dict[str, Any],
+) -> dict[str, str]:
+    return build_env(
+        env,
+        FRAMEWORK_ROOT=str(framework_root),
+        CONNECTOR_ROOT=str(connector_root),
+        CONNECTOR_COMPONENT_CACHE=str(cache_root),
+        SOURCE_ROOT=str(sources_root),
+        MODSECURITY_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
+        MODSECURITY_V3_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
+        MODSECURITY_V3_ROOT=str(sources_root / "ModSecurity_V3"),
+        BUILD_ROOT=str(cache_root),
+        TMP_ROOT=str(build_root / "tmp"),
+        LOG_ROOT=str(build_root / "logs"),
+        NGINX_BUILD_DIR=str(context["nginx_build_root"]),
+        NGINX_BUILD_OWNER_ROOT=str(cache_root / "builds" / "connectors"),
+        NGINX_PREFIX=str(context["nginx_prefix"]),
+        NGINX_BINARY=str(context["local_nginx_bin"]),
+        NGINX_MODULE=str(context["local_module"]),
+        NGINX_PROTOCOL_PROFILE=protocol_profile,
+        NGINX_QUIC_TLS_LIBRARY=str(protocol_inputs.get("tls_library", "")),
+        NGINX_QUIC_TLS_VERSION=str(protocol_inputs.get("tls_version", "")),
+        NGINX_QUIC_TLS_SOURCE_URL=str(protocol_inputs.get("tls_source_url", "")),
+        NGINX_QUIC_TLS_SOURCE_SHA256=str(protocol_inputs.get("tls_source_sha256", "")),
+        NGINX_QUIC_TLS_ARCHIVE=quic_tls_archive,
+        NGINX_DOWNLOAD_DIR=str(archives_root / "nginx"),
+        MSCONNECTOR_COMMON_SRC=str(common_build_source_root),
+        MODSECURITY_SHARED_PREFIX=str(modsecurity.get("prefix", "")),
+        MODSECURITY_BUILD_ID=str(modsecurity.get("build_id", "")),
+        BUILD_NGINX_FROM_SOURCE="1",
+        AUTO_FETCH_SMOKE_SOURCES="0",
+        REFRESH="1",
+        SKIP_RUNTIME_COMPONENT_PREPARE="1",
+    )
+
+
+def nginx_build_blocker_details(blocker: str) -> dict[str, str]:
+    build_component = "nginx_modsecurity_module_build"
+    if blocker == "missing_libmodsecurity_build":
+        build_component = "libmodsecurity_build"
+    elif blocker == "missing_local_nginx_build":
+        build_component = "nginx_source_build"
+    return {
+        "build_component": build_component,
+        "env_variable_can_set": NATIVE_NGINX_OVERRIDE_ENV,
+    }
+
+
+def build_nginx_source(
+    env: dict[str, str],
+    connector_root: Path,
+    framework_root: Path,
+    cache_root: Path,
+    build_root: Path,
+    sources_root: Path,
+    archives_root: Path,
+    modsecurity: dict[str, Any],
+    plan: dict[str, Any],
+    protocol_inputs: dict[str, Any],
+    quic_tls_archive: str,
+    context: dict[str, Any],
+    record: dict[str, Any],
+) -> tuple[bool, list[str], bool]:
+    common_build_source_root = copy_nginx_common_sources(connector_root, plan)
+    log_path = build_root / "logs/runtime-components/nginx-build.log"
+    proc = run_build(
+        framework_root / "ci/provisioning/prepare-nginx-build.sh",
+        nginx_build_environment(
+            env,
+            connector_root,
+            framework_root,
+            cache_root,
+            build_root,
+            sources_root,
+            archives_root,
+            modsecurity,
+            protocol_inputs,
+            str(protocol_inputs.get("profile", "h1")),
+            quic_tls_archive,
+            common_build_source_root,
+            context,
+        ),
+        connector_root,
+        log_path,
+    )
+    record["build_log"] = str(log_path)
+    record["build_exit_code"] = proc.returncode
+    artifacts_file = context["nginx_build_root"] / "logs/nginx/artifacts.txt"
+    if artifacts_file.is_file():
+        record["artifacts"] = read_key_values(artifacts_file)
+    local_ready, local_missing = artifact_status(context["local_artifacts"], {"nginx_bin"})
+    if proc.returncode == 0 and local_ready:
+        return local_ready, local_missing, True
+    diagnostic_text = "\n".join(
+        [
+            proc.stdout,
+            read_text_if_file(log_path),
+            read_text_if_file(cache_root / "logs/nginx/nginx-configure.log"),
+            read_text_if_file(cache_root / "logs/nginx/nginx-make.log"),
+        ]
+    )
+    blocker = map_nginx_blocker(diagnostic_text, local_missing)
+    record.update(
+        status="failed",
+        blocker_reason=blocker,
+        missing_files=local_missing,
+        **nginx_build_blocker_details(blocker),
+    )
+    return local_ready, local_missing, False
+
+
+def update_nginx_effective_artifacts(context: dict[str, Any]) -> None:
+    if not context["override_bin"]:
+        context["effective_bin"] = context["local_nginx_bin"]
+    if not context["override_module_dir"]:
+        context["effective_module"] = context["local_module"]
+    context["effective_artifacts"] = {
+        "nginx_bin": context["effective_bin"],
+        "module_file": context["effective_module"],
+    }
 
 
 def prepare_nginx_runtime(
@@ -5210,225 +6993,87 @@ def prepare_nginx_runtime(
         )
     modsecurity = modsecurity or {}
     plan = plan or {}
-    protocol_inputs = plan.get("nginx_protocol_build")
-    if not isinstance(protocol_inputs, dict) or not protocol_inputs:
-        protocol_inputs = nginx_protocol_build_inputs(env)
-    protocol_profile = str(protocol_inputs.get("profile", "h1"))
-    quic_tls_archive = ""
-    if bool(protocol_inputs.get("quic_enabled")):
-        quic_source_url = str(protocol_inputs.get("tls_source_url", ""))
-        quic_archive_name = Path(urlsplit(quic_source_url).path).name
-        if not quic_archive_name:
-            record = {
-                "source": "connector-local-build",
-                "connector": "nginx",
-                "status": "blocked",
-                "blocker_reason": "invalid_nginx_quic_tls_archive_name",
-                "protocol_profile": protocol_profile,
-            }
-            write_connector_manifest(plan, record) if plan else None
-            return record
-        quic_tls_archive = str((archives_root / "nginx" / quic_archive_name).resolve())
-    nginx_build_root = Path(env.get("NGINX_BUILD_DIR", str(plan.get("build_root") or build_root / "nginx-build"))).resolve()
-    nginx_prefix = Path(env.get("NGINX_PREFIX", str(plan.get("nginx_prefix") or build_root / "nginx-runtime/nginx"))).resolve()
-    local_nginx_bin = Path(env.get("NGINX_BINARY", str(nginx_prefix / "sbin/nginx"))).resolve()
-    local_module = Path(
-        env.get("NGINX_MODULE", str(nginx_prefix / "modules/ngx_http_modsecurity_module.so"))
-    ).resolve()
-    modsecurity_lib_dir = Path(
-        env.get("NGINX_MRTS_MODSECURITY_LIB_DIR", str(modsecurity.get("lib_dir") or nginx_build_root / "output/modsecurity/lib"))
-    ).resolve()
-    override_bin = env.get("MRTS_NATIVE_NGINX_BIN", "")
-    override_module_dir = env.get("MRTS_NATIVE_NGINX_MODULE_DIR", "")
-    effective_bin = Path(override_bin).resolve() if override_bin else local_nginx_bin
-    effective_module = (
-        Path(override_module_dir).resolve() / "ngx_http_modsecurity_module.so"
-        if override_module_dir
-        else local_module
+    protocol_inputs, protocol_profile, quic_tls_archive, protocol_blocker = nginx_protocol_context(
+        env,
+        plan,
+        archives_root,
     )
-    local_artifacts = {
-        "nginx_bin": local_nginx_bin,
-        "module_file": local_module,
-        "modsecurity_lib": modsecurity_lib_dir / "libmodsecurity.so",
-    }
-    effective_artifacts = {
-        "nginx_bin": effective_bin,
-        "module_file": effective_module,
-    }
-    local_ready, local_missing = artifact_status(local_artifacts, {"nginx_bin"})
-    effective_ready, effective_missing = artifact_status(effective_artifacts, {"nginx_bin"})
-    record: dict[str, Any] = {
-        "source": "connector-local-build",
-        "connector": "nginx",
-        "connector_build_id": plan.get("connector_build_id", ""),
-        "modsecurity_build_id": modsecurity.get("build_id", ""),
-        "cache_schema_version": plan.get("cache_schema_version", ""),
-        "cache_key": plan.get("cache_key", ""),
-        "patchset_sha256": plan.get("patchset_sha256", ""),
-        "target_architecture": plan.get("target_architecture", ""),
-        "expected_ref": env.get("NGINX_RELEASE_TAG") or env.get("NGINX_SOURCE_GIT_REF", ""),
-        "protocol_profile": protocol_profile,
-        "protocol_build_inputs": protocol_inputs,
-        "cache_path": str(archives_root / "nginx"),
-        "build_path": str(nginx_build_root),
-        "nginx_prefix": str(nginx_prefix),
-        "nginx_bin": str(effective_bin),
-        "module_dir": str(effective_module.parent),
-        "module_file": str(effective_module),
-        "local_nginx_bin": str(local_nginx_bin),
-        "local_module_file": str(local_module),
-        "modsecurity_lib_dir": str(modsecurity_lib_dir),
-        "status": "unknown",
-        "blocker_reason": "",
-        "searched_paths": [str(path) for path in local_artifacts.values()],
-        "env_override": "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR",
-        "output_paths": {
-            "binary": str(effective_bin),
-            "module": str(effective_module),
-            "config": str(nginx_prefix / "conf/nginx.conf"),
-        },
-    }
-    if modsecurity.get("status") == "blocked":
-        record.update(status="blocked", blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed")
-        write_connector_manifest(plan, record) if plan else None
-        return record
-    if override_bin and not executable(Path(override_bin)):
-        record.update(status="blocked", blocker_reason="missing_local_nginx_build", missing_file=override_bin)
-        write_connector_manifest(plan, record) if plan else None
-        return record
-    if override_module_dir and not (Path(override_module_dir) / "ngx_http_modsecurity_module.so").is_file():
-        record.update(
-            status="blocked",
-            blocker_reason="missing_nginx_modsecurity_module",
-            missing_file=str(Path(override_module_dir) / "ngx_http_modsecurity_module.so"),
-        )
-        write_connector_manifest(plan, record) if plan else None
-        return record
+    if protocol_blocker:
+        record = {
+            "source": "connector-local-build",
+            "connector": "nginx",
+            "status": "blocked",
+            "blocker_reason": protocol_blocker,
+            "protocol_profile": protocol_profile,
+        }
+        return finish_planned_connector_record(plan, record)
+    context = nginx_runtime_context(env, plan, build_root, modsecurity)
+    record = nginx_runtime_record(
+        env,
+        plan,
+        archives_root,
+        modsecurity,
+        protocol_inputs,
+        protocol_profile,
+        context,
+    )
+    if nginx_preflight_blocked(record, modsecurity, context):
+        return finish_planned_connector_record(plan, record)
+    local_ready, local_missing, effective_ready, effective_missing = nginx_artifact_statuses(context)
     manifest_ready = connector_manifest_ready(plan) if plan else False
-    if plan.get("root") and Path(str(plan["root"])).exists() and not (local_ready and effective_ready and manifest_ready):
-        try:
-            stale_root = Path(str(plan["root"]))
-            safe_remove_dir(stale_root, cache_root)
-        except RuntimeError as exc:
-            record.update(status="blocked", blocker_reason=str(exc))
-            write_connector_manifest(plan, record)
-            return record
-        record["invalidation_reason"] = (
-            "missing_or_incomplete_connector_manifest" if not manifest_ready else "connector_artifact_missing"
-        )
-        local_ready, local_missing = artifact_status(local_artifacts, {"nginx_bin"})
-        effective_ready, effective_missing = artifact_status(effective_artifacts, {"nginx_bin"})
-        if local_ready and effective_ready:
-            record.update(status="blocked", blocker_reason="connector_manifest_missing_for_external_artifacts")
-            write_connector_manifest(plan, record)
-            return record
-    if effective_ready and local_ready and plan and connector_manifest_ready(plan):
+    (
+        local_ready,
+        local_missing,
+        effective_ready,
+        effective_missing,
+        cache_blocker,
+    ) = reconcile_nginx_cached_entry(
+        plan,
+        cache_root,
+        context,
+        local_ready,
+        local_missing,
+        effective_ready,
+        effective_missing,
+        manifest_ready,
+        record,
+    )
+    if cache_blocker:
+        record.update(status="blocked", blocker_reason=cache_blocker)
+        return finish_planned_connector_record(plan, record)
+    if nginx_cached_entry_reusable(plan, local_ready, effective_ready):
         record.update(
             status="reused",
-            nginx_bin=str(effective_bin),
-            module_dir=str(effective_module.parent),
-            module_file=str(effective_module),
-            tree=tree_manifest(nginx_build_root),
+            nginx_bin=str(context["effective_bin"]),
+            module_dir=str(context["effective_module"].parent),
+            module_file=str(context["effective_module"]),
+            tree=tree_manifest(context["nginx_build_root"]),
         )
-        write_connector_manifest(plan, record)
-        return record
-    if plan.get("root"):
-        try:
-            mark_managed_cache_entry(
-                Path(str(plan["root"])),
-                cache_root,
-                component="connector:nginx",
-                cache_key=str(plan.get("cache_key", plan.get("connector_build_id", ""))),
-            )
-        except RuntimeError as exc:
-            record.update(status="blocked", blocker_reason=str(exc))
-            write_connector_manifest(plan, record)
-            return record
+        return finish_planned_connector_record(plan, record)
+    claim_error = claim_nginx_cache_entry(plan, cache_root)
+    if claim_error:
+        record.update(status="blocked", blocker_reason=claim_error)
+        return finish_planned_connector_record(plan, record)
     if not effective_ready and not local_ready:
-        common_source_root = connector_root / "common/src"
-        common_build_source_root = Path(str(plan["root"])) / "common-src"
-        common_build_source_root.mkdir(parents=True, exist_ok=True)
-        for common_source in sorted(common_source_root.glob("*.c")):
-            shutil.copy2(common_source, common_build_source_root / common_source.name)
-        log_path = build_root / "logs/runtime-components/nginx-build.log"
-        proc = run_build(
-            framework_root / "ci/provisioning/prepare-nginx-build.sh",
-            build_env(
-                env,
-                FRAMEWORK_ROOT=str(framework_root),
-                CONNECTOR_ROOT=str(connector_root),
-                CONNECTOR_COMPONENT_CACHE=str(cache_root),
-                SOURCE_ROOT=str(sources_root),
-                MODSECURITY_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
-                MODSECURITY_V3_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
-                MODSECURITY_V3_ROOT=str(sources_root / "ModSecurity_V3"),
-                BUILD_ROOT=str(cache_root),
-                TMP_ROOT=str(build_root / "tmp"),
-                LOG_ROOT=str(build_root / "logs"),
-                NGINX_BUILD_DIR=str(nginx_build_root),
-                NGINX_BUILD_OWNER_ROOT=str(cache_root / "builds" / "connectors"),
-                NGINX_PREFIX=str(nginx_prefix),
-                NGINX_BINARY=str(local_nginx_bin),
-                NGINX_MODULE=str(local_module),
-                NGINX_PROTOCOL_PROFILE=protocol_profile,
-                NGINX_QUIC_TLS_LIBRARY=str(protocol_inputs.get("tls_library", "")),
-                NGINX_QUIC_TLS_VERSION=str(protocol_inputs.get("tls_version", "")),
-                NGINX_QUIC_TLS_SOURCE_URL=str(protocol_inputs.get("tls_source_url", "")),
-                NGINX_QUIC_TLS_SOURCE_SHA256=str(protocol_inputs.get("tls_source_sha256", "")),
-                NGINX_QUIC_TLS_ARCHIVE=quic_tls_archive,
-                NGINX_DOWNLOAD_DIR=str(archives_root / "nginx"),
-                MSCONNECTOR_COMMON_SRC=str(common_build_source_root),
-                MODSECURITY_SHARED_PREFIX=str(modsecurity.get("prefix", "")),
-                MODSECURITY_BUILD_ID=str(modsecurity.get("build_id", "")),
-                BUILD_NGINX_FROM_SOURCE="1",
-                AUTO_FETCH_SMOKE_SOURCES="0",
-                REFRESH="1",
-                SKIP_RUNTIME_COMPONENT_PREPARE="1",
-            ),
+        local_ready, local_missing, build_succeeded = build_nginx_source(
+            env,
             connector_root,
-            log_path,
+            framework_root,
+            cache_root,
+            build_root,
+            sources_root,
+            archives_root,
+            modsecurity,
+            plan,
+            protocol_inputs,
+            quic_tls_archive,
+            context,
+            record,
         )
-        record["build_log"] = str(log_path)
-        record["build_exit_code"] = proc.returncode
-        artifacts_file = nginx_build_root / "logs/nginx/artifacts.txt"
-        if artifacts_file.is_file():
-            record["artifacts"] = read_key_values(artifacts_file)
-        local_ready, local_missing = artifact_status(local_artifacts, {"nginx_bin"})
-        effective_ready, effective_missing = artifact_status(effective_artifacts, {"nginx_bin"})
-        if proc.returncode != 0 or not local_ready:
-            diagnostic_text = "\n".join(
-                [
-                    proc.stdout,
-                    read_text_if_file(log_path),
-                    read_text_if_file(cache_root / "logs/nginx/nginx-configure.log"),
-                    read_text_if_file(cache_root / "logs/nginx/nginx-make.log"),
-                ]
-            )
-            blocker = map_nginx_blocker(diagnostic_text, local_missing)
-            blocker_details = {
-                "build_component": "nginx_modsecurity_module_build",
-                "env_variable_can_set": "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR",
-            }
-            if blocker == "missing_libmodsecurity_build":
-                blocker_details["build_component"] = "libmodsecurity_build"
-            elif blocker == "missing_local_nginx_build":
-                blocker_details["build_component"] = "nginx_source_build"
-            record.update(
-                status="failed",
-                blocker_reason=blocker,
-                missing_files=local_missing,
-                **blocker_details,
-            )
-            write_connector_manifest(plan, record) if plan else None
-            return record
-    if not override_bin:
-        effective_bin = local_nginx_bin
-    if not override_module_dir:
-        effective_module = local_module
-    effective_ready, effective_missing = artifact_status(
-        {"nginx_bin": effective_bin, "module_file": effective_module},
-        {"nginx_bin"},
-    )
+        if not build_succeeded:
+            return finish_planned_connector_record(plan, record)
+    update_nginx_effective_artifacts(context)
+    effective_ready, effective_missing = artifact_status(context["effective_artifacts"], {"nginx_bin"})
     if not effective_ready:
         blocker = map_nginx_blocker("", effective_missing)
         record.update(
@@ -5436,20 +7081,247 @@ def prepare_nginx_runtime(
             blocker_reason=blocker,
             missing_files=effective_missing,
             build_component="nginx_native_runtime_inventory",
-            env_variable_can_set="MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR",
+            env_variable_can_set=NATIVE_NGINX_OVERRIDE_ENV,
         )
-        write_connector_manifest(plan, record) if plan else None
-        return record
+        return finish_planned_connector_record(plan, record)
     record.update(
         status="built" if plan else "present",
-        invalidation_reason=record.get("invalidation_reason") or ("missing_or_stale_connector_build" if plan else ""),
-        nginx_bin=str(effective_bin),
-        module_dir=str(effective_module.parent),
-        module_file=str(effective_module),
-        tree=tree_manifest(nginx_build_root),
+        invalidation_reason=record.get("invalidation_reason")
+        or ("missing_or_stale_connector_build" if plan else ""),
+        nginx_bin=str(context["effective_bin"]),
+        module_dir=str(context["effective_module"].parent),
+        module_file=str(context["effective_module"]),
+        tree=tree_manifest(context["nginx_build_root"]),
     )
-    write_connector_manifest(plan, record) if plan else None
+    return finish_planned_connector_record(plan, record)
+
+
+def haproxy_runtime_context(plan: dict[str, Any], build_root: Path) -> dict[str, Any]:
+    root = Path(str(plan.get("build_root"))).resolve()
+    haproxy_runtime_build_dir = root / "haproxy-runtime-build"
+    haproxy_runtime_dir = root / "haproxy-runtime/haproxy"
+    haproxy_bin = haproxy_runtime_dir / "sbin/haproxy"
+    binding_dir = root / "haproxy-modsecurity-binding"
+    spoa_dir = root / "haproxy-spoa-runtime"
+    spoa_bin = spoa_dir / "haproxy-modsecurity-spoa"
+    paths_env = binding_dir / "paths.env"
+    return {
+        "root": root,
+        "haproxy_runtime_build_dir": haproxy_runtime_build_dir,
+        "haproxy_runtime_dir": haproxy_runtime_dir,
+        "haproxy_bin": haproxy_bin,
+        "binding_dir": binding_dir,
+        "spoa_dir": spoa_dir,
+        "spoa_bin": spoa_bin,
+        "paths_env": paths_env,
+        "log_path": build_root / "logs/runtime-components/haproxy-build.log",
+    }
+
+
+def haproxy_runtime_record(
+    plan: dict[str, Any],
+    modsecurity: dict[str, Any],
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "connector": "haproxy",
+        "connector_build_id": plan.get("connector_build_id", ""),
+        "modsecurity_build_id": modsecurity.get("build_id", ""),
+        "cache_schema_version": plan.get("cache_schema_version", ""),
+        "cache_key": plan.get("cache_key", ""),
+        "patchset_sha256": plan.get("patchset_sha256", ""),
+        "target_architecture": plan.get("target_architecture", ""),
+        "source_hash": plan.get("source_hash", ""),
+        "build_flags": plan.get("build_flags", ""),
+        "build_path": str(context["root"]),
+        "haproxy_runtime_build_dir": str(context["haproxy_runtime_build_dir"]),
+        "haproxy_runtime_dir": str(context["haproxy_runtime_dir"]),
+        "haproxy_bin": str(context["haproxy_bin"]),
+        "spoa_runtime_bin": str(context["spoa_bin"]),
+        "modsecurity_binding_dir": str(context["binding_dir"]),
+        "paths_env": str(context["paths_env"]),
+        "output_paths": {
+            "binary": str(context["haproxy_bin"]),
+            "module": str(context["spoa_bin"]),
+            "config": str(context["paths_env"]),
+        },
+        "status": "unknown",
+        "blocker_reason": "",
+    }
+
+
+def write_haproxy_record(plan: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    write_connector_manifest(plan, record)
     return record
+
+
+def haproxy_preflight_blocked(
+    record: dict[str, Any],
+    modsecurity: dict[str, Any],
+    cache_root: Path,
+    context: dict[str, Any],
+) -> bool:
+    if modsecurity.get("status") == "blocked":
+        record.update(
+            status="blocked",
+            blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed",
+        )
+        return True
+    for path in (
+        context["root"],
+        context["haproxy_runtime_build_dir"],
+        context["haproxy_runtime_dir"],
+        context["binding_dir"],
+        context["spoa_dir"],
+    ):
+        if is_system_path(path) or not is_within(path, cache_root):
+            record.update(
+                status="blocked",
+                blocker_reason="system_path_write_forbidden",
+                blocked_path=str(path),
+            )
+            return True
+    return False
+
+
+def reconcile_haproxy_cached_entry(
+    plan: dict[str, Any],
+    cache_root: Path,
+    context: dict[str, Any],
+    record: dict[str, Any],
+) -> str:
+    root = context["root"]
+    if not root.exists() or connector_manifest_ready(plan):
+        return ""
+    try:
+        safe_remove_dir(root, cache_root)
+    except RuntimeError as exc:
+        return str(exc)
+    record["invalidation_reason"] = "missing_or_incomplete_connector_manifest"
+    return ""
+
+
+def haproxy_cached_entry_reusable(plan: dict[str, Any], context: dict[str, Any]) -> bool:
+    return (
+        executable(context["haproxy_bin"])
+        and executable(context["spoa_bin"])
+        and context["paths_env"].is_file()
+        and connector_manifest_ready(plan)
+    )
+
+
+def claim_haproxy_cache_entry(plan: dict[str, Any], cache_root: Path, root: Path) -> str:
+    try:
+        mark_managed_cache_entry(
+            root,
+            cache_root,
+            component="connector:haproxy",
+            cache_key=str(plan.get("cache_key", plan.get("connector_build_id", ""))),
+        )
+    except RuntimeError as exc:
+        return str(exc)
+    return ""
+
+
+def haproxy_prepare_environment(
+    env: dict[str, str],
+    connector_root: Path,
+    framework_root: Path,
+    cache_root: Path,
+    build_root: Path,
+    sources_root: Path,
+    archives_root: Path,
+    context: dict[str, Any],
+) -> dict[str, str]:
+    return build_env(
+        env,
+        FRAMEWORK_ROOT=str(framework_root),
+        CONNECTOR_ROOT=str(connector_root),
+        CONNECTOR_COMPONENT_CACHE=str(cache_root),
+        SOURCE_ROOT=str(sources_root),
+        BUILD_ROOT=str(context["root"]),
+        TMP_ROOT=str(context["root"] / "tmp"),
+        LOG_ROOT=str(build_root / "logs"),
+        HAPROXY_SOURCE_ROOT=str(sources_root / "haproxy"),
+        HAPROXY_DOWNLOAD_DIR=str(archives_root / "haproxy"),
+        HAPROXY_SOURCE_DIR=str(
+            sources_root / "haproxy" / f"haproxy-{env.get('HAPROXY_VERSION', '3.2.19')}"
+        ),
+        HAPROXY_RUNTIME_BUILD_DIR=str(context["haproxy_runtime_build_dir"]),
+        HAPROXY_RUNTIME_BUILD_WORKTREE=str(context["haproxy_runtime_build_dir"] / "worktree"),
+        HAPROXY_RUNTIME_DIR=str(context["haproxy_runtime_dir"]),
+        HAPROXY_BIN=str(context["haproxy_bin"]),
+        REFRESH="0",
+        SKIP_RUNTIME_COMPONENT_PREPARE="1",
+    )
+
+
+def haproxy_prepare_reached_execution(prep: subprocess.CompletedProcess[str]) -> bool:
+    return any(
+        marker in prep.stdout
+        for marker in (
+            "haproxy_prepare: running haproxy-source-extract",
+            "haproxy_prepare: running haproxy-source-copy",
+            "haproxy_prepare: running haproxy-build",
+            "haproxy_prepare: running haproxy-binary-stage",
+        )
+    )
+
+
+def record_haproxy_prepare_failure(
+    record: dict[str, Any],
+    prep: subprocess.CompletedProcess[str],
+) -> None:
+    # Exit 77 is a pre-execution availability block only if no build phase
+    # was reached.  Once the helper starts a build, retain the failed status.
+    if prep.returncode == 77 and not haproxy_prepare_reached_execution(prep):
+        record.update(status="blocked", blocker_reason="missing_haproxy_runtime_build")
+        return
+    record.update(
+        status="failed",
+        blocker_reason="haproxy_runtime_prepare_failed",
+        build_exit_code=prep.returncode,
+    )
+
+
+def haproxy_binding_environment(
+    prep_env: dict[str, str],
+    connector_root: Path,
+    modsecurity: dict[str, Any],
+    context: dict[str, Any],
+) -> dict[str, str]:
+    return build_env(
+        prep_env,
+        REPO_ROOT=str(connector_root),
+        HAPROXY_SPOA_RUNTIME_DIR=str(context["spoa_dir"]),
+        HAPROXY_MODSECURITY_BINDING_DIR=str(context["binding_dir"]),
+        MODSECURITY_INCLUDE_DIR=str(modsecurity.get("include_dir", "")),
+        MODSECURITY_LIB_DIR=str(modsecurity.get("lib_dir", "")),
+        MODSECURITY_INCLUDE_CANDIDATES=str(modsecurity.get("include_dir", "")),
+        MODSECURITY_LIB_CANDIDATES=str(modsecurity.get("lib_dir", "")),
+    )
+
+
+def run_haproxy_binding_build(
+    connector_root: Path,
+    make_env: dict[str, str],
+    log_path: Path,
+) -> subprocess.CompletedProcess[str]:
+    proc = run_env(
+        [
+            "make",
+            "-C",
+            str(connector_root / "connectors/haproxy"),
+            "build-modsecurity-binding",
+            "build-spoa-runtime",
+        ],
+        env=make_env,
+    )
+    with log_path.open("a", encoding="utf-8", errors="replace") as handle:
+        handle.write("\n[haproxy-modsecurity-binding]\n")
+        handle.write(proc.stdout)
+        handle.write(proc.stderr)
+    return proc
 
 
 def prepare_haproxy_runtime(
@@ -5482,173 +7354,98 @@ def prepare_haproxy_runtime(
                 _transactional=True,
             ),
         )
-    root = Path(str(plan.get("build_root"))).resolve()
-    haproxy_runtime_build_dir = root / "haproxy-runtime-build"
-    haproxy_runtime_dir = root / "haproxy-runtime/haproxy"
-    haproxy_bin = haproxy_runtime_dir / "sbin/haproxy"
-    binding_dir = root / "haproxy-modsecurity-binding"
-    spoa_dir = root / "haproxy-spoa-runtime"
-    spoa_bin = spoa_dir / "haproxy-modsecurity-spoa"
-    paths_env = binding_dir / "paths.env"
-    log_path = build_root / "logs/runtime-components/haproxy-build.log"
-    output_paths = {
-        "binary": str(haproxy_bin),
-        "module": str(spoa_bin),
-        "config": str(paths_env),
-    }
-    record: dict[str, Any] = {
-        "connector": "haproxy",
-        "connector_build_id": plan.get("connector_build_id", ""),
-        "modsecurity_build_id": modsecurity.get("build_id", ""),
-        "cache_schema_version": plan.get("cache_schema_version", ""),
-        "cache_key": plan.get("cache_key", ""),
-        "patchset_sha256": plan.get("patchset_sha256", ""),
-        "target_architecture": plan.get("target_architecture", ""),
-        "source_hash": plan.get("source_hash", ""),
-        "build_flags": plan.get("build_flags", ""),
-        "build_path": str(root),
-        "haproxy_runtime_build_dir": str(haproxy_runtime_build_dir),
-        "haproxy_runtime_dir": str(haproxy_runtime_dir),
-        "haproxy_bin": str(haproxy_bin),
-        "spoa_runtime_bin": str(spoa_bin),
-        "modsecurity_binding_dir": str(binding_dir),
-        "paths_env": str(paths_env),
-        "output_paths": output_paths,
-        "status": "unknown",
-        "blocker_reason": "",
-    }
-    if modsecurity.get("status") == "blocked":
-        record.update(status="blocked", blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed")
-        write_connector_manifest(plan, record)
-        return record
-    for path in (root, haproxy_runtime_build_dir, haproxy_runtime_dir, binding_dir, spoa_dir):
-        if is_system_path(path) or not is_within(path, cache_root):
-            record.update(status="blocked", blocker_reason="system_path_write_forbidden", blocked_path=str(path))
-            write_connector_manifest(plan, record)
-            return record
-    if root.exists() and not connector_manifest_ready(plan):
-        try:
-            safe_remove_dir(root, cache_root)
-        except RuntimeError as exc:
-            record.update(status="blocked", blocker_reason=str(exc))
-            write_connector_manifest(plan, record)
-            return record
-        record["invalidation_reason"] = "missing_or_incomplete_connector_manifest"
-    if executable(haproxy_bin) and executable(spoa_bin) and paths_env.is_file() and connector_manifest_ready(plan):
-        record.update(status="reused", tree=tree_manifest(root))
-        write_connector_manifest(plan, record)
-        return record
-
-    try:
-        mark_managed_cache_entry(
-            root,
-            cache_root,
-            component="connector:haproxy",
-            cache_key=str(plan.get("cache_key", plan.get("connector_build_id", ""))),
-        )
-    except RuntimeError as exc:
-        record.update(status="blocked", blocker_reason=str(exc))
-        write_connector_manifest(plan, record)
-        return record
-    root.mkdir(parents=True, exist_ok=True)
-    prep_env = build_env(
+    context = haproxy_runtime_context(plan, build_root)
+    record = haproxy_runtime_record(plan, modsecurity, context)
+    if haproxy_preflight_blocked(record, modsecurity, cache_root, context):
+        return write_haproxy_record(plan, record)
+    cache_blocker = reconcile_haproxy_cached_entry(plan, cache_root, context, record)
+    if cache_blocker:
+        record.update(status="blocked", blocker_reason=cache_blocker)
+        return write_haproxy_record(plan, record)
+    if haproxy_cached_entry_reusable(plan, context):
+        record.update(status="reused", tree=tree_manifest(context["root"]))
+        return write_haproxy_record(plan, record)
+    claim_error = claim_haproxy_cache_entry(plan, cache_root, context["root"])
+    if claim_error:
+        record.update(status="blocked", blocker_reason=claim_error)
+        return write_haproxy_record(plan, record)
+    context["root"].mkdir(parents=True, exist_ok=True)
+    prep_env = haproxy_prepare_environment(
         env,
-        FRAMEWORK_ROOT=str(framework_root),
-        CONNECTOR_ROOT=str(connector_root),
-        CONNECTOR_COMPONENT_CACHE=str(cache_root),
-        SOURCE_ROOT=str(sources_root),
-        BUILD_ROOT=str(root),
-        TMP_ROOT=str(root / "tmp"),
-        LOG_ROOT=str(build_root / "logs"),
-        HAPROXY_SOURCE_ROOT=str(sources_root / "haproxy"),
-        HAPROXY_DOWNLOAD_DIR=str(archives_root / "haproxy"),
-        HAPROXY_SOURCE_DIR=str(sources_root / "haproxy" / f"haproxy-{env.get('HAPROXY_VERSION', '3.2.19')}"),
-        HAPROXY_RUNTIME_BUILD_DIR=str(haproxy_runtime_build_dir),
-        HAPROXY_RUNTIME_BUILD_WORKTREE=str(haproxy_runtime_build_dir / "worktree"),
-        HAPROXY_RUNTIME_DIR=str(haproxy_runtime_dir),
-        HAPROXY_BIN=str(haproxy_bin),
-        REFRESH="0",
-        SKIP_RUNTIME_COMPONENT_PREPARE="1",
+        connector_root,
+        framework_root,
+        cache_root,
+        build_root,
+        sources_root,
+        archives_root,
+        context,
     )
-    prep = run_build(framework_root / "ci/provisioning/prepare-haproxy-runtime.sh", prep_env, connector_root, log_path)
-    record["build_log"] = str(log_path)
-    record["haproxy_prepare_exit_code"] = prep.returncode
-    if prep.returncode != 0 or not executable(haproxy_bin):
-        prepare_reached_execution = any(
-            marker in prep.stdout
-            for marker in (
-                "haproxy_prepare: running haproxy-source-extract",
-                "haproxy_prepare: running haproxy-source-copy",
-                "haproxy_prepare: running haproxy-build",
-                "haproxy_prepare: running haproxy-binary-stage",
-            )
-        )
-        if prep.returncode == 0 or prep.returncode != 77 or prepare_reached_execution:
-            record.update(
-                status="failed",
-                blocker_reason="haproxy_runtime_prepare_failed",
-                build_exit_code=prep.returncode,
-            )
-        else:
-            record.update(status="blocked", blocker_reason="missing_haproxy_runtime_build")
-        write_connector_manifest(plan, record)
-        return record
-
-    make_env = build_env(
+    prep = run_build(
+        framework_root / "ci/provisioning/prepare-haproxy-runtime.sh",
         prep_env,
-        REPO_ROOT=str(connector_root),
-        HAPROXY_SPOA_RUNTIME_DIR=str(spoa_dir),
-        HAPROXY_MODSECURITY_BINDING_DIR=str(binding_dir),
-        MODSECURITY_INCLUDE_DIR=str(modsecurity.get("include_dir", "")),
-        MODSECURITY_LIB_DIR=str(modsecurity.get("lib_dir", "")),
-        MODSECURITY_INCLUDE_CANDIDATES=str(modsecurity.get("include_dir", "")),
-        MODSECURITY_LIB_CANDIDATES=str(modsecurity.get("lib_dir", "")),
+        connector_root,
+        context["log_path"],
     )
-    proc = run_env(
-        ["make", "-C", str(connector_root / "connectors/haproxy"), "build-modsecurity-binding", "build-spoa-runtime"],
-        env=make_env,
-    )
-    with log_path.open("a", encoding="utf-8", errors="replace") as handle:
-        handle.write("\n[haproxy-modsecurity-binding]\n")
-        handle.write(proc.stdout)
-        handle.write(proc.stderr)
-    if proc.returncode != 0 or not (executable(spoa_bin) and paths_env.is_file()):
-        record.update(status="failed", blocker_reason="haproxy_connector_build_failed", build_exit_code=proc.returncode)
-        write_connector_manifest(plan, record)
-        return record
+    record["build_log"] = str(context["log_path"])
+    record["haproxy_prepare_exit_code"] = prep.returncode
+    if prep.returncode != 0 or not executable(context["haproxy_bin"]):
+        record_haproxy_prepare_failure(record, prep)
+        return write_haproxy_record(plan, record)
+    make_env = haproxy_binding_environment(prep_env, connector_root, modsecurity, context)
+    proc = run_haproxy_binding_build(connector_root, make_env, context["log_path"])
+    if proc.returncode != 0 or not (
+        executable(context["spoa_bin"]) and context["paths_env"].is_file()
+    ):
+        record.update(
+            status="failed",
+            blocker_reason="haproxy_connector_build_failed",
+            build_exit_code=proc.returncode,
+        )
+        return write_haproxy_record(plan, record)
     record.update(
         status="built",
         invalidation_reason=record.get("invalidation_reason") or "missing_or_stale_connector_build",
-        tree=tree_manifest(root),
+        tree=tree_manifest(context["root"]),
     )
-    write_connector_manifest(plan, record)
-    return record
+    return write_haproxy_record(plan, record)
 
 
-def known_tool_source(tool: str, roots: list[Path]) -> tuple[str, str, bool]:
-    token = f"github.com/coreruleset/{tool}"
-    source_url = ""
-    known_ref = ""
-    can_build = False
-    build_markers = (f"go install {token}", f"git clone https://{token}", f"git clone https://{token}.git")
+KNOWN_TOOL_SOURCE_SUFFIXES = frozenset({"", ".md", ".sh", ".py", ".txt", ".yaml", ".yml", ".mk", ".json"})
+LOCAL_BUILD_READ_ONLY_EXECUTABLE = "local-build/read-only-executable"
+REPORT_VALUE_FALLBACK = "-"
+
+
+def known_tool_source_candidate(path: Path) -> bool:
+    return ".git" not in path.parts and path.is_file() and path.suffix in KNOWN_TOOL_SOURCE_SUFFIXES
+
+
+def known_tool_source_texts(roots: list[Path]):
     for root in roots:
         if not root.exists():
             continue
         for path in root.rglob("*"):
-            if ".git" in path.parts or not path.is_file():
-                continue
-            if path.suffix not in {"", ".md", ".sh", ".py", ".txt", ".yaml", ".yml", ".mk", ".json"}:
+            if not known_tool_source_candidate(path):
                 continue
             try:
-                text = path.read_text(encoding="utf-8", errors="ignore")
+                yield path, path.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
-            if token in text and not source_url:
-                source_url = f"https://{token}"
-            if any(marker in text for marker in build_markers):
-                can_build = True
-            if token in text and "ref=" in text and not known_ref:
-                known_ref = "see " + str(path)
+
+
+def known_tool_source(tool: str, roots: list[Path]) -> tuple[str, str, bool]:
+    token = f"github.com/coreruleset/{tool}"
+    build_markers = (f"go install {token}", f"git clone https://{token}", f"git clone https://{token}.git")
+    source_url = ""
+    known_ref = ""
+    can_build = False
+    for path, text in known_tool_source_texts(roots):
+        token_present = token in text
+        if token_present and not source_url:
+            source_url = f"https://{token}"
+        if any(marker in text for marker in build_markers):
+            can_build = True
+        if token_present and "ref=" in text and not known_ref:
+            known_ref = "see " + str(path)
     return source_url, known_ref, can_build
 
 
@@ -5702,6 +7499,22 @@ def inventory_tool(
     }
 
 
+def dependency_inventory_entry(
+    name: str,
+    env_var: str,
+    path: Any,
+    component: dict[str, Any],
+    access: str,
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "env_var": env_var,
+        "path": path,
+        "status": "present" if component.get("status") in READY_COMPONENT_STATUSES else "missing",
+        "access": access,
+    }
+
+
 def dependency_inventory(
     apache_httpd: dict[str, Any],
     nginx: dict[str, Any],
@@ -5711,73 +7524,52 @@ def dependency_inventory(
     expat: dict[str, Any],
     modsecurity: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    def available(component: dict[str, Any]) -> bool:
-        return component.get("status") in {"present", "built", "reused"}
-
     return [
-        {
-            "name": "go-ftw",
-            "env_var": "GO_FTW_BIN",
-            "path": go_ftw.get("path"),
-            "status": "present" if available(go_ftw) else "missing",
-            "access": "read-only/executable",
-        },
-        {
-            "name": "albedo",
-            "env_var": "ALBEDO_BIN",
-            "path": albedo.get("path"),
-            "status": "present" if available(albedo) else "missing",
-            "access": "read-only/executable",
-        },
-        {
-            "name": "expat",
-            "env_var": "EXPAT_PREFIX",
-            "path": expat.get("prefix"),
-            "status": "present" if available(expat) else "missing",
-            "access": "local-prefix/read-only",
-        },
-        {
-            "name": "libmodsecurity",
-            "env_var": "MODSECURITY_LIB_DIR",
-            "path": modsecurity.get("lib_file"),
-            "status": "present" if available(modsecurity) else "missing",
-            "access": "shared-local-prefix/read-only",
-        },
-        {
-            "name": "apachectl",
-            "env_var": "APACHECTL_BIN",
-            "path": apache_httpd.get("apachectl_bin"),
-            "status": "present" if available(apache_httpd) else "missing",
-            "access": "local-wrapper/read-only-executable",
-        },
-        {
-            "name": "nginx",
-            "env_var": "MRTS_NATIVE_NGINX_BIN",
-            "path": nginx.get("nginx_bin"),
-            "status": "present" if available(nginx) else "missing",
-            "access": "local-build/read-only-executable",
-        },
-        {
-            "name": "ngx_http_modsecurity_module.so",
-            "env_var": "MRTS_NATIVE_NGINX_MODULE_DIR",
-            "path": nginx.get("module_file"),
-            "status": "present" if available(nginx) else "missing",
-            "access": "local-build/module-reference",
-        },
-        {
-            "name": "haproxy",
-            "env_var": "HAPROXY_BIN",
-            "path": haproxy.get("haproxy_bin"),
-            "status": "present" if available(haproxy) else "missing",
-            "access": "local-build/read-only-executable",
-        },
-        {
-            "name": "haproxy-modsecurity-spoa",
-            "env_var": "SPOA_RUNTIME_BIN",
-            "path": haproxy.get("spoa_runtime_bin"),
-            "status": "present" if available(haproxy) else "missing",
-            "access": "local-build/read-only-executable",
-        },
+        dependency_inventory_entry("go-ftw", "GO_FTW_BIN", go_ftw.get("path"), go_ftw, "read-only/executable"),
+        dependency_inventory_entry("albedo", "ALBEDO_BIN", albedo.get("path"), albedo, "read-only/executable"),
+        dependency_inventory_entry("expat", "EXPAT_PREFIX", expat.get("prefix"), expat, "local-prefix/read-only"),
+        dependency_inventory_entry(
+            "libmodsecurity",
+            "MODSECURITY_LIB_DIR",
+            modsecurity.get("lib_file"),
+            modsecurity,
+            "shared-local-prefix/read-only",
+        ),
+        dependency_inventory_entry(
+            "apachectl",
+            "APACHECTL_BIN",
+            apache_httpd.get("apachectl_bin"),
+            apache_httpd,
+            "local-wrapper/read-only-executable",
+        ),
+        dependency_inventory_entry(
+            "nginx",
+            "MRTS_NATIVE_NGINX_BIN",
+            nginx.get("nginx_bin"),
+            nginx,
+            LOCAL_BUILD_READ_ONLY_EXECUTABLE,
+        ),
+        dependency_inventory_entry(
+            NGINX_MODULE_FILENAME,
+            "MRTS_NATIVE_NGINX_MODULE_DIR",
+            nginx.get("module_file"),
+            nginx,
+            "local-build/module-reference",
+        ),
+        dependency_inventory_entry(
+            "haproxy",
+            "HAPROXY_BIN",
+            haproxy.get("haproxy_bin"),
+            haproxy,
+            LOCAL_BUILD_READ_ONLY_EXECUTABLE,
+        ),
+        dependency_inventory_entry(
+            "haproxy-modsecurity-spoa",
+            "SPOA_RUNTIME_BIN",
+            haproxy.get("spoa_runtime_bin"),
+            haproxy,
+            LOCAL_BUILD_READ_ONLY_EXECUTABLE,
+        ),
     ]
 
 
@@ -5869,162 +7661,253 @@ def runtime_build_cache_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def report_value(record: dict[str, Any], key: str, empty_as_fallback: bool = False) -> Any:
+    value = record.get(key, REPORT_VALUE_FALLBACK)
+    return value or REPORT_VALUE_FALLBACK if empty_as_fallback else value
+
+
+def first_report_value(record: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = record.get(key)
+        if value:
+            return value
+    return REPORT_VALUE_FALLBACK
+
+
+def comma_separated_report_value(record: dict[str, Any], key: str) -> str:
+    return ", ".join(record.get(key, [])) or REPORT_VALUE_FALLBACK
+
+
+def markdown_record_lines(
+    record: dict[str, Any],
+    fields: tuple[tuple[str, str, bool], ...],
+) -> list[str]:
+    return [
+        f"- {label}: `{report_value(record, key, empty_as_fallback)}`"
+        for label, key, empty_as_fallback in fields
+    ]
+
+
+def markdown_section_lines(
+    heading: str,
+    record: dict[str, Any],
+    fields: tuple[tuple[str, str, bool], ...],
+) -> list[str]:
+    return ["", heading, *markdown_record_lines(record, fields)]
+
+
+def apache_markdown_lines(apache: dict[str, Any]) -> list[str]:
+    lines = markdown_section_lines(
+        "## Apache httpd",
+        apache,
+        (
+            ("Status", "status", False),
+            ("Blocker", "blocker_reason", True),
+            (CONNECTOR_BUILD_ID_LABEL, "connector_build_id", True),
+            (USES_MODSECURITY_BUILD_ID_LABEL, "modsecurity_build_id", True),
+            ("Source", "source", False),
+            ("Expected ref/version", "expected_ref", False),
+            ("Cache path", "cache_path", False),
+            ("Build path", "build_path", False),
+            ("apachectl/APACHECTL_BIN", "apachectl_bin", False),
+            ("Missing file", "missing_file", True),
+            ("Build component", "build_component", True),
+        ),
+    )
+    lines.append(
+        f"- Env variable to set: `{first_report_value(apache, 'env_variable_can_set', 'env_override')}`"
+    )
+    lines.extend(
+        markdown_record_lines(
+            apache,
+            (
+                ("Expat source", "expat_source", True),
+                ("Expat release tag", "expat_release_tag", True),
+                ("CPPFLAGS", "cppflags", True),
+                ("LDFLAGS", "ldflags", True),
+                ("LIBS", "libs", True),
+                ("PKG_CONFIG_PATH", "pkg_config_path", True),
+                ("crypt.h status", "crypt_h_status", True),
+                ("crypt.h path", "crypt_h_path", True),
+                ("libcrypt status", "libcrypt_status", True),
+            ),
+        )
+    )
+    lines.append(f"- libcrypt paths: `{comma_separated_report_value(apache, 'libcrypt_paths')}`")
+    lines.extend(markdown_record_lines(apache, (("crypt link mode", "crypt_link_mode", True),)))
+    return lines
+
+
+def nginx_markdown_lines(nginx: dict[str, Any]) -> list[str]:
+    lines = markdown_section_lines(
+        "## NGINX",
+        nginx,
+        (
+            ("Status", "status", False),
+            ("Blocker", "blocker_reason", True),
+            (CONNECTOR_BUILD_ID_LABEL, "connector_build_id", True),
+            (USES_MODSECURITY_BUILD_ID_LABEL, "modsecurity_build_id", True),
+            ("Source", "source", False),
+            ("Expected ref/version", "expected_ref", False),
+            ("Cache path", "cache_path", False),
+            ("Build path", "build_path", False),
+            ("MRTS_NATIVE_NGINX_BIN", "nginx_bin", False),
+            ("MRTS_NATIVE_NGINX_MODULE_DIR", "module_dir", False),
+            ("Module file", "module_file", False),
+            ("Missing file", "missing_file", True),
+            ("Build component", "build_component", True),
+        ),
+    )
+    lines.append(
+        f"- Env variable to set: `{first_report_value(nginx, 'env_variable_can_set', 'env_override')}`"
+    )
+    return lines
+
+
+def haproxy_markdown_lines(haproxy: dict[str, Any]) -> list[str]:
+    return markdown_section_lines(
+        "## HAProxy",
+        haproxy,
+        (
+            ("Status", "status", False),
+            ("Blocker", "blocker_reason", True),
+            (CONNECTOR_BUILD_ID_LABEL, "connector_build_id", True),
+            (USES_MODSECURITY_BUILD_ID_LABEL, "modsecurity_build_id", True),
+            ("HAPROXY_BIN", "haproxy_bin", True),
+            ("SPOA_RUNTIME_BIN", "spoa_runtime_bin", True),
+            ("MODSECURITY_BINDING_DIR", "modsecurity_binding_dir", True),
+        ),
+    )
+
+
+def expat_markdown_lines(expat: dict[str, Any]) -> list[str]:
+    lines = markdown_section_lines(
+        "## Expat",
+        expat,
+        (
+            ("Status", "status", False),
+            ("Blocker", "blocker_reason", True),
+            ("Source", "source", False),
+        ),
+    )
+    lines.append(f"- Release tag: `{first_report_value(expat, 'release_tag', 'expected_ref')}`")
+    lines.extend(
+        markdown_record_lines(
+            expat,
+            (
+                ("Actual head", "actual_head", True),
+                ("Prefix", "prefix", True),
+                (EXPAT_HEADER_FILENAME, "expat_h", True),
+                ("lib dir", "lib_dir", True),
+                ("Recursive submodules", "recursive_submodule_status", True),
+            ),
+        )
+    )
+    return lines
+
+
+def tool_markdown_row(item: dict[str, Any]) -> str:
+    return "| {dep} | {status} | `{env}` | `{source}` | `{ref}` | `{head}` | `{binary}` | `{subs}` | {note} | {blocker} |".format(
+        dep=item.get("dependency", REPORT_VALUE_FALLBACK),
+        status=item.get("status", REPORT_VALUE_FALLBACK),
+        env=item.get("env_override", REPORT_VALUE_FALLBACK),
+        source=first_report_value(item, "known_source"),
+        ref=first_report_value(item, "release_tag", "known_ref"),
+        head=report_value(item, "actual_head", True),
+        binary=first_report_value(item, "binary", "path"),
+        subs=report_value(item, "recursive_submodule_status", True),
+        note=report_value(item, "release_tag_deviation_note", True),
+        blocker=report_value(item, "blocker_reason", True),
+    )
+
+
+def git_component_markdown_row(item: dict[str, Any]) -> str:
+    return "| {name} | {status} | `{ref}` | `{head}` | {subs} | {fsck} | {blocker} |".format(
+        name=item.get("name", REPORT_VALUE_FALLBACK),
+        status=item.get("status", REPORT_VALUE_FALLBACK),
+        ref=item.get("expected_ref", REPORT_VALUE_FALLBACK),
+        head=item.get("actual_head", REPORT_VALUE_FALLBACK),
+        subs=item.get("submodule_count", 0),
+        fsck=item.get("git_fsck", REPORT_VALUE_FALLBACK),
+        blocker=report_value(item, "blocker_reason", True),
+    )
+
+
+def archive_markdown_row(item: dict[str, Any]) -> str:
+    return "| {name} | {status} | {checksum} | `{path}` | {blocker} |".format(
+        name=item.get("name", REPORT_VALUE_FALLBACK),
+        status=item.get("status", REPORT_VALUE_FALLBACK),
+        checksum=item.get("checksum_status", REPORT_VALUE_FALLBACK),
+        path=item.get("path", REPORT_VALUE_FALLBACK),
+        blocker=report_value(item, "blocker_reason", True),
+    )
+
+
+def dependency_markdown_row(item: dict[str, Any]) -> str:
+    return "| {name} | {status} | `{env}` | `{path}` | {access} |".format(
+        name=item.get("name", REPORT_VALUE_FALLBACK),
+        status=item.get("status", REPORT_VALUE_FALLBACK),
+        env=item.get("env_var", REPORT_VALUE_FALLBACK),
+        path=first_report_value(item, "path", "configured"),
+        access=item.get("access", REPORT_VALUE_FALLBACK),
+    )
+
+
 def markdown_report(payload: dict[str, Any]) -> str:
-    apache = payload.get("apache_httpd", {})
-    nginx = payload.get("nginx", {})
-    haproxy = payload.get("haproxy", {})
     modsecurity = payload.get("modsecurity", {})
-    go_ftw = payload.get("go_ftw", {})
-    albedo = payload.get("albedo", {})
-    expat = payload.get("expat", {})
     lines = [
         "# Runtime Component Cache",
         "",
         f"Generated at: `{payload['generated_at']}`",
         f"Cache root: `{payload['cache_root']}`",
-        f"Cache schema: `{payload.get('cache_schema_version', '-')}`",
-        f"Cache manifest status: `{payload.get('status', '-')}`",
+        f"Cache schema: `{payload.get('cache_schema_version', REPORT_VALUE_FALLBACK)}`",
+        f"Cache manifest status: `{payload.get('status', REPORT_VALUE_FALLBACK)}`",
         "",
         "## Prepare Phases",
     ]
-    for phase in payload.get("prepare_phases", []):
-        lines.append(f"- {phase}")
+    lines.extend(f"- {phase}" for phase in payload.get("prepare_phases", []))
+    lines.extend(
+        markdown_section_lines(
+            "## Shared ModSecurity",
+            modsecurity,
+            (
+                ("Status", "status", False),
+                ("Blocker", "blocker_reason", True),
+                ("Source ref", "source_ref", True),
+                ("Actual SHA", "actual_sha", True),
+                ("Build ID", "build_id", True),
+                ("Prefix", "prefix", True),
+                ("Include dir", "include_dir", True),
+                ("Lib dir", "lib_dir", True),
+            ),
+        )
+    )
+    lines.extend(apache_markdown_lines(payload.get("apache_httpd", {})))
+    lines.extend(nginx_markdown_lines(payload.get("nginx", {})))
+    lines.extend(haproxy_markdown_lines(payload.get("haproxy", {})))
+    lines.extend(expat_markdown_lines(payload.get("expat", {})))
     lines.extend(
         [
-            "",
-            "## Shared ModSecurity",
-            f"- Status: `{modsecurity.get('status', '-')}`",
-            f"- Blocker: `{modsecurity.get('blocker_reason') or '-'}`",
-            f"- Source ref: `{modsecurity.get('source_ref') or '-'}`",
-            f"- Actual SHA: `{modsecurity.get('actual_sha') or '-'}`",
-            f"- Build ID: `{modsecurity.get('build_id') or '-'}`",
-            f"- Prefix: `{modsecurity.get('prefix') or '-'}`",
-            f"- Include dir: `{modsecurity.get('include_dir') or '-'}`",
-            f"- Lib dir: `{modsecurity.get('lib_dir') or '-'}`",
-            "",
-            "## Apache httpd",
-            f"- Status: `{apache.get('status', '-')}`",
-            f"- Blocker: `{apache.get('blocker_reason') or '-'}`",
-            f"- Connector build ID: `{apache.get('connector_build_id') or '-'}`",
-            f"- Uses ModSecurity build ID: `{apache.get('modsecurity_build_id') or '-'}`",
-            f"- Source: `{apache.get('source', '-')}`",
-            f"- Expected ref/version: `{apache.get('expected_ref', '-')}`",
-            f"- Cache path: `{apache.get('cache_path', '-')}`",
-            f"- Build path: `{apache.get('build_path', '-')}`",
-            f"- apachectl/APACHECTL_BIN: `{apache.get('apachectl_bin', '-')}`",
-            f"- Missing file: `{apache.get('missing_file') or '-'}`",
-            f"- Build component: `{apache.get('build_component') or '-'}`",
-            f"- Env variable to set: `{apache.get('env_variable_can_set') or apache.get('env_override') or '-'}`",
-            f"- Expat source: `{apache.get('expat_source') or '-'}`",
-            f"- Expat release tag: `{apache.get('expat_release_tag') or '-'}`",
-            f"- CPPFLAGS: `{apache.get('cppflags') or '-'}`",
-            f"- LDFLAGS: `{apache.get('ldflags') or '-'}`",
-            f"- LIBS: `{apache.get('libs') or '-'}`",
-            f"- PKG_CONFIG_PATH: `{apache.get('pkg_config_path') or '-'}`",
-            f"- crypt.h status: `{apache.get('crypt_h_status') or '-'}`",
-            f"- crypt.h path: `{apache.get('crypt_h_path') or '-'}`",
-            f"- libcrypt status: `{apache.get('libcrypt_status') or '-'}`",
-            f"- libcrypt paths: `{', '.join(apache.get('libcrypt_paths', [])) or '-'}`",
-            f"- crypt link mode: `{apache.get('crypt_link_mode') or '-'}`",
-            "",
-            "## NGINX",
-            f"- Status: `{nginx.get('status', '-')}`",
-            f"- Blocker: `{nginx.get('blocker_reason') or '-'}`",
-            f"- Connector build ID: `{nginx.get('connector_build_id') or '-'}`",
-            f"- Uses ModSecurity build ID: `{nginx.get('modsecurity_build_id') or '-'}`",
-            f"- Source: `{nginx.get('source', '-')}`",
-            f"- Expected ref/version: `{nginx.get('expected_ref', '-')}`",
-            f"- Cache path: `{nginx.get('cache_path', '-')}`",
-            f"- Build path: `{nginx.get('build_path', '-')}`",
-            f"- MRTS_NATIVE_NGINX_BIN: `{nginx.get('nginx_bin', '-')}`",
-            f"- MRTS_NATIVE_NGINX_MODULE_DIR: `{nginx.get('module_dir', '-')}`",
-            f"- Module file: `{nginx.get('module_file', '-')}`",
-            f"- Missing file: `{nginx.get('missing_file') or '-'}`",
-            f"- Build component: `{nginx.get('build_component') or '-'}`",
-            f"- Env variable to set: `{nginx.get('env_variable_can_set') or nginx.get('env_override') or '-'}`",
-            "",
-            "## HAProxy",
-            f"- Status: `{haproxy.get('status', '-')}`",
-            f"- Blocker: `{haproxy.get('blocker_reason') or '-'}`",
-            f"- Connector build ID: `{haproxy.get('connector_build_id') or '-'}`",
-            f"- Uses ModSecurity build ID: `{haproxy.get('modsecurity_build_id') or '-'}`",
-            f"- HAPROXY_BIN: `{haproxy.get('haproxy_bin') or '-'}`",
-            f"- SPOA_RUNTIME_BIN: `{haproxy.get('spoa_runtime_bin') or '-'}`",
-            f"- MODSECURITY_BINDING_DIR: `{haproxy.get('modsecurity_binding_dir') or '-'}`",
-            "",
-            "## Expat",
-            f"- Status: `{expat.get('status', '-')}`",
-            f"- Blocker: `{expat.get('blocker_reason') or '-'}`",
-            f"- Source: `{expat.get('source', '-')}`",
-            f"- Release tag: `{expat.get('release_tag') or expat.get('expected_ref') or '-'}`",
-            f"- Actual head: `{expat.get('actual_head') or '-'}`",
-            f"- Prefix: `{expat.get('prefix') or '-'}`",
-            f"- expat.h: `{expat.get('expat_h') or '-'}`",
-            f"- lib dir: `{expat.get('lib_dir') or '-'}`",
-            f"- Recursive submodules: `{expat.get('recursive_submodule_status') or '-'}`",
             "",
             "## go-ftw / albedo",
             "| Dependency | Status | Env override | Source | Release tag | Head | Binary | Submodules | Release note | Blocker |",
             "|---|---|---|---|---|---|---|---|---|---|",
         ]
     )
-    for item in (go_ftw, albedo):
-        lines.append(
-            "| {dep} | {status} | `{env}` | `{source}` | `{ref}` | `{head}` | `{binary}` | `{subs}` | {note} | {blocker} |".format(
-                dep=item.get("dependency", "-"),
-                status=item.get("status", "-"),
-                env=item.get("env_override", "-"),
-                source=item.get("known_source") or "-",
-                ref=item.get("release_tag") or item.get("known_ref") or "-",
-                head=item.get("actual_head") or "-",
-                binary=item.get("binary") or item.get("path") or "-",
-                subs=item.get("recursive_submodule_status") or "-",
-                note=item.get("release_tag_deviation_note") or "-",
-                blocker=item.get("blocker_reason") or "-",
-            )
-        )
+    lines.extend(tool_markdown_row(item) for item in (payload.get("go_ftw", {}), payload.get("albedo", {})))
     lines.extend(
         [
-        "",
-        "## Git Components",
-        "| Name | Status | Ref | Head | Submodules | fsck | Blocker |",
-        "|---|---|---|---|---:|---|---|",
+            "",
+            "## Git Components",
+            "| Name | Status | Ref | Head | Submodules | fsck | Blocker |",
+            "|---|---|---|---|---:|---|---|",
         ]
     )
-    for item in payload["git_components"]:
-        lines.append(
-            "| {name} | {status} | `{ref}` | `{head}` | {subs} | {fsck} | {blocker} |".format(
-                name=item.get("name", "-"),
-                status=item.get("status", "-"),
-                ref=item.get("expected_ref", "-"),
-                head=item.get("actual_head", "-"),
-                subs=item.get("submodule_count", 0),
-                fsck=item.get("git_fsck", "-"),
-                blocker=item.get("blocker_reason", "-") or "-",
-            )
-        )
+    lines.extend(git_component_markdown_row(item) for item in payload["git_components"])
     lines.extend(["", "## Archives", "| Name | Status | Checksum | Path | Blocker |", "|---|---|---|---|---|"])
-    for item in payload["archives"]:
-        lines.append(
-            "| {name} | {status} | {checksum} | `{path}` | {blocker} |".format(
-                name=item.get("name", "-"),
-                status=item.get("status", "-"),
-                checksum=item.get("checksum_status", "-"),
-                path=item.get("path", "-"),
-                blocker=item.get("blocker_reason", "-") or "-",
-            )
-        )
+    lines.extend(archive_markdown_row(item) for item in payload["archives"])
     lines.extend(["", "## Local Dependencies", "| Name | Status | Env | Path | Access |", "|---|---|---|---|---|"])
-    for item in payload["dependencies"]:
-        lines.append(
-            "| {name} | {status} | `{env}` | `{path}` | {access} |".format(
-                name=item.get("name", "-"),
-                status=item.get("status", "-"),
-                env=item.get("env_var", "-"),
-                path=item.get("path") or item.get("configured") or "-",
-                access=item.get("access", "-"),
-            )
-        )
+    lines.extend(dependency_markdown_row(item) for item in payload["dependencies"])
     lines.extend(
         [
             "",
@@ -6039,9 +7922,7 @@ def markdown_report(payload: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> int:
-    global PATH_POLICY_ENV
-
+def runtime_component_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", required=True)
     parser.add_argument("--framework-root", required=True)
@@ -6063,8 +7944,55 @@ def main() -> int:
         default=os.environ.get("RUNTIME_COMPONENT_TARGET", "all"),
         help="Prepare shared dependencies, one native connector, or all native connectors.",
     )
-    args = parser.parse_args()
-    target_connector = args.target_connector
+    return parser
+
+
+def parse_runtime_component_args() -> argparse.Namespace:
+    return runtime_component_argument_parser().parse_args()
+
+
+def required_runtime_component_sources(env: dict[str, str], strict: bool) -> dict[str, str]:
+    validate_https_url_config(env)
+    values = {
+        "go_ftw_source_url": require_env_value(env, "GO_FTW_SOURCE_URL"),
+        "go_ftw_expected_latest": require_env_value(env, "GO_FTW_PROMPT_EXPECTED_LATEST"),
+        "albedo_source_url": require_env_value(env, "ALBEDO_SOURCE_URL"),
+        "albedo_expected_latest": require_env_value(env, "ALBEDO_PROMPT_EXPECTED_LATEST"),
+        "expat_source_url": require_env_value(env, "EXPAT_SOURCE_URL"),
+        "expat_git_ref": require_env_value(env, "EXPAT_GIT_REF"),
+    }
+    if strict:
+        values["expat_git_ref"] = require_full_immutable_git_commit(values["expat_git_ref"], "EXPAT_GIT_REF")
+    nginx_protocol_build_inputs(env)
+    return values
+
+
+def ensure_runtime_component_roots(
+    cache_root: Path,
+    connector_root: Path,
+    framework_root: Path,
+    build_root: Path,
+    native_root: Path,
+) -> Path | None:
+    try:
+        managed_cache_root = ensure_managed_cache_root(
+            cache_root,
+            protected_paths=(connector_root, framework_root),
+        )
+    except RuntimeError as exc:
+        print(f"prepare-runtime-components: BLOCKED cache: {exc}")
+        return None
+    for label, path in (("BUILD_ROOT", build_root), ("MRTS_NATIVE_ROOT", native_root)):
+        if is_system_path(path):
+            print(f"prepare-runtime-components: BLOCKED {label}: system_path_write_forbidden path={path}")
+            return None
+    build_root.mkdir(parents=True, exist_ok=True)
+    native_root.mkdir(parents=True, exist_ok=True)
+    return managed_cache_root
+
+
+def runtime_component_context(args: argparse.Namespace) -> tuple[dict[str, Any] | None, int]:
+    global PATH_POLICY_ENV
 
     initial_env = dict(os.environ)
     connector_root = Path(args.connector_root).resolve()
@@ -6072,7 +8000,7 @@ def main() -> int:
     env, common_status = load_framework_environment(connector_root, framework_root, initial_env)
     if common_status != "loaded":
         print(f"prepare-runtime-components: BLOCKED: framework common.sh could not be loaded ({common_status})")
-        return 77
+        return None, 77
     cache_root = Path(args.cache_root).resolve()
     output_root = Path(args.output_root).resolve()
     requested_runtime_env_snapshot: Path | None = None
@@ -6083,7 +8011,7 @@ def main() -> int:
             )
         except RuntimeError as exc:
             print(f"prepare-runtime-components: BLOCKED runtime env snapshot: {exc}")
-            return 77
+            return None, 77
     build_root = Path(args.build_root or env.get("BUILD_ROOT", str(default_state_home() / "ModSecurity-conector-build"))).resolve()
     native_root = Path(args.native_root or env.get("MRTS_NATIVE_ROOT", str(build_root / "mrts-native"))).resolve()
     env.update(
@@ -6099,186 +8027,264 @@ def main() -> int:
     PATH_POLICY_ENV = dict(env)
     strict = env.get("RUNTIME_COMPONENT_STRICT_VERIFY") == "1"
     try:
-        validate_https_url_config(env)
-        go_ftw_source_url = require_env_value(env, "GO_FTW_SOURCE_URL")
-        go_ftw_expected_latest = require_env_value(env, "GO_FTW_PROMPT_EXPECTED_LATEST")
-        albedo_source_url = require_env_value(env, "ALBEDO_SOURCE_URL")
-        albedo_expected_latest = require_env_value(env, "ALBEDO_PROMPT_EXPECTED_LATEST")
-        expat_source_url = require_env_value(env, "EXPAT_SOURCE_URL")
-        expat_git_ref = require_env_value(env, "EXPAT_GIT_REF")
-        if strict:
-            expat_git_ref = require_full_immutable_git_commit(expat_git_ref, "EXPAT_GIT_REF")
-        nginx_protocol_build_inputs(env)
+        sources = required_runtime_component_sources(env, strict)
     except RuntimeError as exc:
         print(f"prepare-runtime-components: BLOCKED: {exc}")
-        return 77
-    report_dir = output_root / GENERATED_ROOT
-    try:
-        cache_root = ensure_managed_cache_root(
-            cache_root,
-            protected_paths=(connector_root, framework_root),
-        )
-    except RuntimeError as exc:
-        print(f"prepare-runtime-components: BLOCKED cache: {exc}")
-        return 77
-    for label, path in (("BUILD_ROOT", build_root), ("MRTS_NATIVE_ROOT", native_root)):
-        if is_system_path(path):
-            print(f"prepare-runtime-components: BLOCKED {label}: system_path_write_forbidden path={path}")
-            return 77
-    build_root.mkdir(parents=True, exist_ok=True)
-    native_root.mkdir(parents=True, exist_ok=True)
+        return None, 77
+    cache_root = ensure_runtime_component_roots(
+        cache_root,
+        connector_root,
+        framework_root,
+        build_root,
+        native_root,
+    )
+    if cache_root is None:
+        return None, 77
+    return {
+        "env": env,
+        "connector_root": connector_root,
+        "framework_root": framework_root,
+        "cache_root": cache_root,
+        "output_root": output_root,
+        "build_root": build_root,
+        "native_root": native_root,
+        "report_dir": output_root / GENERATED_ROOT,
+        "requested_runtime_env_snapshot": requested_runtime_env_snapshot,
+        "strict": strict,
+        "target_connector": args.target_connector,
+        **sources,
+    }, 0
 
-    previous_manifest = read_json(cache_root / "manifest.json")
-    previous_git = {
+
+def runtime_component_cache_paths(cache_root: Path) -> dict[str, Path]:
+    sources_root = cache_root / "sources"
+    return {
+        "sources_root": sources_root,
+        "archives_root": cache_root / "archives",
+        "git_root": cache_root / "git",
+        "modsec_path": sources_root / "ModSecurity_V3",
+        "crs_path": sources_root / "coreruleset",
+        "haproxy_source_root": sources_root / "haproxy",
+    }
+
+
+def previous_git_components(cache_root: Path) -> dict[str, dict[str, Any]]:
+    previous_manifest = read_json(cache_root / CACHE_MANIFEST_FILENAME)
+    return {
         str(item.get("name")): item
         for item in previous_manifest.get("git_components", [])
         if isinstance(item, dict) and item.get("name")
     }
 
-    sources_root = cache_root / "sources"
-    archives_root = cache_root / "archives"
-    git_root = cache_root / "git"
-    modsec_path = sources_root / "ModSecurity_V3"
-    crs_path = sources_root / "coreruleset"
-    haproxy_source_root = sources_root / "haproxy"
-    prepare_phases = [
-        "1. validate safe paths",
-        "2. prepare git/source/archive cache recursively",
-        "3. prepare/build expat local prefix",
-        "4. prepare/build shared ModSecurity v3 once per source/ref/build config",
-        "5. prepare/reuse connector builds keyed by connector inputs and ModSecurity build ID",
-        "6. prepare/build go-ftw from latest release tag",
-        "7. prepare/build albedo from latest release tag",
-        "8. write manifests/reports",
-    ]
 
-    git_components = [
+def optional_external_connector_sources(
+    env: dict[str, str],
+    sources_root: Path,
+    previous_git: dict[str, dict[str, Any]],
+    strict: bool,
+    cache_root: Path,
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for name, url_key, ref_key in (
+        ("modsecurity-apache", "MODSECURITY_APACHE_GIT_URL", "MODSECURITY_APACHE_GIT_REF"),
+        ("modsecurity-nginx", "MODSECURITY_NGINX_GIT_URL", "MODSECURITY_NGINX_GIT_REF"),
+    ):
+        url = env.get(url_key, "")
+        ref = env.get(ref_key, "")
+        if not url or not ref:
+            records.append(
+                {
+                    "name": name,
+                    "url": url,
+                    "expected_ref": ref,
+                    "path": str(sources_root / name),
+                    "status": "blocked",
+                    "blocker_reason": "missing_url_or_ref",
+                }
+            )
+            continue
+        records.append(
+            prepare_git_component(
+                name,
+                url,
+                ref,
+                sources_root / name,
+                previous_git,
+                strict,
+                cache_root=cache_root,
+            )
+        )
+    return records
+
+
+def prepare_runtime_git_components(
+    context: dict[str, Any],
+    paths: dict[str, Path],
+) -> list[dict[str, Any]]:
+    env = context["env"]
+    cache_root = context["cache_root"]
+    previous_git = previous_git_components(cache_root)
+    components = [
         prepare_framework_approved_modsecurity_v3_source(
             env,
-            framework_root,
-            modsec_path,
+            context["framework_root"],
+            paths["modsec_path"],
             cache_root=cache_root,
         ),
         prepare_expat_git_component(
-            env.get("EXPAT_GIT_URL") or expat_source_url,
-            expat_git_ref,
-            env.get("EXPAT_PROMPT_EXPECTED_LATEST") or expat_git_ref,
-            git_root / "libexpat",
+            env.get("EXPAT_GIT_URL") or context["expat_source_url"],
+            context["expat_git_ref"],
+            env.get("EXPAT_PROMPT_EXPECTED_LATEST") or context["expat_git_ref"],
+            paths["git_root"] / "libexpat",
             previous_git,
-            strict,
+            context["strict"],
             cache_root=cache_root,
         ),
     ]
-    if target_connector == "all":
-        git_components.extend(
+    if context["target_connector"] == "all":
+        components.extend(
             [
                 prepare_git_component(
                     "coreruleset",
                     env.get("CRS_REPO_URL", ""),
                     env.get("CRS_GIT_REF", ""),
-                    crs_path,
+                    paths["crs_path"],
                     previous_git,
-                    strict,
+                    context["strict"],
                     cache_root=cache_root,
                 ),
                 prepare_release_git_component(
                     "go-ftw",
-                    go_ftw_source_url,
-                    go_ftw_expected_latest,
-                    git_root / "go-ftw",
+                    context["go_ftw_source_url"],
+                    context["go_ftw_expected_latest"],
+                    paths["git_root"] / "go-ftw",
                     previous_git,
-                    strict,
+                    context["strict"],
                     optional=True,
                     cache_root=cache_root,
                 ),
                 prepare_release_git_component(
                     "albedo",
-                    albedo_source_url,
-                    albedo_expected_latest,
-                    git_root / "albedo",
+                    context["albedo_source_url"],
+                    context["albedo_expected_latest"],
+                    paths["git_root"] / "albedo",
                     previous_git,
-                    strict,
+                    context["strict"],
                     optional=True,
                     cache_root=cache_root,
                 ),
             ]
         )
     if env.get("ALLOW_EXTERNAL_CONNECTOR_REPOS") == "1":
-        for name, url_key, ref_key in (
-            ("modsecurity-apache", "MODSECURITY_APACHE_GIT_URL", "MODSECURITY_APACHE_GIT_REF"),
-            ("modsecurity-nginx", "MODSECURITY_NGINX_GIT_URL", "MODSECURITY_NGINX_GIT_REF"),
-        ):
-            url = env.get(url_key, "")
-            ref = env.get(ref_key, "")
-            if not url or not ref:
-                git_components.append(
-                    {
-                        "name": name,
-                        "url": url,
-                        "expected_ref": ref,
-                        "path": str(sources_root / name),
-                        "status": "blocked",
-                        "blocker_reason": "missing_url_or_ref",
-                    }
-                )
-            else:
-                git_components.append(
-                    prepare_git_component(
-                        name,
-                        url,
-                        ref,
-                        sources_root / name,
-                        previous_git,
-                        strict,
-                        cache_root=cache_root,
-                    )
-                )
+        components.extend(
+            optional_external_connector_sources(
+                env,
+                paths["sources_root"],
+                previous_git,
+                context["strict"],
+                cache_root,
+            )
+        )
+    return components
 
+
+def apache_archive_records(env: dict[str, str], archives_root: Path, cache_root: Path) -> list[dict[str, Any]]:
+    apache_root = archives_root / "apache"
+    return [
+        prepare_archive("httpd", env.get("HTTPD_SOURCE_URL", ""), env.get("HTTPD_SHA256", ""), env.get("HTTPD_SHA256_URL", ""), apache_root, cache_root),
+        prepare_archive("apr", env.get("APR_SOURCE_URL", ""), env.get("APR_SHA256", ""), env.get("APR_SHA256_URL", ""), apache_root, cache_root),
+        prepare_archive("apr-util", env.get("APR_UTIL_SOURCE_URL", ""), env.get("APR_UTIL_SHA256", ""), env.get("APR_UTIL_SHA256_URL", ""), apache_root, cache_root),
+        prepare_archive(
+            "pcre2",
+            env.get("PCRE2_SOURCE_URL", ""),
+            env.get("PCRE2_SHA256", ""),
+            env.get("PCRE2_SHA256_URL", ""),
+            apache_root,
+            cache_root,
+            required_literal_sha256=True,
+        ),
+    ]
+
+
+def nginx_archive_records(env: dict[str, str], archives_root: Path, cache_root: Path) -> list[dict[str, Any]]:
+    nginx_root = archives_root / "nginx"
+    try:
+        nginx_tag, nginx_url, nginx_lookup_status = resolve_nginx_archive(env, nginx_root / "nginx-latest-release.json")
+        nginx_record = prepare_archive("nginx", nginx_url, env.get("NGINX_SHA256", ""), "", nginx_root, cache_root)
+        nginx_record["resolved_tag"] = nginx_tag
+        nginx_record["release_lookup_status"] = nginx_lookup_status
+        records = [nginx_record]
+        nginx_protocol = nginx_protocol_build_inputs(env)
+        if nginx_protocol["quic_enabled"]:
+            records.append(
+                prepare_archive(
+                    "nginx-quic-tls",
+                    str(nginx_protocol["tls_source_url"]),
+                    str(nginx_protocol["tls_source_sha256"]),
+                    "",
+                    nginx_root,
+                    cache_root,
+                )
+            )
+        return records
+    except Exception as exc:
+        return [{"name": "nginx", "status": "blocked", "blocker_reason": network_blocker_reason(exc), "checksum_status": "unknown"}]
+
+
+def prepare_runtime_archives(context: dict[str, Any], paths: dict[str, Path]) -> list[dict[str, Any]]:
+    env = context["env"]
+    cache_root = context["cache_root"]
+    target_connector = context["target_connector"]
     archives: list[dict[str, Any]] = []
     if target_connector in {"all", "apache"}:
-        archives.extend(
-            [
-                prepare_archive("httpd", env.get("HTTPD_SOURCE_URL", ""), env.get("HTTPD_SHA256", ""), env.get("HTTPD_SHA256_URL", ""), archives_root / "apache", cache_root),
-                prepare_archive("apr", env.get("APR_SOURCE_URL", ""), env.get("APR_SHA256", ""), env.get("APR_SHA256_URL", ""), archives_root / "apache", cache_root),
-                prepare_archive("apr-util", env.get("APR_UTIL_SOURCE_URL", ""), env.get("APR_UTIL_SHA256", ""), env.get("APR_UTIL_SHA256_URL", ""), archives_root / "apache", cache_root),
-                prepare_archive(
-                    "pcre2",
-                    env.get("PCRE2_SOURCE_URL", ""),
-                    env.get("PCRE2_SHA256", ""),
-                    env.get("PCRE2_SHA256_URL", ""),
-                    archives_root / "apache",
-                    cache_root,
-                    required_literal_sha256=True,
-                ),
-            ]
-        )
+        archives.extend(apache_archive_records(env, paths["archives_root"], cache_root))
     if target_connector in {"all", "haproxy"}:
         archives.append(
-            prepare_archive("haproxy", env.get("HAPROXY_SOURCE_URL", ""), env.get("HAPROXY_SHA256", ""), env.get("HAPROXY_SHA256_URL", ""), archives_root / "haproxy", cache_root)
+            prepare_archive(
+                "haproxy",
+                env.get("HAPROXY_SOURCE_URL", ""),
+                env.get("HAPROXY_SHA256", ""),
+                env.get("HAPROXY_SHA256_URL", ""),
+                paths["archives_root"] / "haproxy",
+                cache_root,
+            )
         )
     if target_connector in {"all", "nginx"}:
-        try:
-            nginx_tag, nginx_url, nginx_lookup_status = resolve_nginx_archive(env, archives_root / "nginx/nginx-latest-release.json")
-            nginx_record = prepare_archive("nginx", nginx_url, env.get("NGINX_SHA256", ""), "", archives_root / "nginx", cache_root)
-            nginx_record["resolved_tag"] = nginx_tag
-            nginx_record["release_lookup_status"] = nginx_lookup_status
-            archives.append(nginx_record)
-            nginx_protocol = nginx_protocol_build_inputs(env)
-            if nginx_protocol["quic_enabled"]:
-                archives.append(
-                    prepare_archive(
-                        "nginx-quic-tls",
-                        str(nginx_protocol["tls_source_url"]),
-                        str(nginx_protocol["tls_source_sha256"]),
-                        "",
-                        archives_root / "nginx",
-                        cache_root,
-                    )
-                )
-        except Exception as exc:
-            archives.append({"name": "nginx", "status": "blocked", "blocker_reason": network_blocker_reason(exc), "checksum_status": "unknown"})
+        archives.extend(nginx_archive_records(env, paths["archives_root"], cache_root))
+    return archives
 
-    git_by_name = {str(item.get("name")): item for item in git_components if isinstance(item, dict)}
+
+def git_components_by_name(git_components: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {
+        str(item.get("name")): item
+        for item in git_components
+        if isinstance(item, dict) and item.get("name")
+    }
+
+
+def not_selected_connector(name: str, modsecurity: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "connector": name,
+        "name": name,
+        "status": "not_selected",
+        "blocker_reason": "",
+        "modsecurity_build_id": modsecurity.get("build_id", ""),
+    }
+
+
+def prepare_native_component_records(
+    context: dict[str, Any],
+    paths: dict[str, Path],
+    git_components: list[dict[str, Any]],
+    archives: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    env = context["env"]
+    cache_root = context["cache_root"]
+    build_root = context["build_root"]
+    connector_root = context["connector_root"]
+    framework_root = context["framework_root"]
+    target_connector = context["target_connector"]
+    git_by_name = git_components_by_name(git_components)
     expat = prepare_expat(env, cache_root, build_root, git_by_name.get("expat", {}))
     modsecurity = prepare_shared_modsecurity(
         env,
@@ -6293,161 +8299,192 @@ def main() -> int:
         name: connector_plan(connector_root, framework_root, cache_root, env, name, modsecurity, expat, archives)
         for name in ("apache", "nginx", "haproxy")
     }
-    def not_selected(name: str) -> dict[str, Any]:
-        return {
-            "connector": name,
-            "name": name,
-            "status": "not_selected",
-            "blocker_reason": "",
-            "modsecurity_build_id": modsecurity.get("build_id", ""),
-        }
-
-    apache_httpd = (
-        prepare_apache_httpd(
+    apache_httpd = not_selected_connector("apache", modsecurity)
+    nginx = not_selected_connector("nginx", modsecurity)
+    haproxy = not_selected_connector("haproxy", modsecurity)
+    if target_connector in {"all", "apache"}:
+        apache_httpd = prepare_apache_httpd(
             env,
             connector_root,
             framework_root,
             cache_root,
             build_root,
-            sources_root,
-            archives_root,
+            paths["sources_root"],
+            paths["archives_root"],
             expat,
             modsecurity,
             connector_plans["apache"],
         )
-        if target_connector in {"all", "apache"}
-        else not_selected("apache")
-    )
-    nginx = (
-        prepare_nginx_runtime(
+    if target_connector in {"all", "nginx"}:
+        nginx = prepare_nginx_runtime(
             env,
             connector_root,
             framework_root,
             cache_root,
             build_root,
-            sources_root,
-            archives_root,
+            paths["sources_root"],
+            paths["archives_root"],
             modsecurity,
             connector_plans["nginx"],
         )
-        if target_connector in {"all", "nginx"}
-        else not_selected("nginx")
-    )
-    haproxy = (
-        prepare_haproxy_runtime(
+    if target_connector in {"all", "haproxy"}:
+        haproxy = prepare_haproxy_runtime(
             env,
             connector_root,
             framework_root,
             cache_root,
             build_root,
-            sources_root,
-            archives_root,
+            paths["sources_root"],
+            paths["archives_root"],
             modsecurity,
             connector_plans["haproxy"],
         )
-        if target_connector in {"all", "haproxy"}
-        else not_selected("haproxy")
-    )
     if target_connector == "all":
         go_ftw = prepare_go_tool("go-ftw", "GO_FTW_BIN", cache_root, build_root, git_by_name.get("go-ftw", {}), optional=True)
         albedo = prepare_go_tool("albedo", "ALBEDO_BIN", cache_root, build_root, git_by_name.get("albedo", {}), optional=True)
     else:
         go_ftw = {"dependency": "go-ftw", "name": "go-ftw", "status": "not_selected", "blocker_reason": ""}
         albedo = {"dependency": "albedo", "name": "albedo", "status": "not_selected", "blocker_reason": ""}
+    return {
+        "expat": expat,
+        "modsecurity": modsecurity,
+        "apache_httpd": apache_httpd,
+        "nginx": nginx,
+        "haproxy": haproxy,
+        "go_ftw": go_ftw,
+        "albedo": albedo,
+    }
 
+
+def add_modsecurity_runtime_environment(runtime_env: dict[str, str], modsecurity: dict[str, Any]) -> None:
+    if modsecurity.get("status") not in READY_COMPONENT_STATUSES:
+        return
+    runtime_env.update(
+        {
+            "MODSECURITY_SOURCE_URL": str(modsecurity.get("source_url", "")),
+            "MODSECURITY_SOURCE_REF": str(modsecurity.get("source_ref", "")),
+            "MODSECURITY_SOURCE_SHA": str(modsecurity.get("actual_sha", "")),
+            "MODSECURITY_BUILD_FLAGS": str(modsecurity.get("build_flags", "")),
+            "MODSECURITY_DEPENDENCY_HASH": str(modsecurity.get("dependency_hash", "")),
+            "MODSECURITY_BUILD_ID": str(modsecurity.get("build_id", "")),
+            "MODSECURITY_PREFIX": str(modsecurity.get("prefix", "")),
+            "MODSECURITY_SHARED_PREFIX": str(modsecurity.get("prefix", "")),
+            "MODSECURITY_INCLUDE_DIR": str(modsecurity.get("include_dir", "")),
+            "MODSECURITY_LIB_DIR": str(modsecurity.get("lib_dir", "")),
+            "MODSECURITY_PKG_CONFIG_PATH": str(modsecurity.get("pkg_config_path", "")),
+        }
+    )
+
+
+def add_expat_runtime_environment(
+    runtime_env: dict[str, str],
+    expat: dict[str, Any],
+    env: dict[str, str],
+) -> None:
+    if expat.get("status") not in {"present", "built"}:
+        return
+    runtime_env.update(
+        {
+            "EXPAT_PREFIX": str(expat.get("prefix", "")),
+            "CPPFLAGS": " ".join(part for part in (f"-I{Path(str(expat.get('prefix'))) / 'include'}", env.get("CPPFLAGS", "")) if part).strip(),
+            "LDFLAGS": " ".join(part for part in (f"-L{expat.get('lib_dir')}", env.get("LDFLAGS", "")) if part).strip(),
+            "LIBS": " ".join(part for part in (env.get("LIBS", ""), resolve_crypt_link_arg(env)) if part).strip(),
+            "PKG_CONFIG_PATH": f"{expat.get('prefix')}/lib/pkgconfig{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep),
+            "LD_LIBRARY_PATH": f"{expat.get('lib_dir')}{os.pathsep}{env.get('LD_LIBRARY_PATH', '')}".rstrip(os.pathsep),
+        }
+    )
+
+
+def add_apache_runtime_environment(
+    runtime_env: dict[str, str],
+    apache_httpd: dict[str, Any],
+    cache_root: Path,
+) -> None:
+    if apache_httpd.get("status") not in READY_COMPONENT_STATUSES:
+        return
+    runtime_env.update(
+        {
+            "APACHECTL_BIN": str(apache_httpd.get("apachectl_bin", "")),
+            "APACHE_BUILD_ROOT": str(apache_httpd.get("build_path", "")),
+            "APACHE_BUILD_OWNER_ROOT": str(cache_root / "builds" / "connectors"),
+            "APACHE_HTTPD": str(apache_httpd.get("httpd_bin", "")),
+            "APXS": str(apache_httpd.get("apxs_bin", "")),
+            "APXS_BIN": str(apache_httpd.get("apxs_bin", "")),
+            "HTTPD_PREFIX": str(apache_httpd.get("httpd_prefix", "")),
+            "PCRE2_PREFIX": str(apache_httpd.get("pcre2_prefix", "")),
+            "APACHE_MODULE": str(apache_httpd.get("module_file", "")),
+            "APACHE_MRTS_MODULE": str(apache_httpd.get("module_file", "")),
+            "APACHE_MRTS_MODSECURITY_LIB_DIR": str(apache_httpd.get("modsecurity_lib_dir", "")),
+            "APACHE_CONNECTOR_BUILD_ID": str(apache_httpd.get("connector_build_id", "")),
+        }
+    )
+
+
+def add_haproxy_runtime_environment(runtime_env: dict[str, str], haproxy: dict[str, Any]) -> None:
+    if haproxy.get("status") not in READY_COMPONENT_STATUSES:
+        return
+    runtime_env.update(
+        {
+            "HAPROXY_BIN": str(haproxy.get("haproxy_bin", "")),
+            "HAPROXY_RUNTIME_BUILD_DIR": str(haproxy.get("haproxy_runtime_build_dir", "")),
+            "HAPROXY_RUNTIME_DIR": str(haproxy.get("haproxy_runtime_dir", "")),
+            "SPOA_RUNTIME_BIN": str(haproxy.get("spoa_runtime_bin", "")),
+            "MODSECURITY_BINDING_DIR": str(haproxy.get("modsecurity_binding_dir", "")),
+            "HAPROXY_CONNECTOR_BUILD_ID": str(haproxy.get("connector_build_id", "")),
+        }
+    )
+
+
+def runtime_component_environment(
+    context: dict[str, Any],
+    paths: dict[str, Path],
+    components: dict[str, dict[str, Any]],
+) -> dict[str, str]:
+    env = context["env"]
+    cache_root = context["cache_root"]
     runtime_env = {
         "CONNECTOR_COMPONENT_CACHE": str(cache_root),
-        "SOURCE_ROOT": str(sources_root),
-        "MODSECURITY_SOURCE_DIR": str(modsec_path),
-        "MODSECURITY_V3_SOURCE_DIR": str(modsec_path),
-        "MODSECURITY_V3_ROOT": str(modsec_path),
-        "CRS_SOURCE_DIR": str(crs_path),
-        "APACHE_DOWNLOAD_DIR": str(archives_root / "apache"),
-        "NGINX_DOWNLOAD_DIR": str(archives_root / "nginx"),
-        "HAPROXY_SOURCE_ROOT": str(haproxy_source_root),
-        "HAPROXY_DOWNLOAD_DIR": str(archives_root / "haproxy"),
-        "HAPROXY_SOURCE_DIR": str(haproxy_source_root / f"haproxy-{env.get('HAPROXY_VERSION', '3.2.19')}"),
+        "SOURCE_ROOT": str(paths["sources_root"]),
+        "MODSECURITY_SOURCE_DIR": str(paths["modsec_path"]),
+        "MODSECURITY_V3_SOURCE_DIR": str(paths["modsec_path"]),
+        "MODSECURITY_V3_ROOT": str(paths["modsec_path"]),
+        "CRS_SOURCE_DIR": str(paths["crs_path"]),
+        "APACHE_DOWNLOAD_DIR": str(paths["archives_root"] / "apache"),
+        "NGINX_DOWNLOAD_DIR": str(paths["archives_root"] / "nginx"),
+        "HAPROXY_SOURCE_ROOT": str(paths["haproxy_source_root"]),
+        "HAPROXY_DOWNLOAD_DIR": str(paths["archives_root"] / "haproxy"),
+        "HAPROXY_SOURCE_DIR": str(paths["haproxy_source_root"] / f"haproxy-{env.get('HAPROXY_VERSION', '3.2.19')}"),
     }
-    if modsecurity.get("status") in {"built", "reused", "present"}:
-        runtime_env.update(
-            {
-                "MODSECURITY_SOURCE_URL": str(modsecurity.get("source_url", "")),
-                "MODSECURITY_SOURCE_REF": str(modsecurity.get("source_ref", "")),
-                "MODSECURITY_SOURCE_SHA": str(modsecurity.get("actual_sha", "")),
-                "MODSECURITY_BUILD_FLAGS": str(modsecurity.get("build_flags", "")),
-                "MODSECURITY_DEPENDENCY_HASH": str(modsecurity.get("dependency_hash", "")),
-                "MODSECURITY_BUILD_ID": str(modsecurity.get("build_id", "")),
-                "MODSECURITY_PREFIX": str(modsecurity.get("prefix", "")),
-                "MODSECURITY_SHARED_PREFIX": str(modsecurity.get("prefix", "")),
-                "MODSECURITY_INCLUDE_DIR": str(modsecurity.get("include_dir", "")),
-                "MODSECURITY_LIB_DIR": str(modsecurity.get("lib_dir", "")),
-                "MODSECURITY_PKG_CONFIG_PATH": str(modsecurity.get("pkg_config_path", "")),
-            }
-        )
-    if expat.get("status") in {"present", "built"}:
-        runtime_env.update(
-            {
-                "EXPAT_PREFIX": str(expat.get("prefix", "")),
-                "CPPFLAGS": " ".join(part for part in (f"-I{Path(str(expat.get('prefix'))) / 'include'}", env.get("CPPFLAGS", "")) if part).strip(),
-                "LDFLAGS": " ".join(part for part in (f"-L{expat.get('lib_dir')}", env.get("LDFLAGS", "")) if part).strip(),
-                "LIBS": " ".join(part for part in (env.get("LIBS", ""), resolve_crypt_link_arg(env)) if part).strip(),
-                "PKG_CONFIG_PATH": f"{expat.get('prefix')}/lib/pkgconfig{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep),
-                "LD_LIBRARY_PATH": f"{expat.get('lib_dir')}{os.pathsep}{env.get('LD_LIBRARY_PATH', '')}".rstrip(os.pathsep),
-            }
-        )
-    if apache_httpd.get("status") in {"present", "built", "reused"}:
-        runtime_env.update(
-            {
-                "APACHECTL_BIN": str(apache_httpd.get("apachectl_bin", "")),
-                "APACHE_BUILD_ROOT": str(apache_httpd.get("build_path", "")),
-                "APACHE_BUILD_OWNER_ROOT": str(cache_root / "builds" / "connectors"),
-                "APACHE_HTTPD": str(apache_httpd.get("httpd_bin", "")),
-                "APXS": str(apache_httpd.get("apxs_bin", "")),
-                "APXS_BIN": str(apache_httpd.get("apxs_bin", "")),
-                "HTTPD_PREFIX": str(apache_httpd.get("httpd_prefix", "")),
-                "PCRE2_PREFIX": str(apache_httpd.get("pcre2_prefix", "")),
-                "APACHE_MODULE": str(apache_httpd.get("module_file", "")),
-                "APACHE_MRTS_MODULE": str(apache_httpd.get("module_file", "")),
-                "APACHE_MRTS_MODSECURITY_LIB_DIR": str(apache_httpd.get("modsecurity_lib_dir", "")),
-                "APACHE_CONNECTOR_BUILD_ID": str(apache_httpd.get("connector_build_id", "")),
-            }
-        )
-    runtime_env.update(nginx_runtime_environment(connector_root, cache_root, nginx))
-    if haproxy.get("status") in {"built", "reused", "present"}:
-        runtime_env.update(
-            {
-                "HAPROXY_BIN": str(haproxy.get("haproxy_bin", "")),
-                "HAPROXY_RUNTIME_BUILD_DIR": str(haproxy.get("haproxy_runtime_build_dir", "")),
-                "HAPROXY_RUNTIME_DIR": str(haproxy.get("haproxy_runtime_dir", "")),
-                "SPOA_RUNTIME_BIN": str(haproxy.get("spoa_runtime_bin", "")),
-                "MODSECURITY_BINDING_DIR": str(haproxy.get("modsecurity_binding_dir", "")),
-                "HAPROXY_CONNECTOR_BUILD_ID": str(haproxy.get("connector_build_id", "")),
-            }
-        )
-    runtime_env["RUNTIME_BUILD_CACHE_MANIFEST"] = str(report_path_from_root(report_dir, "runtime_build_cache", "json"))
-    if go_ftw.get("path"):
-        runtime_env["GO_FTW_BIN"] = str(go_ftw["path"])
-    if albedo.get("path"):
-        runtime_env["ALBEDO_BIN"] = str(albedo["path"])
-    # Preserve the shared file as a backwards-compatible cache/report input.
-    # It is atomically published but deliberately not a runner input: a
-    # concurrent target-specific invocation may replace it after this one
-    # returns.  Every invocation gets a separate local snapshot below its
-    # RUNTIME_REPORT_OUTPUT_ROOT instead.
-    env_path = cache_root / "runtime-env.sh"
-    atomic_write_text(env_path, runtime_env_shell_text(runtime_env))
-    snapshot_reserved_here = False
-    if requested_runtime_env_snapshot is not None:
-        runtime_env_snapshot = requested_runtime_env_snapshot
-    else:
-        runtime_env_snapshot = allocate_runtime_env_snapshot(output_root)
-        snapshot_reserved_here = True
+    add_modsecurity_runtime_environment(runtime_env, components["modsecurity"])
+    add_expat_runtime_environment(runtime_env, components["expat"], env)
+    add_apache_runtime_environment(runtime_env, components["apache_httpd"], cache_root)
+    runtime_env.update(nginx_runtime_environment(context["connector_root"], cache_root, components["nginx"]))
+    add_haproxy_runtime_environment(runtime_env, components["haproxy"])
+    runtime_env["RUNTIME_BUILD_CACHE_MANIFEST"] = str(
+        report_path_from_root(context["report_dir"], "runtime_build_cache", "json")
+    )
+    if components["go_ftw"].get("path"):
+        runtime_env["GO_FTW_BIN"] = str(components["go_ftw"]["path"])
+    if components["albedo"].get("path"):
+        runtime_env["ALBEDO_BIN"] = str(components["albedo"]["path"])
+    return runtime_env
+
+
+def write_runtime_environment_exports(context: dict[str, Any], runtime_env: dict[str, str]) -> Path:
+    cache_root = context["cache_root"]
+    output_root = context["output_root"]
+    # Keep the shared cache file as a backwards-compatible report input while
+    # each invocation uses its own output-root-contained snapshot.
+    atomic_write_text(cache_root / "runtime-env.sh", runtime_env_shell_text(runtime_env))
+    requested_snapshot = context["requested_runtime_env_snapshot"]
+    snapshot_reserved_here = requested_snapshot is None
+    runtime_env_snapshot = requested_snapshot or allocate_runtime_env_snapshot(output_root)
     try:
-        runtime_env_snapshot = write_runtime_env_snapshot(
+        return write_runtime_env_snapshot(
             runtime_env,
             snapshot_path=runtime_env_snapshot,
             output_root=output_root,
-            target_connector=target_connector,
+            target_connector=context["target_connector"],
             cache_root=cache_root,
         )
     except Exception:
@@ -6457,28 +8494,47 @@ def main() -> int:
             except FileNotFoundError:
                 pass
         raise
-    connector_builds = [apache_httpd, nginx, haproxy]
-    build_cache = runtime_build_cache_payload(modsecurity, connector_builds)
-    cache_records = [*git_components, *archives, modsecurity, apache_httpd, nginx, haproxy, go_ftw, albedo, expat]
-    cache_manifest_status = (
+
+
+def runtime_component_cache_manifest_status(records: list[dict[str, Any]]) -> str:
+    return (
         CACHE_MANIFEST_STATUS_COMPLETE
-        if all(item.get("status") not in {"unknown", "blocked", "corrupt", "failed"} for item in cache_records)
+        if all(item.get("status") not in {"unknown", "blocked", "corrupt", "failed"} for item in records)
         else "incomplete"
     )
 
+
+def runtime_component_payload(
+    context: dict[str, Any],
+    components: dict[str, dict[str, Any]],
+    git_components: list[dict[str, Any]],
+    archives: list[dict[str, Any]],
+    prepare_phases: list[str],
+    runtime_env: dict[str, str],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    apache_httpd = components["apache_httpd"]
+    nginx = components["nginx"]
+    haproxy = components["haproxy"]
+    modsecurity = components["modsecurity"]
+    go_ftw = components["go_ftw"]
+    albedo = components["albedo"]
+    expat = components["expat"]
+    connector_builds = [apache_httpd, nginx, haproxy]
+    build_cache = runtime_build_cache_payload(modsecurity, connector_builds)
+    cache_records = [*git_components, *archives, modsecurity, apache_httpd, nginx, haproxy, go_ftw, albedo, expat]
     payload = {
         "cache_schema_version": CACHE_SCHEMA_VERSION,
-        "status": cache_manifest_status,
+        "status": runtime_component_cache_manifest_status(cache_records),
         "generated_at": utc_now(),
-        "cache_root": str(cache_root),
-        "connector_root": str(connector_root),
-        "framework_root": str(framework_root),
-        "build_root": str(build_root),
-        "native_root": str(native_root),
-        "strict_verify": strict,
-        "target_connector": target_connector,
+        "cache_root": str(context["cache_root"]),
+        "connector_root": str(context["connector_root"]),
+        "framework_root": str(context["framework_root"]),
+        "build_root": str(context["build_root"]),
+        "native_root": str(context["native_root"]),
+        "strict_verify": context["strict"],
+        "target_connector": context["target_connector"],
         "prepare_phases": prepare_phases,
-        "framework_runtime_config": {key: env.get(key, "") for key in COMMON_SH_CONFIG_VARS},
+        "framework_runtime_config": {key: context["env"].get(key, "") for key in COMMON_SH_CONFIG_VARS},
         "runtime_env": runtime_env,
         "git_components": git_components,
         "archives": archives,
@@ -6499,7 +8555,20 @@ def main() -> int:
             "native_system_nginx_dependency": False,
         },
     }
-    write_json(cache_root / "manifest.json", payload)
+    return payload, build_cache
+
+
+def write_runtime_component_reports(
+    context: dict[str, Any],
+    payload: dict[str, Any],
+    build_cache: dict[str, Any],
+    git_components: list[dict[str, Any]],
+) -> Path:
+    cache_root = context["cache_root"]
+    connector_root = context["connector_root"]
+    framework_root = context["framework_root"]
+    report_dir = context["report_dir"]
+    write_json(cache_root / CACHE_MANIFEST_FILENAME, payload)
     write_json(cache_root / "git-components.json", {"generated_at": payload["generated_at"], "components": git_components})
     write_json(cache_root / "runtime-build-cache.json", build_cache)
     component_metadata = build_metadata(
@@ -6507,7 +8576,7 @@ def main() -> int:
         make_target="prepare-runtime-components",
         connector_root=connector_root,
         framework_root=framework_root,
-        inputs=[cache_root / "manifest.json"],
+        inputs=[cache_root / CACHE_MANIFEST_FILENAME],
         generated_at=payload["generated_at"],
         report_key="runtime_component_cache",
     )
@@ -6531,29 +8600,55 @@ def main() -> int:
     build_md.write_text(generated_markdown_text(runtime_build_cache_markdown(build_cache), build_metadata_payload), encoding="utf-8")
     postprocess = connector_root / "ci/evidence/reports/update-runtime-reports.py"
     if postprocess.is_file():
-        run([sys.executable, str(postprocess), "--connector-root", str(connector_root), "--output-root", str(output_root)])
+        run([sys.executable, str(postprocess), "--connector-root", str(connector_root), "--output-root", str(context["output_root"])])
+    return component_md
 
-    blocked = [
+
+def blocked_input_records(
+    git_components: list[dict[str, Any]],
+    archives: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    non_nginx = [
         item
         for item in git_components + archives
         if item.get("status") in {"blocked", "corrupt"}
         and item.get("name") not in {"nginx", "nginx-quic-tls"}
     ]
-    nginx_blocked = [
+    nginx = [
         item
         for item in archives
         if item.get("name") in {"nginx", "nginx-quic-tls"}
         and item.get("status") in {"blocked", "corrupt"}
     ]
-    if nginx.get("status") not in {"present", "built", "reused"}:
-        blocked.extend(nginx_blocked)
-    native_components = (("apache_httpd", apache_httpd), ("nginx", nginx), ("haproxy", haproxy))
-    selected_components = (
-        native_components
-        if target_connector == "all"
-        else tuple(item for item in native_components if item[1].get("connector") == target_connector)
+    return non_nginx, nginx
+
+
+def selected_native_component_records(
+    target_connector: str,
+    components: dict[str, dict[str, Any]],
+) -> tuple[tuple[str, dict[str, Any]], ...]:
+    native_components = (
+        ("apache_httpd", components["apache_httpd"]),
+        ("nginx", components["nginx"]),
+        ("haproxy", components["haproxy"]),
     )
-    for component_name, component in (("modsecurity", modsecurity), *selected_components):
+    if target_connector == "all":
+        return native_components
+    return tuple(item for item in native_components if item[1].get("connector") == target_connector)
+
+
+def runtime_component_blockers(
+    context: dict[str, Any],
+    components: dict[str, dict[str, Any]],
+    git_components: list[dict[str, Any]],
+    archives: list[dict[str, Any]],
+    build_cache: dict[str, Any],
+) -> list[dict[str, Any]]:
+    blocked, nginx_blocked = blocked_input_records(git_components, archives)
+    if components["nginx"].get("status") not in READY_COMPONENT_STATUSES:
+        blocked.extend(nginx_blocked)
+    selected = selected_native_component_records(context["target_connector"], components)
+    for component_name, component in (("modsecurity", components["modsecurity"]), *selected):
         if component.get("status") in {"blocked", "corrupt", "failed"}:
             blocked.append({"name": component_name, **component})
     if build_cache.get("build_reuse_summary", {}).get("status") == "blocked":
@@ -6563,23 +8658,67 @@ def main() -> int:
                 "blocker_reason": build_cache.get("build_reuse_summary", {}).get("blocker_reason", "modsecurity_build_id_mismatch"),
             }
         )
-    for component_name, component in (("expat", expat), ("go-ftw", go_ftw), ("albedo", albedo)):
+    for component_name in ("expat", "go_ftw", "albedo"):
+        component = components[component_name]
         if component.get("status") in {"blocked", "corrupt", "failed"}:
-            blocked.append({"name": component_name, **component})
+            blocked.append({"name": "go-ftw" if component_name == "go_ftw" else component_name, **component})
+    return blocked
+
+
+def runtime_component_exit_code(
+    context: dict[str, Any],
+    blocked: list[dict[str, Any]],
+    component_md: Path,
+    runtime_env_snapshot: Path,
+) -> int:
     if blocked:
         for item in blocked:
             label = "FAILED" if item.get("status") == "failed" else "BLOCKED"
             print(f"prepare-runtime-components: {label} {item.get('name')}: {item.get('blocker_reason')}")
-        # Once a build command ran, a non-zero exit or a missing expected
-        # artifact is an execution failure.  Exit 77 remains reserved for a
-        # prerequisite that prevented the build from starting.
         if any("build_exit_code" in item for item in blocked):
             return 1
         return 77
-    print(f"prepare-runtime-components: cache={cache_root}")
+    print(f"prepare-runtime-components: cache={context['cache_root']}")
     print(f"prepare-runtime-components: report={component_md}")
     print(f"prepare-runtime-components: runtime-env-snapshot={runtime_env_snapshot}")
     return 0
+
+
+def main() -> int:
+    context, exit_code = runtime_component_context(parse_runtime_component_args())
+    if context is None:
+        return exit_code
+    paths = runtime_component_cache_paths(context["cache_root"])
+    prepare_phases = [
+        "1. validate safe paths",
+        "2. prepare git/source/archive cache recursively",
+        "3. prepare/build expat local prefix",
+        "4. prepare/build shared ModSecurity v3 once per source/ref/build config",
+        "5. prepare/reuse connector builds keyed by connector inputs and ModSecurity build ID",
+        "6. prepare/build go-ftw from latest release tag",
+        "7. prepare/build albedo from latest release tag",
+        "8. write manifests/reports",
+    ]
+
+    git_components = prepare_runtime_git_components(context, paths)
+
+    archives = prepare_runtime_archives(context, paths)
+
+    components = prepare_native_component_records(context, paths, git_components, archives)
+    runtime_env = runtime_component_environment(context, paths, components)
+    runtime_env_snapshot = write_runtime_environment_exports(context, runtime_env)
+    payload, build_cache = runtime_component_payload(
+        context,
+        components,
+        git_components,
+        archives,
+        prepare_phases,
+        runtime_env,
+    )
+    component_md = write_runtime_component_reports(context, payload, build_cache, git_components)
+
+    blocked = runtime_component_blockers(context, components, git_components, archives, build_cache)
+    return runtime_component_exit_code(context, blocked, component_md, runtime_env_snapshot)
 
 
 if __name__ == "__main__":

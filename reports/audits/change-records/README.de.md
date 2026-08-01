@@ -15,6 +15,11 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-CI-Provisioning-SonarQube-Cloud-Remediation](CR-20260801-ci-provisioning-sonar-remediation.de.md)
+  — zerlegt das aktuelle Provisioner-Inventar ohne Suppressions, bewahrt Cache-
+  und Provenance-Controls und ergänzt pro Override negative Pfadabdeckung;
+  Exact-Head-Hosted-Verifikation bleibt vor jedem Merge erforderlich.
+
 - [Parent-Common-Runtime-SonarQube-Cloud-Maintainability-Remediation](CR-20260801-sonar-common-runtime-maintainability.de.md)
   — deckt das aktuelle 18er-`common/runtime/`-Inventar mit begrenzter
   Transaction-State-Gruppierung, const-korrekten Parser-/Runtime-Views,

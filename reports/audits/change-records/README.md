@@ -13,6 +13,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI provisioning SonarQube Cloud remediation](CR-20260801-ci-provisioning-sonar-remediation.md)
+  — decomposes the current provisioner inventory without suppressions, keeps
+  cache/provenance controls intact, and adds per-override negative path
+  coverage; exact-head hosted verification remains required before any merge.
+
 - [Parent Common Runtime SonarQube Cloud maintainability remediation](CR-20260801-sonar-common-runtime-maintainability.md)
   — covers the current 18-item `common/runtime/` inventory with bounded
   transaction-state grouping, const-correct parser/runtime views, C17 checks,

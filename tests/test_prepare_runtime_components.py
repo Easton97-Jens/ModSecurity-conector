@@ -299,6 +299,26 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             "missing_expat_headers",
         )
 
+    def test_expat_autotools_stops_when_autoreconf_fails(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="expat-autoreconf-") as temporary:
+            root = Path(temporary)
+            source_dir = root / "source"
+            source_dir.mkdir()
+            with mock.patch.object(components, "run_expat_build_step", return_value=False) as run_step:
+                result = components.run_expat_autotools_build(
+                    source_dir,
+                    root / "build",
+                    root / "prefix",
+                    {},
+                    [],
+                    root / "build.log",
+                    {},
+                )
+
+        self.assertFalse(result)
+        run_step.assert_called_once()
+        self.assertEqual(run_step.call_args.args[0], "expat-autoreconf")
+
     def test_nginx_blocker_reports_connector_compile_error_before_missing_outputs(self) -> None:
         compiler_error = "src/module.c:123:28: error: field 'phase' has incomplete type\n"
 
