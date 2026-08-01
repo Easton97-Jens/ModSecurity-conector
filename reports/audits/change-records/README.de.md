@@ -7,6 +7,11 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Vollständige Parent-Traefik-SonarQube-Cloud-Remediation](CR-20260801-sonar-traefik-complete-remediation.de.md)
+  — validiert lokale Executable- und Artefaktgrenzen, bewahrt Native-UDS-
+  Lifecycle-Cleanup und zerlegt den aktuellen Traefik-Runner ohne
+  Scanner-Suppressions; SHA-gebundene Hosted-Verifikation bleibt erforderlich.
+
 - [Parent-Traefik-Runtime- und Lifecycle-Remediation](CR-20260730-sonar-traefik-runtime-lifecycle.de.md)
 
 - [Parent-Envoy-Maintainability-Bereinigung](CR-20260730-sonar-envoy-maintainability-remediation.de.md)

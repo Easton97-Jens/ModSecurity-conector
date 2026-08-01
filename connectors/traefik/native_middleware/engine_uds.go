@@ -58,7 +58,7 @@ type unixSocketEngine struct {
 	timeout    time.Duration
 }
 
-func newUnixSocketEngine(socketPath string) Engine {
+func newUnixSocketEngine(socketPath string) TransactionOpener {
 	return &unixSocketEngine{socketPath: socketPath, timeout: udsDefaultTimeout}
 }
 
@@ -453,7 +453,7 @@ func clampPort(port int) int {
 }
 
 var (
-	_ Engine                  = (*unixSocketEngine)(nil)
+	_ TransactionOpener       = (*unixSocketEngine)(nil)
 	_ Transaction             = (*unixSocketTransaction)(nil)
 	_ responseHeaderProcessor = (*unixSocketTransaction)(nil)
 	_ responseCommitter       = (*unixSocketTransaction)(nil)

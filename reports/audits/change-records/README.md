@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Traefik complete SonarQube Cloud remediation](CR-20260801-sonar-traefik-complete-remediation.md)
+  — validates local executable and artefact boundaries, preserves native UDS
+  lifecycle cleanup, and decomposes the current Traefik runner without scanner
+  suppressions; exact-head hosted verification remains required.
+
 - [Parent Traefik runtime and lifecycle remediation](CR-20260730-sonar-traefik-runtime-lifecycle.md)
 
 - [Parent Envoy maintainability remediation](CR-20260730-sonar-envoy-maintainability-remediation.md)
