@@ -106,16 +106,17 @@ Runtime-Behauptung.
 - Framework- und MRTS-Prüfungen wurden nicht ausgeführt, weil weder eines der
   Repositories noch einer der Gitlinks im Scope liegt.
 - Frische SHA-gebundene GitHub Actions, Review-Status und SonarQube Cloud sind
-  Delivery-Evidence und können erst nach dem Push des Task-Branches als PR
-  existieren.
+  noch ausstehende Delivery-Evidence für den Draft-PR
+  [#212](https://github.com/Easton97-Jens/ModSecurity-conector/pull/212).
 
 ## Bekannte Einschränkungen
 
-Der aktuelle Remote-Default-Branch muss vor der Auslieferung übernommen
-werden. Die Source-Level-Bereinigung ist extern erst geschlossen, wenn eine
-SonarQube-Cloud-Analyse für den finalen PR-Head die Abwesenheit der genannten
-Komponentenbefunde sowie keine neuen Issues und keine New-Code-Duplizierung
-bestätigt.
+Der Task-Branch wurde vor der Erstellung des Draft-PR
+[#212](https://github.com/Easton97-Jens/ModSecurity-conector/pull/212) auf
+den aktuellen `origin/master` rebasiert. Die Source-Level-Bereinigung ist
+extern erst geschlossen, wenn eine SonarQube-Cloud-Analyse für den finalen
+PR-Head die Abwesenheit der genannten Komponentenbefunde sowie keine neuen
+Issues und keine New-Code-Duplizierung bestätigt.
 
 ## Verbleibende Risiken
 
@@ -133,5 +134,7 @@ Zum Zeitpunkt dieses Records bleibt der Kandidat auf Parent-`ci/checks`, den
 fokussierten Test und Traceability-Dokumentation begrenzt. Es gibt keine
 Framework-/MRTS-/Gitlink-, Workflow-, Dependency-, Scanner-Konfigurations-,
 Suppression- oder `master`-Änderung. Die genannten lokalen Controls bestanden;
-finaler Scoped-Review, Commit, Push und SHA-gebundene Hosted-Verifikation stehen
-noch aus. Dieser Record autorisiert keinen Merge.
+finaler Scoped-Review, Commit und Push für Draft-PR
+[#212](https://github.com/Easton97-Jens/ModSecurity-conector/pull/212) sind
+abgeschlossen, die SHA-gebundene Hosted-Verifikation steht noch aus. Dieser
+Record autorisiert keinen Merge.

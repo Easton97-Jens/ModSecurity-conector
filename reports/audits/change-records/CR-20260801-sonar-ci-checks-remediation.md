@@ -103,14 +103,16 @@ tests are control evidence, not a connector runtime claim.
 - Framework and MRTS checks were not run because neither repository nor either
   Gitlink is in scope.
 - Fresh exact-head GitHub Actions, review state, and SonarQube Cloud are
-  delivery evidence and cannot exist until the task branch is pushed as a PR.
+  pending delivery evidence for Draft PR
+  [#212](https://github.com/Easton97-Jens/ModSecurity-conector/pull/212).
 
 ## Known limitations
 
-The current remote default branch must be incorporated before delivery. The
-source-level remediation is not externally closed until a SonarQube Cloud
-analysis for the final PR head confirms the absence of the listed component
-findings and reports no new issues or new-code duplication.
+The task branch was rebased onto current `origin/master` before Draft PR
+[#212](https://github.com/Easton97-Jens/ModSecurity-conector/pull/212) was
+created. The source-level remediation is not externally closed until a
+SonarQube Cloud analysis for the final PR head confirms the absence of the
+listed component findings and reports no new issues or new-code duplication.
 
 ## Remaining risks
 
@@ -127,5 +129,7 @@ At record authoring, the candidate is limited to Parent `ci/checks`, its
 focused test, and traceability documentation. No Framework/MRTS/Gitlink,
 workflow, dependency, scanner configuration, suppression, or `master` change
 is present. Local controls have passed as listed; final scoped review, commit,
-push, and exact-head hosted verification remain pending. This record does not
-authorize a merge.
+and push completed for Draft PR
+[#212](https://github.com/Easton97-Jens/ModSecurity-conector/pull/212), while
+exact-head hosted verification remains pending. This record does not authorize
+a merge.
