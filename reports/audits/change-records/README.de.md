@@ -12,6 +12,8 @@ Review- oder Delivery-Ergebnisse behaupten.
   Native-Build- und Loopback-TLS-Controls bestanden, während die
   SHA-gebundene Hosted-Verifikation noch erforderlich bleibt.
 
+- [Parent-CI-Bereinigung eines ungenutzten Parameters der GitHub-URL-Validierung für SonarQube Cloud S1172](CR-20260730-sonar-ci-github-url-unused-label.de.md)
+
 - [Parent-Common Event-JSON Optional-Field-Zerlegung](CR-20260730-sonar-common-event-json-complexity.de.md)
 
 - [Parent-Common HTTP-Autorisierungsservice-Const-Korrektheit](CR-20260730-sonar-common-http-auth-maintenance.de.md)
