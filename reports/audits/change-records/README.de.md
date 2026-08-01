@@ -12,6 +12,11 @@ Review- oder Delivery-Ergebnisse behaupten.
   Lifecycle-Cleanup und zerlegt den aktuellen Traefik-Runner ohne
   Scanner-Suppressions; SHA-gebundene Hosted-Verifikation bleibt erforderlich.
 
+- [Parent-Envoy-TLS- und Maintainability-Bereinigung](CR-20260801-sonar-envoy-tls-maintainability.de.md)
+  — entfernt die aktuellen fünf Envoy-SonarQube-Cloud-Source-Zeilen durch
+  bewahrte Processor-Semantik und einen verschlüsselten Fixture-Upstream-Hop;
+  Exact-Head-Hosted-Verifikation bleibt vor jeder Merge-Entscheidung notwendig.
+
 - [Parent-Traefik-Runtime- und Lifecycle-Remediation](CR-20260730-sonar-traefik-runtime-lifecycle.de.md)
 
 - [Parent-Envoy-Maintainability-Bereinigung](CR-20260730-sonar-envoy-maintainability-remediation.de.md)

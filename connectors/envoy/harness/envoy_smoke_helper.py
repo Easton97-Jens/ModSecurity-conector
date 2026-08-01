@@ -39,6 +39,8 @@ TEXT_PLAIN_CONTENT_TYPE = "text/plain"
 LOOPBACK_HOST = "127.0.0.1"
 COMMON_EVENT_LOG_LABEL = "Common event log"
 NOFOLLOW_WRITE_ERROR = "safe runtime artifact writes require O_NOFOLLOW"
+LOOPBACK_TLS_CERTIFICATE_LABEL = "loopback TLS certificate"
+LOOPBACK_TLS_PRIVATE_KEY_LABEL = "loopback TLS private key"
 
 
 def verified_runtime_root(value: str) -> Path:
@@ -106,13 +108,24 @@ def create_runtime_marker(root: Path, value: str | Path, label: str) -> Path:
 def trusted_loopback_tls_context(root: Path, certificate_path: str) -> ssl.SSLContext:
     """Trust a regular certificate under ``root`` for one loopback client."""
 
-    certificate = runtime_artifact(root, certificate_path, "loopback TLS certificate")
+    certificate = runtime_artifact(root, certificate_path, LOOPBACK_TLS_CERTIFICATE_LABEL)
     if not certificate.is_file() or certificate.is_symlink():
-        raise ValueError("loopback TLS certificate must be a regular file")
+        raise ValueError(f"{LOOPBACK_TLS_CERTIFICATE_LABEL} must be a regular file")
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_verify_locations(cafile=str(certificate))
     return context
+
+
+def loopback_tls_server_files(root: Path, certificate_path: str, private_key_path: str) -> tuple[Path, Path]:
+    """Return regular, runtime-confined certificate files for the fixture server."""
+
+    certificate = runtime_artifact(root, certificate_path, LOOPBACK_TLS_CERTIFICATE_LABEL)
+    private_key = runtime_artifact(root, private_key_path, LOOPBACK_TLS_PRIVATE_KEY_LABEL)
+    for path, label in ((certificate, LOOPBACK_TLS_CERTIFICATE_LABEL), (private_key, LOOPBACK_TLS_PRIVATE_KEY_LABEL)):
+        if not path.is_file() or path.is_symlink():
+            raise ValueError(f"{label} must be a regular file")
+    return certificate, private_key
 
 
 def checked_loopback_https_url(value: str) -> str:
@@ -295,6 +308,8 @@ def serve_upstream(
     port: int,
     client_cancel_delay: float,
     runtime_root: str,
+    tls_certificate: str,
+    tls_private_key: str,
     phase4_barrier_dir: str | None = None,
     phase4_barrier_timeout: float = 10.0,
 ) -> int:
@@ -303,6 +318,7 @@ def serve_upstream(
     if phase4_barrier_timeout <= 0 or phase4_barrier_timeout > 60:
         raise ValueError("phase-4 barrier timeout must be greater than zero and at most 60 seconds")
     root = verified_runtime_root(runtime_root)
+    certificate, private_key = loopback_tls_server_files(root, tls_certificate, tls_private_key)
     barrier_directory = (
         runtime_directory(root, phase4_barrier_dir, "phase-4 barrier directory")
         if phase4_barrier_dir
@@ -319,7 +335,13 @@ def serve_upstream(
         phase4_barrier_timeout_seconds = phase4_barrier_timeout
         runtime_root = root
 
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), DelayedUpstreamHandler)
+    server = http.server.ThreadingHTTPSServer(
+        (LOOPBACK_HOST, port),
+        DelayedUpstreamHandler,
+        certfile=str(certificate),
+        keyfile=str(private_key),
+    )
+    server.socket.context.minimum_version = ssl.TLSVersion.TLSv1_2
     try:
         server.serve_forever()
     finally:
@@ -1005,6 +1027,8 @@ def parse_args() -> argparse.Namespace:
     serve = subparsers.add_parser("serve-upstream")
     serve.add_argument("--port", required=True, type=int)
     serve.add_argument("--runtime-root", required=True)
+    serve.add_argument("--tls-certificate", required=True)
+    serve.add_argument("--tls-private-key", required=True)
     serve.add_argument("--client-cancel-delay", default=5.0, type=float)
     serve.add_argument("--phase4-barrier-dir")
     serve.add_argument("--phase4-barrier-timeout", default=10.0, type=float)
@@ -1067,6 +1091,8 @@ def _serve_upstream_command(args: argparse.Namespace) -> int:
         args.port,
         args.client_cancel_delay,
         args.runtime_root,
+        args.tls_certificate,
+        args.tls_private_key,
         args.phase4_barrier_dir,
         args.phase4_barrier_timeout,
     )
