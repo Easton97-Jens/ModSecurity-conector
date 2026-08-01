@@ -10,8 +10,8 @@
 | Datum (UTC) | 2026-08-01 |
 | Basis-Revision | `caabf33c11d6002f9a1661f215ed195d6e141253` |
 | Tracking | `FND-SONAR-0031` — 15 aktuelle `python:S3776`-Receipts und ein 23-Zeilen-Duplikatblock in `ci/evidence`. |
-| Grenze | Parent `ci/evidence/**`, `ci/lib/focused_analysis_utils.py`, direkte Parent-Tests und dieses englisch/deutsche Change-Record-/Index-Paar. Framework, MRTS, Gitlinks, Workflows, Scanner-Einstellungen, Quality Gates, Exclusions, Suppressions und `master` bleiben unverändert. |
-| Auslieferungs-Tracking | Task-Branch `agent/ci-evidence-sonar-remediation-followup-20260801`; ein Draft-PR ist autorisiert, aber beim Verfassen dieses Records noch nicht erstellt. |
+| Grenze | Parent `ci/evidence/**`, `ci/lib/focused_analysis_utils.py`, direkte Parent-Tests und dieses englisch/deutsche Change-Record-/Index-Paar. Framework, MRTS, Gitlinks, Workflows, Scanner-Einstellungen, Quality Gates, Exclusions und Suppressions bleiben unverändert. `master` wird nicht direkt geändert; die einzige autorisierte Änderung ist die unten beschriebene geschützte PR-Integration. |
+| Auslieferungs-Tracking | Task-Branch `agent/ci-evidence-sonar-remediation-followup-20260801`; PR [#225](https://github.com/Easton97-Jens/ModSecurity-conector/pull/225) ist offen. Der aktuelle Nutzer hat die Integration genau dieses Parent-PRs in `master` ausdrücklich autorisiert; beim Update dieses Records ist noch kein Merge erfolgt. |
 
 ## Motivation und Problemstellung
 
@@ -47,10 +47,13 @@ geändert.
   konkrete verhaltensbewahrende Source-Disposition im task-eigenen Diff.
 - Fokussierte Tests bewahren Report-Schemas, Reihenfolge, Fallback,
   Safe-Output, Path-Normalisierung und fail-closed Runtime-Evidence-Controls.
-- Der exakte Draft-PR-Head meldet null OPEN/CONFIRMED SonarQube-Cloud-New-
+- Der exakte aktuelle PR-Head meldet null OPEN/CONFIRMED SonarQube-Cloud-New-
   Issues, null New-Code-Duplikation und ein bestehendes Quality Gate ohne
   Scanner-Control-Änderung.
-- Der Nutzer hat keine `master`-Integration autorisiert; dieser Record
+- Der aktuelle Nutzer hat „bringe das pr 225 in den master“ autorisiert. Die
+  Integration darf nur über den repository-konformen geschützten
+  Exact-Head-PR-Mechanismus nach frischen Checks, Reviews, Conversations,
+  SonarQube Cloud und Resulting-`master`-Verifikation erfolgen; dieser Record
   behauptet keinen Merge.
 
 ## Geänderte Dateien
@@ -75,7 +78,7 @@ geändert.
 | `git diff --check` | vor Traceability-Ergänzungen bestanden; vor Auslieferung erneut auszuführen. |
 | Fokussierter Post-Change-Codex-Security-Diff-Review | bestanden: kein reportierbarer diff-induzierter Befund. |
 | Breites `make lint` mit task-eigenem externem Build-Root | stoppte bei bereits vorhandenen Apache-C17-Warnungen/-Fehlern außerhalb dieser Änderung; es validiert oder invalidiert den ausgewählten Report-Patch nicht. |
-| `git merge --no-edit origin/master` | als normale Task-Branch-Synchronisierung abgeschlossen: aktuelles `origin/master` `62f7e13f35edd3f73661f724fd5208dcf1584d18` ist durch Merge-Commit `ade8b066e9ffb0e17d9971cb6a9ab9ab4bf2e1c0` enthalten; die gemeinsamen Change-Record-Indizes wurden automatisch gemergt. |
+| `git merge --no-edit origin/master` | zweimal als normale Task-Branch-Synchronisierung abgeschlossen: `62f7e13f35edd3f73661f724fd5208dcf1584d18` ist durch `ade8b066e9ffb0e17d9971cb6a9ab9ab4bf2e1c0` enthalten, danach aktuelles `7016a66f3702523098811b45139133c77dee88fb` durch `290843bda5b922dad59a9a9f80688ebf422b960c`; keine der Operationen änderte `master` direkt. |
 
 ## Security-Auswirkung
 
@@ -115,32 +118,40 @@ generierter Report und kein Evidence-Artefakt im Scope liegen.
 
 Volle Connector-Builds, Runtime-Matrizen und Framework-/MRTS-Checks werden
 nicht ausgeführt: Dies ist ein Parent-Report-Source-Refactor ohne Framework- /
-MRTS-Änderung. Hosted Actions und Exact-Head-SonarQube-Cloud-Analyse können
-erst laufen, wenn der autorisierte Draft-PR existiert; eine Master-Analyse kann
-ohne spätere separate Master-Integrationsautorisierung nicht angefordert werden.
+MRTS-Änderung. Die jüngste Branch-Synchronisierung und dieses wahrheitsgemäße
+Delivery-Record-Update verlangen eine frische Exact-Head-GitHub-Actions- und
+SonarQube-Cloud-Runde. Resulting-`master`-Workflows und SonarQube-Cloud-Analyse
+sind bis zur separat geschützten Integrationsoperation ausstehend; sie werden
+nicht aus PR-Checks abgeleitet.
 
 ## Verbleibende Risiken und Verifikationsstatus
 
 Die lokale Source und die fokussierten Tests stützen das beabsichtigte
-Verhalten, aber nur ein Exact-Head-GitHub-Actions- und SonarQube-Cloud-
-Readback kann das angeforderte New-Code-Ergebnis beweisen. Dieser Record
-behauptet keinen Commit, Push, PR-Nummer, Review, Hosted-Check, SonarQube-
-Cloud-PR-Analyse, Merge, Resulting-Master-SHA oder Master-Workflow-Ergebnis.
+Verhalten, aber die Branch-Synchronisierung entwertet frühere PR-Check-Evidence
+für die Merge-Eignung. Beim Update dieses Records enthält der Task-Branch den
+Synchronisierungs-Commit `290843bda5b922dad59a9a9f80688ebf422b960c`; das
+Documentation-Update selbst erzeugt einen späteren PR-Head, der erneut ein
+vollständiges Exact-Head-GitHub-Actions- und SonarQube-Cloud-Readback verlangt.
+Dieser Record behauptet keinen erfolgten Merge, keine Resulting-Master-SHA und
+kein Master-Workflow-Ergebnis.
 
 ## Finaler Diff- und Review-Status
 
-Nach der normalen Master-Synchronisierung wurden das fokussierte 161-Test-
-Aggregat und der 9-Test-kanonische Snapshot-Contract erfolgreich erneut
-ausgeführt. Vor dem Push müssen der task-eigene Diff einen finalen
-`git diff --check`, Documentation-Pair-Verifikation, staged-file Secret-Scan
-und exaktes Remote-Identity-Preflight erhalten. Der finale Security-Review
-wird mit diesem Diff abgeglichen. Der Task bleibt Parent-only; keine
-Framework-/MRTS-/Gitlink-Änderung ist erlaubt.
+Nach der ersten normalen Master-Synchronisierung wurden das fokussierte
+161-Test-Aggregat und der 9-Test-kanonische Snapshot-Contract erfolgreich
+erneut ausgeführt. Die spätere normale Synchronisierung auf
+`7016a66f3702523098811b45139133c77dee88fb` und diese Delivery-Record-Korrektur
+verlangen vor der geschützten Integration frisch abgeglichene fokussierte Tests,
+finales `git diff --check`, Documentation-Pair-Verifikation, staged-file
+Secret-Scan, exaktes Remote-Identity-Preflight und Security-Diff-Review. Der
+Task bleibt Parent-only; keine Framework-/MRTS-/Gitlink-Änderung ist erlaubt.
 
 ## Auslieferungsautorisierung
 
-Der aktuelle Nutzer autorisierte einen Parent-Draft-PR für diese Remediation.
-Diese Autorisierung erlaubt keinen direkten `master`-Push, Force-Push, Merge,
+Der aktuelle Nutzer hat „bringe das pr 225 in den master“ für genau diesen
+Parent-PR ausdrücklich autorisiert. Die Autorisierung erlaubt nur die normale
+geschützte PR-Integration nach einer neuen Exact-Head-Verifikation; sie
+erlaubt keinen direkten `master`-Push, Force-Push, administrativen Bypass,
 Framework-/MRTS-Aktion, Gitlink-Change, Branch-Löschung, Release oder
-Deployment. Jede spätere Integration erfordert eine aktuelle explizite
-`master`-Autorisierung und eine neue Exact-Head-Verifikation.
+Deployment. Der Merge bleibt unbehauptet, bis GitHub ihn ausweist und die
+resultierenden `master`-Checks bestehen.
