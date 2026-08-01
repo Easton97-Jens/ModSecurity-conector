@@ -119,8 +119,8 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             lambda active_plan: prepared_plans.append(active_plan) or {"status": "prepared"},
         )
 
-        self.assertEqual({"status": "prepared"}, result)
-        self.assertEqual([None], prepared_plans)
+        self.assertEqual(result, {"status": "prepared"})
+        self.assertEqual(prepared_plans, [None])
 
     def test_optional_connector_staging_prepares_keyed_plan_from_staging(self) -> None:
         final_plan = {"root": "/cache/final"}
@@ -133,7 +133,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             active_plan: dict[str, str],
             prepare: Callable[[dict[str, str], bool], dict[str, str]],
         ) -> dict[str, str]:
-            self.assertEqual("apache", connector)
+            self.assertEqual(connector, "apache")
             self.assertEqual(Path("/cache"), cache_root)
             self.assertIs(final_plan, active_plan)
             return prepare(staged_plan, True)
@@ -151,8 +151,8 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 lambda active_plan: prepared_plans.append(active_plan) or {"status": "prepared"},
             )
 
-        self.assertEqual({"status": "prepared"}, result)
-        self.assertEqual([staged_plan], prepared_plans)
+        self.assertEqual(result, {"status": "prepared"})
+        self.assertEqual(prepared_plans, [staged_plan])
 
     def test_incomplete_connector_entry_removal_remains_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:

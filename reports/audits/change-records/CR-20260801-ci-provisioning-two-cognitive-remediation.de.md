@@ -69,6 +69,7 @@ vollständiger Repository-Security-Scan und kein Runtime-Build-Ergebnis.
 | `PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m py_compile ci/provisioning/components/prepare-runtime-components.py tests/test_runtime_component_cache_contract.py` | bestanden |
 | `PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest tests.test_runtime_component_cache_contract` | bestanden: 34 Tests |
 | `git diff --check` | vor der finalen Dokumentationsvalidierung bestanden; finale eingegrenzte Wiederholung bleibt vor Delivery erforderlich |
+| Erste Exact-Head-SonarQube-Cloud-Analyse für PR #226 | Quality Gate `OK` und null New-Code-Duplikation, aber fünf task-eigene `python:S3415`-Assertion-Order-Zeilen wurden gefunden und im aktuellen Follow-up korrigiert; frische Exact-Head-Analyse steht aus |
 
 Der ausgewählte Interpreter ist `/root/git/ModSecurity-conector/.venv/bin/python`
 (Python `3.14.4`) mit `PYTHONNOUSERSITE=1`,

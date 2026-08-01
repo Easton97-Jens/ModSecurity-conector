@@ -66,6 +66,7 @@ runtime build result.
 | `PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m py_compile ci/provisioning/components/prepare-runtime-components.py tests/test_runtime_component_cache_contract.py` | passed |
 | `PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest tests.test_runtime_component_cache_contract` | passed: 34 tests |
 | `git diff --check` | passed before final documentation validation; final scoped repeat remains required before delivery |
+| First exact-head SonarQube Cloud analysis for PR #226 | Quality Gate `OK` and zero New-Code duplication, but five task-owned `python:S3415` assertion-order rows were found and corrected in the current follow-up; fresh exact-head analysis is pending |
 
 The selected interpreter is `/root/git/ModSecurity-conector/.venv/bin/python`
 (Python `3.14.4`), with `PYTHONNOUSERSITE=1`,
