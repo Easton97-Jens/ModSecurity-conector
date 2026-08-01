@@ -17,9 +17,6 @@
 #include "mod_security3.h"
 
 
-int id(const char *fn, const char *format, ...);
-
-
 apr_status_t msc_cleanup_request_transaction(void *data);
 void msc_discard_response_brigade(msc_t *msr);
 

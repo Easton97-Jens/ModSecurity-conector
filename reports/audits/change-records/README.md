@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Apache maintainability remediation](CR-20260730-sonar-apache-maintainability.md)
+  — remediates the current 13-item Apache SonarQube Cloud maintainability
+  inventory with focused C17 and native-harness evidence; exact-head hosted
+  verification remains required before integration.
+
 - [Parent CI GitHub URL-validation unused-parameter cleanup for SonarQube Cloud S1172](CR-20260730-sonar-ci-github-url-unused-label.md)
 
 - [Parent HAProxy runtime maintainability remediation](CR-20260730-sonar-haproxy-runtime-maintenance.md)
