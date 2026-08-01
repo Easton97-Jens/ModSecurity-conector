@@ -123,21 +123,32 @@ nativer Connector-Build lief.
 
 ## Bekannte Einschränkungen
 
-Die finale Hosted-Runde beweist den PR-Head, kann aber nicht den resultierenden
-`master`-Zustand beweisen. Eine separat autorisierte Integration und eine
-Prüfung des resultierenden `master` bleiben erforderlich; dieser Draft-PR
-bleibt absichtlich ungemergt.
+Die finale Hosted-Runde beweist den vorherigen PR-Head, kann aber nicht den
+resultierenden `master`-Zustand beweisen. Der aktuelle Nutzer hat Parent-PR
+#226 nun ausdrücklich für die Integration in `master` autorisiert ("bringe das
+pr 226 in den master"). Das aktive Ruleset erlaubt die etablierte normale
+`merge`-Methode, verlangt kein Approval, aber aufgelöste Review-Threads und
+sechs benannte Checks. Dieser reine Record-Follow-up muss vor dem geschützten
+Merge selbst eine frische Exact-Head-Verifikation abschließen; danach bleibt
+die Resulting-`master`-Prüfung erforderlich.
 
 ## Verbleibende Risiken
 
 Der weitere repositoryweite SonarQube-Cloud-Backlog ist außerhalb des Scopes.
-Diese Änderung autorisiert keine `master`-Integration.
+Diese Source-Änderung autorisiert nicht selbstständig eine `master`-
+Integration; die aktuelle Nutzerautorisierung ist auf PR #226 in Parent
+`master` begrenzt und erteilt weder einen direkten Default-Branch-Write noch
+eine Framework-/MRTS- oder Gitlink-Aktion.
 
 ## Finaler Diff- und Review-Status
 
-Draft-PR #226 ist gegen `master` offen; sein final verifizierter Source-Head
-ist `c19defa183e133cfa64853e9bfe62569237c450d`. Der PR hat einen sauberen
-Merge-Status, kein Approval und keine Review-Entscheidung sowie keinen Merge
-oder Release. Seine Hosted-Evidence ist im Task-Run erhalten; ein reiner
-Record-Follow-up benötigt seine eigene Exact-Head-CI-Runde, bevor der PR als
-`verified_pr` berichtet werden kann.
+Draft-PR #226 ist gegen `master` offen; sein zuletzt verifizierter Source-Head
+ist `b08bc69278570a02af5c0367bffb2dea47d37d7c`. Er hat einen sauberen Merge-
+Status, kein erforderliches Approval und keine Review-Threads. Alle
+abgeschlossenen Checks und das SonarQube-Cloud-Quality-Gate bestanden für
+diesen exakten Head. Dieser reine Record-Follow-up erfasst die aktuelle
+Nutzerautorisierung, Parent-Ownership, keine Cross-Repository-Abhängigkeit und
+normalen `merge` als ausgewählte erlaubte Methode. Seine frische Exact-Head-
+CI-/Sonar-Runde ist vor dem Exact-Head-geschützten Merge erforderlich. Bei
+dieser Record-Revision erfolgten kein Merge, Release, direkter `master`-Push,
+Bypass oder Branch-Cleanup.

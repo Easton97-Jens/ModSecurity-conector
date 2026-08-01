@@ -2,8 +2,9 @@
 
 - [Finale Cognitive-Complexity-Remediation für Parent-CI-Provisioning](CR-20260801-ci-provisioning-two-cognitive-remediation.de.md)
   — behebt die zwei verbleibenden Apache-/NGINX-`python:S3776`-Zeilen durch
-  Zentralisierung ihrer bestehenden transaktionalen Staging-Entscheidung;
-  Exact-Head-Hosted-Verifikation bleibt vor jeder Merge-Entscheidung erforderlich.
+  Zentralisierung ihrer bestehenden transaktionalen Staging-Entscheidung; die
+  autorisierte `master`-Integration bleibt an frische Exact-Head-Hosted-
+  Verifikation gebunden.
 
 - [Finale Parent-Common-SonarQube-Cloud-Remediation](CR-20260801-sonar-common-final-remediation.de.md)
   — schließt die zwei verbleibenden aktuellen `common/`-Receipts mit

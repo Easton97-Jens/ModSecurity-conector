@@ -116,19 +116,29 @@ delegation controls. No third-party download or native connector build ran.
 
 ## Known limitations
 
-The final hosted round proves the PR head but cannot prove the resulting
-`master` state. A separately authorized integration and resulting-`master`
-verification remain necessary; this Draft PR intentionally stays unmerged.
+The final hosted round proves the prior PR head but cannot prove the resulting
+`master` state. The current user has now explicitly authorized Parent PR #226
+for integration into `master` ("bringe das pr 226 in den master"). The active
+Ruleset permits the established normal `merge` method, requires no approval,
+requires resolved review threads, and requires six named checks. This record-
+only follow-up must itself complete a fresh exact-head verification before that
+protected merge; resulting-`master` verification remains necessary afterward.
 
 ## Remaining risks
 
-The wider repository SonarQube Cloud backlog is out of scope. This change does
-not authorize a `master` integration.
+The wider repository SonarQube Cloud backlog is out of scope. This source
+change does not independently authorize a `master` integration; the current
+user authorization is limited to PR #226 in Parent `master` and grants neither
+a direct default-branch write nor a Framework/MRTS or Gitlink action.
 
 ## Final diff and review status
 
-Draft PR #226 is open against `master`; its final verified source head is
-`c19defa183e133cfa64853e9bfe62569237c450d`. The PR has a clean merge state,
-no approval or review decision, and no merge or release. Its hosted evidence is
-retained in the task run; a record-only follow-up requires its own exact-head
-CI cycle before the PR can be reported as `verified_pr`.
+Draft PR #226 is open against `master`; its last verified source head is
+`b08bc69278570a02af5c0367bffb2dea47d37d7c`. It has a clean merge state, no
+required approval, and no review threads. All completed checks and the
+SonarQube Cloud Quality Gate passed for that exact head. This record-only
+follow-up records the current user authorization, Parent ownership, no
+cross-repository dependency, and normal `merge` as the selected allowed method.
+Its fresh exact-head CI/Sonar cycle is required before the exact-head-protected
+merge. No merge, release, direct `master` push, bypass, or branch cleanup has
+occurred at this record revision.
