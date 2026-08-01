@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260801-sonar-common-runtime-maintainability |
 | Date (UTC) | 2026-08-01 |
-| Base revision | `b370740dcb16739be7e0b323152f69da31c1a8c1` (final PR base after the required pre-push refresh) |
+| Base revision | `b370740dcb16739be7e0b323152f69da31c1a8c1` |
 | Tracking | Complete current `common/runtime/` SonarQube Cloud maintainability remediation. Hosted verification is required for the exact published PR head. |
 | Boundary | Parent `common/runtime/`, the direct Common SDK contract check, and this bilingual Change Record/index pair. Framework, MRTS, Gitlinks, other Parent areas, workflows, SonarQube Cloud configuration, suppressions, exclusions, Quality Gates, and direct `master` writes are out of scope. |
 
