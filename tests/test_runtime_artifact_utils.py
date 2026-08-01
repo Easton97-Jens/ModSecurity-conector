@@ -20,6 +20,7 @@ if str(CI_LIB) not in sys.path:
 import runtime_path_utils as RUNTIME_PATH_UTILS
 from runtime_path_utils import (
     append_runtime_artifact_text,
+    prepare_verified_runtime_artifact_root,
     read_runtime_artifact_text,
     runtime_artifact_path,
     verified_runtime_artifact_root,
@@ -29,7 +30,8 @@ from runtime_path_utils import (
 
 def load_helper(name: str, path: Path) -> object:
     specification = importlib.util.spec_from_file_location(name, path)
-    assert specification is not None and specification.loader is not None
+    assert specification is not None
+    assert specification.loader is not None
     module = importlib.util.module_from_spec(specification)
     sys.modules[name] = module
     specification.loader.exec_module(module)
@@ -45,6 +47,56 @@ class RuntimeArtifactUtilsTest(unittest.TestCase):
             verified_runtime_artifact_root("relative-runtime")
         with self.assertRaisesRegex(ValueError, "unsafe for writes"):
             verified_runtime_artifact_root("/")
+        with self.assertRaisesRegex(ValueError, "unsafe for writes"):
+            prepare_verified_runtime_artifact_root("/", env={})
+
+    def test_prepared_root_preserves_input_precedence_and_relative_semantics(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-artifact-prepared-root-") as temporary:
+            parent = Path(temporary)
+            explicit_root = parent / "explicit"
+            environment_root = parent / "environment"
+            fallback_root = parent / "fallback"
+            environment = {"VERIFIED_RUN_ROOT": str(environment_root)}
+
+            self.assertEqual(
+                prepare_verified_runtime_artifact_root(
+                    explicit_root,
+                    env=environment,
+                    fallback=fallback_root,
+                ),
+                explicit_root,
+            )
+            self.assertEqual(
+                prepare_verified_runtime_artifact_root(
+                    env=environment,
+                    fallback=fallback_root,
+                ),
+                environment_root,
+            )
+            self.assertEqual(
+                prepare_verified_runtime_artifact_root(
+                    env={},
+                    fallback=fallback_root,
+                ),
+                fallback_root,
+            )
+
+            previous_directory = Path.cwd()
+            try:
+                os.chdir(parent)
+                relative_root = prepare_verified_runtime_artifact_root(
+                    "relative-root",
+                    env={},
+                    fallback=fallback_root,
+                )
+            finally:
+                os.chdir(previous_directory)
+
+            for root in (explicit_root, environment_root, fallback_root, relative_root):
+                with self.subTest(root=root):
+                    self.assertTrue(root.is_dir())
+                    self.assertFalse(root.is_symlink())
+                    self.assertEqual(stat.S_IMODE(root.stat().st_mode) & 0o022, 0)
 
     def test_path_validation_rejects_non_descendants_and_symbolic_links(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-artifact-path-") as temporary:

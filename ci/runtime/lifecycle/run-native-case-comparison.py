@@ -27,6 +27,12 @@ from generated_report_utils import (
     generated_markdown_text,
     report_path,
 )
+from runtime_path_utils import (
+    DEFAULT_RUN_BASENAME,
+    ensure_safe_runtime_directory,
+    fixed_runtime_temp_parent,
+    prepare_verified_runtime_artifact_root,
+)
 
 try:
     import yaml
@@ -43,6 +49,11 @@ DEFAULT_CASES = (
 )
 CONNECTORS = ("apache", "nginx", "haproxy")
 VARIANTS = ("no-crs/no-mrts", "no-crs/with-mrts", "with-crs/no-mrts", "with-crs/with-mrts")
+DEFAULT_VERIFIED_RUN_ROOT = fixed_runtime_temp_parent() / DEFAULT_RUN_BASENAME
+NATIVE_CASE_RUN_FILENAME = "native-case-run.json"
+NATIVE_ORACLE_SOURCE = Path("ci/tools/native_modsecurity_oracle.c")
+NATIVE_RUNNER_PATH = "ci/runtime/lifecycle/run-native-case-comparison.py"
+NATIVE_ACTUAL_LABEL = "Native Actual"
 
 
 def utc_now() -> datetime:
@@ -226,14 +237,14 @@ def write_request_artifacts(request: dict[str, Any], run_dir: Path) -> dict[str,
 
 
 def compile_oracle(connector_root: Path, run_root: Path, env: dict[str, str]) -> tuple[Path | None, dict[str, Any]]:
-    source = connector_root / "ci/tools/native_modsecurity_oracle.c"
+    source = connector_root / NATIVE_ORACLE_SOURCE
     include_dir = env.get("MODSECURITY_INCLUDE_DIR")
     lib_dir = env.get("MODSECURITY_LIB_DIR")
     cc = env.get("CC", "cc")
     bin_dir = run_root / "native-oracle-bin"
     binary = bin_dir / "native_modsecurity_oracle"
     log_path = bin_dir / "compile.log"
-    bin_dir.mkdir(parents=True, exist_ok=True)
+    bin_dir = ensure_safe_runtime_directory(bin_dir)
     if not source.is_file():
         return None, {"status": "blocked", "reason": f"missing source {source}", "compile_log": str(log_path)}
     if not include_dir or not Path(include_dir).is_dir():
@@ -283,10 +294,11 @@ def run_native_case(
     env: dict[str, str],
 ) -> dict[str, Any]:
     started = utc_now()
-    run_root = verified_run_root / "native-case-runs"
-    run_dir = run_root / f"{started.strftime('%Y%m%dT%H%M%SZ')}-{safe_name(case)}"
-    logs_dir = run_dir / "logs"
-    logs_dir.mkdir(parents=True, exist_ok=True)
+    run_root = ensure_safe_runtime_directory(verified_run_root / "native-case-runs")
+    run_dir = ensure_safe_runtime_directory(
+        run_root / f"{started.strftime('%Y%m%dT%H%M%SZ')}-{safe_name(case)}"
+    )
+    logs_dir = ensure_safe_runtime_directory(run_dir / "logs")
 
     case_path = find_case_path(framework_root, case)
     if case_path is None:
@@ -297,7 +309,7 @@ def run_native_case(
             "reason": "case YAML not found",
             "run_dir": str(run_dir),
         }
-        write_json(run_dir / "native-case-run.json", result)
+        write_json(run_dir / NATIVE_CASE_RUN_FILENAME, result)
         return result
     try:
         case_data = load_case(case_path)
@@ -310,7 +322,7 @@ def run_native_case(
             "case_path": str(case_path),
             "run_dir": str(run_dir),
         }
-        write_json(run_dir / "native-case-run.json", result)
+        write_json(run_dir / NATIVE_CASE_RUN_FILENAME, result)
         return result
 
     request = normalize_request(case_data)
@@ -411,7 +423,7 @@ def run_native_case(
             bool(row.get("full_matrix_refresh_needed")) for row in comparison["rows"]
         ),
     }
-    write_json(run_dir / "native-case-run.json", report)
+    write_json(run_dir / NATIVE_CASE_RUN_FILENAME, report)
     (run_dir / "native-case-run.md").write_text(render_case_markdown(report), encoding="utf-8")
     return report
 
@@ -524,7 +536,7 @@ def latest_case_runs(verified_run_root: Path, cases: tuple[str, ...]) -> list[di
     runs_root = verified_run_root / "native-case-runs"
     output = []
     for case in cases:
-        candidates = sorted(runs_root.glob(f"*-{safe_name(case)}/native-case-run.json"))
+        candidates = sorted(runs_root.glob(f"*-{safe_name(case)}/{NATIVE_CASE_RUN_FILENAME}"))
         if not candidates:
             output.append({"case": case, "status": "missing", "reason": "no native case run found"})
             continue
@@ -611,7 +623,7 @@ def inventory() -> list[dict[str, str]]:
             "single_case": "no; summarizes completed native MRTS jobs",
         },
         {
-            "tool_target": "ci/runtime/lifecycle/run-native-case-comparison.py",
+            "tool_target": NATIVE_RUNNER_PATH,
             "purpose": "Run one framework YAML case through connector-free libmodsecurity C API.",
             "inputs": "framework case YAML, native_modsecurity_oracle.c, libmodsecurity runtime-env",
             "outputs": "$VERIFIED_RUN_ROOT/native-case-runs/<timestamp>-<case>/ and native-semantics-comparison.generated.*",
@@ -629,7 +641,7 @@ def render_case_markdown(report: dict[str, Any]) -> str:
                 [
                     ["Case", report.get("case", "-")],
                     ["Expected Status", report.get("expected_status", "-")],
-                    ["Native Actual", report.get("native_actual", "-")],
+                    [NATIVE_ACTUAL_LABEL, report.get("native_actual", "-")],
                     ["Native Match", "yes" if report.get("native_match") else "no"],
                     ["Status", report.get("status", "-")],
                     ["Rule ID", ", ".join(report.get("log_evidence", {}).get("rule_ids", [])) or "-"],
@@ -640,7 +652,7 @@ def render_case_markdown(report: dict[str, Any]) -> str:
             ),
             "## Connector Comparison",
             md_table(
-                ["Connector", "Variant", "Connector Actual", "Native Actual", "Same", "Meaning"],
+                ["Connector", "Variant", "Connector Actual", NATIVE_ACTUAL_LABEL, "Same", "Meaning"],
                 [
                     [row["connector"], row["variant"], row["connector_actual"], row["native_actual"], row["same"], row["meaning"]]
                     for row in report.get("connector_comparison", [])
@@ -694,7 +706,7 @@ def render_summary_markdown(payload: dict[str, Any]) -> str:
     reclassified = payload.get("reclassified", [])
     reclassified_table = (
         md_table(
-            ["Case", "Rows", "Classification", "Native Actual", "Decision"],
+            ["Case", "Rows", "Classification", NATIVE_ACTUAL_LABEL, "Decision"],
             [
                 [
                     item.get("case", "-"),
@@ -724,7 +736,7 @@ def render_summary_markdown(payload: dict[str, Any]) -> str:
             md_table(
                 [
                     "Case",
-                    "Native Actual",
+                    NATIVE_ACTUAL_LABEL,
                     "Connector Actuals",
                     "Native Match",
                     "Decision",
@@ -765,15 +777,15 @@ def write_summary_report(
     reports = refresh_official_context(connector_root, reports)
     inv = inventory()
     inputs: list[Path | str] = [
-        connector_root / "ci/runtime/lifecycle/run-native-case-comparison.py",
-        connector_root / "ci/tools/native_modsecurity_oracle.c",
+        connector_root / NATIVE_RUNNER_PATH,
+        connector_root / NATIVE_ORACLE_SOURCE,
         report_path(connector_root, "verified_runtime_mismatch_analysis", "json"),
     ]
     for item in reports:
         if item.get("case_path"):
             inputs.append(str(item["case_path"]))
         if item.get("run_dir"):
-            run_json = Path(str(item["run_dir"])) / "native-case-run.json"
+            run_json = Path(str(item["run_dir"])) / NATIVE_CASE_RUN_FILENAME
             if run_json.is_file():
                 inputs.append(run_json)
     payload = {
@@ -782,8 +794,8 @@ def write_summary_report(
         "verified_run_id": os.environ.get("VERIFIED_RUN_ID") or "",
         "tool_inventory": inv,
         "native_tool": {
-            "source": "ci/tools/native_modsecurity_oracle.c",
-            "runner": "ci/runtime/lifecycle/run-native-case-comparison.py",
+            "source": str(NATIVE_ORACLE_SOURCE),
+            "runner": NATIVE_RUNNER_PATH,
         },
         "cases": reports,
         "reclassified": reclassified_rows(reports),
@@ -822,11 +834,14 @@ def main() -> int:
     args = parse_args()
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    verified_run_root = (
-        Path(args.verified_run_root).resolve()
-        if args.verified_run_root
-        else Path(os.environ.get("VERIFIED_RUN_ROOT", "/var/tmp/ModSecurity-conector-verified")).resolve()
-    )
+    try:
+        verified_run_root = prepare_verified_runtime_artifact_root(
+            args.verified_run_root,
+            fallback=DEFAULT_VERIFIED_RUN_ROOT,
+        )
+    except ValueError as exc:
+        print(f"native-case-comparison: {exc}", file=sys.stderr)
+        return 77
     output_dir = Path(args.output_dir)
     if not output_dir.is_absolute():
         output_dir = connector_root / output_dir
