@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260801-sonar-common-runtime-maintainability |
 | Datum (UTC) | 2026-08-01 |
-| Basis-Revision | `979e50b9d7d9a914e102465814e7f2fd4cd853eb` |
+| Basis-Revision | `b370740dcb16739be7e0b323152f69da31c1a8c1` (finale PR-Basis nach dem erforderlichen Pre-Push-Refresh) |
 | Tracking | Vollständige aktuelle `common/runtime/`-SonarQube-Cloud-Maintainability-Remediation. Hosted-Verifikation ist für den exakten veröffentlichten PR-Head erforderlich. |
 | Grenze | Parent `common/runtime/`, der direkte Common-SDK-Contract-Check und dieses bilinguale Change-Record-/Index-Paar. Framework, MRTS, Gitlinks, andere Parent-Bereiche, Workflows, SonarQube-Cloud-Konfiguration, Suppressions, Exclusions, Quality Gates und direkte `master`-Writes sind out of scope. |
 
@@ -156,8 +156,8 @@ beobachtet wurden.
 
 ## Finaler Diff- und Review-Status
 
-Der lokale Diff ist auf Parent-Common-Runtime-Source, seine direkte Contract-
-Assertion und den bilingualen Traceability-Record begrenzt. Die Aufgabe ist
-bereit für finale Documentation-Checks, Exact-Base-Refresh, Commit,
-Draft-PR-Delivery und Exact-Head-Hosted-Verifikation. Kein direkter
-`master`-Write oder Merge ist durch diesen Auftrag autorisiert.
+Der Diff ist auf Parent-Common-Runtime-Source, seine direkte Contract-Assertion
+und den bilingualen Traceability-Record begrenzt. Hosted-Evidence ist nur
+gültig, wenn sie an den aktuell veröffentlichten exakten PR-Head gebunden ist;
+sie wird getrennt von diesem Record aufbewahrt. Kein direkter `master`-Write
+oder Merge ist durch diesen Auftrag autorisiert.

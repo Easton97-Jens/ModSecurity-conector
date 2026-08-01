@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260801-sonar-common-runtime-maintainability |
 | Date (UTC) | 2026-08-01 |
-| Base revision | `979e50b9d7d9a914e102465814e7f2fd4cd853eb` |
+| Base revision | `b370740dcb16739be7e0b323152f69da31c1a8c1` (final PR base after the required pre-push refresh) |
 | Tracking | Complete current `common/runtime/` SonarQube Cloud maintainability remediation. Hosted verification is required for the exact published PR head. |
 | Boundary | Parent `common/runtime/`, the direct Common SDK contract check, and this bilingual Change Record/index pair. Framework, MRTS, Gitlinks, other Parent areas, workflows, SonarQube Cloud configuration, suppressions, exclusions, Quality Gates, and direct `master` writes are out of scope. |
 
@@ -146,8 +146,8 @@ hosted CI, SonarQube Cloud result, or merge that has not yet been observed.
 
 ## Final diff and review status
 
-The local diff is restricted to Parent Common Runtime source, its direct
-contract assertion, and the bilingual traceability record. The task is ready
-for final documentation checks, exact-base refresh, commit, Draft PR delivery,
-and exact-head hosted verification. No direct `master` write or merge is
-authorized by this request.
+The diff is restricted to Parent Common Runtime source, its direct contract
+assertion, and the bilingual traceability record. Any hosted evidence is valid
+only when it is bound to the currently published exact PR head; it is retained
+separately from this record. No direct `master` write or merge is authorized by
+this request.
