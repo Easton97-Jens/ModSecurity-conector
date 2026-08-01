@@ -24,6 +24,7 @@ _CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.
 if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from generated_report_utils import portable_path_reference
+from report_path_safety import add_safe_roots, safe_existing_file, safe_path, write_text_file
 
 
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
@@ -80,6 +81,21 @@ def read_object(path: Path) -> dict[str, Any]:
     except (OSError, ValueError):
         return {}
     return loaded if isinstance(loaded, dict) else {}
+
+
+def configured_paths(args: argparse.Namespace) -> tuple[Path | None, Path, Path, Path]:
+    """Confine CLI-provided evidence paths to the caller's workspace."""
+
+    workspace_root = Path.cwd().resolve(strict=False)
+    add_safe_roots(workspace_root)
+    input_json = safe_existing_file(args.input_json) if args.input_json else None
+    output_paths = tuple(
+        safe_path(path, must_exist=False)
+        for path in (args.output_json, args.output_md, args.output_md_de)
+    )
+    if any(path is None for path in output_paths):
+        raise SystemExit("output paths must remain inside the current workspace")
+    return input_json, output_paths[0], output_paths[1], output_paths[2]
 
 
 def newest(paths: list[Path]) -> Path | None:
@@ -299,10 +315,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    if args.input_json:
-        payload = read_object(args.input_json)
+    input_json, output_json, output_md, output_md_de = configured_paths(args)
+    if input_json:
+        payload = read_object(input_json)
         if not payload or not isinstance(payload.get("targets"), list):
-            raise SystemExit(f"invalid historical audit payload: {args.input_json}")
+            raise SystemExit(f"invalid historical audit payload: {input_json}")
     else:
         if args.verified_run_root is None or not args.run_id:
             raise SystemExit("--verified-run-root and --run-id are required unless --input-json is supplied")
@@ -334,11 +351,9 @@ def main() -> int:
                 for connector in CONNECTORS
             ],
         }
-    for output in (args.output_json, args.output_md, args.output_md_de):
-        output.parent.mkdir(parents=True, exist_ok=True)
-    args.output_json.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    args.output_md.write_text(markdown(payload, "en"), encoding="utf-8")
-    args.output_md_de.write_text(markdown(payload, "de"), encoding="utf-8")
+    write_text_file(output_json, json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    write_text_file(output_md, markdown(payload, "en"))
+    write_text_file(output_md_de, markdown(payload, "de"))
     return 0
 
 

@@ -34,6 +34,13 @@ except Exception:  # pragma: no cover - the report still works without YAML meta
 
 
 REPORT_DIR = GENERATED_ROOT
+GENERATOR_PATH = "ci/evidence/reports/generate-remaining-failure-analysis.py"
+LOW_TO_MEDIUM_RISK = "low to medium"
+MEDIUM_TO_HIGH_RISK = "medium to high"
+PRIMARY_CONNECTORS = "apache, nginx, haproxy"
+NO_ROWS_MARKER = "- None."
+RULE_ID_HEADER = "Rule ID"
+VARIABLE_TARGET_HEADER = "Variable/target"
 SOURCE_REPORT_INPUTS = (
     report_relpath("full_runtime_matrix", "json"),
     report_relpath("connector_work_queue", "json"),
@@ -203,34 +210,19 @@ def phase4_detail_category(entry: dict[str, Any]) -> str:
     known_limitations = " ".join(normalize_list(evidence.get("known_limitations"))).lower()
     phase4_log = read_text(evidence.get("connector_phase4_log_path"))
     decision_log = read_text(evidence.get("decision_log_path") or evidence.get("decision_log"))
-    expected_action = str(evidence.get("expected_intervention") or "")
-    if not expected_action:
-        expected_action = "deny" if entry.get("expected_status") in (401, 403, 302) else "pass"
-    strict_abort = evidence.get("strict_abort") is True or '"strict_abort":true' in phase4_log.replace(" ", "")
-    hard_abort = (
-        strict_abort
-        or evidence.get("observed_transport_result") == "connection_aborted"
-        or '"actual_action":"connection_abort"' in phase4_log.replace(" ", "")
-    )
+    expected_action = phase4_expected_action(entry, evidence)
+    hard_abort = phase4_has_hard_abort(evidence, phase4_log)
     has_log_evidence = bool(phase4_log.strip() or decision_log.strip())
-    log_only = (
-        '"actual_action":"log_only"' in phase4_log.replace(" ", "")
-        or reason in {"mode_minimal", "mode_safe", "content_type_not_in_scope"}
-        or any(token in case_id for token in ("minimal_log_only", "safe_log_only", "content_type_out_of_scope"))
-    )
     if hard_abort and has_log_evidence:
         return "phase4_hard_abort_evidence"
     if "native" in classification:
         return "phase4_native_semantics"
-    if log_only:
+    if phase4_is_log_only(reason, case_id, phase4_log):
         return "phase4_log_only_no_abort"
     if evidence.get("response_body_truncated") is True:
         return "phase4_truncated_not_accepted"
-    if expected_action == "deny" and (
-        connector == "haproxy"
-        or "connector-gap" in classification
-        or "connector-gap" in known_limitations
-        or "connector_gap" in case_id
+    if expected_action == "deny" and phase4_is_connector_gap(
+        connector, classification, known_limitations, case_id
     ):
         return "phase4_connector_gap"
     if expected_action == "deny":
@@ -238,6 +230,42 @@ def phase4_detail_category(entry: dict[str, Any]) -> str:
     if not has_log_evidence and entry.get("runtime_status") == "FAIL":
         return "phase4_missing_abort_evidence"
     return "phase4_no_hard_abort_required"
+
+
+def phase4_expected_action(entry: dict[str, Any], evidence: dict[str, Any]) -> str:
+    expected = str(evidence.get("expected_intervention") or "")
+    if expected:
+        return expected
+    return "deny" if entry.get("expected_status") in (401, 403, 302) else "pass"
+
+
+def phase4_has_hard_abort(evidence: dict[str, Any], phase4_log: str) -> bool:
+    compact_log = phase4_log.replace(" ", "")
+    return (
+        evidence.get("strict_abort") is True
+        or '"strict_abort":true' in compact_log
+        or evidence.get("observed_transport_result") == "connection_aborted"
+        or '"actual_action":"connection_abort"' in compact_log
+    )
+
+
+def phase4_is_log_only(reason: str, case_id: str, phase4_log: str) -> bool:
+    return (
+        '"actual_action":"log_only"' in phase4_log.replace(" ", "")
+        or reason in {"mode_minimal", "mode_safe", "content_type_not_in_scope"}
+        or any(token in case_id for token in ("minimal_log_only", "safe_log_only", "content_type_out_of_scope"))
+    )
+
+
+def phase4_is_connector_gap(
+    connector: str, classification: str, known_limitations: str, case_id: str
+) -> bool:
+    return (
+        connector == "haproxy"
+        or "connector-gap" in classification
+        or "connector-gap" in known_limitations
+        or "connector_gap" in case_id
+    )
 
 
 def failure_category(entry: dict[str, Any]) -> str:
@@ -248,20 +276,36 @@ def failure_category(entry: dict[str, Any]) -> str:
     case_id = str(entry.get("case_id") or "")
     classification = str(entry.get("classification") or "")
     evidence_classification = str(entry.get("evidence_classification") or "")
-
-    if classification == "with_mrts_detection_only_non_disruptive":
-        return "with_mrts_detection_only_non_disruptive"
-    if classification == "secaction_detection_only_overlay":
-        return "secaction_detection_only_overlay"
-    if classification == "xml_processor_activation_missing":
-        return "xml_processor_activation_missing"
-    if classification == "multipart_processor_activation_missing":
-        return "multipart_processor_activation_missing"
-    if classification == "collection_name_normalization_semantics":
-        return "collection_name_normalization_semantics"
+    direct = direct_failure_classification(classification)
+    if direct:
+        return direct
     if is_phase4_entry(entry):
         return phase4_detail_category(entry)
-    if (
+    if is_nolog_classification(
+        classification, evidence_classification, case_id, work_direction, functional_area
+    ):
+        return "nolog_expected_no_audit"
+    return categorized_failure(
+        work_direction, functional_area, failure_pattern, category, case_id,
+        evidence_classification,
+    )
+
+
+def direct_failure_classification(classification: str) -> str:
+    return {
+        "with_mrts_detection_only_non_disruptive": "with_mrts_detection_only_non_disruptive",
+        "secaction_detection_only_overlay": "secaction_detection_only_overlay",
+        "xml_processor_activation_missing": "xml_processor_activation_missing",
+        "multipart_processor_activation_missing": "multipart_processor_activation_missing",
+        "collection_name_normalization_semantics": "collection_name_normalization_semantics",
+    }.get(classification, "")
+
+
+def is_nolog_classification(
+    classification: str, evidence_classification: str, case_id: str,
+    work_direction: set[str], functional_area: set[str],
+) -> bool:
+    return (
         classification == "nolog-expected-no-audit"
         or evidence_classification == "nolog_expected_no_audit"
         or (
@@ -269,20 +313,47 @@ def failure_category(entry: dict[str, Any]) -> str:
             and "classification_only" in work_direction
             and "audit_log" in functional_area
         )
-    ):
-        return "nolog_expected_no_audit"
+    )
+
+
+def categorized_failure(
+    work_direction: set[str], functional_area: set[str], failure_pattern: set[str],
+    category: str, case_id: str, evidence_classification: str,
+) -> str:
+    transformed = transformation_failure_category(functional_area, category)
+    if transformed:
+        return transformed
+    return (
+        evidence_failure_category(work_direction, failure_pattern, evidence_classification)
+        or feature_failure_category(functional_area, category, case_id)
+        or work_direction_failure_category(work_direction)
+        or "unknown_requires_review"
+    )
+
+
+def evidence_failure_category(
+    work_direction: set[str], failure_pattern: set[str], evidence_classification: str
+) -> str:
     if "audit_log_evidence" in work_direction:
         return "audit_log_evidence"
     if "harness_incompatibility" in work_direction or "expected_200_got_0" in failure_pattern:
         return "harness_evidence_issue"
-    if category == "transformations" or "transformations" in functional_area:
-        return "transformation_semantics"
     if evidence_classification in {
         "response_header_backend_setup",
         "response_header_multi_value_gap",
         "response_header_mrts_detection_only",
     }:
         return evidence_classification
+    return ""
+
+
+def transformation_failure_category(functional_area: set[str], category: str) -> str:
+    if category == "transformations" or "transformations" in functional_area:
+        return "transformation_semantics"
+    return ""
+
+
+def feature_failure_category(functional_area: set[str], category: str, case_id: str) -> str:
     if category == "response-headers" or "response_headers" in functional_area:
         return "response_header_hook"
     if category == "multipart" or "multipart_files" in functional_area:
@@ -291,19 +362,25 @@ def failure_category(entry: dict[str, Any]) -> str:
         return "xml_processor"
     if case_id in BODY_PROCESSOR_CONNECTOR_GAP_CASES:
         return "connector_gap"
-    if category in {"body-processors", "request-body"} or any(item.startswith("request_body") for item in functional_area):
+    if category in {"body-processors", "request-body"} or any(
+        item.startswith("request_body") for item in functional_area
+    ):
         return "request_body_processor"
     if category == "security/rule-chain" or "chain" in case_id:
         return "rule_chain_semantics"
-    if "request_routing" in work_direction:
-        return "request_routing"
-    if "connector_gap" in work_direction:
-        return "connector_gap"
-    if "classification_only" in work_direction:
-        return "classification_only"
-    if "intervention_blocking" in work_direction:
-        return "intervention_blocking"
-    return "unknown_requires_review"
+    return ""
+
+
+def work_direction_failure_category(work_direction: set[str]) -> str:
+    for marker, category in (
+        ("request_routing", "request_routing"),
+        ("connector_gap", "connector_gap"),
+        ("classification_only", "classification_only"),
+        ("intervention_blocking", "intervention_blocking"),
+    ):
+        if marker in work_direction:
+            return category
+    return ""
 
 
 def safe_read_evidence(entry: dict[str, Any]) -> dict[str, Any]:
@@ -590,9 +667,9 @@ def fixability(category: str) -> str:
 
 def risk(category: str) -> str:
     return {
-        "harness_evidence_issue": "low to medium",
-        "audit_log_evidence": "low to medium",
-        "response_header_backend_setup": "low to medium",
+        "harness_evidence_issue": LOW_TO_MEDIUM_RISK,
+        "audit_log_evidence": LOW_TO_MEDIUM_RISK,
+        "response_header_backend_setup": LOW_TO_MEDIUM_RISK,
         "response_header_multi_value_gap": "medium",
         "response_header_mrts_detection_only": "low; report-only if kept separate from PASS promotion",
         "secaction_detection_only_overlay": "low; report-only and not a connector blocking bug",
@@ -600,11 +677,11 @@ def risk(category: str) -> str:
         "response_header_hook": "medium",
         "request_body_processor": "medium",
         "multipart_files": "medium",
-        "xml_processor": "medium to high",
+        "xml_processor": MEDIUM_TO_HIGH_RISK,
         "xml_processor_activation_missing": "low if kept report-only; high if treated as connector runtime evidence",
         "multipart_processor_activation_missing": "low if kept report-only; high if treated as connector multipart runtime evidence",
-        "intervention_blocking": "medium to high",
-        "collection_name_normalization_semantics": "medium to high",
+        "intervention_blocking": MEDIUM_TO_HIGH_RISK,
+        "collection_name_normalization_semantics": MEDIUM_TO_HIGH_RISK,
         "transformation_semantics": "high",
         "phase4_no_hard_abort_required": "low",
         "phase4_hard_abort_evidence": "medium; keep strict/test-only semantics scoped",
@@ -672,19 +749,19 @@ def priority_plan(entries: list[dict[str, Any]], categories: list[dict[str, Any]
             {
                 "cluster_name": "harness_evidence_issue / tfn_chain_lowercase_trim_pass_through",
                 "count": sum(1 for entry in entries if failure_category(entry) == "harness_evidence_issue"),
-                "connector": "apache, nginx, haproxy",
+                "connector": PRIMARY_CONNECTORS,
                 "why": "small, clear evidence-missing/actual_status 0 cluster; safest quick-win candidate",
                 "likely_change": "inspect result creation/log matching for the transformation pass-through case; report-only or harness evidence fix if confirmed",
-                "risk": "low to medium",
+                "risk": LOW_TO_MEDIUM_RISK,
                 "tests": ["targeted smoke for the case on all connectors", "make lint quick-check", "make full-matrix-parallel if harness behavior changes"],
             },
             {
                 "cluster_name": "audit_log_evidence / v3_action_nolog_pass_no_audit",
                 "count": sum(1 for entry in entries if failure_category(entry) == "audit_log_evidence"),
-                "connector": "apache, nginx, haproxy",
+                "connector": PRIMARY_CONNECTORS,
                 "why": "HTTP behavior passes; remaining failure is evidence/assertion semantics",
                 "likely_change": "verify whether audit-log expectation is correct for nolog and classify/report accordingly",
-                "risk": "low to medium",
+                "risk": LOW_TO_MEDIUM_RISK,
                 "tests": ["targeted smoke for v3_action_nolog_pass_no_audit", "make lint quick-check"],
             },
         ]
@@ -697,7 +774,7 @@ def priority_plan(entries: list[dict[str, Any]], categories: list[dict[str, Any]
                 "connector": "apache, nginx",
                 "why": "specialized Phase 3 response-header probes need deterministic backend headers before connector behavior can be judged",
                 "likely_change": "add or route deterministic Content-Type, Location, and Set-Cookie response headers in the harness/backend path",
-                "risk": "low to medium",
+                "risk": LOW_TO_MEDIUM_RISK,
                 "tests": ["targeted response-header cases", "make smoke-apache", "make smoke-nginx"],
             },
             {
@@ -712,7 +789,7 @@ def priority_plan(entries: list[dict[str, Any]], categories: list[dict[str, Any]
             {
                 "cluster_name": "multipart_files",
                 "count": next((item["count"] for item in categories if item["category"] == "multipart_files"), 0),
-                "connector": "apache, nginx, haproxy",
+                "connector": PRIMARY_CONNECTORS,
                 "why": "remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits",
                 "likely_change": "compare multipart variable population across connectors with one representative request",
                 "risk": "medium",
@@ -725,7 +802,7 @@ def priority_plan(entries: list[dict[str, Any]], categories: list[dict[str, Any]
             {
                 "cluster_name": "phase4_hard_abort_capability",
                 "count": sum(next((item["count"] for item in categories if item["category"] == category), 0) for category in PHASE4_HARD_ABORT_CATEGORIES),
-                "connector": "apache, nginx, haproxy",
+                "connector": PRIMARY_CONNECTORS,
                 "why": "Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial",
                 "likely_change": "stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists",
                 "risk": "high if promoted prematurely or faked",
@@ -734,7 +811,7 @@ def priority_plan(entries: list[dict[str, Any]], categories: list[dict[str, Any]
             {
                 "cluster_name": "transformation_semantics",
                 "count": next((item["count"] for item in categories if item["category"] == "transformation_semantics"), 0),
-                "connector": "apache, nginx, haproxy",
+                "connector": PRIMARY_CONNECTORS,
                 "why": "largest semantic cluster; likely needs native/libmodsecurity comparison before any fix",
                 "likely_change": "deeper semantic evidence, not harness routing",
                 "risk": "high",
@@ -749,7 +826,7 @@ def priority_plan(entries: list[dict[str, Any]], categories: list[dict[str, Any]
             "connector": "mostly nginx for connector-only leftovers",
             "why": "small connector-only leftovers after report-only and not-next groups are excluded",
             "likely_change": "focused per-case triage only when runtime-fixable evidence remains",
-            "risk": "low to medium",
+            "risk": LOW_TO_MEDIUM_RISK,
             "tests": ["targeted single-case smokes"],
         }
     )
@@ -979,17 +1056,17 @@ def render_analysis_markdown(analysis: dict[str, Any]) -> str:
         lines.extend(["", f"## {title}"])
         clusters = analysis["top_clusters"][key]
         if not clusters:
-            lines.append("- None.")
+            lines.append(NO_ROWS_MARKER)
         else:
-            lines.extend(md_table(["Count", "Cluster", "Connectors", "Variants", "Classification", "Work direction", "Example", "Rule ID", "Variable/target"], cluster_rows(clusters)))
+            lines.extend(md_table(["Count", "Cluster", "Connectors", "Variants", "Classification", "Work direction", "Example", RULE_ID_HEADER, VARIABLE_TARGET_HEADER], cluster_rows(clusters)))
     lines.extend(["", "## Top Cross-Connector Failures"])
-    lines.extend(md_table(["Count", "Case", "Connectors", "Variants", "Category", "Status pairs", "Rule ID", "Variable/target"], case_rows(analysis["top_clusters"]["cross_connector_failures"])))
+    lines.extend(md_table(["Count", "Case", "Connectors", "Variants", "Category", "Status pairs", RULE_ID_HEADER, VARIABLE_TARGET_HEADER], case_rows(analysis["top_clusters"]["cross_connector_failures"])))
     lines.extend(["", "## Top Connector-Only Failures"])
     connector_only = analysis["top_clusters"]["connector_only_failures"]
     if connector_only:
-        lines.extend(md_table(["Count", "Case", "Connectors", "Variants", "Category", "Status pairs", "Rule ID", "Variable/target"], case_rows(connector_only)))
+        lines.extend(md_table(["Count", "Case", "Connectors", "Variants", "Category", "Status pairs", RULE_ID_HEADER, VARIABLE_TARGET_HEADER], case_rows(connector_only)))
     else:
-        lines.append("- None.")
+        lines.append(NO_ROWS_MARKER)
     lines.extend(["", "## Recommendation"])
     rec = analysis["recommendation"]
     lines.append(f"- Empfohlener nächster Fix-Cluster: `{rec['recommended_next_fix_cluster']}`")
@@ -1022,7 +1099,7 @@ def render_plan_markdown(plan: dict[str, Any], generated_at: str, recommendation
         lines.extend(["", f"## {priority}"])
         items = plan.get(priority, [])
         if not items:
-            lines.append("- None.")
+            lines.append(NO_ROWS_MARKER)
             continue
         lines.extend(
             md_table(
@@ -1094,7 +1171,7 @@ def update_full_run_evidence(report_dir: Path, connector_root: Path) -> None:
             reports.append(report)
     data["reports"] = reports
     metadata = build_metadata(
-        generated_by="ci/evidence/reports/generate-remaining-failure-analysis.py",
+        generated_by=GENERATOR_PATH,
         make_target="generate-remaining-failure-analysis",
         connector_root=connector_root,
         inputs=SOURCE_REPORT_INPUTS[:3],
@@ -1148,14 +1225,14 @@ def main() -> int:
         "recommendation": analysis["recommendation"],
     }
     analysis_metadata = build_metadata(
-        generated_by="ci/evidence/reports/generate-remaining-failure-analysis.py",
+        generated_by=GENERATOR_PATH,
         make_target="generate-remaining-failure-analysis",
         connector_root=connector_root,
         inputs=SOURCE_REPORT_INPUTS,
         generated_at=analysis["generated_at"],
     )
     plan_metadata = build_metadata(
-        generated_by="ci/evidence/reports/generate-remaining-failure-analysis.py",
+        generated_by=GENERATOR_PATH,
         make_target="generate-remaining-failure-analysis",
         connector_root=connector_root,
         inputs=[report_relpath("remaining_failure_analysis", "json")],

@@ -31,6 +31,7 @@ STRICT_LOAD_ERROR_RE = re.compile(
     re.IGNORECASE,
 )
 WITH_MRTS_DETECTION_ONLY_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
+SMOKE_RULES_RELATIVE_PATH = "conf/modsecurity-smoke.conf"
 NO_MRTS_NOMATCH_SEMANTIC_CLASSIFICATIONS = {
     "transformation_request_literal_no_match",
     "collection_name_normalization_semantics",
@@ -190,13 +191,13 @@ def generated_config_path(entry: dict[str, Any], evidence_file: Path | None) -> 
     try:
         if connector == "nginx":
             run_root = log_dir.parent.parent
-            return run_root / "runtime" / case_id / "conf/modsecurity-smoke.conf"
+            return run_root / "runtime" / case_id / SMOKE_RULES_RELATIVE_PATH
         if connector == "apache":
             connector_run_root = log_dir.parent.parent.parent
-            return connector_run_root / "apache-runtime" / case_id / "conf/modsecurity-smoke.conf"
+            return connector_run_root / "apache-runtime" / case_id / SMOKE_RULES_RELATIVE_PATH
         if connector == "haproxy":
             connector_run_root = log_dir.parent.parent.parent
-            return connector_run_root / "haproxy-runtime-cases" / case_id / "conf/modsecurity-smoke.conf"
+            return connector_run_root / "haproxy-runtime-cases" / case_id / SMOKE_RULES_RELATIVE_PATH
     except IndexError:
         return None
     return None
@@ -654,7 +655,6 @@ def main() -> int:
     output_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
     add_safe_roots(connector_root, framework_root, connector_root / REPORT_DIR)
     add_report_roots(connector_root / REPORT_DIR)
-    output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root, framework_root)
     metadata = build_metadata(
         generated_by="ci/evidence/reports/generate-intervention-blocking-analysis.py",
