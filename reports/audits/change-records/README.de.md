@@ -7,6 +7,11 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Envoy-Maintainability-Bereinigung](CR-20260730-sonar-envoy-maintainability-remediation.de.md)
+  — bewahrt C17-Bridge- und ext_proc-Lifecycle-Verhalten; lokale Source-,
+  Native-Build- und Loopback-TLS-Controls bestanden, während die
+  SHA-gebundene Hosted-Verifikation noch erforderlich bleibt.
+
 - [Parent-Apache-Maintainability-Remediation](CR-20260730-sonar-apache-maintainability.de.md)
   — remediiert das aktuelle 13er-Apache-SonarQube-Cloud-Maintainability-
   Inventar mit fokussierter C17- und Native-Harness-Evidence; Exact-Head-

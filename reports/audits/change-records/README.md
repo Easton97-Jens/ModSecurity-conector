@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Envoy maintainability remediation](CR-20260730-sonar-envoy-maintainability-remediation.md)
+  — preserves C17 bridge and ext_proc lifecycle behavior; local source,
+  native-build, and loopback-TLS controls passed, while exact-head hosted
+  verification remains required.
+
 - [Parent Apache maintainability remediation](CR-20260730-sonar-apache-maintainability.md)
   — remediates the current 13-item Apache SonarQube Cloud maintainability
   inventory with focused C17 and native-harness evidence; exact-head hosted
