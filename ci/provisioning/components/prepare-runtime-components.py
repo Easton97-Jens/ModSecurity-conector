@@ -6842,6 +6842,12 @@ def copy_nginx_common_sources(connector_root: Path, plan: dict[str, Any]) -> Pat
     common_build_source_root.mkdir(parents=True, exist_ok=True)
     for common_source in sorted(common_source_root.glob("*.c")):
         shutil.copy2(common_source, common_build_source_root / common_source.name)
+    # The NGINX addon compiles the staged Common translation units from this
+    # directory.  request_helpers.c and response_helpers.c both include this
+    # private sibling header, so stage it explicitly with the C sources rather
+    # than relying on the original checkout being on the compiler include path.
+    private_header = common_source_root / "header_validation_internal.h"
+    shutil.copy2(private_header, common_build_source_root / private_header.name)
     return common_build_source_root
 
 

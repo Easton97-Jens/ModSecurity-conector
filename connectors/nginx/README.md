@@ -30,11 +30,126 @@ Not implemented:
 
 - No broad NGINX module rewrite beyond the controlled adapter-owned migration.
 - No full NGINX regression suite.
-- No runtime pass is claimed beyond environments where the NGINX smoke runner
-  observes the YAML-expected real HTTP behavior for the shared YAML cases.
+- No broad runtime promotion is claimed. One selected native no-CRS/no-MRTS H1
+  Phase-4 out-of-scope case passed under the focused task evidence; that result
+  does not establish the canonical lifecycle, a complete matrix, or transport
+  coverage.
 - Full response-body promotion is not claimed. Phase 4 / RESPONSE_BODY remains
   non-promoted; source-level strict-mode wiring is not canonical runtime
   evidence.
+- No HTTP/2, HTTP/3, remote-rule, Helgrind, or canonical Memcheck result is
+  claimed by this source/provenance update. The direct H1 post-suppression
+  Memcheck result below is clean only within its bounded noncanonical
+  NGINX-core diagnostic boundary, not as a connector result.
+
+## Selective Upstream Security Intake
+
+The adapter-owned source keeps the upstream base
+`9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` and the earlier local Phase-4
+overlay from PR #377 `3d72b004ff27a78ea19c6b945870e2cae62a97ac`. The current
+selective intake is recorded per file in [the origin map](ORIGIN.md) and
+[`SOURCE_MAP.json`](SOURCE_MAP.json):
+
+- [PR #384](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/384)
+  at `65de4cd8739209f22d924d85548bd012a4d94607` distinguishes final body
+  processing from partial ingestion. Final
+  `msc_process_request_body()`/`msc_process_response_body()` failures fail
+  closed, while `msc_append_request_body()`,
+  `msc_request_body_from_file()`, and `msc_append_response_body()` retain
+  nonfatal `ProcessPartial` handling because that return signal also denotes
+  by-design limit truncation.
+- [PR #385](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/385)
+  at `471a2a54843bb8f560758a7e75b146db2243ab29` supplies selected
+  response-header and pre-commit redirect-replacement handling. A task-local
+  extension suppresses fictional synthetic `Connection`/`Keep-Alive` fields
+  on native HTTP/3 as well as HTTP/2; the negotiated response-version mapping
+  and suppression are source-level only, not HTTP/2 or HTTP/3 runtime proof.
+- [PR #386](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/386)
+  at `a7fd4fcc18dc442b1b093d253f457b9317b7f588` supplies selected
+  value-free header-registration warnings, empty-address guards, and terminal
+  body-filter forwarding behavior.
+- [PR #387](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/387)
+  at `4c1f0362ca0f25ef216ce59cad5fa6c9703c1438` informs the Parent-owned
+  opt-in bounded native soak (`make soak-nginx`) and H1 Memcheck diagnostic
+  (`make memcheck-nginx`) through the existing harness. Both remain outside
+  default smoke/test/CI and record bounded payload-free summaries. The
+  source-controlled soak selector permits from one to eight unique IDs from
+  its explicit canonical catalog and rejects empty, duplicate, or noncatalog
+  selections before case discovery. Upstream Dockerfiles, workflows, Valgrind/Helgrind
+  configuration, and tooling are not
+  imported. The direct H1 post-suppression Memcheck result below is clean only
+  within its bounded noncanonical diagnostic boundary; no canonical Memcheck,
+  Helgrind, or soak result is claimed.
+
+The intake does not change the documented Phase-4 result model: a Safe late
+result is `log_only` with the visible status unchanged, while a Strict late
+result is `abort_connection` after commit rather than a fabricated second
+response.
+
+It also restores a pre-task Parent content-type ingestion regression. Bounded
+response bytes now reach ModSecurity irrespective of configured connector
+Content-Type scope; when that inspection detects an out-of-scope intervention,
+the connector maps it to `log_only` with `content_type_not_in_scope`. This does
+not relax #384: final `msc_process_response_body()` processing remains
+fail-closed for a result other than `1`, while append/from-file
+`ProcessPartial` handling remains intentionally nonfatal.
+
+The strict isolated rebuild and C17, C23, and c2y passed, and the newly
+materialized build-source SHA matched the task filter. The selected native
+no-CRS/no-MRTS H1 out-of-scope case passed. The selected Parent Safe/Strict
+outcomes were observed as `log_only` with unchanged visible status and
+post-commit `abort_connection`, respectively, but the full selected runner
+exits nonzero due to read-only Framework fixture contradictions
+(`FND-FRAMEWORK-0058`, `blocked`/`out_of_scope`): Safe expects the mode as the
+reason, while Strict jointly expects a stable `403`/obsolete action despite a
+connection abort. No Framework edit is asserted. These focused observations do
+not establish H2/H3, remote-rule, soak, a clean canonical Memcheck, or delivery
+evidence.
+
+### Direct H1 Memcheck diagnostic
+
+The initial direct H1 Valgrind run observed one 8-byte `definitely lost`
+allocation on the NGINX-core worker-exit path. It is not a connector or
+ModSecurity security flaw. The exact generated stack was verified against an
+independently SHA-verified official `nginx-1.31.2` archive (observed SHA-256
+prefix/suffix `af2a957...473c`).
+
+The bounded post-suppression direct H1 O7 artifact
+`direct-nginx-h1-memcheck-suppressed-20260801T234500Z-c8d9e0f1` is clean only
+within this direct diagnostic boundary: `status=clean`, `complete=1`,
+`errors_detected=0`, `error_count=0`, `definitely_lost_bytes=0`,
+`indirectly_lost_bytes=0`, `possibly_lost_bytes=28160`, and
+`still_reachable_bytes=329918`. Its selected connector-loaded benign case
+completed `48` requests with `request_failures=0`,
+`worker_summary_failures=0`, and `server_alive=1`. The isolated lifecycle
+recorded `shutdown=graceful`, `wait=exited`, `wrapper_exit_code=0`, and
+`containment=isolated`; no residual NGINX or Valgrind process, `nginx.pid`, or
+test-port binding remained.
+
+The source-controlled local file
+[`harness/valgrind-nginx-core-1.31.2.supp`](harness/valgrind-nginx-core-1.31.2.supp)
+is not copied from upstream. It matches only a definite `Memcheck:Leak` on
+`malloc -> ngx_alloc -> ngx_set_environment -> ngx_worker_process_init ->
+ngx_worker_process_cycle -> ngx_spawn_process -> ngx_start_worker_processes ->
+ngx_master_process_cycle -> main`. The artifact records `suppressed: 1 from 1`.
+Possible losses remain reported in the payload-free summary rather than being
+suppressed. A changed stack, connector/libmodsecurity diagnostic, or
+invalid-access diagnostic does not match and remains failing.
+
+The source-controlled suppression is used only in opt-in `NGINX_MEMCHECK=1`
+mode after all three runtime identity gates pass: the selected `NGINX_BINARY`
+equals `$NGINX_PREFIX/sbin/nginx`; its `nginx -v` output is exactly
+`nginx version: nginx/1.31.2`; and
+`$NGINX_BUILD_DIR/verified-archives/nginx-1.31.2.tar.gz` has the
+source-controlled SHA-256
+`af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c`.
+Outside Memcheck mode, normal harness calls retain the existing
+caller-selected `NGINX_BINARY` override behavior.
+
+The diagnostic remains noncanonical while canonical provisioning/lifecycle
+containment and its worker-visible docroot projection are in progress. This
+direct result does not establish `runtime-smoke-nginx`, H2/H3, remote CI,
+SonarQube, pull-request, or delivery success.
 
 ## Supported Directives
 
@@ -55,8 +170,8 @@ The adapter-owned NGINX connector currently registers:
 per-request variables. Apache-style `modsecurity_transaction_id_expr` is not
 registered for NGINX; use `modsecurity_transaction_id` with NGINX variables
 instead. The Phase 4 directives are bounded runtime controls.
-Phase 4 / RESPONSE_BODY remains non-promoted; source-level strict-mode wiring
-does not establish a late-abort result.
+Phase 4 / RESPONSE_BODY remains non-promoted. The focused H1 observations above
+do not establish a broad late-abort or canonical lifecycle result.
 
 Primary local reference: `<external-source-root>/ModSecurity-nginx`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx.
@@ -159,3 +274,8 @@ confirmed aborted connection.  Neither is a disguised successful 403 case.
 The canonical Phase-4 cases are evidence-gated and include rule observation,
 pre-commit deny, safe log-only, strict abort, and status/action metadata.  No
 response-body payload may enter an event or report.
+
+The final-processing guard is intentionally narrower than body ingestion:
+`ProcessPartial` append/from-file handling does not become a generic 500 path.
+It therefore preserves the existing Safe/Strict Phase-4 outcome model rather
+than turning a partial-body limit decision into a late intervention claim.

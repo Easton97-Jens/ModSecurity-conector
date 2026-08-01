@@ -178,7 +178,9 @@ ngx_http_modsecurity_process_connection(ngx_http_request_t *r,
     client_port = ngx_inet_get_port(connection->sockaddr);
     server_port = ngx_inet_get_port(connection->local_sockaddr);
     client_addr = ngx_str_to_char(addr_text, r->pool);
-    if (client_addr == (char *)-1) {
+    if (client_addr == (char *)-1 || client_addr == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: client address conversion failed");
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -188,7 +190,9 @@ ngx_http_modsecurity_process_connection(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     server_addr = ngx_str_to_char(server_address, r->pool);
-    if (server_addr == (char *)-1) {
+    if (server_addr == (char *)-1 || server_addr == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: server address conversion failed");
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -203,7 +207,16 @@ ngx_http_modsecurity_process_connection(ngx_http_request_t *r,
     dd("Processing intervention with the connection information filled in");
     ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction,
         r, 1);
-    return ret > 0 ? ret : NGX_OK;
+    if (ret > 0) {
+        ctx->intervention_triggered = 1;
+        return ret;
+    }
+    if (ret < 0) {
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    return NGX_OK;
 }
 
 static const char *
@@ -264,7 +277,16 @@ ngx_http_modsecurity_process_request_uri(ngx_http_request_t *r,
     dd("Processing intervention with the transaction information filled in (uri, method and version)");
     ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction,
         r, 1);
-    return ret > 0 ? ret : NGX_OK;
+    if (ret > 0) {
+        ctx->intervention_triggered = 1;
+        return ret;
+    }
+    if (ret < 0) {
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    return NGX_OK;
 }
 
 static ngx_int_t
@@ -302,10 +324,14 @@ ngx_http_modsecurity_add_request_headers(ngx_http_request_t *r,
         dd("Adding request header: %.*s with value %.*s",
             (int)data[index].key.len, data[index].key.data,
             (int)data[index].value.len, data[index].value.data);
-        msc_add_n_request_header(ctx->modsec_transaction,
-            (const unsigned char *)data[index].key.data, data[index].key.len,
-            (const unsigned char *)data[index].value.data,
-            data[index].value.len);
+        if (msc_add_n_request_header(ctx->modsec_transaction,
+                (const unsigned char *)data[index].key.data,
+                data[index].key.len,
+                (const unsigned char *)data[index].value.data,
+                data[index].value.len) != 1) {
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                "ModSecurity: failed to add request header for inspection");
+        }
         index++;
     }
 }
@@ -328,6 +354,10 @@ ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
     dd("Processing intervention with the request headers information filled in");
     ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction,
         r, 1);
+    if (ret < 0) {
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     if (r->error_page) {
         return NGX_DECLINED;
     }
@@ -444,7 +474,12 @@ ngx_http_modsecurity_append_request_body(ngx_http_request_t *r,
             ngx_http_modsecurity_request_intervention_log_event(r, mcf,
                 MSCONNECTOR_PHASE_REQUEST_BODY,
                 "request_body_stream_before_handler");
+            ctx->intervention_triggered = 1;
             return ret;
+        }
+        if (ret < 0) {
+            ctx->intervention_triggered = 1;
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
     }
 
@@ -465,7 +500,9 @@ ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
         const char *file_name = ngx_str_to_char(
             r->request_body->temp_file->file.name, r->pool);
 
-        if (file_name == (char *)-1) {
+        if (file_name == (char *)-1 || file_name == NULL) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "ModSecurity: request body file name conversion failed");
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
         dd("request body inspection: file -- %s", file_name);
@@ -484,19 +521,31 @@ ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
     old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
     ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
     ctx->native_event_phase_active = 1;
-    msc_process_request_body(ctx->modsec_transaction);
+    ret = msc_process_request_body(ctx->modsec_transaction);
     ctx->native_event_phase_active = 0;
-    ctx->request_body_processed = 1;
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
+    ctx->request_body_processed = 1;
+
+    if (ret != 1) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: request body phase processing failed");
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
 
     ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction,
         r, 0);
+    if (ret < 0) {
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     if (r->error_page) {
         return NGX_DECLINED;
     }
     if (ret > 0) {
         ngx_http_modsecurity_request_intervention_log_event(r, mcf,
             MSCONNECTOR_PHASE_REQUEST_BODY, "request_body_before_handler");
+        ctx->intervention_triggered = 1;
         return ret;
     }
 

@@ -14,6 +14,96 @@
       "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377",
       "commit": "3d72b004ff27a78ea19c6b945870e2cae62a97ac",
       "reason": "Phase-4 / RESPONSE_BODY late-intervention handling for the NGINX connector."
+    },
+    "pr384": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/384",
+      "commit": "65de4cd8739209f22d924d85548bd012a4d94607",
+      "reason": "Selective request/response body and intervention hardening: retain nonfatal ProcessPartial append/from-file handling while failing closed on unambiguous final processing and unsafe intervention failures."
+    },
+    "pr385": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/385",
+      "commit": "471a2a54843bb8f560758a7e75b146db2243ab29",
+      "reason": "Selective response-header/protocol fidelity and pre-commit redirect replacement handling, including draining the replaced upstream body."
+    },
+    "pr386": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/386",
+      "commit": "a7fd4fcc18dc442b1b093d253f457b9317b7f588",
+      "reason": "Selective header-registration visibility, empty address handling, and terminal response-body-loop hardening."
+    }
+  },
+  "upstream_intake": {
+    "pr387": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/387",
+      "commit": "4c1f0362ca0f25ef216ce59cad5fa6c9703c1438",
+            "selection": "Selective test-design input implemented as a Parent-owned opt-in bounded native soak (make soak-nginx) and H1 Memcheck diagnostic (make memcheck-nginx) through the existing harness, outside default smoke/test/CI with bounded payload-free summaries. The source-controlled soak selector permits from one to eight unique IDs from its explicit canonical catalog and rejects empty, duplicate, or noncatalog selections before case discovery. No upstream Dockerfile, workflow, Valgrind/Helgrind configuration, or soak tool is imported here. A bounded direct H1 post-suppression Memcheck artifact is clean only within its noncanonical diagnostic boundary; no canonical Memcheck, Helgrind, or soak result is asserted."
+    }
+  },
+  "parent_remediations": {
+    "phase4_content_type_ingestion": {
+      "finding": "FND-PARENT-0080",
+      "status": "validated_current_master_task_fix_pending_final_exact_head_proof",
+      "reason": "The canonical Parent finding remains validated because current master retains the pre-task Phase-4 behavior. The task worktree restores bounded response-byte ingestion into ModSecurity irrespective of configured connector Content-Type scope. A detected out-of-scope intervention maps to log_only with reason content_type_not_in_scope. The selected PR #384 final response-processing check remains fail-closed when it returns != 1, and the Safe/Strict action model is retained.",
+      "observed_validation": "The strict isolated rebuild and C17, C23, and c2y passed; the newly materialized task build-source SHA matched the task filter, and the selected native no-CRS/no-MRTS H1 out-of-scope case passed. These task-worktree observations do not close the canonical finding; final integrated current-head proof remains pending."
+    },
+    "canonical_lifecycle_containment": {
+      "finding": "FND-PARENT-0078",
+      "status": "in_progress",
+      "reason": "Canonical lifecycle containment and the narrow worker-visible docroot projection remain in progress. No canonical runtime-smoke, soak, Memcheck, H2/H3, remote-CI, SonarQube, pull-request, or delivery success is asserted."
+    },
+    "framework_fixture_contract": {
+      "finding": "FND-FRAMEWORK-0058",
+      "status": "blocked",
+      "scope": "out_of_scope",
+      "reason": "Selected Parent Safe/Strict outcomes were observed, but the full selected runner exits nonzero because read-only Framework fixture assertions expect the Safe mode as the reason and jointly expect a stable 403/obsolete action despite a Strict connection abort. No Framework change is asserted."
+    },
+    "direct_h1_memcheck_nginx_core_exit": {
+      "status": "clean_direct_h1_noncanonical",
+      "suppression_file": "connectors/nginx/harness/valgrind-nginx-core-1.31.2.supp",
+      "observed_result": "The initial direct H1 Valgrind Memcheck observation found one 8-byte definitely-lost NGINX-core worker-exit allocation. It is not a connector or ModSecurity security finding. The post-suppression artifact below is clean only within its bounded direct diagnostic boundary.",
+      "archive_provenance": "The exact generated suppression stack was verified against an independently SHA-verified official nginx-1.31.2 archive (observed SHA-256 prefix/suffix af2a957...473c).",
+      "memcheck_runtime_identity_gates": {
+        "mode": "The source-controlled suppression is used only when opt-in NGINX_MEMCHECK=1 is selected.",
+        "selected_binary": "NGINX_BINARY must equal $NGINX_PREFIX/sbin/nginx.",
+        "version": "nginx -v output must equal nginx version: nginx/1.31.2.",
+        "archive_sha256": "$NGINX_BUILD_DIR/verified-archives/nginx-1.31.2.tar.gz must equal source-controlled SHA-256 af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c.",
+        "non_memcheck_behavior": "Outside NGINX_MEMCHECK=1, normal harness calls retain the existing caller-selected NGINX_BINARY override behavior."
+      },
+      "post_suppression_artifact": {
+        "id": "direct-nginx-h1-memcheck-suppressed-20260801T234500Z-c8d9e0f1",
+        "label": "O7",
+        "status": "clean",
+        "complete": true,
+        "errors_detected": false,
+        "error_count": 0,
+        "definitely_lost_bytes": 0,
+        "indirectly_lost_bytes": 0,
+        "possibly_lost_bytes": 28160,
+        "still_reachable_bytes": 329918,
+        "requests_completed": 48,
+        "request_failures": 0,
+        "worker_summary_failures": 0,
+        "server_alive": true,
+        "shutdown": "graceful",
+        "wait": "exited",
+        "wrapper_exit_code": 0,
+        "containment": "isolated",
+        "suppressed": "1 from 1",
+        "cleanup": "No residual nginx or Valgrind process, nginx.pid, or test-port binding remained."
+      },
+      "suppression_boundary": "The local, source-controlled suppression is not copied from upstream and matches only Memcheck:Leak with match-leak-kinds: definite and the exact stack malloc -> ngx_alloc -> ngx_set_environment -> ngx_worker_process_init -> ngx_worker_process_cycle -> ngx_spawn_process -> ngx_start_worker_processes -> ngx_master_process_cycle -> main. Possible losses remain reported rather than suppressed. A changed stack, connector/libmodsecurity diagnostic, or invalid-access diagnostic does not match and remains failing.",
+      "limitation": "This clean direct H1 result is noncanonical and applies only to the bounded source-controlled suppression diagnostic. Canonical provisioning/lifecycle containment remains in progress; the result does not establish runtime-smoke, H2/H3, remote CI, pull-request, or delivery success."
+    }
+  },
+  "scope_separation": {
+    "issue388": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/issues/388",
+      "status": "not_applicable",
+      "reason": "Scope separation only: no adaptation, behavior, test, or delivery outcome is asserted for this intake."
+    },
+    "pr389": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/389",
+      "status": "out_of_scope",
+      "reason": "Scope separation only: no adaptation, behavior, test, or delivery outcome is asserted for this intake."
     }
   },
   "files": {
@@ -30,28 +120,41 @@
     "src/ngx_http_modsecurity_access.c": {
       "base_path": "src/ngx_http_modsecurity_access.c",
       "license": "Apache-2.0",
-      "reason": "Migrated upstream access-phase integration to adapter-owned source."
+      "patches": [
+        "pr384",
+        "pr386"
+      ],
+      "reason": "Migrated upstream access-phase integration with selected fail-closed final-processing/intervention handling, ProcessPartial-compatible append/from-file behavior, and empty-address/header-registration hardening."
     },
     "src/ngx_http_modsecurity_body_filter.c": {
       "base_path": "src/ngx_http_modsecurity_body_filter.c",
       "license": "Apache-2.0",
       "patches": [
-        "pr377"
+        "pr377",
+        "pr384",
+        "pr385",
+        "pr386"
       ],
-      "reason": "Migrated upstream body filter and applied PR #377 phase-4 late-intervention changes."
+      "reason": "Migrated upstream body filter with PR #377 phase-4 handling plus selected final-processing, redirect-body replacement, and terminal-loop changes from PRs #384--#386. It also restores the Parent pre-task content-type ingestion behavior: bounded response bytes reach ModSecurity irrespective of connector scope, while scope maps a detected intervention to log_only/content_type_not_in_scope."
     },
     "src/ngx_http_modsecurity_common.h": {
       "base_path": "src/ngx_http_modsecurity_common.h",
       "license": "Apache-2.0",
       "patches": [
-        "pr377"
+        "pr377",
+        "pr385"
       ],
-      "reason": "Migrated shared NGINX declarations and applied PR #377 phase-4 fields."
+      "reason": "Migrated shared NGINX declarations with PR #377 phase-4 fields and the PR #385 response-replacement state."
     },
     "src/ngx_http_modsecurity_header_filter.c": {
       "base_path": "src/ngx_http_modsecurity_header_filter.c",
       "license": "Apache-2.0",
-      "reason": "Migrated upstream header filter integration to adapter-owned source."
+      "patches": [
+        "pr384",
+        "pr385",
+        "pr386"
+      ],
+      "reason": "Migrated upstream header-filter integration with selected intervention, response-header/protocol, redirect-replacement, and header-registration hardening; task-local HTTP/3 hop-by-hop suppression is recorded in the paired origin documentation."
     },
     "src/ngx_http_modsecurity_log.c": {
       "base_path": "src/ngx_http_modsecurity_log.c",
@@ -74,9 +177,11 @@
       "base_path": "src/ngx_http_modsecurity_module.c",
       "license": "Apache-2.0",
       "patches": [
-        "pr377"
+        "pr377",
+        "pr384",
+        "pr385"
       ],
-      "reason": "Migrated module/config entrypoint and applied PR #377 phase-4 directives."
+      "reason": "Migrated module/config entrypoint with PR #377 phase-4 directives plus selected transaction-lifecycle and redirect-response hardening from PRs #384--#385."
     }
   },
   "layout": {
@@ -92,7 +197,7 @@
   "support_files": {
     "connectors/nginx/capabilities.json": {
       "license": "Apache-2.0",
-      "reason": "Repo-owned canonical host-model and capability-state declaration; validated separately from imported productive source."
+      "reason": "Repo-owned canonical host-model and capability-state declaration; it records connector scope at detected Phase-4 intervention mapping rather than as a pre-append body-ingestion gate, and is validated separately from imported productive source."
     },
     "connectors/nginx/metadata.c": {
       "license": "Apache-2.0",
@@ -104,7 +209,11 @@
     },
     "connectors/nginx/SOURCE_MAP.json": {
       "license": "Apache-2.0",
-      "reason": "Repo-owned per-file provenance manifest; consumed by the materializer but not copied into connector-src."
+      "reason": "Repo-owned per-file provenance manifest; records base, PR #377, selected PRs #384--#386, and the scoped PR #387/#388/#389 disposition. It is consumed by the materializer but not copied into connector-src."
+    },
+    "connectors/nginx/harness/valgrind-nginx-core-1.31.2.supp": {
+      "license": "Apache-2.0-compatible project support file",
+      "reason": "Task-local, source-controlled exact Memcheck suppression for the independently verified nginx-1.31.2 NGINX-core worker-environment exit stack. It is not copied from upstream and cannot suppress connector/libmodsecurity or invalid-access diagnostics."
     }
   }
 }

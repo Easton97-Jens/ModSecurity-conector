@@ -227,7 +227,7 @@ ngx_http_modsecurity_resolv_header_content_length(ngx_http_request_t *r, ngx_str
 
     ctx = ngx_http_modsecurity_get_module_ctx(r);
 
-    if (r->headers_out.content_length_n > 0)
+    if (r->headers_out.content_length_n >= 0)
     {
         ngx_sprintf((u_char *)buf, "%O%Z", r->headers_out.content_length_n);
         value.data = (unsigned char *)buf;
@@ -317,6 +317,23 @@ ngx_http_modsecurity_resolv_header_connection(ngx_http_request_t *r, ngx_str_t n
     clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
     ctx = ngx_http_modsecurity_get_module_ctx(r);
 
+#if (NGX_HTTP_V2)
+    /* NGINX does not emit HTTP/1.x hop-by-hop headers on an HTTP/2 stream.
+     * Do not make ModSecurity inspect a fictional Connection or Keep-Alive
+     * response header. */
+    if (r->stream) {
+        return 1;
+    }
+#endif
+#if defined(nginx_version) && nginx_version >= 1025000
+    /* HTTP/3 has the same hop-by-hop-header prohibition.  Its requests do
+     * not use the HTTP/2 stream pointer, so guard the native H3 version
+     * separately before constructing either synthetic header. */
+    if (r->http_version == NGX_HTTP_VERSION_30) {
+        return 1;
+    }
+#endif
+
     if (r->headers_out.status == NGX_HTTP_SWITCHING_PROTOCOLS) {
         connection = "upgrade";
     } else if (r->keepalive) {
@@ -334,11 +351,14 @@ ngx_http_modsecurity_resolv_header_connection(ngx_http_request_t *r, ngx_str_t n
             ngx_http_modsecurity_store_ctx_header(r, &name2, &value);
 #endif
 
-            msc_add_n_response_header(ctx->modsec_transaction,
-                (const unsigned char *) name2.data,
-                name2.len,
-                (const unsigned char *) value.data,
-                value.len);
+            if (msc_add_n_response_header(ctx->modsec_transaction,
+                    (const unsigned char *) name2.data,
+                    name2.len,
+                    (const unsigned char *) value.data,
+                    value.len) != 1) {
+                ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                    "ModSecurity: failed to add synthetic response header for inspection");
+            }
         }
     } else {
         connection = "close";
@@ -543,9 +563,12 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
             (int) ngx_http_modsecurity_headers_out[i].name.len,
             ngx_http_modsecurity_headers_out[i].name.data);
 
-                ngx_http_modsecurity_headers_out[i].resolver(r,
-                    ngx_http_modsecurity_headers_out[i].name,
-                    ngx_http_modsecurity_headers_out[i].offset);
+        if (ngx_http_modsecurity_headers_out[i].resolver(r,
+                ngx_http_modsecurity_headers_out[i].name,
+                ngx_http_modsecurity_headers_out[i].offset) != 1) {
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                "ModSecurity: failed to add synthetic response header for inspection");
+        }
     }
 
     for (i = 0 ;; i++)
@@ -568,11 +591,14 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         /*
          * Doing this ugly cast here, explanation on the request_header
          */
-        msc_add_n_response_header(ctx->modsec_transaction,
-            (const unsigned char *) data[i].key.data,
-            data[i].key.len,
-            (const unsigned char *) data[i].value.data,
-            data[i].value.len);
+        if (msc_add_n_response_header(ctx->modsec_transaction,
+                (const unsigned char *) data[i].key.data,
+                data[i].key.len,
+                (const unsigned char *) data[i].value.data,
+                data[i].value.len) != 1) {
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                "ModSecurity: failed to add response header for inspection");
+        }
     }
 
     /* prepare extra paramters for msc_process_response_headers() */
@@ -582,14 +608,17 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         status = r->headers_out.status;
     }
 
-    /*
-     * NGINX always sends HTTP response with HTTP/1.1, except cases when
-     * HTTP V2 module is enabled, and request has been posted with HTTP/2.0.
-     */
+    /* The WAF-visible response version must match the negotiated request
+     * protocol, including the native HTTP/3 mapping where available. */
     http_response_ver = "HTTP 1.1";
 #if (NGX_HTTP_V2)
     if (r->stream) {
         http_response_ver = "HTTP 2.0";
+    }
+#endif
+#if defined(nginx_version) && nginx_version >= 1025000
+    if (r->http_version == NGX_HTTP_VERSION_30) {
+        http_response_ver = "HTTP 3.0";
     }
 #endif
 
@@ -598,6 +627,13 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
     ctx->response_headers_seen = 1;
     ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r, 0);
+    if (ret < 0) {
+        /* A disruptive intervention can no longer be materialized safely
+         * after headers have committed.  Do not pass it through as an allow
+         * and do not synthesize a second response. */
+        ctx->intervention_triggered = 1;
+        return NGX_ERROR;
+    }
     if (r->error_page) {
         return ngx_http_next_header_filter(r);
     }
@@ -608,6 +644,19 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         if (ngx_http_modsecurity_phase3_log_event(r, mcf, (int)status,
                 wanted, wanted) != NGX_OK) {
             return NGX_ERROR;
+        }
+        ctx->intervention_triggered = 1;
+        if (r->headers_out.location != NULL) {
+            /* process_intervention() already owns Location and cleared the
+             * entity metadata of the response being replaced.  Keep that
+             * header intact by forwarding it through the normal chain rather
+             * than ngx_http_filter_finalize_request(), which cleans headers. */
+            ctx->response_replaced = 1;
+            r->headers_out.status = ret;
+            ngx_str_null(&r->headers_out.status_line);
+            r->headers_out.content_length_n = 0;
+            r->header_only = 1;
+            return ngx_http_next_header_filter(r);
         }
         return ngx_http_filter_finalize_request(r, &ngx_http_modsecurity_module, ret);
     }

@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+"""Create a narrow worker-readable projection of an NGINX case docroot.
+
+Framework case materialization remains in the private connector build root.
+Only the two static files needed by NGINX's document root are copied into a
+fresh, worker-traversable directory.  This helper deliberately does not clean
+up the projection: lifecycle cleanup is allowed only through the task-owned
+manifest that registered both the parent and exact fresh child.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+from pathlib import Path
+import re
+import stat
+import sys
+
+
+PROJECTED_FILENAMES = ("index.html", "__modsec_smoke_ready")
+PUBLIC_TRAVERSE_MODE = stat.S_IXOTH
+PROJECTION_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def fail(message: str) -> None:
+    raise ValueError(message)
+
+
+def normalized_absolute(value: str | Path, label: str) -> Path:
+    path = Path(value)
+    if not path.is_absolute():
+        fail(f"{label} must be absolute: {path}")
+    # This is lexical normalization only.  It must not resolve symlinks before
+    # the component-by-component no-follow checks below.
+    normalized = Path(os.path.abspath(os.path.normpath(os.fspath(path))))
+    if normalized == Path("/") and label != "projection parent base":
+        fail(f"{label} must not be the filesystem root")
+    return normalized
+
+
+def require_no_symlink_directory(path: Path, label: str) -> None:
+    """Reject a missing, special, or symlink component without following it."""
+
+    current = Path("/")
+    for component in path.parts[1:]:
+        current /= component
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError as exc:
+            fail(f"{label} component is missing: {current}")
+        if stat.S_ISLNK(metadata.st_mode):
+            fail(f"{label} contains a symbolic link: {current}")
+        if not stat.S_ISDIR(metadata.st_mode):
+            fail(f"{label} component is not a directory: {current}")
+
+
+def is_descendant(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def overlaps(left: Path, right: Path) -> bool:
+    return is_descendant(left, right) or is_descendant(right, left)
+
+
+def ensure_private_parent(path: Path, label: str) -> None:
+    require_no_symlink_directory(path, label)
+    metadata = path.lstat()
+    if metadata.st_uid != os.geteuid():
+        fail(f"{label} is not owned by the effective uid: {path}")
+    if metadata.st_mode & 0o022:
+        fail(f"{label} is group- or other-writable: {path}")
+    if metadata.st_mode & 0o044:
+        fail(f"{label} is group- or other-readable: {path}")
+    if not metadata.st_mode & PUBLIC_TRAVERSE_MODE:
+        fail(f"{label} is not worker-traversable: {path}")
+    for ancestor in (Path("/").joinpath(*path.parts[:index]) for index in range(2, len(path.parts) + 1)):
+        ancestor_metadata = ancestor.lstat()
+        if not ancestor_metadata.st_mode & PUBLIC_TRAVERSE_MODE:
+            fail(f"projection parent has a non-traversable ancestor: {ancestor}")
+
+
+def validate_source_docroot(source: Path, private_root: Path) -> None:
+    require_no_symlink_directory(private_root, "private build root")
+    require_no_symlink_directory(source, "source docroot")
+    if not is_descendant(source, private_root):
+        fail(f"source docroot must remain inside private build root: {source}")
+
+
+def open_regular_source(path: Path) -> int:
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as exc:
+        fail(f"cannot open projected source file {path}: {exc}")
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISREG(metadata.st_mode):
+        os.close(descriptor)
+        fail(f"projected source is not a regular file: {path}")
+    return descriptor
+
+
+def copy_regular_file(source: Path, destination: Path) -> None:
+    source_fd = open_regular_source(source)
+    try:
+        destination_fd = os.open(
+            destination,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o644,
+        )
+    except OSError as exc:
+        os.close(source_fd)
+        fail(f"cannot create projected file {destination}: {exc}")
+    try:
+        while True:
+            chunk = os.read(source_fd, 1024 * 1024)
+            if not chunk:
+                break
+            written = 0
+            while written < len(chunk):
+                written += os.write(destination_fd, chunk[written:])
+    finally:
+        os.close(source_fd)
+        os.close(destination_fd)
+    os.chmod(destination, 0o644)
+
+
+def prepare_projection(
+    *,
+    source_docroot: Path,
+    private_root: Path,
+    projection_parent: Path | None,
+    projection_root: Path | None,
+    avoid_roots: list[Path],
+) -> Path:
+    validate_source_docroot(source_docroot, private_root)
+    if projection_parent is None or projection_root is None:
+        fail("projection requires an explicit manifest-registered parent and fresh root")
+    parent = projection_parent
+    if projection_root.parent != parent:
+        fail("projection root must be a direct child of projection parent")
+    if not PROJECTION_NAME_RE.fullmatch(projection_root.name):
+        fail(f"projection root name is unsafe: {projection_root.name}")
+    ensure_private_parent(parent, "projection parent")
+
+    checked_avoid_roots = [normalized_absolute(root, "avoid root") for root in avoid_roots]
+    for root in checked_avoid_roots:
+        if overlaps(parent, root):
+            fail(f"projection parent overlaps a private runtime root: {parent} <-> {root}")
+
+    projection = projection_root
+    try:
+        os.mkdir(projection, 0o700)
+    except FileExistsError:
+        fail(f"registered projection root already exists: {projection}")
+    except OSError as exc:
+        fail(f"cannot create registered projection root {projection}: {exc}")
+    projection_metadata = projection.lstat()
+    if not stat.S_ISDIR(projection_metadata.st_mode) or stat.S_ISLNK(projection_metadata.st_mode):
+        fail(f"fresh projection is not a directory: {projection}")
+
+    for filename in PROJECTED_FILENAMES:
+        copy_regular_file(source_docroot / filename, projection / filename)
+
+    # The parent and this exact manifest-registered child are non-enumerable
+    # to the worker, but traversal deliberately permits NGINX to serve the two
+    # fixed allowlisted static files (0644) at their known paths.  This is a
+    # constrained static-data boundary, not worker-exclusive readability.  Do
+    # not chmod/chown any caller-owned root.
+    os.chmod(projection, 0o711)
+    return projection
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--source-docroot", type=Path, required=True)
+    parser.add_argument("--private-root", type=Path, required=True)
+    parser.add_argument("--projection-parent", type=Path, required=True)
+    parser.add_argument(
+        "--projection-root",
+        type=Path,
+        required=True,
+        help="exact fresh child pre-registered by the lifecycle manifest",
+    )
+    parser.add_argument("--avoid-root", type=Path, action="append", default=[])
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    try:
+        source_docroot = normalized_absolute(args.source_docroot, "source docroot")
+        private_root = normalized_absolute(args.private_root, "private build root")
+        projection_parent = normalized_absolute(args.projection_parent, "projection parent")
+        projection_root = normalized_absolute(args.projection_root, "projection root")
+        projection = prepare_projection(
+            source_docroot=source_docroot,
+            private_root=private_root,
+            projection_parent=projection_parent,
+            projection_root=projection_root,
+            avoid_roots=args.avoid_root,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"FAIL: NGINX docroot projection: {exc}", file=sys.stderr)
+        return 1
+    print(projection)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

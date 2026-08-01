@@ -144,7 +144,7 @@
     },
     "content_type_scope": {
       "state": "implemented_not_asserted",
-      "reason": "The Phase-4 filter checks its configured response Content-Type scope before appending body bytes; real-host coverage is pending."
+      "reason": "The Phase-4 filter maps a detected out-of-scope response intervention to log-only; bounded current buffers still reach ModSecurity so that evidence can be observed. Real-host coverage is pending."
     },
     "header_limits": {
       "state": "not_implemented",

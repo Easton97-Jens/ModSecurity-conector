@@ -26,6 +26,39 @@ SPEC.loader.exec_module(components)
 
 
 class PrepareRuntimeComponentsTest(unittest.TestCase):
+    def test_nginx_common_source_staging_includes_required_private_header(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            common_source_root = connector_root / "common" / "src"
+            common_source_root.mkdir(parents=True)
+            (common_source_root / "request_helpers.c").write_text(
+                '#include "header_validation_internal.h"\n',
+                encoding="utf-8",
+            )
+            (common_source_root / "header_validation_internal.h").write_text(
+                "#pragma once\n",
+                encoding="utf-8",
+            )
+            (common_source_root / "not-a-build-input.txt").write_text(
+                "must not be staged\n",
+                encoding="utf-8",
+            )
+
+            staged = components.copy_nginx_common_sources(
+                connector_root,
+                {"root": str(Path(temporary) / "build")},
+            )
+
+            self.assertEqual(
+                (staged / "request_helpers.c").read_text(encoding="utf-8"),
+                '#include "header_validation_internal.h"\n',
+            )
+            self.assertEqual(
+                (staged / "header_validation_internal.h").read_text(encoding="utf-8"),
+                "#pragma once\n",
+            )
+            self.assertFalse((staged / "not-a-build-input.txt").exists())
+
     def test_require_staging_path_rejects_absence_and_preserves_path(self) -> None:
         staging_path = Path("staging")
 
