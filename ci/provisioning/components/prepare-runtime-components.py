@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 import hashlib
 import json
 import os
@@ -6167,6 +6168,24 @@ def requires_transactional_connector_prepare(plan: dict[str, Any] | None, transa
     return bool(plan and plan.get("root") and not transactional)
 
 
+def prepare_connector_with_optional_staging(
+    connector: str,
+    cache_root: Path,
+    plan: dict[str, Any] | None,
+    transactional: bool,
+    prepare: Callable[[dict[str, Any] | None], dict[str, Any]],
+) -> dict[str, Any]:
+    """Prepare a connector directly or publish a keyed plan from staging."""
+    if requires_transactional_connector_prepare(plan, transactional):
+        return prepare_connector_transactionally(
+            connector,
+            cache_root,
+            plan,
+            lambda staged_plan, _inner: prepare(staged_plan),
+        )
+    return prepare(plan)
+
+
 def apache_runtime_context(
     env: dict[str, str],
     plan: dict[str, Any],
@@ -6543,25 +6562,39 @@ def prepare_apache_httpd(
     plan: dict[str, Any] | None = None,
     _transactional: bool = False,
 ) -> dict[str, Any]:
-    if requires_transactional_connector_prepare(plan, _transactional):
-        return prepare_connector_transactionally(
-            "apache",
+    """Prepare Apache while preserving atomic staging for keyed cache plans."""
+    return prepare_connector_with_optional_staging(
+        "apache",
+        cache_root,
+        plan,
+        _transactional,
+        lambda active_plan: _prepare_apache_httpd_for_plan(
+            env,
+            connector_root,
+            framework_root,
             cache_root,
-            plan,
-            lambda staged_plan, _inner: prepare_apache_httpd(
-                env,
-                connector_root,
-                framework_root,
-                cache_root,
-                build_root,
-                sources_root,
-                archives_root,
-                expat,
-                modsecurity,
-                staged_plan,
-                _transactional=True,
-            ),
-        )
+            build_root,
+            sources_root,
+            archives_root,
+            expat,
+            modsecurity,
+            active_plan,
+        ),
+    )
+
+
+def _prepare_apache_httpd_for_plan(
+    env: dict[str, str],
+    connector_root: Path,
+    framework_root: Path,
+    cache_root: Path,
+    build_root: Path,
+    sources_root: Path,
+    archives_root: Path,
+    expat: dict[str, Any] | None,
+    modsecurity: dict[str, Any] | None,
+    plan: dict[str, Any] | None,
+) -> dict[str, Any]:
     modsecurity = modsecurity or {}
     plan = plan or {}
     expat = expat or {}
@@ -6992,24 +7025,37 @@ def prepare_nginx_runtime(
     plan: dict[str, Any] | None = None,
     _transactional: bool = False,
 ) -> dict[str, Any]:
-    if requires_transactional_connector_prepare(plan, _transactional):
-        return prepare_connector_transactionally(
-            "nginx",
+    """Prepare NGINX while preserving atomic staging for keyed cache plans."""
+    return prepare_connector_with_optional_staging(
+        "nginx",
+        cache_root,
+        plan,
+        _transactional,
+        lambda active_plan: _prepare_nginx_runtime_for_plan(
+            env,
+            connector_root,
+            framework_root,
             cache_root,
-            plan,
-            lambda staged_plan, _inner: prepare_nginx_runtime(
-                env,
-                connector_root,
-                framework_root,
-                cache_root,
-                build_root,
-                sources_root,
-                archives_root,
-                modsecurity,
-                staged_plan,
-                _transactional=True,
-            ),
-        )
+            build_root,
+            sources_root,
+            archives_root,
+            modsecurity,
+            active_plan,
+        ),
+    )
+
+
+def _prepare_nginx_runtime_for_plan(
+    env: dict[str, str],
+    connector_root: Path,
+    framework_root: Path,
+    cache_root: Path,
+    build_root: Path,
+    sources_root: Path,
+    archives_root: Path,
+    modsecurity: dict[str, Any] | None,
+    plan: dict[str, Any] | None,
+) -> dict[str, Any]:
     modsecurity = modsecurity or {}
     plan = plan or {}
     protocol_inputs, protocol_profile, quic_tls_archive, protocol_blocker = nginx_protocol_context(

@@ -1,5 +1,10 @@
 # Change Records
 
+- [Parent CI provisioning final cognitive-complexity remediation](CR-20260801-ci-provisioning-two-cognitive-remediation.md)
+  — resolves the two remaining Apache/NGINX `python:S3776` rows by centralizing
+  their existing transactional-staging decision; exact-head hosted verification
+  remains required before any merge decision.
+
 - [Parent Common final SonarQube Cloud remediation](CR-20260801-sonar-common-final-remediation.md)
   — closes the two remaining current `common/` receipts with validated
   compiler/linker inputs and a configuration-line parser extraction; exact-head
