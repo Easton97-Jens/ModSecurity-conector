@@ -6,6 +6,12 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Common Runtime SonarQube Cloud maintainability remediation](CR-20260801-sonar-common-runtime-maintainability.md)
+  — covers the current 18-item `common/runtime/` inventory with bounded
+  transaction-state grouping, const-correct parser/runtime views, C17 checks,
+  and a finalized local security-diff review; exact-head hosted verification
+  remains required before any integration.
+
 - [Parent Traefik complete SonarQube Cloud remediation](CR-20260801-sonar-traefik-complete-remediation.md)
   — validates local executable and artefact boundaries, preserves native UDS
   lifecycle cleanup, and decomposes the current Traefik runner without scanner

@@ -456,12 +456,23 @@ if transaction_match is None:
 transaction_storage = text_without_comments(transaction_match.group("body"))
 if "const msconnector_request *" in transaction_storage or "const msconnector_response *" in transaction_storage:
     fail("common runtime transaction must not retain host-owned request/response pointers")
+legacy_body_progress = (
+    "request_body_bytes_seen" in runtime_source and
+    "response_body_bytes_seen" in runtime_source and
+    "request_body_limit_outcome" in runtime_source and
+    "response_body_limit_outcome" in runtime_source and
+    "response_body_finished" in runtime_source
+)
+grouped_body_progress = (
+    "msconnector_runtime_body_progress request_body;" in transaction_storage and
+    "msconnector_runtime_body_progress response_body;" in transaction_storage and
+    "bytes_seen" in runtime_header and
+    "bytes_inspected" in runtime_header and
+    "limit_outcome" in runtime_header and
+    "finished" in runtime_header
+)
 if ("apply_body_limit_plan" not in runtime_source or
-        "request_body_bytes_seen" not in runtime_source or
-        "response_body_bytes_seen" not in runtime_source or
-        "request_body_limit_outcome" not in runtime_source or
-        "response_body_limit_outcome" not in runtime_source or
-        "response_body_finished" not in runtime_source):
+        not (legacy_body_progress or grouped_body_progress)):
     fail("common runtime must track bounded chunk progress, limit outcomes and explicit EOS state")
 if ("MSCONNECTOR_BODY_LIMIT_ACTION_REJECT" not in body_policy_header or
         "MSCONNECTOR_BODY_LIMIT_ACTION_PROCESS_PARTIAL" not in body_policy_header or
