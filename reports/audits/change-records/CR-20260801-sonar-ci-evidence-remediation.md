@@ -119,3 +119,17 @@ configuration, suppression, Quality Gate, or `master` change is present.
 Local controls and the bounded review passed. Commit, push, Draft PR, hosted
 verification, and integration are not claimed by this record; it authorizes no
 merge.
+
+### Delivery authorization and intended integration
+
+After the PR reached `verified_pr`, the current user explicitly authorized only
+this Parent integration with “bringe das pr 215 in den master”. The authorized
+inventory is therefore `Easton97-Jens/ModSecurity-conector` PR #215 only; it
+does not include Framework, MRTS, Gitlinks, or another PR. The protected
+`master` ruleset requires a pull request, resolved review threads, and its six
+listed status checks, but zero approving reviews. It permits merge, squash, and
+rebase methods. The two most recent matching Parent integrations (#214 and
+#212) are merge commits, so the intended method is a SHA-bound merge commit.
+The final head, merge result, and resulting-master evidence must be observed
+and retained by the integration task rather than asserted in this pre-merge
+record.

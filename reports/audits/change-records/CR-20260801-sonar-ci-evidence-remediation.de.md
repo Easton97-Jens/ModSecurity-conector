@@ -122,3 +122,18 @@ Dependency-, Scanner-Konfigurations-, Suppression-, Quality-Gate- oder
 `master`-Änderung. Lokale Controls und das begrenzte Review bestanden. Commit,
 Push, Draft PR, Hosted-Verifikation und Integration werden nicht behauptet;
 dieser Record autorisiert keinen Merge.
+
+### Auslieferungsautorisierung und vorgesehene Integration
+
+Nachdem der PR `verified_pr` erreicht hatte, autorisierte der aktuelle Nutzer
+explizit nur diese Parent-Integration mit „bringe das pr 215 in den master“.
+Das autorisierte Inventar ist daher ausschließlich PR #215 von
+`Easton97-Jens/ModSecurity-conector`; Framework, MRTS, Gitlinks und weitere
+PRs sind nicht eingeschlossen. Das geschützte `master`-Ruleset verlangt einen
+Pull Request, aufgelöste Review-Threads und seine sechs gelisteten
+Status-Checks, aber null zustimmende Reviews. Es erlaubt Merge-, Squash- und
+Rebase-Methoden. Die zwei letzten passenden Parent-Integrationen (#214 und
+#212) sind Merge-Commits; deshalb ist ein SHA-gebundener Merge-Commit die
+vorgesehene Methode. Finaler Head, Merge-Ergebnis und resultierende Master-
+Evidence müssen vom Integrationstask beobachtet und aufbewahrt werden, statt in
+diesem Pre-Merge-Record behauptet zu werden.
