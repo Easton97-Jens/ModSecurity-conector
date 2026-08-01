@@ -6,6 +6,17 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Traefik complete SonarQube Cloud remediation](CR-20260801-sonar-traefik-complete-remediation.md)
+  — validates local executable and artefact boundaries, preserves native UDS
+  lifecycle cleanup, and decomposes the current Traefik runner without scanner
+  suppressions; the previous exact head passed hosted verification, while the
+  current post-base-refresh head requires its own verification before merging.
+
+- [Parent HAProxy complete SonarQube Cloud remediation](CR-20260801-sonar-haproxy-complete-remediation.md)
+  — covers the current 33-item HAProxy inventory with C17, focused contracts,
+  and a sealed security-diff review; exact-head hosted/SonarQube Cloud
+  verification remains required before it can be considered mergeable.
+
 - [Parent Envoy TLS and maintainability remediation](CR-20260801-sonar-envoy-tls-maintainability.md)
   — removes the current five Envoy SonarQube Cloud source rows by preserving
   processor semantics and encrypting the fixture upstream hop; exact-head
@@ -16,6 +27,11 @@ must not claim unobserved CI, runtime, review, or delivery results.
   — source-level fixes cover the current `ci/checks` security, hotspot, and
   maintainability inventory; focused local checks pass, while exact-head
   GitHub Actions and SonarQube Cloud verification remain required.
+
+- [Parent CI runtime SonarQube Cloud remediation and verified-root hardening](CR-20260730-sonar-ci-runtime-security-root-remediation.md)
+  — records the replacement diff’s verified focused local controls and bounded
+  security impact; fresh exact-head hosted GitHub Actions and SonarQube Cloud
+  verification remains required before integration.
 
 - [Parent Envoy maintainability remediation](CR-20260730-sonar-envoy-maintainability-remediation.md)
   — preserves C17 bridge and ext_proc lifecycle behavior; local source,

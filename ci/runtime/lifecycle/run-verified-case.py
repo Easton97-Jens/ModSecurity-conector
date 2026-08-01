@@ -13,7 +13,22 @@ from pathlib import Path
 from typing import Any
 
 
+# CI helpers are shared from ci/lib even when this file is executed directly.
+_CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import (
+    DEFAULT_RUN_BASENAME,
+    ensure_safe_runtime_directory,
+    fixed_runtime_temp_parent,
+    prepare_verified_runtime_artifact_root,
+)
+
+
 CONNECTORS = {"apache", "nginx", "haproxy"}
+DEFAULT_VERIFIED_RUN_ROOT = fixed_runtime_temp_parent() / DEFAULT_RUN_BASENAME
+RESULT_FILENAME = "result.json"
 LOG_EXTENSIONS = {".err", ".json", ".jsonl", ".log", ".txt"}
 LOG_NAME_FRAGMENTS = (
     "access",
@@ -238,7 +253,7 @@ def find_result_json(paths: dict[str, Path], case: str, started_at_ts: float) ->
     candidates: list[Path] = []
     for root in {paths.get("logs"), paths.get("results"), paths.get("work")}:
         if root and root.exists():
-            candidates.extend(root.rglob("result.json"))
+            candidates.extend(root.rglob(RESULT_FILENAME))
     filtered = [path for path in candidates if case in str(path)]
     if not filtered and candidates:
         filtered = candidates
@@ -594,23 +609,24 @@ def main() -> int:
     build_root = Path(args.build_root).resolve()
     source_root = Path(args.source_root).resolve() if args.source_root else connector_root
     tmp_root = Path(args.tmp_root).resolve() if args.tmp_root else build_root / "tmp"
-    verified_run_root = (
-        Path(args.verified_run_root).resolve()
-        if args.verified_run_root
-        else Path(os.environ.get("VERIFIED_RUN_ROOT", "/var/tmp/ModSecurity-conector-verified")).resolve()
-    )
-
     case_path = find_case_path(framework_root, args.case)
     case_def = summarize_case_definition(case_path)
     mismatch = load_mismatch_rows(connector_root, args.case, args.connector, args.crs, args.mrts)
     if args.explain:
         return explain(args, case_def, mismatch)
+    try:
+        verified_run_root = prepare_verified_runtime_artifact_root(
+            args.verified_run_root,
+            fallback=DEFAULT_VERIFIED_RUN_ROOT,
+        )
+    except ValueError as exc:
+        print(f"run-verified-case: {exc}", file=sys.stderr)
+        return 77
 
     started_at = utc_now()
     run_id = f"{started_at.strftime('%Y%m%dT%H%M%SZ')}-{safe_name(args.connector)}-{safe_name(args.case)}-{safe_name(args.crs)}-{safe_name(args.mrts)}"
-    run_dir = verified_run_root / "case-runs" / run_id
-    logs_dir = run_dir / "logs"
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = ensure_safe_runtime_directory(verified_run_root / "case-runs" / run_id)
+    logs_dir = ensure_safe_runtime_directory(run_dir / "logs")
 
     cmd, env, paths = build_harness_command(
         args.connector,
@@ -641,17 +657,18 @@ def main() -> int:
         return_code = proc.returncode
 
     result_path = find_result_json(paths, args.case, started_at.timestamp())
+    case_result_path = run_dir / RESULT_FILENAME
     if result_path and result_path.is_file():
         result = read_json(result_path)
-        shutil.copy2(result_path, run_dir / "result.json")
+        shutil.copy2(result_path, case_result_path)
     else:
         result = {
             "status": "missing_result",
             "expected_status": case_def.get("expect", {}).get("status") if isinstance(case_def.get("expect"), dict) else None,
             "actual_status": None,
-            "reason": "Harness completed without a discoverable result.json.",
+            "reason": f"Harness completed without a discoverable {RESULT_FILENAME}.",
         }
-        write_json(run_dir / "result.json", result)
+        write_json(case_result_path, result)
     result.setdefault("status", "unknown")
 
     logs = relevant_log_files(paths, args.case, result)
@@ -659,7 +676,7 @@ def main() -> int:
     artifacts = copy_or_excerpt_logs(sorted(set(logs)), logs_dir)
     rule_evidence = result_rule_evidence(result, artifacts)
     log_excerpt = collect_log_excerpt(artifacts)
-    case_run_mtime = (run_dir / "result.json").stat().st_mtime
+    case_run_mtime = case_result_path.stat().st_mtime
     refresh_needed = full_matrix_refresh_needed(mismatch, connector_root, build_root, verified_run_root, case_run_mtime)
     ended_at = utc_now()
 
@@ -694,7 +711,7 @@ def main() -> int:
     print(f"case-run: {run_dir}")
     print(f"case-run.json: {run_dir / 'case-run.json'}")
     print(f"case-run.md: {run_dir / 'case-run.md'}")
-    print(f"result.json: {run_dir / 'result.json'}")
+    print(f"{RESULT_FILENAME}: {case_result_path}")
     print(f"status: {result.get('status')} return_code={return_code}")
     return return_code
 
