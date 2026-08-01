@@ -153,6 +153,10 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
             self.assertEqual(result_path, runtime_root / RUNNER.RESULT_FILE_NAME)
             self.assertIn(f"rules_file={rules_file}", service_config.read_text(encoding="utf-8"))
             self.assertIn(f"event_path={event_path}", service_config.read_text(encoding="utf-8"))
+            result_path.unlink()
+            result_path.symlink_to(runtime_root / "outside-result.json")
+            with self.assertRaisesRegex(RUNNER.MissingDependency, "runtime artifact path is unsafe"):
+                RUNNER.write_runtime_result(runtime_root, {"status": "PASS"})
 
     def test_result_root_must_be_a_private_build_root_descendant(self) -> None:
         with tempfile.TemporaryDirectory(prefix="traefik-runtime-root-") as temporary:

@@ -277,9 +277,35 @@ def assert_no_symlink_components(path: Path) -> None:
 def write_runtime_result(result_root: Path, payload: dict[str, object]) -> Path:
     """Write the fixed-name result only below the validated result root."""
 
-    result_path = result_root / RESULT_FILE_NAME
-    result_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return result_path
+    return write_fixed_runtime_text(
+        result_root,
+        RESULT_FILE_NAME,
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+    )
+
+
+def write_fixed_runtime_text(directory: Path, filename: str, contents: str) -> Path:
+    """Write one fixed regular artifact beneath a private, non-symlink directory."""
+
+    if filename not in {RESULT_FILE_NAME, SERVICE_CONFIG_FILE_NAME}:
+        raise MissingDependency(f"unexpected runtime artifact name: {filename}")
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    artifact_flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+    try:
+        directory_descriptor = os.open(directory, directory_flags)
+    except OSError as exc:
+        raise MissingDependency(f"runtime artifact directory is unsafe: {directory}") from exc
+    try:
+        artifact_descriptor = os.open(filename, artifact_flags, 0o600, dir_fd=directory_descriptor)
+    except OSError as exc:
+        raise MissingDependency(f"runtime artifact path is unsafe: {directory / filename}") from exc
+    finally:
+        os.close(directory_descriptor)
+    with os.fdopen(artifact_descriptor, "w", encoding="utf-8") as artifact:
+        if not stat.S_ISREG(os.fstat(artifact.fileno()).st_mode):
+            raise MissingDependency(f"runtime artifact is not a regular file: {directory / filename}")
+        artifact.write(contents)
+    return directory / filename
 
 
 def verify_block_event(path: Path, expected_rule_id: str) -> dict[str, object]:
@@ -321,9 +347,7 @@ def write_concrete_service_config(
         elif line.startswith("event_path="):
             line = f"event_path={event_path}"
         lines.append(line)
-    destination = config_dir / SERVICE_CONFIG_FILE_NAME
-    destination.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return destination
+    return write_fixed_runtime_text(config_dir, SERVICE_CONFIG_FILE_NAME, "\n".join(lines) + "\n")
 
 
 def dynamic_config(upstream_port: int, auth_port: int) -> str:
