@@ -705,6 +705,56 @@ def sarif_locations(result: dict[str, Any]) -> tuple[Path, int | None, int | Non
     )
 
 
+def sarif_result_finding(
+    result: object,
+    path: Path,
+    entry: CdbEntry,
+    root: Path,
+    system_paths: tuple[Path, ...],
+    artifact: str,
+) -> dict[str, Any]:
+    if not isinstance(result, dict):
+        raise BaselineError(f"static analyzer SARIF result is invalid: {path}")
+    message_value = result.get("message")
+    if not isinstance(message_value, dict) or not isinstance(message_value.get("text"), str):
+        raise BaselineError(f"static analyzer SARIF message is invalid: {path}")
+    rule_id = result.get("ruleId")
+    checks = [rule_id] if isinstance(rule_id, str) and rule_id else []
+    location, line, column = sarif_locations(result)
+    return raw_finding(
+        tool="clang-static-analyzer",
+        source=entry.source,
+        path=location,
+        line=line,
+        column=column,
+        severity=result.get("level") if isinstance(result.get("level"), str) else "warning",
+        message=message_value["text"],
+        checks=checks,
+        root=root,
+        system_paths=system_paths,
+        artifact=artifact,
+    )
+
+
+def sarif_run_findings(
+    run: object,
+    path: Path,
+    entry: CdbEntry,
+    root: Path,
+    system_paths: tuple[Path, ...],
+    artifact: str,
+) -> list[dict[str, Any]]:
+    if not isinstance(run, dict):
+        raise BaselineError(f"static analyzer SARIF run is invalid: {path}")
+    results = run.get("results", [])
+    if not isinstance(results, list):
+        raise BaselineError(f"static analyzer SARIF results are invalid: {path}")
+    return [
+        sarif_result_finding(result, path, entry, root, system_paths, artifact)
+        for result in results
+    ]
+
+
 def parse_sarif_findings(
     path: Path,
     entry: CdbEntry,
@@ -718,38 +768,11 @@ def parse_sarif_findings(
         raise BaselineError(f"cannot parse static analyzer SARIF {path}: {error}") from error
     if not isinstance(payload, dict) or not isinstance(payload.get("runs"), list):
         raise BaselineError(f"static analyzer SARIF is not a valid SARIF object: {path}")
-    findings: list[dict[str, Any]] = []
-    for run in payload["runs"]:
-        if not isinstance(run, dict):
-            raise BaselineError(f"static analyzer SARIF run is invalid: {path}")
-        results = run.get("results", [])
-        if not isinstance(results, list):
-            raise BaselineError(f"static analyzer SARIF results are invalid: {path}")
-        for result in results:
-            if not isinstance(result, dict):
-                raise BaselineError(f"static analyzer SARIF result is invalid: {path}")
-            message_value = result.get("message")
-            if not isinstance(message_value, dict) or not isinstance(message_value.get("text"), str):
-                raise BaselineError(f"static analyzer SARIF message is invalid: {path}")
-            rule_id = result.get("ruleId")
-            checks = [rule_id] if isinstance(rule_id, str) and rule_id else []
-            location, line, column = sarif_locations(result)
-            findings.append(
-                raw_finding(
-                    tool="clang-static-analyzer",
-                    source=entry.source,
-                    path=location,
-                    line=line,
-                    column=column,
-                    severity=result.get("level") if isinstance(result.get("level"), str) else "warning",
-                    message=message_value["text"],
-                    checks=checks,
-                    root=root,
-                    system_paths=system_paths,
-                    artifact=artifact,
-                )
-            )
-    return findings
+    return [
+        finding
+        for run in payload["runs"]
+        for finding in sarif_run_findings(run, path, entry, root, system_paths, artifact)
+    ]
 
 
 def deduplicate_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:

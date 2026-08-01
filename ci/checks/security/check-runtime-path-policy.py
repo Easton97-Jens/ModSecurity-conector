@@ -11,12 +11,21 @@ _CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.
 if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 
-from runtime_path_utils import is_allowed_runtime_path, is_system_write_path, verified_runtime_paths
+from runtime_path_utils import (
+    DEFAULT_RUN_BASENAME,
+    fixed_runtime_temp_parent,
+    is_allowed_runtime_path,
+    is_system_write_path,
+    verified_runtime_paths,
+)
 
 
 CONNECTOR_ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
 FRAMEWORK_ROOT = CONNECTOR_ROOT / "modules/ModSecurity-test-Framework"
-VERIFIED_ROOT = Path("/var/tmp/ModSecurity-conector-verified")
+# The checked default comes from the shared path-policy helper.  It retains the
+# exact policy location while avoiding a second, unchecked temporary-root
+# construction in this control script.
+VERIFIED_ROOT = fixed_runtime_temp_parent() / DEFAULT_RUN_BASENAME
 RUNTIME_PATH_OVERRIDES = (
     "VERIFIED_RUN_ROOT",
     "VERIFIED_STATE_ROOT",

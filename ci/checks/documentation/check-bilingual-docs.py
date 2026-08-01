@@ -11,16 +11,9 @@ from pathlib import Path
 from urllib.parse import unquote
 
 
-REMOTE_PREFIXES = (
-    "http://",
-    "https://",
-    "mailto:",
-    "app://",
-    "plugin://",
-)
-
 LINK_RE = re.compile(r"(?<!!)\[[^\]\n]+\]\(([^)\n]+)\)")
 REFERENCE_LINK_RE = re.compile(r"^\s*\[[^\]]+\]:\s+(\S+)")
+URI_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 MARKDOWN_SUFFIX = ".md"
 GERMAN_MARKDOWN_SUFFIX = ".de.md"
 TOOLS_MRTS = "tools/MRTS"
@@ -511,54 +504,49 @@ def check_forbidden_local_language_companions(repo: Path) -> list[str]:
     ]
 
 
-def check_pairs_and_switches(repo: Path) -> list[str]:
+def ordinary_pair_errors(repo: Path, source: Path) -> list[str]:
     errors: list[str] = []
-    for source in english_sources(repo):
-        rel_source = source.relative_to(repo)
-        companion = german_counterpart(source)
-        if not companion.exists():
-            errors.append(f"{rel_source}: missing German companion {companion.relative_to(repo)}")
-            continue
-        rel_companion = companion.relative_to(repo)
-        english_switch = f"**Language:** English | [Deutsch]({companion.name})"
-        german_switch = f"**Sprache:** [English]({source.name}) | Deutsch"
-        source_text = source.read_text(encoding="utf-8", errors="replace")
-        companion_text = companion.read_text(encoding="utf-8", errors="replace")
-        if english_switch not in source_text:
-            errors.append(f"{rel_source}: missing language switch {english_switch!r}")
-        if german_switch not in companion_text:
-            errors.append(f"{rel_companion}: missing language switch {german_switch!r}")
-        if needs_structural_parity(rel_source):
-            english_headings = heading_levels(source_text)
-            german_headings = heading_levels(companion_text)
-            if english_headings != german_headings:
-                errors.append(
-                    f"{rel_source}: heading-level structure differs from {rel_companion} "
-                    f"({english_headings!r} != {german_headings!r})"
-                )
-            if english_headings.count(1) != 1 or german_headings.count(1) != 1:
-                errors.append(f"{rel_source}: each language companion must contain exactly one H1")
-            english_tables = table_block_rows(source_text)
-            german_tables = table_block_rows(companion_text)
-            if english_tables != german_tables:
-                errors.append(
-                    f"{rel_source}: table-row structure differs from {rel_companion} "
-                    f"({english_tables!r} != {german_tables!r})"
-                )
-        if needs_structural_parity(rel_source) and (
-            fenced_blocks(source_text) != fenced_blocks(companion_text)
-        ):
-            errors.append(
-                f"{rel_source}: fenced code-block content differs from {rel_companion}"
-            )
-        errors.extend(
-            check_change_record_pair(
-                rel_source,
-                rel_companion,
-                source_text,
-                companion_text,
-            )
-        )
+    rel_source = source.relative_to(repo)
+    companion = german_counterpart(source)
+    if not companion.exists():
+        return [f"{rel_source}: missing German companion {companion.relative_to(repo)}"]
+    rel_companion = companion.relative_to(repo)
+    english_switch = f"**Language:** English | [Deutsch]({companion.name})"
+    german_switch = f"**Sprache:** [English]({source.name}) | Deutsch"
+    source_text = source.read_text(encoding="utf-8", errors="replace")
+    companion_text = companion.read_text(encoding="utf-8", errors="replace")
+    if english_switch not in source_text:
+        errors.append(f"{rel_source}: missing language switch {english_switch!r}")
+    if german_switch not in companion_text:
+        errors.append(f"{rel_companion}: missing language switch {german_switch!r}")
+    errors.extend(structural_pair_errors(rel_source, rel_companion, source_text, companion_text))
+    errors.extend(check_change_record_pair(rel_source, rel_companion, source_text, companion_text))
+    return errors
+
+
+def structural_pair_errors(
+    source: Path, companion: Path, source_text: str, companion_text: str,
+) -> list[str]:
+    if not needs_structural_parity(source):
+        return []
+    errors: list[str] = []
+    english_headings = heading_levels(source_text)
+    german_headings = heading_levels(companion_text)
+    if english_headings != german_headings:
+        errors.append(f"{source}: heading-level structure differs from {companion} ({english_headings!r} != {german_headings!r})")
+    if english_headings.count(1) != 1 or german_headings.count(1) != 1:
+        errors.append(f"{source}: each language companion must contain exactly one H1")
+    english_tables = table_block_rows(source_text)
+    german_tables = table_block_rows(companion_text)
+    if english_tables != german_tables:
+        errors.append(f"{source}: table-row structure differs from {companion} ({english_tables!r} != {german_tables!r})")
+    if fenced_blocks(source_text) != fenced_blocks(companion_text):
+        errors.append(f"{source}: fenced code-block content differs from {companion}")
+    return errors
+
+
+def special_language_index_errors(repo: Path) -> list[str]:
+    errors: list[str] = []
     for english_index, german_index in SPECIAL_LANGUAGE_INDEXES:
         english_path = repo / english_index
         german_path = repo / german_index
@@ -576,6 +564,53 @@ def check_pairs_and_switches(repo: Path) -> list[str]:
     return errors
 
 
+def check_pairs_and_switches(repo: Path) -> list[str]:
+    errors = special_language_index_errors(repo)
+    for source in english_sources(repo):
+        errors.extend(ordinary_pair_errors(repo, source))
+    return errors
+
+
+def common_design_note_errors(language: str, relative_path: Path, text: str) -> list[str]:
+    errors: list[str] = []
+    normalized_text = " ".join(text.split())
+    if COMMON_DESIGN_NOTE_STATUS[language] not in text:
+        errors.append(f"{relative_path}: missing current Common design-note status {COMMON_DESIGN_NOTE_STATUS[language]!r}")
+    for required in COMMON_DESIGN_NOTE_REQUIRED_CONTENT[language]:
+        if required not in normalized_text:
+            errors.append(f"{relative_path}: missing required Common design-note content {required!r}")
+    prohibited_status = "scaffolded" if language == "English" else "eingerüstet"
+    if prohibited_status in text.casefold():
+        errors.append(f"{relative_path}: obsolete scaffolded status is not a current architecture claim")
+    errors.extend(common_design_route_errors(relative_path, text))
+    errors.extend(common_design_historical_errors(relative_path, text))
+    return errors
+
+
+def common_design_route_errors(relative_path: Path, text: str) -> list[str]:
+    errors: list[str] = []
+    route_rows = [(connector.strip(), route) for connector, route in COMMON_DESIGN_ROUTE_ROW_RE.findall(text)]
+    routes = dict(route_rows)
+    if len(routes) != len(route_rows):
+        errors.append(f"{relative_path}: selected-route rows must not repeat a connector")
+    for connector, expected_route in COMMON_DESIGN_SELECTED_ROUTES.items():
+        route = routes.get(connector)
+        if route != expected_route:
+            errors.append(f"{relative_path}: selected route for {connector} must be {expected_route!r}, found {route!r}")
+    for connector in sorted(set(routes) - set(COMMON_DESIGN_SELECTED_ROUTES)):
+        errors.append(f"{relative_path}: unexpected selected-route row for {connector}")
+    return errors
+
+
+def common_design_historical_errors(relative_path: Path, text: str) -> list[str]:
+    errors: list[str] = []
+    for line_number, line in enumerate(text.splitlines(), 1):
+        normalized = line.casefold()
+        if any(token in normalized for token in COMMON_DESIGN_HISTORICAL_TOKENS) and not any(marker in normalized for marker in COMMON_DESIGN_HISTORICAL_MARKERS):
+            errors.append(f"{relative_path}:{line_number}: historical integration mode must be explicitly marked historical or compatibility_only")
+    return errors
+
+
 def check_common_design_note_contract(repo: Path) -> list[str]:
     """Keep the Common design note aligned with the binding selected routes."""
     errors: list[str] = []
@@ -584,52 +619,7 @@ def check_common_design_note_contract(repo: Path) -> list[str]:
         if not path.is_file():
             errors.append(f"{relative_path}: missing Common design note")
             continue
-        text = path.read_text(encoding="utf-8", errors="replace")
-        normalized_text = " ".join(text.split())
-        if COMMON_DESIGN_NOTE_STATUS[language] not in text:
-            errors.append(
-                f"{relative_path}: missing current Common design-note status "
-                f"{COMMON_DESIGN_NOTE_STATUS[language]!r}"
-            )
-        for required in COMMON_DESIGN_NOTE_REQUIRED_CONTENT[language]:
-            if required not in normalized_text:
-                errors.append(
-                    f"{relative_path}: missing required Common design-note content "
-                    f"{required!r}"
-                )
-        prohibited_status = "scaffolded" if language == "English" else "eingerüstet"
-        if prohibited_status in text.casefold():
-            errors.append(
-                f"{relative_path}: obsolete scaffolded status is not a current architecture claim"
-            )
-
-        route_rows = [
-            (connector.strip(), route)
-            for connector, route in COMMON_DESIGN_ROUTE_ROW_RE.findall(text)
-        ]
-        routes = dict(route_rows)
-        if len(routes) != len(route_rows):
-            errors.append(f"{relative_path}: selected-route rows must not repeat a connector")
-        for connector, expected_route in COMMON_DESIGN_SELECTED_ROUTES.items():
-            route = routes.get(connector)
-            if route != expected_route:
-                errors.append(
-                    f"{relative_path}: selected route for {connector} must be "
-                    f"{expected_route!r}, found {route!r}"
-                )
-        unexpected_connectors = sorted(set(routes) - set(COMMON_DESIGN_SELECTED_ROUTES))
-        for connector in unexpected_connectors:
-            errors.append(f"{relative_path}: unexpected selected-route row for {connector}")
-
-        for line_number, line in enumerate(text.splitlines(), 1):
-            normalized = line.casefold()
-            if not any(token in normalized for token in COMMON_DESIGN_HISTORICAL_TOKENS):
-                continue
-            if not any(marker in normalized for marker in COMMON_DESIGN_HISTORICAL_MARKERS):
-                errors.append(
-                    f"{relative_path}:{line_number}: historical integration mode must be "
-                    "explicitly marked historical or compatibility_only"
-                )
+        errors.extend(common_design_note_errors(language, relative_path, path.read_text(encoding="utf-8", errors="replace")))
     return errors
 
 
@@ -645,55 +635,71 @@ def normalize_local_target(raw_target: str) -> str:
     target = raw_target.strip().strip("<>")
     if " " in target and not target.startswith("#"):
         target = target.split()[0]
-    if not target or target.startswith("#") or target.startswith(REMOTE_PREFIXES):
+    if not target or target.startswith("#") or URI_SCHEME_RE.match(target):
         return ""
     return unquote(target.split("#", 1)[0].split("?", 1)[0])
 
 
-def check_links(repo: Path) -> list[str]:
+def local_link_errors(
+    repo: Path, path: Path, agent_referenced_paths: frozenset[Path],
+) -> list[str]:
     errors: list[str] = []
-    agent_referenced_paths = agent_referenced_root_markdown(repo)
-    for path in checked_markdown_files(repo):
-        rel_path = path.relative_to(repo)
-        opener: str | None = None
-        for line_number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-            if opener is not None:
-                if closes_markdown_fence(line, opener):
-                    opener = None
-                continue
-            marker = markdown_fence_marker(line)
-            if marker is not None:
-                opener = marker
-                continue
-            for raw_target in normalized_targets(line):
-                target = normalize_local_target(raw_target)
-                if not target:
-                    continue
-                candidate = (path.parent / target).resolve()
-                try:
-                    rel_candidate = candidate.relative_to(repo)
-                except ValueError:
-                    errors.append(f"{rel_path}:{line_number}: link escapes repository: {raw_target}")
-                    continue
-                if is_local_codex_path(rel_candidate, agent_referenced_paths):
-                    continue
-                if not candidate.exists():
-                    errors.append(f"{rel_path}:{line_number}: missing local link target: {raw_target}")
-                    continue
-                if (
-                    path.name.endswith(GERMAN_MARKDOWN_SUFFIX)
-                    and target.endswith(MARKDOWN_SUFFIX)
-                    and not target.endswith(GERMAN_MARKDOWN_SUFFIX)
-                ):
-                    if "**Sprache:**" in line:
-                        continue
-                    german_target = german_counterpart(candidate)
-                    if german_target.exists():
-                        errors.append(
-                            f"{rel_path}:{line_number}: German link should prefer "
-                            f"{german_target.relative_to(repo)} instead of {raw_target}"
-                        )
+    rel_path = path.relative_to(repo)
+    opener: str | None = None
+    for line_number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+        if opener is not None:
+            opener = None if closes_markdown_fence(line, opener) else opener
+            continue
+        marker = markdown_fence_marker(line)
+        if marker is not None:
+            opener = marker
+            continue
+        for raw_target in normalized_targets(line):
+            errors.extend(local_target_errors(repo, path, rel_path, line_number, line, raw_target, agent_referenced_paths))
     return errors
+
+
+def local_target_errors(
+    repo: Path,
+    path: Path,
+    rel_path: Path,
+    line_number: int,
+    line: str,
+    raw_target: str,
+    agent_referenced_paths: frozenset[Path],
+) -> list[str]:
+    target = normalize_local_target(raw_target)
+    if not target:
+        return []
+    candidate = (path.parent / target).resolve()
+    try:
+        rel_candidate = candidate.relative_to(repo)
+    except ValueError:
+        return [f"{rel_path}:{line_number}: link escapes repository: {raw_target}"]
+    if is_local_codex_path(rel_candidate, agent_referenced_paths):
+        return []
+    if not candidate.exists():
+        return [f"{rel_path}:{line_number}: missing local link target: {raw_target}"]
+    if not german_link_prefers_companion(path, target, line, candidate):
+        return []
+    return [f"{rel_path}:{line_number}: German link should prefer {german_counterpart(candidate).relative_to(repo)} instead of {raw_target}"]
+
+
+def german_link_prefers_companion(path: Path, target: str, line: str, candidate: Path) -> bool:
+    if not path.name.endswith(GERMAN_MARKDOWN_SUFFIX):
+        return False
+    if not target.endswith(MARKDOWN_SUFFIX) or target.endswith(GERMAN_MARKDOWN_SUFFIX):
+        return False
+    return "**Sprache:**" not in line and german_counterpart(candidate).exists()
+
+
+def check_links(repo: Path) -> list[str]:
+    agent_referenced_paths = agent_referenced_root_markdown(repo)
+    return [
+        error
+        for path in checked_markdown_files(repo)
+        for error in local_link_errors(repo, path, agent_referenced_paths)
+    ]
 
 
 def check_generated_german_notes(repo: Path) -> list[str]:

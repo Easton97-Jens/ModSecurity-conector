@@ -23,6 +23,10 @@ must not claim unobserved CI, runtime, review, or delivery results.
   hosted verification remains required before any merge decision.
 
 - [Parent Traefik runtime and lifecycle remediation](CR-20260730-sonar-traefik-runtime-lifecycle.md)
+- [Parent CI checks SonarQube Cloud remediation](CR-20260801-sonar-ci-checks-remediation.md)
+  — source-level fixes cover the current `ci/checks` security, hotspot, and
+  maintainability inventory; focused local checks pass, while exact-head
+  GitHub Actions and SonarQube Cloud verification remain required.
 
 - [Parent CI runtime SonarQube Cloud remediation and verified-root hardening](CR-20260730-sonar-ci-runtime-security-root-remediation.md)
   — records the replacement diff’s verified focused local controls and bounded
