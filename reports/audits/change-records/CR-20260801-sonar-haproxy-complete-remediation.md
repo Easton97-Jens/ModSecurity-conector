@@ -8,9 +8,9 @@
 | --- | --- |
 | Change ID | CR-20260801-sonar-haproxy-complete-remediation |
 | Date (UTC) | 2026-08-01 |
-| Base revision | `c3319575ae86d9810da8b5428590336d60cd3daf` |
-| Tracking | Complete current `connectors/haproxy/` SonarQube Cloud remediation, pending exact-head hosted verification. |
-| Boundary | Parent `connectors/haproxy/`, its direct tests/checks, and this bilingual Change Record/index pair. Framework, MRTS, Gitlinks, other connectors, workflows, Sonar configuration, suppressions, and `master` remain unchanged. |
+| Base revision | `f70110536cd163cebce5f57ccd8ca95d5cf9f02b` |
+| Tracking | Complete current `connectors/haproxy/` SonarQube Cloud remediation. Hosted verification passed for refreshed PR head `4dbd7c0e2bf49374c4d1e70e2cfc0fb51c060198`; this delivery-record correction requires one further exact-head cycle before merge. |
+| Boundary | Parent `connectors/haproxy/`, its direct tests/checks, and this bilingual Change Record/index pair. Framework, MRTS, Gitlinks, other connectors, workflows, Sonar configuration, suppressions, and direct `master` writes remain out of scope. The current user authorized only controlled PR #210 integration into `master`. |
 
 ## Motivation and problem statement
 
@@ -50,7 +50,8 @@ the narrow type/initialization repair before a new exact-head analysis.
 - Compile changed C as C17 with `-Wall -Wextra -Werror`.
 - Keep PR new-code violations and duplication at zero, as verified only by a
   fresh SonarQube Cloud analysis of the exact PR head.
-- Keep all changes Parent-only; do not merge to `master` in this record.
+- Keep all changes Parent-only; integrate only through the current authorized,
+  exact-head-protected PR #210 workflow.
 
 ## Implementation decision and rationale
 
@@ -113,6 +114,8 @@ and
 | `python3 ci/checks/documentation/check-bilingual-docs.py` | blocked only by missing links into the deliberately uninitialized Framework submodule; no error named either new Change Record or index |
 | `git diff --check` | passed |
 | Codex Security security-diff finalization | passed: initial four-file and follow-up three-file coverage, zero reportable findings |
+| `gh pr checks 210` at `4dbd7c0e2bf49374c4d1e70e2cfc0fb51c060198` | passed: 33 checks, 0 failed |
+| SonarQube Cloud PR #210 at `4dbd7c0e2bf49374c4d1e70e2cfc0fb51c060198` | passed: Quality Gate `OK`, 0 new issues, 0.0% new-code duplication |
 
 ## Runtime evidence
 
@@ -130,8 +133,11 @@ registered task build root. The focused harness module is also not run as one
 whole module because it imports a deliberately uninitialized Framework
 submodule in this Parent-only worktree. No Framework source, Gitlink, stub,
 or bypass was introduced to alter that boundary. The local Sonar scanner is
-not installed; therefore SonarQube Cloud verification must occur on the exact
-published PR head.
+not installed; therefore SonarQube Cloud verification occurs on the exact
+published PR head. The refresh head
+`4dbd7c0e2bf49374c4d1e70e2cfc0fb51c060198` passed; this documentation-only
+delivery-record correction creates a new head that must receive the same
+hosted evidence before merge.
 
 The independent Binding syntax command reaches the installed, incompatible
 libmodsecurity declaration set: it lacks
@@ -147,21 +153,27 @@ green.
 ## Known limitations
 
 Draft PR #210 was created from the initial remediation commit. Its first
-exact-head analysis correctly exposed the three PR-owned rows documented above;
-the follow-up source changes await a fresh exact-head hosted result. This
-record does not claim a passing Quality Gate, review result, or merge until
-each has been observed for the final delivery head.
+exact-head analysis correctly exposed the three PR-owned rows documented above.
+After the current-master refresh, head
+`4dbd7c0e2bf49374c4d1e70e2cfc0fb51c060198` passed all 33 hosted checks and
+the SonarQube Cloud Quality Gate with zero new issues and zero new-code
+duplication. The present documentation-only delivery-record correction changes
+the PR head again, so its final exact-head checks and Quality Gate must be
+observed before the authorized merge. No review or merge is claimed here.
 
 ## Remaining risks
 
-SonarQube Cloud may report a source-level detail that differs from the
-current-master API inventory after the PR analysis. Any nonzero new violation,
-new duplicated line, or new-code duplication density, or any remaining
-HAProxy baseline row, requires task-owned follow-up before the PR can be
-called verified.
+The final documentation-correction head may receive a different hosted result.
+Any nonzero new violation, new duplicated line, new-code duplication density,
+failed required check, blocking review, or unresolved conversation requires
+task-owned follow-up before the PR can be merged.
 
 ## Final diff and review status
 
 The local diff is limited to the Parent HAProxy scope and Change Record pair.
-It is ready for final documentation validation and controlled Draft-PR
-delivery. `master` integration is not authorized by this task.
+The current user explicitly authorized `bringe das pr 210 in den master`.
+After the documentation-only follow-up commit, its new exact head requires a
+fresh final checks, review, conversation, and SonarQube Cloud round. The
+authorized integration then uses the repository's established squash method
+with exact-head protection; no direct `master` write, bypass, or auto-merge is
+allowed.
