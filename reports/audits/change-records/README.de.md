@@ -1,5 +1,7 @@
 # Change Records
 
+- [SonarQube-Cloud-Behebung der Parent-CI-Bibliothek](CR-20260801-sonar-ci-lib-remediation.de.md)
+
 **Sprache:** [English](README.md) | Deutsch
 
 Change Records halten Entscheidung, Umfang, Tests, Sicherheitsauswirkung und
