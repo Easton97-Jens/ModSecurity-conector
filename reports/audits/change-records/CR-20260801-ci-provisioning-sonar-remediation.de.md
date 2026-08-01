@@ -59,6 +59,17 @@ stiller nichtnull Git-Submodule-Rückgabecode trägt jetzt einen expliziten
 Fehlerstatus statt sich auf Diagnosetext zu verlassen; der Caller scheitert
 auch bei leeren beiden Output-Streams geschlossen.
 
+Die erste Exact-PR-Head-Analyse nach diesem größeren Refactoring meldete acht
+weitere Source-seitige Maintainability-Issues im neu zerlegten Provisioner:
+vier wiederholte Literale, zwei unbenutzte private Parameter, eine
+verschachtelte Bedingung und einen redundanten NGINX-Protokollprofilparameter.
+Der gleiche Kandidat gibt diesen Literalen nun jeweils einen privaten Besitzer,
+entfernt die unbeobachteten Parameter, beendet einen fehlgeschlagenen Expat-
+`autoreconf`-Schritt ohne Änderung der Verzweigungsreihenfolge und leitet das
+NGINX-Buildprofil aus den bereits aufgelösten Protokollinputs ab. Diese
+Nachbesserung erhält alle Cache-, Provenance- und Build-Contracts; sie ändert
+weder Sonar-Regeln, Quality Gate, Exclusions noch Suppressions.
+
 ## Security-Auswirkung
 
 Keine Vertrauensgrenze wird gelockert. Manifest-Pfadwerte werden nur als Daten
@@ -81,6 +92,7 @@ bestehen.
 ## Geänderte Dateien
 
 - `ci/provisioning/components/prepare-runtime-components.py`
+- `tests/test_prepare_runtime_components.py`
 - `tests/test_runtime_component_cache_contract.py`
 - `reports/audits/change-records/README.md` und `README.de.md`
 - dieses englische/deutsche Change-Record-Paar
@@ -89,7 +101,7 @@ bestehen.
 
 | Befehl | Ergebnis |
 | --- | --- |
-| `PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_prepare_runtime_components tests.test_runtime_component_cache_contract tests.test_runtime_component_cache_identity tests.test_runtime_env_snapshot_contract tests.test_runtime_artifact_utils tests.test_runtime_path_policy` | bestanden: 89 fokussierte Provisioner-, Cache-, Environment-, Artefakt- und Path-Policy-Tests. |
+| `PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_prepare_runtime_components tests.test_runtime_component_cache_contract tests.test_runtime_component_cache_identity tests.test_runtime_env_snapshot_contract tests.test_runtime_artifact_utils tests.test_runtime_path_policy` | bestanden: 90 fokussierte Provisioner-, Cache-, Environment-, Artefakt- und Path-Policy-Tests. |
 | `PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m py_compile ci/provisioning/components/prepare-runtime-components.py` | bestanden. |
 | `make check-runtime-path-policy PYTHON=/root/git/ModSecurity-conector/.venv/bin/python` | bestanden. |
 | `git diff --check` | vor Dokumentations-Autorenschaft bestanden; nach finalem Dokumentations-/Security-Review wiederholt. |

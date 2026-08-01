@@ -104,15 +104,19 @@ CACHE_ENTRY_MARKER_DIRECTORY = ".msconnector-runtime-cache-entries"
 CACHE_MANIFEST_STATUS_COMPLETE = "complete"
 CACHE_MANIFEST_FILENAME = "manifest.json"
 COMPONENT_MANIFEST_FILENAME = "component-manifest.json"
-EXPAT_HEADER_RELATIVE_PATH = "include/expat.h"
+EXPAT_HEADER_FILENAME = "expat.h"
+EXPAT_HEADER_RELATIVE_PATH = f"include/{EXPAT_HEADER_FILENAME}"
 EXPAT_BUILDCONF_FILENAME = "buildconf.sh"
 MISSING_COMMAND_TEXT = "not found"
+MISSING_FILE_TEXT = "no such file"
 MODSECURITY_LIBRARY_FILENAME = "libmodsecurity.so"
 NGINX_MODULE_FILENAME = "ngx_http_modsecurity_module.so"
 NATIVE_NGINX_OVERRIDE_ENV = "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR"
 APACHE_APXS_RELATIVE_PATH = "bin/apxs"
 UNMANAGED_CACHE_ENTRY_MARKER_MISSING_PREFIX = "unmanaged_cache_entry_marker_missing: "
 READY_COMPONENT_STATUSES = frozenset({"present", "built", "reused"})
+CONNECTOR_BUILD_ID_LABEL = "Connector build ID"
+USES_MODSECURITY_BUILD_ID_LABEL = "Uses ModSecurity build ID"
 RUNTIME_ENV_SNAPSHOT_SCHEMA_VERSION = 1
 _TRUSTED_FRAMEWORK_GUARD_SHELL = Path("/bin/sh")
 _TRUSTED_FRAMEWORK_GUARD_GIT = Path("/usr/bin/git")
@@ -2573,7 +2577,7 @@ def make_command_is_missing(text: str) -> bool:
     for line in text.splitlines():
         for match in re.finditer(r"\bmake\b", line):
             suffix = line[match.end() :]
-            if MISSING_COMMAND_TEXT in suffix or "no such file" in suffix:
+            if MISSING_COMMAND_TEXT in suffix or MISSING_FILE_TEXT in suffix:
                 return True
     return False
 
@@ -2582,7 +2586,7 @@ def map_expat_build_failure(text: str) -> str:
     lowered = text.lower()
     if "cmake" in lowered and MISSING_COMMAND_TEXT in lowered:
         return "missing_cmake"
-    if "autoconf" in lowered and (MISSING_COMMAND_TEXT in lowered or "no such file" in lowered):
+    if "autoconf" in lowered and (MISSING_COMMAND_TEXT in lowered or MISSING_FILE_TEXT in lowered):
         return "missing_autoconf"
     if "automake" in lowered or "aclocal" in lowered:
         return "missing_automake"
@@ -3072,7 +3076,6 @@ def build_and_publish_default_expat_cache_entry(
     cache_root: Path,
     build_root: Path,
     git_record: dict[str, Any],
-    record: dict[str, Any],
     cache_identity: dict[str, Any],
     paths: dict[str, Path],
 ) -> dict[str, Any]:
@@ -3136,7 +3139,6 @@ def prepare_default_expat_cache_entry(
                 cache_root,
                 build_root,
                 git_record,
-                record,
                 cache_identity,
                 paths,
             )
@@ -3315,8 +3317,7 @@ def run_expat_autotools_build(
             record=record,
         ):
             return False
-    elif not (source_dir / "configure").is_file():
-        if not run_expat_build_step(
+    elif not (source_dir / "configure").is_file() and not run_expat_build_step(
             "expat-autoreconf",
             ["autoreconf", "-fi"],
             cwd=source_dir,
@@ -3325,7 +3326,7 @@ def run_expat_autotools_build(
             log_path=log_path,
             record=record,
         ):
-            return False
+        return False
     if not run_expat_build_step(
         "expat-configure",
         [str(source_dir / "configure"), f"--prefix={prefix}"],
@@ -4584,7 +4585,6 @@ def build_shared_modsecurity_cache(
     env: dict[str, str],
     cache_root: Path,
     build_root: Path,
-    git_record: dict[str, Any],
     expat: dict[str, Any],
     inputs: dict[str, Any],
     paths: dict[str, Path],
@@ -4735,7 +4735,6 @@ def prepare_shared_modsecurity(
         env,
         cache_root,
         build_root,
-        git_record,
         expat,
         inputs,
         paths,
@@ -5400,11 +5399,11 @@ def apache_log_reports_missing_expat_header(text: str) -> bool:
     """
     for line in text.lower().splitlines():
         error_index = line.find("error:")
-        header_index = line.find("expat.h", error_index + 1)
+        header_index = line.find(EXPAT_HEADER_FILENAME, error_index + 1)
         if error_index < 0 or header_index < 0:
             continue
-        suffix = line[header_index + len("expat.h") :]
-        if "no such file" in suffix or MISSING_COMMAND_TEXT in suffix:
+        suffix = line[header_index + len(EXPAT_HEADER_FILENAME) :]
+        if MISSING_FILE_TEXT in suffix or MISSING_COMMAND_TEXT in suffix:
             return True
     return False
 
@@ -6369,7 +6368,7 @@ def claim_apache_cache_entry(plan: dict[str, Any], cache_root: Path) -> str:
 def apache_blocker_details(blocker: str, env: dict[str, str]) -> dict[str, Any]:
     if blocker == "missing_expat_headers":
         return {
-            "missing_file": "expat.h",
+            "missing_file": EXPAT_HEADER_FILENAME,
             "build_component": "apache_httpd_source_build",
             "env_variable_can_set": "CPPFLAGS/LDFLAGS",
             "dependency_searched_paths": [env.get("CPPFLAGS") or "<compiler default include paths>"],
@@ -6899,7 +6898,6 @@ def build_nginx_source(
     modsecurity: dict[str, Any],
     plan: dict[str, Any],
     protocol_inputs: dict[str, Any],
-    protocol_profile: str,
     quic_tls_archive: str,
     context: dict[str, Any],
     record: dict[str, Any],
@@ -6918,7 +6916,7 @@ def build_nginx_source(
             archives_root,
             modsecurity,
             protocol_inputs,
-            protocol_profile,
+            str(protocol_inputs.get("profile", "h1")),
             quic_tls_archive,
             common_build_source_root,
             context,
@@ -7068,7 +7066,6 @@ def prepare_nginx_runtime(
             modsecurity,
             plan,
             protocol_inputs,
-            protocol_profile,
             quic_tls_archive,
             context,
             record,
@@ -7706,8 +7703,8 @@ def apache_markdown_lines(apache: dict[str, Any]) -> list[str]:
         (
             ("Status", "status", False),
             ("Blocker", "blocker_reason", True),
-            ("Connector build ID", "connector_build_id", True),
-            ("Uses ModSecurity build ID", "modsecurity_build_id", True),
+            (CONNECTOR_BUILD_ID_LABEL, "connector_build_id", True),
+            (USES_MODSECURITY_BUILD_ID_LABEL, "modsecurity_build_id", True),
             ("Source", "source", False),
             ("Expected ref/version", "expected_ref", False),
             ("Cache path", "cache_path", False),
@@ -7748,8 +7745,8 @@ def nginx_markdown_lines(nginx: dict[str, Any]) -> list[str]:
         (
             ("Status", "status", False),
             ("Blocker", "blocker_reason", True),
-            ("Connector build ID", "connector_build_id", True),
-            ("Uses ModSecurity build ID", "modsecurity_build_id", True),
+            (CONNECTOR_BUILD_ID_LABEL, "connector_build_id", True),
+            (USES_MODSECURITY_BUILD_ID_LABEL, "modsecurity_build_id", True),
             ("Source", "source", False),
             ("Expected ref/version", "expected_ref", False),
             ("Cache path", "cache_path", False),
@@ -7774,8 +7771,8 @@ def haproxy_markdown_lines(haproxy: dict[str, Any]) -> list[str]:
         (
             ("Status", "status", False),
             ("Blocker", "blocker_reason", True),
-            ("Connector build ID", "connector_build_id", True),
-            ("Uses ModSecurity build ID", "modsecurity_build_id", True),
+            (CONNECTOR_BUILD_ID_LABEL, "connector_build_id", True),
+            (USES_MODSECURITY_BUILD_ID_LABEL, "modsecurity_build_id", True),
             ("HAPROXY_BIN", "haproxy_bin", True),
             ("SPOA_RUNTIME_BIN", "spoa_runtime_bin", True),
             ("MODSECURITY_BINDING_DIR", "modsecurity_binding_dir", True),
@@ -7800,7 +7797,7 @@ def expat_markdown_lines(expat: dict[str, Any]) -> list[str]:
             (
                 ("Actual head", "actual_head", True),
                 ("Prefix", "prefix", True),
-                ("expat.h", "expat_h", True),
+                (EXPAT_HEADER_FILENAME, "expat_h", True),
                 ("lib dir", "lib_dir", True),
                 ("Recursive submodules", "recursive_submodule_status", True),
             ),

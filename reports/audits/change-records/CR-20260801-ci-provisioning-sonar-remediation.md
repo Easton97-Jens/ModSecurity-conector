@@ -56,6 +56,16 @@ owned evidence-report implementation. A silent non-zero Git-submodule result
 now carries an explicit failure status instead of relying on diagnostic text;
 the caller fails closed even when both output streams are empty.
 
+The first exact PR-head analysis after that broader refactor reported eight
+further source-level maintainability issues in the newly factored provisioner:
+four repeated literals, two unused private parameters, one nested conditional,
+and one redundant NGINX protocol-profile parameter. The same candidate now
+gives those literals one private owner, removes the unobserved parameters,
+short-circuits the Expat `autoreconf` failure without changing branch order,
+and derives the NGINX build profile from the already resolved protocol inputs.
+This follow-up preserves every cache, provenance, and build contract; it is not
+a Sonar rule, Quality-Gate, exclusion, or suppression change.
+
 ## Security impact
 
 No trust boundary is relaxed. Manifest path values are compared as data only;
@@ -76,6 +86,7 @@ as a separate exact-diff verification step.
 ## Changed files
 
 - `ci/provisioning/components/prepare-runtime-components.py`
+- `tests/test_prepare_runtime_components.py`
 - `tests/test_runtime_component_cache_contract.py`
 - `reports/audits/change-records/README.md` and `README.de.md`
 - this English/German Change Record pair
@@ -84,7 +95,7 @@ as a separate exact-diff verification step.
 
 | Command | Result |
 | --- | --- |
-| `PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_prepare_runtime_components tests.test_runtime_component_cache_contract tests.test_runtime_component_cache_identity tests.test_runtime_env_snapshot_contract tests.test_runtime_artifact_utils tests.test_runtime_path_policy` | passed: 89 focused provisioner, cache, environment, artifact, and path-policy tests. |
+| `PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_prepare_runtime_components tests.test_runtime_component_cache_contract tests.test_runtime_component_cache_identity tests.test_runtime_env_snapshot_contract tests.test_runtime_artifact_utils tests.test_runtime_path_policy` | passed: 90 focused provisioner, cache, environment, artifact, and path-policy tests. |
 | `PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m py_compile ci/provisioning/components/prepare-runtime-components.py` | passed. |
 | `make check-runtime-path-policy PYTHON=/root/git/ModSecurity-conector/.venv/bin/python` | passed. |
 | `git diff --check` | passed before documentation authoring; repeated after the final documentation/security review. |
