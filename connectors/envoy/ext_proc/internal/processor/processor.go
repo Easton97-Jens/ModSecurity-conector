@@ -122,10 +122,10 @@ const (
 	CloseProcessorError    CloseReason = "processor_error"
 )
 
-// Engine receives only incremental data. The production libmodsecurity build
-// installs CommonRuntimeEngine; PassthroughEngine remains for protobuf/unit
-// development without CGo linkage.
-type Engine interface {
+// TransactionOpener receives only incremental data. The production
+// libmodsecurity build installs CommonRuntimeEngine; PassthroughEngine remains
+// for protobuf/unit development without CGo linkage.
+type TransactionOpener interface {
 	Open(context.Context, StreamMetadata) (Transaction, error)
 }
 
@@ -218,12 +218,12 @@ type Service struct {
 	extprocv3.UnimplementedExternalProcessorServer
 
 	config   Config
-	engine   Engine
+	engine   TransactionOpener
 	observer Observer
 	active   sync.WaitGroup
 }
 
-func NewService(config Config, engine Engine) (*Service, error) {
+func NewService(config Config, engine TransactionOpener) (*Service, error) {
 	return NewServiceWithObserver(config, engine, discardObserver{})
 }
 
@@ -231,7 +231,7 @@ func NewService(config Config, engine Engine) (*Service, error) {
 // observer. A nil observer is equivalent to a discard observer, which keeps
 // the existing unit-test and library API safe for callers that do not need
 // runtime evidence.
-func NewServiceWithObserver(config Config, engine Engine, observer Observer) (*Service, error) {
+func NewServiceWithObserver(config Config, engine TransactionOpener, observer Observer) (*Service, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -334,7 +334,7 @@ func sendProcessingResponse(stream extprocv3.ExternalProcessor_ProcessServer, re
 
 type streamState struct {
 	config   Config
-	engine   Engine
+	engine   TransactionOpener
 	observer Observer
 
 	transaction   Transaction
@@ -359,7 +359,7 @@ type streamState struct {
 	summary Summary
 }
 
-func newStreamState(config Config, engine Engine, observer Observer) *streamState {
+func newStreamState(config Config, engine TransactionOpener, observer Observer) *streamState {
 	return &streamState{config: config, engine: engine, observer: observer, summary: Summary{LateAction: LateActionNone}}
 }
 
