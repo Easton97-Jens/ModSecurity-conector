@@ -107,6 +107,12 @@ def lifecycle_arguments(
     return arguments
 
 
+def with_replaced_argument(arguments: list[str], option: str, value: Path) -> list[str]:
+    replacement = list(arguments)
+    replacement[replacement.index(option) + 1] = str(value)
+    return replacement
+
+
 def write_lifecycle_inputs(
     root: Path, barrier_events: list[object], *, selected_case_ids: str = ""
 ) -> tuple[list[str], dict[str, Path]]:
@@ -176,6 +182,7 @@ def write_lifecycle_inputs(
         {
             "output": output,
             "projection": projection,
+            "runtime_root": root,
             "summary": summary,
         },
     )
@@ -384,40 +391,30 @@ class PatchedEventValidationTest(unittest.TestCase):
                 metadata_result.stderr,
             )
 
-            lifecycle_malformed = root / "lifecycle-malformed.jsonl"
+            lifecycle_root = root / "lifecycle-malformed"
+            lifecycle_arguments_value, lifecycle_artifacts = write_lifecycle_inputs(
+                lifecycle_root, [safe_p4_event()]
+            )
+            lifecycle_malformed = lifecycle_root / "lifecycle-malformed.jsonl"
             lifecycle_malformed.write_text("{\n", encoding="utf-8")
             lifecycle_result = self.run_writer(
                 LIFECYCLE_WRITER,
-                lifecycle_arguments(
-                    events=lifecycle_malformed,
-                    output=root / "lifecycle-output.jsonl",
-                    barrier=root / "barrier.jsonl",
-                    projection=root / "projection.json",
-                    first_byte_evidence=root / "first-byte.json",
-                    content_length=root / "content-length.jsonl",
-                    chunked=root / "chunked.jsonl",
-                    fixture=root / "fixture.json",
-                    summary=root / "summary.json",
+                with_replaced_argument(
+                    lifecycle_arguments_value, "--events", lifecycle_malformed
                 ),
+                runtime_output_root=lifecycle_artifacts["runtime_root"],
             )
             self.assertNotEqual(lifecycle_result.returncode, 0)
             self.assertIn("JSONDecodeError", lifecycle_result.stderr)
 
-            lifecycle_non_object = root / "lifecycle-non-object.jsonl"
+            lifecycle_non_object = lifecycle_root / "lifecycle-non-object.jsonl"
             lifecycle_non_object.write_text("[]\n", encoding="utf-8")
             lifecycle_result = self.run_writer(
                 LIFECYCLE_WRITER,
-                lifecycle_arguments(
-                    events=lifecycle_non_object,
-                    output=root / "lifecycle-non-object-output.jsonl",
-                    barrier=root / "barrier.jsonl",
-                    projection=root / "projection.json",
-                    first_byte_evidence=root / "first-byte.json",
-                    content_length=root / "content-length.jsonl",
-                    chunked=root / "chunked.jsonl",
-                    fixture=root / "fixture.json",
-                    summary=root / "summary.json",
+                with_replaced_argument(
+                    lifecycle_arguments_value, "--events", lifecycle_non_object
                 ),
+                runtime_output_root=lifecycle_artifacts["runtime_root"],
             )
             self.assertNotEqual(lifecycle_result.returncode, 0)
             self.assertIn(
@@ -447,7 +444,11 @@ class PatchedEventValidationTest(unittest.TestCase):
                 ],
                 selected_case_ids="phase4_rule_observed",
             )
-            result = self.run_writer(LIFECYCLE_WRITER, arguments)
+            result = self.run_writer(
+                LIFECYCLE_WRITER,
+                arguments,
+                runtime_output_root=artifacts["runtime_root"],
+            )
 
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = [
@@ -498,10 +499,70 @@ class PatchedEventValidationTest(unittest.TestCase):
                         barrier_events,
                         selected_case_ids="phase4_rule_observed",
                     )
-                    result = self.run_writer(LIFECYCLE_WRITER, arguments)
+                    result = self.run_writer(
+                        LIFECYCLE_WRITER,
+                        arguments,
+                        runtime_output_root=artifacts["runtime_root"],
+                    )
 
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn(candidate_error, result.stderr)
+                    self.assertFalse(artifacts["output"].exists())
+
+    def test_lifecycle_writer_rejects_escaped_and_symlink_input_paths(self) -> None:
+        options = (
+            "--events",
+            "--phase4-safe-events",
+            "--phase4-first-byte-evidence",
+            "--content-length-events",
+            "--chunked-events",
+            "--entity-fixture-result",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            trusted_root = root / "trusted"
+            arguments, artifacts = write_lifecycle_inputs(
+                trusted_root, [safe_p4_event()]
+            )
+            escaped = root / "escaped.json"
+            escaped.write_text("{}\n", encoding="utf-8")
+
+            for label, input_path in (
+                ("escaped", escaped),
+                ("symlink", trusted_root / "escaped-link.json"),
+            ):
+                if label == "symlink":
+                    input_path.symlink_to(escaped)
+                for option in options:
+                    with self.subTest(path=label, option=option):
+                        result = self.run_writer(
+                            LIFECYCLE_WRITER,
+                            with_replaced_argument(arguments, option, input_path),
+                            runtime_output_root=artifacts["runtime_root"],
+                        )
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn("must be below the runtime root", result.stderr)
+                        self.assertFalse(artifacts["output"].exists())
+                        self.assertFalse(artifacts["projection"].exists())
+                        self.assertFalse(artifacts["summary"].exists())
+
+    def test_lifecycle_writer_rejects_missing_or_nonregular_fixture_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            arguments, artifacts = write_lifecycle_inputs(root, [safe_p4_event()])
+            fixture_directory = root / "fixture-directory"
+            fixture_directory.mkdir()
+            for fixture in (root / "missing-fixture.json", fixture_directory):
+                with self.subTest(fixture=fixture):
+                    result = self.run_writer(
+                        LIFECYCLE_WRITER,
+                        with_replaced_argument(
+                            arguments, "--entity-fixture-result", fixture
+                        ),
+                        runtime_output_root=artifacts["runtime_root"],
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("must be an existing regular file", result.stderr)
                     self.assertFalse(artifacts["output"].exists())
 
 
