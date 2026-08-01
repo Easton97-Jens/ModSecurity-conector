@@ -24,9 +24,6 @@ CTX_RESPONSE_VALIDATED_GUARD = 'if (ctx->common_response_validated)'
 CTX_RESPONSE_VALIDATED_ASSIGNMENT = 'ctx->common_response_validated = 1;'
 ERR_STATUS_PRESENT = 'r->err_status != 0'
 all_nginx = '\n'.join(p.read_text(errors='ignore') for p in nginx.glob('*.c')) + common_h + mapper_h
-access_event_start = access_c.index('static void\nngx_http_modsecurity_request_intervention_log_event')
-access_event_end = access_c.index('\n\nngx_int_t\nngx_http_modsecurity_access_handler', access_event_start)
-access_event = access_c[access_event_start:access_event_end]
 log_event_start = log_c.index('void\nngx_http_modsecurity_log_rule_match_event')
 log_event_end = log_c.index('\n\nvoid\nngx_http_modsecurity_log(', log_event_start)
 log_event = log_c[log_event_start:log_event_end]
@@ -69,6 +66,8 @@ def c_function(source, signature):
                 return source[start:position + 1]
     return ''
 
+access_event = c_function(access_c,
+    'static void\nngx_http_modsecurity_request_intervention_log_event')
 response_mapper_helper = c_function(mapper_c,
     'void\nngx_http_modsecurity_validate_response_mapper')
 response_mapper_from_ctx = c_function(mapper_c,
