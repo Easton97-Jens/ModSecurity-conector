@@ -19,6 +19,14 @@ GENERATED_ROOT = Path("reports/testing/generated")
 GENERATED_NOTICE = "Generated file - do not edit manually."
 DATA_SOURCE_POLICY = "verified-inputs-only"
 _LOCAL_HOME_ROOT = "<local-home-root>"
+_PATH_SEPARATOR = "/"
+_PUBLIC_VAR_TMP = os.path.join(_PATH_SEPARATOR, "var", "tmp")
+_PUBLIC_TMP = os.path.join(_PATH_SEPARATOR, "tmp")
+_JSON_SUFFIX = ".json"
+_MARKDOWN_SUFFIX = ".md"
+_GERMAN_MARKDOWN_SUFFIX = ".de.md"
+_FRAMEWORK_REFERENCE_PREFIX = "framework:"
+_BUILD_ROOT_REFERENCE_PREFIX = "BUILD_ROOT:"
 _REFRESH_CONNECTOR_REPORTS_GENERATOR = "ci/evidence/reports/refresh-connector-reports.py"
 _REMAINING_FAILURE_ANALYSIS_GENERATOR = "ci/evidence/reports/generate-remaining-failure-analysis.py"
 _FRAMEWORK_CASE_MATRIX_GENERATOR = "framework:ci/reporting/generate-case-matrix.py"
@@ -42,8 +50,38 @@ _LOCAL_PATH_TOKEN_RE = re.compile(
     r"(?P<path>/(?:var/tmp|tmp|root|home|Users)(?:/[^\s`<>()\[\]{}|,;]*)?)"
 )
 _HISTORICAL_RUN_ROOT_RE = re.compile(
-    r"^/var/tmp/(?P<run>ModSecurity-conector-(?!verified(?:/|$))[^/]+)(?P<suffix>/.*)?$"
+    rf"^{re.escape(_PUBLIC_VAR_TMP)}/(?P<run>ModSecurity-conector-(?!verified(?:/|$))[^/]+)(?P<suffix>/.*)?$"
 )
+
+
+def _portable_prefixed_reference(
+    raw: str,
+    prefixes: tuple[tuple[str, str], ...],
+) -> str | None:
+    for prefix, replacement in prefixes:
+        if raw == prefix or raw.startswith(prefix + _PATH_SEPARATOR):
+            return replacement + raw[len(prefix) :]
+    return None
+
+
+def _portable_temporary_reference(raw: str) -> str | None:
+    return _portable_prefixed_reference(
+        raw,
+        (
+            (_PUBLIC_VAR_TMP, "<temporary-work-root>"),
+            (_PUBLIC_TMP, "<temporary-work-root>"),
+        ),
+    )
+
+
+def _portable_home_reference(raw: str) -> str | None:
+    if raw == "/root" or raw.startswith("/root/"):
+        return _LOCAL_HOME_ROOT + raw[len("/root") :]
+    for prefix in ("/home/", "/Users/"):
+        if raw.startswith(prefix):
+            parts = raw.split(_PATH_SEPARATOR, 3)
+            return _LOCAL_HOME_ROOT + (_PATH_SEPARATOR + parts[3] if len(parts) == 4 else "")
+    return None
 
 
 def portable_path_reference(value: str | Path) -> str:
@@ -56,29 +94,26 @@ def portable_path_reference(value: str | Path) -> str:
     """
 
     raw = str(value)
-    for prefix, replacement in (
-        ("/root/.local/state/ModSecurity-conector-build", "<local-state-root>"),
-        ("/var/tmp/ModSecurity-conector-verified", "<verified-run-root>"),
-        ("/tmp/ModSecurity-conector-verified", "<verified-run-root>"),
-    ):
-        if raw == prefix or raw.startswith(prefix + "/"):
-            return replacement + raw[len(prefix) :]
+    known_reference = _portable_prefixed_reference(
+        raw,
+        (
+            ("/root/.local/state/ModSecurity-conector-build", "<local-state-root>"),
+            (os.path.join(_PUBLIC_VAR_TMP, "ModSecurity-conector-verified"), "<verified-run-root>"),
+            (os.path.join(_PUBLIC_TMP, "ModSecurity-conector-verified"), "<verified-run-root>"),
+        ),
+    )
+    if known_reference is not None:
+        return known_reference
 
     historical = _HISTORICAL_RUN_ROOT_RE.match(raw)
     if historical:
         return f"<historical-run-root:{historical.group('run')}>{historical.group('suffix') or ''}"
-    if raw == "/var/tmp" or raw.startswith("/var/tmp/"):
-        return "<temporary-work-root>" + raw[len("/var/tmp") :]
-    if raw == "/tmp" or raw.startswith("/tmp/"):
-        return "<temporary-work-root>" + raw[len("/tmp") :]
-    if raw == "/root" or raw.startswith("/root/"):
-        return _LOCAL_HOME_ROOT + raw[len("/root") :]
-    if raw.startswith("/home/"):
-        parts = raw.split("/", 3)
-        return _LOCAL_HOME_ROOT + ("/" + parts[3] if len(parts) == 4 else "")
-    if raw.startswith("/Users/"):
-        parts = raw.split("/", 3)
-        return _LOCAL_HOME_ROOT + ("/" + parts[3] if len(parts) == 4 else "")
+    temporary_reference = _portable_temporary_reference(raw)
+    if temporary_reference is not None:
+        return temporary_reference
+    home_reference = _portable_home_reference(raw)
+    if home_reference is not None:
+        return home_reference
     return raw
 
 
@@ -1048,8 +1083,8 @@ def infer_report_key(generated_by: str, make_target: str) -> str | None:
         for key, report in GENERATED_REPORTS.items()
         if report.generator == generated_by and report.make_target == make_target
     ]
-    if not matches and not generated_by.startswith("framework:"):
-        framework_generated_by = f"framework:{generated_by}"
+    if not matches and not generated_by.startswith(_FRAMEWORK_REFERENCE_PREFIX):
+        framework_generated_by = f"{_FRAMEWORK_REFERENCE_PREFIX}{generated_by}"
         matches = [
             key
             for key, report in GENERATED_REPORTS.items()
@@ -1066,9 +1101,9 @@ def display_path(path: Path, connector_root: Path, framework_root: Path | None =
     resolved = path.resolve(strict=False)
     roots: list[tuple[Path, str]] = [(connector_root.resolve(strict=False), "")]
     if framework_root is not None:
-        roots.append((framework_root.resolve(strict=False), "framework:"))
+        roots.append((framework_root.resolve(strict=False), _FRAMEWORK_REFERENCE_PREFIX))
     if build_root is not None:
-        roots.append((build_root.resolve(strict=False), "BUILD_ROOT:"))
+        roots.append((build_root.resolve(strict=False), _BUILD_ROOT_REFERENCE_PREFIX))
     for root, prefix in roots:
         try:
             return prefix + str(resolved.relative_to(root))
@@ -1084,15 +1119,219 @@ def resolve_input_reference(
     build_root: Path | None = None,
 ) -> Path:
     text = str(raw)
-    if text.startswith("framework:") and framework_root is not None:
-        return framework_root / text.removeprefix("framework:")
-    if text.startswith("BUILD_ROOT:") and build_root is not None:
-        return build_root / text.removeprefix("BUILD_ROOT:")
+    if text.startswith(_FRAMEWORK_REFERENCE_PREFIX) and framework_root is not None:
+        return framework_root / text.removeprefix(_FRAMEWORK_REFERENCE_PREFIX)
+    if text.startswith(_BUILD_ROOT_REFERENCE_PREFIX) and build_root is not None:
+        return build_root / text.removeprefix(_BUILD_ROOT_REFERENCE_PREFIX)
     path = Path(text)
     if path.is_absolute():
         return path
     rewritten = rewrite_generated_relpath(text)
     return connector_root / rewritten
+
+
+def _report_status(path: Path, metadata: dict[str, Any]) -> str:
+    if path.suffix != _JSON_SUFFIX:
+        return ""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    return str(payload.get("status") or metadata.get("run_status") or "")
+
+
+def _report_provenance(metadata: dict[str, Any]) -> dict[str, str]:
+    fields = (
+        "verified_run_id",
+        "connector_sha",
+        "framework_sha",
+        "framework_gitlink_sha",
+        "framework_checkout_status",
+        "framework_gitlink_status",
+    )
+    return {
+        field: str(metadata.get(field) or "")
+        for field in fields
+        if metadata.get(field)
+    }
+
+
+def _source_expects_framework(provenance: dict[str, str]) -> bool:
+    return any(
+        (
+            provenance.get("framework_sha") not in {None, "", "unknown"},
+            provenance.get("framework_gitlink_sha") not in {None, "", "unknown"},
+            provenance.get("framework_checkout_status") in {"checked_out", "not_checked_out"},
+            provenance.get("framework_gitlink_status")
+            in {"matches_checkout", "checkout_mismatch", "not_checked_out"},
+        )
+    )
+
+
+def _framework_staleness_reasons(
+    provenance: dict[str, str],
+    current_framework: dict[str, str],
+) -> list[str]:
+    if not _source_expects_framework(provenance):
+        return []
+
+    reasons = _source_framework_staleness_reasons(provenance)
+    reasons.extend(_current_framework_staleness_reasons(provenance, current_framework))
+    reasons.extend(_framework_revision_staleness_reasons(provenance, current_framework))
+    return reasons
+
+
+def _source_framework_staleness_reasons(provenance: dict[str, str]) -> list[str]:
+    reasons: list[str] = []
+    source_checkout = provenance.get("framework_checkout_status", "")
+    source_gitlink = provenance.get("framework_gitlink_status", "")
+    if source_checkout and source_checkout != "checked_out":
+        reasons.append(f"source framework checkout is not verified ({source_checkout})")
+    if source_gitlink == "checkout_mismatch":
+        reasons.append("source framework checkout differs from its recorded gitlink")
+    return reasons
+
+
+def _current_framework_staleness_reasons(
+    provenance: dict[str, str],
+    current_framework: dict[str, str],
+) -> list[str]:
+    reasons: list[str] = []
+    current_checkout = current_framework["checkout_status"]
+    current_gitlink = current_framework["gitlink_status"]
+    if current_checkout != "checked_out":
+        reasons.append(f"framework checkout is not verified ({current_checkout})")
+    elif current_gitlink == "checkout_mismatch":
+        reasons.append("framework checkout differs from its recorded gitlink")
+    elif (
+        provenance.get("framework_gitlink_sha", "") not in {"", "unknown"}
+        and current_gitlink != "matches_checkout"
+    ):
+        reasons.append("framework gitlink is not verified")
+    return reasons
+
+
+def _framework_revision_staleness_reasons(
+    provenance: dict[str, str],
+    current_framework: dict[str, str],
+) -> list[str]:
+    reasons: list[str] = []
+    source_sha = provenance.get("framework_sha", "")
+    source_gitlink_sha = provenance.get("framework_gitlink_sha", "")
+    current_sha = current_framework["sha"]
+    if source_sha not in {"", "unknown"} and current_sha != "unknown" and source_sha != current_sha:
+        reasons.append("framework_sha differs")
+    current_gitlink_sha = current_framework["gitlink_sha"]
+    if (
+        source_gitlink_sha not in {"", "unknown"}
+        and current_gitlink_sha not in {"", "unknown"}
+        and source_gitlink_sha != current_gitlink_sha
+    ):
+        reasons.append("framework_gitlink_sha differs")
+    return reasons
+
+
+def _report_staleness_reasons(
+    provenance: dict[str, str],
+    expected_verified_run_id: str,
+    connector_root: Path,
+    framework_root: Path | None,
+) -> list[str]:
+    reasons: list[str] = []
+    source_run_id = provenance.get("verified_run_id", "")
+    if source_run_id and source_run_id != expected_verified_run_id:
+        reasons.append("verified_run_id differs")
+    source_connector_sha = provenance.get("connector_sha", "")
+    current_connector_sha = git_sha(connector_root)
+    if source_connector_sha and current_connector_sha != "unknown" and source_connector_sha != current_connector_sha:
+        reasons.append("connector_sha differs")
+    current_framework = framework_provenance(connector_root, framework_root)
+    reasons.extend(_framework_staleness_reasons(provenance, current_framework))
+    return reasons
+
+
+def _unusable_source_status(status: str) -> bool:
+    return (
+        status in {"blocked", "failed", "interrupted"}
+        or status.startswith("blocked")
+        or status.startswith("skipped")
+    )
+
+
+def _apply_report_input_status(
+    record: dict[str, str],
+    path: Path,
+    expected_verified_run_id: str,
+    connector_root: Path,
+    framework_root: Path | None,
+) -> None:
+    metadata = read_report_metadata(path)
+    provenance = _report_provenance(metadata)
+    record.update(provenance)
+    stale_reasons = _report_staleness_reasons(
+        provenance, expected_verified_run_id, connector_root, framework_root
+    )
+    source_run_id = provenance.get("verified_run_id", "")
+    source_status = _report_status(path, metadata)
+    if stale_reasons:
+        record["status"] = "stale"
+        record["notes"] = "generated report input is stale: " + "; ".join(stale_reasons)
+    elif not source_run_id:
+        record["status"] = "stale"
+        record["notes"] = "generated report input has no verified_run_id"
+    elif source_status and _unusable_source_status(source_status):
+        record["status"] = "blocked" if source_status.startswith("blocked") else source_status
+        record["notes"] = f"generated report input is not usable: status={source_status}"
+
+
+def _regular_input_record(
+    path: Path,
+    shown: str,
+    expected_verified_run_id: str,
+    connector_root: Path,
+    framework_root: Path | None,
+) -> dict[str, str]:
+    try:
+        if path.stat().st_size == 0:
+            file_hash = sha256_file(path)
+            return {
+                "path": shown,
+                "status": "empty",
+                "sha256": file_hash,
+                "source_hash": file_hash,
+                "notes": "input file exists but is empty",
+            }
+    except OSError as exc:
+        return {"path": shown, "status": "unknown", "notes": f"could not stat input: {exc}"}
+    file_hash = sha256_file(path)
+    record = {
+        "path": shown,
+        "status": "present",
+        "sha256": file_hash,
+        "source_hash": file_hash,
+        "notes": "input file available",
+    }
+    if path.name in FILENAME_TO_KEY:
+        _apply_report_input_status(
+            record, path, expected_verified_run_id, connector_root, framework_root
+        )
+    return record
+
+
+def _directory_input_record(path: Path, shown: str) -> dict[str, str]:
+    try:
+        if not any(path.iterdir()):
+            return {"path": shown, "status": "empty", "notes": "input directory exists but is empty"}
+    except OSError as exc:
+        return {"path": shown, "status": "unknown", "notes": f"could not inspect input directory: {exc}"}
+    return {
+        "path": shown,
+        "status": "present",
+        "source_hash": directory_fingerprint(path),
+        "notes": "input directory available",
+    }
 
 
 def input_record(
@@ -1111,141 +1350,11 @@ def input_record(
     if not path.exists():
         return {"path": shown, "status": "missing", "notes": "input file missing"}
     if is_regular_file(path):
-        try:
-            if path.stat().st_size == 0:
-                return {
-                    "path": shown,
-                    "status": "empty",
-                    "sha256": sha256_file(path),
-                    "source_hash": sha256_file(path),
-                    "notes": "input file exists but is empty",
-                }
-        except OSError as exc:
-            return {"path": shown, "status": "unknown", "notes": f"could not stat input: {exc}"}
-        file_hash = sha256_file(path)
-        record: dict[str, str] = {
-            "path": shown,
-            "status": "present",
-            "sha256": file_hash,
-            "source_hash": file_hash,
-            "notes": "input file available",
-        }
-        if path.name in FILENAME_TO_KEY:
-            report_metadata = read_report_metadata(path)
-            source_report_status = ""
-            if path.suffix == ".json":
-                try:
-                    source_payload = json.loads(path.read_text(encoding="utf-8"))
-                except Exception:
-                    source_payload = {}
-                if isinstance(source_payload, dict):
-                    source_report_status = str(
-                        source_payload.get("status")
-                        or report_metadata.get("run_status")
-                        or ""
-                    )
-            source_run_id = str(report_metadata.get("verified_run_id") or "")
-            if source_run_id:
-                record["verified_run_id"] = source_run_id
-            source_connector_sha = str(report_metadata.get("connector_sha") or "")
-            source_framework_sha = str(report_metadata.get("framework_sha") or "")
-            source_framework_gitlink_sha = str(report_metadata.get("framework_gitlink_sha") or "")
-            source_framework_checkout_status = str(
-                report_metadata.get("framework_checkout_status") or ""
-            )
-            source_framework_gitlink_status = str(
-                report_metadata.get("framework_gitlink_status") or ""
-            )
-            if source_connector_sha:
-                record["connector_sha"] = source_connector_sha
-            if source_framework_sha:
-                record["framework_sha"] = source_framework_sha
-            if source_framework_gitlink_sha:
-                record["framework_gitlink_sha"] = source_framework_gitlink_sha
-            if source_framework_checkout_status:
-                record["framework_checkout_status"] = source_framework_checkout_status
-            if source_framework_gitlink_status:
-                record["framework_gitlink_status"] = source_framework_gitlink_status
-            stale_reasons: list[str] = []
-            if source_run_id and source_run_id != expected_verified_run_id:
-                stale_reasons.append("verified_run_id differs")
-            current_connector_sha = git_sha(connector_root)
-            current_framework = framework_provenance(
-                connector_root, effective_framework_root
-            )
-            current_framework_sha = current_framework["sha"]
-            if source_connector_sha and current_connector_sha != "unknown" and source_connector_sha != current_connector_sha:
-                stale_reasons.append("connector_sha differs")
-            source_framework_expected = (
-                source_framework_sha not in {"", "unknown"}
-                or source_framework_gitlink_sha not in {"", "unknown"}
-                or source_framework_checkout_status in {"checked_out", "not_checked_out"}
-                or source_framework_gitlink_status
-                in {"matches_checkout", "checkout_mismatch", "not_checked_out"}
-            )
-            if source_framework_expected:
-                if source_framework_checkout_status and source_framework_checkout_status != "checked_out":
-                    stale_reasons.append(
-                        "source framework checkout is not verified "
-                        f"({source_framework_checkout_status})"
-                    )
-                if source_framework_gitlink_status == "checkout_mismatch":
-                    stale_reasons.append(
-                        "source framework checkout differs from its recorded gitlink"
-                    )
-                if current_framework["checkout_status"] != "checked_out":
-                    stale_reasons.append(
-                        "framework checkout is not verified "
-                        f"({current_framework['checkout_status']})"
-                    )
-                elif current_framework["gitlink_status"] == "checkout_mismatch":
-                    stale_reasons.append(
-                        "framework checkout differs from its recorded gitlink"
-                    )
-                elif (
-                    source_framework_gitlink_sha not in {"", "unknown"}
-                    and current_framework["gitlink_status"] != "matches_checkout"
-                ):
-                    stale_reasons.append("framework gitlink is not verified")
-                if (
-                    source_framework_sha not in {"", "unknown"}
-                    and current_framework_sha != "unknown"
-                    and source_framework_sha != current_framework_sha
-                ):
-                    stale_reasons.append("framework_sha differs")
-                if (
-                    source_framework_gitlink_sha not in {"", "unknown"}
-                    and current_framework["gitlink_sha"] not in {"", "unknown"}
-                    and source_framework_gitlink_sha
-                    != current_framework["gitlink_sha"]
-                ):
-                    stale_reasons.append("framework_gitlink_sha differs")
-            if stale_reasons:
-                record["status"] = "stale"
-                record["notes"] = "generated report input is stale: " + "; ".join(stale_reasons)
-            elif not source_run_id:
-                record["status"] = "stale"
-                record["notes"] = "generated report input has no verified_run_id"
-            elif source_report_status and (
-                source_report_status in {"blocked", "failed", "interrupted"}
-                or source_report_status.startswith("blocked")
-                or source_report_status.startswith("skipped")
-            ):
-                record["status"] = "blocked" if source_report_status.startswith("blocked") else source_report_status
-                record["notes"] = f"generated report input is not usable: status={source_report_status}"
-        return record
+        return _regular_input_record(
+            path, shown, expected_verified_run_id, connector_root, effective_framework_root
+        )
     if path.is_dir():
-        try:
-            if not any(path.iterdir()):
-                return {"path": shown, "status": "empty", "notes": "input directory exists but is empty"}
-        except OSError as exc:
-            return {"path": shown, "status": "unknown", "notes": f"could not inspect input directory: {exc}"}
-        return {
-            "path": shown,
-            "status": "present",
-            "source_hash": directory_fingerprint(path),
-            "notes": "input directory available",
-        }
+        return _directory_input_record(path, shown)
     return {"path": shown, "status": "unknown", "notes": "input exists but is not a regular file or directory"}
 
 
@@ -1415,12 +1524,12 @@ def _caller_output_name() -> str:
 
 
 def _language_switch(output_name: str) -> tuple[str, str] | None:
-    if not output_name.endswith(".md"):
+    if not output_name.endswith(_MARKDOWN_SUFFIX):
         return None
-    if output_name.endswith(".de.md"):
-        english_name = output_name.removesuffix(".de.md") + ".md"
+    if output_name.endswith(_GERMAN_MARKDOWN_SUFFIX):
+        english_name = output_name.removesuffix(_GERMAN_MARKDOWN_SUFFIX) + _MARKDOWN_SUFFIX
         return "**Sprache:**", f"**Sprache:** [English]({english_name}) | Deutsch"
-    german_name = output_name.removesuffix(".md") + ".de.md"
+    german_name = output_name.removesuffix(_MARKDOWN_SUFFIX) + _GERMAN_MARKDOWN_SUFFIX
     return "**Language:**", f"**Language:** English | [Deutsch]({german_name})"
 
 
@@ -1485,7 +1594,7 @@ def generated_at_from_json(data: dict[str, Any]) -> str:
 
 
 def generated_at_from_report(path: Path) -> str:
-    if path.suffix == ".json" and is_regular_file(path):
+    if path.suffix == _JSON_SUFFIX and is_regular_file(path):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
@@ -1535,28 +1644,37 @@ def directory_fingerprint(path: Path) -> str:
     return digest.hexdigest() if seen else "empty"
 
 
-def read_report_metadata(path: Path) -> dict[str, Any]:
-    if path.suffix == ".json":
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
-        metadata = data.get("metadata") if isinstance(data, dict) else {}
-        return metadata if isinstance(metadata, dict) else {}
+def _json_report_metadata(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    metadata = data.get("metadata") if isinstance(data, dict) else {}
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def _markdown_report_metadata(path: Path) -> dict[str, Any]:
     metadata: dict[str, Any] = {}
-    if path.suffix == ".md":
-        for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[:30]:
-            stripped = line.strip()
-            if "Verified run id:" in stripped:
-                metadata["verified_run_id"] = stripped.split("Verified run id:", 1)[1].strip().strip("` ")
-            elif "Connector SHA:" in stripped:
-                metadata["connector_sha"] = stripped.split("Connector SHA:", 1)[1].strip().strip("` ")
-            elif "Framework SHA:" in stripped:
-                metadata["framework_sha"] = stripped.split("Framework SHA:", 1)[1].strip().strip("` ")
-            elif "Framework gitlink SHA:" in stripped:
-                metadata["framework_gitlink_sha"] = stripped.split("Framework gitlink SHA:", 1)[1].strip().strip("` ")
-            elif "Framework checkout:" in stripped:
-                metadata["framework_checkout_status"] = stripped.split("Framework checkout:", 1)[1].strip().strip("` ")
-            elif "Framework gitlink status:" in stripped:
-                metadata["framework_gitlink_status"] = stripped.split("Framework gitlink status:", 1)[1].strip().strip("` ")
+    labels = (
+        ("Verified run id:", "verified_run_id"),
+        ("Connector SHA:", "connector_sha"),
+        ("Framework SHA:", "framework_sha"),
+        ("Framework gitlink SHA:", "framework_gitlink_sha"),
+        ("Framework checkout:", "framework_checkout_status"),
+        ("Framework gitlink status:", "framework_gitlink_status"),
+    )
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[:30]:
+        stripped = line.strip()
+        for label, field in labels:
+            if label in stripped:
+                metadata[field] = stripped.split(label, 1)[1].strip().strip("` ")
+                break
     return metadata
+
+
+def read_report_metadata(path: Path) -> dict[str, Any]:
+    if path.suffix == _JSON_SUFFIX:
+        return _json_report_metadata(path)
+    if path.suffix == _MARKDOWN_SUFFIX:
+        return _markdown_report_metadata(path)
+    return {}
