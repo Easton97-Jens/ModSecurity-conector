@@ -20,6 +20,8 @@ PYTHON=${PYTHON:-python3}
 NO_CRS_ARTIFACT_PROFILE=${NO_CRS_ARTIFACT_PROFILE:-generic}
 FULL_LIFECYCLE_HOST_PROFILE=${FULL_LIFECYCLE_HOST_PROFILE:-}
 FULL_LIFECYCLE_EXECUTED_TARGET=${FULL_LIFECYCLE_EXECUTED_TARGET:-}
+NO_CRS_SELECTED_CASES_MISSING_MESSAGE='FAIL: capability-selected No-CRS runner cases are missing'
+readonly NO_CRS_SELECTED_CASES_MISSING_MESSAGE
 
 case "$connector" in
     apache|nginx|haproxy|envoy|traefik|lighttpd) ;;
@@ -205,7 +207,7 @@ case "$connector:$stage" in
             run_full_lifecycle_haproxy_htx
         else
             [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
-                echo "FAIL: capability-selected No-CRS runner cases are missing" >&2
+                echo "$NO_CRS_SELECTED_CASES_MISSING_MESSAGE" >&2
                 exit 1
             }
             run_framework_host "run-$connector-smoke.sh" minimal_runtime_smoke \
@@ -214,7 +216,7 @@ case "$connector:$stage" in
         ;;
     apache:no_crs_baseline|nginx:no_crs_baseline)
         [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
-            echo "FAIL: capability-selected No-CRS runner cases are missing" >&2
+            echo "$NO_CRS_SELECTED_CASES_MISSING_MESSAGE" >&2
             exit 1
         }
         run_framework_host "run-$connector-smoke.sh" minimal_runtime_smoke \
@@ -263,7 +265,7 @@ case "$connector:$stage" in
             run_remaining_connector runtime-smoke-envoy-ext-proc
         else
             [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
-                echo "FAIL: capability-selected No-CRS runner cases are missing" >&2
+                echo "$NO_CRS_SELECTED_CASES_MISSING_MESSAGE" >&2
                 exit 1
             }
             run_remaining_connector no-crs-baseline-envoy
@@ -276,7 +278,7 @@ case "$connector:$stage" in
             run_remaining_connector runtime-smoke-traefik-native
         else
             [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
-                echo "FAIL: capability-selected No-CRS runner cases are missing" >&2
+                echo "$NO_CRS_SELECTED_CASES_MISSING_MESSAGE" >&2
                 exit 1
             }
             run_remaining_connector no-crs-baseline-traefik
@@ -289,7 +291,7 @@ case "$connector:$stage" in
             run_remaining_connector runtime-smoke-lighttpd-patched
         else
             [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
-                echo "FAIL: capability-selected No-CRS runner cases are missing" >&2
+                echo "$NO_CRS_SELECTED_CASES_MISSING_MESSAGE" >&2
                 exit 1
             }
             # These targets consume the plan before delegating to their narrow

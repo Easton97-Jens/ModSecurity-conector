@@ -70,6 +70,9 @@ must not claim unobserved CI, runtime, review, or delivery results.
 - [Parent CI NGINX HTTP-500 literal deduplication](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.md)
 - [Parent NGINX maintainability remediation](CR-20260730-sonar-nginx-maintainability.md)
 - [Parent CI case-metadata parsing deduplication](CR-20260729-sonar-ci-case-metadata-duplication.md)
+
+- [Parent CI No-CRS missing-case diagnostic literal deduplication for SonarQube Cloud S1192](CR-20260730-sonar-ci-no-crs-diagnostic-literal.md)
+
 - [Parent Lighttpd runtime-output containment](CR-20260729-sonar-lighttpd-runtime-output-containment.md)
 
 - [Parent HAProxy binding body-phase deduplication](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.md)
