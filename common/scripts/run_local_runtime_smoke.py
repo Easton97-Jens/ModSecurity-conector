@@ -1499,30 +1499,85 @@ def system_cxx_compiler() -> Path:
     return compiler
 
 
+@dataclass(frozen=True)
+class ModSecurityEvaluatorInputs:
+    """Trusted local inputs used to build the fixed smoke evaluator."""
+
+    include_dir: Path
+    lib_dir: Path
+    lib_file: Path
+    rule_file: Path
+
+
+def require_trusted_evaluator_path(value: Path, label: str, *, directory: bool) -> Path:
+    """Resolve one private, regular evaluator input before compiler use."""
+
+    if not value.is_absolute():
+        raise SmokeBlocked(f"{label} must be absolute: {value}", ["libmodsecurity"])
+    try:
+        parent = assert_crs_path_has_no_symlink_components(value.parent, f"{label} parent")
+        resolved = value.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise SmokeBlocked(f"{label} is unavailable: {value}", ["libmodsecurity"]) from exc
+    try:
+        resolved.relative_to(parent)
+    except ValueError as exc:
+        raise SmokeBlocked(
+            f"{label} must remain below its selected parent: {value}", ["libmodsecurity"]
+        ) from exc
+    return require_trusted_crs_path(resolved, label, directory=directory)
+
+
+def prepare_modsecurity_evaluator_inputs(args: argparse.Namespace) -> ModSecurityEvaluatorInputs:
+    """Validate all CLI-controlled compiler and linker inputs before execution."""
+
+    include_dir_text = namespace_value(args, "modsecurity_include_dir")
+    lib_dir_text = namespace_value(args, "modsecurity_lib_dir")
+    lib_file_text = namespace_value(args, "modsecurity_lib_file")
+    rule_file_text = namespace_value(
+        args, "effective_modsecurity_rule_file", args.modsecurity_rule_file
+    )
+    if not include_dir_text or not lib_dir_text or not lib_file_text or not rule_file_text:
+        raise RuntimeError(
+            "local libmodsecurity include dir, lib dir, lib file, and rule file are required"
+        )
+    if any(character in lib_dir_text for character in (",", "\r", "\n", "\0")):
+        raise SmokeBlocked(
+            "libmodsecurity library directory contains a linker separator", ["libmodsecurity"]
+        )
+
+    include_dir = require_trusted_evaluator_path(
+        Path(include_dir_text), "libmodsecurity include directory", directory=True
+    )
+    lib_dir = require_trusted_evaluator_path(
+        Path(lib_dir_text), "libmodsecurity library directory", directory=True
+    )
+    lib_file = require_trusted_evaluator_path(
+        Path(lib_file_text), "libmodsecurity shared library", directory=False
+    )
+    rule_file = require_trusted_evaluator_path(
+        Path(rule_file_text), "ModSecurity smoke rule", directory=False
+    )
+    try:
+        lib_file.relative_to(lib_dir)
+    except ValueError as exc:
+        raise SmokeBlocked(
+            "libmodsecurity shared library must be inside its selected library directory",
+            ["libmodsecurity"],
+        ) from exc
+    for header in ("modsecurity.h", "rules_set.h", "transaction.h"):
+        require_trusted_evaluator_path(
+            include_dir / "modsecurity" / header, f"libmodsecurity {header}", directory=False
+        )
+    if args.modsecurity_ruleset == "crs":
+        require_safe_crs_config_path(rule_file, GENERATED_CRS_SMOKE_RULE_LABEL)
+    return ModSecurityEvaluatorInputs(include_dir, lib_dir, lib_file, rule_file)
+
+
 def build_modsecurity_evaluator(
     args: argparse.Namespace, runtime_paths: RuntimeOutputPaths
 ) -> tuple[Path, dict[str, str]]:
-    include_dir = Path(args.modsecurity_include_dir) if args.modsecurity_include_dir else None
-    lib_dir = Path(args.modsecurity_lib_dir) if args.modsecurity_lib_dir else None
-    lib_file = Path(args.modsecurity_lib_file) if args.modsecurity_lib_file else None
-    rule_file_text = namespace_value(args, "effective_modsecurity_rule_file", args.modsecurity_rule_file)
-    rule_file = Path(rule_file_text) if rule_file_text else None
-    if include_dir is None or lib_dir is None or lib_file is None or rule_file is None:
-        raise RuntimeError("local libmodsecurity include dir, lib dir, lib file, and rule file are required")
-    if args.modsecurity_ruleset == "crs":
-        rule_file = require_trusted_crs_path(
-            rule_file, GENERATED_CRS_SMOKE_RULE_LABEL, directory=False
-        )
-        require_safe_crs_config_path(rule_file, GENERATED_CRS_SMOKE_RULE_LABEL)
-    for path, label in (
-        (include_dir / "modsecurity/modsecurity.h", "modsecurity.h"),
-        (include_dir / "modsecurity/rules_set.h", "rules_set.h"),
-        (include_dir / "modsecurity/transaction.h", "transaction.h"),
-        (lib_file, "libmodsecurity shared library"),
-        (rule_file, "ModSecurity smoke rule"),
-    ):
-        if not path.exists():
-            raise RuntimeError(f"missing {label}: {path}")
+    inputs = prepare_modsecurity_evaluator_inputs(args)
 
     cxx = system_cxx_compiler()
     source = _CONNECTOR_ROOT / "common/scripts/modsecurity_targeted_eval.cc"
@@ -1536,19 +1591,24 @@ def build_modsecurity_evaluator(
         str(cxx),
         "-std=c++17",
         "-I",
-        str(include_dir),
+        str(inputs.include_dir),
         str(source),
-        "-L",
-        str(lib_dir),
-        f"-Wl,-rpath,{lib_dir}",
-        "-lmodsecurity",
+        str(inputs.lib_file),
+        f"-Wl,-rpath,{inputs.lib_dir}",
         "-o",
         str(output),
     ]
     (runtime_paths.log_dir / "modsecurity-evaluator-build-command.txt").write_text(
         " ".join(command) + "\n", encoding="utf-8"
     )
-    completed = subprocess.run(command, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    completed = subprocess.run(
+        command,
+        check=False,
+        shell=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
     (runtime_paths.log_dir / "modsecurity-evaluator-build.stdout.log").write_text(
         completed.stdout, encoding="utf-8"
     )
@@ -1559,7 +1619,7 @@ def build_modsecurity_evaluator(
         detail = completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}"
         raise RuntimeError(f"could not build libmodsecurity evaluator: {detail}")
     output.chmod(0o755)
-    env = local_library_env(os.environ, lib_dir, args.runtime_lookup_root)
+    env = local_library_env(os.environ, inputs.lib_dir, args.runtime_lookup_root)
     return output, env
 
 

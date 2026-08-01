@@ -639,6 +639,47 @@ static int validate_runtime_config(
     return msconnector_directive_adapter_validate_all(error, error_len);
 }
 
+static int parse_runtime_config_line(
+    msconnector_runtime *runtime,
+    char *line,
+    unsigned long line_number,
+    int is_last_line,
+    char *error,
+    size_t error_len) {
+    char *key;
+    char *value;
+    char *separator;
+
+    if (strchr(line, '\n') == NULL && !is_last_line) {
+        set_text_error(error, error_len, "configuration line is too long");
+        return 0;
+    }
+    trim_right(line);
+    key = trim_left(line);
+    if (*key == '\0' || *key == '#') {
+        return 1;
+    }
+    separator = strchr(key, '=');
+    if (separator == NULL) {
+        if (error != NULL && error_len > 0U) {
+            (void)snprintf(error, error_len, "invalid configuration line %lu", line_number);
+        }
+        return 0;
+    }
+    *separator = '\0';
+    value = trim_left(separator + 1);
+    trim_right(key);
+    trim_right(value);
+    if (*key == '\0' || *value == '\0' ||
+        !assign_config_value(runtime, key, value, error, error_len)) {
+        if (error != NULL && error_len > 0U && error[0] == '\0') {
+            (void)snprintf(error, error_len, "invalid configuration line %lu", line_number);
+        }
+        return 0;
+    }
+    return 1;
+}
+
 static int load_runtime_config(
     msconnector_runtime *runtime,
     const char *connector_name,
@@ -666,37 +707,9 @@ static int load_runtime_config(
         return 0;
     }
     while (fgets(line, sizeof(line), file) != NULL) {
-        char *key;
-        char *value;
-        char *separator;
         ++line_number;
-        if (strchr(line, '\n') == NULL && !feof(file)) {
-            set_text_error(error, error_len, "configuration line is too long");
-            (void)fclose(file);
-            return 0;
-        }
-        trim_right(line);
-        key = trim_left(line);
-        if (*key == '\0' || *key == '#') {
-            continue;
-        }
-        separator = strchr(key, '=');
-        if (separator == NULL) {
-            if (error != NULL && error_len > 0U) {
-                (void)snprintf(error, error_len, "invalid configuration line %lu", line_number);
-            }
-            (void)fclose(file);
-            return 0;
-        }
-        *separator = '\0';
-        value = trim_left(separator + 1);
-        trim_right(key);
-        trim_right(value);
-        if (*key == '\0' || *value == '\0' ||
-            !assign_config_value(runtime, key, value, error, error_len)) {
-            if (error != NULL && error_len > 0U && error[0] == '\0') {
-                (void)snprintf(error, error_len, "invalid configuration line %lu", line_number);
-            }
+        if (!parse_runtime_config_line(
+                runtime, line, line_number, feof(file), error, error_len)) {
             (void)fclose(file);
             return 0;
         }
