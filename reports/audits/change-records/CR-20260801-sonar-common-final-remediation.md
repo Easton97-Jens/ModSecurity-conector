@@ -10,8 +10,8 @@
 | Date (UTC) | 2026-08-01 |
 | Base revision | `904a8fca64b35cd287348722b4bdc2260b4f64b3` |
 | Tracking | Current Parent `common/` SonarQube Cloud receipts `AZ7z-HdL4L5Jot4fEMXc` (`pythonsecurity:S8705`) and `AZ9MwjLo-bUaKQ_zSGBC` (`c:S3776`). |
-| Boundary | Parent `common/`, direct Parent tests, and this paired Change Record/index only. Framework, MRTS, Gitlinks, `.github/`, Sonar policy, exclusions, suppressions, Quality Gates, direct `master` writes, and merge are out of scope. |
-| Delivery status | Local validation is recorded below. A task-owned draft PR is pending; no commit, push, review, hosted result, or merge is claimed by this record. |
+| Boundary | Parent `common/`, direct Parent tests, and this paired Change Record/index only. Framework, MRTS, Gitlinks, `.github/`, Sonar policy, exclusions, suppressions, Quality Gates, and direct `master` writes remain out of scope. Any GitHub PR delivery uses the separately controlled exact-head integration path and does not expand the product scope. |
+| Delivery status | Product commit `482ba035ed53b3668009b7158c656214d6924e6f` created task-owned Draft PR [#221](https://github.com/Easton97-Jens/ModSecurity-conector/pull/221). That exact source head passed all applicable hosted checks, including SonarQube Cloud Quality Gate with zero open PR issues, zero new violations, and `0.0%` New-Code duplication. This record's later documentation-only correction requires a fresh exact-head cycle before any GitHub merge; no direct `master` write is claimed. |
 
 ## Motivation and problem statement
 
@@ -101,9 +101,9 @@ or selected-host traffic result.
 
 ## Known limitations
 
-Local validation cannot prove the eventual hosted Quality Gate. Any new hosted
-issue, duplication, failed check, or actionable review must be remediated on
-the task branch before the PR can be verified.
+Local validation cannot replace the hosted Quality Gate. The original exact
+source head passed it, but any later PR-head amendment must receive a new
+exact-head Sonar, check, and review readback before merge eligibility.
 
 ## Remaining risks
 
@@ -114,9 +114,12 @@ content.
 
 ## Final diff and review status
 
-The local source diff is limited to Parent `common/`, one direct security test,
-and the bilingual traceability pair/index. The independent security diff review
-has complete coverage and zero reportable findings for this working-tree diff.
-The final local documentation checks are explicitly blocked only by the
-unpopulated Framework submodule. Commit, push, draft PR, and exact-head hosted
-verification remain pending. No direct `master` write or merge is authorized.
+The source diff is limited to Parent `common/`, one direct security test, and
+the bilingual traceability pair/index. The independent security diff review has
+complete coverage and zero reportable findings for the source diff. The final
+local documentation checks are explicitly blocked only by the unpopulated
+Framework submodule. The source commit, PR, and prior exact-head hosted
+verification are recorded above. Each later documentation, base, or source
+amendment requires a new exact-head verification before its separately
+authorized GitHub merge; this record never authorizes or claims a direct
+`master` write.

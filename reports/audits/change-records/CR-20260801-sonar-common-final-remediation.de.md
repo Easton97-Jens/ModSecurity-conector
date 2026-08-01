@@ -10,8 +10,8 @@
 | Datum (UTC) | 2026-08-01 |
 | Basis-Revision | `904a8fca64b35cd287348722b4bdc2260b4f64b3` |
 | Tracking | Aktuelle Parent-`common/`-SonarQube-Cloud-Receipts `AZ7z-HdL4L5Jot4fEMXc` (`pythonsecurity:S8705`) und `AZ9MwjLo-bUaKQ_zSGBC` (`c:S3776`). |
-| Grenze | Nur Parent `common/`, direkte Parent-Tests und dieses gepaarte Change-Record-/Index-Paar. Framework, MRTS, Gitlinks, `.github/`, Sonar-Policy, Exclusions, Suppressions, Quality Gates, direkte `master`-Writes und Merge sind out of scope. |
-| Delivery-Status | Die lokale Validierung ist unten erfasst. Ein task-eigener Draft-PR steht aus; dieser Record beansprucht keinen Commit, Push, Review, Hosted-Ergebnis oder Merge. |
+| Grenze | Nur Parent `common/`, direkte Parent-Tests und dieses gepaarte Change-Record-/Index-Paar. Framework, MRTS, Gitlinks, `.github/`, Sonar-Policy, Exclusions, Suppressions, Quality Gates und direkte `master`-Writes bleiben out of scope. Jede GitHub-PR-Delivery nutzt den getrennt kontrollierten Exact-Head-Integrationspfad und erweitert den Produkt-Scope nicht. |
+| Delivery-Status | Produkt-Commit `482ba035ed53b3668009b7158c656214d6924e6f` erstellte den task-eigenen Draft-[PR #221](https://github.com/Easton97-Jens/ModSecurity-conector/pull/221). Dieser exakte Source-Head bestand alle anwendbaren Hosted-Checks einschließlich SonarQube-Cloud-Quality-Gate mit null offenen PR-Issues, null New-Violations und `0,0 %` New-Code-Duplikation. Die spätere reine Dokumentationskorrektur dieses Records erfordert vor jedem GitHub-Merge einen frischen Exact-Head-Zyklus; kein direkter `master`-Write wird beansprucht. |
 
 ## Motivation und Problemstellung
 
@@ -107,10 +107,10 @@ libmodsecurity-Entscheidung noch Selected-Host-Traffic.
 
 ## Bekannte Einschränkungen
 
-Lokale Validierung kann das spätere Hosted Quality Gate nicht beweisen. Jeder
-neue Hosted-Befund, jede Duplikation, jede fehlgeschlagene Prüfung oder jeder
-actionable Review muss auf dem Task-Branch behoben werden, bevor der PR
-verifiziert sein kann.
+Lokale Validierung ersetzt das Hosted Quality Gate nicht. Der ursprüngliche
+exakte Source-Head bestand es, aber jeder spätere PR-Head-Amendment benötigt
+vor Merge-Berechtigung einen neuen Exact-Head-Sonar-, Check- und Review-
+Readback.
 
 ## Verbleibende Risiken
 
@@ -121,11 +121,12 @@ Inhalt der Library.
 
 ## Finaler Diff- und Review-Status
 
-Der lokale Source-Diff ist auf Parent `common/`, einen direkten Security-Test
-und das bilinguale Traceability-Paar/-Index begrenzt. Der unabhängige
-Security-Diff-Review hat vollständige Abdeckung und null reportable Findings
-für diesen Working-Tree-Diff.
-Die finalen lokalen Dokumentationsprüfungen sind ausdrücklich nur durch das
-nicht ausgecheckte Framework-Submodul blockiert. Commit, Push, Draft-PR und
-SHA-gebundene Hosted-Verifikation stehen noch aus. Kein direkter `master`-Write
-oder Merge ist autorisiert.
+Der Source-Diff ist auf Parent `common/`, einen direkten Security-Test und das
+bilinguale Traceability-Paar/-Index begrenzt. Der unabhängige Security-Diff-
+Review hat vollständige Abdeckung und null reportable Findings für den
+Source-Diff. Die finalen lokalen Dokumentationsprüfungen sind ausdrücklich nur
+durch das nicht ausgecheckte Framework-Submodul blockiert. Source-Commit, PR
+und vorherige Exact-Head-Hosted-Verifikation sind oben erfasst. Jedes spätere
+Documentation-, Base- oder Source-Amendment benötigt vor seinem getrennt
+autorisierten GitHub-Merge eine neue Exact-Head-Verifikation; dieser Record
+autorisiert oder beansprucht keinen direkten `master`-Write.
