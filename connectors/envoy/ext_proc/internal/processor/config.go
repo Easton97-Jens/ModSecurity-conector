@@ -59,7 +59,7 @@ func LoadConfig(path string) (Config, error) {
 	if err := decoder.Decode(&config); err != nil {
 		return Config{}, fmt.Errorf("decode config: %w", err)
 	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+	if decoder.Decode(&struct{}{}) != io.EOF {
 		return Config{}, fmt.Errorf("decode config: expected one JSON object")
 	}
 	if err := config.Validate(); err != nil {

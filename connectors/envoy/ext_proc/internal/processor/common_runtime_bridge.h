@@ -38,6 +38,13 @@ typedef struct msc_envoy_ext_proc_response {
     size_t header_count;
 } msc_envoy_ext_proc_response;
 
+typedef struct msc_envoy_ext_proc_body {
+    int response_direction;
+    const unsigned char *body;
+    size_t body_size;
+    int end_of_stream;
+} msc_envoy_ext_proc_body;
+
 enum msc_envoy_ext_proc_action {
     MSC_ENVOY_EXT_PROC_ALLOW = 0,
     MSC_ENVOY_EXT_PROC_DENY = 1,
@@ -87,10 +94,7 @@ int msc_envoy_ext_proc_transaction_process_response_headers(
 
 int msc_envoy_ext_proc_transaction_process_body(
     msc_envoy_ext_proc_transaction *transaction,
-    int response_direction,
-    const unsigned char *body,
-    size_t body_size,
-    int end_of_stream,
+    const msc_envoy_ext_proc_body *body,
     msc_envoy_ext_proc_decision *decision,
     char *error,
     size_t error_len);
