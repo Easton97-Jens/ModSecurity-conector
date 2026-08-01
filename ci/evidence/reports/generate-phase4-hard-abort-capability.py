@@ -229,6 +229,32 @@ def response_delivered(entry: dict[str, Any], evidence: dict[str, Any], hard_abo
     return "unknown"
 
 
+def phase4_classification(
+    *,
+    hard_abort: bool,
+    logs: bool,
+    entry_classification: str,
+    log_only: bool,
+    response_body_truncated: bool,
+    expected_action: str,
+    known_gap: bool,
+    runtime_status: str,
+) -> tuple[str, list[str]]:
+    if hard_abort and logs:
+        return "phase4_hard_abort_evidence", ["phase4_connection_aborted"]
+    if "native" in entry_classification:
+        return "phase4_native_semantics", []
+    if log_only:
+        return "phase4_log_only_no_abort", []
+    if response_body_truncated:
+        return "phase4_truncated_not_accepted", []
+    if expected_action == "deny" and known_gap:
+        return "phase4_connector_gap", []
+    if expected_action == "deny" or (not logs and runtime_status == "FAIL"):
+        return "phase4_missing_abort_evidence", []
+    return "phase4_no_hard_abort_required", []
+
+
 def classify_case(
     entry: dict[str, Any],
     meta: dict[str, Any],
@@ -249,8 +275,6 @@ def classify_case(
     )
     logs = log_evidence(phase4_events, decisions, evidence)
     expected_action = str(meta.get("expected_action") or "")
-    category = "phase4_no_hard_abort_required"
-    evidence_categories: list[str] = []
     log_only = action == "log_only" or mode in {"minimal", "safe"} or reason in {"mode_minimal", "mode_safe", "content_type_not_in_scope"}
     known_gap = (
         "connector-gap" in str(entry.get("classification") or "")
@@ -259,21 +283,16 @@ def classify_case(
         or connector == "haproxy"
     )
 
-    if hard_abort and logs:
-        category = "phase4_hard_abort_evidence"
-        evidence_categories.append("phase4_connection_aborted")
-    elif "native" in str(entry.get("classification") or ""):
-        category = "phase4_native_semantics"
-    elif log_only:
-        category = "phase4_log_only_no_abort"
-    elif evidence.get("response_body_truncated") is True:
-        category = "phase4_truncated_not_accepted"
-    elif expected_action == "deny" and known_gap:
-        category = "phase4_connector_gap"
-    elif expected_action == "deny":
-        category = "phase4_missing_abort_evidence"
-    elif not logs and entry.get("runtime_status") == "FAIL":
-        category = "phase4_missing_abort_evidence"
+    category, evidence_categories = phase4_classification(
+        hard_abort=hard_abort,
+        logs=logs,
+        entry_classification=str(entry.get("classification") or ""),
+        log_only=log_only,
+        response_body_truncated=evidence.get("response_body_truncated") is True,
+        expected_action=expected_action,
+        known_gap=known_gap,
+        runtime_status=str(entry.get("runtime_status") or ""),
+    )
 
     return category, evidence_categories, hard_abort, logs, action, response_delivered(entry, evidence, hard_abort, action)
 

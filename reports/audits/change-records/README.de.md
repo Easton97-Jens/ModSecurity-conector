@@ -13,6 +13,13 @@ Review- oder Delivery-Ergebnisse behaupten.
   Grenzen, C++17-RAII-Cleanup und zerlegten Kontrollfluss; SHA-gebundene
   Hosted-Verifikation bleibt vor einer Integration erforderlich.
 
+- [Parent-CI-Evidence-SonarQube-Cloud-Bereinigung](CR-20260801-sonar-ci-evidence-remediation.de.md)
+  — Source-Level-Behebungen decken das aktuelle `ci/evidence`-Security-,
+  Hotspot-, Maintainability- und Duplikatinventar ohne Scanner-Workarounds ab;
+  fokussierte lokale Controls bestanden, während SHA-gebundene GitHub-Actions-
+  und SonarQube-Cloud-Verifikation vor jeder Merge-Entscheidung erforderlich
+  bleiben.
+
 - [Vollständige Parent-Traefik-SonarQube-Cloud-Remediation](CR-20260801-sonar-traefik-complete-remediation.de.md)
   — validiert lokale Executable- und Artefaktgrenzen, bewahrt Native-UDS-
   Lifecycle-Cleanup und zerlegt den aktuellen Traefik-Runner ohne
@@ -24,6 +31,12 @@ Review- oder Delivery-Ergebnisse behaupten.
   — deckt das aktuelle 33er-HAProxy-Inventar mit C17, fokussierten Contracts
   und einem versiegelten Security-Diff-Review ab; SHA-gebundene Hosted- und
   SonarQube-Cloud-Verifikation bleiben vor einer Merge-Betrachtung erforderlich.
+
+- [Parent-Envoy-Transaction-Opener-Interfacebenennung](CR-20260801-sonar-envoy-transaction-opener.de.md)
+  — benennt das verbleibende interne Go-Ein-Methoden-Interface um, bewahrt
+  seinen exakten transaktionsöffnenden Methodensatz und erfüllt die Go-
+  Namenskonvention; Exact-Head-Hosted-/SonarQube-Cloud-Verifikation bleibt
+  vor jeder Merge-Entscheidung erforderlich.
 
 - [Parent-Envoy-TLS- und Maintainability-Bereinigung](CR-20260801-sonar-envoy-tls-maintainability.de.md)
   — entfernt die aktuellen fünf Envoy-SonarQube-Cloud-Source-Zeilen durch

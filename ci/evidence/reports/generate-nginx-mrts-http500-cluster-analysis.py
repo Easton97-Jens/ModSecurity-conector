@@ -133,25 +133,39 @@ def harness_root_from_evidence(path: str | Path) -> Path:
 
 
 def patterns_for_error_line(line: str) -> list[str]:
-    patterns: list[str] = []
-    if ERROR_REWRITE_CYCLE in line:
-        patterns.append("rewrite_internal_redirect_cycle_to_index")
-    if DOCROOT_INDEX_PATH in line and PERMISSION_DENIED_TEXT in line:
-        patterns.append("docroot_index_permission_denied")
-    elif "/htdocs/" in line and PERMISSION_DENIED_TEXT in line:
-        patterns.append("docroot_directory_permission_denied")
-    if "[crit]" in line and PERMISSION_DENIED_TEXT in line:
-        patterns.append("nginx_crit_permission_denied")
-    if "ModSecurity: Warning." in line:
-        if "/coreruleset/" in line or "OWASP_CRS" in line:
-            patterns.append("modsecurity_crs_warning")
-        elif "/mrts/" in line or "MRTS/" in line:
-            patterns.append("modsecurity_mrts_warning")
-        else:
-            patterns.append("modsecurity_case_warning")
-    if "failed" in line.lower() and PERMISSION_DENIED_TEXT not in line:
-        patterns.append("generic_failed")
-    return patterns
+    return [
+        *rewrite_error_patterns(line),
+        *permission_error_patterns(line),
+        *modsecurity_warning_patterns(line),
+        *generic_failure_patterns(line),
+    ]
+
+
+def rewrite_error_patterns(line: str) -> list[str]:
+    return ["rewrite_internal_redirect_cycle_to_index"] if ERROR_REWRITE_CYCLE in line else []
+
+
+def permission_error_patterns(line: str) -> list[str]:
+    if PERMISSION_DENIED_TEXT not in line:
+        return []
+    patterns = ["nginx_crit_permission_denied"] if "[crit]" in line else []
+    if DOCROOT_INDEX_PATH in line:
+        return [*patterns, "docroot_index_permission_denied"]
+    return [*patterns, "docroot_directory_permission_denied"] if "/htdocs/" in line else patterns
+
+
+def modsecurity_warning_patterns(line: str) -> list[str]:
+    if "ModSecurity: Warning." not in line:
+        return []
+    if "/coreruleset/" in line or "OWASP_CRS" in line:
+        return ["modsecurity_crs_warning"]
+    if "/mrts/" in line or "MRTS/" in line:
+        return ["modsecurity_mrts_warning"]
+    return ["modsecurity_case_warning"]
+
+
+def generic_failure_patterns(line: str) -> list[str]:
+    return ["generic_failed"] if "failed" in line.lower() and PERMISSION_DENIED_TEXT not in line else []
 
 
 def error_patterns_for_case(row: dict[str, Any], prefix: str) -> list[str]:
@@ -215,12 +229,20 @@ def family_for(row: dict[str, Any]) -> str:
     name = str(row.get("name") or "").lower()
     category = str(row.get("category") or "").lower()
     capabilities = {str(item).lower() for item in row.get("capabilities", []) if isinstance(item, str)}
+    return family_from_name_capabilities_category(name, capabilities, category)
+
+
+def family_from_name_capabilities_category(name: str, capabilities: set[str], category: str) -> str:
     if "request_cookies_names" in name or "request_cookies" in name or "request-cookies" in capabilities:
         return "MRTS request cookie/name"
     if "_xml_" in name or category == "xml" or "xml" in capabilities:
         return "MRTS XML"
     if "request_filename" in name:
         return "Request filename"
+    return family_from_category(name, category)
+
+
+def family_from_category(name: str, category: str) -> str:
     if "response_body" in name or "phase4" in name or category == "response-body":
         return "Response body / phase 4"
     if "multipart" in name or "files_" in name or category == "multipart":
@@ -233,7 +255,7 @@ def family_for(row: dict[str, Any]) -> str:
         return "Intervention / actions"
     if category in {"body-processors", "request-body"}:
         return "Request body / parsers"
-    if category in {"collections"}:
+    if category == "collections":
         return "Collections / name handling"
     if category in {"transformations", "operators"}:
         return "Transformations / operators"
@@ -310,8 +332,8 @@ def build_groups(rows: list[dict[str, Any]], connector_root: Path) -> list[dict[
     return result
 
 
-def representative_cases(rows: list[dict[str, Any]], prefix: str, connector_root: Path) -> list[dict[str, Any]]:
-    wanted = [
+def representative_case_names() -> list[str]:
+    return [
         "audit_log_empty_sections_future_target",
         "action_allow_phase1_pass",
         "duplicate_args_encoded_separator_edge",
@@ -323,6 +345,10 @@ def representative_cases(rows: list[dict[str, Any]], prefix: str, connector_root
         "mrts_100148_mrts_061_request_filename_100148_1",
         "mrts_100154_mrts_110_xml_100154_1",
     ]
+
+
+def selected_representative_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    wanted = representative_case_names()
     by_name = {str(row.get("name") or ""): row for row in rows}
     selected = [by_name[name] for name in wanted if name in by_name]
     if len(selected) < 10:
@@ -333,54 +359,58 @@ def representative_cases(rows: list[dict[str, Any]], prefix: str, connector_root
                 seen.add(str(row.get("name") or ""))
             if len(selected) >= 10:
                 break
-    cases: list[dict[str, Any]] = []
-    for row in selected[:10]:
-        evidence_path = Path(str(row.get("evidence_path") or ""))
-        # The result path is .../logs/<case>/result.json; runtime is under sibling runtime/<case>/conf.
-        case_name = str(row.get("name") or "")
-        harness_root = harness_root_from_evidence(evidence_path)
-        case_env_path = harness_root / "runtime" / case_name / "conf/case.env"
-        headers_path = harness_root / "runtime" / case_name / "conf/request-headers.txt"
-        body_path = harness_root / "runtime" / case_name / "conf/request-body.bin"
-        nginx_conf_path = harness_root / "runtime" / case_name / "conf/nginx.conf"
-        env = case_env(case_env_path)
-        headers = request_headers(headers_path)
-        content_type = next((line.split(":", 1)[1].strip() for line in headers if line.lower().startswith("content-type:")), "")
-        cases.append(
-            {
-                "case": case_name,
-                "group": family_for(row),
-                "expected": row.get("expected_status"),
-                "actual": row.get("actual_status"),
-                "access_log_status": access_status(str(row.get("nginx_access_log_path") or ""), prefix),
-                "error_pattern": ", ".join(error_patterns_for_case(row, prefix)[:4]) or "-",
-                "classification": classification_for_family(family_for(row)),
-                "error_log_excerpt": representative_error_excerpt(row, prefix),
-                "audit_log_excerpt": audit_excerpt(str(row.get("audit_log_path") or "")),
-                "result_json": read_json(Path(str(row.get("evidence_path") or ""))),
-                "loaded_rules": {
-                    "crs_active": True,
-                    "mrts_active": True,
-                    "modsecurity_config": rel(nginx_conf_path, connector_root),
-                    "rule_preamble": "crs/modsecurity-crs-preamble.conf + MRTS load/case rules",
-                },
-                "request": {
-                    "method": env.get("REQUEST_METHOD", "-"),
-                    "path": env.get("REQUEST_PATH", "-"),
-                    "has_body": env.get("REQUEST_HAS_BODY", "-"),
-                    "content_type": content_type or "-",
-                    "headers": headers[:8],
-                    "body": request_body_info(body_path),
-                },
-                "evidence": {
-                    "result_json": rel(row.get("evidence_path") or "-", connector_root),
-                    "nginx_error_log": rel(row.get("nginx_error_log_path") or "-", connector_root),
-                    "nginx_access_log": rel(row.get("nginx_access_log_path") or "-", connector_root),
-                    "audit_log": rel(row.get("audit_log_path") or "-", connector_root),
-                },
-            }
-        )
-    return cases
+    return selected[:10]
+
+
+def case_runtime_paths(row: dict[str, Any]) -> tuple[str, Path, Path, Path]:
+    case_name = str(row.get("name") or "")
+    harness_root = harness_root_from_evidence(Path(str(row.get("evidence_path") or "")))
+    case_root = harness_root / "runtime" / case_name / "conf"
+    return case_name, case_root / "case.env", case_root / "request-headers.txt", case_root / "request-body.bin"
+
+
+def request_content_type(headers: list[str]) -> str:
+    return next((line.split(":", 1)[1].strip() for line in headers if line.lower().startswith("content-type:")), "")
+
+
+def representative_case(row: dict[str, Any], prefix: str, connector_root: Path) -> dict[str, Any]:
+    case_name, case_env_path, headers_path, body_path = case_runtime_paths(row)
+    headers = request_headers(headers_path)
+    environment = case_env(case_env_path)
+    case_root = case_env_path.parent
+    family = family_for(row)
+    return {
+        "case": case_name,
+        "group": family,
+        "expected": row.get("expected_status"),
+        "actual": row.get("actual_status"),
+        "access_log_status": access_status(str(row.get("nginx_access_log_path") or ""), prefix),
+        "error_pattern": ", ".join(error_patterns_for_case(row, prefix)[:4]) or "-",
+        "classification": classification_for_family(family),
+        "error_log_excerpt": representative_error_excerpt(row, prefix),
+        "audit_log_excerpt": audit_excerpt(str(row.get("audit_log_path") or "")),
+        "result_json": read_json(Path(str(row.get("evidence_path") or ""))),
+        "loaded_rules": {
+            "crs_active": True, "mrts_active": True,
+            "modsecurity_config": rel(case_root / "nginx.conf", connector_root),
+            "rule_preamble": "crs/modsecurity-crs-preamble.conf + MRTS load/case rules",
+        },
+        "request": {
+            "method": environment.get("REQUEST_METHOD", "-"), "path": environment.get("REQUEST_PATH", "-"),
+            "has_body": environment.get("REQUEST_HAS_BODY", "-"), "content_type": request_content_type(headers) or "-",
+            "headers": headers[:8], "body": request_body_info(body_path),
+        },
+        "evidence": {
+            "result_json": rel(row.get("evidence_path") or "-", connector_root),
+            "nginx_error_log": rel(row.get("nginx_error_log_path") or "-", connector_root),
+            "nginx_access_log": rel(row.get("nginx_access_log_path") or "-", connector_root),
+            "audit_log": rel(row.get("audit_log_path") or "-", connector_root),
+        },
+    }
+
+
+def representative_cases(rows: list[dict[str, Any]], prefix: str, connector_root: Path) -> list[dict[str, Any]]:
+    return [representative_case(row, prefix, connector_root) for row in selected_representative_rows(rows)]
 
 
 def permissions_probe(row: dict[str, Any]) -> dict[str, Any]:
@@ -409,121 +439,98 @@ def permissions_probe(row: dict[str, Any]) -> dict[str, Any]:
     return {"index_path": str(index_path), "path_components": paths}
 
 
+def nginx_cluster_paths(connector_root: Path, build_root: Path, verified_run_id: str) -> dict[str, Path]:
+    job_root = build_root / "full-matrix/with-crs/with-mrts/nginx"
+    return {
+        "job_json": job_root / "job.json",
+        "run_log": job_root / "run.log",
+        "summary_json": job_root / "results/force-all/nginx-summary.json",
+        "results_jsonl": job_root / "results/force-all/nginx-results.jsonl",
+        "full_matrix_job_completeness": report_path(connector_root, "full_matrix_job_completeness", "json"),
+        "verified_runtime_mismatch_analysis": report_path(connector_root, "verified_runtime_mismatch_analysis", "json"),
+        "verified_commands": build_root / "verified-runs" / verified_run_id / "verified-commands.json",
+    }
+
+
+def nginx_cluster_summary(rows: list[dict[str, Any]], http500_rows: list[dict[str, Any]], patterns: list[dict[str, Any]], prefix: str) -> dict[str, Any]:
+    rewrite_count = next((item["count"] for item in patterns if item["pattern"] == "rewrite_internal_redirect_cycle_to_index"), 0)
+    permission_case_count = sum(
+        1 for row in http500_rows if "docroot_index_permission_denied" in error_patterns_for_case(row, prefix)
+    )
+    return {
+        "total_rows": len(rows), "http500_failures": len(http500_rows),
+        "rewrite_cycle_cases": rewrite_count, "permission_denied_cases": permission_case_count,
+        "expected_status_counts": dict(Counter(str(row.get("expected_status")) for row in http500_rows)),
+        "actual_status_counts": dict(Counter(str(row.get("actual_status")) for row in rows)),
+        "status_counts": dict(Counter(str(row.get("status")) for row in rows)),
+    }
+
+
+def nginx_cluster_root_cause(summary: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "likely_cause": "Historical evidence: NGINX worker could not traverse /root-owned runtime parents, generated docroot was inaccessible, and try_files /index.html looped into HTTP 500. New runs should block in the worker-docroot preflight before this becomes runtime mismatch evidence.",
+        "classification": "harness_environment_error", "secondary_classification": "nginx_config_error", "confidence": "high",
+        "evidence": [
+            f"{summary['rewrite_cycle_cases']} HTTP-500 rows have {ERROR_REWRITE_CYCLE!r}.",
+            f"{summary['permission_denied_cases']} HTTP-500 rows have {DOCROOT_INDEX_PATH} {PERMISSION_DENIED_TEXT} in final-run error logs.",
+            "Historical namei evidence shows /root is 0700 while NGINX worker user is nobody; generated files below it are otherwise readable.",
+            "No segfault/core/module-load error pattern was observed in the final-run cluster.",
+        ],
+    }
+
+
+def minimal_http500_repro(rows: list[dict[str, Any]], connector_root: Path) -> dict[str, Any]:
+    minimal_case = "mrts_100000_mrts_002_args_a_get_100000_1"
+    minimal_row = next((row for row in rows if row.get("name") == minimal_case), rows[0] if rows else {})
+    return {
+        "case": minimal_case,
+        "status": "reproduced_by_full_matrix_evidence; direct single-case target needs a stable full-matrix wrapper",
+        "existing_reproducer": "VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS=3600 make verified-full-matrix-job CONNECTOR=nginx CRS=with-crs MRTS=with-mrts",
+        "target_to_add": "make verified-nginx-mrts-case CASE=mrts_100000_mrts_002_args_a_get_100000_1 CRS=with-crs MRTS=with-mrts",
+        "notes": "The connector harness supports TEST_CASE internally, but the verified full-matrix path does not yet expose a single-case target with CRS/MRTS setup and isolated job metadata.",
+        "evidence": {
+            "result_json": rel(minimal_row.get("evidence_path") or "-", connector_root),
+            "nginx_error_log": rel(minimal_row.get("nginx_error_log_path") or "-", connector_root),
+        },
+        "permissions_probe": permissions_probe(minimal_row) if minimal_row else {},
+    }
+
+
+def nginx_cluster_fix_plan() -> list[dict[str, Any]]:
+    return [
+        {"fix": "Keep verified NGINX Full-Matrix harness roots under VERIFIED_RUN_ROOT/NGINX_HARNESS_PARENT outside /root.", "path": "ci/runtime/lifecycle/run-full-matrix-parallel.sh / Makefile NGINX_HARNESS_PARENT", "risk": "medium", "expected_effect": "Eliminates docroot Permission denied or reports it as a BLOCKED preflight before the 500 cluster can form.", "needs_new_verified_run": True},
+        {"fix": "Add a readiness/permission preflight that blocks NGINX jobs when worker user cannot traverse DOCROOT parents.", "path": "connectors/nginx/harness/run_nginx_smoke.sh", "risk": "low", "expected_effect": "Classifies future inaccessible-docroot evidence as BLOCKED instead of runtime FAIL.", "needs_new_verified_run": True},
+        {"fix": "Add a verified single-case Full-Matrix target for NGINX with CRS/MRTS setup and job metadata.", "path": "Makefile / ci/runtime/lifecycle/run-full-matrix-job.py", "risk": "low", "expected_effect": "Provides minimal repro without rerunning the 524-case NGINX job.", "needs_new_verified_run": False},
+    ]
+
+
 def build_payload(connector_root: Path, build_root: Path, verified_run_id: str) -> dict[str, Any]:
     verified_run_id = validate_verified_run_id(verified_run_id)
-    job_root = build_root / "full-matrix/with-crs/with-mrts/nginx"
-    job_json = job_root / "job.json"
-    run_log = job_root / "run.log"
-    summary_json = job_root / "results/force-all/nginx-summary.json"
-    results_jsonl = job_root / "results/force-all/nginx-results.jsonl"
-    completeness_json = report_path(connector_root, "full_matrix_job_completeness", "json")
-    mismatch_json = report_path(connector_root, "verified_runtime_mismatch_analysis", "json")
-    commands_json = build_root / "verified-runs" / verified_run_id / "verified-commands.json"
-
-    job = read_json(job_json)
-    rows = read_jsonl(results_jsonl)
+    paths = nginx_cluster_paths(connector_root, build_root, verified_run_id)
+    job = read_json(paths["job_json"])
+    rows = read_jsonl(paths["results_jsonl"])
     http500_rows = [row for row in rows if row.get("actual_status") == 500]
     prefix = final_run_prefix(job)
-    groups = build_groups(http500_rows, connector_root)
     patterns = pattern_rollup(http500_rows, prefix)
-    reps = representative_cases(http500_rows, prefix, connector_root)
-    rewrite_count = next((item["count"] for item in patterns if item["pattern"] == "rewrite_internal_redirect_cycle_to_index"), 0)
-    permission_case_count = sum(1 for row in http500_rows if "docroot_index_permission_denied" in error_patterns_for_case(row, prefix))
-    minimal_case = "mrts_100000_mrts_002_args_a_get_100000_1"
-    minimal_row = next((row for row in http500_rows if row.get("name") == minimal_case), http500_rows[0] if http500_rows else {})
-    payload = {
-        "generated_at": utc_now(),
-        "verified_run_id": verified_run_id,
-        "job_id": JOB_ID,
+    summary = nginx_cluster_summary(rows, http500_rows, patterns, prefix)
+    minimal_repro = minimal_http500_repro(http500_rows, connector_root)
+    return {
+        "generated_at": utc_now(), "verified_run_id": verified_run_id, "job_id": JOB_ID,
         "primary_blocker": PRIMARY_BLOCKER if http500_rows else "none",
         "merge_readiness": "FAIL" if http500_rows else "UNKNOWN",
-        "job": {
-            "status": job.get("status"),
-            "return_code": job.get("return_code"),
-            "started_at": job.get("started_at"),
-            "ended_at": job.get("ended_at"),
-            "duration_seconds": job.get("duration_seconds"),
-            "path": str(job_json),
-        },
-        "inputs": {
-            "job_json": str(job_json),
-            "run_log": str(run_log),
-            "summary_json": str(summary_json),
-            "results_jsonl": str(results_jsonl),
-            "full_matrix_job_completeness": str(completeness_json),
-            "verified_runtime_mismatch_analysis": str(mismatch_json),
-            "verified_commands": str(commands_json),
-        },
-        "summary": {
-            "total_rows": len(rows),
-            "http500_failures": len(http500_rows),
-            "rewrite_cycle_cases": rewrite_count,
-            "permission_denied_cases": permission_case_count,
-            "expected_status_counts": dict(Counter(str(row.get("expected_status")) for row in http500_rows)),
-            "actual_status_counts": dict(Counter(str(row.get("actual_status")) for row in rows)),
-            "status_counts": dict(Counter(str(row.get("status")) for row in rows)),
-        },
-        "root_cause": {
-            "likely_cause": "Historical evidence: NGINX worker could not traverse /root-owned runtime parents, generated docroot was inaccessible, and try_files /index.html looped into HTTP 500. New runs should block in the worker-docroot preflight before this becomes runtime mismatch evidence.",
-            "classification": "harness_environment_error",
-            "secondary_classification": "nginx_config_error",
-            "confidence": "high",
-            "evidence": [
-                f"{rewrite_count} HTTP-500 rows have {ERROR_REWRITE_CYCLE!r}.",
-                f"{permission_case_count} HTTP-500 rows have {DOCROOT_INDEX_PATH} {PERMISSION_DENIED_TEXT} in final-run error logs.",
-                "Historical namei evidence shows /root is 0700 while NGINX worker user is nobody; generated files below it are otherwise readable.",
-                "No segfault/core/module-load error pattern was observed in the final-run cluster.",
-            ],
-        },
-        "groups": groups,
-        "error_patterns": patterns,
-        "representative_cases": reps,
-        "permissions_probe": permissions_probe(minimal_row) if minimal_row else {},
-        "minimal_repro": {
-            "case": minimal_case,
-            "status": "reproduced_by_full_matrix_evidence; direct single-case target needs a stable full-matrix wrapper",
-            "existing_reproducer": "VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS=3600 make verified-full-matrix-job CONNECTOR=nginx CRS=with-crs MRTS=with-mrts",
-            "target_to_add": "make verified-nginx-mrts-case CASE=mrts_100000_mrts_002_args_a_get_100000_1 CRS=with-crs MRTS=with-mrts",
-            "notes": "The connector harness supports TEST_CASE internally, but the verified full-matrix path does not yet expose a single-case target with CRS/MRTS setup and isolated job metadata.",
-            "evidence": {
-                "result_json": rel(minimal_row.get("evidence_path") or "-", connector_root) if minimal_row else "-",
-                "nginx_error_log": rel(minimal_row.get("nginx_error_log_path") or "-", connector_root) if minimal_row else "-",
-            },
-        },
+        "job": {key: job.get(key) for key in ("status", "return_code", "started_at", "ended_at", "duration_seconds")} | {"path": str(paths["job_json"])},
+        "inputs": {key: str(value) for key, value in paths.items()},
+        "summary": summary, "root_cause": nginx_cluster_root_cause(summary),
+        "groups": build_groups(http500_rows, connector_root), "error_patterns": patterns,
+        "representative_cases": representative_cases(http500_rows, prefix, connector_root),
+        "permissions_probe": minimal_repro.pop("permissions_probe"), "minimal_repro": minimal_repro,
         "cluster_classification": [
-            {
-                "cluster": group["group"],
-                "count": group["count"],
-                "classification": group["classification"],
-                "code_fix_needed": group["classification"] in {"harness_environment_error", "crs_mrts_rule_interaction_secondary_harness_environment_error"},
-                "test_expectation_wrong": False,
-                "document_only": False,
-            }
-            for group in groups
+            {"cluster": group["group"], "count": group["count"], "classification": group["classification"],
+             "code_fix_needed": group["classification"] in {"harness_environment_error", "crs_mrts_rule_interaction_secondary_harness_environment_error"},
+             "test_expectation_wrong": False, "document_only": False}
+            for group in build_groups(http500_rows, connector_root)
         ],
-        "fix_plan": [
-            {
-                "fix": "Keep verified NGINX Full-Matrix harness roots under VERIFIED_RUN_ROOT/NGINX_HARNESS_PARENT outside /root.",
-                "path": "ci/runtime/lifecycle/run-full-matrix-parallel.sh / Makefile NGINX_HARNESS_PARENT",
-                "risk": "medium",
-                "expected_effect": "Eliminates docroot Permission denied or reports it as a BLOCKED preflight before the 500 cluster can form.",
-                "needs_new_verified_run": True,
-            },
-            {
-                "fix": "Add a readiness/permission preflight that blocks NGINX jobs when worker user cannot traverse DOCROOT parents.",
-                "path": "connectors/nginx/harness/run_nginx_smoke.sh",
-                "risk": "low",
-                "expected_effect": "Classifies future inaccessible-docroot evidence as BLOCKED instead of runtime FAIL.",
-                "needs_new_verified_run": True,
-            },
-            {
-                "fix": "Add a verified single-case Full-Matrix target for NGINX with CRS/MRTS setup and job metadata.",
-                "path": "Makefile / ci/runtime/lifecycle/run-full-matrix-job.py",
-                "risk": "low",
-                "expected_effect": "Provides minimal repro without rerunning the 524-case NGINX job.",
-                "needs_new_verified_run": False,
-            },
-        ],
+        "fix_plan": nginx_cluster_fix_plan(),
         "data_availability": {
             "audit_logs": "Mostly absent for permission/docroot failures; NGINX fails while serving generated htdocs.",
             "single_case_target": "Not yet exposed as a verified make target.",
@@ -531,7 +538,6 @@ def build_payload(connector_root: Path, build_root: Path, verified_run_id: str) 
         },
         "no_invented_values_statement": "All counts and examples are parsed from the verified NGINX with-crs/with-mrts job.json, JSONL result file, and referenced per-case logs.",
     }
-    return payload
 
 
 def md(value: Any) -> str:
