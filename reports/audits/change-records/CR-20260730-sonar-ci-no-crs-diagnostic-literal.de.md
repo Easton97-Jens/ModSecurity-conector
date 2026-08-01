@@ -160,12 +160,16 @@ Scanner-Kontrollen und Hosted-Delivery-Status waren unverändert.
 
 ## Aktuelle Synchronisierung und Validierung
 
-Am 2026-08-01 wurde der ausgewählte PR-Inhalt lokal und noch nicht
+Am 2026-08-01 wurde der ausgewählte PR-Inhalt zuerst lokal und noch nicht
 veröffentlicht auf Parent-`master`
-`3ff87de53df34cecbc9c6489c858e64bdf3fd198` gemergt. Die einzigen
-Merge-Konflikte lagen in den englischen/deutschen Change-Record-Indizes. Ihre
-Auflösung behielt alle aktuellen Master-Einträge und fügte dieses Record-Paar
-hinzu; sie änderte keinen Source-, Test-, Framework-, MRTS- oder Gitlink-Pfad.
+`3ff87de53df34cecbc9c6489c858e64bdf3fd198` gemergt. Bei dieser ersten
+Synchronisierung lagen Konflikte nur in den englischen/deutschen Change-Record-
+Indizes; ihre Auflösung behielt alle aktuellen Master-Einträge und fügte dieses
+Record-Paar hinzu. Ein späterer unveröffentlichter Merge brachte denselben
+Task-Head konfliktfrei auf den aktualisierten Parent-`master`
+`c3319575ae86d9810da8b5428590336d60cd3daf`. Keine der beiden
+Synchronisierungen änderte außerhalb des dokumentierten Scopes einen Source-,
+Test-, Framework-, MRTS- oder Gitlink-Pfad.
 
 - `sh -n ci/runtime/lifecycle/run-connector-stage.sh` und
   `shellcheck --severity=error ci/runtime/lifecycle/run-connector-stage.sh`

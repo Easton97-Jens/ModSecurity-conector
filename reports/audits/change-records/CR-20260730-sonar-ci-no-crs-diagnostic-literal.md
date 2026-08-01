@@ -150,11 +150,14 @@ state were unchanged.
 
 ## Current synchronization and validation
 
-On 2026-08-01, the selected PR content was merged locally and not yet
+On 2026-08-01, the selected PR content was first merged locally and not yet
 published onto Parent `master` `3ff87de53df34cecbc9c6489c858e64bdf3fd198`.
-The only merge conflicts were the English/German Change Record indexes. Their
-resolution retained all current-master entries and added this record pair; it
-did not modify a source, test, Framework, MRTS, or Gitlink path.
+That initial synchronization had conflicts only in the English/German Change
+Record indexes; its resolution retained all current-master entries and added
+this record pair. A later unpublished merge moved the same task head onto
+updated Parent `master` `c3319575ae86d9810da8b5428590336d60cd3daf` without
+conflicts. Neither synchronization modified a source, test, Framework, MRTS,
+or Gitlink path outside this record's stated scope.
 
 - `sh -n ci/runtime/lifecycle/run-connector-stage.sh` and
   `shellcheck --severity=error ci/runtime/lifecycle/run-connector-stage.sh`
