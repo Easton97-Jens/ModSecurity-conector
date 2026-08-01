@@ -502,7 +502,7 @@ class CommonRuntimeSmokeCrsSourceSecurityTest(unittest.TestCase):
 
             command = RUNNER.writer_args(args, result)
 
-        values = dict(zip(command[2::2], command[3::2], strict=True))
+        values = dict(zip(command[::2], command[1::2], strict=True))
         self.assertEqual(values["--status"], "BLOCKED")
         self.assertEqual(values["--exit-code"], "77")
         self.assertEqual(values["--allowed-request-status"], "200")

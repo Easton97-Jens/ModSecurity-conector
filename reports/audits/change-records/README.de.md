@@ -7,6 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-`common/scripts`-SonarQube-Cloud-Remediation](CR-20260801-sonar-common-scripts-remediation.de.md)
+  — remediiert das aktuelle Local-Smoke-Security- und Maintainability-Inventar
+  durch festes Loopback-Protokoll, verifizierte lokale Ausführungs-/Output-
+  Grenzen, C++17-RAII-Cleanup und zerlegten Kontrollfluss; SHA-gebundene
+  Hosted-Verifikation bleibt vor einer Integration erforderlich.
+
 - [Vollständige Parent-Traefik-SonarQube-Cloud-Remediation](CR-20260801-sonar-traefik-complete-remediation.de.md)
   — validiert lokale Executable- und Artefaktgrenzen, bewahrt Native-UDS-
   Lifecycle-Cleanup und zerlegt den aktuellen Traefik-Runner ohne

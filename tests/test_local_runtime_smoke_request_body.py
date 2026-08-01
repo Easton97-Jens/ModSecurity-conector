@@ -51,6 +51,42 @@ class LocalRuntimeSmokeRequestBodyTest(unittest.TestCase):
         self.assertEqual(SMOKE.DEFAULT_TEXT_CONTENT_TYPE, "text/plain")
         self.assertEqual(SMOKE.DEFAULT_BLOCKED_PATH, "/blocked")
 
+    def test_loopback_url_builder_rejects_authority_and_preserves_origin_form(self) -> None:
+        self.assertEqual(
+            SMOKE.local_smoke_url(8080, "/allowed?case=control"),
+            "http://127.0.0.1:8080/allowed?case=control",
+        )
+        for target in ("http://example.test/", "//example.test/", "/allowed#fragment"):
+            with self.subTest(target=target), self.assertRaises(SMOKE.RequestBodyError):
+                SMOKE.require_local_request_target(target)
+
+    def test_handlers_reject_absolute_form_requests_without_backend_or_upstream_processing(self) -> None:
+        request = b"POST http://example.test/ HTTP/1.1\r\nHost: local\r\nContent-Length: 0\r\n\r\n"
+        self.assert_handlers_reject_without_processing(request)
+
+    def test_modsecurity_evaluator_accepts_only_smoke_protocol_arguments(self) -> None:
+        backend = SMOKE.ModSecurityDecisionBackend(
+            Path("/tmp/helper"),
+            Path("/tmp/rules.conf"),
+            Path("/tmp/decision.log"),
+            {},
+            "targeted",
+            "minimal",
+            "request_body",
+        )
+        headers = Message()
+        accepted = backend._evaluator_request(
+            headers, "/allowed", "POST", SMOKE.REQUEST_BODY_ALLOW_BODY
+        )
+        self.assertEqual(accepted.path, "/allowed")
+        self.assertEqual(accepted.content_type, SMOKE.REQUEST_BODY_CONTENT_TYPE)
+        for target, body in (
+            ("http://example.test/", SMOKE.REQUEST_BODY_ALLOW_BODY),
+            ("/allowed", b"unexpected=body"),
+        ):
+            with self.subTest(target=target, body=body), self.assertRaises(SMOKE.RequestBodyError):
+                backend._evaluator_request(headers, target, "POST", body)
+
     def start_server(self, handler: type[SMOKE.QuietHandler]) -> SMOKE.LocalSmokeHTTPServer:
         server = SMOKE.start_http_server(handler, 0)
         self.addCleanup(server.server_close)

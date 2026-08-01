@@ -6,6 +6,12 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent common/scripts SonarQube Cloud remediation](CR-20260801-sonar-common-scripts-remediation.md)
+  — remediates the current local-smoke security and maintainability inventory
+  through fixed loopback protocol, verified local execution/output boundaries,
+  C++17 RAII cleanup, and decomposed control flow; exact-head hosted
+  verification remains required before integration.
+
 - [Parent Traefik complete SonarQube Cloud remediation](CR-20260801-sonar-traefik-complete-remediation.md)
   — validates local executable and artefact boundaries, preserves native UDS
   lifecycle cleanup, and decomposes the current Traefik runner without scanner
