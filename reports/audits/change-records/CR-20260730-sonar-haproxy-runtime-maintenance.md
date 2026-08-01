@@ -33,13 +33,15 @@ does not claim that the Draft PR closes every historical baseline finding.
 
 ## Implementation decision and rationale
 
-The SPOP runtime uses tables and a length-aware C-string comparator for its
-known string, integer, and response-header arguments; the literal-only macro
-is retained only for actual literals. It removes custom variadic file writers
-and retries interrupted I/O without nested `continue` paths. HTX lifecycle
-work is split into request and response helpers; the direct contract checker
-follows those helpers. The builder owns one `sha256_of` pipeline. Binding CRS
-loading now has one allocation-cleanup path.
+The SPOP runtime uses tables for its known string, integer, and response-header
+arguments; every table entry owns its compile-time literal length, so no parser
+comparison derives a length from a dynamic pointer. It removes custom variadic
+file writers and retries interrupted I/O without nested `continue` paths. HTX
+lifecycle work is split into request and response helpers; the direct contract
+checker follows those helpers. Owned HTX header strings have explicit mutable
+owner arrays separate from the const binding view. The builder owns one
+`sha256_of` pipeline with a named input parameter. Binding CRS loading now has
+one allocation-cleanup path.
 
 ## Security impact
 

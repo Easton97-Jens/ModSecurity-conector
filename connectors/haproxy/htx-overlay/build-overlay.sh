@@ -22,7 +22,8 @@ die() {
 }
 
 sha256_of() {
-    sha256sum "$1" | awk '{print $1}'
+    sha256_input=$1
+    sha256sum "$sha256_input" | awk '{print $1}'
 }
 
 require_file() {

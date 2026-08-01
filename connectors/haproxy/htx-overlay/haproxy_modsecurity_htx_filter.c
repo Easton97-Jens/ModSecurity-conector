@@ -62,6 +62,8 @@ struct haproxy_modsecurity_htx_filter_config {
 
 struct haproxy_modsecurity_htx_owned_headers {
     haproxy_modsecurity_header *items;
+    char **names;
+    char **values;
     unsigned int count;
 };
 
@@ -111,11 +113,15 @@ static void haproxy_modsecurity_htx_owned_headers_free(
         return;
     }
     for (unsigned int i = 0; i < headers->count; ++i) {
-        free((void *)headers->items[i].name);
-        free((void *)headers->items[i].value);
+        free(headers->names[i]);
+        free(headers->values[i]);
     }
     free(headers->items);
+    free(headers->names);
+    free(headers->values);
     headers->items = NULL;
+    headers->names = NULL;
+    headers->values = NULL;
     headers->count = 0U;
 }
 
@@ -205,7 +211,10 @@ static int haproxy_modsecurity_htx_copy_headers(
         return 0;
     }
     headers->items = calloc(count, sizeof(*headers->items));
-    if (!headers->items) {
+    headers->names = calloc(count, sizeof(*headers->names));
+    headers->values = calloc(count, sizeof(*headers->values));
+    if (!headers->items || !headers->names || !headers->values) {
+        haproxy_modsecurity_htx_owned_headers_free(headers);
         return -1;
     }
     for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
@@ -221,14 +230,16 @@ static int haproxy_modsecurity_htx_copy_headers(
         }
         name = htx_get_blk_name(htx, blk);
         value = htx_get_blk_value(htx, blk);
-        headers->items[headers->count].name =
+        headers->names[headers->count] =
             haproxy_modsecurity_htx_dup_ist(name, HAPROXY_MODSECURITY_HTX_MAX_HEADER_BYTES);
-        headers->items[headers->count].value =
+        headers->values[headers->count] =
             haproxy_modsecurity_htx_dup_ist(value, HAPROXY_MODSECURITY_HTX_MAX_HEADER_BYTES);
-        if (!headers->items[headers->count].name || !headers->items[headers->count].value) {
+        if (!headers->names[headers->count] || !headers->values[headers->count]) {
             haproxy_modsecurity_htx_owned_headers_free(headers);
             return -1;
         }
+        headers->items[headers->count].name = headers->names[headers->count];
+        headers->items[headers->count].value = headers->values[headers->count];
         ++headers->count;
     }
     return 0;

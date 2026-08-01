@@ -35,14 +35,16 @@ Baseline-Befund schließt.
 
 ## Implementierungsentscheidung und Begründung
 
-Die SPOP-Runtime verwendet Tabellen und einen längenbewussten C-String-
-Comparator für bekannte String-, Integer- und Response-Header-Argumente; das
-literal-only Makro bleibt nur für echte Literale. Eigene variadische File-
-Writer entfallen, unterbrochenes I/O wird ohne verschachtelte `continue`-Pfade
-wiederholt. HTX-Lifecycle-Code ist in Request- und Response-Helper getrennt;
-der direkte Contract-Checker folgt diesen Helfern. Der Builder besitzt eine
-`sha256_of`-Pipeline. CRS-Laden im Binding hat jetzt einen gemeinsamen
-Allocation-Cleanup-Pfad.
+Die SPOP-Runtime verwendet Tabellen für bekannte String-, Integer- und
+Response-Header-Argumente; jeder Tabelleneintrag besitzt seine Compile-Time-
+Literallänge, sodass kein Parser-Vergleich eine Länge aus einem dynamischen
+Pointer ableitet. Eigene variadische File-Writer entfallen, unterbrochenes I/O
+wird ohne verschachtelte `continue`-Pfade wiederholt. HTX-Lifecycle-Code ist in
+Request- und Response-Helper getrennt; der direkte Contract-Checker folgt
+diesen Helfern. Owned HTX-Header-Strings besitzen explizite mutable Owner-
+Arrays getrennt von der const-Binding-View. Der Builder besitzt eine
+`sha256_of`-Pipeline mit benanntem Input-Parameter. CRS-Laden im Binding hat
+jetzt einen gemeinsamen Allocation-Cleanup-Pfad.
 
 ## Security-Auswirkung
 

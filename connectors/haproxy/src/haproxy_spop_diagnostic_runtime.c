@@ -559,14 +559,6 @@ static int key_equals_literal(const unsigned char *key, size_t key_len, const un
 #define KEY_EQUALS_LITERAL(key, key_len, expected) \
     key_equals_literal((key), (key_len), (const unsigned char *)(expected), sizeof(expected) - 1U)
 
-static int key_equals_cstring(
-        const unsigned char *key,
-        size_t key_len,
-        const char *expected) {
-    return key_equals_literal(key, key_len, (const unsigned char *)expected,
-        safe_cstring_length(expected, RUNTIME_TEXT_LIMIT));
-}
-
 static int contains_bytes(const unsigned char *value, size_t value_len, const char *needle) {
     size_t needle_len;
 
@@ -1139,21 +1131,25 @@ static int parse_notify_body_key_argument(
 }
 
 typedef struct notify_string_argument {
-    const char *key;
+    const unsigned char *key;
+    size_t key_len;
     char *value;
     size_t value_len;
     int *present;
 } notify_string_argument;
 
 typedef struct notify_uint_argument {
-    const char *key;
+    const unsigned char *key;
+    size_t key_len;
     unsigned int *value;
     int *present;
 } notify_uint_argument;
 
 typedef struct notify_response_header_argument {
-    const char *key;
-    const char *header_name;
+    const unsigned char *key;
+    size_t key_len;
+    const unsigned char *header_name;
+    size_t header_name_len;
 } notify_response_header_argument;
 
 static int parse_notify_string_argument(
@@ -1164,18 +1160,19 @@ static int parse_notify_string_argument(
         size_t len,
         size_t *pos) {
     notify_string_argument arguments[] = {
-        {"request_id", request->request_id, sizeof(request->request_id), &request->has_request_id},
-        {"client_ip", request->client_ip, sizeof(request->client_ip), &request->has_client_ip},
-        {"server_ip", request->server_ip, sizeof(request->server_ip), &request->has_server_ip},
-        {"method", request->method, sizeof(request->method), &request->has_method},
-        {"path", request->path, sizeof(request->path), &request->has_path},
-        {"uri", request->uri, sizeof(request->uri), &request->has_uri},
-        {"host", request->host, sizeof(request->host), &request->has_host},
-        {"test_header", request->test_header, sizeof(request->test_header), &request->has_test_header},
+        {(const unsigned char *)"request_id", sizeof("request_id") - 1U, request->request_id, sizeof(request->request_id), &request->has_request_id},
+        {(const unsigned char *)"client_ip", sizeof("client_ip") - 1U, request->client_ip, sizeof(request->client_ip), &request->has_client_ip},
+        {(const unsigned char *)"server_ip", sizeof("server_ip") - 1U, request->server_ip, sizeof(request->server_ip), &request->has_server_ip},
+        {(const unsigned char *)"method", sizeof("method") - 1U, request->method, sizeof(request->method), &request->has_method},
+        {(const unsigned char *)"path", sizeof("path") - 1U, request->path, sizeof(request->path), &request->has_path},
+        {(const unsigned char *)"uri", sizeof("uri") - 1U, request->uri, sizeof(request->uri), &request->has_uri},
+        {(const unsigned char *)"host", sizeof("host") - 1U, request->host, sizeof(request->host), &request->has_host},
+        {(const unsigned char *)"test_header", sizeof("test_header") - 1U, request->test_header, sizeof(request->test_header), &request->has_test_header},
     };
 
     for (size_t index = 0U; index < sizeof(arguments) / sizeof(arguments[0]); ++index) {
-        if (key_equals_cstring(arg_name, arg_name_len, arguments[index].key)) {
+        if (key_equals_literal(arg_name, arg_name_len, arguments[index].key,
+                arguments[index].key_len)) {
             return read_typed_string_to_buffer(data, len, pos, arguments[index].value,
                 arguments[index].value_len, arguments[index].present);
         }
@@ -1191,13 +1188,14 @@ static int parse_notify_uint_argument(
         size_t len,
         size_t *pos) {
     notify_uint_argument arguments[] = {
-        {"client_port", &request->client_port, &request->has_client_port},
-        {"server_port", &request->server_port, &request->has_server_port},
-        {"response_status", &request->response_status, &request->has_response_status},
+        {(const unsigned char *)"client_port", sizeof("client_port") - 1U, &request->client_port, &request->has_client_port},
+        {(const unsigned char *)"server_port", sizeof("server_port") - 1U, &request->server_port, &request->has_server_port},
+        {(const unsigned char *)"response_status", sizeof("response_status") - 1U, &request->response_status, &request->has_response_status},
     };
 
     for (size_t index = 0U; index < sizeof(arguments) / sizeof(arguments[0]); ++index) {
-        if (key_equals_cstring(arg_name, arg_name_len, arguments[index].key)) {
+        if (key_equals_literal(arg_name, arg_name_len, arguments[index].key,
+                arguments[index].key_len)) {
             return read_typed_uint32_loose(data, len, pos, arguments[index].value,
                 arguments[index].present);
         }
@@ -1213,20 +1211,20 @@ static int parse_notify_response_header_argument(
         size_t len,
         size_t *pos) {
     static const notify_response_header_argument arguments[] = {
-        {"response_header_last_modified", "Last-Modified"},
-        {"response_header_content_type", "Content-Type"},
-        {"response_header_location", "Location"},
-        {"response_header_set_cookie", "Set-Cookie"},
-        {"response_header_server", "Server"},
+        {(const unsigned char *)"response_header_last_modified", sizeof("response_header_last_modified") - 1U, (const unsigned char *)"Last-Modified", sizeof("Last-Modified") - 1U},
+        {(const unsigned char *)"response_header_content_type", sizeof("response_header_content_type") - 1U, (const unsigned char *)"Content-Type", sizeof("Content-Type") - 1U},
+        {(const unsigned char *)"response_header_location", sizeof("response_header_location") - 1U, (const unsigned char *)"Location", sizeof("Location") - 1U},
+        {(const unsigned char *)"response_header_set_cookie", sizeof("response_header_set_cookie") - 1U, (const unsigned char *)"Set-Cookie", sizeof("Set-Cookie") - 1U},
+        {(const unsigned char *)"response_header_server", sizeof("response_header_server") - 1U, (const unsigned char *)"Server", sizeof("Server") - 1U},
     };
 
     for (size_t index = 0U; index < sizeof(arguments) / sizeof(arguments[0]); ++index) {
         char header_value[2048];
         int present = 0;
-        size_t header_name_len = 0U;
         size_t header_value_len = 0U;
 
-        if (!key_equals_cstring(arg_name, arg_name_len, arguments[index].key)) {
+        if (!key_equals_literal(arg_name, arg_name_len, arguments[index].key,
+                arguments[index].key_len)) {
             continue;
         }
         if (read_typed_string_to_buffer(data, len, pos, header_value,
@@ -1234,13 +1232,11 @@ static int parse_notify_response_header_argument(
             return -1;
         }
         if (present && header_value[0] != '\0' &&
-                (bounded_cstring_length(arguments[index].header_name,
-                        RUNTIME_TEXT_LIMIT, &header_name_len) != 0 ||
-                 bounded_cstring_length(header_value, sizeof(header_value),
+                (bounded_cstring_length(header_value, sizeof(header_value),
                         &header_value_len) != 0 ||
                  add_request_header(request,
-                        (const unsigned char *)arguments[index].header_name,
-                        header_name_len,
+                        arguments[index].header_name,
+                        arguments[index].header_name_len,
                         (const unsigned char *)header_value,
                         header_value_len) != 0)) {
             return -1;
