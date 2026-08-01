@@ -38,7 +38,7 @@ def load_helper() -> object:
     return module
 
 
-def configure_loopback_tls(server: http.server.ThreadingHTTPServer, root: Path) -> Path:
+def create_loopback_tls_material(root: Path) -> tuple[Path, Path]:
     certificate = root / "loopback.crt"
     private_key = root / "loopback.key"
     subprocess.run(
@@ -51,6 +51,11 @@ def configure_loopback_tls(server: http.server.ThreadingHTTPServer, root: Path) 
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    return certificate, private_key
+
+
+def configure_loopback_tls(server: http.server.ThreadingHTTPServer, root: Path) -> Path:
+    certificate, private_key = create_loopback_tls_material(root)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(certfile=certificate, keyfile=private_key)
     server.socket = context.wrap_socket(server.socket, server_side=True)
@@ -82,6 +87,10 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertIn("log_format:", template)
         self.assertIn("text_format_source:", template)
         self.assertIn('inline_string: ""', template)
+        self.assertIn("type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext", template)
+        self.assertIn("validation_context:", template)
+        self.assertIn("trusted_ca:", template)
+        self.assertIn('filename: "@TLS_CERTIFICATE@"', template)
 
     def test_first_body_byte_is_read_once_without_header_remainder(self) -> None:
         helper = load_helper()
@@ -189,6 +198,36 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             escaped_parent.symlink_to(root.parent, target_is_directory=True)
             with self.assertRaises(ValueError):
                 helper.runtime_artifact(root, escaped_parent / "probe.json", "probe evidence output")
+
+    def test_upstream_fixture_requires_runtime_confined_tls_files(self) -> None:
+        helper = load_helper()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            certificate, private_key = create_loopback_tls_material(root)
+            server = mock.MagicMock()
+            with mock.patch.object(helper.http.server, "ThreadingHTTPSServer", return_value=server) as constructor:
+                self.assertEqual(
+                    helper.serve_upstream(
+                        18081, 5.0, str(root), str(certificate), str(private_key),
+                    ),
+                    0,
+                )
+
+            arguments, keywords = constructor.call_args
+            self.assertEqual(arguments[0], (helper.LOOPBACK_HOST, 18081))
+            self.assertTrue(issubclass(arguments[1], helper.UpstreamHandler))
+            self.assertEqual(keywords["certfile"], str(certificate))
+            self.assertEqual(keywords["keyfile"], str(private_key))
+            self.assertEqual(server.socket.context.minimum_version, ssl.TLSVersion.TLSv1_2)
+            server.serve_forever.assert_called_once_with()
+            server.server_close.assert_called_once_with()
+
+            outside_key = root.parent / "outside-loopback.key"
+            outside_key.write_text("not a key", encoding="utf-8")
+            private_key.unlink()
+            private_key.symlink_to(outside_key)
+            with self.assertRaisesRegex(ValueError, "below the runtime root|private key must be a regular file"):
+                helper.loopback_tls_server_files(root, str(certificate), str(private_key))
 
     def test_phase4_marker_default_and_plain_text_headers_remain_stable(self) -> None:
         helper = load_helper()
@@ -537,6 +576,11 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             self.assertFalse(marker.exists())
             rendered = output.read_text(encoding="utf-8")
             self.assertIn(f'filename: "{injected_certificate}"', rendered)
+            self.assertIn(
+                "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+                rendered,
+            )
+            self.assertGreaterEqual(rendered.count(f'filename: "{injected_certificate}"'), 2)
             expected_private_key = str(private_key).replace("\\", "\\\\").replace('"', '\\"')
             self.assertIn(f'filename: "{expected_private_key}"', rendered)
 
@@ -568,6 +612,8 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertIn("prepare-runtime-root --runtime-root \"$RUNTIME_ROOT\"", source)
         self.assertIn("serve-upstream --port \"$upstream_port\" \\", source)
         self.assertIn("--runtime-root \"$RUNTIME_ROOT\"", source)
+        self.assertIn("--tls-certificate \"$TLS_CERTIFICATE\"", source)
+        self.assertIn("--tls-private-key \"$TLS_PRIVATE_KEY\"", source)
         self.assertEqual(
             source.count("--runtime-root \"$RUNTIME_ROOT\" --tls-certificate \"$TLS_CERTIFICATE\""),
             2,
@@ -581,6 +627,8 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertIn("name: envoy.transport_sockets.tls", template)
         self.assertIn('filename: "@TLS_CERTIFICATE@"', template)
         self.assertIn('filename: "@TLS_PRIVATE_KEY@"', template)
+        self.assertIn("type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext", template)
+        self.assertIn("trusted_ca:", template)
         self.assertIn("uri: http://127.0.0.1:@AUTHZ_PORT@", template)
         self.assertNotIn("access_log_path:", template)
         self.assertIn("failure_mode_allow: false\n              allowed_headers:", template)

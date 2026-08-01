@@ -259,6 +259,8 @@ fi
 
 "$PYTHON_BIN" "$HELPER" serve-upstream --port "$upstream_port" \
     --runtime-root "$RUNTIME_ROOT" \
+    --tls-certificate "$TLS_CERTIFICATE" \
+    --tls-private-key "$TLS_PRIVATE_KEY" \
     --client-cancel-delay "${ENVOY_CLIENT_CANCEL_DELAY_SECONDS:-5}" \
     --phase4-barrier-dir "$PHASE4_BARRIER_DIR" \
     --phase4-barrier-timeout "$PHASE4_BARRIER_TIMEOUT" \

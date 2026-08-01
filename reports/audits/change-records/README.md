@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Envoy TLS and maintainability remediation](CR-20260801-sonar-envoy-tls-maintainability.md)
+  — removes the current five Envoy SonarQube Cloud source rows by preserving
+  processor semantics and encrypting the fixture upstream hop; exact-head
+  hosted verification remains required before any merge decision.
+
 - [Parent Envoy maintainability remediation](CR-20260730-sonar-envoy-maintainability-remediation.md)
   — preserves C17 bridge and ext_proc lifecycle behavior; local source,
   native-build, and loopback-TLS controls passed, while exact-head hosted
