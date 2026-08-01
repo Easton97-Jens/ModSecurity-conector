@@ -8,12 +8,23 @@ must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Parent Traefik runtime and lifecycle remediation](CR-20260730-sonar-traefik-runtime-lifecycle.md)
 
+- [Parent Envoy maintainability remediation](CR-20260730-sonar-envoy-maintainability-remediation.md)
+  — preserves C17 bridge and ext_proc lifecycle behavior; local source,
+  native-build, and loopback-TLS controls passed, while exact-head hosted
+  verification remains required.
+
 - [Parent Apache maintainability remediation](CR-20260730-sonar-apache-maintainability.md)
   — remediates the current 13-item Apache SonarQube Cloud maintainability
   inventory with focused C17 and native-harness evidence; exact-head hosted
   verification remains required before integration.
 
 - [Parent CI GitHub URL-validation unused-parameter cleanup for SonarQube Cloud S1172](CR-20260730-sonar-ci-github-url-unused-label.md)
+
+- [Parent HAProxy runtime maintainability remediation](CR-20260730-sonar-haproxy-runtime-maintenance.md)
+  — table-driven SPOP parsing, explicit HTX EOS helpers, deterministic overlay
+  artifact hashing, and CRS-load cleanup passed focused local controls. The
+  Draft PR retains historical baseline work; exact-head hosted/SonarQube Cloud
+  verification remains required before it can be considered mergeable.
 
 - [Parent Common event JSON optional-field decomposition](CR-20260730-sonar-common-event-json-complexity.md)
 

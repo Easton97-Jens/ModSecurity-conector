@@ -54,7 +54,7 @@ def main() -> int:
     response_append = function_body(
         source, "static int haproxy_modsecurity_htx_append_response_payload(")
     response_end = function_body(
-        source, "static int haproxy_modsecurity_htx_filter_http_end(")
+        source, "static int haproxy_modsecurity_htx_finish_response(")
     precommit_deny = function_body(
         source, "static int haproxy_modsecurity_htx_apply_precommit_deny(")
     request_begin = function_body(
@@ -62,7 +62,7 @@ def main() -> int:
     response_headers = function_body(
         source, "static int haproxy_modsecurity_htx_process_response_headers(")
     request_end = function_body(
-        source, "static int haproxy_modsecurity_htx_filter_http_end(")
+        source, "static int haproxy_modsecurity_htx_finish_request(")
     checks: list[tuple[bool, str]] = [
         ("haproxy_modsecurity_htx_filter_http_payload" in source and
          "haproxy_modsecurity_htx_filter_http_end" in source,
@@ -124,10 +124,10 @@ def main() -> int:
         ("haproxy_modsecurity_transaction_append_request_body_chunk" in request_append and
          "return (int)len;" in request_payload,
          "request payload forwards borrowed chunks without a connector-owned body buffer"),
-        ("ctx->request_finished = 1;" in response_end and
-         "haproxy_modsecurity_transaction_finish_request_body" in response_end and
-         response_end.index("ctx->request_finished = 1;") <
-         response_end.index("haproxy_modsecurity_transaction_finish_request_body"),
+        ("ctx->request_finished = 1;" in request_end and
+         "haproxy_modsecurity_transaction_finish_request_body" in request_end and
+         request_end.index("ctx->request_finished = 1;") <
+         request_end.index("haproxy_modsecurity_transaction_finish_request_body"),
          "request Phase 2 finalization is guarded before the sole request EOS call"),
         (source.count("haproxy_modsecurity_transaction_finish_request_body(") == 1,
          "source has one binding finish_request_body callsite"),

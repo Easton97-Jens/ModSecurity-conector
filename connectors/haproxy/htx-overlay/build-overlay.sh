@@ -3,11 +3,11 @@
 # HAProxy 3.2.21 worktree.  It never mutates the verified source tree.
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 if [ -n "${CONNECTOR_ROOT:-}" ]; then
-    CONNECTOR_ROOT=$(CDPATH= cd "$CONNECTOR_ROOT" && pwd)
+    CONNECTOR_ROOT=$(CDPATH='' cd "$CONNECTOR_ROOT" && pwd)
 else
-    CONNECTOR_ROOT=$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)
+    CONNECTOR_ROOT=$(CDPATH='' cd "$SCRIPT_DIR/../../.." && pwd)
 fi
 
 SOURCE_DIR=${HAPROXY_HTX_SOURCE_DIR:?set HAPROXY_HTX_SOURCE_DIR to HAProxy 3.2.21 source}
@@ -19,6 +19,11 @@ MAKE_JOBS=${MAKE_JOBS:-2}
 die() {
     echo "haproxy-htx-overlay: $*" >&2
     exit 1
+}
+
+sha256_of() {
+    sha256_input=$1
+    sha256sum "$sha256_input" | awk '{print $1}'
 }
 
 require_file() {
@@ -112,11 +117,11 @@ make -C "$WORKTREE" TARGET=linux-glibc -j "$MAKE_JOBS" \
 {
     printf 'haproxy_version=%s\n' "$version"
     printf 'source_dir=%s\n' "$SOURCE_DIR"
-    printf 'source_makefile_sha256=%s\n' "$(sha256sum "$SOURCE_DIR/Makefile" | awk '{print $1}')"
-    printf 'overlay_filter_sha256=%s\n' "$(sha256sum "$SCRIPT_DIR/haproxy_modsecurity_htx_filter.c" | awk '{print $1}')"
-    printf 'overlay_patch_sha256=%s\n' "$(sha256sum "$SCRIPT_DIR/haproxy-3.2.21-makefile.patch" | awk '{print $1}')"
-    printf 'binding_sha256=%s\n' "$(sha256sum "$CONNECTOR_ROOT/connectors/haproxy/src/haproxy_modsecurity_binding.c" | awk '{print $1}')"
+    printf 'source_makefile_sha256=%s\n' "$(sha256_of "$SOURCE_DIR/Makefile")"
+    printf 'overlay_filter_sha256=%s\n' "$(sha256_of "$SCRIPT_DIR/haproxy_modsecurity_htx_filter.c")"
+    printf 'overlay_patch_sha256=%s\n' "$(sha256_of "$SCRIPT_DIR/haproxy-3.2.21-makefile.patch")"
+    printf 'binding_sha256=%s\n' "$(sha256_of "$CONNECTOR_ROOT/connectors/haproxy/src/haproxy_modsecurity_binding.c")"
     printf 'haproxy_binary=%s\n' "$WORKTREE/haproxy"
-    printf 'haproxy_binary_sha256=%s\n' "$(sha256sum "$WORKTREE/haproxy" | awk '{print $1}')"
+    printf 'haproxy_binary_sha256=%s\n' "$(sha256_of "$WORKTREE/haproxy")"
 } > "$BUILD_DIR/overlay-build.env"
 printf '%s\n' "$WORKTREE/haproxy"

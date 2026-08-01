@@ -14,7 +14,7 @@ import (
 func TestProcessStreamsChunksAndCleansUpAtResponseEOS(t *testing.T) {
 	transaction := &recordingTransaction{}
 	service := newTestService(t, transaction, LateActionSafe)
-	stream := &fakeProcessStream{context: context.Background(), receive: []receiveResult{
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
 		{request: requestHeaders(false)},
 		{request: requestBody([]byte("one"), false)},
 		{request: requestBody([]byte("two"), true)},
@@ -56,7 +56,7 @@ func TestRequestDenyUsesImmediateResponseBeforeResponseHeaders(t *testing.T) {
 		},
 	}
 	service := newTestService(t, transaction, LateActionSafe)
-	stream := &fakeProcessStream{context: context.Background(), receive: []receiveResult{{request: requestHeaders(false)}}}
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(false)}}}
 
 	if err := service.Process(stream); err != nil {
 		t.Fatalf("Process() error = %v", err)
@@ -87,7 +87,7 @@ func TestResponseHeaderDenyUsesImmediateResponseBeforeCommit(t *testing.T) {
 		},
 	}
 	service := newTestService(t, transaction, LateActionSafe)
-	stream := &fakeProcessStream{context: context.Background(), receive: []receiveResult{
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
 		{request: requestHeaders(true)},
 		{request: responseHeaders(false)},
 	}}
@@ -123,9 +123,9 @@ func TestFailedImmediateResponseDoesNotRecordHostAction(t *testing.T) {
 	}
 	service := newTestService(t, transaction, LateActionSafe)
 	stream := &fakeProcessStream{
-		context: context.Background(),
-		sendErr: io.ErrClosedPipe,
-		receive: []receiveResult{{request: requestHeaders(false)}},
+		contextFactory: testStreamContext(context.Background()),
+		sendErr:        io.ErrClosedPipe,
+		receive:        []receiveResult{{request: requestHeaders(false)}},
 	}
 	if err := service.Process(stream); err == nil {
 		t.Fatal("Process() accepted a failed ImmediateResponse send")
@@ -176,7 +176,7 @@ func TestLateStrictDecisionDoesNotClaimOrSendAbort(t *testing.T) {
 		},
 	}
 	service := newTestService(t, transaction, LateActionStrict)
-	stream := &fakeProcessStream{context: context.Background(), receive: []receiveResult{
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
 		{request: requestHeaders(true)},
 		{request: responseHeaders(false)},
 		{request: responseBody([]byte("late"), true)},
@@ -202,7 +202,7 @@ func TestCancellationCleansUpWithoutAttributingTheHTTPReset(t *testing.T) {
 	transaction := &recordingTransaction{}
 	service := newTestService(t, transaction, LateActionSafe)
 	contextValue, cancel := context.WithCancel(context.Background())
-	stream := &fakeProcessStream{context: contextValue, cancel: cancel, receive: []receiveResult{
+	stream := &fakeProcessStream{contextFactory: testStreamContext(contextValue), cancel: cancel, receive: []receiveResult{
 		{request: requestHeaders(false)},
 		{cancel: true, err: context.Canceled},
 	}}
@@ -221,7 +221,7 @@ func TestCancellationCleansUpWithoutAttributingTheHTTPReset(t *testing.T) {
 func TestPeerEOFCleansUpWithoutAttributingTheHTTPReset(t *testing.T) {
 	transaction := &recordingTransaction{}
 	service := newTestService(t, transaction, LateActionSafe)
-	stream := &fakeProcessStream{context: context.Background(), receive: []receiveResult{
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
 		{request: requestHeaders(false)},
 		{err: io.EOF},
 	}}
@@ -240,7 +240,7 @@ func TestPeerEOFCleansUpWithoutAttributingTheHTTPReset(t *testing.T) {
 func TestTrailersFinalizeIncrementalBodiesAtEOS(t *testing.T) {
 	transaction := &recordingTransaction{}
 	service := newTestService(t, transaction, LateActionSafe)
-	stream := &fakeProcessStream{context: context.Background(), receive: []receiveResult{
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
 		{request: requestHeaders(false)},
 		{request: requestTrailers()},
 		{request: responseHeaders(false)},
@@ -250,11 +250,11 @@ func TestTrailersFinalizeIncrementalBodiesAtEOS(t *testing.T) {
 	if err := service.Process(stream); err != nil {
 		t.Fatalf("Process() error = %v", err)
 	}
-	if got, want := transaction.requestBodyLengths, []int{0}; !sameInts(got, want) {
-		t.Fatalf("request trailer EOS body lengths = %v, want %v", got, want)
+	if !sameInts(transaction.requestBodyLengths, []int{0}) {
+		t.Fatalf("request trailer EOS body lengths = %v, want %v", transaction.requestBodyLengths, []int{0})
 	}
-	if got, want := transaction.responseBodyLengths, []int{0}; !sameInts(got, want) {
-		t.Fatalf("response trailer EOS body lengths = %v, want %v", got, want)
+	if !sameInts(transaction.responseBodyLengths, []int{0}) {
+		t.Fatalf("response trailer EOS body lengths = %v, want %v", transaction.responseBodyLengths, []int{0})
 	}
 	if got := stream.sent[1].GetRequestTrailers(); got == nil {
 		t.Fatalf("request trailer did not receive trailer response: %#v", stream.sent[1])
@@ -390,12 +390,12 @@ type receiveResult struct {
 }
 
 type fakeProcessStream struct {
-	context context.Context
-	cancel  context.CancelFunc
-	receive []receiveResult
-	sent    []*extprocv3.ProcessingResponse
-	sendErr error
-	index   int
+	contextFactory func() context.Context
+	cancel         context.CancelFunc
+	receive        []receiveResult
+	sent           []*extprocv3.ProcessingResponse
+	sendErr        error
+	index          int
 }
 
 func (stream *fakeProcessStream) Send(response *extprocv3.ProcessingResponse) error {
@@ -421,9 +421,20 @@ func (stream *fakeProcessStream) Recv() (*extprocv3.ProcessingRequest, error) {
 func (stream *fakeProcessStream) SetHeader(metadata.MD) error  { return nil }
 func (stream *fakeProcessStream) SendHeader(metadata.MD) error { return nil }
 func (stream *fakeProcessStream) SetTrailer(metadata.MD)       {}
-func (stream *fakeProcessStream) Context() context.Context     { return stream.context }
-func (stream *fakeProcessStream) SendMsg(any) error            { return nil }
-func (stream *fakeProcessStream) RecvMsg(any) error            { return nil }
+func (stream *fakeProcessStream) Context() context.Context {
+	if stream.contextFactory == nil {
+		return context.Background()
+	}
+	return stream.contextFactory()
+}
+func (stream *fakeProcessStream) SendMsg(any) error { return nil }
+func (stream *fakeProcessStream) RecvMsg(any) error { return nil }
+
+func testStreamContext(contextValue context.Context) func() context.Context {
+	return func() context.Context {
+		return contextValue
+	}
+}
 
 func requestHeaders(eos bool) *extprocv3.ProcessingRequest {
 	return &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_RequestHeaders{RequestHeaders: &extprocv3.HttpHeaders{

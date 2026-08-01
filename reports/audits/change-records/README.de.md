@@ -9,12 +9,24 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-Traefik-Runtime- und Lifecycle-Remediation](CR-20260730-sonar-traefik-runtime-lifecycle.de.md)
 
+- [Parent-Envoy-Maintainability-Bereinigung](CR-20260730-sonar-envoy-maintainability-remediation.de.md)
+  — bewahrt C17-Bridge- und ext_proc-Lifecycle-Verhalten; lokale Source-,
+  Native-Build- und Loopback-TLS-Controls bestanden, während die
+  SHA-gebundene Hosted-Verifikation noch erforderlich bleibt.
+
 - [Parent-Apache-Maintainability-Remediation](CR-20260730-sonar-apache-maintainability.de.md)
   — remediiert das aktuelle 13er-Apache-SonarQube-Cloud-Maintainability-
   Inventar mit fokussierter C17- und Native-Harness-Evidence; Exact-Head-
   Hosted-Verifikation bleibt vor jeder Integration erforderlich.
 
 - [Parent-CI-Bereinigung eines ungenutzten Parameters der GitHub-URL-Validierung für SonarQube Cloud S1172](CR-20260730-sonar-ci-github-url-unused-label.de.md)
+
+- [Parent-HAProxy-Runtime-Maintainability-Behebung](CR-20260730-sonar-haproxy-runtime-maintenance.de.md)
+  — tabellengesteuertes SPOP-Parsing, explizite HTX-EOS-Helper,
+  deterministisches Overlay-Artefakt-Hashing und CRS-Load-Cleanup bestanden
+  fokussierte lokale Controls. Der Draft-PR behält historische Baseline-Arbeit;
+  Exact-Head-Hosted-/SonarQube-Cloud-Verifikation bleibt vor einer
+  Merge-Betrachtung erforderlich.
 
 - [Parent-Common Event-JSON Optional-Field-Zerlegung](CR-20260730-sonar-common-event-json-complexity.de.md)
 
