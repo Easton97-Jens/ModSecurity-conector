@@ -31,6 +31,8 @@ security, reliability, or duplication findings in that inventory.
   focused native harnesses and Python regression contracts pass.
 - A fresh exact-head hosted SonarQube Cloud analysis confirms that the original
   13 keys and task-owned replacement issues are absent before any integration.
+- That same analysis reports zero new duplicated lines and zero new-code
+  duplication density; a passing Quality Gate alone is not enough.
 
 ## Implementation decision and rationale
 
@@ -41,6 +43,13 @@ without changing their lifetime or default-zero initialization. The filter
 phases and directory merge are split into private, single-purpose helpers.
 The unused file-writing variadic function is removed. The native cleanup
 harness now links APR-util, which owns `apr_brigade_cleanup`.
+
+During exact-head hosted verification, SonarQube Cloud identified 18 new
+duplicated lines in the two Phase-1 intervention paths in `mod_security3.c`.
+Those paths now call one private event-emission helper with the same two
+reason strings and the original intervention status. The helper keeps the
+typed event fields, phase, redirect/deny decision, and bounded common-event
+writer identical while removing the duplicate block.
 
 ## Changed files
 
@@ -63,8 +72,9 @@ harness now links APR-util, which owns `apr_brigade_cleanup`.
 | `make check-apache-ruleset-cleanup` | passed; native RulesSet APR lifecycle harness passed. |
 | Direct changed-unit C17 compilation | passed for `msc_config.c`, `msc_filters.c`, and `msc_utils.c` with `-Wall -Wextra -Werror`. |
 | Direct mapper C17 compilation | passed with the grouped state definition. |
-| Full `make check-apache-c17` | blocked by pre-existing current-master diagnostics in `mod_security3.c` and `msc_config.h`, tracked separately as `FND-PARENT-0069`; no new task-owned diagnostic appears before that baseline stop. |
-| `git diff --check` | passed before record creation; rerun before delivery. |
+| Phase-1 event-emission regression contract | passed (7 tests); both original reason strings route through the one bounded writer. |
+| Full `make check-apache-c17` | blocked by pre-existing current-master diagnostics in `mod_security3.c` and `msc_config.h`, tracked separately as `FND-PARENT-0069`; the C17 compiler reaches the changed unit and reports no helper-specific diagnostic before that baseline stop. |
+| `git diff --check` | passed after the duplication remediation; rerun before delivery. |
 
 ## Security impact
 
@@ -73,6 +83,11 @@ set aside through EOS, phase-4 failures remain fail-closed, and intervention
 records preserve their bounded common-event serialization. No authentication,
 authorization, input validation, logging policy, Sonar control, Framework,
 MRTS, Gitlink, or workflow permission is weakened or changed.
+
+The Phase-1 extraction changes neither the intervention decision nor its
+request path: the original status and both reasons remain explicit caller
+arguments, and the event is still emitted before returning the same
+intervention result to Apache.
 
 ## Runtime evidence
 
@@ -104,3 +119,12 @@ integration is claimed until fresh exact-head hosted analysis is green.
 The candidate is source-local, C17-checked where the current baseline permits,
 and paired with traceability. Delivery and exact-head verification are pending;
 no merge or `master` change is claimed.
+
+## Delivery authorization
+
+The current user explicitly authorized the Parent integration with: `bringe
+das pr 205 in den master`. This authorization applies only to PR #205 and
+only after its current head passes the complete fresh integration review,
+including zero new issues and zero new-code duplication. It does not authorize
+a direct `master` push, a bypass, a Framework/MRTS change, or a Gitlink
+update. No merge has occurred at this record revision.

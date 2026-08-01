@@ -32,6 +32,8 @@ gibt es keine offenen Apache-Security-, Reliability- oder Duplikatbefunde.
   die fokussierten nativen Harnesses und Python-Regression-Contracts bestehen.
 - Eine frische Exact-Head-Hosted-SonarQube-Cloud-Analyse bestätigt vor jeder
   Integration, dass die 13 Original-Keys und task-eigene Ersatzbefunde fehlen.
+- Dieselbe Analyse meldet null neue Duplikatzeilen und null New-Code-
+  Duplikatdichte; ein bestehendes Quality Gate genügt allein nicht.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -42,6 +44,14 @@ Verantwortung gruppiert, ohne Lifetime oder Default-Zero-Initialisierung zu
 ändern. Filter-Phasen und Directory-Merge sind in private, einzelne Helper
 geteilt. Die unbenutzte File-Writing-Variadic-Funktion entfällt. Der native
 Cleanup-Harness linkt nun APR-util, das `apr_brigade_cleanup` besitzt.
+
+Während der Exact-Head-Hosted-Verifikation identifizierte SonarQube Cloud 18
+neue Duplikatzeilen in den zwei Phase-1-Intervention-Pfaden von
+`mod_security3.c`. Diese Pfade rufen nun einen privaten Event-Emission-Helper
+mit denselben zwei Reason-Strings und dem ursprünglichen Intervention-Status
+auf. Der Helper behält typisierte Event-Felder, Phase, Redirect-/Deny-
+Entscheidung und den begrenzten Common-Event-Writer unverändert bei und
+entfernt zugleich den Duplikatblock.
 
 ## Geänderte Dateien
 
@@ -65,8 +75,9 @@ Cleanup-Harness linkt nun APR-util, das `apr_brigade_cleanup` besitzt.
 | `make check-apache-ruleset-cleanup` | bestanden; nativer RulesSet-APR-Lifecycle-Harness besteht. |
 | Direkte Changed-Unit-C17-Kompilierung | bestanden für `msc_config.c`, `msc_filters.c` und `msc_utils.c` mit `-Wall -Wextra -Werror`. |
 | Direkte Mapper-C17-Kompilierung | bestanden mit der gruppierten State-Definition. |
-| Vollständiges `make check-apache-c17` | durch bestehende Current-Master-Diagnosen in `mod_security3.c` und `msc_config.h` blockiert, getrennt als `FND-PARENT-0069` getrackt; bis zum Baseline-Stopp erscheint keine neue task-eigene Diagnose. |
-| `git diff --check` | vor der Record-Erstellung bestanden; läuft erneut vor Delivery. |
+| Phase-1-Event-Emission-Regression-Contract | bestanden (7 Tests); beide ursprünglichen Reason-Strings laufen durch den einen begrenzten Writer. |
+| Vollständiges `make check-apache-c17` | durch bestehende Current-Master-Diagnosen in `mod_security3.c` und `msc_config.h` blockiert, getrennt als `FND-PARENT-0069` getrackt; der C17-Compiler erreicht die geänderte Unit und meldet bis zum Baseline-Stopp keine Helper-spezifische Diagnose. |
+| `git diff --check` | nach der Duplikat-Remediation bestanden; läuft erneut vor Delivery. |
 
 ## Security-Auswirkung
 
@@ -76,6 +87,11 @@ Records bewahren die begrenzte Common-Event-Serialisierung. Keine
 Authentifizierung, Autorisierung, Input-Validation, Logging-Policy, Sonar-
 Kontrolle, Framework-, MRTS-, Gitlink- oder Workflow-Permission wird
 abgeschwächt oder geändert.
+
+Die Phase-1-Extraktion ändert weder Intervention-Entscheidung noch Request-
+Pfad: Originalstatus und beide Reasons bleiben explizite Caller-Argumente,
+und das Event wird weiterhin erzeugt, bevor dasselbe Intervention-Ergebnis an
+Apache zurückgeht.
 
 ## Runtime-Evidence
 
@@ -109,3 +125,13 @@ Hosted-Analyse beansprucht.
 Der Kandidat ist Source-lokal, soweit die aktuelle Baseline es erlaubt C17-
 geprüft und mit Traceability gepaart. Delivery und Exact-Head-Verifikation
 stehen aus; kein Merge oder `master`-Change wird beansprucht.
+
+## Delivery-Autorisierung
+
+Der aktuelle Nutzer autorisierte die Parent-Integration ausdrücklich mit:
+`bringe das pr 205 in den master`. Diese Autorisierung gilt nur für PR #205
+und nur nachdem sein aktueller Head die vollständige frische Integrations-
+Prüfung einschließlich null neuer Issues und null New-Code-Duplikation
+bestanden hat. Sie autorisiert weder einen direkten `master`-Push noch einen
+Bypass, eine Framework-/MRTS-Änderung oder ein Gitlink-Update. Bei dieser
+Record-Revision ist kein Merge erfolgt.

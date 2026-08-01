@@ -786,6 +786,25 @@ static void hook_insert_filter(request_rec *r)
 }
 
 
+static int apache_emit_phase1_intervention_event(msc_t *msr, request_rec *r,
+    int intervention_status, const char *reason)
+{
+    apache_intervention_event_input event_input;
+    const char *action = msr->last_intervention_status >= 300 &&
+        msr->last_intervention_status < 400 ? "redirect" : "deny";
+
+    event_input.event_name = "phase1_intervention";
+    event_input.phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
+    event_input.wanted = action;
+    event_input.actual = action;
+    event_input.reason = reason;
+    event_input.original_status = r->status;
+    event_input.response_already_committed = 0;
+    apache_emit_intervention_event(msr, r, &event_input);
+    return intervention_status;
+}
+
+
 static int process_request_headers(request_rec *r, msc_t *msr) {
     /* process uri */
     {
@@ -805,19 +824,8 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
         {
-            apache_intervention_event_input event_input;
-            const char *action = msr->last_intervention_status >= 300 &&
-                msr->last_intervention_status < 400 ? "redirect" : "deny";
-
-            event_input.event_name = "phase1_intervention";
-            event_input.phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
-            event_input.wanted = action;
-            event_input.actual = action;
-            event_input.reason = "request_uri_before_request_headers";
-            event_input.original_status = r->status;
-            event_input.response_already_committed = 0;
-            apache_emit_intervention_event(msr, r, &event_input);
-            return it;
+            return apache_emit_phase1_intervention_event(msr, r, it,
+                "request_uri_before_request_headers");
         }
     }
 
@@ -844,22 +852,11 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
         {
-            apache_intervention_event_input event_input;
-            const char *action = msr->last_intervention_status >= 300 &&
-                msr->last_intervention_status < 400 ? "redirect" : "deny";
-
             /* The native request-header hook has not handed control to a
              * handler yet.  Write this bounded event in the same real host
              * path that returns the HTTP intervention to Apache. */
-            event_input.event_name = "phase1_intervention";
-            event_input.phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
-            event_input.wanted = action;
-            event_input.actual = action;
-            event_input.reason = "request_headers_before_handler";
-            event_input.original_status = r->status;
-            event_input.response_already_committed = 0;
-            apache_emit_intervention_event(msr, r, &event_input);
-            return it;
+            return apache_emit_phase1_intervention_event(msr, r, it,
+                "request_headers_before_handler");
         }
     }
 

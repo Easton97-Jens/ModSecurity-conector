@@ -47,6 +47,17 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         self.create_context = c_function(
             self.module, "static msc_t *create_tx_context(request_rec *r)"
         )
+        self.request_headers = c_function(
+            self.module,
+            "static int process_request_headers(request_rec *r, msc_t *msr)",
+        )
+        phase1_start = self.module.index(
+            "static int apache_emit_phase1_intervention_event"
+        )
+        phase1_end = self.module.index(
+            "static int process_request_headers", phase1_start
+        )
+        self.phase1_intervention = self.module[phase1_start:phase1_end]
         self.cleanup = c_function(
             self.utils, "apr_status_t msc_cleanup_request_transaction(void *data)"
         )
@@ -122,6 +133,29 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         self.assertLess(drain, failure_check)
         self.assertLess(failure_check, failure_return)
         self.assertLess(failure_return, response_headers)
+
+    def test_phase1_intervention_logging_shares_one_bounded_event_writer(self) -> None:
+        self.assertEqual(
+            self.phase1_intervention.count("apache_emit_intervention_event("), 1
+        )
+        self.assertIn(
+            'event_input.event_name = "phase1_intervention";',
+            self.phase1_intervention,
+        )
+        self.assertIn(
+            "event_input.phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;",
+            self.phase1_intervention,
+        )
+        self.assertIn(
+            '"request_uri_before_request_headers"', self.request_headers
+        )
+        self.assertIn('"request_headers_before_handler"', self.request_headers)
+        self.assertEqual(
+            self.request_headers.count(
+                "apache_emit_phase1_intervention_event(msr, r, it,"
+            ),
+            2,
+        )
 
 
 if __name__ == "__main__":
