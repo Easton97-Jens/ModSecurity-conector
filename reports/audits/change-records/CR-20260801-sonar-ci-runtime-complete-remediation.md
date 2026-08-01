@@ -89,7 +89,7 @@ issue-state change would require a separate current explicit authorization.
 | --- | --- |
 | `python3 -m py_compile` for all changed Python production modules and focused tests | passed. |
 | `python3 tests/test_runtime_artifact_utils.py` | passed: 9 tests. |
-| `python3 tests/test_runtime_path_security.py` | passed: 19 tests, including symlink-swap and normalized parent-traversal rejection. |
+| `python3 tests/test_runtime_path_security.py` | passed: 21 tests, including symlink-swap, normalized parent-traversal rejection, generated-report component allowlisting, and decimal-only child timeout rendering. |
 | `python3 tests/test_resolve_runtime_paths.py` | passed: 8 tests. |
 | `python3 tests/test_engine_lifecycle_artifacts.py` | passed: 5 tests. |
 | `python3 tests/test_full_lifecycle_profiles.py` | passed: 5 tests. |
@@ -113,6 +113,15 @@ rejected before product mutations.
 
 No credential, scanner, test, Quality Gate, repository setting, or workflow
 permission is changed. The reviewed loopback HTTP fixture is not altered.
+
+The initial exact-head PR analysis reported five new findings: four taint
+paths (`pythonsecurity:S2083`, two `pythonsecurity:S8707`, and
+`pythonsecurity:S8705`) and `python:S1172`. This follow-up replaces the
+sanitizer's direct path write with the existing atomic descriptor-based writer,
+positively bounds persisted diagnostics and labels, validates relative report
+components before construction, and renders the child timeout only after a
+numeric bound check with `shell=False`. The new exact-head SonarQube Cloud
+analysis remains the required verification; no issue state was changed.
 
 ## Compatibility and generated artifacts
 

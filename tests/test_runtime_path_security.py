@@ -692,6 +692,54 @@ class RuntimePathSecurityTest(unittest.TestCase):
                 )
             self.assertFalse((ROOT / "reports/testing/outside-report").exists())
 
+    def test_native_report_output_accepts_only_safe_generated_components(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="native-report-output-components-") as temporary:
+            parent = Path(temporary)
+            connector_root = parent / "connector"
+            connector_root.mkdir()
+            runtime_root = ensure_safe_runtime_directory(parent / "runtime")
+            output = NATIVE_CASE_RUNNER.report_output_dir(
+                connector_root,
+                runtime_root,
+                "reports/testing/generated/manifest/unit-run",
+            )
+            self.assertEqual(
+                output,
+                connector_root / "reports/testing/generated/manifest/unit-run",
+            )
+            self.assertTrue(output.is_dir())
+            with self.assertRaisesRegex(ValueError, "relative report output directory"):
+                NATIVE_CASE_RUNNER.report_output_dir(
+                    connector_root,
+                    runtime_root,
+                    "reports/testing/generated/manifest/../outside",
+                )
+
+    def test_full_matrix_resume_passes_only_decimal_timeout_to_child(self) -> None:
+        arguments = argparse.Namespace(job_timeout_seconds=90, force=False)
+        job = {"connector": "apache", "crs": "no-crs", "mrts": "no-mrts"}
+        with tempfile.TemporaryDirectory(prefix="full-matrix-resume-command-") as temporary:
+            with mock.patch.object(
+                FULL_MATRIX_RESUME.subprocess,
+                "run",
+                return_value=mock.Mock(returncode=0),
+            ) as run:
+                self.assertEqual(
+                    FULL_MATRIX_RESUME.run_missing_job(
+                        job,
+                        arguments,
+                        ROOT,
+                        ROOT / "modules/ModSecurity-test-Framework",
+                        Path(temporary),
+                        30.5,
+                    ),
+                    0,
+                )
+            command = run.call_args.args[0]
+            timeout_index = command.index("--timeout-seconds")
+            self.assertEqual(command[timeout_index + 1], "30")
+            self.assertFalse(run.call_args.kwargs["shell"])
+
 
 if __name__ == "__main__":
     unittest.main()

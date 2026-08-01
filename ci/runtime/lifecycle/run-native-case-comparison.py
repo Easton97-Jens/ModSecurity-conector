@@ -57,6 +57,8 @@ NATIVE_CASE_RUN_FILENAME = "native-case-run.json"
 NATIVE_ORACLE_SOURCE = Path("ci/tools/native_modsecurity_oracle.c")
 NATIVE_RUNNER_PATH = "ci/runtime/lifecycle/run-native-case-comparison.py"
 NATIVE_ACTUAL_LABEL = "Native Actual"
+GENERATED_MANIFEST_COMPONENTS = ("reports", "testing", "generated", "manifest")
+SAFE_REPORT_COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 
 
 def utc_now() -> datetime:
@@ -95,7 +97,7 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def load_runtime_env(verified_run_root: Path) -> dict[str, str]:
+def load_runtime_env() -> dict[str, str]:
     env = dict(os.environ)
     try:
         paths = verified_runtime_paths(env)
@@ -886,24 +888,25 @@ def canonical_roots(connector_root: str, framework_root: str | None) -> tuple[Pa
     return canonical_connector, canonical_framework
 
 
-def report_output_dir(
-    connector_root: Path, verified_run_root: Path, value: str
-) -> Path:
-    """Constrain report writes to the established generated path or runtime root."""
+def report_output_dir(connector_root: Path, verified_run_root: Path, value: str) -> Path:
+    """Constrain reports to the generated manifest tree or a verified runtime root."""
 
-    candidate = Path(value)
-    if not candidate.is_absolute():
-        candidate = connector_root / candidate
-    candidate = Path(os.path.abspath(candidate))
-    generated_root = Path(
-        os.path.abspath(connector_root / "reports/testing/generated/manifest")
-    )
-    try:
-        candidate.relative_to(generated_root)
-    except ValueError:
+    if os.path.isabs(value):
         return ensure_safe_runtime_directory(
-            runtime_artifact_path(verified_run_root, candidate, "report output directory")
+            runtime_artifact_path(verified_run_root, value, "report output directory")
         )
+
+    components = tuple(value.split("/"))
+    if (
+        components[: len(GENERATED_MANIFEST_COMPONENTS)] != GENERATED_MANIFEST_COMPONENTS
+        or not all(SAFE_REPORT_COMPONENT.fullmatch(component) for component in components)
+    ):
+        raise ValueError(
+            "relative report output directory must be below reports/testing/generated/manifest"
+        )
+    candidate = connector_root.joinpath(*components)
+    generated_root = connector_root.joinpath(*GENERATED_MANIFEST_COMPONENTS)
+    candidate.relative_to(generated_root)
     if candidate.exists() and candidate.is_symlink():
         raise ValueError(f"report output directory must not be a symlink: {candidate}")
     candidate.mkdir(parents=True, exist_ok=True)
@@ -942,7 +945,7 @@ def run_requested_cases(
 
     reports: list[dict[str, Any]] = []
     result = 0
-    env = load_runtime_env(verified_run_root)
+    env = load_runtime_env()
     for case in cases:
         report = run_native_case(case, connector_root, framework_root, verified_run_root, env)
         reports.append(report)

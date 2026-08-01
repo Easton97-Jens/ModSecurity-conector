@@ -25,6 +25,7 @@ from verified_run_id import VerifiedRunIdError, validate_verified_run_id
 CONNECTORS = frozenset(("apache", "nginx", "haproxy"))
 CRS_VARIANTS = frozenset(("no-crs", "with-crs"))
 MRTS_VARIANTS = frozenset(("no-mrts", "with-mrts"))
+MAX_JOB_TIMEOUT_SECONDS = 86_400
 
 
 def canonical_roots(connector_root: str, framework_root: str | None) -> tuple[Path, Path]:
@@ -127,6 +128,14 @@ def remaining_job_identifiers(missing: list[dict]) -> str:
     return ", ".join(str(job.get("job_id")) for job in missing)
 
 
+def decimal_timeout_argument(value: int) -> str:
+    """Validate and render the only numeric child-process argument."""
+
+    if not 1 <= value <= MAX_JOB_TIMEOUT_SECONDS:
+        raise ValueError(f"job timeout must be between 1 and {MAX_JOB_TIMEOUT_SECONDS} seconds")
+    return f"{value:d}"
+
+
 def run_missing_job(
     job: object,
     args: argparse.Namespace,
@@ -148,12 +157,17 @@ def run_missing_job(
         "--connector-root", str(connector_root),
         "--framework-root", str(framework_root),
         "--build-root", str(build_root),
-        "--timeout-seconds", str(timeout),
+        "--timeout-seconds", decimal_timeout_argument(timeout),
     ]
     if args.force:
         cmd.append("--force")
     print(f"full-matrix-resume: run {job_id} timeout={timeout}s", flush=True)
-    return subprocess.run(cmd, cwd=str(connector_root), env=dict(os.environ)).returncode
+    return subprocess.run(
+        cmd,
+        cwd=str(connector_root),
+        env=dict(os.environ),
+        shell=False,
+    ).returncode
 
 
 def main() -> int:

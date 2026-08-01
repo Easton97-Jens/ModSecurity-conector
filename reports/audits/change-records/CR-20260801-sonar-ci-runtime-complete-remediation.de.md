@@ -94,7 +94,7 @@ Issue-State-Änderung erfordert eine getrennte aktuelle explizite Autorisierung.
 | --- | --- |
 | `python3 -m py_compile` für alle geänderten Python-Produktmodule und fokussierten Tests | bestanden. |
 | `python3 tests/test_runtime_artifact_utils.py` | bestanden: 9 Tests. |
-| `python3 tests/test_runtime_path_security.py` | bestanden: 19 Tests, einschließlich Symlink-Swap und normalisierter Parent-Traversal-Rejection. |
+| `python3 tests/test_runtime_path_security.py` | bestanden: 21 Tests, einschließlich Symlink-Swap, normalisierter Parent-Traversal-Rejection, Generated-Report-Component-Allowlisting und Decimal-Only-Child-Timeout-Rendering. |
 | `python3 tests/test_resolve_runtime_paths.py` | bestanden: 8 Tests. |
 | `python3 tests/test_engine_lifecycle_artifacts.py` | bestanden: 5 Tests. |
 | `python3 tests/test_full_lifecycle_profiles.py` | bestanden: 5 Tests. |
@@ -119,6 +119,16 @@ Traversal-Ziele werden vor Produktmutationen zurückgewiesen.
 Keine Credential, kein Scanner, Test, Quality Gate, Repository-Setting oder
 Workflow-Permission wird verändert. Das geprüfte Loopback-HTTP-Fixture bleibt
 unverändert.
+
+Die anfängliche Exact-Head-PR-Analyse meldete fünf neue Befunde: vier Taint-
+Pfade (`pythonsecurity:S2083`, zwei `pythonsecurity:S8707` und
+`pythonsecurity:S8705`) sowie `python:S1172`. Dieser Folgefix ersetzt den
+direkten Pfad-Write des Sanitizers durch den vorhandenen atomaren
+deskriptorbasierten Writer, begrenzt persistierte Diagnostics und Labels
+positiv, validiert relative Report-Komponenten vor der Konstruktion und
+rendert den Child-Timeout nur nach einer numerischen Grenzprüfung mit
+`shell=False`. Die neue Exact-Head-SonarQube-Cloud-Analyse bleibt die
+erforderliche Verifikation; es wurde kein Issue-Status geändert.
 
 ## Kompatibilität und generierte Artefakte
 
