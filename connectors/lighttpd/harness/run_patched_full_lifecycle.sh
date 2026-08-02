@@ -196,6 +196,7 @@ FIXTURE_PORT=$(ready_port "$FIXTURE_DIR/upstream-ready.json") || \
 
 BARRIER_RELEASE_FILE=$FIRST_BYTE_DIR/upstream-release
 "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve \
+    --control-root "$SMOKE_DIR" \
     --ready-file "$FIRST_BYTE_DIR/upstream-ready.json" \
     --paused-file "$FIRST_BYTE_DIR/upstream-paused.json" \
     --release-file "$BARRIER_RELEASE_FILE" \
@@ -346,6 +347,7 @@ snapshot_events "$barrier_cursor" "$P4_BARRIER_EVENTS"
     --runtime-output-root "$SMOKE_DIR" || \
     fail "could not derive bounded Lighttpd P4 metadata"
 "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence \
+    --control-root "$SMOKE_DIR" \
     --paused-file "$FIRST_BYTE_DIR/upstream-paused.json" \
     --client-first-byte-file "$FIRST_BYTE_DIR/client-body.bin" \
     --host-metadata-json "$FIRST_BYTE_DIR/host-metadata.json" \

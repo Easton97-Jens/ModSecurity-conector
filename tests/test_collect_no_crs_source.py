@@ -1132,10 +1132,20 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             'TRAEFIK_NATIVE_RUNTIME_ROOT="$TRAEFIK_RUNTIME_ROOT"',
             'LIGHTTPD_PATCHED_ROOT="$HOST_RUNTIME_ROOT/lighttpd-patched"',
             'LIGHTTPD_PATCHED_SMOKE_DIR="$LIGHTTPD_RUNTIME_ROOT"',
+            'LIGHTTPD_STAGE_FIRST_BYTE_EVIDENCE=$LIGHTTPD_RUNTIME_ROOT/first-byte-evidence.json',
+            'STAGE_FIRST_BYTE_EVIDENCE_OUTPUT=$LIGHTTPD_STAGE_FIRST_BYTE_EVIDENCE',
+            'FIRST_BYTE_EVIDENCE_SOURCE=$LIGHTTPD_STAGE_FIRST_BYTE_EVIDENCE',
+            'FULL_LIFECYCLE_EVIDENCE_OUTPUT="$STAGE_FIRST_BYTE_EVIDENCE_OUTPUT"',
+            'cp "$FIRST_BYTE_EVIDENCE_SOURCE" "$FIRST_BYTE_EVIDENCE"',
             '--allowed-source-root "$RAW_DIR"',
             '--scrub-source-events',
         ):
             self.assertIn(assignment, source)
+
+        self.assertIn(
+            'if [ "$connector" = lighttpd ] && [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then',
+            source,
+        )
 
     def test_protocol_client_bundle_is_root_runner_scoped_and_forwarded(self) -> None:
         source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
