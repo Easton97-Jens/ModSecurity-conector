@@ -8,6 +8,33 @@ permissions:
   contents: read
 
 jobs:
+  apache-autotools-bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install Apache Autotools test prerequisites
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            apache2 \
+            apache2-dev \
+            autoconf \
+            automake \
+            build-essential \
+            curl \
+            libmodsecurity-dev \
+            libtool \
+            make
+      - name: Verify Apache Autotools bootstrap from tracked source only
+        env:
+          APACHE_AUTOTOOLS_TEST_PARENT: ${{ runner.temp }}
+          MODSECURITY_PREFIX: /usr
+        run: make check-apache-autotools-bootstrap
+
   apache-structure:
     runs-on: ubuntu-latest
     steps:
