@@ -13,16 +13,27 @@ import argparse
 import json
 import os
 import re
+import secrets
 import stat
 import sys
-import tempfile
 from pathlib import Path
 from typing import Iterable
+
+
+_CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import runtime_artifact_path, verified_runtime_artifact_root  # noqa: E402
 
 
 MAX_LOG_BYTES = 4 * 1024 * 1024
 MAX_METADATA_BYTES = 64 * 1024
 LOG_NAME_RE = re.compile(r"valgrind\.(?P<pid>[0-9]+)\.log\Z")
+ROLES_FILENAME = "nginx-memcheck-roles.txt"
+LIFECYCLE_FILENAME = "nginx-memcheck-lifecycle.txt"
+SUMMARY_JSON_FILENAME = "nginx-memcheck-summary.json"
+SUMMARY_TEXT_FILENAME = "nginx-memcheck-summary.txt"
 ERROR_SUMMARY_RE = re.compile(r"ERROR SUMMARY:\s*(?P<count>[0-9,]+)\s+errors", re.IGNORECASE)
 LEAK_RE = {
     "definitely_lost_bytes": re.compile(
@@ -115,10 +126,23 @@ def validate_private_directory(path: Path, label: str) -> Path:
     return candidate
 
 
-def validate_evidence_root(log_dir: Path) -> Path:
-    """Trust only an effective-UID-owned root below a non-writable real directory."""
+def validate_evidence_root(verified_run_root: Path, log_dir: Path) -> Path:
+    """Bind evidence to the verified run root before touching its directory."""
 
+    verified_root = verified_runtime_artifact_root(verified_run_root)
     root = absolute_path(log_dir)
+    if root == verified_root:
+        raise ValueError("log directory must be a descendant of the verified runtime root")
+
+    # Use the repository-native runtime artifact authority before lstat, list,
+    # open, temporary-file creation, or replacement under the supplied
+    # evidence directory. The boundary leaf is source-controlled, so this
+    # check cannot turn an intentionally malformed metadata child into an
+    # early CLI rejection; the existing aggregator still reports that input
+    # as incomplete and payload-free.
+    runtime_artifact_path(
+        verified_root, root / ".memcheck-summarizer-boundary", "log directory boundary"
+    )
     validate_private_directory(root.parent, "log directory parent")
     return validate_private_directory(root, "log directory")
 
@@ -131,6 +155,18 @@ def require_direct_child(log_dir: Path, path: Path, label: str) -> Path:
     if candidate.parent != root:
         raise ValueError(f"{label} must be a direct child of the log directory")
     return candidate
+
+
+def evidence_artifact_paths(log_dir: Path) -> tuple[Path, Path, Path, Path]:
+    """Return the only source-controlled metadata and output children."""
+
+    root = absolute_path(log_dir)
+    return (
+        root / ROLES_FILENAME,
+        root / LIFECYCLE_FILENAME,
+        root / SUMMARY_JSON_FILENAME,
+        root / SUMMARY_TEXT_FILENAME,
+    )
 
 
 def validate_private_regular_file(
@@ -384,22 +420,51 @@ def atomic_write(log_dir: Path, path: Path, label: str, writer, summary: dict[st
     """Create a private direct-child output without following an existing symlink."""
 
     output = validate_output_target(log_dir, path, label)
-    descriptor, temporary_name = tempfile.mkstemp(dir=log_dir, prefix=f".{output.name}.")
-    temporary = Path(temporary_name)
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
+        log_dir_fd = os.open(log_dir, flags)
+    except OSError as exc:
+        raise ValueError(f"{label} directory cannot be opened safely") from exc
+
+    descriptor = -1
+    temporary_name: str | None = None
+    try:
+        for _ in range(64):
+            candidate_name = f".{output.name}.{secrets.token_hex(16)}.tmp"
+            try:
+                descriptor = os.open(
+                    candidate_name,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                    0o600,
+                    dir_fd=log_dir_fd,
+                )
+            except FileExistsError:
+                continue
+            temporary_name = candidate_name
+            break
+        if descriptor == -1 or temporary_name is None:
+            raise ValueError(f"{label} cannot create a private temporary output")
         os.fchmod(descriptor, 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             descriptor = -1
             writer(handle, summary)
-        os.replace(temporary, output)
+        os.replace(
+            temporary_name,
+            output.name,
+            src_dir_fd=log_dir_fd,
+            dst_dir_fd=log_dir_fd,
+        )
+        temporary_name = None
         validate_output_target(log_dir, output, label)
     finally:
         if descriptor != -1:
             os.close(descriptor)
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
+        if temporary_name is not None:
+            try:
+                os.unlink(temporary_name, dir_fd=log_dir_fd)
+            except FileNotFoundError:
+                pass
+        os.close(log_dir_fd)
 
 
 def require_distinct_paths(paths: Iterable[tuple[str, Path]]) -> None:
@@ -413,7 +478,6 @@ def require_distinct_paths(paths: Iterable[tuple[str, Path]]) -> None:
 
 
 def summarize(log_dir: Path, roles_file: Path | None, lifecycle_file: Path | None) -> dict[str, object]:
-    log_dir = validate_evidence_root(log_dir)
     log_files: dict[str, Path] = {}
     reasons: list[str] = []
     try:
@@ -508,22 +572,16 @@ def summarize(log_dir: Path, roles_file: Path | None, lifecycle_file: Path | Non
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--verified-run-root", required=True, type=Path)
     parser.add_argument("--log-dir", required=True, type=Path)
-    parser.add_argument("--roles-file", required=True, type=Path)
-    parser.add_argument("--lifecycle-file", required=True, type=Path)
-    parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--text-output", required=True, type=Path)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     try:
-        log_dir = validate_evidence_root(args.log_dir)
-        roles_file = require_direct_child(log_dir, args.roles_file, "roles file")
-        lifecycle_file = require_direct_child(log_dir, args.lifecycle_file, "lifecycle file")
-        output = require_direct_child(log_dir, args.output, "JSON output")
-        text_output = require_direct_child(log_dir, args.text_output, "text output")
+        log_dir = validate_evidence_root(args.verified_run_root, args.log_dir)
+        roles_file, lifecycle_file, output, text_output = evidence_artifact_paths(log_dir)
         require_distinct_paths(
             (
                 ("roles file", roles_file),

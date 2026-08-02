@@ -103,13 +103,19 @@ def open_regular_source(path: Path) -> int:
     return descriptor
 
 
-def copy_regular_file(source: Path, destination: Path) -> None:
+def validate_worker_gid(worker_gid: int) -> int:
+    if worker_gid < 0:
+        fail(f"worker gid must be non-negative: {worker_gid}")
+    return worker_gid
+
+
+def copy_regular_file(source: Path, destination: Path, worker_gid: int) -> None:
     source_fd = open_regular_source(source)
     try:
         destination_fd = os.open(
             destination,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-            0o644,
+            0o600,
         )
     except OSError as exc:
         os.close(source_fd)
@@ -122,10 +128,33 @@ def copy_regular_file(source: Path, destination: Path) -> None:
             written = 0
             while written < len(chunk):
                 written += os.write(destination_fd, chunk[written:])
+        os.fchown(destination_fd, os.geteuid(), worker_gid)
+        os.fchmod(destination_fd, 0o640)
     finally:
         os.close(source_fd)
         os.close(destination_fd)
-    os.chmod(destination, 0o644)
+
+
+def finalize_projection_directory(
+    projection: Path, expected: os.stat_result, worker_gid: int
+) -> None:
+    """Bind group ownership and traversal mode to the exact fresh directory."""
+
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    try:
+        descriptor = os.open(projection, flags)
+    except OSError as exc:
+        fail(f"cannot open fresh projection directory {projection}: {exc}")
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISDIR(opened.st_mode):
+            fail(f"fresh projection is not a directory: {projection}")
+        if opened.st_dev != expected.st_dev or opened.st_ino != expected.st_ino:
+            fail(f"fresh projection changed while being opened: {projection}")
+        os.fchown(descriptor, os.geteuid(), worker_gid)
+        os.fchmod(descriptor, 0o710)
+    finally:
+        os.close(descriptor)
 
 
 def prepare_projection(
@@ -134,8 +163,10 @@ def prepare_projection(
     private_root: Path,
     projection_parent: Path | None,
     projection_root: Path | None,
+    worker_gid: int,
     avoid_roots: list[Path],
 ) -> Path:
+    worker_gid = validate_worker_gid(worker_gid)
     validate_source_docroot(source_docroot, private_root)
     if projection_parent is None or projection_root is None:
         fail("projection requires an explicit safe parent and fresh root")
@@ -163,14 +194,12 @@ def prepare_projection(
         fail(f"fresh projection is not a directory: {projection}")
 
     for filename in PROJECTED_FILENAMES:
-        copy_regular_file(source_docroot / filename, projection / filename)
+        copy_regular_file(source_docroot / filename, projection / filename, worker_gid)
 
-    # The parent and this exact caller-supplied child are non-enumerable to the
-    # worker, but traversal deliberately permits NGINX to serve the two fixed
-    # allowlisted static files (0644) at their known paths. This is a
-    # constrained static-data boundary, not worker-exclusive readability. Do
-    # not chmod/chown any caller-owned root.
-    os.chmod(projection, 0o711)
+    # The parent and this exact caller-supplied child are non-enumerable. Only
+    # the verified NGINX worker group may traverse the child and read the two
+    # fixed static files at known paths. Do not chmod/chown a caller-owned root.
+    finalize_projection_directory(projection, projection_metadata, worker_gid)
     return projection
 
 
@@ -178,6 +207,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-docroot", type=Path, required=True)
     parser.add_argument("--private-root", type=Path, required=True)
+    parser.add_argument("--worker-gid", type=int, required=True)
     parser.add_argument("--projection-parent", type=Path, required=True)
     parser.add_argument(
         "--projection-root",
@@ -201,6 +231,7 @@ def main(argv: list[str] | None = None) -> int:
             private_root=private_root,
             projection_parent=projection_parent,
             projection_root=projection_root,
+            worker_gid=args.worker_gid,
             avoid_roots=args.avoid_root,
         )
     except (OSError, ValueError) as exc:

@@ -279,6 +279,8 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
                 str(source_docroot),
                 "--private-root",
                 str(private_root),
+                "--worker-gid",
+                str(os.getegid()),
                 "--projection-parent",
                 str(projection_parent),
                 "--projection-root",
@@ -307,7 +309,12 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
                 "ready\n",
             )
             self.assertFalse((projection_root / "not-projected.txt").exists())
-            self.assertEqual(stat.S_IMODE(projection_root.lstat().st_mode), 0o711)
+            self.assertEqual(stat.S_IMODE(projection_root.lstat().st_mode), 0o710)
+            self.assertEqual(projection_root.lstat().st_gid, os.getegid())
+            for filename in ("index.html", "__modsec_smoke_ready"):
+                projected_file = projection_root / filename
+                self.assertEqual(stat.S_IMODE(projected_file.lstat().st_mode), 0o640)
+                self.assertEqual(projected_file.lstat().st_gid, os.getegid())
             self.assertTrue(generic_output.is_file())
             self.assertEqual(
                 generic_output.relative_to(verified_root),
@@ -424,6 +431,26 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
             harness.index("blocked() {") : harness.index("fail() {")
         ]
         self.assertNotIn("mkdir", blocked_definition)
+
+    def test_worker_preflight_uses_the_rendered_nginx_group(self) -> None:
+        harness = HARNESS.read_text(encoding="utf-8")
+        worker_access = harness[
+            harness.index("nginx_worker_can_access() {") : harness.index(
+                "\n}\n\nnginx_worker_identity_is_verifiable()"
+            )
+        ]
+        render_config = harness[
+            harness.index("render_config() {") : harness.index("\n}\n\n", harness.index("render_config() {"))
+        ]
+
+        self.assertIn(
+            'runuser -u "$NGINX_WORKER_USER" -g "$NGINX_WORKER_RESOLVED_GROUP" --',
+            worker_access,
+        )
+        self.assertIn(
+            'user $NGINX_WORKER_RESOLVED_USER $NGINX_WORKER_RESOLVED_GROUP;',
+            render_config,
+        )
 
 
 if __name__ == "__main__":

@@ -100,21 +100,18 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
         lifecycle: Path,
         output: Path,
         text_output: Path,
+        *,
+        verified_run_root: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
+        del roles, lifecycle, output, text_output
         return subprocess.run(
             [
                 sys.executable,
                 str(SUMMARIZER),
+                "--verified-run-root",
+                str(verified_run_root or log_dir.parent),
                 "--log-dir",
                 str(log_dir),
-                "--roles-file",
-                str(roles),
-                "--lifecycle-file",
-                str(lifecycle),
-                "--output",
-                str(output),
-                "--text-output",
-                str(text_output),
             ],
             check=False,
             capture_output=True,
@@ -251,6 +248,7 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
             'NGINX_MEMCHECK_EVIDENCE_DIR="$LOG_DIR/memcheck-evidence/$case_name"',
             self.harness,
         )
+        self.assertIn('--verified-run-root "$VERIFIED_RUN_ROOT"', self.harness)
         self.assertIn('--log-dir "$NGINX_MEMCHECK_EVIDENCE_DIR"', self.harness)
         self.assertIn('( umask 077; : > "$NGINX_MEMCHECK_ROLE_FILE" )', self.harness)
         self.assertIn('chmod 600 "$NGINX_MEMCHECK_ROLE_FILE"', self.harness)
@@ -267,12 +265,19 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
         self.assertIn("graceful_shutdown_incomplete", self.summarizer)
         self.assertIn("process_group_unverified", self.summarizer)
         self.assertIn("validate_evidence_root", self.summarizer)
+        self.assertIn("verified_runtime_artifact_root", self.summarizer)
+        self.assertIn("runtime_artifact_path", self.summarizer)
+        self.assertIn("evidence_artifact_paths", self.summarizer)
         self.assertIn("O_NOFOLLOW", self.summarizer)
         self.assertIn("_permissions_unsafe", self.summarizer)
         self.assertIn("error_incomplete", self.summarizer)
         self.assertIn("possibly_lost_bytes", self.summarizer)
         self.assertIn("still_reachable_bytes", self.summarizer)
         self.assertNotIn("kill -9", self.harness)
+        self.assertNotIn('parser.add_argument("--roles-file"', self.summarizer)
+        self.assertNotIn('parser.add_argument("--lifecycle-file"', self.summarizer)
+        self.assertNotIn('parser.add_argument("--output"', self.summarizer)
+        self.assertNotIn('parser.add_argument("--text-output"', self.summarizer)
         self.assertNotIn("--suppressions", self.summarizer)
         self.assertIn("raw-payload-free", self.summarizer)
 
@@ -425,7 +430,7 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
 
                 self.assertEqual(result.returncode, 2, result.stderr)
                 self.assertIn(
-                    "log directory parent is group or other writable", result.stderr
+                    "group- or world-writable", result.stderr
                 )
                 self.assertFalse(output.exists())
                 self.assertFalse(text_output.exists())
@@ -447,7 +452,7 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 2, result.stderr)
-            self.assertIn("log directory must not be a symlink", result.stderr)
+            self.assertIn("symbolic links", result.stderr)
 
     def test_summarizer_marks_symlinked_valgrind_input_incomplete(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -500,6 +505,58 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
             self.assertIn("JSON output is unsafe", result.stderr)
             self.assertFalse(text_output.exists())
 
+    def test_summarizer_rejects_evidence_outside_verified_run_root_before_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_root = Path(temporary)
+            verified_run_root = temporary_root / "verified-run"
+            verified_run_root.mkdir(mode=0o700)
+            verified_run_root.chmod(0o700)
+            log_dir = self.private_evidence_directory(temporary)
+            roles, lifecycle, output, text_output = self.create_clean_evidence(
+                log_dir, master_pid=571, worker_pid=572
+            )
+
+            result = self.run_summarizer(
+                log_dir,
+                roles,
+                lifecycle,
+                output,
+                text_output,
+                verified_run_root=verified_run_root,
+            )
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("must be below the runtime root", result.stderr)
+            self.assertFalse(output.exists())
+            self.assertFalse(text_output.exists())
+
+    def test_summarizer_rejects_removed_caller_selected_output_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            log_dir = self.private_evidence_directory(temporary)
+            self.create_clean_evidence(log_dir, master_pid=581, worker_pid=582)
+            protected = log_dir.parent / "protected-output.json"
+            self.write_private(protected, "keep\n")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUMMARIZER),
+                    "--verified-run-root",
+                    str(log_dir.parent),
+                    "--log-dir",
+                    str(log_dir),
+                    "--output",
+                    str(protected),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("unrecognized arguments: --output", result.stderr)
+            self.assertEqual(protected.read_text(encoding="utf-8"), "keep\n")
+
     def test_foreign_owner_simulation_is_never_accepted_as_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             log_dir = self.private_evidence_directory(temporary)
@@ -512,9 +569,9 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
             ):
                 masters, workers, reasons = SUMMARIZER_MODULE.parse_roles(log_dir, roles)
                 with self.assertRaisesRegex(
-                    ValueError, "log directory parent is not owned by the effective uid"
+                    ValueError, "runtime directory is not owned by the current user"
                 ):
-                    SUMMARIZER_MODULE.validate_evidence_root(log_dir)
+                    SUMMARIZER_MODULE.validate_evidence_root(log_dir.parent, log_dir)
 
             self.assertEqual(masters, set())
             self.assertEqual(workers, set())

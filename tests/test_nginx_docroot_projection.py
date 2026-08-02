@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import importlib.util
+import os
 from pathlib import Path
 import stat
 import sys
@@ -55,13 +56,14 @@ class NginxDocrootProjectionTest(unittest.TestCase):
             mock.patch.object(projection.os, "mkdir") as mkdir,
             mock.patch.object(Path, "lstat", return_value=directory_metadata),
             mock.patch.object(projection, "copy_regular_file") as copy_regular,
-            mock.patch.object(projection.os, "chmod") as chmod,
+            mock.patch.object(projection, "finalize_projection_directory") as finalize_projection,
         ):
             result = projection.prepare_projection(
                 source_docroot=source_docroot,
                 private_root=private_root,
                 projection_parent=parent,
                 projection_root=projected,
+                worker_gid=os.getegid(),
                 avoid_roots=[private_root, Path("/private/raw"), Path("/private/evidence")],
             )
 
@@ -72,14 +74,13 @@ class NginxDocrootProjectionTest(unittest.TestCase):
         self.assertEqual(
             copy_regular.call_args_list,
             [
-                mock.call(source_docroot / "index.html", projected / "index.html"),
+                mock.call(source_docroot / "index.html", projected / "index.html", os.getegid()),
                 mock.call(
-                    source_docroot / "__modsec_smoke_ready",
-                    projected / "__modsec_smoke_ready",
+                    source_docroot / "__modsec_smoke_ready", projected / "__modsec_smoke_ready", os.getegid()
                 ),
             ],
         )
-        chmod.assert_called_once_with(projected, 0o711)
+        finalize_projection.assert_called_once_with(projected, directory_metadata, os.getegid())
 
     def test_explicit_child_must_be_direct_fresh_and_safe_named(self) -> None:
         private_root = Path("/private/build")
@@ -95,6 +96,7 @@ class NginxDocrootProjectionTest(unittest.TestCase):
                     private_root=private_root,
                     projection_parent=None,
                     projection_root=projection_root,
+                    worker_gid=os.getegid(),
                     avoid_roots=[private_root],
                 )
             with self.assertRaisesRegex(ValueError, "explicit safe parent and fresh root"):
@@ -103,6 +105,7 @@ class NginxDocrootProjectionTest(unittest.TestCase):
                     private_root=private_root,
                     projection_parent=parent,
                     projection_root=None,
+                    worker_gid=os.getegid(),
                     avoid_roots=[private_root],
                 )
 
@@ -112,13 +115,14 @@ class NginxDocrootProjectionTest(unittest.TestCase):
             mock.patch.object(projection.os, "mkdir") as mkdir,
             mock.patch.object(Path, "lstat", return_value=directory_metadata),
             mock.patch.object(projection, "copy_regular_file"),
-            mock.patch.object(projection.os, "chmod"),
+            mock.patch.object(projection, "finalize_projection_directory"),
         ):
             result = projection.prepare_projection(
                 source_docroot=source_docroot,
                 private_root=private_root,
                 projection_parent=parent,
                 projection_root=projection_root,
+                worker_gid=os.getegid(),
                 avoid_roots=[private_root],
             )
 
@@ -132,6 +136,7 @@ class NginxDocrootProjectionTest(unittest.TestCase):
                     private_root=private_root,
                     projection_parent=parent,
                     projection_root=Path("/different-parent/registered"),
+                    worker_gid=os.getegid(),
                     avoid_roots=[private_root],
                 )
             with self.assertRaisesRegex(ValueError, "unsafe"):
@@ -140,6 +145,7 @@ class NginxDocrootProjectionTest(unittest.TestCase):
                     private_root=private_root,
                     projection_parent=parent,
                     projection_root=parent / ".hidden",
+                    worker_gid=os.getegid(),
                     avoid_roots=[private_root],
                 )
 
@@ -159,6 +165,7 @@ class NginxDocrootProjectionTest(unittest.TestCase):
                     private_root=private_root,
                     projection_parent=overlapping_parent,
                     projection_root=Path("/private/build/worker-visible/docroot"),
+                    worker_gid=os.getegid(),
                     avoid_roots=[private_root],
                 )
         mkdir.assert_not_called()
@@ -179,9 +186,15 @@ class NginxDocrootProjectionTest(unittest.TestCase):
             "require_no_symlink_directory",
             "projection parent overlaps a private runtime root",
             "projection root already exists",
-            "os.chmod(projection, 0o711)",
+            "validate_worker_gid",
+            "os.fchown",
+            "os.fchmod",
+            "0o640",
+            "0o710",
+            "finalize_projection_directory",
         ):
             self.assertIn(fragment, helper)
+        self.assertNotIn("os.chmod(", helper)
 
         for fragment in (
             'NGINX_DOCROOT_PROJECTION="${NGINX_DOCROOT_PROJECTION:-0}"',
@@ -190,6 +203,7 @@ class NginxDocrootProjectionTest(unittest.TestCase):
             "project_nginx_worker_docroot",
             '--source-docroot "$PRIVATE_DOCROOT"',
             '--private-root "$BUILD_ROOT"',
+            '--worker-gid "$NGINX_WORKER_RESOLVED_GID"',
             '--avoid-root "$BUILD_ROOT"',
             'NGINX_DOCROOT_PROJECTION_ROOT="${NGINX_DOCROOT_PROJECTION_ROOT:-}"',
             'if ! "$@" > "$LOG_DIR/docroot-projection.path"',
@@ -313,6 +327,7 @@ class NginxDocrootProjectionFilesystemTest(unittest.TestCase):
             private_root=private_root,
             projection_parent=projection_parent,
             projection_root=projection_root,
+            worker_gid=os.getegid(),
             avoid_roots=[private_root],
         )
 
@@ -345,12 +360,12 @@ class NginxDocrootProjectionFilesystemTest(unittest.TestCase):
                 "ready\n",
             )
             self.assertFalse((projection_root / "not-projected.txt").exists())
-            self.assertEqual(stat.S_IMODE(projection_root.lstat().st_mode), 0o711)
+            self.assertEqual(stat.S_IMODE(projection_root.lstat().st_mode), 0o710)
+            self.assertEqual(projection_root.lstat().st_gid, os.getegid())
             for filename in projection.PROJECTED_FILENAMES:
-                self.assertEqual(
-                    stat.S_IMODE((projection_root / filename).lstat().st_mode),
-                    0o644,
-                )
+                projected_file = projection_root / filename
+                self.assertEqual(stat.S_IMODE(projected_file.lstat().st_mode), 0o640)
+                self.assertEqual(projected_file.lstat().st_gid, os.getegid())
 
     def test_group_or_world_readable_or_writable_parent_is_rejected(self) -> None:
         unsafe_modes = (
@@ -381,6 +396,30 @@ class NginxDocrootProjectionFilesystemTest(unittest.TestCase):
                         )
 
                     self.assertFalse(projection_root.exists())
+
+    def test_projection_reapplies_group_only_modes_under_restrictive_umask(self) -> None:
+        with self._worker_traversable_temporary_directory() as temporary_directory:
+            root = Path(temporary_directory)
+            private_root, source_docroot, projection_parent = self._layout(root)
+            self._write_allowlisted_sources(source_docroot)
+            projection_root = projection_parent / "umask-docroot"
+            original_umask = os.umask(0o077)
+            try:
+                self._prepare(
+                    source_docroot,
+                    private_root,
+                    projection_parent,
+                    projection_root,
+                )
+            finally:
+                os.umask(original_umask)
+
+            self.assertEqual(stat.S_IMODE(projection_root.lstat().st_mode), 0o710)
+            self.assertEqual(projection_root.lstat().st_gid, os.getegid())
+            for filename in projection.PROJECTED_FILENAMES:
+                projected_file = projection_root / filename
+                self.assertEqual(stat.S_IMODE(projected_file.lstat().st_mode), 0o640)
+                self.assertEqual(projected_file.lstat().st_gid, os.getegid())
 
     def test_existing_explicit_child_is_rejected_without_modifying_it(self) -> None:
         with self._worker_traversable_temporary_directory() as temporary_directory:

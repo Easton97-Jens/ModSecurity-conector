@@ -290,12 +290,20 @@ resolve_nginx_worker_identity() {
         nginx_worker_group_record=$(getent group "$NGINX_WORKER_GROUP") || \
             blocked "NGINX_WORKER_GROUP is not a local group: $NGINX_WORKER_GROUP"
         NGINX_WORKER_RESOLVED_GROUP=${nginx_worker_group_record%%:*}
+        nginx_worker_group_fields=${nginx_worker_group_record#*:}
+        nginx_worker_group_fields=${nginx_worker_group_fields#*:}
+        NGINX_WORKER_RESOLVED_GID=${nginx_worker_group_fields%%:*}
     else
         NGINX_WORKER_RESOLVED_GROUP=$(id -gn "$NGINX_WORKER_USER" 2>/dev/null) || \
             blocked "cannot resolve NGINX_WORKER_USER group: $NGINX_WORKER_USER"
+        NGINX_WORKER_RESOLVED_GID=$(id -g "$NGINX_WORKER_USER" 2>/dev/null) || \
+            blocked "cannot resolve NGINX_WORKER_USER gid: $NGINX_WORKER_USER"
     fi
     [ -n "$NGINX_WORKER_RESOLVED_GROUP" ] || \
         blocked "NGINX worker group resolved to an empty value"
+    case "$NGINX_WORKER_RESOLVED_GID" in
+        *[!0-9]*|"") blocked "NGINX worker group resolved to an invalid gid" ;;
+    esac
 }
 
 lock_private_runtime_paths() {
@@ -339,7 +347,8 @@ nginx_worker_can_access() {
     access_mode=$1
     access_path=$2
     if command -v runuser >/dev/null 2>&1 && [ "$CURRENT_UID" = "0" ] && id "$NGINX_WORKER_USER" >/dev/null 2>&1; then
-        runuser -u "$NGINX_WORKER_USER" -- test "$access_mode" "$access_path"
+        runuser -u "$NGINX_WORKER_USER" -g "$NGINX_WORKER_RESOLVED_GROUP" -- \
+            test "$access_mode" "$access_path"
         return $?
     fi
     test "$access_mode" "$access_path"
@@ -362,7 +371,8 @@ validate_nginx_worker_isolation() {
 
 nginx_worker_access_notes() {
     if nginx_worker_identity_is_verifiable; then
-        printf 'checked with runuser -u %s' "$NGINX_WORKER_USER"
+        printf 'checked with runuser -u %s -g %s' \
+            "$NGINX_WORKER_USER" "$NGINX_WORKER_RESOLVED_GROUP"
     else
         printf 'runuser worker check unavailable; used current process stat/test fallback'
     fi
@@ -394,6 +404,7 @@ project_nginx_worker_docroot() {
     set -- "$PYTHON_BIN" "$NGINX_DOCROOT_PROJECTION_HELPER" \
         --source-docroot "$PRIVATE_DOCROOT" \
         --private-root "$BUILD_ROOT" \
+        --worker-gid "$NGINX_WORKER_RESOLVED_GID" \
         --avoid-root "$BUILD_ROOT" \
         --avoid-root "$VERIFIED_BUILD_ROOT" \
         --avoid-root "$VERIFIED_RUN_ROOT" \
@@ -1621,11 +1632,8 @@ finalize_nginx_memcheck() {
     write_nginx_memcheck_lifecycle
     set +e
     "$PYTHON_BIN" "$NGINX_MEMCHECK_SUMMARIZER" \
-        --log-dir "$NGINX_MEMCHECK_EVIDENCE_DIR" \
-        --roles-file "$NGINX_MEMCHECK_ROLE_FILE" \
-        --lifecycle-file "$NGINX_MEMCHECK_LIFECYCLE_FILE" \
-        --output "$NGINX_MEMCHECK_SUMMARY_JSON" \
-        --text-output "$NGINX_MEMCHECK_SUMMARY_TEXT"
+        --verified-run-root "$VERIFIED_RUN_ROOT" \
+        --log-dir "$NGINX_MEMCHECK_EVIDENCE_DIR"
     nginx_memcheck_summary_rc=$?
     set -e
     printf 'memcheck_summary_exit_code=%s\n' "$nginx_memcheck_summary_rc" >> "$STATUS_FILE"
