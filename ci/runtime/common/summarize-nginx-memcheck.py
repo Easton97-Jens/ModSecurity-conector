@@ -4,7 +4,7 @@
 The NGINX harness owns the diagnostic lifecycle.  This helper deliberately
 does not interpret request/response data or print Valgrind excerpts: it only
 aggregates terminal counters and whether the expected normal master/worker
-evidence was retained beneath the already-validated harness log directory.
+evidence was retained beneath the already-validated harness evidence directory.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from typing import Iterable
 
 
 MAX_LOG_BYTES = 4 * 1024 * 1024
+MAX_METADATA_BYTES = 64 * 1024
 LOG_NAME_RE = re.compile(r"valgrind\.(?P<pid>[0-9]+)\.log\Z")
 ERROR_SUMMARY_RE = re.compile(r"ERROR SUMMARY:\s*(?P<count>[0-9,]+)\s+errors", re.IGNORECASE)
 LEAK_RE = {
@@ -39,44 +40,228 @@ LEAK_RE = {
 }
 
 
+class UnsafeEvidenceError(ValueError):
+    """An evidence input cannot safely contribute to a clean aggregate."""
+
+    def __init__(self, reason: str, message: str) -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
 def parse_count(value: str) -> int:
     return int(value.replace(",", ""))
 
 
-def require_direct_child(log_dir: Path, path: Path, label: str) -> None:
-    """Reject outputs or metadata outside the harness-owned log directory."""
+def absolute_path(path: Path) -> Path:
+    """Normalize lexical paths without resolving an attacker-controlled symlink."""
 
-    root = log_dir.resolve(strict=True)
-    parent = path.parent.resolve(strict=True)
-    if parent != root:
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def same_file(first: os.stat_result, second: os.stat_result) -> bool:
+    return first.st_dev == second.st_dev and first.st_ino == second.st_ino
+
+
+def file_signature(file_stat: os.stat_result) -> tuple[int, int, int, int, int, int, int, int]:
+    """Capture properties that must not change between validation and reading."""
+
+    return (
+        file_stat.st_dev,
+        file_stat.st_ino,
+        file_stat.st_mode,
+        file_stat.st_uid,
+        file_stat.st_nlink,
+        file_stat.st_size,
+        file_stat.st_mtime_ns,
+        file_stat.st_ctime_ns,
+    )
+
+
+def validate_private_directory(path: Path, label: str) -> Path:
+    """Validate a non-symlink directory before trusting evidence beneath it."""
+
+    candidate = absolute_path(path)
+    try:
+        before = candidate.lstat()
+    except FileNotFoundError as exc:
+        raise ValueError(f"{label} is missing") from exc
+    if stat.S_ISLNK(before.st_mode):
+        raise ValueError(f"{label} must not be a symlink")
+    if not stat.S_ISDIR(before.st_mode):
+        raise ValueError(f"{label} is not a real directory")
+    if before.st_uid != os.geteuid():
+        raise ValueError(f"{label} is not owned by the effective uid")
+    if before.st_mode & 0o022:
+        raise ValueError(f"{label} is group or other writable")
+
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(candidate, flags)
+    except OSError as exc:
+        raise ValueError(f"{label} cannot be opened safely") from exc
+    try:
+        opened = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+
+    if not same_file(before, opened):
+        raise ValueError(f"{label} changed while being opened")
+    if not stat.S_ISDIR(opened.st_mode):
+        raise ValueError(f"{label} is not a real directory")
+    if opened.st_uid != os.geteuid():
+        raise ValueError(f"{label} is not owned by the effective uid")
+    if opened.st_mode & 0o022:
+        raise ValueError(f"{label} is group or other writable")
+    return candidate
+
+
+def validate_evidence_root(log_dir: Path) -> Path:
+    """Trust only an effective-UID-owned root below a non-writable real directory."""
+
+    root = absolute_path(log_dir)
+    validate_private_directory(root.parent, "log directory parent")
+    return validate_private_directory(root, "log directory")
+
+
+def require_direct_child(log_dir: Path, path: Path, label: str) -> Path:
+    """Reject outputs or metadata outside the harness-owned evidence root."""
+
+    root = absolute_path(log_dir)
+    candidate = absolute_path(path)
+    if candidate.parent != root:
         raise ValueError(f"{label} must be a direct child of the log directory")
+    return candidate
 
 
-def read_tail(path: Path) -> tuple[str, bool, bool]:
+def validate_private_regular_file(
+    file_stat: os.stat_result, label: str, reason_prefix: str
+) -> None:
+    """Apply the ownership, link, and access invariant to one evidence file."""
+
+    if stat.S_ISLNK(file_stat.st_mode):
+        raise UnsafeEvidenceError(
+            f"{reason_prefix}_symlink", f"{label} must not be a symlink"
+        )
+    if not stat.S_ISREG(file_stat.st_mode):
+        raise UnsafeEvidenceError(
+            f"{reason_prefix}_invalid", f"{label} is not a regular file"
+        )
+    if file_stat.st_nlink != 1:
+        raise UnsafeEvidenceError(
+            f"{reason_prefix}_hardlink", f"{label} must have exactly one link"
+        )
+    if file_stat.st_uid != os.geteuid():
+        raise UnsafeEvidenceError(
+            f"{reason_prefix}_owner_unsafe",
+            f"{label} is not owned by the effective uid",
+        )
+    if file_stat.st_mode & 0o077:
+        raise UnsafeEvidenceError(
+            f"{reason_prefix}_permissions_unsafe",
+            f"{label} is group or other accessible",
+        )
+
+
+def open_private_input(
+    log_dir: Path,
+    path: Path,
+    label: str,
+    reason_prefix: str,
+    maximum_bytes: int,
+    *,
+    tail: bool,
+) -> tuple[bytes, bool]:
+    """Open one direct child without following a late symlink substitution."""
+
+    candidate = require_direct_child(log_dir, path, label)
+    try:
+        before = candidate.lstat()
+    except FileNotFoundError:
+        raise
+    except OSError as exc:
+        raise UnsafeEvidenceError(
+            f"{reason_prefix}_unsafe", f"{label} cannot be inspected safely"
+        ) from exc
+    validate_private_regular_file(before, label, reason_prefix)
+
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(candidate, flags)
+    except FileNotFoundError:
+        raise
+    except OSError as exc:
+        raise UnsafeEvidenceError(
+            f"{reason_prefix}_unsafe", f"{label} cannot be opened safely"
+        ) from exc
+
+    try:
+        opened = os.fstat(descriptor)
+        validate_private_regular_file(opened, label, reason_prefix)
+        if file_signature(before) != file_signature(opened):
+            raise UnsafeEvidenceError(
+                f"{reason_prefix}_changed", f"{label} changed while being opened"
+            )
+        truncated = opened.st_size > maximum_bytes
+        with os.fdopen(descriptor, "rb", closefd=False) as handle:
+            if tail and truncated:
+                handle.seek(-maximum_bytes, os.SEEK_END)
+            data = handle.read(maximum_bytes)
+        after = os.fstat(descriptor)
+    except UnsafeEvidenceError:
+        raise
+    except OSError as exc:
+        raise UnsafeEvidenceError(
+            f"{reason_prefix}_unsafe", f"{label} could not be read safely"
+        ) from exc
+    finally:
+        os.close(descriptor)
+
+    if file_signature(opened) != file_signature(after):
+        raise UnsafeEvidenceError(
+            f"{reason_prefix}_changed", f"{label} changed while being read"
+        )
+    return data, truncated
+
+
+def read_tail(log_dir: Path, path: Path) -> tuple[str, bool]:
     """Read a bounded tail that contains Valgrind's terminal summary."""
 
-    file_stat = path.lstat()
-    if not stat.S_ISREG(file_stat.st_mode):
-        raise ValueError("log is not a regular file")
-    truncated = file_stat.st_size > MAX_LOG_BYTES
-    with path.open("rb") as handle:
-        if truncated:
-            handle.seek(-MAX_LOG_BYTES, os.SEEK_END)
-        data = handle.read(MAX_LOG_BYTES)
-    private = not bool(file_stat.st_mode & 0o077)
-    return data.decode("utf-8", errors="replace"), truncated, private
+    data, truncated = open_private_input(
+        log_dir,
+        path,
+        "Valgrind log",
+        "valgrind_log",
+        MAX_LOG_BYTES,
+        tail=True,
+    )
+    return data.decode("utf-8", errors="replace"), truncated
 
 
-def parse_roles(path: Path | None) -> tuple[set[str], set[str], list[str]]:
+def read_metadata(log_dir: Path, path: Path, label: str, reason_prefix: str) -> tuple[str, bool]:
+    data, truncated = open_private_input(
+        log_dir, path, label, reason_prefix, MAX_METADATA_BYTES, tail=False
+    )
+    return data.decode("utf-8", errors="replace"), truncated
+
+
+def parse_roles(log_dir: Path, path: Path | None) -> tuple[set[str], set[str], list[str]]:
     if path is None:
         return set(), set(), ["roles_file_missing"]
-    if path.is_symlink() or not path.is_file():
+    try:
+        raw_text, truncated = read_metadata(log_dir, path, "roles file", "roles_file")
+    except FileNotFoundError:
+        return set(), set(), ["roles_file_missing"]
+    except UnsafeEvidenceError as exc:
+        return set(), set(), [exc.reason]
+    except (OSError, ValueError):
         return set(), set(), ["roles_file_invalid"]
+    if truncated:
+        return set(), set(), ["roles_file_too_large"]
 
     masters: set[str] = set()
     workers: set[str] = set()
     reasons: list[str] = []
-    raw_lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    raw_lines = raw_text.splitlines()
     if len(raw_lines) > 128:
         return set(), set(), ["roles_file_too_large"]
     for raw_line in raw_lines:
@@ -99,15 +284,25 @@ def parse_roles(path: Path | None) -> tuple[set[str], set[str], list[str]]:
     return masters, workers, reasons
 
 
-def parse_lifecycle(path: Path | None) -> tuple[dict[str, str], list[str]]:
+def parse_lifecycle(log_dir: Path, path: Path | None) -> tuple[dict[str, str], list[str]]:
     if path is None:
         return {}, ["lifecycle_file_missing"]
-    if path.is_symlink() or not path.is_file():
+    try:
+        raw_text, truncated = read_metadata(
+            log_dir, path, "lifecycle file", "lifecycle_file"
+        )
+    except FileNotFoundError:
+        return {}, ["lifecycle_file_missing"]
+    except UnsafeEvidenceError as exc:
+        return {}, [exc.reason]
+    except (OSError, ValueError):
         return {}, ["lifecycle_file_invalid"]
+    if truncated:
+        return {}, ["lifecycle_file_too_large"]
 
     values: dict[str, str] = {}
     reasons: list[str] = []
-    raw_lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    raw_lines = raw_text.splitlines()
     if len(raw_lines) > 64:
         return {}, ["lifecycle_file_too_large"]
     for raw_line in raw_lines:
@@ -144,7 +339,7 @@ def status_for(*, errors_detected: bool, incomplete: bool) -> str:
     return "clean"
 
 
-def write_text(path: Path, summary: dict[str, object]) -> None:
+def write_text(handle, summary: dict[str, object]) -> None:
     lines = [
         f"status={summary['status']}",
         f"complete={int(bool(summary['complete']))}",
@@ -160,40 +355,79 @@ def write_text(path: Path, summary: dict[str, object]) -> None:
         f"private_log_inputs={summary['private_log_inputs']}",
         f"incomplete_reasons={','.join(summary['incomplete_reasons'])}",
     ]
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    handle.write("\n".join(lines) + "\n")
 
 
-def write_json(path: Path, summary: dict[str, object]) -> None:
-    path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def write_json(handle, summary: dict[str, object]) -> None:
+    json.dump(summary, handle, indent=2, sort_keys=True)
+    handle.write("\n")
 
 
-def atomic_write(path: Path, writer, summary: dict[str, object]) -> None:
-    with tempfile.NamedTemporaryFile(
-        mode="w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", delete=False
-    ) as handle:
-        temporary = Path(handle.name)
+def validate_output_target(log_dir: Path, path: Path, label: str) -> Path:
+    """Existing output targets are evidence files too; absent targets are created safely."""
+
+    candidate = require_direct_child(log_dir, path, label)
     try:
-        writer(temporary, summary)
-        os.replace(temporary, path)
+        file_stat = candidate.lstat()
+    except FileNotFoundError:
+        return candidate
+    except OSError as exc:
+        raise ValueError(f"{label} cannot be inspected safely") from exc
+    try:
+        validate_private_regular_file(file_stat, label, "output")
+    except UnsafeEvidenceError as exc:
+        raise ValueError(f"{label} is unsafe: {exc}") from exc
+    return candidate
+
+
+def atomic_write(log_dir: Path, path: Path, label: str, writer, summary: dict[str, object]) -> None:
+    """Create a private direct-child output without following an existing symlink."""
+
+    output = validate_output_target(log_dir, path, label)
+    descriptor, temporary_name = tempfile.mkstemp(dir=log_dir, prefix=f".{output.name}.")
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            descriptor = -1
+            writer(handle, summary)
+        os.replace(temporary, output)
+        validate_output_target(log_dir, output, label)
     finally:
-        if temporary.exists():
+        if descriptor != -1:
+            os.close(descriptor)
+        try:
             temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def require_distinct_paths(paths: Iterable[tuple[str, Path]]) -> None:
+    """Prevent an output path from replacing metadata or another requested output."""
+
+    seen: dict[Path, str] = {}
+    for label, path in paths:
+        if path in seen:
+            raise ValueError(f"{label} must not alias {seen[path]}")
+        seen[path] = label
 
 
 def summarize(log_dir: Path, roles_file: Path | None, lifecycle_file: Path | None) -> dict[str, object]:
+    log_dir = validate_evidence_root(log_dir)
     log_files: dict[str, Path] = {}
     reasons: list[str] = []
-    for candidate in log_dir.iterdir():
+    try:
+        candidates = tuple(log_dir.iterdir())
+    except OSError as exc:
+        raise ValueError("log directory cannot be listed safely") from exc
+    for candidate in candidates:
         match = LOG_NAME_RE.fullmatch(candidate.name)
         if match is None:
             continue
-        if candidate.is_symlink() or not candidate.is_file():
-            reasons.append("valgrind_log_invalid")
-            continue
         log_files[match.group("pid")] = candidate
 
-    masters, workers, role_reasons = parse_roles(roles_file)
-    lifecycle, lifecycle_reasons = parse_lifecycle(lifecycle_file)
+    masters, workers, role_reasons = parse_roles(log_dir, roles_file)
+    lifecycle, lifecycle_reasons = parse_lifecycle(log_dir, lifecycle_file)
     reasons.extend(role_reasons)
     reasons.extend(lifecycle_reasons)
 
@@ -213,16 +447,19 @@ def summarize(log_dir: Path, roles_file: Path | None, lifecycle_file: Path | Non
     private_log_inputs = 0
     for log_path in log_files.values():
         try:
-            text, truncated, private = read_tail(log_path)
-        except ValueError:
+            text, truncated = read_tail(log_dir, log_path)
+        except FileNotFoundError:
+            reasons.append("valgrind_log_missing")
+            continue
+        except UnsafeEvidenceError as exc:
+            reasons.append(exc.reason)
+            continue
+        except (OSError, ValueError):
             reasons.append("valgrind_log_invalid")
             continue
         if truncated:
             truncated_log_inputs += 1
-        if private:
-            private_log_inputs += 1
-        else:
-            reasons.append("valgrind_log_permissions_unsafe")
+        private_log_inputs += 1
         matches = ERROR_SUMMARY_RE.findall(text)
         if not matches:
             reasons.append("valgrind_final_summary_missing")
@@ -282,15 +519,24 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
-        if args.log_dir.is_symlink() or not args.log_dir.is_dir():
-            raise ValueError("log directory is not a real directory")
-        require_direct_child(args.log_dir, args.roles_file, "roles file")
-        require_direct_child(args.log_dir, args.lifecycle_file, "lifecycle file")
-        require_direct_child(args.log_dir, args.output, "JSON output")
-        require_direct_child(args.log_dir, args.text_output, "text output")
-        summary = summarize(args.log_dir, args.roles_file, args.lifecycle_file)
-        atomic_write(args.output, write_json, summary)
-        atomic_write(args.text_output, write_text, summary)
+        log_dir = validate_evidence_root(args.log_dir)
+        roles_file = require_direct_child(log_dir, args.roles_file, "roles file")
+        lifecycle_file = require_direct_child(log_dir, args.lifecycle_file, "lifecycle file")
+        output = require_direct_child(log_dir, args.output, "JSON output")
+        text_output = require_direct_child(log_dir, args.text_output, "text output")
+        require_distinct_paths(
+            (
+                ("roles file", roles_file),
+                ("lifecycle file", lifecycle_file),
+                ("JSON output", output),
+                ("text output", text_output),
+            )
+        )
+        validate_output_target(log_dir, output, "JSON output")
+        validate_output_target(log_dir, text_output, "text output")
+        summary = summarize(log_dir, roles_file, lifecycle_file)
+        atomic_write(log_dir, output, "JSON output", write_json, summary)
+        atomic_write(log_dir, text_output, "text output", write_text, summary)
     except (OSError, ValueError) as exc:
         print(f"nginx memcheck summary rejected input: {exc}", file=sys.stderr)
         return 2

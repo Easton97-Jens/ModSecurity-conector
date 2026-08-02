@@ -198,16 +198,44 @@ class NginxDocrootProjectionTest(unittest.TestCase):
             '--safe-root "$DOCROOT"',
             "Private runtime root hidden from worker",
             "Rules remain private",
+            "NGINX worker state writable",
+            "NGINX server log root writable",
+            "Private harness logs hidden from worker",
+            "Memcheck evidence hidden from worker",
+            "require_private_worker_path_separation",
+            "validate_nginx_worker_isolation",
+            "requires root to establish a distinct verified worker identity",
+            "NGINX_WORKER_USER_DIRECTIVE",
             "requires an explicit manifest-registered parent and fresh root",
         ):
             self.assertIn(fragment, harness)
         self.assertNotIn('chmod -R u+rwX,go+rX "$NGINX_DOCROOT_PROJECTION_ROOT"', harness)
         self.assertNotIn('chown -R "$NGINX_WORKER_USER:$worker_group" "$NGINX_DOCROOT_PROJECTION_ROOT"', harness)
+        self.assertNotIn('chmod -R u+rwX,go+rX "$NGINX_HARNESS_WORK_ROOT"', harness)
+        self.assertNotIn('chown -R "$NGINX_WORKER_USER:$worker_group" "$NGINX_HARNESS_WORK_ROOT"', harness)
+
+        template = (ROOT / "connectors" / "nginx" / "harness" / "nginx_smoke.conf").read_text(
+            encoding="utf-8"
+        )
+        for temporary_path in (
+            "client_body_temp_path",
+            "proxy_temp_path",
+            "fastcgi_temp_path",
+            "uwsgi_temp_path",
+            "scgi_temp_path",
+        ):
+            self.assertIn(f'{temporary_path} "@@NGINX_WORKER_STATE_ROOT@@/', template)
+        self.assertIn('error_log "@@NGINX_SERVER_LOG_ROOT@@/error.log" debug;', template)
+        self.assertIn('access_log "@@NGINX_SERVER_LOG_ROOT@@/access.log";', template)
+        self.assertIn("@@NGINX_WORKER_USER_DIRECTIVE@@", template)
+        self.assertNotIn('@@RUNTIME_ROOT@@/client_body_temp', template)
+        self.assertIn('NGINX_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"', harness)
 
         self.assertIn('NGINX_DOCROOT_PROJECTION=1', no_crs)
         self.assertIn('NGINX_DOCROOT_PROJECTION="$NGINX_DOCROOT_PROJECTION"', no_crs)
         self.assertIn('NGINX_DOCROOT_PROJECTION=1', first_byte)
         self.assertIn('NGINX_DOCROOT_PROJECTION="${NGINX_DOCROOT_PROJECTION:-0}"', first_byte)
+        self.assertIn('phase4_log=$log_root/phase4.log', first_byte)
 
 
 class NginxDocrootProjectionFilesystemTest(unittest.TestCase):

@@ -76,6 +76,13 @@ class NginxInterventionUrlOwnershipTests(unittest.TestCase):
         self.assertIn("goto cleanup;", self.intervention[call:cleanup])
 
         self.assertIn("location_value.len = ngx_strlen(intervention->url);", self.redirect)
+        self.assertIn(
+            "redirect_url = (const u_char *) intervention->url;", self.redirect
+        )
+        self.assertIn(
+            "if (redirect_url[i] == '\\r' || redirect_url[i] == '\\n')",
+            self.redirect,
+        )
         self.assertIn("if (location_value.len > NGX_MAX_SIZE_T_VALUE - 1U)", self.redirect)
         self.assertIn(
             "location_value.data = ngx_pnalloc(r->pool, location_value.len + 1U);",
@@ -94,12 +101,25 @@ class NginxInterventionUrlOwnershipTests(unittest.TestCase):
             self.redirect.index("location_value.data = ngx_pnalloc"),
             self.redirect.index("location->value = location_value;"),
         )
+        crlf_rejection = self.redirect.index(
+            "if (redirect_url[i] == '\\r' || redirect_url[i] == '\\n')"
+        )
+        self.assertIn("return NGX_HTTP_BAD_REQUEST;", self.redirect[crlf_rejection:])
+        self.assertLess(
+            crlf_rejection, self.redirect.index("location_value.data = ngx_pnalloc")
+        )
+        self.assertLess(
+            crlf_rejection, self.redirect.index("location->value = location_value;")
+        )
 
     def test_redirect_helper_reports_failures_to_the_cleanup_wrapper(self) -> None:
         expected_returns = {
             "if (r->header_sent)": "return -1;",
             "if (location_value.len > NGX_MAX_SIZE_T_VALUE - 1U)": (
                 "return NGX_HTTP_INTERNAL_SERVER_ERROR;"
+            ),
+            "if (redirect_url[i] == '\\r' || redirect_url[i] == '\\n')": (
+                "return NGX_HTTP_BAD_REQUEST;"
             ),
             "if (location_value.data == NULL)": "return NGX_HTTP_INTERNAL_SERVER_ERROR;",
             "if (location == NULL)": "return NGX_HTTP_INTERNAL_SERVER_ERROR;",

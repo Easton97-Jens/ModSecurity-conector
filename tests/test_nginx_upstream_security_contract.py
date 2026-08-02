@@ -183,6 +183,22 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
                 self.assertIn(required, redirect)
 
         self.assertIn("unsigned response_replaced:1;", self.common)
+        self.assertIn(
+            "unsigned intervention_redirect_location_installed:1;", self.common
+        )
+        self.assertEqual(
+            (self.access + self.body + self.header + self.module).count(
+                "ctx->intervention_redirect_location_installed = 1;"
+            ),
+            1,
+        )
+        self.assertIn(
+            "ctx->intervention_redirect_location_installed = 1;", redirect
+        )
+        self.assertLess(
+            redirect.index("r->headers_out.location->hash = 1;"),
+            redirect.index("ctx->intervention_redirect_location_installed = 1;"),
+        )
         header_filter = function_definition(self.header, "ngx_http_modsecurity_header_filter")
         positive_intervention = conditional_block(
             header_filter,
@@ -190,8 +206,10 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             header_filter.index("ret = ngx_http_modsecurity_process_intervention"),
         )
         redirect_branch = conditional_block(
-            positive_intervention, "if (r->headers_out.location != NULL)"
+            positive_intervention,
+            "if (ctx->intervention_redirect_location_installed &&",
         )
+        self.assertIn("r->headers_out.location != NULL", redirect_branch)
         for required in (
             "ctx->response_replaced = 1;",
             "r->headers_out.content_length_n = 0;",
@@ -203,9 +221,18 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertIn("ctx->intervention_triggered = 1;", positive_intervention)
         self.assertLess(
             positive_intervention.index("ctx->intervention_triggered = 1;"),
-            positive_intervention.index("if (r->headers_out.location != NULL)"),
+            positive_intervention.index(
+                "if (ctx->intervention_redirect_location_installed &&"
+            ),
         )
         self.assertNotIn("return ngx_http_filter_finalize_request", redirect_branch)
+        self.assertIn(
+            "return ngx_http_filter_finalize_request(r, &ngx_http_modsecurity_module, ret);",
+            positive_intervention,
+        )
+        self.assertNotIn(
+            "if (r->headers_out.location != NULL)", positive_intervention
+        )
 
         body_filter = function_definition(self.body, "ngx_http_modsecurity_body_filter")
         response_replaced = conditional_block(body_filter, "if (ctx->response_replaced)")

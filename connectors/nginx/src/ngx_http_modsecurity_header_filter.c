@@ -646,11 +646,12 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
             return NGX_ERROR;
         }
         ctx->intervention_triggered = 1;
-        if (r->headers_out.location != NULL) {
-            /* process_intervention() already owns Location and cleared the
-             * entity metadata of the response being replaced.  Keep that
-             * header intact by forwarding it through the normal chain rather
-             * than ngx_http_filter_finalize_request(), which cleans headers. */
+        if (ctx->intervention_redirect_location_installed &&
+            r->headers_out.location != NULL) {
+            /* Only the redirect helper's connector-owned Location denotes a
+             * response replacement.  A status-only intervention may retain
+             * an upstream Location and must use finalization, which cleans
+             * that pending response's headers. */
             ctx->response_replaced = 1;
             r->headers_out.status = ret;
             ngx_str_null(&r->headers_out.status_line);

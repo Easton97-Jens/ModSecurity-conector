@@ -55,7 +55,8 @@ static ngx_int_t ngx_http_modsecurity_is_mime_char(unsigned char c);
 static ngx_int_t ngx_http_modsecurity_validate_strict_mime_token(const char *token);
 static char *ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static ngx_int_t ngx_http_modsecurity_process_redirect_intervention(
-    ngx_http_request_t *r, ModSecurityIntervention *intervention);
+    ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
+    ModSecurityIntervention *intervention);
 static ngx_int_t ngx_http_modsecurity_process_status_intervention(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
     ModSecurityIntervention *intervention, ngx_int_t early_log);
@@ -159,13 +160,12 @@ ngx_inline char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p)
 
 static ngx_int_t
 ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
-    ModSecurityIntervention *intervention)
+    ngx_http_modsecurity_ctx_t *ctx, ModSecurityIntervention *intervention)
 {
     ngx_str_t location_value;
     ngx_table_elt_t *location;
-
-    dd("intervention -- redirecting to: %s with status code: %d",
-        intervention->url, intervention->status);
+    const u_char *redirect_url;
+    size_t i;
 
     if (r->header_sent) {
         dd("Headers are already sent. Cannot perform the redirection at this point.");
@@ -175,6 +175,16 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
     /* The Location header follows NGINX's error-page allocation and hash
      * conventions, independently of the phase that produced the redirect. */
     location_value.len = ngx_strlen(intervention->url);
+    redirect_url = (const u_char *) intervention->url;
+    for (i = 0; i < location_value.len; i++) {
+        if (redirect_url[i] == '\r' || redirect_url[i] == '\n') {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "modsecurity intervention redirect URL contains CR or LF");
+            return NGX_HTTP_BAD_REQUEST;
+        }
+    }
+    dd("intervention -- redirecting to: %s with status code: %d",
+        intervention->url, intervention->status);
     if (location_value.len > NGX_MAX_SIZE_T_VALUE - 1U) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "modsecurity intervention redirect URL is too long");
@@ -213,6 +223,7 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
     location->value = location_value;
     r->headers_out.location = location;
     r->headers_out.location->hash = 1;
+    ctx->intervention_redirect_location_installed = 1;
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
     ngx_http_modsecurity_store_ctx_header(r, &location->key, &location->value);
@@ -300,7 +311,7 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
 
     if (intervention.url != NULL && intervention.url[0] != '\0')
     {
-        result = ngx_http_modsecurity_process_redirect_intervention(r,
+        result = ngx_http_modsecurity_process_redirect_intervention(r, ctx,
             &intervention);
         goto cleanup;
     }

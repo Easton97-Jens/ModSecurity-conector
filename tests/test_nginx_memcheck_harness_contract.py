@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +19,18 @@ TEMPLATE = ROOT / "connectors/nginx/harness/nginx_smoke.conf"
 MAKEFILE = ROOT / "Makefile"
 SUMMARIZER = ROOT / "ci/runtime/common/summarize-nginx-memcheck.py"
 SUPPRESSIONS = ROOT / "connectors/nginx/harness/valgrind-nginx-core-1.31.2.supp"
+
+
+def load_summarizer_module():
+    specification = importlib.util.spec_from_file_location("nginx_memcheck_summarizer", SUMMARIZER)
+    if specification is None or specification.loader is None:
+        raise RuntimeError("could not load the NGINX Memcheck summarizer module")
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
+SUMMARIZER_MODULE = load_summarizer_module()
 
 
 class NginxMemcheckHarnessContractTests(unittest.TestCase):
@@ -28,6 +43,83 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
         cls.makefile = MAKEFILE.read_text(encoding="utf-8")
         cls.summarizer = SUMMARIZER.read_text(encoding="utf-8")
         cls.suppressions = SUPPRESSIONS.read_text(encoding="utf-8")
+
+    @staticmethod
+    def private_evidence_directory(temporary: str) -> Path:
+        """Keep the direct parent private even though TemporaryDirectory lives below /tmp."""
+
+        private_parent = Path(temporary) / "private-parent"
+        private_parent.mkdir(mode=0o700)
+        private_parent.chmod(0o700)
+        evidence_directory = private_parent / "nginx-memcheck-evidence"
+        evidence_directory.mkdir(mode=0o700)
+        evidence_directory.chmod(0o700)
+        return evidence_directory
+
+    @staticmethod
+    def write_private(path: Path, contents: str) -> None:
+        path.write_text(contents, encoding="utf-8")
+        path.chmod(0o600)
+
+    @classmethod
+    def create_clean_evidence(
+        cls,
+        log_dir: Path,
+        *,
+        master_pid: int,
+        worker_pid: int,
+        log_contents: str | None = None,
+    ) -> tuple[Path, Path, Path, Path]:
+        roles = log_dir / "nginx-memcheck-roles.txt"
+        lifecycle = log_dir / "nginx-memcheck-lifecycle.txt"
+        output = log_dir / "nginx-memcheck-summary.json"
+        text_output = log_dir / "nginx-memcheck-summary.txt"
+        cls.write_private(
+            roles, f"master_pid={master_pid}\nworker_pid={worker_pid}\n"
+        )
+        cls.write_private(
+            lifecycle,
+            "shutdown=graceful\nwait=exited\nwrapper_exit_code=0\ncontainment=isolated\n",
+        )
+        if log_contents is None:
+            log_contents = (
+                f"=={master_pid}== definitely lost: 0 bytes in 0 blocks\n"
+                f"=={master_pid}== indirectly lost: 0 bytes in 0 blocks\n"
+                f"=={master_pid}== possibly lost: 0 bytes in 0 blocks\n"
+                f"=={master_pid}== still reachable: 0 bytes in 0 blocks\n"
+                f"=={master_pid}== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)\n"
+            )
+        cls.write_private(log_dir / f"valgrind.{master_pid}.log", log_contents)
+        cls.write_private(log_dir / f"valgrind.{worker_pid}.log", log_contents)
+        return roles, lifecycle, output, text_output
+
+    @staticmethod
+    def run_summarizer(
+        log_dir: Path,
+        roles: Path,
+        lifecycle: Path,
+        output: Path,
+        text_output: Path,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(SUMMARIZER),
+                "--log-dir",
+                str(log_dir),
+                "--roles-file",
+                str(roles),
+                "--lifecycle-file",
+                str(lifecycle),
+                "--output",
+                str(output),
+                "--text-output",
+                str(text_output),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
 
     def test_memcheck_is_explicitly_opt_in_and_bounded_to_soak(self) -> None:
         self.assertIn('NGINX_MEMCHECK="${NGINX_MEMCHECK:-0}"', self.harness)
@@ -110,7 +202,7 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
             "--errors-for-leak-kinds=definite,indirect",
             "--error-exitcode=99",
             "--num-callers=24",
-            '--log-file="$LOG_DIR/valgrind.%p.log"',
+            '--log-file="$NGINX_MEMCHECK_EVIDENCE_DIR/valgrind.%p.log"',
         ):
             self.assertIn(flag, self.harness)
         self.assertNotIn("--child-silent-after-fork", self.harness)
@@ -154,9 +246,29 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
         self.assertIn("nginx_memcheck_process_group_alive", self.harness)
         self.assertIn('kill -0 "-$NGINX_MEMCHECK_PROCESS_GROUP"', self.harness)
         self.assertIn("umask 077", self.harness)
+        self.assertIn("NGINX_MEMCHECK_EVIDENCE_DIR", self.harness)
+        self.assertIn(
+            'NGINX_MEMCHECK_EVIDENCE_DIR="$LOG_DIR/memcheck-evidence/$case_name"',
+            self.harness,
+        )
+        self.assertIn('--log-dir "$NGINX_MEMCHECK_EVIDENCE_DIR"', self.harness)
+        self.assertIn('( umask 077; : > "$NGINX_MEMCHECK_ROLE_FILE" )', self.harness)
+        self.assertIn('chmod 600 "$NGINX_MEMCHECK_ROLE_FILE"', self.harness)
+        self.assertIn('} > "$NGINX_MEMCHECK_LIFECYCLE_FILE"', self.harness)
+        self.assertIn('chmod 600 "$NGINX_MEMCHECK_LIFECYCLE_FILE"', self.harness)
+        for variable in (
+            "NGINX_MEMCHECK_ROLE_FILE",
+            "NGINX_MEMCHECK_LIFECYCLE_FILE",
+            "NGINX_MEMCHECK_SUMMARY_JSON",
+            "NGINX_MEMCHECK_SUMMARY_TEXT",
+        ):
+            assignment = self.harness.split(f"{variable}=", 1)[1].split("\n", 1)[0]
+            self.assertIn("NGINX_MEMCHECK_EVIDENCE_DIR", assignment)
         self.assertIn("graceful_shutdown_incomplete", self.summarizer)
         self.assertIn("process_group_unverified", self.summarizer)
-        self.assertIn("valgrind_log_permissions_unsafe", self.summarizer)
+        self.assertIn("validate_evidence_root", self.summarizer)
+        self.assertIn("O_NOFOLLOW", self.summarizer)
+        self.assertIn("_permissions_unsafe", self.summarizer)
         self.assertIn("error_incomplete", self.summarizer)
         self.assertIn("possibly_lost_bytes", self.summarizer)
         self.assertIn("still_reachable_bytes", self.summarizer)
@@ -178,16 +290,7 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
 
     def test_summarizer_reports_clean_and_never_copies_log_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            log_dir = Path(temporary)
-            roles = log_dir / "nginx-memcheck-roles.txt"
-            lifecycle = log_dir / "nginx-memcheck-lifecycle.txt"
-            output = log_dir / "nginx-memcheck-summary.json"
-            text_output = log_dir / "nginx-memcheck-summary.txt"
-            roles.write_text("master_pid=101\nworker_pid=102\n", encoding="utf-8")
-            lifecycle.write_text(
-                "shutdown=graceful\nwait=exited\nwrapper_exit_code=0\ncontainment=isolated\n",
-                encoding="utf-8",
-            )
+            log_dir = self.private_evidence_directory(temporary)
             complete_log = (
                 "request-body=must-not-appear-in-summary\n"
                 "==101== definitely lost: 0 bytes in 0 blocks\n"
@@ -196,78 +299,48 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
                 "==101== still reachable: 0 bytes in 0 blocks\n"
                 "==101== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)\n"
             )
-            master_log = log_dir / "valgrind.101.log"
-            worker_log = log_dir / "valgrind.102.log"
-            master_log.write_text(complete_log, encoding="utf-8")
-            worker_log.write_text(complete_log, encoding="utf-8")
-            master_log.chmod(0o600)
-            worker_log.chmod(0o600)
-
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SUMMARIZER),
-                    "--log-dir",
-                    str(log_dir),
-                    "--roles-file",
-                    str(roles),
-                    "--lifecycle-file",
-                    str(lifecycle),
-                    "--output",
-                    str(output),
-                    "--text-output",
-                    str(text_output),
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
+            roles, lifecycle, output, text_output = self.create_clean_evidence(
+                log_dir,
+                master_pid=101,
+                worker_pid=102,
+                log_contents=complete_log,
             )
+            result = self.run_summarizer(log_dir, roles, lifecycle, output, text_output)
 
-            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                result.returncode,
+                0,
+                result.stderr + output.read_text(encoding="utf-8"),
+            )
             summary = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(summary["status"], "clean")
             self.assertEqual(summary["logs_seen"], 2)
             self.assertEqual(summary["private_log_inputs"], 2)
             self.assertNotIn("must-not-appear-in-summary", output.read_text(encoding="utf-8"))
             self.assertNotIn("must-not-appear-in-summary", text_output.read_text(encoding="utf-8"))
+            for output_path in (output, text_output):
+                output_stat = output_path.lstat()
+                self.assertEqual(output_stat.st_uid, os.geteuid())
+                self.assertEqual(output_stat.st_nlink, 1)
+                self.assertFalse(output_stat.st_mode & 0o077)
 
     def test_summarizer_marks_missing_worker_evidence_incomplete(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            log_dir = Path(temporary)
+            log_dir = self.private_evidence_directory(temporary)
             roles = log_dir / "nginx-memcheck-roles.txt"
             lifecycle = log_dir / "nginx-memcheck-lifecycle.txt"
             output = log_dir / "nginx-memcheck-summary.json"
             text_output = log_dir / "nginx-memcheck-summary.txt"
-            roles.write_text("master_pid=201\nworker_pid=202\n", encoding="utf-8")
-            lifecycle.write_text(
+            self.write_private(roles, "master_pid=201\nworker_pid=202\n")
+            self.write_private(
+                lifecycle,
                 "shutdown=graceful\nwait=exited\nwrapper_exit_code=0\ncontainment=isolated\n",
-                encoding="utf-8",
             )
             master_log = log_dir / "valgrind.201.log"
-            master_log.write_text(
-                "==201== ERROR SUMMARY: 0 errors from 0 contexts\n", encoding="utf-8"
+            self.write_private(
+                master_log, "==201== ERROR SUMMARY: 0 errors from 0 contexts\n"
             )
-            master_log.chmod(0o600)
-
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SUMMARIZER),
-                    "--log-dir",
-                    str(log_dir),
-                    "--roles-file",
-                    str(roles),
-                    "--lifecycle-file",
-                    str(lifecycle),
-                    "--output",
-                    str(output),
-                    "--text-output",
-                    str(text_output),
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
+            result = self.run_summarizer(log_dir, roles, lifecycle, output, text_output)
 
             self.assertEqual(result.returncode, 99, result.stderr)
             summary = json.loads(output.read_text(encoding="utf-8"))
@@ -276,41 +349,22 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
 
     def test_summarizer_marks_uncontained_or_forced_shutdown_incomplete(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            log_dir = Path(temporary)
+            log_dir = self.private_evidence_directory(temporary)
             roles = log_dir / "nginx-memcheck-roles.txt"
             lifecycle = log_dir / "nginx-memcheck-lifecycle.txt"
             output = log_dir / "nginx-memcheck-summary.json"
             text_output = log_dir / "nginx-memcheck-summary.txt"
-            roles.write_text("master_pid=251\nworker_pid=252\n", encoding="utf-8")
-            lifecycle.write_text(
+            self.write_private(roles, "master_pid=251\nworker_pid=252\n")
+            self.write_private(
+                lifecycle,
                 "shutdown=forced_kill\nwait=exited\nwrapper_exit_code=0\ncontainment=unverified\n",
-                encoding="utf-8",
             )
             complete_log = "==251== ERROR SUMMARY: 0 errors from 0 contexts\n"
             for pid in (251, 252):
                 log_path = log_dir / f"valgrind.{pid}.log"
-                log_path.write_text(complete_log, encoding="utf-8")
-                log_path.chmod(0o600)
+                self.write_private(log_path, complete_log)
 
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SUMMARIZER),
-                    "--log-dir",
-                    str(log_dir),
-                    "--roles-file",
-                    str(roles),
-                    "--lifecycle-file",
-                    str(lifecycle),
-                    "--output",
-                    str(output),
-                    "--text-output",
-                    str(text_output),
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
+            result = self.run_summarizer(log_dir, roles, lifecycle, output, text_output)
 
             self.assertEqual(result.returncode, 99, result.stderr)
             summary = json.loads(output.read_text(encoding="utf-8"))
@@ -320,48 +374,151 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
 
     def test_summarizer_marks_non_private_raw_log_incomplete(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            log_dir = Path(temporary)
-            roles = log_dir / "nginx-memcheck-roles.txt"
-            lifecycle = log_dir / "nginx-memcheck-lifecycle.txt"
-            output = log_dir / "nginx-memcheck-summary.json"
-            text_output = log_dir / "nginx-memcheck-summary.txt"
-            roles.write_text("master_pid=301\nworker_pid=302\n", encoding="utf-8")
-            lifecycle.write_text(
-                "shutdown=graceful\nwait=exited\nwrapper_exit_code=0\ncontainment=isolated\n",
-                encoding="utf-8",
+            log_dir = self.private_evidence_directory(temporary)
+            roles, lifecycle, output, text_output = self.create_clean_evidence(
+                log_dir, master_pid=301, worker_pid=302
             )
-            complete_log = "==301== ERROR SUMMARY: 0 errors from 0 contexts\n"
             master_log = log_dir / "valgrind.301.log"
             worker_log = log_dir / "valgrind.302.log"
-            master_log.write_text(complete_log, encoding="utf-8")
-            worker_log.write_text(complete_log, encoding="utf-8")
             master_log.chmod(0o600)
             worker_log.chmod(0o644)
-
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SUMMARIZER),
-                    "--log-dir",
-                    str(log_dir),
-                    "--roles-file",
-                    str(roles),
-                    "--lifecycle-file",
-                    str(lifecycle),
-                    "--output",
-                    str(output),
-                    "--text-output",
-                    str(text_output),
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
+            result = self.run_summarizer(log_dir, roles, lifecycle, output, text_output)
 
             self.assertEqual(result.returncode, 99, result.stderr)
             summary = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(summary["status"], "incomplete")
             self.assertIn("valgrind_log_permissions_unsafe", summary["incomplete_reasons"])
+
+    def test_summarizer_marks_unsafe_metadata_inputs_incomplete(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            log_dir = self.private_evidence_directory(temporary)
+            roles, lifecycle, output, text_output = self.create_clean_evidence(
+                log_dir, master_pid=351, worker_pid=352
+            )
+            roles.chmod(0o640)
+            lifecycle.unlink()
+            lifecycle.symlink_to(roles.name)
+
+            result = self.run_summarizer(log_dir, roles, lifecycle, output, text_output)
+
+            self.assertEqual(result.returncode, 99, result.stderr)
+            summary = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "incomplete")
+            self.assertIn("roles_file_permissions_unsafe", summary["incomplete_reasons"])
+            self.assertIn("lifecycle_file_symlink", summary["incomplete_reasons"])
+
+    def test_summarizer_rejects_private_logs_below_an_unsafe_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            unsafe_parent = Path(temporary)
+            unsafe_parent.chmod(0o777)
+            try:
+                log_dir = unsafe_parent / "nginx-memcheck-evidence"
+                log_dir.mkdir(mode=0o700)
+                log_dir.chmod(0o700)
+                roles, lifecycle, output, text_output = self.create_clean_evidence(
+                    log_dir, master_pid=401, worker_pid=402
+                )
+
+                result = self.run_summarizer(
+                    log_dir, roles, lifecycle, output, text_output
+                )
+
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn(
+                    "log directory parent is group or other writable", result.stderr
+                )
+                self.assertFalse(output.exists())
+                self.assertFalse(text_output.exists())
+            finally:
+                unsafe_parent.chmod(0o700)
+
+    def test_summarizer_rejects_symlinked_evidence_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            log_dir = self.private_evidence_directory(temporary)
+            evidence_link = log_dir.parent / "evidence-link"
+            evidence_link.symlink_to(log_dir, target_is_directory=True)
+            roles = evidence_link / "nginx-memcheck-roles.txt"
+            lifecycle = evidence_link / "nginx-memcheck-lifecycle.txt"
+            output = evidence_link / "nginx-memcheck-summary.json"
+            text_output = evidence_link / "nginx-memcheck-summary.txt"
+
+            result = self.run_summarizer(
+                evidence_link, roles, lifecycle, output, text_output
+            )
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("log directory must not be a symlink", result.stderr)
+
+    def test_summarizer_marks_symlinked_valgrind_input_incomplete(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            log_dir = self.private_evidence_directory(temporary)
+            roles, lifecycle, output, text_output = self.create_clean_evidence(
+                log_dir, master_pid=451, worker_pid=452
+            )
+            worker_log = log_dir / "valgrind.452.log"
+            worker_log.unlink()
+            worker_log.symlink_to("valgrind.451.log")
+
+            result = self.run_summarizer(log_dir, roles, lifecycle, output, text_output)
+
+            self.assertEqual(result.returncode, 99, result.stderr)
+            summary = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "incomplete")
+            self.assertIn("valgrind_log_symlink", summary["incomplete_reasons"])
+
+    def test_summarizer_marks_hardlinked_valgrind_input_incomplete(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            log_dir = self.private_evidence_directory(temporary)
+            roles, lifecycle, output, text_output = self.create_clean_evidence(
+                log_dir, master_pid=501, worker_pid=502
+            )
+            master_log = log_dir / "valgrind.501.log"
+            worker_log = log_dir / "valgrind.502.log"
+            worker_log.unlink()
+            os.link(master_log, worker_log)
+
+            result = self.run_summarizer(log_dir, roles, lifecycle, output, text_output)
+
+            self.assertEqual(result.returncode, 99, result.stderr)
+            summary = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "incomplete")
+            self.assertIn("valgrind_log_hardlink", summary["incomplete_reasons"])
+
+    def test_summarizer_rejects_existing_hardlinked_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            log_dir = self.private_evidence_directory(temporary)
+            roles, lifecycle, output, text_output = self.create_clean_evidence(
+                log_dir, master_pid=551, worker_pid=552
+            )
+            existing_output = log_dir / "existing-output.json"
+            self.write_private(existing_output, "{}\n")
+            os.link(existing_output, output)
+
+            result = self.run_summarizer(log_dir, roles, lifecycle, output, text_output)
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("JSON output is unsafe", result.stderr)
+            self.assertFalse(text_output.exists())
+
+    def test_foreign_owner_simulation_is_never_accepted_as_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            log_dir = self.private_evidence_directory(temporary)
+            roles, _, _, _ = self.create_clean_evidence(
+                log_dir, master_pid=601, worker_pid=602
+            )
+            simulated_foreign_uid = os.geteuid() + 1
+            with mock.patch.object(
+                SUMMARIZER_MODULE.os, "geteuid", return_value=simulated_foreign_uid
+            ):
+                masters, workers, reasons = SUMMARIZER_MODULE.parse_roles(log_dir, roles)
+                with self.assertRaisesRegex(
+                    ValueError, "log directory parent is not owned by the effective uid"
+                ):
+                    SUMMARIZER_MODULE.validate_evidence_root(log_dir)
+
+            self.assertEqual(masters, set())
+            self.assertEqual(workers, set())
+            self.assertEqual(reasons, ["roles_file_owner_unsafe"])
 
 
 if __name__ == "__main__":
