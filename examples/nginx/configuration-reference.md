@@ -839,7 +839,7 @@ Supplies the engine and event correlation identifier for a transaction.
 
 ### Validation and errors
 
-ngx_conf_set_transaction_id rejects invalid values during nginx -t; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_1MORE is the registered context mask.
+ngx_conf_set_transaction_id rejects invalid values during nginx -t; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1 is the registered context mask.
 
 ### Example
 

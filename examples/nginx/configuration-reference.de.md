@@ -839,7 +839,7 @@ Liefert die Engine- und Ereigniskorrelationskennung für eine Transaktion.
 
 ### Validierung und Fehler
 
-ngx_conf_set_transaction_id weist ungültige Werte während nginx -t ab; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_1MORE ist die registrierte Kontextmaske.
+ngx_conf_set_transaction_id weist ungültige Werte während nginx -t ab; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1 ist die registrierte Kontextmaske.
 
 ### Beispiel
 

@@ -7705,7 +7705,7 @@
       "contexts": "NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location)",
       "inheritance": "http \u2192 server \u2192 location; a child inherits if it does not set a value.",
       "merge_behavior": "ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_merge combines parent and child rules.",
-      "validation": "ngx_conf_set_transaction_id rejects invalid values during nginx -t; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_1MORE is the registered context mask.",
+      "validation": "ngx_conf_set_transaction_id rejects invalid values during nginx -t; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1 is the registered context mask.",
       "phase_relevance": "P1 controls integration; rules and P4 controls affect the stated phase only.",
       "security_relevance": "Do not put credentials or sensitive request data in a correlation identifier.",
       "runtime_effect": "Supplies the engine and event correlation identifier for a transaction.",
