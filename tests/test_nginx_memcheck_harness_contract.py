@@ -293,6 +293,10 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
         self.assertIn('sh "$(FRAMEWORK_ROOT)/ci/runtime/run-nginx-smoke.sh"', target)
         self.assertNotIn("memcheck-nginx", self.makefile.split("test:", 1)[1].split("\n", 1)[0])
 
+    def test_summarizer_keeps_log_pid_matching_ascii_only(self) -> None:
+        self.assertIsNotNone(SUMMARIZER_MODULE.LOG_NAME_RE.fullmatch("valgrind.101.log"))
+        self.assertIsNone(SUMMARIZER_MODULE.LOG_NAME_RE.fullmatch("valgrind.١٠١.log"))
+
     def test_summarizer_reports_clean_and_never_copies_log_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             log_dir = self.private_evidence_directory(temporary)
@@ -350,6 +354,7 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 99, result.stderr)
             summary = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(summary["status"], "incomplete")
+            self.assertEqual(summary["logs_with_final_summary"], 1)
             self.assertIn("worker_log_missing", summary["incomplete_reasons"])
 
     def test_summarizer_marks_uncontained_or_forced_shutdown_incomplete(self) -> None:
@@ -376,6 +381,25 @@ class NginxMemcheckHarnessContractTests(unittest.TestCase):
             self.assertEqual(summary["status"], "incomplete")
             self.assertIn("graceful_shutdown_incomplete", summary["incomplete_reasons"])
             self.assertIn("process_group_unverified", summary["incomplete_reasons"])
+
+    def test_summarizer_counts_valgrind_error_exit_code(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            log_dir = self.private_evidence_directory(temporary)
+            roles, lifecycle, output, text_output = self.create_clean_evidence(
+                log_dir, master_pid=271, worker_pid=272
+            )
+            self.write_private(
+                lifecycle,
+                "shutdown=graceful\nwait=exited\nwrapper_exit_code=99\ncontainment=isolated\n",
+            )
+
+            result = self.run_summarizer(log_dir, roles, lifecycle, output, text_output)
+
+            self.assertEqual(result.returncode, 99, result.stderr)
+            summary = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "error")
+            self.assertTrue(summary["errors_detected"])
+            self.assertEqual(summary["error_count"], 1)
 
     def test_summarizer_marks_non_private_raw_log_incomplete(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

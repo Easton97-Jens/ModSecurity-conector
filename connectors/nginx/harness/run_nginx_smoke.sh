@@ -75,6 +75,8 @@ CASE_SCOPE="${CASE_SCOPE:-all}"
 CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
 MSCONNECTOR_SMOKE_STAGE="${MSCONNECTOR_SMOKE_STAGE:-minimal_runtime_smoke}"
+MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK=bounded_soak
+NGINX_TR_DELETE_WHITESPACE='[:space:]'
 STATUS_FILE=""
 CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-}"
 CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-}"
@@ -303,6 +305,7 @@ resolve_nginx_worker_identity() {
         blocked "NGINX worker group resolved to an empty value"
     case "$NGINX_WORKER_RESOLVED_GID" in
         *[!0-9]*|"") blocked "NGINX worker group resolved to an invalid gid" ;;
+        *) ;;
     esac
 }
 
@@ -439,7 +442,7 @@ project_nginx_worker_docroot() {
         2> "$LOG_DIR/docroot-projection.log"; then
         blocked "unable to prepare a worker-visible NGINX docroot projection; see $LOG_DIR/docroot-projection.log"
     fi
-    projection_path_line_count=$(wc -l < "$LOG_DIR/docroot-projection.path" | tr -d '[:space:]')
+    projection_path_line_count=$(wc -l < "$LOG_DIR/docroot-projection.path" | tr -d "$NGINX_TR_DELETE_WHITESPACE")
     case "$projection_path_line_count" in
         1) ;;
         *) blocked "NGINX docroot projection helper emitted an invalid path result" ;;
@@ -608,19 +611,24 @@ require_absolute_generated_path() {
 }
 
 canonical_generated_path() {
-    "$PYTHON_BIN" -c 'import os, sys; print(os.path.realpath(os.path.abspath(sys.argv[1])))' "$1"
+    generated_path=$1
+    "$PYTHON_BIN" -c 'import os, sys; print(os.path.realpath(os.path.abspath(sys.argv[1])))' "$generated_path"
 }
 
 generated_paths_overlap() {
-    first=$(canonical_generated_path "$1") || \
-        blocked "cannot canonicalize generated path: $1"
-    second=$(canonical_generated_path "$2") || \
-        blocked "cannot canonicalize generated path: $2"
+    generated_first_path=$1
+    generated_second_path=$2
+    first=$(canonical_generated_path "$generated_first_path") || \
+        blocked "cannot canonicalize generated path: $generated_first_path"
+    second=$(canonical_generated_path "$generated_second_path") || \
+        blocked "cannot canonicalize generated path: $generated_second_path"
     case "$first" in
         "$second"|"$second"/*) return 0 ;;
+        *) ;;
     esac
     case "$second" in
         "$first"|"$first"/*) return 0 ;;
+        *) ;;
     esac
     return 1
 }
@@ -740,6 +748,7 @@ validate_nginx_request_output_path() {
         /dev/null)
             return 0
             ;;
+        *) ;;
     esac
     if ! "$PYTHON_BIN" "$NGINX_PATH_AUTHORITY_VALIDATOR" --quiet \
         --verified-run-root "$VERIFIED_RUN_ROOT" \
@@ -884,7 +893,8 @@ require_bounded_positive_decimal() {
 }
 
 soak_category_for_case() {
-    case "$1" in
+    soak_case=$1
+    case "$soak_case" in
         allow_without_marker) printf '%s\n' benign_get ;;
         phase2_body_limits) printf '%s\n' benign_post ;;
         phase2_args_block) printf '%s\n' uri_args_attack ;;
@@ -898,8 +908,9 @@ soak_category_for_case() {
 }
 
 soak_case_selection_status() {
+    selected_soak_case=$1
     case " $NGINX_SOAK_CASES " in
-        *" $1 "*) printf '%s\n' selected ;;
+        *" $selected_soak_case "*) printf '%s\n' selected ;;
         *) printf '%s\n' not_applicable ;;
     esac
 }
@@ -907,7 +918,7 @@ soak_case_selection_status() {
 write_bounded_soak_category_selection() {
     NGINX_SOAK_CATEGORY_SUMMARY_FILE="$LOG_DIR/nginx-bounded-soak-categories.txt"
     : > "$NGINX_SOAK_CATEGORY_SUMMARY_FILE"
-    printf '%s\n' 'stage=bounded_soak' >> "$NGINX_SOAK_CATEGORY_SUMMARY_FILE"
+    printf 'stage=%s\n' "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" >> "$NGINX_SOAK_CATEGORY_SUMMARY_FILE"
     for soak_case in \
         allow_without_marker \
         phase2_body_limits \
@@ -943,7 +954,7 @@ write_bounded_soak_category_result() {
 }
 
 prepare_bounded_soak_selection() {
-    [ "$MSCONNECTOR_SMOKE_STAGE" = "bounded_soak" ] || return 0
+    [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ] || return 0
     case "$NGINX_SOAK_CASES" in
         *[!A-Za-z0-9_.\ -]*|'')
             fail "NGINX_SOAK_CASES must contain only space-separated canonical case ids"
@@ -1014,7 +1025,7 @@ run_all_cases() {
     : > "$summary_file"
     : > "$results_jsonl"
 
-    if [ "$MSCONNECTOR_SMOKE_STAGE" = "bounded_soak" ]; then
+    if [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ]; then
         write_bounded_soak_category_selection
     fi
 
@@ -1059,7 +1070,7 @@ run_all_cases() {
             case_status_upper=FAIL
             any_fail=1
         fi
-        if [ "$MSCONNECTOR_SMOKE_STAGE" = "bounded_soak" ]; then
+        if [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ]; then
             write_bounded_soak_category_result "$case_name" "$case_status"
         fi
         actual_status=""
@@ -1174,7 +1185,7 @@ validate_nginx_memcheck_mode() {
         1) ;;
         *) fail "NGINX_MEMCHECK must be exactly 0 or 1" ;;
     esac
-    [ "$MSCONNECTOR_SMOKE_STAGE" = "bounded_soak" ] || \
+    [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ] || \
         fail "NGINX_MEMCHECK=1 requires MSCONNECTOR_SMOKE_STAGE=bounded_soak"
     [ "$NGINX_PROTOCOL_PROFILE" = "h1" ] || \
         fail "NGINX_MEMCHECK=1 requires NGINX_PROTOCOL_PROFILE=h1"
@@ -1465,12 +1476,12 @@ record_nginx_memcheck_process_group() {
     nginx_memcheck_master_pid=$1
     NGINX_MEMCHECK_PROCESS_GROUP=""
     NGINX_MEMCHECK_CONTAINMENT=unverified
-    nginx_memcheck_group=$(ps -o pgid= -p "$nginx_memcheck_master_pid" 2>/dev/null | tr -d '[:space:]' || true)
-    nginx_memcheck_session=$(ps -o sid= -p "$nginx_memcheck_master_pid" 2>/dev/null | tr -d '[:space:]' || true)
-    nginx_memcheck_harness_group=$(ps -o pgid= -p "$$" 2>/dev/null | tr -d '[:space:]' || true)
-    case "$nginx_memcheck_group" in ""|*[!0-9]*) return 0 ;; esac
-    case "$nginx_memcheck_session" in ""|*[!0-9]*) return 0 ;; esac
-    case "$nginx_memcheck_harness_group" in ""|*[!0-9]*) return 0 ;; esac
+    nginx_memcheck_group=$(ps -o pgid= -p "$nginx_memcheck_master_pid" 2>/dev/null | tr -d "$NGINX_TR_DELETE_WHITESPACE" || true)
+    nginx_memcheck_session=$(ps -o sid= -p "$nginx_memcheck_master_pid" 2>/dev/null | tr -d "$NGINX_TR_DELETE_WHITESPACE" || true)
+    nginx_memcheck_harness_group=$(ps -o pgid= -p "$$" 2>/dev/null | tr -d "$NGINX_TR_DELETE_WHITESPACE" || true)
+    case "$nginx_memcheck_group" in ""|*[!0-9]*) return 0 ;; *) ;; esac
+    case "$nginx_memcheck_session" in ""|*[!0-9]*) return 0 ;; *) ;; esac
+    case "$nginx_memcheck_harness_group" in ""|*[!0-9]*) return 0 ;; *) ;; esac
     [ "$nginx_memcheck_group" = "$nginx_memcheck_session" ] || return 0
     [ "$nginx_memcheck_group" != "$nginx_memcheck_harness_group" ] || return 0
     NGINX_MEMCHECK_PROCESS_GROUP=$nginx_memcheck_group
@@ -1487,7 +1498,7 @@ record_nginx_memcheck_roles() {
     [ "$NGINX_MEMCHECK" = "1" ] || return 0
     ( umask 077; : > "$NGINX_MEMCHECK_ROLE_FILE" )
     chmod 600 "$NGINX_MEMCHECK_ROLE_FILE"
-    nginx_memcheck_master_pid=$(tr -d '[:space:]' < "$RUNTIME_PID_FILE" 2>/dev/null || true)
+    nginx_memcheck_master_pid=$(tr -d "$NGINX_TR_DELETE_WHITESPACE" < "$RUNTIME_PID_FILE" 2>/dev/null || true)
     case "$nginx_memcheck_master_pid" in
         ""|*[!0-9]*) return 0 ;;
         *)
@@ -1523,10 +1534,9 @@ record_nginx_memcheck_roles() {
 signal_nginx_memcheck_processes() {
     nginx_memcheck_signal=$1
     if [ "$NGINX_MEMCHECK_CONTAINMENT" = "isolated" ] && \
-       [ -n "$NGINX_MEMCHECK_PROCESS_GROUP" ]; then
-        if kill "-$nginx_memcheck_signal" "-$NGINX_MEMCHECK_PROCESS_GROUP" >/dev/null 2>&1; then
-            return 0
-        fi
+       [ -n "$NGINX_MEMCHECK_PROCESS_GROUP" ] && \
+       kill "-$nginx_memcheck_signal" "-$NGINX_MEMCHECK_PROCESS_GROUP" >/dev/null 2>&1; then
+        return 0
     fi
     kill "-$nginx_memcheck_signal" "$NGINX_PID" >/dev/null 2>&1
 }
@@ -2199,7 +2209,7 @@ write_bounded_soak_summary() {
     soak_summary_status=$1
     soak_server_alive=$2
     {
-        printf '%s\n' 'stage=bounded_soak'
+        printf 'stage=%s\n' "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK"
         printf 'case=%s\n' "$case_name"
         printf 'duration_seconds=%s\n' "$NGINX_SOAK_DURATION_SECONDS"
         printf 'concurrency=%s\n' "$NGINX_SOAK_CONCURRENCY"
@@ -2435,13 +2445,14 @@ rm -f "$NGINX_MEMCHECK_EVIDENCE_DIR"/valgrind.*.log
 rm -f "$NGINX_SERVER_LOG_ROOT"/audit/*
 
 case "$MSCONNECTOR_SMOKE_STAGE" in
-    config_load|start_smoke|minimal_runtime_smoke|bounded_soak) ;;
+    config_load|start_smoke|minimal_runtime_smoke) ;;
+    "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK") ;;
     *) fail "unsupported MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE" ;;
 esac
 validate_nginx_memcheck_mode
 
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ] || \
-   [ "$MSCONNECTOR_SMOKE_STAGE" = "bounded_soak" ]; then
+   [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ]; then
     CURL_BIN=$(find_curl)
 else
     CURL_BIN=
@@ -2452,7 +2463,7 @@ fi
 record_nginx_protocol_applicability
 verify_nginx_protocol_build
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ] || \
-   [ "$MSCONNECTOR_SMOKE_STAGE" = "bounded_soak" ]; then
+   [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ]; then
     [ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
     [ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
 fi
@@ -2535,12 +2546,12 @@ if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
     exit 0
 fi
 
-if [ "$MSCONNECTOR_SMOKE_STAGE" = "bounded_soak" ]; then
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ]; then
     run_bounded_soak
     if ! finalize_nginx_memcheck; then
         fail "NGINX Memcheck reported an error or incomplete diagnostic; see $NGINX_MEMCHECK_SUMMARY_TEXT"
     fi
-    echo "nginx_smoke: pass bounded_soak case=$CASE_NAME"
+    echo "nginx_smoke: pass $MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK case=$CASE_NAME"
     exit 0
 fi
 

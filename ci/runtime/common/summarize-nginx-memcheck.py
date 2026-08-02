@@ -17,7 +17,7 @@ import secrets
 import stat
 import sys
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, NamedTuple
 
 
 _CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
@@ -29,11 +29,13 @@ from runtime_path_utils import runtime_artifact_path, verified_runtime_artifact_
 
 MAX_LOG_BYTES = 4 * 1024 * 1024
 MAX_METADATA_BYTES = 64 * 1024
-LOG_NAME_RE = re.compile(r"valgrind\.(?P<pid>[0-9]+)\.log\Z")
+LOG_NAME_RE = re.compile(r"valgrind\.(?P<pid>\d+)\.log\Z", re.ASCII)
 ROLES_FILENAME = "nginx-memcheck-roles.txt"
 LIFECYCLE_FILENAME = "nginx-memcheck-lifecycle.txt"
 SUMMARY_JSON_FILENAME = "nginx-memcheck-summary.json"
 SUMMARY_TEXT_FILENAME = "nginx-memcheck-summary.txt"
+JSON_OUTPUT_LABEL = "JSON output"
+TEXT_OUTPUT_LABEL = "text output"
 ERROR_SUMMARY_RE = re.compile(r"ERROR SUMMARY:\s*(?P<count>[0-9,]+)\s+errors", re.IGNORECASE)
 LEAK_RE = {
     "definitely_lost_bytes": re.compile(
@@ -57,6 +59,35 @@ class UnsafeEvidenceError(ValueError):
     def __init__(self, reason: str, message: str) -> None:
         super().__init__(message)
         self.reason = reason
+
+
+class MetadataReadConfig(NamedTuple):
+    """Describe the bounded metadata input and its payload-free failure reasons."""
+
+    label: str
+    reason_prefix: str
+    missing_reason: str
+    invalid_reason: str
+    too_large_reason: str
+    maximum_lines: int
+
+
+ROLES_METADATA = MetadataReadConfig(
+    label="roles file",
+    reason_prefix="roles_file",
+    missing_reason="roles_file_missing",
+    invalid_reason="roles_file_invalid",
+    too_large_reason="roles_file_too_large",
+    maximum_lines=128,
+)
+LIFECYCLE_METADATA = MetadataReadConfig(
+    label="lifecycle file",
+    reason_prefix="lifecycle_file",
+    missing_reason="lifecycle_file_missing",
+    invalid_reason="lifecycle_file_invalid",
+    too_large_reason="lifecycle_file_too_large",
+    maximum_lines=64,
+)
 
 
 def parse_count(value: str) -> int:
@@ -280,26 +311,36 @@ def read_metadata(log_dir: Path, path: Path, label: str, reason_prefix: str) -> 
     return data.decode("utf-8", errors="replace"), truncated
 
 
-def parse_roles(log_dir: Path, path: Path | None) -> tuple[set[str], set[str], list[str]]:
+def read_metadata_lines(
+    log_dir: Path, path: Path | None, config: MetadataReadConfig
+) -> tuple[list[str] | None, list[str]]:
     if path is None:
-        return set(), set(), ["roles_file_missing"]
+        return None, [config.missing_reason]
     try:
-        raw_text, truncated = read_metadata(log_dir, path, "roles file", "roles_file")
+        raw_text, truncated = read_metadata(
+            log_dir, path, config.label, config.reason_prefix
+        )
     except FileNotFoundError:
-        return set(), set(), ["roles_file_missing"]
+        return None, [config.missing_reason]
     except UnsafeEvidenceError as exc:
-        return set(), set(), [exc.reason]
+        return None, [exc.reason]
     except (OSError, ValueError):
-        return set(), set(), ["roles_file_invalid"]
+        return None, [config.invalid_reason]
     if truncated:
-        return set(), set(), ["roles_file_too_large"]
+        return None, [config.too_large_reason]
+
+    raw_lines = raw_text.splitlines()
+    if len(raw_lines) > config.maximum_lines:
+        return None, [config.too_large_reason]
+    return raw_lines, []
+
+
+def parse_role_lines(raw_lines: Iterable[str]) -> tuple[set[str], set[str], list[str]]:
+    """Parse harness-controlled role lines after private bounded input validation."""
 
     masters: set[str] = set()
     workers: set[str] = set()
     reasons: list[str] = []
-    raw_lines = raw_text.splitlines()
-    if len(raw_lines) > 128:
-        return set(), set(), ["roles_file_too_large"]
     for raw_line in raw_lines:
         if not raw_line:
             continue
@@ -320,27 +361,11 @@ def parse_roles(log_dir: Path, path: Path | None) -> tuple[set[str], set[str], l
     return masters, workers, reasons
 
 
-def parse_lifecycle(log_dir: Path, path: Path | None) -> tuple[dict[str, str], list[str]]:
-    if path is None:
-        return {}, ["lifecycle_file_missing"]
-    try:
-        raw_text, truncated = read_metadata(
-            log_dir, path, "lifecycle file", "lifecycle_file"
-        )
-    except FileNotFoundError:
-        return {}, ["lifecycle_file_missing"]
-    except UnsafeEvidenceError as exc:
-        return {}, [exc.reason]
-    except (OSError, ValueError):
-        return {}, ["lifecycle_file_invalid"]
-    if truncated:
-        return {}, ["lifecycle_file_too_large"]
+def parse_lifecycle_lines(raw_lines: Iterable[str]) -> tuple[dict[str, str], list[str]]:
+    """Parse harness-controlled lifecycle lines after private bounded input validation."""
 
     values: dict[str, str] = {}
     reasons: list[str] = []
-    raw_lines = raw_text.splitlines()
-    if len(raw_lines) > 64:
-        return {}, ["lifecycle_file_too_large"]
     for raw_line in raw_lines:
         key, separator, value = raw_line.partition("=")
         if not separator or key not in {"shutdown", "wait", "wrapper_exit_code", "containment"}:
@@ -358,6 +383,24 @@ def parse_lifecycle(log_dir: Path, path: Path | None) -> tuple[dict[str, str], l
         reasons.append("wrapper_exit_status_missing")
     if values.get("containment") not in {"isolated", "unverified"}:
         reasons.append("containment_status_missing")
+    return values, reasons
+
+
+def parse_roles(log_dir: Path, path: Path | None) -> tuple[set[str], set[str], list[str]]:
+    raw_lines, reasons = read_metadata_lines(log_dir, path, ROLES_METADATA)
+    if raw_lines is None:
+        return set(), set(), reasons
+    masters, workers, parse_reasons = parse_role_lines(raw_lines)
+    reasons.extend(parse_reasons)
+    return masters, workers, reasons
+
+
+def parse_lifecycle(log_dir: Path, path: Path | None) -> tuple[dict[str, str], list[str]]:
+    raw_lines, reasons = read_metadata_lines(log_dir, path, LIFECYCLE_METADATA)
+    if raw_lines is None:
+        return {}, reasons
+    values, parse_reasons = parse_lifecycle_lines(raw_lines)
+    reasons.extend(parse_reasons)
     return values, reasons
 
 
@@ -406,13 +449,14 @@ def validate_output_target(log_dir: Path, path: Path, label: str) -> Path:
     try:
         file_stat = candidate.lstat()
     except FileNotFoundError:
-        return candidate
+        pass
     except OSError as exc:
         raise ValueError(f"{label} cannot be inspected safely") from exc
-    try:
-        validate_private_regular_file(file_stat, label, "output")
-    except UnsafeEvidenceError as exc:
-        raise ValueError(f"{label} is unsafe: {exc}") from exc
+    else:
+        try:
+            validate_private_regular_file(file_stat, label, "output")
+        except UnsafeEvidenceError as exc:
+            raise ValueError(f"{label} is unsafe: {exc}") from exc
     return candidate
 
 
@@ -477,9 +521,10 @@ def require_distinct_paths(paths: Iterable[tuple[str, Path]]) -> None:
         seen[path] = label
 
 
-def summarize(log_dir: Path, roles_file: Path | None, lifecycle_file: Path | None) -> dict[str, object]:
+def collect_log_files(log_dir: Path) -> dict[str, Path]:
+    """Collect only the harness-controlled Valgrind log filenames."""
+
     log_files: dict[str, Path] = {}
-    reasons: list[str] = []
     try:
         candidates = tuple(log_dir.iterdir())
     except OSError as exc:
@@ -489,12 +534,15 @@ def summarize(log_dir: Path, roles_file: Path | None, lifecycle_file: Path | Non
         if match is None:
             continue
         log_files[match.group("pid")] = candidate
+    return log_files
 
-    masters, workers, role_reasons = parse_roles(log_dir, roles_file)
-    lifecycle, lifecycle_reasons = parse_lifecycle(log_dir, lifecycle_file)
-    reasons.extend(role_reasons)
-    reasons.extend(lifecycle_reasons)
 
+def missing_log_reasons(
+    log_files: dict[str, Path], masters: Iterable[str], workers: Iterable[str]
+) -> list[str]:
+    """Report role evidence that has no corresponding Valgrind log."""
+
+    reasons: list[str] = []
     if not log_files:
         reasons.append("valgrind_logs_missing")
     for master_pid in masters:
@@ -503,48 +551,119 @@ def summarize(log_dir: Path, roles_file: Path | None, lifecycle_file: Path | Non
     for worker_pid in workers:
         if worker_pid not in log_files:
             reasons.append("worker_log_missing")
+    return reasons
+
+
+def parse_log_counters(text: str) -> tuple[int, dict[str, int], int, list[str]]:
+    """Extract bounded terminal counters without retaining log payloads."""
+
+    error_matches = ERROR_SUMMARY_RE.findall(text)
+    error_count = parse_count(error_matches[-1]) if error_matches else 0
+    reasons = [] if error_matches else ["valgrind_final_summary_missing"]
+    leak_counts = dict.fromkeys(LEAK_RE, 0)
+    for name, pattern in LEAK_RE.items():
+        leak_matches = pattern.findall(text)
+        if leak_matches:
+            leak_counts[name] = parse_count(leak_matches[-1])
+    return error_count, leak_counts, int(bool(error_matches)), reasons
+
+
+def unreadable_log_counters(reason: str) -> tuple[int, dict[str, int], int, int, int, list[str]]:
+    """Represent one rejected input without letting it affect trusted counters."""
+
+    return 0, dict.fromkeys(LEAK_RE, 0), 0, 0, 0, [reason]
+
+
+def read_log_counters(
+    log_dir: Path, log_path: Path
+) -> tuple[int, dict[str, int], int, int, int, list[str]]:
+    """Read one private log through the existing no-follow descriptor path."""
+
+    try:
+        text, truncated = read_tail(log_dir, log_path)
+    except FileNotFoundError:
+        return unreadable_log_counters("valgrind_log_missing")
+    except UnsafeEvidenceError as exc:
+        return unreadable_log_counters(exc.reason)
+    except (OSError, ValueError):
+        return unreadable_log_counters("valgrind_log_invalid")
+    error_count, leak_counts, final_summary_count, reasons = parse_log_counters(text)
+    return error_count, leak_counts, final_summary_count, int(truncated), 1, reasons
+
+
+def aggregate_log_counters(
+    log_dir: Path, log_files: Iterable[Path]
+) -> tuple[int, dict[str, int], int, int, int, list[str]]:
+    """Aggregate private input results while keeping each rejected reason."""
 
     error_count = 0
-    leak_counts = {name: 0 for name in LEAK_RE}
+    leak_counts = dict.fromkeys(LEAK_RE, 0)
     final_summary_count = 0
     truncated_log_inputs = 0
     private_log_inputs = 0
-    for log_path in log_files.values():
-        try:
-            text, truncated = read_tail(log_dir, log_path)
-        except FileNotFoundError:
-            reasons.append("valgrind_log_missing")
-            continue
-        except UnsafeEvidenceError as exc:
-            reasons.append(exc.reason)
-            continue
-        except (OSError, ValueError):
-            reasons.append("valgrind_log_invalid")
-            continue
-        if truncated:
-            truncated_log_inputs += 1
-        private_log_inputs += 1
-        matches = ERROR_SUMMARY_RE.findall(text)
-        if not matches:
-            reasons.append("valgrind_final_summary_missing")
-        else:
-            final_summary_count += 1
-            error_count += parse_count(matches[-1])
-        for name, pattern in LEAK_RE.items():
-            matches = pattern.findall(text)
-            if matches:
-                leak_counts[name] += parse_count(matches[-1])
+    reasons: list[str] = []
+    for log_path in log_files:
+        (
+            log_error_count,
+            log_leak_counts,
+            log_final_summary_count,
+            log_truncated_inputs,
+            log_private_inputs,
+            log_reasons,
+        ) = read_log_counters(log_dir, log_path)
+        error_count += log_error_count
+        final_summary_count += log_final_summary_count
+        truncated_log_inputs += log_truncated_inputs
+        private_log_inputs += log_private_inputs
+        reasons.extend(log_reasons)
+        for name, count in log_leak_counts.items():
+            leak_counts[name] += count
+    return (
+        error_count,
+        leak_counts,
+        final_summary_count,
+        truncated_log_inputs,
+        private_log_inputs,
+        reasons,
+    )
 
+
+def lifecycle_outcome(lifecycle: dict[str, str]) -> tuple[int, list[str]]:
+    """Convert lifecycle metadata into summary errors and incomplete reasons."""
+
+    reasons: list[str] = []
     if lifecycle.get("shutdown") != "graceful" or lifecycle.get("wait") == "timed_out":
         reasons.append("graceful_shutdown_incomplete")
     if lifecycle.get("containment") != "isolated":
         reasons.append("process_group_unverified")
     wrapper_exit_code = lifecycle.get("wrapper_exit_code")
+    if wrapper_exit_code == "99":
+        return 1, reasons
     if wrapper_exit_code and wrapper_exit_code != "0":
-        if wrapper_exit_code == "99":
-            error_count += 1
-        else:
-            reasons.append("wrapper_exit_nonzero")
+        reasons.append("wrapper_exit_nonzero")
+    return 0, reasons
+
+
+def summarize(log_dir: Path, roles_file: Path | None, lifecycle_file: Path | None) -> dict[str, object]:
+    log_files = collect_log_files(log_dir)
+
+    masters, workers, role_reasons = parse_roles(log_dir, roles_file)
+    lifecycle, lifecycle_metadata_reasons = parse_lifecycle(log_dir, lifecycle_file)
+    (
+        error_count,
+        leak_counts,
+        final_summary_count,
+        truncated_log_inputs,
+        private_log_inputs,
+        log_reasons,
+    ) = aggregate_log_counters(log_dir, log_files.values())
+    lifecycle_error_count, lifecycle_status_reasons = lifecycle_outcome(lifecycle)
+    reasons = missing_log_reasons(log_files, masters, workers)
+    reasons.extend(role_reasons)
+    reasons.extend(lifecycle_metadata_reasons)
+    reasons.extend(log_reasons)
+    reasons.extend(lifecycle_status_reasons)
+    error_count += lifecycle_error_count
 
     errors_detected = bool(
         error_count
@@ -586,15 +705,15 @@ def main() -> int:
             (
                 ("roles file", roles_file),
                 ("lifecycle file", lifecycle_file),
-                ("JSON output", output),
-                ("text output", text_output),
+                (JSON_OUTPUT_LABEL, output),
+                (TEXT_OUTPUT_LABEL, text_output),
             )
         )
-        validate_output_target(log_dir, output, "JSON output")
-        validate_output_target(log_dir, text_output, "text output")
+        validate_output_target(log_dir, output, JSON_OUTPUT_LABEL)
+        validate_output_target(log_dir, text_output, TEXT_OUTPUT_LABEL)
         summary = summarize(log_dir, roles_file, lifecycle_file)
-        atomic_write(log_dir, output, "JSON output", write_json, summary)
-        atomic_write(log_dir, text_output, "text output", write_text, summary)
+        atomic_write(log_dir, output, JSON_OUTPUT_LABEL, write_json, summary)
+        atomic_write(log_dir, text_output, TEXT_OUTPUT_LABEL, write_text, summary)
     except (OSError, ValueError) as exc:
         print(f"nginx memcheck summary rejected input: {exc}", file=sys.stderr)
         return 2

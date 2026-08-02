@@ -21,7 +21,8 @@ NO_CRS_BASELINE = ROOT / "ci" / "runtime" / "lifecycle" / "run-no-crs-baseline.s
 NATIVE_FIRST_BYTE = ROOT / "ci" / "runtime" / "lifecycle" / "run-native-first-byte.sh"
 
 SPEC = importlib.util.spec_from_file_location("nginx_docroot_projection", PROJECTOR_PATH)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 projection = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = projection
 SPEC.loader.exec_module(projection)
@@ -88,6 +89,10 @@ class NginxDocrootProjectionTest(unittest.TestCase):
         parent = Path("/worker-visible/projections")
         projection_root = parent / "docroot-unit-nonce"
         directory_metadata = SimpleNamespace(st_mode=stat.S_IFDIR | 0o700)
+        worker_gid = os.getegid()
+        avoid_roots = [private_root]
+        different_parent_root = Path("/different-parent/registered")
+        hidden_projection_root = parent / ".hidden"
 
         with mock.patch.object(projection, "validate_source_docroot"):
             with self.assertRaisesRegex(ValueError, "explicit safe parent and fresh root"):
@@ -96,8 +101,8 @@ class NginxDocrootProjectionTest(unittest.TestCase):
                     private_root=private_root,
                     projection_parent=None,
                     projection_root=projection_root,
-                    worker_gid=os.getegid(),
-                    avoid_roots=[private_root],
+                    worker_gid=worker_gid,
+                    avoid_roots=avoid_roots,
                 )
             with self.assertRaisesRegex(ValueError, "explicit safe parent and fresh root"):
                 projection.prepare_projection(
@@ -105,8 +110,8 @@ class NginxDocrootProjectionTest(unittest.TestCase):
                     private_root=private_root,
                     projection_parent=parent,
                     projection_root=None,
-                    worker_gid=os.getegid(),
-                    avoid_roots=[private_root],
+                    worker_gid=worker_gid,
+                    avoid_roots=avoid_roots,
                 )
 
         with (
@@ -122,8 +127,8 @@ class NginxDocrootProjectionTest(unittest.TestCase):
                 private_root=private_root,
                 projection_parent=parent,
                 projection_root=projection_root,
-                worker_gid=os.getegid(),
-                avoid_roots=[private_root],
+                worker_gid=worker_gid,
+                avoid_roots=avoid_roots,
             )
 
         self.assertEqual(result, projection_root)
@@ -135,24 +140,27 @@ class NginxDocrootProjectionTest(unittest.TestCase):
                     source_docroot=source_docroot,
                     private_root=private_root,
                     projection_parent=parent,
-                    projection_root=Path("/different-parent/registered"),
-                    worker_gid=os.getegid(),
-                    avoid_roots=[private_root],
+                    projection_root=different_parent_root,
+                    worker_gid=worker_gid,
+                    avoid_roots=avoid_roots,
                 )
             with self.assertRaisesRegex(ValueError, "unsafe"):
                 projection.prepare_projection(
                     source_docroot=source_docroot,
                     private_root=private_root,
                     projection_parent=parent,
-                    projection_root=parent / ".hidden",
-                    worker_gid=os.getegid(),
-                    avoid_roots=[private_root],
+                    projection_root=hidden_projection_root,
+                    worker_gid=worker_gid,
+                    avoid_roots=avoid_roots,
                 )
 
     def test_overlap_is_rejected_before_any_fresh_child_is_created(self) -> None:
         private_root = Path("/private/build")
         source_docroot = private_root / "runtime" / "htdocs"
         overlapping_parent = private_root / "worker-visible"
+        rejected_projection_root = Path("/private/build/worker-visible/docroot")
+        worker_gid = os.getegid()
+        avoid_roots = [private_root]
 
         with (
             mock.patch.object(projection, "validate_source_docroot"),
@@ -164,9 +172,9 @@ class NginxDocrootProjectionTest(unittest.TestCase):
                     source_docroot=source_docroot,
                     private_root=private_root,
                     projection_parent=overlapping_parent,
-                    projection_root=Path("/private/build/worker-visible/docroot"),
-                    worker_gid=os.getegid(),
-                    avoid_roots=[private_root],
+                    projection_root=rejected_projection_root,
+                    worker_gid=worker_gid,
+                    avoid_roots=avoid_roots,
                 )
         mkdir.assert_not_called()
 

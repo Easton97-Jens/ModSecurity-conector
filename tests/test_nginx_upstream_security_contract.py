@@ -83,7 +83,9 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertIn("ctx->intervention_triggered = 1;", request_failure)
         self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", request_failure)
 
-        response = function_definition(self.body, "ngx_http_modsecurity_body_filter")
+        response = function_definition(
+            self.body, "ngx_http_modsecurity_process_final_response_body"
+        )
         response_assignment = response.index("ret = msc_process_response_body")
         response_failure = conditional_block(response, "if (ret != 1)", response_assignment)
         self.assertIn("ctx->intervention_triggered = 1;", response_failure)
@@ -149,23 +151,36 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
                 self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", negative)
 
         header_filter = function_definition(self.header, "ngx_http_modsecurity_header_filter")
-        intervention = header_filter.index("ret = ngx_http_modsecurity_process_intervention")
-        negative = conditional_block(header_filter, "if (ret < 0)", intervention)
+        self.assertIn(
+            "ngx_http_modsecurity_handle_response_header_intervention(r, ctx,",
+            header_filter,
+        )
+        header_intervention = function_definition(
+            self.header, "ngx_http_modsecurity_handle_response_header_intervention"
+        )
+        negative = conditional_block(header_intervention, "if (ret < 0)")
         self.assertIn("ctx->intervention_triggered = 1;", negative)
         self.assertIn("return NGX_ERROR;", negative)
         self.assertNotIn("ngx_http_filter_finalize_request", negative)
 
         body_filter = function_definition(self.body, "ngx_http_modsecurity_body_filter")
-        intervention = body_filter.index("ret = ngx_http_modsecurity_process_intervention")
-        for marker in ("if (ret < 0)", "if (ret > 0)"):
-            with self.subTest(phase4_branch=marker):
-                phase4 = conditional_block(body_filter, marker, intervention)
-                self.assertIn(
-                    "ngx_http_modsecurity_phase4_handle_intervention(r, mcf)", phase4
-                )
-                self.assertNotRegex(
-                    phase4, re.compile(r"ngx_http_filter_finalize_request\s*\(")
-                )
+        self.assertIn("ngx_http_modsecurity_process_final_response_body", body_filter)
+        body_intervention = function_definition(
+            self.body, "ngx_http_modsecurity_process_final_response_body"
+        )
+        normal_intervention = conditional_block(body_intervention, "if (ret == 0)")
+        self.assertIn("return NGX_OK;", normal_intervention)
+        self.assertIn(
+            "ngx_http_modsecurity_phase4_handle_intervention(r, mcf)",
+            body_intervention,
+        )
+        phase4_intervention = body_intervention[
+            body_intervention.index("ctx->phase4_intervention = 1;") :
+        ]
+        self.assertNotRegex(
+            phase4_intervention,
+            re.compile(r"ngx_http_filter_finalize_request\s*\("),
+        )
 
     def test_precommit_redirect_is_atomic_and_replaces_the_old_body(self) -> None:
         redirect = function_definition(
@@ -200,11 +215,17 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             redirect.index("ctx->intervention_redirect_location_installed = 1;"),
         )
         header_filter = function_definition(self.header, "ngx_http_modsecurity_header_filter")
-        positive_intervention = conditional_block(
-            header_filter,
-            "if (ret > 0)",
-            header_filter.index("ret = ngx_http_modsecurity_process_intervention"),
+        header_intervention = function_definition(
+            self.header, "ngx_http_modsecurity_handle_response_header_intervention"
         )
+        normal_intervention = conditional_block(
+            header_intervention,
+            "if (ret == 0)",
+        )
+        self.assertIn("return ngx_http_next_header_filter(r);", normal_intervention)
+        positive_intervention = header_intervention[
+            header_intervention.index("mcf = ngx_http_get_module_loc_conf") :
+        ]
         redirect_branch = conditional_block(
             positive_intervention,
             "if (ctx->intervention_redirect_location_installed &&",
@@ -226,23 +247,33 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             ),
         )
         self.assertNotIn("return ngx_http_filter_finalize_request", redirect_branch)
-        self.assertIn(
-            "return ngx_http_filter_finalize_request(r, &ngx_http_modsecurity_module, ret);",
+        self.assertRegex(
             positive_intervention,
+            re.compile(
+                r"return ngx_http_filter_finalize_request\(r,\s*"
+                r"&ngx_http_modsecurity_module,\s*ret\);"
+            ),
         )
         self.assertNotIn(
             "if (r->headers_out.location != NULL)", positive_intervention
         )
 
         body_filter = function_definition(self.body, "ngx_http_modsecurity_body_filter")
+        replacement_drain = function_definition(
+            self.body, "ngx_http_modsecurity_discard_replaced_response_body"
+        )
         response_replaced = conditional_block(body_filter, "if (ctx->response_replaced)")
         self.assertLess(
             body_filter.index("if (ctx->response_replaced)"),
             body_filter.index("if (ctx->intervention_triggered)"),
         )
         self.assertRegex(
-            response_replaced,
+            replacement_drain,
             re.compile(r"\w+->buf->pos\s*=\s*\w+->buf->last;"),
+        )
+        self.assertIn(
+            "ngx_http_modsecurity_discard_replaced_response_body(in);",
+            response_replaced,
         )
         self.assertIn("return ngx_http_next_body_filter(r, in);", response_replaced)
 

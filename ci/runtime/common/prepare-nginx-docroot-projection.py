@@ -47,7 +47,7 @@ def require_no_symlink_directory(path: Path, label: str) -> None:
         current /= component
         try:
             metadata = current.lstat()
-        except FileNotFoundError as exc:
+        except FileNotFoundError:
             fail(f"{label} component is missing: {current}")
         if stat.S_ISLNK(metadata.st_mode):
             fail(f"{label} contains a symbolic link: {current}")

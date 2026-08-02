@@ -484,6 +484,100 @@ ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
         "phase3");
 }
 
+static void
+ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx)
+{
+    ngx_list_part_t *part = &r->headers_out.headers.part;
+    ngx_table_elt_t *data = part->elts;
+    ngx_uint_t i;
+
+    for (i = 0; ngx_http_modsecurity_headers_out[i].name.len; i++) {
+        dd(" Sending header to ModSecurity - header: `%.*s'.",
+            (int) ngx_http_modsecurity_headers_out[i].name.len,
+            ngx_http_modsecurity_headers_out[i].name.data);
+
+        if (ngx_http_modsecurity_headers_out[i].resolver(r,
+                ngx_http_modsecurity_headers_out[i].name,
+                ngx_http_modsecurity_headers_out[i].offset) != 1) {
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                "ModSecurity: failed to add synthetic response header for inspection");
+        }
+    }
+
+    for (i = 0; ; i++) {
+        if (i >= part->nelts) {
+            if (part->next == NULL) {
+                break;
+            }
+
+            part = part->next;
+            data = part->elts;
+            i = 0;
+        }
+
+#if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
+        ngx_http_modsecurity_store_ctx_header(r, &data[i].key, &data[i].value);
+#endif
+
+        /* Doing this ugly cast here, explanation on the request header. */
+        if (msc_add_n_response_header(ctx->modsec_transaction,
+                (const unsigned char *) data[i].key.data,
+                data[i].key.len,
+                (const unsigned char *) data[i].value.data,
+                data[i].value.len) != 1) {
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                "ModSecurity: failed to add response header for inspection");
+        }
+    }
+}
+
+static ngx_int_t
+ngx_http_modsecurity_handle_response_header_intervention(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, ngx_uint_t status, int ret)
+{
+    ngx_http_modsecurity_conf_t *mcf;
+    const char *wanted;
+
+    if (ret < 0) {
+        /* A disruptive intervention can no longer be materialized safely
+         * after headers have committed.  Do not pass it through as an allow
+         * and do not synthesize a second response. */
+        ctx->intervention_triggered = 1;
+        return NGX_ERROR;
+    }
+    if (r->error_page) {
+        return ngx_http_next_header_filter(r);
+    }
+    if (ret == 0) {
+        return ngx_http_next_header_filter(r);
+    }
+
+    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    wanted = ctx->last_intervention_status >= 300 &&
+        ctx->last_intervention_status < 400 ? "redirect" : "deny";
+    if (ngx_http_modsecurity_phase3_log_event(r, mcf, (int) status,
+            wanted, wanted) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    ctx->intervention_triggered = 1;
+    if (ctx->intervention_redirect_location_installed &&
+        r->headers_out.location != NULL) {
+        /* Only the redirect helper's connector-owned Location denotes a
+         * response replacement.  A status-only intervention may retain an
+         * upstream Location and must use finalization, which cleans that
+         * pending response's headers. */
+        ctx->response_replaced = 1;
+        r->headers_out.status = ret;
+        ngx_str_null(&r->headers_out.status_line);
+        r->headers_out.content_length_n = 0;
+        r->header_only = 1;
+        return ngx_http_next_header_filter(r);
+    }
+    return ngx_http_filter_finalize_request(r, &ngx_http_modsecurity_module,
+        ret);
+}
+
 ngx_int_t
 ngx_http_modsecurity_header_filter_init(void)
 {
@@ -498,15 +592,10 @@ ngx_int_t
 ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
 {
     ngx_http_modsecurity_ctx_t *ctx;
-    ngx_list_part_t *part = &r->headers_out.headers.part;
-    ngx_table_elt_t *data = part->elts;
-    ngx_uint_t i = 0;
     int ret = 0;
     ngx_uint_t status;
     char *http_response_ver;
     ngx_pool_t *old_pool;
-    ngx_http_modsecurity_conf_t *mcf;
-    const char *wanted;
 
 
 /* XXX: if NOT_MODIFIED, do we need to process it at all?  see xslt_header_filter() */
@@ -557,49 +646,7 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
      * checked. Other module(s) in the chain may added some content to it.
      *
      */
-    for (i = 0; ngx_http_modsecurity_headers_out[i].name.len; i++)
-    {
-        dd(" Sending header to ModSecurity - header: `%.*s'.",
-            (int) ngx_http_modsecurity_headers_out[i].name.len,
-            ngx_http_modsecurity_headers_out[i].name.data);
-
-        if (ngx_http_modsecurity_headers_out[i].resolver(r,
-                ngx_http_modsecurity_headers_out[i].name,
-                ngx_http_modsecurity_headers_out[i].offset) != 1) {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                "ModSecurity: failed to add synthetic response header for inspection");
-        }
-    }
-
-    for (i = 0 ;; i++)
-    {
-        if (i >= part->nelts)
-        {
-            if (part->next == NULL) {
-                break;
-            }
-
-            part = part->next;
-            data = part->elts;
-            i = 0;
-        }
-
-#if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
-        ngx_http_modsecurity_store_ctx_header(r, &data[i].key, &data[i].value);
-#endif
-
-        /*
-         * Doing this ugly cast here, explanation on the request_header
-         */
-        if (msc_add_n_response_header(ctx->modsec_transaction,
-                (const unsigned char *) data[i].key.data,
-                data[i].key.len,
-                (const unsigned char *) data[i].value.data,
-                data[i].value.len) != 1) {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                "ModSecurity: failed to add response header for inspection");
-        }
-    }
+    ngx_http_modsecurity_add_response_headers(r, ctx);
 
     /* prepare extra paramters for msc_process_response_headers() */
     if (r->err_status) {
@@ -627,43 +674,6 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
     ctx->response_headers_seen = 1;
     ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r, 0);
-    if (ret < 0) {
-        /* A disruptive intervention can no longer be materialized safely
-         * after headers have committed.  Do not pass it through as an allow
-         * and do not synthesize a second response. */
-        ctx->intervention_triggered = 1;
-        return NGX_ERROR;
-    }
-    if (r->error_page) {
-        return ngx_http_next_header_filter(r);
-    }
-    if (ret > 0) {
-        mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
-        wanted = ctx->last_intervention_status >= 300 &&
-            ctx->last_intervention_status < 400 ? "redirect" : "deny";
-        if (ngx_http_modsecurity_phase3_log_event(r, mcf, (int)status,
-                wanted, wanted) != NGX_OK) {
-            return NGX_ERROR;
-        }
-        ctx->intervention_triggered = 1;
-        if (ctx->intervention_redirect_location_installed &&
-            r->headers_out.location != NULL) {
-            /* Only the redirect helper's connector-owned Location denotes a
-             * response replacement.  A status-only intervention may retain
-             * an upstream Location and must use finalization, which cleans
-             * that pending response's headers. */
-            ctx->response_replaced = 1;
-            r->headers_out.status = ret;
-            ngx_str_null(&r->headers_out.status_line);
-            r->headers_out.content_length_n = 0;
-            r->header_only = 1;
-            return ngx_http_next_header_filter(r);
-        }
-        return ngx_http_filter_finalize_request(r, &ngx_http_modsecurity_module, ret);
-    }
-
-    /* Preserve the upstream Content-Length; this filter does not rewrite
-     * response framing. */
-
-    return ngx_http_next_header_filter(r);
+    return ngx_http_modsecurity_handle_response_header_intervention(r, ctx,
+        status, ret);
 }

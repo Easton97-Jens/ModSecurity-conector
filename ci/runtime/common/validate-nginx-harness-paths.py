@@ -68,6 +68,84 @@ def validate_existing_private_directory(label: str, candidate: Path) -> Path:
     return verified_runtime_artifact_root(normalized)
 
 
+def parse_direct_child_spec(values: list[str], option: str) -> tuple[str, str, str]:
+    if len(values) != 3:
+        raise ValueError(f"{option} requires LABEL PATH PARENT")
+    return values[0], values[1], values[2]
+
+
+def authorize_directories(
+    verified_root: Path,
+    raw_specs: list[list[str]],
+    authorized: list[tuple[str, Path]],
+) -> None:
+    for raw_spec in raw_specs:
+        label, candidate = parse_path_spec(raw_spec, "--directory")
+        validated = runtime_artifact_path(verified_root, candidate, label)
+        # The descriptor-safe helper has already verified every ancestor.
+        # Creating the final directory only occurs below verified_root.
+        verified_runtime_artifact_root(validated)
+        authorized.append((label, validated))
+
+
+def authorize_paths(
+    verified_root: Path,
+    raw_specs: list[list[str]],
+    authorized: list[tuple[str, Path]],
+) -> None:
+    for raw_spec in raw_specs:
+        label, candidate = parse_path_spec(raw_spec, "--path")
+        authorized.append(
+            (label, runtime_artifact_path(verified_root, candidate, label))
+        )
+
+
+def authorize_direct_children(
+    verified_root: Path,
+    raw_specs: list[list[str]],
+    authorized: list[tuple[str, Path]],
+) -> None:
+    for raw_spec in raw_specs:
+        label, raw_candidate, raw_parent = parse_direct_child_spec(
+            raw_spec, "--direct-child"
+        )
+        parent = runtime_artifact_path(
+            verified_root, Path(raw_parent), f"{label} parent"
+        )
+        verified_runtime_artifact_root(parent)
+        validate_direct_child(parent, label, Path(raw_candidate))
+        authorized.append((label, Path(raw_candidate)))
+
+
+def authorize_existing_private_directories(
+    raw_specs: list[list[str]],
+    authorized: list[tuple[str, Path]],
+) -> None:
+    for raw_spec in raw_specs:
+        label, candidate = parse_path_spec(raw_spec, "--existing-private-directory")
+        authorized.append(
+            (label, validate_existing_private_directory(label, candidate))
+        )
+
+
+def authorize_existing_direct_children(
+    raw_specs: list[list[str]],
+    authorized: list[tuple[str, Path]],
+) -> None:
+    for raw_spec in raw_specs:
+        label, raw_candidate, raw_parent = parse_direct_child_spec(
+            raw_spec, "--existing-direct-child"
+        )
+        parent = validate_existing_private_directory(
+            f"{label} parent", Path(raw_parent)
+        )
+        candidate = Path(raw_candidate)
+        validate_direct_child(parent, label, candidate)
+        if candidate.exists() or candidate.is_symlink():
+            raise ValueError(f"{label} must be a fresh non-symlink child")
+        authorized.append((label, candidate))
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--verified-run-root", required=True, type=Path)
@@ -120,39 +198,13 @@ def main() -> int:
     try:
         verified_root = verified_runtime_artifact_root(args.verified_run_root)
         authorized: list[tuple[str, Path]] = []
-        for raw_spec in args.directory:
-            label, candidate = parse_path_spec(raw_spec, "--directory")
-            validated = runtime_artifact_path(verified_root, candidate, label)
-            # The descriptor-safe helper has already verified every ancestor.
-            # Creating the final directory only occurs below verified_root.
-            verified_runtime_artifact_root(validated)
-            authorized.append((label, validated))
-        for raw_spec in args.path:
-            label, candidate = parse_path_spec(raw_spec, "--path")
-            authorized.append((label, runtime_artifact_path(verified_root, candidate, label)))
-        for raw_spec in args.direct_child:
-            if len(raw_spec) != 3:
-                raise ValueError("--direct-child requires LABEL PATH PARENT")
-            label, raw_candidate, raw_parent = raw_spec
-            parent = runtime_artifact_path(verified_root, Path(raw_parent), f"{label} parent")
-            verified_runtime_artifact_root(parent)
-            validate_direct_child(parent, label, Path(raw_candidate))
-            authorized.append((label, Path(raw_candidate)))
-        for raw_spec in args.existing_private_directory:
-            label, candidate = parse_path_spec(raw_spec, "--existing-private-directory")
-            authorized.append((label, validate_existing_private_directory(label, candidate)))
-        for raw_spec in args.existing_direct_child:
-            if len(raw_spec) != 3:
-                raise ValueError("--existing-direct-child requires LABEL PATH PARENT")
-            label, raw_candidate, raw_parent = raw_spec
-            parent = validate_existing_private_directory(
-                f"{label} parent", Path(raw_parent)
-            )
-            candidate = Path(raw_candidate)
-            validate_direct_child(parent, label, candidate)
-            if candidate.exists() or candidate.is_symlink():
-                raise ValueError(f"{label} must be a fresh non-symlink child")
-            authorized.append((label, candidate))
+        authorize_directories(verified_root, args.directory, authorized)
+        authorize_paths(verified_root, args.path, authorized)
+        authorize_direct_children(verified_root, args.direct_child, authorized)
+        authorize_existing_private_directories(
+            args.existing_private_directory, authorized
+        )
+        authorize_existing_direct_children(args.existing_direct_child, authorized)
     except (OSError, ValueError) as exc:
         print(f"nginx harness path authority rejected: {exc}", file=sys.stderr)
         return 2
