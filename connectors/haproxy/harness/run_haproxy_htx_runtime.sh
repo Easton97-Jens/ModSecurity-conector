@@ -352,6 +352,12 @@ run_case() {
                     --observed-status "$status" --host-action enforced_reply
             fi
             ;;
+        forwarded)
+            if [ "$case_name" != allow ]; then
+                echo "haproxy_htx_runtime: FAIL - only the explicit allow control may be forwarded" >&2
+                exit 1
+            fi
+            ;;
         *)
             echo "haproxy_htx_runtime: FAIL - unsupported host action: $host_action" >&2
             exit 1
@@ -385,6 +391,7 @@ run_phase4_safe_barrier() {
     # client-first-byte observation a real host boundary rather than a
     # post-response fixture check.
     "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve \
+        --control-root "$case_root" \
         --ready-file "$ready_file" --paused-file "$paused_file" \
         --release-file "$release_file" --server-evidence-file "$server_evidence_file" \
         --timeout 10 >"$case_root/synchronized-upstream.stdout.log" \
