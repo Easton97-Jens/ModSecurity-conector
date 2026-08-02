@@ -105,6 +105,14 @@ typedef struct {
     unsigned processed:1;
     unsigned logged:1;
     unsigned intervention_triggered:1;
+    /* Set only after the redirect helper installs a connector-owned Location.
+     * A pre-existing upstream Location must not be mistaken for a ModSecurity
+     * response replacement when a status-only intervention is finalized. */
+    unsigned intervention_redirect_location_installed:1;
+    /* A pre-commit Phase-3 redirect replaced the prepared upstream response.
+     * The body filter must drain, rather than forward or inspect, its old
+     * response chain.  This is deliberately separate from Phase-4 state. */
+    unsigned response_replaced:1;
     unsigned request_body_processed:1;
     unsigned phase4_headers_checked:1;
     unsigned response_headers_seen:1;

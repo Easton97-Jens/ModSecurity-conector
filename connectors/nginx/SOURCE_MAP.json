@@ -14,6 +14,136 @@
       "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377",
       "commit": "3d72b004ff27a78ea19c6b945870e2cae62a97ac",
       "reason": "Phase-4 / RESPONSE_BODY late-intervention handling for the NGINX connector."
+    },
+    "pr384": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/384",
+      "commit": "65de4cd8739209f22d924d85548bd012a4d94607",
+      "reason": "Selective request/response body and intervention hardening: retain nonfatal ProcessPartial append/from-file handling while failing closed on unambiguous final processing and unsafe intervention failures."
+    },
+    "pr385": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/385",
+      "commit": "471a2a54843bb8f560758a7e75b146db2243ab29",
+      "reason": "Selective response-header/protocol fidelity and pre-commit redirect replacement handling, including draining the replaced upstream body."
+    },
+    "pr386": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/386",
+      "commit": "a7fd4fcc18dc442b1b093d253f457b9317b7f588",
+      "reason": "Selective header-registration visibility, empty address handling, and terminal response-body-loop hardening."
+    }
+  },
+  "upstream_intake": {
+    "pr387": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/387",
+      "commit": "4c1f0362ca0f25ef216ce59cad5fa6c9703c1438",
+      "selection": "Selective test-design input implemented as a Parent-owned opt-in bounded native soak (make soak-nginx) and H1 Memcheck diagnostic (make memcheck-nginx) through the existing harness, outside default smoke/test/CI with bounded payload-free summaries. The source-controlled soak selector permits from one to eight unique IDs from its explicit canonical catalog and rejects empty, duplicate, or noncatalog selections before case discovery. No upstream Dockerfile, workflow, Valgrind/Helgrind configuration, or soak tool is imported here. The retained direct H1 post-suppression artifact is pre-hardening and noncanonical historical evidence, not final proof; the separate retained remediation receipt below is direct H1 harness/evidence-boundary evidence only and uses a pre-current-C artifact. No canonical Memcheck, Helgrind, or soak result is asserted."
+    }
+  },
+  "parent_remediations": {
+    "phase4_content_type_ingestion": {
+      "finding": "FND-PARENT-0080",
+      "status": "validated_current_master_task_fix_pending_final_exact_head_proof",
+      "reason": "The canonical Parent finding remains validated because current master retains the pre-task Phase-4 behavior. The task worktree restores bounded response-byte ingestion into ModSecurity irrespective of configured connector Content-Type scope. A detected out-of-scope intervention maps to log_only with reason content_type_not_in_scope. The selected PR #384 final response-processing check remains fail-closed when it returns != 1, and the Safe/Strict action model is retained.",
+      "observed_validation": "The strict isolated rebuild and C17, C23, and c2y passed; the newly materialized task build-source SHA matched the task filter, and the selected native no-CRS/no-MRTS H1 out-of-scope case passed. These task-worktree observations do not close the canonical finding; final integrated current-head proof remains pending."
+    },
+    "phase3_redirect_replacement_hardening": {
+      "scope": "parent_only_task_worktree",
+      "status": "remediation_present_prior_c_build_validated_final_evidence_pending",
+      "reason": "A Phase-3 response replacement requires intervention_redirect_location_installed, set only after the connector redirect helper installs its own Location. A pre-existing upstream Location on a status-only intervention is finalized instead of treated as a response replacement. Redirect URL CR or LF fails closed with NGX_HTTP_BAD_REQUEST before response-buffer allocation or Location installation.",
+      "validation_limit": "The retained direct-H1 remediation receipt validates the harness/evidence boundary only and uses a pre-current-C NGINX diagnostic artifact; it does not execute current C redirect behavior. A separate fresh C build validated prior C code, but neither is HTTP/2, HTTP/3, final security-scan, pull-request, or delivery proof."
+    },
+    "direct_nginx_harness_evidence_integrity": {
+      "scope": "parent_only_task_worktree",
+      "status": "passed_noncanonical_diagnostic_prior_c_build_validated_final_promotion_evidence_pending",
+      "root_run_worker_identity": "The direct harness requires root execution and fails closed unless root resolves and verifies NGINX_WORKER_USER as a distinct local account, resolves its group, and renders user <resolved-user> <resolved-group>; in generated NGINX configuration.",
+      "output_ownership": "Root owns private runtime/harness material and LOG_DIR, including NGINX_PHASE4_LOG_FILE and NGINX_MEMCHECK_EVIDENCE_DIR below LOG_DIR/memcheck-evidence/<case>. Only the separate worker-state and server-logs trees below the worker-traversable harness root carry worker-owned state and server access/error/audit leaves. The opt-in worker-visible docroot projection is a separate root-owned static boundary, not worker-owned harness output.",
+      "memcheck_evidence_trust": "The summarizer trusts clean evidence only from effective-UID-owned, group/other-nonwritable real root and parent directories. Metadata, logs, and outputs are direct children; inputs are private single-link regular files opened with no-follow protection and checked for replacement while read. Unsafe evidence is rejected or marked incomplete, never clean.",
+      "post_remediation_direct_h1_receipt": {
+        "path": "$RUN/evidence/direct-nginx-h1-memcheck-evidence-remediation-20260801.md",
+        "sha256": "37f01fe3d1851d43ae21d2b705b02bf01f204ff5cb19b41354e5b801a4b158a8",
+        "status": "passed_noncanonical_diagnostic",
+        "scope": "One allow_without_marker no-CRS H1 case, three seconds, one client worker, NGINX_MEMCHECK=1, and deliberate umask 022.",
+        "isolation": "The root-run harness used the distinct verified local nobody worker. The private output root was root-owned mode 0700; only registered worker-state and server-log leaves were mode 0700 and owned by nobody:nogroup. Negative traversal checks on private harness logs and Memcheck evidence failed as required.",
+        "result": "Harness exit 0; 28 requests, zero request failures, zero worker-summary failures, server alive, clean complete summary, error_count 0, definitely_lost_bytes 0, and indirectly_lost_bytes 0. The summarizer accepted two private Valgrind inputs and wrote role, lifecycle, JSON, and text outputs mode 0600 despite umask 022.",
+        "artifact_limit": "The executable and module came from the retained SHA-verified NGINX 1.31.2 diagnostic artifact, not current uncompiled C redirect changes."
+      },
+      "validation_limit": "This is direct runtime evidence for the remediated harness/evidence boundary, but it is noncanonical and uses a pre-current-C artifact. A separate fresh C build validated prior C code; exact final security scan and final PR-head CI/Sonar validation remain required."
+    },
+    "nginx_harness_output_path_authority": {
+      "finding": "FND-PARENT-0084",
+      "scope": "parent_only_task_worktree",
+      "status": "validated_finding_task_remediation_in_progress",
+      "security_invariant": "Environment-provided generic/private output and work paths are location hints only; every root-harness mutation target must validate as a strict descendant of VERIFIED_RUN_ROOT before mkdir, install, chown, chmod, rm, or output redirection. The only narrow exception is an opt-in trusted-caller-supplied external worker-visible docroot projection parent, which receives no generic harness mutation.",
+      "coverage": "Bootstrap parent, parent multi-case roots, and per-case generic/private work/output roots are gated. Configurable diagnostic, worker-preflight, protocol-artifact, lifecycle-evidence, and curl response/error output paths pass through the same authority validation. /dev/null is the explicit internal bounded-soak-only sink.",
+      "docroot_projection_exception": "Only NGINX_DOCROOT_PROJECTION=1 may use a trusted-caller-supplied NGINX_DOCROOT_PROJECTION_PARENT outside private runtime roots. The harness does not look up or enforce lifecycle-manifest registration for either projection value. The parent must already exist, be root-owned, symlink-free, group/other-nonwritable and non-readable, and worker-traversable in a 0711-safe form with traversable ancestors. NGINX_DOCROOT_PROJECTION_ROOT must be an exact fresh direct child. The projection helper validates but does not create, chown, or chmod the external parent; it creates only the direct child, copies the allowlisted static files, and makes that child worker-traversable.",
+      "receipt": {
+        "path": "$RUN/evidence/nginx-harness-path-authority-remediation-20260801.md",
+        "sha256": "e1b09454d3dc823b78d83bdae960d431951b432cad57aa05df4434a8bd905c7b",
+        "negative_control": "Real parent multi-case RUN_ONE_CASE=0 invocation with a private verified root and LOG_DIR=/etc exited 77 before normal runtime assertion.",
+        "host_preservation": "/etc was mode 0755 owner/group 0:0 immediately before and after; no system output, NGINX process, or listener was created.",
+        "focused_validation": "tests.test_nginx_harness_path_authority passed 5/5, covering out-of-root LOG_DIR and RESULTS_DIR, sibling/symlink escapes, and an in-root positive control."
+      },
+      "validation_limit": "The retained /etc receipt covers the generic/private output-path authority boundary, not canonical runtime or the new external projection exception. The trusted PYTHON/PATH launch model remains an operator/CI assumption outside this finding. Canonical runtime remains blocked. A fresh C build validates prior C code, not this shell-harness authority control; final security-scan and PR-head evidence remain pending."
+    },
+    "canonical_lifecycle_containment": {
+      "finding": "FND-PARENT-0078",
+      "status": "in_progress",
+      "reason": "Canonical lifecycle containment and the narrow worker-visible docroot projection remain in progress. The source path permits only a trusted-caller-supplied external parent and exact fresh child outside private roots; it does not authorize generic harness output there or enforce lifecycle-manifest registration. No canonical runtime-smoke, soak, Memcheck, H2/H3, remote-CI, SonarQube, pull-request, or delivery success is asserted."
+    },
+    "framework_fixture_contract": {
+      "finding": "FND-FRAMEWORK-0058",
+      "status": "blocked",
+      "scope": "out_of_scope",
+      "reason": "Selected Parent Safe/Strict outcomes were observed, but the full selected runner exits nonzero because read-only Framework fixture assertions expect the Safe mode as the reason and jointly expect a stable 403/obsolete action despite a Strict connection abort. No Framework change is asserted."
+    },
+    "direct_h1_memcheck_nginx_core_exit": {
+      "status": "retained_pre_hardening_direct_h1_noncanonical_not_final_proof",
+      "suppression_file": "connectors/nginx/harness/valgrind-nginx-core-1.31.2.supp",
+      "observed_result": "The initial direct H1 Valgrind Memcheck observation found one 8-byte definitely-lost NGINX-core worker-exit allocation. It is not a connector or ModSecurity security finding. The retained post-suppression artifact is historical pre-hardening evidence only, not final proof of the current harness or connector.",
+      "archive_provenance": "The exact generated suppression stack was verified against an independently SHA-verified official nginx-1.31.2 archive (observed SHA-256 prefix/suffix af2a957...473c).",
+      "memcheck_runtime_identity_gates": {
+        "mode": "The source-controlled suppression is used only when opt-in NGINX_MEMCHECK=1 is selected.",
+        "distinct_worker": "The direct harness requires root execution and a distinct verifiable local NGINX_WORKER_USER; otherwise it fails closed.",
+        "selected_binary": "NGINX_BINARY must equal $NGINX_PREFIX/sbin/nginx.",
+        "version": "nginx -v output must equal nginx version: nginx/1.31.2.",
+        "archive_sha256": "$NGINX_BUILD_DIR/verified-archives/nginx-1.31.2.tar.gz must equal source-controlled SHA-256 af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c.",
+        "non_memcheck_behavior": "Outside NGINX_MEMCHECK=1, normal harness calls retain the existing caller-selected NGINX_BINARY override behavior."
+      },
+      "post_suppression_artifact": {
+        "id": "direct-nginx-h1-memcheck-suppressed-20260801T234500Z-c8d9e0f1",
+        "label": "O7",
+        "status": "historical_clean_pre_hardening",
+        "complete": true,
+        "errors_detected": false,
+        "error_count": 0,
+        "definitely_lost_bytes": 0,
+        "indirectly_lost_bytes": 0,
+        "possibly_lost_bytes": 28160,
+        "still_reachable_bytes": 329918,
+        "requests_completed": 48,
+        "request_failures": 0,
+        "worker_summary_failures": 0,
+        "server_alive": true,
+        "shutdown": "graceful",
+        "wait": "exited",
+        "wrapper_exit_code": 0,
+        "containment": "isolated",
+        "suppressed": "1 from 1",
+        "cleanup": "No residual nginx or Valgrind process, nginx.pid, or test-port binding remained."
+      },
+      "suppression_boundary": "The local, source-controlled suppression is not copied from upstream and matches only Memcheck:Leak with match-leak-kinds: definite and the exact stack malloc -> ngx_alloc -> ngx_set_environment -> ngx_worker_process_init -> ngx_worker_process_cycle -> ngx_spawn_process -> ngx_start_worker_processes -> ngx_master_process_cycle -> main. Possible losses remain reported rather than suppressed. A changed stack, connector/libmodsecurity diagnostic, or invalid-access diagnostic does not match and remains failing.",
+      "limitation": "This retained direct H1 result is pre-hardening and noncanonical, and applies only to the then-current bounded source-controlled suppression diagnostic. Canonical provisioning/lifecycle containment remains in progress; it does not establish runtime-smoke, H2/H3, remote CI, SonarQube, pull-request, or delivery success. The separate retained remediation receipt records a passed noncanonical direct-H1 harness/evidence-boundary diagnostic under umask 022 and uses a pre-current-C artifact. A separate fresh C build validated prior C code, but neither receipt replaces the exact final security scan or final PR-head CI/Sonar validation still required."
+    }
+  },
+  "scope_separation": {
+    "issue388": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/issues/388",
+      "status": "not_applicable",
+      "reason": "Scope separation only: no adaptation, behavior, test, or delivery outcome is asserted for this intake."
+    },
+    "pr389": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/389",
+      "status": "out_of_scope",
+      "reason": "Scope separation only: no adaptation, behavior, test, or delivery outcome is asserted for this intake."
     }
   },
   "files": {
@@ -30,28 +160,41 @@
     "src/ngx_http_modsecurity_access.c": {
       "base_path": "src/ngx_http_modsecurity_access.c",
       "license": "Apache-2.0",
-      "reason": "Migrated upstream access-phase integration to adapter-owned source."
+      "patches": [
+        "pr384",
+        "pr386"
+      ],
+      "reason": "Migrated upstream access-phase integration with selected fail-closed final-processing/intervention handling, ProcessPartial-compatible append/from-file behavior, and empty-address/header-registration hardening."
     },
     "src/ngx_http_modsecurity_body_filter.c": {
       "base_path": "src/ngx_http_modsecurity_body_filter.c",
       "license": "Apache-2.0",
       "patches": [
-        "pr377"
+        "pr377",
+        "pr384",
+        "pr385",
+        "pr386"
       ],
-      "reason": "Migrated upstream body filter and applied PR #377 phase-4 late-intervention changes."
+      "reason": "Migrated upstream body filter with PR #377 phase-4 handling plus selected final-processing, redirect-body replacement, and terminal-loop changes from PRs #384--#386. Parent hardening permits response replacement only after connector-owned Location provenance, not a retained upstream Location. It also restores the Parent pre-task content-type ingestion behavior: bounded response bytes reach ModSecurity irrespective of connector scope, while scope maps a detected intervention to log_only/content_type_not_in_scope."
     },
     "src/ngx_http_modsecurity_common.h": {
       "base_path": "src/ngx_http_modsecurity_common.h",
       "license": "Apache-2.0",
       "patches": [
-        "pr377"
+        "pr377",
+        "pr385"
       ],
-      "reason": "Migrated shared NGINX declarations and applied PR #377 phase-4 fields."
+      "reason": "Migrated shared NGINX declarations with PR #377 phase-4 fields and the PR #385 response-replacement state, plus Parent connector-owned Location provenance state."
     },
     "src/ngx_http_modsecurity_header_filter.c": {
       "base_path": "src/ngx_http_modsecurity_header_filter.c",
       "license": "Apache-2.0",
-      "reason": "Migrated upstream header filter integration to adapter-owned source."
+      "patches": [
+        "pr384",
+        "pr385",
+        "pr386"
+      ],
+      "reason": "Migrated upstream header-filter integration with selected intervention, response-header/protocol, redirect-replacement, and header-registration hardening. Parent hardening requires connector-owned Location provenance before replacement and finalizes a status-only intervention with an upstream Location; task-local HTTP/3 hop-by-hop suppression is recorded in the paired origin documentation."
     },
     "src/ngx_http_modsecurity_log.c": {
       "base_path": "src/ngx_http_modsecurity_log.c",
@@ -74,9 +217,11 @@
       "base_path": "src/ngx_http_modsecurity_module.c",
       "license": "Apache-2.0",
       "patches": [
-        "pr377"
+        "pr377",
+        "pr384",
+        "pr385"
       ],
-      "reason": "Migrated module/config entrypoint and applied PR #377 phase-4 directives."
+      "reason": "Migrated module/config entrypoint with PR #377 phase-4 directives plus selected transaction-lifecycle and redirect-response hardening from PRs #384--#385, with Parent CR/LF redirect URL rejection before allocation or Location installation."
     }
   },
   "layout": {
@@ -92,7 +237,7 @@
   "support_files": {
     "connectors/nginx/capabilities.json": {
       "license": "Apache-2.0",
-      "reason": "Repo-owned canonical host-model and capability-state declaration; validated separately from imported productive source."
+      "reason": "Repo-owned canonical host-model and capability-state declaration; it records connector scope at detected Phase-4 intervention mapping rather than as a pre-append body-ingestion gate, and is validated separately from imported productive source."
     },
     "connectors/nginx/metadata.c": {
       "license": "Apache-2.0",
@@ -104,7 +249,27 @@
     },
     "connectors/nginx/SOURCE_MAP.json": {
       "license": "Apache-2.0",
-      "reason": "Repo-owned per-file provenance manifest; consumed by the materializer but not copied into connector-src."
+      "reason": "Repo-owned per-file provenance manifest; records base, PR #377, selected PRs #384--#386, the scoped PR #387/#388/#389 disposition, Parent Phase-3 redirect hardening, Parent direct-harness/Memcheck evidence hardening, and FND-PARENT-0084 generic output-path authority with its narrow external docroot-projection exception. It is consumed by the materializer but not copied into connector-src."
+    },
+    "connectors/nginx/harness/run_nginx_smoke.sh": {
+      "license": "Apache-2.0-compatible project support file",
+      "reason": "Parent-owned direct NGINX harness. It requires root execution with a distinct verifiable local worker identity, validates generic/private bootstrap, parent multi-case, and per-case output/work paths as strict descendants of VERIFIED_RUN_ROOT before root-only mutation sinks, keeps private runtime/harness output and NGINX_MEMCHECK_EVIDENCE_DIR below LOG_DIR/memcheck-evidence/<case> separate, and grants worker ownership only to state and server access/error/audit leaves below the worker-traversable harness root. Its only external path is the separately validated trusted-caller-supplied root-owned static docroot-projection parent and exact fresh child; it does not enforce lifecycle-manifest registration, and generic harness setup never chowns or chmods that parent. It is not copied from upstream or materialized into connector-src."
+    },
+    "ci/runtime/common/validate-nginx-harness-paths.py": {
+      "license": "Apache-2.0-compatible project support file",
+      "reason": "Parent-owned descriptor-safe NGINX harness path-authority validator for FND-PARENT-0084. It constrains generic/private root-harness work/output locations, direct-child log outputs, protocol/lifecycle evidence, and configurable curl outputs to VERIFIED_RUN_ROOT before mutation; only the internal bounded-soak /dev/null sink is exempt. In opt-in projection mode, it separately validates an existing safe external parent and one fresh direct child without authorizing generic output there. It is not copied from upstream or materialized into connector-src."
+    },
+    "ci/runtime/common/prepare-nginx-docroot-projection.py": {
+      "license": "Apache-2.0-compatible project support file",
+      "reason": "Parent-owned opt-in NGINX docroot projection helper. It requires a trusted-caller-supplied external root-owned safe parent outside private runtime roots plus one exact fresh direct child, validates the parent without modifying it, and creates only that child with the two allowlisted static files and worker-traversable permissions. It does not enforce lifecycle-manifest registration. It is not copied from upstream or materialized into connector-src."
+    },
+    "ci/runtime/common/summarize-nginx-memcheck.py": {
+      "license": "Apache-2.0-compatible project support file",
+      "reason": "Parent-owned Memcheck evidence summarizer. It accepts only rooted effective-UID-owned, no-follow, direct-child, private evidence as clean-capable input and treats unsafe evidence as rejected or incomplete. It is not copied from upstream or materialized into connector-src."
+    },
+    "connectors/nginx/harness/valgrind-nginx-core-1.31.2.supp": {
+      "license": "Apache-2.0-compatible project support file",
+      "reason": "Task-local, source-controlled exact Memcheck suppression for the independently verified nginx-1.31.2 NGINX-core worker-environment exit stack. It is not copied from upstream and cannot suppress connector/libmodsecurity or invalid-access diagnostics."
     }
   }
 }

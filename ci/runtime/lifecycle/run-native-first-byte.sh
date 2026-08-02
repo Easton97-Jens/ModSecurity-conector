@@ -22,6 +22,9 @@ case "$connector" in
     nginx)
         harness=$CONNECTOR_ROOT/connectors/nginx/harness/run_nginx_smoke.sh
         port=${FULL_LIFECYCLE_NGINX_PORT:-19281}
+        # This route invokes NGINX directly, so opt in here rather than
+        # changing the direct-harness default used by local smoke commands.
+        NGINX_DOCROOT_PROJECTION=1
         ;;
     *) echo "usage: $0 apache|nginx" >&2; exit 2 ;;
 esac
@@ -64,6 +67,9 @@ NO_CRS_RULES_FILE="$NO_CRS_RULES_FILE" \
     PORT="$port" \
     NGINX_HARNESS_PARENT="$HOST_RUNTIME_ROOT" \
     NGINX_HARNESS_WORK_ROOT="$HOST_RUNTIME_ROOT/nginx-harness" \
+    NGINX_DOCROOT_PROJECTION="${NGINX_DOCROOT_PROJECTION:-0}" \
+    NGINX_DOCROOT_PROJECTION_PARENT="${NGINX_DOCROOT_PROJECTION_PARENT:-}" \
+    NGINX_DOCROOT_PROJECTION_ROOT="${NGINX_DOCROOT_PROJECTION_ROOT:-}" \
     "$harness"
 rc=$?
 set -e

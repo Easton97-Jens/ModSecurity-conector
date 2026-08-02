@@ -10,28 +10,25 @@ CONNECTOR_ROOT="${CONNECTOR_ROOT:-$REPO_ROOT}"
 VERIFIED_RUN_ROOT="${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}"
 VERIFIED_BUILD_ROOT="${VERIFIED_BUILD_ROOT:-$VERIFIED_RUN_ROOT/build}"
 BUILD_ROOT="${BUILD_ROOT:-$VERIFIED_BUILD_ROOT}"
-NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-$VERIFIED_RUN_ROOT/nginx-harness}"
+NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-$BUILD_ROOT/nginx-harness}"
+NGINX_DOCROOT_PROJECTION="${NGINX_DOCROOT_PROJECTION:-0}"
+# The default direct harness keeps using its private materialized docroot.
+# Canonical lifecycle callers opt in explicitly and must supply a trusted,
+# pre-existing external parent and exact fresh child. Projection mode itself
+# fails closed unless both are supplied, so it never creates a fallback
+# location during a lifecycle run. The harness validates those structural
+# constraints; it does not load or enforce a lifecycle manifest for them.
+NGINX_DOCROOT_PROJECTION_PARENT="${NGINX_DOCROOT_PROJECTION_PARENT:-}"
+NGINX_DOCROOT_PROJECTION_ROOT="${NGINX_DOCROOT_PROJECTION_ROOT:-}"
+NGINX_DOCROOT_PROJECTION_HELPER="$REPO_ROOT/ci/runtime/common/prepare-nginx-docroot-projection.py"
+NGINX_DOCROOT_PROJECTION_PATH=""
 CURRENT_UID=$(id -u 2>/dev/null || printf 'unknown')
-if [ -z "${NGINX_HARNESS_WORK_ROOT:-}" ]; then
-    if [ "$CURRENT_UID" = "0" ]; then
-        parent_perms=$(stat -c '%A' "$NGINX_HARNESS_PARENT" 2>/dev/null || printf '')
-        case "$parent_perms" in
-            ?????????[xt]) ;;
-            *)
-                fallback_parent="/var/tmp"
-                fallback_perms=$(stat -c '%A' "$fallback_parent" 2>/dev/null || printf '')
-                case "$fallback_perms" in
-                    ?????????[xt]) NGINX_HARNESS_PARENT="$fallback_parent" ;;
-                    *) ;;
-                esac
-                ;;
-        esac
-    fi
-    if [ ! -d "$NGINX_HARNESS_PARENT" ]; then
-        install -d -m 755 "$NGINX_HARNESS_PARENT"
-    fi
-    NGINX_HARNESS_WORK_ROOT=$(mktemp -d "$NGINX_HARNESS_PARENT/ModSecurity-conector-nginx-runtime-$CURRENT_UID-XXXXXX")
-fi
+# Case materialization constrains all generated paths to BUILD_ROOT.  The
+# authority validator must not silently reroute the default parent to a
+# sibling temporary directory; it either proves the configured path safe or
+# blocks before creating it.
+NGINX_HARNESS_WORK_ROOT="${NGINX_HARNESS_WORK_ROOT:-}"
+NGINX_PATHS_VALIDATED=0
 # Preserve the direct H1 harness defaults while making non-H1 profile paths
 # distinct for callers that invoke this script without the framework wrapper.
 if [ -n "${NGINX_BUILD_DIR+x}" ]; then NGINX_BUILD_DIR_WAS_SET=1; else NGINX_BUILD_DIR_WAS_SET=0; fi
@@ -54,15 +51,16 @@ fi
 NGINX_BINARY="${NGINX_BINARY:-$NGINX_PREFIX/sbin/nginx}"
 NGINX_MODULE="${NGINX_MODULE:-$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so}"
 MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$NGINX_BUILD_DIR/output/modsecurity/lib}"
-LOG_DIR="${LOG_DIR:-$NGINX_HARNESS_WORK_ROOT/logs}"
+LOG_DIR="${LOG_DIR:-}"
 RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
 if [ -n "${FORCE_ALL_CASES:-}" ] && [ "$RESULTS_DIR" = "$BUILD_ROOT/results" ]; then
     RESULTS_DIR="$BUILD_ROOT/results/force-all"
 fi
-RUNTIME_BASE="${RUNTIME_BASE:-$NGINX_HARNESS_WORK_ROOT/runtime}"
+RUNTIME_BASE="${RUNTIME_BASE:-}"
 RUNTIME_ROOT="${RUNTIME_ROOT:-}"
 CURL_BIN="${CURL:-}"
 PYTHON_BIN="${PYTHON:-python3}"
+NGINX_PATH_AUTHORITY_VALIDATOR="$REPO_ROOT/ci/runtime/common/validate-nginx-harness-paths.py"
 PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 export PYTHONDONTWRITEBYTECODE
 BASE_PORT="${PORT:-18081}"
@@ -77,7 +75,9 @@ CASE_SCOPE="${CASE_SCOPE:-all}"
 CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
 MSCONNECTOR_SMOKE_STAGE="${MSCONNECTOR_SMOKE_STAGE:-minimal_runtime_smoke}"
-STATUS_FILE="$LOG_DIR/status.txt"
+MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK=bounded_soak
+NGINX_TR_DELETE_WHITESPACE='[:space:]'
+STATUS_FILE=""
 CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-}"
 CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-}"
 CONNECTOR_ORIGIN_SOURCE_URL="${CONNECTOR_ORIGIN_SOURCE_URL:-}"
@@ -96,6 +96,38 @@ SYNCHRONIZED_UPSTREAM="$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py"
 NGINX_DOWNSTREAM_PROTOCOL="${NGINX_DOWNSTREAM_PROTOCOL:-http1}"
 NGINX_UPSTREAM_PROTOCOL="${NGINX_UPSTREAM_PROTOCOL:-http1}"
 NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR="${NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR:-}"
+# This is deliberately a small, selected catalog subset rather than an
+# unbounded traffic generator.  Each case needs its own materialized rule and
+# host configuration, but its workers reuse one already-started NGINX process.
+NGINX_SOAK_CASES="${NGINX_SOAK_CASES:-allow_without_marker phase2_body_limits phase2_args_block phase1_header_block request_body_urlencoded_block phase3_redirect_before_commit nginx_phase4_deny_after_commit_log_only nginx_phase4_deny_after_commit_abort}"
+NGINX_SOAK_MAX_CASES=8
+NGINX_SOAK_DURATION_SECONDS="${NGINX_SOAK_DURATION_SECONDS:-30}"
+NGINX_SOAK_CONCURRENCY="${NGINX_SOAK_CONCURRENCY:-4}"
+NGINX_SOAK_WORKER_PIDS=""
+# Memcheck is intentionally a separate, opt-in bounded-soak diagnostic.  The
+# normal harness neither probes Valgrind nor changes its startup path.
+NGINX_MEMCHECK="${NGINX_MEMCHECK:-0}"
+VALGRIND_BIN="${VALGRIND_BIN:-valgrind}"
+SETSID_BIN="${SETSID_BIN:-setsid}"
+# This source-controlled, exact upstream NGINX worker-exit suppression is not
+# configurable by the caller.  Memcheck also binds it to the canonical
+# NGINX-1.31.2 binary and SHA-256-verified retained source archive.  A changed
+# stack does not match and remains a failing Memcheck result; no connector or
+# invalid-access diagnostics are suppressed.
+NGINX_MEMCHECK_SUPPRESSIONS="$SCRIPT_DIR/valgrind-nginx-core-1.31.2.supp"
+NGINX_MEMCHECK_EXPECTED_VERSION=1.31.2
+NGINX_MEMCHECK_NGINX_BINARY="$NGINX_PREFIX/sbin/nginx"
+NGINX_MEMCHECK_NGINX_ARCHIVE="$NGINX_BUILD_DIR/verified-archives/nginx-1.31.2.tar.gz"
+NGINX_MEMCHECK_NGINX_ARCHIVE_SHA256=af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c
+NGINX_MEMCHECK_WAIT_SECONDS=30
+NGINX_MEMCHECK_SUMMARIZER="$REPO_ROOT/ci/runtime/common/summarize-nginx-memcheck.py"
+NGINX_MEMCHECK_STARTED=0
+NGINX_MEMCHECK_FINALIZED=0
+NGINX_MEMCHECK_SHUTDOWN=not_started
+NGINX_MEMCHECK_WAIT_STATUS=not_started
+NGINX_MEMCHECK_WRAPPER_EXIT_CODE=
+NGINX_MEMCHECK_PROCESS_GROUP=""
+NGINX_MEMCHECK_CONTAINMENT=unverified
 
 load_connector_adapter_metadata() {
     eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/lib/adapter_metadata.py" shell nginx --prefix CONNECTOR_ADAPTER)"
@@ -110,24 +142,29 @@ load_connector_adapter_metadata() {
 
 load_connector_adapter_metadata
 
+write_harness_status() {
+    status_kind=$1
+    shift
+    [ "$NGINX_PATHS_VALIDATED" = "1" ] || return 0
+    [ -n "${STATUS_FILE:-}" ] || return 0
+    printf '%s: %s\n' "$status_kind" "$*" >> "$STATUS_FILE"
+}
+
 blocked() {
     echo "nginx_smoke: blocked $*"
-    mkdir -p "$LOG_DIR"
-    echo "blocked: $*" >> "$STATUS_FILE"
+    write_harness_status blocked "$*"
     exit 77
 }
 
 fail() {
     echo "nginx_smoke: fail $*"
-    mkdir -p "$LOG_DIR"
-    echo "fail: $*" >> "$STATUS_FILE"
+    write_harness_status fail "$*"
     exit 1
 }
 
 not_executable() {
     echo "nginx_smoke: not_executable $*"
-    mkdir -p "$LOG_DIR"
-    echo "not_executable: $*" >> "$STATUS_FILE"
+    write_harness_status not_executable "$*"
     exit 78
 }
 
@@ -142,7 +179,21 @@ ensure_dir_755() {
     done
 }
 
+ensure_private_dir() {
+    for path in "$@"; do
+        install -d -m 700 "$path"
+        if [ "$CURRENT_UID" = "0" ]; then
+            chown root:root "$path"
+        fi
+        chmod 700 "$path"
+    done
+}
+
 nginx_worker_group() {
+    if [ -n "${NGINX_WORKER_RESOLVED_GROUP:-}" ]; then
+        printf '%s\n' "$NGINX_WORKER_RESOLVED_GROUP"
+        return 0
+    fi
     if [ -n "$NGINX_WORKER_GROUP" ]; then
         printf '%s\n' "$NGINX_WORKER_GROUP"
         return 0
@@ -151,8 +202,8 @@ nginx_worker_group() {
 }
 
 write_permission_diagnostics() {
-    log_file=${PERMISSIONS_LOG:-$LOG_DIR/permissions.log}
-    mkdir -p "$(dirname "$log_file")"
+    [ "$NGINX_PATHS_VALIDATED" = "1" ] || return 0
+    log_file=$PERMISSIONS_LOG
     {
         echo "nginx_harness_permissions:"
         echo "  effective_user=$(id -un 2>/dev/null || printf unknown)"
@@ -164,6 +215,9 @@ write_permission_diagnostics() {
         echo "  runtime_base=$RUNTIME_BASE"
         echo "  runtime_root=$RUNTIME_ROOT"
         echo "  log_dir=$LOG_DIR"
+        echo "  nginx_worker_state_root=${NGINX_WORKER_STATE_ROOT:-}"
+        echo "  nginx_server_log_root=${NGINX_SERVER_LOG_ROOT:-}"
+        echo "  nginx_memcheck_evidence_dir=${NGINX_MEMCHECK_EVIDENCE_DIR:-}"
         echo "  docroot=${DOCROOT:-}"
         echo
         for path in \
@@ -171,7 +225,13 @@ write_permission_diagnostics() {
             "$RUNTIME_BASE" \
             "$RUNTIME_ROOT" \
             "$LOG_DIR" \
-            "${LOG_DIR}/audit" \
+            "${NGINX_WORKER_STATE_ROOT:-}" \
+            "${NGINX_SERVER_LOG_ROOT:-}" \
+            "${NGINX_SERVER_LOG_ROOT:-}/error.log" \
+            "${NGINX_SERVER_LOG_ROOT:-}/access.log" \
+            "${NGINX_SERVER_LOG_ROOT:-}/audit" \
+            "${NGINX_SERVER_LOG_ROOT:-}/phase4.log" \
+            "${NGINX_MEMCHECK_EVIDENCE_DIR:-}" \
             "${DOCROOT:-}" \
             "${DOCROOT:-}/index.html" \
             "${DOCROOT:-}/__modsec_smoke_ready" \
@@ -194,12 +254,71 @@ write_permission_diagnostics() {
     } > "$log_file"
 }
 
-ensure_worker_runtime_permissions() {
-    chmod -R u+rwX,go+rX "$NGINX_HARNESS_WORK_ROOT" 2>/dev/null || true
+prepare_nginx_worker_paths() {
+    worker_group=$(nginx_worker_group)
     if [ "$CURRENT_UID" = "0" ]; then
-        worker_group=$(nginx_worker_group)
-        chown -R "$NGINX_WORKER_USER:$worker_group" "$NGINX_HARNESS_WORK_ROOT" 2>/dev/null || true
-        chmod -R u+rwX,go+rX "$NGINX_HARNESS_WORK_ROOT" 2>/dev/null || true
+        resolve_nginx_worker_identity
+        worker_group=$NGINX_WORKER_RESOLVED_GROUP
+    fi
+    for path in \
+        "$NGINX_WORKER_STATE_ROOT" \
+        "$NGINX_WORKER_STATE_ROOT/client_body_temp" \
+        "$NGINX_WORKER_STATE_ROOT/proxy_temp" \
+        "$NGINX_WORKER_STATE_ROOT/fastcgi_temp" \
+        "$NGINX_WORKER_STATE_ROOT/uwsgi_temp" \
+        "$NGINX_WORKER_STATE_ROOT/scgi_temp" \
+        "$NGINX_SERVER_LOG_ROOT" \
+        "$NGINX_SERVER_LOG_ROOT/audit"
+    do
+        install -d -m 700 "$path"
+        if [ "$CURRENT_UID" = "0" ]; then
+            chown "$NGINX_WORKER_RESOLVED_USER:$worker_group" "$path"
+        fi
+        chmod 700 "$path"
+    done
+}
+
+resolve_nginx_worker_identity() {
+    NGINX_WORKER_RESOLVED_USER=$(id -un "$NGINX_WORKER_USER" 2>/dev/null) || \
+        blocked "NGINX_WORKER_USER is not a local account: $NGINX_WORKER_USER"
+    NGINX_WORKER_RESOLVED_UID=$(id -u "$NGINX_WORKER_USER" 2>/dev/null) || \
+        blocked "cannot resolve NGINX_WORKER_USER uid: $NGINX_WORKER_USER"
+    if [ "$CURRENT_UID" = "0" ] && [ "$NGINX_WORKER_RESOLVED_UID" = "$CURRENT_UID" ]; then
+        blocked "NGINX_WORKER_USER must be distinct from the root harness identity"
+    fi
+    if [ -n "$NGINX_WORKER_GROUP" ]; then
+        command -v getent >/dev/null 2>&1 || \
+            blocked "NGINX_WORKER_GROUP requires getent for safe group resolution"
+        nginx_worker_group_record=$(getent group "$NGINX_WORKER_GROUP") || \
+            blocked "NGINX_WORKER_GROUP is not a local group: $NGINX_WORKER_GROUP"
+        NGINX_WORKER_RESOLVED_GROUP=${nginx_worker_group_record%%:*}
+        nginx_worker_group_fields=${nginx_worker_group_record#*:}
+        nginx_worker_group_fields=${nginx_worker_group_fields#*:}
+        NGINX_WORKER_RESOLVED_GID=${nginx_worker_group_fields%%:*}
+    else
+        NGINX_WORKER_RESOLVED_GROUP=$(id -gn "$NGINX_WORKER_USER" 2>/dev/null) || \
+            blocked "cannot resolve NGINX_WORKER_USER group: $NGINX_WORKER_USER"
+        NGINX_WORKER_RESOLVED_GID=$(id -g "$NGINX_WORKER_USER" 2>/dev/null) || \
+            blocked "cannot resolve NGINX_WORKER_USER gid: $NGINX_WORKER_USER"
+    fi
+    [ -n "$NGINX_WORKER_RESOLVED_GROUP" ] || \
+        blocked "NGINX worker group resolved to an empty value"
+    case "$NGINX_WORKER_RESOLVED_GID" in
+        *[!0-9]*|"") blocked "NGINX worker group resolved to an invalid gid" ;;
+        *) ;;
+    esac
+}
+
+lock_private_runtime_paths() {
+    ensure_private_dir "$LOG_DIR" "$RUNTIME_ROOT/conf" "$NGINX_MEMCHECK_EVIDENCE_DIR"
+    if [ "$NGINX_DOCROOT_PROJECTION" = "1" ]; then
+        ensure_private_dir "$RUNTIME_ROOT" "$PRIVATE_DOCROOT"
+    else
+        if [ "$CURRENT_UID" = "0" ]; then
+            chown root:root "$RUNTIME_ROOT" "$PRIVATE_DOCROOT"
+        fi
+        chmod 711 "$RUNTIME_ROOT"
+        chmod -R u+rwX,go+rX "$PRIVATE_DOCROOT"
     fi
     write_permission_diagnostics
 }
@@ -209,8 +328,7 @@ append_worker_preflight_record() {
     check_status=$2
     check_path=$3
     check_notes=$4
-    preflight_file="${NGINX_WORKER_PREFLIGHT_FILE:-$LOG_DIR/nginx-worker-preflight.jsonl}"
-    mkdir -p "$(dirname "$preflight_file")"
+    preflight_file=$NGINX_WORKER_PREFLIGHT_FILE
     "$PYTHON_BIN" - "$preflight_file" "$check_name" "$check_status" "$check_path" "$check_notes" <<'PY'
 import json
 import sys
@@ -232,18 +350,111 @@ nginx_worker_can_access() {
     access_mode=$1
     access_path=$2
     if command -v runuser >/dev/null 2>&1 && [ "$CURRENT_UID" = "0" ] && id "$NGINX_WORKER_USER" >/dev/null 2>&1; then
-        runuser -u "$NGINX_WORKER_USER" -- test "$access_mode" "$access_path"
+        runuser -u "$NGINX_WORKER_USER" -g "$NGINX_WORKER_RESOLVED_GROUP" -- \
+            test "$access_mode" "$access_path"
         return $?
     fi
     test "$access_mode" "$access_path"
 }
 
+nginx_worker_identity_is_verifiable() {
+    [ "$CURRENT_UID" = "0" ] || return 1
+    command -v runuser >/dev/null 2>&1 || return 1
+    nginx_worker_uid=$(id -u "$NGINX_WORKER_USER" 2>/dev/null) || return 1
+    [ "$nginx_worker_uid" != "$CURRENT_UID" ]
+}
+
+validate_nginx_worker_isolation() {
+    [ "$CURRENT_UID" = "0" ] || \
+        blocked "NGINX harness requires root to establish a distinct verified worker identity"
+    resolve_nginx_worker_identity
+    nginx_worker_identity_is_verifiable || \
+        blocked "NGINX harness requires runuser and a distinct verifiable NGINX worker identity"
+}
+
 nginx_worker_access_notes() {
-    if command -v runuser >/dev/null 2>&1 && [ "$CURRENT_UID" = "0" ] && id "$NGINX_WORKER_USER" >/dev/null 2>&1; then
-        printf 'checked with runuser -u %s' "$NGINX_WORKER_USER"
+    if nginx_worker_identity_is_verifiable; then
+        printf 'checked with runuser -u %s -g %s' \
+            "$NGINX_WORKER_USER" "$NGINX_WORKER_RESOLVED_GROUP"
     else
         printf 'runuser worker check unavailable; used current process stat/test fallback'
     fi
+}
+
+validate_nginx_docroot_projection_mode() {
+    case "$NGINX_DOCROOT_PROJECTION" in
+        0|1) ;;
+        *) fail "NGINX_DOCROOT_PROJECTION must be 0 or 1" ;;
+    esac
+    if [ "$NGINX_DOCROOT_PROJECTION" = "0" ] && \
+       [ -n "$NGINX_DOCROOT_PROJECTION_ROOT$NGINX_DOCROOT_PROJECTION_PARENT" ]; then
+        blocked "NGINX docroot projection parent/root requires NGINX_DOCROOT_PROJECTION=1"
+    fi
+    if [ "$NGINX_DOCROOT_PROJECTION" = "1" ] && \
+       { [ -z "$NGINX_DOCROOT_PROJECTION_PARENT" ] || [ -z "$NGINX_DOCROOT_PROJECTION_ROOT" ]; }; then
+        blocked "NGINX docroot projection requires an explicit safe parent and fresh root"
+    fi
+}
+
+project_nginx_worker_docroot() {
+    [ "$NGINX_DOCROOT_PROJECTION" = "1" ] || return 0
+    [ -f "$NGINX_DOCROOT_PROJECTION_HELPER" ] || \
+        blocked "missing NGINX docroot projection helper: $NGINX_DOCROOT_PROJECTION_HELPER"
+
+    # Framework case_cli writes all mutable case material into PRIVATE_DOCROOT
+    # below BUILD_ROOT.  The helper emits a fresh, non-overlapping projection
+    # containing only the two static files NGINX workers need to read.
+    set -- "$PYTHON_BIN" "$NGINX_DOCROOT_PROJECTION_HELPER" \
+        --source-docroot "$PRIVATE_DOCROOT" \
+        --private-root "$BUILD_ROOT" \
+        --worker-gid "$NGINX_WORKER_RESOLVED_GID" \
+        --avoid-root "$BUILD_ROOT" \
+        --avoid-root "$VERIFIED_BUILD_ROOT" \
+        --avoid-root "$VERIFIED_RUN_ROOT" \
+        --avoid-root "$NGINX_HARNESS_PARENT" \
+        --avoid-root "$NGINX_HARNESS_WORK_ROOT" \
+        --avoid-root "$RUNTIME_BASE" \
+        --avoid-root "$RUNTIME_ROOT" \
+        --avoid-root "$LOG_DIR" \
+        --avoid-root "$RESULTS_DIR"
+    if [ -n "${CACHE_ROOT:-}" ]; then
+        set -- "$@" --avoid-root "$CACHE_ROOT"
+    fi
+    if [ -n "${VERIFIED_EVIDENCE_ROOT:-}" ]; then
+        set -- "$@" --avoid-root "$VERIFIED_EVIDENCE_ROOT"
+    fi
+    if [ -n "${EVIDENCE_ROOT:-}" ]; then
+        set -- "$@" --avoid-root "$EVIDENCE_ROOT"
+    fi
+    if [ -n "${CONNECTOR_RUN_ROOT:-}" ]; then
+        set -- "$@" --avoid-root "$CONNECTOR_RUN_ROOT"
+    fi
+    if [ -n "${CONNECTOR_LOG_ROOT:-}" ]; then
+        set -- "$@" --avoid-root "$CONNECTOR_LOG_ROOT"
+    fi
+    if [ -n "$NGINX_DOCROOT_PROJECTION_PARENT" ]; then
+        set -- "$@" --projection-parent "$NGINX_DOCROOT_PROJECTION_PARENT"
+    fi
+    if [ -n "$NGINX_DOCROOT_PROJECTION_ROOT" ]; then
+        set -- "$@" --projection-root "$NGINX_DOCROOT_PROJECTION_ROOT"
+    fi
+    if ! "$@" > "$LOG_DIR/docroot-projection.path" \
+        2> "$LOG_DIR/docroot-projection.log"; then
+        blocked "unable to prepare a worker-visible NGINX docroot projection; see $LOG_DIR/docroot-projection.log"
+    fi
+    projection_path_line_count=$(wc -l < "$LOG_DIR/docroot-projection.path" | tr -d "$NGINX_TR_DELETE_WHITESPACE")
+    case "$projection_path_line_count" in
+        1) ;;
+        *) blocked "NGINX docroot projection helper emitted an invalid path result" ;;
+    esac
+    NGINX_DOCROOT_PROJECTION_PATH=$(sed -n '1p' "$LOG_DIR/docroot-projection.path")
+    case "$NGINX_DOCROOT_PROJECTION_PATH" in
+        /*) ;;
+        *) blocked "NGINX docroot projection helper returned a non-absolute path" ;;
+    esac
+    NGINX_DOCROOT_PROJECTION_ROOT=$NGINX_DOCROOT_PROJECTION_PATH
+    NGINX_DOCROOT_PROJECTION_PARENT=$(dirname "$NGINX_DOCROOT_PROJECTION_PATH")
+    DOCROOT=$NGINX_DOCROOT_PROJECTION_PATH
 }
 
 preflight_nginx_worker_docroot() {
@@ -251,6 +462,7 @@ preflight_nginx_worker_docroot() {
     : > "$preflight_file"
     preflight_failed=0
     index_file="$DOCROOT/index.html"
+    ready_file="$DOCROOT/__modsec_smoke_ready"
 
     case "$NGINX_HARNESS_PARENT" in
         /root|/root/*)
@@ -277,6 +489,14 @@ preflight_nginx_worker_docroot() {
         append_worker_preflight_record "DOCROOT/index.html exists" "FAIL" "$index_file" "materialized docroot index is missing"
         preflight_failed=1
     fi
+    if [ "$NGINX_DOCROOT_PROJECTION" = "1" ]; then
+        if [ -f "$ready_file" ]; then
+            append_worker_preflight_record "DOCROOT/__modsec_smoke_ready exists" "PASS" "$ready_file" "copied from private materialization"
+        else
+            append_worker_preflight_record "DOCROOT/__modsec_smoke_ready exists" "FAIL" "$ready_file" "worker-visible projection is incomplete"
+            preflight_failed=1
+        fi
+    fi
 
     if command -v namei >/dev/null 2>&1; then
         namei -l "$index_file" > "$LOG_DIR/namei-docroot-index.log" 2>&1 || true
@@ -285,7 +505,17 @@ preflight_nginx_worker_docroot() {
     fi
 
     access_notes=$(nginx_worker_access_notes)
-    if nginx_worker_can_access -x "$NGINX_HARNESS_PARENT"; then
+    if [ "$NGINX_DOCROOT_PROJECTION" = "1" ] && ! nginx_worker_identity_is_verifiable; then
+        append_worker_preflight_record "NGINX worker identity" "FAIL" "$NGINX_WORKER_USER" "projection mode requires an actual worker-identity check"
+        preflight_failed=1
+    fi
+    if [ "$NGINX_DOCROOT_PROJECTION" = "1" ] && \
+       nginx_worker_can_access -x "$NGINX_DOCROOT_PROJECTION_PARENT"; then
+        append_worker_preflight_record "Projection parent traversable" "PASS" "$NGINX_DOCROOT_PROJECTION_PARENT" "$access_notes"
+    elif [ "$NGINX_DOCROOT_PROJECTION" = "1" ]; then
+        append_worker_preflight_record "Projection parent traversable" "FAIL" "$NGINX_DOCROOT_PROJECTION_PARENT" "$access_notes"
+        preflight_failed=1
+    elif nginx_worker_can_access -x "$NGINX_HARNESS_PARENT"; then
         append_worker_preflight_record "Harness parent traversable" "PASS" "$NGINX_HARNESS_PARENT" "$access_notes"
     else
         append_worker_preflight_record "Harness parent traversable" "FAIL" "$NGINX_HARNESS_PARENT" "$access_notes"
@@ -303,6 +533,54 @@ preflight_nginx_worker_docroot() {
         append_worker_preflight_record "htdocs/index.html readable by worker" "FAIL" "$index_file" "$access_notes"
         preflight_failed=1
     fi
+    if [ "$NGINX_DOCROOT_PROJECTION" = "1" ] && \
+       nginx_worker_can_access -r "$ready_file"; then
+        append_worker_preflight_record "htdocs/__modsec_smoke_ready readable by worker" "PASS" "$ready_file" "$access_notes"
+    elif [ "$NGINX_DOCROOT_PROJECTION" = "1" ]; then
+        append_worker_preflight_record "htdocs/__modsec_smoke_ready readable by worker" "FAIL" "$ready_file" "$access_notes"
+        preflight_failed=1
+    fi
+    if nginx_worker_can_access -w "$NGINX_WORKER_STATE_ROOT"; then
+        append_worker_preflight_record "NGINX worker state writable" "PASS" "$NGINX_WORKER_STATE_ROOT" "$access_notes"
+    else
+        append_worker_preflight_record "NGINX worker state writable" "FAIL" "$NGINX_WORKER_STATE_ROOT" "$access_notes"
+        preflight_failed=1
+    fi
+    if nginx_worker_can_access -w "$NGINX_SERVER_LOG_ROOT"; then
+        append_worker_preflight_record "NGINX server log root writable" "PASS" "$NGINX_SERVER_LOG_ROOT" "$access_notes"
+    else
+        append_worker_preflight_record "NGINX server log root writable" "FAIL" "$NGINX_SERVER_LOG_ROOT" "$access_notes"
+        preflight_failed=1
+    fi
+    if [ "$NGINX_DOCROOT_PROJECTION" = "1" ] && \
+       nginx_worker_can_access -x "$RUNTIME_ROOT"; then
+        append_worker_preflight_record "Private runtime root hidden from worker" "FAIL" "$RUNTIME_ROOT" "worker may traverse private materialization"
+        preflight_failed=1
+    elif [ "$NGINX_DOCROOT_PROJECTION" = "1" ]; then
+        append_worker_preflight_record "Private runtime root hidden from worker" "PASS" "$RUNTIME_ROOT" "$access_notes"
+    fi
+    if [ "$NGINX_DOCROOT_PROJECTION" = "1" ] && \
+       nginx_worker_can_access -r "$RULES_FILE"; then
+        append_worker_preflight_record "Rules remain private" "FAIL" "$RULES_FILE" "worker may read materialized rules"
+        preflight_failed=1
+    elif [ "$NGINX_DOCROOT_PROJECTION" = "1" ]; then
+        append_worker_preflight_record "Rules remain private" "PASS" "$RULES_FILE" "$access_notes"
+    fi
+    if nginx_worker_can_access -x "$LOG_DIR"; then
+        append_worker_preflight_record "Private harness logs hidden from worker" "FAIL" "$LOG_DIR" "worker may traverse private harness logs"
+        preflight_failed=1
+    else
+        append_worker_preflight_record "Private harness logs hidden from worker" "PASS" "$LOG_DIR" "$access_notes"
+    fi
+    if nginx_worker_can_access -x "$NGINX_MEMCHECK_EVIDENCE_DIR"; then
+        append_worker_preflight_record "Memcheck evidence hidden from worker" "FAIL" "$NGINX_MEMCHECK_EVIDENCE_DIR" "worker may traverse private Memcheck evidence"
+        preflight_failed=1
+    else
+        append_worker_preflight_record "Memcheck evidence hidden from worker" "PASS" "$NGINX_MEMCHECK_EVIDENCE_DIR" "$access_notes"
+    fi
+    if [ "$NGINX_DOCROOT_PROJECTION" = "1" ]; then
+        append_worker_preflight_record "Private harness root not required" "PASS" "$NGINX_HARNESS_PARENT" "worker only receives the independent static projection"
+    fi
     append_worker_preflight_record "try_files fallback guarded" "$([ "$preflight_failed" -eq 0 ] && printf PASS || printf FAIL)" "$index_file" "docroot readability is checked before try_files /index.html can loop"
 
     if [ "$preflight_failed" -ne 0 ]; then
@@ -313,8 +591,8 @@ preflight_nginx_worker_docroot() {
 }
 
 nginx_docroot_permission_denied() {
-    [ -f "$LOG_DIR/error.log" ] || return 1
-    grep -E "htdocs/index\\.html.*Permission denied|htdocs/index\\.html.*forbidden \\(13: Permission denied\\)" "$LOG_DIR/error.log" >/dev/null 2>&1
+    [ -f "$NGINX_SERVER_LOG_ROOT/error.log" ] || return 1
+    grep -E "htdocs/index\\.html.*Permission denied|htdocs/index\\.html.*forbidden \\(13: Permission denied\\)" "$NGINX_SERVER_LOG_ROOT/error.log" >/dev/null 2>&1
 }
 
 require_absolute_generated_path() {
@@ -330,6 +608,153 @@ require_absolute_generated_path() {
             ;;
         *) ;;
     esac
+}
+
+canonical_generated_path() {
+    generated_path=$1
+    "$PYTHON_BIN" -c 'import os, sys; print(os.path.realpath(os.path.abspath(sys.argv[1])))' "$generated_path"
+}
+
+generated_paths_overlap() {
+    generated_first_path=$1
+    generated_second_path=$2
+    first=$(canonical_generated_path "$generated_first_path") || \
+        blocked "cannot canonicalize generated path: $generated_first_path"
+    second=$(canonical_generated_path "$generated_second_path") || \
+        blocked "cannot canonicalize generated path: $generated_second_path"
+    case "$first" in
+        "$second"|"$second"/*) return 0 ;;
+        *) ;;
+    esac
+    case "$second" in
+        "$first"|"$first"/*) return 0 ;;
+        *) ;;
+    esac
+    return 1
+}
+
+require_private_worker_path_separation() {
+    for private_path in "$RUNTIME_ROOT" "$LOG_DIR" "$NGINX_MEMCHECK_EVIDENCE_DIR"; do
+        for worker_path in "$NGINX_WORKER_STATE_ROOT" "$NGINX_SERVER_LOG_ROOT"; do
+            if generated_paths_overlap "$private_path" "$worker_path"; then
+                blocked "private and NGINX worker paths must not overlap: $private_path / $worker_path"
+            fi
+        done
+    done
+    if generated_paths_overlap "$NGINX_WORKER_STATE_ROOT" "$NGINX_SERVER_LOG_ROOT"; then
+        blocked "NGINX worker state and server-log paths must not overlap"
+    fi
+}
+
+validate_nginx_harness_bootstrap_paths() {
+    [ -f "$NGINX_PATH_AUTHORITY_VALIDATOR" ] || \
+        blocked "missing NGINX harness path authority validator: $NGINX_PATH_AUTHORITY_VALIDATOR"
+    if ! "$PYTHON_BIN" "$NGINX_PATH_AUTHORITY_VALIDATOR" --quiet \
+        --verified-run-root "$VERIFIED_RUN_ROOT" \
+        --directory BUILD_ROOT "$BUILD_ROOT" \
+        --directory NGINX_HARNESS_PARENT "$NGINX_HARNESS_PARENT"; then
+        blocked "NGINX harness bootstrap paths are outside verified runtime storage"
+    fi
+}
+
+validate_nginx_harness_outer_paths() {
+    [ -f "$NGINX_PATH_AUTHORITY_VALIDATOR" ] || \
+        blocked "missing NGINX harness path authority validator: $NGINX_PATH_AUTHORITY_VALIDATOR"
+    if ! "$PYTHON_BIN" "$NGINX_PATH_AUTHORITY_VALIDATOR" --quiet \
+        --verified-run-root "$VERIFIED_RUN_ROOT" \
+        --directory BUILD_ROOT "$BUILD_ROOT" \
+        --directory NGINX_HARNESS_PARENT "$NGINX_HARNESS_PARENT" \
+        --directory NGINX_HARNESS_WORK_ROOT "$NGINX_HARNESS_WORK_ROOT" \
+        --directory RUNTIME_BASE "$RUNTIME_BASE" \
+        --directory LOG_DIR "$LOG_DIR" \
+        --directory RESULTS_DIR "$RESULTS_DIR"; then
+        blocked "NGINX harness output paths are outside verified runtime storage"
+    fi
+    STATUS_FILE="$LOG_DIR/status.txt"
+    NGINX_PATHS_VALIDATED=1
+}
+
+initialize_nginx_harness_paths() {
+    validate_nginx_harness_bootstrap_paths
+    if [ -z "$NGINX_HARNESS_WORK_ROOT" ]; then
+        NGINX_HARNESS_WORK_ROOT=$(mktemp -d "$NGINX_HARNESS_PARENT/ModSecurity-conector-nginx-runtime-$CURRENT_UID-XXXXXX") || \
+            blocked "could not create NGINX harness work root below the authorized parent"
+    fi
+    if [ -z "$LOG_DIR" ]; then
+        LOG_DIR="$NGINX_HARNESS_WORK_ROOT/logs"
+    fi
+    if [ -z "$RUNTIME_BASE" ]; then
+        RUNTIME_BASE="$NGINX_HARNESS_WORK_ROOT/runtime"
+    fi
+    validate_nginx_harness_outer_paths
+}
+
+validate_nginx_generated_path_authority() {
+    [ -f "$NGINX_PATH_AUTHORITY_VALIDATOR" ] || \
+        blocked "missing NGINX harness path authority validator: $NGINX_PATH_AUTHORITY_VALIDATOR"
+
+    set -- "$PYTHON_BIN" "$NGINX_PATH_AUTHORITY_VALIDATOR" --quiet \
+        --verified-run-root "$VERIFIED_RUN_ROOT" \
+        --directory BUILD_ROOT "$BUILD_ROOT" \
+        --directory NGINX_HARNESS_PARENT "$NGINX_HARNESS_PARENT" \
+        --directory NGINX_HARNESS_WORK_ROOT "$NGINX_HARNESS_WORK_ROOT" \
+        --directory RUNTIME_BASE "$RUNTIME_BASE" \
+        --directory RUNTIME_ROOT "$RUNTIME_ROOT" \
+        --directory LOG_DIR "$LOG_DIR" \
+        --directory RESULTS_DIR "$RESULTS_DIR" \
+        --directory NGINX_WORKER_STATE_ROOT "$NGINX_WORKER_STATE_ROOT" \
+        --directory NGINX_SERVER_LOG_ROOT "$NGINX_SERVER_LOG_ROOT" \
+        --directory NGINX_MEMCHECK_EVIDENCE_DIR "$NGINX_MEMCHECK_EVIDENCE_DIR" \
+        --path RUNTIME_PID_FILE "$RUNTIME_PID_FILE" \
+        --direct-child STATUS_FILE "$STATUS_FILE" "$LOG_DIR" \
+        --direct-child PERMISSIONS_LOG "$PERMISSIONS_LOG" "$LOG_DIR" \
+        --direct-child NGINX_WORKER_PREFLIGHT_FILE "$NGINX_WORKER_PREFLIGHT_FILE" "$LOG_DIR"
+
+    if [ -n "$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR" ]; then
+        set -- "$@" \
+            --directory NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR "$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR"
+    fi
+    if [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ]; then
+        set -- "$@" \
+            --path FULL_LIFECYCLE_EVIDENCE_OUTPUT "$FULL_LIFECYCLE_EVIDENCE_OUTPUT"
+    fi
+    if ! "$@"; then
+        blocked "NGINX generated paths are outside verified runtime storage"
+    fi
+
+    if [ "$CURRENT_UID" = "0" ]; then
+        chown root:root "$NGINX_HARNESS_PARENT"
+        chmod 711 "$NGINX_HARNESS_PARENT"
+    fi
+    NGINX_PATHS_VALIDATED=1
+}
+
+validate_nginx_external_projection_authority() {
+    [ "$NGINX_DOCROOT_PROJECTION" = "1" ] || return 0
+    [ -f "$NGINX_PATH_AUTHORITY_VALIDATOR" ] || \
+        blocked "missing NGINX harness path authority validator: $NGINX_PATH_AUTHORITY_VALIDATOR"
+    if ! "$PYTHON_BIN" "$NGINX_PATH_AUTHORITY_VALIDATOR" --quiet \
+        --verified-run-root "$VERIFIED_RUN_ROOT" \
+        --existing-private-directory NGINX_DOCROOT_PROJECTION_PARENT "$NGINX_DOCROOT_PROJECTION_PARENT" \
+        --existing-direct-child NGINX_DOCROOT_PROJECTION_ROOT "$NGINX_DOCROOT_PROJECTION_ROOT" "$NGINX_DOCROOT_PROJECTION_PARENT"; then
+        blocked "NGINX worker-visible docroot projection is outside authorized runtime storage"
+    fi
+}
+
+validate_nginx_request_output_path() {
+    output_label=$1
+    output_path=$2
+    case "$output_path" in
+        /dev/null)
+            return 0
+            ;;
+        *) ;;
+    esac
+    if ! "$PYTHON_BIN" "$NGINX_PATH_AUTHORITY_VALIDATOR" --quiet \
+        --verified-run-root "$VERIFIED_RUN_ROOT" \
+        --path "$output_label" "$output_path"; then
+        blocked "$output_label is outside verified runtime storage"
+    fi
 }
 
 resolve_case_path() {
@@ -452,6 +877,140 @@ write_case_result() {
     fi
 }
 
+require_bounded_positive_decimal() {
+    bounded_value=$1
+    bounded_label=$2
+    bounded_maximum=$3
+    case "$bounded_value" in
+        ""|0|0*|*[!0-9]*)
+            fail "$bounded_label must be a positive decimal value"
+            ;;
+        *) ;;
+    esac
+    if [ "${#bounded_value}" -gt 3 ] || [ "$bounded_value" -gt "$bounded_maximum" ]; then
+        fail "$bounded_label must be a positive decimal value no greater than $bounded_maximum"
+    fi
+}
+
+soak_category_for_case() {
+    soak_case=$1
+    case "$soak_case" in
+        allow_without_marker) printf '%s\n' benign_get ;;
+        phase2_body_limits) printf '%s\n' benign_post ;;
+        phase2_args_block) printf '%s\n' uri_args_attack ;;
+        phase1_header_block) printf '%s\n' header_attack ;;
+        request_body_urlencoded_block) printf '%s\n' body_attack ;;
+        phase3_redirect_before_commit) printf '%s\n' response_header_redirect ;;
+        nginx_phase4_deny_after_commit_log_only) printf '%s\n' phase4_safe ;;
+        nginx_phase4_deny_after_commit_abort) printf '%s\n' phase4_strict ;;
+        *) printf '%s\n' custom_case ;;
+    esac
+}
+
+soak_case_selection_status() {
+    selected_soak_case=$1
+    case " $NGINX_SOAK_CASES " in
+        *" $selected_soak_case "*) printf '%s\n' selected ;;
+        *) printf '%s\n' not_applicable ;;
+    esac
+}
+
+write_bounded_soak_category_selection() {
+    NGINX_SOAK_CATEGORY_SUMMARY_FILE="$LOG_DIR/nginx-bounded-soak-categories.txt"
+    : > "$NGINX_SOAK_CATEGORY_SUMMARY_FILE"
+    printf 'stage=%s\n' "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" >> "$NGINX_SOAK_CATEGORY_SUMMARY_FILE"
+    for soak_case in \
+        allow_without_marker \
+        phase2_body_limits \
+        phase2_args_block \
+        phase1_header_block \
+        request_body_urlencoded_block \
+        phase3_redirect_before_commit \
+        nginx_phase4_deny_after_commit_log_only \
+        nginx_phase4_deny_after_commit_abort
+    do
+        printf 'category=%s case=%s selection=%s\n' \
+            "$(soak_category_for_case "$soak_case")" \
+            "$soak_case" \
+            "$(soak_case_selection_status "$soak_case")" >> "$NGINX_SOAK_CATEGORY_SUMMARY_FILE"
+    done
+    # This stage is intentionally H1-only.  It does not turn a repeated H1
+    # request into HTTP/2 or HTTP/3 evidence.
+    printf '%s\n' 'category=modern_transport status=not_applicable reason=h1_only_bounded_soak' \
+        >> "$NGINX_SOAK_CATEGORY_SUMMARY_FILE"
+}
+
+write_bounded_soak_category_result() {
+    soak_case=$1
+    soak_result=$2
+    case "$soak_result" in
+        not_executable) soak_result=not_applicable ;;
+        *) ;;
+    esac
+    printf 'category=%s case=%s result=%s\n' \
+        "$(soak_category_for_case "$soak_case")" \
+        "$soak_case" \
+        "$soak_result" >> "$NGINX_SOAK_CATEGORY_SUMMARY_FILE"
+}
+
+prepare_bounded_soak_selection() {
+    [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ] || return 0
+    case "$NGINX_SOAK_CASES" in
+        *[!A-Za-z0-9_.\ -]*|'')
+            fail "NGINX_SOAK_CASES must contain only space-separated canonical case ids"
+            ;;
+        *) ;;
+    esac
+    soak_case_count=0
+    soak_seen_case_ids=" "
+    for soak_case in $NGINX_SOAK_CASES; do
+        soak_case_count=$((soak_case_count + 1))
+        if [ "$soak_case_count" -gt "$NGINX_SOAK_MAX_CASES" ]; then
+            fail "NGINX_SOAK_CASES permits at most $NGINX_SOAK_MAX_CASES canonical case ids"
+        fi
+        case "$soak_case" in
+            allow_without_marker|phase2_body_limits|phase2_args_block|phase1_header_block|request_body_urlencoded_block|phase3_redirect_before_commit|nginx_phase4_deny_after_commit_log_only|nginx_phase4_deny_after_commit_abort)
+                ;;
+            *)
+                fail "NGINX_SOAK_CASES may select only the bounded canonical case set"
+                ;;
+        esac
+        case "$soak_seen_case_ids" in
+            *" $soak_case "*)
+                fail "NGINX_SOAK_CASES must not repeat canonical case ids"
+                ;;
+            *)
+                soak_seen_case_ids="${soak_seen_case_ids}${soak_case} "
+                ;;
+        esac
+    done
+    [ "$soak_case_count" -gt 0 ] || \
+        fail "NGINX_SOAK_CASES must select at least one canonical case id"
+    if [ "$NGINX_MEMCHECK" = "1" ]; then
+        case "$NGINX_SOAK_CASES" in
+            *' '*|'')
+                fail "NGINX_MEMCHECK=1 requires exactly one canonical NGINX_SOAK_CASES id"
+                ;;
+            *) ;;
+        esac
+    fi
+    if [ "$RUN_ONE_CASE" != "1" ]; then
+        TEST_CASE=
+        SMOKE_CASES=$NGINX_SOAK_CASES
+        # The bounded default deliberately includes canonical no-CRS fixtures
+        # and selected non-default lifecycle fixtures.  The existing case CLI
+        # still resolves every item in the connector's scoped catalog.
+        FORCE_ALL_CASES=1
+        NO_CRS_BASELINE=1
+        export FORCE_ALL_CASES NO_CRS_BASELINE
+    fi
+    if [ -z "$MODSECURITY_RULE_PREAMBLE_FILE" ] && [ "$MODSECURITY_TEST_VARIANT" != "with-crs" ]; then
+        MODSECURITY_RULE_PREAMBLE_FILE="$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf"
+        [ -f "$MODSECURITY_RULE_PREAMBLE_FILE" ] || \
+            blocked "missing canonical no-CRS rules preamble: $MODSECURITY_RULE_PREAMBLE_FILE"
+    fi
+}
+
 run_all_cases() {
     require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
     require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
@@ -465,6 +1024,10 @@ run_all_cases() {
     connector_summary="$RESULTS_DIR/connector-summary.txt"
     : > "$summary_file"
     : > "$results_jsonl"
+
+    if [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ]; then
+        write_bounded_soak_category_selection
+    fi
 
     append_selected_phase4_fixtures
     cases=$(list_case_files) || exit 1
@@ -506,6 +1069,9 @@ run_all_cases() {
             case_status=fail
             case_status_upper=FAIL
             any_fail=1
+        fi
+        if [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ]; then
+            write_bounded_soak_category_result "$case_name" "$case_status"
         fi
         actual_status=""
         if [ -f "$case_log_dir/observed-status.txt" ]; then
@@ -567,6 +1133,83 @@ find_curl() {
         return 0
     fi
     command -v curl 2>/dev/null || true
+}
+
+find_valgrind() {
+    case "$VALGRIND_BIN" in
+        "") return 1 ;;
+        */*)
+            [ -x "$VALGRIND_BIN" ] || return 1
+            printf '%s\n' "$VALGRIND_BIN"
+            ;;
+        *) command -v "$VALGRIND_BIN" 2>/dev/null || true ;;
+    esac
+}
+
+find_setsid() {
+    case "$SETSID_BIN" in
+        "") return 1 ;;
+        */*)
+            [ -x "$SETSID_BIN" ] || return 1
+            printf '%s\n' "$SETSID_BIN"
+            ;;
+        *) command -v "$SETSID_BIN" 2>/dev/null || true ;;
+    esac
+}
+
+validate_nginx_memcheck_binary_identity() {
+    [ "$NGINX_BINARY" = "$NGINX_MEMCHECK_NGINX_BINARY" ] || \
+        fail "NGINX_MEMCHECK=1 requires NGINX_BINARY=$NGINX_MEMCHECK_NGINX_BINARY"
+    [ -x "$NGINX_MEMCHECK_NGINX_BINARY" ] || \
+        blocked "missing executable canonical NGINX Memcheck binary: $NGINX_MEMCHECK_NGINX_BINARY"
+    [ -f "$NGINX_MEMCHECK_NGINX_ARCHIVE" ] || \
+        blocked "missing retained NGINX $NGINX_MEMCHECK_EXPECTED_VERSION archive: $NGINX_MEMCHECK_NGINX_ARCHIVE"
+
+    NGINX_MEMCHECK_VERSION_OUTPUT=$("$NGINX_BINARY" -v 2>&1) || \
+        fail "cannot determine canonical NGINX Memcheck binary version: $NGINX_BINARY"
+    [ "$NGINX_MEMCHECK_VERSION_OUTPUT" = "nginx version: nginx/$NGINX_MEMCHECK_EXPECTED_VERSION" ] || \
+        fail "NGINX_MEMCHECK=1 requires nginx/$NGINX_MEMCHECK_EXPECTED_VERSION; got: $NGINX_MEMCHECK_VERSION_OUTPUT"
+
+    command -v sha256sum >/dev/null 2>&1 || \
+        blocked "missing sha256sum required to verify retained NGINX Memcheck archive"
+    NGINX_MEMCHECK_NGINX_ARCHIVE_CHECKSUM=$(sha256sum "$NGINX_MEMCHECK_NGINX_ARCHIVE") || \
+        fail "cannot calculate retained NGINX Memcheck archive SHA-256: $NGINX_MEMCHECK_NGINX_ARCHIVE"
+    NGINX_MEMCHECK_NGINX_ARCHIVE_ACTUAL_SHA256=${NGINX_MEMCHECK_NGINX_ARCHIVE_CHECKSUM%% *}
+    [ "$NGINX_MEMCHECK_NGINX_ARCHIVE_ACTUAL_SHA256" = "$NGINX_MEMCHECK_NGINX_ARCHIVE_SHA256" ] || \
+        fail "retained NGINX Memcheck archive SHA-256 does not match the source-controlled NGINX 1.31.2 digest"
+}
+
+validate_nginx_memcheck_mode() {
+    case "$NGINX_MEMCHECK" in
+        0) return 0 ;;
+        1) ;;
+        *) fail "NGINX_MEMCHECK must be exactly 0 or 1" ;;
+    esac
+    [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ] || \
+        fail "NGINX_MEMCHECK=1 requires MSCONNECTOR_SMOKE_STAGE=bounded_soak"
+    [ "$NGINX_PROTOCOL_PROFILE" = "h1" ] || \
+        fail "NGINX_MEMCHECK=1 requires NGINX_PROTOCOL_PROFILE=h1"
+    [ "$NGINX_DOWNSTREAM_PROTOCOL" = "http1" ] || \
+        fail "NGINX_MEMCHECK=1 requires NGINX_DOWNSTREAM_PROTOCOL=http1"
+    [ "$NGINX_UPSTREAM_PROTOCOL" = "http1" ] || \
+        fail "NGINX_MEMCHECK=1 requires NGINX_UPSTREAM_PROTOCOL=http1"
+    nginx_worker_identity_is_verifiable || \
+        blocked "NGINX_MEMCHECK=1 requires a distinct verifiable NGINX worker identity"
+    validate_nginx_memcheck_binary_identity
+    VALGRIND_BIN=$(find_valgrind || true)
+    [ -n "$VALGRIND_BIN" ] || \
+        blocked "missing executable Valgrind; set VALGRIND_BIN=/path/to/valgrind"
+    [ -x "$VALGRIND_BIN" ] || \
+        blocked "Valgrind is not executable: $VALGRIND_BIN"
+    SETSID_BIN=$(find_setsid || true)
+    [ -n "$SETSID_BIN" ] || \
+        blocked "missing executable setsid required for contained NGINX Memcheck"
+    [ -x "$SETSID_BIN" ] || \
+        blocked "setsid is not executable: $SETSID_BIN"
+    [ -f "$NGINX_MEMCHECK_SUPPRESSIONS" ] || \
+        fail "missing source-controlled NGINX Memcheck suppression file: $NGINX_MEMCHECK_SUPPRESSIONS"
+    [ -f "$NGINX_MEMCHECK_SUMMARIZER" ] || \
+        fail "missing NGINX Memcheck summarizer: $NGINX_MEMCHECK_SUMMARIZER"
 }
 
 validate_nginx_protocol_request() {
@@ -791,6 +1434,11 @@ write_nginx_protocol_directives() {
 
 render_config() {
     NGINX_PHASE4_MODE_DIRECTIVE=""
+    NGINX_WORKER_USER_DIRECTIVE=""
+    if [ "$CURRENT_UID" = "0" ]; then
+        resolve_nginx_worker_identity
+        NGINX_WORKER_USER_DIRECTIVE="user $NGINX_WORKER_RESOLVED_USER $NGINX_WORKER_RESOLVED_GROUP;"
+    fi
     # Each smoke fixture starts an independent NGINX process.  Scope the
     # native complex-value transaction ID to that fixture so distinct real
     # P4 transactions cannot reuse the host's fresh connection counter.
@@ -806,12 +1454,15 @@ render_config() {
     esac
     sed \
         -e "s|@@RUNTIME_ROOT@@|$(escape_sed "$RUNTIME_ROOT")|g" \
+        -e "s|@@NGINX_WORKER_STATE_ROOT@@|$(escape_sed "$NGINX_WORKER_STATE_ROOT")|g" \
+        -e "s|@@NGINX_SERVER_LOG_ROOT@@|$(escape_sed "$NGINX_SERVER_LOG_ROOT")|g" \
         -e "s|@@LOG_DIR@@|$(escape_sed "$LOG_DIR")|g" \
         -e "s|@@PORT@@|$(escape_sed "$PORT")|g" \
         -e "s|@@NGINX_MODULE@@|$(escape_sed "$NGINX_MODULE")|g" \
         -e "s|@@DOCROOT@@|$(escape_sed "$DOCROOT")|g" \
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
         -e "s|@@NGINX_PHASE4_LOG@@|$(escape_sed "$NGINX_PHASE4_LOG_FILE")|g" \
+        -e "s|@@NGINX_WORKER_USER_DIRECTIVE@@|$(escape_sed "$NGINX_WORKER_USER_DIRECTIVE")|g" \
         -e "s|@@NGINX_TRANSACTION_ID_DIRECTIVE@@|$(escape_sed "$NGINX_TRANSACTION_ID_DIRECTIVE")|g" \
         -e "s|@@NGINX_PHASE4_MODE_DIRECTIVE@@|$(escape_sed "$NGINX_PHASE4_MODE_DIRECTIVE")|g" \
         -e "s|@@NGINX_PROTOCOL_LISTEN_DIRECTIVES@@|$(escape_sed "$NGINX_PROTOCOL_LISTEN_DIRECTIVES_FILE")|g" \
@@ -821,13 +1472,239 @@ render_config() {
         "$TEMPLATE" > "$CONFIG_FILE"
 }
 
+record_nginx_memcheck_process_group() {
+    nginx_memcheck_master_pid=$1
+    NGINX_MEMCHECK_PROCESS_GROUP=""
+    NGINX_MEMCHECK_CONTAINMENT=unverified
+    nginx_memcheck_group=$(ps -o pgid= -p "$nginx_memcheck_master_pid" 2>/dev/null | tr -d "$NGINX_TR_DELETE_WHITESPACE" || true)
+    nginx_memcheck_session=$(ps -o sid= -p "$nginx_memcheck_master_pid" 2>/dev/null | tr -d "$NGINX_TR_DELETE_WHITESPACE" || true)
+    nginx_memcheck_harness_group=$(ps -o pgid= -p "$$" 2>/dev/null | tr -d "$NGINX_TR_DELETE_WHITESPACE" || true)
+    case "$nginx_memcheck_group" in ""|*[!0-9]*) return 0 ;; *) ;; esac
+    case "$nginx_memcheck_session" in ""|*[!0-9]*) return 0 ;; *) ;; esac
+    case "$nginx_memcheck_harness_group" in ""|*[!0-9]*) return 0 ;; *) ;; esac
+    [ "$nginx_memcheck_group" = "$nginx_memcheck_session" ] || return 0
+    [ "$nginx_memcheck_group" != "$nginx_memcheck_harness_group" ] || return 0
+    NGINX_MEMCHECK_PROCESS_GROUP=$nginx_memcheck_group
+    NGINX_MEMCHECK_CONTAINMENT=isolated
+}
+
+nginx_memcheck_process_group_alive() {
+    [ "$NGINX_MEMCHECK_CONTAINMENT" = "isolated" ] || return 1
+    [ -n "$NGINX_MEMCHECK_PROCESS_GROUP" ] || return 1
+    kill -0 "-$NGINX_MEMCHECK_PROCESS_GROUP" >/dev/null 2>&1
+}
+
+record_nginx_memcheck_roles() {
+    [ "$NGINX_MEMCHECK" = "1" ] || return 0
+    ( umask 077; : > "$NGINX_MEMCHECK_ROLE_FILE" )
+    chmod 600 "$NGINX_MEMCHECK_ROLE_FILE"
+    nginx_memcheck_master_pid=$(tr -d "$NGINX_TR_DELETE_WHITESPACE" < "$RUNTIME_PID_FILE" 2>/dev/null || true)
+    case "$nginx_memcheck_master_pid" in
+        ""|*[!0-9]*) return 0 ;;
+        *)
+            printf 'master_pid=%s\n' "$nginx_memcheck_master_pid" >> "$NGINX_MEMCHECK_ROLE_FILE"
+            # The launch wrapper records its isolated session before readiness
+            # so a failed readiness probe can still clean up the exact group.
+            # Refresh only when that early snapshot was unavailable.
+            if [ "$NGINX_MEMCHECK_CONTAINMENT" != "isolated" ]; then
+                record_nginx_memcheck_process_group "$nginx_memcheck_master_pid"
+            fi
+            ;;
+    esac
+
+    nginx_memcheck_role_attempt=0
+    while [ "$nginx_memcheck_role_attempt" -lt 10 ]; do
+        nginx_memcheck_worker_pids=$(ps -o pid= --ppid "$nginx_memcheck_master_pid" 2>/dev/null || true)
+        nginx_memcheck_worker_count=0
+        for nginx_memcheck_worker_pid in $nginx_memcheck_worker_pids; do
+            case "$nginx_memcheck_worker_pid" in
+                ""|*[!0-9]*) continue ;;
+                *)
+                    printf 'worker_pid=%s\n' "$nginx_memcheck_worker_pid" >> "$NGINX_MEMCHECK_ROLE_FILE"
+                    nginx_memcheck_worker_count=$((nginx_memcheck_worker_count + 1))
+                    ;;
+            esac
+        done
+        [ "$nginx_memcheck_worker_count" -gt 0 ] && return 0
+        nginx_memcheck_role_attempt=$((nginx_memcheck_role_attempt + 1))
+        sleep 1
+    done
+}
+
+signal_nginx_memcheck_processes() {
+    nginx_memcheck_signal=$1
+    if [ "$NGINX_MEMCHECK_CONTAINMENT" = "isolated" ] && \
+       [ -n "$NGINX_MEMCHECK_PROCESS_GROUP" ] && \
+       kill "-$nginx_memcheck_signal" "-$NGINX_MEMCHECK_PROCESS_GROUP" >/dev/null 2>&1; then
+        return 0
+    fi
+    kill "-$nginx_memcheck_signal" "$NGINX_PID" >/dev/null 2>&1
+}
+
+wait_for_nginx_memcheck_exit() {
+    nginx_memcheck_wait_limit=$1
+    nginx_memcheck_deadline=$(( $(date +%s) + nginx_memcheck_wait_limit ))
+    while :; do
+        nginx_memcheck_wrapper_alive=0
+        nginx_memcheck_group_alive=0
+        if kill -0 "$NGINX_PID" >/dev/null 2>&1; then
+            nginx_memcheck_wrapper_alive=1
+        fi
+        if nginx_memcheck_process_group_alive; then
+            nginx_memcheck_group_alive=1
+        fi
+        [ "$nginx_memcheck_wrapper_alive" -eq 0 ] && \
+            [ "$nginx_memcheck_group_alive" -eq 0 ] && break
+        nginx_memcheck_now=$(date +%s)
+        [ "$nginx_memcheck_now" -lt "$nginx_memcheck_deadline" ] || return 1
+        sleep 1
+    done
+    set +e
+    wait "$NGINX_PID"
+    NGINX_MEMCHECK_WRAPPER_EXIT_CODE=$?
+    set -e
+    return 0
+}
+
+stop_nginx_memcheck() {
+    [ "$NGINX_MEMCHECK" = "1" ] || return 0
+    [ -n "${NGINX_PID:-}" ] || return 0
+
+    if ! kill -0 "$NGINX_PID" >/dev/null 2>&1 && ! nginx_memcheck_process_group_alive; then
+        NGINX_MEMCHECK_SHUTDOWN=forced
+        NGINX_MEMCHECK_WAIT_STATUS=exited
+        set +e
+        wait "$NGINX_PID"
+        NGINX_MEMCHECK_WRAPPER_EXIT_CODE=$?
+        set -e
+        NGINX_PID=""
+        return 0
+    fi
+
+    NGINX_MEMCHECK_SHUTDOWN=graceful
+    if ! (
+        umask 077
+        exec "$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" -s quit \
+            > "$LOG_DIR/nginx-memcheck-quit.log" 2>&1
+    ); then
+        NGINX_MEMCHECK_SHUTDOWN=forced
+    fi
+    if wait_for_nginx_memcheck_exit "$NGINX_MEMCHECK_WAIT_SECONDS"; then
+        NGINX_MEMCHECK_WAIT_STATUS=exited
+        NGINX_PID=""
+        return 0
+    fi
+
+    # The normal NGINX quit path has already been given its full bounded
+    # window.  Signal the isolated task-owned process group so a failed master
+    # cannot leave a worker, listener, or diagnostic process behind.
+    NGINX_MEMCHECK_SHUTDOWN=forced_term
+    signal_nginx_memcheck_processes TERM || true
+    if wait_for_nginx_memcheck_exit 5; then
+        NGINX_MEMCHECK_WAIT_STATUS=exited
+        NGINX_PID=""
+        return 0
+    fi
+    NGINX_MEMCHECK_SHUTDOWN=forced_kill
+    signal_nginx_memcheck_processes KILL || true
+    if wait_for_nginx_memcheck_exit 5; then
+        NGINX_MEMCHECK_WAIT_STATUS=exited
+        NGINX_PID=""
+        return 0
+    fi
+    NGINX_MEMCHECK_WAIT_STATUS=timed_out
+    NGINX_MEMCHECK_WRAPPER_EXIT_CODE=unknown
+    return 1
+}
+
+write_nginx_memcheck_lifecycle() {
+    [ "$NGINX_MEMCHECK" = "1" ] || return 0
+    [ -n "${NGINX_MEMCHECK_LIFECYCLE_FILE:-}" ] || return 0
+    (
+        umask 077
+        {
+            printf 'shutdown=%s\n' "$NGINX_MEMCHECK_SHUTDOWN"
+            printf 'wait=%s\n' "$NGINX_MEMCHECK_WAIT_STATUS"
+            printf 'wrapper_exit_code=%s\n' "$NGINX_MEMCHECK_WRAPPER_EXIT_CODE"
+            printf 'containment=%s\n' "$NGINX_MEMCHECK_CONTAINMENT"
+        } > "$NGINX_MEMCHECK_LIFECYCLE_FILE"
+    )
+    chmod 600 "$NGINX_MEMCHECK_LIFECYCLE_FILE"
+}
+
+finalize_nginx_memcheck() {
+    [ "$NGINX_MEMCHECK" = "1" ] || return 0
+    [ "$NGINX_MEMCHECK_STARTED" = "1" ] || return 0
+    [ "$NGINX_MEMCHECK_FINALIZED" = "0" ] || return 0
+
+    NGINX_MEMCHECK_FINALIZED=1
+    stop_nginx_memcheck || true
+    write_nginx_memcheck_lifecycle
+    set +e
+    "$PYTHON_BIN" "$NGINX_MEMCHECK_SUMMARIZER" \
+        --verified-run-root "$VERIFIED_RUN_ROOT" \
+        --log-dir "$NGINX_MEMCHECK_EVIDENCE_DIR"
+    nginx_memcheck_summary_rc=$?
+    set -e
+    printf 'memcheck_summary_exit_code=%s\n' "$nginx_memcheck_summary_rc" >> "$STATUS_FILE"
+    [ "$nginx_memcheck_summary_rc" -eq 0 ]
+}
+
+start_nginx_process() {
+    if [ "$NGINX_MEMCHECK" = "1" ]; then
+        (
+            # Valgrind uses private log files itself; the inherited restrictive
+            # mask additionally preserves that guarantee for every traced
+            # master/worker process beneath the task-owned log root.
+            umask 077
+            exec "$SETSID_BIN" "$VALGRIND_BIN" \
+                --tool=memcheck \
+                --trace-children=yes \
+                --vgdb=no \
+                --leak-check=full \
+                --show-leak-kinds=definite,indirect,possible \
+                --errors-for-leak-kinds=definite,indirect \
+                --error-exitcode=99 \
+                --num-callers=24 \
+                --suppressions="$NGINX_MEMCHECK_SUPPRESSIONS" \
+                --log-file="$NGINX_MEMCHECK_EVIDENCE_DIR/valgrind.%p.log" \
+                "$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" \
+                > "$LOG_DIR/nginx-stdout.log" 2>&1
+        ) &
+        NGINX_MEMCHECK_STARTED=1
+        NGINX_MEMCHECK_FINALIZED=0
+        NGINX_MEMCHECK_PROCESS_GROUP=""
+        NGINX_MEMCHECK_CONTAINMENT=unverified
+    else
+        "$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" > "$LOG_DIR/nginx-stdout.log" 2>&1 &
+    fi
+    NGINX_PID=$!
+    if [ "$NGINX_MEMCHECK" = "1" ]; then
+        # Capture the dedicated setsid group immediately, rather than waiting
+        # for HTTP readiness and the NGINX pid-file.  This is the narrow
+        # containment boundary for a startup failure or a failed readiness
+        # probe; later role capture supplies the evidence identities.
+        record_nginx_memcheck_process_group "$NGINX_PID"
+    fi
+}
+
 cleanup() {
+    if [ -n "${NGINX_SOAK_WORKER_PIDS:-}" ]; then
+        for soak_worker_pid in $NGINX_SOAK_WORKER_PIDS; do
+            if kill -0 "$soak_worker_pid" >/dev/null 2>&1; then
+                kill "$soak_worker_pid" >/dev/null 2>&1 || true
+            fi
+            wait "$soak_worker_pid" >/dev/null 2>&1 || true
+        done
+    fi
     if [ -n "${SYNCHRONIZED_UPSTREAM_PID:-}" ] && kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1; then
         [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ] && : > "$SYNCHRONIZED_RELEASE_FILE"
         kill "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
         wait "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
     fi
-    if [ -n "${NGINX_PID:-}" ] && kill -0 "$NGINX_PID" >/dev/null 2>&1; then
+    if [ "$NGINX_MEMCHECK" = "1" ]; then
+        finalize_nginx_memcheck || true
+    elif [ -n "${NGINX_PID:-}" ] && kill -0 "$NGINX_PID" >/dev/null 2>&1; then
         kill "$NGINX_PID" >/dev/null 2>&1 || true
         wait "$NGINX_PID" >/dev/null 2>&1 || true
     fi
@@ -1166,8 +2043,7 @@ start_server() {
             return 0
         fi
 
-        "$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" > "$LOG_DIR/nginx-stdout.log" 2>&1 &
-        NGINX_PID=$!
+        start_nginx_process
 
         if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
             sleep 1
@@ -1217,6 +2093,7 @@ start_server() {
         done
 
         if [ "$ready" -eq 1 ]; then
+            record_nginx_memcheck_roles
             return 0
         fi
         fail "NGINX did not become ready on 127.0.0.1:$PORT"
@@ -1224,7 +2101,14 @@ start_server() {
 }
 
 send_case_request() {
-    set -- "$CURL_BIN" -sS -X "$REQUEST_METHOD" -o "$RESPONSE_BODY" -w "%{http_code}"
+    response_output="${SEND_CASE_RESPONSE_BODY:-$RESPONSE_BODY}"
+    curl_error_output="${SEND_CASE_CURL_ERROR_LOG:-$LOG_DIR/curl-attack.err}"
+    validate_nginx_request_output_path SEND_CASE_RESPONSE_BODY "$response_output"
+    validate_nginx_request_output_path SEND_CASE_CURL_ERROR_LOG "$curl_error_output"
+    set -- "$CURL_BIN" -sS -X "$REQUEST_METHOD" -o "$response_output" -w "%{http_code}"
+    if [ -n "${SEND_CASE_MAX_TIME_SECONDS:-}" ]; then
+        set -- "$@" --max-time "$SEND_CASE_MAX_TIME_SECONDS"
+    fi
     if [ -n "${REQUEST_HEADERS_FILE:-}" ] && [ -s "$REQUEST_HEADERS_FILE" ]; then
         while IFS= read -r header_line || [ -n "$header_line" ]; do
             [ -n "$header_line" ] || continue
@@ -1236,7 +2120,154 @@ send_case_request() {
     fi
     request_url_path=$(quote_request_path "$REQUEST_PATH")
     set -- "$@" "http://127.0.0.1:$PORT$request_url_path"
-    "$@" 2>"$LOG_DIR/curl-attack.err"
+    "$@" 2>"$curl_error_output"
+}
+
+soak_request_matches_case() {
+    soak_http_status=$1
+    soak_curl_rc=$2
+    soak_transport=http_status
+    if [ "$soak_curl_rc" -ne 0 ]; then
+        soak_transport=connection_aborted
+    fi
+    [ "$soak_transport" = "$EXPECT_TRANSPORT" ] || return 1
+    [ "$soak_http_status" = "$EXPECT_STATUS" ] || return 1
+    return 0
+}
+
+run_bounded_soak_worker() {
+    soak_worker_index=$1
+    soak_deadline=$2
+    soak_worker_summary="$NGINX_SOAK_WORKER_DIR/$soak_worker_index.summary"
+    soak_worker_requests=0
+    soak_worker_failures=0
+
+    while :; do
+        soak_now=$(date +%s)
+        if [ "$soak_worker_requests" -gt 0 ] && [ "$soak_now" -ge "$soak_deadline" ]; then
+            break
+        fi
+        set +e
+        soak_http_status=$(SEND_CASE_RESPONSE_BODY=/dev/null \
+            SEND_CASE_CURL_ERROR_LOG=/dev/null \
+            SEND_CASE_MAX_TIME_SECONDS=10 \
+            send_case_request)
+        soak_curl_rc=$?
+        set -e
+        soak_worker_requests=$((soak_worker_requests + 1))
+        if ! soak_request_matches_case "$soak_http_status" "$soak_curl_rc"; then
+            soak_worker_failures=$((soak_worker_failures + 1))
+            break
+        fi
+    done
+
+    printf 'requests=%s failures=%s\n' "$soak_worker_requests" "$soak_worker_failures" > "$soak_worker_summary"
+    [ "$soak_worker_failures" -eq 0 ]
+}
+
+collect_bounded_soak_worker_summaries() {
+    NGINX_SOAK_REQUESTS_COMPLETED=0
+    NGINX_SOAK_REQUEST_FAILURES=0
+    NGINX_SOAK_WORKER_SUMMARY_FAILURES=0
+    soak_worker_index=1
+    while [ "$soak_worker_index" -le "$NGINX_SOAK_CONCURRENCY" ]; do
+        soak_worker_summary="$NGINX_SOAK_WORKER_DIR/$soak_worker_index.summary"
+        if [ ! -f "$soak_worker_summary" ] || [ -L "$soak_worker_summary" ]; then
+            NGINX_SOAK_WORKER_SUMMARY_FAILURES=$((NGINX_SOAK_WORKER_SUMMARY_FAILURES + 1))
+            soak_worker_index=$((soak_worker_index + 1))
+            continue
+        fi
+        soak_requests_field=
+        soak_failures_field=
+        soak_extra_field=
+        IFS=' ' read -r soak_requests_field soak_failures_field soak_extra_field < "$soak_worker_summary" || true
+        case "$soak_requests_field:$soak_failures_field:$soak_extra_field" in
+            requests=[0-9]*:failures=[0-9]*:)
+                soak_worker_requests=${soak_requests_field#requests=}
+                soak_worker_failures=${soak_failures_field#failures=}
+                case "$soak_worker_requests:$soak_worker_failures" in
+                    *[!0-9:]*|:*)
+                        NGINX_SOAK_WORKER_SUMMARY_FAILURES=$((NGINX_SOAK_WORKER_SUMMARY_FAILURES + 1))
+                        ;;
+                    *)
+                        NGINX_SOAK_REQUESTS_COMPLETED=$((NGINX_SOAK_REQUESTS_COMPLETED + soak_worker_requests))
+                        NGINX_SOAK_REQUEST_FAILURES=$((NGINX_SOAK_REQUEST_FAILURES + soak_worker_failures))
+                        ;;
+                esac
+                ;;
+            *)
+                NGINX_SOAK_WORKER_SUMMARY_FAILURES=$((NGINX_SOAK_WORKER_SUMMARY_FAILURES + 1))
+                ;;
+        esac
+        rm -f "$soak_worker_summary"
+        soak_worker_index=$((soak_worker_index + 1))
+    done
+    rmdir "$NGINX_SOAK_WORKER_DIR" >/dev/null 2>&1 || true
+}
+
+write_bounded_soak_summary() {
+    soak_summary_status=$1
+    soak_server_alive=$2
+    {
+        printf 'stage=%s\n' "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK"
+        printf 'case=%s\n' "$case_name"
+        printf 'duration_seconds=%s\n' "$NGINX_SOAK_DURATION_SECONDS"
+        printf 'concurrency=%s\n' "$NGINX_SOAK_CONCURRENCY"
+        printf 'requests_completed=%s\n' "$NGINX_SOAK_REQUESTS_COMPLETED"
+        printf 'request_failures=%s\n' "$NGINX_SOAK_REQUEST_FAILURES"
+        printf 'worker_summary_failures=%s\n' "$NGINX_SOAK_WORKER_SUMMARY_FAILURES"
+        printf 'server_alive=%s\n' "$soak_server_alive"
+        printf 'status=%s\n' "$soak_summary_status"
+    } > "$NGINX_SOAK_SUMMARY_FILE"
+}
+
+run_bounded_soak() {
+    require_bounded_positive_decimal "$NGINX_SOAK_DURATION_SECONDS" \
+        NGINX_SOAK_DURATION_SECONDS 300
+    require_bounded_positive_decimal "$NGINX_SOAK_CONCURRENCY" \
+        NGINX_SOAK_CONCURRENCY 16
+    NGINX_SOAK_SUMMARY_FILE="$LOG_DIR/nginx-bounded-soak-summary.txt"
+    NGINX_SOAK_WORKER_DIR="$RUNTIME_ROOT/bounded-soak-workers"
+    require_absolute_generated_path "$NGINX_SOAK_WORKER_DIR" "NGINX_SOAK_WORKER_DIR"
+    mkdir -p "$NGINX_SOAK_WORKER_DIR"
+    NGINX_SOAK_DEADLINE=$(( $(date +%s) + NGINX_SOAK_DURATION_SECONDS ))
+    NGINX_SOAK_WORKER_PIDS=""
+
+    soak_worker_index=1
+    while [ "$soak_worker_index" -le "$NGINX_SOAK_CONCURRENCY" ]; do
+        run_bounded_soak_worker "$soak_worker_index" "$NGINX_SOAK_DEADLINE" &
+        NGINX_SOAK_WORKER_PIDS="${NGINX_SOAK_WORKER_PIDS}${NGINX_SOAK_WORKER_PIDS:+ }$!"
+        soak_worker_index=$((soak_worker_index + 1))
+    done
+
+    NGINX_SOAK_WORKER_FAILURES=0
+    for soak_worker_pid in $NGINX_SOAK_WORKER_PIDS; do
+        set +e
+        wait "$soak_worker_pid"
+        soak_worker_rc=$?
+        set -e
+        if [ "$soak_worker_rc" -ne 0 ]; then
+            NGINX_SOAK_WORKER_FAILURES=$((NGINX_SOAK_WORKER_FAILURES + 1))
+        fi
+    done
+    NGINX_SOAK_WORKER_PIDS=""
+    collect_bounded_soak_worker_summaries
+
+    soak_server_alive=0
+    if [ -n "${NGINX_PID:-}" ] && kill -0 "$NGINX_PID" >/dev/null 2>&1; then
+        soak_server_alive=1
+    fi
+    if [ "$NGINX_SOAK_WORKER_FAILURES" -ne 0 ] || \
+       [ "$NGINX_SOAK_REQUEST_FAILURES" -ne 0 ] || \
+       [ "$NGINX_SOAK_WORKER_SUMMARY_FAILURES" -ne 0 ]; then
+        write_bounded_soak_summary fail "$soak_server_alive"
+        fail "bounded soak worker failures detected"
+    fi
+    if [ "$soak_server_alive" -ne 1 ]; then
+        write_bounded_soak_summary fail "$soak_server_alive"
+        fail "NGINX did not remain alive after bounded soak"
+    fi
+    write_bounded_soak_summary pass "$soak_server_alive"
 }
 
 quote_request_path() {
@@ -1266,6 +2297,7 @@ start_response_header_backend() {
         --port "$RESPONSE_HEADER_BACKEND_PORT" \
         --body-file "$DOCROOT/index.html" \
         --safe-root "$RUNTIME_ROOT" \
+        --safe-root "$DOCROOT" \
         --fixture-file "$RESPONSE_HEADER_FIXTURE_FILE" \
         >"$LOG_DIR/response-header-backend.stdout.log" \
         2>"$LOG_DIR/response-header-backend.stderr.log" &
@@ -1303,6 +2335,8 @@ require_crs_preamble_if_needed() {
     fi
 }
 
+initialize_nginx_harness_paths
+prepare_bounded_soak_selection
 require_crs_preamble_if_needed
 
 if [ "$RUN_ONE_CASE" != "1" ]; then
@@ -1317,9 +2351,32 @@ case_name=$(basename "$TEST_CASE" .yaml)
 if [ -z "$RUNTIME_ROOT" ]; then
     RUNTIME_ROOT="$RUNTIME_BASE/$case_name"
 fi
+NGINX_WORKER_STATE_ROOT="$NGINX_HARNESS_WORK_ROOT/worker-state/$case_name"
+NGINX_SERVER_LOG_ROOT="$NGINX_HARNESS_WORK_ROOT/server-logs/$case_name"
+NGINX_MEMCHECK_EVIDENCE_DIR="$LOG_DIR/memcheck-evidence/$case_name"
 STATUS_FILE="$LOG_DIR/status.txt"
+PERMISSIONS_LOG="${PERMISSIONS_LOG:-$LOG_DIR/permissions.log}"
+NGINX_WORKER_PREFLIGHT_FILE="${NGINX_WORKER_PREFLIGHT_FILE:-$LOG_DIR/nginx-worker-preflight.jsonl}"
+RUNTIME_PID_FILE="$RUNTIME_ROOT/nginx.pid"
 
 validate_nginx_protocol_request
+validate_nginx_docroot_projection_mode
+require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
+require_absolute_generated_path "$NGINX_BUILD_DIR" "NGINX_BUILD_DIR"
+require_absolute_generated_path "$NGINX_PREFIX" "NGINX_PREFIX"
+require_absolute_generated_path "$RUNTIME_ROOT" "RUNTIME_ROOT"
+require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
+require_absolute_generated_path "$NGINX_WORKER_STATE_ROOT" "NGINX_WORKER_STATE_ROOT"
+require_absolute_generated_path "$NGINX_SERVER_LOG_ROOT" "NGINX_SERVER_LOG_ROOT"
+require_absolute_generated_path "$NGINX_MEMCHECK_EVIDENCE_DIR" "NGINX_MEMCHECK_EVIDENCE_DIR"
+if [ "$NGINX_DOCROOT_PROJECTION" = "1" ]; then
+    require_absolute_generated_path "$NGINX_DOCROOT_PROJECTION_PARENT" "NGINX_DOCROOT_PROJECTION_PARENT"
+    require_absolute_generated_path "$NGINX_DOCROOT_PROJECTION_ROOT" "NGINX_DOCROOT_PROJECTION_ROOT"
+fi
+validate_nginx_generated_path_authority
+validate_nginx_external_projection_authority
+require_private_worker_path_separation
+validate_nginx_worker_isolation
 
 echo "nginx_smoke: BUILD_ROOT=$BUILD_ROOT"
 echo "nginx_smoke: NGINX_BUILD_DIR=$NGINX_BUILD_DIR"
@@ -1329,6 +2386,9 @@ echo "nginx_smoke: NGINX_MODULE=$NGINX_MODULE"
 echo "nginx_smoke: NGINX_HARNESS_WORK_ROOT=$NGINX_HARNESS_WORK_ROOT"
 echo "nginx_smoke: RUNTIME_ROOT=$RUNTIME_ROOT"
 echo "nginx_smoke: LOG_DIR=$LOG_DIR"
+echo "nginx_smoke: NGINX_WORKER_STATE_ROOT=$NGINX_WORKER_STATE_ROOT"
+echo "nginx_smoke: NGINX_SERVER_LOG_ROOT=$NGINX_SERVER_LOG_ROOT"
+echo "nginx_smoke: NGINX_MEMCHECK_EVIDENCE_DIR=$NGINX_MEMCHECK_EVIDENCE_DIR"
 echo "nginx_smoke: TEST_CASE=$TEST_CASE"
 echo "nginx_smoke: CASE_SCOPE=$CASE_SCOPE"
 echo "nginx_smoke: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
@@ -1341,18 +2401,23 @@ if [ -n "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
     echo "nginx_smoke: MODSECURITY_RULE_PREAMBLE_FILE=$MODSECURITY_RULE_PREAMBLE_FILE"
 fi
 
-require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
-require_absolute_generated_path "$NGINX_BUILD_DIR" "NGINX_BUILD_DIR"
-require_absolute_generated_path "$NGINX_PREFIX" "NGINX_PREFIX"
-require_absolute_generated_path "$RUNTIME_ROOT" "RUNTIME_ROOT"
-require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
-
-RUNTIME_PID_FILE="$RUNTIME_ROOT/nginx.pid"
-
-ensure_dir_755 "$NGINX_HARNESS_WORK_ROOT" "$RUNTIME_BASE" "$LOG_DIR" "$LOG_DIR/audit" "$RUNTIME_ROOT" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/htdocs" \
-    "$RUNTIME_ROOT/client_body_temp" "$RUNTIME_ROOT/proxy_temp" \
-    "$RUNTIME_ROOT/fastcgi_temp" "$RUNTIME_ROOT/uwsgi_temp" \
-    "$RUNTIME_ROOT/scgi_temp"
+ensure_dir_755 "$NGINX_HARNESS_WORK_ROOT" "$RUNTIME_BASE" \
+    "$NGINX_HARNESS_WORK_ROOT/worker-state" \
+    "$NGINX_HARNESS_WORK_ROOT/server-logs" \
+    "$NGINX_HARNESS_WORK_ROOT/memcheck-evidence"
+if [ "$CURRENT_UID" = "0" ]; then
+    chown root:root "$NGINX_HARNESS_WORK_ROOT" \
+        "$NGINX_HARNESS_WORK_ROOT/worker-state" \
+        "$NGINX_HARNESS_WORK_ROOT/server-logs" \
+        "$NGINX_HARNESS_WORK_ROOT/memcheck-evidence"
+fi
+chmod 711 "$NGINX_HARNESS_WORK_ROOT" \
+    "$NGINX_HARNESS_WORK_ROOT/worker-state" \
+    "$NGINX_HARNESS_WORK_ROOT/server-logs" \
+    "$NGINX_HARNESS_WORK_ROOT/memcheck-evidence"
+ensure_private_dir "$LOG_DIR" "$RUNTIME_ROOT" "$RUNTIME_ROOT/conf" \
+    "$RUNTIME_ROOT/htdocs" "$NGINX_MEMCHECK_EVIDENCE_DIR"
+prepare_nginx_worker_paths
 : > "$STATUS_FILE"
 stop_stale_runtime_pid "$RUNTIME_PID_FILE"
 rm -f "$LOG_DIR/configtest.log" \
@@ -1360,21 +2425,34 @@ rm -f "$LOG_DIR/configtest.log" \
 	    "$LOG_DIR/nginx-http2-applicability.json" \
 	    "$LOG_DIR/nginx-protocol-applicability.json" \
     "$LOG_DIR/curl-attack.err" \
-	    "$LOG_DIR/curl-ready.err" \
+    "$LOG_DIR/curl-ready.err" \
 	    "$LOG_DIR/nginx.log" \
 	    "$LOG_DIR/nginx-stdout.log" \
 	    "$LOG_DIR/phase4.log" \
 	    "$LOG_DIR/response-body.txt" \
-	    "$LOG_DIR/audit.log" \
+	    "$LOG_DIR/nginx-bounded-soak-summary.txt" \
+	    "$LOG_DIR/nginx-bounded-soak-categories.txt" \
+	    "$LOG_DIR/nginx-memcheck-quit.log" \
+	    "$NGINX_SERVER_LOG_ROOT/error.log" \
+	    "$NGINX_SERVER_LOG_ROOT/access.log" \
+	    "$NGINX_SERVER_LOG_ROOT/audit.log" \
+	    "$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-lifecycle.txt" \
+	    "$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-roles.txt" \
+	    "$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-summary.json" \
+	    "$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-summary.txt" \
 	    "$RUNTIME_ROOT/nginx.pid"
-rm -f "$LOG_DIR/audit/"*
+rm -f "$NGINX_MEMCHECK_EVIDENCE_DIR"/valgrind.*.log
+rm -f "$NGINX_SERVER_LOG_ROOT"/audit/*
 
 case "$MSCONNECTOR_SMOKE_STAGE" in
     config_load|start_smoke|minimal_runtime_smoke) ;;
+    "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK") ;;
     *) fail "unsupported MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE" ;;
 esac
+validate_nginx_memcheck_mode
 
-if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ] || \
+   [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ]; then
     CURL_BIN=$(find_curl)
 else
     CURL_BIN=
@@ -1384,7 +2462,8 @@ fi
 [ -f "$NGINX_MODULE" ] || blocked "missing NGINX ModSecurity dynamic module: $NGINX_MODULE"
 record_nginx_protocol_applicability
 verify_nginx_protocol_build
-if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ] || \
+   [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ]; then
     [ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
     [ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
 fi
@@ -1392,13 +2471,14 @@ fi
 
 CONFIG_FILE="$RUNTIME_ROOT/conf/nginx.conf"
 RULES_FILE="$RUNTIME_ROOT/conf/modsecurity-smoke.conf"
-DOCROOT="$RUNTIME_ROOT/htdocs"
+PRIVATE_DOCROOT="$RUNTIME_ROOT/htdocs"
+DOCROOT="$PRIVATE_DOCROOT"
 RESPONSE_BODY="$LOG_DIR/response-body.txt"
 CASE_ENV_FILE="$RUNTIME_ROOT/conf/case.env"
 REQUEST_HEADERS_FILE="$RUNTIME_ROOT/conf/request-headers.txt"
 REQUEST_BODY_FILE="$RUNTIME_ROOT/conf/request-body.bin"
-AUDIT_LOG_FILE="$LOG_DIR/audit.log"
-AUDIT_LOG_DIR="$LOG_DIR/audit"
+AUDIT_LOG_FILE="$NGINX_SERVER_LOG_ROOT/audit.log"
+AUDIT_LOG_DIR="$NGINX_SERVER_LOG_ROOT/audit"
 NGINX_LOCATION_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-directives.conf"
 NGINX_LOCATION_HANDLER_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-handler-directives.conf"
 NGINX_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"
@@ -1411,15 +2491,18 @@ NGINX_TLS_CA_CERT="$RUNTIME_ROOT/conf/nginx-test-ca.crt"
 NGINX_TLS_CA_KEY="$RUNTIME_ROOT/conf/nginx-test-ca.key"
 NGINX_TLS_SERVER_CSR="$RUNTIME_ROOT/conf/nginx-test-server.csr"
 NGINX_TLS_SERVER_EXT="$RUNTIME_ROOT/conf/nginx-test-server.ext"
+NGINX_MEMCHECK_ROLE_FILE="$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-roles.txt"
+NGINX_MEMCHECK_LIFECYCLE_FILE="$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-lifecycle.txt"
+NGINX_MEMCHECK_SUMMARY_JSON="$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-summary.json"
+NGINX_MEMCHECK_SUMMARY_TEXT="$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-summary.txt"
 
-ensure_worker_runtime_permissions
 if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --case "$TEST_CASE" \
     --rules-file "$RULES_FILE" \
     --env-file "$CASE_ENV_FILE" \
     --headers-file "$REQUEST_HEADERS_FILE" \
     --body-file "$REQUEST_BODY_FILE" \
-	    --docroot "$DOCROOT" \
+	    --docroot "$PRIVATE_DOCROOT" \
 	    --audit-log-file "$AUDIT_LOG_FILE" \
 	    --audit-log-dir "$AUDIT_LOG_DIR" \
 	    --rules-preamble-file "$MODSECURITY_RULE_PREAMBLE_FILE" \
@@ -1427,6 +2510,13 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
 	    --nginx-runtime-config-dir "$RUNTIME_ROOT/conf" \
 	    --nginx-phase4-log-file "$NGINX_PHASE4_LOG_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
+fi
+lock_private_runtime_paths
+prepare_nginx_worker_paths
+project_nginx_worker_docroot
+if [ "$NGINX_DOCROOT_PROJECTION" = "1" ]; then
+    echo "nginx_smoke: NGINX_DOCROOT_PROJECTION_ROOT=$NGINX_DOCROOT_PROJECTION_ROOT"
+    echo "nginx_smoke: NGINX_DOCROOT_PROJECTION_PARENT=$NGINX_DOCROOT_PROJECTION_PARENT"
 fi
 . "$CASE_ENV_FILE"
 if ! "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" response-header-fixture \
@@ -1437,7 +2527,8 @@ if ! "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" respo
 fi
 start_response_header_backend
 write_location_handler_directives "$NGINX_LOCATION_HANDLER_DIRECTIVES_FILE"
-ensure_worker_runtime_permissions
+lock_private_runtime_paths
+prepare_nginx_worker_paths
 preflight_nginx_worker_docroot
 
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$NGINX_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -1452,6 +2543,15 @@ if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
 fi
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
     echo "nginx_smoke: pass start_smoke (request-free host liveness verified)"
+    exit 0
+fi
+
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ]; then
+    run_bounded_soak
+    if ! finalize_nginx_memcheck; then
+        fail "NGINX Memcheck reported an error or incomplete diagnostic; see $NGINX_MEMCHECK_SUMMARY_TEXT"
+    fi
+    echo "nginx_smoke: pass $MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK case=$CASE_NAME"
     exit 0
 fi
 

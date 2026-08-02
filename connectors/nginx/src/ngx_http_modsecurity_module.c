@@ -55,7 +55,8 @@ static ngx_int_t ngx_http_modsecurity_is_mime_char(unsigned char c);
 static ngx_int_t ngx_http_modsecurity_validate_strict_mime_token(const char *token);
 static char *ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static ngx_int_t ngx_http_modsecurity_process_redirect_intervention(
-    ngx_http_request_t *r, ModSecurityIntervention *intervention);
+    ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
+    ModSecurityIntervention *intervention);
 static ngx_int_t ngx_http_modsecurity_process_status_intervention(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
     ModSecurityIntervention *intervention, ngx_int_t early_log);
@@ -159,13 +160,12 @@ ngx_inline char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p)
 
 static ngx_int_t
 ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
-    ModSecurityIntervention *intervention)
+    ngx_http_modsecurity_ctx_t *ctx, ModSecurityIntervention *intervention)
 {
     ngx_str_t location_value;
     ngx_table_elt_t *location;
-
-    dd("intervention -- redirecting to: %s with status code: %d",
-        intervention->url, intervention->status);
+    const u_char *redirect_url;
+    size_t i;
 
     if (r->header_sent) {
         dd("Headers are already sent. Cannot perform the redirection at this point.");
@@ -175,6 +175,16 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
     /* The Location header follows NGINX's error-page allocation and hash
      * conventions, independently of the phase that produced the redirect. */
     location_value.len = ngx_strlen(intervention->url);
+    redirect_url = (const u_char *) intervention->url;
+    for (i = 0; i < location_value.len; i++) {
+        if (redirect_url[i] == '\r' || redirect_url[i] == '\n') {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "modsecurity intervention redirect URL contains CR or LF");
+            return NGX_HTTP_BAD_REQUEST;
+        }
+    }
+    dd("intervention -- redirecting to: %s with status code: %d",
+        intervention->url, intervention->status);
     if (location_value.len > NGX_MAX_SIZE_T_VALUE - 1U) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "modsecurity intervention redirect URL is too long");
@@ -196,10 +206,24 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     ngx_http_clear_location(r);
+    /* The redirect is a body-less replacement for the pending upstream
+     * response.  Do not retain entity metadata for bytes that will be
+     * discarded by the body filter. */
+    ngx_http_clear_content_length(r);
+    ngx_http_clear_last_modified(r);
+    ngx_http_clear_etag(r);
+    ngx_http_clear_accept_ranges(r);
+    ngx_str_null(&r->headers_out.content_type);
+    r->headers_out.content_type_len = 0;
+    if (r->headers_out.content_encoding != NULL) {
+        r->headers_out.content_encoding->hash = 0;
+        r->headers_out.content_encoding = NULL;
+    }
     ngx_str_set(&location->key, "Location");
     location->value = location_value;
     r->headers_out.location = location;
     r->headers_out.location->hash = 1;
+    ctx->intervention_redirect_location_installed = 1;
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
     ngx_http_modsecurity_store_ctx_header(r, &location->key, &location->value);
@@ -287,7 +311,7 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
 
     if (intervention.url != NULL && intervention.url[0] != '\0')
     {
-        result = ngx_http_modsecurity_process_redirect_intervention(r,
+        result = ngx_http_modsecurity_process_redirect_intervention(r, ctx,
             &intervention);
         goto cleanup;
     }
@@ -311,14 +335,23 @@ ngx_http_modsecurity_cleanup(void *data)
 
     ctx = (ngx_http_modsecurity_ctx_t *) data;
 
-    msc_transaction_cleanup(ctx->modsec_transaction);
+    if (ctx == NULL) {
+        return;
+    }
+
+    if (ctx->modsec_transaction != NULL) {
+        msc_transaction_cleanup(ctx->modsec_transaction);
+        ctx->modsec_transaction = NULL;
+    }
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
     /*
      * Purge stored context headers.  Memory allocated for individual stored header
      * name/value pair will be freed automatically when r->pool is destroyed.
      */
-    ngx_array_destroy(ctx->sanity_headers_out);
+    if (ctx->sanity_headers_out != NULL) {
+        ngx_array_destroy(ctx->sanity_headers_out);
+    }
 #endif
 }
 
@@ -348,7 +381,7 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
 
     if (mcf->transaction_id) {
         if (ngx_http_complex_value(r, mcf->transaction_id, &s) != NGX_OK) {
-            return NGX_CONF_ERROR;
+            return NULL;
         }
     } else {
         s.len = 0;
@@ -358,7 +391,7 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     if (s.len > 0U && s.data != NULL) {
         transaction_id = ngx_pnalloc(r->pool, s.len + 1U);
         if (transaction_id == NULL) {
-            return NGX_CONF_ERROR;
+            return NULL;
         }
         ngx_memcpy(transaction_id, s.data, s.len);
         transaction_id[s.len] = '\0';
@@ -367,7 +400,7 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     } else {
         transaction_id = ngx_pnalloc(r->pool, 64U);
         if (transaction_id == NULL) {
-            return NGX_CONF_ERROR;
+            return NULL;
         }
         transaction_id_end = ngx_snprintf(transaction_id, 64U, "%ui-%ui",
             (ngx_uint_t) r->connection->number,
@@ -386,15 +419,24 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
             mcf->rules_set, r);
     }
 
+    if (ctx->modsec_transaction == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: failed to create transaction");
+        return NULL;
+    }
+
     dd("transaction created");
 
     ngx_http_set_ctx(r, ctx, ngx_http_modsecurity_module);
 
-    cln = ngx_pool_cleanup_add(r->pool, sizeof(ngx_http_modsecurity_ctx_t));
+    cln = ngx_pool_cleanup_add(r->pool, 0);
     if (cln == NULL)
     {
         dd("failed to create the ModSecurity context cleanup");
-        return NGX_CONF_ERROR;
+        ngx_http_set_ctx(r, NULL, ngx_http_modsecurity_module);
+        msc_transaction_cleanup(ctx->modsec_transaction);
+        ctx->modsec_transaction = NULL;
+        return NULL;
     }
     cln->handler = ngx_http_modsecurity_cleanup;
     cln->data = ctx;
@@ -402,7 +444,11 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
     ctx->sanity_headers_out = ngx_array_create(r->pool, 12, sizeof(ngx_http_modsecurity_header_t));
     if (ctx->sanity_headers_out == NULL) {
-        return NGX_CONF_ERROR;
+        ngx_http_set_ctx(r, NULL, ngx_http_modsecurity_module);
+        ngx_http_modsecurity_cleanup(ctx);
+        cln->handler = NULL;
+        cln->data = NULL;
+        return NULL;
     }
 #endif
 
@@ -894,7 +940,7 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
   },
   {
     ngx_string(MSCONNECTOR_DIRECTIVE_TRANSACTION_ID),
-    NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_1MORE,
+    NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_transaction_id,
     NGX_HTTP_LOC_CONF_OFFSET,
     0,

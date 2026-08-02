@@ -34,7 +34,12 @@ static ngx_int_t ngx_http_modsecurity_phase4_in_scope(ngx_http_request_t *r);
 static ngx_int_t ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf, const char *wanted, const char *actual, const char *reason);
 static ngx_int_t ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf);
 static ngx_int_t ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx);
-static ngx_int_t ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len, ngx_int_t in_scope);
+static ngx_int_t ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len);
+static void ngx_http_modsecurity_discard_replaced_response_body(ngx_chain_t *in);
+static ngx_int_t ngx_http_modsecurity_process_final_response_body(
+    ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
+    ngx_http_modsecurity_conf_t *mcf, ngx_chain_t *in,
+    ngx_uint_t *forwarded);
 static const char *ngx_http_modsecurity_phase4_actual_action(msconnector_late_intervention_action action, const char *requested_action);
 static int ngx_http_modsecurity_phase4_original_status(ngx_http_request_t *r);
 static const char *ngx_http_modsecurity_phase4_message_id(const char *actual);
@@ -74,7 +79,7 @@ ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_ht
 
 static ngx_int_t
 ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx,
-    ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len, ngx_int_t in_scope)
+    ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len)
 {
     size_t limit;
     size_t allowed;
@@ -89,10 +94,6 @@ ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ct
 
     ctx->response_body_seen = 1;
     ctx->response_body_bytes_seen += len;
-
-    if (in_scope == 0) {
-        return NGX_OK;
-    }
 
     if (limit > 0U && ctx->response_body_bytes_inspected >= limit) {
         ctx->response_body_truncated = 1;
@@ -118,12 +119,71 @@ ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ct
     return NGX_OK;
 }
 
+static void
+ngx_http_modsecurity_discard_replaced_response_body(ngx_chain_t *in)
+{
+    ngx_chain_t *chain;
+
+    for (chain = in; chain != NULL; chain = chain->next) {
+        chain->buf->pos = chain->buf->last;
+        chain->buf->in_file = 0;
+        chain->buf->file_last = chain->buf->file_pos;
+    }
+}
+
+static ngx_int_t
+ngx_http_modsecurity_process_final_response_body(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf,
+    ngx_chain_t *in, ngx_uint_t *forwarded)
+{
+    ngx_pool_t *old_pool;
+    int ret;
+
+    *forwarded = 0;
+    old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
+    ret = msc_process_response_body(ctx->modsec_transaction);
+    if (ret != 1) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: response body phase processing failed");
+        ctx->intervention_triggered = 1;
+        if (r->header_sent) {
+            r->connection->error = 1;
+            return NGX_ERROR;
+        }
+        return ngx_http_filter_finalize_request(r,
+            &ngx_http_modsecurity_module,
+            NGX_HTTP_INTERNAL_SERVER_ERROR);
+    }
+    ngx_http_modsecurity_pcre_malloc_done(old_pool);
+
+    ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r,
+        0);
+    if (ret == 0) {
+        return NGX_OK;
+    }
+
+    /* A late intervention cannot safely rewrite committed headers.  Both a
+     * negative control failure and a positive intervention use the existing
+     * Safe/Strict policy rather than a second generic error response. */
+    ctx->phase4_intervention = 1;
+    ctx->response_committed = r->header_sent ? 1 : 0;
+    ret = ngx_http_modsecurity_phase4_handle_intervention(r, mcf);
+    if (ret != NGX_OK) {
+        return ret;
+    }
+
+    *forwarded = 1;
+    return ngx_http_next_body_filter(r, in);
+}
+
 ngx_int_t
 ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 {
     ngx_chain_t *chain = in;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_http_modsecurity_conf_t *mcf;
+    ngx_uint_t final_body_forwarded;
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
     ngx_list_part_t *part = &r->headers_out.headers.part;
     ngx_table_elt_t *data = part->elts;
@@ -142,7 +202,19 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         return ngx_http_next_body_filter(r, in);
     }
 
+    if (ctx->response_replaced) {
+        /* The Phase-3 header filter installed a body-less redirect before
+         * commit.  Drain the original body, including file-backed buffers,
+         * while preserving the chain's completion flags for later filters. */
+        ngx_http_modsecurity_discard_replaced_response_body(in);
+        return ngx_http_next_body_filter(r, in);
+    }
+
     if (ctx->intervention_triggered) {
+        return ngx_http_next_body_filter(r, in);
+    }
+
+    if (ctx->phase4_processed) {
         return ngx_http_next_body_filter(r, in);
     }
 
@@ -239,7 +311,7 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         int ret;
 
         if (ngx_http_modsecurity_append_limited_response_body(ctx, mcf, data,
-                len, ngx_http_modsecurity_phase4_in_scope(r)) != NGX_OK) {
+                len) != NGX_OK) {
             return NGX_ERROR;
         }
 
@@ -256,29 +328,16 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         ctx->phase4_processed = 1;
         ctx->response_committed = r->header_sent ? 1 : 0;
 
-        {
-            ngx_pool_t *old_pool;
-
-            old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
-            if (msc_process_response_body(ctx->modsec_transaction) < 0) {
-                ngx_http_modsecurity_pcre_malloc_done(old_pool);
-                return NGX_ERROR;
-            }
-            ngx_http_modsecurity_pcre_malloc_done(old_pool);
-
-/* XXX: I don't get how body from modsec being transferred to nginx's buffer.  If so - after adjusting of nginx's
-   XXX: body we can proceed to adjust body size (content-length).  see xslt_body_filter() for example */
-            ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r, 0);
-            if (ret != 0) {
-                ctx->phase4_intervention = 1;
-                ctx->response_committed = r->header_sent ? 1 : 0;
-                ret = ngx_http_modsecurity_phase4_handle_intervention(r, mcf);
-                if (ret != NGX_OK) {
-                    return ret;
-                }
-                return ngx_http_next_body_filter(r, in);
-            }
+        ret = ngx_http_modsecurity_process_final_response_body(r, ctx, mcf,
+            in, &final_body_forwarded);
+        if (ret != NGX_OK || final_body_forwarded) {
+            return ret;
         }
+
+        /* msc_process_response_body() finalizes the transaction.  A later
+         * link in this same chain may carry a flush or transformed buffer;
+         * preserve it for NGINX, but never append it again. */
+        break;
     }
     if (!is_request_processed)
     {
