@@ -152,8 +152,8 @@ func TestInspectingRequestBodyUsesDirectContext(t *testing.T) {
 	requestContext := context.WithValue(context.Background(), key, "request-body-scope")
 	transaction := &recordingTransaction{}
 	body := &inspectingRequestBody{
-		context: requestContext,
-		source:  io.NopCloser(strings.NewReader("body")),
+		contextValue: func() context.Context { return requestContext },
+		source:       io.NopCloser(strings.NewReader("body")),
 		state: &streamState{
 			config: mustTestConfig(t),
 			engine: transaction,
@@ -244,7 +244,7 @@ func TestOptionalResponseWriterInterfacesArePreserved(t *testing.T) {
 		engine: transaction,
 	}
 	underlying := newAdvancedResponseWriter(t)
-	writer := newResponseWriter(context.Background(), underlying, state)
+	writer := newResponseWriter(func() context.Context { return context.Background() }, underlying, state)
 
 	if _, ok := interface{}(writer).(http.Flusher); !ok {
 		t.Fatal("wrapped ResponseWriter does not implement http.Flusher")

@@ -1137,7 +1137,9 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             'FIRST_BYTE_EVIDENCE_SOURCE=$LIGHTTPD_STAGE_FIRST_BYTE_EVIDENCE',
             'FULL_LIFECYCLE_EVIDENCE_OUTPUT="$STAGE_FIRST_BYTE_EVIDENCE_OUTPUT"',
             'cp "$FIRST_BYTE_EVIDENCE_SOURCE" "$FIRST_BYTE_EVIDENCE"',
+            '--framework-root "$FRAMEWORK_ROOT"',
             '--allowed-source-root "$RAW_DIR"',
+            '--allowed-log-root "$LOG_DIR"',
             '--scrub-source-events',
         ):
             self.assertIn(assignment, source)

@@ -398,11 +398,11 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 		state.markRequestEOS()
 	}
 
-	contextForRequest := contextValue
+	contextForRequest := func() context.Context { return contextValue }
 	response := newResponseWriter(contextForRequest, writer, state)
 	originalBody := request.Body
 	if originalBody != nil {
-		request.Body = &inspectingRequestBody{context: contextForRequest, source: originalBody, state: state}
+		request.Body = &inspectingRequestBody{contextValue: contextForRequest, source: originalBody, state: state}
 		defer func() { request.Body = originalBody }()
 	}
 
@@ -598,9 +598,9 @@ func (state *streamState) close(contextValue context.Context) {
 }
 
 type inspectingRequestBody struct {
-	context context.Context
-	source  io.ReadCloser
-	state   *streamState
+	contextValue func() context.Context
+	source       io.ReadCloser
+	state        *streamState
 }
 
 func (body *inspectingRequestBody) Read(buffer []byte) (int, error) {
@@ -610,12 +610,12 @@ func (body *inspectingRequestBody) Read(buffer []byte) (int, error) {
 	count, readErr := body.source.Read(buffer)
 	if count > 0 {
 		end := errors.Is(readErr, io.EOF)
-		if err := body.state.processRequestBody(body.context, buffer[:count], end); err != nil {
+		if err := body.state.processRequestBody(body.contextValue(), buffer[:count], end); err != nil {
 			return 0, err
 		}
 	}
 	if errors.Is(readErr, io.EOF) && count == 0 {
-		if err := body.state.processRequestBody(body.context, nil, true); err != nil {
+		if err := body.state.processRequestBody(body.contextValue(), nil, true); err != nil {
 			return 0, err
 		}
 	}
@@ -627,9 +627,9 @@ func (body *inspectingRequestBody) Close() error {
 }
 
 type responseWriter struct {
-	context context.Context
-	target  http.ResponseWriter
-	state   *streamState
+	contextValue func() context.Context
+	target       http.ResponseWriter
+	state        *streamState
 
 	responseHeadersEvaluated bool
 	committed                bool
@@ -645,8 +645,8 @@ type responseWriter struct {
 	responseIncomplete bool
 }
 
-func newResponseWriter(contextValue context.Context, target http.ResponseWriter, state *streamState) *responseWriter {
-	return &responseWriter{context: contextValue, target: target, state: state}
+func newResponseWriter(contextValue func() context.Context, target http.ResponseWriter, state *streamState) *responseWriter {
+	return &responseWriter{contextValue: contextValue, target: target, state: state}
 }
 
 func (writer *responseWriter) Header() http.Header {
@@ -713,7 +713,7 @@ func (writer *responseWriter) writeResponseChunks(payload []byte) (int, bool, er
 }
 
 func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error) {
-	decision, err := writer.state.processResponseBody(writer.context, chunk, false, !writer.committed)
+	decision, err := writer.state.processResponseBody(writer.contextValue(), chunk, false, !writer.committed)
 	if err != nil {
 		if !writer.committed {
 			writer.writeFailure()
@@ -729,7 +729,7 @@ func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error
 	}
 	count, writeErr := writer.target.Write(chunk)
 	if count > 0 {
-		writer.state.markResponseCommit(writer.context, 0, true, true)
+		writer.state.markResponseCommit(writer.contextValue(), 0, true, true)
 		// Traefik's native forwarding path may otherwise retain a small response
 		// chunk until upstream EOS. Flush only bytes the host accepted so a
 		// committed streaming response remains observable before upstream EOF.
@@ -764,7 +764,7 @@ func (writer *responseWriter) prepareResponseHeaders(status int) bool {
 		writer.writeFailure()
 		return false
 	}
-	decision, err := writer.state.processResponseHeaders(writer.context, status, headers)
+	decision, err := writer.state.processResponseHeaders(writer.contextValue(), status, headers)
 	if err != nil {
 		writer.writeFailure()
 		return false
@@ -783,7 +783,7 @@ func (writer *responseWriter) commit(status int) {
 	}
 	writer.target.WriteHeader(status)
 	writer.committed = true
-	writer.state.markResponseCommit(writer.context, status, true, false)
+	writer.state.markResponseCommit(writer.contextValue(), status, true, false)
 }
 
 func (writer *responseWriter) writeFailure() {
@@ -796,7 +796,7 @@ func (writer *responseWriter) writeFailure() {
 	writer.committed = true
 	writer.rejected = true
 	count, _ := writer.target.Write([]byte("modsecurity middleware evaluation failed\n"))
-	writer.state.markResponseCommit(writer.context, http.StatusInternalServerError, true, count > 0)
+	writer.state.markResponseCommit(writer.contextValue(), http.StatusInternalServerError, true, count > 0)
 }
 
 func (writer *responseWriter) writeDecision(decision Decision) {
@@ -805,7 +805,7 @@ func (writer *responseWriter) writeDecision(decision Decision) {
 	}
 	writer.committed = true
 	writer.rejected = true
-	writer.state.writeDecision(writer.context, writer.target, decision)
+	writer.state.writeDecision(writer.contextValue(), writer.target, decision)
 }
 
 func (writer *responseWriter) clearHeaders() {
@@ -941,7 +941,7 @@ func (writer *responseWriter) ReadFrom(source io.Reader) (int64, error) {
 		inspected := &responseInspectionReader{source: source, writer: writer}
 		count, err := readerFrom.ReadFrom(inspected)
 		if count > 0 {
-			writer.state.markResponseCommit(writer.context, 0, true, true)
+			writer.state.markResponseCommit(writer.contextValue(), 0, true, true)
 		}
 		if err != nil {
 			// ReaderFrom may surface either an upstream read failure or a
@@ -969,13 +969,13 @@ func (reader *responseInspectionReader) Read(buffer []byte) (int, error) {
 	}
 	count, readErr := reader.source.Read(buffer)
 	if count > 0 {
-		_, err := reader.writer.state.processResponseBody(reader.writer.context, buffer[:count], false, false)
+		_, err := reader.writer.state.processResponseBody(reader.writer.contextValue(), buffer[:count], false, false)
 		if err != nil {
 			return 0, err
 		}
 	}
 	if errors.Is(readErr, io.EOF) && count == 0 {
-		_, err := reader.writer.state.processResponseBody(reader.writer.context, nil, true, false)
+		_, err := reader.writer.state.processResponseBody(reader.writer.contextValue(), nil, true, false)
 		if err != nil {
 			return 0, err
 		}
@@ -1026,7 +1026,7 @@ func (writer *responseWriter) finish() {
 		if !writer.prepareResponseHeaders(http.StatusOK) {
 			return
 		}
-		decision, err := writer.state.processResponseBody(writer.context, nil, true, true)
+		decision, err := writer.state.processResponseBody(writer.contextValue(), nil, true, true)
 		if err != nil {
 			writer.writeFailure()
 			return
@@ -1039,7 +1039,7 @@ func (writer *responseWriter) finish() {
 		return
 	}
 
-	_, err := writer.state.processResponseBody(writer.context, nil, true, false)
+	_, err := writer.state.processResponseBody(writer.contextValue(), nil, true, false)
 	if err != nil {
 		// Response headers may already be committed. There is no safe replacement
 		// status or claimed abort path here; Close records counters only.

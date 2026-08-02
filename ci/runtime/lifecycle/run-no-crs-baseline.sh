@@ -622,9 +622,11 @@ set -- \
     --stage-rc "$stage_rc" \
     --expected-rule-id "$EXPECTED_RULE_ID" \
     --catalog "$FRAMEWORK_ROOT/tests/cases/no-crs-baseline/catalog.json" \
+    --framework-root "$FRAMEWORK_ROOT" \
     --stdout "$LOG_DIR/stdout.log" \
     --stderr "$LOG_DIR/stderr.log" \
     --allowed-source-root "$RAW_DIR" \
+    --allowed-log-root "$LOG_DIR" \
     --scrub-source-events \
     --source-event-scrub-log "$SOURCE_EVENT_SCRUB_LOG" \
     --events-output "$NORMALIZED_EVENTS" \
@@ -788,6 +790,8 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
         --connector "$connector" \
         --run-id "$NO_CRS_RUN_ID" \
         --runtime-root "$CONNECTOR_RUN_ROOT" \
+        --config-source-root "$CONNECTOR_BUILD_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" \
         --effective-config-dir "$EFFECTIVE_CONFIG_ARTIFACT_DIR" \
         --config-file "capabilities.json=$CAPABILITIES_FILE" \
         --config-file "rules/no-crs-baseline.conf=$NO_CRS_RULES_FILE"
@@ -817,7 +821,10 @@ case "$connector" in
         fi
         ;;
     envoy) host_binary=$CONNECTOR_COMPONENT_CACHE/envoy/bin/envoy ;;
-    traefik) host_binary=$CONNECTOR_COMPONENT_CACHE/traefik/bin/traefik ;;
+    # The native lifecycle may deliberately provide a freshly staged pinned
+    # binary outside the reusable component cache.  Record the version of the
+    # binary that actually executed the host, not merely the cache default.
+    traefik) host_binary=${TRAEFIK_BIN:-$CONNECTOR_COMPONENT_CACHE/traefik/bin/traefik} ;;
     lighttpd)
         if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
             host_binary=$HOST_RUNTIME_ROOT/lighttpd-patched/stage/bin/lighttpd
@@ -884,7 +891,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ] && [ "$stage_rc" -eq 0 ]; the
             # identifier consisting of ASCII letters, digits, underscores, or dashes.
             ;;
     esac
-    modsecurity_prefix=$CACHE_ROOT/prefix/modsecurity/$modsecurity_build_id
+    modsecurity_prefix=$CONNECTOR_COMPONENT_CACHE/prefix/modsecurity/$modsecurity_build_id
     modsecurity_library_root=$modsecurity_prefix/lib
     if [ "${MODSECURITY_PREFIX:-}" != "$modsecurity_prefix" ] || \
        [ "${MODSECURITY_LIB_DIR:-}" != "$modsecurity_library_root" ]; then
@@ -901,6 +908,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ] && [ "$stage_rc" -eq 0 ]; the
         --source-result "$SOURCE_RESULT" \
         --source-events "$NORMALIZED_EVENTS" \
         --rules-file "$NO_CRS_RULES_FILE" \
+        --framework-root "$FRAMEWORK_ROOT" \
         --libmodsecurity-version "$libmodsecurity_version" \
         --libmodsecurity-library "$libmodsecurity_library" \
         --libmodsecurity-library-root "$modsecurity_library_root" \

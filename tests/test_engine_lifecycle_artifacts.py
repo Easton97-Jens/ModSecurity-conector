@@ -23,6 +23,7 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
         output: Path | None = None,
         library_symlink: bool = False,
         library_target_escapes: bool = False,
+        rules_root: Path | None = None,
         transport_lifecycle_records: list[dict[str, object]] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         source = root / "source-result.json"
@@ -31,7 +32,8 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
         event_file.write_text(
             "".join(json.dumps(event) + "\n" for event in events), encoding="utf-8"
         )
-        rules = root / "rules.conf"
+        rules = (rules_root or root) / "rules.conf"
+        rules.parent.mkdir(parents=True, exist_ok=True)
         rules.write_text("SecRuleEngine On\n", encoding="utf-8")
         library_root = root / "managed-library"
         library_root.mkdir()
@@ -64,6 +66,8 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
             "--stage-exit-code",
             "0",
         ]
+        if rules_root is not None:
+            command.extend(["--framework-root", str(rules_root)])
         if transport_lifecycle_records is not None:
             transport_lifecycle = root / "connection-lifecycle.json"
             transport_lifecycle.write_text(
@@ -152,6 +156,23 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
             self.assertEqual(lifecycle["cleanup_normal"], 0)
             self.assertFalse(lifecycle["transport_counters_bound"])
             self.assertNotIn("secret", json.dumps(lifecycle))
+
+    def test_hashes_rules_under_an_explicit_framework_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="engine-lifecycle-artifacts-") as temporary:
+            root = Path(temporary)
+            runtime_root = root / "runtime"
+            framework_root = root / "framework"
+            runtime_root.mkdir()
+            framework_root.mkdir()
+            completed = self.run_writer(
+                runtime_root,
+                [{"transaction_id": "tx-one", "phase": 1, "status": "blocked"}],
+                rules_root=framework_root,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertTrue(
+                (runtime_root / "engine-artifacts/ruleset-sha256.txt").is_file()
+            )
 
     def test_uses_causal_lifecycle_records_for_bound_transport_counters(self) -> None:
         with tempfile.TemporaryDirectory(prefix="engine-lifecycle-artifacts-") as temporary:
