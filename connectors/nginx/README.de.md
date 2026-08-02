@@ -178,11 +178,14 @@ Evidence- sowie Curl-Response-/Error-Output-Pfade. `/dev/null` ist nur als
 interner Bounded-Soak-Sink des Harness erlaubt.
 
 Die einzige bewusst enge Ausnahme ist Opt-in `NGINX_DOCROOT_PROJECTION=1`.
-Sein `NGINX_DOCROOT_PROJECTION_PARENT` ist ein explizit im Manifest
-vorregistrierter externer Parent außerhalb der privaten Runtime-Roots: Er muss
-bereits existieren, root-eigen, symlink-frei, für Gruppe oder Andere weder
-beschreibbar noch lesbar und in einer `0711`-sicheren Form für den Worker
-traversierbar sein; auch seine Ancestors müssen traversierbar sein.
+Sein `NGINX_DOCROOT_PROJECTION_PARENT` ist ein expliziter externer Parent, den
+ein vertrauenswürdiger Lifecycle-/Operator-Caller außerhalb der privaten
+Runtime-Roots übergibt: Er muss bereits existieren, root-eigen, symlink-frei,
+für Gruppe oder Andere weder beschreibbar noch lesbar und in einer
+`0711`-sicheren Form für den Worker traversierbar sein; auch seine Ancestors
+müssen traversierbar sein. Der Harness validiert diese strukturellen
+Eigenschaften, schlägt aber kein Lifecycle-Manifest für die beiden
+Projection-Werte nach und erzwingt keine Manifest-Registrierung.
 `NGINX_DOCROOT_PROJECTION_ROOT` muss das exakte frische direkte statische Kind
 sein. Der Projection-Helper validiert den Parent und erzeugt nur dieses Kind,
 kopiert die allowlisteten statischen Dateien und macht das Kind für den Worker

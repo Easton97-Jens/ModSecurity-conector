@@ -194,7 +194,7 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
             self.assertFalse(config_file.exists())
             self.assertFalse(permissions_log.exists())
 
-    def test_pre_registered_external_projection_parent_is_narrowly_authorized(self) -> None:
+    def test_explicit_external_projection_parent_is_narrowly_authorized(self) -> None:
         with tempfile.TemporaryDirectory(prefix="nginx-path-authority-") as temporary:
             base = Path(temporary)
             verified_root = base / "verified"
@@ -234,7 +234,7 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
             private_root = verified_root / "build"
             source_docroot = private_root / "runtime" / "htdocs"
             projection_parent = base / "worker-visible-projection"
-            projection_root = projection_parent / "registered-docroot"
+            projection_root = projection_parent / "explicit-docroot"
             projection_parent.mkdir(mode=0o711)
             projection_parent.chmod(0o711)
             parent_before = self.directory_identity_and_mode(projection_parent)
@@ -322,7 +322,7 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
             base.chmod(0o711)
             verified_root = base / "verified"
             projection_parent = base / "worker-visible-projection"
-            projection_root = projection_parent / "registered-docroot"
+            projection_root = projection_parent / "explicit-docroot"
             projection_parent.mkdir(mode=0o711)
             projection_parent.chmod(0o711)
             projection_root.mkdir(mode=0o700)

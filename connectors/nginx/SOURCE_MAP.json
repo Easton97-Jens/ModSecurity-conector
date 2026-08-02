@@ -72,9 +72,9 @@
       "finding": "FND-PARENT-0084",
       "scope": "parent_only_task_worktree",
       "status": "validated_finding_task_remediation_in_progress",
-      "security_invariant": "Environment-provided generic/private output and work paths are location hints only; every root-harness mutation target must validate as a strict descendant of VERIFIED_RUN_ROOT before mkdir, install, chown, chmod, rm, or output redirection. The only narrow exception is an opt-in manifest-pre-registered external worker-visible docroot projection parent, which receives no generic harness mutation.",
+      "security_invariant": "Environment-provided generic/private output and work paths are location hints only; every root-harness mutation target must validate as a strict descendant of VERIFIED_RUN_ROOT before mkdir, install, chown, chmod, rm, or output redirection. The only narrow exception is an opt-in trusted-caller-supplied external worker-visible docroot projection parent, which receives no generic harness mutation.",
       "coverage": "Bootstrap parent, parent multi-case roots, and per-case generic/private work/output roots are gated. Configurable diagnostic, worker-preflight, protocol-artifact, lifecycle-evidence, and curl response/error output paths pass through the same authority validation. /dev/null is the explicit internal bounded-soak-only sink.",
-      "docroot_projection_exception": "Only NGINX_DOCROOT_PROJECTION=1 may use NGINX_DOCROOT_PROJECTION_PARENT outside private runtime roots. The parent must already exist, be root-owned, symlink-free, group/other-nonwritable and non-readable, and worker-traversable in a 0711-safe form with traversable ancestors. NGINX_DOCROOT_PROJECTION_ROOT must be an exact fresh direct child. The projection helper validates but does not create, chown, or chmod the external parent; it creates only the direct child, copies the allowlisted static files, and makes that child worker-traversable.",
+      "docroot_projection_exception": "Only NGINX_DOCROOT_PROJECTION=1 may use a trusted-caller-supplied NGINX_DOCROOT_PROJECTION_PARENT outside private runtime roots. The harness does not look up or enforce lifecycle-manifest registration for either projection value. The parent must already exist, be root-owned, symlink-free, group/other-nonwritable and non-readable, and worker-traversable in a 0711-safe form with traversable ancestors. NGINX_DOCROOT_PROJECTION_ROOT must be an exact fresh direct child. The projection helper validates but does not create, chown, or chmod the external parent; it creates only the direct child, copies the allowlisted static files, and makes that child worker-traversable.",
       "receipt": {
         "path": "$RUN/evidence/nginx-harness-path-authority-remediation-20260801.md",
         "sha256": "e1b09454d3dc823b78d83bdae960d431951b432cad57aa05df4434a8bd905c7b",
@@ -87,7 +87,7 @@
     "canonical_lifecycle_containment": {
       "finding": "FND-PARENT-0078",
       "status": "in_progress",
-      "reason": "Canonical lifecycle containment and the narrow worker-visible docroot projection remain in progress. The source path permits only a manifest-pre-registered external parent and exact fresh child outside private roots; it does not authorize generic harness output there. No canonical runtime-smoke, soak, Memcheck, H2/H3, remote-CI, SonarQube, pull-request, or delivery success is asserted."
+      "reason": "Canonical lifecycle containment and the narrow worker-visible docroot projection remain in progress. The source path permits only a trusted-caller-supplied external parent and exact fresh child outside private roots; it does not authorize generic harness output there or enforce lifecycle-manifest registration. No canonical runtime-smoke, soak, Memcheck, H2/H3, remote-CI, SonarQube, pull-request, or delivery success is asserted."
     },
     "framework_fixture_contract": {
       "finding": "FND-FRAMEWORK-0058",
@@ -253,7 +253,7 @@
     },
     "connectors/nginx/harness/run_nginx_smoke.sh": {
       "license": "Apache-2.0-compatible project support file",
-      "reason": "Parent-owned direct NGINX harness. It requires root execution with a distinct verifiable local worker identity, validates generic/private bootstrap, parent multi-case, and per-case output/work paths as strict descendants of VERIFIED_RUN_ROOT before root-only mutation sinks, keeps private runtime/harness output and NGINX_MEMCHECK_EVIDENCE_DIR below LOG_DIR/memcheck-evidence/<case> separate, and grants worker ownership only to state and server access/error/audit leaves below the worker-traversable harness root. Its only external path is the separately validated manifest-pre-registered root-owned static docroot-projection parent and exact fresh child; generic harness setup never chowns or chmods that parent. It is not copied from upstream or materialized into connector-src."
+      "reason": "Parent-owned direct NGINX harness. It requires root execution with a distinct verifiable local worker identity, validates generic/private bootstrap, parent multi-case, and per-case output/work paths as strict descendants of VERIFIED_RUN_ROOT before root-only mutation sinks, keeps private runtime/harness output and NGINX_MEMCHECK_EVIDENCE_DIR below LOG_DIR/memcheck-evidence/<case> separate, and grants worker ownership only to state and server access/error/audit leaves below the worker-traversable harness root. Its only external path is the separately validated trusted-caller-supplied root-owned static docroot-projection parent and exact fresh child; it does not enforce lifecycle-manifest registration, and generic harness setup never chowns or chmods that parent. It is not copied from upstream or materialized into connector-src."
     },
     "ci/runtime/common/validate-nginx-harness-paths.py": {
       "license": "Apache-2.0-compatible project support file",
@@ -261,7 +261,7 @@
     },
     "ci/runtime/common/prepare-nginx-docroot-projection.py": {
       "license": "Apache-2.0-compatible project support file",
-      "reason": "Parent-owned opt-in NGINX docroot projection helper. It requires a manifest-pre-registered external root-owned safe parent outside private runtime roots plus one exact fresh direct child, validates the parent without modifying it, and creates only that child with the two allowlisted static files and worker-traversable permissions. It is not copied from upstream or materialized into connector-src."
+      "reason": "Parent-owned opt-in NGINX docroot projection helper. It requires a trusted-caller-supplied external root-owned safe parent outside private runtime roots plus one exact fresh direct child, validates the parent without modifying it, and creates only that child with the two allowlisted static files and worker-traversable permissions. It does not enforce lifecycle-manifest registration. It is not copied from upstream or materialized into connector-src."
     },
     "ci/runtime/common/summarize-nginx-memcheck.py": {
       "license": "Apache-2.0-compatible project support file",

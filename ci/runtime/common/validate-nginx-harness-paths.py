@@ -43,7 +43,7 @@ def validate_direct_child(root: Path, label: str, candidate: Path) -> None:
 
 
 def validate_existing_private_directory(label: str, candidate: Path) -> Path:
-    """Validate a pre-registered worker-visible projection parent without writing.
+    """Validate a caller-supplied worker-visible projection parent without writing.
 
     A worker-visible docroot cannot be below the private `VERIFIED_RUN_ROOT`:
     the projection helper rejects that overlap deliberately.  Its parent is

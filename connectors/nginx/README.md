@@ -169,10 +169,12 @@ response/error output paths. `/dev/null` is permitted only as the harness's
 internal bounded-soak sink.
 
 The sole deliberate exception is opt-in `NGINX_DOCROOT_PROJECTION=1`. Its
-`NGINX_DOCROOT_PROJECTION_PARENT` is an explicitly manifest-pre-registered
-external parent, outside the private runtime roots: it must already exist,
-be root-owned, symlink-free, non-writable and non-readable by group or other,
-and worker-traversable in a `0711`-safe form with traversable ancestors.
+`NGINX_DOCROOT_PROJECTION_PARENT` is an explicit external parent supplied by a
+trusted lifecycle/operator caller, outside the private runtime roots: it must
+already exist, be root-owned, symlink-free, non-writable and non-readable by
+group or other, and worker-traversable in a `0711`-safe form with traversable
+ancestors. The harness validates those structural properties; it does not look
+up or enforce lifecycle-manifest registration for either projection value.
 `NGINX_DOCROOT_PROJECTION_ROOT` must be the exact fresh direct static child.
 The projection helper validates the parent and creates only that child, copies
 the allowlisted static files, and makes the child worker-traversable; generic

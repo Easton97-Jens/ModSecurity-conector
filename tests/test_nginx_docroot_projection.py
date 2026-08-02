@@ -81,23 +81,23 @@ class NginxDocrootProjectionTest(unittest.TestCase):
         )
         chmod.assert_called_once_with(projected, 0o711)
 
-    def test_manifest_registered_child_must_be_direct_fresh_and_safe_named(self) -> None:
+    def test_explicit_child_must_be_direct_fresh_and_safe_named(self) -> None:
         private_root = Path("/private/build")
         source_docroot = private_root / "runtime" / "htdocs"
         parent = Path("/worker-visible/projections")
-        registered = parent / "manifest-registered-docroot"
+        projection_root = parent / "docroot-unit-nonce"
         directory_metadata = SimpleNamespace(st_mode=stat.S_IFDIR | 0o700)
 
         with mock.patch.object(projection, "validate_source_docroot"):
-            with self.assertRaisesRegex(ValueError, "explicit manifest-registered"):
+            with self.assertRaisesRegex(ValueError, "explicit safe parent and fresh root"):
                 projection.prepare_projection(
                     source_docroot=source_docroot,
                     private_root=private_root,
                     projection_parent=None,
-                    projection_root=registered,
+                    projection_root=projection_root,
                     avoid_roots=[private_root],
                 )
-            with self.assertRaisesRegex(ValueError, "explicit manifest-registered"):
+            with self.assertRaisesRegex(ValueError, "explicit safe parent and fresh root"):
                 projection.prepare_projection(
                     source_docroot=source_docroot,
                     private_root=private_root,
@@ -118,12 +118,12 @@ class NginxDocrootProjectionTest(unittest.TestCase):
                 source_docroot=source_docroot,
                 private_root=private_root,
                 projection_parent=parent,
-                projection_root=registered,
+                projection_root=projection_root,
                 avoid_roots=[private_root],
             )
 
-        self.assertEqual(result, registered)
-        mkdir.assert_called_once_with(registered, 0o700)
+        self.assertEqual(result, projection_root)
+        mkdir.assert_called_once_with(projection_root, 0o700)
 
         with mock.patch.object(projection, "validate_source_docroot"):
             with self.assertRaisesRegex(ValueError, "direct child"):
@@ -178,7 +178,7 @@ class NginxDocrootProjectionTest(unittest.TestCase):
             "metadata.st_mode & 0o044",
             "require_no_symlink_directory",
             "projection parent overlaps a private runtime root",
-            "registered projection root already exists",
+            "projection root already exists",
             "os.chmod(projection, 0o711)",
         ):
             self.assertIn(fragment, helper)
@@ -206,7 +206,7 @@ class NginxDocrootProjectionTest(unittest.TestCase):
             "validate_nginx_worker_isolation",
             "requires root to establish a distinct verified worker identity",
             "NGINX_WORKER_USER_DIRECTIVE",
-            "requires an explicit manifest-registered parent and fresh root",
+            "requires an explicit safe parent and fresh root",
         ):
             self.assertIn(fragment, harness)
         self.assertNotIn('chmod -R u+rwX,go+rX "$NGINX_DOCROOT_PROJECTION_ROOT"', harness)
@@ -322,7 +322,7 @@ class NginxDocrootProjectionFilesystemTest(unittest.TestCase):
             private_root, source_docroot, projection_parent = self._layout(root)
             self._write_allowlisted_sources(source_docroot)
             (source_docroot / "not-projected.txt").write_text("private\n", encoding="utf-8")
-            projection_root = projection_parent / "registered-docroot"
+            projection_root = projection_parent / "explicit-docroot"
 
             result = self._prepare(
                 source_docroot,
@@ -370,7 +370,7 @@ class NginxDocrootProjectionFilesystemTest(unittest.TestCase):
                     projection_parent = root / f"{name}-parent"
                     projection_parent.mkdir()
                     projection_parent.chmod(mode)
-                    projection_root = projection_parent / "registered-docroot"
+                    projection_root = projection_parent / "explicit-docroot"
 
                     with self.assertRaisesRegex(ValueError, message):
                         self._prepare(
@@ -382,17 +382,17 @@ class NginxDocrootProjectionFilesystemTest(unittest.TestCase):
 
                     self.assertFalse(projection_root.exists())
 
-    def test_existing_registered_child_is_rejected_without_modifying_it(self) -> None:
+    def test_existing_explicit_child_is_rejected_without_modifying_it(self) -> None:
         with self._worker_traversable_temporary_directory() as temporary_directory:
             root = Path(temporary_directory)
             private_root, source_docroot, projection_parent = self._layout(root)
             self._write_allowlisted_sources(source_docroot)
-            projection_root = projection_parent / "registered-docroot"
+            projection_root = projection_parent / "explicit-docroot"
             projection_root.mkdir(mode=0o700)
             marker = projection_root / "existing-marker"
             marker.write_text("keep\n", encoding="utf-8")
 
-            with self.assertRaisesRegex(ValueError, "registered projection root already exists"):
+            with self.assertRaisesRegex(ValueError, "projection root already exists"):
                 self._prepare(
                     source_docroot,
                     private_root,
@@ -416,7 +416,7 @@ class NginxDocrootProjectionFilesystemTest(unittest.TestCase):
             actual_parent.chmod(0o711)
             projection_parent = root / "projection-parent-link"
             projection_parent.symlink_to(actual_parent, target_is_directory=True)
-            projection_root = projection_parent / "registered-docroot"
+            projection_root = projection_parent / "explicit-docroot"
 
             with self.assertRaisesRegex(ValueError, "contains a symbolic link"):
                 self._prepare(
@@ -474,7 +474,7 @@ class NginxDocrootProjectionFilesystemTest(unittest.TestCase):
             root = Path(temporary_directory)
             private_root, source_docroot, projection_parent = self._layout(root)
             (source_docroot / "index.html").write_text("projected index\n", encoding="utf-8")
-            projection_root = projection_parent / "registered-docroot"
+            projection_root = projection_parent / "explicit-docroot"
 
             with self.assertRaisesRegex(ValueError, "__modsec_smoke_ready"):
                 self._prepare(

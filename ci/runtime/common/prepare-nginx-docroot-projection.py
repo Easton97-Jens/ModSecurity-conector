@@ -3,9 +3,9 @@
 
 Framework case materialization remains in the private connector build root.
 Only the two static files needed by NGINX's document root are copied into a
-fresh, worker-traversable directory.  This helper deliberately does not clean
-up the projection: lifecycle cleanup is allowed only through the task-owned
-manifest that registered both the parent and exact fresh child.
+fresh, worker-traversable directory. This helper deliberately does not clean
+up the projection: its trusted lifecycle/operator caller retains task-owned
+cleanup responsibility for the explicitly supplied parent and fresh child.
 """
 
 from __future__ import annotations
@@ -138,7 +138,7 @@ def prepare_projection(
 ) -> Path:
     validate_source_docroot(source_docroot, private_root)
     if projection_parent is None or projection_root is None:
-        fail("projection requires an explicit manifest-registered parent and fresh root")
+        fail("projection requires an explicit safe parent and fresh root")
     parent = projection_parent
     if projection_root.parent != parent:
         fail("projection root must be a direct child of projection parent")
@@ -155,9 +155,9 @@ def prepare_projection(
     try:
         os.mkdir(projection, 0o700)
     except FileExistsError:
-        fail(f"registered projection root already exists: {projection}")
+        fail(f"projection root already exists: {projection}")
     except OSError as exc:
-        fail(f"cannot create registered projection root {projection}: {exc}")
+        fail(f"cannot create specified projection root {projection}: {exc}")
     projection_metadata = projection.lstat()
     if not stat.S_ISDIR(projection_metadata.st_mode) or stat.S_ISLNK(projection_metadata.st_mode):
         fail(f"fresh projection is not a directory: {projection}")
@@ -165,10 +165,10 @@ def prepare_projection(
     for filename in PROJECTED_FILENAMES:
         copy_regular_file(source_docroot / filename, projection / filename)
 
-    # The parent and this exact manifest-registered child are non-enumerable
-    # to the worker, but traversal deliberately permits NGINX to serve the two
-    # fixed allowlisted static files (0644) at their known paths.  This is a
-    # constrained static-data boundary, not worker-exclusive readability.  Do
+    # The parent and this exact caller-supplied child are non-enumerable to the
+    # worker, but traversal deliberately permits NGINX to serve the two fixed
+    # allowlisted static files (0644) at their known paths. This is a
+    # constrained static-data boundary, not worker-exclusive readability. Do
     # not chmod/chown any caller-owned root.
     os.chmod(projection, 0o711)
     return projection
@@ -183,7 +183,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--projection-root",
         type=Path,
         required=True,
-        help="exact fresh child pre-registered by the lifecycle manifest",
+        help="exact fresh child supplied by the trusted lifecycle caller",
     )
     parser.add_argument("--avoid-root", type=Path, action="append", default=[])
     return parser.parse_args(argv)

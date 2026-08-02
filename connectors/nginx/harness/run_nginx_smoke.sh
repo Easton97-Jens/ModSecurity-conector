@@ -13,10 +13,11 @@ BUILD_ROOT="${BUILD_ROOT:-$VERIFIED_BUILD_ROOT}"
 NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-$BUILD_ROOT/nginx-harness}"
 NGINX_DOCROOT_PROJECTION="${NGINX_DOCROOT_PROJECTION:-0}"
 # The default direct harness keeps using its private materialized docroot.
-# Canonical lifecycle callers opt in explicitly and may provide a task-manifest
-# registered exact root.  Projection mode itself fails closed unless both the
-# parent and fresh root are supplied, so it never creates an unregistered
-# fallback location during a lifecycle run.
+# Canonical lifecycle callers opt in explicitly and must supply a trusted,
+# pre-existing external parent and exact fresh child. Projection mode itself
+# fails closed unless both are supplied, so it never creates a fallback
+# location during a lifecycle run. The harness validates those structural
+# constraints; it does not load or enforce a lifecycle manifest for them.
 NGINX_DOCROOT_PROJECTION_PARENT="${NGINX_DOCROOT_PROJECTION_PARENT:-}"
 NGINX_DOCROOT_PROJECTION_ROOT="${NGINX_DOCROOT_PROJECTION_ROOT:-}"
 NGINX_DOCROOT_PROJECTION_HELPER="$REPO_ROOT/ci/runtime/common/prepare-nginx-docroot-projection.py"
@@ -378,7 +379,7 @@ validate_nginx_docroot_projection_mode() {
     fi
     if [ "$NGINX_DOCROOT_PROJECTION" = "1" ] && \
        { [ -z "$NGINX_DOCROOT_PROJECTION_PARENT" ] || [ -z "$NGINX_DOCROOT_PROJECTION_ROOT" ]; }; then
-        blocked "NGINX docroot projection requires an explicit manifest-registered parent and fresh root"
+        blocked "NGINX docroot projection requires an explicit safe parent and fresh root"
     fi
 }
 
