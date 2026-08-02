@@ -156,6 +156,29 @@ void modsecurity_log_cb(void *log, const void* data)
 
 }
 
+
+/* libModSecurity v3.0.12 allocates URL and log with strdup but does not
+ * export msc_intervention_cleanup(). Keep their release in the connector
+ * after any values retained by Apache have been copied into
+ * request-owned memory. This is equivalent to the older public C++ helper's
+ * free-and-reset behavior and avoids coupling the module to a newer symbol. */
+static void msc_release_intervention_buffers(ModSecurityIntervention *intervention)
+{
+    if (intervention == NULL)
+    {
+        return;
+    }
+
+    free(intervention->url);
+    intervention->url = NULL;
+    free(intervention->log);
+    intervention->log = NULL;
+    intervention->status = N_INTERVENTION_STATUS;
+    intervention->pause = 0;
+    intervention->disruptive = 0;
+}
+
+
 int process_intervention (Transaction *t, request_rec *r)
 {
     ModSecurityIntervention intervention;
@@ -166,6 +189,7 @@ int process_intervention (Transaction *t, request_rec *r)
     int result = N_INTERVENTION_STATUS;
 
     intervention.status = N_INTERVENTION_STATUS;
+    intervention.pause = 0;
     intervention.url = NULL;
     intervention.log = NULL;
     intervention.disruptive = 0;
@@ -209,7 +233,7 @@ int process_intervention (Transaction *t, request_rec *r)
     }
 
 cleanup:
-    msc_intervention_cleanup(&intervention);
+    msc_release_intervention_buffers(&intervention);
     return result;
 }
 

@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   apache-autotools-bootstrap:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -29,6 +29,8 @@ jobs:
             libmodsecurity-dev \
             libtool \
             make
+      - name: Verify Apache intervention cleanup source contract
+        run: python3 -m unittest -v tests.test_apache_intervention_cleanup
       - name: Verify Apache Autotools bootstrap from tracked source only
         env:
           APACHE_AUTOTOOLS_TEST_PARENT: ${{ runner.temp }}
