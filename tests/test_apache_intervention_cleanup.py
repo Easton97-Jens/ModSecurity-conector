@@ -31,14 +31,20 @@ def c_function(source: str, signature: str) -> str:
 
 class ApacheInterventionCleanupTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.module_source = MODULE.read_text(encoding="utf-8")
         self.source = c_function(
-            MODULE.read_text(encoding="utf-8"),
+            self.module_source,
             "int process_intervention (Transaction *t, request_rec *r)",
+        )
+        self.cleanup_helper = c_function(
+            self.module_source,
+            "static void msc_release_intervention_buffers(",
         )
 
     def test_successful_interventions_funnel_through_one_cleanup(self) -> None:
-        self.assertEqual(self.source.count("msc_intervention_cleanup(&intervention);"), 1)
-        cleanup = self.source.index("msc_intervention_cleanup(&intervention);")
+        cleanup_call = "msc_release_intervention_buffers(&intervention);"
+        self.assertEqual(self.source.count(cleanup_call), 1)
+        cleanup = self.source.index(cleanup_call)
         self.assertIn("cleanup:", self.source[:cleanup])
         self.assertNotIn("intervention.url", self.source[cleanup:])
         self.assertNotIn("intervention.log", self.source[cleanup:])
@@ -46,6 +52,17 @@ class ApacheInterventionCleanupTests(unittest.TestCase):
 
         returns = re.findall(r"\breturn(?:\s+[^;\s][^;]*|\s{2,});", self.source)
         self.assertEqual(returns, ["return N_INTERVENTION_STATUS;", "return result;"])
+
+    def test_cleanup_uses_only_the_legacy_public_intervention_contract(self) -> None:
+        self.assertNotIn("msc_intervention_cleanup(&", self.module_source)
+        self.assertEqual(self.cleanup_helper.count("free(intervention->url);"), 1)
+        self.assertEqual(self.cleanup_helper.count("free(intervention->log);"), 1)
+        self.assertIn("intervention->url = NULL;", self.cleanup_helper)
+        self.assertIn("intervention->log = NULL;", self.cleanup_helper)
+        self.assertIn("intervention->status = N_INTERVENTION_STATUS;", self.cleanup_helper)
+        self.assertIn("intervention->pause = 0;", self.cleanup_helper)
+        self.assertIn("intervention->disruptive = 0;", self.cleanup_helper)
+        self.assertIn("intervention.pause = 0;", self.source)
 
     def test_log_fallback_does_not_overwrite_the_cleanup_owned_field(self) -> None:
         self.assertIn("log = intervention.log;", self.source)
@@ -65,7 +82,7 @@ class ApacheInterventionCleanupTests(unittest.TestCase):
     def test_redirect_url_is_request_owned_before_native_cleanup(self) -> None:
         copy = "location = apr_pstrdup(r->pool, intervention.url);"
         assign = 'apr_table_setn(r->headers_out, "Location", location);'
-        cleanup = "msc_intervention_cleanup(&intervention);"
+        cleanup = "msc_release_intervention_buffers(&intervention);"
 
         self.assertIn(copy, self.source)
         self.assertIn(assign, self.source)
