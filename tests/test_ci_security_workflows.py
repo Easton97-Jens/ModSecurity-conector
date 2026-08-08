@@ -432,6 +432,20 @@ class CiSecurityWorkflowTest(unittest.TestCase):
             for checkout_step in checkout_steps:
                 self.assertIn("persist-credentials: false", checkout_step, path.name)
 
+    def test_trusted_nginx_root_broker_has_no_pr_code_at_root_boundary(self) -> None:
+        text = self.workflow("nginx-root-broker.yml")
+        self.assertIn("workflow_call:", text)
+        self.assertNotIn("pull_request:", text)
+        self.assertNotIn("pull_request_target:", text)
+        self.assertIn("github.workflow_ref", text)
+        self.assertIn('git merge-base --is-ancestor "$BROKER_SHA" FETCH_HEAD', text)
+        self.assertIn('git rev-parse "$BROKER_SHA:ci/runtime/broker/nginx_root_broker.py"', text)
+        self.assertIn("git hash-object ci/runtime/broker/nginx_root_broker.py", text)
+        self.assertIn("sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action", text)
+        self.assertNotIn("uses: ./", text)
+        for forbidden in ("sudo -E", "sudo sh -c", "sudo bash -c", "shell: bash -c"):
+            self.assertNotIn(forbidden, text)
+
     def test_untrusted_pull_request_model(self) -> None:
         sarif_write_jobs = {
             key for key, value in EXPECTED_WRITE_PERMISSIONS.items() if value.get("security-events") == "write"
