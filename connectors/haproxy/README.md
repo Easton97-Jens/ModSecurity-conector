@@ -113,6 +113,52 @@ finalization. Those wrapper controls are self-test-only: they do not prove
 live HAProxy enforcement or a positive `RESPONSE_BODY` intervention.
 `make smoke-haproxy` is required for live HAProxy runtime evidence.
 
+## libModSecurity compatibility contract
+
+The shared HAProxy binding supports `libModSecurity >= 3.0.14`; `3.0.14`
+remains the minimum supported version. The selected include directory and
+library directory must describe one deliberately selected installation. The
+binding first compiles **and links** its required public baseline C API against
+that pair. A baseline failure stops the build with this diagnostic:
+
+```text
+The HAProxy connector requires the public libModSecurity API available in version 3.0.14 or newer. The detected headers and library do not provide the required baseline API or do not match.
+```
+
+`msc_get_rules_messages_rule_ids` is not part of the baseline. Its exact
+declaration is compiled and its symbol is linked in a separate probe against
+the same selected pair. Only a successful compile-and-link probe sets
+`HAPROXY_HAVE_MSC_GET_RULES_MESSAGES_RULE_IDS=1`; no version-number-only
+decision, manual declaration, or runtime symbol lookup is used. The build
+records `HAPROXY_MODSECURITY_RULE_IDS_API=available|unavailable` and the
+corresponding controlled compiler flags in
+`haproxy-modsecurity-binding/paths.env`, then propagates the result to both the
+SPOP runtime and the separate HTX overlay build.
+
+When the optional API is unavailable, a Rule ID is recovered only as bounded
+diagnostic metadata from an intervention log when possible. A non-intervening
+transaction may therefore report `rule_id=0`. `msc_intervention` remains the
+sole source for disruptive state, status, redirect/deny action, and cleanup;
+missing Rule-ID metadata never changes an HTX or SPOP security decision or
+creates allow-by-default behavior.
+
+Use explicit, matching paths for a local build:
+
+```sh
+BUILD_ROOT=/external/task-root \
+MODSECURITY_INCLUDE_DIR=/selected/include \
+MODSECURITY_LIB_DIR=/selected/lib \
+MODSECURITY_INCLUDE_CANDIDATES=/selected/include \
+MODSECURITY_LIB_CANDIDATES=/selected/lib \
+make -C connectors/haproxy build-modsecurity-binding build-spoa-runtime
+```
+
+Run `make -C connectors/haproxy self-test-modsecurity-binding` for the
+in-process binding controls. `make smoke-haproxy` remains the separate live
+SPOP gate, while `make -C connectors/haproxy runtime-smoke-haproxy-htx` remains
+the separate native HTX build and host-smoke gate; neither path substitutes for
+the other.
+
 ## Tests
 
 No local `connectors/haproxy/tests` folder is used. Executable runtime tests are

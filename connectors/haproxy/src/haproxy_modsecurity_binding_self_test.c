@@ -39,7 +39,22 @@ static int expect_non_disruptive(
         const char *label,
         haproxy_modsecurity_decision *decision) {
     if (rc != 0 || observed == 0 || observed->phase != expected_phase ||
-            observed->disruptive != 0) {
+            observed->disruptive != 0 || observed->rule_id != 0) {
+        return lifecycle_failure(decision, label);
+    }
+    return 0;
+}
+
+static int expect_disruptive_rule_id(
+        int rc,
+        const haproxy_modsecurity_decision *observed,
+        int expected_phase,
+        int expected_rule_id,
+        const char *label,
+        haproxy_modsecurity_decision *decision) {
+    if (rc != 0 || observed == 0 || observed->phase != expected_phase ||
+            observed->disruptive == 0 || observed->status != 403 ||
+            strcmp(observed->action, "deny") != 0 || observed->rule_id != expected_rule_id) {
         return lifecycle_failure(decision, label);
     }
     return 0;
@@ -153,7 +168,7 @@ static int run_body_wrapper_lifecycle_self_test(
     haproxy_modsecurity_engine_config config;
     haproxy_modsecurity_engine *engine = 0;
     haproxy_modsecurity_transaction *transaction = 0;
-    haproxy_modsecurity_header request_headers[2];
+    haproxy_modsecurity_header request_headers[3];
     haproxy_modsecurity_header response_headers[1];
     haproxy_modsecurity_request request;
     haproxy_modsecurity_response response;
@@ -168,11 +183,13 @@ static int run_body_wrapper_lifecycle_self_test(
     request_headers[0].value = "application/x-www-form-urlencoded";
     request_headers[1].name = "Content-Length";
     request_headers[1].value = "11";
+    request_headers[2].name = "X-Haproxy-Rule-Id";
+    request_headers[2].value = "block";
     memset(&request, 0, sizeof(request));
     request.method = "POST";
     request.uri = "/haproxy-binding-lifecycle-self-test";
     request.headers = request_headers;
-    request.header_count = 2U;
+    request.header_count = 3U;
 
     response_headers[0].name = "Content-Type";
     response_headers[0].value = "text/plain";
@@ -195,6 +212,25 @@ static int run_body_wrapper_lifecycle_self_test(
     if (check_null_body_transaction(&response_phase, &observed, decision) != 0) {
         goto cleanup;
     }
+
+    rc = haproxy_modsecurity_transaction_begin_request(engine, &request, &observed,
+        &transaction);
+    if (expect_disruptive_rule_id(rc, &observed, 1, 1000004,
+            "phase-1 Rule-ID fallback block", decision) != 0) {
+        goto cleanup;
+    }
+    haproxy_modsecurity_transaction_finish(transaction);
+    transaction = 0;
+
+    request_headers[2].value = "allow";
+    rc = haproxy_modsecurity_transaction_begin_request(engine, &request, &observed,
+        &transaction);
+    if (expect_non_disruptive(rc, &observed, 1,
+            "phase-1 Rule-ID fallback allow isolation", decision) != 0) {
+        goto cleanup;
+    }
+    haproxy_modsecurity_transaction_finish(transaction);
+    transaction = 0;
 
     rc = haproxy_modsecurity_transaction_begin_request(engine, &request, &observed,
         &transaction);

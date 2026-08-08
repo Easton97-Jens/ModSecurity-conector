@@ -115,6 +115,55 @@ beweisen weder Live-HAProxy-Enforcement noch eine positive
 `RESPONSE_BODY`-Intervention. `make smoke-haproxy` ist für Live-HAProxy-
 Laufzeitbeweise erforderlich.
 
+## libModSecurity-Kompatibilitätsvertrag
+
+Das gemeinsame HAProxy-Binding unterstützt `libModSecurity >= 3.0.14`; `3.0.14`
+bleibt die unterstützte Mindestversion. Das ausgewählte Include-Verzeichnis und
+das Library-Verzeichnis müssen eine bewusst ausgewählte Installation
+beschreiben. Das Binding kompiliert und **linkt** zuerst seine erforderliche
+öffentliche Baseline-C-API gegen dieses Paar. Ein Baseline-Fehler beendet den
+Build mit dieser Diagnose:
+
+```text
+The HAProxy connector requires the public libModSecurity API available in version 3.0.14 or newer. The detected headers and library do not provide the required baseline API or do not match.
+```
+
+`msc_get_rules_messages_rule_ids` gehört nicht zur Baseline. Seine exakte
+Deklaration wird in einem separaten Probe gegen dasselbe ausgewählte Paar
+kompiliert und sein Symbol gelinkt. Nur ein erfolgreicher Compile-und-Link-
+Probe setzt `HAPROXY_HAVE_MSC_GET_RULES_MESSAGES_RULE_IDS=1`; es werden weder
+eine Entscheidung allein anhand einer Versionsnummer noch eine manuelle
+Deklaration oder eine Runtime-Symbolauflösung verwendet. Der Build zeichnet
+`HAPROXY_MODSECURITY_RULE_IDS_API=available|unavailable` und die zugehörigen
+kontrollierten Compiler-Flags in
+`haproxy-modsecurity-binding/paths.env` auf und propagiert das Ergebnis sowohl
+in die SPOP-Laufzeit als auch in den separaten HTX-Overlay-Build.
+
+Wenn die optionale API nicht verfügbar ist, wird eine Rule-ID nur dann als
+begrenzte diagnostische Metadaten aus einem Interventionslog gewonnen, wenn
+dies möglich ist. Eine nicht intervenierende Transaktion kann deshalb
+`rule_id=0` melden. `msc_intervention` bleibt die alleinige Quelle für
+Disruptive-State, Status, Redirect-/Deny-Aktion und Cleanup; fehlende
+Rule-ID-Metadaten ändern niemals eine HTX- oder SPOP-Sicherheitsentscheidung
+und erzeugen kein Allow-by-default-Verhalten.
+
+Verwenden Sie für einen lokalen Build explizite, passende Pfade:
+
+```sh
+BUILD_ROOT=/external/task-root \
+MODSECURITY_INCLUDE_DIR=/selected/include \
+MODSECURITY_LIB_DIR=/selected/lib \
+MODSECURITY_INCLUDE_CANDIDATES=/selected/include \
+MODSECURITY_LIB_CANDIDATES=/selected/lib \
+make -C connectors/haproxy build-modsecurity-binding build-spoa-runtime
+```
+
+Führen Sie `make -C connectors/haproxy self-test-modsecurity-binding` für die
+In-Process-Binding-Kontrollen aus. `make smoke-haproxy` bleibt das getrennte
+Live-SPOP-Gate, während `make -C connectors/haproxy runtime-smoke-haproxy-htx`
+das getrennte native HTX-Build- und Host-Smoke-Gate bleibt; keiner der beiden
+Pfade ersetzt den anderen.
+
 ## Tests
 
 Es wird kein lokaler Ordner `connectors/haproxy/tests` verwendet. Ausführbare Laufzeittests sind

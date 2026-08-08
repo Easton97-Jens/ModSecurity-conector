@@ -35,6 +35,28 @@ ausgewählte HTX-Overlay, Source-Inputs, Build-Roots und Konfigurationsprüfunge
 Der [HAProxy-Source-Guide](../../connectors/haproxy/README.de.md) bleibt der
 code-nahe Einstieg. Compile-/Link-Prüfungen sind kein Laufzeitnachweis.
 
+## libModSecurity-Binding-Kompatibilität
+
+Das gemeinsame Binding unterstützt `libModSecurity >= 3.0.14`, wobei `3.0.14`
+die öffentliche C-API-Mindestbaseline ist. Es kompiliert und linkt die
+erforderliche Baseline-API gegen ein explizit ausgewähltes passendes Header- /
+Library-Paar. Ein Deklarations- oder Library-Mismatch schlägt mit einer
+Baseline-API-Diagnose fehl; die optionale API
+`msc_get_rules_messages_rule_ids` ist niemals der Grund, warum eine gültige
+`3.0.14`-Baseline abgelehnt wird.
+
+Die optionale API wird nur aktiviert, wenn ihre exakte Deklaration gegen
+dasselbe Paar kompiliert und ihr Symbol linkt. Die resultierende Compile-Time-
+Capability wird konsistent von den unabhängigen SPOP- und nativen HTX-Builds
+verwendet. Ohne sie kann eine begrenzte Rule-ID für Diagnosen aus einem
+Interventionslog gewonnen werden; andernfalls ist `rule_id=0` ein expliziter
+Wert für nicht verfügbare Metadaten. Disruptive-State, Status, Redirect-/Deny-
+Aktion, Cleanup und jede Host-Durchsetzung werden weiterhin aus
+`msc_intervention` abgeleitet, niemals aus Rule-ID-Metadaten. Der code-nahe
+[Kompatibilitätsvertrag und die Befehle](../../connectors/haproxy/README.de.md#libmodsecurity-kompatibilitätsvertrag)
+beschreiben die exakten Probes, den Feature-State in `paths.env` und die
+getrennten Validierungsziele.
+
 ## Konfiguration
 
 Vollständige native HTX-Syntax und getrennte SPOE/SPOP-Kompatibilitätseinträge

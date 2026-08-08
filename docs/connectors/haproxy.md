@@ -33,6 +33,26 @@ selected HTX overlay, source inputs, build roots, and configuration checks.
 The [HAProxy source guide](../../connectors/haproxy/README.md) remains the
 code-adjacent entry point. Compile/link checks are not runtime evidence.
 
+## libModSecurity binding compatibility
+
+The shared binding supports `libModSecurity >= 3.0.14`, with `3.0.14` as the
+minimum public C API baseline. It compiles and links the required baseline API
+against one explicitly selected matching header/library pair. A declaration or
+library mismatch fails with a baseline-API diagnostic; the optional
+`msc_get_rules_messages_rule_ids` API is never the reason a valid `3.0.14`
+baseline is rejected.
+
+The optional API is enabled only after its exact declaration compiles and its
+symbol links against the same pair. The resulting compile-time capability is
+used consistently by the independent SPOP and native HTX builds. Without it,
+a bounded Rule ID may be recovered from an intervention log for diagnostics;
+otherwise `rule_id=0` is an explicit unavailable-metadata value. Disruptive
+state, status, redirect/deny action, cleanup, and all host enforcement continue
+to derive from `msc_intervention`, never from Rule-ID metadata. The code-adjacent
+[compatibility contract and commands](../../connectors/haproxy/README.md#libmodsecurity-compatibility-contract)
+describe the exact probes, `paths.env` feature state, and separate validation
+targets.
+
 ## Configuration
 
 The complete native HTX syntax and separated SPOE/SPOP compatibility entries

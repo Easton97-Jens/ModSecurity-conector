@@ -223,8 +223,10 @@ static void capture_intervention(
     char common_rule_id[64];
     int rule_id_result;
     int truncated = 0;
+#if defined(HAPROXY_HAVE_MSC_GET_RULES_MESSAGES_RULE_IDS)
     int64_t ids[1];
     size_t id_count;
+#endif
 
     init_decision(decision, phase);
     common_rule_id[0] = '\0';
@@ -255,10 +257,12 @@ static void capture_intervention(
             }
         }
     }
+#if defined(HAPROXY_HAVE_MSC_GET_RULES_MESSAGES_RULE_IDS)
     id_count = msc_get_rules_messages_rule_ids(transaction, ids, 1U);
-    if (id_count > 0U) {
+    if (id_count > 0U && ids[0] > 0 && ids[0] <= (int64_t)INT_MAX) {
         decision->rule_id = (int)ids[0];
     }
+#endif
     msc_intervention_cleanup(&intervention);
 }
 
@@ -1115,14 +1119,15 @@ int haproxy_modsecurity_phase1_header_self_test(
         return rc;
     }
     if (decision != 0 && decision->disruptive != 0 &&
-            decision->status == HAPROXY_MODSECURITY_EXPECTED_STATUS) {
+            decision->status == HAPROXY_MODSECURITY_EXPECTED_STATUS &&
+            decision->rule_id == 1000001) {
         return 0;
     }
     if (decision != 0) {
         snprintf(decision->log_message, sizeof(decision->log_message),
-            "expected disruptive status %d, got disruptive=%d status=%d",
+            "expected disruptive status %d and Rule-ID 1000001, got disruptive=%d status=%d rule_id=%d",
             HAPROXY_MODSECURITY_EXPECTED_STATUS, decision->disruptive,
-            decision->status);
+            decision->status, decision->rule_id);
     }
     return 1;
 }
@@ -1156,14 +1161,15 @@ int haproxy_modsecurity_request_body_self_test(
         return rc;
     }
     if (decision != 0 && decision->disruptive != 0 &&
-            decision->status == HAPROXY_MODSECURITY_EXPECTED_STATUS) {
+            decision->status == HAPROXY_MODSECURITY_EXPECTED_STATUS &&
+            decision->rule_id == 1000002) {
         return 0;
     }
     if (decision != 0) {
         snprintf(decision->log_message, sizeof(decision->log_message),
-            "expected request-body disruptive status %d, got disruptive=%d status=%d",
+            "expected request-body disruptive status %d and Rule-ID 1000002, got disruptive=%d status=%d rule_id=%d",
             HAPROXY_MODSECURITY_EXPECTED_STATUS, decision->disruptive,
-            decision->status);
+            decision->status, decision->rule_id);
     }
     return 1;
 }

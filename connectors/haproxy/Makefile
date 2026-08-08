@@ -72,6 +72,7 @@ build-htx-overlay: check-htx-overlay build-modsecurity-binding
 	HAPROXY_HTX_BUILD_DIR="$$build_dir" \
 	MODSECURITY_INCLUDE_DIR="$$MODSECURITY_INCLUDE_DIR" \
 	MODSECURITY_LIB_DIR="$$MODSECURITY_LIB_DIR" \
+	HAPROXY_MODSECURITY_BINDING_CPPFLAGS="$$HAPROXY_MODSECURITY_BINDING_CPPFLAGS" \
 	MAKE_JOBS="$${MAKE_JOBS:-2}" \
 	sh htx-overlay/build-overlay.sh
 
@@ -131,7 +132,7 @@ $(SPOA_RUNTIME_BIN): FORCE src/haproxy_spop_diagnostic_runtime.c src/haproxy_mod
 	@set -eu; \
 	mkdir -p "$(HAPROXY_SPOA_RUNTIME_DIR)"; \
 	. "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"; \
-	$(CC) $(CPPFLAGS) $(CFLAGS) -I"$$MODSECURITY_INCLUDE_DIR" $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_modsecurity_binding.c -o "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_modsecurity_binding.o" || { \
+	$(CC) $(CPPFLAGS) $(CFLAGS) $$HAPROXY_MODSECURITY_BINDING_CPPFLAGS -I"$$MODSECURITY_INCLUDE_DIR" $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_modsecurity_binding.c -o "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_modsecurity_binding.o" || { \
 		echo "FAIL: HAProxy ModSecurity binding source did not compile for diagnostic SPOP runtime" >&2; \
 		exit 1; \
 	}; \
@@ -148,7 +149,7 @@ $(SPOA_RUNTIME_BIN): FORCE src/haproxy_spop_diagnostic_runtime.c src/haproxy_mod
 		}; \
 		common_objects="$$common_objects $$obj"; \
 	done; \
-	$(CXX) $(LDFLAGS) "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_spop_diagnostic_runtime.o" "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_modsecurity_binding.o" $$common_objects -L"$$MODSECURITY_LIB_DIR" -Wl,-rpath,"$$MODSECURITY_LIB_DIR" -lmodsecurity $(LDLIBS) -o "$@" || { \
+	$(CXX) $(LDFLAGS) "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_spop_diagnostic_runtime.o" "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_modsecurity_binding.o" $$common_objects "$$MODSECURITY_LIBRARY" -Wl,-rpath,"$$MODSECURITY_LIB_DIR" $(LDLIBS) -o "$@" || { \
 		echo "FAIL: HAProxy ModSecurity SPOA runtime did not link with libmodsecurity" >&2; \
 		exit 1; \
 	}
@@ -180,50 +181,95 @@ $(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_
 		echo "BLOCKED: libmodsecurity library missing under BUILD_ROOT" >&2; \
 		exit 77; \
 	fi; \
-	probe="$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_api.c"; \
+	modsecurity_library=; \
+	for candidate in "$$lib_dir"/libmodsecurity.so "$$lib_dir"/libmodsecurity.a "$$lib_dir"/libmodsecurity.so.*; do \
+		if [ -f "$$candidate" ]; then \
+			modsecurity_library=$$candidate; \
+			break; \
+		fi; \
+	done; \
+	if [ -z "$$modsecurity_library" ]; then \
+		echo "BLOCKED: libmodsecurity library is not linkable under $$lib_dir" >&2; \
+		exit 77; \
+	fi; \
+	baseline_probe="$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_baseline_api.c"; \
+	baseline_object="$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_baseline_api.o"; \
+	baseline_binary="$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_baseline_api"; \
+	optional_probe="$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_optional_rule_ids_api.c"; \
+	optional_object="$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_optional_rule_ids_api.o"; \
+	optional_binary="$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_optional_rule_ids_api"; \
+	optional_compile_log="$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_optional_rule_ids_compile.log"; \
+	optional_link_log="$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_optional_rule_ids_link.log"; \
+	binding_cppflags=; \
+	optional_rule_ids_api=unavailable; \
 	printf '%s\n' \
 		'#include <stddef.h>' \
 		'#include <stdint.h>' \
 		'#include <modsecurity/modsecurity.h>' \
 		'#include <modsecurity/rules_set.h>' \
 		'#include <modsecurity/transaction.h>' \
+		'static ModSecurity *(*volatile fn_msc_init)(void) = msc_init;' \
+		'static void (*volatile fn_msc_cleanup)(ModSecurity *) = msc_cleanup;' \
+		'static void (*volatile fn_msc_set_connector_info)(ModSecurity *, const char *) = msc_set_connector_info;' \
+		'static RulesSet *(*volatile fn_msc_create_rules_set)(void) = msc_create_rules_set;' \
+		'static int (*volatile fn_msc_rules_add)(RulesSet *, const char *, const char **) = msc_rules_add;' \
+		'static int (*volatile fn_msc_rules_add_file)(RulesSet *, const char *, const char **) = msc_rules_add_file;' \
+		'static void (*volatile fn_msc_rules_error_cleanup)(const char *) = msc_rules_error_cleanup;' \
+		'static int (*volatile fn_msc_rules_cleanup)(RulesSet *) = msc_rules_cleanup;' \
+		'static Transaction *(*volatile fn_msc_new_transaction)(ModSecurity *, RulesSet *, void *) = msc_new_transaction;' \
+		'static Transaction *(*volatile fn_msc_new_transaction_with_id)(ModSecurity *, RulesSet *, const char *, void *) = msc_new_transaction_with_id;' \
+		'static int (*volatile fn_msc_process_connection)(Transaction *, const char *, int, const char *, int) = msc_process_connection;' \
+		'static int (*volatile fn_msc_process_uri)(Transaction *, const char *, const char *, const char *) = msc_process_uri;' \
+		'static int (*volatile fn_msc_add_request_header)(Transaction *, const unsigned char *, const unsigned char *) = msc_add_request_header;' \
+		'static int (*volatile fn_msc_process_request_headers)(Transaction *) = msc_process_request_headers;' \
+		'static int (*volatile fn_msc_append_request_body)(Transaction *, const unsigned char *, size_t) = msc_append_request_body;' \
+		'static int (*volatile fn_msc_process_request_body)(Transaction *) = msc_process_request_body;' \
+		'static int (*volatile fn_msc_add_response_header)(Transaction *, const unsigned char *, const unsigned char *) = msc_add_response_header;' \
+		'static int (*volatile fn_msc_process_response_headers)(Transaction *, int, const char *) = msc_process_response_headers;' \
+		'static int (*volatile fn_msc_append_response_body)(Transaction *, const unsigned char *, size_t) = msc_append_response_body;' \
+		'static int (*volatile fn_msc_process_response_body)(Transaction *) = msc_process_response_body;' \
+		'static int (*volatile fn_msc_intervention)(Transaction *, ModSecurityIntervention *) = msc_intervention;' \
+		'static void (*volatile fn_msc_intervention_cleanup)(ModSecurityIntervention *) = msc_intervention_cleanup;' \
+		'static int (*volatile fn_msc_process_logging)(Transaction *) = msc_process_logging;' \
+		'static void (*volatile fn_msc_transaction_cleanup)(Transaction *) = msc_transaction_cleanup;' \
 		'int main(void) {' \
-		'    ModSecurity *(*fn_msc_init)(void) = msc_init;' \
-		'    void (*fn_msc_cleanup)(ModSecurity *) = msc_cleanup;' \
-		'    void (*fn_msc_set_connector_info)(ModSecurity *, const char *) = msc_set_connector_info;' \
-		'    RulesSet *(*fn_msc_create_rules_set)(void) = msc_create_rules_set;' \
-		'    int (*fn_msc_rules_add)(RulesSet *, const char *, const char **) = msc_rules_add;' \
-		'    int (*fn_msc_rules_add_file)(RulesSet *, const char *, const char **) = msc_rules_add_file;' \
-		'    void (*fn_msc_rules_error_cleanup)(const char *) = msc_rules_error_cleanup;' \
-		'    int (*fn_msc_rules_cleanup)(RulesSet *) = msc_rules_cleanup;' \
-		'    Transaction *(*fn_msc_new_transaction)(ModSecurity *, RulesSet *, void *) = msc_new_transaction;' \
-		'    Transaction *(*fn_msc_new_transaction_with_id)(ModSecurity *, RulesSet *, const char *, void *) = msc_new_transaction_with_id;' \
-		'    int (*fn_msc_process_connection)(Transaction *, const char *, int, const char *, int) = msc_process_connection;' \
-		'    int (*fn_msc_process_uri)(Transaction *, const char *, const char *, const char *) = msc_process_uri;' \
-		'    int (*fn_msc_add_request_header)(Transaction *, const unsigned char *, const unsigned char *) = msc_add_request_header;' \
-		'    int (*fn_msc_process_request_headers)(Transaction *) = msc_process_request_headers;' \
-		'    int (*fn_msc_append_request_body)(Transaction *, const unsigned char *, size_t) = msc_append_request_body;' \
-		'    int (*fn_msc_process_request_body)(Transaction *) = msc_process_request_body;' \
-		'    int (*fn_msc_add_response_header)(Transaction *, const unsigned char *, const unsigned char *) = msc_add_response_header;' \
-		'    int (*fn_msc_process_response_headers)(Transaction *, int, const char *) = msc_process_response_headers;' \
-		'    int (*fn_msc_append_response_body)(Transaction *, const unsigned char *, size_t) = msc_append_response_body;' \
-		'    int (*fn_msc_process_response_body)(Transaction *) = msc_process_response_body;' \
-		'    int (*fn_msc_intervention)(Transaction *, ModSecurityIntervention *) = msc_intervention;' \
-		'    void (*fn_msc_intervention_cleanup)(ModSecurityIntervention *) = msc_intervention_cleanup;' \
-		'    int (*fn_msc_process_logging)(Transaction *) = msc_process_logging;' \
-		'    void (*fn_msc_transaction_cleanup)(Transaction *) = msc_transaction_cleanup;' \
-		'    size_t (*fn_msc_get_rules_messages_rule_ids)(const Transaction *, int64_t *, size_t) = msc_get_rules_messages_rule_ids;' \
-		'    return fn_msc_init == 0 || fn_msc_cleanup == 0 || fn_msc_set_connector_info == 0 || fn_msc_create_rules_set == 0 || fn_msc_rules_add == 0 || fn_msc_rules_add_file == 0 || fn_msc_rules_error_cleanup == 0 || fn_msc_rules_cleanup == 0 || fn_msc_new_transaction == 0 || fn_msc_new_transaction_with_id == 0 || fn_msc_process_connection == 0 || fn_msc_process_uri == 0 || fn_msc_add_request_header == 0 || fn_msc_process_request_headers == 0 || fn_msc_append_request_body == 0 || fn_msc_process_request_body == 0 || fn_msc_add_response_header == 0 || fn_msc_process_response_headers == 0 || fn_msc_append_response_body == 0 || fn_msc_process_response_body == 0 || fn_msc_intervention == 0 || fn_msc_intervention_cleanup == 0 || fn_msc_process_logging == 0 || fn_msc_transaction_cleanup == 0 || fn_msc_get_rules_messages_rule_ids == 0;' \
-		'}' > "$$probe"; \
-	$(CC) $(CPPFLAGS) -I"$$include_dir" -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -c "$$probe" -o "$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_api.o" || { \
-		echo "FAIL: local libmodsecurity C API signatures do not match binding requirements" >&2; \
+		'    return fn_msc_init == 0 || fn_msc_cleanup == 0 || fn_msc_set_connector_info == 0 || fn_msc_create_rules_set == 0 || fn_msc_rules_add == 0 || fn_msc_rules_add_file == 0 || fn_msc_rules_error_cleanup == 0 || fn_msc_rules_cleanup == 0 || fn_msc_new_transaction == 0 || fn_msc_new_transaction_with_id == 0 || fn_msc_process_connection == 0 || fn_msc_process_uri == 0 || fn_msc_add_request_header == 0 || fn_msc_process_request_headers == 0 || fn_msc_append_request_body == 0 || fn_msc_process_request_body == 0 || fn_msc_add_response_header == 0 || fn_msc_process_response_headers == 0 || fn_msc_append_response_body == 0 || fn_msc_process_response_body == 0 || fn_msc_intervention == 0 || fn_msc_intervention_cleanup == 0 || fn_msc_process_logging == 0 || fn_msc_transaction_cleanup == 0;' \
+		'}' > "$$baseline_probe"; \
+	printf '%s\n' \
+		'#include <stddef.h>' \
+		'#include <stdint.h>' \
+		'#include <modsecurity/modsecurity.h>' \
+		'#include <modsecurity/transaction.h>' \
+		'static size_t (*volatile fn_msc_get_rules_messages_rule_ids)(const Transaction *, int64_t *, size_t) = msc_get_rules_messages_rule_ids;' \
+		'int main(void) {' \
+		'    return fn_msc_get_rules_messages_rule_ids == 0;' \
+		'}' > "$$optional_probe"; \
+	if ! $(CC) $(CPPFLAGS) -I"$$include_dir" -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -c "$$baseline_probe" -o "$$baseline_object"; then \
+		echo "FAIL: The HAProxy connector requires the public libModSecurity API available in version 3.0.14 or newer. The detected headers and library do not provide the required baseline API or do not match." >&2; \
 		exit 1; \
-	}; \
-	$(CC) $(CPPFLAGS) $(CFLAGS) -I"$$include_dir" $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_modsecurity_binding.c -o "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding.o" || { \
+	fi; \
+	if ! $(CXX) $(LDFLAGS) "$$baseline_object" "$$modsecurity_library" -Wl,-rpath,"$$lib_dir" $(LDLIBS) -o "$$baseline_binary"; then \
+		echo "FAIL: The HAProxy connector requires the public libModSecurity API available in version 3.0.14 or newer. The detected headers and library do not provide the required baseline API or do not match." >&2; \
+		exit 1; \
+	fi; \
+	if $(CC) $(CPPFLAGS) -I"$$include_dir" -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -c "$$optional_probe" -o "$$optional_object" > "$$optional_compile_log" 2>&1; then \
+		if $(CXX) $(LDFLAGS) "$$optional_object" "$$modsecurity_library" -Wl,-rpath,"$$lib_dir" $(LDLIBS) -o "$$optional_binary" > "$$optional_link_log" 2>&1; then \
+			binding_cppflags=-DHAPROXY_HAVE_MSC_GET_RULES_MESSAGES_RULE_IDS=1; \
+			optional_rule_ids_api=available; \
+			echo "INFO: msc_get_rules_messages_rule_ids compile-and-link probe passed; enabling optional Rule-ID metadata."; \
+		else \
+			echo "INFO: msc_get_rules_messages_rule_ids declaration compiled but the selected library did not link it; using the supported 3.0.14 baseline Rule-ID path."; \
+			sed -n '1,8p' "$$optional_link_log"; \
+		fi; \
+	else \
+		echo "INFO: msc_get_rules_messages_rule_ids is unavailable for the selected libModSecurity headers; using the supported 3.0.14 baseline Rule-ID path."; \
+		sed -n '1,8p' "$$optional_compile_log"; \
+	fi; \
+	$(CC) $(CPPFLAGS) $(CFLAGS) $$binding_cppflags -I"$$include_dir" $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_modsecurity_binding.c -o "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding.o" || { \
 		echo "FAIL: HAProxy ModSecurity binding source did not compile" >&2; \
 		exit 1; \
 	}; \
-	$(CC) $(CPPFLAGS) $(CFLAGS) -I"$$include_dir" $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_modsecurity_binding_self_test.c -o "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding_self_test.o" || { \
+	$(CC) $(CPPFLAGS) $(CFLAGS) $$binding_cppflags -I"$$include_dir" $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_modsecurity_binding_self_test.c -o "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding_self_test.o" || { \
 		echo "FAIL: HAProxy ModSecurity binding self-test source did not compile" >&2; \
 		exit 1; \
 	}; \
@@ -236,11 +282,11 @@ $(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_
 		}; \
 		common_objects="$$common_objects $$obj"; \
 	done; \
-	$(CXX) $(LDFLAGS) "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding.o" "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding_self_test.o" $$common_objects -L"$$lib_dir" -Wl,-rpath,"$$lib_dir" -lmodsecurity $(LDLIBS) -o "$@" || { \
+	$(CXX) $(LDFLAGS) "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding.o" "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding_self_test.o" $$common_objects "$$modsecurity_library" -Wl,-rpath,"$$lib_dir" $(LDLIBS) -o "$@" || { \
 		echo "FAIL: HAProxy ModSecurity binding self-test did not link" >&2; \
 		exit 1; \
 	}; \
-	printf '%s\n' "MODSECURITY_INCLUDE_DIR=$$include_dir" "MODSECURITY_LIB_DIR=$$lib_dir" "MODSECURITY_BINDING_BIN=$@" > "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"
+	printf '%s\n' "MODSECURITY_INCLUDE_DIR=$$include_dir" "MODSECURITY_LIB_DIR=$$lib_dir" "MODSECURITY_LIBRARY=$$modsecurity_library" "HAPROXY_MODSECURITY_RULE_IDS_API=$$optional_rule_ids_api" "HAPROXY_MODSECURITY_BINDING_CPPFLAGS=$$binding_cppflags" "MODSECURITY_BINDING_BIN=$@" > "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"
 
 clean:
 	rm -rf "$(HAPROXY_BUILD_DIR)" "$(HAPROXY_SPOA_RUNTIME_DIR)" "$(HAPROXY_MODSECURITY_BINDING_DIR)" "$(HAPROXY_HTX_RUNTIME_ROOT)"
