@@ -167,6 +167,7 @@ PORT_SEARCH_LIMIT=${APACHE_AUTOTOOLS_PORT_SEARCH_LIMIT:-50}
 
 case "$PORT_START:$PORT_SEARCH_LIMIT" in
     *[!0-9:]*|:*|*:) blocked "port settings must be positive decimal integers" ;;
+    *) ;;
 esac
 [ "$PORT_START" -gt 0 ] && [ "$PORT_START" -lt 65536 ] || \
     blocked "APACHE_AUTOTOOLS_PORT_START is outside 1..65535: $PORT_START"
@@ -268,7 +269,8 @@ append_mpm_if_needed() {
 }
 
 port_is_free() {
-    python3 - "$1" <<'PY'
+    requested_port=$1
+    python3 - "$requested_port" <<'PY'
 import socket
 import sys
 
@@ -402,11 +404,9 @@ while [ "$attempt" -lt 50 ]; do
     if ! kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
         fail "Apache exited before accepting the loopback request"
     fi
-    if status=$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/index.html"); then
-        if [ "$status" = 200 ]; then
-            ready=1
-            break
-        fi
+    if status=$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/index.html") && [ "$status" = 200 ]; then
+        ready=1
+        break
     fi
     attempt=$((attempt + 1))
     sleep 1
