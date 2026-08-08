@@ -531,6 +531,13 @@ static int append_typed_string(spop_buffer *buf, const char *value) {
     return append_string(buf, value);
 }
 
+static int append_typed_empty_string(spop_buffer *buf) {
+    if (append_byte(buf, SPOP_DATA_STR) != 0) {
+        return -1;
+    }
+    return append_varint(buf, 0U);
+}
+
 static int append_typed_uint32(spop_buffer *buf, unsigned int value) {
     if (append_byte(buf, SPOP_DATA_UINT32) != 0) {
         return -1;
@@ -544,6 +551,10 @@ static int append_typed_bool(spop_buffer *buf, int value) {
 
 static int append_kv_string(spop_buffer *buf, const char *key, const char *value) {
     return append_string(buf, key) == 0 && append_typed_string(buf, value) == 0 ? 0 : -1;
+}
+
+static int append_kv_empty_string(spop_buffer *buf, const char *key) {
+    return append_string(buf, key) == 0 && append_typed_empty_string(buf) == 0 ? 0 : -1;
 }
 
 static int append_kv_uint32(spop_buffer *buf, const char *key, unsigned int value) {
@@ -1646,7 +1657,7 @@ static int send_agent_hello(int fd, unsigned int max_frame_size) {
     payload.len = 0;
     if (append_kv_string(&payload, "version", "2.0") != 0 ||
         append_kv_uint32(&payload, "max-frame-size", max_frame_size) != 0 ||
-        append_kv_string(&payload, "capabilities", "") != 0) {
+        append_kv_empty_string(&payload, "capabilities") != 0) {
         return -1;
     }
     return send_frame(fd, SPOP_FRM_AGENT_HELLO, 0, 0, &payload);
@@ -1669,7 +1680,7 @@ static int send_haproxy_hello(int fd, int healthcheck) {
     payload.len = 0;
     if (append_kv_string(&payload, "supported-versions", "2.0,1.2") != 0 ||
         append_kv_uint32(&payload, "max-frame-size", SPOP_FRAME_MAX) != 0 ||
-        append_kv_string(&payload, "capabilities", "") != 0 ||
+        append_kv_empty_string(&payload, "capabilities") != 0 ||
         append_kv_bool(&payload, "healthcheck", healthcheck) != 0) {
         return -1;
     }
