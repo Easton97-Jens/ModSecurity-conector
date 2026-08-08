@@ -34,17 +34,33 @@ BUILD_ROOT=/src/ModSecurity-conector-build \
 make smoke-nginx
 ```
 
-Der Build-Helfer verwendet standardmäßig die offizielle GitHub-Release-Quelle:
+Die Full-Smoke-Konfiguration verwendet ein festes direktes offizielles
+GitHub-Release-Asset:
 
 ```sh
+BUILD_NGINX_FROM_SOURCE=1
 NGINX_SOURCE_MODE=github-release
-NGINX_GITHUB_REPO=https://github.com/nginx/nginx
-NGINX_RELEASE_TAG=latest
+NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
+NGINX_RELEASE_TAG=release-1.31.3
+NGINX_SOURCE_GIT_REF=release-1.31.3
+NGINX_RELEASE_ASSET_NAME=nginx-1.31.3.tar.gz
+NGINX_SHA256=a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
+NGINX_REQUIRE_PINNED_PROVENANCE=1
 ```
 
-Wenn `NGINX_RELEASE_TAG=latest`, fragt der Helfer die GitHub Releases API ab und
-zeichnet das eigentliche Tag in `$BUILD_ROOT/logs/nginx/artifacts.txt` auf. Um einen anzupinnen
-Für eine bestimmte Version legen Sie `NGINX_RELEASE_TAG=release-1.31.0` oder ein anderes genaues Tag fest.
+Dies wählt
+`https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz`.
+Der Full-Smoke-Release-Resolver weist `latest` und `/releases/latest` vor
+Cache-Lookup oder -Schreiben, Netzwerkzugriff, Download oder Extraktion ab.
+Die Cache-Identität bindet das gesamte Tupel: Source-Modus, Repository-URL,
+Release-Tag, Source-Git-Ref, Release-Asset-Name und SHA-256. Spätere
+NGINX-Updates müssen dieses Tupel atomar ändern; nur Tag oder Archivname zu
+ändern ist keine gültige Full-Smoke-Provenance.
+
+`NGINX_REQUIRE_PINNED_PROVENANCE=1` weist zusätzlich geerbte native
+Binary-/Modul-Overrides ab. Der Full-Smoke-Pfad baut das ausgewählte
+Release-Asset und verwendet kein System- oder MRTS-NGINX-Binary als
+Full-Smoke-Evidence.
 
 Wenn NGINX, das dynamische Modul oder `libmodsecurity.so` fehlt, das Skript
 beendet `77` und markiert das Ergebnis als `blocked`.

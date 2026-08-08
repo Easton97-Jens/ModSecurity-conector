@@ -15,6 +15,17 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 LEGACY_FRAMEWORK_HAPROXY_CACHE_SHA = "784977615acfc55567e37b863309abc4a38ac877"
 PINNED_EXPAT_COMMIT = "c61098da494eea1cbd091118118dcee417faacea"
+PINNED_NGINX_RELEASE_TUPLE = {
+    "NGINX_SOURCE_MODE": "github-release",
+    "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
+    "NGINX_RELEASE_TAG": "release-1.31.3",
+    "NGINX_SOURCE_GIT_REF": "release-1.31.3",
+    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.3.tar.gz",
+    "NGINX_SHA256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+}
+PINNED_NGINX_RELEASE_ASSET_URL = (
+    "https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz"
+)
 sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
     "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
@@ -102,6 +113,97 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             with self.subTest(url=invalid_url):
                 with self.assertRaises(RuntimeError):
                     components.validate_https_url_config({"CRS_REPO_URL": invalid_url})
+
+    def test_pinned_nginx_release_tuple_uses_only_the_direct_release_asset(self) -> None:
+        archive_root = Path("cache/archives")
+        cache_root = Path("cache")
+        prepared = {
+            "name": "nginx",
+            "url": PINNED_NGINX_RELEASE_ASSET_URL,
+            "expected_sha256": PINNED_NGINX_RELEASE_TUPLE["NGINX_SHA256"],
+            "status": "present",
+            "checksum_status": "PASS",
+        }
+        with (
+            mock.patch.object(components, "urlopen_bytes") as network,
+            mock.patch.object(components, "prepare_archive", return_value=prepared) as prepare_archive,
+        ):
+            records = components.nginx_archive_records(
+                dict(PINNED_NGINX_RELEASE_TUPLE),
+                archive_root,
+                cache_root,
+            )
+
+        network.assert_not_called()
+        prepare_archive.assert_called_once()
+        args, _kwargs = prepare_archive.call_args
+        self.assertEqual(args[0], "nginx")
+        self.assertEqual(args[1], PINNED_NGINX_RELEASE_ASSET_URL)
+        self.assertEqual(args[2], PINNED_NGINX_RELEASE_TUPLE["NGINX_SHA256"])
+        self.assertNotIn("/releases/latest", args[1])
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["status"], "present")
+        self.assertEqual(records[0]["url"], PINNED_NGINX_RELEASE_ASSET_URL)
+        self.assertEqual(records[0]["release_tag"], "release-1.31.3")
+        self.assertEqual(records[0]["source_ref"], "release-1.31.3")
+        self.assertEqual(records[0]["release_asset_name"], "nginx-1.31.3.tar.gz")
+        self.assertEqual(
+            records[0]["expected_sha256"],
+            PINNED_NGINX_RELEASE_TUPLE["NGINX_SHA256"],
+        )
+
+    def test_nginx_archive_records_reject_invalid_provenance_before_side_effects(self) -> None:
+        invalid_cases: dict[str, dict[str, str]] = {
+            "source_mode": {"NGINX_SOURCE_MODE": "git"},
+            "missing_release_tag": {"NGINX_RELEASE_TAG": ""},
+            "missing_source_ref": {"NGINX_SOURCE_GIT_REF": ""},
+            "tag_latest": {"NGINX_RELEASE_TAG": "latest"},
+            "ref_latest": {"NGINX_SOURCE_GIT_REF": "latest"},
+            "missing_sha256": {"NGINX_SHA256": ""},
+            "empty_sha256": {"NGINX_SHA256": ""},
+            "whitespace_sha256": {"NGINX_SHA256": "   "},
+            "malformed_sha256": {"NGINX_SHA256": "not-a-sha256"},
+            "tag_ref_mismatch": {"NGINX_SOURCE_GIT_REF": "release-1.31.2"},
+            "asset_mismatch": {"NGINX_RELEASE_ASSET_NAME": "nginx-1.31.2.tar.gz"},
+            "wrong_repo": {"NGINX_SOURCE_REPO_URL": "https://github.com/example/nginx"},
+            "github_repo_alias_mismatch": {"NGINX_GITHUB_REPO": "https://github.com/example/nginx"},
+        }
+
+        for name, overrides in invalid_cases.items():
+            with self.subTest(case=name):
+                env = dict(PINNED_NGINX_RELEASE_TUPLE)
+                env.update(overrides)
+                if name == "missing_release_tag":
+                    env.pop("NGINX_RELEASE_TAG")
+                if name == "missing_source_ref":
+                    env.pop("NGINX_SOURCE_GIT_REF")
+                if name == "missing_sha256":
+                    env.pop("NGINX_SHA256")
+                with (
+                    mock.patch.object(components, "urlopen_bytes") as network,
+                    mock.patch.object(components, "download") as download,
+                    mock.patch.object(components, "prepare_archive") as prepare_archive,
+                    mock.patch.object(components, "mark_managed_cache_entry") as mark_cache,
+                    mock.patch.object(
+                        components, "write_cache_entry_completion"
+                    ) as complete_cache,
+                    mock.patch.object(components, "archive_can_list") as inspect_archive,
+                ):
+                    records = components.nginx_archive_records(
+                        env,
+                        Path("cache/archives"),
+                        Path("cache"),
+                    )
+
+                self.assertEqual(len(records), 1)
+                self.assertEqual(records[0]["status"], "blocked")
+                self.assertTrue(records[0]["blocker_reason"])
+                network.assert_not_called()
+                download.assert_not_called()
+                prepare_archive.assert_not_called()
+                mark_cache.assert_not_called()
+                complete_cache.assert_not_called()
+                inspect_archive.assert_not_called()
 
     def test_runtime_component_report_describes_strict_expat_and_cache_fsck_accurately(self) -> None:
         report = components.markdown_report(

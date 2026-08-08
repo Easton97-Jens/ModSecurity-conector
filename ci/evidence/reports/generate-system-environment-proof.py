@@ -73,10 +73,13 @@ FRAMEWORK_ENVIRONMENT_VARS = (
     "APXS",
     "APXS_BIN",
     "NGINX_BIN",
+    "NGINX_SOURCE_MODE",
     "NGINX_SOURCE_REPO_URL",
     "NGINX_GITHUB_REPO",
     "NGINX_RELEASE_TAG",
     "NGINX_SOURCE_GIT_REF",
+    "NGINX_RELEASE_ASSET_NAME",
+    "NGINX_SHA256",
     "CI_APACHE_BIN_CANDIDATES",
     "CI_APXS_BIN_CANDIDATES",
     "CI_NGINX_BIN_CANDIDATES",
@@ -104,6 +107,27 @@ SHELL_EXECUTABLE_CHECK_SOURCE = "/bin/sh executable check"
 APACHE_HTTPD_TOOL = "apache/httpd"
 MARKDOWN_FIELD_VALUE_HEADER = "| Field | Value |"
 MARKDOWN_FIELD_VALUE_SEPARATOR = "|---|---|"
+NGINX_RUNTIME_CONTRACT_MISSING = "NGINX runtime contract missing"
+NGINX_RUNTIME_CONTRACT_FIELDS = (
+    "component",
+    "source_repository",
+    "source_mode",
+    "release_tag",
+    "source_ref",
+    "release_asset_name",
+    "expected_archive_sha256",
+    "actual_archive_sha256",
+    "source_version_readback",
+    "source_directory",
+    "binary_path",
+    "binary_sha256",
+    "binary_version_readback",
+    "configure_arguments",
+    "build_id",
+    "framework_commit",
+    "parent_commit",
+    "generated_at",
+)
 
 
 @dataclass(frozen=True)
@@ -758,43 +782,68 @@ def resolve_haproxy_tool(cwd: Path, framework_env: dict[str, Any], initial_env: 
     )
 
 
-def resolve_nginx_tool(cwd: Path, framework_env: dict[str, Any], initial_env: dict[str, str]) -> dict[str, Any]:
-    effective_env = dict(common_env(framework_env) or initial_env)
-    candidate = env_var_value("NGINX_BIN", initial_env, framework_env)
-    if candidate is not None:
-        value, source = candidate
-        resolved, error, rc = command_exists(value, cwd, effective_env)
-        if rc == 0 and resolved is not None:
-            return run_resolved_tool(
-                tool="nginx",
-                resolved_command=resolved,
-                attempted_command=value,
-                source=source,
-                version_args=("-v",),
-                candidates=[],
-                cwd=cwd,
-                notes="NGINX_BIN is set and executable",
-            )
+def nginx_contract_binary_path(runtime_check: dict[str, Any] | None) -> tuple[Path | None, str]:
+    """Return a freshly hash-checked NGINX binary only after contract validation."""
+
+    contract = nginx_runtime_contract(runtime_check)
+    fields = contract["fields"]
+    if contract["status"] != "PASS":
+        issues = contract.get("issues", [])
+        detail = "; ".join(str(issue) for issue in issues) or "runtime contract is not PASS"
+        return None, f"NGINX binary was not executed before runtime-contract validation: {detail}"
+
+    binary_value = fields.get("binary_path")
+    if not isinstance(binary_value, str) or not binary_value:
+        return None, "NGINX runtime contract has no binary_path"
+    try:
+        binary_path = Path(binary_value)
+    except (TypeError, ValueError):
+        return None, "NGINX runtime contract has an invalid binary_path"
+    if not binary_path.is_absolute():
+        return None, "NGINX runtime contract binary_path must be absolute"
+    if binary_path.is_symlink() or not binary_path.is_file() or not os.access(binary_path, os.X_OK):
+        return None, "NGINX runtime contract binary_path is no longer a non-symlink executable"
+
+    expected_digest = str(fields.get("binary_sha256") or "").lower()
+    if len(expected_digest) != 64 or any(character not in "0123456789abcdef" for character in expected_digest):
+        return None, "NGINX runtime contract binary_sha256 is invalid"
+    digest = hashlib.sha256()
+    try:
+        with binary_path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError as exc:
+        return None, f"NGINX runtime contract binary could not be read: {exc}"
+    if digest.hexdigest() != expected_digest:
+        return None, "NGINX runtime contract binary_sha256 no longer matches binary_path"
+    return binary_path, ""
+
+
+def resolve_nginx_tool(cwd: Path, runtime_check: dict[str, Any] | None) -> dict[str, Any]:
+    """Inventory only the managed binary accepted by the runtime-contract checker."""
+
+    binary_path, blocker = nginx_contract_binary_path(runtime_check)
+    if binary_path is None:
         return make_tool_record(
             tool="nginx",
-            status="missing",
-            resolved_command=resolved,
-            attempted_command=value,
-            source=source,
+            status="blocked",
+            resolved_command=None,
+            attempted_command=None,
+            source="validated NGINX runtime contract",
             candidates=[],
-            version_output=error,
-            return_code=rc,
-            notes="NGINX_BIN is set but does not resolve to an executable",
+            version_output=blocker,
+            return_code=125,
+            notes="NGINX tool inventory is fail-closed until the runtime contract passes",
         )
-    candidates, source = framework_candidate_values("CI_NGINX_BIN_CANDIDATES", initial_env, framework_env)
-    return resolve_candidate_list(
+    return run_resolved_tool(
         tool="nginx",
-        candidates=candidates,
-        source=source,
+        resolved_command=str(binary_path),
+        attempted_command=str(binary_path),
+        source="validated NGINX runtime contract",
         version_args=("-v",),
+        candidates=[],
         cwd=cwd,
-        env=effective_env,
-        notes="NGINX_BIN is unset; checked framework candidates",
+        notes="managed NGINX binary matches the validated runtime contract",
     )
 
 
@@ -949,7 +998,12 @@ def add_optional_tool_note(record: dict[str, Any], note: str) -> dict[str, Any]:
     return record
 
 
-def resolve_tools(cwd: Path, framework_env: dict[str, Any], initial_env: dict[str, str]) -> list[dict[str, Any]]:
+def resolve_tools(
+    cwd: Path,
+    framework_env: dict[str, Any],
+    initial_env: dict[str, str],
+    runtime_check: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     generic_specs = [
         ToolSpec("git", ("--version",), path_fallbacks=("git",)),
         ToolSpec("python3", ("--version",), path_fallbacks=("python3",)),
@@ -993,7 +1047,7 @@ def resolve_tools(cwd: Path, framework_env: dict[str, Any], initial_env: dict[st
         generic_records["docker"],
         resolve_apachectl_tool(cwd, framework_env, initial_env),
         resolve_apache_tool(cwd, framework_env, initial_env, apxs_record),
-        resolve_nginx_tool(cwd, framework_env, initial_env),
+        resolve_nginx_tool(cwd, runtime_check),
         resolve_haproxy_tool(cwd, framework_env, initial_env),
         apxs_record,
     ]
@@ -1168,6 +1222,22 @@ def md_optional_code(value: Any) -> str:
     return md_code(value)
 
 
+def nginx_runtime_contract(runtime_check: dict[str, Any] | None) -> dict[str, Any]:
+    raw = runtime_check.get("nginx_runtime_contract") if isinstance(runtime_check, dict) else None
+    contract = raw if isinstance(raw, dict) else {}
+    source_fields = contract.get("fields") if isinstance(contract.get("fields"), dict) else {}
+    fields = {field: source_fields.get(field, "") for field in NGINX_RUNTIME_CONTRACT_FIELDS}
+    return {
+        "status": str(contract.get("status") or "BLOCKED"),
+        "manifest_path": str(contract.get("manifest_path") or ""),
+        "record_path": str(contract.get("record_path") or "missing"),
+        "record_status": str(contract.get("record_status") or ""),
+        "fields": fields,
+        "field_status": contract.get("field_status") if isinstance(contract.get("field_status"), dict) else {},
+        "issues": contract.get("issues") if isinstance(contract.get("issues"), list) else [],
+    }
+
+
 def tool_by_name(tools: list[dict[str, Any]], name: str) -> dict[str, Any]:
     return next((tool for tool in tools if tool.get("tool") == name), {})
 
@@ -1210,14 +1280,20 @@ def apache_runtime_status(apxs: dict[str, Any], apache: dict[str, Any]) -> str:
     return "present" if "present" in {apxs.get("status"), apache.get("status")} else "missing"
 
 
-def runtime_component_readiness(tools: list[dict[str, Any]], framework_env: dict[str, Any]) -> list[dict[str, str]]:
+def runtime_component_readiness(
+    tools: list[dict[str, Any]],
+    framework_env: dict[str, Any],
+    runtime_check: dict[str, Any] | None = None,
+) -> list[dict[str, str]]:
     variables = framework_env.get("variables", {})
     haproxy = tool_by_name(tools, "haproxy")
-    nginx = tool_by_name(tools, "nginx")
     apxs = tool_by_name(tools, "apxs")
     apache = tool_by_name(tools, APACHE_HTTPD_TOOL)
     go_ftw = tool_by_name(tools, "go-ftw")
     albedo = tool_by_name(tools, "albedo")
+    nginx_contract = nginx_runtime_contract(runtime_check)
+    nginx_fields = nginx_contract["fields"]
+    nginx_ready = nginx_contract["status"] == "PASS"
     return [
         runtime_component_row(
             "HAProxy",
@@ -1229,11 +1305,11 @@ def runtime_component_readiness(tools: list[dict[str, Any]], framework_env: dict
         ),
         runtime_component_row(
             "NGINX",
-            present_or_missing(nginx),
-            first_framework_value(variables, ("NGINX_BIN", "CI_NGINX_BIN_CANDIDATES"), "$NGINX_BIN or CI_NGINX_BIN_CANDIDATES"),
-            first_framework_value(variables, ("NGINX_SOURCE_REPO_URL", "NGINX_GITHUB_REPO"), "$NGINX_SOURCE_REPO_URL"),
-            first_framework_value(variables, ("NGINX_RELEASE_TAG", "NGINX_SOURCE_GIT_REF"), "$NGINX_RELEASE_TAG"),
-            "install nginx or prepare runtime components",
+            "present" if nginx_ready else "blocked",
+            str(nginx_fields.get("binary_path") or NGINX_RUNTIME_CONTRACT_MISSING),
+            str(nginx_fields.get("source_repository") or NGINX_RUNTIME_CONTRACT_MISSING),
+            str(nginx_fields.get("source_ref") or nginx_fields.get("release_tag") or NGINX_RUNTIME_CONTRACT_MISSING),
+            "run make prepare-runtime-components and require the pinned NGINX release-asset/full tuple",
         ),
         runtime_component_row(
             "Apache/APXS",
@@ -1282,6 +1358,14 @@ def runtime_producer_readiness_check(connector_root: Path, framework_root: Path)
                 "ModSecurity module path": "",
                 "Module exists": False,
                 "How to prepare": "make prepare-runtime-components",
+            },
+            "nginx_runtime_contract": {
+                "status": "BLOCKED",
+                "manifest_path": "",
+                "record_path": "missing",
+                "fields": dict.fromkeys(NGINX_RUNTIME_CONTRACT_FIELDS, ""),
+                "field_status": dict.fromkeys(NGINX_RUNTIME_CONTRACT_FIELDS, "BLOCKED"),
+                "issues": ["runtime readiness checker is unavailable"],
             },
             "components": [],
             "network_cache": [],
@@ -1521,6 +1605,30 @@ def nginx_module_markdown(runtime_check: dict[str, Any]) -> list[str]:
     ]
 
 
+def nginx_runtime_contract_markdown(runtime_check: dict[str, Any]) -> list[str]:
+    contract = nginx_runtime_contract(runtime_check)
+    fields = contract["fields"]
+    field_status = contract["field_status"]
+    lines = [
+        "",
+        "## NGINX Runtime Contract",
+        "",
+        MARKDOWN_FIELD_VALUE_HEADER,
+        MARKDOWN_FIELD_VALUE_SEPARATOR,
+        f"| Readiness status | {md_code(contract['status'])} |",
+        f"| Manifest path | {md_code(contract['manifest_path'])} |",
+        f"| Record path | {md_code(contract['record_path'])} |",
+    ]
+    for field in NGINX_RUNTIME_CONTRACT_FIELDS:
+        value = fields.get(field, "")
+        status = field_status.get(field, "BLOCKED")
+        lines.append(f"| {field} ({status}) | {md_code(value or '-')} |")
+    issues = contract["issues"]
+    if issues:
+        lines.append(f"| Issues | {md_code('; '.join(str(issue) for issue in issues))} |")
+    return lines
+
+
 def verified_producer_markdown(items: list[dict[str, Any]]) -> list[str]:
     lines = [
         "",
@@ -1683,6 +1791,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
         tool_versions_markdown(payload["tools"]),
         runtime_component_markdown(payload["runtime_component_readiness"]),
         nginx_module_markdown(runtime_check),
+        nginx_runtime_contract_markdown(runtime_check),
         verified_producer_markdown(payload.get("verified_producer_readiness", [])),
         network_cache_markdown(runtime_check),
         https_policy_markdown(payload["https_repo_url_policy"]),
@@ -1743,9 +1852,9 @@ def main() -> int:
         ]
 
     pip_version = run([sys.executable, "-m", "pip", "--version"], connector_root, timeout=60)
-    tools = resolve_tools(connector_root, framework_environment, initial_env)
-    readiness = runtime_component_readiness(tools, framework_environment)
     runtime_producer_check = runtime_producer_readiness_check(connector_root, framework_root)
+    tools = resolve_tools(connector_root, framework_environment, initial_env, runtime_producer_check)
+    readiness = runtime_component_readiness(tools, framework_environment, runtime_producer_check)
     producer_readiness = verified_producer_readiness(tools, framework_environment)
     https_policy = https_repo_url_policy(connector_root, framework_root)
     strict_gate_check = next(

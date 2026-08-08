@@ -113,6 +113,20 @@ MISSING_FILE_TEXT = "no such file"
 MODSECURITY_LIBRARY_FILENAME = "libmodsecurity.so"
 NGINX_MODULE_FILENAME = "ngx_http_modsecurity_module.so"
 NATIVE_NGINX_OVERRIDE_ENV = "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR"
+NGINX_REQUIRE_PINNED_PROVENANCE_ENV = "NGINX_REQUIRE_PINNED_PROVENANCE"
+# Parent full-smoke NGINX provenance is an atomic reviewed tuple.  Keep these
+# literals together: changing any individual field is a new upstream-source
+# review, not a runtime override.
+NGINX_PINNED_SOURCE_MODE = "github-release"
+NGINX_PINNED_SOURCE_REPOSITORY = "https://github.com/nginx/nginx"
+NGINX_PINNED_RELEASE_TAG = "release-1.31.3"
+NGINX_PINNED_SOURCE_REF = "release-1.31.3"
+NGINX_PINNED_RELEASE_ASSET_NAME = "nginx-1.31.3.tar.gz"
+NGINX_PINNED_RELEASE_ASSET_SHA256 = (
+    "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525"
+)
+NGINX_PINNED_VERSION_READBACK = "nginx/1.31.3"
+NGINX_PINNED_PROVENANCE_SCHEMA_VERSION = 1
 APACHE_APXS_RELATIVE_PATH = "bin/apxs"
 UNMANAGED_CACHE_ENTRY_MARKER_MISSING_PREFIX = "unmanaged_cache_entry_marker_missing: "
 READY_COMPONENT_STATUSES = frozenset({"present", "built", "reused"})
@@ -455,6 +469,8 @@ def nginx_runtime_environment(
     the same explicit source boundary as cache preparation.
     """
     if nginx.get("status") not in {"present", "built", "reused"}:
+        return {}
+    if nginx.get("require_pinned_provenance") and not nginx.get("runtime_contract_valid"):
         return {}
     return {
         "MRTS_NATIVE_NGINX_BIN": str(nginx.get("nginx_bin", "")),
@@ -1945,6 +1961,135 @@ def require_literal_sha256(value: str, label: str) -> str:
     return digest.lower()
 
 
+def nginx_pinned_provenance_required(env: dict[str, str]) -> bool:
+    """Return whether a full-smoke run requires managed local NGINX artifacts.
+
+    NGINX source provenance is always pinned below.  This separate, narrowly
+    scoped flag controls whether inherited native binary/module overrides are
+    allowed to provide runtime artifacts for a smoke run.
+    """
+
+    value = env.get(NGINX_REQUIRE_PINNED_PROVENANCE_ENV, "")
+    if value in {"", "0"}:
+        return False
+    if value == "1":
+        return True
+    raise RuntimeError(
+        f"invalid {NGINX_REQUIRE_PINNED_PROVENANCE_ENV}: expected unset, 0, or 1"
+    )
+
+
+def nginx_pinned_env_value(env: dict[str, str], key: str) -> str:
+    """Read one strict NGINX tuple value without normalizing unsafe input."""
+
+    raw = env.get(key, "")
+    if not isinstance(raw, str) or not raw:
+        raise RuntimeError(f"nginx_pinned_provenance_missing:{key}")
+    if raw != raw.strip():
+        raise RuntimeError(f"nginx_pinned_provenance_noncanonical_whitespace:{key}")
+    return raw
+
+
+def nginx_pinned_source_tuple(provenance: dict[str, str]) -> dict[str, str]:
+    """Return the stable evidence/cache tuple without derived path values."""
+
+    return {
+        "mode": provenance["mode"],
+        "repo": provenance["repository"],
+        "tag": provenance["release_tag"],
+        "ref": provenance["source_ref"],
+        "asset": provenance["release_asset_name"],
+        "sha256": provenance["sha256"],
+    }
+
+
+def nginx_pinned_provenance(env: dict[str, str]) -> dict[str, str]:
+    """Validate the reviewed NGINX release-asset tuple before any I/O.
+
+    This route intentionally has no latest-release lookup, tag archive fallback,
+    or alternate repository path.  The values are compared before cache marker
+    reads, download attempts, archive inspection, or archive publication.
+    """
+
+    mode = nginx_pinned_env_value(env, "NGINX_SOURCE_MODE")
+    repository = nginx_pinned_env_value(env, "NGINX_SOURCE_REPO_URL")
+    tag = nginx_pinned_env_value(env, "NGINX_RELEASE_TAG")
+    source_ref = nginx_pinned_env_value(env, "NGINX_SOURCE_GIT_REF")
+    asset_name = nginx_pinned_env_value(env, "NGINX_RELEASE_ASSET_NAME")
+    supplied_sha256 = nginx_pinned_env_value(env, "NGINX_SHA256")
+    github_repo = env.get("NGINX_GITHUB_REPO", "")
+
+    if mode != NGINX_PINNED_SOURCE_MODE:
+        raise RuntimeError("nginx_pinned_provenance_mode_mismatch")
+    if repository != NGINX_PINNED_SOURCE_REPOSITORY:
+        raise RuntimeError("nginx_pinned_provenance_repository_mismatch")
+    if github_repo and github_repo != repository:
+        raise RuntimeError("nginx_pinned_provenance_github_repository_mismatch")
+    if tag.lower() == "latest" or source_ref.lower() == "latest":
+        raise RuntimeError("nginx_pinned_provenance_latest_forbidden")
+    if tag != source_ref:
+        raise RuntimeError("nginx_pinned_provenance_tag_ref_mismatch")
+    if tag != NGINX_PINNED_RELEASE_TAG or source_ref != NGINX_PINNED_SOURCE_REF:
+        raise RuntimeError("nginx_pinned_provenance_ref_mismatch")
+    if asset_name != NGINX_PINNED_RELEASE_ASSET_NAME:
+        raise RuntimeError("nginx_pinned_provenance_asset_mismatch")
+    expected_sha256 = require_literal_sha256(supplied_sha256, "NGINX_SHA256")
+    if expected_sha256 != NGINX_PINNED_RELEASE_ASSET_SHA256:
+        raise RuntimeError("nginx_pinned_provenance_sha256_mismatch")
+
+    release_asset_url = (
+        f"{NGINX_PINNED_SOURCE_REPOSITORY}/releases/download/"
+        f"{NGINX_PINNED_RELEASE_TAG}/{NGINX_PINNED_RELEASE_ASSET_NAME}"
+    )
+    return {
+        "mode": mode,
+        "repository": repository,
+        "release_tag": tag,
+        "source_ref": source_ref,
+        "release_asset_name": asset_name,
+        "sha256": expected_sha256,
+        "release_asset_url": release_asset_url,
+    }
+
+
+def nginx_pinned_archive_cache_identity(provenance: dict[str, str]) -> dict[str, Any]:
+    """Bind NGINX archive reuse to all reviewed provenance tuple fields."""
+
+    identity: dict[str, Any] = {
+        "cache_schema_version": CACHE_SCHEMA_VERSION,
+        "component": "archive:nginx",
+        "source_kind": "nginx-pinned-release-asset",
+        "url": provenance["release_asset_url"],
+        "expected_sha256": provenance["sha256"],
+        "sha256_url": "",
+        "nginx_pinned_provenance_schema_version": NGINX_PINNED_PROVENANCE_SCHEMA_VERSION,
+        "source_tuple": nginx_pinned_source_tuple(provenance),
+    }
+    identity["cache_key"] = stable_hash(identity)
+    return identity
+
+
+def nginx_archive_provenance_fields(provenance: dict[str, str]) -> dict[str, Any]:
+    """Normalize reviewed source evidence for archive and component records."""
+
+    source_tuple = nginx_pinned_source_tuple(provenance)
+    return {
+        "source": provenance["release_asset_url"],
+        "source_tuple": source_tuple,
+        "source_mode": provenance["mode"],
+        "source_repository": provenance["repository"],
+        "release_tag": provenance["release_tag"],
+        "source_ref": provenance["source_ref"],
+        "release_asset_name": provenance["release_asset_name"],
+        "release_asset_url": provenance["release_asset_url"],
+        "expected_sha256": provenance["sha256"],
+        "resolved_tag": provenance["release_tag"],
+        "release_lookup_status": "not_applicable_pinned_release_asset",
+        "pinned_provenance": True,
+        "provenance_validation": "passed",
+    }
+
+
 def archive_cache_component(name: str) -> str:
     return f"archive:{name}"
 
@@ -2017,11 +2162,21 @@ def remove_archive_path(path: Path, cache_root: Path | None) -> None:
     safe_remove_file(path, cache_root)
 
 
-def archive_requires_download(path: Path) -> bool:
+def archive_requires_download(
+    path: Path,
+    *,
+    expected_sha: str = "",
+    verify_digest_before_archive_list: bool = False,
+) -> bool:
     if not path.is_file():
         return True
     if path.stat().st_size <= 0:
         return True
+    if verify_digest_before_archive_list:
+        if not expected_sha:
+            raise RuntimeError("missing_expected_sha256_before_archive_list")
+        if sha256_file(path) != expected_sha:
+            return True
     return not archive_can_list(path)
 
 
@@ -2031,8 +2186,15 @@ def download_archive_if_needed(
     cache_root: Path | None,
     component: str,
     cache_key: str,
+    *,
+    expected_sha: str = "",
+    verify_digest_before_archive_list: bool = False,
 ) -> None:
-    if not archive_requires_download(path):
+    if not archive_requires_download(
+        path,
+        expected_sha=expected_sha,
+        verify_digest_before_archive_list=verify_digest_before_archive_list,
+    ):
         return
     if path.exists():
         remove_archive_path(path, cache_root)
@@ -2082,6 +2244,9 @@ def prepare_archive_with_lock(
     managed_root: Path,
     required_literal_sha256: bool,
     cache_key: str,
+    *,
+    cache_identity: dict[str, Any] | None = None,
+    verify_digest_before_archive_list: bool = False,
 ) -> dict[str, Any]:
     try:
         with BuildLock(cache_entry_lock_path(managed_root, f"archive-{name}", cache_key)):
@@ -2094,6 +2259,8 @@ def prepare_archive_with_lock(
                 managed_root,
                 required_literal_sha256=required_literal_sha256,
                 _lock_held=True,
+                cache_identity=cache_identity,
+                verify_digest_before_archive_list=verify_digest_before_archive_list,
             )
     except TimeoutError as exc:
         record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc))
@@ -2111,6 +2278,8 @@ def prepare_archive_unlocked(
     dest_dir: Path,
     managed_root: Path | None,
     archive_identity: dict[str, Any],
+    *,
+    verify_digest_before_archive_list: bool = False,
 ) -> dict[str, Any]:
     component = archive_cache_component(name)
     cache_key = str(archive_identity["cache_key"])
@@ -2124,20 +2293,34 @@ def prepare_archive_unlocked(
         archive_identity,
     ):
         return record
-    download_archive_if_needed(url, path, managed_root, component, cache_key)
+    download_archive_if_needed(
+        url,
+        path,
+        managed_root,
+        component,
+        cache_key,
+        expected_sha=expected_sha,
+        verify_digest_before_archive_list=verify_digest_before_archive_list,
+    )
     size = path.stat().st_size
     if size <= 0:
         return corrupt_archive_record(record, path, managed_root, "empty_archive")
+    local_sha = sha256_file(path)
+    record.update(size=size, sha256=local_sha)
+    if verify_digest_before_archive_list and not archive_checksum_matches(record, expected_sha, local_sha):
+        return corrupt_archive_record(record, path, managed_root, "sha256_mismatch")
     if not archive_can_list(path):
         return corrupt_archive_record(record, path, managed_root, "archive_list_failed")
-    local_sha = sha256_file(path)
-    record.update(size=size, sha256=local_sha, archive_list="PASS")
-    expected = archive_expected_checksum(expected_sha, sha_url, archive_name, dest_dir, name)
-    if expected:
-        record["expected_sha256"] = expected
-        record["checksum_status"] = "PASS" if expected == local_sha else "FAIL"
-        if expected != local_sha:
-            return corrupt_archive_record(record, path, managed_root, "sha256_mismatch")
+    record["archive_list"] = "PASS"
+    expected = expected_sha if verify_digest_before_archive_list else archive_expected_checksum(
+        expected_sha,
+        sha_url,
+        archive_name,
+        dest_dir,
+        name,
+    )
+    if expected and not archive_checksum_matches(record, expected, local_sha):
+        return corrupt_archive_record(record, path, managed_root, "sha256_mismatch")
     if managed_root is not None:
         write_cache_entry_completion(
             path,
@@ -2150,6 +2333,12 @@ def prepare_archive_unlocked(
     return record
 
 
+def archive_checksum_matches(record: dict[str, Any], expected_sha: str, actual_sha: str) -> bool:
+    record["expected_sha256"] = expected_sha
+    record["checksum_status"] = "PASS" if expected_sha == actual_sha else "FAIL"
+    return expected_sha == actual_sha
+
+
 def prepare_archive(
     name: str,
     url: str,
@@ -2160,6 +2349,8 @@ def prepare_archive(
     *,
     required_literal_sha256: bool = False,
     _lock_held: bool = False,
+    cache_identity: dict[str, Any] | None = None,
+    verify_digest_before_archive_list: bool = False,
 ) -> dict[str, Any]:
     archive_name = url.rstrip("/").split("/")[-1] if url else ""
     path = dest_dir / archive_name if archive_name else dest_dir / name
@@ -2179,11 +2370,24 @@ def prepare_archive(
         return record
     try:
         if required_literal_sha256:
-            # PCRE2 uses a reviewed literal digest only.  A digest URL is
-            # retained as metadata but must not turn an absent override into
-            # a cacheable/downloadable archive.
+            # A reviewed literal digest is required.  A digest URL is retained
+            # as metadata but must not turn an absent override into a
+            # cacheable/downloadable archive.
             expected_sha = require_literal_sha256(expected_sha, name)
-        archive_identity = archive_cache_identity(name, url, expected_sha, sha_url)
+        if cache_identity is None:
+            archive_identity = archive_cache_identity(name, url, expected_sha, sha_url)
+        else:
+            archive_identity = dict(cache_identity)
+            cache_key_value = archive_identity.pop("cache_key", None)
+            if (
+                archive_identity.get("component")
+                not in {name, archive_cache_component(name)}
+                or not isinstance(cache_key_value, str)
+                or not cache_key_value
+                or stable_hash(archive_identity) != cache_key_value
+            ):
+                raise RuntimeError("invalid_archive_cache_identity")
+            archive_identity["cache_key"] = cache_key_value
         archive_cache_key = str(archive_identity["cache_key"])
         managed_root = archive_managed_root(dest_dir, cache_root)
         if managed_root is not None and not _lock_held:
@@ -2197,6 +2401,8 @@ def prepare_archive(
                 managed_root,
                 required_literal_sha256,
                 archive_cache_key,
+                cache_identity=archive_identity,
+                verify_digest_before_archive_list=verify_digest_before_archive_list,
             )
         return prepare_archive_unlocked(
             record,
@@ -2209,6 +2415,7 @@ def prepare_archive(
             dest_dir,
             managed_root,
             archive_identity,
+            verify_digest_before_archive_list=verify_digest_before_archive_list,
         )
     except Exception as exc:
         record.update(status="blocked", blocker_reason=str(exc))
@@ -2232,42 +2439,27 @@ def github_repo_path(url: str) -> str:
 
 
 def nginx_archive_source_settings(env: dict[str, str]) -> tuple[str, str]:
-    mode = env.get("NGINX_SOURCE_MODE", "github-release")
-    if mode != "github-release":
-        raise RuntimeError(f"unsupported NGINX_SOURCE_MODE={mode}")
-    repo_url = env.get("NGINX_SOURCE_REPO_URL") or env.get("NGINX_GITHUB_REPO")
-    if not repo_url:
-        raise RuntimeError("missing NGINX_SOURCE_REPO_URL")
-    tag = env.get("NGINX_RELEASE_TAG") or env.get("NGINX_SOURCE_GIT_REF") or "latest"
-    return repo_url, tag
+    provenance = nginx_pinned_provenance(env)
+    return provenance["repository"], provenance["release_tag"]
 
 
 def latest_nginx_release_tag(repo: str, latest_cache_path: Path | None) -> tuple[str, str]:
-    api_url = f"https://api.github.com/repos/{repo}/releases/latest"
-    lookup_status = "network"
-    try:
-        raw = urlopen_bytes(api_url, timeout=60)
-        data = json.loads(raw.decode("utf-8"))
-        if latest_cache_path is not None:
-            atomic_write_bytes(latest_cache_path, raw)
-    except Exception as exc:
-        if latest_cache_path is None or not latest_cache_path.is_file():
-            raise
-        data = json.loads(latest_cache_path.read_text(encoding="utf-8"))
-        lookup_status = f"cached_after_network_error:{exc}"
-    tag = data.get("tag_name")
-    if not isinstance(tag, str) or not tag:
-        raise RuntimeError("GitHub latest release response missing tag_name")
-    return tag, lookup_status
+    # Preserve the helper name for callers that imported it while making the
+    # former mutable NGINX lookup path categorically non-executable.
+    del repo, latest_cache_path
+    raise RuntimeError("nginx_pinned_provenance_latest_forbidden")
 
 
 def resolve_nginx_archive(env: dict[str, str], latest_cache_path: Path | None = None) -> tuple[str, str, str]:
-    repo_url, tag = nginx_archive_source_settings(env)
-    repo = github_repo_path(repo_url)
-    lookup_status = "configured"
-    if tag == "latest":
-        tag, lookup_status = latest_nginx_release_tag(repo, latest_cache_path)
-    return tag, f"https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz", lookup_status
+    # The optional legacy cache argument remains only for call compatibility;
+    # the pinned route never reads or writes a mutable release-lookup cache.
+    del latest_cache_path
+    provenance = nginx_pinned_provenance(env)
+    return (
+        provenance["release_tag"],
+        provenance["release_asset_url"],
+        "not_applicable_pinned_release_asset",
+    )
 
 
 def nginx_protocol_build_inputs(env: dict[str, str]) -> dict[str, Any]:
@@ -4796,9 +4988,11 @@ def connector_build_flags(
             "PCRE2_VERSION",
             "PCRE2_SOURCE_URL",
             "PCRE2_SHA256",
+            "NGINX_SOURCE_MODE",
             "NGINX_RELEASE_TAG",
             "NGINX_SOURCE_GIT_REF",
             "NGINX_SOURCE_REPO_URL",
+            "NGINX_RELEASE_ASSET_NAME",
             "NGINX_SHA256",
             "HAPROXY_VERSION",
             "HAPROXY_SOURCE_URL",
@@ -4833,7 +5027,31 @@ def connector_archive_inputs(
     return {
         str(item.get("name")): {
             key: item.get(key, "")
-            for key in ("url", "sha256", "expected_sha256", "resolved_tag", "checksum_status")
+            for key in (
+                "url",
+                "path",
+                "status",
+                "blocker_reason",
+                "sha256",
+                "expected_sha256",
+                "resolved_tag",
+                "checksum_status",
+                "archive_list",
+                "source_tuple",
+                "source_mode",
+                "source_repository",
+                "release_tag",
+                "source_ref",
+                "release_asset_name",
+                "release_asset_url",
+                "verified_archive_sha256",
+                "archive_digest_verified",
+                "source_readback",
+                "pinned_provenance",
+                "provenance_validation",
+                "cache_identity",
+                "cache_key",
+            )
         }
         for item in archives
         if isinstance(item, dict) and item.get("name") in archive_names
@@ -6679,6 +6897,429 @@ def nginx_protocol_context(
     return protocol_inputs, protocol_profile, str((archives_root / "nginx" / quic_archive_name).resolve()), ""
 
 
+def nginx_managed_local_artifacts_match_plan(
+    plan: dict[str, Any],
+    local_nginx_bin: Path,
+    local_module: Path,
+) -> bool:
+    """Prove that local artifacts are the cache-plan-owned NGINX outputs."""
+
+    root_value = plan.get("root")
+    output_paths = plan.get("output_paths")
+    if not isinstance(root_value, str) or not root_value or not isinstance(output_paths, dict):
+        return False
+    binary_value = output_paths.get("binary")
+    module_value = output_paths.get("module")
+    if not isinstance(binary_value, str) or not binary_value or not isinstance(module_value, str) or not module_value:
+        return False
+    root = Path(root_value).resolve(strict=False)
+    expected_binary = Path(binary_value).resolve(strict=False)
+    expected_module = Path(module_value).resolve(strict=False)
+    return (
+        local_nginx_bin == expected_binary
+        and local_module == expected_module
+        and is_within(local_nginx_bin, root)
+        and is_within(local_module, root)
+    )
+
+
+def nginx_path_readback(path: Path, *, require_executable: bool = False) -> dict[str, Any]:
+    """Capture bounded local artifact evidence without executing the artifact."""
+
+    result: dict[str, Any] = {
+        "path": str(path),
+        "is_file": path.is_file(),
+        "executable": executable(path) if require_executable else False,
+        "size": 0,
+        "sha256": "",
+    }
+    if not result["is_file"]:
+        return result
+    try:
+        result["size"] = path.stat().st_size
+        result["sha256"] = sha256_file(path)
+    except OSError as exc:
+        result["readback_error"] = str(exc)
+    return result
+
+
+def nginx_binary_readback(context: dict[str, Any]) -> dict[str, Any]:
+    """Report managed/effective binary identities for downstream evidence."""
+
+    return {
+        "managed_local_binary": nginx_path_readback(context["local_nginx_bin"], require_executable=True),
+        "managed_local_module": nginx_path_readback(context["local_module"]),
+        "effective_binary": nginx_path_readback(context["effective_bin"], require_executable=True),
+        "effective_module": nginx_path_readback(context["effective_module"]),
+    }
+
+
+def update_nginx_runtime_readback(record: dict[str, Any], context: dict[str, Any]) -> None:
+    record.update(
+        managed_local_binary_origin=context["managed_local_binary_origin"],
+        effective_binary_origin=context["effective_binary_origin"],
+        managed_local_artifacts_match_plan=context["managed_local_artifacts_match_plan"],
+        binary_readback=nginx_binary_readback(context),
+    )
+
+
+def nginx_managed_plan_root(plan: dict[str, Any]) -> Path | None:
+    root_value = plan.get("root")
+    if not isinstance(root_value, str) or not root_value:
+        return None
+    root = Path(root_value)
+    if root.is_symlink() or not root.is_dir():
+        return None
+    try:
+        return root.resolve(strict=True)
+    except OSError:
+        return None
+
+
+def nginx_managed_regular_file(path: Path, root: Path, *, require_executable: bool = False) -> bool:
+    if path.is_symlink() or not path.is_file() or (require_executable and not executable(path)):
+        return False
+    try:
+        resolved_path = path.resolve(strict=True)
+    except OSError:
+        return False
+    return is_within(resolved_path, root)
+
+
+def nginx_source_header_readback(header: Path, root: Path) -> tuple[str, str] | None:
+    if header.parts[-3:] != ("src", "core", "nginx.h") or header.is_symlink():
+        return None
+    source_directory = header.parent.parent.parent
+    if source_directory.is_symlink() or not source_directory.is_dir():
+        return None
+    try:
+        resolved_source = source_directory.resolve(strict=True)
+        resolved_header = header.resolve(strict=True)
+        if not is_within(resolved_source, root) or not is_within(resolved_header, resolved_source):
+            return None
+        contents = header.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    match = re.search(r'^\s*#define\s+NGINX_VERSION\s+"([^"\\]+)"', contents, re.MULTILINE)
+    if match is None:
+        return None
+    return str(resolved_source), f"nginx/{match.group(1)}"
+
+
+def nginx_managed_source_readback(plan: dict[str, Any]) -> tuple[str, str]:
+    """Read the version from an extracted, plan-owned NGINX source tree."""
+
+    root = nginx_managed_plan_root(plan)
+    if root is None:
+        return "", ""
+    fallback: tuple[str, str] = ("", "")
+    try:
+        headers = sorted(root.rglob("nginx.h"))
+    except OSError:
+        return fallback
+    for header in headers:
+        candidate = nginx_source_header_readback(header, root)
+        if candidate is None:
+            continue
+        if candidate[1] == NGINX_PINNED_VERSION_READBACK:
+            return candidate
+        if not fallback[0]:
+            fallback = candidate
+    return fallback
+
+
+def nginx_managed_binary_readback(
+    plan: dict[str, Any],
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    """Read version/configuration from the exact managed local executable."""
+
+    root = nginx_managed_plan_root(plan)
+    binary = context["local_nginx_bin"]
+    result: dict[str, Any] = {
+        "binary_path": "",
+        "binary_sha256": "",
+        "binary_version_readback": "",
+        "configure_arguments": "",
+    }
+    if (
+        root is None
+        or not context["managed_local_artifacts_match_plan"]
+        or not nginx_managed_regular_file(binary, root, require_executable=True)
+    ):
+        return result
+    try:
+        proc = subprocess.run(
+            [str(binary), "-V"],
+            env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"},
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        result["readback_error"] = str(exc)
+        return result
+    output = (proc.stdout + proc.stderr)[-65536:]
+    version_match = re.search(r"\bnginx/(\d+(?:\.\d+){2})\b", output)
+    configure_arguments = ""
+    for line in output.splitlines():
+        prefix = "configure arguments:"
+        if prefix in line:
+            configure_arguments = line.split(prefix, 1)[1].strip()
+            break
+    if proc.returncode != 0:
+        result["readback_error"] = f"nginx_-V_exit_{proc.returncode}"
+        return result
+    result.update(
+        binary_path=str(binary.resolve(strict=True)),
+        binary_sha256=sha256_file(binary),
+        binary_version_readback=(f"nginx/{version_match.group(1)}" if version_match else ""),
+        configure_arguments=configure_arguments,
+    )
+    return result
+
+
+def nginx_plan_commit(plan: dict[str, Any], key: str) -> str:
+    identity = plan.get("cache_identity")
+    if not isinstance(identity, dict):
+        return ""
+    extra_inputs = identity.get("extra_inputs")
+    value = extra_inputs.get(key, "") if isinstance(extra_inputs, dict) else ""
+    return value if isinstance(value, str) else ""
+
+
+def nginx_artifact_value(artifacts: dict[str, str], *keys: str) -> str:
+    for key in keys:
+        value = artifacts.get(key, "")
+        if value:
+            return value.strip()
+    return ""
+
+
+def nginx_builder_archive_readback(record: dict[str, Any]) -> dict[str, Any]:
+    """Read the builder's own archive verification result without defaults."""
+
+    artifacts = record.get("artifacts")
+    artifacts = artifacts if isinstance(artifacts, dict) else {}
+    values = {
+        str(key): str(value)
+        for key, value in artifacts.items()
+        if isinstance(key, str) and isinstance(value, str)
+    }
+    actual_sha256 = nginx_artifact_value(
+        values,
+        "nginx_archive_sha256_local",
+        "NGINX_ARCHIVE_SHA256_LOCAL",
+    ).lower()
+    verified_marker = nginx_artifact_value(
+        values,
+        "nginx_archive_verified",
+        "NGINX_ARCHIVE_VERIFIED",
+        "nginx_archive_sha256_verified",
+        "NGINX_ARCHIVE_SHA256_VERIFIED",
+    ).lower()
+    return {
+        "actual_archive_sha256": actual_sha256,
+        "archive_verified": verified_marker in {"1", "true", "yes", "pass", "verified"},
+        "verification_marker": verified_marker,
+    }
+
+
+def nginx_runtime_contract(
+    env: dict[str, str],
+    plan: dict[str, Any],
+    context: dict[str, Any],
+    record: dict[str, Any],
+) -> dict[str, Any]:
+    """Build the exact source/binary evidence contract from managed artifacts."""
+
+    provenance = nginx_pinned_provenance(env)
+    source_directory, source_version_readback = nginx_managed_source_readback(plan)
+    binary = nginx_managed_binary_readback(plan, context)
+    builder_archive = nginx_builder_archive_readback(record)
+    parent_archive_sha256 = str(record.get("verified_archive_sha256", "")).lower()
+    actual_archive_sha256 = str(builder_archive["actual_archive_sha256"])
+    return {
+        "component": "nginx",
+        "source_repository": provenance["repository"],
+        "source_mode": provenance["mode"],
+        "release_tag": provenance["release_tag"],
+        "source_ref": provenance["source_ref"],
+        "release_asset_name": provenance["release_asset_name"],
+        "expected_archive_sha256": provenance["sha256"],
+        "actual_archive_sha256": actual_archive_sha256,
+        "source_version_readback": source_version_readback,
+        "source_directory": source_directory,
+        "binary_path": binary["binary_path"],
+        "binary_sha256": binary["binary_sha256"],
+        "binary_version_readback": binary["binary_version_readback"],
+        "configure_arguments": binary["configure_arguments"],
+        "build_id": str(plan.get("connector_build_id", "")),
+        "framework_commit": nginx_plan_commit(plan, "framework_commit"),
+        "parent_commit": nginx_plan_commit(plan, "connector_commit"),
+        "generated_at": utc_now(),
+        "parent_archive_sha256": parent_archive_sha256,
+        "builder_archive_sha256": actual_archive_sha256,
+        "builder_archive_verified": builder_archive["archive_verified"],
+        "builder_archive_verification_marker": builder_archive["verification_marker"],
+    }
+
+
+def nginx_runtime_contract_required_fields() -> tuple[str, ...]:
+    return (
+        "component",
+        "source_repository",
+        "source_mode",
+        "release_tag",
+        "source_ref",
+        "release_asset_name",
+        "expected_archive_sha256",
+        "actual_archive_sha256",
+        "source_version_readback",
+        "source_directory",
+        "binary_path",
+        "binary_sha256",
+        "binary_version_readback",
+        "configure_arguments",
+        "build_id",
+        "framework_commit",
+        "parent_commit",
+        "generated_at",
+    )
+
+
+def nginx_runtime_contract_expected_values() -> dict[str, str]:
+    return {
+        "component": "nginx",
+        "source_repository": NGINX_PINNED_SOURCE_REPOSITORY,
+        "source_mode": NGINX_PINNED_SOURCE_MODE,
+        "release_tag": NGINX_PINNED_RELEASE_TAG,
+        "source_ref": NGINX_PINNED_SOURCE_REF,
+        "release_asset_name": NGINX_PINNED_RELEASE_ASSET_NAME,
+        "expected_archive_sha256": NGINX_PINNED_RELEASE_ASSET_SHA256,
+        "actual_archive_sha256": NGINX_PINNED_RELEASE_ASSET_SHA256,
+        "source_version_readback": NGINX_PINNED_VERSION_READBACK,
+        "binary_version_readback": NGINX_PINNED_VERSION_READBACK,
+    }
+
+
+def nginx_runtime_contract_value_blockers(contract: dict[str, Any]) -> list[str]:
+    blockers = [field for field in nginx_runtime_contract_required_fields() if not contract.get(field)]
+    blockers.extend(
+        f"mismatch:{key}"
+        for key, value in nginx_runtime_contract_expected_values().items()
+        if contract.get(key) and contract.get(key) != value
+    )
+    return blockers
+
+
+def nginx_runtime_contract_identity_blockers(contract: dict[str, Any]) -> list[str]:
+    blockers = []
+    for key in ("framework_commit", "parent_commit"):
+        value = contract.get(key)
+        if value and (not isinstance(value, str) or FULL_GIT_COMMIT_ID.fullmatch(value) is None):
+            blockers.append(f"invalid:{key}")
+    return blockers
+
+
+def nginx_runtime_contract_archive_blockers(contract: dict[str, Any]) -> list[str]:
+    blockers = []
+    if not contract.get("builder_archive_verified"):
+        blockers.append("builder_archive_not_verified")
+    if contract.get("builder_archive_sha256") != contract.get("actual_archive_sha256"):
+        blockers.append("builder_archive_sha256_mismatch")
+    if contract.get("parent_archive_sha256") != contract.get("actual_archive_sha256"):
+        blockers.append("parent_builder_archive_sha256_mismatch")
+    return blockers
+
+
+def nginx_runtime_contract_managed_path_blockers(contract: dict[str, Any], plan: dict[str, Any]) -> list[str]:
+    root = nginx_managed_plan_root(plan)
+    if root is None:
+        return ["managed_plan_root"]
+    blockers = []
+    source_directory = contract.get("source_directory")
+    if isinstance(source_directory, str) and source_directory:
+        source = Path(source_directory)
+        if source.is_symlink() or not source.is_dir() or not is_within(source.resolve(strict=False), root):
+            blockers.append("source_directory_not_managed")
+    binary_path = contract.get("binary_path")
+    if not isinstance(binary_path, str) or not binary_path:
+        return blockers
+    binary = Path(binary_path)
+    if not nginx_managed_regular_file(binary, root, require_executable=True):
+        blockers.append("binary_path_not_managed")
+        return blockers
+    try:
+        if sha256_file(binary) != contract.get("binary_sha256"):
+            blockers.append("binary_sha256_readback_mismatch")
+    except OSError:
+        blockers.append("binary_sha256_readback_failed")
+    return blockers
+
+
+def nginx_runtime_contract_blockers(
+    contract: dict[str, Any],
+    plan: dict[str, Any],
+    context: dict[str, Any],
+) -> list[str]:
+    """Return exact evidence gaps; an empty list proves a strict contract."""
+
+    del context
+    blockers = nginx_runtime_contract_value_blockers(contract)
+    blockers.extend(nginx_runtime_contract_identity_blockers(contract))
+    blockers.extend(nginx_runtime_contract_archive_blockers(contract))
+    blockers.extend(nginx_runtime_contract_managed_path_blockers(contract, plan))
+    return list(dict.fromkeys(blockers))
+
+
+def update_nginx_runtime_contract(
+    record: dict[str, Any],
+    env: dict[str, str],
+    plan: dict[str, Any],
+    context: dict[str, Any],
+) -> list[str]:
+    try:
+        contract = nginx_runtime_contract(env, plan, context, record)
+    except Exception as exc:
+        contract = {}
+        blockers = [f"runtime_contract_readback_failed:{exc}"]
+    else:
+        blockers = nginx_runtime_contract_blockers(contract, plan, context)
+    record["runtime_contract"] = contract
+    record["runtime_contract_blockers"] = blockers
+    record["runtime_contract_valid"] = not blockers
+    if contract:
+        source_readback = record.get("source_readback")
+        source_readback = dict(source_readback) if isinstance(source_readback, dict) else {}
+        source_readback.update(
+            source_directory=contract.get("source_directory", ""),
+            source_version_readback=contract.get("source_version_readback", ""),
+        )
+        record["source_readback"] = source_readback
+    return blockers
+
+
+def nginx_runtime_contract_preflight_blocked(
+    record: dict[str, Any],
+    env: dict[str, str],
+    plan: dict[str, Any],
+    context: dict[str, Any],
+) -> bool:
+    """Keep a ready NGINX record contingent on complete managed evidence."""
+
+    blockers = update_nginx_runtime_contract(record, env, plan, context)
+    if not blockers:
+        return False
+    record.update(
+        status="blocked",
+        blocker_reason="nginx_pinned_provenance_runtime_contract_not_ready",
+        runtime_contract_blockers=blockers,
+    )
+    return True
+
+
 def nginx_runtime_context(
     env: dict[str, str],
     plan: dict[str, Any],
@@ -6709,6 +7350,16 @@ def nginx_runtime_context(
         if override_module_dir
         else local_module
     )
+    managed_local_artifacts_match_plan = nginx_managed_local_artifacts_match_plan(
+        plan,
+        local_nginx_bin,
+        local_module,
+    )
+    managed_local_binary_origin = (
+        "managed_connector_cache_plan"
+        if managed_local_artifacts_match_plan
+        else "unmanaged_local_path"
+    )
     return {
         "nginx_build_root": nginx_build_root,
         "nginx_prefix": nginx_prefix,
@@ -6719,6 +7370,14 @@ def nginx_runtime_context(
         "override_module_dir": override_module_dir,
         "effective_bin": effective_bin,
         "effective_module": effective_module,
+        "require_pinned_provenance": nginx_pinned_provenance_required(env),
+        "managed_local_artifacts_match_plan": managed_local_artifacts_match_plan,
+        "managed_local_binary_origin": managed_local_binary_origin,
+        "effective_binary_origin": (
+            "inherited_native_override"
+            if override_bin or override_module_dir
+            else managed_local_binary_origin
+        ),
         "local_artifacts": {
             "nginx_bin": local_nginx_bin,
             "module_file": local_module,
@@ -6740,7 +7399,17 @@ def nginx_runtime_record(
     protocol_profile: str,
     context: dict[str, Any],
 ) -> dict[str, Any]:
-    return {
+    archive_inputs = plan.get("archive_inputs")
+    nginx_archive = archive_inputs.get("nginx", {}) if isinstance(archive_inputs, dict) else {}
+    if not isinstance(nginx_archive, dict):
+        nginx_archive = {}
+    source_tuple = nginx_archive.get("source_tuple", {})
+    if not isinstance(source_tuple, dict):
+        source_tuple = {}
+    source_readback = nginx_archive.get("source_readback", {})
+    if not isinstance(source_readback, dict):
+        source_readback = {}
+    record: dict[str, Any] = {
         "source": "connector-local-build",
         "connector": "nginx",
         "connector_build_id": plan.get("connector_build_id", ""),
@@ -6761,6 +7430,22 @@ def nginx_runtime_record(
         "local_nginx_bin": str(context["local_nginx_bin"]),
         "local_module_file": str(context["local_module"]),
         "modsecurity_lib_dir": str(context["modsecurity_lib_dir"]),
+        "pinned_provenance": bool(nginx_archive.get("pinned_provenance", False)),
+        "provenance_validation": nginx_archive.get("provenance_validation", ""),
+        "source_tuple": source_tuple,
+        "source_mode": nginx_archive.get("source_mode", ""),
+        "source_repository": nginx_archive.get("source_repository", ""),
+        "release_tag": nginx_archive.get("release_tag", ""),
+        "source_ref": nginx_archive.get("source_ref", ""),
+        "release_asset_name": nginx_archive.get("release_asset_name", ""),
+        "release_asset_url": nginx_archive.get("release_asset_url", ""),
+        "expected_sha256": nginx_archive.get("expected_sha256", ""),
+        "verified_archive_sha256": nginx_archive.get("verified_archive_sha256", ""),
+        "archive_digest_verified": bool(nginx_archive.get("archive_digest_verified", False)),
+        "source_readback": source_readback,
+        "archive_cache_identity": nginx_archive.get("cache_identity", {}),
+        "archive_cache_key": nginx_archive.get("cache_key", ""),
+        "require_pinned_provenance": context["require_pinned_provenance"],
         "status": "unknown",
         "blocker_reason": "",
         "searched_paths": [str(path) for path in context["local_artifacts"].values()],
@@ -6771,6 +7456,8 @@ def nginx_runtime_record(
             "config": str(context["nginx_prefix"] / "conf/nginx.conf"),
         },
     }
+    update_nginx_runtime_readback(record, context)
+    return record
 
 
 def nginx_preflight_blocked(
@@ -6784,6 +7471,23 @@ def nginx_preflight_blocked(
             blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed",
         )
         return True
+    if context["require_pinned_provenance"]:
+        if context["override_bin"] or context["override_module_dir"]:
+            record.update(
+                status="blocked",
+                blocker_reason="nginx_pinned_provenance_native_override_forbidden",
+                inherited_native_override={
+                    "nginx_bin": context["override_bin"],
+                    "module_dir": context["override_module_dir"],
+                },
+            )
+            return True
+        if not context["managed_local_artifacts_match_plan"]:
+            record.update(
+                status="blocked",
+                blocker_reason="nginx_pinned_provenance_managed_local_artifacts_required",
+            )
+            return True
     if context["override_bin"] and not executable(Path(context["override_bin"])):
         record.update(
             status="blocked",
@@ -6800,6 +7504,84 @@ def nginx_preflight_blocked(
         )
         return True
     return False
+
+
+def nginx_pinned_archive_source_tuple() -> dict[str, str]:
+    return {
+        "mode": NGINX_PINNED_SOURCE_MODE,
+        "repo": NGINX_PINNED_SOURCE_REPOSITORY,
+        "tag": NGINX_PINNED_RELEASE_TAG,
+        "ref": NGINX_PINNED_SOURCE_REF,
+        "asset": NGINX_PINNED_RELEASE_ASSET_NAME,
+        "sha256": NGINX_PINNED_RELEASE_ASSET_SHA256,
+    }
+
+
+def nginx_archive_metadata_blocker(archive: dict[str, Any]) -> str:
+    if archive.get("status") != "present":
+        return "archive_not_present"
+    if archive.get("checksum_status") != "PASS":
+        return "archive_checksum_not_pass"
+    if not archive.get("archive_digest_verified"):
+        return "archive_digest_not_verified"
+    if archive.get("expected_sha256") != NGINX_PINNED_RELEASE_ASSET_SHA256:
+        return "archive_expected_sha256_mismatch"
+    if archive.get("verified_archive_sha256") != NGINX_PINNED_RELEASE_ASSET_SHA256:
+        return "archive_verified_sha256_mismatch"
+    if archive.get("source_tuple") != nginx_pinned_archive_source_tuple():
+        return "archive_source_tuple_mismatch"
+    return ""
+
+
+def nginx_archive_path_blocker(archive_path: Path | None, archives_root: Path) -> str:
+    archive_root = (archives_root / "nginx").resolve(strict=False)
+    if (
+        archive_path is None
+        or archive_path.is_symlink()
+        or not archive_path.is_file()
+        or not is_within(archive_path.resolve(strict=False), archive_root)
+    ):
+        return "archive_path_not_managed"
+    return ""
+
+
+def nginx_archive_readback_blocker(archive_path: Path) -> str:
+    try:
+        if sha256_file(archive_path) != NGINX_PINNED_RELEASE_ASSET_SHA256:
+            return "archive_digest_readback_mismatch"
+        if not archive_can_list(archive_path):
+            return "archive_list_readback_failed"
+    except OSError:
+        return "archive_readback_failed"
+    return ""
+
+
+def nginx_archive_preflight_blocked(
+    record: dict[str, Any],
+    plan: dict[str, Any],
+    archives_root: Path,
+) -> bool:
+    """Refuse NGINX build/extraction unless the pinned archive is still sound."""
+
+    archive_inputs = plan.get("archive_inputs")
+    archive = archive_inputs.get("nginx", {}) if isinstance(archive_inputs, dict) else {}
+    if not isinstance(archive, dict):
+        archive = {}
+    reason = nginx_archive_metadata_blocker(archive)
+    path_value = archive.get("path")
+    archive_path = Path(path_value) if isinstance(path_value, str) and path_value else None
+    if not reason:
+        reason = nginx_archive_path_blocker(archive_path, archives_root)
+    if not reason and archive_path is not None:
+        reason = nginx_archive_readback_blocker(archive_path)
+    if not reason:
+        return False
+    record.update(
+        status="blocked",
+        blocker_reason="nginx_pinned_provenance_archive_not_ready",
+        archive_blocker_reason=reason,
+    )
+    return True
 
 
 def nginx_artifact_statuses(context: dict[str, Any]) -> tuple[bool, list[str], bool, list[str]]:
@@ -6911,6 +7693,7 @@ def nginx_build_environment(
         BUILD_ROOT=str(cache_root),
         TMP_ROOT=str(build_root / "tmp"),
         LOG_ROOT=str(build_root / "logs"),
+        LOG_DIR=str(context["nginx_build_root"] / "logs/nginx"),
         NGINX_BUILD_DIR=str(context["nginx_build_root"]),
         NGINX_BUILD_OWNER_ROOT=str(cache_root / "builds" / "connectors"),
         NGINX_PREFIX=str(context["nginx_prefix"]),
@@ -6943,6 +7726,16 @@ def nginx_build_blocker_details(blocker: str) -> dict[str, str]:
         "build_component": build_component,
         "env_variable_can_set": NATIVE_NGINX_OVERRIDE_ENV,
     }
+
+
+def nginx_refresh_build_artifacts(record: dict[str, Any], context: dict[str, Any]) -> None:
+    artifacts_file = context["nginx_build_root"] / "logs/nginx/artifacts.txt"
+    if artifacts_file.is_symlink() or not artifacts_file.is_file():
+        return
+    try:
+        record["artifacts"] = read_key_values(artifacts_file)
+    except OSError as exc:
+        record["artifacts_readback_error"] = str(exc)
 
 
 def build_nginx_source(
@@ -6984,9 +7777,7 @@ def build_nginx_source(
     )
     record["build_log"] = str(log_path)
     record["build_exit_code"] = proc.returncode
-    artifacts_file = context["nginx_build_root"] / "logs/nginx/artifacts.txt"
-    if artifacts_file.is_file():
-        record["artifacts"] = read_key_values(artifacts_file)
+    nginx_refresh_build_artifacts(record, context)
     local_ready, local_missing = artifact_status(context["local_artifacts"], {"nginx_bin"})
     if proc.returncode == 0 and local_ready:
         return local_ready, local_missing, True
@@ -7032,6 +7823,16 @@ def prepare_nginx_runtime(
     _transactional: bool = False,
 ) -> dict[str, Any]:
     """Prepare NGINX while preserving atomic staging for keyed cache plans."""
+    try:
+        nginx_pinned_provenance(env)
+        nginx_pinned_provenance_required(env)
+    except RuntimeError as exc:
+        return {
+            "source": "connector-local-build",
+            "connector": "nginx",
+            "status": "blocked",
+            "blocker_reason": str(exc),
+        }
     return prepare_connector_with_optional_staging(
         "nginx",
         cache_root,
@@ -7051,7 +7852,7 @@ def prepare_nginx_runtime(
     )
 
 
-def _prepare_nginx_runtime_for_plan(
+def nginx_prepare_or_reuse_runtime(
     env: dict[str, str],
     connector_root: Path,
     framework_root: Path,
@@ -7059,37 +7860,13 @@ def _prepare_nginx_runtime_for_plan(
     build_root: Path,
     sources_root: Path,
     archives_root: Path,
-    modsecurity: dict[str, Any] | None,
-    plan: dict[str, Any] | None,
+    modsecurity: dict[str, Any],
+    plan: dict[str, Any],
+    protocol_inputs: dict[str, Any],
+    quic_tls_archive: str,
+    context: dict[str, Any],
+    record: dict[str, Any],
 ) -> dict[str, Any]:
-    modsecurity = modsecurity or {}
-    plan = plan or {}
-    protocol_inputs, protocol_profile, quic_tls_archive, protocol_blocker = nginx_protocol_context(
-        env,
-        plan,
-        archives_root,
-    )
-    if protocol_blocker:
-        record = {
-            "source": "connector-local-build",
-            "connector": "nginx",
-            "status": "blocked",
-            "blocker_reason": protocol_blocker,
-            "protocol_profile": protocol_profile,
-        }
-        return finish_planned_connector_record(plan, record)
-    context = nginx_runtime_context(env, plan, build_root, modsecurity)
-    record = nginx_runtime_record(
-        env,
-        plan,
-        archives_root,
-        modsecurity,
-        protocol_inputs,
-        protocol_profile,
-        context,
-    )
-    if nginx_preflight_blocked(record, modsecurity, context):
-        return finish_planned_connector_record(plan, record)
     local_ready, local_missing, effective_ready, effective_missing = nginx_artifact_statuses(context)
     manifest_ready = connector_manifest_ready(plan) if plan else False
     (
@@ -7113,6 +7890,8 @@ def _prepare_nginx_runtime_for_plan(
         record.update(status="blocked", blocker_reason=cache_blocker)
         return finish_planned_connector_record(plan, record)
     if nginx_cached_entry_reusable(plan, local_ready, effective_ready):
+        update_nginx_runtime_readback(record, context)
+        nginx_refresh_build_artifacts(record, context)
         record.update(
             status="reused",
             nginx_bin=str(context["effective_bin"]),
@@ -7120,6 +7899,7 @@ def _prepare_nginx_runtime_for_plan(
             module_file=str(context["effective_module"]),
             tree=tree_manifest(context["nginx_build_root"]),
         )
+        nginx_runtime_contract_preflight_blocked(record, env, plan, context)
         return finish_planned_connector_record(plan, record)
     claim_error = claim_nginx_cache_entry(plan, cache_root)
     if claim_error:
@@ -7144,6 +7924,7 @@ def _prepare_nginx_runtime_for_plan(
         if not build_succeeded:
             return finish_planned_connector_record(plan, record)
     update_nginx_effective_artifacts(context)
+    update_nginx_runtime_readback(record, context)
     effective_ready, effective_missing = artifact_status(context["effective_artifacts"], {"nginx_bin"})
     if not effective_ready:
         blocker = map_nginx_blocker("", effective_missing)
@@ -7164,7 +7945,80 @@ def _prepare_nginx_runtime_for_plan(
         module_file=str(context["effective_module"]),
         tree=tree_manifest(context["nginx_build_root"]),
     )
+    nginx_refresh_build_artifacts(record, context)
+    nginx_runtime_contract_preflight_blocked(record, env, plan, context)
     return finish_planned_connector_record(plan, record)
+
+
+def _prepare_nginx_runtime_for_plan(
+    env: dict[str, str],
+    connector_root: Path,
+    framework_root: Path,
+    cache_root: Path,
+    build_root: Path,
+    sources_root: Path,
+    archives_root: Path,
+    modsecurity: dict[str, Any] | None,
+    plan: dict[str, Any] | None,
+) -> dict[str, Any]:
+    modsecurity = modsecurity or {}
+    plan = plan or {}
+    try:
+        nginx_pinned_provenance(env)
+        nginx_pinned_provenance_required(env)
+    except RuntimeError as exc:
+        return finish_planned_connector_record(
+            plan,
+            {
+                "source": "connector-local-build",
+                "connector": "nginx",
+                "status": "blocked",
+                "blocker_reason": str(exc),
+            },
+        )
+    protocol_inputs, protocol_profile, quic_tls_archive, protocol_blocker = nginx_protocol_context(
+        env,
+        plan,
+        archives_root,
+    )
+    if protocol_blocker:
+        record = {
+            "source": "connector-local-build",
+            "connector": "nginx",
+            "status": "blocked",
+            "blocker_reason": protocol_blocker,
+            "protocol_profile": protocol_profile,
+        }
+        return finish_planned_connector_record(plan, record)
+    context = nginx_runtime_context(env, plan, build_root, modsecurity)
+    record = nginx_runtime_record(
+        env,
+        plan,
+        archives_root,
+        modsecurity,
+        protocol_inputs,
+        protocol_profile,
+        context,
+    )
+    if nginx_archive_preflight_blocked(record, plan, archives_root):
+        return finish_planned_connector_record(plan, record)
+    if nginx_preflight_blocked(record, modsecurity, context):
+        return finish_planned_connector_record(plan, record)
+    return nginx_prepare_or_reuse_runtime(
+        env,
+        connector_root,
+        framework_root,
+        cache_root,
+        build_root,
+        sources_root,
+        archives_root,
+        modsecurity,
+        plan,
+        protocol_inputs,
+        quic_tls_archive,
+        context,
+        record,
+    )
 
 
 def haproxy_runtime_context(plan: dict[str, Any], build_root: Path) -> dict[str, Any]:
@@ -8022,9 +8876,9 @@ def parse_runtime_component_args() -> argparse.Namespace:
     return runtime_component_argument_parser().parse_args()
 
 
-def required_runtime_component_sources(env: dict[str, str], strict: bool) -> dict[str, str]:
+def required_runtime_component_sources(env: dict[str, str], strict: bool) -> dict[str, Any]:
     validate_https_url_config(env)
-    values = {
+    values: dict[str, Any] = {
         "go_ftw_source_url": require_env_value(env, "GO_FTW_SOURCE_URL"),
         "go_ftw_expected_latest": require_env_value(env, "GO_FTW_PROMPT_EXPECTED_LATEST"),
         "albedo_source_url": require_env_value(env, "ALBEDO_SOURCE_URL"),
@@ -8034,6 +8888,10 @@ def required_runtime_component_sources(env: dict[str, str], strict: bool) -> dic
     }
     if strict:
         values["expat_git_ref"] = require_full_immutable_git_commit(values["expat_git_ref"], "EXPAT_GIT_REF")
+    # NGINX no longer has a mutable fallback: validate its complete reviewed
+    # release tuple before the managed cache root is initialized.
+    values["nginx_pinned_provenance"] = nginx_pinned_provenance(env)
+    values["nginx_require_pinned_provenance"] = nginx_pinned_provenance_required(env)
     nginx_protocol_build_inputs(env)
     return values
 
@@ -8278,12 +9136,42 @@ def apache_archive_records(env: dict[str, str], archives_root: Path, cache_root:
 
 
 def nginx_archive_records(env: dict[str, str], archives_root: Path, cache_root: Path) -> list[dict[str, Any]]:
-    nginx_root = archives_root / "nginx"
     try:
-        nginx_tag, nginx_url, nginx_lookup_status = resolve_nginx_archive(env, nginx_root / "nginx-latest-release.json")
-        nginx_record = prepare_archive("nginx", nginx_url, env.get("NGINX_SHA256", ""), "", nginx_root, cache_root)
-        nginx_record["resolved_tag"] = nginx_tag
-        nginx_record["release_lookup_status"] = nginx_lookup_status
+        # Validate the entire immutable tuple before touching the cache root,
+        # a network client, an archive, or a release-lookup cache path.
+        provenance = nginx_pinned_provenance(env)
+        cache_identity = nginx_pinned_archive_cache_identity(provenance)
+        nginx_root = archives_root / "nginx"
+        nginx_record = prepare_archive(
+            "nginx",
+            provenance["release_asset_url"],
+            provenance["sha256"],
+            "",
+            nginx_root,
+            cache_root,
+            required_literal_sha256=True,
+            cache_identity=cache_identity,
+            verify_digest_before_archive_list=True,
+        )
+        nginx_record.update(nginx_archive_provenance_fields(provenance))
+        verified_archive_sha256 = str(nginx_record.get("sha256", ""))
+        archive_digest_verified = (
+            nginx_record.get("status") == "present"
+            and nginx_record.get("checksum_status") == "PASS"
+            and verified_archive_sha256 == provenance["sha256"]
+        )
+        nginx_record.update(
+            verified_archive_sha256=verified_archive_sha256 if archive_digest_verified else "",
+            archive_digest_verified=archive_digest_verified,
+            source_readback={
+                "release_asset_url": provenance["release_asset_url"],
+                "archive_path": str(nginx_record.get("path", "")),
+                "expected_sha256": provenance["sha256"],
+                "verified_archive_sha256": verified_archive_sha256,
+            },
+            cache_identity=cache_identity,
+            cache_key=cache_identity["cache_key"],
+        )
         records = [nginx_record]
         nginx_protocol = nginx_protocol_build_inputs(env)
         if nginx_protocol["quic_enabled"]:
@@ -8299,7 +9187,17 @@ def nginx_archive_records(env: dict[str, str], archives_root: Path, cache_root: 
             )
         return records
     except Exception as exc:
-        return [{"name": "nginx", "status": "blocked", "blocker_reason": network_blocker_reason(exc), "checksum_status": "unknown"}]
+        return [
+            {
+                "name": "nginx",
+                "status": "blocked",
+                "blocker_reason": str(exc),
+                "checksum_status": "unknown",
+                "pinned_provenance": True,
+                "provenance_validation": "failed",
+                "archive_digest_verified": False,
+            }
+        ]
 
 
 def prepare_runtime_archives(context: dict[str, Any], paths: dict[str, Path]) -> list[dict[str, Any]]:

@@ -180,7 +180,6 @@ export BUILD_NGINX_FROM_SOURCE
 export NGINX_SOURCE_MODE
 export NGINX_SOURCE_REPO_URL
 export NGINX_SOURCE_GIT_REF
-export NGINX_GITHUB_REPO
 export NGINX_RELEASE_TAG
 export HAPROXY_VERSION
 export HAPROXY_SOURCE_URL
@@ -205,10 +204,21 @@ export APR_VERSION
 export APR_SOURCE_URL
 export APR_SHA256
 export APR_SHA256_URL
+# Framework's APR-util provenance guard distinguishes an absent value from an
+# explicitly empty or mismatched caller override.  GNU make would export an
+# undefined variable as empty, so forward only actual caller-supplied values.
+ifneq ($(origin APR_UTIL_VERSION),undefined)
 export APR_UTIL_VERSION
+endif
+ifneq ($(origin APR_UTIL_SOURCE_URL),undefined)
 export APR_UTIL_SOURCE_URL
+endif
+ifneq ($(origin APR_UTIL_SHA256),undefined)
 export APR_UTIL_SHA256
+endif
+ifneq ($(origin APR_UTIL_SHA256_URL),undefined)
 export APR_UTIL_SHA256_URL
+endif
 export PCRE2_VERSION
 export PCRE2_SOURCE_URL
 export PCRE2_SHA256_URL
