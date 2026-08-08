@@ -108,8 +108,10 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         body = block.group("body")
         self.assertIn("if: matrix.connector == 'nginx'", body)
         self.assertIn('echo "NGINX_ROOT_HANDOFF=1" >> "$GITHUB_ENV"', body)
+        self.assertIn('echo "NGINX_DOCROOT_PROJECTION=1" >> "$GITHUB_ENV"', body)
         self.assertIn('echo "NGINX_PHASE4_MODE=$CI_PHASE4_MODE" >> "$GITHUB_ENV"', body)
         self.assertEqual(self.source.count("NGINX_ROOT_HANDOFF=1"), 1)
+        self.assertEqual(self.source.count("NGINX_DOCROOT_PROJECTION=1"), 1)
 
     def test_workflow_uses_setup_python_path_for_privileged_handoff(self) -> None:
         self.assertIn(
@@ -120,10 +122,42 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         self.assertNotIn('echo "PYTHON=${{ steps.setup-python.outputs.python-path }}"', self.source)
         self.assertIn("Verify Python interpreter contract", self.source)
 
+    def test_workflow_runs_only_the_declared_minimal_no_crs_evidence_stage(self) -> None:
+        block = re.search(
+            r"- name: Run canonical minimal No-CRS runtime smoke\n(?P<body>.*?)(?=\n      - name: Validate canonical evidence)",
+            self.source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(block)
+        body = block.group("body")
+        self.assertIn(
+            'RUNTIME_EVIDENCE_ROOT="$EVIDENCE_ROOT" make "runtime-smoke-$CONNECTOR"',
+            body,
+        )
+        self.assertNotIn('make "no-crs-baseline-$CONNECTOR"', body)
+        self.assertIn("full-lifecycle evidence remains", body)
+
     def test_aggregation_keeps_missing_artifacts_fail_closed(self) -> None:
-        self.assertIn("Restore canonical evidence layout", self.source)
-        self.assertIn('status=1', self.source)
-        self.assertIn('exit "$status"', self.source)
+        download = re.search(
+            r"- name: Download connector evidence\n(?P<body>.*?)(?=\n      - name: Restore canonical evidence layout)",
+            self.source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(download)
+        self.assertIn("merge-multiple: false", download.group("body"))
+
+        restore = re.search(
+            r"- name: Restore canonical evidence layout\n(?P<body>.*?)(?=\n      - name: Render evidence-merged capability catalog)",
+            self.source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(restore)
+        body = restore.group("body")
+        self.assertIn('cp -a "$artifact_dir/." "$destination/"', body)
+        self.assertIn('status=1', body)
+        self.assertIn('exit "$status"', body)
+        self.assertIn("retained for diagnosis", body)
+        self.assertNotIn("rm -rf", body)
         self.assertIn("Build result-only aggregate", self.source)
         self.assertIn("--output-json \"$EVIDENCE_ROOT/all-connectors-no-crs-summary.json\"", self.source)
 

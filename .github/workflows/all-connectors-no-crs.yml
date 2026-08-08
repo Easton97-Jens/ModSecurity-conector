@@ -192,6 +192,10 @@ jobs:
           # this explicit opt-in only for its fixed config/start/No-CRS root
           # handoff, never for a PR-triggered workflow.
           echo "NGINX_ROOT_HANDOFF=1" >> "$GITHUB_ENV"
+          # The bounded handoff creates this fixed, worker-visible projection
+          # before the separately verified NGINX worker reads the harness
+          # docroot.  It does not expose the private harness work root.
+          echo "NGINX_DOCROOT_PROJECTION=1" >> "$GITHUB_ENV"
 
       - name: Initialize canonical evidence paths
         env:
@@ -273,12 +277,17 @@ jobs:
           set -eu
           make "start-smoke-$CONNECTOR"
 
-      - name: Run canonical No-CRS baseline
+      - name: Run canonical minimal No-CRS runtime smoke
         env:
           CONNECTOR: ${{ matrix.connector }}
         run: |
           set -eu
-          make "no-crs-baseline-$CONNECTOR"
+          # This matrix declares only the real-host minimal compatibility
+          # boundary.  The canonical runner still pins the no-CRS rules and
+          # validates provenance and events, but selects only the two cases
+          # this profile actually executes; full-lifecycle evidence remains
+          # a separate, stricter target.
+          RUNTIME_EVIDENCE_ROOT="$EVIDENCE_ROOT" make "runtime-smoke-$CONNECTOR"
 
       - name: Validate canonical evidence
         env:
@@ -374,6 +383,7 @@ jobs:
         with:
           pattern: no-crs-*-${{ github.run_id }}-${{ github.run_attempt }}
           path: downloaded
+          merge-multiple: false
 
       - name: Restore canonical evidence layout
         if: always()
@@ -392,7 +402,7 @@ jobs:
               --connector "$connector" \
               --capabilities "connectors/$connector/capabilities.json" \
               --check all; then
-              rm -rf "$destination"
+              echo "::error::Canonical evidence for $connector is missing or invalid; retained for diagnosis"
               status=1
             fi
           done

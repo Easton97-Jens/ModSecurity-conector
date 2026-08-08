@@ -1211,7 +1211,13 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             'NGINX_HARNESS_WORK_ROOT="$NGINX_RUN_ROOT"',
             'HAPROXY_HTX_RUNTIME_ROOT="$STAGE_RUNTIME_ROOT"',
             'ENVOY_EXT_PROC_RUNTIME_ROOT="$HOST_RUNTIME_ROOT"',
+            "TRAEFIK_RUNTIME_ROOT=$STAGE_BUILD_ROOT/traefik-runtime",
             'TRAEFIK_NATIVE_RUNTIME_ROOT="$TRAEFIK_RUNTIME_ROOT"',
+            "TRAEFIK_ARTIFACT_STAGER=$CONNECTOR_ROOT/ci/runtime/lifecycle/stage-traefik-runtime-artifacts.py",
+            '--build-root "$STAGE_BUILD_ROOT"',
+            '--raw-root "$RAW_DIR"',
+            "source_result=$RAW_DIR/traefik-source/result.json",
+            "source_events=$RAW_DIR/traefik-source/events.jsonl",
             'LIGHTTPD_PATCHED_ROOT="$HOST_RUNTIME_ROOT/lighttpd-patched"',
             'LIGHTTPD_PATCHED_SMOKE_DIR="$LIGHTTPD_RUNTIME_ROOT"',
             '--allowed-source-root "$RAW_DIR"',
@@ -1221,6 +1227,11 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         ):
             self.assertIn(assignment, source)
         self.assertNotIn("SOURCE_EVENT_SCRUB_LOG=$CONNECTOR_LOG_ROOT/", source)
+
+    def test_canonical_runner_records_the_actual_selected_stage_target(self) -> None:
+        source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
+        self.assertIn('minimal_runtime_smoke) executed_target=runtime-smoke-$connector ;;', source)
+        self.assertIn('no_crs_baseline) executed_target=no-crs-baseline-$connector ;;', source)
 
     def test_protocol_client_bundle_is_root_runner_scoped_and_forwarded(self) -> None:
         source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")

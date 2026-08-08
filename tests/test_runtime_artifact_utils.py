@@ -20,6 +20,7 @@ if str(CI_LIB) not in sys.path:
 import runtime_path_utils as RUNTIME_PATH_UTILS
 from runtime_path_utils import (
     append_runtime_artifact_text,
+    move_runtime_artifact_atomic,
     prepare_verified_runtime_artifact_root,
     read_runtime_artifact_text,
     runtime_artifact_path,
@@ -235,6 +236,87 @@ class RuntimeArtifactUtilsTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     append_runtime_artifact_text(root, target, "data", "record")
             self.assertFalse(target.exists())
+
+    def test_atomic_move_keeps_private_regular_artifacts_and_rejects_links(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-artifact-move-") as temporary:
+            parent = Path(temporary)
+            source_root = self.private_root(str(parent / "source-parent"))
+            destination_root = self.private_root(str(parent / "destination-parent"))
+            source = source_root / "producer" / "events.jsonl"
+            destination = destination_root / "raw" / "events.jsonl"
+            source.parent.mkdir()
+            source.write_text('{"event":"safe"}\n', encoding="utf-8")
+
+            self.assertEqual(
+                move_runtime_artifact_atomic(
+                    source_root, source, destination_root, destination, "event stream"
+                ),
+                destination,
+            )
+            self.assertFalse(source.exists())
+            self.assertEqual(destination.read_text(encoding="utf-8"), '{"event":"safe"}\n')
+            self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
+            self.assertEqual(list(destination.parent.glob(".events.jsonl.*.tmp")), [])
+
+            link_source = source_root / "producer" / "link.json"
+            link_source.symlink_to(destination)
+            with self.assertRaisesRegex(
+                ValueError, "symbolic link|must not use symbolic links|below the runtime root"
+            ):
+                move_runtime_artifact_atomic(
+                    source_root,
+                    link_source,
+                    destination_root,
+                    destination_root / "raw" / "link.json",
+                    "linked source",
+                )
+
+            link_destination = destination_root / "raw" / "link-destination.json"
+            link_destination.symlink_to(destination)
+            source.write_text("second\n", encoding="utf-8")
+            with self.assertRaisesRegex(
+                ValueError, "symbolic link|must not use symbolic links|below the runtime root"
+            ):
+                move_runtime_artifact_atomic(
+                    source_root,
+                    source,
+                    destination_root,
+                    link_destination,
+                    "linked destination",
+                )
+            self.assertEqual(source.read_text(encoding="utf-8"), "second\n")
+
+    def test_atomic_move_does_not_unlink_a_replaced_source(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-artifact-move-recheck-") as temporary:
+            parent = Path(temporary)
+            source_root = self.private_root(str(parent / "source-parent"))
+            destination_root = self.private_root(str(parent / "destination-parent"))
+            source = source_root / "producer" / "result.json"
+            destination = destination_root / "raw" / "result.json"
+            source.parent.mkdir()
+            source.write_text("original\n", encoding="utf-8")
+            replacement = list(source.stat())
+            replacement[1] += 1
+            original_stat = RUNTIME_PATH_UTILS.os.stat
+
+            def replaced_source_stat(path: object, *args: object, **kwargs: object) -> os.stat_result:
+                if (
+                    path == source.name
+                    and kwargs.get("dir_fd") is not None
+                    and kwargs.get("follow_symlinks") is False
+                ):
+                    return os.stat_result(replacement)
+                return original_stat(path, *args, **kwargs)
+
+            with mock.patch.object(RUNTIME_PATH_UTILS.os, "stat", side_effect=replaced_source_stat):
+                with self.assertRaisesRegex(ValueError, "source changed while being moved"):
+                    move_runtime_artifact_atomic(
+                        source_root, source, destination_root, destination, "result"
+                    )
+
+            self.assertEqual(source.read_text(encoding="utf-8"), "original\n")
+            self.assertEqual(destination.read_text(encoding="utf-8"), "original\n")
+            self.assertEqual(list(destination.parent.glob(".result.json.*.tmp")), [])
 
     def test_connector_facades_preserve_serialization_and_private_modes(self) -> None:
         haproxy = load_helper(
