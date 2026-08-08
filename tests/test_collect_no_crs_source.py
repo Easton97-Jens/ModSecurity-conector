@@ -352,6 +352,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         event = collector.sanitized_event(
             {
                 "connector": "nginx",
+                "run_id": "nginx-current-run",
                 "transaction_id": "tx-first-byte",
                 "rule_id": 1100301,
                 "phase": "response_body",
@@ -374,6 +375,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertTrue(event["first_byte_before_response_end"])
         self.assertFalse(event["upstream_response_finished_at_first_byte"])
         self.assertTrue(event["no_full_response_buffering"])
+        self.assertEqual(event["run_id"], "nginx-current-run")
         self.assertEqual(event["body_bytes_seen"], 17)
         self.assertEqual(event["body_bytes_inspected"], 17)
 
@@ -661,6 +663,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                     for event in (
                         {
                             "connector": "lighttpd",
+                            "run_id": "lighttpd-current-run",
                             "transaction_id": "tx-real",
                             "event": "MSCONN_EVENT_RESPONSE_BLOCKED",
                             "message_id": "MSCONN_EVENT_RESPONSE_BLOCKED",
@@ -724,6 +727,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertEqual(cases[0]["transaction_ids"], ["tx-real"])
             self.assertFalse(cases[0]["headers_sent"])
             self.assertEqual(len(derived), 1)
+            self.assertEqual(derived[0]["run_id"], "lighttpd-current-run")
 
     def test_case_cannot_borrow_another_transaction_event(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-transaction-mismatch-") as temporary:

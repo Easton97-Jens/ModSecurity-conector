@@ -289,6 +289,7 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn("phase4_first_byte_before_response_end_status", runner)
         self.assertIn("phase4_no_full_response_buffering_status", runner)
         self.assertNotIn("wire bytes", runner)
+        self.assertIn(': "${NO_CRS_RUN_ID:?NO_CRS_RUN_ID is required}"', runner)
 
         serve_command = runner.split(
             '"$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve', 1
@@ -298,6 +299,10 @@ class PatchedHostContractTest(unittest.TestCase):
         )[1].split('fail "could not write payload-free synchronized first-byte evidence"', 1)[0]
         self.assertIn('--control-root "$SMOKE_DIR"', serve_command)
         self.assertIn('--control-root "$SMOKE_DIR"', merge_command)
+        writer_command = runner.split('"$PYTHON_BIN" "$RESULT_WRITER" \\\n', 1)[1].split(
+            "if grep -Fq", 1
+        )[0]
+        self.assertIn('--run-id "$NO_CRS_RUN_ID"', writer_command)
 
     def test_parent_routes_lighttpd_first_byte_evidence_through_the_smoke_root(self) -> None:
         lifecycle = (REPO_ROOT / "ci" / "runtime" / "lifecycle" / "run-no-crs-baseline.sh").read_text(
@@ -448,6 +453,7 @@ class PatchedHostContractTest(unittest.TestCase):
                     "python3",
                     str(writer),
                     "--events", str(events),
+                    "--run-id", "lighttpd-current-run",
                     "--output", str(output),
                     "--selected-case-ids",
                     "phase4_rule_observed phase4_end_of_stream_evaluation "
@@ -479,6 +485,7 @@ class PatchedHostContractTest(unittest.TestCase):
             projected = json.loads(projection.read_text(encoding="utf-8"))
             self.assertTrue(projected["eos_seen"])
             self.assertTrue(projected["end_of_stream_evaluation"])
+            self.assertEqual(projected["run_id"], "lighttpd-current-run")
             self.assertNotIn("event_hash", projected)
             rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
             self.assertEqual({row["status"] for row in rows}, {"PASS"})

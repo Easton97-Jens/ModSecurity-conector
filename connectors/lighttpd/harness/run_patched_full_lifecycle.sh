@@ -19,6 +19,7 @@ SMOKE_DIR=${LIGHTTPD_PATCHED_SMOKE_DIR:-$PATCHED_ROOT/smoke}
 SMOKE_PORT=${LIGHTTPD_SMOKE_PORT:-18084}
 RULES_FILE=${MSCONNECTOR_RULES_FILE:-${RULES_FILE:-$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf}}
 PYTHON_BIN=${PYTHON:-python3}
+: "${NO_CRS_RUN_ID:?NO_CRS_RUN_ID is required}"
 SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
 ENTITY_FIXTURE_UPSTREAM=$SCRIPT_DIR/lighttpd_http1_entity_fixture_upstream.py
 FIRST_BYTE_METADATA=$SCRIPT_DIR/write_patched_first_byte_metadata.py
@@ -365,6 +366,7 @@ BARRIER_RELEASE_FILE=
 [ -s "$EVENT_PATH" ] || fail "no Common event was emitted"
 "$PYTHON_BIN" "$RESULT_WRITER" \
     --events "$EVENT_PATH" \
+    --run-id "$NO_CRS_RUN_ID" \
     --output "$RESULTS_PATH" \
     --selected-case-ids "${NO_CRS_SELECTED_CASE_IDS:-}" \
     --allow-status "$allow_status" \
