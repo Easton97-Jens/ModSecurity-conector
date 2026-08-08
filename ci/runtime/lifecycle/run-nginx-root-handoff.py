@@ -43,6 +43,7 @@ ALLOWED_NGINX_ENV = frozenset(
 SNAPSHOT_KEY = re.compile(r"^[A-Z][A-Z0-9_]{0,127}$")
 SAFE_CASE_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
 SAFE_CASE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+SAFE_MODSECURITY_SONAME = re.compile(r"^libmodsecurity\.so(?:\.[0-9]+)+$")
 SNAPSHOT_ALLOWED_KEYS = frozenset(
     {
         "CONNECTOR_COMPONENT_CACHE",
@@ -125,6 +126,9 @@ PROJECTION_DOCROOT_NAME = "docroot"
 FIXED_WORKER_USER = "nobody"
 RUNTIME_SNAPSHOT_LABEL = "runtime environment snapshot"
 PROJECTION_PARENT_MODE = stat.S_IRWXU | stat.S_IXGRP
+# Libtool's normal form is either one direct link or `.so -> .so.<ABI> ->
+# .so.<ABI>.<revision>`; reject a longer chain instead of general dereference.
+MAX_MODSECURITY_SONAME_LINKS = 2
 
 
 class HandoffError(ValueError):
@@ -244,6 +248,40 @@ def validate_fixed_file(path: Path, label: str) -> Path:
     if not stat.S_ISREG(metadata.st_mode):
         fail(f"{label} must be a regular file: {candidate}")
     return candidate
+
+
+def validate_prepared_modsecurity_library(lib_dir: Path) -> Path:
+    """Accept only the conventional, local libtool SONAME-link shape.
+
+    The Framework stages ``libmodsecurity.so*`` with ``cp -a``.  Therefore a
+    conventional linker-name symlink is expected, but no other prepared input
+    may follow a symlink at this elevated boundary.
+    """
+
+    label = "prepared libmodsecurity"
+    ensure_no_symlink_prefix(lib_dir, label, require_leaf=True)
+    candidate = lib_dir / "libmodsecurity.so"
+    seen: set[Path] = set()
+    for _ in range(MAX_MODSECURITY_SONAME_LINKS + 1):
+        try:
+            metadata = candidate.lstat()
+        except FileNotFoundError as exc:
+            raise HandoffError(f"{label} is missing: {candidate}") from exc
+        if stat.S_ISREG(metadata.st_mode):
+            return candidate
+        if not stat.S_ISLNK(metadata.st_mode):
+            fail(f"{label} must be a regular file or a conventional SONAME link: {candidate}")
+        if candidate in seen:
+            fail(f"{label} contains a cyclic SONAME link")
+        seen.add(candidate)
+        try:
+            target = os.readlink(candidate)
+        except OSError as exc:
+            raise HandoffError(f"{label} cannot read SONAME link: {candidate}") from exc
+        if not SAFE_MODSECURITY_SONAME.fullmatch(target):
+            fail(f"{label} has an invalid SONAME link target: {target!r}")
+        candidate = lib_dir / target
+    fail(f"{label} has too many SONAME link hops")
 
 
 def split_safe_tokens(value: str, label: str, pattern: re.Pattern[str]) -> list[str]:
@@ -369,9 +407,9 @@ def validate_snapshot(request: HandoffRequest, values: Mapping[str, str]) -> dic
         (nginx_prefix / "modules/ngx_http_modsecurity_module.so", "prepared NGINX module"),
         (nginx_build / "connector-src/materialized-source.json", "prepared NGINX source manifest"),
         (nginx_build / "nginx-protocol-build-provenance.txt", "prepared NGINX protocol provenance"),
-        (lib_dir / "libmodsecurity.so", "prepared libmodsecurity"),
     ):
         validate_fixed_file(path, label)
+    validate_prepared_modsecurity_library(lib_dir)
     if not os.access(nginx_prefix / "sbin/nginx", os.X_OK):
         fail("prepared NGINX binary is not executable")
     return {key: values[key] for key in SNAPSHOT_FORWARD_KEYS if values.get(key, "")}

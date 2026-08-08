@@ -146,6 +146,126 @@ class NginxRootHandoffContractTest(unittest.TestCase):
         self.assertNotIn("MRTS_NATIVE_NGINX_BIN", environment)
         self.assertEqual(environment["PATH"], "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
 
+    def test_accepts_direct_relative_libmodsecurity_soname_link(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            lib_dir = request.component_cache / "prefix" / "modsecurity" / "build-id" / "lib"
+            library = lib_dir / "libmodsecurity.so"
+            target = lib_dir / "libmodsecurity.so.3.0.14"
+            library.unlink()
+            target.write_bytes(b"library")
+            library.symlink_to(target.name)
+            HANDOFF.validate_request(request)
+
+    def test_accepts_bounded_relative_libmodsecurity_soname_link_chain(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            lib_dir = request.component_cache / "prefix" / "modsecurity" / "build-id" / "lib"
+            library = lib_dir / "libmodsecurity.so"
+            soname = lib_dir / "libmodsecurity.so.3"
+            target = lib_dir / "libmodsecurity.so.3.0.14"
+            library.unlink()
+            target.write_bytes(b"library")
+            soname.symlink_to(target.name)
+            library.symlink_to(soname.name)
+            HANDOFF.validate_request(request)
+
+    def test_rejects_libmodsecurity_soname_link_outside_its_library_directory(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            lib_dir = request.component_cache / "prefix" / "modsecurity" / "build-id" / "lib"
+            library = lib_dir / "libmodsecurity.so"
+            outside = request.component_cache / "outside-library"
+            library.unlink()
+            outside.write_bytes(b"library")
+            library.symlink_to(outside)
+            with self.assertRaisesRegex(HANDOFF.HandoffError, "invalid SONAME link target"):
+                HANDOFF.validate_request(request)
+
+    def test_rejects_libmodsecurity_soname_link_with_traversal(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            lib_dir = request.component_cache / "prefix" / "modsecurity" / "build-id" / "lib"
+            library = lib_dir / "libmodsecurity.so"
+            library.unlink()
+            library.symlink_to("../libmodsecurity.so.3")
+            with self.assertRaisesRegex(HANDOFF.HandoffError, "invalid SONAME link target"):
+                HANDOFF.validate_request(request)
+
+    def test_rejects_nonconventional_libmodsecurity_soname_link(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            lib_dir = request.component_cache / "prefix" / "modsecurity" / "build-id" / "lib"
+            library = lib_dir / "libmodsecurity.so"
+            target = lib_dir / "libmodsecurity.so.untrusted"
+            library.unlink()
+            target.write_bytes(b"library")
+            library.symlink_to(target.name)
+            with self.assertRaisesRegex(HANDOFF.HandoffError, "invalid SONAME link target"):
+                HANDOFF.validate_request(request)
+
+    def test_rejects_libmodsecurity_soname_chain_longer_than_libtool_shape(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            lib_dir = request.component_cache / "prefix" / "modsecurity" / "build-id" / "lib"
+            library = lib_dir / "libmodsecurity.so"
+            abi = lib_dir / "libmodsecurity.so.3"
+            revision = lib_dir / "libmodsecurity.so.3.0"
+            target = lib_dir / "libmodsecurity.so.3.0.14"
+            library.unlink()
+            target.write_bytes(b"library")
+            revision.symlink_to(target.name)
+            abi.symlink_to(revision.name)
+            library.symlink_to(abi.name)
+            with self.assertRaisesRegex(HANDOFF.HandoffError, "too many SONAME link hops"):
+                HANDOFF.validate_request(request)
+
+    def test_rejects_cyclic_libmodsecurity_soname_link(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            lib_dir = request.component_cache / "prefix" / "modsecurity" / "build-id" / "lib"
+            library = lib_dir / "libmodsecurity.so"
+            abi = lib_dir / "libmodsecurity.so.3"
+            library.unlink()
+            abi.symlink_to(abi.name)
+            library.symlink_to(abi.name)
+            with self.assertRaisesRegex(HANDOFF.HandoffError, "cyclic SONAME link"):
+                HANDOFF.validate_request(request)
+
+    def test_rejects_dangling_libmodsecurity_soname_link(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            lib_dir = request.component_cache / "prefix" / "modsecurity" / "build-id" / "lib"
+            library = lib_dir / "libmodsecurity.so"
+            library.unlink()
+            library.symlink_to("libmodsecurity.so.3")
+            with self.assertRaisesRegex(HANDOFF.HandoffError, "prepared libmodsecurity is missing"):
+                HANDOFF.validate_request(request)
+
+    def test_rejects_numeric_named_nonregular_libmodsecurity_soname_target(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            lib_dir = request.component_cache / "prefix" / "modsecurity" / "build-id" / "lib"
+            library = lib_dir / "libmodsecurity.so"
+            target = lib_dir / "libmodsecurity.so.3"
+            library.unlink()
+            target.mkdir()
+            library.symlink_to(target.name)
+            with self.assertRaisesRegex(HANDOFF.HandoffError, "regular file or a conventional SONAME link"):
+                HANDOFF.validate_request(request)
+
+    def test_rejects_nginx_binary_symlink_while_allowing_only_the_library_exception(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            binary = request.component_cache / "prefix" / "nginx" / "build-id" / "sbin" / "nginx"
+            replacement = binary.parent / "nginx-replacement"
+            binary.unlink()
+            replacement.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            replacement.chmod(0o755)
+            binary.symlink_to(replacement.name)
+            with self.assertRaisesRegex(HANDOFF.HandoffError, "symbolic link"):
+                HANDOFF.validate_request(request)
+
     def test_rejects_unknown_nginx_environment_key(self) -> None:
         with self.assertRaisesRegex(HANDOFF.HandoffError, "unapproved NGINX environment"):
             HANDOFF.validate_nginx_environment({"NGINX_ROOT_HANDOFF": "1", "NGINX_EVIL": "1"})
