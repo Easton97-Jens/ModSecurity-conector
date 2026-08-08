@@ -68,12 +68,20 @@ still writes the upstream-compatible build layout under
 | `connectors/apache/src/msc_filters.h` | `src/msc_filters.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache filter header |
 | `connectors/apache/src/msc_utils.c` | `src/msc_utils.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector utilities |
 | `connectors/apache/src/msc_utils.h` | `src/msc_utils.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector utility header |
-| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/t/conf/extra.conf.in` | `t/conf/extra.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Test-template layout referenced by configure/build inputs |
-| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/run-regression-tests.pl.in` | `tests/run-regression-tests.pl.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/40-secRemoteRules.t.in` | `tests/regression/misc/40-secRemoteRules.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/50-ipmatchfromfile-external.t.in` | `tests/regression/misc/50-ipmatchfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/60-pmfromfile-external.t.in` | `tests/regression/misc/60-pmfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/server_root/conf/httpd.conf.in` | `tests/regression/server_root/conf/httpd.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/t/conf/extra.conf.in` | `t/conf/extra.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Framework-only upstream regression template; not a Parent Autotools input |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/run-regression-tests.pl.in` | `tests/run-regression-tests.pl.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Framework-only upstream regression template, retired from Parent `configure.ac` outputs |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/40-secRemoteRules.t.in` | `tests/regression/misc/40-secRemoteRules.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Framework-only upstream regression template, retired from Parent `configure.ac` outputs |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/50-ipmatchfromfile-external.t.in` | `tests/regression/misc/50-ipmatchfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Framework-only upstream regression template, retired from Parent `configure.ac` outputs |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/60-pmfromfile-external.t.in` | `tests/regression/misc/60-pmfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Framework-only upstream regression template, retired from Parent `configure.ac` outputs |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/server_root/conf/httpd.conf.in` | `tests/regression/server_root/conf/httpd.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Framework-only upstream regression template, retired from Parent `configure.ac` outputs |
+
+## F-GS-001 Bootstrap Status
+
+The Parent Apache connector's fresh-source Autotools bootstrap consumes only
+its production `Makefile` and `build/apxs-wrapper` outputs. The upstream
+regression templates in the Framework are materialized solely into the
+Framework's separate regression source tree; they are neither Parent
+`configure.ac` inputs nor a prerequisite for a fresh Parent checkout.
 
 ## Repo-Owned Metadata Files
 

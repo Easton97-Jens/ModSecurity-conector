@@ -1142,6 +1142,10 @@ check-remaining-connectors-future-c:
 check-block-status-generator:
 	$(PYTHON) ci/checks/common/check-block-status-generator.py
 
+.PHONY: check-apache-autotools-bootstrap
+check-apache-autotools-bootstrap:
+	sh ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh
+
 check-apache-common-adoption:
 	$(PYTHON) ci/checks/connectors/apache/check-apache-common-adoption.py
 

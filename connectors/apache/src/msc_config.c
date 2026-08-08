@@ -17,6 +17,29 @@ static const msconnector_directive_adapter_entry *apache_directive_adapter(const
     return msconnector_directive_adapter_find(name);
 }
 
+static const char *msc_config_modsec_state(cmd_parms *cmd, void *_dcfg,
+    const char *p1);
+static const char *msc_config_load_rules(cmd_parms *cmd, void *_dcfg,
+    const char *p1);
+static const char *msc_config_load_rules_file(cmd_parms *cmd, void *_dcfg,
+    const char *p1);
+static const char *msc_config_load_rules_remote(cmd_parms *cmd, void *_dcfg,
+    const char *p1, const char *p2);
+static const char *msc_config_transaction_id(cmd_parms *cmd, void *_dcfg,
+    const char *p1);
+static const char *msc_config_transaction_id_expr(cmd_parms *cmd, void *_dcfg,
+    const char *p1);
+static const char *msc_config_use_error_log(cmd_parms *cmd, void *_dcfg,
+    const char *p1);
+static const char *msc_config_phase4_mode(cmd_parms *cmd, void *_dcfg,
+    const char *p1);
+static const char *msc_config_phase4_content_types_file(cmd_parms *cmd,
+    void *_dcfg, const char *p1);
+static const char *msc_config_phase4_log(cmd_parms *cmd, void *_dcfg,
+    const char *p1);
+static const char *msc_config_phase4_body_limit(cmd_parms *cmd, void *_dcfg,
+    const char *p1);
+
 const command_rec module_directives[] =
 {
     AP_INIT_TAKE1(

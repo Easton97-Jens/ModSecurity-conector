@@ -70,10 +70,11 @@ establish a late-abort result.
 Primary local reference: `<external-source-root>/ModSecurity-apache`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache.
 
-The Apache adapter-owned build layout lives under `connectors/apache/` and is
-materialized to `$BUILD_ROOT/apache-build/connector-src` before Autotools/APXS
-builds run. The former `connectors/apache/upstream/` tree was removed after the
-Phase 11 materialized build and Apache smoke passed. Phase 13 keeps
+The Apache adapter-owned build layout lives under `connectors/apache/`. The
+Framework-owned regression flow materializes it to
+`$BUILD_ROOT/apache-build/connector-src` before that separate flow's
+Autotools/APXS build. The former `connectors/apache/upstream/` tree was removed
+after the Phase 11 materialized build and Apache smoke passed. Phase 13 keeps
 `connectors/apache/src/` limited to productive C sources; build files live at
 the connector root, retained Autotools test templates live under
 `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/`, and durable attribution lives in
@@ -82,6 +83,48 @@ the connector root, retained Autotools test templates live under
 
 Build and runtime artifacts must stay under `BUILD_ROOT`, defaulting locally to
 `/src/ModSecurity-conector-build`.
+
+## Reproducible Parent Autotools bootstrap
+
+The Framework materializer is a separate regression integration path. A fresh
+Parent source checkout can bootstrap and build the Apache module without
+materializing Framework templates. Install Autoconf, Automake, a C compiler,
+`make`, Apache development files including APXS, libmodsecurity development
+files, and `curl`; set `MODSECURITY_PREFIX` to the libmodsecurity installation
+prefix when it is not the system default.
+
+From `connectors/apache/` in a clean checkout, derive the Apache binary from
+the selected APXS and use the tracked Autotools sources:
+
+```sh
+APXS="${APXS:-$(command -v apxs || command -v apxs2)}"
+test -x "$APXS"
+HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"
+MODSECURITY_PREFIX="${MODSECURITY_PREFIX:-/usr}"
+autoreconf --install
+test -f configure
+test -x configure
+./configure --with-libmodsecurity="$MODSECURITY_PREFIX" --with-apxs="$APXS" --with-apache="$HTTPD_BIN"
+make
+test -f src/.libs/mod_security3.so
+```
+
+The expected module output is `src/.libs/mod_security3.so`. To validate the
+entire fresh-source route, run the focused check from the Parent root:
+
+```sh
+make check-apache-autotools-bootstrap
+```
+
+It creates a source archive containing tracked files only, runs the commands
+above, validates an isolated loopback Apache configuration, loads the
+Autotools-built module, and checks an allowed `200` request plus a ModSecurity
+`403` rule. In a clean checkout, including CI, that archive is exactly `HEAD`.
+For a pre-commit local run, the check applies only `git diff HEAD` so it can
+exercise tracked edits; it never imports untracked files. Its temporary server
+root and non-privileged loopback port are removed at the end. A direct
+`apxs -c` command is not a substitute: the Autotools-generated `configure` and
+the subsequent `make` path are required.
 
 ## Test Ownership And Runtime Claims
 
