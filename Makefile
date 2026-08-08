@@ -205,10 +205,22 @@ export APR_VERSION
 export APR_SOURCE_URL
 export APR_SHA256
 export APR_SHA256_URL
+# The pinned Framework owns the approved APR-util provenance tuple and
+# deliberately distinguishes an absent value from an explicit empty override.
+# GNU make exports an undefined variable as empty, so forward only values a
+# caller actually supplied; the Framework remains the fail-closed authority.
+ifneq ($(origin APR_UTIL_VERSION),undefined)
 export APR_UTIL_VERSION
+endif
+ifneq ($(origin APR_UTIL_SOURCE_URL),undefined)
 export APR_UTIL_SOURCE_URL
+endif
+ifneq ($(origin APR_UTIL_SHA256),undefined)
 export APR_UTIL_SHA256
+endif
+ifneq ($(origin APR_UTIL_SHA256_URL),undefined)
 export APR_UTIL_SHA256_URL
+endif
 export PCRE2_VERSION
 export PCRE2_SOURCE_URL
 export PCRE2_SHA256_URL

@@ -66,7 +66,7 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
                 self.assertIn(f"      {name}: {value}\n", environment)
         self.assertNotIn("NGINX_RELEASE_TAG: latest", environment)
 
-    def test_connector_workflow_pins_the_archived_apr_util_tuple(self) -> None:
+    def test_connector_workflow_defers_apr_util_provenance_to_the_pinned_framework(self) -> None:
         job_environment = re.search(
             r"^    env:\n(?P<body>.*?)(?=^    steps:)",
             self.source,
@@ -74,16 +74,29 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         )
         self.assertIsNotNone(job_environment)
         environment = job_environment.group("body")
-        expected = {
-            "APR_UTIL_VERSION": "1.6.3",
-            "APR_UTIL_SOURCE_URL": "https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.bz2",
-            "APR_UTIL_SHA256": "a41076e3710746326c3945042994ad9a4fcac0ce0277dd8fea076fec3c9772b5",
-            "APR_UTIL_SHA256_URL": "https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.bz2.sha256",
-        }
-        for name, value in expected.items():
+        for name in (
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        ):
             with self.subTest(name=name):
-                self.assertIn(f"      {name}: {value}\n", environment)
-        self.assertNotIn("APR_UTIL_SOURCE_URL: https://downloads.apache.org/", environment)
+                self.assertNotIn(f"      {name}:", environment)
+
+    def test_makefile_keeps_absent_apr_util_variables_absent(self) -> None:
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        for name in (
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        ):
+            with self.subTest(name=name):
+                self.assertIn(
+                    f"ifneq ($(origin {name}),undefined)\nexport {name}\nendif",
+                    makefile,
+                )
+                self.assertEqual(makefile.count(f"export {name}\n"), 1)
 
     def test_nginx_handoff_is_scoped_to_the_nginx_matrix_row(self) -> None:
         block = re.search(

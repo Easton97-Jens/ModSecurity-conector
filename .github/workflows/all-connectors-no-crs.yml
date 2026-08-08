@@ -88,12 +88,6 @@ jobs:
       NGINX_SOURCE_GIT_REF: release-1.31.3
       NGINX_RELEASE_ASSET_NAME: nginx-1.31.3.tar.gz
       NGINX_SHA256: a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
-      # APR-util 1.6.3 is no longer served by the mutable current-release
-      # mirror. Keep the archived release and both independent checksums fixed.
-      APR_UTIL_VERSION: 1.6.3
-      APR_UTIL_SOURCE_URL: https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.bz2
-      APR_UTIL_SHA256: a41076e3710746326c3945042994ad9a4fcac0ce0277dd8fea076fec3c9772b5
-      APR_UTIL_SHA256_URL: https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.bz2.sha256
       PYTHONDONTWRITEBYTECODE: "1"
 
     steps:
