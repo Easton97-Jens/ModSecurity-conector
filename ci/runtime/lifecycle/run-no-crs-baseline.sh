@@ -727,9 +727,11 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
         # Preserve an explicit synthetic barrier observation when no connector
         # harness supplied a real-host one.  The Framework records its origin
         # and refuses to promote either low-latency capability from it.
-        "$PYTHON" "$SYNCHRONIZED_UPSTREAM" --output "$FIRST_BYTE_EVIDENCE" \
+        "$PYTHON" "$SYNCHRONIZED_UPSTREAM" \
+            --control-root "$CONNECTOR_RUN_ROOT" \
+            --output "$FIRST_BYTE_EVIDENCE" \
             >"$LOG_DIR/synchronized-upstream.stdout.log" \
-            2>"$LOG_DIR/synchronized-upstream.stderr.log" || true
+            2>"$LOG_DIR/synchronized-upstream.stderr.log"
         [ -f "$FIRST_BYTE_EVIDENCE" ] || {
             echo "FAIL: synchronized first-byte diagnostic did not produce evidence" >&2
             exit 1

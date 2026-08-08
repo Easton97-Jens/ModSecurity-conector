@@ -177,11 +177,24 @@ export MODSECURITY_RULE_PREAMBLE_FILE
 export BUILD_HTTPD_FROM_SOURCE
 export BUILD_PCRE2_FROM_SOURCE
 export BUILD_NGINX_FROM_SOURCE
+# The Framework deliberately distinguishes absent provenance inputs (its
+# reviewed defaults apply) from explicit empty inputs (fail closed).  Do not
+# turn an absent optional Make variable into an empty exported override.
+ifneq ($(origin NGINX_SOURCE_MODE),undefined)
 export NGINX_SOURCE_MODE
+endif
+ifneq ($(origin NGINX_SOURCE_REPO_URL),undefined)
 export NGINX_SOURCE_REPO_URL
+endif
+ifneq ($(origin NGINX_SOURCE_GIT_REF),undefined)
 export NGINX_SOURCE_GIT_REF
+endif
+ifneq ($(origin NGINX_GITHUB_REPO),undefined)
 export NGINX_GITHUB_REPO
+endif
+ifneq ($(origin NGINX_RELEASE_TAG),undefined)
 export NGINX_RELEASE_TAG
+endif
 export HAPROXY_VERSION
 export HAPROXY_SOURCE_URL
 export HAPROXY_SHA256_URL

@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -1152,6 +1153,100 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             'if [ "$connector" = lighttpd ] && [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then',
             source,
         )
+
+    def test_synchronized_fallback_is_bound_to_the_current_raw_run(self) -> None:
+        source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
+        fallback = source.split('    elif [ ! -f "$FIRST_BYTE_EVIDENCE" ]; then', 1)[1].split(
+            "    fi\nfi\n\nhost_version=", 1
+        )[0]
+        self.assertIn('--control-root "$CONNECTOR_RUN_ROOT"', fallback)
+        self.assertIn('--output "$FIRST_BYTE_EVIDENCE"', fallback)
+        self.assertNotIn("|| true", fallback)
+
+    def test_synchronized_fallback_helper_requires_and_honors_control_root(self) -> None:
+        helper = ROOT / "modules" / "ModSecurity-test-Framework" / "tests" / "runners" / "synchronized_upstream.py"
+        with tempfile.TemporaryDirectory(prefix="synchronized-fallback-") as temporary:
+            control_root = Path(temporary)
+            output = control_root / "first-byte-evidence.json"
+            missing_root = subprocess.run(
+                [sys.executable, str(helper), "--output", str(output)],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(missing_root.returncode, 0)
+            self.assertIn("--control-root", missing_root.stderr)
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(helper),
+                    "--control-root",
+                    str(control_root),
+                    "--output",
+                    str(output),
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            evidence = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(evidence["evidence_origin"], "synthetic_harness")
+            self.assertFalse(evidence["promotion_eligible"])
+
+    def test_make_preserves_nginx_provenance_presence_semantics(self) -> None:
+        names = (
+            "NGINX_SOURCE_MODE",
+            "NGINX_SOURCE_REPO_URL",
+            "NGINX_SOURCE_GIT_REF",
+            "NGINX_GITHUB_REPO",
+            "NGINX_RELEASE_TAG",
+        )
+
+        def make_environment(overrides: dict[str, str | None]) -> dict[str, str]:
+            environment = os.environ.copy()
+            for name in names:
+                value = overrides.get(name)
+                if value is None:
+                    environment.pop(name, None)
+                else:
+                    environment[name] = value
+            completed = subprocess.run(
+                [
+                    "make",
+                    "--no-print-directory",
+                    "-s",
+                    "--eval",
+                    "print-nginx-provenance-contract:\n\t@env",
+                    "print-nginx-provenance-contract",
+                ],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            return dict(
+                line.split("=", 1)
+                for line in completed.stdout.splitlines()
+                if line.partition("=")[0] in names
+            )
+
+        absent = make_environment({name: None for name in names})
+        self.assertEqual(absent, {})
+
+        explicit_empty = make_environment({name: "" for name in names})
+        self.assertEqual(explicit_empty, {name: "" for name in names})
+
+        reviewed = {
+            "NGINX_SOURCE_MODE": "github-release",
+            "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
+            "NGINX_SOURCE_GIT_REF": "release-1.31.3",
+            "NGINX_GITHUB_REPO": "https://github.com/nginx/nginx",
+            "NGINX_RELEASE_TAG": "release-1.31.3",
+        }
+        self.assertEqual(make_environment(reviewed), reviewed)
 
     def test_protocol_client_bundle_is_root_runner_scoped_and_forwarded(self) -> None:
         source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
