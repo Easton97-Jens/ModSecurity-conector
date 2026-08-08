@@ -484,6 +484,111 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_make_preserves_an_absent_apr_util_tuple_for_framework_defaults(self) -> None:
+        environment = os.environ.copy()
+        for variable in (
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        ):
+            environment.pop(variable, None)
+        assertion = (
+            "assert-apr-util-provenance-is-unset: ; @"
+            "for variable in APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 "
+            "APR_UTIL_SHA256_URL; do if printenv $$variable >/dev/null; then exit 1; "
+            "fi; done; FRAMEWORK_ROOT=$(CURDIR)/modules/ModSecurity-test-Framework "
+            "sh -eu -c '. \"$$FRAMEWORK_ROOT/ci/lib/common.sh\"; "
+            "test \"$$APR_UTIL_VERSION\" = \"1.6.4\"; "
+            "test \"$$APR_UTIL_SOURCE_URL\" = "
+            "\"https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2\"; "
+            "test \"$$APR_UTIL_SHA256\" = "
+            "\"3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b\"; "
+            "test \"$$APR_UTIL_SHA256_URL\" = "
+            "\"https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2.sha256\"'"
+        )
+        result = subprocess.run(
+            [
+                "make",
+                "--no-print-directory",
+                "--silent",
+                f"--eval={assertion}",
+                "assert-apr-util-provenance-is-unset",
+            ],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_make_forwards_an_explicit_empty_apr_util_override_to_the_guard(self) -> None:
+        assertion = (
+            "assert-empty-apr-util-override-is-rejected: ; @"
+            "FRAMEWORK_ROOT=$(CURDIR)/modules/ModSecurity-test-Framework "
+            "sh -eu -c '. \"$$FRAMEWORK_ROOT/ci/lib/common.sh\"; "
+            "ci_require_apr_util_pinned_provenance'"
+        )
+        for variable in (
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        ):
+            with self.subTest(variable=variable):
+                environment = os.environ.copy()
+                environment[variable] = ""
+                result = subprocess.run(
+                    [
+                        "make",
+                        "--no-print-directory",
+                        "--silent",
+                        f"--eval={assertion}",
+                        "assert-empty-apr-util-override-is-rejected",
+                    ],
+                    cwd=ROOT,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertNotEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"{variable} override is not permitted", result.stdout)
+
+    def test_make_forwards_a_mismatched_apr_util_override_to_the_guard(self) -> None:
+        assertion = (
+            "assert-mismatched-apr-util-override-is-rejected: ; @"
+            "FRAMEWORK_ROOT=$(CURDIR)/modules/ModSecurity-test-Framework "
+            "sh -eu -c '. \"$$FRAMEWORK_ROOT/ci/lib/common.sh\"; "
+            "ci_require_apr_util_pinned_provenance'"
+        )
+        for variable in (
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        ):
+            with self.subTest(variable=variable):
+                environment = os.environ.copy()
+                environment[variable] = "untrusted-value"
+                result = subprocess.run(
+                    [
+                        "make",
+                        "--no-print-directory",
+                        "--silent",
+                        f"--eval={assertion}",
+                        "assert-mismatched-apr-util-override-is-rejected",
+                    ],
+                    cwd=ROOT,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertNotEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"{variable} override is not permitted", result.stdout)
+
     def test_full_smoke_cleanup_is_opt_in_and_skipping_it_keeps_the_matrix_eligible(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "test-full-smoke-sequential.yml").read_text(
             encoding="utf-8"
