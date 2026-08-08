@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve, validate, and narrowly apply Framework CI Action/tool updates.
+"""Resolve, validate, and narrowly apply Parent CI Action/tool updates.
 
 The updater deliberately separates three capabilities used by the GitHub
 Actions workflow:
@@ -9,9 +9,8 @@ Actions workflow:
 * ``validate`` rechecks the candidate against the checked-in lock and, for
   changed downloaded tools, verifies the release asset digest without
   executing the downloaded file.
-* ``apply`` changes only the reviewed lock, the enumerated workflow pins, and
-  the paired workflow-security guides.  The publisher calls it only after the
-  read-only jobs succeeded.
+* ``apply`` changes only the reviewed Parent lock and enumerated workflow
+  pins.  The publisher calls it only after the read-only jobs succeeded.
 
 It is intentionally not a general GitHub API client, package installer, or
 repository editor.  URLs, record names, output paths, changed fields, and
@@ -51,55 +50,59 @@ LOCK_RELATIVE_PATH = Path("ci/tooling/security-tools.lock.yml")
 CANDIDATE_SCHEMA_VERSION = 1
 GITHUB_API_ORIGIN = "https://api.github.com"
 GITHUB_WEB_ORIGIN = "https://github.com"
-GITHUB_USER_AGENT = "framework-workflow-tool-updater/1"
+GITHUB_USER_AGENT = "modsecurity-connector-workflow-tool-updater/1"
 RUNNER_TEMP_STRICT_CHILD_ERROR = "candidate path must be a strict child of RUNNER_TEMP"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
-STABLE_RELEASE_TAG = r"v?[0-9]+(?:\.[0-9]+){1,3}"
+STABLE_RELEASE_TAG = r"v?[0-9]+(?:\.[0-9]+){0,3}"
 RELEASE_TAG = re.compile(rf"^{STABLE_RELEASE_TAG}$")
 ACTION_SERIES_TAG = re.compile(
     r"^v(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)$", re.ASCII
 )
-UPSTREAM_RELEASE = re.compile(
-    r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/releases/tag/"
-    rf"({STABLE_RELEASE_TAG})$"
+UPSTREAM_REPOSITORY = re.compile(
+    r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)$"
 )
 GIT_REVISION = re.compile(r"^[A-Za-z0-9_./-]+$")
 
 # These are deliberately individual files, not broad directory prefixes.  A
 # new workflow must be reviewed and added here before this publisher can touch
-# it.  The paired guides describe the lock and the updater; only the Action
-# table rows are mechanically refreshed.
+# it.  This is deliberately the full Parent workflow set that currently uses
+# a centrally locked remote Action, expressed one file at a time.
 ALLOWED_UPDATE_PATHS = frozenset(
     {
         "ci/tooling/security-tools.lock.yml",
-        ".github/workflows/check-action-versions.yml",
-        ".github/workflows/check-common-versions.yml",
-        ".github/workflows/check-python-version.yml",
-        ".github/workflows/cleanup-artifacts.yml",
-        ".github/workflows/ci-security-codeql-pr.yml",
+        ".github/workflows/all-connectors-no-crs.yml",
+        ".github/workflows/check-actions-versions.yml",
         ".github/workflows/ci-security-codeql.yml",
-        ".github/workflows/ci-security-dependency-review.yml",
         ".github/workflows/ci-security-osv.yml",
-        ".github/workflows/ci-security-quality.yml",
         ".github/workflows/ci-security-scorecard.yml",
         ".github/workflows/ci-security-secrets.yml",
         ".github/workflows/ci-security-workflow-lint.yml",
+        ".github/workflows/cleanup-artifacts.yml",
         ".github/workflows/lint.yml",
+        ".github/workflows/open-connectors-smoke.yml",
+        ".github/workflows/protocol-contract.yml",
+        ".github/workflows/quick-framework-check.yml",
+        ".github/workflows/test-apache.yml",
         ".github/workflows/test-common.yml",
+        ".github/workflows/test-envoy.yml",
+        ".github/workflows/test-full-smoke-sequential.yml",
+        ".github/workflows/test-haproxy.yml",
+        ".github/workflows/test-lighttpd.yml",
+        ".github/workflows/test-nginx.yml",
+        ".github/workflows/test-traefik.yml",
+        ".github/workflows/update-actions-versions.yml",
+        ".github/workflows/update-go-version.yml",
+        ".github/workflows/update-python-version.yml",
         ".github/workflows/update-submodules.yml",
         ".github/workflows/update-workflow-tools.yml",
-        "docs/github-actions-workflow-security.md",
-        "docs/github-actions-workflow-security.de.md",
+        ".github/workflows/verified-report-governance.yml",
     }
 )
 WORKFLOW_UPDATE_PATHS = tuple(
     path
     for path in sorted(ALLOWED_UPDATE_PATHS)
     if path.startswith(".github/workflows/")
-)
-DOCUMENTATION_UPDATE_PATHS = tuple(
-    path for path in sorted(ALLOWED_UPDATE_PATHS) if path.startswith("docs/")
 )
 ACTION_MUTABLE_FIELDS = ("version", "immutable_commit", "upstream_release")
 TOOL_MUTABLE_FIELDS = (
@@ -110,6 +113,20 @@ TOOL_MUTABLE_FIELDS = (
     "asset_url",
     "sha256",
 )
+PARENT_LOCK_GROUPS = {"actions": "pinned_actions", "tools": "tools"}
+PARENT_WRITABLE_FIELDS = {
+    "actions": {
+        "version": "version",
+        "immutable_commit": "commit_sha",
+    },
+    "tools": {
+        "version": "version",
+        "immutable_commit": "release_commit",
+        "asset": "asset",
+        "asset_url": "url",
+        "sha256": "sha256",
+    },
+}
 ACTION_RELEASE_RESOLUTION_LATEST = "latest-release"
 ACTION_RELEASE_RESOLUTION_SAME_MAJOR = "same-major-release"
 REVIEWED_ACTION_RELEASE_RESOLUTIONS = {
@@ -130,7 +147,7 @@ class RepositoryIdentity:
         return f"{self.owner}/{self.repository}"
 
 
-def framework_root() -> Path:
+def repository_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
@@ -196,33 +213,180 @@ def resolve_root(root: Path) -> Path:
     return resolved
 
 
+def parent_repository_identity(
+    upstream: Any, version: Any, description: str
+) -> RepositoryIdentity:
+    """Validate one Parent upstream URL and derive its release identity."""
+
+    if not isinstance(upstream, str):
+        raise UpdateError(f"{description} has no upstream repository URL")
+    match = UPSTREAM_REPOSITORY.fullmatch(upstream)
+    if match is None:
+        raise UpdateError(
+            f"{description} must use an exact HTTPS GitHub repository URL"
+        )
+    if not isinstance(version, str) or not RELEASE_TAG.fullmatch(version):
+        raise UpdateError(f"{description} has an unsafe current release version")
+    owner, repository = match.groups()
+    return RepositoryIdentity(owner, repository, version)
+
+
+def normalise_parent_action_record(name: Any, record: Any) -> dict[str, Any]:
+    """Convert one strict Parent Action record to the internal model."""
+
+    if not isinstance(name, str) or not re.fullmatch(
+        r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", name
+    ):
+        raise UpdateError("Parent action lock name is invalid")
+    if not isinstance(record, dict) or set(record) != {
+        "version",
+        "commit_sha",
+        "upstream",
+    }:
+        raise UpdateError(
+            f"Parent action {name!r} must contain exactly version, commit_sha, and upstream"
+        )
+    identity = parent_repository_identity(record["upstream"], record["version"], name)
+    if identity.slug != name:
+        raise UpdateError(
+            f"Parent action {name!r} upstream repository does not match its lock key"
+        )
+    commit = require_sha40(record["commit_sha"], f"Parent action {name!r} commit")
+    resolution = REVIEWED_ACTION_RELEASE_RESOLUTIONS.get(
+        name, ACTION_RELEASE_RESOLUTION_LATEST
+    )
+    if resolution == ACTION_RELEASE_RESOLUTION_SAME_MAJOR and not ACTION_SERIES_TAG.fullmatch(
+        identity.current_tag
+    ):
+        raise UpdateError(
+            f"Parent action {name!r} same-major resolution requires a v<major>.<minor>.<patch> version"
+        )
+    return {
+        "version": identity.current_tag,
+        "immutable_commit": commit,
+        "upstream_repository": record["upstream"],
+        "upstream_release": (
+            f"{record['upstream']}/releases/tag/{identity.current_tag}"
+        ),
+        "release_resolution": resolution,
+    }
+
+
+def normalise_parent_tool_record(name: Any, record: Any) -> dict[str, Any]:
+    """Convert one Parent tool record to the shared immutable internal model."""
+
+    if not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_-]*", name):
+        raise UpdateError("Parent tool lock name is invalid")
+    if not isinstance(record, dict):
+        raise UpdateError(f"Parent tool {name!r} record must be a mapping")
+    required = {
+        "version",
+        "release_commit",
+        "asset",
+        "url",
+        "sha256",
+        "executable",
+        "upstream",
+    }
+    if not required.issubset(record) or not all(
+        isinstance(key, str) and isinstance(value, str) and value
+        for key, value in record.items()
+    ):
+        raise UpdateError(f"Parent tool {name!r} has an incomplete or malformed record")
+    identity = parent_repository_identity(record["upstream"], record["version"], f"Parent tool {name!r}")
+    if not is_safe_component(record["asset"]):
+        raise UpdateError(f"Parent tool {name!r} has an unsafe asset name")
+    if not is_safe_posix_path(record["executable"]):
+        raise UpdateError(f"Parent tool {name!r} has an unsafe executable path")
+    require_sha40(record["release_commit"], f"Parent tool {name!r} release commit")
+    require_sha256(record["sha256"], f"Parent tool {name!r} asset")
+    expected_url = (
+        f"{record['upstream']}/releases/download/{identity.current_tag}/{record['asset']}"
+    )
+    if record["url"] != expected_url:
+        raise UpdateError(
+            f"Parent tool {name!r} URL does not match its repository, version, and asset"
+        )
+    normalised = deepcopy(record)
+    normalised.pop("release_commit")
+    normalised.pop("url")
+    normalised.pop("upstream")
+    normalised.update(
+        {
+            "immutable_commit": record["release_commit"],
+            "upstream_repository": record["upstream"],
+            "upstream_release": (
+                f"{record['upstream']}/releases/tag/{identity.current_tag}"
+            ),
+            "asset_url": record["url"],
+        }
+    )
+    return normalised
+
+
+def normalise_parent_lock(data: Any) -> dict[str, Any]:
+    """Fail closed while translating the Parent on-disk lock into one model."""
+
+    required_top_level = {
+        "schema_version",
+        "checked_at",
+        "pinned_actions",
+        "tools",
+        "dispositions",
+    }
+    if not isinstance(data, dict) or set(data) != required_top_level:
+        raise UpdateError("security tool lock has an unsupported Parent top-level schema")
+    if data["schema_version"] != 1:
+        raise UpdateError("security tool lock schema version is not supported")
+    if not isinstance(data["checked_at"], str) or not data["checked_at"]:
+        raise UpdateError("security tool lock checked_at field is invalid")
+    if not isinstance(data["pinned_actions"], dict) or not isinstance(data["tools"], dict):
+        raise UpdateError("security tool lock must contain Parent action and tool mappings")
+    if not isinstance(data["dispositions"], dict) or not all(
+        isinstance(key, str) and isinstance(value, str) and value
+        for key, value in data["dispositions"].items()
+    ):
+        raise UpdateError("security tool lock dispositions are invalid")
+    actions = {
+        name: normalise_parent_action_record(name, record)
+        for name, record in data["pinned_actions"].items()
+    }
+    tools = {
+        name: normalise_parent_tool_record(name, record)
+        for name, record in data["tools"].items()
+    }
+    if not actions or not tools:
+        raise UpdateError("security tool lock must not have empty Parent action or tool mappings")
+    return {
+        "schema_version": data["schema_version"],
+        "checked_at": data["checked_at"],
+        "dispositions": deepcopy(data["dispositions"]),
+        "actions": actions,
+        "tools": tools,
+    }
+
+
 def load_lock(root: Path) -> tuple[Path, dict[str, Any], str]:
     lock_path = resolve_regular_file(root, LOCK_RELATIVE_PATH)
     try:
         data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
         raise UpdateError(f"cannot parse the security tool lock: {exc}") from exc
-    if not isinstance(data, dict):
-        raise UpdateError("security tool lock must be a mapping")
-    if not isinstance(data.get("actions"), dict) or not isinstance(
-        data.get("tools"), dict
-    ):
-        raise UpdateError("security tool lock must contain action and tool mappings")
-    return lock_path, data, sha256_file(lock_path)
+    return lock_path, normalise_parent_lock(data), sha256_file(lock_path)
 
 
 def workflow_source_paths(root: Path) -> list[Path]:
-    """Return every regular Framework workflow without following symlinks."""
+    """Return every regular Parent workflow without following symlinks."""
 
     workflow_root = root / ".github" / "workflows"
     for directory in (root / ".github", workflow_root):
         try:
             mode = directory.lstat().st_mode
         except OSError as exc:
-            raise UpdateError("Framework workflow directory is missing") from exc
+            raise UpdateError("Parent workflow directory is missing") from exc
         if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
             raise UpdateError(
-                "Framework workflow directory must be a non-symlink directory"
+                "Parent workflow directory must be a non-symlink directory"
             )
     paths: list[Path] = []
     for candidate in sorted(workflow_root.rglob("*")):
@@ -282,19 +446,14 @@ def lock_record(lock: dict[str, Any], group: str, name: str) -> dict[str, Any]:
 def release_identity(
     record: dict[str, Any], name: str, *, require_name_match: bool = False
 ) -> RepositoryIdentity:
-    version = record.get("version")
-    release = record.get("upstream_release")
-    if not isinstance(version, str) or not RELEASE_TAG.fullmatch(version):
-        raise UpdateError(f"{name!r} has an unsafe current release version")
-    if not isinstance(release, str):
-        raise UpdateError(f"{name!r} has no upstream release URL")
-    match = UPSTREAM_RELEASE.fullmatch(release)
-    if match is None:
-        raise UpdateError(f"{name!r} must use an exact official GitHub release URL")
-    owner, repository, current_tag = match.groups()
-    if current_tag != version:
-        raise UpdateError(f"{name!r} release URL tag does not match its version")
-    identity = RepositoryIdentity(owner, repository, current_tag)
+    identity = parent_repository_identity(
+        record.get("upstream_repository"), record.get("version"), name
+    )
+    expected_release = (
+        f"{record['upstream_repository']}/releases/tag/{identity.current_tag}"
+    )
+    if record.get("upstream_release") != expected_release:
+        raise UpdateError(f"{name!r} release URL does not match its Parent repository")
     if require_name_match and identity.slug != name:
         raise UpdateError(
             f"{name!r} release owner/repository does not match its action name"
@@ -332,7 +491,7 @@ def validate_tool_baseline_provenance(
     if not isinstance(asset, str) or not is_safe_component(asset):
         raise UpdateError(f"tool {tool!r} has an unsafe current asset record")
     expected_url = (
-        f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/"
+        f"{record['upstream_repository']}/releases/download/"
         f"{identity.current_tag}/{asset}"
     )
     if record.get("asset_url") != expected_url:
@@ -443,6 +602,21 @@ def stable_tag_key(tag: str) -> tuple[int, int, int, int]:
     parts = [int(part) for part in tag.removeprefix("v").split(".")]
     parts.extend([0] * (4 - len(parts)))
     return parts[0], parts[1], parts[2], parts[3]
+
+
+def require_strict_release_upgrade(
+    current: str, candidate: str, description: str
+) -> None:
+    """Reject downgrades and immutable-tag rewrites instead of guessing."""
+
+    current_key = stable_tag_key(current)
+    candidate_key = stable_tag_key(candidate)
+    if candidate_key < current_key:
+        raise UpdateError(f"{description} release is a downgrade")
+    if candidate_key == current_key:
+        raise UpdateError(
+            f"{description} release does not advance the reviewed stable version"
+        )
 
 
 def same_major_action_tag(current_tag: str, candidate_tag: str) -> bool:
@@ -637,12 +811,19 @@ def action_candidate(name: str, record: dict[str, Any]) -> dict[str, str] | None
         identity, name, record, release, f"action {name!r} selected release"
     )
     commit = release_tag_commit(identity, tag)
-    if tag == record["version"] and commit == record["immutable_commit"]:
+    if stable_tag_key(tag) == stable_tag_key(record["version"]):
+        if commit != record["immutable_commit"]:
+            raise UpdateError(
+                f"action {name!r} current stable release resolves to a different commit"
+            )
         return None
+    require_strict_release_upgrade(record["version"], tag, f"action {name!r}")
     return {
         "version": tag,
         "immutable_commit": commit,
-        "upstream_release": f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/tag/{tag}",
+        "upstream_release": (
+            f"{record['upstream_repository']}/releases/tag/{tag}"
+        ),
     }
 
 
@@ -655,13 +836,22 @@ def tool_candidate(name: str, record: dict[str, Any]) -> dict[str, str] | None:
     candidate = {
         "version": tag,
         "immutable_commit": commit,
-        "upstream_release": f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/tag/{tag}",
+        "upstream_release": (
+            f"{record['upstream_repository']}/releases/tag/{tag}"
+        ),
         "asset": asset,
-        "asset_url": f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/{tag}/{asset}",
+        "asset_url": (
+            f"{record['upstream_repository']}/releases/download/{tag}/{asset}"
+        ),
         "sha256": asset_digest,
     }
-    if all(candidate[field] == record[field] for field in TOOL_MUTABLE_FIELDS):
+    if stable_tag_key(tag) == stable_tag_key(record["version"]):
+        if commit != record["immutable_commit"]:
+            raise UpdateError(
+                f"tool {name!r} current stable release resolves to a different commit"
+            )
         return None
+    require_strict_release_upgrade(record["version"], tag, f"tool {name!r}")
     return candidate
 
 
@@ -670,6 +860,7 @@ def resolve_candidate(root: Path) -> dict[str, Any]:
 
     _lock_path, lock, lock_digest = load_lock(root)
     ensure_locked_action_workflow_coverage(root, lock)
+    validate_parent_workflow_contract(root, lock)
     actions: dict[str, dict[str, str]] = {}
     tools: dict[str, dict[str, str]] = {}
     for name, record in sorted(lock["actions"].items()):
@@ -827,6 +1018,26 @@ def runner_temp_path(path: Path, *, for_write: bool) -> Path:
     return candidate_read_path(path, runner_root)
 
 
+def runner_temp_directory(path: Path) -> Path:
+    """Create or validate one private, strict RUNNER_TEMP child directory."""
+
+    runner_root = runner_temp_root()
+    relative = runner_temp_relative_path(path, runner_root)
+    current = runner_root
+    for component in relative.parts:
+        current = current / component
+        try:
+            current.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        mode = current.lstat().st_mode
+        if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
+            raise UpdateError("tool validation output must be a non-symlink directory")
+        if current.stat().st_uid != os.geteuid():
+            raise UpdateError("tool validation output must be owned by the runner user")
+    return resolved_runner_temp_child(current, runner_root, strict=True)
+
+
 def write_candidate(path: Path, candidate: dict[str, Any]) -> None:
     destination = runner_temp_path(path, for_write=True)
     # Resolve immediately at the filesystem sink as a defense in depth layer
@@ -920,8 +1131,11 @@ def validate_changed_record(
         raise UpdateError(
             f"candidate {group} {name!r} version is not a supported stable tag"
         )
+    require_strict_release_upgrade(
+        str(baseline.get("version")), version, f"candidate {group} {name!r}"
+    )
     require_sha40(changes["immutable_commit"], f"candidate {group} {name!r} commit")
-    expected_release = f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/tag/{version}"
+    expected_release = f"{baseline['upstream_repository']}/releases/tag/{version}"
     if changes["upstream_release"] != expected_release:
         raise UpdateError(f"candidate {group} {name!r} has an untrusted release URL")
     if group == "actions":
@@ -936,7 +1150,7 @@ def validate_changed_record(
             f"candidate tool {name!r} asset does not match its reviewed naming rule"
         )
     expected_url = (
-        f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/{version}/{asset}"
+        f"{baseline['upstream_repository']}/releases/download/{version}/{asset}"
     )
     if changes["asset_url"] != expected_url:
         raise UpdateError(f"candidate tool {name!r} has an untrusted asset URL")
@@ -944,9 +1158,9 @@ def validate_changed_record(
 
 
 def load_fetcher_module() -> Any:
-    module_path = Path(__file__).with_name("fetch-security-tool.py")
+    module_path = Path(__file__).with_name("fetch_security_tool.py")
     spec = importlib.util.spec_from_file_location(
-        "framework_security_tool_fetcher", module_path
+        "parent_security_tool_fetcher", module_path
     )
     if spec is None or spec.loader is None:
         raise UpdateError("cannot load the checksum-verified tool downloader")
@@ -964,10 +1178,22 @@ def verify_changed_tool_assets(
     if not changed_tools:
         return
     fetcher = load_fetcher_module()
-    # The downloader independently enforces that this is a safe RUNNER_TEMP
-    # child, verifies the SHA-256 before extraction, and never executes assets.
+    destination = runner_temp_directory(output_dir)
+    # The downloader independently validates the exact Parent release tuple,
+    # verifies the SHA-256 before extraction, and never executes assets.
     for name, record in sorted(changed_tools.items()):
-        fetcher.fetch(record, output_dir / name)
+        fetcher.fetch_record(
+            name,
+            {
+                "version": record["version"],
+                "asset": record["asset"],
+                "url": record["asset_url"],
+                "sha256": record["sha256"],
+                "executable": record["executable"],
+                "upstream": record["upstream_repository"],
+            },
+            destination / name,
+        )
 
 
 def proposed_validation_root() -> Path:
@@ -975,7 +1201,9 @@ def proposed_validation_root() -> Path:
 
     runner_root = runner_temp_root()
     proposed = Path(
-        tempfile.mkdtemp(prefix="framework-workflow-tool-proposed-", dir=runner_root)
+        tempfile.mkdtemp(
+            prefix="modsecurity-connector-workflow-tool-proposed-", dir=runner_root
+        )
     )
     mode = proposed.lstat().st_mode
     if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
@@ -1001,41 +1229,211 @@ def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
         destination.chmod(0o600)
 
 
-def run_proposed_tree_contract_checks(proposed_root: Path) -> None:
-    """Run fixed trusted checkers against the candidate-only proposed tree."""
+USES_REFERENCE = re.compile(
+    r"(?m)^\s*(?:-\s+)?uses:\s*(?P<reference>[^\s#]+)(?:\s+#.*)?$"
+)
+REMOTE_ACTION_REFERENCE = re.compile(
+    r"^(?P<source>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)@"
+    r"(?P<sha>[0-9a-f]{40})$"
+)
+TARGET_WORKFLOW_PATH = Path(".github/workflows/update-workflow-tools.yml")
+TARGET_JOBS = {"resolver", "validator", "publisher", "outcome"}
 
-    source_root = framework_root()
-    checks = (
-        (
-            Path("ci/checks/security/check-github-actions-workflows.py"),
-            ("--workflow-root", ".github/workflows", "--check", "all"),
-            "workflow metadata",
-        ),
-        (
-            Path("ci/checks/security/check-workflow-action-pins.py"),
-            ("--workflow-root", ".github/workflows"),
-            "workflow Action pins",
-        ),
-        (
-            Path("ci/checks/security/check-ci-security-contract.py"),
-            ("--root", "."),
-            "CI security contract",
-        ),
-    )
-    for relative, arguments, description in checks:
-        checker = resolve_regular_file(source_root, relative)
-        result = subprocess.run(
-            [sys.executable, str(checker), *arguments],
-            cwd=proposed_root,
-            check=False,
-            capture_output=True,
-            text=True,
+
+def workflow_job_blocks(text: str) -> dict[str, str]:
+    """Return target-workflow job blocks without executing or expanding YAML."""
+
+    blocks: dict[str, list[str]] = {}
+    current: str | None = None
+    in_jobs = False
+    for line in text.splitlines():
+        if line == "jobs:":
+            in_jobs = True
+            continue
+        if not in_jobs:
+            continue
+        if line and not line.startswith(" "):
+            break
+        match = re.fullmatch(r"  ([A-Za-z0-9_-]+):\s*", line)
+        if match is not None:
+            current = match.group(1)
+            blocks[current] = [line]
+        elif current is not None:
+            blocks[current].append(line)
+    return {name: "\n".join(block) for name, block in blocks.items()}
+
+
+def checked_workflow_mapping(path: Path, relative: str) -> dict[str, Any]:
+    """Parse only plain workflow YAML and reject composition features outright."""
+
+    text = path.read_text(encoding="utf-8")
+    if re.search(r"(?m)^\s*<<\s*:", text):
+        raise UpdateError(f"workflow {relative} must not use YAML merge keys")
+    try:
+        events = list(yaml.parse(text))
+        data = yaml.safe_load(text)
+    except (OSError, yaml.YAMLError) as exc:
+        raise UpdateError(f"workflow {relative} is not valid YAML: {exc}") from exc
+    for event in events:
+        if isinstance(event, yaml.events.AliasEvent) or getattr(event, "anchor", None):
+            raise UpdateError(f"workflow {relative} must not use YAML anchors or aliases")
+        if getattr(event, "tag", None):
+            raise UpdateError(f"workflow {relative} must not use YAML tags")
+    if not isinstance(data, dict):
+        raise UpdateError(f"workflow {relative} must be a mapping")
+    return data
+
+
+def checked_remote_action(reference: str, relative: str) -> tuple[str, str] | None:
+    """Parse one allowed remote Action reference without accepting expressions."""
+
+    if reference.startswith("./"):
+        return None
+    match = REMOTE_ACTION_REFERENCE.fullmatch(reference)
+    if match is None:
+        raise UpdateError(
+            f"workflow {relative} has a non-immutable or dynamic remote Action reference"
         )
-        if result.returncode != 0:
-            output = f"{result.stdout}{result.stderr}".strip()
+    source = match.group("source").split("/")
+    return "/".join(source[:2]), match.group("sha")
+
+
+def workflow_values_for_key(value: Any, key: str) -> list[Any]:
+    """Return all parsed YAML values associated with an exact mapping key."""
+
+    values: list[Any] = []
+    if isinstance(value, dict):
+        for child_key, child_value in value.items():
+            if child_key == key:
+                values.append(child_value)
+            values.extend(workflow_values_for_key(child_value, key))
+    elif isinstance(value, list):
+        for child_value in value:
+            values.extend(workflow_values_for_key(child_value, key))
+    return values
+
+
+def workflow_contains_key(value: Any, key: str) -> bool:
+    """Detect a disallowed parsed YAML key even when it is quoted or nested."""
+
+    return bool(workflow_values_for_key(value, key))
+
+
+SENSITIVE_READ_JOB_REFERENCE = re.compile(
+    r"\bsecrets\s*(?:\.|\[)|"
+    r"\bgithub\s*(?:\.\s*token|\[\s*['\"]token['\"]\s*\])",
+    re.IGNORECASE,
+)
+
+
+def validate_parent_workflow_contract(root: Path, lock: dict[str, Any]) -> None:
+    """Validate Parent workflow pins and updater trust boundaries in a tree."""
+
+    for path in workflow_source_paths(root):
+        relative = str(path.relative_to(root))
+        text = path.read_text(encoding="utf-8")
+        workflow = checked_workflow_mapping(path, relative)
+        if workflow_contains_key(workflow, "pull_request_target"):
+            raise UpdateError(f"workflow {relative} must not use pull_request_target")
+        references = workflow_values_for_key(workflow, "uses")
+        lexical_references = [
+            match.group("reference") for match in USES_REFERENCE.finditer(text)
+        ]
+        if references != lexical_references:
             raise UpdateError(
-                f"proposed workflow-tool candidate fails {description}: {output}"
+                f"workflow {relative} must use plain, line-oriented Action references"
             )
+        for reference in references:
+            if not isinstance(reference, str):
+                raise UpdateError(
+                    f"workflow {relative} has a non-string Action reference"
+                )
+            checked = checked_remote_action(reference, relative)
+            if checked is None:
+                continue
+            action_name, action_sha = checked
+            action_record = lock_record(lock, "actions", action_name)
+            if action_sha != action_record["immutable_commit"]:
+                raise UpdateError(
+                    f"workflow {relative} Action {action_name!r} does not match the Parent lock"
+                )
+            if relative not in WORKFLOW_UPDATE_PATHS:
+                raise UpdateError(
+                    f"workflow {relative} uses a managed Action outside the publisher allowlist"
+                )
+
+    target = resolve_regular_file(root, TARGET_WORKFLOW_PATH)
+    target_text = target.read_text(encoding="utf-8")
+    target_data = checked_workflow_mapping(target, str(TARGET_WORKFLOW_PATH))
+    jobs = target_data.get("jobs")
+    raw_jobs = workflow_job_blocks(target_text)
+    if not isinstance(jobs, dict) or set(jobs) != TARGET_JOBS or set(raw_jobs) != TARGET_JOBS:
+        raise UpdateError("workflow-tool updater must define exactly resolver, validator, publisher, and outcome")
+    if not all(isinstance(jobs[name], dict) for name in TARGET_JOBS):
+        raise UpdateError("workflow-tool updater jobs must each be YAML mappings")
+    expected_needs: dict[str, set[str]] = {
+        "resolver": set(),
+        "validator": {"resolver"},
+        "publisher": {"resolver", "validator"},
+        "outcome": {"resolver", "validator", "publisher"},
+    }
+    for name, expected in expected_needs.items():
+        configured = jobs[name].get("needs")
+        if configured is None:
+            actual: set[str] = set()
+        elif isinstance(configured, str):
+            actual = {configured}
+        elif isinstance(configured, list) and all(
+            isinstance(item, str) for item in configured
+        ):
+            actual = set(configured)
+        else:
+            raise UpdateError(
+                f"workflow-tool updater {name} needs relation is malformed"
+            )
+        if actual != expected:
+            raise UpdateError(f"workflow-tool updater {name} needs relation is invalid")
+    for name in ("resolver", "validator"):
+        if jobs[name].get("permissions") != {"contents": "read"}:
+            raise UpdateError(f"workflow-tool updater {name} must be read-only")
+        if SENSITIVE_READ_JOB_REFERENCE.search(raw_jobs[name]):
+            raise UpdateError(f"workflow-tool updater {name} must not receive secrets")
+    if jobs["publisher"].get("permissions") != {"contents": "read"}:
+        raise UpdateError("workflow-tool updater publisher must retain read-only GITHUB_TOKEN permissions")
+    if jobs["outcome"].get("permissions") != {}:
+        raise UpdateError("workflow-tool updater outcome must use empty permissions")
+    if "persist-credentials: false" not in target_text:
+        raise UpdateError("workflow-tool updater checkout must not persist credentials")
+    app_token = lock_record(lock, "actions", "actions/create-github-app-token")
+    expected_app_reference = (
+        f"actions/create-github-app-token@{app_token['immutable_commit']}"
+    )
+    publisher = raw_jobs["publisher"]
+    for required in (
+        expected_app_reference,
+        "WORKFLOW_UPDATER_APP_CLIENT_ID",
+        "WORKFLOW_UPDATER_APP_PRIVATE_KEY",
+        "repositories: ${{ github.repository }}",
+        "permission-contents: write",
+        "permission-pull-requests: write",
+        "permission-workflows: write",
+        "candidate_sha256",
+        "--expected-candidate-sha256",
+    ):
+        if required not in publisher:
+            raise UpdateError(f"workflow-tool updater publisher is missing {required!r}")
+    if "--force" in publisher or "pull_request_target" in target_text:
+        raise UpdateError("workflow-tool updater publisher contains a prohibited delivery control")
+    for command_path in re.findall(r"ci/checks/[A-Za-z0-9_./-]+\.py", target_text):
+        resolve_regular_file(root, Path(command_path))
+
+
+def run_proposed_tree_contract_checks(proposed_root: Path) -> None:
+    """Run the Parent's bounded static contract in the proposed tree."""
+
+    _lock_path, lock, _lock_digest = load_lock(proposed_root)
+    ensure_locked_action_workflow_coverage(proposed_root, lock)
+    validate_parent_workflow_contract(proposed_root, lock)
 
 
 def validate_proposed_tree(root: Path, candidate: dict[str, Any]) -> None:
@@ -1107,10 +1505,16 @@ def apply_lock_changes(
     ):
         for name, changes in sorted(candidate[group].items()):
             baseline = lock_record(lock, group, name)
-            start, end, section = lock_record_section(text, group, name)
-            for field in fields:
+            start, end, section = lock_record_section(
+                text, PARENT_LOCK_GROUPS[group], name
+            )
+            for field, on_disk_field in PARENT_WRITABLE_FIELDS[group].items():
                 section = replace_lock_field(
-                    section, field, str(baseline[field]), changes[field], name
+                    section,
+                    on_disk_field,
+                    str(baseline[field]),
+                    changes[field],
+                    name,
                 )
             text = f"{text[:start]}{section}{text[end:]}"
     write_verified_text(lock_path, text)
@@ -1128,15 +1532,22 @@ def update_workflow_references(
         reference = re.compile(
             rf"{re.escape(name)}(?P<suffix>(?:/[A-Za-z0-9_.-]+)*)@"
             rf"{re.escape(str(baseline['immutable_commit']))}"
-            rf" # {re.escape(str(baseline['version']))}"
+            r"\s+#\s*(?P<comment>v?[0-9]+(?:\.[0-9]+){0,3})"
         )
         replacements = 0
         for relative_text in WORKFLOW_UPDATE_PATHS:
             relative = Path(relative_text)
             path = resolve_regular_file(root, relative)
             text = path.read_text(encoding="utf-8")
-            count = len(reference.findall(text))
-            if count:
+            matches = list(reference.finditer(text))
+            if matches:
+                for match in matches:
+                    if stable_tag_key(match.group("comment"))[0] != stable_tag_key(
+                        str(baseline["version"])
+                    )[0]:
+                        raise UpdateError(
+                            f"action {name!r} has a workflow version comment outside its reviewed major"
+                        )
                 write_verified_text(
                     path,
                     reference.sub(
@@ -1147,31 +1558,18 @@ def update_workflow_references(
                         text,
                     ),
                 )
-                replacements += count
+                replacements += len(matches)
         if replacements == 0:
             raise UpdateError(
                 f"action {name!r} has no reviewed workflow reference to update"
             )
 
 
-def update_documentation_references(
-    root: Path, lock: dict[str, Any], candidate: dict[str, Any]
-) -> None:
-    for name, changes in sorted(candidate["actions"].items()):
-        baseline = lock_record(lock, "actions", name)
-        old_cells = f"`{baseline['version']}` | `{baseline['immutable_commit']}`"
-        new_cells = f"`{changes['version']}` | `{changes['immutable_commit']}`"
-        for relative_text in DOCUMENTATION_UPDATE_PATHS:
-            path = resolve_regular_file(root, Path(relative_text))
-            text = path.read_text(encoding="utf-8")
-            if old_cells in text:
-                write_verified_text(path, text.replace(old_cells, new_cells))
-
-
 def apply_candidate(root: Path, candidate: dict[str, Any]) -> list[str]:
     root = resolve_root(root)
     lock_path, lock, lock_digest = load_lock(root)
     ensure_locked_action_workflow_coverage(root, lock)
+    validate_parent_workflow_contract(root, lock)
     validate_candidate_shape(candidate, lock, lock_digest)
     before = {
         path: resolve_regular_file(root, Path(path)).read_bytes()
@@ -1179,7 +1577,6 @@ def apply_candidate(root: Path, candidate: dict[str, Any]) -> list[str]:
     }
     apply_lock_changes(lock_path, lock, candidate)
     update_workflow_references(root, lock, candidate)
-    update_documentation_references(root, lock, candidate)
     changed = [
         path
         for path, contents in before.items()
@@ -1323,15 +1720,10 @@ def git_lock_blob_data(root: Path, revision: str) -> tuple[bytes, dict[str, Any]
         raise UpdateError(
             f"security tool lock at {revision} is malformed: {exc}"
         ) from exc
-    if (
-        not isinstance(data, dict)
-        or not isinstance(data.get("actions"), dict)
-        or not isinstance(data.get("tools"), dict)
-    ):
-        raise UpdateError(
-            f"security tool lock at {revision} must contain action and tool mappings"
-        )
-    return blob, data
+    try:
+        return blob, normalise_parent_lock(data)
+    except UpdateError as exc:
+        raise UpdateError(f"security tool lock at {revision} is not a valid Parent lock: {exc}") from exc
 
 
 def changed_lock_record_fields(
@@ -1537,13 +1929,29 @@ def verify_existing_branch_generated_blobs(
         shutil.rmtree(expected_root, ignore_errors=True)
 
 
-def verify_existing_branch(root: Path, base: str, head: str) -> None:
-    """Verify a reusable Draft branch before trusting or switching to it."""
+def verify_existing_branch(
+    root: Path,
+    base: str,
+    head: str,
+    candidate: dict[str, Any] | None = None,
+    expected_candidate_sha256: str | None = None,
+) -> None:
+    """Verify a reusable Draft branch before trusting or switching to it.
+
+    When a resolver candidate is supplied, the existing branch must be the
+    exact constrained result of that candidate against the default-base lock.
+    This prevents a publisher from rebinding a default-branch candidate to a
+    different lock after switching to a previously updated maintenance branch.
+    """
 
     root = resolve_root(root)
     verify_git_scope(root, staged=False, base=base, head=head)
     base_lock_blob, base_lock = git_lock_blob_data(root, base)
     _head_lock_blob, head_lock = git_lock_blob_data(root, head)
+    base_lock_digest = hashlib.sha256(base_lock_blob).hexdigest()
+    if candidate is not None:
+        require_candidate_sha256(candidate, expected_candidate_sha256)
+        validate_candidate_shape(candidate, base_lock, base_lock_digest)
     verify_existing_branch_lock_records(base_lock, head_lock)
     verify_existing_branch_generated_blobs(
         root,
@@ -1551,8 +1959,16 @@ def verify_existing_branch(root: Path, base: str, head: str) -> None:
         head,
         base_lock,
         head_lock,
-        hashlib.sha256(base_lock_blob).hexdigest(),
+        base_lock_digest,
     )
+    if candidate is not None:
+        existing_candidate = existing_branch_candidate(
+            base_lock, head_lock, base_lock_digest
+        )
+        if canonical_candidate(candidate) != canonical_candidate(existing_candidate):
+            raise UpdateError(
+                "existing maintenance branch does not match the current resolver candidate"
+            )
 
 
 def candidate_from_arguments(args: argparse.Namespace) -> dict[str, Any]:
@@ -1568,7 +1984,7 @@ def parse_args() -> argparse.Namespace:
     resolve = subparsers.add_parser(
         "resolve", help="resolve a public read-only candidate"
     )
-    resolve.add_argument("--root", type=Path, default=framework_root())
+    resolve.add_argument("--root", type=Path, default=repository_root())
     output = resolve.add_mutually_exclusive_group(required=True)
     output.add_argument("--output", type=Path)
     output.add_argument("--github-output", action="store_true")
@@ -1576,7 +1992,7 @@ def parse_args() -> argparse.Namespace:
     validate = subparsers.add_parser(
         "validate", help="validate a candidate without source writes"
     )
-    validate.add_argument("--root", type=Path, default=framework_root())
+    validate.add_argument("--root", type=Path, default=repository_root())
     candidate = validate.add_mutually_exclusive_group(required=True)
     candidate.add_argument("--candidate", type=Path)
     candidate.add_argument("--candidate-b64")
@@ -1593,7 +2009,7 @@ def parse_args() -> argparse.Namespace:
     apply = subparsers.add_parser(
         "apply", help="apply the narrow allow-listed candidate"
     )
-    apply.add_argument("--root", type=Path, default=framework_root())
+    apply.add_argument("--root", type=Path, default=repository_root())
     candidate = apply.add_mutually_exclusive_group(required=True)
     candidate.add_argument("--candidate", type=Path)
     candidate.add_argument("--candidate-b64")
@@ -1603,7 +2019,7 @@ def parse_args() -> argparse.Namespace:
     scope = subparsers.add_parser(
         "verify-scope", help="fail if a publisher diff escapes the allowlist"
     )
-    scope.add_argument("--root", type=Path, default=framework_root())
+    scope.add_argument("--root", type=Path, default=repository_root())
     scope.add_argument("--staged", action="store_true")
     scope.add_argument("--base")
     scope.add_argument("--head")
@@ -1612,9 +2028,11 @@ def parse_args() -> argparse.Namespace:
         "verify-existing-branch",
         help="verify a reusable branch against the trusted base lock before switching",
     )
-    existing.add_argument("--root", type=Path, default=framework_root())
+    existing.add_argument("--root", type=Path, default=repository_root())
     existing.add_argument("--base", required=True)
     existing.add_argument("--head", required=True)
+    existing.add_argument("--candidate-b64")
+    existing.add_argument("--expected-candidate-sha256")
     return parser.parse_args()
 
 
@@ -1636,6 +2054,7 @@ def run_validate_command(args: argparse.Namespace) -> int:
     root = resolve_root(args.root)
     _lock_path, lock, lock_digest = load_lock(root)
     ensure_locked_action_workflow_coverage(root, lock)
+    validate_parent_workflow_contract(root, lock)
     candidate = candidate_from_arguments(args)
     require_candidate_sha256(
         candidate, getattr(args, "expected_candidate_sha256", None)
@@ -1666,7 +2085,18 @@ def run_apply_command(args: argparse.Namespace) -> int:
 
 
 def run_verify_existing_branch_command(args: argparse.Namespace) -> int:
-    verify_existing_branch(args.root, args.base, args.head)
+    candidate: dict[str, Any] | None = None
+    if args.candidate_b64 is not None:
+        candidate = decode_candidate(args.candidate_b64)
+    elif args.expected_candidate_sha256 is not None:
+        raise UpdateError("--expected-candidate-sha256 requires --candidate-b64")
+    verify_existing_branch(
+        args.root,
+        args.base,
+        args.head,
+        candidate,
+        args.expected_candidate_sha256,
+    )
     print("existing maintenance branch passed base-identity verification")
     return 0
 

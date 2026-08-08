@@ -1,233 +1,160 @@
-"""Regression coverage for the Framework GitHub Actions security contract."""
+"""Security-regression tests for Parent workflow updater boundaries."""
 
 from __future__ import annotations
 
+import importlib.util
 import os
 from pathlib import Path
-import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CHECKER = ROOT / "ci/checks/security/check-github-actions-workflows.py"
-FIXTURES = ROOT / "tests/fixtures/workflow_security_contract"
+UPDATER_PATH = ROOT / "ci" / "tools" / "update-workflow-tools.py"
+FETCHER_PATH = ROOT / "ci" / "tools" / "fetch_security_tool.py"
 
 
-class WorkflowSecurityContractTests(unittest.TestCase):
-    def fixture_path(self, name: str) -> Path:
-        directory = FIXTURES / name
-        return directory if directory.is_dir() else directory.with_suffix(".yml")
+def load_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
-    def run_checker(
-        self, workflow_root: Path, check: str = "all", working_directory: Path = ROOT
-    ) -> subprocess.CompletedProcess[str]:
-        environment = os.environ.copy()
-        environment["PYTHONDONTWRITEBYTECODE"] = "1"
-        return subprocess.run(
-            [
-                sys.executable,
-                str(CHECKER),
-                "--workflow-root",
-                str(workflow_root),
-                "--check",
-                check,
-            ],
-            cwd=working_directory,
-            check=False,
-            capture_output=True,
-            text=True,
-            env=environment,
+
+UPDATER = load_module("parent_workflow_security_updater", UPDATER_PATH)
+FETCHER = load_module("parent_workflow_security_fetcher", FETCHER_PATH)
+
+
+class WorkflowSecurityRegressionTests(unittest.TestCase):
+    def test_every_current_parent_workflow_uses_a_locked_immutable_action(self) -> None:
+        _path, lock, _digest = UPDATER.load_lock(ROOT)
+        UPDATER.ensure_locked_action_workflow_coverage(ROOT, lock)
+        UPDATER.validate_parent_workflow_contract(ROOT, lock)
+
+    def test_yaml_composition_features_fail_closed_before_semantic_checks(self) -> None:
+        fixtures = {
+            "anchor": "name: &unsafe workflow\n",
+            "alias": "name: workflow\nvalue: *unsafe\n",
+            "tag": "name: !unsafe workflow\n",
+            "merge": "base: &base {name: workflow}\n<<: *base\n",
+        }
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            for name, content in fixtures.items():
+                with self.subTest(name=name):
+                    path = temporary_root / f"{name}.yml"
+                    path.write_text(content, encoding="utf-8")
+                    with self.assertRaises(UPDATER.UpdateError):
+                        UPDATER.checked_workflow_mapping(path, path.name)
+
+    def test_root_and_regular_path_resolution_reject_symlinks_and_traversal(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            actual = temporary_root / "actual"
+            actual.mkdir()
+            alias = temporary_root / "alias"
+            alias.symlink_to(actual, target_is_directory=True)
+            with self.assertRaisesRegex(UPDATER.UpdateError, "non-symlink"):
+                UPDATER.resolve_root(alias)
+            with self.assertRaisesRegex(UPDATER.UpdateError, "traversal"):
+                UPDATER.resolve_root(actual / "..")
+            with self.assertRaisesRegex(UPDATER.UpdateError, "unsafe relative"):
+                UPDATER.resolve_regular_file(actual, Path("../escape"))
+
+    def test_fetcher_rejects_path_escapes_and_symlink_destinations(self) -> None:
+        _path, lock, _digest = UPDATER.load_lock(ROOT)
+        record = lock["tools"]["actionlint"]
+        values = {
+            "version": record["version"],
+            "asset": record["asset"],
+            "url": record["asset_url"],
+            "sha256": record["sha256"],
+            "executable": record["executable"],
+            "upstream": record["upstream_repository"],
+        }
+        for key, value in (("asset", "../tool.tar.gz"), ("executable", "dir\\tool")):
+            with self.subTest(key=key):
+                malformed = dict(values)
+                malformed[key] = value
+                with self.assertRaises(ValueError):
+                    FETCHER.validate_record("actionlint", malformed)
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            destination = root / "destination"
+            destination.symlink_to(root, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                FETCHER.fetch_record("actionlint", values, destination)
+            parent_alias = root / "parent-alias"
+            parent_alias.symlink_to(root, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                FETCHER.fetch_record("actionlint", values, parent_alias / "tool")
+
+        traversal = tarfile.TarInfo("../actionlint")
+        symlink = tarfile.TarInfo("actionlint")
+        symlink.type = tarfile.SYMTYPE
+        regular = tarfile.TarInfo("actionlint")
+        regular.type = tarfile.REGTYPE
+        self.assertFalse(FETCHER.safe_member(traversal))
+        self.assertFalse(FETCHER.safe_member(symlink))
+        self.assertTrue(FETCHER.safe_member(regular))
+
+    def test_read_only_jobs_reject_bracket_secret_and_github_token_references(self) -> None:
+        _path, lock, _digest = UPDATER.load_lock(ROOT)
+        text = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+            encoding="utf-8"
         )
-
-    def test_framework_workflows_meet_full_contract(self) -> None:
-        result = self.run_checker(ROOT / ".github/workflows")
-        self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_safe_fixtures_meet_full_contract(self) -> None:
-        for name in ("safe_read_only_pr", "safe_trusted_writer"):
-            with self.subTest(name=name):
-                result = self.run_checker(FIXTURES / name)
-                self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_validator_recurses_into_nested_workflow_directories(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_root:
-            workflow_root = Path(temporary_root)
-            nested_directory = workflow_root / "nested"
-            nested_directory.mkdir()
-            (nested_directory / "workflow.yaml").write_text(
-                """\
-name: nested workflow
-on: pull_request
-permissions:
-  contents: read
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-""",
-                encoding="utf-8",
-            )
-            result = self.run_checker(
-                workflow_root, check="pins", working_directory=workflow_root
-            )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("immutable full SHA", result.stderr)
-
-    def test_validator_allows_only_an_explicit_empty_permissions_mapping(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_root:
-            workflow_root = Path(temporary_root)
-            workflow = workflow_root / "outcome.yml"
-            workflow.write_text(
-                """\
-name: terminal outcome
-on: workflow_dispatch
-permissions:
-  contents: read
-jobs:
-  outcome:
-    runs-on: ubuntu-latest
-    permissions: {}
-    steps:
-      - run: true
-""",
-                encoding="utf-8",
-            )
-            result = self.run_checker(workflow_root, working_directory=workflow_root)
-            self.assertEqual(result.returncode, 0, result.stderr)
-
-            workflow.write_text(
-                workflow.read_text(encoding="utf-8").replace(
-                    "permissions: {}", "permissions: {contents: read}"
-                ),
-                encoding="utf-8",
-            )
-            result = self.run_checker(
-                workflow_root, check="pins", working_directory=workflow_root
-            )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("flow-style YAML collections", result.stderr)
-
-    def test_python_maintenance_scopes_read_permissions_to_jobs(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_root:
-            workflow_root = Path(temporary_root)
-            workflow = workflow_root / "check-python-version.yml"
-            safe_workflow = """\
-name: Python maintenance fixture
-on: workflow_dispatch
-permissions: {}
-jobs:
-  resolve:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - run: true
-"""
-            workflow.write_text(safe_workflow, encoding="utf-8")
-            result = self.run_checker(
-                workflow_root, check="permissions", working_directory=workflow_root
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-
-            workflow.write_text(
-                safe_workflow.replace("permissions: {}\n", "", 1),
-                encoding="utf-8",
-            )
-            result = self.run_checker(
-                workflow_root, check="permissions", working_directory=workflow_root
-            )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("top-level permissions", result.stderr)
-
-            workflow.write_text(safe_workflow, encoding="utf-8")
-            workflow.rename(workflow_root / "other.yml")
-            result = self.run_checker(
-                workflow_root, check="permissions", working_directory=workflow_root
-            )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("top-level permissions", result.stderr)
-
-    def test_validator_rejects_workflow_roots_outside_the_repository(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_root:
-            workflow = Path(temporary_root) / "workflow.yml"
-            workflow.write_text("name: external\n", encoding="utf-8")
-            result = self.run_checker(workflow, check="pins")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("no .yml or .yaml workflow files found", result.stderr)
-
-    def test_validator_does_not_follow_a_workflow_symlink_outside_repository(
-        self,
-    ) -> None:
-        with (
-            tempfile.TemporaryDirectory() as repository,
-            tempfile.TemporaryDirectory() as external,
+        for expression in (
+            "${{ secrets['UPDATER_TOKEN'] }}",
+            "${{ github['token'] }}",
         ):
-            repository_root = Path(repository)
-            external_workflow = Path(external) / "workflow.yml"
-            external_workflow.write_text("name: external\n", encoding="utf-8")
-            (repository_root / "escaped.yml").symlink_to(external_workflow)
-            result = self.run_checker(
-                repository_root, check="pins", working_directory=repository_root
-            )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("no .yml or .yaml workflow files found", result.stderr)
-
-    def test_pin_validator_rejects_mutable_tags_in_both_extensions(self) -> None:
-        cases = {
-            "unsafe_mutable_tag": "immutable full SHA",
-            "unsafe_yaml_mutable_tag": "immutable full SHA",
-            "unsafe_dynamic_uses": "immutable full SHA",
-            "unsafe_spaced_uses": "immutable full SHA",
-            "unsafe_quoted_uses": "immutable full SHA",
-            "unsafe_flow_uses": "flow-style YAML collections",
-            "unsafe_flow_sequence_uses": "flow-style YAML collections",
-            "unsafe_nested_flow_uses": "flow-style YAML collections",
-            "unsafe_block_scalar_uses": "must not use YAML block scalars",
-            "unsafe_explicit_key_uses": "explicit mapping keys",
-            "unsafe_tagged_key_uses": "YAML tags, anchors, aliases, and merge keys",
-            "unsafe_tagged_flow_sequence_uses": "YAML tags, anchors, aliases, and merge keys",
-            "unsafe_escaped_key_uses": "escaped double-quoted mapping keys",
-            "unsafe_document_start_tagged_flow": "YAML document markers",
-            "unsafe_bom_document_start_tagged_flow": "YAML document markers",
-        }
-        for name, expected_message in cases.items():
-            with self.subTest(name=name):
-                result = self.run_checker(self.fixture_path(name), check="pins")
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn(expected_message, result.stderr)
-
-    def test_permission_and_trust_boundary_validator_rejects_unsafe_fixtures(
-        self,
-    ) -> None:
-        cases = {
-            "unsafe_pull_request_target": "pull_request_target",
-            "unsafe_pr_write_permission": "write permission",
-            "unsafe_top_level_write_permission": "top-level permissions",
-            "unsafe_checkout_credentials": "persist-credentials",
-            "unsafe_job_token_scope": "job-level GITHUB_TOKEN",
-            "unsafe_pr_submodules": "submodules",
-            "unsafe_pr_dynamic_submodules": "submodules",
-            "unsafe_pr_secret": "secrets",
-            "unsafe_pr_secret_bracket": "secrets",
-            "unsafe_pr_secret_serialized": "secrets",
-            "unsafe_pr_reusable_secrets": "reusable-workflow secrets",
-            "unsafe_workflow_token_scope": "workflow-level GITHUB_TOKEN",
-            "unsafe_renamed_workflow_token": "workflow-level env must not expose github.token",
-            "unsafe_serialized_workflow_token": "workflow-level env must not expose github.token",
-            "unsafe_duplicate_key": "duplicate key",
-            "unsafe_yaml_anchor": "anchors",
-            "unsafe_missing_version_comment": "release comment",
-        }
-        for name, expected_message in cases.items():
-            with self.subTest(name=name):
-                check = (
-                    "pins"
-                    if name == "unsafe_missing_version_comment"
-                    else "permissions"
+            with self.subTest(expression=expression), tempfile.TemporaryDirectory() as temporary_directory:
+                root = Path(temporary_directory)
+                workflow_dir = root / ".github/workflows"
+                workflow_dir.mkdir(parents=True)
+                target = workflow_dir / "update-workflow-tools.yml"
+                target.write_text(
+                    text.replace("  resolver:\n", f"  resolver:\n    env:\n      TOKEN: {expression}\n", 1),
+                    encoding="utf-8",
                 )
-                result = self.run_checker(self.fixture_path(name), check=check)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn(expected_message, result.stderr)
+                lock_target = root / "ci/tooling/security-tools.lock.yml"
+                lock_target.parent.mkdir(parents=True)
+                lock_target.write_bytes(
+                    (ROOT / "ci/tooling/security-tools.lock.yml").read_bytes()
+                )
+                with self.assertRaisesRegex(UPDATER.UpdateError, "must not receive secrets"):
+                    UPDATER.validate_parent_workflow_contract(root, lock)
+
+    def test_candidate_sha_binding_rejects_tampering(self) -> None:
+        candidate = {"schema_version": 1, "lock_sha256": "a" * 64, "actions": {}, "tools": {}}
+        expected = UPDATER.candidate_sha256(candidate)
+        UPDATER.require_candidate_sha256(candidate, expected)
+        candidate["tools"] = {"actionlint": {}}
+        with self.assertRaisesRegex(UPDATER.UpdateError, "does not match"):
+            UPDATER.require_candidate_sha256(candidate, expected)
+
+    def test_runner_temp_must_be_owned_nonsymlink_and_absolute(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            runner_temp = root / "runner-temp"
+            runner_temp.mkdir()
+            with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+                self.assertEqual(UPDATER.runner_temp_root(), runner_temp.resolve())
+            alias = root / "alias"
+            alias.symlink_to(runner_temp, target_is_directory=True)
+            with patch.dict(os.environ, {"RUNNER_TEMP": str(alias)}):
+                with self.assertRaisesRegex(UPDATER.UpdateError, "non-symlink"):
+                    UPDATER.runner_temp_root()
+            with patch.dict(os.environ, {"RUNNER_TEMP": "relative"}):
+                with self.assertRaisesRegex(UPDATER.UpdateError, "absolute"):
+                    UPDATER.runner_temp_root()
+
+
+if __name__ == "__main__":
+    unittest.main()
