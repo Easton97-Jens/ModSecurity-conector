@@ -281,6 +281,40 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertIn("Fuzz Common HTTP header parser", text)
         self.assertIn("make check-common-http-header-fuzz", text)
 
+    def test_codeql_components_match_the_central_lock_atomically(self) -> None:
+        """Keep every CodeQL component on the one locked release."""
+
+        lock_text = (ROOT / "ci" / "tooling" / "security-tools.lock.yml").read_text(encoding="utf-8")
+        lock_entry = re.search(
+            r"^  github/codeql-action:\n"
+            r"    version: (?P<version>v[^\s]+)\n"
+            r"    commit_sha: (?P<sha>[a-f\d]{40})\n"
+            r"    upstream: https://github\.com/github/codeql-action$",
+            lock_text,
+            re.MULTILINE,
+        )
+        self.assertIsNotNone(lock_entry)
+        assert lock_entry is not None
+        expected = (lock_entry.group("sha"), lock_entry.group("version"))
+
+        codeql_jobs = 0
+        for job_name, job in self.jobs("ci-security-codeql.yml").items():
+            init_references = re.findall(r"github/codeql-action/init@([a-f\d]{40})\s+# (v[^\s]+)", job)
+            analyze_references = re.findall(r"github/codeql-action/analyze@([a-f\d]{40})\s+# (v[^\s]+)", job)
+            if not init_references and not analyze_references:
+                continue
+            codeql_jobs += 1
+            self.assertEqual(init_references, [expected], f"{job_name}: init")
+            self.assertEqual(analyze_references, [expected], f"{job_name}: analyze")
+
+        self.assertEqual(codeql_jobs, 4)
+        for workflow_name in ("ci-security-osv.yml", "ci-security-scorecard.yml"):
+            upload_references = re.findall(
+                r"github/codeql-action/upload-sarif@([a-f\d]{40})\s+# (v[^\s]+)",
+                self.workflow(workflow_name),
+            )
+            self.assertEqual(upload_references, [expected], workflow_name)
+
     def test_development_pyyaml_dependency_is_exact_safe_pin(self) -> None:
         text = (ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
         self.assertIn("PyYAML==6.0.3", text)
