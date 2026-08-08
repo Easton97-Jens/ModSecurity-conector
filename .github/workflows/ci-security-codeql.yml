@@ -26,7 +26,7 @@ jobs:
         with:
           languages: actions
           build-mode: none
-      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+      - uses: github/codeql-action/analyze@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
 
   envoy-go:
     runs-on: ubuntu-latest
@@ -48,7 +48,7 @@ jobs:
       - name: Build Envoy Go module
         working-directory: connectors/envoy/ext_proc
         run: go build ./...
-      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+      - uses: github/codeql-action/analyze@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
 
   traefik-go:
     runs-on: ubuntu-latest
@@ -73,7 +73,7 @@ jobs:
       - name: Fuzz Traefik UDS frame parser
         working-directory: connectors/traefik/native_middleware
         run: GOTOOLCHAIN=local go test -mod=readonly -run='^$' -fuzz='^FuzzUDSFrameAndResult$' -fuzztime=15s -parallel=1 .
-      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+      - uses: github/codeql-action/analyze@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
 
   bounded-c-cpp:
     runs-on: ubuntu-latest
@@ -92,4 +92,4 @@ jobs:
         run: make check-common-helpers-c17
       - name: Fuzz Common HTTP header parser
         run: make check-common-http-header-fuzz
-      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+      - uses: github/codeql-action/analyze@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
