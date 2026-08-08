@@ -23,7 +23,6 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 
 from runtime_path_utils import (
-    canonical_project_roots,
     open_runtime_artifact_parent,
     prepare_verified_runtime_artifact_root,
     runtime_artifact_path,
@@ -336,17 +335,45 @@ def load_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def canonical_catalog_path(value: Path) -> Path:
-    """Accept only the checked-out Framework catalog, never an arbitrary CLI file."""
+def canonical_framework_root(value: Path) -> Path:
+    """Validate the exact read-only Framework root selected for one invocation."""
 
-    _, framework_root = canonical_project_roots()
-    framework = framework_root.resolve(strict=True)
-    candidate = value.resolve(strict=True)
+    if not value.is_absolute():
+        raise ValueError(f"Framework source root must be absolute: {value}")
+    if ".." in value.parts:
+        raise ValueError(f"Framework source root contains an unsafe path component: {value}")
+    lexical = Path(os.path.abspath(os.fspath(value)))
+    try:
+        resolved = lexical.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError(f"Framework source root is unavailable: {lexical}") from exc
+    if lexical != resolved:
+        raise ValueError(f"Framework source root must not contain symbolic links: {lexical}")
+    if not resolved.is_dir():
+        raise ValueError(f"Framework source root must be an existing directory: {resolved}")
+    return resolved
+
+
+def canonical_catalog_path(value: Path, framework_root: Path) -> Path:
+    """Accept a regular non-symlink catalog under the selected Framework root."""
+
+    framework = canonical_framework_root(framework_root)
+    if not value.is_absolute():
+        raise ValueError(f"catalog must be absolute: {value}")
+    if ".." in value.parts:
+        raise ValueError(f"catalog contains an unsafe path component: {value}")
+    lexical = Path(os.path.abspath(os.fspath(value)))
+    try:
+        candidate = lexical.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError(f"catalog is unavailable: {lexical}") from exc
+    if lexical != candidate:
+        raise ValueError(f"catalog must not contain symbolic links: {lexical}")
     try:
         candidate.relative_to(framework)
     except ValueError as exc:
         raise ValueError(f"catalog must remain under the Framework source root: {candidate}") from exc
-    if not candidate.is_file() or candidate.is_symlink():
+    if not candidate.is_file():
         raise ValueError(f"catalog must be a regular source file: {candidate}")
     return candidate
 
@@ -837,7 +864,10 @@ def contained_source_event_path(path: Path, allowed_root: Path) -> Path:
 
 
 def scrub_source_event_paths(
-    paths: list[Path], allowed_root: Path, log_path: Path | None = None
+    paths: list[Path],
+    allowed_root: Path,
+    log_path: Path | None = None,
+    log_root: Path | None = None,
 ) -> list[Path]:
     removed: list[Path] = []
     seen: set[Path] = set()
@@ -851,7 +881,7 @@ def scrub_source_event_paths(
     if log_path is not None:
         lines = [f"removed_after_allowlist_normalization={path}" for path in removed]
         write_runtime_artifact_text_atomic(
-            allowed_root,
+            log_root or allowed_root,
             log_path,
             "\n".join(lines or ["not_produced"]) + "\n",
             "source event scrub log",
@@ -1687,30 +1717,18 @@ def nonpromoted_host_success(objects: list[dict[str, Any]]) -> bool:
     return False
 
 
-def default_catalog_path() -> Path:
-    repository_root = next(
-        parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file()
-    )
-    return (
-        repository_root
-        / "modules/ModSecurity-test-Framework/tests/cases/no-crs-baseline/catalog.json"
-    )
-
-
 def collector_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--connector", required=True)
     parser.add_argument("--stage-rc", required=True, type=int)
     parser.add_argument("--expected-rule-id", default="1100001")
-    parser.add_argument(
-        "--catalog",
-        type=Path,
-        default=default_catalog_path(),
-    )
+    parser.add_argument("--framework-root", required=True, type=Path)
+    parser.add_argument("--catalog", required=True, type=Path)
     parser.add_argument("--source-result", action="append", type=Path, default=[])
     parser.add_argument("--source-results-jsonl", action="append", type=Path, default=[])
     parser.add_argument("--source-events", action="append", type=Path, default=[])
     parser.add_argument("--allowed-source-root", type=Path)
+    parser.add_argument("--allowed-log-root", type=Path)
     parser.add_argument("--scrub-source-events", action="store_true")
     parser.add_argument("--source-event-scrub-log", type=Path)
     parser.add_argument("--events-output", type=Path)
@@ -1725,9 +1743,14 @@ def prepare_collector_arguments(
 ) -> Path:
     if args.allowed_source_root is None:
         parser.error("--allowed-source-root is required to confine runtime artifacts")
+    if args.allowed_log_root is None:
+        parser.error("--allowed-log-root is required to confine lifecycle logs")
     try:
         source_root = prepare_verified_runtime_artifact_root(args.allowed_source_root)
-        args.catalog = canonical_catalog_path(args.catalog)
+        log_root = prepare_verified_runtime_artifact_root(args.allowed_log_root)
+        args.allowed_log_root = log_root
+        args.framework_root = canonical_framework_root(args.framework_root)
+        args.catalog = canonical_catalog_path(args.catalog, args.framework_root)
         args.source_result = runtime_artifact_paths(
             source_root, args.source_result, "source result", must_exist=True
         )
@@ -1739,11 +1762,11 @@ def prepare_collector_arguments(
         )
         if args.stdout is not None:
             args.stdout = runtime_artifact_path(
-                source_root, args.stdout, "stdout"
+                log_root, args.stdout, "stdout"
             )
         if args.stderr is not None:
             args.stderr = runtime_artifact_path(
-                source_root, args.stderr, "stderr"
+                log_root, args.stderr, "stderr"
             )
         args.output = runtime_artifact_path(source_root, args.output, "output")
         if args.events_output is not None:
@@ -1752,7 +1775,7 @@ def prepare_collector_arguments(
             )
         if args.source_event_scrub_log is not None:
             args.source_event_scrub_log = runtime_artifact_path(
-                source_root, args.source_event_scrub_log, "source event scrub log"
+                log_root, args.source_event_scrub_log, "source event scrub log"
             )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
@@ -1884,8 +1907,19 @@ def collector_payload(
     # host probe. That response is host-selection metadata, not a canonical
     # Phase-1 allow result, so do not let the Framework derive a case PASS
     # from it later.
-    reported_allowed = None if nonpromoted_host else allowed
-    reported_blocked = None if nonpromoted_host else blocked
+    recorded_case_ids = {
+        str(case.get("case_id") or "") for case in cases if isinstance(case, dict)
+    }
+    reported_allowed = (
+        None
+        if nonpromoted_host or "allow_without_marker" in recorded_case_ids
+        else allowed
+    )
+    reported_blocked = (
+        None
+        if nonpromoted_host or "deny_header_marker_403" in recorded_case_ids
+        else blocked
+    )
     return {
         "schema_version": 1,
         "connector": args.connector,
@@ -1937,6 +1971,7 @@ def write_collector_artifacts(
             [*source_events, *consumed_event_paths],
             source_root,
             args.source_event_scrub_log,
+            args.allowed_log_root,
         )
 
 

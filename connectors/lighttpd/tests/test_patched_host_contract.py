@@ -289,6 +289,49 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn("phase4_first_byte_before_response_end_status", runner)
         self.assertIn("phase4_no_full_response_buffering_status", runner)
         self.assertNotIn("wire bytes", runner)
+        self.assertIn(': "${NO_CRS_RUN_ID:?NO_CRS_RUN_ID is required}"', runner)
+
+        serve_command = runner.split(
+            '"$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve', 1
+        )[1].split("BARRIER_PID=$!", 1)[0]
+        merge_command = runner.split(
+            '"$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence', 1
+        )[1].split('fail "could not write payload-free synchronized first-byte evidence"', 1)[0]
+        self.assertIn('--control-root "$SMOKE_DIR"', serve_command)
+        self.assertIn('--control-root "$SMOKE_DIR"', merge_command)
+        writer_command = runner.split('"$PYTHON_BIN" "$RESULT_WRITER" \\\n', 1)[1].split(
+            "if grep -Fq", 1
+        )[0]
+        self.assertIn('--run-id "$NO_CRS_RUN_ID"', writer_command)
+
+    def test_parent_routes_lighttpd_first_byte_evidence_through_the_smoke_root(self) -> None:
+        lifecycle = (REPO_ROOT / "ci" / "runtime" / "lifecycle" / "run-no-crs-baseline.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "FIRST_BYTE_EVIDENCE=$CONNECTOR_RUN_ROOT/first-byte-evidence.json",
+            lifecycle,
+        )
+        self.assertIn(
+            'if [ "$connector" = lighttpd ] && [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then',
+            lifecycle,
+        )
+        self.assertIn(
+            "LIGHTTPD_STAGE_FIRST_BYTE_EVIDENCE=$LIGHTTPD_RUNTIME_ROOT/first-byte-evidence.json",
+            lifecycle,
+        )
+        self.assertIn(
+            "FIRST_BYTE_EVIDENCE_SOURCE=$LIGHTTPD_STAGE_FIRST_BYTE_EVIDENCE",
+            lifecycle,
+        )
+        self.assertIn(
+            'FULL_LIFECYCLE_EVIDENCE_OUTPUT="$STAGE_FIRST_BYTE_EVIDENCE_OUTPUT"',
+            lifecycle,
+        )
+        self.assertIn(
+            'cp "$FIRST_BYTE_EVIDENCE_SOURCE" "$FIRST_BYTE_EVIDENCE"',
+            lifecycle,
+        )
 
     def test_full_lifecycle_runner_centralizes_fixed_status_and_diagnostic_literals(self) -> None:
         runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
@@ -410,6 +453,7 @@ class PatchedHostContractTest(unittest.TestCase):
                     "python3",
                     str(writer),
                     "--events", str(events),
+                    "--run-id", "lighttpd-current-run",
                     "--output", str(output),
                     "--selected-case-ids",
                     "phase4_rule_observed phase4_end_of_stream_evaluation "
@@ -441,6 +485,7 @@ class PatchedHostContractTest(unittest.TestCase):
             projected = json.loads(projection.read_text(encoding="utf-8"))
             self.assertTrue(projected["eos_seen"])
             self.assertTrue(projected["end_of_stream_evaluation"])
+            self.assertEqual(projected["run_id"], "lighttpd-current-run")
             self.assertNotIn("event_hash", projected)
             rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
             self.assertEqual({row["status"] for row in rows}, {"PASS"})

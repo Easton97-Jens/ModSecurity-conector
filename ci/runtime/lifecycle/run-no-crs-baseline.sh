@@ -226,6 +226,16 @@ CANONICAL_STDERR_LOG=$CONNECTOR_LOG_ROOT/stderr.canonical.log
 CANONICAL_HOST_LOG=$CONNECTOR_LOG_ROOT/host.canonical.log
 FIRST_BYTE_EVIDENCE=$CONNECTOR_RUN_ROOT/first-byte-evidence.json
 FIRST_BYTE_EVIDENCE_SOURCE=${FIRST_BYTE_EVIDENCE_SOURCE:-}
+STAGE_FIRST_BYTE_EVIDENCE_OUTPUT=$FIRST_BYTE_EVIDENCE
+if [ "$connector" = lighttpd ] && [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+    # The Lighttpd harness owns only its dedicated smoke root and correctly
+    # rejects a parent-run output.  Keep its host-produced source inside that
+    # root; the existing finalizer validates and copies it into the canonical
+    # connector-run destination below.
+    LIGHTTPD_STAGE_FIRST_BYTE_EVIDENCE=$LIGHTTPD_RUNTIME_ROOT/first-byte-evidence.json
+    STAGE_FIRST_BYTE_EVIDENCE_OUTPUT=$LIGHTTPD_STAGE_FIRST_BYTE_EVIDENCE
+    FIRST_BYTE_EVIDENCE_SOURCE=$LIGHTTPD_STAGE_FIRST_BYTE_EVIDENCE
+fi
 ENGINE_ARTIFACT_DIR=$CONNECTOR_RUN_ROOT/engine-artifacts
 ENGINE_VERSION_ARTIFACT=$ENGINE_ARTIFACT_DIR/engine-version.txt
 ENGINE_LIBRARY_SHA256_ARTIFACT=$ENGINE_ARTIFACT_DIR/engine-library-sha256.txt
@@ -506,7 +516,7 @@ NO_CRS_ARTIFACT_PROFILE="$NO_CRS_ARTIFACT_PROFILE" \
 NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR="$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR" \
 FULL_LIFECYCLE_HOST_PROFILE="$FULL_LIFECYCLE_HOST_PROFILE" \
 FULL_LIFECYCLE_EXECUTED_TARGET="$FULL_LIFECYCLE_EXECUTED_TARGET" \
-FULL_LIFECYCLE_EVIDENCE_OUTPUT="$FIRST_BYTE_EVIDENCE" \
+FULL_LIFECYCLE_EVIDENCE_OUTPUT="$STAGE_FIRST_BYTE_EVIDENCE_OUTPUT" \
 MSCONNECTOR_EXPECTED_RULE_ID="$EXPECTED_RULE_ID" \
 NO_CRS_RUN_ID="$NO_CRS_RUN_ID" \
 sh "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-connector-stage.sh" "$connector" "$evidence_stage" \
@@ -612,9 +622,11 @@ set -- \
     --stage-rc "$stage_rc" \
     --expected-rule-id "$EXPECTED_RULE_ID" \
     --catalog "$FRAMEWORK_ROOT/tests/cases/no-crs-baseline/catalog.json" \
+    --framework-root "$FRAMEWORK_ROOT" \
     --stdout "$LOG_DIR/stdout.log" \
     --stderr "$LOG_DIR/stderr.log" \
     --allowed-source-root "$RAW_DIR" \
+    --allowed-log-root "$LOG_DIR" \
     --scrub-source-events \
     --source-event-scrub-log "$SOURCE_EVENT_SCRUB_LOG" \
     --events-output "$NORMALIZED_EVENTS" \
@@ -715,9 +727,11 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
         # Preserve an explicit synthetic barrier observation when no connector
         # harness supplied a real-host one.  The Framework records its origin
         # and refuses to promote either low-latency capability from it.
-        "$PYTHON" "$SYNCHRONIZED_UPSTREAM" --output "$FIRST_BYTE_EVIDENCE" \
+        "$PYTHON" "$SYNCHRONIZED_UPSTREAM" \
+            --control-root "$CONNECTOR_RUN_ROOT" \
+            --output "$FIRST_BYTE_EVIDENCE" \
             >"$LOG_DIR/synchronized-upstream.stdout.log" \
-            2>"$LOG_DIR/synchronized-upstream.stderr.log" || true
+            2>"$LOG_DIR/synchronized-upstream.stderr.log"
         [ -f "$FIRST_BYTE_EVIDENCE" ] || {
             echo "FAIL: synchronized first-byte diagnostic did not produce evidence" >&2
             exit 1
@@ -778,6 +792,8 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
         --connector "$connector" \
         --run-id "$NO_CRS_RUN_ID" \
         --runtime-root "$CONNECTOR_RUN_ROOT" \
+        --config-source-root "$CONNECTOR_BUILD_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" \
         --effective-config-dir "$EFFECTIVE_CONFIG_ARTIFACT_DIR" \
         --config-file "capabilities.json=$CAPABILITIES_FILE" \
         --config-file "rules/no-crs-baseline.conf=$NO_CRS_RULES_FILE"
@@ -807,7 +823,10 @@ case "$connector" in
         fi
         ;;
     envoy) host_binary=$CONNECTOR_COMPONENT_CACHE/envoy/bin/envoy ;;
-    traefik) host_binary=$CONNECTOR_COMPONENT_CACHE/traefik/bin/traefik ;;
+    # The native lifecycle may deliberately provide a freshly staged pinned
+    # binary outside the reusable component cache.  Record the version of the
+    # binary that actually executed the host, not merely the cache default.
+    traefik) host_binary=${TRAEFIK_BIN:-$CONNECTOR_COMPONENT_CACHE/traefik/bin/traefik} ;;
     lighttpd)
         if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
             host_binary=$HOST_RUNTIME_ROOT/lighttpd-patched/stage/bin/lighttpd
@@ -874,7 +893,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ] && [ "$stage_rc" -eq 0 ]; the
             # identifier consisting of ASCII letters, digits, underscores, or dashes.
             ;;
     esac
-    modsecurity_prefix=$CACHE_ROOT/prefix/modsecurity/$modsecurity_build_id
+    modsecurity_prefix=$CONNECTOR_COMPONENT_CACHE/prefix/modsecurity/$modsecurity_build_id
     modsecurity_library_root=$modsecurity_prefix/lib
     if [ "${MODSECURITY_PREFIX:-}" != "$modsecurity_prefix" ] || \
        [ "${MODSECURITY_LIB_DIR:-}" != "$modsecurity_library_root" ]; then
@@ -891,6 +910,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ] && [ "$stage_rc" -eq 0 ]; the
         --source-result "$SOURCE_RESULT" \
         --source-events "$NORMALIZED_EVENTS" \
         --rules-file "$NO_CRS_RULES_FILE" \
+        --framework-root "$FRAMEWORK_ROOT" \
         --libmodsecurity-version "$libmodsecurity_version" \
         --libmodsecurity-library "$libmodsecurity_library" \
         --libmodsecurity-library-root "$modsecurity_library_root" \

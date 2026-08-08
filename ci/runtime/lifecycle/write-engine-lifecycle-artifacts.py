@@ -70,6 +70,45 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def canonical_framework_root(value: Path) -> Path:
+    """Validate the exact read-only Framework root selected for this run."""
+
+    if not value.is_absolute():
+        raise ValueError(f"framework root must be absolute: {value}")
+    if ".." in value.parts:
+        raise ValueError(f"framework root must not contain '..': {value}")
+    lexical = Path(os.path.abspath(os.fspath(value)))
+    resolved = lexical.resolve(strict=True)
+    if lexical != resolved:
+        raise ValueError(f"framework root must not use symbolic links: {lexical}")
+    if not resolved.is_dir():
+        raise ValueError(f"framework root must be an existing directory: {resolved}")
+    return resolved
+
+
+def framework_rules_path(value: Path | str, framework_root: Path | None) -> Path | None:
+    """Return one regular no-symlink rules file below the selected Framework."""
+
+    if framework_root is None:
+        return None
+    candidate = Path(value)
+    if not candidate.is_absolute():
+        raise ValueError(f"rules must be absolute: {candidate}")
+    if ".." in candidate.parts:
+        raise ValueError(f"rules must not contain '..': {candidate}")
+    lexical = Path(os.path.abspath(os.fspath(candidate)))
+    try:
+        lexical.relative_to(framework_root)
+    except ValueError:
+        return None
+    resolved = lexical.resolve(strict=True)
+    if lexical != resolved:
+        raise ValueError(f"rules must not use symbolic links: {lexical}")
+    if not resolved.is_file():
+        raise ValueError(f"rules must be an existing regular file: {resolved}")
+    return resolved
+
+
 def managed_library_path(library_value: Path | str, root_value: Path | str) -> Path:
     """Resolve the managed SONAME without widening the provenance read scope.
 
@@ -461,6 +500,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--runtime-root", type=Path)
     parser.add_argument("--transport-lifecycle", type=Path)
+    parser.add_argument("--framework-root", type=Path)
     return parser.parse_args()
 
 
@@ -475,9 +515,16 @@ def main() -> int:
     events_path = runtime_artifact_path(
         runtime_root, args.source_events, "source events", must_exist=True
     )
-    rules_path = runtime_or_source_artifact_path(
-        runtime_root, args.rules_file, "rules", must_exist=True
+    framework_root = (
+        canonical_framework_root(args.framework_root)
+        if args.framework_root is not None
+        else None
     )
+    rules_path = framework_rules_path(args.rules_file, framework_root)
+    if rules_path is None:
+        rules_path = runtime_or_source_artifact_path(
+            runtime_root, args.rules_file, "rules", must_exist=True
+        )
     library_path = managed_library_path(
         args.libmodsecurity_library,
         args.libmodsecurity_library_root,

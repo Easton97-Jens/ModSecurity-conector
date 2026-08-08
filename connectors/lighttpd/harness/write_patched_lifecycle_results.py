@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 from typing import Any, Iterable
 
 from patched_event_validation import load_events, nonnegative, phase_is_four
@@ -21,6 +22,14 @@ from safe_runtime_output import (
     verified_runtime_output_root,
     write_text_atomic,
 )
+
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+CI_LIB = REPO_ROOT / "ci" / "lib"
+if str(CI_LIB) not in sys.path:
+    sys.path.insert(0, str(CI_LIB))
+
+from verified_run_id import VerifiedRunIdError, validate_verified_run_id  # noqa: E402
 
 
 CASE_RULES = {
@@ -126,7 +135,9 @@ def event_fields(event: dict[str, Any]) -> dict[str, Any]:
     return {field: event.get(field) for field in P4_SEMANTIC_FIELDS}
 
 
-def write_eos_projection(root: Path, path: Path, event: dict[str, Any]) -> dict[str, Any]:
+def write_eos_projection(
+    root: Path, path: Path, event: dict[str, Any], *, run_id: str
+) -> dict[str, Any]:
     """Publish the one safe host action with its causal EOS facts.
 
     The raw Common event is emitted by ``finish_response_body``.  On the
@@ -137,9 +148,14 @@ def write_eos_projection(root: Path, path: Path, event: dict[str, Any]) -> dict[
     intentionally omits Common's integrity-chain fields rather than
     pretending that the derived record has a new Common event hash.
     """
+    if "run_id" in event and event["run_id"] != run_id:
+        raise ValueError(
+            "raw Common event run_id conflicts with the selected Lighttpd run identity"
+        )
     projection = dict(event)
     for field in ("sequence", "previous_event_hash", "event_hash"):
         projection.pop(field, None)
+    projection["run_id"] = run_id
     projection["eos_seen"] = True
     projection["end_of_stream_evaluation"] = True
     write_text_atomic(
@@ -284,6 +300,7 @@ def write_summary(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--events", required=True, type=Path)
+    parser.add_argument("--run-id", required=True)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--selected-case-ids", default="")
     parser.add_argument("--allow-status", required=True, type=int)
@@ -301,6 +318,10 @@ def main() -> int:
     parser.add_argument("--phase4-summary-output", required=True, type=Path)
     parser.add_argument("--runtime-output-root", required=True, type=Path)
     args = parser.parse_args()
+    try:
+        run_id = validate_verified_run_id(args.run_id)
+    except VerifiedRunIdError as error:
+        parser.error(str(error))
     output_root = verified_runtime_output_root(args.runtime_output_root)
 
     events_path = safe_input_path(output_root, args.events, "events input")
@@ -342,7 +363,14 @@ def main() -> int:
         "synchronized first-byte barrier",
     )
     safe_event = one_safe_phase4_event(
-        [write_eos_projection(output_root, args.phase4_projected_events_output, raw_safe_event)],
+        [
+            write_eos_projection(
+                output_root,
+                args.phase4_projected_events_output,
+                raw_safe_event,
+                run_id=run_id,
+            )
+        ],
         "synchronized first-byte barrier EOS projection",
     )
     if args.phase4_safe_status != 200:

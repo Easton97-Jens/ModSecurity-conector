@@ -415,6 +415,18 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             canonical_runner,
         )
         self.assertIn(
+            "modsecurity_prefix=$CONNECTOR_COMPONENT_CACHE/prefix/modsecurity/$modsecurity_build_id",
+            canonical_runner,
+        )
+        self.assertNotIn(
+            "modsecurity_prefix=$CACHE_ROOT/prefix/modsecurity/$modsecurity_build_id",
+            canonical_runner,
+        )
+        self.assertIn(
+            "traefik) host_binary=${TRAEFIK_BIN:-$CONNECTOR_COMPONENT_CACHE/traefik/bin/traefik} ;;",
+            canonical_runner,
+        )
+        self.assertIn(
             'RUNTIME_COMPONENT_ENV_SNAPSHOT="${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}"',
             stage_runner,
         )

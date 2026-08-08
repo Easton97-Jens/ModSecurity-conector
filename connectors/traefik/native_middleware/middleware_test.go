@@ -146,6 +146,34 @@ func TestMiddlewarePreservesRequestContextForEveryEngineCallback(t *testing.T) {
 	}
 }
 
+func TestInspectingRequestBodyUsesDirectContext(t *testing.T) {
+	type requestContextKey struct{}
+	key := requestContextKey{}
+	requestContext := context.WithValue(context.Background(), key, "request-body-scope")
+	transaction := &recordingTransaction{}
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/request-body", nil).WithContext(requestContext)
+	body := &inspectingRequestBody{
+		request: request,
+		source:  io.NopCloser(strings.NewReader("body")),
+		state: &streamState{
+			config: mustTestConfig(t),
+			engine: transaction,
+		},
+	}
+
+	if _, err := io.ReadAll(body); err != nil {
+		t.Fatalf("ReadAll(body) error = %v", err)
+	}
+	if len(transaction.contexts) == 0 {
+		t.Fatal("request-body processor did not receive a context")
+	}
+	for _, value := range transaction.contexts {
+		if got, want := value.Value(key), "request-body-scope"; got != want {
+			t.Fatalf("request-body context value = %q, want %q", got, want)
+		}
+	}
+}
+
 func TestRequestHeaderRejectionNeverReflectsHeaderValue(t *testing.T) {
 	maliciousHeader := "<script>alert('request-header')</script>"
 	nextCalled := false
@@ -217,7 +245,8 @@ func TestOptionalResponseWriterInterfacesArePreserved(t *testing.T) {
 		engine: transaction,
 	}
 	underlying := newAdvancedResponseWriter(t)
-	writer := newResponseWriter(newContextProvider(context.Background()), underlying, state)
+	request := httptest.NewRequest(http.MethodGet, "http://example.test/interfaces", nil)
+	writer := newResponseWriter(request, underlying, state)
 
 	if _, ok := interface{}(writer).(http.Flusher); !ok {
 		t.Fatal("wrapped ResponseWriter does not implement http.Flusher")
