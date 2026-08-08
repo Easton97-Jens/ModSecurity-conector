@@ -218,10 +218,22 @@ export APR_VERSION
 export APR_SOURCE_URL
 export APR_SHA256
 export APR_SHA256_URL
+# The Framework's reviewed APR-util tuple deliberately distinguishes absent
+# inputs (use the reviewed tuple) from an explicit empty or altered override
+# (fail closed).  Do not turn an absent optional Make variable into an empty
+# exported override.
+ifneq ($(origin APR_UTIL_VERSION),undefined)
 export APR_UTIL_VERSION
+endif
+ifneq ($(origin APR_UTIL_SOURCE_URL),undefined)
 export APR_UTIL_SOURCE_URL
+endif
+ifneq ($(origin APR_UTIL_SHA256),undefined)
 export APR_UTIL_SHA256
+endif
+ifneq ($(origin APR_UTIL_SHA256_URL),undefined)
 export APR_UTIL_SHA256_URL
+endif
 export PCRE2_VERSION
 export PCRE2_SOURCE_URL
 export PCRE2_SHA256_URL

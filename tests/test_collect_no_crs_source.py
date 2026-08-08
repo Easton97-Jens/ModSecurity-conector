@@ -1248,6 +1248,58 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         }
         self.assertEqual(make_environment(reviewed), reviewed)
 
+    def test_make_preserves_apr_util_provenance_presence_semantics(self) -> None:
+        names = (
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        )
+        target = "print-apr-util-provenance-contract:\n\t@env"
+
+        def make_environment(overrides: dict[str, str | None]) -> dict[str, str]:
+            environment = os.environ.copy()
+            for name in names:
+                value = overrides.get(name)
+                if value is None:
+                    environment.pop(name, None)
+                else:
+                    environment[name] = value
+            completed = subprocess.run(
+                [
+                    "make",
+                    "--no-print-directory",
+                    "-s",
+                    "--eval",
+                    target,
+                    "print-apr-util-provenance-contract",
+                ],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            return dict(
+                line.split("=", 1)
+                for line in completed.stdout.splitlines()
+                if line.partition("=")[0] in names
+            )
+
+        absent = make_environment({name: None for name in names})
+        self.assertEqual(absent, {})
+
+        explicit_empty = make_environment({name: "" for name in names})
+        self.assertEqual(explicit_empty, {name: "" for name in names})
+
+        reviewed = {
+            "APR_UTIL_VERSION": "1.6.4",
+            "APR_UTIL_SOURCE_URL": "https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2",
+            "APR_UTIL_SHA256": "3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b",
+            "APR_UTIL_SHA256_URL": "https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2.sha256",
+        }
+        self.assertEqual(make_environment(reviewed), reviewed)
+
     def test_protocol_client_bundle_is_root_runner_scoped_and_forwarded(self) -> None:
         source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
