@@ -36,7 +36,10 @@ broker. The Python helper copies/re-hashes artifacts into a root-owned exact
 layout and implements the closed action list. Root-generated configuration and
 rules prevent caller configuration execution. The root-to-runner projection is
 allowlisted and descriptor-relative. The broker records a root-broker-only
-result, deliberately not a CRS result.
+result, deliberately not a CRS result. Its privileged parent is the fixed
+root-owned `/var/lib/msconnector-nginx-root-broker` state location; no caller
+or broker CLI input can select the parent, staging root, or runtime snapshot
+path used across the privilege boundary.
 
 ## Changed files
 
@@ -51,7 +54,7 @@ result, deliberately not a CRS result.
 
 ## Commands executed
 
-Python compilation, the focused broker/workflow/CI-security suite (`36` tests),
+Python compilation, the focused broker/workflow/CI-security suite (`39` tests),
 `make check-ci-security-contract`, `make check-bilingual-docs`,
 `make check-doc-links`, `git diff --check`, actionlint with ShellCheck, and
 zizmor offline completed successfully. `make lint` completed successfully; its
@@ -67,7 +70,9 @@ The change creates a narrow privileged boundary rather than elevating PR code.
 The caller cannot provide a root command, shell fragment, configuration path,
 or executable path. Root execution is limited to the exact protected helper,
 the exact root-copied NGINX binary, and fixed actions. Cleanup is
-descriptor-relative and cannot recursively follow caller-controlled paths.
+descriptor-relative and cannot recursively follow caller-controlled paths. A
+fault-injected failed `chown` also removes a newly created fixed root parent or
+run root, rather than leaving privileged stale state behind.
 
 ## Runtime evidence
 

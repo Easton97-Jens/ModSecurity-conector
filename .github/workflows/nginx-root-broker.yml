@@ -137,18 +137,12 @@ jobs:
         env:
           TRUSTED_BUILD_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}
           CALLER_ROOT: ${{ runner.temp }}/trusted-nginx-broker-caller-${{ inputs.run_id }}
-          STAGING_ROOT: ${{ runner.temp }}/trusted-nginx-broker-staging-${{ inputs.run_id }}
-          REPORT_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/build/runtime-component-reports
         run: |
           set -euo pipefail
           test -f "$CALLER_ROOT/caller-manifest.json"
-          mapfile -t snapshots < <(find "$REPORT_ROOT" -maxdepth 1 -type f -name 'runtime-env-snapshot.*.sh' -print | sort)
-          test "${#snapshots[@]}" -eq 1
           .venv/bin/python ci/runtime/broker/nginx_root_broker.py prepare-from-snapshot \
             --caller-manifest "$CALLER_ROOT/caller-manifest.json" \
-            --staging-root "$STAGING_ROOT" \
             --trusted-build-root "$TRUSTED_BUILD_ROOT" \
-            --runtime-snapshot "${snapshots[0]}" \
             --broker-sha "$BROKER_SHA" \
             --expected-parent-head "$EXPECTED_PARENT_HEAD" \
             --expected-framework-sha "$EXPECTED_FRAMEWORK_SHA" \

@@ -64,6 +64,8 @@ class TrustedNginxRootBrokerWorkflowTest(unittest.TestCase):
             self.assertIn(action, self.workflow)
         for forbidden in ("sudo -E", "sudo sh -c", "sudo bash -c", "systemctl", "service "):
             self.assertNotIn(forbidden, self.workflow)
+        for forbidden in ("--broker-parent", "--staging-root", "--runtime-snapshot"):
+            self.assertNotIn(forbidden, self.workflow)
 
     def test_caller_data_is_limited_to_a_declarative_artifact_and_pinned_inputs(self) -> None:
         for field in (

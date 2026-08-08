@@ -19,6 +19,7 @@ import stat
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,7 +74,6 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
         caller = self.caller_manifest(root)
         values: dict[str, object] = {
             "caller_manifest": str(caller),
-            "staging_root": str(root / "broker-staging"),
             "trusted_build_root": str(build),
             "broker_sha": BROKER_SHA,
             "binary": str(binary),
@@ -103,7 +103,8 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             self.assertEqual(candidate["producer"]["source_commit"], BROKER_SHA)
             self.assertEqual(candidate["artifacts"]["binary"]["sha256"], arguments.binary_sha256)
             self.assertTrue(Path(candidate["artifacts"]["binary"]["path"]).is_file())
-            self.assertFalse((Path(arguments.staging_root) / "runtime" / "nginx.conf").exists())
+            candidate_root = Path(arguments.trusted_build_root) / BROKER.CANDIDATE_DIRECTORY_NAME
+            self.assertFalse((candidate_root / "runtime" / BROKER.BROKER_CONFIG_FILENAME).exists())
 
     def test_empty_or_unknown_caller_manifest_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
@@ -171,7 +172,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 BROKER.prepare_candidate(arguments)
 
     def test_strict_final_manifest_rejects_broker_digest_and_projection_tampering(self) -> None:
-        root = Path("/var/tmp") / BROKER.ROOT_PARENT_NAME / "broker-run-1"
+        root = BROKER.ROOT_PARENT / "broker-run-1"
         payload: dict[str, object] = {
             "schema_version": BROKER.SCHEMA_VERSION,
             "run_id": "broker-run-1",
@@ -245,6 +246,108 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
         self.assertIn("choices=sorted(ALLOWED_ACTIONS)", source)
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             BROKER.parse_arguments(["action", "--action", "arbitrary-command", "--broker-sha", BROKER_SHA])
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            BROKER.parse_arguments(
+                [
+                    "action",
+                    "--action",
+                    "validate-manifest",
+                    "--broker-sha",
+                    BROKER_SHA,
+                    "--candidate",
+                    "/tmp/candidate.json",
+                    "--broker-parent",
+                    "/tmp/attacker-selected-root",
+                ]
+            )
+
+    def test_runtime_snapshot_is_discovered_only_below_the_trusted_build_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            root = Path(temporary)
+            trusted_build = self.private_dir(root / "trusted-build")
+            reports = self.private_dir(trusted_build / BROKER.RUNTIME_REPORTS_RELATIVE)
+            snapshot = self.write(reports / "runtime-env-snapshot.test.sh", "export NGINX_BINARY='/bin/false'\n")
+
+            self.assertEqual(BROKER.runtime_snapshot_from_trusted_build(trusted_build), snapshot)
+
+            self.write(reports / "runtime-env-snapshot.second.sh", "export NGINX_MODULE='/bin/false'\n")
+            with self.assertRaisesRegex(BROKER.BrokerError, "exactly one runtime environment snapshot"):
+                BROKER.runtime_snapshot_from_trusted_build(trusted_build)
+
+    def test_prepare_from_snapshot_uses_only_the_fixed_trusted_build_layout(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            root = Path(temporary)
+            arguments = self.prepare_arguments(root)
+            trusted_build = Path(arguments.trusted_build_root)
+            prefix = self.private_dir(trusted_build / "modsecurity-prefix")
+            library_root = self.private_dir(prefix / "lib")
+            library = self.write(library_root / "libmodsecurity.so.3", "trusted library\n")
+            reports = self.private_dir(trusted_build / BROKER.RUNTIME_REPORTS_RELATIVE)
+            self.write(
+                reports / "runtime-env-snapshot.test.sh",
+                "\n".join(
+                    (
+                        f"export NGINX_BINARY='{arguments.binary}'",
+                        f"export NGINX_MODULE='{arguments.module}'",
+                        f"export MODSECURITY_SHARED_PREFIX='{prefix}'",
+                        "",
+                    )
+                ),
+            )
+
+            candidate_path = BROKER.prepare_candidate_from_snapshot(arguments)
+
+            candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+            self.assertEqual(candidate["artifacts"]["binary"]["sha256"], digest(Path(arguments.binary)))
+            self.assertEqual(candidate["artifacts"]["module"]["sha256"], digest(Path(arguments.module)))
+            self.assertEqual(candidate["artifacts"]["modsecurity_library"]["sha256"], digest(library))
+            self.assertEqual(candidate_path.parent.parent, trusted_build / BROKER.CANDIDATE_DIRECTORY_NAME)
+
+    def test_root_creation_rolls_back_when_chown_fails(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            state_base = self.private_dir(Path(temporary) / "var-lib")
+            parent = state_base / BROKER.ROOT_PARENT_NAME
+            run_root = parent / "broker-run-1"
+
+            # The production path requires a root-owned state base.  Model that
+            # ownership boundary while retaining a real unprivileged temporary
+            # tree, so this regression test can exercise both removal paths on
+            # an ordinary CI runner.
+            original_directory_metadata = BROKER.directory_metadata
+
+            def root_owned_directory_metadata(path: Path, label: str, *, owner: int | None = None) -> os.stat_result:
+                metadata = original_directory_metadata(path, label)
+                values = list(metadata)
+                values[4] = 0
+                return os.stat_result(values)
+
+            def root_owned_stat(*args: object, **kwargs: object) -> os.stat_result:
+                metadata = original_stat(*args, **kwargs)
+                values = list(metadata)
+                values[4] = 0
+                return os.stat_result(values)
+
+            with (
+                mock.patch.object(BROKER, "ROOT_STATE_BASE", state_base),
+                mock.patch.object(BROKER, "ROOT_PARENT", parent),
+                mock.patch.object(BROKER, "directory_metadata", side_effect=root_owned_directory_metadata),
+                mock.patch.object(BROKER.os, "chown", side_effect=OSError("fault-injected chown failure")),
+            ):
+                with self.assertRaisesRegex(OSError, "fault-injected"):
+                    BROKER.secure_root_parent(os.getegid())
+            self.assertFalse(parent.exists())
+
+            BROKER.safe_mkdir(parent, BROKER.ROOT_PARENT_MODE, "test broker root parent")
+            original_stat = os.stat
+            with (
+                mock.patch.object(BROKER, "ROOT_PARENT", parent),
+                mock.patch.object(BROKER, "directory_metadata", side_effect=root_owned_directory_metadata),
+                mock.patch.object(BROKER.os, "stat", side_effect=root_owned_stat),
+                mock.patch.object(BROKER.os, "chown", side_effect=OSError("fault-injected chown failure")),
+            ):
+                with self.assertRaisesRegex(OSError, "fault-injected"):
+                    BROKER.create_admitted_root(run_root, os.getegid())
+            self.assertFalse(run_root.exists())
 
     def test_descriptor_cleanup_removes_special_entries_without_following_links(self) -> None:
         with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:

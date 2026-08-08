@@ -56,7 +56,10 @@ ModSecurity-Shared-Library ohne root aus dem ausgecheckten geschützten Source.
 Er hasht die Artefakte, kopiert sie mit no-follow-Descriptor-Prüfungen in einen
 frischen root-owned privaten Run-Tree und hasht jedes Artefakt erneut vor der
 NGINX-Ausführung. Das finale Manifest fixiert jeden Artefakt-, Runtime-, PID-,
-Log- und Evidence-Pfad unter diesem einen Run-Tree.
+Log- und Evidence-Pfad unter diesem einen Run-Tree. Der privilegierte Parent
+ist fest `/var/lib/msconnector-nginx-root-broker`, root-owned und nur für die
+Runner-Gruppe durchsuchbar; weder Caller noch ein Broker-CLI-Argument können
+ihn auswählen.
 
 Nur diese Root-Aktionen existieren:
 

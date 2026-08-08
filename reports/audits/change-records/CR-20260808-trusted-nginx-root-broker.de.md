@@ -39,7 +39,10 @@ Artefakte erneut in ein root-owned exaktes Layout und implementiert die
 geschlossene Aktionsliste. Root-generierte Konfiguration und Regeln verhindern
 Caller-Konfigurationsausführung. Die Root-zu-Runner-Projektion ist allowlisted
 und descriptor-relativ. Der Broker zeichnet ein Root-Broker-only-Ergebnis auf,
-bewusst kein CRS-Ergebnis.
+bewusst kein CRS-Ergebnis. Sein privilegierter Parent ist der feste
+root-owned State-Ort `/var/lib/msconnector-nginx-root-broker`; kein Caller-
+oder Broker-CLI-Input kann Parent, Staging-Root oder Runtime-Snapshot-Pfad
+über die Privileggrenze auswählen.
 
 ## Geänderte Dateien
 
@@ -55,7 +58,7 @@ bewusst kein CRS-Ergebnis.
 ## Ausgeführte Befehle
 
 Python-Kompilierung, die fokussierte Broker-/Workflow-/CI-Security-Suite
-(`36` Tests), `make check-ci-security-contract`, `make check-bilingual-docs`,
+(`39` Tests), `make check-ci-security-contract`, `make check-bilingual-docs`,
 `make check-doc-links`, `git diff --check`, actionlint mit ShellCheck und
 zizmor offline waren erfolgreich. `make lint` war erfolgreich; sein optionaler
 NGINX-C17-Compile-Check wurde explizit blockiert/übersprungen, weil dieser
@@ -71,7 +74,9 @@ elevieren. Der Caller kann weder einen Root-Command noch Shellfragment,
 Konfigurationspfad oder Ausführungspfad liefern. Die Root-Ausführung ist auf
 den exakten geschützten Helfer, das exakte root-kopierte NGINX-Binary und feste
 Aktionen begrenzt. Cleanup ist descriptor-relativ und kann keine
-caller-kontrollierten Pfade rekursiv verfolgen.
+caller-kontrollierten Pfade rekursiv verfolgen. Ein per Fault-Injection
+ausgelöstes fehlgeschlagenes `chown` entfernt außerdem einen neu angelegten
+festen Root-Parent oder Run-Root, statt privilegierten Stale-State zu behalten.
 
 ## Runtime-Evidence
 

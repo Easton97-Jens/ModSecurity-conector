@@ -51,7 +51,9 @@ ModSecurity shared library from the checked-out protected source without root.
 It hashes the artifacts, copies them into a fresh root-owned private run tree
 with no-follow descriptor checks, and rehashes each artifact before NGINX is
 executed. The final manifest fixes every artifact, runtime, PID, log, and
-evidence path below that one run tree.
+evidence path below that one run tree. The privileged parent is the fixed
+root-owned `/var/lib/msconnector-nginx-root-broker` location with runner-group
+traversal only; neither the caller nor a broker CLI argument can select it.
 
 Only these root actions exist:
 

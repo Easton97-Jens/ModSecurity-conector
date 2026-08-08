@@ -48,13 +48,39 @@ ALLOWED_ACTIONS = {
     "stop",
     "cleanup-status",
 }
+IDENTITY_EVIDENCE_FILENAME = "identity.json"
+RUNTIME_EVIDENCE_FILENAME = "runtime.json"
+ACCESS_LOG_FILENAME = "nginx-access.log"
+ERROR_LOG_FILENAME = "nginx-error.log"
 EXPECTED_EVIDENCE = (
-    "identity.json",
-    "runtime.json",
-    "nginx-access.log",
-    "nginx-error.log",
+    IDENTITY_EVIDENCE_FILENAME,
+    RUNTIME_EVIDENCE_FILENAME,
+    ACCESS_LOG_FILENAME,
+    ERROR_LOG_FILENAME,
 )
 ROOT_PARENT_NAME = "msconnector-nginx-root-broker"
+ROOT_STATE_BASE = Path("/var/lib")
+ROOT_PARENT = ROOT_STATE_BASE / ROOT_PARENT_NAME
+ROOT_PARENT_MODE = 0o710
+CALLER_MANIFEST_LABEL = "caller manifest"
+CANDIDATE_LABEL = "broker candidate"
+CANDIDATE_STAGING_LABEL = "candidate staging root"
+TRUSTED_BUILD_ROOT_LABEL = "trusted build root"
+CANDIDATE_DIRECTORY_NAME = "broker-candidate"
+RUNTIME_REPORTS_RELATIVE = Path("build") / "runtime-component-reports"
+ARTIFACT_BINARY_NAME = "nginx"
+ARTIFACT_MODULE_NAME = "ngx_http_modsecurity_module.so"
+ARTIFACT_LIBRARY_NAME = "libmodsecurity.so"
+BROKER_RULES_FILENAME = "broker-rules.conf"
+BROKER_CONFIG_FILENAME = "nginx.conf"
+BROKER_ROOT_LABEL = "broker root"
+PID_FILENAME = "nginx.pid"
+STATE_FILENAME = "state.json"
+ARTIFACT_DESTINATION_NAMES = {
+    "binary": ARTIFACT_BINARY_NAME,
+    "module": ARTIFACT_MODULE_NAME,
+    "modsecurity_library": ARTIFACT_LIBRARY_NAME,
+}
 MAX_MANIFEST_BYTES = 64 * 1024
 MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024
 MAX_EVIDENCE_TOTAL_BYTES = 20 * 1024 * 1024
@@ -104,6 +130,9 @@ def normalized_absolute(value: str | Path, label: str) -> Path:
     normalized = Path(os.path.normpath(os.fspath(path)))
     if normalized == Path("/"):
         fail(f"{label} must not be the filesystem root")
+    resolved = Path(os.path.realpath(normalized))
+    if resolved != normalized:
+        fail(f"{label} must not resolve through a symlink: {path}")
     return normalized
 
 
@@ -315,7 +344,7 @@ CALLER_FIELDS = {
 
 
 def validate_caller_manifest(payload: dict[str, Any]) -> dict[str, str]:
-    require_exact_keys(payload, CALLER_FIELDS, "caller manifest")
+    require_exact_keys(payload, CALLER_FIELDS, CALLER_MANIFEST_LABEL)
     if payload.get("schema_version") != SCHEMA_VERSION:
         fail("caller manifest has an unsupported schema version")
     run_id = require_run_id(payload.get("run_id"))
@@ -344,7 +373,7 @@ class ArtifactInput:
 def copy_verified_artifact(item: ArtifactInput, destination: Path, trusted_build_root: Path) -> dict[str, str]:
     source = normalized_absolute(item.source, f"{item.name} source")
     if not is_within(source, trusted_build_root):
-        fail(f"{item.name} source must be inside the trusted build root")
+        fail(f"{item.name} source must be inside the {TRUSTED_BUILD_ROOT_LABEL}")
     metadata = regular_metadata(source, f"{item.name} source", owner=os.geteuid())
     if metadata.st_size <= 0:
         fail(f"{item.name} source must not be empty")
@@ -448,14 +477,14 @@ daemon off;
 worker_processes 1;
 user {worker_name} {worker_group};
 pid "{runtime_root / "nginx.pid"}";
-error_log "{logs_root / "nginx-error.log"}" notice;
+error_log "{logs_root / ERROR_LOG_FILENAME}" notice;
 
 events {{
     worker_connections 64;
 }}
 
 http {{
-    access_log "{logs_root / "nginx-access.log"}";
+    access_log "{logs_root / ACCESS_LOG_FILENAME}";
     client_body_temp_path "{state_root / "client_body"}";
     proxy_temp_path "{state_root / "proxy"}";
     fastcgi_temp_path "{state_root / "fastcgi"}";
@@ -483,24 +512,52 @@ http {{
 '''
 
 
-def prepare_candidate(arguments: argparse.Namespace) -> Path:
-    caller_path = normalized_absolute(arguments.caller_manifest, "caller manifest")
-    caller = validate_caller_manifest(json_load_bounded(caller_path, "caller manifest"))
-    broker_sha = require_commit(arguments.broker_sha, "broker_sha")
+def caller_manifest_from_arguments(arguments: argparse.Namespace) -> dict[str, str]:
+    caller_path = normalized_absolute(arguments.caller_manifest, CALLER_MANIFEST_LABEL)
+    return validate_caller_manifest(json_load_bounded(caller_path, CALLER_MANIFEST_LABEL))
+
+
+def require_matching_caller_binding(
+    caller: dict[str, str],
+    *,
+    value: object,
+    caller_field: str,
+    validator: Any,
+) -> None:
+    if value and caller[caller_field] != validator(value):
+        fail(f"caller manifest {caller_field} does not match the workflow input")
+
+
+def validate_caller_bindings(arguments: argparse.Namespace, caller: dict[str, str], broker_sha: str) -> None:
     if caller["protected_broker_sha"] != broker_sha:
         fail("caller manifest protected_broker_sha does not match broker_sha")
-    expected_parent_head = getattr(arguments, "expected_parent_head", "")
-    if expected_parent_head and caller["parent_head_sha"] != require_commit(expected_parent_head, "expected_parent_head"):
-        fail("caller manifest parent_head_sha does not match the workflow input")
-    expected_framework_sha = getattr(arguments, "expected_framework_sha", "")
-    if expected_framework_sha and caller["framework_sha"] != require_commit(expected_framework_sha, "expected_framework_sha"):
-        fail("caller manifest framework_sha does not match the workflow input")
-    expected_run_id = getattr(arguments, "expected_run_id", "")
-    if expected_run_id and caller["run_id"] != require_run_id(expected_run_id):
-        fail("caller manifest run_id does not match the workflow input")
-    expected_variant = getattr(arguments, "expected_matrix_variant", "")
-    if expected_variant and caller["matrix_variant"] != expected_variant:
-        fail("caller manifest matrix_variant does not match the workflow input")
+    require_matching_caller_binding(
+        caller,
+        value=getattr(arguments, "expected_parent_head", ""),
+        caller_field="parent_head_sha",
+        validator=lambda value: require_commit(value, "expected_parent_head"),
+    )
+    require_matching_caller_binding(
+        caller,
+        value=getattr(arguments, "expected_framework_sha", ""),
+        caller_field="framework_sha",
+        validator=lambda value: require_commit(value, "expected_framework_sha"),
+    )
+    require_matching_caller_binding(
+        caller,
+        value=getattr(arguments, "expected_run_id", ""),
+        caller_field="run_id",
+        validator=require_run_id,
+    )
+    require_matching_caller_binding(
+        caller,
+        value=getattr(arguments, "expected_matrix_variant", ""),
+        caller_field="matrix_variant",
+        validator=lambda value: str(value),
+    )
+
+
+def validated_worker(arguments: argparse.Namespace) -> pwd.struct_passwd:
     if arguments.nginx_version != "1.31.3":
         fail("broker supports only reviewed NGINX version 1.31.3")
     if arguments.loopback not in LOOPBACKS:
@@ -517,35 +574,57 @@ def prepare_candidate(arguments: argparse.Namespace) -> Path:
         fail("configured worker uid must not be root")
     if worker.pw_uid == os.geteuid():
         fail("configured worker uid must differ from the workflow runner")
+    return worker
 
-    staging_root = normalized_absolute(arguments.staging_root, "candidate staging root")
-    parent = staging_root.parent
-    directory_metadata(parent, "candidate staging parent", owner=os.geteuid())
+
+def trusted_build_root_from_arguments(arguments: argparse.Namespace) -> Path:
+    trusted_build_root = normalized_absolute(arguments.trusted_build_root, TRUSTED_BUILD_ROOT_LABEL)
+    directory_metadata(trusted_build_root, TRUSTED_BUILD_ROOT_LABEL, owner=os.geteuid())
+    return trusted_build_root
+
+
+def create_candidate_staging(trusted_build_root: Path) -> tuple[Path, dict[str, Path]]:
+    staging_root = trusted_build_root / CANDIDATE_DIRECTORY_NAME
     if staging_root.exists() or staging_root.is_symlink():
-        fail("candidate staging root must be fresh")
-    safe_mkdir(staging_root, 0o700, "candidate staging root")
+        fail(f"{CANDIDATE_STAGING_LABEL} must be fresh")
+    safe_mkdir(staging_root, 0o700, CANDIDATE_STAGING_LABEL)
     layout = candidate_layout(staging_root)
     for label in ("artifacts", "control"):
         safe_mkdir(layout[label], 0o700, f"candidate {label} root")
+    return staging_root, layout
 
-    trusted_build_root = normalized_absolute(arguments.trusted_build_root, "trusted build root")
-    directory_metadata(trusted_build_root, "trusted build root", owner=os.geteuid())
-    records: list[dict[str, str]] = []
+
+def copy_candidate_artifacts(
+    arguments: argparse.Namespace,
+    layout: dict[str, Path],
+    trusted_build_root: Path,
+) -> list[dict[str, str]]:
     artifact_specs = (
-        ("binary", arguments.binary, arguments.binary_sha256, layout["artifacts"] / "nginx"),
-        ("module", arguments.module, arguments.module_sha256, layout["artifacts"] / "ngx_http_modsecurity_module.so"),
-        ("modsecurity_library", arguments.modsecurity_library, arguments.library_sha256, layout["artifacts"] / "libmodsecurity.so"),
+        ("binary", arguments.binary, arguments.binary_sha256, ARTIFACT_BINARY_NAME),
+        ("module", arguments.module, arguments.module_sha256, ARTIFACT_MODULE_NAME),
+        ("modsecurity_library", arguments.modsecurity_library, arguments.library_sha256, ARTIFACT_LIBRARY_NAME),
     )
-    for name, source, digest, destination in artifact_specs:
+    records: list[dict[str, str]] = []
+    for name, source, digest, destination_name in artifact_specs:
         result = copy_verified_artifact(
-            ArtifactInput(name, Path(source), require_sha256(digest, f"{name}_sha256"), destination.name),
-            destination,
+            ArtifactInput(name, Path(source), require_sha256(digest, f"{name}_sha256"), destination_name),
+            layout["artifacts"] / destination_name,
             trusted_build_root,
         )
         result["name"] = name
         records.append(result)
+    return records
 
-    candidate = {
+
+def candidate_payload(
+    arguments: argparse.Namespace,
+    caller: dict[str, str],
+    broker_sha: str,
+    worker: pwd.struct_passwd,
+    staging_root: Path,
+    records: list[dict[str, str]],
+) -> dict[str, Any]:
+    return {
         "schema_version": SCHEMA_VERSION,
         "run_id": caller["run_id"],
         "matrix_variant": caller["matrix_variant"],
@@ -562,26 +641,52 @@ def prepare_candidate(arguments: argparse.Namespace) -> Path:
         "nginx_version": arguments.nginx_version,
         "producer": {"source_commit": broker_sha, "workflow_commit": broker_sha},
     }
+
+
+def prepare_candidate(arguments: argparse.Namespace) -> Path:
+    caller = caller_manifest_from_arguments(arguments)
+    broker_sha = require_commit(arguments.broker_sha, "broker_sha")
+    validate_caller_bindings(arguments, caller, broker_sha)
+    worker = validated_worker(arguments)
+    trusted_build_root = trusted_build_root_from_arguments(arguments)
+    staging_root, layout = create_candidate_staging(trusted_build_root)
+    records = copy_candidate_artifacts(arguments, layout, trusted_build_root)
     output = layout["control"] / "candidate.json"
-    write_private_json(output, candidate)
+    write_private_json(output, candidate_payload(arguments, caller, broker_sha, worker, staging_root, records))
     return output
 
 
-def prepare_candidate_from_snapshot(arguments: argparse.Namespace) -> Path:
-    snapshot = normalized_absolute(arguments.runtime_snapshot, "runtime environment snapshot")
-    values = parse_runtime_snapshot(snapshot)
+def runtime_snapshot_from_trusted_build(trusted_build_root: Path) -> Path:
+    reports_root = trusted_build_root / RUNTIME_REPORTS_RELATIVE
+    directory_metadata(reports_root, "trusted runtime reports root", owner=os.geteuid())
+    snapshots = sorted(reports_root.glob("runtime-env-snapshot.*.sh"))
+    if len(snapshots) != 1:
+        fail("trusted build must provide exactly one runtime environment snapshot")
+    snapshot = normalized_absolute(snapshots[0], "runtime environment snapshot")
+    if not is_within(snapshot, trusted_build_root):
+        fail("runtime environment snapshot is outside the trusted build root")
+    regular_metadata(snapshot, "runtime environment snapshot", owner=os.geteuid())
+    return snapshot
+
+
+def shared_library_from_snapshot(values: dict[str, str], trusted_build_root: Path) -> Path:
     prefix = normalized_absolute(values["MODSECURITY_SHARED_PREFIX"], "ModSecurity shared prefix")
     library_root = prefix / "lib"
-    if not is_within(library_root, normalized_absolute(arguments.trusted_build_root, "trusted build root")):
+    if not is_within(library_root, trusted_build_root):
         fail("ModSecurity shared prefix is outside the trusted build root")
-    candidates = [
-        candidate
-        for candidate in sorted(library_root.glob("libmodsecurity.so.*"))
-        if candidate.is_file() and not candidate.is_symlink()
-    ]
+    directory_metadata(library_root, "ModSecurity shared library root", owner=os.geteuid())
+    candidates = sorted(library_root.glob("libmodsecurity.so.*"))
     if len(candidates) != 1:
         fail("trusted build must provide exactly one non-symlink ModSecurity shared library")
-    library = candidates[0]
+    library = normalized_absolute(candidates[0], "trusted ModSecurity shared library")
+    regular_metadata(library, "trusted ModSecurity shared library", owner=os.geteuid())
+    return library
+
+
+def prepare_candidate_from_snapshot(arguments: argparse.Namespace) -> Path:
+    trusted_build_root = trusted_build_root_from_arguments(arguments)
+    values = parse_runtime_snapshot(runtime_snapshot_from_trusted_build(trusted_build_root))
+    library = shared_library_from_snapshot(values, trusted_build_root)
     arguments.binary = values["NGINX_BINARY"]
     arguments.module = values["NGINX_MODULE"]
     arguments.modsecurity_library = str(library)
@@ -611,10 +716,11 @@ FINAL_FIELDS = {
     "projection",
     "expected_evidence",
 }
+FINAL_RUNTIME_FIELDS = {"root", "config", "rules", "docroot", "pid", "access_log", "error_log", "state"}
+FINAL_PROJECTION_FIELDS = {"source_root", "target_root"}
 
 
-def validated_final_manifest(path: Path, expected_broker_sha: str | None = None) -> dict[str, Any]:
-    payload = json_load_bounded(path, "trusted broker manifest")
+def validated_manifest_header(payload: dict[str, Any], expected_broker_sha: str | None) -> str:
     require_exact_keys(payload, FINAL_FIELDS, "trusted broker manifest")
     if payload.get("schema_version") != SCHEMA_VERSION:
         fail("trusted broker manifest has an unsupported schema version")
@@ -626,6 +732,10 @@ def validated_final_manifest(path: Path, expected_broker_sha: str | None = None)
     broker_sha = require_commit(payload.get("protected_broker_sha"), "protected_broker_sha")
     if expected_broker_sha is not None and broker_sha != expected_broker_sha:
         fail("trusted broker manifest protected_broker_sha mismatch")
+    return broker_sha
+
+
+def validate_final_manifest_identities(payload: dict[str, Any]) -> None:
     if not isinstance(payload.get("runner_uid"), int) or payload["runner_uid"] <= 0:
         fail("trusted broker manifest runner_uid is invalid")
     if not isinstance(payload.get("runner_gid"), int) or payload["runner_gid"] < 0:
@@ -641,6 +751,9 @@ def validated_final_manifest(path: Path, expected_broker_sha: str | None = None)
         fail("trusted broker manifest worker gid is invalid")
     if worker["uid"] == payload["runner_uid"]:
         fail("trusted broker manifest worker uid must differ from runner uid")
+
+
+def validate_final_manifest_network(payload: dict[str, Any]) -> None:
     network = payload.get("network")
     if not isinstance(network, dict) or set(network) != {"address", "port"}:
         fail("trusted broker manifest network shape is invalid")
@@ -648,6 +761,9 @@ def validated_final_manifest(path: Path, expected_broker_sha: str | None = None)
         fail("trusted broker manifest network is not a loopback non-privileged listener")
     if payload.get("nginx_version") != "1.31.3":
         fail("trusted broker manifest NGINX version is not approved")
+
+
+def final_manifest_artifact_records(payload: dict[str, Any]) -> list[dict[str, str]]:
     artifacts = payload.get("artifacts")
     if not isinstance(artifacts, dict) or set(artifacts) != {"binary", "module", "modsecurity_library"}:
         fail("trusted broker manifest artifacts are invalid")
@@ -657,17 +773,27 @@ def validated_final_manifest(path: Path, expected_broker_sha: str | None = None)
             fail(f"trusted broker manifest {name} record is invalid")
         normalized_absolute(str(record["path"]), f"trusted broker {name} path")
         artifact_records.append({"name": name, "path": str(record["path"]), "sha256": require_sha256(record["sha256"], f"trusted broker {name} digest")})
-    if artifact_set_digest(artifact_records) != require_sha256(payload.get("artifact_digest"), "trusted broker artifact_digest"):
+    return artifact_records
+
+
+def validate_final_manifest_artifacts(payload: dict[str, Any]) -> None:
+    records = final_manifest_artifact_records(payload)
+    if artifact_set_digest(records) != require_sha256(payload.get("artifact_digest"), "trusted broker artifact_digest"):
         fail("trusted broker manifest artifact digest is invalid")
+
+
+def validate_final_manifest_paths(payload: dict[str, Any]) -> None:
     runtime = payload.get("runtime")
-    required_runtime = {"root", "config", "rules", "docroot", "pid", "access_log", "error_log", "state"}
-    if not isinstance(runtime, dict) or set(runtime) != required_runtime:
+    if not isinstance(runtime, dict) or set(runtime) != FINAL_RUNTIME_FIELDS:
         fail("trusted broker manifest runtime paths are invalid")
     projection = payload.get("projection")
-    if not isinstance(projection, dict) or set(projection) != {"source_root", "target_root"}:
+    if not isinstance(projection, dict) or set(projection) != FINAL_PROJECTION_FIELDS:
         fail("trusted broker manifest projection paths are invalid")
     for label, value in {**runtime, **projection}.items():
         normalized_absolute(str(value), f"trusted broker {label} path")
+
+
+def validate_final_manifest_producer(payload: dict[str, Any], broker_sha: str) -> None:
     producer = payload.get("producer")
     if not isinstance(producer, dict) or set(producer) != {"source_commit", "workflow_commit"}:
         fail("trusted broker manifest producer identity is invalid")
@@ -675,6 +801,16 @@ def validated_final_manifest(path: Path, expected_broker_sha: str | None = None)
         fail("trusted broker manifest producer is not bound to the broker SHA")
     if tuple(payload.get("expected_evidence", [])) != EXPECTED_EVIDENCE:
         fail("trusted broker manifest evidence allowlist is invalid")
+
+
+def validated_final_manifest(path: Path, expected_broker_sha: str | None = None) -> dict[str, Any]:
+    payload = json_load_bounded(path, "trusted broker manifest")
+    broker_sha = validated_manifest_header(payload, expected_broker_sha)
+    validate_final_manifest_identities(payload)
+    validate_final_manifest_network(payload)
+    validate_final_manifest_artifacts(payload)
+    validate_final_manifest_paths(payload)
+    validate_final_manifest_producer(payload, broker_sha)
     return payload
 
 
@@ -697,18 +833,33 @@ def sudo_runner_gid() -> int:
     return int(raw)
 
 
-def secure_root_parent(parent: Path) -> None:
-    if parent.name != ROOT_PARENT_NAME or parent.parent != Path("/var/tmp"):
-        fail("broker root parent must be the fixed task-owned /var/tmp location")
-    if not parent.exists():
+def secure_root_parent(runner_gid: int) -> Path:
+    directory_metadata(ROOT_STATE_BASE, "broker state base", owner=0)
+    if ROOT_PARENT.exists() or ROOT_PARENT.is_symlink():
+        metadata = directory_metadata(ROOT_PARENT, "broker root parent", owner=0)
+    else:
+        safe_mkdir(ROOT_PARENT, ROOT_PARENT_MODE, "broker root parent")
         try:
-            os.mkdir(parent, 0o711)
-        except FileExistsError:
-            pass
-    metadata = directory_metadata(parent, "broker root parent", owner=0)
-    if stat.S_IMODE(metadata.st_mode) & 0o066:
-        fail("broker root parent must not be group- or other-readable/writable")
-    os.chmod(parent, 0o711)
+            os.chown(ROOT_PARENT, 0, runner_gid)
+            metadata = directory_metadata(ROOT_PARENT, "broker root parent", owner=0)
+        except Exception as original_error:
+            try:
+                remove_empty_new_root_parent()
+            except Exception as cleanup_error:
+                raise BrokerError(
+                    f"broker root parent setup failed and its empty private state could not be removed: {cleanup_error}"
+                ) from original_error
+            raise
+    if metadata.st_gid != runner_gid or stat.S_IMODE(metadata.st_mode) != ROOT_PARENT_MODE:
+        fail("broker root parent ownership or mode is invalid")
+    return ROOT_PARENT
+
+
+def remove_empty_new_root_parent() -> None:
+    metadata = directory_metadata(ROOT_PARENT, "new broker root parent", owner=0)
+    if stat.S_IMODE(metadata.st_mode) != ROOT_PARENT_MODE:
+        fail("new broker root parent mode is invalid")
+    os.rmdir(ROOT_PARENT)
 
 
 def copy_into_root(source: Path, destination: Path, expected_sha: str, label: str) -> None:
@@ -756,6 +907,43 @@ def root_layout(root: Path) -> dict[str, Path]:
     }
 
 
+def cleanup_entry_metadata(directory_fd: int, name: str, expected_device: int, label: str) -> os.stat_result:
+    if not name or name in {".", ".."} or "/" in name:
+        fail(f"{label} contains an unsafe cleanup entry")
+    metadata = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+    if metadata.st_dev != expected_device:
+        fail(f"{label} contains an entry on another device: {name}")
+    return metadata
+
+
+def remove_cleanup_directory(
+    directory_fd: int,
+    name: str,
+    metadata: os.stat_result,
+    expected_device: int,
+    label: str,
+) -> None:
+    try:
+        child_fd = os.open(
+            name,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+            dir_fd=directory_fd,
+        )
+    except OSError as exc:
+        fail(f"cannot safely open cleanup directory {name}: {exc}")
+    try:
+        opened = os.fstat(child_fd)
+        if (opened.st_dev, opened.st_ino) != (metadata.st_dev, metadata.st_ino):
+            fail(f"cleanup directory changed while being opened: {name}")
+        remove_directory_contents_no_follow(child_fd, expected_device, f"{label}/{name}")
+    finally:
+        os.close(child_fd)
+    after = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+    if (after.st_dev, after.st_ino) != (metadata.st_dev, metadata.st_ino):
+        fail(f"cleanup directory changed before removal: {name}")
+    os.rmdir(name, dir_fd=directory_fd)
+
+
 def remove_directory_contents_no_follow(directory_fd: int, expected_device: int, label: str) -> None:
     """Remove a private tree without ever traversing a caller-controlled link.
 
@@ -766,55 +954,43 @@ def remove_directory_contents_no_follow(directory_fd: int, expected_device: int,
     """
 
     for name in os.listdir(directory_fd):
-        if not name or name in {".", ".."} or "/" in name:
-            fail(f"{label} contains an unsafe cleanup entry")
-        metadata = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
-        if metadata.st_dev != expected_device:
-            fail(f"{label} contains an entry on another device: {name}")
+        metadata = cleanup_entry_metadata(directory_fd, name, expected_device, label)
         if stat.S_ISDIR(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode):
-            try:
-                child_fd = os.open(
-                    name,
-                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
-                    dir_fd=directory_fd,
-                )
-            except OSError as exc:
-                fail(f"cannot safely open cleanup directory {name}: {exc}")
-            try:
-                opened = os.fstat(child_fd)
-                if (opened.st_dev, opened.st_ino) != (metadata.st_dev, metadata.st_ino):
-                    fail(f"cleanup directory changed while being opened: {name}")
-                remove_directory_contents_no_follow(child_fd, expected_device, f"{label}/{name}")
-            finally:
-                os.close(child_fd)
-            after = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
-            if (after.st_dev, after.st_ino) != (metadata.st_dev, metadata.st_ino):
-                fail(f"cleanup directory changed before removal: {name}")
-            os.rmdir(name, dir_fd=directory_fd)
-            continue
-        # ``unlink`` is descriptor-relative and removes a link/special file
-        # itself.  It never follows it, which is precisely what cleanup needs.
-        os.unlink(name, dir_fd=directory_fd)
+            remove_cleanup_directory(directory_fd, name, metadata, expected_device, label)
+        else:
+            # ``unlink`` is descriptor-relative and removes a link/special
+            # file itself.  It never follows it, which is precisely what the
+            # root-owned cleanup needs.
+            os.unlink(name, dir_fd=directory_fd)
 
 
-def remove_broker_root(root: Path, run_id: str, runner_gid: int) -> None:
+def remove_broker_root(
+    root: Path,
+    run_id: str,
+    runner_gid: int,
+    *,
+    allow_initial_root_group: bool = False,
+) -> None:
     """Remove exactly one stopped broker run root with no path traversal."""
 
     root = normalized_absolute(root, "broker cleanup root")
-    if root.name != run_id or root.parent != Path(f"/var/tmp/{ROOT_PARENT_NAME}"):
+    if root.name != run_id or root.parent != ROOT_PARENT:
         fail("broker cleanup root is not the fixed run-specific location")
     parent = root.parent
     parent_metadata = directory_metadata(parent, "broker cleanup parent", owner=0)
-    if stat.S_IMODE(parent_metadata.st_mode) & 0o066:
-        fail("broker cleanup parent is readable or writable outside root")
+    if parent_metadata.st_gid != runner_gid or stat.S_IMODE(parent_metadata.st_mode) != ROOT_PARENT_MODE:
+        fail("broker cleanup parent ownership or mode is invalid")
     parent_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         root_metadata = os.stat(root.name, dir_fd=parent_fd, follow_symlinks=False)
+        allowed_groups = {runner_gid}
+        if allow_initial_root_group:
+            allowed_groups.add(0)
         if (
             not stat.S_ISDIR(root_metadata.st_mode)
             or stat.S_ISLNK(root_metadata.st_mode)
             or root_metadata.st_uid != 0
-            or root_metadata.st_gid != runner_gid
+            or root_metadata.st_gid not in allowed_groups
             or stat.S_IMODE(root_metadata.st_mode) != 0o710
         ):
             fail("broker cleanup root metadata is invalid")
@@ -838,30 +1014,41 @@ def remove_broker_root(root: Path, run_id: str, runner_gid: int) -> None:
         os.close(parent_fd)
 
 
-def admit_candidate(arguments: argparse.Namespace) -> Path:
-    require_root()
-    runner_uid = sudo_runner_uid()
-    runner_gid = sudo_runner_gid()
-    candidate_path = normalized_absolute(arguments.candidate, "broker candidate")
-    regular_metadata(candidate_path, "broker candidate", owner=runner_uid)
-    candidate = json_load_bounded(candidate_path, "broker candidate")
-    # Candidate has the same closed identity fields as the final manifest plus
-    # staging-only fields.  Validate it by transforming only known fields.
-    candidate_fields = {
-        "schema_version", "run_id", "matrix_variant", "parent_head_sha", "framework_sha",
-        "protected_broker_sha", "runner_uid", "runner_gid", "worker", "network",
-        "staging_root", "artifacts", "artifact_digest", "nginx_version", "producer",
-    }
-    require_exact_keys(candidate, candidate_fields, "broker candidate")
-    if candidate.get("runner_uid") != runner_uid:
-        fail("broker candidate runner_uid does not match sudo caller")
-    if candidate.get("runner_gid") != runner_gid:
-        fail("broker candidate runner_gid does not match sudo caller")
+CANDIDATE_FIELDS = {
+    "schema_version",
+    "run_id",
+    "matrix_variant",
+    "parent_head_sha",
+    "framework_sha",
+    "protected_broker_sha",
+    "runner_uid",
+    "runner_gid",
+    "worker",
+    "network",
+    "staging_root",
+    "artifacts",
+    "artifact_digest",
+    "nginx_version",
+    "producer",
+}
+
+
+def load_candidate_for_admission(
+    arguments: argparse.Namespace,
+    runner_uid: int,
+    runner_gid: int,
+) -> tuple[dict[str, Any], str, str, dict[str, Path]]:
+    candidate_path = normalized_absolute(arguments.candidate, CANDIDATE_LABEL)
+    regular_metadata(candidate_path, CANDIDATE_LABEL, owner=runner_uid)
+    candidate = json_load_bounded(candidate_path, CANDIDATE_LABEL)
+    require_exact_keys(candidate, CANDIDATE_FIELDS, CANDIDATE_LABEL)
+    if candidate.get("runner_uid") != runner_uid or candidate.get("runner_gid") != runner_gid:
+        fail("broker candidate runner identity does not match sudo caller")
     broker_sha = require_commit(arguments.broker_sha, "broker_sha")
     if candidate.get("protected_broker_sha") != broker_sha:
         fail("broker candidate protected_broker_sha mismatch")
-    staging_root = normalized_absolute(str(candidate.get("staging_root", "")), "candidate staging root")
-    directory_metadata(staging_root, "candidate staging root", owner=runner_uid)
+    staging_root = normalized_absolute(str(candidate.get("staging_root", "")), CANDIDATE_STAGING_LABEL)
+    directory_metadata(staging_root, CANDIDATE_STAGING_LABEL, owner=runner_uid)
     candidate_paths = candidate_layout(staging_root)
     directory_metadata(candidate_paths["artifacts"], "candidate artifact root", owner=runner_uid)
     directory_metadata(candidate_paths["control"], "candidate control root", owner=runner_uid)
@@ -876,6 +1063,13 @@ def admit_candidate(arguments: argparse.Namespace) -> Path:
     require_commit(candidate.get("framework_sha"), "candidate framework_sha")
     if candidate.get("nginx_version") != "1.31.3":
         fail("broker candidate NGINX version is invalid")
+    return candidate, broker_sha, run_id, candidate_paths
+
+
+def resolved_candidate_worker(
+    candidate: dict[str, Any],
+    runner_uid: int,
+) -> tuple[dict[str, Any], pwd.struct_passwd, str]:
     worker_candidate = candidate.get("worker")
     if not isinstance(worker_candidate, dict) or set(worker_candidate) != {"name", "uid", "gid"}:
         fail("broker candidate worker identity is invalid")
@@ -888,6 +1082,17 @@ def admit_candidate(arguments: argparse.Namespace) -> Path:
         or worker_candidate["uid"] == runner_uid
     ):
         fail("broker candidate worker identity is malformed")
+    try:
+        account = pwd.getpwnam(str(worker_candidate["name"]))
+        group_name = grp.getgrgid(int(worker_candidate["gid"])).gr_name
+    except KeyError as exc:
+        fail(f"broker candidate worker account is unavailable: {exc}")
+    if account.pw_uid != worker_candidate["uid"] or account.pw_gid != worker_candidate["gid"] or account.pw_uid <= 0:
+        fail("broker candidate worker identity no longer matches the local account")
+    return worker_candidate, account, group_name
+
+
+def validated_candidate_network(candidate: dict[str, Any]) -> dict[str, Any]:
     network_candidate = candidate.get("network")
     if not isinstance(network_candidate, dict) or set(network_candidate) != {"address", "port"}:
         fail("broker candidate network is invalid")
@@ -897,34 +1102,28 @@ def admit_candidate(arguments: argparse.Namespace) -> Path:
         or not (1024 <= network_candidate["port"] <= 65535)
     ):
         fail("broker candidate network is not loopback/non-privileged")
+    return network_candidate
+
+
+def validate_candidate_producer(candidate: dict[str, Any], broker_sha: str) -> dict[str, Any]:
     producer_candidate = candidate.get("producer")
     if not isinstance(producer_candidate, dict) or set(producer_candidate) != {"source_commit", "workflow_commit"}:
         fail("broker candidate producer identity is invalid")
     if producer_candidate["source_commit"] != broker_sha or producer_candidate["workflow_commit"] != broker_sha:
         fail("broker candidate producer is not bound to the protected broker SHA")
+    return producer_candidate
 
-    try:
-        account = pwd.getpwnam(str(worker_candidate["name"]))
-        group_name = grp.getgrgid(int(worker_candidate["gid"])).gr_name
-    except KeyError as exc:
-        fail(f"broker candidate worker account is unavailable: {exc}")
-    if (
-        account.pw_uid != worker_candidate["uid"]
-        or account.pw_gid != worker_candidate["gid"]
-        or account.pw_uid <= 0
-    ):
-        fail("broker candidate worker identity no longer matches the local account")
 
+def validated_candidate_artifacts(
+    candidate: dict[str, Any],
+    candidate_paths: dict[str, Path],
+    runner_uid: int,
+) -> dict[str, dict[str, str]]:
     artifacts = candidate.get("artifacts")
-    if not isinstance(artifacts, dict) or set(artifacts) != {"binary", "module", "modsecurity_library"}:
+    if not isinstance(artifacts, dict) or set(artifacts) != set(ARTIFACT_DESTINATION_NAMES):
         fail("broker candidate artifacts are invalid")
-    destination_names = {
-        "binary": "nginx",
-        "module": "ngx_http_modsecurity_module.so",
-        "modsecurity_library": "libmodsecurity.so",
-    }
     candidate_artifacts: dict[str, dict[str, str]] = {}
-    for name, destination_name in destination_names.items():
+    for name, destination_name in ARTIFACT_DESTINATION_NAMES.items():
         record = artifacts[name]
         if not isinstance(record, dict) or set(record) != {"path", "sha256"}:
             fail(f"broker candidate {name} record is invalid")
@@ -936,102 +1135,177 @@ def admit_candidate(arguments: argparse.Namespace) -> Path:
             "path": str(source),
             "sha256": require_sha256(record["sha256"], f"candidate {name} digest"),
         }
-    candidate_records = [dict(name=name, **record) for name, record in candidate_artifacts.items()]
-    if artifact_set_digest(candidate_records) != require_sha256(candidate.get("artifact_digest"), "candidate artifact_digest"):
+    records = [dict(name=name, **record) for name, record in candidate_artifacts.items()]
+    if artifact_set_digest(records) != require_sha256(candidate.get("artifact_digest"), "candidate artifact_digest"):
         fail("broker candidate artifact digest is invalid")
+    return candidate_artifacts
 
-    parent = normalized_absolute(arguments.broker_parent, "broker root parent")
-    secure_root_parent(parent)
-    root = parent / run_id
+
+def create_admitted_root(root: Path, runner_gid: int) -> None:
+    safe_mkdir(root, 0o710, "broker run root")
+    try:
+        os.chown(root, 0, runner_gid)
+    except Exception as original_error:
+        try:
+            remove_broker_root(
+                root,
+                root.name,
+                runner_gid,
+                allow_initial_root_group=True,
+            )
+        except Exception as cleanup_error:
+            raise BrokerError(
+                f"broker run root setup failed and its private state could not be removed: {cleanup_error}"
+            ) from original_error
+        raise
+
+
+def create_admitted_layout(root: Path, worker_gid: int) -> dict[str, Path]:
+    layout = root_layout(root)
+    for key in ("artifacts", "runtime", "logs", "state", "docroot", "control", "evidence_source"):
+        safe_mkdir(layout[key], 0o700, f"broker {key}")
+        os.chown(layout[key], 0, 0)
+    os.chown(layout["runtime"], 0, worker_gid)
+    os.chmod(layout["runtime"], 0o710)
+    for key in ("logs", "state", "docroot"):
+        os.chown(layout[key], 0, worker_gid)
+        os.chmod(layout[key], 0o730 if key in {"logs", "state"} else 0o710)
+    return layout
+
+
+def admit_candidate_artifacts(
+    candidate_artifacts: dict[str, dict[str, str]],
+    layout: dict[str, Path],
+) -> dict[str, dict[str, str]]:
+    admitted: dict[str, dict[str, str]] = {}
+    for name, destination_name in ARTIFACT_DESTINATION_NAMES.items():
+        record = candidate_artifacts[name]
+        destination = layout["artifacts"] / destination_name
+        copy_into_root(
+            Path(record["path"]),
+            destination,
+            record["sha256"],
+            "NGINX binary" if name == "binary" else name,
+        )
+        admitted[name] = {"path": str(destination), "sha256": record["sha256"]}
+    return admitted
+
+
+def admitted_runtime(
+    layout: dict[str, Path],
+    account: pwd.struct_passwd,
+    group_name: str,
+    network: dict[str, Any],
+    worker_gid: int,
+) -> dict[str, str]:
+    rules = layout["runtime"] / BROKER_RULES_FILENAME
+    index = layout["docroot"] / "index.html"
+    config = layout["runtime"] / BROKER_CONFIG_FILENAME
+    atomic_text(rules, 'SecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:941001,phase:1,deny,status:403,log"\n', 0o400)
+    atomic_text(index, "trusted nginx root broker\n", 0o640)
+    atomic_text(
+        config,
+        render_nginx_config(
+            module=layout["artifacts"] / ARTIFACT_MODULE_NAME,
+            runtime_root=layout["runtime"],
+            logs_root=layout["logs"],
+            state_root=layout["state"],
+            docroot=layout["docroot"],
+            rules=rules,
+            worker_name=account.pw_name,
+            worker_group=group_name,
+            loopback=str(network["address"]),
+            port=int(network["port"]),
+        ),
+        0o400,
+    )
+    for path, mode in ((rules, 0o400), (config, 0o400), (index, 0o640)):
+        os.chown(path, 0, worker_gid)
+        os.chmod(path, mode)
+    return {
+        "root": str(layout["runtime"]),
+        "config": str(config),
+        "rules": str(rules),
+        "docroot": str(layout["docroot"]),
+        "pid": str(layout["runtime"] / PID_FILENAME),
+        "access_log": str(layout["logs"] / ACCESS_LOG_FILENAME),
+        "error_log": str(layout["logs"] / ERROR_LOG_FILENAME),
+        "state": str(layout["control"] / STATE_FILENAME),
+    }
+
+
+def admitted_manifest_payload(
+    candidate: dict[str, Any],
+    broker_sha: str,
+    runner_uid: int,
+    runner_gid: int,
+    root: Path,
+    artifacts: dict[str, dict[str, str]],
+    runtime: dict[str, str],
+    layout: dict[str, Path],
+    network: dict[str, Any],
+    producer: dict[str, Any],
+    worker: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "run_id": candidate["run_id"],
+        "matrix_variant": candidate["matrix_variant"],
+        "parent_head_sha": candidate["parent_head_sha"],
+        "framework_sha": candidate["framework_sha"],
+        "protected_broker_sha": broker_sha,
+        "runner_uid": runner_uid,
+        "runner_gid": runner_gid,
+        "worker": worker,
+        "network": network,
+        "broker_root": str(root),
+        "artifacts": artifacts,
+        "artifact_digest": candidate["artifact_digest"],
+        "producer": producer,
+        "nginx_version": candidate["nginx_version"],
+        "runtime": runtime,
+        "projection": {
+            "source_root": str(layout["evidence_source"]),
+            "target_root": str(layout["projection_target"]),
+        },
+        "expected_evidence": list(EXPECTED_EVIDENCE),
+    }
+
+
+def admit_candidate(arguments: argparse.Namespace) -> Path:
+    require_root()
+    runner_uid = sudo_runner_uid()
+    runner_gid = sudo_runner_gid()
+    candidate, broker_sha, run_id, candidate_paths = load_candidate_for_admission(arguments, runner_uid, runner_gid)
+    worker, account, group_name = resolved_candidate_worker(candidate, runner_uid)
+    network = validated_candidate_network(candidate)
+    producer = validate_candidate_producer(candidate, broker_sha)
+    candidate_artifacts = validated_candidate_artifacts(candidate, candidate_paths, runner_uid)
+    root = secure_root_parent(runner_gid) / run_id
     if root.exists() or root.is_symlink():
         fail("broker run root already exists")
     root_created = False
     try:
-        safe_mkdir(root, 0o710, "broker run root")
+        create_admitted_root(root, runner_gid)
         root_created = True
-        os.chown(root, 0, runner_gid)
-        layout = root_layout(root)
-        for key in ("artifacts", "runtime", "logs", "state", "docroot", "control", "evidence_source"):
-            safe_mkdir(layout[key], 0o700, f"broker {key}")
-            os.chown(layout[key], 0, 0)
-        os.chown(layout["runtime"], 0, int(worker_candidate["gid"]))
-        os.chmod(layout["runtime"], 0o710)
-        for key in ("logs", "state", "docroot"):
-            os.chown(layout[key], 0, int(worker_candidate["gid"]))
-            os.chmod(layout[key], 0o730 if key in {"logs", "state"} else 0o710)
-
-        final_artifacts: dict[str, dict[str, str]] = {}
-        for name, destination_name in destination_names.items():
-            record = candidate_artifacts[name]
-            destination = layout["artifacts"] / destination_name
-            copy_into_root(
-                Path(record["path"]),
-                destination,
-                record["sha256"],
-                "NGINX binary" if name == "binary" else name,
-            )
-            final_artifacts[name] = {"path": str(destination), "sha256": record["sha256"]}
-
-        rules = layout["runtime"] / "broker-rules.conf"
-        index = layout["docroot"] / "index.html"
-        config = layout["runtime"] / "nginx.conf"
-        atomic_text(rules, 'SecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:941001,phase:1,deny,status:403,log"\n', 0o400)
-        atomic_text(index, "trusted nginx root broker\n", 0o640)
-        atomic_text(
-            config,
-            render_nginx_config(
-                module=layout["artifacts"] / "ngx_http_modsecurity_module.so",
-                runtime_root=layout["runtime"],
-                logs_root=layout["logs"],
-                state_root=layout["state"],
-                docroot=layout["docroot"],
-                rules=rules,
-                worker_name=account.pw_name,
-                worker_group=group_name,
-                loopback=str(network_candidate["address"]),
-                port=int(network_candidate["port"]),
-            ),
-            0o400,
-        )
-        for path, mode in ((rules, 0o400), (config, 0o400), (index, 0o640)):
-            os.chown(path, 0, int(worker_candidate["gid"]))
-            os.chmod(path, mode)
-
-        runtime = {
-            "root": str(layout["runtime"]),
-            "config": str(layout["runtime"] / "nginx.conf"),
-            "rules": str(layout["runtime"] / "broker-rules.conf"),
-            "docroot": str(layout["docroot"]),
-            "pid": str(layout["runtime"] / "nginx.pid"),
-            "access_log": str(layout["logs"] / "nginx-access.log"),
-            "error_log": str(layout["logs"] / "nginx-error.log"),
-            "state": str(layout["control"] / "state.json"),
-        }
-        final = {
-            "schema_version": SCHEMA_VERSION,
-            "run_id": run_id,
-            "matrix_variant": candidate["matrix_variant"],
-            "parent_head_sha": candidate["parent_head_sha"],
-            "framework_sha": candidate["framework_sha"],
-            "protected_broker_sha": broker_sha,
-            "runner_uid": runner_uid,
-            "runner_gid": runner_gid,
-            "worker": worker_candidate,
-            "network": network_candidate,
-            "broker_root": str(root),
-            "artifacts": final_artifacts,
-            "artifact_digest": candidate["artifact_digest"],
-            "producer": producer_candidate,
-            "nginx_version": candidate["nginx_version"],
-            "runtime": runtime,
-            "projection": {
-                "source_root": str(layout["evidence_source"]),
-                "target_root": str(layout["projection_target"]),
-            },
-            "expected_evidence": list(EXPECTED_EVIDENCE),
-        }
+        layout = create_admitted_layout(root, int(worker["gid"]))
+        artifacts = admit_candidate_artifacts(candidate_artifacts, layout)
+        runtime = admitted_runtime(layout, account, group_name, network, int(worker["gid"]))
         manifest = layout["control"] / "manifest.json"
-        write_private_json(manifest, final, owner=0, group=0)
+        payload = admitted_manifest_payload(
+            candidate,
+            broker_sha,
+            runner_uid,
+            runner_gid,
+            root,
+            artifacts,
+            runtime,
+            layout,
+            network,
+            producer,
+            worker,
+        )
+        write_private_json(manifest, payload, owner=0, group=0)
         return manifest
     except Exception as original_error:
         if root_created:
@@ -1045,27 +1319,27 @@ def admit_candidate(arguments: argparse.Namespace) -> Path:
 
 
 def manifest_paths(payload: dict[str, Any]) -> tuple[Path, dict[str, Path]]:
-    root = normalized_absolute(str(payload["broker_root"]), "broker root")
-    if root.parent != Path(f"/var/tmp/{ROOT_PARENT_NAME}") or root.name != payload["run_id"]:
+    root = normalized_absolute(str(payload["broker_root"]), BROKER_ROOT_LABEL)
+    if root.parent != ROOT_PARENT or root.name != payload["run_id"]:
         fail("broker root is not the fixed run-specific location")
     layout = root_layout(root)
     expected_artifacts = {
-        "binary": layout["artifacts"] / "nginx",
-        "module": layout["artifacts"] / "ngx_http_modsecurity_module.so",
-        "modsecurity_library": layout["artifacts"] / "libmodsecurity.so",
+        "binary": layout["artifacts"] / ARTIFACT_BINARY_NAME,
+        "module": layout["artifacts"] / ARTIFACT_MODULE_NAME,
+        "modsecurity_library": layout["artifacts"] / ARTIFACT_LIBRARY_NAME,
     }
     for name, expected in expected_artifacts.items():
         if Path(str(payload["artifacts"][name]["path"])) != expected:
             fail(f"manifest {name} path is not the fixed broker artifact path")
     expected_runtime = {
         "root": layout["runtime"],
-        "config": layout["runtime"] / "nginx.conf",
-        "rules": layout["runtime"] / "broker-rules.conf",
+        "config": layout["runtime"] / BROKER_CONFIG_FILENAME,
+        "rules": layout["runtime"] / BROKER_RULES_FILENAME,
         "docroot": layout["docroot"],
-        "pid": layout["runtime"] / "nginx.pid",
-        "access_log": layout["logs"] / "nginx-access.log",
-        "error_log": layout["logs"] / "nginx-error.log",
-        "state": layout["control"] / "state.json",
+        "pid": layout["runtime"] / PID_FILENAME,
+        "access_log": layout["logs"] / ACCESS_LOG_FILENAME,
+        "error_log": layout["logs"] / ERROR_LOG_FILENAME,
+        "state": layout["control"] / STATE_FILENAME,
     }
     for name, expected in expected_runtime.items():
         if Path(str(payload["runtime"][name])) != expected:
@@ -1100,7 +1374,7 @@ def validate_root_layout(payload: dict[str, Any]) -> tuple[Path, dict[str, Path]
         owner=0,
         group=int(payload["runner_gid"]),
         mode=0o710,
-        label="broker root",
+        label=BROKER_ROOT_LABEL,
     )
     for key in ("artifacts", "control", "evidence_source"):
         require_directory_layout(layout[key], owner=0, group=0, mode=0o700, label=f"broker {key}")
@@ -1440,7 +1714,7 @@ def verify_master_worker_identity(payload: dict[str, Any]) -> dict[str, Any]:
         "worker_gid": payload["worker"]["gid"],
     }
     source = Path(str(payload["projection"]["source_root"]))
-    write_private_json(source / "identity.json", evidence, owner=0, group=0)
+    write_private_json(source / IDENTITY_EVIDENCE_FILENAME, evidence, owner=0, group=0)
     return evidence
 
 
@@ -1460,7 +1734,7 @@ def write_runtime_evidence(payload: dict[str, Any]) -> None:
         "root_broker_status": "PASS",
         "scope": "root-broker-only; CRS validation is intentionally outside this protected broker",
     }
-    write_private_json(source / "runtime.json", evidence, owner=0, group=0)
+    write_private_json(source / RUNTIME_EVIDENCE_FILENAME, evidence, owner=0, group=0)
 
 
 def copy_evidence_file(
@@ -1526,14 +1800,14 @@ def project_evidence(payload: dict[str, Any]) -> None:
     total = 0
     try:
         names_to_sources = {
-            "identity.json": source_root / "identity.json",
-            "runtime.json": source_root / "runtime.json",
-            "nginx-access.log": Path(str(payload["runtime"]["access_log"])),
-            "nginx-error.log": Path(str(payload["runtime"]["error_log"])),
+            IDENTITY_EVIDENCE_FILENAME: source_root / IDENTITY_EVIDENCE_FILENAME,
+            RUNTIME_EVIDENCE_FILENAME: source_root / RUNTIME_EVIDENCE_FILENAME,
+            ACCESS_LOG_FILENAME: Path(str(payload["runtime"]["access_log"])),
+            ERROR_LOG_FILENAME: Path(str(payload["runtime"]["error_log"])),
         }
         if tuple(names_to_sources) != EXPECTED_EVIDENCE:
             fail("evidence projection allowlist changed unexpectedly")
-        root_device = directory_metadata(Path(str(payload["broker_root"])), "broker root", owner=0).st_dev
+        root_device = directory_metadata(Path(str(payload["broker_root"])), BROKER_ROOT_LABEL, owner=0).st_dev
         for name, source in names_to_sources.items():
             owners = {0} if name.endswith(".json") else {0, int(payload["worker"]["uid"])}
             total += copy_evidence_file(
@@ -1651,7 +1925,7 @@ def execute_action(arguments: argparse.Namespace) -> None:
     manifest_path = normalized_absolute(arguments.manifest, "broker manifest")
     payload = validated_final_manifest(manifest_path, require_commit(arguments.broker_sha, "broker_sha"))
     root, _ = manifest_paths(payload)
-    directory_metadata(root, "broker root", owner=0)
+    directory_metadata(root, BROKER_ROOT_LABEL, owner=0)
     if arguments.action == "config-test":
         config_test(payload)
     elif arguments.action == "start":
@@ -1671,7 +1945,6 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     commands = parser.add_subparsers(dest="command", required=True)
     prepare = commands.add_parser("prepare-candidate")
     prepare.add_argument("--caller-manifest", required=True)
-    prepare.add_argument("--staging-root", required=True)
     prepare.add_argument("--trusted-build-root", required=True)
     prepare.add_argument("--broker-sha", required=True)
     prepare.add_argument("--expected-parent-head", default="")
@@ -1691,9 +1964,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
 
     snapshot = commands.add_parser("prepare-from-snapshot")
     snapshot.add_argument("--caller-manifest", required=True)
-    snapshot.add_argument("--staging-root", required=True)
     snapshot.add_argument("--trusted-build-root", required=True)
-    snapshot.add_argument("--runtime-snapshot", required=True)
     snapshot.add_argument("--broker-sha", required=True)
     snapshot.add_argument("--expected-parent-head", default="")
     snapshot.add_argument("--expected-framework-sha", default="")
@@ -1708,7 +1979,6 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     action.add_argument("--action", required=True, choices=sorted(ALLOWED_ACTIONS))
     action.add_argument("--broker-sha", required=True)
     action.add_argument("--candidate")
-    action.add_argument("--broker-parent", default=f"/var/tmp/{ROOT_PARENT_NAME}")
     action.add_argument("--manifest")
     return parser.parse_args(argv)
 

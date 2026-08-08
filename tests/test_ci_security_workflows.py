@@ -443,7 +443,15 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertIn("git hash-object ci/runtime/broker/nginx_root_broker.py", text)
         self.assertIn("sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action", text)
         self.assertNotIn("uses: ./", text)
-        for forbidden in ("sudo -E", "sudo sh -c", "sudo bash -c", "shell: bash -c"):
+        for forbidden in (
+            "sudo -E",
+            "sudo sh -c",
+            "sudo bash -c",
+            "shell: bash -c",
+            "--broker-parent",
+            "--staging-root",
+            "--runtime-snapshot",
+        ):
             self.assertNotIn(forbidden, text)
 
     def test_untrusted_pull_request_model(self) -> None:
