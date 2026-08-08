@@ -148,6 +148,25 @@ class NginxRootHandoffContractTest(unittest.TestCase):
         with self.assertRaisesRegex(HANDOFF.HandoffError, "unapproved NGINX environment"):
             HANDOFF.validate_nginx_environment({"NGINX_ROOT_HANDOFF": "1", "NGINX_EVIL": "1"})
 
+    def test_rejects_build_only_nginx_environment_keys(self) -> None:
+        for key in (
+            "NGINX_BIN",
+            "NGINX_SOURCE_MODE",
+            "NGINX_SOURCE_REPO_URL",
+            "NGINX_GITHUB_REPO",
+            "NGINX_RELEASE_TAG",
+            "NGINX_SOURCE_GIT_REF",
+            "NGINX_RELEASE_ASSET_NAME",
+            "NGINX_SHA256",
+        ):
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(
+                    HANDOFF.HandoffError, "unapproved NGINX environment"
+                ):
+                    HANDOFF.validate_nginx_environment(
+                        {"NGINX_ROOT_HANDOFF": "1", key: "value"}
+                    )
+
     def test_rejects_missing_root_handoff_opt_in(self) -> None:
         with self.assertRaisesRegex(HANDOFF.HandoffError, "NGINX_ROOT_HANDOFF=1"):
             HANDOFF.validate_nginx_environment({})
@@ -284,6 +303,16 @@ class NginxRootHandoffContractTest(unittest.TestCase):
             with self.assertRaisesRegex(HANDOFF.HandoffError, "unexpected entries"):
                 HANDOFF.remove_projection_parent(parent, expected)
             self.assertTrue((parent / "unexpected").exists())
+
+    def test_projection_parent_permission_change_is_descriptor_bound(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            with mock.patch.object(HANDOFF.os, "fchmod", wraps=HANDOFF.os.fchmod) as fchmod:
+                parent, expected = HANDOFF.create_projection_parent(request.verified_run_root)
+            self.assertEqual(stat.S_IMODE(expected.st_mode), 0o711)
+            fchmod.assert_called_once()
+            self.assertEqual(fchmod.call_args.args[1], 0o711)
+            HANDOFF.remove_projection_parent(parent, expected)
 
     def test_projection_cleanup_removes_only_fixed_files(self) -> None:
         temporary, request = self.make_layout()

@@ -66,6 +66,25 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
                 self.assertIn(f"      {name}: {value}\n", environment)
         self.assertNotIn("NGINX_RELEASE_TAG: latest", environment)
 
+    def test_connector_workflow_pins_the_archived_apr_util_tuple(self) -> None:
+        job_environment = re.search(
+            r"^    env:\n(?P<body>.*?)(?=^    steps:)",
+            self.source,
+            re.MULTILINE | re.DOTALL,
+        )
+        self.assertIsNotNone(job_environment)
+        environment = job_environment.group("body")
+        expected = {
+            "APR_UTIL_VERSION": "1.6.3",
+            "APR_UTIL_SOURCE_URL": "https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.bz2",
+            "APR_UTIL_SHA256": "a41076e3710746326c3945042994ad9a4fcac0ce0277dd8fea076fec3c9772b5",
+            "APR_UTIL_SHA256_URL": "https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.bz2.sha256",
+        }
+        for name, value in expected.items():
+            with self.subTest(name=name):
+                self.assertIn(f"      {name}: {value}\n", environment)
+        self.assertNotIn("APR_UTIL_SOURCE_URL: https://downloads.apache.org/", environment)
+
     def test_nginx_handoff_is_scoped_to_the_nginx_matrix_row(self) -> None:
         block = re.search(
             r"- name: Configure supported NGINX Phase-4 mode\n(?P<body>.*?)(?=\n      - name: Initialize canonical evidence paths)",
@@ -80,7 +99,12 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         self.assertEqual(self.source.count("NGINX_ROOT_HANDOFF=1"), 1)
 
     def test_workflow_uses_setup_python_path_for_privileged_handoff(self) -> None:
-        self.assertIn('echo "PYTHON=${{ steps.setup-python.outputs.python-path }}"', self.source)
+        self.assertIn(
+            "SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}",
+            self.source,
+        )
+        self.assertIn("printf 'PYTHON=%s\\n' \"$SETUP_PYTHON_PATH\"", self.source)
+        self.assertNotIn('echo "PYTHON=${{ steps.setup-python.outputs.python-path }}"', self.source)
         self.assertIn("Verify Python interpreter contract", self.source)
 
     def test_aggregation_keeps_missing_artifacts_fail_closed(self) -> None:

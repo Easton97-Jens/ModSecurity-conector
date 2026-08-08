@@ -3,7 +3,7 @@ set -eu
 
 connector=${1:?connector is required}
 evidence_stage=${2:-no_crs_baseline}
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT=${CONNECTOR_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)}
 FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}
 PYTHON=${PYTHON:-python3}
@@ -220,7 +220,9 @@ LIGHTTPD_RUNTIME_ROOT=$CONNECTOR_RUN_ROOT/lighttpd-runtime
 PLAN=$CONNECTOR_RUN_ROOT/plan.json
 SOURCE_RESULT=$CONNECTOR_RUN_ROOT/source-result.json
 NORMALIZED_EVENTS=$CONNECTOR_RUN_ROOT/events.normalized.jsonl
-SOURCE_EVENT_SCRUB_LOG=$CONNECTOR_LOG_ROOT/source-event-scrub.log
+# The collector atomically writes this mutable record with the source-event
+# root, so it must stay in the exact raw run rather than the sibling log tree.
+SOURCE_EVENT_SCRUB_LOG=$CONNECTOR_RUN_ROOT/source-event-scrub.log
 CANONICAL_STDOUT_LOG=$CONNECTOR_LOG_ROOT/stdout.canonical.log
 CANONICAL_STDERR_LOG=$CONNECTOR_LOG_ROOT/stderr.canonical.log
 CANONICAL_HOST_LOG=$CONNECTOR_LOG_ROOT/host.canonical.log
@@ -615,6 +617,7 @@ set -- \
     --stdout "$LOG_DIR/stdout.log" \
     --stderr "$LOG_DIR/stderr.log" \
     --allowed-source-root "$RAW_DIR" \
+    --allowed-log-root "$LOG_DIR" \
     --scrub-source-events \
     --source-event-scrub-log "$SOURCE_EVENT_SCRUB_LOG" \
     --events-output "$NORMALIZED_EVENTS" \
@@ -633,7 +636,7 @@ if [ -n "$source_events" ] && [ -f "$source_events" ]; then
 fi
 "$PYTHON" "$CONNECTOR_ROOT/ci/runtime/lifecycle/collect-no-crs-source.py" "$@"
 
-# Raw host logs remain in the disposable run directory.  Canonical evidence
+# Raw host logs remain in the disposable per-run log tree. Canonical evidence
 # receives only bounded, sentinel-free diagnostics plus a metadata-only host
 # summary, so body fixtures and credentials cannot be retained accidentally.
 "$PYTHON" "$LOG_SANITIZER" --input "$LOG_DIR/stdout.log" \

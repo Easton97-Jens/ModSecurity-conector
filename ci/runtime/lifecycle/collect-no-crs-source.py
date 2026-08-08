@@ -366,6 +366,27 @@ def runtime_artifact_paths(
     ]
 
 
+def paired_runtime_log_root(source_root: Path, log_root: Path) -> Path:
+    """Bind diagnostic logs to the same invocation, connector, and run."""
+
+    source_identity = (
+        source_root.parent.parent.parent,
+        source_root.parent.name,
+        source_root.name,
+    )
+    log_identity = (
+        log_root.parent.parent.parent,
+        log_root.parent.name,
+        log_root.name,
+    )
+    if source_root == log_root or source_identity != log_identity:
+        raise ValueError(
+            "allowed log root must differ from and match the allowed source "
+            "root's invocation, connector, and run identity"
+        )
+    return log_root
+
+
 def catalog_runner_case_path(catalog_root: Path, runner_case: object) -> Path:
     """Resolve one catalog-owned runner case without accepting path aliases."""
     if not isinstance(runner_case, str) or not runner_case:
@@ -1711,6 +1732,7 @@ def collector_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-results-jsonl", action="append", type=Path, default=[])
     parser.add_argument("--source-events", action="append", type=Path, default=[])
     parser.add_argument("--allowed-source-root", type=Path)
+    parser.add_argument("--allowed-log-root", type=Path)
     parser.add_argument("--scrub-source-events", action="store_true")
     parser.add_argument("--source-event-scrub-log", type=Path)
     parser.add_argument("--events-output", type=Path)
@@ -1725,8 +1747,18 @@ def prepare_collector_arguments(
 ) -> Path:
     if args.allowed_source_root is None:
         parser.error("--allowed-source-root is required to confine runtime artifacts")
+    has_diagnostic_logs = args.stdout is not None or args.stderr is not None
+    if has_diagnostic_logs and args.allowed_log_root is None:
+        parser.error("--allowed-log-root is required to confine runtime logs")
     try:
         source_root = prepare_verified_runtime_artifact_root(args.allowed_source_root)
+        log_root: Path | None = None
+        if args.allowed_log_root is not None:
+            log_root = prepare_verified_runtime_artifact_root(args.allowed_log_root)
+        if has_diagnostic_logs:
+            if log_root is None:
+                raise ValueError("diagnostic logs require an allowed log root")
+            log_root = paired_runtime_log_root(source_root, log_root)
         args.catalog = canonical_catalog_path(args.catalog)
         args.source_result = runtime_artifact_paths(
             source_root, args.source_result, "source result", must_exist=True
@@ -1738,12 +1770,16 @@ def prepare_collector_arguments(
             source_root, args.source_events, "source events", must_exist=True
         )
         if args.stdout is not None:
+            if log_root is None:
+                raise ValueError("stdout requires an allowed log root")
             args.stdout = runtime_artifact_path(
-                source_root, args.stdout, "stdout"
+                log_root, args.stdout, "stdout"
             )
         if args.stderr is not None:
+            if log_root is None:
+                raise ValueError("stderr requires an allowed log root")
             args.stderr = runtime_artifact_path(
-                source_root, args.stderr, "stderr"
+                log_root, args.stderr, "stderr"
             )
         args.output = runtime_artifact_path(source_root, args.output, "output")
         if args.events_output is not None:

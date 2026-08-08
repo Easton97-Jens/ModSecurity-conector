@@ -215,6 +215,12 @@ run_nginx_root_handoff() {
     # stale NGINX build fail or rebuild before the root-only host stage, so the
     # elevated runner cannot reach a build/download path.
     run_nginx_unprivileged_build_preflight
+    # The fixed source tuple and any inherited NGINX binary are build-only
+    # inputs. They end at the unprivileged preflight; the root helper rebuilds
+    # its environment solely from the validated snapshot.
+    unset NGINX_BIN NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL \
+        NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF \
+        NGINX_RELEASE_ASSET_NAME NGINX_SHA256
     exec "$PYTHON" "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-nginx-root-handoff.py" \
         --connector-root "$CONNECTOR_ROOT" \
         --framework-root "$FRAMEWORK_ROOT" \

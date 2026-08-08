@@ -128,6 +128,17 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
             harness,
         )
 
+    def test_root_handoff_removes_build_only_nginx_environment(self) -> None:
+        stage = (ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh").read_text(encoding="utf-8")
+        normalized = " ".join(line.replace("\\", "").strip() for line in stage.splitlines())
+        self.assertIn(
+            "unset NGINX_BIN NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL "
+            "NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF "
+            "NGINX_RELEASE_ASSET_NAME NGINX_SHA256",
+            normalized,
+        )
+        self.assertIn("its environment solely from the validated snapshot", stage)
+
     def test_precommit_phase4_deny_is_not_declared_for_the_body_filter(self) -> None:
         import json
 

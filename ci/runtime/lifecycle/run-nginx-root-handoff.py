@@ -476,9 +476,22 @@ def create_projection_parent(verified_root: Path) -> tuple[Path, os.stat_result]
     ensure_no_symlink_prefix(base, "NGINX projection base", require_leaf=True)
     reject_system_write_path(base, "NGINX projection base")
     parent = Path(tempfile.mkdtemp(prefix="msconnector-nginx-projection-", dir=str(base)))
+    created_metadata = parent.lstat()
     try:
-        os.chmod(parent, 0o711)
-        metadata = parent.lstat()
+        descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            opened_metadata = os.fstat(descriptor)
+            if (
+                opened_metadata.st_dev != created_metadata.st_dev
+                or opened_metadata.st_ino != created_metadata.st_ino
+                or not stat.S_ISDIR(opened_metadata.st_mode)
+                or opened_metadata.st_uid != 0
+            ):
+                fail("created NGINX projection parent changed before permission setup")
+            os.fchmod(descriptor, 0o711)
+            metadata = os.fstat(descriptor)
+        finally:
+            os.close(descriptor)
         if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
             fail("created NGINX projection parent is not a directory")
         if metadata.st_uid != 0 or metadata.st_mode & 0o066:
@@ -486,7 +499,9 @@ def create_projection_parent(verified_root: Path) -> tuple[Path, os.stat_result]
         return parent, metadata
     except Exception:
         try:
-            parent.rmdir()
+            current = parent.lstat()
+            if current.st_dev == created_metadata.st_dev and current.st_ino == created_metadata.st_ino:
+                parent.rmdir()
         except OSError:
             pass
         raise

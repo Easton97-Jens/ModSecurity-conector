@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import argparse
+import contextlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -1115,6 +1118,85 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             collector.scrub_source_event_paths(consumed, raw_run)
             self.assertFalse(audit_path.exists())
 
+    def test_collector_keeps_raw_evidence_and_diagnostic_logs_in_distinct_run_roots(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-collector-roots-") as temporary:
+            root = Path(temporary)
+            raw_run = root / "runs" / "envoy" / "current-run"
+            log_run = root / "run-logs" / "envoy" / "current-run"
+            prior_log_run = root / "run-logs" / "envoy" / "prior-run"
+            raw_run.mkdir(parents=True)
+            log_run.mkdir(parents=True)
+            prior_log_run.mkdir(parents=True)
+            source_result = raw_run / "source-result.json"
+            source_result.write_text("{}\n", encoding="utf-8")
+            stdout = log_run / "stdout.log"
+            stderr = log_run / "stderr.log"
+            stdout.write_text("status=PASS\n", encoding="utf-8")
+            stderr.write_text("", encoding="utf-8")
+            stale_stdout = prior_log_run / "stdout.log"
+            stale_stdout.write_text("status=PASS\n", encoding="utf-8")
+            foreign_event = prior_log_run / "events.jsonl"
+            foreign_event.write_text("{}\n", encoding="utf-8")
+
+            def arguments(
+                *,
+                stdout_path: Path,
+                source_events: list[Path] | None = None,
+                allowed_log_root: Path | None = log_run,
+            ) -> list[str]:
+                values = [
+                    "--connector", "envoy",
+                    "--stage-rc", "0",
+                    "--allowed-source-root", str(raw_run),
+                    "--source-result", str(source_result),
+                    "--stdout", str(stdout_path),
+                    "--stderr", str(stderr),
+                    "--source-event-scrub-log", str(raw_run / "source-event-scrub.log"),
+                    "--events-output", str(raw_run / "events.normalized.jsonl"),
+                    "--output", str(raw_run / "source-result.normalized.json"),
+                ]
+                if allowed_log_root is not None:
+                    values.extend(("--allowed-log-root", str(allowed_log_root)))
+                for event in source_events or []:
+                    values.extend(("--source-events", str(event)))
+                return values
+
+            def assert_rejected(
+                parser: argparse.ArgumentParser, parsed: argparse.Namespace
+            ) -> None:
+                with contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit):
+                        collector.prepare_collector_arguments(parser, parsed)
+
+            parser = collector.collector_argument_parser()
+            parsed = parser.parse_args(arguments(stdout_path=stdout))
+            source_root = collector.prepare_collector_arguments(parser, parsed)
+            self.assertEqual(source_root, raw_run)
+            self.assertEqual(parsed.stdout, stdout)
+            self.assertEqual(parsed.stderr, stderr)
+
+            parser = collector.collector_argument_parser()
+            parsed = parser.parse_args(arguments(stdout_path=stale_stdout))
+            assert_rejected(parser, parsed)
+
+            parser = collector.collector_argument_parser()
+            parsed = parser.parse_args(
+                arguments(stdout_path=stale_stdout, allowed_log_root=prior_log_run)
+            )
+            assert_rejected(parser, parsed)
+
+            parser = collector.collector_argument_parser()
+            parsed = parser.parse_args(
+                arguments(stdout_path=stdout, allowed_log_root=None)
+            )
+            assert_rejected(parser, parsed)
+
+            parser = collector.collector_argument_parser()
+            parsed = parser.parse_args(
+                arguments(stdout_path=stdout, source_events=[foreign_event])
+            )
+            assert_rejected(parser, parsed)
+
     def test_canonical_runner_routes_native_logs_into_raw_run(self) -> None:
         source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
         for assignment in (
@@ -1133,9 +1215,12 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             'LIGHTTPD_PATCHED_ROOT="$HOST_RUNTIME_ROOT/lighttpd-patched"',
             'LIGHTTPD_PATCHED_SMOKE_DIR="$LIGHTTPD_RUNTIME_ROOT"',
             '--allowed-source-root "$RAW_DIR"',
+            '--allowed-log-root "$LOG_DIR"',
+            "SOURCE_EVENT_SCRUB_LOG=$CONNECTOR_RUN_ROOT/source-event-scrub.log",
             '--scrub-source-events',
         ):
             self.assertIn(assignment, source)
+        self.assertNotIn("SOURCE_EVENT_SCRUB_LOG=$CONNECTOR_LOG_ROOT/", source)
 
     def test_protocol_client_bundle_is_root_runner_scoped_and_forwarded(self) -> None:
         source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
