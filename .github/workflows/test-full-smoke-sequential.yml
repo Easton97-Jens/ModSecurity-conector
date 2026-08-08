@@ -142,7 +142,6 @@ jobs:
           - with-crs
     env:
       MODSECURITY_REPO_URL: https://github.com/owasp-modsecurity/ModSecurity.git
-      MODSECURITY_GIT_REF: v3/master
       BUILD_HTTPD_FROM_SOURCE: "1"
       BUILD_PCRE2_FROM_SOURCE: "1"
       BUILD_NGINX_FROM_SOURCE: "1"

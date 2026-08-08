@@ -460,6 +460,10 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         self.assertNotIn("NGINX_RELEASE_TAG: latest", nginx_env)
         self.assertNotIn("NGINX_SOURCE_GIT_REF: latest", nginx_env)
         self.assertNotIn("NGINX_GITHUB_REPO:", nginx_env)
+        self.assertNotRegex(
+            nginx_env,
+            r"""(?m)^\s*(?:["']MODSECURITY_GIT_REF["']|MODSECURITY_GIT_REF)\s*:""",
+        )
 
     def test_make_does_not_materialize_an_empty_nginx_github_repo_alias(self) -> None:
         environment = os.environ.copy()
