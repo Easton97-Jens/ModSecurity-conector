@@ -666,6 +666,128 @@ def write_runtime_artifact_text_atomic(
     return target
 
 
+def move_runtime_artifact_atomic(
+    source_root: Path,
+    source: Path | str,
+    destination_root: Path,
+    destination: Path | str,
+    label: str,
+) -> Path:
+    """Move one private regular artifact between verified roots without link traversal.
+
+    The destination is written through a fresh no-follow temporary file and
+    atomically installed before the source is removed.  The source descriptor
+    pins the bytes being copied; the final unlink additionally requires the
+    original inode so a concurrent replacement cannot be removed by mistake.
+    """
+
+    source_target = runtime_artifact_path(
+        source_root, source, f"{label} source", must_exist=True
+    )
+    destination_target = runtime_artifact_path(
+        destination_root, destination, f"{label} destination"
+    )
+    if source_target == destination_target:
+        raise ValueError(f"{label} source and destination must differ")
+
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise ValueError("safe runtime artifact moves require O_NOFOLLOW")
+
+    source_parent_descriptor = open_runtime_artifact_parent(source_target)
+    destination_parent_descriptor = open_runtime_artifact_parent(destination_target)
+    source_descriptor = -1
+    destination_descriptor = -1
+    temporary_name: str | None = None
+    temporary_created = False
+    try:
+        source_descriptor = os.open(
+            source_target.name,
+            os.O_RDONLY | no_follow,
+            dir_fd=source_parent_descriptor,
+        )
+        require_regular_runtime_artifact(source_descriptor, f"{label} source")
+        source_details = os.fstat(source_descriptor)
+
+        _existing_regular_runtime_artifact(
+            destination_parent_descriptor, destination_target, f"{label} destination"
+        )
+        for _ in range(100):
+            temporary_name = (
+                f".{destination_target.name}.{secrets.token_hex(16)}.tmp"
+            )
+            try:
+                destination_descriptor = os.open(
+                    temporary_name,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,
+                    0o600,
+                    dir_fd=destination_parent_descriptor,
+                )
+            except FileExistsError:
+                temporary_name = None
+                continue
+            temporary_created = True
+            break
+        else:
+            raise ValueError(f"could not allocate a temporary {label} destination")
+
+        require_regular_runtime_artifact(
+            destination_descriptor, f"{label} destination"
+        )
+        while True:
+            chunk = os.read(source_descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            written = 0
+            while written < len(chunk):
+                count = os.write(destination_descriptor, chunk[written:])
+                if count <= 0:
+                    raise OSError(f"unable to write {label} destination")
+                written += count
+        os.fchmod(destination_descriptor, 0o600)
+        os.fsync(destination_descriptor)
+        os.close(destination_descriptor)
+        destination_descriptor = -1
+
+        _existing_regular_runtime_artifact(
+            destination_parent_descriptor, destination_target, f"{label} destination"
+        )
+        os.replace(
+            temporary_name,
+            destination_target.name,
+            src_dir_fd=destination_parent_descriptor,
+            dst_dir_fd=destination_parent_descriptor,
+        )
+        temporary_name = None
+        temporary_created = False
+
+        current_source = os.stat(
+            source_target.name,
+            dir_fd=source_parent_descriptor,
+            follow_symlinks=False,
+        )
+        if (
+            not stat.S_ISREG(current_source.st_mode)
+            or current_source.st_dev != source_details.st_dev
+            or current_source.st_ino != source_details.st_ino
+        ):
+            raise ValueError(f"{label} source changed while being moved")
+        os.unlink(source_target.name, dir_fd=source_parent_descriptor)
+    finally:
+        if source_descriptor >= 0:
+            os.close(source_descriptor)
+        if destination_descriptor >= 0:
+            os.close(destination_descriptor)
+        if temporary_created and temporary_name is not None:
+            try:
+                os.unlink(temporary_name, dir_fd=destination_parent_descriptor)
+            except FileNotFoundError:
+                pass
+        os.close(destination_parent_descriptor)
+        os.close(source_parent_descriptor)
+    return destination_target
+
+
 def ensure_safe_writable_runtime_paths(paths: Mapping[str, str]) -> None:
     """Materialize every write-capable verified runtime path without following links.
 

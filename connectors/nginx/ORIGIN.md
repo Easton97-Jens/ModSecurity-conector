@@ -161,9 +161,11 @@ The sole deliberate exception is opt-in `NGINX_DOCROOT_PROJECTION=1`.
 `NGINX_DOCROOT_PROJECTION_PARENT` is an explicit external parent supplied by a
 trusted lifecycle/operator caller, outside the private runtime roots. It must
 already exist, be root-owned and symlink-free, disallow group/other read or
-write, and be worker-traversable in a `0711`-safe form with traversable
-ancestors. The harness validates those structural properties; it does not look
-up or enforce lifecycle-manifest registration for either projection value.
+write, and be worker-traversable either in a public `0711` form or in a
+worker-group-bound `0710` form whose group matches the verified NGINX worker
+GID, with traversable ancestors. The harness validates those structural
+properties; it does not look up or enforce lifecycle-manifest registration for
+either projection value.
 `NGINX_DOCROOT_PROJECTION_ROOT` must be its exact fresh direct static child.
 The projection helper validates the parent and creates only that child, copies
 the allowlisted static files, and makes the child worker-traversable. Generic

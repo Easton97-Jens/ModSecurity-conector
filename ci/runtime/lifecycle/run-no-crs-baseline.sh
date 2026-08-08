@@ -3,7 +3,7 @@ set -eu
 
 connector=${1:?connector is required}
 evidence_stage=${2:-no_crs_baseline}
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT=${CONNECTOR_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)}
 FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}
 PYTHON=${PYTHON:-python3}
@@ -71,6 +71,7 @@ LOG_SANITIZER=$CONNECTOR_ROOT/ci/runtime/lifecycle/sanitize-full-lifecycle-log.p
 ENGINE_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-engine-lifecycle-artifacts.py
 FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT='/./{p;q;}'
 TRANSPORT_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-transport-lifecycle-artifacts.py
+TRAEFIK_ARTIFACT_STAGER=$CONNECTOR_ROOT/ci/runtime/lifecycle/stage-traefik-runtime-artifacts.py
 SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
 
 [ -f "$FRAMEWORK_ROOT/ci/checks/catalog/no_crs_baseline.py" ] || {
@@ -87,6 +88,10 @@ SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
 }
 [ -f "$TRANSPORT_ARTIFACT_WRITER" ] || {
     echo "FAIL: transport lifecycle artifact writer is missing: $TRANSPORT_ARTIFACT_WRITER" >&2
+    exit 1
+}
+[ -f "$TRAEFIK_ARTIFACT_STAGER" ] || {
+    echo "FAIL: Traefik runtime artifact stager is missing: $TRAEFIK_ARTIFACT_STAGER" >&2
     exit 1
 }
 [ -f "$SYNCHRONIZED_UPSTREAM" ] || {
@@ -215,11 +220,16 @@ if [ "$connector" = nginx ]; then
     # canonical lifecycle route.
     NGINX_DOCROOT_PROJECTION=1
 fi
-TRAEFIK_RUNTIME_ROOT=$CONNECTOR_RUN_ROOT/traefik-runtime
+# Traefik's runtime writer rejects result paths outside its trusted build
+# root.  Keep this connector-local output below the resolver-selected mutable
+# build tree rather than weakening that containment guard.
+TRAEFIK_RUNTIME_ROOT=$STAGE_BUILD_ROOT/traefik-runtime
 LIGHTTPD_RUNTIME_ROOT=$CONNECTOR_RUN_ROOT/lighttpd-runtime
 PLAN=$CONNECTOR_RUN_ROOT/plan.json
 SOURCE_RESULT=$CONNECTOR_RUN_ROOT/source-result.json
 NORMALIZED_EVENTS=$CONNECTOR_RUN_ROOT/events.normalized.jsonl
+# The collector writes this diagnostic record under the paired lifecycle log
+# root while it removes raw source events from the separate raw run.
 SOURCE_EVENT_SCRUB_LOG=$CONNECTOR_LOG_ROOT/source-event-scrub.log
 CANONICAL_STDOUT_LOG=$CONNECTOR_LOG_ROOT/stdout.canonical.log
 CANONICAL_STDERR_LOG=$CONNECTOR_LOG_ROOT/stderr.canonical.log
@@ -435,7 +445,10 @@ else
     echo "INFO: $connector/$FULL_LIFECYCLE_HOST_PROFILE has no mandatory compatibility-case requirement"
 fi
 
-executed_target=no-crs-baseline-$connector
+case "$evidence_stage" in
+    minimal_runtime_smoke) executed_target=runtime-smoke-$connector ;;
+    no_crs_baseline) executed_target=no-crs-baseline-$connector ;;
+esac
 if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     executed_target=$FULL_LIFECYCLE_EXECUTED_TARGET
 fi
@@ -475,6 +488,7 @@ RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
 RUNTIME_COMPONENT_TARGET="$canonical_runtime_component_target" \
 RUNTIME_COMPONENT_ENV_SNAPSHOT="$RUNTIME_COMPONENT_ENV_SNAPSHOT" \
 APACHE_RUNTIME_LOG_DIR="$HOST_RUNTIME_ROOT/apache-runtime" \
+APACHE_CASE_OUTPUT_ROOT="$HOST_RUNTIME_ROOT" \
 NGINX_HARNESS_PARENT="$RAW_DIR" \
 NGINX_HARNESS_WORK_ROOT="$NGINX_RUN_ROOT" \
 NGINX_DOCROOT_PROJECTION="$NGINX_DOCROOT_PROJECTION" \
@@ -605,6 +619,18 @@ case "$connector" in
     traefik)
         source_result=$TRAEFIK_RUNTIME_ROOT/result.json
         source_events=$TRAEFIK_RUNTIME_ROOT/logs/events.jsonl
+        # The host writer is intentionally confined to the private build root,
+        # while the collector is intentionally confined to the raw run. Move
+        # only the two fixed Traefik producer artifacts with descriptor-based
+        # no-follow validation; never widen the collector source boundary.
+        "$PYTHON" "$TRAEFIK_ARTIFACT_STAGER" \
+            --build-root "$STAGE_BUILD_ROOT" \
+            --raw-root "$RAW_DIR" || {
+                echo "FAIL: unable to stage Traefik runtime artifacts into the raw run" >&2
+                exit 1
+            }
+        source_result=$RAW_DIR/traefik-source/result.json
+        source_events=$RAW_DIR/traefik-source/events.jsonl
         ;;
     lighttpd)
         source_results=$LIGHTTPD_RUNTIME_ROOT/results.jsonl
@@ -645,7 +671,7 @@ if [ -n "$source_events" ] && [ -f "$source_events" ]; then
 fi
 "$PYTHON" "$CONNECTOR_ROOT/ci/runtime/lifecycle/collect-no-crs-source.py" "$@"
 
-# Raw host logs remain in the disposable run directory.  Canonical evidence
+# Raw host logs remain in the disposable per-run log tree. Canonical evidence
 # receives only bounded, sentinel-free diagnostics plus a metadata-only host
 # summary, so body fixtures and credentials cannot be retained accidentally.
 "$PYTHON" "$LOG_SANITIZER" --input "$LOG_DIR/stdout.log" \

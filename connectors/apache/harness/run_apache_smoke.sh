@@ -12,6 +12,7 @@ RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
 if [ -n "${FORCE_ALL_CASES:-}" ] && [ "$RESULTS_DIR" = "$BUILD_ROOT/results" ]; then
     RESULTS_DIR="$BUILD_ROOT/results/force-all"
 fi
+APACHE_CASE_OUTPUT_ROOT="${APACHE_CASE_OUTPUT_ROOT:-$BUILD_ROOT}"
 RUNTIME_BASE="${RUNTIME_BASE:-$BUILD_ROOT/apache-runtime}"
 RUNTIME_ROOT="${RUNTIME_ROOT:-}"
 HTTPD_PREFIX="${HTTPD_PREFIX:-$BUILD_ROOT/apache-runtime/httpd}"
@@ -249,6 +250,7 @@ write_case_result() {
             --access-log-file "$output_dir/access.log" \
             --error-log-file "$output_dir/error.log" \
             --phase4-log-file "$output_dir/phase4.log" \
+            --output-root "$APACHE_CASE_OUTPUT_ROOT" \
             --output "$output"
     else
         "$PYTHON_BIN" "$CASE_CLI" case-info \
@@ -262,6 +264,7 @@ write_case_result() {
             --access-log-file "$output_dir/access.log" \
             --error-log-file "$output_dir/error.log" \
             --phase4-log-file "$output_dir/phase4.log" \
+            --output-root "$APACHE_CASE_OUTPUT_ROOT" \
             --output "$output"
     fi
 }
@@ -271,6 +274,7 @@ run_all_cases() {
     require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
     require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"
     require_absolute_generated_path "$RUNTIME_BASE" "RUNTIME_BASE"
+    require_absolute_generated_path "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT"
 
     mkdir -p "$LOG_DIR" "$RESULTS_DIR"
     summary_file="$RESULTS_DIR/apache-summary.txt"
@@ -2305,6 +2309,7 @@ require_absolute_generated_path "$APACHE_BUILD_ROOT" "APACHE_BUILD_ROOT"
 require_absolute_generated_path "$HTTPD_PREFIX" "HTTPD_PREFIX"
 require_absolute_generated_path "$RUNTIME_ROOT" "RUNTIME_ROOT"
 require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
+require_absolute_generated_path "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT"
 
 RUNTIME_PID_FILE="$RUNTIME_ROOT/logs/httpd.pid"
 
@@ -2396,6 +2401,7 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --docroot "$DOCROOT" \
     --audit-log-file "$AUDIT_LOG_FILE" \
     --audit-log-dir "$AUDIT_LOG_DIR" \
+    --output-root "$APACHE_CASE_OUTPUT_ROOT" \
     --rules-preamble-file "$MODSECURITY_RULE_PREAMBLE_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi

@@ -459,6 +459,27 @@ Revisionen, Checksums und Source-Pfade ändern die Provisionierungsidentität un
 können Rebuilds auslösen. Sie ändern keine Connector-Capability und promoten
 kein Ergebnis.
 
+### Layout der All-Connectors-No-CRS-Baseline
+
+Die Baseline <code>all-connectors-no-crs.yml</code> läuft nur nach Zeitplan
+oder über einen repository-autorisierten manuellen Dispatch. Sie besitzt nur
+lesende Repository-Berechtigungen und keinen Pull-Request-Trigger. Jede
+Ausführung verwendet gleichrangige Roots <code>build</code>,
+<code>evidence</code> und <code>cache-v2</code> unter
+<code>$RUNNER_TEMP/ModSecurity-conector-verified</code>; veränderbare Build-
+oder Cache-Daten liegen damit nicht unterhalb des Evidence-Roots.
+
+Die NGINX-Matrix-Zeile verwendet einen eng begrenzten Root-Handoff nur für die
+root-erforderlichen Phase-4-Config-/Start-Checks und den festgelegten minimalen
+Runtime-Smoke. Zuerst bereitet die Runner-Identität die Komponenten vor und
+schreibt einen invocation-lokalen Runtime-Environment-Snapshot. Der Handoff
+prüft die freigegebenen Snapshot-Metadaten und -Pfade, ruft den festgelegten
+Framework-Runner mit expliziter Umgebung und festem Nicht-Root-Worker auf und
+deaktiviert Fetches und Builds in diesem erhöhten Schritt. Er sourct den
+Snapshot niemals als root und ist kein allgemeiner privilegierter Runner. Die
+No-CRS-Document-Root-Projektion wird unter einem kontrollierten externen Parent
+angelegt und nur bei exakt erwarteten Inhalten bereinigt.
+
 ## Ausgewählte Build-Routen
 
 | Connector | Build-Target | Ausgewähltes Full-Lifecycle-Profil | Build-/Integrationshinweis |

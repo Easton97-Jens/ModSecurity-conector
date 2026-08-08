@@ -170,10 +170,12 @@ Die einzige bewusst enge Ausnahme ist Opt-in `NGINX_DOCROOT_PROJECTION=1`.
 vertrauenswürdiger Lifecycle-/Operator-Caller außerhalb der privaten
 Runtime-Roots übergibt. Er muss bereits existieren, root-eigen und
 symlink-frei sein, Lese- oder Schreibzugriff für Gruppe/Andere verweigern und
-in einer `0711`-sicheren Form für den Worker traversierbar sein; auch seine
-Ancestors müssen traversierbar sein. Der Harness validiert diese strukturellen
-Eigenschaften, schlägt aber kein Lifecycle-Manifest für die beiden
-Projection-Werte nach und erzwingt keine Manifest-Registrierung.
+entweder in einer öffentlichen `0711`-Form oder in einer gruppengebundenen
+`0710`-Form für den Worker traversierbar sein, deren Gruppe der verifizierten
+NGINX-Worker-GID entspricht; auch seine Ancestors müssen traversierbar sein.
+Der Harness validiert diese strukturellen Eigenschaften, schlägt aber kein
+Lifecycle-Manifest für die beiden Projection-Werte nach und erzwingt keine
+Manifest-Registrierung.
 `NGINX_DOCROOT_PROJECTION_ROOT` muss sein exaktes frisches direktes statisches
 Kind sein. Der Projection-Helper validiert den Parent und erzeugt nur dieses
 Kind, kopiert die allowlisteten statischen Dateien und macht das Kind für den

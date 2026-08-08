@@ -1,6 +1,9 @@
 name: All Connector No-CRS Baseline
 
 on:
+  # This workflow has no pull_request or pull_request_target trigger.  The
+  # NGINX root handoff below is therefore limited to scheduled default-branch
+  # runs and a repository-authorized manual workflow_dispatch invocation.
   workflow_dispatch:
   schedule:
     - cron: '23 3 * * 3'
@@ -75,6 +78,16 @@ jobs:
       CI_PHASE4_MODE: ${{ matrix.phase4_mode }}
       CI_EVIDENCE_SCOPE: ${{ matrix.evidence_scope }}
       NO_CRS_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      # Keep the NGINX source identity fixed and mutually bound for every
+      # runtime-component producer. The pinned Framework rejects an explicit
+      # empty or floating tuple rather than selecting a mutable release.
+      NGINX_SOURCE_MODE: github-release
+      NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx
+      NGINX_GITHUB_REPO: https://github.com/nginx/nginx
+      NGINX_RELEASE_TAG: release-1.31.3
+      NGINX_SOURCE_GIT_REF: release-1.31.3
+      NGINX_RELEASE_ASSET_NAME: nginx-1.31.3.tar.gz
+      NGINX_SHA256: a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
       PYTHONDONTWRITEBYTECODE: "1"
 
     steps:
@@ -175,25 +188,41 @@ jobs:
           set -eu
           test "$CI_PHASE4_MODE" = safe
           echo "NGINX_PHASE4_MODE=$CI_PHASE4_MODE" >> "$GITHUB_ENV"
+          # Build preparation stays unprivileged.  The Parent lifecycle uses
+          # this explicit opt-in only for its fixed config/start/No-CRS root
+          # handoff, never for a PR-triggered workflow.
+          echo "NGINX_ROOT_HANDOFF=1" >> "$GITHUB_ENV"
+          # The bounded handoff creates this fixed, worker-visible projection
+          # before the separately verified NGINX worker reads the harness
+          # docroot.  It does not expose the private harness work root.
+          echo "NGINX_DOCROOT_PROJECTION=1" >> "$GITHUB_ENV"
 
       - name: Initialize canonical evidence paths
+        env:
+          SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
         run: |
           set -eu
           verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
           build_root="$verified_root/build"
-          evidence_root="$build_root/no-crs-evidence"
+          verified_evidence_root="$verified_root/evidence"
+          evidence_root="$verified_evidence_root/no-crs-evidence"
+          cache_root="$verified_root/cache-v2"
           {
             echo "VERIFIED_RUN_ROOT=$verified_root"
             echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
             echo "SOURCE_ROOT=$verified_root/src"
             echo "BUILD_ROOT=$build_root"
-            echo "TMP_ROOT=$verified_root/tmp"
-            echo "LOG_ROOT=$verified_root/logs"
-            echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
-            echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
+            echo "TMP_ROOT=$build_root/tmp"
+            echo "LOG_ROOT=$build_root/logs"
+            echo "CACHE_ROOT=$cache_root"
+            echo "VERIFIED_COMPONENT_CACHE=$cache_root/shared"
+            echo "CONNECTOR_COMPONENT_CACHE=$cache_root/shared"
+            echo "NGINX_HARNESS_PARENT=$build_root/nginx-harness"
+            echo "VERIFIED_EVIDENCE_ROOT=$verified_evidence_root"
             echo "EVIDENCE_ROOT=$evidence_root"
             echo "NO_CRS_EVIDENCE_ROOT=$evidence_root"
-            echo "RUNTIME_REPORT_OUTPUT_ROOT=$verified_root/runtime-component-reports"
+            echo "RUNTIME_REPORT_OUTPUT_ROOT=$build_root/runtime-component-reports"
+            printf 'PYTHON=%s\n' "$SETUP_PYTHON_PATH"
             echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
           } >> "$GITHUB_ENV"
           mkdir -p "$evidence_root"
@@ -248,12 +277,17 @@ jobs:
           set -eu
           make "start-smoke-$CONNECTOR"
 
-      - name: Run canonical No-CRS baseline
+      - name: Run canonical minimal No-CRS runtime smoke
         env:
           CONNECTOR: ${{ matrix.connector }}
         run: |
           set -eu
-          make "no-crs-baseline-$CONNECTOR"
+          # This matrix declares only the real-host minimal compatibility
+          # boundary.  The canonical runner still pins the no-CRS rules and
+          # validates provenance and events, but selects only the two cases
+          # this profile actually executes; full-lifecycle evidence remains
+          # a separate, stricter target.
+          RUNTIME_EVIDENCE_ROOT="$EVIDENCE_ROOT" make "runtime-smoke-$CONNECTOR"
 
       - name: Validate canonical evidence
         env:
@@ -349,6 +383,7 @@ jobs:
         with:
           pattern: no-crs-*-${{ github.run_id }}-${{ github.run_attempt }}
           path: downloaded
+          merge-multiple: false
 
       - name: Restore canonical evidence layout
         if: always()
@@ -367,7 +402,7 @@ jobs:
               --connector "$connector" \
               --capabilities "connectors/$connector/capabilities.json" \
               --check all; then
-              rm -rf "$destination"
+              echo "::error::Canonical evidence for $connector is missing or invalid; retained for diagnosis"
               status=1
             fi
           done

@@ -48,6 +48,28 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
         self.assertIn("unrun_selected_runner_cases=deny_with_alternative_status.yaml", result.stdout)
         self.assertNotIn("PASS", result.stdout)
 
+    def test_consumer_accepts_the_canonical_full_lifecycle_namespace(self) -> None:
+        result = self.consume(
+            "lighttpd",
+            " ".join(
+                (
+                    "allow_without_marker.yaml",
+                    "deny_header_marker_403.yaml",
+                    "full-lifecycle/phase3_deny_before_commit.yaml",
+                )
+            ),
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("full-lifecycle/phase3_deny_before_commit.yaml", result.stdout)
+
+    def test_consumer_rejects_full_lifecycle_traversal(self) -> None:
+        result = self.consume(
+            "lighttpd",
+            "allow_without_marker.yaml deny_header_marker_403.yaml full-lifecycle/../escape.yaml",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unsafe characters", result.stderr)
+
     def test_stage_rejects_missing_selected_cases_and_preserves_dispatch_controls(self) -> None:
         stage_runner = ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh"
         missing_cases_message = "FAIL: capability-selected No-CRS runner cases are missing"
