@@ -1195,6 +1195,40 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertEqual(evidence["evidence_origin"], "synthetic_harness")
             self.assertFalse(evidence["promotion_eligible"])
 
+    def make_provenance_environment(
+        self,
+        names: tuple[str, ...],
+        make_target: str,
+        overrides: dict[str, str | None],
+    ) -> dict[str, str]:
+        environment = os.environ.copy()
+        for name in names:
+            value = overrides.get(name)
+            if value is None:
+                environment.pop(name, None)
+            else:
+                environment[name] = value
+        completed = subprocess.run(
+            [
+                "make",
+                "--no-print-directory",
+                "-s",
+                "--eval",
+                f"{make_target}:\n\t@env",
+                make_target,
+            ],
+            cwd=ROOT,
+            env=environment,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        return dict(
+            line.split("=", 1)
+            for line in completed.stdout.splitlines()
+            if line.partition("=")[0] in names
+        )
+
     def test_make_preserves_nginx_provenance_presence_semantics(self) -> None:
         names = (
             "NGINX_SOURCE_MODE",
@@ -1203,40 +1237,16 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             "NGINX_GITHUB_REPO",
             "NGINX_RELEASE_TAG",
         )
+        make_target = "print-nginx-provenance-contract"
 
-        def make_environment(overrides: dict[str, str | None]) -> dict[str, str]:
-            environment = os.environ.copy()
-            for name in names:
-                value = overrides.get(name)
-                if value is None:
-                    environment.pop(name, None)
-                else:
-                    environment[name] = value
-            completed = subprocess.run(
-                [
-                    "make",
-                    "--no-print-directory",
-                    "-s",
-                    "--eval",
-                    "print-nginx-provenance-contract:\n\t@env",
-                    "print-nginx-provenance-contract",
-                ],
-                cwd=ROOT,
-                env=environment,
-                text=True,
-                capture_output=True,
-            )
-            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-            return dict(
-                line.split("=", 1)
-                for line in completed.stdout.splitlines()
-                if line.partition("=")[0] in names
-            )
-
-        absent = make_environment({name: None for name in names})
+        absent = self.make_provenance_environment(
+            names, make_target, {name: None for name in names}
+        )
         self.assertEqual(absent, {})
 
-        explicit_empty = make_environment({name: "" for name in names})
+        explicit_empty = self.make_provenance_environment(
+            names, make_target, {name: "" for name in names}
+        )
         self.assertEqual(explicit_empty, {name: "" for name in names})
 
         reviewed = {
@@ -1246,7 +1256,9 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             "NGINX_GITHUB_REPO": "https://github.com/nginx/nginx",
             "NGINX_RELEASE_TAG": "release-1.31.3",
         }
-        self.assertEqual(make_environment(reviewed), reviewed)
+        self.assertEqual(
+            self.make_provenance_environment(names, make_target, reviewed), reviewed
+        )
 
     def test_make_preserves_apr_util_provenance_presence_semantics(self) -> None:
         names = (
@@ -1255,41 +1267,16 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             "APR_UTIL_SHA256",
             "APR_UTIL_SHA256_URL",
         )
-        target = "print-apr-util-provenance-contract:\n\t@env"
+        make_target = "print-apr-util-provenance-contract"
 
-        def make_environment(overrides: dict[str, str | None]) -> dict[str, str]:
-            environment = os.environ.copy()
-            for name in names:
-                value = overrides.get(name)
-                if value is None:
-                    environment.pop(name, None)
-                else:
-                    environment[name] = value
-            completed = subprocess.run(
-                [
-                    "make",
-                    "--no-print-directory",
-                    "-s",
-                    "--eval",
-                    target,
-                    "print-apr-util-provenance-contract",
-                ],
-                cwd=ROOT,
-                env=environment,
-                text=True,
-                capture_output=True,
-            )
-            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-            return dict(
-                line.split("=", 1)
-                for line in completed.stdout.splitlines()
-                if line.partition("=")[0] in names
-            )
-
-        absent = make_environment({name: None for name in names})
+        absent = self.make_provenance_environment(
+            names, make_target, {name: None for name in names}
+        )
         self.assertEqual(absent, {})
 
-        explicit_empty = make_environment({name: "" for name in names})
+        explicit_empty = self.make_provenance_environment(
+            names, make_target, {name: "" for name in names}
+        )
         self.assertEqual(explicit_empty, {name: "" for name in names})
 
         reviewed = {
@@ -1298,7 +1285,9 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             "APR_UTIL_SHA256": "3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b",
             "APR_UTIL_SHA256_URL": "https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2.sha256",
         }
-        self.assertEqual(make_environment(reviewed), reviewed)
+        self.assertEqual(
+            self.make_provenance_environment(names, make_target, reviewed), reviewed
+        )
 
     def test_protocol_client_bundle_is_root_runner_scoped_and_forwarded(self) -> None:
         source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
