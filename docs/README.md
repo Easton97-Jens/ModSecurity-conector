@@ -20,6 +20,7 @@ complete matrix, or strict behavior for every connector.
 | Test or interpret artifacts | [Testing and evidence](testing-and-evidence.md) | Selected run records and Framework schemas |
 | Operate safely | [Operations and security](operations-and-security.md) | Explicit deployment, limit, privacy, and provenance boundary |
 | Review CI security automation | [CI security tooling](security/ci-security-tooling.md) | Immutable pins, scanners, permissions, and their evidence limits |
+| Review the privileged NGINX test boundary | [Trusted NGINX root broker](security/trusted-nginx-root-broker.md) | Immutable protected-master code, bounded root actions, and root-to-runner evidence |
 | Choose a connector | [Connector index](connectors/README.md) | Selected integration mode and connector guide |
 | Trace a material change | [Change traceability](change-traceability.md) / [Change Records](../reports/audits/change-records/README.md) | Binding workflow, paired records, and evidence/data boundary |
 
