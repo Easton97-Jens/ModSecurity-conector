@@ -177,11 +177,24 @@ export MODSECURITY_RULE_PREAMBLE_FILE
 export BUILD_HTTPD_FROM_SOURCE
 export BUILD_PCRE2_FROM_SOURCE
 export BUILD_NGINX_FROM_SOURCE
+# The Framework deliberately distinguishes absent provenance inputs (its
+# reviewed defaults apply) from explicit empty inputs (fail closed).  Do not
+# turn an absent optional Make variable into an empty exported override.
+ifneq ($(origin NGINX_SOURCE_MODE),undefined)
 export NGINX_SOURCE_MODE
+endif
+ifneq ($(origin NGINX_SOURCE_REPO_URL),undefined)
 export NGINX_SOURCE_REPO_URL
+endif
+ifneq ($(origin NGINX_SOURCE_GIT_REF),undefined)
 export NGINX_SOURCE_GIT_REF
+endif
+ifneq ($(origin NGINX_GITHUB_REPO),undefined)
 export NGINX_GITHUB_REPO
+endif
+ifneq ($(origin NGINX_RELEASE_TAG),undefined)
 export NGINX_RELEASE_TAG
+endif
 export HAPROXY_VERSION
 export HAPROXY_SOURCE_URL
 export HAPROXY_SHA256_URL
@@ -205,10 +218,10 @@ export APR_VERSION
 export APR_SOURCE_URL
 export APR_SHA256
 export APR_SHA256_URL
-# The pinned Framework owns the approved APR-util provenance tuple and
-# deliberately distinguishes an absent value from an explicit empty override.
-# GNU make exports an undefined variable as empty, so forward only values a
-# caller actually supplied; the Framework remains the fail-closed authority.
+# The pinned Framework's reviewed APR-util tuple deliberately distinguishes
+# absent inputs (use the reviewed tuple) from explicit empty or altered
+# overrides (fail closed). Do not turn an absent optional Make variable into
+# an empty exported override.
 ifneq ($(origin APR_UTIL_VERSION),undefined)
 export APR_UTIL_VERSION
 endif

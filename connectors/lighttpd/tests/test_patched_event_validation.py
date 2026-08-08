@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -13,6 +14,11 @@ HARNESS = REPO_ROOT / "connectors" / "lighttpd" / "harness"
 FIRST_BYTE_WRITER = HARNESS / "write_patched_first_byte_metadata.py"
 LIFECYCLE_WRITER = HARNESS / "write_patched_lifecycle_results.py"
 ENTITY_FIXTURE = HARNESS / "lighttpd_http1_entity_fixture_upstream.py"
+CI_LIB = REPO_ROOT / "ci" / "lib"
+if str(CI_LIB) not in sys.path:
+    sys.path.insert(0, str(CI_LIB))
+
+from verified_run_id import VERIFIED_RUN_ID_PATTERN  # noqa: E402
 
 
 def safe_p4_event(
@@ -21,8 +27,9 @@ def safe_p4_event(
     body_bytes_seen: object = 31,
     body_bytes_inspected: object = 31,
     transaction_id: str = "tx-safe",
+    run_id: object | None = None,
 ) -> dict[str, object]:
-    return {
+    event: dict[str, object] = {
         "connector": "lighttpd",
         "integration_mode": "patched-native-lighttpd",
         "event": "response_blocked",
@@ -46,6 +53,9 @@ def safe_p4_event(
         "body_bytes_seen": body_bytes_seen,
         "body_bytes_inspected": body_bytes_inspected,
     }
+    if run_id is not None:
+        event["run_id"] = run_id
+    return event
 
 
 def write_jsonl(
@@ -69,10 +79,13 @@ def lifecycle_arguments(
     fixture: Path,
     summary: Path,
     selected_case_ids: str = "",
+    run_id: str = "lighttpd-current-run",
 ) -> list[str]:
     arguments = [
         "--events",
         str(events),
+        "--run-id",
+        run_id,
         "--output",
         str(output),
         "--allow-status",
@@ -107,9 +120,18 @@ def lifecycle_arguments(
     return arguments
 
 
-def with_replaced_argument(arguments: list[str], option: str, value: Path) -> list[str]:
+def with_replaced_argument(
+    arguments: list[str], option: str, value: Path | str
+) -> list[str]:
     replacement = list(arguments)
     replacement[replacement.index(option) + 1] = str(value)
+    return replacement
+
+
+def without_argument(arguments: list[str], option: str) -> list[str]:
+    replacement = list(arguments)
+    index = replacement.index(option)
+    del replacement[index : index + 2]
     return replacement
 
 
@@ -184,6 +206,7 @@ def write_lifecycle_inputs(
             "projection": projection,
             "runtime_root": root,
             "summary": summary,
+            "barrier": barrier,
         },
     )
 
@@ -508,6 +531,132 @@ class PatchedEventValidationTest(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn(candidate_error, result.stderr)
                     self.assertFalse(artifacts["output"].exists())
+
+    def test_lifecycle_writer_binds_selected_run_id_only_to_derived_eos_projection(
+        self,
+    ) -> None:
+        selected_run_id = "lighttpd-current-run"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for label, raw_run_id in (
+                ("missing-raw-identity", None),
+                ("matching-raw-identity", selected_run_id),
+            ):
+                with self.subTest(raw_identity=label):
+                    raw_event = safe_p4_event(run_id=raw_run_id)
+                    raw_event.update(
+                        {
+                            "sequence": 7,
+                            "previous_event_hash": "a" * 64,
+                            "event_hash": "b" * 64,
+                        }
+                    )
+                    arguments, artifacts = write_lifecycle_inputs(
+                        root / label,
+                        [raw_event],
+                        selected_case_ids="phase4_rule_observed",
+                    )
+                    raw_before = artifacts["barrier"].read_bytes()
+
+                    result = self.run_writer(
+                        LIFECYCLE_WRITER,
+                        arguments,
+                        runtime_output_root=artifacts["runtime_root"],
+                    )
+
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(artifacts["barrier"].read_bytes(), raw_before)
+                    projection = json.loads(
+                        artifacts["projection"].read_text(encoding="utf-8")
+                    )
+                    self.assertEqual(projection["run_id"], selected_run_id)
+                    self.assertNotIn("sequence", projection)
+                    self.assertNotIn("previous_event_hash", projection)
+                    self.assertNotIn("event_hash", projection)
+                    rows = [
+                        json.loads(line)
+                        for line in artifacts["output"].read_text(
+                            encoding="utf-8"
+                        ).splitlines()
+                    ]
+                    self.assertTrue(rows)
+                    self.assertTrue(all("run_id" not in row for row in rows))
+
+    def test_lifecycle_writer_rejects_missing_or_invalid_selected_run_id_before_output(
+        self,
+    ) -> None:
+        invalid_values = (
+            "",
+            " ",
+            "safe/child",
+            r"safe\child",
+            "..",
+            "with..dots",
+            "a" * 129,
+            "bad:id",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            arguments, artifacts = write_lifecycle_inputs(
+                root / "missing", [safe_p4_event()]
+            )
+            result = self.run_writer(
+                LIFECYCLE_WRITER,
+                without_argument(arguments, "--run-id"),
+                runtime_output_root=artifacts["runtime_root"],
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("the following arguments are required: --run-id", result.stderr)
+            self.assertFalse(artifacts["output"].exists())
+            self.assertFalse(artifacts["projection"].exists())
+            self.assertFalse(artifacts["summary"].exists())
+
+            for index, invalid_run_id in enumerate(invalid_values):
+                with self.subTest(run_id=invalid_run_id):
+                    arguments, artifacts = write_lifecycle_inputs(
+                        root / f"invalid-{index}", [safe_p4_event()]
+                    )
+                    result = self.run_writer(
+                        LIFECYCLE_WRITER,
+                        with_replaced_argument(
+                            arguments, "--run-id", invalid_run_id
+                        ),
+                        runtime_output_root=artifacts["runtime_root"],
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("verified_run_id", result.stderr)
+                    self.assertFalse(artifacts["output"].exists())
+                    self.assertFalse(artifacts["projection"].exists())
+                    self.assertFalse(artifacts["summary"].exists())
+
+    def test_lifecycle_writer_rejects_conflicting_raw_run_id_before_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            arguments, artifacts = write_lifecycle_inputs(
+                root,
+                [safe_p4_event(run_id="lighttpd-foreign-run")],
+                selected_case_ids="phase4_rule_observed",
+            )
+            raw_before = artifacts["barrier"].read_bytes()
+
+            result = self.run_writer(
+                LIFECYCLE_WRITER,
+                arguments,
+                runtime_output_root=artifacts["runtime_root"],
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "raw Common event run_id conflicts with the selected Lighttpd run identity",
+                result.stderr,
+            )
+            self.assertEqual(artifacts["barrier"].read_bytes(), raw_before)
+            self.assertFalse(artifacts["output"].exists())
+            self.assertFalse(artifacts["projection"].exists())
+            self.assertFalse(artifacts["summary"].exists())
+
+    def test_verified_run_id_contract_matches_the_existing_shared_pattern(self) -> None:
+        self.assertTrue(VERIFIED_RUN_ID_PATTERN.fullmatch("lighttpd-current-run"))
 
     def test_lifecycle_writer_rejects_escaped_and_symlink_input_paths(self) -> None:
         options = (

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import json
 import sys
@@ -33,6 +34,97 @@ COLLECTOR = load_collector()
 
 
 class CollectNoCrsSourceHelpersTest(unittest.TestCase):
+    def test_catalog_uses_the_explicit_framework_root_without_path_aliases(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-catalog-root-") as temporary:
+            root = Path(temporary)
+            framework = root / "selected-framework"
+            catalog = framework / "tests/cases/no-crs-baseline/catalog.json"
+            catalog.parent.mkdir(parents=True)
+            catalog.write_text("{}\n", encoding="utf-8")
+            candidate_framework = root / "candidate/modules/ModSecurity-test-Framework"
+            candidate_framework.mkdir(parents=True)
+
+            self.assertEqual(
+                COLLECTOR.canonical_catalog_path(catalog, framework), catalog
+            )
+
+            outside = root / "outside-catalog.json"
+            outside.write_text("{}\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "Framework source root"):
+                COLLECTOR.canonical_catalog_path(outside, framework)
+
+            traversal = catalog.parent / ".." / "no-crs-baseline" / "catalog.json"
+            with self.assertRaisesRegex(ValueError, "unsafe path component"):
+                COLLECTOR.canonical_catalog_path(traversal, framework)
+
+            final_alias = framework / "catalog-alias.json"
+            final_alias.symlink_to(catalog)
+            with self.assertRaisesRegex(ValueError, "symbolic links"):
+                COLLECTOR.canonical_catalog_path(final_alias, framework)
+
+            source_directory = framework / "catalog-source"
+            source_directory.mkdir()
+            source_catalog = source_directory / "catalog.json"
+            source_catalog.write_text("{}\n", encoding="utf-8")
+            directory_alias = framework / "catalog-alias-directory"
+            directory_alias.symlink_to(source_directory, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "symbolic links"):
+                COLLECTOR.canonical_catalog_path(
+                    directory_alias / source_catalog.name, framework
+                )
+
+            framework_alias = root / "framework-alias"
+            framework_alias.symlink_to(framework, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "symbolic links"):
+                COLLECTOR.canonical_catalog_path(catalog, framework_alias)
+
+    def test_collector_cli_requires_explicit_framework_and_catalog_roots(self) -> None:
+        parser = COLLECTOR.collector_argument_parser()
+        actions = {action.dest: action for action in parser._actions}
+        self.assertTrue(actions["framework_root"].required)
+        self.assertTrue(actions["catalog"].required)
+
+    def test_collector_arguments_keep_lifecycle_logs_in_their_log_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-collector-roots-") as temporary:
+            root = Path(temporary)
+            source_root = root / "runs" / "traefik" / "current-run"
+            log_root = root / "logs" / "traefik" / "current-run"
+            framework = root / "framework"
+            catalog = framework / "tests/cases/no-crs-baseline/catalog.json"
+            source_root.mkdir(parents=True)
+            log_root.mkdir(parents=True)
+            catalog.parent.mkdir(parents=True)
+            catalog.write_text("{}\n", encoding="utf-8")
+            stdout = log_root / "stdout.log"
+            stderr = log_root / "stderr.log"
+            scrub_log = log_root / "source-event-scrub.log"
+            stdout.write_text("status=PASS\n", encoding="utf-8")
+            stderr.write_text("", encoding="utf-8")
+
+            parser = COLLECTOR.collector_argument_parser()
+            args = parser.parse_args(
+                [
+                    "--connector", "traefik",
+                    "--stage-rc", "0",
+                    "--framework-root", str(framework),
+                    "--catalog", str(catalog),
+                    "--allowed-source-root", str(source_root),
+                    "--allowed-log-root", str(log_root),
+                    "--stdout", str(stdout),
+                    "--stderr", str(stderr),
+                    "--source-event-scrub-log", str(scrub_log),
+                    "--output", str(source_root / "source-result.json"),
+                    "--events-output", str(source_root / "events.jsonl"),
+                ]
+            )
+
+            self.assertEqual(
+                COLLECTOR.prepare_collector_arguments(parser, args), source_root
+            )
+            self.assertEqual(args.stdout, stdout)
+            self.assertEqual(args.stderr, stderr)
+            self.assertEqual(args.source_event_scrub_log, scrub_log)
+
     def test_metadata_dispatch_retains_allow_lists_and_scalar_rejection(self) -> None:
         self.assertEqual(
             COLLECTOR.safe_metadata_value("actual_action", "connection_abort"),
@@ -293,13 +385,52 @@ class CollectNoCrsSourceHelpersTest(unittest.TestCase):
             (200, 403),
         )
 
+    def test_collector_payload_avoids_duplicate_core_case_derivation(self) -> None:
+        payload = COLLECTOR.collector_payload(
+            argparse.Namespace(connector="traefik", stage_rc=0),
+            "PASS",
+            True,
+            False,
+            200,
+            403,
+            ["1100001"],
+            True,
+            [
+                {
+                    "case_id": "allow_without_marker",
+                    "actual_status": 200,
+                },
+                {
+                    "case_id": "deny_header_marker_403",
+                    "actual_status": 403,
+                },
+            ],
+            {
+                "transaction_ids": [],
+                "event_metadata_verified": True,
+                "body_payload_absent_from_events": True,
+                "event_records": [],
+                "event_validation_errors": [],
+                "forbidden_event_keys": [],
+            },
+        )
+
+        self.assertIsNone(payload["allowed_request_status"])
+        self.assertIsNone(payload["blocked_request_status"])
+
     def test_scrub_uses_no_follow_artifact_removal_and_log_writer(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-helper-scrub-") as temporary:
             root = Path(temporary)
-            event = root / "decision.jsonl"
+            source_root = root / "raw"
+            log_root = root / "logs"
+            source_root.mkdir()
+            log_root.mkdir()
+            event = source_root / "decision.jsonl"
             event.write_text('{"transaction_id":"tx-one"}\n', encoding="utf-8")
-            log = root / "logs" / "scrub.log"
-            removed = COLLECTOR.scrub_source_event_paths([event], root, log)
+            log = log_root / "scrub.log"
+            removed = COLLECTOR.scrub_source_event_paths(
+                [event], source_root, log, log_root
+            )
 
             self.assertEqual(removed, [event])
             self.assertFalse(event.exists())
