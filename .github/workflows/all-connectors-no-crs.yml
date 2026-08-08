@@ -78,6 +78,16 @@ jobs:
       CI_PHASE4_MODE: ${{ matrix.phase4_mode }}
       CI_EVIDENCE_SCOPE: ${{ matrix.evidence_scope }}
       NO_CRS_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      # Keep the NGINX source identity fixed and mutually bound for every
+      # runtime-component producer. The pinned Framework rejects an explicit
+      # empty or floating tuple rather than selecting a mutable release.
+      NGINX_SOURCE_MODE: github-release
+      NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx
+      NGINX_GITHUB_REPO: https://github.com/nginx/nginx
+      NGINX_RELEASE_TAG: release-1.31.3
+      NGINX_SOURCE_GIT_REF: release-1.31.3
+      NGINX_RELEASE_ASSET_NAME: nginx-1.31.3.tar.gz
+      NGINX_SHA256: a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
       PYTHONDONTWRITEBYTECODE: "1"
 
     steps:

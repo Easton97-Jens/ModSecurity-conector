@@ -44,6 +44,28 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         self.assertNotIn('evidence_root="$build_root/no-crs-evidence"', self.source)
         self.assertNotIn('echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"', self.source)
 
+    def test_connector_workflow_pins_the_reviewed_nginx_provenance_tuple(self) -> None:
+        job_environment = re.search(
+            r"^    env:\n(?P<body>.*?)(?=^    steps:)",
+            self.source,
+            re.MULTILINE | re.DOTALL,
+        )
+        self.assertIsNotNone(job_environment)
+        environment = job_environment.group("body")
+        expected = {
+            "NGINX_SOURCE_MODE": "github-release",
+            "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
+            "NGINX_GITHUB_REPO": "https://github.com/nginx/nginx",
+            "NGINX_RELEASE_TAG": "release-1.31.3",
+            "NGINX_SOURCE_GIT_REF": "release-1.31.3",
+            "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.3.tar.gz",
+            "NGINX_SHA256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+        }
+        for name, value in expected.items():
+            with self.subTest(name=name):
+                self.assertIn(f"      {name}: {value}\n", environment)
+        self.assertNotIn("NGINX_RELEASE_TAG: latest", environment)
+
     def test_nginx_handoff_is_scoped_to_the_nginx_matrix_row(self) -> None:
         block = re.search(
             r"- name: Configure supported NGINX Phase-4 mode\n(?P<body>.*?)(?=\n      - name: Initialize canonical evidence paths)",
