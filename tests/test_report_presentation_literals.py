@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,6 +37,14 @@ FULL_RUNTIME_MATRIX = load_report_module(
 RUNTIME_REPORTS = load_report_module(
     "ci/evidence/reports/update-runtime-reports.py",
     "runtime_reports_presentation_test",
+)
+RUNTIME_PRODUCER_READINESS = load_report_module(
+    "ci/checks/evidence/check-runtime-producer-readiness.py",
+    "runtime_producer_readiness_presentation_test",
+)
+SYSTEM_ENVIRONMENT_PROOF = load_report_module(
+    "ci/evidence/reports/generate-system-environment-proof.py",
+    "system_environment_proof_presentation_test",
 )
 
 
@@ -274,3 +283,239 @@ class ReportPresentationLiteralsTest(unittest.TestCase):
             [line for line in index_markdown.splitlines() if line == separator],
             [separator, separator, separator],
         )
+
+    def test_nginx_runtime_contract_requires_complete_provenance_and_managed_binary_identity(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-runtime-contract-") as temporary:
+            root = Path(temporary)
+            cache_root = root / "cache"
+            source_directory = root / "sources/nginx-1.31.3"
+            source_directory.mkdir(parents=True)
+            binary = cache_root / "builds/connectors/nginx/cache-key/nginx/sbin/nginx"
+            binary.parent.mkdir(parents=True)
+            binary.write_text("#!/bin/sh\nprintf 'nginx/1.31.3\\n'\n", encoding="utf-8")
+            binary.chmod(0o755)
+            module = cache_root / "builds/connectors/nginx/cache-key/nginx/modules/ngx_http_modsecurity_module.so"
+            module.parent.mkdir(parents=True)
+            module.write_text("test module\n", encoding="utf-8")
+            binary_sha256 = RUNTIME_PRODUCER_READINESS.sha256_file(binary)
+            fields = {
+                "component": "nginx",
+                "source_repository": "https://github.com/nginx/nginx",
+                "source_mode": "github-release",
+                "release_tag": "release-1.31.3",
+                "source_ref": "release-1.31.3",
+                "release_asset_name": "nginx-1.31.3.tar.gz",
+                "expected_archive_sha256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+                "actual_archive_sha256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+                "source_version_readback": "nginx/1.31.3",
+                "source_directory": str(source_directory),
+                "binary_path": str(binary),
+                "binary_sha256": binary_sha256,
+                "binary_version_readback": "nginx/1.31.3",
+                "configure_arguments": "--prefix=/managed/nginx --add-dynamic-module=/managed/module",
+                "build_id": "nginx-cache-key",
+                "framework_commit": "f" * 40,
+                "parent_commit": "a" * 40,
+                "generated_at": "2026-08-02T00:00:00Z",
+            }
+            contract_input = {
+                "manifest_path": str(cache_root / "manifest.json"),
+                "manifest_loaded": True,
+                "record_path": "nginx.runtime_contract",
+                "record_status": "built",
+                "record": {
+                    "status": "built",
+                    "module_file": str(module),
+                    "runtime_contract": fields,
+                },
+                "contract": fields,
+            }
+            mrts_native_root = root / "mrts-native"
+            roots = {
+                "cache": cache_root,
+                "source": root / "sources",
+                "mrts_native_root": mrts_native_root,
+            }
+            passed = RUNTIME_PRODUCER_READINESS.validate_nginx_runtime_contract(
+                contract_input,
+                roots,
+            )
+
+            self.assertEqual(passed["status"], "PASS")
+            self.assertEqual(
+                set(passed["fields"]),
+                set(RUNTIME_PRODUCER_READINESS.NGINX_RUNTIME_CONTRACT_FIELDS),
+            )
+            self.assertTrue(all(value == "PASS" for value in passed["field_status"].values()))
+            module_binding = RUNTIME_PRODUCER_READINESS.validate_nginx_runtime_module_binding(
+                contract_input,
+                module,
+                roots,
+            )
+            self.assertEqual(module_binding["status"], "PASS")
+            readiness = SYSTEM_ENVIRONMENT_PROOF.runtime_component_readiness(
+                [],
+                {"variables": {}},
+                {"nginx_runtime_contract": passed},
+            )
+            nginx_readiness = next(item for item in readiness if item["component"] == "NGINX")
+            self.assertEqual(nginx_readiness["status"], "present")
+
+            rendered_contract = "\n".join(
+                SYSTEM_ENVIRONMENT_PROOF.nginx_runtime_contract_markdown(
+                    {"nginx_runtime_contract": passed}
+                )
+            )
+            rendered_component = "\n".join(
+                RUNTIME_REPORTS.nginx_component_lines(
+                    {"status": "built", "runtime_contract": fields}
+                )
+            )
+            for field in RUNTIME_PRODUCER_READINESS.NGINX_RUNTIME_CONTRACT_FIELDS:
+                self.assertIn(field, rendered_contract)
+                self.assertIn(field, rendered_component)
+            self.assertIn(str(binary), rendered_contract)
+            self.assertIn(binary_sha256, rendered_contract)
+
+            missing_field_input = dict(contract_input)
+            missing_field_input["contract"] = {**fields, "source_ref": ""}
+            missing = RUNTIME_PRODUCER_READINESS.validate_nginx_runtime_contract(
+                missing_field_input,
+                roots,
+            )
+            self.assertEqual(missing["status"], "BLOCKED")
+            self.assertEqual(missing["field_status"]["source_ref"], "BLOCKED")
+            self.assertIn("missing required NGINX runtime contract fields: source_ref", missing["issues"])
+
+            unmanaged_binary = root / "outside/nginx"
+            unmanaged_binary.parent.mkdir(parents=True)
+            unmanaged_binary.write_text("#!/bin/sh\n", encoding="utf-8")
+            unmanaged_binary.chmod(0o755)
+            unmanaged_input = dict(contract_input)
+            unmanaged_input["contract"] = {
+                **fields,
+                "binary_path": str(unmanaged_binary),
+                "binary_sha256": RUNTIME_PRODUCER_READINESS.sha256_file(unmanaged_binary),
+            }
+            unmanaged = RUNTIME_PRODUCER_READINESS.validate_nginx_runtime_contract(
+                unmanaged_input,
+                roots,
+            )
+            self.assertEqual(unmanaged["status"], "BLOCKED")
+            self.assertEqual(unmanaged["field_status"]["binary_path"], "BLOCKED")
+            self.assertTrue(
+                any(
+                    "binary_path must be a non-symlink executable below an approved non-MRTS runtime/cache root"
+                    in issue
+                    for issue in unmanaged["issues"]
+                )
+            )
+
+            mrts_source = mrts_native_root / "sources/nginx-1.31.3"
+            mrts_source.mkdir(parents=True)
+            forged_mrts_source = dict(contract_input)
+            forged_mrts_source["contract"] = {
+                **fields,
+                "source_directory": str(mrts_source),
+            }
+            source_under_mrts = RUNTIME_PRODUCER_READINESS.validate_nginx_runtime_contract(
+                forged_mrts_source,
+                roots,
+            )
+            self.assertEqual(source_under_mrts["status"], "BLOCKED")
+            self.assertEqual(source_under_mrts["field_status"]["source_directory"], "BLOCKED")
+            self.assertTrue(
+                any(
+                    "MRTS_NATIVE_ROOT is forbidden for NGINX runtime evidence" in issue
+                    for issue in source_under_mrts["issues"]
+                )
+            )
+
+            mrts_binary = mrts_native_root / "nginx/sbin/nginx"
+            mrts_binary.parent.mkdir(parents=True)
+            mrts_binary.write_text("#!/bin/sh\n", encoding="utf-8")
+            mrts_binary.chmod(0o755)
+            forged_mrts_binary = dict(contract_input)
+            forged_mrts_binary["contract"] = {
+                **fields,
+                "binary_path": str(mrts_binary),
+                "binary_sha256": RUNTIME_PRODUCER_READINESS.sha256_file(mrts_binary),
+            }
+            binary_under_mrts = RUNTIME_PRODUCER_READINESS.validate_nginx_runtime_contract(
+                forged_mrts_binary,
+                roots,
+            )
+            self.assertEqual(binary_under_mrts["status"], "BLOCKED")
+            self.assertEqual(binary_under_mrts["field_status"]["binary_path"], "BLOCKED")
+            self.assertTrue(
+                any(
+                    "MRTS_NATIVE_ROOT is forbidden for NGINX runtime evidence" in issue
+                    for issue in binary_under_mrts["issues"]
+                )
+            )
+
+            mrts_module = mrts_native_root / "nginx/modules/ngx_http_modsecurity_module.so"
+            mrts_module.parent.mkdir(parents=True)
+            mrts_module.write_text("unmanaged module\n", encoding="utf-8")
+            module_under_mrts = RUNTIME_PRODUCER_READINESS.validate_nginx_runtime_module_binding(
+                contract_input,
+                mrts_module,
+                roots,
+            )
+            self.assertEqual(module_under_mrts["status"], "BLOCKED")
+            self.assertTrue(
+                any(
+                    "MRTS_NATIVE_ROOT is forbidden for NGINX runtime evidence" in issue
+                    for issue in module_under_mrts["issues"]
+                )
+            )
+
+            alternate_module = cache_root / "builds/connectors/nginx/cache-key/alternate/module.so"
+            alternate_module.parent.mkdir(parents=True)
+            alternate_module.write_text("alternate module\n", encoding="utf-8")
+            mismatched_module = RUNTIME_PRODUCER_READINESS.validate_nginx_runtime_module_binding(
+                contract_input,
+                alternate_module,
+                roots,
+            )
+            self.assertEqual(mismatched_module["status"], "BLOCKED")
+            self.assertIn(
+                "reported NGINX module does not match the managed component record",
+                mismatched_module["issues"],
+            )
+
+            system_binary = Path("/usr/bin/env")
+            self.assertTrue(system_binary.is_file())
+            forged_system_binary = dict(contract_input)
+            forged_system_binary["contract"] = {
+                **fields,
+                "binary_path": str(system_binary),
+                "binary_sha256": RUNTIME_PRODUCER_READINESS.sha256_file(system_binary),
+            }
+            binary_under_system_root = RUNTIME_PRODUCER_READINESS.validate_nginx_runtime_contract(
+                forged_system_binary,
+                roots,
+            )
+            self.assertEqual(binary_under_system_root["status"], "BLOCKED")
+            self.assertEqual(binary_under_system_root["field_status"]["binary_path"], "BLOCKED")
+            self.assertTrue(
+                any(
+                    "system path is forbidden for NGINX runtime evidence" in issue
+                    for issue in binary_under_system_root["issues"]
+                )
+            )
+
+            for field, invalid, expected_issue in (
+                ("framework_commit", "deadbeef", "framework_commit must be a full lowercase Git object ID"),
+                ("parent_commit", "A" * 40, "parent_commit must be a full lowercase Git object ID"),
+                ("generated_at", "2026-08-02T00:00:00+00:00", "generated_at must be a canonical UTC timestamp"),
+            ):
+                invalid_identity = dict(contract_input)
+                invalid_identity["contract"] = {**fields, field: invalid}
+                blocked_identity = RUNTIME_PRODUCER_READINESS.validate_nginx_runtime_contract(
+                    invalid_identity,
+                    roots,
+                )
+                self.assertEqual(blocked_identity["status"], "BLOCKED")
+                self.assertEqual(blocked_identity["field_status"][field], "BLOCKED")
+                self.assertIn(expected_issue, blocked_identity["issues"])

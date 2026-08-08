@@ -306,6 +306,39 @@ Release-Archiv. Explizit
 `MODSECURITY_NGINX_SOURCE_DIR`-Überschreibungen verwenden weiterhin eine bereinigte externe Quelle
 kopieren.
 
+## Gepinnte Release-Provenance für Full-Smoke
+
+Der Parent-Full-Smoke-Workflow baut das ausgewählte direkte GitHub-Release-Asset
+mit diesem atomaren Tupel:
+
+```sh
+BUILD_NGINX_FROM_SOURCE=1
+NGINX_SOURCE_MODE=github-release
+NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
+NGINX_RELEASE_TAG=release-1.31.3
+NGINX_SOURCE_GIT_REF=release-1.31.3
+NGINX_RELEASE_ASSET_NAME=nginx-1.31.3.tar.gz
+NGINX_SHA256=a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
+NGINX_REQUIRE_PINNED_PROVENANCE=1
+```
+
+Er löst die direkte Release-Asset-URL aus dem festen Repository, Tag und
+Asset-Namen auf. Der Full-Smoke-Resolver weist `latest` und
+`/releases/latest` vor jeder Cache-, Netzwerk-, Download- oder
+Extraktionsoperation ab. Seine Cache-Identität bindet das vollständige
+Provenance-Tupel einschließlich Tag-/Ref-Gleichheit und SHA-256; spätere
+Updates müssen jeden Tupelwert atomar ändern und überprüfen.
+`NGINX_REQUIRE_PINNED_PROVENANCE=1` weist geerbte native Binary-/Modul-Overrides
+ab, sodass ein System- oder MRTS-NGINX-Binary nicht als Full-Smoke-Evidence
+akzeptiert wird.
+
+Ein Managed-Full-Smoke-Runtime-Evidence-Record muss Release, Ref und Asset;
+erwartete und tatsächliche Archiv-SHA-256-Werte; Source-Version und
+Verzeichnis; Binary-Pfad, SHA-256 und Versions-Readback; Configure-Argumente;
+Build-, Framework- und Parent-IDs; sowie die Erstellungszeit identifizieren.
+Dies ist das erforderliche Evidence-Schema und keine Behauptung, dass ein
+aktueller Runtime-Record existiert.
+
 Der aktuelle NGINX-Common-Header-Build-Vertrag besteht aus:
 
 ```sh
@@ -319,7 +352,7 @@ Historisch beobachtet am 15.05.2026: `NGINX_RELEASE_TAG=latest` gelöst zu
 `release-1.31.0`, gebaut `nginx/1.31.0`, gebaut
 `ngx_http_modsecurity_module.so` und der Harness beobachteten die YAML-Erwartungen
 HTTP-Status für alle aktuell freigegebenen Minimalfälle. Dies ist nicht aktuell kanonisch
-Phase-4-Facettenbeweise.
+Phase-4-Facettenbeweise und keine akzeptierte Full-Smoke-Provenance-Einstellung.
 
 ## Eigentums- und Laufzeitansprüche testen
 

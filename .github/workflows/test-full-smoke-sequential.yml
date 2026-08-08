@@ -2,12 +2,19 @@ name: manual-heavy-runtime-validation
 
 on:
   workflow_dispatch:
+    inputs:
+      cleanup_artifacts:
+        description: Delete prior full-smoke artifacts before the run
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 jobs:
   cleanup-artifacts:
+    if: ${{ inputs.cleanup_artifacts }}
     name: Cleanup old smoke artifacts (${{ matrix.variant }})
     permissions:
       actions: write
@@ -121,6 +128,7 @@ jobs:
             }
 
   manual-heavy-runtime-validation:
+    if: ${{ always() }}
     needs: cleanup-artifacts
     permissions:
       contents: read
@@ -140,7 +148,11 @@ jobs:
       BUILD_NGINX_FROM_SOURCE: "1"
       NGINX_SOURCE_MODE: github-release
       NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx
-      NGINX_RELEASE_TAG: latest
+      NGINX_RELEASE_TAG: release-1.31.3
+      NGINX_SOURCE_GIT_REF: release-1.31.3
+      NGINX_RELEASE_ASSET_NAME: nginx-1.31.3.tar.gz
+      NGINX_SHA256: a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
+      NGINX_REQUIRE_PINNED_PROVENANCE: "1"
       SMOKE_PREPARE_TIMEOUT_SECONDS: "3600"
       SMOKE_LOCK_MODE: wait
       SMOKE_LOCK_TIMEOUT_SECONDS: "1800"
@@ -166,13 +178,13 @@ jobs:
         id: paths
         run: |
           set -eu
-          verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
+          verified_root="$RUNNER_TEMP/ModSecurity-conector-verified-${{ matrix.variant }}"
           build_root="$verified_root/build"
           build_root_apache="$verified_root/apache-build"
           source_root="$verified_root/src"
           {
             echo "VERIFIED_RUN_ROOT=$verified_root"
-            echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
+            echo "XDG_STATE_HOME=$verified_root/state"
             echo "SOURCE_ROOT=$source_root"
             echo "BUILD_ROOT=$build_root"
             echo "TMP_ROOT=$verified_root/tmp"
@@ -181,7 +193,7 @@ jobs:
             echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
             echo "MODSECURITY_SOURCE_DIR=$source_root/ModSecurity_V3"
             echo "MODSECURITY_V3_SOURCE_DIR=$source_root/ModSecurity_V3"
-            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+            echo "PYTHONPYCACHEPREFIX=$verified_root/python-pycache"
           } >> "$GITHUB_ENV"
           {
             echo "verified_root=$verified_root"
