@@ -145,6 +145,80 @@ class NginxRootHandoffContractTest(unittest.TestCase):
         self.assertNotIn("LD_LIBRARY_PATH", environment)
         self.assertNotIn("MRTS_NATIVE_NGINX_BIN", environment)
         self.assertEqual(environment["PATH"], "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+        self.assertEqual(environment["NGINX_ROOT_HANDOFF"], "1")
+        self.assertEqual(environment[HANDOFF.ROOT_HANDOFF_CALLER_UID_ENV], "1")
+
+    def test_rejects_caller_supplied_internal_binding(self) -> None:
+        with self.assertRaisesRegex(HANDOFF.HandoffError, "caller-supplied internal"):
+            HANDOFF.validate_nginx_environment(
+                {
+                    "NGINX_ROOT_HANDOFF": "1",
+                    HANDOFF.ROOT_HANDOFF_CALLER_UID_ENV: "1000",
+                }
+            )
+
+    def test_elevated_binding_requires_canonical_matching_sudo_uid(self) -> None:
+        cases = (
+            ("1000", "1000", True),
+            ("01", "01", False),
+            ("0", "0", False),
+            ("1000", "", False),
+            ("1000", "1001", False),
+        )
+        for bound, sudo_uid, accepted in cases:
+            with self.subTest(bound=bound, sudo_uid=sudo_uid), mock.patch.object(HANDOFF.os, "geteuid", return_value=0), mock.patch.dict(os.environ, {"SUDO_UID": sudo_uid}, clear=False):
+                args = type("Args", (), {"bound_caller_uid": bound})()
+                if accepted:
+                    self.assertEqual(HANDOFF.validated_bound_caller_uid(args), 1000)
+                else:
+                    with self.assertRaises(HANDOFF.HandoffError):
+                        HANDOFF.validated_bound_caller_uid(args)
+
+    def test_elevated_binding_rejects_nonroot_execution(self) -> None:
+        args = type("Args", (), {"bound_caller_uid": "1000"})()
+        with mock.patch.object(HANDOFF.os, "geteuid", return_value=1000), self.assertRaisesRegex(HANDOFF.HandoffError, "effective uid 0"):
+            HANDOFF.validated_bound_caller_uid(args)
+
+    def test_regular_invocation_rejects_hidden_bound_caller_uid(self) -> None:
+        args = type("Args", (), {"bound_caller_uid": "1000"})()
+        with self.assertRaisesRegex(HANDOFF.HandoffError, "caller-supplied elevated"):
+            HANDOFF.reject_unprivileged_internal_binding(args)
+
+    def test_smoke_lock_handback_is_descriptor_safe(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            lock = request.build_root / HANDOFF.BUILD_LOCK_FILENAME
+            lock.write_text("lock", encoding="utf-8")
+            lock.chmod(0o600)
+            original_fstat = HANDOFF.os.fstat
+            changed = False
+
+            def returned_owner(descriptor: int) -> os.stat_result:
+                details = original_fstat(descriptor)
+                if changed:
+                    replacement = list(details)
+                    replacement[4] = 1
+                    return os.stat_result(replacement)
+                return details
+
+            def record_handoff(*_args: object) -> None:
+                nonlocal changed
+                changed = True
+
+            with mock.patch.object(HANDOFF.os, "fchown", side_effect=record_handoff) as fchown, mock.patch.object(
+                HANDOFF.os, "fstat", side_effect=returned_owner
+            ):
+                HANDOFF.return_smoke_lock_to_caller(request, 1)
+                fchown.assert_called_once()
+
+    def test_smoke_lock_handback_rejects_symlink(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            target = request.build_root / "target"
+            target.write_text("lock", encoding="utf-8")
+            (request.build_root / HANDOFF.BUILD_LOCK_FILENAME).symlink_to(target.name)
+            with self.assertRaises((HANDOFF.HandoffError, OSError)):
+                HANDOFF.return_smoke_lock_to_caller(request, 1)
 
     def test_accepts_direct_relative_libmodsecurity_soname_link(self) -> None:
         temporary, request = self.make_layout()

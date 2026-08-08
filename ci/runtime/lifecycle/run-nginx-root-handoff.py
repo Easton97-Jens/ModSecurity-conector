@@ -40,6 +40,10 @@ ALLOWED_NGINX_ENV = frozenset(
         "NGINX_HARNESS_WORK_ROOT",
     }
 )
+ROOT_HANDOFF_CALLER_UID_ENV = "MSCONNECTOR_NGINX_ROOT_HANDOFF_CALLER_UID"
+CANONICAL_NONROOT_UID = re.compile(r"^[1-9][0-9]{0,9}$")
+MAX_LINUX_UID = (1 << 32) - 1
+BUILD_LOCK_FILENAME = ".smoke.lock.file"
 SNAPSHOT_KEY = re.compile(r"^[A-Z][A-Z0-9_]{0,127}$")
 SAFE_CASE_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
 SAFE_CASE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
@@ -319,6 +323,8 @@ def validate_nginx_environment(environment: Mapping[str, str]) -> None:
         fail(f"root handoff rejects unapproved NGINX environment keys: {', '.join(unknown)}")
     if environment.get("NGINX_ROOT_HANDOFF") != "1":
         fail("NGINX_ROOT_HANDOFF=1 is required")
+    if ROOT_HANDOFF_CALLER_UID_ENV in environment:
+        fail("caller-supplied internal root-handoff binding is forbidden")
     for key in ("NGINX_DOCROOT_PROJECTION_PARENT", "NGINX_DOCROOT_PROJECTION_ROOT"):
         if environment.get(key, ""):
             fail(f"caller-supplied {key} is not accepted by the root handoff")
@@ -621,6 +627,7 @@ def build_environment(
     worker_user: str,
     worker_group: str,
     projection_parent: Path | None,
+    bound_caller_uid: int = 1,
 ) -> dict[str, str]:
     environment = {
         "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
@@ -653,6 +660,8 @@ def build_environment(
         "SMOKE_CASES": request.smoke_cases,
         "NO_CRS_SELECTED_CASE_IDS": request.selected_case_ids,
         "NGINX_PHASE4_MODE": request.phase4_mode,
+        "NGINX_ROOT_HANDOFF": "1",
+        ROOT_HANDOFF_CALLER_UID_ENV: str(bound_caller_uid),
         "NGINX_HARNESS_PARENT": str(request.nginx_harness_parent),
         "NGINX_WORKER_USER": worker_user,
         "NGINX_WORKER_GROUP": worker_group,
@@ -688,7 +697,34 @@ def build_environment(
     return environment
 
 
-def execute_elevated(request: HandoffRequest, snapshot: Mapping[str, str]) -> int:
+def return_smoke_lock_to_caller(request: HandoffRequest, caller_uid: int) -> None:
+    """Return exactly the root-created fixed build lock through pinned descriptors."""
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    build_fd = os.open(request.build_root, directory_flags)
+    lock_fd = -1
+    try:
+        lock_fd = os.open(BUILD_LOCK_FILENAME, os.O_RDWR | os.O_NOFOLLOW, dir_fd=build_fd)
+        metadata = os.fstat(lock_fd)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_nlink != 1
+            or metadata.st_uid != 0
+            or stat.S_IMODE(metadata.st_mode) & 0o022
+        ):
+            fail("root-created smoke lock is not a private regular root-owned file")
+        os.fchown(lock_fd, caller_uid, -1)
+        returned = os.fstat(lock_fd)
+        if returned.st_uid != caller_uid or returned.st_nlink != 1 or not stat.S_ISREG(returned.st_mode):
+            fail("root-created smoke lock ownership handback failed")
+    finally:
+        if lock_fd >= 0:
+            os.close(lock_fd)
+        os.close(build_fd)
+
+
+def execute_elevated(
+    request: HandoffRequest, snapshot: Mapping[str, str], bound_caller_uid: int = 1
+) -> int:
     worker_user, worker_group, worker_gid = validate_worker()
     projection_parent: Path | None = None
     projection_metadata: os.stat_result | None = None
@@ -703,6 +739,7 @@ def execute_elevated(request: HandoffRequest, snapshot: Mapping[str, str]) -> in
             worker_user=worker_user,
             worker_group=worker_group,
             projection_parent=projection_parent,
+            bound_caller_uid=bound_caller_uid,
         )
         runner = request.framework_root / "ci/runtime/run-nginx-smoke.sh"
         completed = subprocess.run(["/bin/sh", str(runner)], cwd=request.connector_root, env=environment, check=False)
@@ -710,6 +747,7 @@ def execute_elevated(request: HandoffRequest, snapshot: Mapping[str, str]) -> in
     finally:
         if projection_parent is not None and projection_metadata is not None:
             remove_projection_parent(projection_parent, projection_metadata)
+        return_smoke_lock_to_caller(request, bound_caller_uid)
     return result
 
 
@@ -748,6 +786,7 @@ def make_request(args: argparse.Namespace) -> HandoffRequest:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--elevated", action="store_true")
+    parser.add_argument("--bound-caller-uid", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     parser.add_argument("--connector-root", required=True)
     parser.add_argument("--framework-root", required=True)
     parser.add_argument("--verified-run-root", required=True)
@@ -783,12 +822,49 @@ def elevate(argv: list[str]) -> int:
     return subprocess.run(command, check=False).returncode
 
 
+def local_nonroot_caller_uid() -> int:
+    uid = os.geteuid()
+    if uid <= 0 or uid > MAX_LINUX_UID:
+        fail("root handoff caller must be a bounded non-root local uid")
+    try:
+        account = pwd.getpwuid(uid)
+    except KeyError as exc:
+        raise HandoffError("root handoff caller uid has no local account") from exc
+    if account.pw_uid != uid:
+        fail("root handoff caller account uid mismatch")
+    return uid
+
+
+def validated_bound_caller_uid(args: argparse.Namespace) -> int:
+    if os.geteuid() != 0:
+        fail("elevated root handoff requires effective uid 0")
+    value = getattr(args, "bound_caller_uid", "")
+    if not isinstance(value, str) or not CANONICAL_NONROOT_UID.fullmatch(value):
+        fail("elevated root handoff requires a canonical bound caller uid")
+    caller_uid = int(value)
+    if caller_uid > MAX_LINUX_UID:
+        fail("elevated root handoff requires a bounded caller uid")
+    if os.environ.get("SUDO_UID") != value:
+        fail("elevated root handoff bound caller uid must exactly match SUDO_UID")
+    return caller_uid
+
+
+def reject_unprivileged_internal_binding(args: argparse.Namespace) -> None:
+    """Keep the hidden caller binding exclusive to the sudo re-exec."""
+    if hasattr(args, "bound_caller_uid"):
+        fail("caller-supplied elevated root-handoff binding is forbidden")
+
+
 def main(argv: list[str] | None = None) -> int:
     original_argv = list(sys.argv[1:] if argv is None else argv)
     args = parse_args(original_argv)
     try:
         if not args.elevated:
+            reject_unprivileged_internal_binding(args)
             validate_nginx_environment(os.environ)
+            bound_caller_uid = local_nonroot_caller_uid()
+        else:
+            bound_caller_uid = validated_bound_caller_uid(args)
         request = make_request(args)
         request, snapshot = validate_request(request)
         if not args.elevated:
@@ -796,10 +872,12 @@ def main(argv: list[str] | None = None) -> int:
                 str(request.python),
                 str(Path(__file__).resolve()),
                 "--elevated",
+                "--bound-caller-uid",
+                str(bound_caller_uid),
                 *[argument for argument in original_argv if argument != "--elevated"],
             ]
             return elevate(elevated_argv)
-        return execute_elevated(request, snapshot)
+        return execute_elevated(request, snapshot, bound_caller_uid)
     except (HandoffError, OSError) as exc:
         print(f"FAIL: NGINX root handoff: {exc}", file=sys.stderr)
         return 77
