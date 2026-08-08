@@ -107,6 +107,7 @@ SHELL_EXECUTABLE_CHECK_SOURCE = "/bin/sh executable check"
 APACHE_HTTPD_TOOL = "apache/httpd"
 MARKDOWN_FIELD_VALUE_HEADER = "| Field | Value |"
 MARKDOWN_FIELD_VALUE_SEPARATOR = "|---|---|"
+NGINX_RUNTIME_CONTRACT_MISSING = "NGINX runtime contract missing"
 NGINX_RUNTIME_CONTRACT_FIELDS = (
     "component",
     "source_repository",
@@ -1305,9 +1306,9 @@ def runtime_component_readiness(
         runtime_component_row(
             "NGINX",
             "present" if nginx_ready else "blocked",
-            str(nginx_fields.get("binary_path") or "NGINX runtime contract missing"),
-            str(nginx_fields.get("source_repository") or "NGINX runtime contract missing"),
-            str(nginx_fields.get("source_ref") or nginx_fields.get("release_tag") or "NGINX runtime contract missing"),
+            str(nginx_fields.get("binary_path") or NGINX_RUNTIME_CONTRACT_MISSING),
+            str(nginx_fields.get("source_repository") or NGINX_RUNTIME_CONTRACT_MISSING),
+            str(nginx_fields.get("source_ref") or nginx_fields.get("release_tag") or NGINX_RUNTIME_CONTRACT_MISSING),
             "run make prepare-runtime-components and require the pinned NGINX release-asset/full tuple",
         ),
         runtime_component_row(
@@ -1362,8 +1363,8 @@ def runtime_producer_readiness_check(connector_root: Path, framework_root: Path)
                 "status": "BLOCKED",
                 "manifest_path": "",
                 "record_path": "missing",
-                "fields": {field: "" for field in NGINX_RUNTIME_CONTRACT_FIELDS},
-                "field_status": {field: "BLOCKED" for field in NGINX_RUNTIME_CONTRACT_FIELDS},
+                "fields": dict.fromkeys(NGINX_RUNTIME_CONTRACT_FIELDS, ""),
+                "field_status": dict.fromkeys(NGINX_RUNTIME_CONTRACT_FIELDS, "BLOCKED"),
                 "issues": ["runtime readiness checker is unavailable"],
             },
             "components": [],

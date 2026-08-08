@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -519,3 +520,42 @@ class ReportPresentationLiteralsTest(unittest.TestCase):
                 self.assertEqual(blocked_identity["status"], "BLOCKED")
                 self.assertEqual(blocked_identity["field_status"][field], "BLOCKED")
                 self.assertIn(expected_issue, blocked_identity["issues"])
+
+    def test_nginx_manifest_module_path_is_bound_without_resolving_raw_value(self) -> None:
+        """A manifest path cannot drive filesystem resolution before binding."""
+
+        with tempfile.TemporaryDirectory(prefix="nginx-module-binding-") as temporary:
+            root = Path(temporary)
+            cache_root = root / "cache"
+            module = cache_root / "builds/nginx/modules/ngx_http_modsecurity_module.so"
+            module.parent.mkdir(parents=True)
+            module.write_text("managed module\n", encoding="utf-8")
+            roots = {
+                "cache": cache_root,
+                "mrts_native_root": root / "mrts-native",
+            }
+
+            for raw_module_file in (
+                "/etc/forged-nginx-module.so",
+                "../../outside/forged-nginx-module.so",
+                "../cache/builds/nginx/modules/ngx_http_modsecurity_module.so",
+            ):
+                with self.subTest(raw_module_file=raw_module_file):
+                    contract_input = {"record": {"module_file": raw_module_file}}
+                    with mock.patch.object(
+                        RUNTIME_PRODUCER_READINESS,
+                        "Path",
+                        side_effect=AssertionError("raw manifest module_file must not be converted to a Path"),
+                    ):
+                        binding = RUNTIME_PRODUCER_READINESS.validate_nginx_runtime_module_binding(
+                            contract_input,
+                            module,
+                            roots,
+                        )
+
+                    self.assertEqual(binding["status"], "BLOCKED")
+                    self.assertEqual(binding["expected_module_path"], raw_module_file)
+                    self.assertIn(
+                        "reported NGINX module does not match the managed component record",
+                        binding["issues"],
+                    )

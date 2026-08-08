@@ -125,6 +125,7 @@ NGINX_PINNED_RELEASE_ASSET_NAME = "nginx-1.31.3.tar.gz"
 NGINX_PINNED_RELEASE_ASSET_SHA256 = (
     "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525"
 )
+NGINX_PINNED_VERSION_READBACK = "nginx/1.31.3"
 NGINX_PINNED_PROVENANCE_SCHEMA_VERSION = 1
 APACHE_APXS_RELATIVE_PATH = "bin/apxs"
 UNMANAGED_CACHE_ENTRY_MARKER_MISSING_PREFIX = "unmanaged_cache_entry_marker_missing: "
@@ -2306,11 +2307,8 @@ def prepare_archive_unlocked(
         return corrupt_archive_record(record, path, managed_root, "empty_archive")
     local_sha = sha256_file(path)
     record.update(size=size, sha256=local_sha)
-    if verify_digest_before_archive_list:
-        record["expected_sha256"] = expected_sha
-        record["checksum_status"] = "PASS" if expected_sha == local_sha else "FAIL"
-        if expected_sha != local_sha:
-            return corrupt_archive_record(record, path, managed_root, "sha256_mismatch")
+    if verify_digest_before_archive_list and not archive_checksum_matches(record, expected_sha, local_sha):
+        return corrupt_archive_record(record, path, managed_root, "sha256_mismatch")
     if not archive_can_list(path):
         return corrupt_archive_record(record, path, managed_root, "archive_list_failed")
     record["archive_list"] = "PASS"
@@ -2321,11 +2319,8 @@ def prepare_archive_unlocked(
         dest_dir,
         name,
     )
-    if expected:
-        record["expected_sha256"] = expected
-        record["checksum_status"] = "PASS" if expected == local_sha else "FAIL"
-        if expected != local_sha:
-            return corrupt_archive_record(record, path, managed_root, "sha256_mismatch")
+    if expected and not archive_checksum_matches(record, expected, local_sha):
+        return corrupt_archive_record(record, path, managed_root, "sha256_mismatch")
     if managed_root is not None:
         write_cache_entry_completion(
             path,
@@ -2336,6 +2331,12 @@ def prepare_archive_unlocked(
         )
     record["status"] = "present"
     return record
+
+
+def archive_checksum_matches(record: dict[str, Any], expected_sha: str, actual_sha: str) -> bool:
+    record["expected_sha256"] = expected_sha
+    record["checksum_status"] = "PASS" if expected_sha == actual_sha else "FAIL"
+    return expected_sha == actual_sha
 
 
 def prepare_archive(
@@ -6985,6 +6986,26 @@ def nginx_managed_regular_file(path: Path, root: Path, *, require_executable: bo
     return is_within(resolved_path, root)
 
 
+def nginx_source_header_readback(header: Path, root: Path) -> tuple[str, str] | None:
+    if header.parts[-3:] != ("src", "core", "nginx.h") or header.is_symlink():
+        return None
+    source_directory = header.parent.parent.parent
+    if source_directory.is_symlink() or not source_directory.is_dir():
+        return None
+    try:
+        resolved_source = source_directory.resolve(strict=True)
+        resolved_header = header.resolve(strict=True)
+        if not is_within(resolved_source, root) or not is_within(resolved_header, resolved_source):
+            return None
+        contents = header.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    match = re.search(r'^\s*#define\s+NGINX_VERSION\s+"([^"\\]+)"', contents, re.MULTILINE)
+    if match is None:
+        return None
+    return str(resolved_source), f"nginx/{match.group(1)}"
+
+
 def nginx_managed_source_readback(plan: dict[str, Any]) -> tuple[str, str]:
     """Read the version from an extracted, plan-owned NGINX source tree."""
 
@@ -6997,25 +7018,10 @@ def nginx_managed_source_readback(plan: dict[str, Any]) -> tuple[str, str]:
     except OSError:
         return fallback
     for header in headers:
-        if header.parts[-3:] != ("src", "core", "nginx.h") or header.is_symlink():
+        candidate = nginx_source_header_readback(header, root)
+        if candidate is None:
             continue
-        source_directory = header.parent.parent.parent
-        if source_directory.is_symlink() or not source_directory.is_dir():
-            continue
-        try:
-            resolved_source = source_directory.resolve(strict=True)
-            resolved_header = header.resolve(strict=True)
-            if not is_within(resolved_source, root) or not is_within(resolved_header, resolved_source):
-                continue
-            contents = header.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        match = re.search(r'^\s*#define\s+NGINX_VERSION\s+"([^"\\]+)"', contents, re.MULTILINE)
-        if match is None:
-            continue
-        readback = f"nginx/{match.group(1)}"
-        candidate = (str(resolved_source), readback)
-        if readback == "nginx/1.31.3":
+        if candidate[1] == NGINX_PINNED_VERSION_READBACK:
             return candidate
         if not fallback[0]:
             fallback = candidate
@@ -7055,7 +7061,7 @@ def nginx_managed_binary_readback(
         result["readback_error"] = str(exc)
         return result
     output = (proc.stdout + proc.stderr)[-65536:]
-    version_match = re.search(r"\bnginx/([0-9]+(?:\.[0-9]+){2})\b", output)
+    version_match = re.search(r"\bnginx/(\d+(?:\.\d+){2})\b", output)
     configure_arguments = ""
     for line in output.splitlines():
         prefix = "configure arguments:"
@@ -7160,14 +7166,8 @@ def nginx_runtime_contract(
     }
 
 
-def nginx_runtime_contract_blockers(
-    contract: dict[str, Any],
-    plan: dict[str, Any],
-    context: dict[str, Any],
-) -> list[str]:
-    """Return exact evidence gaps; an empty list proves a strict contract."""
-
-    required_fields = (
+def nginx_runtime_contract_required_fields() -> tuple[str, ...]:
+    return (
         "component",
         "source_repository",
         "source_mode",
@@ -7187,8 +7187,10 @@ def nginx_runtime_contract_blockers(
         "parent_commit",
         "generated_at",
     )
-    blockers = [field for field in required_fields if not contract.get(field)]
-    expected = {
+
+
+def nginx_runtime_contract_expected_values() -> dict[str, str]:
+    return {
         "component": "nginx",
         "source_repository": NGINX_PINNED_SOURCE_REPOSITORY,
         "source_mode": NGINX_PINNED_SOURCE_MODE,
@@ -7197,43 +7199,78 @@ def nginx_runtime_contract_blockers(
         "release_asset_name": NGINX_PINNED_RELEASE_ASSET_NAME,
         "expected_archive_sha256": NGINX_PINNED_RELEASE_ASSET_SHA256,
         "actual_archive_sha256": NGINX_PINNED_RELEASE_ASSET_SHA256,
-        "source_version_readback": "nginx/1.31.3",
-        "binary_version_readback": "nginx/1.31.3",
+        "source_version_readback": NGINX_PINNED_VERSION_READBACK,
+        "binary_version_readback": NGINX_PINNED_VERSION_READBACK,
     }
+
+
+def nginx_runtime_contract_value_blockers(contract: dict[str, Any]) -> list[str]:
+    blockers = [field for field in nginx_runtime_contract_required_fields() if not contract.get(field)]
     blockers.extend(
         f"mismatch:{key}"
-        for key, value in expected.items()
+        for key, value in nginx_runtime_contract_expected_values().items()
         if contract.get(key) and contract.get(key) != value
     )
+    return blockers
+
+
+def nginx_runtime_contract_identity_blockers(contract: dict[str, Any]) -> list[str]:
+    blockers = []
     for key in ("framework_commit", "parent_commit"):
         value = contract.get(key)
         if value and (not isinstance(value, str) or FULL_GIT_COMMIT_ID.fullmatch(value) is None):
             blockers.append(f"invalid:{key}")
+    return blockers
+
+
+def nginx_runtime_contract_archive_blockers(contract: dict[str, Any]) -> list[str]:
+    blockers = []
     if not contract.get("builder_archive_verified"):
         blockers.append("builder_archive_not_verified")
     if contract.get("builder_archive_sha256") != contract.get("actual_archive_sha256"):
         blockers.append("builder_archive_sha256_mismatch")
     if contract.get("parent_archive_sha256") != contract.get("actual_archive_sha256"):
         blockers.append("parent_builder_archive_sha256_mismatch")
+    return blockers
+
+
+def nginx_runtime_contract_managed_path_blockers(contract: dict[str, Any], plan: dict[str, Any]) -> list[str]:
     root = nginx_managed_plan_root(plan)
-    source_directory = contract.get("source_directory")
-    binary_path = contract.get("binary_path")
     if root is None:
-        blockers.append("managed_plan_root")
-    elif isinstance(source_directory, str) and source_directory:
+        return ["managed_plan_root"]
+    blockers = []
+    source_directory = contract.get("source_directory")
+    if isinstance(source_directory, str) and source_directory:
         source = Path(source_directory)
         if source.is_symlink() or not source.is_dir() or not is_within(source.resolve(strict=False), root):
             blockers.append("source_directory_not_managed")
-    if root is not None and isinstance(binary_path, str) and binary_path:
-        binary = Path(binary_path)
-        if not nginx_managed_regular_file(binary, root, require_executable=True):
-            blockers.append("binary_path_not_managed")
-        else:
-            try:
-                if sha256_file(binary) != contract.get("binary_sha256"):
-                    blockers.append("binary_sha256_readback_mismatch")
-            except OSError:
-                blockers.append("binary_sha256_readback_failed")
+    binary_path = contract.get("binary_path")
+    if not isinstance(binary_path, str) or not binary_path:
+        return blockers
+    binary = Path(binary_path)
+    if not nginx_managed_regular_file(binary, root, require_executable=True):
+        blockers.append("binary_path_not_managed")
+        return blockers
+    try:
+        if sha256_file(binary) != contract.get("binary_sha256"):
+            blockers.append("binary_sha256_readback_mismatch")
+    except OSError:
+        blockers.append("binary_sha256_readback_failed")
+    return blockers
+
+
+def nginx_runtime_contract_blockers(
+    contract: dict[str, Any],
+    plan: dict[str, Any],
+    context: dict[str, Any],
+) -> list[str]:
+    """Return exact evidence gaps; an empty list proves a strict contract."""
+
+    del context
+    blockers = nginx_runtime_contract_value_blockers(contract)
+    blockers.extend(nginx_runtime_contract_identity_blockers(contract))
+    blockers.extend(nginx_runtime_contract_archive_blockers(contract))
+    blockers.extend(nginx_runtime_contract_managed_path_blockers(contract, plan))
     return list(dict.fromkeys(blockers))
 
 
@@ -7469,6 +7506,56 @@ def nginx_preflight_blocked(
     return False
 
 
+def nginx_pinned_archive_source_tuple() -> dict[str, str]:
+    return {
+        "mode": NGINX_PINNED_SOURCE_MODE,
+        "repo": NGINX_PINNED_SOURCE_REPOSITORY,
+        "tag": NGINX_PINNED_RELEASE_TAG,
+        "ref": NGINX_PINNED_SOURCE_REF,
+        "asset": NGINX_PINNED_RELEASE_ASSET_NAME,
+        "sha256": NGINX_PINNED_RELEASE_ASSET_SHA256,
+    }
+
+
+def nginx_archive_metadata_blocker(archive: dict[str, Any]) -> str:
+    if archive.get("status") != "present":
+        return "archive_not_present"
+    if archive.get("checksum_status") != "PASS":
+        return "archive_checksum_not_pass"
+    if not archive.get("archive_digest_verified"):
+        return "archive_digest_not_verified"
+    if archive.get("expected_sha256") != NGINX_PINNED_RELEASE_ASSET_SHA256:
+        return "archive_expected_sha256_mismatch"
+    if archive.get("verified_archive_sha256") != NGINX_PINNED_RELEASE_ASSET_SHA256:
+        return "archive_verified_sha256_mismatch"
+    if archive.get("source_tuple") != nginx_pinned_archive_source_tuple():
+        return "archive_source_tuple_mismatch"
+    return ""
+
+
+def nginx_archive_path_blocker(archive_path: Path | None, archives_root: Path) -> str:
+    archive_root = (archives_root / "nginx").resolve(strict=False)
+    if (
+        archive_path is None
+        or archive_path.is_symlink()
+        or not archive_path.is_file()
+        or not is_within(archive_path.resolve(strict=False), archive_root)
+    ):
+        return "archive_path_not_managed"
+    return ""
+
+
+def nginx_archive_readback_blocker(archive_path: Path) -> str:
+    try:
+        if sha256_file(archive_path) != NGINX_PINNED_RELEASE_ASSET_SHA256:
+            return "archive_digest_readback_mismatch"
+        if not archive_can_list(archive_path):
+            return "archive_list_readback_failed"
+    except OSError:
+        return "archive_readback_failed"
+    return ""
+
+
 def nginx_archive_preflight_blocked(
     record: dict[str, Any],
     plan: dict[str, Any],
@@ -7480,44 +7567,13 @@ def nginx_archive_preflight_blocked(
     archive = archive_inputs.get("nginx", {}) if isinstance(archive_inputs, dict) else {}
     if not isinstance(archive, dict):
         archive = {}
-    reason = ""
-    if archive.get("status") != "present":
-        reason = "archive_not_present"
-    elif archive.get("checksum_status") != "PASS":
-        reason = "archive_checksum_not_pass"
-    elif not archive.get("archive_digest_verified"):
-        reason = "archive_digest_not_verified"
-    elif archive.get("expected_sha256") != NGINX_PINNED_RELEASE_ASSET_SHA256:
-        reason = "archive_expected_sha256_mismatch"
-    elif archive.get("verified_archive_sha256") != NGINX_PINNED_RELEASE_ASSET_SHA256:
-        reason = "archive_verified_sha256_mismatch"
-    elif archive.get("source_tuple") != {
-        "mode": NGINX_PINNED_SOURCE_MODE,
-        "repo": NGINX_PINNED_SOURCE_REPOSITORY,
-        "tag": NGINX_PINNED_RELEASE_TAG,
-        "ref": NGINX_PINNED_SOURCE_REF,
-        "asset": NGINX_PINNED_RELEASE_ASSET_NAME,
-        "sha256": NGINX_PINNED_RELEASE_ASSET_SHA256,
-    }:
-        reason = "archive_source_tuple_mismatch"
+    reason = nginx_archive_metadata_blocker(archive)
     path_value = archive.get("path")
     archive_path = Path(path_value) if isinstance(path_value, str) and path_value else None
-    archive_root = (archives_root / "nginx").resolve(strict=False)
-    if not reason and (
-        archive_path is None
-        or archive_path.is_symlink()
-        or not archive_path.is_file()
-        or not is_within(archive_path.resolve(strict=False), archive_root)
-    ):
-        reason = "archive_path_not_managed"
+    if not reason:
+        reason = nginx_archive_path_blocker(archive_path, archives_root)
     if not reason and archive_path is not None:
-        try:
-            if sha256_file(archive_path) != NGINX_PINNED_RELEASE_ASSET_SHA256:
-                reason = "archive_digest_readback_mismatch"
-            elif not archive_can_list(archive_path):
-                reason = "archive_list_readback_failed"
-        except OSError:
-            reason = "archive_readback_failed"
+        reason = nginx_archive_readback_blocker(archive_path)
     if not reason:
         return False
     record.update(
@@ -7796,6 +7852,104 @@ def prepare_nginx_runtime(
     )
 
 
+def nginx_prepare_or_reuse_runtime(
+    env: dict[str, str],
+    connector_root: Path,
+    framework_root: Path,
+    cache_root: Path,
+    build_root: Path,
+    sources_root: Path,
+    archives_root: Path,
+    modsecurity: dict[str, Any],
+    plan: dict[str, Any],
+    protocol_inputs: dict[str, Any],
+    quic_tls_archive: str,
+    context: dict[str, Any],
+    record: dict[str, Any],
+) -> dict[str, Any]:
+    local_ready, local_missing, effective_ready, effective_missing = nginx_artifact_statuses(context)
+    manifest_ready = connector_manifest_ready(plan) if plan else False
+    (
+        local_ready,
+        local_missing,
+        effective_ready,
+        effective_missing,
+        cache_blocker,
+    ) = reconcile_nginx_cached_entry(
+        plan,
+        cache_root,
+        context,
+        local_ready,
+        local_missing,
+        effective_ready,
+        effective_missing,
+        manifest_ready,
+        record,
+    )
+    if cache_blocker:
+        record.update(status="blocked", blocker_reason=cache_blocker)
+        return finish_planned_connector_record(plan, record)
+    if nginx_cached_entry_reusable(plan, local_ready, effective_ready):
+        update_nginx_runtime_readback(record, context)
+        nginx_refresh_build_artifacts(record, context)
+        record.update(
+            status="reused",
+            nginx_bin=str(context["effective_bin"]),
+            module_dir=str(context["effective_module"].parent),
+            module_file=str(context["effective_module"]),
+            tree=tree_manifest(context["nginx_build_root"]),
+        )
+        nginx_runtime_contract_preflight_blocked(record, env, plan, context)
+        return finish_planned_connector_record(plan, record)
+    claim_error = claim_nginx_cache_entry(plan, cache_root)
+    if claim_error:
+        record.update(status="blocked", blocker_reason=claim_error)
+        return finish_planned_connector_record(plan, record)
+    if nginx_source_build_required(local_ready, effective_ready):
+        local_ready, local_missing, build_succeeded = build_nginx_source(
+            env,
+            connector_root,
+            framework_root,
+            cache_root,
+            build_root,
+            sources_root,
+            archives_root,
+            modsecurity,
+            plan,
+            protocol_inputs,
+            quic_tls_archive,
+            context,
+            record,
+        )
+        if not build_succeeded:
+            return finish_planned_connector_record(plan, record)
+    update_nginx_effective_artifacts(context)
+    update_nginx_runtime_readback(record, context)
+    effective_ready, effective_missing = artifact_status(context["effective_artifacts"], {"nginx_bin"})
+    if not effective_ready:
+        blocker = map_nginx_blocker("", effective_missing)
+        record.update(
+            status="blocked",
+            blocker_reason=blocker,
+            missing_files=effective_missing,
+            build_component="nginx_native_runtime_inventory",
+            env_variable_can_set=NATIVE_NGINX_OVERRIDE_ENV,
+        )
+        return finish_planned_connector_record(plan, record)
+    record.update(
+        status="built" if plan else "present",
+        invalidation_reason=record.get("invalidation_reason")
+        or ("missing_or_stale_connector_build" if plan else ""),
+        nginx_bin=str(context["effective_bin"]),
+        module_dir=str(context["effective_module"].parent),
+        module_file=str(context["effective_module"]),
+        tree=tree_manifest(context["nginx_build_root"]),
+    )
+    nginx_refresh_build_artifacts(record, context)
+    nginx_runtime_contract_preflight_blocked(record, env, plan, context)
+    return finish_planned_connector_record(plan, record)
+
+
 def _prepare_nginx_runtime_for_plan(
     env: dict[str, str],
     connector_root: Path,
@@ -7850,89 +8004,21 @@ def _prepare_nginx_runtime_for_plan(
         return finish_planned_connector_record(plan, record)
     if nginx_preflight_blocked(record, modsecurity, context):
         return finish_planned_connector_record(plan, record)
-    local_ready, local_missing, effective_ready, effective_missing = nginx_artifact_statuses(context)
-    manifest_ready = connector_manifest_ready(plan) if plan else False
-    (
-        local_ready,
-        local_missing,
-        effective_ready,
-        effective_missing,
-        cache_blocker,
-    ) = reconcile_nginx_cached_entry(
-        plan,
+    return nginx_prepare_or_reuse_runtime(
+        env,
+        connector_root,
+        framework_root,
         cache_root,
+        build_root,
+        sources_root,
+        archives_root,
+        modsecurity,
+        plan,
+        protocol_inputs,
+        quic_tls_archive,
         context,
-        local_ready,
-        local_missing,
-        effective_ready,
-        effective_missing,
-        manifest_ready,
         record,
     )
-    if cache_blocker:
-        record.update(status="blocked", blocker_reason=cache_blocker)
-        return finish_planned_connector_record(plan, record)
-    if nginx_cached_entry_reusable(plan, local_ready, effective_ready):
-        update_nginx_runtime_readback(record, context)
-        nginx_refresh_build_artifacts(record, context)
-        record.update(
-            status="reused",
-            nginx_bin=str(context["effective_bin"]),
-            module_dir=str(context["effective_module"].parent),
-            module_file=str(context["effective_module"]),
-            tree=tree_manifest(context["nginx_build_root"]),
-        )
-        if nginx_runtime_contract_preflight_blocked(record, env, plan, context):
-            return finish_planned_connector_record(plan, record)
-        return finish_planned_connector_record(plan, record)
-    claim_error = claim_nginx_cache_entry(plan, cache_root)
-    if claim_error:
-        record.update(status="blocked", blocker_reason=claim_error)
-        return finish_planned_connector_record(plan, record)
-    if nginx_source_build_required(local_ready, effective_ready):
-        local_ready, local_missing, build_succeeded = build_nginx_source(
-            env,
-            connector_root,
-            framework_root,
-            cache_root,
-            build_root,
-            sources_root,
-            archives_root,
-            modsecurity,
-            plan,
-            protocol_inputs,
-            quic_tls_archive,
-            context,
-            record,
-        )
-        if not build_succeeded:
-            return finish_planned_connector_record(plan, record)
-    update_nginx_effective_artifacts(context)
-    update_nginx_runtime_readback(record, context)
-    effective_ready, effective_missing = artifact_status(context["effective_artifacts"], {"nginx_bin"})
-    if not effective_ready:
-        blocker = map_nginx_blocker("", effective_missing)
-        record.update(
-            status="blocked",
-            blocker_reason=blocker,
-            missing_files=effective_missing,
-            build_component="nginx_native_runtime_inventory",
-            env_variable_can_set=NATIVE_NGINX_OVERRIDE_ENV,
-        )
-        return finish_planned_connector_record(plan, record)
-    record.update(
-        status="built" if plan else "present",
-        invalidation_reason=record.get("invalidation_reason")
-        or ("missing_or_stale_connector_build" if plan else ""),
-        nginx_bin=str(context["effective_bin"]),
-        module_dir=str(context["effective_module"].parent),
-        module_file=str(context["effective_module"]),
-        tree=tree_manifest(context["nginx_build_root"]),
-    )
-    nginx_refresh_build_artifacts(record, context)
-    if nginx_runtime_contract_preflight_blocked(record, env, plan, context):
-        return finish_planned_connector_record(plan, record)
-    return finish_planned_connector_record(plan, record)
 
 
 def haproxy_runtime_context(plan: dict[str, Any], build_root: Path) -> dict[str, Any]:

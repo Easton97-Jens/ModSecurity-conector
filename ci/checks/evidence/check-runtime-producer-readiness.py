@@ -75,6 +75,7 @@ CANONICAL_NGINX_CONTRACT_VALUES = {
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 GIT_OBJECT_ID_PATTERN = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 UTC_TIMESTAMP_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+MARKDOWN_THREE_COLUMN_SEPARATOR = "|---|---|---|"
 
 
 def default_state_home() -> Path:
@@ -183,90 +184,119 @@ def canonical_utc_timestamp(value: str) -> bool:
     return True
 
 
+def nginx_runtime_contract_fields(contract: dict[str, Any]) -> tuple[dict[str, Any], dict[str, str]]:
+    fields = {field: contract.get(field, "") for field in NGINX_RUNTIME_CONTRACT_FIELDS}
+    return fields, {field: field_status(fields[field]) for field in NGINX_RUNTIME_CONTRACT_FIELDS}
+
+
+def nginx_runtime_record_issues(record: dict[str, Any]) -> list[str]:
+    if not record:
+        return ["NGINX runtime record is missing from the component manifest"]
+    if record.get("status") not in NGINX_READY_STATUSES:
+        status = contract_display(record.get("status")) or "missing"
+        return [f"NGINX runtime record is not ready (status={status})"]
+    return []
+
+
+def validate_nginx_runtime_contract_values(
+    fields: dict[str, Any],
+    field_states: dict[str, str],
+    issues: list[str],
+) -> None:
+    missing = [field for field in NGINX_RUNTIME_CONTRACT_FIELDS if not contract_value_present(fields[field])]
+    if missing:
+        issues.append("missing required NGINX runtime contract fields: " + ", ".join(missing))
+    if fields["component"] != "nginx":
+        field_states["component"] = "BLOCKED"
+        issues.append("component must be nginx")
+    for field, expected in CANONICAL_NGINX_CONTRACT_VALUES.items():
+        if contract_display(fields[field]) != expected:
+            field_states[field] = "BLOCKED"
+            issues.append(f"{field} must equal the canonical reviewed NGINX value {expected}")
+
+
+def validate_nginx_runtime_contract_identity(
+    fields: dict[str, Any],
+    field_states: dict[str, str],
+    issues: list[str],
+) -> None:
+    for field in ("framework_commit", "parent_commit"):
+        if not GIT_OBJECT_ID_PATTERN.fullmatch(contract_display(fields[field])):
+            field_states[field] = "BLOCKED"
+            issues.append(f"{field} must be a full lowercase Git object ID")
+    if not canonical_utc_timestamp(contract_display(fields["generated_at"])):
+        field_states["generated_at"] = "BLOCKED"
+        issues.append("generated_at must be a canonical UTC timestamp")
+
+
+def validate_nginx_runtime_source_directory(
+    fields: dict[str, Any],
+    field_states: dict[str, str],
+    roots: dict[str, Path],
+    issues: list[str],
+) -> None:
+    source_directory_text = contract_display(fields["source_directory"])
+    if not source_directory_text:
+        return
+    source_directory_candidate = Path(source_directory_text)
+    source_directory = source_directory_candidate.resolve(strict=False)
+    source_problem = nginx_evidence_path_problem(source_directory, roots)
+    if source_directory_candidate.is_symlink() or source_problem or not source_directory.is_dir():
+        field_states["source_directory"] = "BLOCKED"
+        issues.append(
+            "source_directory must be a non-symlink directory below an approved non-MRTS runtime/source root"
+            + (f" ({source_problem})" if source_problem else "")
+        )
+
+
+def validate_nginx_runtime_binary(
+    fields: dict[str, Any],
+    field_states: dict[str, str],
+    roots: dict[str, Path],
+    issues: list[str],
+) -> None:
+    binary_path_text = contract_display(fields["binary_path"])
+    if not binary_path_text:
+        field_states["binary_sha256"] = "BLOCKED"
+        return
+    binary_path_candidate = Path(binary_path_text)
+    binary_path = binary_path_candidate.resolve(strict=False)
+    binary_problem = nginx_evidence_path_problem(binary_path, roots)
+    if binary_path_candidate.is_symlink() or binary_problem:
+        field_states["binary_path"] = "BLOCKED"
+        field_states["binary_sha256"] = "BLOCKED"
+        issues.append(
+            "binary_path must be a non-symlink executable below an approved non-MRTS runtime/cache root"
+            + (f" ({binary_problem})" if binary_problem else "")
+        )
+        return
+    if not executable(binary_path):
+        field_states["binary_path"] = "BLOCKED"
+        field_states["binary_sha256"] = "BLOCKED"
+        issues.append("binary_path is missing or is not executable")
+        return
+    actual_binary_sha = sha256_file(binary_path)
+    expected_binary_sha = contract_display(fields["binary_sha256"]).lower()
+    if not SHA256_PATTERN.fullmatch(expected_binary_sha):
+        field_states["binary_sha256"] = "BLOCKED"
+        issues.append("binary_sha256 must be a 64-character SHA-256 value")
+    elif actual_binary_sha != expected_binary_sha:
+        field_states["binary_sha256"] = "BLOCKED"
+        issues.append("binary_sha256 does not match the managed binary")
+
+
 def validate_nginx_runtime_contract(
     contract_input: dict[str, Any],
     roots: dict[str, Path],
 ) -> dict[str, Any]:
     contract = contract_input.get("contract") if isinstance(contract_input.get("contract"), dict) else {}
     record = contract_input.get("record") if isinstance(contract_input.get("record"), dict) else {}
-    fields = {field: contract.get(field, "") for field in NGINX_RUNTIME_CONTRACT_FIELDS}
-    field_states = {field: field_status(fields[field]) for field in NGINX_RUNTIME_CONTRACT_FIELDS}
-    issues: list[str] = []
-
-    if not record:
-        issues.append("NGINX runtime record is missing from the component manifest")
-    elif record.get("status") not in NGINX_READY_STATUSES:
-        issues.append(
-            "NGINX runtime record is not ready "
-            f"(status={contract_display(record.get('status')) or 'missing'})"
-        )
-
-    missing = [field for field in NGINX_RUNTIME_CONTRACT_FIELDS if not contract_value_present(fields[field])]
-    if missing:
-        issues.append("missing required NGINX runtime contract fields: " + ", ".join(missing))
-
-    if fields["component"] != "nginx":
-        field_states["component"] = "BLOCKED"
-        issues.append("component must be nginx")
-
-    for field, expected in CANONICAL_NGINX_CONTRACT_VALUES.items():
-        if contract_display(fields[field]) != expected:
-            field_states[field] = "BLOCKED"
-            issues.append(f"{field} must equal the canonical reviewed NGINX value {expected}")
-
-    for field in ("framework_commit", "parent_commit"):
-        if not GIT_OBJECT_ID_PATTERN.fullmatch(contract_display(fields[field])):
-            field_states[field] = "BLOCKED"
-            issues.append(f"{field} must be a full lowercase Git object ID")
-
-    if not canonical_utc_timestamp(contract_display(fields["generated_at"])):
-        field_states["generated_at"] = "BLOCKED"
-        issues.append("generated_at must be a canonical UTC timestamp")
-
-    source_directory_text = contract_display(fields["source_directory"])
-    if source_directory_text:
-        source_directory_candidate = Path(source_directory_text)
-        source_directory = source_directory_candidate.resolve(strict=False)
-        source_problem = nginx_evidence_path_problem(source_directory, roots)
-        if (
-            source_directory_candidate.is_symlink()
-            or source_problem
-            or not source_directory.is_dir()
-        ):
-            field_states["source_directory"] = "BLOCKED"
-            issues.append(
-                "source_directory must be a non-symlink directory below an approved non-MRTS runtime/source root"
-                + (f" ({source_problem})" if source_problem else "")
-            )
-
-    binary_path_text = contract_display(fields["binary_path"])
-    if not binary_path_text:
-        field_states["binary_sha256"] = "BLOCKED"
-    else:
-        binary_path_candidate = Path(binary_path_text)
-        binary_path = binary_path_candidate.resolve(strict=False)
-        binary_problem = nginx_evidence_path_problem(binary_path, roots)
-        if binary_path_candidate.is_symlink() or binary_problem:
-            field_states["binary_path"] = "BLOCKED"
-            field_states["binary_sha256"] = "BLOCKED"
-            issues.append(
-                "binary_path must be a non-symlink executable below an approved non-MRTS runtime/cache root"
-                + (f" ({binary_problem})" if binary_problem else "")
-            )
-        elif not executable(binary_path):
-            field_states["binary_path"] = "BLOCKED"
-            field_states["binary_sha256"] = "BLOCKED"
-            issues.append("binary_path is missing or is not executable")
-        else:
-            actual_binary_sha = sha256_file(binary_path)
-            expected_binary_sha = contract_display(fields["binary_sha256"]).lower()
-            if not SHA256_PATTERN.fullmatch(expected_binary_sha):
-                field_states["binary_sha256"] = "BLOCKED"
-                issues.append("binary_sha256 must be a 64-character SHA-256 value")
-            elif actual_binary_sha != expected_binary_sha:
-                field_states["binary_sha256"] = "BLOCKED"
-                issues.append("binary_sha256 does not match the managed binary")
-
+    fields, field_states = nginx_runtime_contract_fields(contract)
+    issues = nginx_runtime_record_issues(record)
+    validate_nginx_runtime_contract_values(fields, field_states, issues)
+    validate_nginx_runtime_contract_identity(fields, field_states, issues)
+    validate_nginx_runtime_source_directory(fields, field_states, roots, issues)
+    validate_nginx_runtime_binary(fields, field_states, roots, issues)
     status = "PASS" if not issues and all(state == "PASS" for state in field_states.values()) else "BLOCKED"
     return {
         "status": status,
@@ -278,6 +308,20 @@ def validate_nginx_runtime_contract(
         "field_status": field_states,
         "issues": issues,
     }
+
+
+def nginx_runtime_module_candidate_problem(
+    module_candidate: Path,
+    module_path: Path,
+    roots: dict[str, Path],
+) -> str:
+    module_problem = nginx_evidence_path_problem(module_path, roots)
+    if module_candidate.is_symlink() or module_problem or not module_path.is_file():
+        return (
+            "reported NGINX module must be a non-symlink regular file below an approved non-MRTS runtime/cache root"
+            + (f" ({module_problem})" if module_problem else "")
+        )
+    return ""
 
 
 def validate_nginx_runtime_module_binding(
@@ -296,33 +340,18 @@ def validate_nginx_runtime_module_binding(
     record = contract_input.get("record") if isinstance(contract_input.get("record"), dict) else {}
     expected_text = contract_display(record.get("module_file"))
     issues: list[str] = []
-    expected_path: Path | None = None
-
+    module_path = module_candidate.resolve(strict=False)
+    candidate_problem = nginx_runtime_module_candidate_problem(module_candidate, module_path, roots)
     if not expected_text:
         issues.append("NGINX component record is missing its managed module_file")
-    else:
-        expected_candidate = Path(expected_text)
-        expected_path = expected_candidate.resolve(strict=False)
-        expected_problem = nginx_evidence_path_problem(expected_path, roots)
-        if expected_candidate.is_symlink() or expected_problem or not expected_path.is_file():
-            issues.append(
-                "managed NGINX module_file must be a non-symlink regular file below an approved non-MRTS runtime/cache root"
-                + (f" ({expected_problem})" if expected_problem else "")
-            )
-
-    module_path = module_candidate.resolve(strict=False)
-    module_problem = nginx_evidence_path_problem(module_path, roots)
-    if module_candidate.is_symlink() or module_problem or not module_path.is_file():
-        issues.append(
-            "reported NGINX module must be a non-symlink regular file below an approved non-MRTS runtime/cache root"
-            + (f" ({module_problem})" if module_problem else "")
-        )
-    elif expected_path is not None and module_path != expected_path:
+    if candidate_problem:
+        issues.append(candidate_problem)
+    elif expected_text != str(module_path):
         issues.append("reported NGINX module does not match the managed component record")
 
     return {
         "status": "PASS" if not issues else "BLOCKED",
-        "expected_module_path": str(expected_path) if expected_path is not None else "",
+        "expected_module_path": expected_text,
         "reported_module_path": str(module_path),
         "issues": issues,
     }
@@ -461,10 +490,7 @@ def check_safe_path(path: Path, label: str, roots: dict[str, Path], connector_ro
     return {"label": label, "path": str(resolved), "status": status, "notes": "; ".join(notes) or "ok"}
 
 
-def network_cache_status(
-    cache_root: Path,
-    nginx_contract: dict[str, Any] | None = None,
-) -> list[dict[str, Any]]:
+def nginx_tuple_cache_row(cache_root: Path, nginx_contract: dict[str, Any] | None) -> dict[str, Any]:
     contract = nginx_contract or {}
     fields = contract.get("fields") if isinstance(contract.get("fields"), dict) else {}
     tuple_status = "present" if contract.get("status") == "PASS" else "missing"
@@ -478,43 +504,48 @@ def network_cache_status(
         else "pinned release-asset/full tuple is missing or invalid; "
         + "; ".join(contract.get("issues", []))
     )
-    sources = [
-        (
-            "nginx pinned release-asset tuple",
-            Path(str(contract.get("manifest_path") or cache_root / "manifest.json")),
-        ),
-        ("nginx archive cache", cache_root / "archives/nginx"),
-        ("go-ftw git cache", cache_root / "git/go-ftw"),
-        ("albedo git cache", cache_root / "git/albedo"),
+    manifest_path = Path(str(contract.get("manifest_path") or cache_root / "manifest.json"))
+    return {
+        "source": "nginx pinned release-asset tuple",
+        "status": tuple_status,
+        "path": str(manifest_path),
+        "notes": f"{tuple_notes}; {tuple_values}",
+    }
+
+
+def local_cache_status(path: Path) -> str:
+    if path.is_dir():
+        return "present" if any(path.iterdir()) else "missing"
+    return "present" if path.is_file() and path.stat().st_size > 0 else "missing"
+
+
+def local_cache_row(name: str, path: Path) -> dict[str, Any]:
+    status = local_cache_status(path)
+    return {
+        "source": name,
+        "status": status,
+        "path": str(path),
+        "notes": "local cache available" if status == "present" else "network may be required unless this cache is prefilled",
+    }
+
+
+def network_cache_status(
+    cache_root: Path,
+    nginx_contract: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    return [
+        nginx_tuple_cache_row(cache_root, nginx_contract),
+        local_cache_row("nginx archive cache", cache_root / "archives/nginx"),
+        local_cache_row("go-ftw git cache", cache_root / "git/go-ftw"),
+        local_cache_row("albedo git cache", cache_root / "git/albedo"),
     ]
-    rows = []
-    for name, path in sources:
-        if name == "nginx pinned release-asset tuple":
-            rows.append(
-                {
-                    "source": name,
-                    "status": tuple_status,
-                    "path": str(path),
-                    "notes": f"{tuple_notes}; {tuple_values}",
-                }
-            )
-            continue
-        if path.is_dir():
-            status = "present" if any(path.iterdir()) else "missing"
-        else:
-            status = "present" if path.is_file() and path.stat().st_size > 0 else "missing"
-        rows.append(
-            {
-                "source": name,
-                "status": status,
-                "path": str(path),
-                "notes": "local cache available" if status == "present" else "network may be required unless this cache is prefilled",
-            }
-        )
-    return rows
 
 
-def build_payload(connector_root: Path, framework_root: Path, build_root: Path) -> dict[str, Any]:
+def readiness_environment(
+    connector_root: Path,
+    framework_root: Path,
+    build_root: Path,
+) -> tuple[Path, dict[str, Any], dict[str, str], Path, dict[str, Path]]:
     defaults = verified_runtime_paths(os.environ, build_root_override=build_root)
     state_home = Path(defaults["VERIFIED_STATE_ROOT"])
     cache_root = Path(defaults["CONNECTOR_COMPONENT_CACHE"])
@@ -543,9 +574,7 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path) 
     effective_env = dict(base_env)
     effective_env.update(common.get("env", {}))
     runtime_env_path = cache_root / "runtime-env.sh"
-    runtime_env = parse_export_file(runtime_env_path)
-    effective_env.update(runtime_env)
-
+    effective_env.update(parse_export_file(runtime_env_path))
     roots = {
         "verified_run_root": Path(defaults["VERIFIED_RUN_ROOT"]),
         "state_home": state_home,
@@ -559,9 +588,16 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path) 
         "log_root": Path(defaults["LOG_ROOT"]),
         "mrts_native_root": Path(defaults["MRTS_NATIVE_ROOT"]),
     }
-    nginx_contract_input = nginx_runtime_contract_from_manifest(cache_root)
-    nginx_contract = validate_nginx_runtime_contract(nginx_contract_input, roots)
+    return cache_root, common, effective_env, runtime_env_path, roots
 
+
+def nginx_readiness_values(
+    effective_env: dict[str, str],
+    build_root: Path,
+    nginx_contract_input: dict[str, Any],
+    roots: dict[str, Path],
+) -> tuple[dict[str, Any], Path | None, Path, dict[str, Any]]:
+    nginx_contract = validate_nginx_runtime_contract(nginx_contract_input, roots)
     nginx_prefix = Path(effective_env.get("NGINX_PREFIX", str(build_root / "nginx-runtime/nginx"))).resolve()
     nginx_binary_path = contract_display(nginx_contract["fields"].get("binary_path"))
     nginx_bin = Path(nginx_binary_path).resolve() if nginx_binary_path else None
@@ -574,12 +610,28 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path) 
         )
     )
     nginx_module_file = nginx_module_candidate.resolve(strict=False)
-    nginx_module_dir = nginx_module_file.parent
     nginx_module_binding = validate_nginx_runtime_module_binding(
         nginx_contract_input,
         nginx_module_candidate,
         roots,
     )
+    return nginx_contract, nginx_bin, nginx_module_file, nginx_module_binding
+
+
+def build_payload(connector_root: Path, framework_root: Path, build_root: Path) -> dict[str, Any]:
+    cache_root, common, effective_env, runtime_env_path, roots = readiness_environment(
+        connector_root,
+        framework_root,
+        build_root,
+    )
+    nginx_contract_input = nginx_runtime_contract_from_manifest(cache_root)
+    nginx_contract, nginx_bin, nginx_module_file, nginx_module_binding = nginx_readiness_values(
+        effective_env,
+        build_root,
+        nginx_contract_input,
+        roots,
+    )
+    nginx_module_dir = nginx_module_file.parent
     modsecurity_lib_dir = Path(
         first_nonempty(
             effective_env.get("NGINX_MRTS_MODSECURITY_LIB_DIR"),
@@ -686,7 +738,7 @@ def render_text(payload: dict[str, Any]) -> str:
             f"- Record: `{nginx_contract.get('record_path', 'missing') if isinstance(nginx_contract, dict) else 'missing'}`",
             "",
             "| Field | Status | Value |",
-            "|---|---|---|",
+            MARKDOWN_THREE_COLUMN_SEPARATOR,
         ]
     )
     for field in NGINX_RUNTIME_CONTRACT_FIELDS:
@@ -695,10 +747,10 @@ def render_text(payload: dict[str, Any]) -> str:
     issues = nginx_contract.get("issues", []) if isinstance(nginx_contract, dict) else []
     if issues:
         lines.append("- Issues: " + "; ".join(contract_markdown_value(issue) for issue in issues))
-    lines.extend(["", "| Path | Status | Notes |", "|---|---|---|"])
+    lines.extend(["", "| Path | Status | Notes |", MARKDOWN_THREE_COLUMN_SEPARATOR])
     for item in payload["paths"]:
         lines.append(f"| `{item['label']}={item['path']}` | {item['status']} | {item['notes']} |")
-    lines.extend(["", "| Source | Status | Notes |", "|---|---|---|"])
+    lines.extend(["", "| Source | Status | Notes |", MARKDOWN_THREE_COLUMN_SEPARATOR])
     for item in payload["network_cache"]:
         lines.append(f"| {item['source']} | {item['status']} | `{item['path']}`: {item['notes']} |")
     return "\n".join(lines) + "\n"
