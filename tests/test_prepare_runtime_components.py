@@ -15,14 +15,43 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 LEGACY_FRAMEWORK_HAPROXY_CACHE_SHA = "784977615acfc55567e37b863309abc4a38ac877"
 PINNED_EXPAT_COMMIT = "c61098da494eea1cbd091118118dcee417faacea"
-sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
-SPEC = importlib.util.spec_from_file_location(
-    "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
-)
-if SPEC is None or SPEC.loader is None:
-    raise ImportError("unable to load prepare-runtime-components test module")
-components = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(components)
+_MISSING_MODULE = object()
+
+
+def load_parent_prepare_runtime_components():
+    """Load the Parent subject without retaining its generic helper module.
+
+    The pinned Framework has an independent ``generated_report_utils`` module.
+    Tests must bind the Parent implementation while this module is executing,
+    then restore any pre-existing generic import for the surrounding test
+    process.
+    """
+
+    previous_path = list(sys.path)
+    previous_generated_report_utils = sys.modules.pop("generated_report_utils", _MISSING_MODULE)
+    spec = importlib.util.spec_from_file_location(
+        "parent_prepare_runtime_components_for_tests",
+        ROOT / "ci/provisioning/components/prepare-runtime-components.py",
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError("unable to load prepare-runtime-components test module")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(spec.name, None)
+        raise
+    finally:
+        sys.path[:] = previous_path
+        sys.modules.pop("generated_report_utils", None)
+        if previous_generated_report_utils is not _MISSING_MODULE:
+            sys.modules["generated_report_utils"] = previous_generated_report_utils
+    return module
+
+
+components = load_parent_prepare_runtime_components()
 
 
 class PrepareRuntimeComponentsTest(unittest.TestCase):
@@ -1012,10 +1041,18 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             sources = cache / "sources"
             archives = cache / "archives"
             connector_build = cache / "builds/connectors/haproxy/test-build"
+            cache_identity_payload = {
+                "cache_schema_version": components.CACHE_SCHEMA_VERSION,
+                "component": "haproxy",
+                "extra_inputs": {"connector_source_hash": "source-hash"},
+            }
+            cache_key = components.stable_hash(cache_identity_payload)
+            cache_identity = {**cache_identity_payload, "cache_key": cache_key}
             plan = {
                 "connector": "haproxy",
-                "connector_build_id": "test-build",
-                "cache_key": "test-build",
+                "connector_build_id": cache_key,
+                "cache_key": cache_key,
+                "cache_identity": cache_identity,
                 "cache_root": str(cache),
                 "root": str(connector_build),
                 "modsecurity_build_id": "modsecurity-build",
@@ -1044,8 +1081,135 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     plan,
                 )
             self.assertFalse(connector_build.exists())
-            self.assertFalse(any(path.name.startswith(".test-build.tmp-") for path in connector_build.parent.iterdir()))
+            self.assertFalse(any(path.name.startswith(f".{cache_key}.tmp-") for path in connector_build.parent.iterdir()))
             return record
+
+    def haproxy_runtime_plan(
+        self,
+        cache_root: Path,
+        *,
+        source_hash: str = "source-hash",
+    ) -> dict[str, object]:
+        cache_identity_payload = {
+            "cache_schema_version": components.CACHE_SCHEMA_VERSION,
+            "component": "haproxy",
+            "extra_inputs": {"connector_source_hash": source_hash},
+        }
+        cache_key = components.stable_hash(cache_identity_payload)
+        cache_identity = {**cache_identity_payload, "cache_key": cache_key}
+        cache_entry = cache_root / "builds" / "connectors" / "haproxy" / cache_key
+        return {
+            "connector": "haproxy",
+            "connector_build_id": cache_key,
+            "cache_key": cache_key,
+            "cache_identity": cache_identity,
+            "cache_root": str(cache_root),
+            "root": str(cache_entry),
+            "build_root": str(cache_entry),
+            "manifest": str(cache_entry / "manifest.json"),
+            "source_hash": source_hash,
+            "output_paths": {},
+        }
+
+    def test_haproxy_runtime_context_contains_all_mutable_outputs_under_invocation_build_root(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-runtime-context-") as temporary:
+            root = Path(temporary)
+            cache_root = root / "cache"
+            build_root = root / "invocation-build"
+            plan = self.haproxy_runtime_plan(cache_root)
+
+            context = components.haproxy_runtime_context(plan, build_root)
+            prep_env = components.haproxy_prepare_environment(
+                {},
+                ROOT,
+                ROOT / "modules/ModSecurity-test-Framework",
+                cache_root,
+                build_root,
+                cache_root / "sources",
+                cache_root / "archives",
+                context,
+            )
+
+            expected_root = (
+                build_root
+                / "runtime-components"
+                / "haproxy"
+                / str(plan["cache_key"])
+            ).resolve()
+            self.assertEqual(context["root"], expected_root)
+            self.assertEqual(prep_env["BUILD_ROOT"], str(build_root.resolve()))
+            self.assertEqual(
+                components.connector_output_layout(
+                    "haproxy",
+                    Path(str(plan["root"])),
+                )["output_paths"],
+                {},
+            )
+            mutable_paths = (
+                context["root"],
+                context["haproxy_runtime_build_dir"],
+                context["haproxy_runtime_build_worktree"],
+                context["haproxy_runtime_dir"],
+                context["haproxy_bin"],
+                context["binding_dir"],
+                context["spoa_dir"],
+                context["spoa_bin"],
+                context["paths_env"],
+                context["log_path"],
+            )
+            for path in mutable_paths:
+                with self.subTest(path=path):
+                    self.assertNotEqual(path, build_root.resolve())
+                    self.assertTrue(components.is_within(path, build_root))
+                    self.assertFalse(components.is_within(path, cache_root))
+            self.assertEqual(
+                prep_env["HAPROXY_RUNTIME_BUILD_WORKTREE"],
+                str(context["haproxy_runtime_build_worktree"]),
+            )
+            self.assertEqual(
+                components.haproxy_runtime_context(plan, build_root)["root"],
+                expected_root,
+            )
+
+    def test_haproxy_runtime_context_rejects_cache_owned_mutable_output_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-cache-output-rejection-") as temporary:
+            cache_root = Path(temporary) / "cache"
+            plan = self.haproxy_runtime_plan(cache_root)
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "haproxy_runtime_output_overlaps_component_cache",
+            ):
+                components.haproxy_runtime_context(plan, cache_root / "mutable-build")
+
+    def test_haproxy_runtime_context_rejects_build_key_path_escape(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-build-key-escape-") as temporary:
+            root = Path(temporary)
+            plan = self.haproxy_runtime_plan(root / "cache")
+            plan["connector_build_id"] = "../escape"
+            plan["cache_key"] = "../escape"
+            plan["cache_identity"]["cache_key"] = "../escape"  # type: ignore[index]
+
+            with self.assertRaisesRegex(RuntimeError, "unsafe_haproxy_runtime_build_key"):
+                components.haproxy_runtime_context(plan, root / "build")
+
+    def test_haproxy_runtime_context_rejects_source_build_key_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-build-key-mismatch-") as temporary:
+            root = Path(temporary)
+            for field, different_value in (
+                ("connector_build_id", "different-build-key"),
+                ("source_hash", "different-source-hash"),
+            ):
+                with self.subTest(field=field):
+                    plan = self.haproxy_runtime_plan(root / "cache")
+                    plan[field] = different_value
+                    with self.assertRaisesRegex(
+                        RuntimeError,
+                        "haproxy_source_build_key_mismatch",
+                    ):
+                        components.haproxy_runtime_context(plan, root / "build")
 
     def test_haproxy_build_failure_returning_77_is_execution_failure(self) -> None:
         record = self.prepare_haproxy_with(

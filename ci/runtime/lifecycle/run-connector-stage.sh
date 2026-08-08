@@ -4,7 +4,7 @@ set -eu
 connector=${1:?connector is required}
 stage=${2:?stage is required}
 
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT=${CONNECTOR_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)}
 FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}
 VERIFIED_RUN_ROOT=${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}
@@ -17,6 +17,7 @@ LOG_ROOT=${LOG_ROOT:-$BUILD_ROOT/logs}
 RESULTS_DIR=${RESULTS_DIR:-$BUILD_ROOT/stages/$connector/$stage/results}
 RUNTIME_REPORT_OUTPUT_ROOT=${RUNTIME_REPORT_OUTPUT_ROOT:-$BUILD_ROOT/runtime-component-reports}
 PYTHON=${PYTHON:-python3}
+NGINX_ROOT_HANDOFF=${NGINX_ROOT_HANDOFF:-0}
 NO_CRS_ARTIFACT_PROFILE=${NO_CRS_ARTIFACT_PROFILE:-generic}
 FULL_LIFECYCLE_HOST_PROFILE=${FULL_LIFECYCLE_HOST_PROFILE:-}
 FULL_LIFECYCLE_EXECUTED_TARGET=${FULL_LIFECYCLE_EXECUTED_TARGET:-}
@@ -30,6 +31,10 @@ esac
 case "$stage" in
     build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline) ;;
     *) echo "usage: $0 apache|nginx|haproxy|envoy|traefik|lighttpd build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline" >&2; exit 2 ;;
+esac
+case "$NGINX_ROOT_HANDOFF" in
+    0|1) ;;
+    *) echo "FAIL: NGINX_ROOT_HANDOFF must be 0 or 1" >&2; exit 2 ;;
 esac
 
 expected_full_lifecycle_profile() {
@@ -90,7 +95,7 @@ case "$BUILD_ROOT" in
 esac
 
 export CONNECTOR_ROOT FRAMEWORK_ROOT VERIFIED_RUN_ROOT BUILD_ROOT CACHE_ROOT VERIFIED_COMPONENT_CACHE CONNECTOR_COMPONENT_CACHE TMP_ROOT LOG_ROOT RESULTS_DIR
-export RUNTIME_REPORT_OUTPUT_ROOT RUNTIME_ROOT RUNTIME_BASE PYTHON RUNTIME_COMPONENT_ENV_SNAPSHOT
+export RUNTIME_REPORT_OUTPUT_ROOT RUNTIME_ROOT RUNTIME_BASE PYTHON RUNTIME_COMPONENT_ENV_SNAPSHOT NGINX_ROOT_HANDOFF
 case "$connector" in
     apache|nginx|haproxy) RUNTIME_COMPONENT_TARGET=$connector ;;
     envoy|traefik|lighttpd) RUNTIME_COMPONENT_TARGET=shared ;;
@@ -128,6 +133,118 @@ run_framework_host() {
         "$@" sh "$FRAMEWORK_ROOT/ci/runtime/$framework_script"
 }
 
+prepare_nginx_root_handoff_snapshot() {
+    snapshot_reserved_here=0
+    if [ -z "${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}" ]; then
+        RUNTIME_COMPONENT_ENV_SNAPSHOT=$(sh "$CONNECTOR_ROOT/ci/runtime/lifecycle/reserve-runtime-env-snapshot.sh" "$RUNTIME_REPORT_OUTPUT_ROOT") || return $?
+        snapshot_reserved_here=1
+        export RUNTIME_COMPONENT_ENV_SNAPSHOT
+    fi
+    case "$RUNTIME_COMPONENT_ENV_SNAPSHOT" in
+        "$RUNTIME_REPORT_OUTPUT_ROOT"/*) ;;
+        *)
+            echo "FAIL: NGINX root handoff snapshot must remain under RUNTIME_REPORT_OUTPUT_ROOT" >&2
+            return 1
+            ;;
+    esac
+    set +e
+    RUNTIME_COMPONENT_TARGET=nginx \
+    RUNTIME_COMPONENT_ENV_SNAPSHOT="$RUNTIME_COMPONENT_ENV_SNAPSHOT" \
+    sh "$CONNECTOR_ROOT/ci/provisioning/components/prepare-runtime-components.sh"
+    prepare_rc=$?
+    set -e
+    if [ "$prepare_rc" -ne 0 ]; then
+        if [ "$snapshot_reserved_here" -eq 1 ]; then
+            rm -f "$RUNTIME_COMPONENT_ENV_SNAPSHOT"
+        fi
+        return "$prepare_rc"
+    fi
+    [ -s "$RUNTIME_COMPONENT_ENV_SNAPSHOT" ] || {
+        echo "FAIL: NGINX root handoff preparation did not materialize its local snapshot" >&2
+        return 1
+    }
+    [ ! -L "$RUNTIME_COMPONENT_ENV_SNAPSHOT" ] || {
+        echo "FAIL: NGINX root handoff snapshot must not be a symlink" >&2
+        return 1
+    }
+}
+
+run_nginx_unprivileged_build_preflight() {
+    "$CONNECTOR_ROOT/ci/provisioning/cache/with-runtime-components.sh" env \
+        CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+        FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+        VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
+        VERIFIED_COMPONENT_CACHE="$VERIFIED_COMPONENT_CACHE" \
+        CACHE_ROOT="$CACHE_ROOT" \
+        CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \
+        BUILD_ROOT="$BUILD_ROOT" \
+        TMP_ROOT="$TMP_ROOT" \
+        LOG_ROOT="$LOG_ROOT" \
+        RESULTS_DIR="$RESULTS_DIR" \
+        RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
+        RUNTIME_COMPONENT_TARGET=nginx \
+        RUNTIME_COMPONENT_ENV_SNAPSHOT="$RUNTIME_COMPONENT_ENV_SNAPSHOT" \
+        PYTHON="$PYTHON" \
+        NO_CRS_BASELINE=1 \
+        MODSECURITY_TEST_VARIANT=no-crs \
+        MODSECURITY_MRTS_VARIANT=no-mrts \
+        MODSECURITY_RULE_PREAMBLE_FILE="${NO_CRS_RULES_FILE:-}" \
+        MSCONNECTOR_SMOKE_STAGE=build \
+        NGINX_PHASE4_MODE="${NGINX_PHASE4_MODE:-}" \
+        sh "$FRAMEWORK_ROOT/ci/runtime/run-nginx-smoke.sh"
+}
+
+run_nginx_root_handoff() {
+    smoke_stage=$1
+    run_one_case=$2
+    test_case=$3
+    smoke_cases=$4
+    selected_case_ids=$5
+    if [ "$NGINX_ROOT_HANDOFF" != 1 ]; then
+        if [ -n "$test_case" ]; then
+            run_framework_host run-nginx-smoke.sh "$smoke_stage" \
+                RUN_ONE_CASE="$run_one_case" TEST_CASE="$test_case"
+        else
+            run_framework_host run-nginx-smoke.sh "$smoke_stage" \
+                RUN_ONE_CASE="$run_one_case" SMOKE_CASES="$smoke_cases"
+        fi
+        return
+    fi
+    prepare_nginx_root_handoff_snapshot
+    # This preflight is intentionally unprivileged.  It makes a missing or
+    # stale NGINX build fail or rebuild before the root-only host stage, so the
+    # elevated runner cannot reach a build/download path.
+    run_nginx_unprivileged_build_preflight
+    exec "$PYTHON" "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-nginx-root-handoff.py" \
+        --connector-root "$CONNECTOR_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" \
+        --verified-run-root "$VERIFIED_RUN_ROOT" \
+        --build-root "$BUILD_ROOT" \
+        --cache-root "$CACHE_ROOT" \
+        --component-cache "$CONNECTOR_COMPONENT_CACHE" \
+        --tmp-root "$TMP_ROOT" \
+        --log-root "$LOG_ROOT" \
+        --results-dir "$RESULTS_DIR" \
+        --report-output-root "$RUNTIME_REPORT_OUTPUT_ROOT" \
+        --snapshot "$RUNTIME_COMPONENT_ENV_SNAPSHOT" \
+        --python "$PYTHON" \
+        --stage "$smoke_stage" \
+        --run-one-case "$run_one_case" \
+        --test-case "$test_case" \
+        --smoke-cases "$smoke_cases" \
+        --selected-case-ids "$selected_case_ids" \
+        --rule-preamble "${NO_CRS_RULES_FILE:-}" \
+        --phase4-mode "${NGINX_PHASE4_MODE:-}" \
+        --docroot-projection "${NGINX_DOCROOT_PROJECTION:-0}" \
+        --nginx-harness-parent "${NGINX_HARNESS_PARENT:-$BUILD_ROOT/nginx-harness}" \
+        --nginx-harness-work-root "${NGINX_HARNESS_WORK_ROOT:-}" \
+        --runtime-root "${RUNTIME_ROOT:-}" \
+        --runtime-base "${RUNTIME_BASE:-}" \
+        --evidence-root "${EVIDENCE_ROOT:-}" \
+        --connector-run-root "${CONNECTOR_RUN_ROOT:-}" \
+        --connector-log-root "${CONNECTOR_LOG_ROOT:-}"
+}
+
 run_remaining_connector() {
     target=$1
     exec env \
@@ -159,6 +276,7 @@ run_full_lifecycle_haproxy_htx() {
         */*) python_bin=$CONNECTOR_ROOT/$PYTHON ;;
         *) python_bin=$PYTHON ;;
     esac
+    # shellcheck disable=SC2016 # The explicitly invoked inner shell expands this script.
     exec "$CONNECTOR_ROOT/ci/provisioning/cache/with-runtime-components.sh" env PYTHON="$python_bin" sh -eu -c '
         : "${HAPROXY_SOURCE_DIR:?HAProxy source was not provisioned}"
         : "${MODSECURITY_INCLUDE_DIR:?libmodsecurity headers were not provisioned}"
@@ -182,21 +300,31 @@ case "$connector:$stage" in
         run_framework_host run-nginx-smoke.sh build
         ;;
     haproxy:build)
+        # shellcheck disable=SC2016 # The explicitly invoked inner shell expands this script.
         exec "$CONNECTOR_ROOT/ci/provisioning/cache/with-runtime-components.sh" sh -eu -c '
             sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-haproxy-runtime.sh"
             make -C "$CONNECTOR_ROOT/connectors/haproxy" build-modsecurity-binding build-spoa-runtime \
                 BUILD_ROOT="$BUILD_ROOT" REPO_ROOT="$CONNECTOR_ROOT"
         '
         ;;
-    apache:config_load|nginx:config_load|haproxy:config_load)
+    nginx:config_load)
+        run_nginx_root_handoff config_load 1 allow_without_marker "" ""
+        ;;
+    apache:config_load|haproxy:config_load)
         run_framework_host "run-$connector-smoke.sh" config_load \
             RUN_ONE_CASE=1 TEST_CASE=allow_without_marker
         ;;
-    apache:start_smoke|nginx:start_smoke|haproxy:start_smoke)
+    nginx:start_smoke)
+        run_nginx_root_handoff start_smoke 1 allow_without_marker "" ""
+        ;;
+    apache:start_smoke|haproxy:start_smoke)
         run_framework_host "run-$connector-smoke.sh" start_smoke \
             RUN_ONE_CASE=1 TEST_CASE=allow_without_marker
         ;;
-    apache:minimal_runtime_smoke|nginx:minimal_runtime_smoke|haproxy:minimal_runtime_smoke)
+    nginx:minimal_runtime_smoke)
+        run_nginx_root_handoff minimal_runtime_smoke 0 "" "allow_without_marker deny_header_marker_403" ""
+        ;;
+    apache:minimal_runtime_smoke|haproxy:minimal_runtime_smoke)
         run_framework_host "run-$connector-smoke.sh" minimal_runtime_smoke \
             RUN_ONE_CASE=0 SMOKE_CASES="allow_without_marker deny_header_marker_403"
         ;;
@@ -214,7 +342,15 @@ case "$connector:$stage" in
                 RUN_ONE_CASE=0 SMOKE_CASES="$NO_CRS_SELECTED_CASES"
         fi
         ;;
-    apache:no_crs_baseline|nginx:no_crs_baseline)
+    nginx:no_crs_baseline)
+        [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
+            echo "$NO_CRS_SELECTED_CASES_MISSING_MESSAGE" >&2
+            exit 1
+        }
+        run_nginx_root_handoff minimal_runtime_smoke 0 "" \
+            "$NO_CRS_SELECTED_CASES" "${NO_CRS_SELECTED_CASE_IDS:-}"
+        ;;
+    apache:no_crs_baseline)
         [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
             echo "$NO_CRS_SELECTED_CASES_MISSING_MESSAGE" >&2
             exit 1

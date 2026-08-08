@@ -434,6 +434,26 @@ Advanced source/provenance values such as <code>HAPROXY_SOURCE_URL</code>,
 checksums, and source paths change provisioning identity and may cause
 rebuilds. They do not change a connector capability or promote an outcome.
 
+### All-connectors No-CRS baseline layout
+
+The <code>all-connectors-no-crs.yml</code> baseline runs only on its scheduled
+or repository-authorized manual dispatch path. It has read-only repository
+permissions and no pull-request trigger. Each invocation uses sibling
+<code>build</code>, <code>evidence</code>, and <code>cache-v2</code> roots
+below <code>$RUNNER_TEMP/ModSecurity-conector-verified</code>; mutable build
+or cache data is therefore not placed below the evidence root.
+
+The NGINX matrix row uses a narrow root handoff only for the root-required
+Phase-4 configuration/start checks and the fixed minimal runtime smoke. The
+runner identity first prepares the components and writes an invocation-local
+runtime-environment snapshot. The handoff validates the approved snapshot
+metadata and paths, invokes the fixed Framework runner with an explicit
+environment and a fixed non-root worker, and disables fetches and builds in
+that elevated step. It never sources the snapshot as root and is not a
+general-purpose privileged runner. The No-CRS document-root projection is
+created under a controlled external parent and cleaned only when its exact
+expected contents are present.
+
 ## Selected build routes
 
 | Connector | Build target | Selected full-lifecycle profile | Build/integration note |

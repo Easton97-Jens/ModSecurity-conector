@@ -1,6 +1,9 @@
 name: All Connector No-CRS Baseline
 
 on:
+  # This workflow has no pull_request or pull_request_target trigger.  The
+  # NGINX root handoff below is therefore limited to scheduled default-branch
+  # runs and a repository-authorized manual workflow_dispatch invocation.
   workflow_dispatch:
   schedule:
     - cron: '23 3 * * 3'
@@ -175,25 +178,35 @@ jobs:
           set -eu
           test "$CI_PHASE4_MODE" = safe
           echo "NGINX_PHASE4_MODE=$CI_PHASE4_MODE" >> "$GITHUB_ENV"
+          # Build preparation stays unprivileged.  The Parent lifecycle uses
+          # this explicit opt-in only for its fixed config/start/No-CRS root
+          # handoff, never for a PR-triggered workflow.
+          echo "NGINX_ROOT_HANDOFF=1" >> "$GITHUB_ENV"
 
       - name: Initialize canonical evidence paths
         run: |
           set -eu
           verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
           build_root="$verified_root/build"
-          evidence_root="$build_root/no-crs-evidence"
+          verified_evidence_root="$verified_root/evidence"
+          evidence_root="$verified_evidence_root/no-crs-evidence"
+          cache_root="$verified_root/cache-v2"
           {
             echo "VERIFIED_RUN_ROOT=$verified_root"
             echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
             echo "SOURCE_ROOT=$verified_root/src"
             echo "BUILD_ROOT=$build_root"
-            echo "TMP_ROOT=$verified_root/tmp"
-            echo "LOG_ROOT=$verified_root/logs"
-            echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
-            echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
+            echo "TMP_ROOT=$build_root/tmp"
+            echo "LOG_ROOT=$build_root/logs"
+            echo "CACHE_ROOT=$cache_root"
+            echo "VERIFIED_COMPONENT_CACHE=$cache_root/shared"
+            echo "CONNECTOR_COMPONENT_CACHE=$cache_root/shared"
+            echo "NGINX_HARNESS_PARENT=$build_root/nginx-harness"
+            echo "VERIFIED_EVIDENCE_ROOT=$verified_evidence_root"
             echo "EVIDENCE_ROOT=$evidence_root"
             echo "NO_CRS_EVIDENCE_ROOT=$evidence_root"
-            echo "RUNTIME_REPORT_OUTPUT_ROOT=$verified_root/runtime-component-reports"
+            echo "RUNTIME_REPORT_OUTPUT_ROOT=$build_root/runtime-component-reports"
+            echo "PYTHON=${{ steps.setup-python.outputs.python-path }}"
             echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
           } >> "$GITHUB_ENV"
           mkdir -p "$evidence_root"
