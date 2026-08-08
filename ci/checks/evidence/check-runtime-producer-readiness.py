@@ -618,20 +618,7 @@ def nginx_readiness_values(
     return nginx_contract, nginx_bin, nginx_module_file, nginx_module_binding
 
 
-def build_payload(connector_root: Path, framework_root: Path, build_root: Path) -> dict[str, Any]:
-    cache_root, common, effective_env, runtime_env_path, roots = readiness_environment(
-        connector_root,
-        framework_root,
-        build_root,
-    )
-    nginx_contract_input = nginx_runtime_contract_from_manifest(cache_root)
-    nginx_contract, nginx_bin, nginx_module_file, nginx_module_binding = nginx_readiness_values(
-        effective_env,
-        build_root,
-        nginx_contract_input,
-        roots,
-    )
-    nginx_module_dir = nginx_module_file.parent
+def runtime_component_paths(effective_env: dict[str, str]) -> dict[str, Path | None]:
     modsecurity_lib_dir = Path(
         first_nonempty(
             effective_env.get("NGINX_MRTS_MODSECURITY_LIB_DIR"),
@@ -639,17 +626,33 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path) 
             effective_env.get("MODSECURITY_LIB_DIR"),
         )
     )
-    modsecurity_lib = (modsecurity_lib_dir / "libmodsecurity.so").resolve() if str(modsecurity_lib_dir) else None
+    return {
+        "modsecurity_lib": (modsecurity_lib_dir / "libmodsecurity.so").resolve()
+        if str(modsecurity_lib_dir)
+        else None,
+        "apache_httpd": executable_or_path(effective_env.get("APACHE_HTTPD", "")),
+        "apache_module": Path(effective_env["APACHE_MODULE"]).resolve()
+        if effective_env.get("APACHE_MODULE")
+        else None,
+        "apxs": executable_or_path(effective_env.get("APXS_BIN") or effective_env.get("APXS", "")),
+        "haproxy": executable_or_path(effective_env.get("HAPROXY_BIN", "")),
+        "spoa": executable_or_path(effective_env.get("SPOA_RUNTIME_BIN", "")),
+        "haproxy_binding": Path(effective_env["MODSECURITY_BINDING_DIR"]) / "paths.env"
+        if effective_env.get("MODSECURITY_BINDING_DIR")
+        else None,
+        "go_ftw": executable_or_path(effective_env.get("GO_FTW_BIN", "go-ftw")),
+        "albedo": executable_or_path(effective_env.get("ALBEDO_BIN", "albedo")),
+    }
 
-    apache_httpd = executable_or_path(effective_env.get("APACHE_HTTPD", ""))
-    apache_module = Path(effective_env.get("APACHE_MODULE", "")).resolve() if effective_env.get("APACHE_MODULE") else None
-    apxs = executable_or_path(effective_env.get("APXS_BIN") or effective_env.get("APXS", ""))
-    haproxy = executable_or_path(effective_env.get("HAPROXY_BIN", ""))
-    spoa = executable_or_path(effective_env.get("SPOA_RUNTIME_BIN", ""))
-    haproxy_binding = Path(effective_env.get("MODSECURITY_BINDING_DIR", "")) / "paths.env" if effective_env.get("MODSECURITY_BINDING_DIR") else None
-    go_ftw = executable_or_path(effective_env.get("GO_FTW_BIN", "go-ftw"))
-    albedo = executable_or_path(effective_env.get("ALBEDO_BIN", "albedo"))
 
+def readiness_component_items(
+    common: dict[str, Any],
+    nginx_contract: dict[str, Any],
+    nginx_bin: Path | None,
+    nginx_module_file: Path,
+    nginx_module_binding: dict[str, Any],
+    component_paths: dict[str, Path | None],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     required_items = [
         component("common.sh", "present" if common["status"] == "present" else "missing", Path(common["path"]), "ensure FRAMEWORK_ROOT points at modules/ModSecurity-test-Framework"),
         component(
@@ -670,28 +673,81 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path) 
             details="; ".join(nginx_module_binding["issues"])
             or "module path matches the managed NGINX component record",
         ),
-        component("NGINX libmodsecurity", file_status(modsecurity_lib), modsecurity_lib, RUNTIME_COMPONENT_PREPARATION_FIX),
-        component("Apache/httpd", file_status(apache_httpd, executable_required=True), apache_httpd, RUNTIME_COMPONENT_PREPARATION_FIX),
-        component("Apache/APXS", file_status(apxs, executable_required=True), apxs, RUNTIME_COMPONENT_PREPARATION_FIX),
-        component("Apache ModSecurity module", file_status(apache_module), apache_module, RUNTIME_COMPONENT_PREPARATION_FIX),
-        component("HAProxy binary", file_status(haproxy, executable_required=True), haproxy, RUNTIME_COMPONENT_PREPARATION_FIX),
-        component("HAProxy SPOA runtime", file_status(spoa, executable_required=True), spoa, RUNTIME_COMPONENT_PREPARATION_FIX),
-        component("HAProxy binding metadata", file_status(haproxy_binding), haproxy_binding, RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("NGINX libmodsecurity", file_status(component_paths["modsecurity_lib"]), component_paths["modsecurity_lib"], RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("Apache/httpd", file_status(component_paths["apache_httpd"], executable_required=True), component_paths["apache_httpd"], RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("Apache/APXS", file_status(component_paths["apxs"], executable_required=True), component_paths["apxs"], RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("Apache ModSecurity module", file_status(component_paths["apache_module"]), component_paths["apache_module"], RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("HAProxy binary", file_status(component_paths["haproxy"], executable_required=True), component_paths["haproxy"], RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("HAProxy SPOA runtime", file_status(component_paths["spoa"], executable_required=True), component_paths["spoa"], RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("HAProxy binding metadata", file_status(component_paths["haproxy_binding"]), component_paths["haproxy_binding"], RUNTIME_COMPONENT_PREPARATION_FIX),
     ]
     optional_items = [
-        component("go-ftw", file_status(go_ftw, executable_required=True), go_ftw, "optional native MRTS: install or cache go-ftw", required=False),
-        component("albedo", file_status(albedo, executable_required=True), albedo, "optional native MRTS: install or cache albedo", required=False),
+        component("go-ftw", file_status(component_paths["go_ftw"], executable_required=True), component_paths["go_ftw"], "optional native MRTS: install or cache go-ftw", required=False),
+        component("albedo", file_status(component_paths["albedo"], executable_required=True), component_paths["albedo"], "optional native MRTS: install or cache albedo", required=False),
     ]
-    path_checks = [
+    return required_items, optional_items
+
+
+def readiness_path_checks(
+    effective_env: dict[str, str],
+    roots: dict[str, Path],
+    connector_root: Path,
+    framework_root: Path,
+) -> list[dict[str, Any]]:
+    path_keys = (
+        "BUILD_ROOT",
+        "SOURCE_ROOT",
+        "TMP_ROOT",
+        "LOG_ROOT",
+        "CONNECTOR_COMPONENT_CACHE",
+        "NGINX_HARNESS_PARENT",
+        "MRTS_NATIVE_ROOT",
+    )
+    return [
         check_safe_path(Path(effective_env[key]).resolve(), key, roots, connector_root, framework_root)
-        for key in ("BUILD_ROOT", "SOURCE_ROOT", "TMP_ROOT", "LOG_ROOT", "CONNECTOR_COMPONENT_CACHE", "NGINX_HARNESS_PARENT", "MRTS_NATIVE_ROOT")
+        for key in path_keys
         if effective_env.get(key)
     ]
-    required_status = status_for_required(required_items)
-    path_status = "PASS" if all(item["status"] == "PASS" for item in path_checks) else "BLOCKED"
-    status = "PASS" if required_status == "PASS" and path_status == "PASS" else "BLOCKED"
+
+
+def readiness_status(
+    required_items: list[dict[str, Any]],
+    optional_items: list[dict[str, Any]],
+    path_checks: list[dict[str, Any]],
+) -> str:
+    status = "PASS" if status_for_required(required_items) == "PASS" and all(
+        item["status"] == "PASS" for item in path_checks
+    ) else "BLOCKED"
     if status == "PASS" and status_for_optional(optional_items) == "WARN":
-        status = "WARN"
+        return "WARN"
+    return status
+
+
+def build_payload(connector_root: Path, framework_root: Path, build_root: Path) -> dict[str, Any]:
+    cache_root, common, effective_env, runtime_env_path, roots = readiness_environment(
+        connector_root,
+        framework_root,
+        build_root,
+    )
+    nginx_contract_input = nginx_runtime_contract_from_manifest(cache_root)
+    nginx_contract, nginx_bin, nginx_module_file, nginx_module_binding = nginx_readiness_values(
+        effective_env,
+        build_root,
+        nginx_contract_input,
+        roots,
+    )
+    nginx_module_dir = nginx_module_file.parent
+    component_paths = runtime_component_paths(effective_env)
+    required_items, optional_items = readiness_component_items(
+        common,
+        nginx_contract,
+        nginx_bin,
+        nginx_module_file,
+        nginx_module_binding,
+        component_paths,
+    )
+    path_checks = readiness_path_checks(effective_env, roots, connector_root, framework_root)
+    status = readiness_status(required_items, optional_items, path_checks)
     return {
         "status": status,
         "runtime_env_path": str(runtime_env_path),

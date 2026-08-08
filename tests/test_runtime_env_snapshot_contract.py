@@ -461,6 +461,25 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         self.assertNotIn("NGINX_SOURCE_GIT_REF: latest", nginx_env)
         self.assertNotIn("NGINX_GITHUB_REPO:", nginx_env)
 
+    def test_make_does_not_materialize_an_empty_nginx_github_repo_alias(self) -> None:
+        environment = os.environ.copy()
+        environment.pop("NGINX_GITHUB_REPO", None)
+        result = subprocess.run(
+            [
+                "make",
+                "--no-print-directory",
+                "--silent",
+                "--eval=assert-nginx-github-repo-is-unset: ; @printenv NGINX_GITHUB_REPO >/dev/null; test $$? -eq 1; FRAMEWORK_ROOT=$(CURDIR)/modules/ModSecurity-test-Framework NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx sh -eu -c '. \"$$FRAMEWORK_ROOT/ci/lib/common.sh\"; test \"$$NGINX_GITHUB_REPO\" = \"$$NGINX_SOURCE_REPO_URL\"'",
+                "assert-nginx-github-repo-is-unset",
+            ],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_full_smoke_cleanup_is_opt_in_and_skipping_it_keeps_the_matrix_eligible(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "test-full-smoke-sequential.yml").read_text(
             encoding="utf-8"
