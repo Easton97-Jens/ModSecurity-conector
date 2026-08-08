@@ -14,6 +14,7 @@ SOURCE_DIR=${HAPROXY_HTX_SOURCE_DIR:?set HAPROXY_HTX_SOURCE_DIR to HAProxy 3.2.2
 BUILD_DIR=${HAPROXY_HTX_BUILD_DIR:?set HAPROXY_HTX_BUILD_DIR to an empty output directory}
 MODSECURITY_INCLUDE_DIR=${MODSECURITY_INCLUDE_DIR:?set MODSECURITY_INCLUDE_DIR}
 MODSECURITY_LIB_DIR=${MODSECURITY_LIB_DIR:?set MODSECURITY_LIB_DIR}
+HAPROXY_MODSECURITY_BINDING_CPPFLAGS=${HAPROXY_MODSECURITY_BINDING_CPPFLAGS:-}
 MAKE_JOBS=${MAKE_JOBS:-2}
 
 die() {
@@ -87,6 +88,8 @@ cp "$CONNECTOR_ROOT/connectors/haproxy/src/haproxy_modsecurity_binding.h" "$WORK
 cp "$CONNECTOR_ROOT/connectors/haproxy/src/haproxy_modsecurity_mapper.c" "$WORKTREE/src/haproxy_modsecurity_mapper.c"
 cp "$CONNECTOR_ROOT/connectors/haproxy/src/haproxy_modsecurity_mapper.h" "$WORKTREE/src/haproxy_modsecurity_mapper.h"
 cp -R "$CONNECTOR_ROOT/common/include/msconnector" "$WORKTREE/include/"
+require_file "$CONNECTOR_ROOT/common/src/header_validation_internal.h" "Common internal header"
+cp "$CONNECTOR_ROOT/common/src/header_validation_internal.h" "$WORKTREE/src/header_validation_internal.h"
 
 COMMON_SOURCES='config.c config_parser.c directive_spec.c directive_adapter.c request_helpers.c response_helpers.c request_mapper_contract.c response_mapper_contract.c headers.c event.c event_jsonl.c json_escape.c rule_id.c log_sanitize.c redaction.c resource_limits.c dos_guard.c error.c status.c body_policy.c crs.c transaction_state.c decision.c decision_action.c late_intervention.c flow_guard.c integrity_event.c rule_loader.c rule_merge.c http_status.c block_statuses.c path_policy.c intervention.c rule_error.c rule_event.c artifacts.c artifact_layout.c test_result.c test_result_json.c'
 for source in $COMMON_SOURCES; do
@@ -109,7 +112,8 @@ done
 [ -n "$modsecurity_library" ] || die "no libmodsecurity library found under $MODSECURITY_LIB_DIR"
 
 make -C "$WORKTREE" TARGET=linux-glibc -j "$MAKE_JOBS" \
-    CFLAGS="-I$MODSECURITY_INCLUDE_DIR" \
+	USE_OPENSSL=1 \
+    CFLAGS="-I$MODSECURITY_INCLUDE_DIR $HAPROXY_MODSECURITY_BINDING_CPPFLAGS" \
     ADDLIB="$modsecurity_library -Wl,-rpath,$MODSECURITY_LIB_DIR -lstdc++" \
     haproxy
 

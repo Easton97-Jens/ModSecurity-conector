@@ -15,10 +15,20 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify HAProxy libModSecurity compile-and-link compatibility
+        run: |
+          set -eu
+          python3 tests/test_haproxy_libmodsecurity_compat.py
       - name: Check HAProxy scaffold
         run: |
           set -eu
           test -f connectors/haproxy/README.md
           test -f connectors/haproxy/TODO.md
           test -f docs/connectors/haproxy.md
+          test -f tests/test_haproxy_libmodsecurity_compat.py
           grep -q 'Status:' connectors/haproxy/TODO.md
