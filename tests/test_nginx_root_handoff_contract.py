@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 import shlex
 import stat
@@ -13,7 +14,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 HANDOFF_PATH = ROOT / "ci" / "runtime" / "lifecycle" / "run-nginx-root-handoff.py"
 SPEC = importlib.util.spec_from_file_location("nginx_root_handoff", HANDOFF_PATH)
-assert SPEC is not None and SPEC.loader is not None
+if SPEC is None or SPEC.loader is None:
+    raise ImportError("unable to load nginx root handoff module")
 HANDOFF = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = HANDOFF
 SPEC.loader.exec_module(HANDOFF)
@@ -292,12 +294,34 @@ class NginxRootHandoffContractTest(unittest.TestCase):
                 with self.assertRaisesRegex(HANDOFF.HandoffError, "effective uid 0"):
                     HANDOFF.execute_elevated(validated, snapshot)
 
+    def test_privileged_launcher_rejects_a_runner_owned_interpreter(self) -> None:
+        runner_owned = os.stat_result(
+            (
+                stat.S_IFREG | 0o755,
+                1,
+                1,
+                1,
+                1001,
+                1001,
+                0,
+                0,
+                0,
+                0,
+            )
+        )
+        with (
+            mock.patch.object(HANDOFF.Path, "resolve", return_value=Path("/tmp/hosted-python")),
+            mock.patch.object(HANDOFF.Path, "stat", return_value=runner_owned),
+        ):
+            with self.assertRaisesRegex(HANDOFF.HandoffError, "root-owned"):
+                HANDOFF.validate_python_tool(Path("/tmp/hosted-python"))
+
     def test_projection_cleanup_refuses_unexpected_entries(self) -> None:
         temporary, request = self.make_layout()
         with temporary:
             parent = request.verified_run_root.parent / "projection"
             parent.mkdir()
-            parent.chmod(0o711)
+            parent.chmod(HANDOFF.PROJECTION_PARENT_MODE)
             expected = parent.lstat()
             (parent / "unexpected").write_text("x", encoding="utf-8")
             with self.assertRaisesRegex(HANDOFF.HandoffError, "unexpected entries"):
@@ -307,11 +331,18 @@ class NginxRootHandoffContractTest(unittest.TestCase):
     def test_projection_parent_permission_change_is_descriptor_bound(self) -> None:
         temporary, request = self.make_layout()
         with temporary:
-            with mock.patch.object(HANDOFF.os, "fchmod", wraps=HANDOFF.os.fchmod) as fchmod:
-                parent, expected = HANDOFF.create_projection_parent(request.verified_run_root)
-            self.assertEqual(stat.S_IMODE(expected.st_mode), 0o711)
+            worker_gid = os.getegid()
+            with (
+                mock.patch.object(HANDOFF.os, "fchmod", wraps=HANDOFF.os.fchmod) as fchmod,
+                mock.patch.object(HANDOFF.os, "fchown", wraps=HANDOFF.os.fchown) as fchown,
+            ):
+                parent, expected = HANDOFF.create_projection_parent(request.verified_run_root, worker_gid)
+            self.assertEqual(stat.S_IMODE(expected.st_mode), HANDOFF.PROJECTION_PARENT_MODE)
+            self.assertEqual(expected.st_gid, worker_gid)
             fchmod.assert_called_once()
-            self.assertEqual(fchmod.call_args.args[1], 0o711)
+            self.assertEqual(fchmod.call_args.args[1], HANDOFF.PROJECTION_PARENT_MODE)
+            fchown.assert_called_once()
+            self.assertEqual(fchown.call_args.args[1:], (-1, worker_gid))
             HANDOFF.remove_projection_parent(parent, expected)
 
     def test_projection_cleanup_removes_only_fixed_files(self) -> None:
@@ -320,12 +351,38 @@ class NginxRootHandoffContractTest(unittest.TestCase):
             parent = request.verified_run_root.parent / "projection"
             docroot = parent / "docroot"
             docroot.mkdir(parents=True)
-            parent.chmod(0o711)
+            parent.chmod(HANDOFF.PROJECTION_PARENT_MODE)
             for filename in HANDOFF.PROJECTION_FILENAMES:
                 (docroot / filename).write_text(filename, encoding="utf-8")
             expected = parent.lstat()
             HANDOFF.remove_projection_parent(parent, expected)
             self.assertFalse(parent.exists())
+
+    def test_projection_cleanup_rejects_changed_opened_descriptor(self) -> None:
+        temporary, request = self.make_layout()
+        with temporary:
+            parent = request.verified_run_root.parent / "projection"
+            parent.mkdir()
+            parent.chmod(HANDOFF.PROJECTION_PARENT_MODE)
+            expected = parent.lstat()
+            changed = os.stat_result(
+                (
+                    expected.st_mode,
+                    expected.st_ino + 1,
+                    expected.st_dev,
+                    expected.st_nlink,
+                    expected.st_uid,
+                    expected.st_gid,
+                    expected.st_size,
+                    expected.st_atime,
+                    expected.st_mtime,
+                    expected.st_ctime,
+                )
+            )
+            with mock.patch.object(HANDOFF.os, "fstat", return_value=changed):
+                with self.assertRaisesRegex(HANDOFF.HandoffError, "changed before cleanup"):
+                    HANDOFF.remove_projection_parent(parent, expected)
+            self.assertTrue(parent.is_dir())
 
     def test_fixed_framework_runner_must_be_direct_submodule_path(self) -> None:
         temporary, request = self.make_layout()
@@ -344,6 +401,18 @@ class NginxRootHandoffContractTest(unittest.TestCase):
         self.assertNotIn("shell=True", source)
         self.assertIn("parse_runtime_snapshot", source)
         self.assertIn("remove_projection_parent", source)
+
+    def test_stage_uses_a_root_owned_launcher_only_for_the_privileged_reexec(self) -> None:
+        stage = (ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("ROOT_HANDOFF_PYTHON=/usr/bin/python3", stage)
+        self.assertIn(
+            'exec "$PYTHON" "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-nginx-root-handoff.py"',
+            stage,
+        )
+        self.assertIn('--python "$ROOT_HANDOFF_PYTHON"', stage)
+        self.assertNotIn('--python "$PYTHON"', stage)
 
 
 if __name__ == "__main__":

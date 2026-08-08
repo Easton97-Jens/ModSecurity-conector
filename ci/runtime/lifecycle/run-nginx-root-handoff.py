@@ -121,7 +121,10 @@ SNAPSHOT_FORWARD_KEYS = (
 )
 SYSTEM_WRITE_PREFIXES = (Path("/etc"), Path("/usr"), Path("/bin"), Path("/sbin"), Path("/lib"), Path("/lib64"), Path("/opt"), Path("/root"))
 PROJECTION_FILENAMES = frozenset({"index.html", "__modsec_smoke_ready"})
+PROJECTION_DOCROOT_NAME = "docroot"
 FIXED_WORKER_USER = "nobody"
+RUNTIME_SNAPSHOT_LABEL = "runtime environment snapshot"
+PROJECTION_PARENT_MODE = stat.S_IRWXU | stat.S_IXGRP
 
 
 class HandoffError(ValueError):
@@ -283,50 +286,55 @@ def validate_nginx_environment(environment: Mapping[str, str]) -> None:
             fail(f"caller-supplied {key} is not accepted by the root handoff")
 
 
+def parse_snapshot_assignment(line: str, line_number: int) -> tuple[str, str]:
+    if not line.startswith("export "):
+        fail(f"{RUNTIME_SNAPSHOT_LABEL} line {line_number} is not an export assignment")
+    try:
+        tokens = shlex.split(line[len("export ") :], posix=True, comments=False)
+    except ValueError as exc:
+        raise HandoffError(f"{RUNTIME_SNAPSHOT_LABEL} line {line_number} is malformed") from exc
+    if len(tokens) != 1 or "=" not in tokens[0]:
+        fail(f"{RUNTIME_SNAPSHOT_LABEL} line {line_number} is not one assignment")
+    key, value = tokens[0].split("=", 1)
+    if not SNAPSHOT_KEY.fullmatch(key) or key not in SNAPSHOT_ALLOWED_KEYS:
+        fail(f"{RUNTIME_SNAPSHOT_LABEL} exports an unapproved key: {key!r}")
+    return key, value
+
+
 def parse_runtime_snapshot(path: Path) -> dict[str, str]:
-    snapshot = validate_fixed_file(path, "runtime environment snapshot")
+    snapshot = validate_fixed_file(path, RUNTIME_SNAPSHOT_LABEL)
     metadata = snapshot.lstat()
     if metadata.st_nlink != 1:
-        fail(f"runtime environment snapshot must have one link: {snapshot}")
+        fail(f"{RUNTIME_SNAPSHOT_LABEL} must have one link: {snapshot}")
     values: dict[str, str] = {}
     for line_number, line in enumerate(snapshot.read_text(encoding="utf-8").splitlines(), start=1):
-        if not line.startswith("export "):
-            fail(f"runtime environment snapshot line {line_number} is not an export assignment")
-        try:
-            tokens = shlex.split(line[len("export ") :], posix=True, comments=False)
-        except ValueError as exc:
-            raise HandoffError(f"runtime environment snapshot line {line_number} is malformed") from exc
-        if len(tokens) != 1 or "=" not in tokens[0]:
-            fail(f"runtime environment snapshot line {line_number} is not one assignment")
-        key, value = tokens[0].split("=", 1)
-        if not SNAPSHOT_KEY.fullmatch(key) or key not in SNAPSHOT_ALLOWED_KEYS:
-            fail(f"runtime environment snapshot exports an unapproved key: {key!r}")
+        key, value = parse_snapshot_assignment(line, line_number)
         if key in values:
-            fail(f"runtime environment snapshot exports duplicate key: {key}")
+            fail(f"{RUNTIME_SNAPSHOT_LABEL} exports duplicate key: {key}")
         if any(character in value for character in ("\x00", "\r", "\n", "`", "$")):
-            fail(f"runtime environment snapshot contains unsafe value characters for {key}")
+            fail(f"{RUNTIME_SNAPSHOT_LABEL} contains unsafe value characters for {key}")
         values[key] = value
     missing = sorted(SNAPSHOT_REQUIRED_KEYS - values.keys())
     if missing:
-        fail(f"runtime environment snapshot omits required keys: {', '.join(missing)}")
+        fail(f"{RUNTIME_SNAPSHOT_LABEL} omits required keys: {', '.join(missing)}")
     return values
 
 
 def validate_snapshot(request: HandoffRequest, values: Mapping[str, str]) -> dict[str, str]:
-    snapshot = resolved(request.snapshot, "runtime environment snapshot")
+    snapshot = resolved(request.snapshot, RUNTIME_SNAPSHOT_LABEL)
     report_root = validate_mutable_path(request.report_output_root, request.verified_run_root, "RUNTIME_REPORT_OUTPUT_ROOT")
-    strict_descendant(snapshot, report_root, "runtime environment snapshot")
+    strict_descendant(snapshot, report_root, RUNTIME_SNAPSHOT_LABEL)
     component_cache = resolved(request.component_cache, "CONNECTOR_COMPONENT_CACHE")
     if values["CONNECTOR_COMPONENT_CACHE"] != str(component_cache):
-        fail("runtime environment snapshot cache does not match CONNECTOR_COMPONENT_CACHE")
+        fail(f"{RUNTIME_SNAPSHOT_LABEL} cache does not match CONNECTOR_COMPONENT_CACHE")
     if values["RUNTIME_COMPONENT_ENV_SNAPSHOT"] != str(snapshot):
-        fail("runtime environment snapshot does not bind itself")
+        fail(f"{RUNTIME_SNAPSHOT_LABEL} does not bind itself")
     if values["RUNTIME_COMPONENT_ENV_SNAPSHOT_CACHE"] != str(component_cache):
-        fail("runtime environment snapshot metadata cache mismatch")
+        fail(f"{RUNTIME_SNAPSHOT_LABEL} metadata cache mismatch")
     if values["RUNTIME_COMPONENT_ENV_SNAPSHOT_TARGET"] != "nginx":
-        fail("runtime environment snapshot target must be nginx")
+        fail(f"{RUNTIME_SNAPSHOT_LABEL} target must be nginx")
     if values["RUNTIME_COMPONENT_ENV_SNAPSHOT_SCHEMA"] != "1":
-        fail("runtime environment snapshot schema is unsupported")
+        fail(f"{RUNTIME_SNAPSHOT_LABEL} schema is unsupported")
     if values["NGINX_PROTOCOL_PROFILE"] != "h1":
         fail("root handoff permits only the reviewed h1 NGINX profile")
 
@@ -379,7 +387,7 @@ def validate_python_tool(python: Path) -> Path:
     return candidate
 
 
-def validate_worker() -> tuple[str, str]:
+def validate_worker() -> tuple[str, str, int]:
     if os.geteuid() != 0:
         fail("elevated root handoff requires effective uid 0")
     try:
@@ -392,7 +400,7 @@ def validate_worker() -> tuple[str, str]:
     runuser = shutil.which("runuser")
     if not runuser or not Path(runuser).is_file() or not os.access(runuser, os.X_OK):
         fail("root handoff requires the local runuser verifier")
-    return account.pw_name, group.gr_name
+    return account.pw_name, group.gr_name, account.pw_gid
 
 
 def validate_request(request: HandoffRequest) -> tuple[HandoffRequest, dict[str, str]]:
@@ -471,31 +479,48 @@ def validate_request(request: HandoffRequest) -> tuple[HandoffRequest, dict[str,
     return normalized, forwarded
 
 
-def create_projection_parent(verified_root: Path) -> tuple[Path, os.stat_result]:
+def open_projection_parent(
+    parent: Path, expected: os.stat_result, operation: str
+) -> tuple[int, os.stat_result]:
+    """Open the exact projection parent without following a replacement path."""
+
+    descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        metadata = os.fstat(descriptor)
+        if metadata.st_dev != expected.st_dev or metadata.st_ino != expected.st_ino:
+            fail(f"NGINX projection parent changed before {operation}")
+        if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+            fail(f"NGINX projection parent is not a directory before {operation}")
+        if metadata.st_uid != expected.st_uid:
+            fail(f"NGINX projection parent ownership changed before {operation}")
+        return descriptor, metadata
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def validate_projection_parent_permissions(metadata: os.stat_result, worker_gid: int) -> None:
+    if metadata.st_gid != worker_gid:
+        fail("NGINX projection parent group does not match the verified worker")
+    if stat.S_IMODE(metadata.st_mode) != PROJECTION_PARENT_MODE:
+        fail("NGINX projection parent does not have the required worker-only traversal mode")
+
+
+def create_projection_parent(verified_root: Path, worker_gid: int) -> tuple[Path, os.stat_result]:
     base = verified_root.parent
     ensure_no_symlink_prefix(base, "NGINX projection base", require_leaf=True)
     reject_system_write_path(base, "NGINX projection base")
     parent = Path(tempfile.mkdtemp(prefix="msconnector-nginx-projection-", dir=str(base)))
     created_metadata = parent.lstat()
     try:
-        descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        descriptor, _ = open_projection_parent(parent, created_metadata, "permission setup")
         try:
-            opened_metadata = os.fstat(descriptor)
-            if (
-                opened_metadata.st_dev != created_metadata.st_dev
-                or opened_metadata.st_ino != created_metadata.st_ino
-                or not stat.S_ISDIR(opened_metadata.st_mode)
-                or opened_metadata.st_uid != 0
-            ):
-                fail("created NGINX projection parent changed before permission setup")
-            os.fchmod(descriptor, 0o711)
+            os.fchown(descriptor, -1, worker_gid)
+            os.fchmod(descriptor, PROJECTION_PARENT_MODE)
             metadata = os.fstat(descriptor)
         finally:
             os.close(descriptor)
-        if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
-            fail("created NGINX projection parent is not a directory")
-        if metadata.st_uid != 0 or metadata.st_mode & 0o066:
-            fail("created NGINX projection parent has unsafe ownership or permissions")
+        validate_projection_parent_permissions(metadata, worker_gid)
         return parent, metadata
     except Exception:
         try:
@@ -507,36 +532,45 @@ def create_projection_parent(verified_root: Path) -> tuple[Path, os.stat_result]
         raise
 
 
+def remove_projection_files(child_fd: int) -> None:
+    child_names = set(os.listdir(child_fd))
+    if child_names - PROJECTION_FILENAMES:
+        fail("NGINX projection child has unexpected entries; refusing cleanup")
+    for name in child_names:
+        file_metadata = os.stat(name, dir_fd=child_fd, follow_symlinks=False)
+        if not stat.S_ISREG(file_metadata.st_mode) or stat.S_ISLNK(file_metadata.st_mode):
+            fail("NGINX projection child has unsafe file at cleanup")
+        os.unlink(name, dir_fd=child_fd)
+
+
+def remove_projection_docroot(parent_fd: int) -> None:
+    names = set(os.listdir(parent_fd))
+    if names - {PROJECTION_DOCROOT_NAME}:
+        fail("NGINX projection parent has unexpected entries; refusing cleanup")
+    if PROJECTION_DOCROOT_NAME not in names:
+        return
+    child_metadata = os.stat(PROJECTION_DOCROOT_NAME, dir_fd=parent_fd, follow_symlinks=False)
+    if not stat.S_ISDIR(child_metadata.st_mode) or stat.S_ISLNK(child_metadata.st_mode):
+        fail("NGINX projection child is unsafe at cleanup")
+    child_fd = os.open(
+        PROJECTION_DOCROOT_NAME,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+        dir_fd=parent_fd,
+    )
+    try:
+        remove_projection_files(child_fd)
+    finally:
+        os.close(child_fd)
+    os.rmdir(PROJECTION_DOCROOT_NAME, dir_fd=parent_fd)
+
+
 def remove_projection_parent(parent: Path, expected: os.stat_result) -> None:
     """Remove only the exact root-owned projection tree created by this helper."""
 
-    current = parent.lstat()
-    if current.st_dev != expected.st_dev or current.st_ino != expected.st_ino:
-        fail("NGINX projection parent changed before cleanup")
-    if not stat.S_ISDIR(current.st_mode) or stat.S_ISLNK(current.st_mode) or current.st_uid != 0:
-        fail("NGINX projection parent is unsafe at cleanup")
-    descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    descriptor, opened_metadata = open_projection_parent(parent, expected, "cleanup")
     try:
-        names = set(os.listdir(descriptor))
-        if names - {"docroot"}:
-            fail("NGINX projection parent has unexpected entries; refusing cleanup")
-        if "docroot" in names:
-            child_metadata = os.stat("docroot", dir_fd=descriptor, follow_symlinks=False)
-            if not stat.S_ISDIR(child_metadata.st_mode) or stat.S_ISLNK(child_metadata.st_mode):
-                fail("NGINX projection child is unsafe at cleanup")
-            child_fd = os.open("docroot", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
-            try:
-                child_names = set(os.listdir(child_fd))
-                if child_names - PROJECTION_FILENAMES:
-                    fail("NGINX projection child has unexpected entries; refusing cleanup")
-                for name in child_names:
-                    file_metadata = os.stat(name, dir_fd=child_fd, follow_symlinks=False)
-                    if not stat.S_ISREG(file_metadata.st_mode) or stat.S_ISLNK(file_metadata.st_mode):
-                        fail("NGINX projection child has unsafe file at cleanup")
-                    os.unlink(name, dir_fd=child_fd)
-            finally:
-                os.close(child_fd)
-            os.rmdir("docroot", dir_fd=descriptor)
+        validate_projection_parent_permissions(opened_metadata, expected.st_gid)
+        remove_projection_docroot(descriptor)
     finally:
         os.close(descriptor)
     parent.rmdir()
@@ -608,18 +642,22 @@ def build_environment(
     if projection_parent is not None:
         environment["NGINX_DOCROOT_PROJECTION"] = "1"
         environment["NGINX_DOCROOT_PROJECTION_PARENT"] = str(projection_parent)
-        environment["NGINX_DOCROOT_PROJECTION_ROOT"] = str(projection_parent / "docroot")
+        environment["NGINX_DOCROOT_PROJECTION_ROOT"] = str(
+            projection_parent / PROJECTION_DOCROOT_NAME
+        )
     else:
         environment["NGINX_DOCROOT_PROJECTION"] = "0"
     return environment
 
 
 def execute_elevated(request: HandoffRequest, snapshot: Mapping[str, str]) -> int:
-    worker_user, worker_group = validate_worker()
+    worker_user, worker_group, worker_gid = validate_worker()
     projection_parent: Path | None = None
     projection_metadata: os.stat_result | None = None
     if request.docroot_projection:
-        projection_parent, projection_metadata = create_projection_parent(request.verified_run_root)
+        projection_parent, projection_metadata = create_projection_parent(
+            request.verified_run_root, worker_gid
+        )
     try:
         environment = build_environment(
             request,

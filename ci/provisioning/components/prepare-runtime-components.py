@@ -7316,7 +7316,6 @@ def haproxy_preflight_blocked(
 
 def reconcile_haproxy_cached_entry(
     plan: dict[str, Any],
-    cache_root: Path,
     context: dict[str, Any],
     record: dict[str, Any],
 ) -> str:
@@ -7499,7 +7498,7 @@ def prepare_haproxy_runtime(
     record = haproxy_runtime_record(plan, modsecurity, context)
     if haproxy_preflight_blocked(record, modsecurity, cache_root, context):
         return write_haproxy_record(plan, record)
-    cache_blocker = reconcile_haproxy_cached_entry(plan, cache_root, context, record)
+    cache_blocker = reconcile_haproxy_cached_entry(plan, context, record)
     if cache_blocker:
         record.update(status="blocked", blocker_reason=cache_blocker)
         return write_haproxy_record(plan, record)

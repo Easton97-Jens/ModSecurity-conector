@@ -221,6 +221,7 @@ run_nginx_root_handoff() {
     unset NGINX_BIN NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL \
         NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF \
         NGINX_RELEASE_ASSET_NAME NGINX_SHA256
+    ROOT_HANDOFF_PYTHON=/usr/bin/python3
     exec "$PYTHON" "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-nginx-root-handoff.py" \
         --connector-root "$CONNECTOR_ROOT" \
         --framework-root "$FRAMEWORK_ROOT" \
@@ -233,7 +234,7 @@ run_nginx_root_handoff() {
         --results-dir "$RESULTS_DIR" \
         --report-output-root "$RUNTIME_REPORT_OUTPUT_ROOT" \
         --snapshot "$RUNTIME_COMPONENT_ENV_SNAPSHOT" \
-        --python "$PYTHON" \
+        --python "$ROOT_HANDOFF_PYTHON" \
         --stage "$smoke_stage" \
         --run-one-case "$run_one_case" \
         --test-case "$test_case" \

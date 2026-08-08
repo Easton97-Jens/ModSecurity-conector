@@ -270,6 +270,29 @@ class CollectNoCrsSourceHelpersTest(unittest.TestCase):
 
         self.assertEqual((allowed, blocked), (200, 403))
 
+    def test_explicit_core_cases_suppress_only_duplicate_summary_projection(self) -> None:
+        explicit_cases = [
+            {"case_id": "allow_without_marker", "actual_status": 200},
+            {"case_id": "deny_header_marker_403", "actual_status": 403},
+        ]
+        self.assertEqual(
+            COLLECTOR.reported_core_response_statuses(False, 200, 403, explicit_cases),
+            (None, None),
+        )
+        self.assertEqual(
+            COLLECTOR.reported_core_response_statuses(
+                False,
+                200,
+                403,
+                [{"case_id": "transaction_id_present", "actual_status": 200}],
+            ),
+            (200, 403),
+        )
+        self.assertEqual(
+            COLLECTOR.reported_core_response_statuses(False, 200, 403, []),
+            (200, 403),
+        )
+
     def test_scrub_uses_no_follow_artifact_removal_and_log_writer(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-helper-scrub-") as temporary:
             root = Path(temporary)
