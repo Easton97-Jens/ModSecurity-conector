@@ -347,7 +347,7 @@ func newMiddleware(next http.Handler, config Config, name string, engine Transac
 // writes are sliced for callbacks, and ReadFrom uses at most one bounded first
 // chunk before delegating the remaining stream.
 func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	contextValue := request.Context()
+	requestContext := request.Context()
 	metadata := Metadata{
 		TransactionID: request.Header.Get(middleware.config.TransactionIDHeader),
 		Method:        request.Method,
@@ -366,7 +366,7 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 	} else {
 		metadata.Hostname = metadata.ServerAddress
 	}
-	transaction, err := middleware.engine.Open(contextValue, metadata)
+	transaction, err := middleware.engine.Open(requestContext, metadata)
 	if err != nil {
 		http.Error(writer, "modsecurity middleware engine unavailable", http.StatusInternalServerError)
 		return
@@ -377,7 +377,7 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 		metadata: metadata,
 		engine:   transaction,
 	}
-	defer state.close(contextValue)
+	defer state.close(requestContext)
 
 	requestHeaders, err := boundedHeaders(request.Header, middleware.config)
 	if err != nil {
@@ -385,24 +385,23 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 		return
 	}
 	requestEnd := request.Body == nil || request.ContentLength == 0
-	decision, err := state.processHeaders(contextValue, DirectionRequest, requestHeaders, requestEnd)
+	decision, err := state.processHeaders(requestContext, DirectionRequest, requestHeaders, requestEnd)
 	if err != nil {
 		http.Error(writer, "modsecurity middleware request-header evaluation failed", http.StatusInternalServerError)
 		return
 	}
 	if decision.disruptive() {
-		state.writeDecision(contextValue, writer, decision)
+		state.writeDecision(requestContext, writer, decision)
 		return
 	}
 	if requestEnd {
 		state.markRequestEOS()
 	}
 
-	contextForRequest := newContextProvider(contextValue)
-	response := newResponseWriter(contextForRequest, writer, state)
+	response := newResponseWriter(request, writer, state)
 	originalBody := request.Body
 	if originalBody != nil {
-		request.Body = &inspectingRequestBody{context: contextForRequest, source: originalBody, state: state}
+		request.Body = &inspectingRequestBody{request: request, source: originalBody, state: state}
 		defer func() { request.Body = originalBody }()
 	}
 
@@ -446,19 +445,6 @@ type streamState struct {
 	pendingRequestDecision Decision
 	pendingRequestError    error
 	closed                 bool
-}
-
-// contextProvider keeps the request lifetime available to http.ResponseWriter
-// callbacks, whose fixed interface cannot accept a context parameter. It is
-// immutable and shared only by the per-request wrappers created in ServeHTTP.
-type contextProvider func() context.Context
-
-func newContextProvider(value context.Context) contextProvider {
-	return func() context.Context { return value }
-}
-
-func (provider contextProvider) current() context.Context {
-	return provider()
 }
 
 func (state *streamState) processHeaders(contextValue context.Context, direction Direction, headers []Header, end bool) (Decision, error) {
@@ -611,7 +597,7 @@ func (state *streamState) close(contextValue context.Context) {
 }
 
 type inspectingRequestBody struct {
-	context contextProvider
+	request *http.Request
 	source  io.ReadCloser
 	state   *streamState
 }
@@ -623,12 +609,12 @@ func (body *inspectingRequestBody) Read(buffer []byte) (int, error) {
 	count, readErr := body.source.Read(buffer)
 	if count > 0 {
 		end := errors.Is(readErr, io.EOF)
-		if err := body.state.processRequestBody(body.context.current(), buffer[:count], end); err != nil {
+		if err := body.state.processRequestBody(body.request.Context(), buffer[:count], end); err != nil {
 			return 0, err
 		}
 	}
 	if errors.Is(readErr, io.EOF) && count == 0 {
-		if err := body.state.processRequestBody(body.context.current(), nil, true); err != nil {
+		if err := body.state.processRequestBody(body.request.Context(), nil, true); err != nil {
 			return 0, err
 		}
 	}
@@ -640,7 +626,7 @@ func (body *inspectingRequestBody) Close() error {
 }
 
 type responseWriter struct {
-	context contextProvider
+	request *http.Request
 	target  http.ResponseWriter
 	state   *streamState
 
@@ -658,8 +644,12 @@ type responseWriter struct {
 	responseIncomplete bool
 }
 
-func newResponseWriter(contextValue contextProvider, target http.ResponseWriter, state *streamState) *responseWriter {
-	return &responseWriter{context: contextValue, target: target, state: state}
+func newResponseWriter(request *http.Request, target http.ResponseWriter, state *streamState) *responseWriter {
+	return &responseWriter{request: request, target: target, state: state}
+}
+
+func (writer *responseWriter) requestContext() context.Context {
+	return writer.request.Context()
 }
 
 func (writer *responseWriter) Header() http.Header {
@@ -711,7 +701,10 @@ func (writer *responseWriter) writeResponseChunks(payload []byte) (int, bool, er
 	}
 	written := 0
 	for len(payload) > 0 {
-		chunkLength := min(len(payload), writer.state.config.MaxResponseChunkBytes)
+		chunkLength := len(payload)
+		if chunkLength > writer.state.config.MaxResponseChunkBytes {
+			chunkLength = writer.state.config.MaxResponseChunkBytes
+		}
 		count, rejected, err := writer.writeResponseChunk(payload[:chunkLength])
 		written += count
 		if err != nil || rejected {
@@ -723,7 +716,7 @@ func (writer *responseWriter) writeResponseChunks(payload []byte) (int, bool, er
 }
 
 func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error) {
-	decision, err := writer.state.processResponseBody(writer.context.current(), chunk, false, !writer.committed)
+	decision, err := writer.state.processResponseBody(writer.requestContext(), chunk, false, !writer.committed)
 	if err != nil {
 		if !writer.committed {
 			writer.writeFailure()
@@ -739,7 +732,7 @@ func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error
 	}
 	count, writeErr := writer.target.Write(chunk)
 	if count > 0 {
-		writer.state.markResponseCommit(writer.context.current(), 0, true, true)
+		writer.state.markResponseCommit(writer.requestContext(), 0, true, true)
 		// Traefik's native forwarding path may otherwise retain a small response
 		// chunk until upstream EOS. Flush only bytes the host accepted so a
 		// committed streaming response remains observable before upstream EOF.
@@ -774,7 +767,7 @@ func (writer *responseWriter) prepareResponseHeaders(status int) bool {
 		writer.writeFailure()
 		return false
 	}
-	decision, err := writer.state.processResponseHeaders(writer.context.current(), status, headers)
+	decision, err := writer.state.processResponseHeaders(writer.requestContext(), status, headers)
 	if err != nil {
 		writer.writeFailure()
 		return false
@@ -793,7 +786,7 @@ func (writer *responseWriter) commit(status int) {
 	}
 	writer.target.WriteHeader(status)
 	writer.committed = true
-	writer.state.markResponseCommit(writer.context.current(), status, true, false)
+	writer.state.markResponseCommit(writer.requestContext(), status, true, false)
 }
 
 func (writer *responseWriter) writeFailure() {
@@ -806,7 +799,7 @@ func (writer *responseWriter) writeFailure() {
 	writer.committed = true
 	writer.rejected = true
 	count, _ := writer.target.Write([]byte("modsecurity middleware evaluation failed\n"))
-	writer.state.markResponseCommit(writer.context.current(), http.StatusInternalServerError, true, count > 0)
+	writer.state.markResponseCommit(writer.requestContext(), http.StatusInternalServerError, true, count > 0)
 }
 
 func (writer *responseWriter) writeDecision(decision Decision) {
@@ -815,7 +808,7 @@ func (writer *responseWriter) writeDecision(decision Decision) {
 	}
 	writer.committed = true
 	writer.rejected = true
-	writer.state.writeDecision(writer.context.current(), writer.target, decision)
+	writer.state.writeDecision(writer.requestContext(), writer.target, decision)
 }
 
 func (writer *responseWriter) clearHeaders() {
@@ -951,7 +944,7 @@ func (writer *responseWriter) ReadFrom(source io.Reader) (int64, error) {
 		inspected := &responseInspectionReader{source: source, writer: writer}
 		count, err := readerFrom.ReadFrom(inspected)
 		if count > 0 {
-			writer.state.markResponseCommit(writer.context.current(), 0, true, true)
+			writer.state.markResponseCommit(writer.requestContext(), 0, true, true)
 		}
 		if err != nil {
 			// ReaderFrom may surface either an upstream read failure or a
@@ -979,13 +972,13 @@ func (reader *responseInspectionReader) Read(buffer []byte) (int, error) {
 	}
 	count, readErr := reader.source.Read(buffer)
 	if count > 0 {
-		_, err := reader.writer.state.processResponseBody(reader.writer.context.current(), buffer[:count], false, false)
+		_, err := reader.writer.state.processResponseBody(reader.writer.requestContext(), buffer[:count], false, false)
 		if err != nil {
 			return 0, err
 		}
 	}
 	if errors.Is(readErr, io.EOF) && count == 0 {
-		_, err := reader.writer.state.processResponseBody(reader.writer.context.current(), nil, true, false)
+		_, err := reader.writer.state.processResponseBody(reader.writer.requestContext(), nil, true, false)
 		if err != nil {
 			return 0, err
 		}
@@ -1036,7 +1029,7 @@ func (writer *responseWriter) finish() {
 		if !writer.prepareResponseHeaders(http.StatusOK) {
 			return
 		}
-		decision, err := writer.state.processResponseBody(writer.context.current(), nil, true, true)
+		decision, err := writer.state.processResponseBody(writer.requestContext(), nil, true, true)
 		if err != nil {
 			writer.writeFailure()
 			return
@@ -1049,7 +1042,7 @@ func (writer *responseWriter) finish() {
 		return
 	}
 
-	_, err := writer.state.processResponseBody(writer.context.current(), nil, true, false)
+	_, err := writer.state.processResponseBody(writer.requestContext(), nil, true, false)
 	if err != nil {
 		// Response headers may already be committed. There is no safe replacement
 		// status or claimed abort path here; Close records counters only.

@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 import sys
@@ -489,14 +490,70 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def parse_config_file(value: str, runtime_root: Path) -> tuple[str, Path]:
+def canonical_source_root(value: Path, label: str) -> Path:
+    """Validate an exact read-only source root selected for one invocation."""
+
+    if not value.is_absolute():
+        raise ValueError(f"{label} must be absolute: {value}")
+    if ".." in value.parts:
+        raise ValueError(f"{label} must not contain '..': {value}")
+    lexical = Path(os.path.abspath(os.fspath(value)))
+    resolved = lexical.resolve(strict=True)
+    if lexical != resolved:
+        raise ValueError(f"{label} must not use symbolic links: {lexical}")
+    if not resolved.is_dir():
+        raise ValueError(f"{label} must be an existing directory: {resolved}")
+    return resolved
+
+
+def source_file_under_root(value: Path, root: Path, label: str) -> Path:
+    """Accept a regular non-symlink source file under one selected root."""
+
+    if not value.is_absolute():
+        raise ValueError(f"{label} must be absolute: {value}")
+    if ".." in value.parts:
+        raise ValueError(f"{label} must not contain '..': {value}")
+    lexical = Path(os.path.abspath(os.fspath(value)))
+    try:
+        lexical.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be below the selected source root: {lexical}") from exc
+    resolved = lexical.resolve(strict=True)
+    if lexical != resolved:
+        raise ValueError(f"{label} must not use symbolic links: {lexical}")
+    if not resolved.is_file():
+        raise ValueError(f"{label} must be an existing regular file: {resolved}")
+    return resolved
+
+
+def is_lexically_under(value: Path, root: Path) -> bool:
+    try:
+        value.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def parse_config_file(
+    value: str,
+    config_source_root: Path,
+    framework_root: Path | None = None,
+) -> tuple[str, Path]:
     if "=" not in value:
         raise ValueError("config file must be LABEL=PATH")
     label, raw_path = value.split("=", 1)
     if not label or not all(character.isascii() and (character.isalnum() or character in "._/-") for character in label):
         raise ValueError(f"unsafe effective config label: {label!r}")
+    candidate = Path(raw_path)
+    if framework_root is not None and candidate.is_absolute():
+        lexical = Path(os.path.abspath(os.fspath(candidate)))
+        if is_lexically_under(lexical, framework_root):
+            path = source_file_under_root(
+                candidate, framework_root, "effective config source"
+            )
+            return label, path
     path = runtime_or_source_artifact_path(
-        runtime_root, raw_path, "effective config source", must_exist=True
+        config_source_root, candidate, "effective config source", must_exist=True
     )
     return label, path
 
@@ -507,6 +564,8 @@ def write_effective_config(
     run_id: str,
     values: Iterable[str],
     runtime_root: Path,
+    config_source_root: Path | None = None,
+    framework_root: Path | None = None,
 ) -> None:
     output_dir = runtime_artifact_path(
         runtime_root,
@@ -514,9 +573,10 @@ def write_effective_config(
         "effective configuration output directory",
     )
     output_dir = ensure_safe_runtime_directory(output_dir)
+    config_source_root = config_source_root or runtime_root
     files = []
     for value in values:
-        label, path = parse_config_file(value, runtime_root)
+        label, path = parse_config_file(value, config_source_root, framework_root)
         files.append({"path": label, "sha256": sha256_file(path)})
     files.sort(key=lambda item: str(item["path"]))
     write_json(runtime_root, output_dir / "manifest.json", {
@@ -536,6 +596,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--effective-config-dir", type=Path)
     parser.add_argument("--config-file", action="append", default=[])
+    parser.add_argument("--config-source-root", type=Path)
+    parser.add_argument("--framework-root", type=Path)
     parser.add_argument("--runtime-root", type=Path)
     args = parser.parse_args(argv)
     runtime_root = prepare_verified_runtime_artifact_root(args.runtime_root)
@@ -546,6 +608,10 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("events and output directory must be supplied together")
     if args.events is None and args.effective_config_dir is None:
         raise ValueError("transport output or effective config output is required")
+    if args.config_source_root is not None and args.effective_config_dir is None:
+        raise ValueError("config source root requires effective config output")
+    if args.framework_root is not None and args.effective_config_dir is None:
+        raise ValueError("framework root requires effective config output")
     if args.events is not None and args.output_dir is not None:
         events_path = runtime_artifact_path(
             runtime_root, args.events, "events", must_exist=True
@@ -579,12 +645,22 @@ def main(argv: list[str] | None = None) -> int:
         effective_config_dir = runtime_artifact_path(
             runtime_root, args.effective_config_dir, "effective config directory"
         )
+        config_source_root = runtime_root
+        if args.config_source_root is not None:
+            config_source_root = prepare_verified_runtime_artifact_root(
+                args.config_source_root
+            )
+        framework_root = None
+        if args.framework_root is not None:
+            framework_root = canonical_source_root(args.framework_root, "framework root")
         write_effective_config(
             effective_config_dir,
             args.connector,
             run_id,
             args.config_file,
             runtime_root,
+            config_source_root,
+            framework_root,
         )
     return 0
 

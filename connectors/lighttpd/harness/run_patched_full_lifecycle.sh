@@ -19,6 +19,7 @@ SMOKE_DIR=${LIGHTTPD_PATCHED_SMOKE_DIR:-$PATCHED_ROOT/smoke}
 SMOKE_PORT=${LIGHTTPD_SMOKE_PORT:-18084}
 RULES_FILE=${MSCONNECTOR_RULES_FILE:-${RULES_FILE:-$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf}}
 PYTHON_BIN=${PYTHON:-python3}
+: "${NO_CRS_RUN_ID:?NO_CRS_RUN_ID is required}"
 SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
 ENTITY_FIXTURE_UPSTREAM=$SCRIPT_DIR/lighttpd_http1_entity_fixture_upstream.py
 FIRST_BYTE_METADATA=$SCRIPT_DIR/write_patched_first_byte_metadata.py
@@ -196,6 +197,7 @@ FIXTURE_PORT=$(ready_port "$FIXTURE_DIR/upstream-ready.json") || \
 
 BARRIER_RELEASE_FILE=$FIRST_BYTE_DIR/upstream-release
 "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve \
+    --control-root "$SMOKE_DIR" \
     --ready-file "$FIRST_BYTE_DIR/upstream-ready.json" \
     --paused-file "$FIRST_BYTE_DIR/upstream-paused.json" \
     --release-file "$BARRIER_RELEASE_FILE" \
@@ -346,6 +348,7 @@ snapshot_events "$barrier_cursor" "$P4_BARRIER_EVENTS"
     --runtime-output-root "$SMOKE_DIR" || \
     fail "could not derive bounded Lighttpd P4 metadata"
 "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence \
+    --control-root "$SMOKE_DIR" \
     --paused-file "$FIRST_BYTE_DIR/upstream-paused.json" \
     --client-first-byte-file "$FIRST_BYTE_DIR/client-body.bin" \
     --host-metadata-json "$FIRST_BYTE_DIR/host-metadata.json" \
@@ -363,6 +366,7 @@ BARRIER_RELEASE_FILE=
 [ -s "$EVENT_PATH" ] || fail "no Common event was emitted"
 "$PYTHON_BIN" "$RESULT_WRITER" \
     --events "$EVENT_PATH" \
+    --run-id "$NO_CRS_RUN_ID" \
     --output "$RESULTS_PATH" \
     --selected-case-ids "${NO_CRS_SELECTED_CASE_IDS:-}" \
     --allow-status "$allow_status" \

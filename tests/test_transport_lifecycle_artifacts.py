@@ -183,6 +183,74 @@ class TransportLifecycleArtifactsTest(unittest.TestCase):
             )
             self.assertNotIn("secret-looking", (output / "manifest.json").read_text(encoding="utf-8"))
 
+    def test_effective_config_uses_a_distinct_verified_build_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="transport-config-") as temporary:
+            root = Path(temporary)
+            run_root = root / "run"
+            build_root = root / "build"
+            framework_root = root / "framework"
+            other_root = root / "other"
+            run_root.mkdir()
+            build_root.mkdir()
+            framework_root.mkdir()
+            other_root.mkdir()
+            source = build_root / "runtime-components.env"
+            source.write_text("component=verified\n", encoding="utf-8")
+            framework_rule = framework_root / "tests/rules/no-crs-baseline.conf"
+            framework_rule.parent.mkdir(parents=True)
+            framework_rule.write_text("SecRuleEngine On\n", encoding="utf-8")
+            outside = other_root / "outside.env"
+            outside.write_text("component=outside\n", encoding="utf-8")
+
+            output = run_root / "effective-config"
+            artifacts.write_effective_config(
+                output,
+                "apache",
+                "run-one",
+                [
+                    f"runtime-components.env={source}",
+                    f"rules/no-crs-baseline.conf={framework_rule}",
+                ],
+                run_root,
+                build_root,
+                framework_root,
+            )
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                [entry["path"] for entry in manifest["files"]],
+                ["rules/no-crs-baseline.conf", "runtime-components.env"],
+            )
+
+            with self.assertRaisesRegex(ValueError, "effective config source must be below"):
+                artifacts.write_effective_config(
+                    run_root / "other-effective-config",
+                    "apache",
+                    "run-one",
+                    [f"outside.env={outside}"],
+                    run_root,
+                    build_root,
+                    framework_root,
+                )
+
+    def test_selected_framework_root_rejects_path_aliases(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="transport-framework-root-") as temporary:
+            root = Path(temporary)
+            framework = root / "framework"
+            framework.mkdir()
+            alias = root / "framework-alias"
+            alias.symlink_to(framework, target_is_directory=True)
+
+            self.assertEqual(
+                artifacts.canonical_source_root(framework, "framework root"),
+                framework,
+            )
+            with self.assertRaisesRegex(ValueError, "symbolic links"):
+                artifacts.canonical_source_root(alias, "framework root")
+            with self.assertRaisesRegex(ValueError, "must not contain '..'"):
+                artifacts.canonical_source_root(
+                    framework / ".." / "framework", "framework root"
+                )
+
     def test_rejects_symlinked_transport_artifact_destination(self) -> None:
         with tempfile.TemporaryDirectory(prefix="transport-lifecycle-") as temporary:
             root = Path(temporary)

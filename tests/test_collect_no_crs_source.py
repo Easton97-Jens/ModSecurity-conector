@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -352,6 +353,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         event = collector.sanitized_event(
             {
                 "connector": "nginx",
+                "run_id": "nginx-current-run",
                 "transaction_id": "tx-first-byte",
                 "rule_id": 1100301,
                 "phase": "response_body",
@@ -374,6 +376,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertTrue(event["first_byte_before_response_end"])
         self.assertFalse(event["upstream_response_finished_at_first_byte"])
         self.assertTrue(event["no_full_response_buffering"])
+        self.assertEqual(event["run_id"], "nginx-current-run")
         self.assertEqual(event["body_bytes_seen"], 17)
         self.assertEqual(event["body_bytes_inspected"], 17)
 
@@ -661,6 +664,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                     for event in (
                         {
                             "connector": "lighttpd",
+                            "run_id": "lighttpd-current-run",
                             "transaction_id": "tx-real",
                             "event": "MSCONN_EVENT_RESPONSE_BLOCKED",
                             "message_id": "MSCONN_EVENT_RESPONSE_BLOCKED",
@@ -724,6 +728,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertEqual(cases[0]["transaction_ids"], ["tx-real"])
             self.assertFalse(cases[0]["headers_sent"])
             self.assertEqual(len(derived), 1)
+            self.assertEqual(derived[0]["run_id"], "lighttpd-current-run")
 
     def test_case_cannot_borrow_another_transaction_event(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-transaction-mismatch-") as temporary:
@@ -1132,10 +1137,157 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             'TRAEFIK_NATIVE_RUNTIME_ROOT="$TRAEFIK_RUNTIME_ROOT"',
             'LIGHTTPD_PATCHED_ROOT="$HOST_RUNTIME_ROOT/lighttpd-patched"',
             'LIGHTTPD_PATCHED_SMOKE_DIR="$LIGHTTPD_RUNTIME_ROOT"',
+            'LIGHTTPD_STAGE_FIRST_BYTE_EVIDENCE=$LIGHTTPD_RUNTIME_ROOT/first-byte-evidence.json',
+            'STAGE_FIRST_BYTE_EVIDENCE_OUTPUT=$LIGHTTPD_STAGE_FIRST_BYTE_EVIDENCE',
+            'FIRST_BYTE_EVIDENCE_SOURCE=$LIGHTTPD_STAGE_FIRST_BYTE_EVIDENCE',
+            'FULL_LIFECYCLE_EVIDENCE_OUTPUT="$STAGE_FIRST_BYTE_EVIDENCE_OUTPUT"',
+            'cp "$FIRST_BYTE_EVIDENCE_SOURCE" "$FIRST_BYTE_EVIDENCE"',
+            '--framework-root "$FRAMEWORK_ROOT"',
             '--allowed-source-root "$RAW_DIR"',
+            '--allowed-log-root "$LOG_DIR"',
             '--scrub-source-events',
         ):
             self.assertIn(assignment, source)
+
+        self.assertIn(
+            'if [ "$connector" = lighttpd ] && [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then',
+            source,
+        )
+
+    def test_synchronized_fallback_is_bound_to_the_current_raw_run(self) -> None:
+        source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
+        fallback = source.split('    elif [ ! -f "$FIRST_BYTE_EVIDENCE" ]; then', 1)[1].split(
+            "    fi\nfi\n\nhost_version=", 1
+        )[0]
+        self.assertIn('--control-root "$CONNECTOR_RUN_ROOT"', fallback)
+        self.assertIn('--output "$FIRST_BYTE_EVIDENCE"', fallback)
+        self.assertNotIn("|| true", fallback)
+
+    def test_synchronized_fallback_helper_requires_and_honors_control_root(self) -> None:
+        helper = ROOT / "modules" / "ModSecurity-test-Framework" / "tests" / "runners" / "synchronized_upstream.py"
+        with tempfile.TemporaryDirectory(prefix="synchronized-fallback-") as temporary:
+            control_root = Path(temporary)
+            output = control_root / "first-byte-evidence.json"
+            missing_root = subprocess.run(
+                [sys.executable, str(helper), "--output", str(output)],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(missing_root.returncode, 0)
+            self.assertIn("--control-root", missing_root.stderr)
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(helper),
+                    "--control-root",
+                    str(control_root),
+                    "--output",
+                    str(output),
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            evidence = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(evidence["evidence_origin"], "synthetic_harness")
+            self.assertFalse(evidence["promotion_eligible"])
+
+    def make_provenance_environment(
+        self,
+        names: tuple[str, ...],
+        make_target: str,
+        overrides: dict[str, str | None],
+    ) -> dict[str, str]:
+        environment = os.environ.copy()
+        for name in names:
+            value = overrides.get(name)
+            if value is None:
+                environment.pop(name, None)
+            else:
+                environment[name] = value
+        completed = subprocess.run(
+            [
+                "make",
+                "--no-print-directory",
+                "-s",
+                "--eval",
+                f"{make_target}:\n\t@env",
+                make_target,
+            ],
+            cwd=ROOT,
+            env=environment,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        return dict(
+            line.split("=", 1)
+            for line in completed.stdout.splitlines()
+            if line.partition("=")[0] in names
+        )
+
+    def test_make_preserves_nginx_provenance_presence_semantics(self) -> None:
+        names = (
+            "NGINX_SOURCE_MODE",
+            "NGINX_SOURCE_REPO_URL",
+            "NGINX_SOURCE_GIT_REF",
+            "NGINX_GITHUB_REPO",
+            "NGINX_RELEASE_TAG",
+        )
+        make_target = "print-nginx-provenance-contract"
+
+        absent = self.make_provenance_environment(
+            names, make_target, {name: None for name in names}
+        )
+        self.assertEqual(absent, {})
+
+        explicit_empty = self.make_provenance_environment(
+            names, make_target, {name: "" for name in names}
+        )
+        self.assertEqual(explicit_empty, {name: "" for name in names})
+
+        reviewed = {
+            "NGINX_SOURCE_MODE": "github-release",
+            "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
+            "NGINX_SOURCE_GIT_REF": "release-1.31.3",
+            "NGINX_GITHUB_REPO": "https://github.com/nginx/nginx",
+            "NGINX_RELEASE_TAG": "release-1.31.3",
+        }
+        self.assertEqual(
+            self.make_provenance_environment(names, make_target, reviewed), reviewed
+        )
+
+    def test_make_preserves_apr_util_provenance_presence_semantics(self) -> None:
+        names = (
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        )
+        make_target = "print-apr-util-provenance-contract"
+
+        absent = self.make_provenance_environment(
+            names, make_target, {name: None for name in names}
+        )
+        self.assertEqual(absent, {})
+
+        explicit_empty = self.make_provenance_environment(
+            names, make_target, {name: "" for name in names}
+        )
+        self.assertEqual(explicit_empty, {name: "" for name in names})
+
+        reviewed = {
+            "APR_UTIL_VERSION": "1.6.4",
+            "APR_UTIL_SOURCE_URL": "https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2",
+            "APR_UTIL_SHA256": "3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b",
+            "APR_UTIL_SHA256_URL": "https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2.sha256",
+        }
+        self.assertEqual(
+            self.make_provenance_environment(names, make_target, reviewed), reviewed
+        )
 
     def test_protocol_client_bundle_is_root_runner_scoped_and_forwarded(self) -> None:
         source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
