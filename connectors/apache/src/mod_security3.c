@@ -156,6 +156,29 @@ void modsecurity_log_cb(void *log, const void* data)
 
 }
 
+
+/* libModSecurity v3.0.12 allocates URL and log with strdup but does not
+ * export msc_intervention_cleanup(). Keep their release in the connector
+ * after any values retained by Apache have been copied into
+ * request-owned memory. This is equivalent to the older public C++ helper's
+ * free-and-reset behavior and avoids coupling the module to a newer symbol. */
+static void msc_release_intervention_buffers(ModSecurityIntervention *intervention)
+{
+    if (intervention == NULL)
+    {
+        return;
+    }
+
+    free(intervention->url);
+    intervention->url = NULL;
+    free(intervention->log);
+    intervention->log = NULL;
+    intervention->status = N_INTERVENTION_STATUS;
+    intervention->pause = 0;
+    intervention->disruptive = 0;
+}
+
+
 int process_intervention (Transaction *t, request_rec *r)
 {
     ModSecurityIntervention intervention;
@@ -166,6 +189,7 @@ int process_intervention (Transaction *t, request_rec *r)
     int result = N_INTERVENTION_STATUS;
 
     intervention.status = N_INTERVENTION_STATUS;
+    intervention.pause = 0;
     intervention.url = NULL;
     intervention.log = NULL;
     intervention.disruptive = 0;
@@ -209,7 +233,7 @@ int process_intervention (Transaction *t, request_rec *r)
     }
 
 cleanup:
-    msc_intervention_cleanup(&intervention);
+    msc_release_intervention_buffers(&intervention);
     return result;
 }
 
@@ -248,6 +272,7 @@ err_no_mem:
 int msc_apache_cleanup()
 {
     msc_cleanup(msc_apache->modsec);
+    return 0;
 }
 
 
@@ -257,6 +282,7 @@ int msc_apache_cleanup()
  */
 static apr_status_t msc_module_cleanup(void *data)
 {
+    (void)data;
     msc_apache_cleanup();
     return APR_SUCCESS;
 }
@@ -450,6 +476,9 @@ static int msc_hook_pre_config(apr_pool_t *mp, apr_pool_t *mp_log,
     const char *key = "modsecurity-pre-config-init-flag";
     int first_time = 0;
 
+    (void)mp_log;
+    (void)mp_temp;
+
     /* Figure out if we are here for the first time */
     apr_pool_userdata_get(&data, key, mp);
     if (data == NULL)
@@ -485,6 +514,10 @@ static int msc_hook_post_config(apr_pool_t *mp, apr_pool_t *mp_log,
     const char *key = "modsecurity-post-config-init-flag";
     int first_time = 0;
 
+    (void)mp;
+    (void)mp_log;
+    (void)mp_temp;
+
     /* Figure out if we are here for the first time */
     apr_pool_userdata_get(&data, key, s->process->pool);
     if (data == NULL)
@@ -510,6 +543,7 @@ static int msc_hook_post_config(apr_pool_t *mp, apr_pool_t *mp_log,
 
 static int hook_connection_early(conn_rec *conn)
 {
+    (void)conn;
     // At this point there isn't a request_rec attached to the request,
     // therefore we can't create the config yet, lets wait till next phase.
 
@@ -560,11 +594,6 @@ static int msc_apache_client_port(request_rec *r)
  * a transaction context.
  */
 static int hook_request_early(request_rec *r) {
-    msc_t *msr = NULL;
-    int rc = DECLINED;
-    const char *client_ip = msc_apache_client_ip(r);
-    int client_port = msc_apache_client_port(r);
-
     /* This function needs to run only once per transaction
      * (i.e. subrequests and redirects are excluded).
      */
@@ -606,7 +635,7 @@ static int hook_request_early(request_rec *r) {
     }
 #endif
 
-    return rc;
+    return DECLINED;
 }
 
 /**
@@ -686,8 +715,6 @@ static int hook_request_late(request_rec *r)
  */
 static int hook_log_transaction(request_rec *r)
 {
-    const apr_array_header_t *arr = NULL;
-    request_rec *origr = NULL;
     msc_t *msr = NULL;
     int it;
 
@@ -842,7 +869,12 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
         {
             const char *key = te[i].key;
             const char *val = te[i].val;
-            msc_add_request_header(msr->t, key, val);
+            /* Apache owns immutable NUL-terminated table strings while the
+             * libmodsecurity C API declares the same header bytes as
+             * unsigned. Keep the ownership and byte boundary explicit. */
+            const unsigned char *key_bytes = (const unsigned char *)key;
+            const unsigned char *val_bytes = (const unsigned char *)val;
+            msc_add_request_header(msr->t, key_bytes, val_bytes);
         }
         msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
         msr->native_event_phase_active = 1;
@@ -867,6 +899,7 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
 
 static void msc_register_hooks(apr_pool_t *pool)
 {
+    (void)pool;
     static const char *const postconfig_beforeme_list[] = {
         "mod_unique_id.c",
         "mod_ssl.c",
@@ -960,5 +993,6 @@ module AP_MODULE_DECLARE_DATA security3_module =
     NULL,                              // Merge handler for per-server
                                        // configurations.
     module_directives,
-    msc_register_hooks
+    msc_register_hooks,
+    AP_MODULE_FLAG_NONE
 };

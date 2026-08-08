@@ -71,18 +71,64 @@ Quellebene beweist keinen späten Abbruch.
 Primäre lokale Referenz: `<external-source-root>/ModSecurity-apache`.
 Upstream-Quelle: https://github.com/owasp-modsecurity/ModSecurity-apache.
 
-Das Build-Layout im Besitz des Apache-Adapters befindet sich unter `connectors/apache/` und ist
-materialisiert zu `$BUILD_ROOT/apache-build/connector-src` vor Autotools/APXS
-Builds laufen. Der frühere `connectors/apache/upstream/`-Baum wurde nach dem entfernt
-Phase 11 materialisierte sich und der Apache-Smoke-Test verging. Phase 13 hält
-`connectors/apache/src/` beschränkt auf produktive C-Quellen; Build-Dateien live unter
-Das Connector-Stammverzeichnis, unter dem die Testvorlagen von Autotools gespeichert sind
-`modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/`, und dauerhafte Namensnennung lebt darin
-`licenses/apache/`, `connectors/apache/ORIGIN.md` und
-`connectors/apache/SOURCE_MAP.json`.
+Das Build-Layout im Besitz des Apache-Adapters befindet sich unter `connectors/apache/`.
+Der Framework-eigene Regressionspfad materialisiert es zu
+`$BUILD_ROOT/apache-build/connector-src`, bevor dieser getrennte Pfad seinen
+Autotools/APXS-Build ausführt. Der frühere `connectors/apache/upstream/`-Baum
+wurde nach dem materialisierten Build und Apache-Smoke-Test von Phase 11
+entfernt. Phase 13 hält `connectors/apache/src/` auf produktive C-Quellen
+beschränkt; Build-Dateien liegen im Connector-Stammverzeichnis, aufbewahrte
+Autotools-Testvorlagen unter
+`modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/`,
+und dauerhafte Attribution unter `licenses/apache/`,
+`connectors/apache/ORIGIN.md` und `connectors/apache/SOURCE_MAP.json`.
 
 Build- und Laufzeitartefakte müssen unter `BUILD_ROOT` bleiben, lokal standardmäßig auf
 `/src/ModSecurity-conector-build`.
+
+## Reproduzierbarer Parent-Autotools-Bootstrap
+
+Der Framework-Materializer ist ein separater Regressionsintegrationspfad. Ein
+frischer Parent-Source-Checkout kann das Apache-Modul bootstrappen und bauen,
+ohne Framework-Vorlagen zu materialisieren. Autoconf, Automake, einen
+C-Compiler, `make`, Apache-Entwicklungsdateien einschließlich APXS,
+libmodsecurity-Entwicklungsdateien und `curl` installieren; bei einem nicht
+systemweiten libmodsecurity-Prefix `MODSECURITY_PREFIX` darauf setzen.
+
+In einem sauberen Checkout unter `connectors/apache/` das Apache-Binary aus dem
+gewählten APXS ableiten und die getrackten Autotools-Quellen verwenden:
+
+```sh
+APXS="${APXS:-$(command -v apxs || command -v apxs2)}"
+test -x "$APXS"
+HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"
+MODSECURITY_PREFIX="${MODSECURITY_PREFIX:-/usr}"
+autoreconf --install
+test -f configure
+test -x configure
+./configure --with-libmodsecurity="$MODSECURITY_PREFIX" --with-apxs="$APXS" --with-apache="$HTTPD_BIN"
+make
+test -f src/.libs/mod_security3.so
+```
+
+Der erwartete Modulausgabepfad lautet `src/.libs/mod_security3.so`. Zur
+Validierung des vollständigen Frischquellpfads die fokussierte Prüfung vom
+Parent-Root ausführen:
+
+```sh
+make check-apache-autotools-bootstrap
+```
+
+Sie erzeugt ein Source-Archiv, das nur getrackte Dateien enthält, führt die
+obigen Befehle aus, validiert eine isolierte Loopback-Apache-Konfiguration,
+lädt das mit Autotools gebaute Modul und prüft eine erlaubte Anfrage mit `200`
+sowie eine ModSecurity-Regel mit `403`. In einem sauberen Checkout,
+einschließlich CI, entspricht dieses Archiv exakt `HEAD`. Bei einem lokalen
+Pre-Commit-Lauf wendet die Prüfung nur `git diff HEAD` an, um getrackte
+Änderungen zu prüfen; ungetrackte Dateien werden nie importiert. Der temporäre
+ServerRoot und der nicht privilegierte Loopback-Port werden am Ende entfernt.
+Ein direkter Befehl `apxs -c` ist kein Ersatz: das von Autotools erzeugte
+`configure` und der anschließende `make`-Pfad sind erforderlich.
 
 ## Eigentums- und Laufzeitansprüche testen
 
