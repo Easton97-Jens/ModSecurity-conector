@@ -72,12 +72,21 @@ Der Materializer schreibt weiterhin das Upstream-kompatible Build-Layout unter
 | `connectors/apache/src/msc_filters.h` | `src/msc_filters.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache-Filter-Header |
 | `connectors/apache/src/msc_utils.c` | `src/msc_utils.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache-Connector-Hilfsfunktionen |
 | `connectors/apache/src/msc_utils.h` | `src/msc_utils.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache-Connector-Hilfsfunktionen-Header |
-| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/t/conf/extra.conf.in` | `t/conf/extra.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Von Configure-/Build-Eingaben referenziertes Testvorlagen-Layout |
-| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/run-regression-tests.pl.in` | `tests/run-regression-tests.pl.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac`-Ausgabevorlage |
-| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/40-secRemoteRules.t.in` | `tests/regression/misc/40-secRemoteRules.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac`-Ausgabevorlage |
-| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/50-ipmatchfromfile-external.t.in` | `tests/regression/misc/50-ipmatchfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac`-Ausgabevorlage |
-| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/60-pmfromfile-external.t.in` | `tests/regression/misc/60-pmfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac`-Ausgabevorlage |
-| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/server_root/conf/httpd.conf.in` | `tests/regression/server_root/conf/httpd.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac`-Ausgabevorlage |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/t/conf/extra.conf.in` | `t/conf/extra.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Framework-exklusive Upstream-Regressionstestvorlage; keine Parent-Autotools-Eingabe |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/run-regression-tests.pl.in` | `tests/run-regression-tests.pl.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Framework-exklusive Upstream-Regressionstestvorlage, aus den Parent-`configure.ac`-Ausgaben entfernt |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/40-secRemoteRules.t.in` | `tests/regression/misc/40-secRemoteRules.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Framework-exklusive Upstream-Regressionstestvorlage, aus den Parent-`configure.ac`-Ausgaben entfernt |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/50-ipmatchfromfile-external.t.in` | `tests/regression/misc/50-ipmatchfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Framework-exklusive Upstream-Regressionstestvorlage, aus den Parent-`configure.ac`-Ausgaben entfernt |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/60-pmfromfile-external.t.in` | `tests/regression/misc/60-pmfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Framework-exklusive Upstream-Regressionstestvorlage, aus den Parent-`configure.ac`-Ausgaben entfernt |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/server_root/conf/httpd.conf.in` | `tests/regression/server_root/conf/httpd.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Framework-exklusive Upstream-Regressionstestvorlage, aus den Parent-`configure.ac`-Ausgaben entfernt |
+
+## F-GS-001-Bootstrap-Status
+
+Der Autotools-Bootstrap des Parent-Apache-Connectors aus frischen Quellen
+verwendet nur die produktiven Ausgaben `Makefile` und `build/apxs-wrapper`.
+Die Upstream-Regressionstestvorlagen im Framework werden ausschließlich in
+den separaten Regressionstest-Quellbaum des Frameworks materialisiert; sie
+sind weder Parent-`configure.ac`-Eingaben noch eine Voraussetzung für einen
+frischen Parent-Checkout.
 
 ## Repository-eigene Metadatendateien
 

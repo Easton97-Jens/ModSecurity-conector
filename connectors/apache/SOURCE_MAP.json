@@ -20,7 +20,7 @@
     "Makefile.am": {
       "base_path": "Makefile.am",
       "license": "Apache-2.0",
-      "reason": "Automake build source migrated without semantic changes."
+      "reason": "Automake build source; F-GS-001 retires the obsolete Parent t/ regression target while retaining the productive Autotools module build."
     },
     "autogen.sh": {
       "base_path": "autogen.sh",
@@ -50,7 +50,7 @@
     "configure.ac": {
       "base_path": "configure.ac",
       "license": "Apache-2.0",
-      "reason": "Autoconf source migrated without runtime semantic changes; phase 12 changed AC_CONFIG_SRCDIR from LICENSE to src/mod_security3.c so attribution files can live outside the build source tree."
+      "reason": "Autoconf source; phase 12 changed AC_CONFIG_SRCDIR from LICENSE to src/mod_security3.c, and F-GS-001 retires obsolete Framework regression outputs from the Parent bootstrap contract."
     },
     "src/mod_security3.c": {
       "base_path": "src/mod_security3.c",
@@ -110,32 +110,32 @@
     "t/conf/extra.conf.in": {
       "base_path": "t/conf/extra.conf.in",
       "license": "Apache-2.0",
-      "reason": "Retained template path used by the upstream Autotools test layout."
+      "reason": "Framework-owned upstream regression template retained for Framework source materialization; it is not a Parent Autotools bootstrap input."
     },
     "tests/regression/misc/40-secRemoteRules.t.in": {
       "base_path": "tests/regression/misc/40-secRemoteRules.t.in",
       "license": "Apache-2.0",
-      "reason": "Retained configure.ac output template."
+      "reason": "Framework-owned upstream regression template retained for Framework source materialization; it is not a Parent configure.ac input."
     },
     "tests/regression/misc/50-ipmatchfromfile-external.t.in": {
       "base_path": "tests/regression/misc/50-ipmatchfromfile-external.t.in",
       "license": "Apache-2.0",
-      "reason": "Retained configure.ac output template."
+      "reason": "Framework-owned upstream regression template retained for Framework source materialization; it is not a Parent configure.ac input."
     },
     "tests/regression/misc/60-pmfromfile-external.t.in": {
       "base_path": "tests/regression/misc/60-pmfromfile-external.t.in",
       "license": "Apache-2.0",
-      "reason": "Retained configure.ac output template."
+      "reason": "Framework-owned upstream regression template retained for Framework source materialization; it is not a Parent configure.ac input."
     },
     "tests/regression/server_root/conf/httpd.conf.in": {
       "base_path": "tests/regression/server_root/conf/httpd.conf.in",
       "license": "Apache-2.0",
-      "reason": "Retained configure.ac output template."
+      "reason": "Framework-owned upstream regression template retained for Framework source materialization; it is not a Parent configure.ac input."
     },
     "tests/run-regression-tests.pl.in": {
       "base_path": "tests/run-regression-tests.pl.in",
       "license": "Apache-2.0",
-      "reason": "Retained configure.ac output template."
+      "reason": "Framework-owned upstream regression template retained for Framework source materialization; it is not a Parent configure.ac input."
     }
   },
   "relocated_files": {
