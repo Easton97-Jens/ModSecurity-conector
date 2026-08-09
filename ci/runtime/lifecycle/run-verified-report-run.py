@@ -1248,8 +1248,8 @@ def command_plan(
     checks = [
         {
             "phase": "checks",
-            "command": ["make", "check-generated-report-layout"],
-            "logical_target": "check-generated-report-layout",
+            "command": ["make", "verified-report-evidence-gate"],
+            "logical_target": "verified-report-evidence-gate",
             "required": True,
             "optional": False,
             "affected_reports": ["all_generated_reports"],
@@ -1500,7 +1500,7 @@ def markdown_command_lines(payload: dict[str, Any]) -> list[str]:
         "generate-verified-runtime-mismatch-analysis",
     }
     consumer_targets = {"refresh-all-reports", "generate-system-environment-proof"}
-    check_targets = {"check-generated-report-layout", "lint", "quick-check"}
+    check_targets = {"verified-report-evidence-gate", "lint", "quick-check"}
     lines = markdown_command_table(
         payload,
         "## Producer Commands",

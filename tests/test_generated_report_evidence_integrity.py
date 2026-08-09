@@ -85,6 +85,22 @@ def replace_raw_matrix_job(
 
 
 class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
+    def test_strict_gate_follows_runtime_evidence_materialization(self) -> None:
+        plan = RUNNER.command_plan(
+            runtime_matrix_timeout=1,
+            full_matrix_runtime_timeout=1,
+            report_refresh_timeout=1,
+            native_mrts_timeout=1,
+            profile="full",
+        )
+        targets = [item["logical_target"] for item in plan]
+        gate_index = targets.index("verified-report-evidence-gate")
+        self.assertGreater(gate_index, targets.index("refresh-all-reports"))
+        self.assertGreater(gate_index, targets.index("generate-system-environment-proof"))
+        self.assertNotIn("check-generated-report-layout", targets)
+        self.assertTrue(plan[gate_index]["required"])
+        self.assertFalse(plan[gate_index]["optional"])
+
     def build_valid_run(self, root: Path) -> tuple[Path, Path, str]:
         connector_root = root / "connector"
         build_root = root / "build"
