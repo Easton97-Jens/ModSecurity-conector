@@ -263,7 +263,7 @@ jobs:
             esac
           }
 
-          verify_open_pr() {
+          verify_open_pr_identity() {
             pr_number="$1"
             expected_head="$2"
             pr_state="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.state')"
@@ -274,12 +274,63 @@ jobs:
             pr_title="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.title')"
             pr_author="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.user.login')"
             pr_auto_merge="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.auto_merge')"
+            pr_base_repo="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.base.repo.full_name')"
+            pr_head_repo="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.head.repo.full_name')"
             pr_body="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.body // ""')"
             marker_count="$(printf '%s\n' "$pr_body" | awk -v marker="$PR_MARKER" '$0 == marker { count += 1 } END { print count + 0 }')"
-            if [ "$pr_state" != "open" ] || [ "$pr_base" != "$DEFAULT_BRANCH" ] || [ "$pr_head" != "$UPDATE_BRANCH" ] || [ "$pr_head_sha" != "$expected_head" ] || [ "$pr_draft" != "true" ] || [ "$pr_title" != "$PR_TITLE" ] || [ "$pr_author" != "$UPDATER_NAME" ] || [ "$pr_auto_merge" != "null" ] || [ "$marker_count" != "1" ]; then
-              echo "Open maintenance pull request state is not updater-owned, draft, marked, and auto-merge-free." >&2
+            title_match=false
+            head_sha_match=false
+            auto_merge_present=true
+            [ "$pr_title" = "$PR_TITLE" ] && title_match=true
+            [ "$pr_head_sha" = "$expected_head" ] && head_sha_match=true
+            [ "$pr_auto_merge" = "null" ] && auto_merge_present=false
+            if [ "$pr_state" != "open" ] || [ "$pr_base" != "$DEFAULT_BRANCH" ] || [ "$pr_head" != "$UPDATE_BRANCH" ] || [ "$head_sha_match" != "true" ] || [ "$title_match" != "true" ] || [ "$pr_author" != "$UPDATER_NAME" ] || [ "$auto_merge_present" != "false" ] || [ "$marker_count" != "1" ] || [ "$pr_base_repo" != "$GITHUB_REPOSITORY" ] || [ "$pr_head_repo" != "$GITHUB_REPOSITORY" ]; then
+              echo "Open maintenance PR identity verification failed:" >&2
+              printf 'state=%s\nbase=%s\nhead=%s\nhead_sha_match=%s\ndraft=%s\ntitle_match=%s\nauthor=%s\nauto_merge_present=%s\nmarker_count=%s\n' \
+                "$pr_state" "$pr_base" "$pr_head" "$head_sha_match" "$pr_draft" "$title_match" "$pr_author" "$auto_merge_present" "$marker_count" >&2
               exit 1
             fi
+          }
+
+          verify_open_draft_pr() {
+            pr_number="$1"
+            expected_head="$2"
+            verify_open_pr_identity "$pr_number" "$expected_head"
+            if [ "$pr_draft" != "true" ]; then
+              echo "Open maintenance PR final verification failed: draft=$pr_draft" >&2
+              exit 1
+            fi
+          }
+
+          ensure_open_pr_is_draft() {
+            pr_number="$1"
+            expected_head="$2"
+            verify_open_pr_identity "$pr_number" "$expected_head"
+            case "$pr_draft" in
+              true)
+                return 0
+                ;;
+              false)
+                # Re-read both independently controlled objects and every identity
+                # field immediately before the only permitted PR mutation.
+                read_update_branch
+                if [ "$UPDATE_BRANCH_PRESENT" != true ] || [ "$EXPECTED_REMOTE_HEAD" != "$expected_head" ]; then
+                  echo "Maintenance branch changed before Draft enforcement." >&2
+                  exit 1
+                fi
+                verify_open_pr_identity "$pr_number" "$expected_head"
+                if [ "$pr_draft" != "false" ]; then
+                  echo "Maintenance PR Draft state changed before enforcement: $pr_draft" >&2
+                  exit 1
+                fi
+                gh pr ready "$pr_number" --repo "$GITHUB_REPOSITORY" --undo
+                ;;
+              *)
+                echo "Maintenance PR Draft state is malformed: $pr_draft" >&2
+                exit 1
+                ;;
+            esac
+            verify_open_draft_pr "$pr_number" "$expected_head"
           }
 
           require_single_updater_commit() {
@@ -414,7 +465,8 @@ jobs:
               ;;
             1:true)
               BRANCH_STATE=B
-              verify_open_pr "$OPEN_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"
+              ensure_open_pr_is_draft "$OPEN_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"
+              verify_open_draft_pr "$OPEN_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"
               verify_open_branch_history
               ;;
             0:true)
@@ -519,7 +571,7 @@ jobs:
                 echo "Maintenance branch or pull request changed before lease-bound update." >&2
                 exit 1
               fi
-              verify_open_pr "$OPEN_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"
+              verify_open_draft_pr "$OPEN_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"
               gh auth setup-git
               git push --force-with-lease="refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_HEAD" origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"
               ;;
@@ -560,9 +612,9 @@ jobs:
 
           case "$BRANCH_STATE" in
             B)
-              verify_open_pr "$OPEN_PR_NUMBER" "$NEW_COMMIT"
+              verify_open_draft_pr "$OPEN_PR_NUMBER" "$NEW_COMMIT"
               gh pr edit "$OPEN_PR_NUMBER" --repo "$GITHUB_REPOSITORY" --title "$PR_TITLE" --body-file "$pr_body"
-              verify_open_pr "$OPEN_PR_NUMBER" "$NEW_COMMIT"
+              verify_open_draft_pr "$OPEN_PR_NUMBER" "$NEW_COMMIT"
               ;;
             A|C)
               read_open_prs
@@ -585,7 +637,9 @@ jobs:
                 echo "Draft pull request creation did not leave exactly one matching open PR." >&2
                 exit 1
               fi
-              verify_open_pr "$OPEN_PR_NUMBER" "$NEW_COMMIT"
+              verify_open_pr_identity "$OPEN_PR_NUMBER" "$NEW_COMMIT"
+              ensure_open_pr_is_draft "$OPEN_PR_NUMBER" "$NEW_COMMIT"
+              verify_open_draft_pr "$OPEN_PR_NUMBER" "$NEW_COMMIT"
               ;;
           esac
 
