@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260809-protected-nginx-root-broker-caller-repin |
 | Datum (UTC) | 2026-08-09 |
-| Basis-Revision | c2836f74510b9f72bae466d8b7d92a3f9f38c007 |
+| Basis-Revision | cabf949553f40ef93c4d4add0bbca0f03372a259 |
 
 ## Motivation und Problemstellung
 
@@ -50,7 +50,11 @@ Vertrag fehlschlägt, statt einen beweglichen Ref auszuwählen.
 Der eingeschränkte Workflow-Tool-Publisher erhält den Caller als einen exakten
 geprüften Pfad sowohl in seiner Source-Allowlist als auch in seiner passenden
 Staging-Liste; dies stellt vollständige zentral gesperrte Action-Pin-Coverage
-ohne ein breites Präfix wieder her.
+ohne ein breites Präfix wieder her. Dieselbe endliche Pfadkorrektur ist bereits
+in der normal integrierten Basis
+`cabf949553f40ef93c4d4add0bbca0f03372a259` enthalten; sie ist damit
+Current-master-Control-Evidence und keine nur branch-spezifische Dateiänderung
+dieses Repin-Range.
 
 Es werden weder Branch, Tag, master-Referenz, lokaler Reusable-Pfad,
 vom Caller gewählte Broker-Source, OIDC-Berechtigung, Write-Berechtigung,
@@ -59,8 +63,6 @@ Secret noch ein Root-Ausführungspfad hinzugefügt.
 ## Geänderte Dateien
 
 - .github/workflows/run-protected-nginx-root-broker.yml
-- .github/workflows/update-workflow-tools.yml
-- ci/tools/update-workflow-tools.py
 - ci/runtime/broker/protected_nginx_broker_caller.py
 - ci/checks/common/check-python-version-contract.py
 - tests/test_ci_security_workflows.py und tests/test_nginx_root_broker.py
@@ -69,24 +71,34 @@ Secret noch ein Root-Ausführungspfad hinzugefügt.
 
 ## Ausgeführte Befehle
 
-Die exakte Phase-B-Basis, der Broker-SHA und der Framework-Gitlink wurden aus
-dem resultierenden Protected-master-Tree geprüft. Vor dem späteren
-`origin/master`-Sync wurden mit dem verfügbaren Parent-Virtual-Environment-
-Python `3.14.4` folgende Source-/Static-Validierungen beobachtet:
+Der exakte Broker-SHA und der Framework-Gitlink wurden aus dem resultierenden
+Protected-master-Tree geprüft. Der Branch mergte danach die aktuelle
+geschützte `origin/master`-Revision
+`cabf949553f40ef93c4d4add0bbca0f03372a259` normal und erzeugte dabei den
+Post-Sync-Commit `5efc5187cbb4f68ded484656d060e7c7847a52e2`. Auf diesem
+Post-Sync-Head wurden mit dem verfügbaren Parent-Virtual-Environment-Python
+`3.14.4` folgende Source-/Static-Validierungen beobachtet:
 
 - `PYTHONDONTWRITEBYTECODE=1 <Parent .venv>/bin/python -m unittest -v tests.test_nginx_root_broker tests.test_nginx_root_broker_workflow tests.test_protected_nginx_broker_caller tests.test_ci_security_workflows tests.test_python_version_contract tests.ci_security.test_update_workflow_tools tests.security_regression.test_workflow_security_contract` — PASS, 133 Tests.
 - `make PYTHON=<Parent .venv>/bin/python check-ci-security-contract` — PASS,
   26 Tests plus read-only actionlint-, zizmor- und gitleaks-Lock-Validierung.
 - `actionlint -shellcheck=/usr/bin/shellcheck .github/workflows/*.yml` — PASS.
 - `zizmor --offline .github/workflows` — PASS, keine Befunde.
-- `git diff --check c2836f74510b9f72bae466d8b7d92a3f9f38c007` — PASS.
+- `python -I ci/runtime/broker/nginx_root_broker.py validate-caller-workflow --caller-sha 5efc5187cbb4f68ded484656d060e7c7847a52e2 --broker-sha c2836f74510b9f72bae466d8b7d92a3f9f38c007 --framework-sha 4c9af1cee72caa0107fa011e59eef9e853338cf5` — PASS; der Caller wurde aus seinem unveränderlichen committed Git-Blob gelesen.
+- `git diff --check origin/master...HEAD` — PASS.
 
 Die ursprüngliche endliche-allowlist-Reproduktion schlug vor der
 Zwei-Pfad-Reparatur fehl; danach bestand die fokussierte
 Updater-/Security-Contract-Suite mit dem legitimen Negative-Control für
-unzulässige Workflows. Der finale Phase-B-Range, die Validierung und das
-Security-Diff-Review müssen nach dem normalen `origin/master`-Sync erneut
-ausgeführt werden. Es wird kein Runtime-Lifecycle-Ergebnis beansprucht.
+unzulässige Workflows. Der eingehende master enthält bereits dieselbe
+Zwei-Pfad-Korrektur. `make check-python-version-contract` schlug auf diesem
+Branch und auf clean master mit denselben unveränderten Inventory-/Shape-
+Diagnosen fehl; die Fehler nennen `verified-report-governance.yml`,
+`ci-security-codeql.yml`, `test-apache.yml`, `test-haproxy.yml` und
+`update-workflow-tools.yml`, nicht eine Caller-Repin-Datei. Der
+repository-weite Bilingual-Target schlägt ebenso nur wegen fehlender
+Framework-Submodule-Link-Targets fehl. Es wird kein Runtime-Lifecycle-Ergebnis
+beansprucht.
 
 ## Security-Auswirkung
 
@@ -127,25 +139,24 @@ eine direkte master-Änderung, einen Bypass oder synthetischen PASS.
 
 `make check-python-version-contract` ist durch unveränderte Current-Master-
 Workflow-Inventar-/Shape-Verletzungen in `verified-report-governance.yml`,
-`test-apache.yml`, `test-haproxy.yml` und `update-workflow-tools.yml`
-blockiert; es meldet keine Caller-Repin-spezifische Verletzung. Der
-repository-weite Bilingual-Checker und die breite 897-Test-Unit-Discovery sind
-durch das absichtlich nicht initialisierte Framework-Submodule in diesem
-Task-Worktree blockiert; die Framework-Policy verbietet automatische
-Initialisierung. Der Post-Merge-Lifecycle ist absichtlich erst ausführbar,
-nachdem der separate Caller-Repin die Current-Head-Gates bestanden hat und
-normal gemergt ist. Hosted-Checks, CodeQL, SonarQube Cloud, Review- und
-Branch-Protection-Ergebnisse müssen für den späteren PR-Head frisch beobachtet
-werden.
+`ci-security-codeql.yml`, `test-apache.yml`, `test-haproxy.yml` und
+`update-workflow-tools.yml` blockiert; clean master meldet identische
+Diagnosen. Der repository-weite Bilingual-Checker und die exakte-Head-breite
+Unit-Discovery sind durch das absichtlich nicht initialisierte
+Framework-Submodule in diesem Task-Worktree blockiert; die Framework-Policy
+verbietet automatische Initialisierung. Der Post-Merge-Lifecycle ist
+absichtlich erst ausführbar, nachdem der separate Caller-Repin die
+Current-Head-Gates bestanden hat und normal gemergt ist. Hosted-Checks,
+CodeQL, SonarQube Cloud, Review- und Branch-Protection-Ergebnisse müssen für
+den späteren PR-Head frisch beobachtet werden.
 
 ## Finaler Diff- und Review-Status
 
-Dies ist ein uncommitteter lokaler Phase-B-Candidate auf Grundlage der
-Protected-master-Revision c2836f74510b9f72bae466d8b7d92a3f9f38c007. Während
-des Reviews wurde ein neuerer `origin/master` entdeckt, der vor der
-Auslieferung normal integriert werden muss; danach werden finale Basis, Range
-und Validierungsergebnisse dieses Records abgeglichen. Er beansprucht nicht,
-dass ein Push, Pull Request, Merge, Hosted Check oder Lifecycle bereits
-abgeschlossen ist. Der finale Range darf nur Parent-eigene Caller-, Contract-,
-Test-, Dokumentations- und Record-Änderungen enthalten; er darf keine
-Framework- oder MRTS-Source- oder Gitlink-Änderung enthalten.
+Dieser lokale Phase-B-Candidate ist normal mit der Protected-master-Revision
+cabf949553f40ef93c4d4add0bbca0f03372a259 synchronisiert. Ein reiner
+Traceability-Follow-up-Commit und das erneuerte finale Security-Diff-Review
+stehen vor der Auslieferung noch aus. Er beansprucht nicht, dass ein Push,
+Pull Request, Merge, Hosted Check oder Lifecycle bereits abgeschlossen ist.
+Der finale Range enthält nur Parent-eigene Caller-, Contract-, Test-,
+Dokumentations- und Record-Änderungen; er enthält keine Framework- oder
+MRTS-Source- oder Gitlink-Änderung.

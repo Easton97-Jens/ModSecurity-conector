@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260809-protected-nginx-root-broker-caller-repin |
 | Date (UTC) | 2026-08-09 |
-| Base revision | c2836f74510b9f72bae466d8b7d92a3f9f38c007 |
+| Base revision | cabf949553f40ef93c4d4add0bbca0f03372a259 |
 
 ## Motivation and problem statement
 
@@ -46,6 +46,9 @@ Framework tuple fails the existing contract rather than selecting a moving ref.
 The constrained workflow-tool publisher receives the caller as one exact
 reviewed path in both its source allowlist and matching staging list; this
 restores complete centrally locked Action-pin coverage without a broad prefix.
+That same finite-path correction is already present in the normally integrated
+`cabf949553f40ef93c4d4add0bbca0f03372a259` base, so it is current-master
+control evidence rather than a branch-only file change in this repin range.
 
 No branch, tag, master reference, local reusable path, caller-selected broker
 source, OIDC permission, write permission, secret, or root execution path is
@@ -54,8 +57,6 @@ introduced.
 ## Changed files
 
 - .github/workflows/run-protected-nginx-root-broker.yml
-- .github/workflows/update-workflow-tools.yml
-- ci/tools/update-workflow-tools.py
 - ci/runtime/broker/protected_nginx_broker_caller.py
 - ci/checks/common/check-python-version-contract.py
 - tests/test_ci_security_workflows.py and tests/test_nginx_root_broker.py
@@ -64,9 +65,11 @@ introduced.
 
 ## Commands executed
 
-The exact Phase-B base, broker SHA, and Framework gitlink were checked from
-the resulting protected-master tree. Before the later `origin/master` sync,
-the following source/static validations were observed with the available
+The exact broker SHA and Framework gitlink were checked from the resulting
+protected-master tree. The branch then normally merged current protected
+`origin/master` revision `cabf949553f40ef93c4d4add0bbca0f03372a259`, producing
+post-sync commit `5efc5187cbb4f68ded484656d060e7c7847a52e2`. At that post-sync
+head, the following source/static validations were observed with the available
 Parent virtual-environment Python `3.14.4`:
 
 - `PYTHONDONTWRITEBYTECODE=1 <Parent .venv>/bin/python -m unittest -v tests.test_nginx_root_broker tests.test_nginx_root_broker_workflow tests.test_protected_nginx_broker_caller tests.test_ci_security_workflows tests.test_python_version_contract tests.ci_security.test_update_workflow_tools tests.security_regression.test_workflow_security_contract` — PASS, 133 tests.
@@ -74,13 +77,19 @@ Parent virtual-environment Python `3.14.4`:
   26 tests plus read-only actionlint, zizmor, and gitleaks lock validation.
 - `actionlint -shellcheck=/usr/bin/shellcheck .github/workflows/*.yml` — PASS.
 - `zizmor --offline .github/workflows` — PASS, no findings.
-- `git diff --check c2836f74510b9f72bae466d8b7d92a3f9f38c007` — PASS.
+- `python -I ci/runtime/broker/nginx_root_broker.py validate-caller-workflow --caller-sha 5efc5187cbb4f68ded484656d060e7c7847a52e2 --broker-sha c2836f74510b9f72bae466d8b7d92a3f9f38c007 --framework-sha 4c9af1cee72caa0107fa011e59eef9e853338cf5` — PASS; the caller was read from its immutable committed Git blob.
+- `git diff --check origin/master...HEAD` — PASS.
 
 The original finite-allowlist reproduction failed before the two-path repair,
 then the focused updater/security-contract suite passed with the legitimate
-unallowlisted-workflow negative control. The final Phase-B range, validation,
-and security-diff review must be rerun after the normal `origin/master` sync.
-No runtime lifecycle result is claimed here.
+unallowlisted-workflow negative control. Incoming master already carries that
+same two-path correction. `make check-python-version-contract` failed with the
+same unchanged inventory/shape diagnostics on this branch and clean master;
+the errors name `verified-report-governance.yml`, `ci-security-codeql.yml`,
+`test-apache.yml`, `test-haproxy.yml`, and `update-workflow-tools.yml`, not a
+caller-repin file. The repository-wide bilingual target likewise fails only on
+missing Framework-submodule link targets. No runtime lifecycle result is
+claimed here.
 
 ## Security impact
 
@@ -118,22 +127,22 @@ authorizes a mutable reference, direct master edit, bypass, or synthetic PASS.
 
 `make check-python-version-contract` is blocked by unchanged current-master
 workflow inventory/shape violations in `verified-report-governance.yml`,
-`test-apache.yml`, `test-haproxy.yml`, and `update-workflow-tools.yml`; it
-reports no caller-repin-specific violation. The repository-wide bilingual
-checker and broad 897-test unit discovery are blocked by the intentionally
-uninitialized Framework submodule in this task worktree; the Framework policy
-prohibits automatic initialization. The post-merge lifecycle is intentionally
-unavailable until the separate caller repin passes current-head gates and is
-normally merged. Hosted checks, CodeQL, SonarQube Cloud, review, and
-branch-protection results must be freshly observed for the eventual PR head.
+`ci-security-codeql.yml`, `test-apache.yml`, `test-haproxy.yml`, and
+`update-workflow-tools.yml`; clean master reports the identical diagnostics.
+The repository-wide bilingual checker and exact-head broad unit discovery are
+blocked by the intentionally uninitialized Framework submodule in this task
+worktree; the Framework policy prohibits automatic initialization. The
+post-merge lifecycle is intentionally unavailable until the separate caller
+repin passes current-head gates and is normally merged. Hosted checks, CodeQL,
+SonarQube Cloud, review, and branch-protection results must be freshly
+observed for the eventual PR head.
 
 ## Final diff and review status
 
-This is an uncommitted local Phase-B candidate based on protected-master
-revision c2836f74510b9f72bae466d8b7d92a3f9f38c007. A newer `origin/master`
-was discovered during review and must be integrated normally before delivery;
-the record's final base, range, and validation results will then be
-reconciled. It makes no claim that a push, pull request, merge, hosted check,
-or lifecycle has completed. The final range must contain only Parent-owned
-caller, contract, test, documentation, and record changes; it must contain no
-Framework or MRTS source or Gitlink change.
+This local Phase-B candidate is normally synchronized with protected-master
+revision cabf949553f40ef93c4d4add0bbca0f03372a259. A traceability-only follow-up
+commit and the refreshed final security-diff review remain before delivery. It
+makes no claim that a push, pull request, merge, hosted check, or lifecycle has
+completed. The final range contains only Parent-owned caller, contract, test,
+documentation, and record changes; it contains no Framework or MRTS source or
+Gitlink change.
