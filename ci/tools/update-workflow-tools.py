@@ -1267,14 +1267,13 @@ def verify_changed_tool_assets(
 ) -> None:
     """Fetch only changed tools through the existing checksum-safe downloader."""
 
-    changed_tools = changes["tools"]
-    if not changed_tools:
+    if not changes["tools"]:
         return
     fetcher = load_fetcher_module()
     # Validation allocates a fresh `RUNNER_TEMP` child before this call.
     # The fetcher rechecks the candidate tuple and SHA-256 without extraction
     # or execution.
-    for name, record in sorted(changed_tools.items()):
+    for name, record in sorted(changes["tools"].items()):
         if not is_safe_component(name):
             raise UpdateError(f"candidate tool name is unsafe: {name!r}")
         downloader_record = {
