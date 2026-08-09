@@ -8,6 +8,9 @@ import subprocess
 import unittest
 from pathlib import Path
 
+import yaml
+from yaml.tokens import AliasToken, AnchorToken, KeyToken, ScalarToken, TagToken
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -187,6 +190,38 @@ def fixture_violations(text: str) -> set[str]:
     return violations
 
 
+def yaml_security_errors(text: str) -> list[str]:
+    """Reject YAML indirection without treating block-scalar code as YAML."""
+
+    errors: list[str] = []
+    key_token_seen = False
+    try:
+        for token in yaml.scan(text):
+            line_number = token.start_mark.line + 1
+            if isinstance(token, KeyToken):
+                key_token_seen = True
+                continue
+            if isinstance(token, AnchorToken):
+                errors.append(f"line {line_number}: anchor")
+            elif isinstance(token, AliasToken):
+                errors.append(f"line {line_number}: alias")
+            elif isinstance(token, TagToken):
+                errors.append(f"line {line_number}: tag")
+            elif (
+                key_token_seen
+                and isinstance(token, ScalarToken)
+                and token.style is None
+                and token.value == "<<"
+            ):
+                errors.append(f"line {line_number}: merge key")
+            if not isinstance(token, KeyToken):
+                key_token_seen = False
+    except yaml.YAMLError as exc:
+        line_number = getattr(getattr(exc, "problem_mark", None), "line", 0) + 1
+        errors.append(f"line {line_number}: malformed YAML")
+    return errors
+
+
 def go_module_requirements(text: str) -> dict[str, tuple[int, int, int]]:
     """Return stable semantic versions declared in Go require directives."""
 
@@ -235,6 +270,25 @@ class CiSecurityWorkflowTest(unittest.TestCase):
                 reference = line.split("uses:", 1)[1].strip()
                 self.assertRegex(reference, SHA_PIN, f"{path}: {line}")
                 self.assertIn(reference.split("@", 1)[1].split()[0], recorded_shas, f"{path}: {line}")
+
+    def test_workflow_and_lock_yaml_reject_forbidden_indirection(self) -> None:
+        unsafe = """\
+defaults: &unsafe
+  run:
+    shell: bash
+jobs:
+  reuse:
+    <<: *unsafe
+    value: !unsafe value
+"""
+        self.assertEqual(
+            yaml_security_errors(unsafe),
+            ["line 1: anchor", "line 6: merge key", "line 6: alias", "line 7: tag"],
+        )
+        checked_paths = [*self.workflow_paths(), ROOT / "ci/tooling/security-tools.lock.yml"]
+        for path in checked_paths:
+            with self.subTest(path=path):
+                self.assertEqual(yaml_security_errors(path.read_text(encoding="utf-8")), [])
 
     def test_secret_scan_uses_exact_pr_range_and_advisory_history(self) -> None:
         text = self.workflow("ci-security-secrets.yml")
@@ -431,6 +485,28 @@ class CiSecurityWorkflowTest(unittest.TestCase):
             checkout_steps = checkout_step_blocks(path.read_text(encoding="utf-8"))
             for checkout_step in checkout_steps:
                 self.assertIn("persist-credentials: false", checkout_step, path.name)
+
+    def test_trusted_nginx_root_broker_has_no_pr_code_at_root_boundary(self) -> None:
+        text = self.workflow("nginx-root-broker.yml")
+        self.assertIn("workflow_call:", text)
+        self.assertNotIn("pull_request:", text)
+        self.assertNotIn("pull_request_target:", text)
+        self.assertIn("github.workflow_ref", text)
+        self.assertIn('git merge-base --is-ancestor "$BROKER_SHA" FETCH_HEAD', text)
+        self.assertIn('git rev-parse "$BROKER_SHA:ci/runtime/broker/nginx_root_broker.py"', text)
+        self.assertIn("git hash-object ci/runtime/broker/nginx_root_broker.py", text)
+        self.assertIn("sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action", text)
+        self.assertNotIn("uses: ./", text)
+        for forbidden in (
+            "sudo -E",
+            "sudo sh -c",
+            "sudo bash -c",
+            "shell: bash -c",
+            "--broker-parent",
+            "--staging-root",
+            "--runtime-snapshot",
+        ):
+            self.assertNotIn(forbidden, text)
 
     def test_untrusted_pull_request_model(self) -> None:
         sarif_write_jobs = {
