@@ -47,6 +47,13 @@ the existing full-SHA reusable broker reference; it has no secrets, write
 permissions, `sudo`, local reusable reference, profile/path/command input, or
 target-commit checkout.
 
+The helper accepts no caller-selected manifest or evidence filesystem path. It
+derives its two fixed roots only from an absolute, non-symlink runner-provided
+`RUNNER_TEMP` directory and the validated paired fixed run IDs. Invalid or
+mismatched path identity therefore fails before API access, artifact creation,
+or evidence readback; each derived root is independently required to be a
+non-symlink directory.
+
 The repository's workflow-Python inventory gains a narrowly enumerated
 exception only for the two known immutable reusable calls. This retains the
 fail-closed rule for every other reusable workflow invocation instead of
@@ -75,6 +82,16 @@ reportable finding. The project requires Python 3.14.6, so this does not claim
 the required exact local interpreter gate. `make check-python-version-contract`
 has the same pre-existing inventory failure on unchanged `master` and is not
 treated as a caller regression.
+
+On Draft PR #259, SonarQube Cloud initially reported seven task-owned open
+findings and failed the new-code security-rating condition. The follow-up
+remediation removes arbitrary helper filesystem-path arguments, derives and
+checks only fixed runner-temp roots, extracts the reported validation branches,
+and adds pre-I/O path regression coverage. Focused caller/CI-security tests,
+Python compilation, CI-security contract checks, full `make lint`, bilingual
+and link checks, actionlint with ShellCheck, zizmor offline, and diff checks
+passed locally on the available Python 3.14.4 fallback. Fresh exact-head hosted
+and SonarQube Cloud analysis remain required.
 
 ## Security impact
 
@@ -123,11 +140,13 @@ required before PR #240 can resume.
 
 ## Final diff and review status
 
-This is a locally committed, unpublished implementation on the separate branch
-`fix/ci-protected-nginx-broker-caller`, synchronized before publication with
-current `origin/master` at `83094eb659f0b5df8c2df30b1ae718d524a9adf0`. The
-upstream synchronization carries no task-owned Framework or MRTS gitlink
-change in the final PR diff. No caller PR, push, PR #240 change, Framework
+The normal initial push created Draft PR #259 on the separate branch
+`fix/ci-protected-nginx-broker-caller`, synchronized with current
+`origin/master` at `83094eb659f0b5df8c2df30b1ae718d524a9adf0`. Its initial
+head was `b50849263b88a1e9aae5e2c596d05a9af1e88832`: visible GitHub Actions
+and CodeQL checks passed, while SonarQube Cloud found the task-owned issues
+recorded above. The upstream synchronization carries no task-owned Framework
+or MRTS gitlink change in the final PR diff. No PR #240 change, Framework
 source change, MRTS source change, force-push, history rewrite, admin bypass,
 or auto-merge has occurred. The caller PR must remain Draft and merge-blocked
 until its exact-head local, security, hosted, Sonar, review, and branch-

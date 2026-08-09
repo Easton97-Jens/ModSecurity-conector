@@ -18,7 +18,6 @@ import re
 import stat
 import sys
 from typing import Any
-from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
@@ -28,6 +27,8 @@ PROJECT_GIT_COMMIT_API = (
     "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/git/commits/"
 )
 API_USER_AGENT = "ModSecurity-conector-protected-nginx-broker-caller"
+TARGET_PARENT_SHA_LABEL = "target Parent SHA"
+RUNNER_TEMP_ENVIRONMENT = "RUNNER_TEMP"
 
 SCHEMA_VERSION = 2
 NO_CRS_VARIANT = "no-crs"
@@ -39,6 +40,11 @@ PROFILE_BY_VARIANT = {
     WITH_CRS_VARIANT: OWASP_CRS_PROFILE,
 }
 CALLER_MANIFEST_FILENAME = "caller-manifest.json"
+CALLER_RUN_ID_PREFIX = "protected-nginx-root-"
+NO_CRS_RUN_ID_SUFFIX = "-no-crs"
+WITH_CRS_RUN_ID_SUFFIX = "-with-crs"
+CALLER_MANIFEST_ROOT_PREFIX = "protected-nginx-root-caller-"
+CALLER_EVIDENCE_ROOT_PREFIX = "protected-nginx-root-evidence-"
 CALLER_MANIFEST_FIELDS = frozenset(
     {
         "schema_version",
@@ -133,6 +139,43 @@ def require_run_id(value: Any, label: str) -> str:
     if RUN_ID_RE.fullmatch(candidate) is None:
         fail(f"{label} is not a safe broker run identifier")
     return candidate
+
+
+def require_fixed_run_pair(no_crs_run_id: str, with_crs_run_id: str) -> str:
+    no_crs_value = require_run_id(no_crs_run_id, "no-CRS run ID")
+    with_crs_value = require_run_id(with_crs_run_id, "OWASP CRS run ID")
+    if not no_crs_value.startswith(CALLER_RUN_ID_PREFIX) or not no_crs_value.endswith(
+        NO_CRS_RUN_ID_SUFFIX
+    ):
+        fail("broker run IDs do not form the fixed caller pair")
+    run_token = no_crs_value[len(CALLER_RUN_ID_PREFIX) : -len(NO_CRS_RUN_ID_SUFFIX)]
+    if not run_token:
+        fail("broker run IDs do not form the fixed caller pair")
+    if with_crs_value != f"{CALLER_RUN_ID_PREFIX}{run_token}{WITH_CRS_RUN_ID_SUFFIX}":
+        fail("broker run IDs do not form the fixed caller pair")
+    return run_token
+
+
+def trusted_runner_temp() -> Path:
+    raw_path = os.environ.get(RUNNER_TEMP_ENVIRONMENT)
+    if not raw_path:
+        fail("RUNNER_TEMP is required for caller artifact paths")
+    directory = Path(raw_path)
+    if not directory.is_absolute():
+        fail("RUNNER_TEMP must be an absolute directory")
+    require_directory(directory, "trusted runner temporary directory")
+    try:
+        resolved = directory.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        fail(f"could not resolve RUNNER_TEMP: {exc}")
+    if resolved != directory:
+        fail("RUNNER_TEMP must be a canonical non-symlink directory")
+    return directory
+
+
+def caller_artifact_root(root_prefix: str, no_crs_run_id: str, with_crs_run_id: str) -> Path:
+    run_token = require_fixed_run_pair(no_crs_run_id, with_crs_run_id)
+    return trusted_runner_temp() / f"{root_prefix}{run_token}"
 
 
 def require_positive_int(value: Any, label: str, *, minimum: int = 0) -> int:
@@ -254,7 +297,7 @@ def read_json_file(path: Path, label: str) -> dict[str, Any]:
 def verify_target_commit(target_sha: str) -> None:
     """Verify target existence by the fixed, unauthenticated read-only API endpoint."""
 
-    require_sha40(target_sha, "target Parent SHA")
+    require_sha40(target_sha, TARGET_PARENT_SHA_LABEL)
     request_url = f"{PROJECT_GIT_COMMIT_API}{target_sha}"
     request = Request(
         request_url,
@@ -270,7 +313,7 @@ def verify_target_commit(target_sha: str) -> None:
             if response.status != 200:
                 fail("target Parent SHA API response did not confirm a commit")
             raw = response.read(MAX_JSON_BYTES + 1)
-    except (HTTPError, URLError, OSError, TimeoutError) as exc:
+    except OSError as exc:
         fail(f"could not verify target Parent SHA through the read-only GitHub API: {exc}")
     if len(raw) > MAX_JSON_BYTES:
         fail("target Parent SHA API response exceeds the size limit")
@@ -315,12 +358,13 @@ def validate_manifest(payload: Any, target_sha: str, run_id: str, variant: str) 
         fail("caller manifest profile and fixed variant do not match")
 
 
-def create_manifests(target_sha: str, no_crs_run_id: str, with_crs_run_id: str, output_root: Path) -> None:
-    require_sha40(target_sha, "target Parent SHA")
-    require_run_id(no_crs_run_id, "no-CRS run ID")
-    require_run_id(with_crs_run_id, "OWASP CRS run ID")
-    if no_crs_run_id == with_crs_run_id:
-        fail("fixed broker run IDs must be distinct")
+def create_manifests(target_sha: str, no_crs_run_id: str, with_crs_run_id: str) -> None:
+    require_sha40(target_sha, TARGET_PARENT_SHA_LABEL)
+    output_root = caller_artifact_root(
+        CALLER_MANIFEST_ROOT_PREFIX,
+        no_crs_run_id,
+        with_crs_run_id,
+    )
     verify_target_commit(target_sha)
     create_private_directory(output_root, "caller manifest root")
     for variant, run_id in (
@@ -409,6 +453,41 @@ def require_bound_identity(
     return value
 
 
+def validate_runtime_crs_evidence(crs_value: Any, identity: dict[str, Any]) -> None:
+    crs = require_exact_fields(
+        crs_value,
+        frozenset(
+            {
+                "crs_repository",
+                "crs_release_tag",
+                "crs_commit",
+                "crs_bundle_manifest_sha256",
+                "crs_bundle_digest",
+                "crs_file_count",
+                "expected_crs_evidence",
+            }
+        ),
+        "runtime evidence CRS tuple",
+    )
+    if crs["crs_repository"] != CRS_REPOSITORY or crs["crs_release_tag"] != CRS_RELEASE_TAG:
+        fail("runtime evidence CRS source tuple is not the protected broker tuple")
+    if crs["crs_commit"] != CRS_COMMIT:
+        fail("runtime evidence CRS commit is not the protected broker value")
+    require_sha256(crs["crs_bundle_manifest_sha256"], "runtime evidence CRS manifest digest")
+    if require_sha256(crs["crs_bundle_digest"], "runtime evidence CRS bundle digest") != identity[
+        "crs_bundle_digest"
+    ]:
+        fail("runtime evidence CRS bundle digest does not match identity evidence")
+    require_positive_int(crs["crs_file_count"], "runtime evidence CRS file count", minimum=1)
+    expected_observation = {
+        "rule_id": CRS_RULE_ID,
+        "request_path": CRS_BLOCK_PATH,
+        "allow_path": CRS_ALLOW_PATH,
+    }
+    if crs["expected_crs_evidence"] != expected_observation:
+        fail("runtime evidence CRS expected observation is not the protected broker value")
+
+
 def validate_runtime_evidence(
     payload: Any,
     identity: dict[str, Any],
@@ -464,41 +543,57 @@ def validate_runtime_evidence(
         require_sha256(value[field], f"runtime evidence {field}")
         if value[field] != identity[field]:
             fail(f"runtime evidence {field} does not match identity evidence")
-    if profile != OWASP_CRS_PROFILE:
-        return value
-    crs = require_exact_fields(
-        value["crs"],
-        frozenset(
-            {
-                "crs_repository",
-                "crs_release_tag",
-                "crs_commit",
-                "crs_bundle_manifest_sha256",
-                "crs_bundle_digest",
-                "crs_file_count",
-                "expected_crs_evidence",
-            }
-        ),
-        "runtime evidence CRS tuple",
+    if profile == OWASP_CRS_PROFILE:
+        validate_runtime_crs_evidence(value["crs"], identity)
+    return value
+
+
+def validate_owasp_crs_policy_identity(
+    value: dict[str, Any],
+    identity: dict[str, Any],
+    runtime: dict[str, Any],
+) -> str:
+    block = require_exact_fields(
+        value["block"],
+        frozenset({"path", "status"}),
+        "OWASP CRS policy block",
     )
-    if crs["crs_repository"] != CRS_REPOSITORY or crs["crs_release_tag"] != CRS_RELEASE_TAG:
-        fail("runtime evidence CRS source tuple is not the protected broker tuple")
-    if crs["crs_commit"] != CRS_COMMIT:
-        fail("runtime evidence CRS commit is not the protected broker value")
-    require_sha256(crs["crs_bundle_manifest_sha256"], "runtime evidence CRS manifest digest")
-    if require_sha256(crs["crs_bundle_digest"], "runtime evidence CRS bundle digest") != identity[
+    if block != {"path": CRS_BLOCK_PATH, "status": 403}:
+        fail("OWASP CRS policy evidence does not prove the fixed CRS block")
+    transaction_id = require_string(value["transaction_id"], "policy transaction ID")
+    if TRANSACTION_ID_RE.fullmatch(transaction_id) is None:
+        fail("policy transaction ID is unsafe")
+    if value["crs_rule_id"] != CRS_RULE_ID or value["crs_commit"] != CRS_COMMIT:
+        fail("OWASP CRS policy evidence has an unexpected CRS identity")
+    if require_sha256(value["crs_bundle_digest"], "policy CRS bundle digest") != identity[
         "crs_bundle_digest"
     ]:
-        fail("runtime evidence CRS bundle digest does not match identity evidence")
-    require_positive_int(crs["crs_file_count"], "runtime evidence CRS file count", minimum=1)
-    expected_observation = {
-        "rule_id": CRS_RULE_ID,
-        "request_path": CRS_BLOCK_PATH,
-        "allow_path": CRS_ALLOW_PATH,
-    }
-    if crs["expected_crs_evidence"] != expected_observation:
-        fail("runtime evidence CRS expected observation is not the protected broker value")
-    return value
+        fail("policy CRS bundle digest does not match identity evidence")
+    if value["crs_bundle_digest"] != runtime["crs"]["crs_bundle_digest"]:
+        fail("policy CRS bundle digest does not match runtime evidence")
+    return transaction_id
+
+
+def validate_owasp_crs_audit_record(
+    value: dict[str, Any],
+    audit_raw: bytes | None,
+    run_id: str,
+    transaction_id: str,
+) -> None:
+    if audit_raw is None or not audit_raw:
+        fail("OWASP CRS evidence requires a non-empty audit record")
+    if require_sha256(value["audit_log_sha256"], "policy audit digest") != hashlib.sha256(audit_raw).hexdigest():
+        fail("policy audit digest does not match the downloaded audit record")
+    try:
+        audit_text = audit_raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        fail(f"OWASP CRS audit record is not UTF-8: {exc}")
+    if run_id not in audit_text or CRS_BLOCK_PATH not in audit_text:
+        fail("OWASP CRS audit record is not bound to the protected run and request")
+    if CRS_RULE_ID not in audit_text or not re.search(r"\b403\b", audit_text):
+        fail("OWASP CRS audit record lacks the required rule or block status")
+    if f"--{transaction_id}-A--" not in audit_text or f"--{transaction_id}-Z--" not in audit_text:
+        fail("OWASP CRS audit record does not bind the policy transaction")
 
 
 def validate_policy_evidence(
@@ -552,38 +647,8 @@ def validate_policy_evidence(
         if audit_raw is not None:
             fail("no-CRS evidence must not include an audit record")
         return
-    block = require_exact_fields(
-        value["block"],
-        frozenset({"path", "status"}),
-        "OWASP CRS policy block",
-    )
-    if block != {"path": CRS_BLOCK_PATH, "status": 403}:
-        fail("OWASP CRS policy evidence does not prove the fixed CRS block")
-    transaction_id = require_string(value["transaction_id"], "policy transaction ID")
-    if TRANSACTION_ID_RE.fullmatch(transaction_id) is None:
-        fail("policy transaction ID is unsafe")
-    if value["crs_rule_id"] != CRS_RULE_ID or value["crs_commit"] != CRS_COMMIT:
-        fail("OWASP CRS policy evidence has an unexpected CRS identity")
-    if require_sha256(value["crs_bundle_digest"], "policy CRS bundle digest") != identity[
-        "crs_bundle_digest"
-    ]:
-        fail("policy CRS bundle digest does not match identity evidence")
-    if value["crs_bundle_digest"] != runtime["crs"]["crs_bundle_digest"]:
-        fail("policy CRS bundle digest does not match runtime evidence")
-    if audit_raw is None or not audit_raw:
-        fail("OWASP CRS evidence requires a non-empty audit record")
-    if require_sha256(value["audit_log_sha256"], "policy audit digest") != hashlib.sha256(audit_raw).hexdigest():
-        fail("policy audit digest does not match the downloaded audit record")
-    try:
-        audit_text = audit_raw.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        fail(f"OWASP CRS audit record is not UTF-8: {exc}")
-    if run_id not in audit_text or CRS_BLOCK_PATH not in audit_text:
-        fail("OWASP CRS audit record is not bound to the protected run and request")
-    if CRS_RULE_ID not in audit_text or not re.search(r"\b403\b", audit_text):
-        fail("OWASP CRS audit record lacks the required rule or block status")
-    if f"--{transaction_id}-A--" not in audit_text or f"--{transaction_id}-Z--" not in audit_text:
-        fail("OWASP CRS audit record does not bind the policy transaction")
+    transaction_id = validate_owasp_crs_policy_identity(value, identity, runtime)
+    validate_owasp_crs_audit_record(value, audit_raw, run_id, transaction_id)
 
 
 def validate_cleanup_evidence(
@@ -659,26 +724,22 @@ def validate_evidence_directory(
     )
 
 
-def verify_evidence(
-    no_crs_directory: Path,
-    with_crs_directory: Path,
-    target_sha: str,
-    no_crs_run_id: str,
-    with_crs_run_id: str,
-) -> None:
-    require_sha40(target_sha, "target Parent SHA")
-    require_run_id(no_crs_run_id, "no-CRS run ID")
-    require_run_id(with_crs_run_id, "OWASP CRS run ID")
-    if no_crs_run_id == with_crs_run_id:
-        fail("broker evidence run IDs must be distinct")
+def verify_evidence(target_sha: str, no_crs_run_id: str, with_crs_run_id: str) -> None:
+    require_sha40(target_sha, TARGET_PARENT_SHA_LABEL)
+    evidence_root = caller_artifact_root(
+        CALLER_EVIDENCE_ROOT_PREFIX,
+        no_crs_run_id,
+        with_crs_run_id,
+    )
+    require_directory(evidence_root, "caller evidence root")
     validate_evidence_directory(
-        no_crs_directory,
+        evidence_root / NO_CRS_VARIANT,
         target_sha=target_sha,
         run_id=no_crs_run_id,
         variant=NO_CRS_VARIANT,
     )
     validate_evidence_directory(
-        with_crs_directory,
+        evidence_root / WITH_CRS_VARIANT,
         target_sha=target_sha,
         run_id=with_crs_run_id,
         variant=WITH_CRS_VARIANT,
@@ -694,10 +755,7 @@ def parser() -> argparse.ArgumentParser:
     create.add_argument("--target-sha", required=True)
     create.add_argument("--no-crs-run-id", required=True)
     create.add_argument("--with-crs-run-id", required=True)
-    create.add_argument("--output-root", type=Path, required=True)
     verify = subcommands.add_parser("verify-evidence")
-    verify.add_argument("--no-crs-directory", type=Path, required=True)
-    verify.add_argument("--with-crs-directory", type=Path, required=True)
     verify.add_argument("--target-sha", required=True)
     verify.add_argument("--no-crs-run-id", required=True)
     verify.add_argument("--with-crs-run-id", required=True)
@@ -712,13 +770,10 @@ def main(arguments: list[str] | None = None) -> int:
                 parsed.target_sha,
                 parsed.no_crs_run_id,
                 parsed.with_crs_run_id,
-                parsed.output_root,
             )
             print("prepared two validated declarative caller manifests")
         else:
             verify_evidence(
-                parsed.no_crs_directory,
-                parsed.with_crs_directory,
                 parsed.target_sha,
                 parsed.no_crs_run_id,
                 parsed.with_crs_run_id,

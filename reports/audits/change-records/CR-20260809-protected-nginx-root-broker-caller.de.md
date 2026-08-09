@@ -51,6 +51,14 @@ bestehenden Full-SHA-Reusable-Broker-Ref; er besitzt keine Secrets,
 Write-Berechtigungen, kein `sudo`, keinen lokalen Reusable-Ref, keine Profil-,
 Pfad- oder Command-Inputs und keinen Target-Commit-Checkout.
 
+Der Helper akzeptiert keinen vom Caller gewählten Manifest- oder Evidence-
+Dateisystempfad. Er leitet seine zwei festen Roots ausschließlich aus einem
+absoluten, nicht-symlinkenden, vom Runner bereitgestellten `RUNNER_TEMP`-
+Verzeichnis und den validierten gepaarten festen Run-IDs ab. Ungültige oder
+nicht passende Pfadidentität schlägt daher vor API-Zugriff, Artefakterzeugung
+oder Evidence-Readback fehl; jeder abgeleitete Root muss zusätzlich ein
+nicht-symlinkendes Verzeichnis sein.
+
 Das Workflow-Python-Inventar des Repositorys erhält nur für die zwei bekannten
 unveränderlichen Reusable-Aufrufe eine eng enumerierte Ausnahme. Damit bleibt
 die fail-closed-Regel für jeden anderen Reusable-Workflow-Aufruf erhalten,
@@ -82,6 +90,17 @@ erforderliche exakte lokale Interpreter-Gate.
 `make check-python-version-contract` hat denselben vorbestehenden
 Inventory-Fehler auf unverändertem `master` und wird nicht als Caller-Regression
 behandelt.
+
+Auf Draft-PR #259 meldete SonarQube Cloud zunächst sieben aufgabeneigene offene
+Befunde und ließ die New-Code-Sicherheitsrating-Bedingung fehlschlagen. Die
+Folgekorrektur entfernt beliebige Helper-Dateisystempfadargumente, leitet nur
+feste Runner-Temp-Roots ab und prüft sie, extrahiert die gemeldeten
+Validierungszweige und ergänzt Pre-I/O-Pfadregressionstests. Fokussierte
+Caller-/CI-Security-Tests, Python-Kompilierung, CI-Security-Contract-Checks,
+vollständiges `make lint`, bilinguale und Link-Prüfungen, actionlint mit
+ShellCheck, zizmor offline und Diff-Prüfungen bestanden lokal mit dem
+verfügbaren Python-3.14.4-Fallback. Frische Exact-Head-Hosted- und
+SonarQube-Cloud-Analyse bleiben erforderlich.
 
 ## Security-Auswirkung
 
@@ -135,13 +154,14 @@ vor der Fortsetzung von PR #240 erforderlich.
 
 ## Finaler Diff- und Review-Status
 
-Dies ist eine lokal committete, noch unveröffentlichte Implementierung auf dem getrennten Branch
-`fix/ci-protected-nginx-broker-caller`, vor der Veröffentlichung mit aktuellem
-`origin/master` bei `83094eb659f0b5df8c2df30b1ae718d524a9adf0`
-synchronisiert. Die Upstream-Synchronisierung enthält im finalen PR-Diff keine
-task-eigene Framework- oder MRTS-Gitlink-Änderung. Es gab noch keinen Caller-
-PR, Push, keine PR-240-Änderung, Framework-Quelländerung, MRTS-
-Quelländerung, keinen Force-Push, History-Rewrite, Admin-Bypass oder
-Auto-Merge. Der Caller-PR muss Draft und merge-blockiert bleiben, bis seine
-Exact-Head-Lokal-, Security-, Hosted-, Sonar-, Review- und Branch-Protection-
-Evidence vollständig ist.
+Der normale initiale Push erzeugte Draft-PR #259 auf dem getrennten Branch
+`fix/ci-protected-nginx-broker-caller`, synchronisiert mit aktuellem
+`origin/master` bei `83094eb659f0b5df8c2df30b1ae718d524a9adf0`. Sein initialer
+Head war `b50849263b88a1e9aae5e2c596d05a9af1e88832`: Sichtbare GitHub-Actions-
+und CodeQL-Checks bestanden, während SonarQube Cloud die oben festgehaltenen
+aufgabeneigenen Befunde fand. Die Upstream-Synchronisierung enthält im finalen
+PR-Diff keine task-eigene Framework- oder MRTS-Gitlink-Änderung. Es gab keine
+PR-240-Änderung, Framework-Quelländerung, MRTS-Quelländerung, keinen Force-
+Push, History-Rewrite, Admin-Bypass oder Auto-Merge. Der Caller-PR muss Draft
+und merge-blockiert bleiben, bis seine Exact-Head-Lokal-, Security-, Hosted-,
+Sonar-, Review- und Branch-Protection-Evidence vollständig ist.

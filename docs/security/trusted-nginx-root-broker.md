@@ -65,6 +65,14 @@ creates one private, deterministic, parsed-before-upload manifest artifact for
 each fixed run ID. Each artifact contains only `caller-manifest.json`, has one
 day retention, and is supplied to the matching immutable reusable call.
 
+The helper accepts no caller-selected manifest or evidence filesystem path.
+It derives the two fixed directory roots only from the runner-provided
+absolute, non-symlink `RUNNER_TEMP` directory and the validated paired
+`protected-nginx-root-…-no-crs` / `protected-nginx-root-…-with-crs` run IDs.
+Both derived roots are independently required to be non-symlink directories.
+Any missing, relative, symlinked, malformed, or mismatched path identity fails
+before API access, artifact creation, or evidence readback.
+
 ## Versioned declarative caller contract
 
 The reusable-workflow interface has exactly six inputs:

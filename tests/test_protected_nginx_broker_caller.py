@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import stat
 import sys
@@ -16,8 +17,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 HELPER_PATH = ROOT / "ci" / "runtime" / "broker" / "protected_nginx_broker_caller.py"
 TARGET_SHA = "1" * 40
-NO_CRS_RUN_ID = "caller-101-1-no-crs"
-WITH_CRS_RUN_ID = "caller-101-1-with-crs"
+NO_CRS_RUN_ID = "protected-nginx-root-caller-101-1-no-crs"
+WITH_CRS_RUN_ID = "protected-nginx-root-caller-101-1-with-crs"
 ARTIFACT_DIGEST = "a" * 64
 BINARY_DIGEST = "b" * 64
 MODULE_DIGEST = "c" * 64
@@ -185,12 +186,21 @@ class ProtectedNginxBrokerCallerTest(unittest.TestCase):
         self.write_json(directory / CALLER.CLEANUP_FILENAME, self.cleanup(variant, run_id))
         return directory
 
+    def runner_manifest_root(self, root: Path) -> Path:
+        return root / f"{CALLER.CALLER_MANIFEST_ROOT_PREFIX}caller-101-1"
+
+    def runner_evidence_root(self, root: Path) -> Path:
+        return root / f"{CALLER.CALLER_EVIDENCE_ROOT_PREFIX}caller-101-1"
+
     def test_manifest_generation_uses_exact_schema_private_files_and_read_only_api(self) -> None:
         with self.temporary_root() as temporary:
             root = Path(temporary)
-            output = root / "manifests"
-            with mock.patch.object(CALLER, "urlopen", return_value=self.api_response()) as opener:
-                CALLER.create_manifests(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID, output)
+            output = self.runner_manifest_root(root)
+            with (
+                mock.patch.dict(os.environ, {CALLER.RUNNER_TEMP_ENVIRONMENT: str(root)}),
+                mock.patch.object(CALLER, "urlopen", return_value=self.api_response()) as opener,
+            ):
+                CALLER.create_manifests(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
             request = opener.call_args.args[0]
             self.assertEqual(request.full_url, f"{CALLER.PROJECT_GIT_COMMIT_API}{TARGET_SHA}")
             self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o700)
@@ -220,7 +230,121 @@ class ProtectedNginxBrokerCallerTest(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(CALLER.CallerContractError):
                 CALLER.validate_manifest(mutated, TARGET_SHA, WITH_CRS_RUN_ID, CALLER.WITH_CRS_VARIANT)
         with self.assertRaises(CALLER.CallerContractError):
-            CALLER.create_manifests("A" * 40, NO_CRS_RUN_ID, WITH_CRS_RUN_ID, Path("unused"))
+            CALLER.create_manifests("A" * 40, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
+
+    def test_caller_cli_paths_are_derived_only_from_runner_temp_and_fixed_run_pair(self) -> None:
+        with self.temporary_root() as temporary:
+            root = Path(temporary)
+            outside = root / "outside"
+            bad_with_crs_run_id = "protected-nginx-root-foreign-with-crs"
+            with mock.patch.dict(os.environ, {CALLER.RUNNER_TEMP_ENVIRONMENT: str(root)}):
+                with mock.patch.object(CALLER, "urlopen") as opener:
+                    with self.assertRaises(CALLER.CallerContractError):
+                        CALLER.create_manifests(TARGET_SHA, NO_CRS_RUN_ID, bad_with_crs_run_id)
+                opener.assert_not_called()
+            self.assertFalse(outside.exists())
+            with mock.patch.object(sys, "stderr"):
+                with self.assertRaises(SystemExit):
+                    CALLER.parser().parse_args(
+                        [
+                            "create-manifests",
+                            "--target-sha",
+                            TARGET_SHA,
+                            "--no-crs-run-id",
+                            NO_CRS_RUN_ID,
+                            "--with-crs-run-id",
+                            WITH_CRS_RUN_ID,
+                            "--output-root",
+                            str(outside),
+                        ]
+                    )
+                with self.assertRaises(SystemExit):
+                    CALLER.parser().parse_args(
+                        [
+                            "verify-evidence",
+                            "--target-sha",
+                            TARGET_SHA,
+                            "--no-crs-run-id",
+                            NO_CRS_RUN_ID,
+                            "--with-crs-run-id",
+                            WITH_CRS_RUN_ID,
+                            "--no-crs-directory",
+                            str(outside),
+                        ]
+                    )
+            self.assertFalse(outside.exists())
+
+    def test_runner_temp_must_be_absolute_and_non_symlink_before_manifest_api_access(self) -> None:
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch.object(CALLER, "urlopen") as opener:
+                with self.assertRaises(CALLER.CallerContractError):
+                    CALLER.create_manifests(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
+            opener.assert_not_called()
+        with mock.patch.dict(os.environ, {CALLER.RUNNER_TEMP_ENVIRONMENT: "relative"}):
+            with mock.patch.object(CALLER, "urlopen") as opener:
+                with self.assertRaises(CALLER.CallerContractError):
+                    CALLER.create_manifests(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
+                opener.assert_not_called()
+
+    def test_evidence_readback_rejects_an_unsafe_runner_root_or_mismatched_pair_before_reads(self) -> None:
+        bad_with_crs_run_id = "protected-nginx-root-foreign-with-crs"
+        cases: tuple[dict[str, str], ...] = (
+            {},
+            {CALLER.RUNNER_TEMP_ENVIRONMENT: "relative"},
+        )
+        for environment in cases:
+            with self.subTest(environment=environment):
+                with mock.patch.dict(os.environ, environment, clear=True):
+                    with mock.patch.object(CALLER, "validate_evidence_directory") as validator:
+                        with self.assertRaises(CALLER.CallerContractError):
+                            CALLER.verify_evidence(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
+                    validator.assert_not_called()
+        with self.temporary_root() as temporary:
+            root = Path(temporary)
+            trusted = root / "trusted"
+            trusted.mkdir()
+            symlink = root / "symlink"
+            symlink.symlink_to(trusted, target_is_directory=True)
+            for runner_temp, with_crs_run_id in (
+                (str(symlink), WITH_CRS_RUN_ID),
+                (str(trusted), bad_with_crs_run_id),
+            ):
+                with self.subTest(runner_temp=runner_temp, with_crs_run_id=with_crs_run_id):
+                    with mock.patch.dict(
+                        os.environ,
+                        {CALLER.RUNNER_TEMP_ENVIRONMENT: runner_temp},
+                        clear=True,
+                    ):
+                        with mock.patch.object(CALLER, "validate_evidence_directory") as validator:
+                            with self.assertRaises(CALLER.CallerContractError):
+                                CALLER.verify_evidence(
+                                    TARGET_SHA,
+                                    NO_CRS_RUN_ID,
+                                    with_crs_run_id,
+                                )
+                        validator.assert_not_called()
+            evidence_root = self.runner_evidence_root(trusted)
+            evidence_root.symlink_to(root / "outside", target_is_directory=True)
+            with mock.patch.dict(
+                os.environ,
+                {CALLER.RUNNER_TEMP_ENVIRONMENT: str(trusted)},
+                clear=True,
+            ):
+                with mock.patch.object(CALLER, "validate_evidence_directory") as validator:
+                    with self.assertRaises(CALLER.CallerContractError):
+                        CALLER.verify_evidence(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
+                validator.assert_not_called()
+        with self.temporary_root() as temporary:
+            root = Path(temporary)
+            trusted = root / "trusted"
+            trusted.mkdir()
+            symlink = root / "symlink"
+            symlink.symlink_to(trusted, target_is_directory=True)
+            with mock.patch.dict(os.environ, {CALLER.RUNNER_TEMP_ENVIRONMENT: str(symlink)}):
+                with mock.patch.object(CALLER, "urlopen") as opener:
+                    with self.assertRaises(CALLER.CallerContractError):
+                        CALLER.create_manifests(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
+                opener.assert_not_called()
 
     def test_target_api_requires_the_exact_nonredirected_commit_identity(self) -> None:
         with mock.patch.object(
@@ -233,39 +357,64 @@ class ProtectedNginxBrokerCallerTest(unittest.TestCase):
         with mock.patch.object(CALLER, "urlopen", return_value=self.api_response("2" * 40)):
             with self.assertRaises(CALLER.CallerContractError):
                 CALLER.verify_target_commit(TARGET_SHA)
+        with mock.patch.object(CALLER, "urlopen", side_effect=TimeoutError("timeout")):
+            with self.assertRaises(CALLER.CallerContractError):
+                CALLER.verify_target_commit(TARGET_SHA)
 
     def test_evidence_readback_rejects_unknown_cross_run_and_missing_audit_content(self) -> None:
         with self.temporary_root() as temporary:
             root = Path(temporary)
-            no_crs = self.write_evidence_directory(root, CALLER.NO_CRS_VARIANT, NO_CRS_RUN_ID)
-            with_crs = self.write_evidence_directory(root, CALLER.WITH_CRS_VARIANT, WITH_CRS_RUN_ID)
-            CALLER.verify_evidence(no_crs, with_crs, TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
+            evidence_root = self.runner_evidence_root(root)
+            evidence_root.mkdir()
+            no_crs = self.write_evidence_directory(
+                evidence_root, CALLER.NO_CRS_VARIANT, NO_CRS_RUN_ID
+            )
+            with_crs = self.write_evidence_directory(
+                evidence_root, CALLER.WITH_CRS_VARIANT, WITH_CRS_RUN_ID
+            )
+            with mock.patch.dict(os.environ, {CALLER.RUNNER_TEMP_ENVIRONMENT: str(root)}):
+                CALLER.verify_evidence(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
 
             runtime_path = no_crs / CALLER.RUNTIME_FILENAME
             runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
             runtime["unexpected"] = True
             self.write_json(runtime_path, runtime)
-            with self.assertRaises(CALLER.CallerContractError):
-                CALLER.verify_evidence(no_crs, with_crs, TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
+            with mock.patch.dict(os.environ, {CALLER.RUNNER_TEMP_ENVIRONMENT: str(root)}):
+                with self.assertRaises(CALLER.CallerContractError):
+                    CALLER.verify_evidence(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
 
         with self.temporary_root() as temporary:
             root = Path(temporary)
-            no_crs = self.write_evidence_directory(root, CALLER.NO_CRS_VARIANT, NO_CRS_RUN_ID)
-            with_crs = self.write_evidence_directory(root, CALLER.WITH_CRS_VARIANT, WITH_CRS_RUN_ID)
+            evidence_root = self.runner_evidence_root(root)
+            evidence_root.mkdir()
+            no_crs = self.write_evidence_directory(
+                evidence_root, CALLER.NO_CRS_VARIANT, NO_CRS_RUN_ID
+            )
+            with_crs = self.write_evidence_directory(
+                evidence_root, CALLER.WITH_CRS_VARIANT, WITH_CRS_RUN_ID
+            )
             (with_crs / CALLER.AUDIT_LOG_FILENAME).write_bytes(b"")
-            with self.assertRaises(CALLER.CallerContractError):
-                CALLER.verify_evidence(no_crs, with_crs, TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
+            with mock.patch.dict(os.environ, {CALLER.RUNNER_TEMP_ENVIRONMENT: str(root)}):
+                with self.assertRaises(CALLER.CallerContractError):
+                    CALLER.verify_evidence(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
 
         with self.temporary_root() as temporary:
             root = Path(temporary)
-            no_crs = self.write_evidence_directory(root, CALLER.NO_CRS_VARIANT, NO_CRS_RUN_ID)
-            with_crs = self.write_evidence_directory(root, CALLER.WITH_CRS_VARIANT, WITH_CRS_RUN_ID)
+            evidence_root = self.runner_evidence_root(root)
+            evidence_root.mkdir()
+            no_crs = self.write_evidence_directory(
+                evidence_root, CALLER.NO_CRS_VARIANT, NO_CRS_RUN_ID
+            )
+            with_crs = self.write_evidence_directory(
+                evidence_root, CALLER.WITH_CRS_VARIANT, WITH_CRS_RUN_ID
+            )
             identity_path = with_crs / CALLER.IDENTITY_FILENAME
             identity = json.loads(identity_path.read_text(encoding="utf-8"))
             identity["run_id"] = "foreign-run"
             self.write_json(identity_path, identity)
-            with self.assertRaises(CALLER.CallerContractError):
-                CALLER.verify_evidence(no_crs, with_crs, TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
+            with mock.patch.dict(os.environ, {CALLER.RUNNER_TEMP_ENVIRONMENT: str(root)}):
+                with self.assertRaises(CALLER.CallerContractError):
+                    CALLER.verify_evidence(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
 
 
 if __name__ == "__main__":

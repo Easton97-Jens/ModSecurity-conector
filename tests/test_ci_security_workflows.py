@@ -415,6 +415,8 @@ def protected_nginx_broker_caller_errors(text: str) -> list[str]:
     prepare = jobs.get("prepare-manifests", "")
     if "create-manifests" not in prepare or '--target-sha "$TARGET_PARENT_SHA"' not in prepare:
         errors.append("caller manifest preparation")
+    if "--output-root" in prepare:
+        errors.append("caller manifest path must be derived from the trusted runner temporary directory")
     if prepare.count("caller-manifest.json") != 2:
         errors.append("caller must upload exactly two single-file manifests")
     if any(
@@ -442,6 +444,8 @@ def protected_nginx_broker_caller_errors(text: str) -> list[str]:
         or "Download OWASP CRS broker evidence" not in evidence
     ):
         errors.append("caller evidence readback")
+    if "--no-crs-directory" in evidence or "--with-crs-directory" in evidence:
+        errors.append("caller evidence paths must be derived from the trusted runner temporary directory")
     result = jobs.get("result", "")
     for required in (
         "always()",
@@ -838,6 +842,15 @@ jobs:
             "target execution": (
                 "          set -euo pipefail",
                 "          set -euo pipefail\n          python3 \"$TARGET_PARENT_SHA\"",
+            ),
+            "caller-selected manifest path": (
+                '            --with-crs-run-id "$WITH_CRS_RUN_ID"',
+                '            --with-crs-run-id "$WITH_CRS_RUN_ID" \\\n            --output-root "$RUNNER_TEMP/unsafe"',
+            ),
+            "caller-selected evidence path": (
+                "          python3 ci/runtime/broker/protected_nginx_broker_caller.py verify-evidence \\\n",
+                "          python3 ci/runtime/broker/protected_nginx_broker_caller.py verify-evidence \\\n"
+                '            --no-crs-directory "$RUNNER_TEMP/unsafe" \\\n',
             ),
             "write permission": (
                 "permissions:\n  contents: read",

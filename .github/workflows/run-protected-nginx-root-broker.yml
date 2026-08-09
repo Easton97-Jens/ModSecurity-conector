@@ -70,17 +70,13 @@ jobs:
           TARGET_PARENT_SHA: ${{ inputs.parent_head_sha }}
           NO_CRS_RUN_ID: protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-no-crs
           WITH_CRS_RUN_ID: protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-with-crs
-          MANIFEST_ROOT: ${{ runner.temp }}/protected-nginx-root-caller-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
           umask 077
-          test ! -e "$MANIFEST_ROOT"
-          test ! -L "$MANIFEST_ROOT"
           python3 ci/runtime/broker/protected_nginx_broker_caller.py create-manifests \
             --target-sha "$TARGET_PARENT_SHA" \
             --no-crs-run-id "$NO_CRS_RUN_ID" \
-            --with-crs-run-id "$WITH_CRS_RUN_ID" \
-            --output-root "$MANIFEST_ROOT"
+            --with-crs-run-id "$WITH_CRS_RUN_ID"
 
       - name: Upload no-CRS caller manifest
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -195,12 +191,9 @@ jobs:
           TARGET_PARENT_SHA: ${{ inputs.parent_head_sha }}
           NO_CRS_RUN_ID: protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-no-crs
           WITH_CRS_RUN_ID: protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-with-crs
-          EVIDENCE_ROOT: ${{ runner.temp }}/protected-nginx-root-evidence-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
           python3 ci/runtime/broker/protected_nginx_broker_caller.py verify-evidence \
-            --no-crs-directory "$EVIDENCE_ROOT/no-crs" \
-            --with-crs-directory "$EVIDENCE_ROOT/with-crs" \
             --target-sha "$TARGET_PARENT_SHA" \
             --no-crs-run-id "$NO_CRS_RUN_ID" \
             --with-crs-run-id "$WITH_CRS_RUN_ID"

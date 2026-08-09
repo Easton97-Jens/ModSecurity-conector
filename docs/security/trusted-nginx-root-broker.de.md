@@ -72,6 +72,16 @@ deterministisches, vor dem Upload erneut geparstes Manifest-Artefakt. Jedes
 Artefakt enthält ausschließlich `caller-manifest.json`, wird einen Tag
 aufbewahrt und dem passenden unveränderlichen Reusable-Aufruf übergeben.
 
+Der Helper akzeptiert keinen vom Caller gewählten Manifest- oder Evidence-
+Dateisystempfad. Er leitet die zwei festen Verzeichnis-Roots ausschließlich
+aus dem vom Runner bereitgestellten absoluten, nicht-symlinkenden
+`RUNNER_TEMP`-Verzeichnis und den validierten gepaarten Run-IDs
+`protected-nginx-root-…-no-crs` / `protected-nginx-root-…-with-crs` ab. Eine
+fehlende, relative, symlinkende, fehlerhafte oder nicht passende Pfadidentität
+schlägt vor API-Zugriff, Artefakterzeugung oder Evidence-Readback fehl. Beide
+abgeleiteten Roots müssen zusätzlich eigenständig nicht-symlinkende
+Verzeichnisse sein.
+
 ## Versionierter deklarativer Caller-Vertrag
 
 Die wiederverwendbare Workflow-Schnittstelle besitzt exakt sechs Inputs:
