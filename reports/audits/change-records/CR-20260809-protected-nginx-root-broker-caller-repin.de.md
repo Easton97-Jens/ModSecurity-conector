@@ -104,10 +104,9 @@ Nach der späteren normalen Synchronisierung mit
 `b71da9803484dacce7d3349ffdff4d1ccdcfe4d6` und dem Merge-Commit
 `0f2605eeda78aaa80a895d91ab0baa71c7c12852` bestanden dieselbe fokussierte
 133-Test-Suite, der 26-Test-CI-Security-Contract, actionlint mit ShellCheck,
-offline zizmor, der Immutable-Blob-Caller-Validator und die gezielte EN/DE-
-Pair-Prüfung erneut. Die globalen Python-Version- und repository-weiten
-Bilingual-Targets behalten die oben aufgezeichneten identischen
-Current-master-/Umgebungsblocker.
+offline zizmor und der Immutable-Blob-Caller-Validator erneut. Die globalen
+Python-Version- und repository-weiten Bilingual-Targets behalten die oben
+aufgezeichneten identischen Current-master-/Umgebungsblocker.
 
 ## Security-Auswirkung
 

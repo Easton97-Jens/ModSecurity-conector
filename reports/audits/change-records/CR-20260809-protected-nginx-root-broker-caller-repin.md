@@ -95,9 +95,9 @@ After the later normal synchronization with
 `b71da9803484dacce7d3349ffdff4d1ccdcfe4d6` and merge commit
 `0f2605eeda78aaa80a895d91ab0baa71c7c12852`, the same 133-test focused suite,
 the 26-test CI-security contract, actionlint with ShellCheck, offline zizmor,
-the immutable-blob caller validator, and the targeted EN/DE pair check passed
-again. The global Python-version and repository-wide bilingual targets retain
-the identical current-master/environment blockers recorded above.
+and the immutable-blob caller validator passed again. The global
+Python-version and repository-wide bilingual targets retain the identical
+current-master/environment blockers recorded above.
 
 ## Security impact
 
