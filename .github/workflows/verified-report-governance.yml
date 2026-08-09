@@ -51,4 +51,9 @@ jobs:
           make report-governance
 
       - name: Enforce strict security evidence gate
+        # Strict evidence references trusted runtime artifacts that are not
+        # available on an isolated pull-request runner. Governance still
+        # validates the PR; the strict gate runs before/after trusted-branch
+        # publication and on explicit trusted invocations.
+        if: github.event_name != 'pull_request'
         run: make verified-report-evidence-gate
