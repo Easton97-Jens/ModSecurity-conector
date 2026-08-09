@@ -495,6 +495,10 @@ jobs:
         self.assertIn('git merge-base --is-ancestor "$BROKER_SHA" FETCH_HEAD', text)
         self.assertIn('git rev-parse "$BROKER_SHA:ci/runtime/broker/nginx_root_broker.py"', text)
         self.assertIn("git hash-object ci/runtime/broker/nginx_root_broker.py", text)
+        self.assertIn("prepare-fresh-crs-source.sh", text)
+        self.assertIn("prepare-crs-bundle", text)
+        self.assertIn("verify-runtime-profile", text)
+        self.assertIn("cleanup.json", text)
         self.assertIn("sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action", text)
         self.assertNotIn("uses: ./", text)
         for forbidden in (
@@ -505,6 +509,7 @@ jobs:
             "--broker-parent",
             "--staging-root",
             "--runtime-snapshot",
+            "sudo python",
         ):
             self.assertNotIn(forbidden, text)
 

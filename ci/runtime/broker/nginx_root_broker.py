@@ -16,11 +16,13 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from datetime import UTC, datetime
 import grp
 import hashlib
+import http.client
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import pwd
 import re
 import signal
@@ -32,17 +34,29 @@ import time
 from typing import Any, Iterable
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION_V1 = 1
+SCHEMA_VERSION_V2 = 2
+# Keep the historic public constant for the v1 no-CRS compatibility fixtures.
+SCHEMA_VERSION = SCHEMA_VERSION_V1
+SUPPORTED_SCHEMA_VERSIONS = {SCHEMA_VERSION_V1, SCHEMA_VERSION_V2}
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 WORKER_NAME_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 LOOPBACKS = {"127.0.0.1", "::1"}
 ALLOWED_VARIANTS = {"no-crs", "with-crs"}
+POLICY_PROFILE_NO_CRS = "no-crs"
+POLICY_PROFILE_OWASP_CRS = "owasp-crs"
+ALLOWED_POLICY_PROFILES = {POLICY_PROFILE_NO_CRS, POLICY_PROFILE_OWASP_CRS}
+PROFILE_BY_VARIANT = {
+    "no-crs": POLICY_PROFILE_NO_CRS,
+    "with-crs": POLICY_PROFILE_OWASP_CRS,
+}
 ALLOWED_ACTIONS = {
     "validate-manifest",
     "config-test",
     "start",
+    "verify-runtime-profile",
     "verify-master-worker-identity",
     "project-evidence",
     "stop",
@@ -50,14 +64,25 @@ ALLOWED_ACTIONS = {
 }
 IDENTITY_EVIDENCE_FILENAME = "identity.json"
 RUNTIME_EVIDENCE_FILENAME = "runtime.json"
+POLICY_EVIDENCE_FILENAME = "policy.json"
 ACCESS_LOG_FILENAME = "nginx-access.log"
 ERROR_LOG_FILENAME = "nginx-error.log"
+AUDIT_LOG_FILENAME = "nginx-audit.log"
+AUDIT_LOG_DIRECTORY_NAME = "nginx-audit"
 EXPECTED_EVIDENCE = (
     IDENTITY_EVIDENCE_FILENAME,
     RUNTIME_EVIDENCE_FILENAME,
     ACCESS_LOG_FILENAME,
     ERROR_LOG_FILENAME,
 )
+V2_NO_CRS_EXPECTED_EVIDENCE = (
+    IDENTITY_EVIDENCE_FILENAME,
+    RUNTIME_EVIDENCE_FILENAME,
+    POLICY_EVIDENCE_FILENAME,
+    ACCESS_LOG_FILENAME,
+    ERROR_LOG_FILENAME,
+)
+V2_OWASP_CRS_EXPECTED_EVIDENCE = (*V2_NO_CRS_EXPECTED_EVIDENCE, AUDIT_LOG_FILENAME)
 ROOT_PARENT_NAME = "msconnector-nginx-root-broker"
 ROOT_STATE_BASE = Path("/var/lib")
 ROOT_PARENT = ROOT_STATE_BASE / ROOT_PARENT_NAME
@@ -76,7 +101,22 @@ ARTIFACT_MODULE_NAME = "ngx_http_modsecurity_module.so"
 ARTIFACT_LIBRARY_NAME = "libmodsecurity.so"
 BROKER_RULES_FILENAME = "broker-rules.conf"
 BROKER_CONFIG_FILENAME = "nginx.conf"
+CRS_BUNDLE_DIRECTORY_NAME = "crs-bundle"
+CRS_BUNDLE_FILES_DIRECTORY_NAME = "files"
+CRS_BUNDLE_MANIFEST_FILENAME = "manifest.json"
+CRS_RUNTIME_DIRECTORY_NAME = "crs"
+CRS_SETUP_FILENAME = "crs-setup.conf"
+CRS_SETUP_EXAMPLE_FILENAME = "crs-setup.conf.example"
+CRS_PLUGIN_SUFFIXES = ("-config.conf", "-before.conf", "-after.conf")
 BROKER_ROOT_LABEL = "broker root"
+BROKER_CRS_ROOT_LABEL = "broker CRS root"
+TRUSTED_BROKER_MANIFEST_LABEL = "trusted broker manifest"
+PROTECTED_CRS_BUNDLE_MANIFEST_LABEL = "protected CRS bundle manifest"
+CANDIDATE_CRS_BUNDLE_ROOT_LABEL = "candidate CRS bundle root"
+CANDIDATE_CRS_BUNDLE_MANIFEST_LABEL = "candidate CRS bundle manifest"
+CANDIDATE_CRS_BUNDLE_FILES_LABEL = "candidate CRS bundle files"
+ROOT_CRS_BUNDLE_MANIFEST_LABEL = "root CRS bundle manifest"
+BROKER_CRS_AUDIT_LOG_LABEL = "broker CRS audit log"
 PID_FILENAME = "nginx.pid"
 STATE_FILENAME = "state.json"
 ARTIFACT_DESTINATION_NAMES = {
@@ -85,9 +125,23 @@ ARTIFACT_DESTINATION_NAMES = {
     "modsecurity_library": ARTIFACT_LIBRARY_NAME,
 }
 MAX_MANIFEST_BYTES = 64 * 1024
+MAX_CRS_BUNDLE_MANIFEST_BYTES = 2 * 1024 * 1024
 MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024
 MAX_EVIDENCE_TOTAL_BYTES = 20 * 1024 * 1024
 RUNTIME_EXPORT_RE = re.compile(r"^export (?P<key>[A-Z0-9_]+)='(?P<value>[^'\r\n]*)'$")
+
+# These values are copied from the exact protected Framework gitlink recorded
+# by this broker revision. The protected workflow checks that gitlink before
+# building and the bundle builder cross-checks its literals again. They are
+# deliberately not caller inputs and never select a moving reference.
+CRS_APPROVED_REPOSITORY = "https://github.com/coreruleset/coreruleset.git"
+CRS_RELEASE_TAG = "v4.28.0"
+CRS_APPROVED_COMMIT = "55b09f5acfd16413e7b31041100711ceb7adc89c"
+CRS_EXPECTED_RULE_ID = "949110"
+CRS_SMOKE_REQUEST_PATH = "/?id=1%20UNION%20SELECT%20password%20FROM%20users"
+CRS_ALLOW_REQUEST_PATH = "/"
+CRS_BUNDLE_SCHEMA_VERSION = 1
+CRS_BUNDLE_SOURCE_RELATIVE = Path("verified") / "crs-fresh-source" / "coreruleset"
 
 
 class BrokerError(RuntimeError):
@@ -122,6 +176,38 @@ def require_string(value: object, label: str, *, maximum: int = 256) -> str:
     if "\x00" in value or "\n" in value or "\r" in value:
         fail(f"{label} must not contain control characters")
     return value
+
+
+def require_schema_version(value: object, label: str) -> int:
+    if not isinstance(value, int) or value not in SUPPORTED_SCHEMA_VERSIONS:
+        fail(f"{label} has an unsupported schema version")
+    return value
+
+
+def require_policy_profile(value: object, label: str) -> str:
+    if value not in ALLOWED_POLICY_PROFILES:
+        fail(f"{label} is not allowed")
+    return str(value)
+
+
+def required_profile_for_variant(variant: object) -> str:
+    if variant not in PROFILE_BY_VARIANT:
+        fail("matrix_variant is not allowed")
+    return PROFILE_BY_VARIANT[str(variant)]
+
+
+def expected_evidence_for(schema_version: int, policy_profile: str) -> tuple[str, ...]:
+    if schema_version == SCHEMA_VERSION_V1:
+        if policy_profile != POLICY_PROFILE_NO_CRS:
+            fail("schema v1 supports only the no-crs control profile")
+        return EXPECTED_EVIDENCE
+    if schema_version != SCHEMA_VERSION_V2:
+        fail("unsupported schema version for evidence allowlist")
+    if policy_profile == POLICY_PROFILE_NO_CRS:
+        return V2_NO_CRS_EXPECTED_EVIDENCE
+    if policy_profile == POLICY_PROFILE_OWASP_CRS:
+        return V2_OWASP_CRS_EXPECTED_EVIDENCE
+    fail("unsupported policy profile for evidence allowlist")
 
 
 def normalized_absolute(value: str | Path, label: str) -> Path:
@@ -240,18 +326,18 @@ def sha256_file(path: Path, label: str) -> str:
         os.close(descriptor)
 
 
-def json_load_bounded(path: Path, label: str) -> dict[str, Any]:
+def json_load_bounded_limit(path: Path, label: str, maximum_bytes: int) -> dict[str, Any]:
     descriptor, metadata = open_regular_no_follow(path, label)
     try:
-        if metadata.st_size > MAX_MANIFEST_BYTES:
+        if metadata.st_size > maximum_bytes:
             fail(f"{label} exceeds the manifest size limit")
         raw = bytearray()
-        while len(raw) <= MAX_MANIFEST_BYTES:
-            chunk = os.read(descriptor, min(8192, MAX_MANIFEST_BYTES + 1 - len(raw)))
+        while len(raw) <= maximum_bytes:
+            chunk = os.read(descriptor, min(8192, maximum_bytes + 1 - len(raw)))
             if not chunk:
                 break
             raw.extend(chunk)
-        if len(raw) > MAX_MANIFEST_BYTES:
+        if len(raw) > maximum_bytes:
             fail(f"{label} exceeds the manifest size limit")
     finally:
         os.close(descriptor)
@@ -262,6 +348,10 @@ def json_load_bounded(path: Path, label: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         fail(f"{label} must be a JSON object")
     return parsed
+
+
+def json_load_bounded(path: Path, label: str) -> dict[str, Any]:
+    return json_load_bounded_limit(path, label, MAX_MANIFEST_BYTES)
 
 
 def parse_runtime_snapshot(path: Path) -> dict[str, str]:
@@ -303,6 +393,15 @@ def parse_runtime_snapshot(path: Path) -> dict[str, str]:
     return values
 
 
+def write_all(descriptor: int, data: bytes) -> None:
+    offset = 0
+    while offset < len(data):
+        written = os.write(descriptor, data[offset:])
+        if written <= 0:
+            fail("could not write a complete private broker record")
+        offset += written
+
+
 def write_private_json(path: Path, payload: dict[str, Any], *, owner: int | None = None, group: int | None = None) -> None:
     parent = path.parent
     directory_metadata(parent, "manifest parent")
@@ -311,7 +410,7 @@ def write_private_json(path: Path, payload: dict[str, Any], *, owner: int | None
     descriptor = os.open(temporary, flags, 0o600)
     try:
         data = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
-        os.write(descriptor, data)
+        write_all(descriptor, data)
         os.fsync(descriptor)
         if owner is not None and group is not None:
             os.fchown(descriptor, owner, group)
@@ -336,7 +435,7 @@ def require_exact_keys(payload: dict[str, Any], expected: set[str], label: str) 
         fail(f"{label} is missing fields: {', '.join(missing)}")
 
 
-CALLER_FIELDS = {
+CALLER_FIELDS_V1 = {
     "schema_version",
     "run_id",
     "matrix_variant",
@@ -344,17 +443,39 @@ CALLER_FIELDS = {
     "framework_sha",
     "protected_broker_sha",
 }
+CALLER_FIELDS_V2 = {*CALLER_FIELDS_V1, "policy_profile"}
+# Retain the historic name for the v1 contract and existing focused tests.
+CALLER_FIELDS = CALLER_FIELDS_V1
 
 
-def validate_caller_manifest(payload: dict[str, Any]) -> dict[str, str]:
-    require_exact_keys(payload, CALLER_FIELDS, CALLER_MANIFEST_LABEL)
-    if payload.get("schema_version") != SCHEMA_VERSION:
-        fail("caller manifest has an unsupported schema version")
+def validate_caller_manifest(payload: dict[str, Any]) -> dict[str, Any]:
+    # Preserve the v1 malformed-manifest diagnostic contract: an omitted schema
+    # is a missing required field, rather than an unsupported version.  This is
+    # also clearer for operators while retaining fail-closed schema selection.
+    if "schema_version" not in payload:
+        require_exact_keys(payload, CALLER_FIELDS_V1, CALLER_MANIFEST_LABEL)
+    schema_version = require_schema_version(payload.get("schema_version"), CALLER_MANIFEST_LABEL)
+    require_exact_keys(
+        payload,
+        CALLER_FIELDS_V1 if schema_version == SCHEMA_VERSION_V1 else CALLER_FIELDS_V2,
+        CALLER_MANIFEST_LABEL,
+    )
     run_id = require_run_id(payload.get("run_id"))
     variant = payload.get("matrix_variant")
     if variant not in ALLOWED_VARIANTS:
         fail("caller manifest matrix_variant is not allowed")
+    expected_profile = required_profile_for_variant(variant)
+    if schema_version == SCHEMA_VERSION_V1:
+        if expected_profile != POLICY_PROFILE_NO_CRS:
+            fail("schema v1 supports only matrix_variant=no-crs")
+        policy_profile = POLICY_PROFILE_NO_CRS
+    else:
+        policy_profile = require_policy_profile(payload.get("policy_profile"), "caller manifest policy_profile")
+        if policy_profile != expected_profile:
+            fail("caller manifest policy_profile does not match matrix_variant")
     return {
+        "schema_version": schema_version,
+        "policy_profile": policy_profile,
         "run_id": run_id,
         "matrix_variant": str(variant),
         "parent_head_sha": require_commit(payload.get("parent_head_sha"), "parent_head_sha"),
@@ -420,7 +541,7 @@ def atomic_text(path: Path, text: str, mode: int = 0o600) -> None:
     temporary = path.parent / f".{path.name}.tmp-{os.getpid()}"
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
     try:
-        os.write(descriptor, text.encode("utf-8"))
+        write_all(descriptor, text.encode("utf-8"))
         os.fsync(descriptor)
         os.fchmod(descriptor, mode)
     finally:
@@ -459,6 +580,7 @@ def candidate_layout(staging_root: Path) -> dict[str, Path]:
     return {
         "artifacts": staging_root / "artifacts",
         "control": staging_root / "control",
+        "crs_bundle": staging_root / CRS_BUNDLE_DIRECTORY_NAME,
     }
 
 
@@ -515,13 +637,13 @@ http {{
 '''
 
 
-def caller_manifest_from_arguments(arguments: argparse.Namespace) -> dict[str, str]:
+def caller_manifest_from_arguments(arguments: argparse.Namespace) -> dict[str, Any]:
     caller_path = normalized_absolute(arguments.caller_manifest, CALLER_MANIFEST_LABEL)
     return validate_caller_manifest(json_load_bounded(caller_path, CALLER_MANIFEST_LABEL))
 
 
 def require_matching_caller_binding(
-    caller: dict[str, str],
+    caller: dict[str, Any],
     *,
     value: object,
     caller_field: str,
@@ -531,7 +653,7 @@ def require_matching_caller_binding(
         fail(f"caller manifest {caller_field} does not match the workflow input")
 
 
-def validate_caller_bindings(arguments: argparse.Namespace, caller: dict[str, str], broker_sha: str) -> None:
+def validate_caller_bindings(arguments: argparse.Namespace, caller: dict[str, Any], broker_sha: str) -> None:
     if caller["protected_broker_sha"] != broker_sha:
         fail("caller manifest protected_broker_sha does not match broker_sha")
     require_matching_caller_binding(
@@ -619,16 +741,636 @@ def copy_candidate_artifacts(
     return records
 
 
+def canonical_json_digest(payload: object) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def bundle_relative_path(value: object, label: str) -> Path:
+    if not isinstance(value, str) or not value or len(value) > 512 or "\\" in value:
+        fail(f"{label} must be a bounded portable relative path")
+    raw = PurePosixPath(value)
+    if raw.is_absolute() or any(part in {"", ".", ".."} for part in raw.parts):
+        fail(f"{label} must not contain traversal or an absolute path")
+    return Path(*raw.parts)
+
+
+def allowed_crs_bundle_path(relative: Path) -> bool:
+    parts = relative.parts
+    if parts == (CRS_SETUP_EXAMPLE_FILENAME,):
+        return True
+    if len(parts) != 2 or not parts[1].endswith(".conf"):
+        return False
+    if parts[0] == "rules":
+        return True
+    if parts[0] == "plugins":
+        return parts[1].endswith(CRS_PLUGIN_SUFFIXES)
+    return False
+
+
+def crs_bundle_digest(
+    *,
+    repository: str,
+    release_tag: str,
+    commit: str,
+    framework_sha: str,
+    broker_sha: str,
+    files: list[dict[str, Any]],
+) -> str:
+    return canonical_json_digest(
+        {
+            "repository": repository,
+            "release_tag": release_tag,
+            "commit": commit,
+            "framework_sha": framework_sha,
+            "broker_sha": broker_sha,
+            "files": files,
+        }
+    )
+
+
+def validate_crs_bundle_manifest_header(
+    payload: dict[str, Any],
+    *,
+    expected_framework_sha: str,
+    expected_broker_sha: str,
+) -> tuple[list[Any], str, str]:
+    require_exact_keys(
+        payload,
+        {
+            "schema_version",
+            "repository",
+            "release_tag",
+            "commit",
+            "framework_sha",
+            "broker_sha",
+            "generated_at",
+            "files",
+            "file_count",
+            "bundle_digest",
+        },
+        "CRS bundle manifest",
+    )
+    for key, expected, message in (
+        ("schema_version", CRS_BUNDLE_SCHEMA_VERSION, "CRS bundle manifest schema version is invalid"),
+        ("repository", CRS_APPROVED_REPOSITORY, "CRS bundle manifest repository is invalid"),
+        ("release_tag", CRS_RELEASE_TAG, "CRS bundle manifest release tag is invalid"),
+        ("commit", CRS_APPROVED_COMMIT, "CRS bundle manifest commit is invalid"),
+    ):
+        if payload.get(key) != expected:
+            fail(message)
+    framework_sha = require_commit(expected_framework_sha, "expected_framework_sha")
+    if payload.get("framework_sha") != framework_sha:
+        fail("CRS bundle manifest framework SHA mismatch")
+    broker_sha = require_commit(expected_broker_sha, "expected_broker_sha")
+    if payload.get("broker_sha") != broker_sha:
+        fail("CRS bundle manifest broker SHA mismatch")
+    generated_at = require_string(payload.get("generated_at"), "CRS bundle generated_at", maximum=64)
+    try:
+        datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        fail(f"CRS bundle generated_at is invalid: {exc}")
+    files_value = payload.get("files")
+    if not isinstance(files_value, list) or not files_value or len(files_value) > 4096:
+        fail("CRS bundle manifest file list is invalid")
+    if payload.get("file_count") != len(files_value):
+        fail("CRS bundle manifest file count is invalid")
+    return files_value, framework_sha, broker_sha
+
+
+def crs_bundle_manifest_file_record_path(record: object) -> tuple[dict[str, Any], str]:
+    if not isinstance(record, dict):
+        fail("CRS bundle manifest file record is invalid")
+    require_exact_keys(
+        record,
+        {"path", "sha256", "size", "mode", "type", "bundle_commit", "crs_commit"},
+        "CRS bundle manifest file record",
+    )
+    relative = bundle_relative_path(record.get("path"), "CRS bundle file path")
+    if not allowed_crs_bundle_path(relative):
+        fail("CRS bundle manifest contains an unexpected file path")
+    return record, relative.as_posix()
+
+
+def validate_crs_bundle_file_record(
+    record: dict[str, Any],
+    rendered_path: str,
+    expected_broker_sha: str,
+) -> dict[str, Any]:
+    if not isinstance(record.get("size"), int) or record["size"] <= 0:
+        fail("CRS bundle manifest file size is invalid")
+    if record.get("mode") != "0644" or record.get("type") != "regular":
+        fail("CRS bundle manifest file mode or type is invalid")
+    if record.get("bundle_commit") != expected_broker_sha or record.get("crs_commit") != CRS_APPROVED_COMMIT:
+        fail("CRS bundle manifest file provenance is invalid")
+    return {
+        "path": rendered_path,
+        "sha256": require_sha256(record.get("sha256"), "CRS bundle file SHA-256"),
+        "size": record["size"],
+        "mode": record["mode"],
+        "type": record["type"],
+        "bundle_commit": record["bundle_commit"],
+        "crs_commit": record["crs_commit"],
+    }
+
+
+def validate_crs_bundle_file_records(
+    files_value: list[Any],
+    expected_broker_sha: str,
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for record in files_value:
+        manifest_record, rendered_path = crs_bundle_manifest_file_record_path(record)
+        if rendered_path in seen:
+            fail("CRS bundle manifest contains a duplicate file path")
+        seen.add(rendered_path)
+        records.append(validate_crs_bundle_file_record(manifest_record, rendered_path, expected_broker_sha))
+    if records != sorted(records, key=lambda item: item["path"]):
+        fail("CRS bundle manifest file list is not deterministic")
+    return records
+
+
+def validate_crs_bundle_manifest(
+    payload: dict[str, Any],
+    *,
+    expected_framework_sha: str,
+    expected_broker_sha: str,
+) -> list[dict[str, Any]]:
+    files_value, framework_sha, broker_sha = validate_crs_bundle_manifest_header(
+        payload,
+        expected_framework_sha=expected_framework_sha,
+        expected_broker_sha=expected_broker_sha,
+    )
+    records = validate_crs_bundle_file_records(files_value, broker_sha)
+    expected_digest = crs_bundle_digest(
+        repository=CRS_APPROVED_REPOSITORY,
+        release_tag=CRS_RELEASE_TAG,
+        commit=CRS_APPROVED_COMMIT,
+        framework_sha=framework_sha,
+        broker_sha=broker_sha,
+        files=records,
+    )
+    if payload.get("bundle_digest") != expected_digest:
+        fail("CRS bundle manifest bundle digest is invalid")
+    return records
+
+
+def private_relative_directory(root: Path, relative: Path, *, owner: int, label: str) -> Path:
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.exists() or current.is_symlink():
+            metadata = directory_metadata(current, label, owner=owner)
+            if stat.S_IMODE(metadata.st_mode) != 0o700:
+                fail(f"{label} mode is invalid")
+        else:
+            safe_mkdir(current, 0o700, label)
+    return current
+
+
+def regular_crs_source_file(
+    path: Path,
+    label: str,
+    *,
+    expected_device: int,
+) -> tuple[os.stat_result, str]:
+    metadata = regular_metadata(path, label, owner=os.geteuid())
+    if (
+        metadata.st_dev != expected_device
+        or metadata.st_nlink != 1
+        or metadata.st_size <= 0
+        or stat.S_IMODE(metadata.st_mode) != 0o644
+    ):
+        fail(f"{label} must be a non-empty 0644 regular file")
+    return metadata, sha256_file(path, label)
+
+
+def selected_crs_source_files(source_root: Path, broker_sha: str) -> list[tuple[Path, dict[str, Any]]]:
+    source_metadata = directory_metadata(source_root, "fresh protected CRS source", owner=os.geteuid())
+    selected: list[tuple[Path, dict[str, Any]]] = []
+
+    def append_file(source: Path, relative: Path) -> None:
+        metadata, digest = regular_crs_source_file(
+            source,
+            f"protected CRS source {relative}",
+            expected_device=source_metadata.st_dev,
+        )
+        selected.append(
+            (
+                source,
+                {
+                    "path": relative.as_posix(),
+                    "sha256": digest,
+                    "size": metadata.st_size,
+                    "mode": "0644",
+                    "type": "regular",
+                    "bundle_commit": broker_sha,
+                    "crs_commit": CRS_APPROVED_COMMIT,
+                },
+            )
+        )
+
+    append_file(source_root / CRS_SETUP_EXAMPLE_FILENAME, Path(CRS_SETUP_EXAMPLE_FILENAME))
+    rules = source_root / "rules"
+    rules_metadata = directory_metadata(rules, "protected CRS rules directory", owner=os.geteuid())
+    if rules_metadata.st_dev != source_metadata.st_dev:
+        fail("protected CRS rules directory is on an unexpected device")
+    for entry in sorted(rules.iterdir(), key=lambda path: path.name):
+        if entry.name.endswith(".conf"):
+            append_file(entry, Path("rules") / entry.name)
+    if not any(record["path"].startswith("rules/") for _, record in selected):
+        fail("protected CRS source has no rule files")
+    plugins = source_root / "plugins"
+    if plugins.exists() or plugins.is_symlink():
+        plugins_metadata = directory_metadata(plugins, "protected CRS plugins directory", owner=os.geteuid())
+        if plugins_metadata.st_dev != source_metadata.st_dev:
+            fail("protected CRS plugins directory is on an unexpected device")
+        for entry in sorted(plugins.iterdir(), key=lambda path: path.name):
+            if entry.name.endswith(CRS_PLUGIN_SUFFIXES):
+                append_file(entry, Path("plugins") / entry.name)
+    selected.sort(key=lambda item: item[1]["path"])
+    return selected
+
+
+def protected_git_environment() -> dict[str, str]:
+    return {
+        "PATH": "/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/nonexistent",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+
+
+def protected_git_value(directory: Path, label: str, *arguments: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(directory), *arguments],
+        check=False,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=protected_git_environment(),
+    )
+    if result.returncode != 0:
+        fail(f"{label} could not be read from the protected checkout")
+    try:
+        return result.stdout.decode("utf-8").strip()
+    except UnicodeDecodeError as exc:
+        fail(f"{label} is not UTF-8: {exc}")
+
+
+def validate_protected_crs_contract(
+    source_root: Path,
+    framework_root: Path,
+    framework_sha: str,
+) -> None:
+    framework_root = normalized_absolute(framework_root, "protected Framework root")
+    directory_metadata(framework_root, "protected Framework root", owner=os.geteuid())
+    expected_framework_sha = require_commit(framework_sha, "framework_sha")
+    if protected_git_value(framework_root, "protected Framework HEAD", "rev-parse", "HEAD") != expected_framework_sha:
+        fail("protected Framework gitlink does not match framework_sha")
+    common = framework_root / "ci" / "lib" / "common.sh"
+    descriptor, _ = open_regular_no_follow(common, "protected Framework common.sh")
+    try:
+        raw = bytearray()
+        while True:
+            chunk = os.read(descriptor, 8192)
+            if not chunk:
+                break
+            raw.extend(chunk)
+    finally:
+        os.close(descriptor)
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        fail(f"protected Framework common.sh is not UTF-8: {exc}")
+    literals: dict[str, str] = {}
+    for name in ("CRS_APPROVED_REPO_URL", "CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"):
+        match = re.search(rf"(?m)^{name}=\"([^\"\r\n]+)\"$", text)
+        if match is None:
+            fail(f"protected Framework lacks literal {name}")
+        literals[name] = match.group(1)
+    if literals != {
+        "CRS_APPROVED_REPO_URL": CRS_APPROVED_REPOSITORY,
+        "CRS_RELEASE_TAG": CRS_RELEASE_TAG,
+        "CRS_APPROVED_COMMIT": CRS_APPROVED_COMMIT,
+    }:
+        fail("protected Framework CRS provenance tuple does not match this broker revision")
+    directory_metadata(source_root, "fresh protected CRS source", owner=os.geteuid())
+    if protected_git_value(source_root, "protected CRS origin", "config", "--get", "remote.origin.url") != CRS_APPROVED_REPOSITORY:
+        fail("fresh protected CRS source repository is invalid")
+    if protected_git_value(source_root, "protected CRS HEAD", "rev-parse", "HEAD") != CRS_APPROVED_COMMIT:
+        fail("fresh protected CRS source commit is invalid")
+
+
+def prepare_crs_bundle(arguments: argparse.Namespace) -> Path:
+    trusted_build_root = trusted_build_root_from_arguments(arguments)
+    broker_sha = require_commit(arguments.broker_sha, "broker_sha")
+    framework_sha = require_commit(arguments.framework_sha, "framework_sha")
+    source_root = trusted_build_root / CRS_BUNDLE_SOURCE_RELATIVE
+    validate_protected_crs_contract(source_root, Path(arguments.framework_root), framework_sha)
+    output_root = trusted_build_root / CRS_BUNDLE_DIRECTORY_NAME
+    if output_root.exists() or output_root.is_symlink():
+        fail("protected CRS bundle destination must be fresh")
+    safe_mkdir(output_root, 0o700, "protected CRS bundle root")
+    files_root = output_root / CRS_BUNDLE_FILES_DIRECTORY_NAME
+    safe_mkdir(files_root, 0o700, "protected CRS bundle files root")
+    records: list[dict[str, Any]] = []
+    # The build root is task-owned and private. A failure remains inspectable;
+    # this helper intentionally provides no recursive cleanup primitive.
+    for source, record in selected_crs_source_files(source_root, broker_sha):
+        relative = bundle_relative_path(record["path"], "protected CRS bundle path")
+        destination_parent = private_relative_directory(
+            files_root,
+            relative.parent,
+            owner=os.geteuid(),
+            label="protected CRS bundle directory",
+        )
+        destination = destination_parent / relative.name
+        copy_verified_artifact(
+            ArtifactInput("protected CRS bundle file", source, record["sha256"], destination.name),
+            destination,
+            trusted_build_root,
+        )
+        os.chmod(destination, 0o400)
+        records.append(record)
+    manifest = {
+        "schema_version": CRS_BUNDLE_SCHEMA_VERSION,
+        "repository": CRS_APPROVED_REPOSITORY,
+        "release_tag": CRS_RELEASE_TAG,
+        "commit": CRS_APPROVED_COMMIT,
+        "framework_sha": framework_sha,
+        "broker_sha": broker_sha,
+        "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "files": records,
+        "file_count": len(records),
+    }
+    manifest["bundle_digest"] = crs_bundle_digest(
+        repository=CRS_APPROVED_REPOSITORY,
+        release_tag=CRS_RELEASE_TAG,
+        commit=CRS_APPROVED_COMMIT,
+        framework_sha=framework_sha,
+        broker_sha=broker_sha,
+        files=records,
+    )
+    manifest_path = output_root / CRS_BUNDLE_MANIFEST_FILENAME
+    write_private_json(manifest_path, manifest)
+    os.chmod(manifest_path, 0o400)
+    validate_crs_bundle_manifest(
+        json_load_bounded_limit(manifest_path, PROTECTED_CRS_BUNDLE_MANIFEST_LABEL, MAX_CRS_BUNDLE_MANIFEST_BYTES),
+        expected_framework_sha=framework_sha,
+        expected_broker_sha=broker_sha,
+    )
+    return output_root
+
+
+def expected_crs_bundle_layout(
+    records: list[dict[str, Any]],
+    label: str,
+) -> tuple[dict[str, dict[str, Any]], set[Path]]:
+    expected = {record["path"]: record for record in records}
+    expected_directories: set[Path] = set()
+    for path in expected:
+        relative = bundle_relative_path(path, f"{label} file path")
+        parent = relative.parent
+        while parent != Path("."):
+            expected_directories.add(parent)
+            parent = parent.parent
+    return expected, expected_directories
+
+
+def validate_crs_bundle_directory_entry(
+    metadata: os.stat_result,
+    relative: Path,
+    expected_directories: set[Path],
+    *,
+    owner: int,
+    directory_mode: int,
+    label: str,
+) -> None:
+    if relative not in expected_directories:
+        fail(f"{label} contains an unexpected directory")
+    if metadata.st_uid != owner or stat.S_IMODE(metadata.st_mode) != directory_mode:
+        fail(f"{label} directory ownership or mode is invalid")
+
+
+def validate_crs_bundle_file_entry(
+    entry: Path,
+    metadata: os.stat_result,
+    relative: Path,
+    expected: dict[str, dict[str, Any]],
+    observed: set[str],
+    *,
+    owner: int,
+    file_mode: int,
+    label: str,
+) -> None:
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+        fail(f"{label} contains a non-regular or hard-linked file")
+    rendered = relative.as_posix()
+    record = expected.get(rendered)
+    if record is None:
+        fail(f"{label} contains an extra unmanifested file")
+    if metadata.st_uid != owner or stat.S_IMODE(metadata.st_mode) != file_mode:
+        fail(f"{label} file ownership or mode is invalid")
+    if metadata.st_size != record["size"]:
+        fail(f"{label} file size does not match the manifest")
+    if sha256_file(entry, f"{label} {rendered}") != record["sha256"]:
+        fail(f"{label} file digest does not match the manifest")
+    observed.add(rendered)
+
+
+def visit_crs_bundle_tree(
+    directory: Path,
+    prefix: Path,
+    expected: dict[str, dict[str, Any]],
+    expected_directories: set[Path],
+    observed: set[str],
+    *,
+    owner: int,
+    directory_mode: int,
+    file_mode: int,
+    expected_device: int,
+    label: str,
+) -> None:
+    for entry in sorted(directory.iterdir(), key=lambda path: path.name):
+        metadata = os.lstat(entry)
+        relative = prefix / entry.name
+        if metadata.st_dev != expected_device:
+            fail(f"{label} contains an entry on an unexpected device")
+        if stat.S_ISLNK(metadata.st_mode):
+            fail(f"{label} contains a symlink")
+        if stat.S_ISDIR(metadata.st_mode):
+            validate_crs_bundle_directory_entry(
+                metadata,
+                relative,
+                expected_directories,
+                owner=owner,
+                directory_mode=directory_mode,
+                label=label,
+            )
+            visit_crs_bundle_tree(
+                entry,
+                relative,
+                expected,
+                expected_directories,
+                observed,
+                owner=owner,
+                directory_mode=directory_mode,
+                file_mode=file_mode,
+                expected_device=expected_device,
+                label=label,
+            )
+        else:
+            validate_crs_bundle_file_entry(
+                entry,
+                metadata,
+                relative,
+                expected,
+                observed,
+                owner=owner,
+                file_mode=file_mode,
+                label=label,
+            )
+
+
+def validate_crs_bundle_files(
+    files_root: Path,
+    records: list[dict[str, Any]],
+    *,
+    owner: int,
+    directory_mode: int,
+    file_mode: int,
+    expected_device: int,
+    label: str,
+) -> None:
+    root_metadata = directory_metadata(files_root, label, owner=owner)
+    if root_metadata.st_dev != expected_device or stat.S_IMODE(root_metadata.st_mode) != directory_mode:
+        fail(f"{label} mode is invalid")
+    expected, expected_directories = expected_crs_bundle_layout(records, label)
+    observed: set[str] = set()
+
+    visit_crs_bundle_tree(
+        files_root,
+        Path(),
+        expected,
+        expected_directories,
+        observed,
+        owner=owner,
+        directory_mode=directory_mode,
+        file_mode=file_mode,
+        expected_device=expected_device,
+        label=label,
+    )
+    if observed != set(expected):
+        fail(f"{label} is missing a manifested file")
+
+
+def copy_crs_bundle_for_candidate(
+    trusted_build_root: Path,
+    layout: dict[str, Path],
+    *,
+    framework_sha: str,
+    broker_sha: str,
+) -> dict[str, Any]:
+    source_root = trusted_build_root / CRS_BUNDLE_DIRECTORY_NAME
+    source_root_metadata = directory_metadata(source_root, "protected CRS bundle root", owner=os.geteuid())
+    if stat.S_IMODE(source_root_metadata.st_mode) != 0o700:
+        fail("protected CRS bundle root mode is invalid")
+    source_manifest = source_root / CRS_BUNDLE_MANIFEST_FILENAME
+    manifest_metadata = regular_metadata(source_manifest, PROTECTED_CRS_BUNDLE_MANIFEST_LABEL, owner=os.geteuid())
+    if (
+        manifest_metadata.st_dev != source_root_metadata.st_dev
+        or manifest_metadata.st_nlink != 1
+        or stat.S_IMODE(manifest_metadata.st_mode) != 0o400
+    ):
+        fail("protected CRS bundle manifest mode is invalid")
+    manifest_sha256 = sha256_file(source_manifest, PROTECTED_CRS_BUNDLE_MANIFEST_LABEL)
+    manifest = json_load_bounded_limit(source_manifest, PROTECTED_CRS_BUNDLE_MANIFEST_LABEL, MAX_CRS_BUNDLE_MANIFEST_BYTES)
+    records = validate_crs_bundle_manifest(
+        manifest,
+        expected_framework_sha=framework_sha,
+        expected_broker_sha=broker_sha,
+    )
+    source_files = source_root / CRS_BUNDLE_FILES_DIRECTORY_NAME
+    validate_crs_bundle_files(
+        source_files,
+        records,
+        owner=os.geteuid(),
+        directory_mode=0o700,
+        file_mode=0o400,
+        expected_device=source_root_metadata.st_dev,
+        label="protected CRS bundle files",
+    )
+    destination_root = layout["crs_bundle"]
+    safe_mkdir(destination_root, 0o700, CANDIDATE_CRS_BUNDLE_ROOT_LABEL)
+    destination_files = destination_root / CRS_BUNDLE_FILES_DIRECTORY_NAME
+    safe_mkdir(destination_files, 0o700, "candidate CRS bundle files root")
+    for record in records:
+        relative = bundle_relative_path(record["path"], "candidate CRS bundle path")
+        source = source_files / relative
+        destination_parent = private_relative_directory(
+            destination_files,
+            relative.parent,
+            owner=os.geteuid(),
+            label="candidate CRS bundle directory",
+        )
+        destination = destination_parent / relative.name
+        copy_verified_artifact(
+            ArtifactInput("candidate CRS bundle file", source, record["sha256"], destination.name),
+            destination,
+            trusted_build_root,
+        )
+        os.chmod(destination, 0o400)
+    destination_manifest = destination_root / CRS_BUNDLE_MANIFEST_FILENAME
+    copy_verified_artifact(
+        ArtifactInput(CANDIDATE_CRS_BUNDLE_MANIFEST_LABEL, source_manifest, manifest_sha256, destination_manifest.name),
+        destination_manifest,
+        trusted_build_root,
+    )
+    os.chmod(destination_manifest, 0o400)
+    validate_crs_bundle_files(
+        destination_files,
+        records,
+        owner=os.geteuid(),
+        directory_mode=0o700,
+        file_mode=0o400,
+        expected_device=directory_metadata(
+            destination_root,
+            CANDIDATE_CRS_BUNDLE_ROOT_LABEL,
+            owner=os.geteuid(),
+        ).st_dev,
+        label=CANDIDATE_CRS_BUNDLE_FILES_LABEL,
+    )
+    return {
+        "crs_repository": CRS_APPROVED_REPOSITORY,
+        "crs_release_tag": CRS_RELEASE_TAG,
+        "crs_commit": CRS_APPROVED_COMMIT,
+        "crs_bundle_manifest_sha256": manifest_sha256,
+        "crs_bundle_digest": manifest["bundle_digest"],
+        "crs_file_count": len(records),
+        "expected_crs_evidence": {
+            "rule_id": CRS_EXPECTED_RULE_ID,
+            "request_path": CRS_SMOKE_REQUEST_PATH,
+            "allow_path": CRS_ALLOW_REQUEST_PATH,
+        },
+    }
+
+
 def candidate_payload(
     arguments: argparse.Namespace,
-    caller: dict[str, str],
+    caller: dict[str, Any],
     broker_sha: str,
     worker: pwd.struct_passwd,
     staging_root: Path,
     records: list[dict[str, str]],
+    crs: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    return {
-        "schema_version": SCHEMA_VERSION,
+    payload: dict[str, Any] = {
+        "schema_version": caller["schema_version"],
         "run_id": caller["run_id"],
         "matrix_variant": caller["matrix_variant"],
         "parent_head_sha": caller["parent_head_sha"],
@@ -644,6 +1386,13 @@ def candidate_payload(
         "nginx_version": arguments.nginx_version,
         "producer": {"source_commit": broker_sha, "workflow_commit": broker_sha},
     }
+    if caller["schema_version"] == SCHEMA_VERSION_V2:
+        payload["policy_profile"] = caller["policy_profile"]
+        if crs is not None:
+            payload["crs"] = crs
+    elif crs is not None:
+        fail("schema v1 candidate must not carry CRS fields")
+    return payload
 
 
 def prepare_candidate(arguments: argparse.Namespace) -> Path:
@@ -654,8 +1403,16 @@ def prepare_candidate(arguments: argparse.Namespace) -> Path:
     trusted_build_root = trusted_build_root_from_arguments(arguments)
     staging_root, layout = create_candidate_staging(trusted_build_root)
     records = copy_candidate_artifacts(arguments, layout, trusted_build_root)
+    crs: dict[str, Any] | None = None
+    if caller["schema_version"] == SCHEMA_VERSION_V2 and caller["policy_profile"] == POLICY_PROFILE_OWASP_CRS:
+        crs = copy_crs_bundle_for_candidate(
+            trusted_build_root,
+            layout,
+            framework_sha=caller["framework_sha"],
+            broker_sha=broker_sha,
+        )
     output = layout["control"] / "candidate.json"
-    write_private_json(output, candidate_payload(arguments, caller, broker_sha, worker, staging_root, records))
+    write_private_json(output, candidate_payload(arguments, caller, broker_sha, worker, staging_root, records, crs))
     return output
 
 
@@ -699,7 +1456,7 @@ def prepare_candidate_from_snapshot(arguments: argparse.Namespace) -> Path:
     return prepare_candidate(arguments)
 
 
-FINAL_FIELDS = {
+FINAL_FIELDS_V1 = {
     "schema_version",
     "run_id",
     "matrix_variant",
@@ -719,17 +1476,50 @@ FINAL_FIELDS = {
     "projection",
     "expected_evidence",
 }
+FINAL_FIELDS_V2_BASE = {*FINAL_FIELDS_V1, "policy_profile"}
+FINAL_FIELDS_V2_CRS = {*FINAL_FIELDS_V2_BASE, "crs"}
+# Retain the historic public name for the v1 manifest contract.
+FINAL_FIELDS = FINAL_FIELDS_V1
 FINAL_RUNTIME_FIELDS = {"root", "config", "rules", "docroot", "pid", "access_log", "error_log", "state"}
+FINAL_RUNTIME_FIELDS_V2_CRS = {*FINAL_RUNTIME_FIELDS, "audit_log", "audit_dir", "crs_root"}
 FINAL_PROJECTION_FIELDS = {"source_root", "target_root"}
+FINAL_CRS_FIELDS = {
+    "crs_repository",
+    "crs_release_tag",
+    "crs_commit",
+    "crs_bundle_manifest_sha256",
+    "crs_bundle_digest",
+    "crs_file_count",
+    "bundle_root",
+    "audit_log_path",
+    "expected_crs_evidence",
+}
+EXPECTED_CRS_EVIDENCE_FIELDS = {"rule_id", "request_path", "allow_path"}
+
+
+def final_manifest_schema_and_profile(payload: dict[str, Any]) -> tuple[int, str]:
+    schema_version = require_schema_version(payload.get("schema_version"), TRUSTED_BROKER_MANIFEST_LABEL)
+    if schema_version == SCHEMA_VERSION_V1:
+        require_exact_keys(payload, FINAL_FIELDS_V1, TRUSTED_BROKER_MANIFEST_LABEL)
+        profile = POLICY_PROFILE_NO_CRS
+    else:
+        profile = require_policy_profile(payload.get("policy_profile"), f"{TRUSTED_BROKER_MANIFEST_LABEL} policy_profile")
+        require_exact_keys(
+            payload,
+            FINAL_FIELDS_V2_CRS if profile == POLICY_PROFILE_OWASP_CRS else FINAL_FIELDS_V2_BASE,
+            TRUSTED_BROKER_MANIFEST_LABEL,
+        )
+    variant = payload.get("matrix_variant")
+    if variant not in ALLOWED_VARIANTS:
+        fail("trusted broker manifest matrix_variant is not allowed")
+    if required_profile_for_variant(variant) != profile:
+        fail("trusted broker manifest policy_profile does not match matrix_variant")
+    return schema_version, profile
 
 
 def validated_manifest_header(payload: dict[str, Any], expected_broker_sha: str | None) -> str:
-    require_exact_keys(payload, FINAL_FIELDS, "trusted broker manifest")
-    if payload.get("schema_version") != SCHEMA_VERSION:
-        fail("trusted broker manifest has an unsupported schema version")
+    final_manifest_schema_and_profile(payload)
     require_run_id(payload.get("run_id"))
-    if payload.get("matrix_variant") not in ALLOWED_VARIANTS:
-        fail("trusted broker manifest matrix_variant is not allowed")
     require_commit(payload.get("parent_head_sha"), "parent_head_sha")
     require_commit(payload.get("framework_sha"), "framework_sha")
     broker_sha = require_commit(payload.get("protected_broker_sha"), "protected_broker_sha")
@@ -786,8 +1576,14 @@ def validate_final_manifest_artifacts(payload: dict[str, Any]) -> None:
 
 
 def validate_final_manifest_paths(payload: dict[str, Any]) -> None:
+    schema_version, policy_profile = final_manifest_schema_and_profile(payload)
     runtime = payload.get("runtime")
-    if not isinstance(runtime, dict) or set(runtime) != FINAL_RUNTIME_FIELDS:
+    expected_runtime_fields = (
+        FINAL_RUNTIME_FIELDS_V2_CRS
+        if schema_version == SCHEMA_VERSION_V2 and policy_profile == POLICY_PROFILE_OWASP_CRS
+        else FINAL_RUNTIME_FIELDS
+    )
+    if not isinstance(runtime, dict) or set(runtime) != expected_runtime_fields:
         fail("trusted broker manifest runtime paths are invalid")
     projection = payload.get("projection")
     if not isinstance(projection, dict) or set(projection) != FINAL_PROJECTION_FIELDS:
@@ -796,23 +1592,87 @@ def validate_final_manifest_paths(payload: dict[str, Any]) -> None:
         normalized_absolute(str(value), f"trusted broker {label} path")
 
 
+def final_manifest_crs_for_profile(payload: dict[str, Any]) -> dict[str, Any] | None:
+    schema_version, policy_profile = final_manifest_schema_and_profile(payload)
+    crs = payload.get("crs")
+    if schema_version != SCHEMA_VERSION_V2 or policy_profile != POLICY_PROFILE_OWASP_CRS:
+        if crs is not None:
+            fail("no-crs manifest must not contain CRS fields")
+        return None
+    if not isinstance(crs, dict) or set(crs) != FINAL_CRS_FIELDS:
+        fail("trusted broker manifest CRS fields are invalid")
+    return crs
+
+
+def validate_final_manifest_crs_identity(crs: dict[str, Any]) -> None:
+    for key, expected, message in (
+        ("crs_repository", CRS_APPROVED_REPOSITORY, "trusted broker manifest CRS repository is invalid"),
+        ("crs_release_tag", CRS_RELEASE_TAG, "trusted broker manifest CRS release tag is invalid"),
+        ("crs_commit", CRS_APPROVED_COMMIT, "trusted broker manifest CRS commit is invalid"),
+    ):
+        if crs.get(key) != expected:
+            fail(message)
+    require_sha256(crs.get("crs_bundle_manifest_sha256"), "trusted broker CRS bundle manifest digest")
+    require_sha256(crs.get("crs_bundle_digest"), "trusted broker CRS bundle digest")
+    if not isinstance(crs.get("crs_file_count"), int) or crs["crs_file_count"] <= 0:
+        fail("trusted broker manifest CRS file count is invalid")
+    expected_evidence = crs.get("expected_crs_evidence")
+    if not isinstance(expected_evidence, dict) or set(expected_evidence) != EXPECTED_CRS_EVIDENCE_FIELDS:
+        fail("trusted broker manifest expected CRS evidence is invalid")
+    if expected_evidence.get("rule_id") != CRS_EXPECTED_RULE_ID:
+        fail("trusted broker manifest expected CRS rule identity is invalid")
+    if expected_evidence.get("request_path") != CRS_SMOKE_REQUEST_PATH:
+        fail("trusted broker manifest CRS request is invalid")
+    if expected_evidence.get("allow_path") != CRS_ALLOW_REQUEST_PATH:
+        fail("trusted broker manifest CRS allow request is invalid")
+
+
+def validate_final_manifest_crs_locations(
+    payload: dict[str, Any],
+    crs: dict[str, Any],
+    broker_sha: str,
+) -> None:
+    root = normalized_absolute(str(payload["broker_root"]), BROKER_ROOT_LABEL)
+    layout = root_layout(root)
+    if Path(str(crs.get("bundle_root", ""))) != layout["crs"]:
+        fail("trusted broker manifest CRS bundle root is invalid")
+    if Path(str(crs.get("audit_log_path", ""))) != layout["audit_log"]:
+        fail("trusted broker manifest CRS audit log path is invalid")
+    if crs.get("crs_bundle_digest") == crs.get("crs_bundle_manifest_sha256"):
+        # Distinct digest domains provide an inexpensive defense against a
+        # manifest field accidentally being reused as the aggregate digest.
+        fail("trusted broker manifest CRS digest domains must remain distinct")
+    if broker_sha != payload["protected_broker_sha"]:
+        fail("trusted broker manifest CRS producer binding is invalid")
+
+
+def validate_final_manifest_crs(payload: dict[str, Any], broker_sha: str) -> None:
+    crs = final_manifest_crs_for_profile(payload)
+    if crs is None:
+        return
+    validate_final_manifest_crs_identity(crs)
+    validate_final_manifest_crs_locations(payload, crs, broker_sha)
+
+
 def validate_final_manifest_producer(payload: dict[str, Any], broker_sha: str) -> None:
     producer = payload.get("producer")
     if not isinstance(producer, dict) or set(producer) != {"source_commit", "workflow_commit"}:
         fail("trusted broker manifest producer identity is invalid")
     if producer["source_commit"] != broker_sha or producer["workflow_commit"] != broker_sha:
         fail("trusted broker manifest producer is not bound to the broker SHA")
-    if tuple(payload.get("expected_evidence", [])) != EXPECTED_EVIDENCE:
+    schema_version, policy_profile = final_manifest_schema_and_profile(payload)
+    if tuple(payload.get("expected_evidence", [])) != expected_evidence_for(schema_version, policy_profile):
         fail("trusted broker manifest evidence allowlist is invalid")
 
 
 def validated_final_manifest(path: Path, expected_broker_sha: str | None = None) -> dict[str, Any]:
-    payload = json_load_bounded(path, "trusted broker manifest")
+    payload = json_load_bounded(path, TRUSTED_BROKER_MANIFEST_LABEL)
     broker_sha = validated_manifest_header(payload, expected_broker_sha)
     validate_final_manifest_identities(payload)
     validate_final_manifest_network(payload)
     validate_final_manifest_artifacts(payload)
     validate_final_manifest_paths(payload)
+    validate_final_manifest_crs(payload, broker_sha)
     validate_final_manifest_producer(payload, broker_sha)
     return payload
 
@@ -834,6 +1694,20 @@ def sudo_runner_gid() -> int:
     if not raw.isdecimal():
         fail("broker requires a sudo caller group identity")
     return int(raw)
+
+
+def sudo_runner_identity() -> tuple[int, int]:
+    """Bind the root admission group to sudo's actual invoking principal."""
+
+    runner_uid = sudo_runner_uid()
+    runner_gid = sudo_runner_gid()
+    try:
+        account = pwd.getpwuid(runner_uid)
+    except KeyError as exc:
+        fail(f"broker sudo caller account is unavailable: {exc}")
+    if account.pw_uid != runner_uid or account.pw_gid != runner_gid:
+        fail("broker sudo caller uid/gid binding is invalid")
+    return runner_uid, runner_gid
 
 
 def secure_root_parent(runner_gid: int) -> Path:
@@ -904,6 +1778,10 @@ def root_layout(root: Path) -> dict[str, Path]:
         "logs": root / "runtime" / "logs",
         "state": root / "runtime" / "state",
         "docroot": root / "runtime" / "docroot",
+        "crs": root / "runtime" / CRS_RUNTIME_DIRECTORY_NAME,
+        "crs_files": root / "runtime" / CRS_RUNTIME_DIRECTORY_NAME / CRS_BUNDLE_FILES_DIRECTORY_NAME,
+        "audit_log": root / "runtime" / "logs" / AUDIT_LOG_FILENAME,
+        "audit_dir": root / "runtime" / "logs" / AUDIT_LOG_DIRECTORY_NAME,
         "control": root / "control",
         "evidence_source": root / "evidence-source",
         "projection_target": root / "evidence-published",
@@ -1017,7 +1895,7 @@ def remove_broker_root(
         os.close(parent_fd)
 
 
-CANDIDATE_FIELDS = {
+CANDIDATE_FIELDS_V1 = {
     "schema_version",
     "run_id",
     "matrix_variant",
@@ -1034,6 +1912,38 @@ CANDIDATE_FIELDS = {
     "nginx_version",
     "producer",
 }
+CANDIDATE_FIELDS_V2_BASE = {*CANDIDATE_FIELDS_V1, "policy_profile"}
+CANDIDATE_FIELDS_V2_CRS = {*CANDIDATE_FIELDS_V2_BASE, "crs"}
+CANDIDATE_FIELDS = CANDIDATE_FIELDS_V1
+CANDIDATE_CRS_FIELDS = {
+    "crs_repository",
+    "crs_release_tag",
+    "crs_commit",
+    "crs_bundle_manifest_sha256",
+    "crs_bundle_digest",
+    "crs_file_count",
+    "expected_crs_evidence",
+}
+
+
+def candidate_schema_and_profile(candidate: dict[str, Any]) -> tuple[int, str]:
+    schema_version = require_schema_version(candidate.get("schema_version"), CANDIDATE_LABEL)
+    if schema_version == SCHEMA_VERSION_V1:
+        require_exact_keys(candidate, CANDIDATE_FIELDS_V1, CANDIDATE_LABEL)
+        policy_profile = POLICY_PROFILE_NO_CRS
+    else:
+        policy_profile = require_policy_profile(candidate.get("policy_profile"), "broker candidate policy_profile")
+        require_exact_keys(
+            candidate,
+            CANDIDATE_FIELDS_V2_CRS if policy_profile == POLICY_PROFILE_OWASP_CRS else CANDIDATE_FIELDS_V2_BASE,
+            CANDIDATE_LABEL,
+        )
+    variant = candidate.get("matrix_variant")
+    if variant not in ALLOWED_VARIANTS:
+        fail("broker candidate matrix variant is invalid")
+    if required_profile_for_variant(variant) != policy_profile:
+        fail("broker candidate policy_profile does not match matrix_variant")
+    return schema_version, policy_profile
 
 
 def load_candidate_for_admission(
@@ -1044,7 +1954,7 @@ def load_candidate_for_admission(
     candidate_path = normalized_absolute(arguments.candidate, CANDIDATE_LABEL)
     regular_metadata(candidate_path, CANDIDATE_LABEL, owner=runner_uid)
     candidate = json_load_bounded(candidate_path, CANDIDATE_LABEL)
-    require_exact_keys(candidate, CANDIDATE_FIELDS, CANDIDATE_LABEL)
+    schema_version, policy_profile = candidate_schema_and_profile(candidate)
     if candidate.get("runner_uid") != runner_uid or candidate.get("runner_gid") != runner_gid:
         fail("broker candidate runner identity does not match sudo caller")
     broker_sha = require_commit(arguments.broker_sha, "broker_sha")
@@ -1057,11 +1967,9 @@ def load_candidate_for_admission(
     directory_metadata(candidate_paths["control"], "candidate control root", owner=runner_uid)
     if candidate_path != candidate_paths["control"] / "candidate.json":
         fail("broker candidate must be in its declared staging control root")
-    if candidate.get("schema_version") != SCHEMA_VERSION:
-        fail("broker candidate schema version is invalid")
     run_id = require_run_id(candidate.get("run_id"))
-    if candidate.get("matrix_variant") not in ALLOWED_VARIANTS:
-        fail("broker candidate matrix variant is invalid")
+    if schema_version == SCHEMA_VERSION_V1 and policy_profile != POLICY_PROFILE_NO_CRS:
+        fail("schema v1 broker candidate is not a no-crs control")
     require_commit(candidate.get("parent_head_sha"), "candidate parent_head_sha")
     require_commit(candidate.get("framework_sha"), "candidate framework_sha")
     if candidate.get("nginx_version") != "1.31.3":
@@ -1144,6 +2052,107 @@ def validated_candidate_artifacts(
     return candidate_artifacts
 
 
+def candidate_crs_for_profile(candidate: dict[str, Any]) -> dict[str, Any] | None:
+    schema_version, policy_profile = candidate_schema_and_profile(candidate)
+    if schema_version != SCHEMA_VERSION_V2 or policy_profile != POLICY_PROFILE_OWASP_CRS:
+        if candidate.get("crs") is not None:
+            fail("no-crs broker candidate must not contain CRS fields")
+        return None
+    crs = candidate.get("crs")
+    if not isinstance(crs, dict) or set(crs) != CANDIDATE_CRS_FIELDS:
+        fail("broker candidate CRS fields are invalid")
+    return crs
+
+
+def validate_candidate_crs_identity(crs: dict[str, Any]) -> tuple[str, str]:
+    for key, expected, message in (
+        ("crs_repository", CRS_APPROVED_REPOSITORY, "broker candidate CRS repository is invalid"),
+        ("crs_release_tag", CRS_RELEASE_TAG, "broker candidate CRS release tag is invalid"),
+        ("crs_commit", CRS_APPROVED_COMMIT, "broker candidate CRS commit is invalid"),
+    ):
+        if crs.get(key) != expected:
+            fail(message)
+    manifest_digest = require_sha256(crs.get("crs_bundle_manifest_sha256"), "broker candidate CRS bundle manifest digest")
+    bundle_digest = require_sha256(crs.get("crs_bundle_digest"), "broker candidate CRS bundle digest")
+    if not isinstance(crs.get("crs_file_count"), int) or crs["crs_file_count"] <= 0:
+        fail("broker candidate CRS file count is invalid")
+    expected_evidence = crs.get("expected_crs_evidence")
+    if not isinstance(expected_evidence, dict) or set(expected_evidence) != EXPECTED_CRS_EVIDENCE_FIELDS:
+        fail("broker candidate expected CRS evidence is invalid")
+    if expected_evidence != {
+        "rule_id": CRS_EXPECTED_RULE_ID,
+        "request_path": CRS_SMOKE_REQUEST_PATH,
+        "allow_path": CRS_ALLOW_REQUEST_PATH,
+    }:
+        fail("broker candidate expected CRS evidence does not match the protected profile")
+    return manifest_digest, bundle_digest
+
+
+def validated_candidate_crs_bundle_files(
+    candidate: dict[str, Any],
+    crs: dict[str, Any],
+    candidate_paths: dict[str, Path],
+    runner_uid: int,
+    broker_sha: str,
+    manifest_digest: str,
+    bundle_digest: str,
+) -> list[dict[str, Any]]:
+    bundle_root = candidate_paths["crs_bundle"]
+    bundle_metadata = directory_metadata(bundle_root, CANDIDATE_CRS_BUNDLE_ROOT_LABEL, owner=runner_uid)
+    if stat.S_IMODE(bundle_metadata.st_mode) != 0o700:
+        fail("candidate CRS bundle root mode is invalid")
+    manifest_path = bundle_root / CRS_BUNDLE_MANIFEST_FILENAME
+    manifest_metadata = regular_metadata(manifest_path, CANDIDATE_CRS_BUNDLE_MANIFEST_LABEL, owner=runner_uid)
+    if (
+        manifest_metadata.st_dev != bundle_metadata.st_dev
+        or manifest_metadata.st_nlink != 1
+        or stat.S_IMODE(manifest_metadata.st_mode) != 0o400
+    ):
+        fail("candidate CRS bundle manifest mode is invalid")
+    if sha256_file(manifest_path, CANDIDATE_CRS_BUNDLE_MANIFEST_LABEL) != manifest_digest:
+        fail("candidate CRS bundle manifest digest does not match the candidate")
+    manifest = json_load_bounded_limit(manifest_path, CANDIDATE_CRS_BUNDLE_MANIFEST_LABEL, MAX_CRS_BUNDLE_MANIFEST_BYTES)
+    records = validate_crs_bundle_manifest(
+        manifest,
+        expected_framework_sha=str(candidate["framework_sha"]),
+        expected_broker_sha=broker_sha,
+    )
+    if manifest["bundle_digest"] != bundle_digest or len(records) != crs["crs_file_count"]:
+        fail("candidate CRS bundle identity does not match the candidate")
+    validate_crs_bundle_files(
+        bundle_root / CRS_BUNDLE_FILES_DIRECTORY_NAME,
+        records,
+        owner=runner_uid,
+        directory_mode=0o700,
+        file_mode=0o400,
+        expected_device=bundle_metadata.st_dev,
+        label=CANDIDATE_CRS_BUNDLE_FILES_LABEL,
+    )
+    return records
+
+
+def validated_candidate_crs(
+    candidate: dict[str, Any],
+    candidate_paths: dict[str, Path],
+    runner_uid: int,
+    broker_sha: str,
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    crs = candidate_crs_for_profile(candidate)
+    if crs is None:
+        return None, []
+    manifest_digest, bundle_digest = validate_candidate_crs_identity(crs)
+    records = validated_candidate_crs_bundle_files(
+        candidate,
+        crs,
+        candidate_paths,
+        runner_uid,
+        broker_sha,
+        manifest_digest,
+        bundle_digest,
+    )
+    return crs, records
+
+
 def create_admitted_root(root: Path, runner_gid: int) -> None:
     safe_mkdir(root, 0o710, "broker run root")
     try:
@@ -1163,7 +2172,7 @@ def create_admitted_root(root: Path, runner_gid: int) -> None:
         raise
 
 
-def create_admitted_layout(root: Path, worker_gid: int) -> dict[str, Path]:
+def create_admitted_layout(root: Path, worker_gid: int, policy_profile: str) -> dict[str, Path]:
     layout = root_layout(root)
     for key in ("artifacts", "runtime", "logs", "state", "docroot", "control", "evidence_source"):
         safe_mkdir(layout[key], 0o700, f"broker {key}")
@@ -1173,6 +2182,13 @@ def create_admitted_layout(root: Path, worker_gid: int) -> dict[str, Path]:
     for key in ("logs", "state", "docroot"):
         os.chown(layout[key], 0, worker_gid)
         os.chmod(layout[key], 0o730 if key in {"logs", "state"} else 0o710)
+    if policy_profile == POLICY_PROFILE_OWASP_CRS:
+        safe_mkdir(layout["crs"], 0o700, BROKER_CRS_ROOT_LABEL)
+        os.chown(layout["crs"], 0, worker_gid)
+        os.chmod(layout["crs"], 0o750)
+        safe_mkdir(layout["crs_files"], 0o700, "broker CRS files root")
+        os.chown(layout["crs_files"], 0, worker_gid)
+        os.chmod(layout["crs_files"], 0o750)
     return layout
 
 
@@ -1194,17 +2210,342 @@ def admit_candidate_artifacts(
     return admitted
 
 
+def open_relative_regular_no_follow(root_fd: int, relative: Path, label: str) -> tuple[int, os.stat_result]:
+    relative = bundle_relative_path(relative.as_posix(), label)
+    directory_fd = os.dup(root_fd)
+    try:
+        for part in relative.parts[:-1]:
+            before = os.stat(part, dir_fd=directory_fd, follow_symlinks=False)
+            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+                fail(f"{label} has an unsafe directory component")
+            child_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory_fd)
+            opened = os.fstat(child_fd)
+            if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+                os.close(child_fd)
+                fail(f"{label} directory changed while being opened")
+            os.close(directory_fd)
+            directory_fd = child_fd
+        name = relative.name
+        before = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode) or before.st_nlink != 1:
+            fail(f"{label} must be a single-link regular file")
+        descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory_fd)
+        metadata = os.fstat(descriptor)
+        if (metadata.st_dev, metadata.st_ino, metadata.st_size) != (before.st_dev, before.st_ino, before.st_size):
+            os.close(descriptor)
+            fail(f"{label} changed while being opened")
+        return descriptor, metadata
+    finally:
+        os.close(directory_fd)
+
+
+def root_bundle_destination_parent(
+    root_fd: int,
+    relative: Path,
+    worker_gid: int,
+) -> tuple[int, str]:
+    relative = bundle_relative_path(relative.as_posix(), "root CRS bundle destination")
+    directory_fd = os.dup(root_fd)
+    try:
+        for part in relative.parts[:-1]:
+            try:
+                before = os.stat(part, dir_fd=directory_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                os.mkdir(part, 0o750, dir_fd=directory_fd)
+                before = os.stat(part, dir_fd=directory_fd, follow_symlinks=False)
+                if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+                    fail("root CRS bundle destination component was replaced")
+                child_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory_fd)
+                try:
+                    os.fchown(child_fd, 0, worker_gid)
+                    os.fchmod(child_fd, 0o750)
+                finally:
+                    os.close(child_fd)
+            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+                fail("root CRS bundle destination has an unsafe directory component")
+            child_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory_fd)
+            opened = os.fstat(child_fd)
+            if opened.st_uid != 0 or opened.st_gid != worker_gid or stat.S_IMODE(opened.st_mode) != 0o750:
+                os.close(child_fd)
+                fail("root CRS bundle destination directory ownership or mode is invalid")
+            os.close(directory_fd)
+            directory_fd = child_fd
+        return directory_fd, relative.name
+    except Exception:
+        os.close(directory_fd)
+        raise
+
+
+def copy_bundle_file_into_root(
+    source_root_fd: int,
+    source_device: int,
+    relative: Path,
+    destination_root_fd: int,
+    *,
+    expected_sha256: str,
+    expected_size: int,
+    runner_uid: int,
+    worker_gid: int,
+    destination_device: int,
+    label: str,
+) -> None:
+    source_fd, source_metadata = open_relative_regular_no_follow(source_root_fd, relative, label)
+    try:
+        if (
+            source_metadata.st_uid != runner_uid
+            or source_metadata.st_dev != source_device
+            or stat.S_IMODE(source_metadata.st_mode) != 0o400
+            or source_metadata.st_size != expected_size
+        ):
+            fail(f"{label} metadata changed before root admission")
+        if sha256_fd(source_fd) != expected_sha256:
+            fail(f"{label} digest mismatch before root admission")
+        destination_parent_fd, destination_name = root_bundle_destination_parent(destination_root_fd, relative, worker_gid)
+        try:
+            if os.fstat(destination_parent_fd).st_dev != destination_device:
+                fail(f"{label} destination is on an unexpected device")
+            destination_fd = os.open(
+                destination_name,
+                os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                0o440,
+                dir_fd=destination_parent_fd,
+            )
+            try:
+                while True:
+                    chunk = os.read(source_fd, 1024 * 1024)
+                    if not chunk:
+                        break
+                    offset = 0
+                    while offset < len(chunk):
+                        offset += os.write(destination_fd, chunk[offset:])
+                os.fsync(destination_fd)
+                copied = os.fstat(destination_fd)
+                if (
+                    copied.st_dev != destination_device
+                    or copied.st_size != expected_size
+                    or sha256_fd(destination_fd) != expected_sha256
+                ):
+                    fail(f"{label} digest mismatch after root admission")
+                os.fchown(destination_fd, 0, worker_gid)
+                os.fchmod(destination_fd, 0o440)
+            finally:
+                os.close(destination_fd)
+        finally:
+            os.close(destination_parent_fd)
+        after = os.fstat(source_fd)
+        if (after.st_dev, after.st_ino, after.st_size) != (
+            source_metadata.st_dev,
+            source_metadata.st_ino,
+            source_metadata.st_size,
+        ):
+            fail(f"{label} changed during root admission")
+    finally:
+        os.close(source_fd)
+
+
+def copy_candidate_crs_manifest_into_root(
+    source_bundle_fd: int,
+    destination_root_fd: int,
+    source_bundle_metadata: os.stat_result,
+    destination_root_metadata: os.stat_result,
+    *,
+    runner_uid: int,
+    expected_sha256: str,
+) -> None:
+    manifest_fd, manifest_metadata = open_relative_regular_no_follow(
+        source_bundle_fd,
+        Path(CRS_BUNDLE_MANIFEST_FILENAME),
+        CANDIDATE_CRS_BUNDLE_MANIFEST_LABEL,
+    )
+    try:
+        if (
+            manifest_metadata.st_uid != runner_uid
+            or manifest_metadata.st_dev != source_bundle_metadata.st_dev
+            or manifest_metadata.st_nlink != 1
+            or manifest_metadata.st_size <= 0
+            or stat.S_IMODE(manifest_metadata.st_mode) != 0o400
+            or sha256_fd(manifest_fd) != expected_sha256
+        ):
+            fail("candidate CRS bundle manifest changed before root admission")
+        manifest_destination_fd = os.open(
+            CRS_BUNDLE_MANIFEST_FILENAME,
+            os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o400,
+            dir_fd=destination_root_fd,
+        )
+        try:
+            while True:
+                chunk = os.read(manifest_fd, 1024 * 1024)
+                if not chunk:
+                    break
+                offset = 0
+                while offset < len(chunk):
+                    offset += os.write(manifest_destination_fd, chunk[offset:])
+            os.fsync(manifest_destination_fd)
+            copied = os.fstat(manifest_destination_fd)
+            if (
+                copied.st_dev != destination_root_metadata.st_dev
+                or copied.st_size != manifest_metadata.st_size
+                or sha256_fd(manifest_destination_fd) != expected_sha256
+            ):
+                fail("candidate CRS bundle manifest digest changed during root admission")
+            os.fchown(manifest_destination_fd, 0, 0)
+            os.fchmod(manifest_destination_fd, 0o400)
+        finally:
+            os.close(manifest_destination_fd)
+        after_manifest = os.fstat(manifest_fd)
+        if (
+            after_manifest.st_dev,
+            after_manifest.st_ino,
+            after_manifest.st_size,
+        ) != (
+            manifest_metadata.st_dev,
+            manifest_metadata.st_ino,
+            manifest_metadata.st_size,
+        ):
+            fail("candidate CRS bundle manifest changed during root admission")
+    finally:
+        os.close(manifest_fd)
+
+
+def admit_candidate_crs_bundle(
+    candidate_crs: dict[str, Any] | None,
+    records: list[dict[str, Any]],
+    candidate_paths: dict[str, Path],
+    layout: dict[str, Path],
+    *,
+    runner_uid: int,
+    worker_gid: int,
+) -> dict[str, Any] | None:
+    if candidate_crs is None:
+        if records:
+            fail("no-crs root admission has unexpected CRS records")
+        return None
+    source_bundle = candidate_paths["crs_bundle"]
+    source_bundle_metadata = directory_metadata(
+        source_bundle,
+        CANDIDATE_CRS_BUNDLE_ROOT_LABEL,
+        owner=runner_uid,
+    )
+    if stat.S_IMODE(source_bundle_metadata.st_mode) != 0o700:
+        fail("candidate CRS bundle root mode changed before root admission")
+    source_files = source_bundle / CRS_BUNDLE_FILES_DIRECTORY_NAME
+    source_metadata = directory_metadata(source_files, CANDIDATE_CRS_BUNDLE_FILES_LABEL, owner=runner_uid)
+    if (
+        source_metadata.st_dev != source_bundle_metadata.st_dev
+        or stat.S_IMODE(source_metadata.st_mode) != 0o700
+    ):
+        fail("candidate CRS bundle files mode changed before root admission")
+    source_bundle_fd = os.open(source_bundle, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    destination_root = layout["crs"]
+    destination_root_fd = os.open(destination_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    destination_files_fd = os.open(layout["crs_files"], os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        destination_root_metadata = os.fstat(destination_root_fd)
+        destination_files_metadata = os.fstat(destination_files_fd)
+        if destination_files_metadata.st_dev != destination_root_metadata.st_dev:
+            fail("root CRS bundle destination is on an unexpected device")
+        copy_candidate_crs_manifest_into_root(
+            source_bundle_fd,
+            destination_root_fd,
+            source_bundle_metadata,
+            destination_root_metadata,
+            runner_uid=runner_uid,
+            expected_sha256=candidate_crs["crs_bundle_manifest_sha256"],
+        )
+        source_files_fd = os.open(source_files, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            for record in records:
+                copy_bundle_file_into_root(
+                    source_files_fd,
+                    source_metadata.st_dev,
+                    bundle_relative_path(record["path"], "candidate CRS bundle file path"),
+                    destination_files_fd,
+                    expected_sha256=record["sha256"],
+                    expected_size=record["size"],
+                    runner_uid=runner_uid,
+                    worker_gid=worker_gid,
+                    destination_device=destination_root_metadata.st_dev,
+                    label=f"candidate CRS bundle {record['path']}",
+                )
+        finally:
+            os.close(source_files_fd)
+    finally:
+        os.close(destination_files_fd)
+        os.close(destination_root_fd)
+        os.close(source_bundle_fd)
+    return {
+        **candidate_crs,
+        "bundle_root": str(destination_root),
+        "audit_log_path": str(layout["audit_log"]),
+    }
+
+
+def render_crs_rules(layout: dict[str, Path], records: list[dict[str, Any]]) -> str:
+    crs_root = layout["crs_files"]
+    ordered_paths = [bundle_relative_path(record["path"], "root CRS configuration path") for record in records]
+    setup = Path(CRS_SETUP_EXAMPLE_FILENAME)
+    if setup not in ordered_paths:
+        fail("root CRS bundle lacks its setup configuration")
+    plugin_config = sorted(
+        (path for path in ordered_paths if path.parts[0] == "plugins" and path.name.endswith(CRS_PLUGIN_SUFFIXES[0])),
+        key=lambda path: path.as_posix(),
+    )
+    plugin_before = sorted(
+        (path for path in ordered_paths if path.parts[0] == "plugins" and path.name.endswith(CRS_PLUGIN_SUFFIXES[1])),
+        key=lambda path: path.as_posix(),
+    )
+    rules = sorted(
+        (path for path in ordered_paths if path.parts[0] == "rules"),
+        key=lambda path: path.as_posix(),
+    )
+    plugin_after = sorted(
+        (path for path in ordered_paths if path.parts[0] == "plugins" and path.name.endswith(CRS_PLUGIN_SUFFIXES[2])),
+        key=lambda path: path.as_posix(),
+    )
+    if not rules:
+        fail("root CRS bundle lacks rule files")
+    includes = [setup, *plugin_config, *plugin_before, *rules, *plugin_after]
+    if set(includes) != set(ordered_paths):
+        fail("root CRS bundle has an unexpected configuration path")
+    lines = [
+        "SecRuleEngine On",
+        "SecAuditEngine RelevantOnly",
+        "SecAuditLogType Serial",
+        "SecAuditLogParts ABHZ",
+        f'SecAuditLog "{layout["audit_log"]}"',
+        f'SecAuditLogStorageDir "{layout["audit_dir"]}"',
+    ]
+    for relative in includes:
+        path = crs_root / relative
+        if not is_within(path, crs_root):
+            fail("root CRS configuration include escapes its broker root")
+        lines.append(f'Include "{path}"')
+    return "\n".join(lines) + "\n"
+
+
 def admitted_runtime(
     layout: dict[str, Path],
     account: pwd.struct_passwd,
     group_name: str,
     network: dict[str, Any],
     worker_gid: int,
+    policy_profile: str,
+    crs_records: list[dict[str, Any]],
 ) -> dict[str, str]:
     rules = layout["runtime"] / BROKER_RULES_FILENAME
     index = layout["docroot"] / "index.html"
     config = layout["runtime"] / BROKER_CONFIG_FILENAME
-    atomic_text(rules, 'SecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:941001,phase:1,deny,status:403,log"\n', 0o400)
+    if policy_profile == POLICY_PROFILE_OWASP_CRS:
+        safe_mkdir(layout["audit_dir"], 0o700, "broker CRS audit directory")
+        os.chown(layout["audit_dir"], 0, worker_gid)
+        os.chmod(layout["audit_dir"], 0o730)
+        rules_text = render_crs_rules(layout, crs_records)
+    else:
+        if crs_records:
+            fail("no-crs profile must not materialize CRS rule records")
+        rules_text = 'SecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:941001,phase:1,deny,status:403,log"\n'
+    atomic_text(rules, rules_text, 0o400)
     atomic_text(index, "trusted nginx root broker\n", 0o640)
     atomic_text(
         config,
@@ -1225,7 +2566,7 @@ def admitted_runtime(
     for path, mode in ((rules, 0o400), (config, 0o400), (index, 0o640)):
         os.chown(path, 0, worker_gid)
         os.chmod(path, mode)
-    return {
+    runtime = {
         "root": str(layout["runtime"]),
         "config": str(config),
         "rules": str(rules),
@@ -1235,6 +2576,15 @@ def admitted_runtime(
         "error_log": str(layout["logs"] / ERROR_LOG_FILENAME),
         "state": str(layout["control"] / STATE_FILENAME),
     }
+    if policy_profile == POLICY_PROFILE_OWASP_CRS:
+        runtime.update(
+            {
+                "audit_log": str(layout["audit_log"]),
+                "audit_dir": str(layout["audit_dir"]),
+                "crs_root": str(layout["crs"]),
+            }
+        )
+    return runtime
 
 
 def admitted_manifest_payload(
@@ -1249,9 +2599,11 @@ def admitted_manifest_payload(
     network: dict[str, Any],
     producer: dict[str, Any],
     worker: dict[str, Any],
+    crs: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    return {
-        "schema_version": SCHEMA_VERSION,
+    schema_version, policy_profile = candidate_schema_and_profile(candidate)
+    payload: dict[str, Any] = {
+        "schema_version": schema_version,
         "run_id": candidate["run_id"],
         "matrix_variant": candidate["matrix_variant"],
         "parent_head_sha": candidate["parent_head_sha"],
@@ -1271,19 +2623,36 @@ def admitted_manifest_payload(
             "source_root": str(layout["evidence_source"]),
             "target_root": str(layout["projection_target"]),
         },
-        "expected_evidence": list(EXPECTED_EVIDENCE),
+        "expected_evidence": list(expected_evidence_for(schema_version, policy_profile)),
     }
+    if schema_version == SCHEMA_VERSION_V2:
+        payload["policy_profile"] = policy_profile
+        if policy_profile == POLICY_PROFILE_OWASP_CRS:
+            if crs is None:
+                fail("with-crs broker admission lacks its protected CRS bundle")
+            payload["crs"] = crs
+        elif crs is not None:
+            fail("no-crs broker admission must not contain CRS fields")
+    elif crs is not None:
+        fail("schema v1 broker admission must not contain CRS fields")
+    return payload
 
 
 def admit_candidate(arguments: argparse.Namespace) -> Path:
     require_root()
-    runner_uid = sudo_runner_uid()
-    runner_gid = sudo_runner_gid()
+    runner_uid, runner_gid = sudo_runner_identity()
     candidate, broker_sha, run_id, candidate_paths = load_candidate_for_admission(arguments, runner_uid, runner_gid)
     worker, account, group_name = resolved_candidate_worker(candidate, runner_uid)
     network = validated_candidate_network(candidate)
     producer = validate_candidate_producer(candidate, broker_sha)
     candidate_artifacts = validated_candidate_artifacts(candidate, candidate_paths, runner_uid)
+    _, policy_profile = candidate_schema_and_profile(candidate)
+    candidate_crs, crs_records = validated_candidate_crs(
+        candidate,
+        candidate_paths,
+        runner_uid,
+        broker_sha,
+    )
     root = secure_root_parent(runner_gid) / run_id
     if root.exists() or root.is_symlink():
         fail("broker run root already exists")
@@ -1291,9 +2660,25 @@ def admit_candidate(arguments: argparse.Namespace) -> Path:
     try:
         create_admitted_root(root, runner_gid)
         root_created = True
-        layout = create_admitted_layout(root, int(worker["gid"]))
+        layout = create_admitted_layout(root, int(worker["gid"]), policy_profile)
         artifacts = admit_candidate_artifacts(candidate_artifacts, layout)
-        runtime = admitted_runtime(layout, account, group_name, network, int(worker["gid"]))
+        admitted_crs = admit_candidate_crs_bundle(
+            candidate_crs,
+            crs_records,
+            candidate_paths,
+            layout,
+            runner_uid=runner_uid,
+            worker_gid=int(worker["gid"]),
+        )
+        runtime = admitted_runtime(
+            layout,
+            account,
+            group_name,
+            network,
+            int(worker["gid"]),
+            policy_profile,
+            crs_records,
+        )
         manifest = layout["control"] / "manifest.json"
         payload = admitted_manifest_payload(
             candidate,
@@ -1307,6 +2692,7 @@ def admit_candidate(arguments: argparse.Namespace) -> Path:
             network,
             producer,
             worker,
+            admitted_crs,
         )
         write_private_json(manifest, payload, owner=0, group=0)
         return manifest
@@ -1321,19 +2707,19 @@ def admit_candidate(arguments: argparse.Namespace) -> Path:
         raise
 
 
-def manifest_paths(payload: dict[str, Any]) -> tuple[Path, dict[str, Path]]:
-    root = normalized_absolute(str(payload["broker_root"]), BROKER_ROOT_LABEL)
-    if root.parent != ROOT_PARENT or root.name != payload["run_id"]:
-        fail("broker root is not the fixed run-specific location")
-    layout = root_layout(root)
-    expected_artifacts = {
+def expected_manifest_artifact_paths(layout: dict[str, Path]) -> dict[str, Path]:
+    return {
         "binary": layout["artifacts"] / ARTIFACT_BINARY_NAME,
         "module": layout["artifacts"] / ARTIFACT_MODULE_NAME,
         "modsecurity_library": layout["artifacts"] / ARTIFACT_LIBRARY_NAME,
     }
-    for name, expected in expected_artifacts.items():
-        if Path(str(payload["artifacts"][name]["path"])) != expected:
-            fail(f"manifest {name} path is not the fixed broker artifact path")
+
+
+def expected_manifest_runtime_paths(
+    layout: dict[str, Path],
+    schema_version: int,
+    policy_profile: str,
+) -> dict[str, Path]:
     expected_runtime = {
         "root": layout["runtime"],
         "config": layout["runtime"] / BROKER_CONFIG_FILENAME,
@@ -1344,17 +2730,70 @@ def manifest_paths(payload: dict[str, Any]) -> tuple[Path, dict[str, Path]]:
         "error_log": layout["logs"] / ERROR_LOG_FILENAME,
         "state": layout["control"] / STATE_FILENAME,
     }
+    if schema_version == SCHEMA_VERSION_V2 and policy_profile == POLICY_PROFILE_OWASP_CRS:
+        expected_runtime.update(
+            {
+                "audit_log": layout["audit_log"],
+                "audit_dir": layout["audit_dir"],
+                "crs_root": layout["crs"],
+            }
+        )
+    return expected_runtime
+
+
+def validate_manifest_artifact_paths(payload: dict[str, Any], expected_artifacts: dict[str, Path]) -> None:
+    for name, expected in expected_artifacts.items():
+        if Path(str(payload["artifacts"][name]["path"])) != expected:
+            fail(f"manifest {name} path is not the fixed broker artifact path")
+
+
+def validate_manifest_runtime_paths(payload: dict[str, Any], expected_runtime: dict[str, Path]) -> None:
     for name, expected in expected_runtime.items():
         if Path(str(payload["runtime"][name])) != expected:
             fail(f"manifest {name} path is not the fixed broker runtime path")
+
+
+def validate_manifest_projection_paths(payload: dict[str, Any], layout: dict[str, Path]) -> None:
     if Path(str(payload["projection"]["source_root"])) != layout["evidence_source"]:
         fail("manifest evidence source is not the fixed broker evidence root")
     if Path(str(payload["projection"]["target_root"])) != layout["projection_target"]:
         fail("manifest evidence target is not the fixed broker projection root")
+
+
+def validate_manifest_crs_paths(payload: dict[str, Any], layout: dict[str, Path]) -> None:
+    crs = payload["crs"]
+    if Path(str(crs["bundle_root"])) != layout["crs"]:
+        fail("manifest CRS bundle path is not the fixed broker CRS root")
+    if Path(str(crs["audit_log_path"])) != layout["audit_log"]:
+        fail("manifest CRS audit path is not the fixed broker audit path")
+
+
+def validate_manifest_path_containment(
+    root: Path,
+    layout: dict[str, Path],
+    expected_artifacts: dict[str, Path],
+    expected_runtime: dict[str, Path],
+) -> None:
     for path in [*layout.values(), *expected_artifacts.values(), *expected_runtime.values()]:
         normalized = normalized_absolute(path, "manifest path")
         if not is_within(normalized, root):
             fail(f"manifest path escapes broker root: {normalized}")
+
+
+def manifest_paths(payload: dict[str, Any]) -> tuple[Path, dict[str, Path]]:
+    schema_version, policy_profile = final_manifest_schema_and_profile(payload)
+    root = normalized_absolute(str(payload["broker_root"]), BROKER_ROOT_LABEL)
+    if root.parent != ROOT_PARENT or root.name != payload["run_id"]:
+        fail("broker root is not the fixed run-specific location")
+    layout = root_layout(root)
+    expected_artifacts = expected_manifest_artifact_paths(layout)
+    expected_runtime = expected_manifest_runtime_paths(layout, schema_version, policy_profile)
+    validate_manifest_artifact_paths(payload, expected_artifacts)
+    validate_manifest_runtime_paths(payload, expected_runtime)
+    validate_manifest_projection_paths(payload, layout)
+    if schema_version == SCHEMA_VERSION_V2 and policy_profile == POLICY_PROFILE_OWASP_CRS:
+        validate_manifest_crs_paths(payload, layout)
+    validate_manifest_path_containment(root, layout, expected_artifacts, expected_runtime)
     return root, layout
 
 
@@ -1370,8 +2809,7 @@ def require_file_layout(path: Path, *, owner: int, group: int, mode: int, label:
         fail(f"{label} ownership or mode changed")
 
 
-def validate_root_layout(payload: dict[str, Any]) -> tuple[Path, dict[str, Path]]:
-    root, layout = manifest_paths(payload)
+def validate_common_root_layout(payload: dict[str, Any], root: Path, layout: dict[str, Path]) -> None:
     require_directory_layout(
         root,
         owner=0,
@@ -1403,6 +2841,64 @@ def validate_root_layout(payload: dict[str, Any]) -> tuple[Path, dict[str, Path]
         mode=0o710,
         label="broker docroot",
     )
+
+
+def validate_root_crs_layout(payload: dict[str, Any], layout: dict[str, Path]) -> None:
+    worker_gid = int(payload["worker"]["gid"])
+    require_directory_layout(layout["crs"], owner=0, group=worker_gid, mode=0o750, label=BROKER_CRS_ROOT_LABEL)
+    require_directory_layout(
+        layout["crs_files"],
+        owner=0,
+        group=worker_gid,
+        mode=0o750,
+        label="broker CRS files root",
+    )
+    require_directory_layout(
+        layout["audit_dir"],
+        owner=0,
+        group=worker_gid,
+        mode=0o730,
+        label="broker CRS audit directory",
+    )
+    manifest_path = layout["crs"] / CRS_BUNDLE_MANIFEST_FILENAME
+    require_file_layout(
+        manifest_path,
+        owner=0,
+        group=0,
+        mode=0o400,
+        label=ROOT_CRS_BUNDLE_MANIFEST_LABEL,
+    )
+    crs = payload["crs"]
+    if sha256_file(manifest_path, ROOT_CRS_BUNDLE_MANIFEST_LABEL) != crs["crs_bundle_manifest_sha256"]:
+        fail("root CRS bundle manifest digest changed")
+    records = validate_crs_bundle_manifest(
+        json_load_bounded_limit(manifest_path, ROOT_CRS_BUNDLE_MANIFEST_LABEL, MAX_CRS_BUNDLE_MANIFEST_BYTES),
+        expected_framework_sha=str(payload["framework_sha"]),
+        expected_broker_sha=str(payload["protected_broker_sha"]),
+    )
+    if manifest_path.stat().st_size <= 0 or len(records) != crs["crs_file_count"]:
+        fail("root CRS bundle manifest identity changed")
+    if crs["crs_bundle_digest"] != crs_bundle_digest(
+        repository=CRS_APPROVED_REPOSITORY,
+        release_tag=CRS_RELEASE_TAG,
+        commit=CRS_APPROVED_COMMIT,
+        framework_sha=str(payload["framework_sha"]),
+        broker_sha=str(payload["protected_broker_sha"]),
+        files=records,
+    ):
+        fail("root CRS bundle digest changed")
+    validate_crs_bundle_files(
+        layout["crs_files"],
+        records,
+        owner=0,
+        directory_mode=0o750,
+        file_mode=0o440,
+        expected_device=directory_metadata(layout["crs"], BROKER_CRS_ROOT_LABEL, owner=0).st_dev,
+        label="root CRS bundle files",
+    )
+
+
+def validate_admitted_artifact_layout(payload: dict[str, Any]) -> None:
     for name, mode in (("binary", 0o500), ("module", 0o400), ("modsecurity_library", 0o400)):
         require_file_layout(
             Path(str(payload["artifacts"][name]["path"])),
@@ -1411,6 +2907,9 @@ def validate_root_layout(payload: dict[str, Any]) -> tuple[Path, dict[str, Path]
             mode=mode,
             label=f"admitted {name}",
         )
+
+
+def validate_admitted_runtime_file_layout(payload: dict[str, Any], layout: dict[str, Path]) -> None:
     runtime = payload["runtime"]
     for key in ("config", "rules"):
         require_file_layout(
@@ -1436,16 +2935,24 @@ def validate_root_layout(payload: dict[str, Any]) -> tuple[Path, dict[str, Path]
             mode=0o750,
             label="broker evidence projection",
         )
+
+
+def validate_root_layout(payload: dict[str, Any]) -> tuple[Path, dict[str, Path]]:
+    schema_version, policy_profile = final_manifest_schema_and_profile(payload)
+    root, layout = manifest_paths(payload)
+    validate_common_root_layout(payload, root, layout)
+    if schema_version == SCHEMA_VERSION_V2 and policy_profile == POLICY_PROFILE_OWASP_CRS:
+        validate_root_crs_layout(payload, layout)
+    validate_admitted_artifact_layout(payload)
+    validate_admitted_runtime_file_layout(payload, layout)
     return root, layout
 
 
-def validate_runtime_config(payload: dict[str, Any]) -> None:
-    runtime = payload["runtime"]
-    config = Path(str(runtime["config"]))
-    descriptor, metadata = open_regular_no_follow(config, "admitted NGINX configuration")
+def read_root_owned_utf8_file(path: Path, label: str) -> str:
+    descriptor, metadata = open_regular_no_follow(path, label)
     try:
         if metadata.st_uid != 0 or stat.S_IMODE(metadata.st_mode) != 0o400:
-            fail("admitted NGINX configuration ownership or mode changed")
+            fail(f"{label} ownership or mode changed")
         raw = bytearray()
         while True:
             chunk = os.read(descriptor, 8192)
@@ -1455,15 +2962,25 @@ def validate_runtime_config(payload: dict[str, Any]) -> None:
     finally:
         os.close(descriptor)
     try:
-        text = raw.decode("utf-8")
+        return raw.decode("utf-8")
     except UnicodeDecodeError as exc:
-        fail(f"admitted NGINX configuration is not UTF-8: {exc}")
+        fail(f"{label} is not UTF-8: {exc}")
+
+
+def resolved_manifest_worker_group(payload: dict[str, Any]) -> str:
     try:
-        worker_group = grp.getgrgid(int(payload["worker"]["gid"])).gr_name
+        return grp.getgrgid(int(payload["worker"]["gid"])).gr_name
     except KeyError as exc:
         fail(f"broker worker group is unavailable: {exc}")
-    _, layout = manifest_paths(payload)
-    expected = render_nginx_config(
+
+
+def expected_root_runtime_config(
+    payload: dict[str, Any],
+    runtime: dict[str, Any],
+    layout: dict[str, Path],
+    worker_group: str,
+) -> str:
+    return render_nginx_config(
         module=Path(str(payload["artifacts"]["module"]["path"])),
         runtime_root=Path(str(runtime["root"])),
         logs_root=layout["logs"],
@@ -1475,8 +2992,36 @@ def validate_runtime_config(payload: dict[str, Any]) -> None:
         loopback=str(payload["network"]["address"]),
         port=int(payload["network"]["port"]),
     )
-    if text != expected:
+
+
+def expected_root_runtime_rules(
+    payload: dict[str, Any],
+    layout: dict[str, Path],
+    schema_version: int,
+    policy_profile: str,
+) -> str:
+    if schema_version == SCHEMA_VERSION_V2 and policy_profile == POLICY_PROFILE_OWASP_CRS:
+        manifest_path = layout["crs"] / CRS_BUNDLE_MANIFEST_FILENAME
+        records = validate_crs_bundle_manifest(
+            json_load_bounded_limit(manifest_path, ROOT_CRS_BUNDLE_MANIFEST_LABEL, MAX_CRS_BUNDLE_MANIFEST_BYTES),
+            expected_framework_sha=str(payload["framework_sha"]),
+            expected_broker_sha=str(payload["protected_broker_sha"]),
+        )
+        return render_crs_rules(layout, records)
+    return 'SecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:941001,phase:1,deny,status:403,log"\n'
+
+
+def validate_runtime_config(payload: dict[str, Any]) -> None:
+    runtime = payload["runtime"]
+    config_text = read_root_owned_utf8_file(Path(str(runtime["config"])), "admitted NGINX configuration")
+    worker_group = resolved_manifest_worker_group(payload)
+    _, layout = manifest_paths(payload)
+    if config_text != expected_root_runtime_config(payload, runtime, layout, worker_group):
         fail("broker configuration differs from the fixed root-generated configuration")
+    schema_version, policy_profile = final_manifest_schema_and_profile(payload)
+    rules_text = read_root_owned_utf8_file(Path(str(runtime["rules"])), "admitted ModSecurity rules")
+    if rules_text != expected_root_runtime_rules(payload, layout, schema_version, policy_profile):
+        fail("broker rules differ from the fixed protected profile")
 
 
 def clean_environment(library_dir: Path) -> dict[str, str]:
@@ -1667,6 +3212,154 @@ def start(payload: dict[str, Any]) -> None:
     write_state(payload, {"master_pid": process.pid, "process_group": process.pid, "started": True})
 
 
+def fixed_loopback_request(payload: dict[str, Any], path: str) -> int:
+    network = payload["network"]
+    address = str(network["address"])
+    port = int(network["port"])
+    deadline = time.monotonic() + 10
+    last_error: OSError | None = None
+    while time.monotonic() < deadline:
+        connection = http.client.HTTPConnection(address, port, timeout=2)
+        try:
+            connection.request(
+                "GET",
+                path,
+                headers={"Host": "localhost", "X-Broker-Run-ID": str(payload["run_id"])},
+            )
+            response = connection.getresponse()
+            response.read(1024 * 1024)
+            return int(response.status)
+        except OSError as exc:
+            last_error = exc
+            time.sleep(0.1)
+        finally:
+            connection.close()
+    fail(f"protected broker request could not reach its NGINX listener: {last_error}")
+
+
+def wait_for_nonempty_regular_file(path: Path, label: str) -> None:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if path.exists() and not path.is_symlink():
+            metadata = regular_metadata(path, label)
+            if metadata.st_size > 0:
+                return
+        time.sleep(0.1)
+    fail(f"{label} is missing or empty")
+
+
+def read_validated_crs_audit_bytes(payload: dict[str, Any], audit_path: Path) -> tuple[bytes, str]:
+    descriptor, metadata = open_regular_no_follow(audit_path, BROKER_CRS_AUDIT_LOG_LABEL)
+    try:
+        if (
+            metadata.st_uid not in {0, int(payload["worker"]["uid"])}
+            or metadata.st_dev != directory_metadata(Path(str(payload["broker_root"])), BROKER_ROOT_LABEL, owner=0).st_dev
+            or metadata.st_size <= 0
+            or metadata.st_size > MAX_EVIDENCE_FILE_BYTES
+            or stat.S_IMODE(metadata.st_mode) & 0o022
+        ):
+            fail("broker CRS audit log metadata is invalid")
+        raw = bytearray()
+        while True:
+            chunk = os.read(descriptor, min(8192, MAX_EVIDENCE_FILE_BYTES + 1 - len(raw)))
+            if not chunk:
+                break
+            raw.extend(chunk)
+            if len(raw) > MAX_EVIDENCE_FILE_BYTES:
+                fail("broker CRS audit log exceeds the size limit")
+        digest = hashlib.sha256(raw).hexdigest()
+    finally:
+        os.close(descriptor)
+    return bytes(raw), digest
+
+
+def validate_crs_audit_text(text: str, run_id: str) -> str:
+    if run_id not in text or CRS_SMOKE_REQUEST_PATH not in text:
+        fail("broker CRS audit log is not bound to the protected run and request")
+    rule_patterns = (
+        rf'\[id\s+"{re.escape(CRS_EXPECTED_RULE_ID)}"\]',
+        rf'"id"\s*:\s*"?{re.escape(CRS_EXPECTED_RULE_ID)}"?',
+        rf'\bid\s*[:=]\s*"?{re.escape(CRS_EXPECTED_RULE_ID)}"?',
+    )
+    if not any(re.search(pattern, text) for pattern in rule_patterns):
+        fail("broker CRS audit log lacks the expected CRS rule identity")
+    if not re.search(r"\b403\b", text):
+        fail("broker CRS audit log lacks the expected block status")
+    transactions = re.findall(r"(?m)^--([A-Za-z0-9_-]+)-A--$", text)
+    if len(transactions) != 1:
+        fail("broker CRS audit log has an unexpected or foreign transaction")
+    transaction_id = transactions[0]
+    if f"--{transaction_id}-Z--" not in text:
+        fail("broker CRS audit log lacks a transaction identifier")
+    return transaction_id
+
+
+def read_crs_audit_evidence(payload: dict[str, Any]) -> tuple[str, str]:
+    audit_path = Path(str(payload["runtime"]["audit_log"]))
+    wait_for_nonempty_regular_file(audit_path, BROKER_CRS_AUDIT_LOG_LABEL)
+    raw, digest = read_validated_crs_audit_bytes(payload, audit_path)
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        fail(f"broker CRS audit log is not UTF-8: {exc}")
+    return validate_crs_audit_text(text, str(payload["run_id"])), digest
+
+
+def verify_runtime_profile(payload: dict[str, Any]) -> dict[str, Any]:
+    state = read_state(payload)
+    if not state.get("started") or state.get("stopped"):
+        fail("runtime profile verification requires a live broker process")
+    schema_version, policy_profile = final_manifest_schema_and_profile(payload)
+    runtime = payload["runtime"]
+    if policy_profile == POLICY_PROFILE_OWASP_CRS:
+        audit_path = Path(str(runtime["audit_log"]))
+        if audit_path.exists() or audit_path.is_symlink():
+            fail("broker CRS audit log must be absent before the protected request")
+        allow_status = fixed_loopback_request(payload, CRS_ALLOW_REQUEST_PATH)
+        block_status = fixed_loopback_request(payload, CRS_SMOKE_REQUEST_PATH)
+        if allow_status != 200 or block_status != 403:
+            fail("protected OWASP CRS profile did not produce the required allow/block statuses")
+        transaction_id, audit_sha256 = read_crs_audit_evidence(payload)
+        observation: dict[str, Any] = {
+            "schema_version": schema_version,
+            "run_id": payload["run_id"],
+            "matrix_variant": payload["matrix_variant"],
+            "policy_profile": policy_profile,
+            "allow": {"path": CRS_ALLOW_REQUEST_PATH, "status": allow_status},
+            "block": {"path": CRS_SMOKE_REQUEST_PATH, "status": block_status},
+            "transaction_id": transaction_id,
+            "audit_log_sha256": audit_sha256,
+            "crs_rule_id": CRS_EXPECTED_RULE_ID,
+            "crs_bundle_digest": payload["crs"]["crs_bundle_digest"],
+            "crs_commit": payload["crs"]["crs_commit"],
+        }
+    else:
+        allow_status = fixed_loopback_request(payload, CRS_ALLOW_REQUEST_PATH)
+        block_status = fixed_loopback_request(payload, "/blocked")
+        if allow_status != 200 or block_status != 403:
+            fail("protected no-crs profile did not produce the required allow/block statuses")
+        observation = {
+            "schema_version": schema_version,
+            "run_id": payload["run_id"],
+            "matrix_variant": payload["matrix_variant"],
+            "policy_profile": POLICY_PROFILE_NO_CRS,
+            "allow": {"path": CRS_ALLOW_REQUEST_PATH, "status": allow_status},
+            "block": {"path": "/blocked", "status": block_status, "rule_id": "941001"},
+        }
+    if schema_version == SCHEMA_VERSION_V1:
+        # v1 has no policy-evidence allowlist and remains a reproducible
+        # compatibility control path. Its root actions still perform the fixed
+        # allow/block check, but no new v2 artifact is introduced.
+        state["profile_verified"] = True
+        write_state(payload, state)
+        return observation
+    source = Path(str(payload["projection"]["source_root"]))
+    write_private_json(source / POLICY_EVIDENCE_FILENAME, observation, owner=0, group=0)
+    state["profile_verified"] = True
+    write_state(payload, state)
+    return observation
+
+
 def proc_uid_gid(pid: int) -> tuple[int, int]:
     metadata = os.stat(f"/proc/{pid}")
     return metadata.st_uid, metadata.st_gid
@@ -1677,8 +3370,7 @@ def process_children(pid: int) -> list[int]:
     return [int(item) for item in raw.split() if item.isdecimal()]
 
 
-def verify_master_worker_identity(payload: dict[str, Any]) -> dict[str, Any]:
-    state = read_state(payload)
+def validated_master_process(payload: dict[str, Any], state: dict[str, Any]) -> tuple[int, int]:
     master_pid = state.get("master_pid")
     if not isinstance(master_pid, int) or master_pid <= 1:
         fail("broker state lacks a valid master PID")
@@ -1690,6 +3382,10 @@ def verify_master_worker_identity(payload: dict[str, Any]) -> dict[str, Any]:
         fail("NGINX master process group does not match broker state")
     if not process_uses_admitted_binary(master_pid, payload):
         fail("NGINX master executable is not the admitted binary")
+    return master_pid, master_uid
+
+
+def unique_admitted_worker_child(payload: dict[str, Any], master_pid: int) -> int:
     children = process_children(master_pid)
     if len(children) != 1:
         fail("NGINX master has an unexpected number of direct children")
@@ -1701,30 +3397,51 @@ def verify_master_worker_identity(payload: dict[str, Any]) -> dict[str, Any]:
                 worker_candidates.append(child)
     if len(worker_candidates) != 1:
         fail("NGINX worker identity is missing, duplicated, or has an unexpected executable")
-    evidence = {
-        "schema_version": SCHEMA_VERSION,
+    return worker_candidates[0]
+
+
+def verify_master_worker_identity(payload: dict[str, Any]) -> dict[str, Any]:
+    state = read_state(payload)
+    if not state.get("profile_verified"):
+        fail("worker identity verification requires a verified protected runtime profile")
+    schema_version, policy_profile = final_manifest_schema_and_profile(payload)
+    master_pid, master_uid = validated_master_process(payload, state)
+    worker_pid = unique_admitted_worker_child(payload, master_pid)
+    evidence: dict[str, Any] = {
+        "schema_version": schema_version,
         "run_id": payload["run_id"],
+        "matrix_variant": payload["matrix_variant"],
         "parent_head_sha": payload["parent_head_sha"],
         "framework_sha": payload["framework_sha"],
         "protected_broker_sha": payload["protected_broker_sha"],
         "nginx_binary_sha256": payload["artifacts"]["binary"]["sha256"],
         "nginx_module_sha256": payload["artifacts"]["module"]["sha256"],
+        "modsecurity_library_sha256": payload["artifacts"]["modsecurity_library"]["sha256"],
         "nginx_version": payload["nginx_version"],
         "master_pid": master_pid,
         "master_uid": master_uid,
-        "worker_pid": worker_candidates[0],
+        "worker_pid": worker_pid,
         "worker_uid": payload["worker"]["uid"],
         "worker_gid": payload["worker"]["gid"],
     }
+    if schema_version == SCHEMA_VERSION_V2:
+        evidence["policy_profile"] = policy_profile
+        if policy_profile == POLICY_PROFILE_OWASP_CRS:
+            evidence["crs_bundle_digest"] = payload["crs"]["crs_bundle_digest"]
+            evidence["crs_commit"] = payload["crs"]["crs_commit"]
     source = Path(str(payload["projection"]["source_root"]))
     write_private_json(source / IDENTITY_EVIDENCE_FILENAME, evidence, owner=0, group=0)
     return evidence
 
 
 def write_runtime_evidence(payload: dict[str, Any]) -> None:
+    state = read_state(payload)
+    if not state.get("profile_verified"):
+        fail("runtime evidence requires a verified protected runtime profile")
+    schema_version, policy_profile = final_manifest_schema_and_profile(payload)
     source = Path(str(payload["projection"]["source_root"]))
-    evidence = {
-        "schema_version": SCHEMA_VERSION,
+    evidence: dict[str, Any] = {
+        "schema_version": schema_version,
         "run_id": payload["run_id"],
         "matrix_variant": payload["matrix_variant"],
         "parent_head_sha": payload["parent_head_sha"],
@@ -1733,10 +3450,28 @@ def write_runtime_evidence(payload: dict[str, Any]) -> None:
         "artifact_digest": payload["artifact_digest"],
         "nginx_binary_sha256": payload["artifacts"]["binary"]["sha256"],
         "nginx_module_sha256": payload["artifacts"]["module"]["sha256"],
+        "modsecurity_library_sha256": payload["artifacts"]["modsecurity_library"]["sha256"],
         "nginx_version": payload["nginx_version"],
         "root_broker_status": "PASS",
-        "scope": "root-broker-only; CRS validation is intentionally outside this protected broker",
+        "cleanup_state": "stopped; mandatory descriptor-relative cleanup pending",
     }
+    if schema_version == SCHEMA_VERSION_V1:
+        evidence["scope"] = "root-broker-only; CRS validation is intentionally outside this protected broker"
+    else:
+        evidence["policy_profile"] = policy_profile
+        if policy_profile == POLICY_PROFILE_OWASP_CRS:
+            evidence["scope"] = "protected OWASP CRS profile with broker-generated configuration and audit evidence"
+            evidence["crs"] = {
+                "crs_repository": payload["crs"]["crs_repository"],
+                "crs_release_tag": payload["crs"]["crs_release_tag"],
+                "crs_commit": payload["crs"]["crs_commit"],
+                "crs_bundle_manifest_sha256": payload["crs"]["crs_bundle_manifest_sha256"],
+                "crs_bundle_digest": payload["crs"]["crs_bundle_digest"],
+                "crs_file_count": payload["crs"]["crs_file_count"],
+                "expected_crs_evidence": payload["crs"]["expected_crs_evidence"],
+            }
+        else:
+            evidence["scope"] = "protected no-crs control profile; no CRS tuple is present"
     write_private_json(source / RUNTIME_EVIDENCE_FILENAME, evidence, owner=0, group=0)
 
 
@@ -1802,13 +3537,18 @@ def project_evidence(payload: dict[str, Any]) -> None:
     safe_mkdir(temporary, 0o700, "evidence projection staging root")
     total = 0
     try:
-        names_to_sources = {
+        schema_version, policy_profile = final_manifest_schema_and_profile(payload)
+        names_to_sources: dict[str, Path] = {
             IDENTITY_EVIDENCE_FILENAME: source_root / IDENTITY_EVIDENCE_FILENAME,
             RUNTIME_EVIDENCE_FILENAME: source_root / RUNTIME_EVIDENCE_FILENAME,
-            ACCESS_LOG_FILENAME: Path(str(payload["runtime"]["access_log"])),
-            ERROR_LOG_FILENAME: Path(str(payload["runtime"]["error_log"])),
         }
-        if tuple(names_to_sources) != EXPECTED_EVIDENCE:
+        if schema_version == SCHEMA_VERSION_V2:
+            names_to_sources[POLICY_EVIDENCE_FILENAME] = source_root / POLICY_EVIDENCE_FILENAME
+        names_to_sources[ACCESS_LOG_FILENAME] = Path(str(payload["runtime"]["access_log"]))
+        names_to_sources[ERROR_LOG_FILENAME] = Path(str(payload["runtime"]["error_log"]))
+        if policy_profile == POLICY_PROFILE_OWASP_CRS:
+            names_to_sources[AUDIT_LOG_FILENAME] = Path(str(payload["runtime"]["audit_log"]))
+        if tuple(names_to_sources) != expected_evidence_for(schema_version, policy_profile):
             fail("evidence projection allowlist changed unexpectedly")
         root_device = directory_metadata(Path(str(payload["broker_root"])), BROKER_ROOT_LABEL, owner=0).st_dev
         for name, source in names_to_sources.items():
@@ -1933,6 +3673,8 @@ def execute_action(arguments: argparse.Namespace) -> None:
         config_test(payload)
     elif arguments.action == "start":
         start(payload)
+    elif arguments.action == "verify-runtime-profile":
+        verify_runtime_profile(payload)
     elif arguments.action == "verify-master-worker-identity":
         verify_master_worker_identity(payload)
     elif arguments.action == "project-evidence":
@@ -1978,6 +3720,12 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     snapshot.add_argument("--loopback", default="127.0.0.1")
     snapshot.add_argument("--port", type=int, required=True)
 
+    bundle = commands.add_parser("prepare-crs-bundle")
+    bundle.add_argument("--trusted-build-root", required=True)
+    bundle.add_argument("--framework-root", required=True)
+    bundle.add_argument("--framework-sha", required=True)
+    bundle.add_argument("--broker-sha", required=True)
+
     action = commands.add_parser("action")
     action.add_argument("--action", required=True, choices=sorted(ALLOWED_ACTIONS))
     action.add_argument("--broker-sha", required=True)
@@ -1993,6 +3741,8 @@ def main(argv: list[str] | None = None) -> int:
             print(prepare_candidate(arguments))
         elif arguments.command == "prepare-from-snapshot":
             print(prepare_candidate_from_snapshot(arguments))
+        elif arguments.command == "prepare-crs-bundle":
+            print(prepare_crs_bundle(arguments))
         else:
             if arguments.action == "validate-manifest":
                 if not arguments.candidate:
