@@ -86,8 +86,11 @@ path, ownership, or cleanup validation.
 
 No protected-master hosted root invocation has been observed yet. Local static
 tests do not prove GitHub reusable-workflow context semantics, a real NGINX
-root master, worker identity, listener release, or artifact upload. Those are
-required post-push evidence, not present results.
+root master, worker identity, listener release, or artifact upload. The
+protected-master invocation is a mandatory resulting-master validation after
+the broker is integrated: running it from this PR would violate the contract
+that root executes only the protected-master helper. It is therefore not
+claimed as pre-merge PR evidence.
 
 ## Known limitations
 
@@ -105,11 +108,13 @@ fallback to PR-branch root execution.
 
 ## Checks not run and rationale
 
-Hosted CI, the current-SHA SonarQube Cloud analysis, review/branch-protection
-gates, and the protected-master root invocation remain pending current-SHA
-evidence. They remain required before any merge. The local security-diff scan
-is complete; its report is local evidence and does not replace the required
-hosted root-lifecycle validation.
+Hosted CI, the current-SHA SonarQube Cloud analysis, and review/branch-
+protection gates remain required before any merge. The protected-master root
+invocation remains mandatory resulting-master validation immediately after
+integration; it is deliberately not a pre-merge PR run because that would
+execute non-protected PR code as root. The local security-diff scan is complete;
+its report is local evidence and does not replace the required hosted
+root-lifecycle validation.
 
 ## Final diff and review status
 

@@ -92,8 +92,10 @@ aus; sie ändert keine Manifest-, Pfad-, Owner- oder Cleanup-Validierung.
 Es wurde noch kein Protected-master-Hosted-Root-Aufruf beobachtet. Lokale
 statische Tests belegen weder GitHub-Reusable-Workflow-Kontextsemantik noch
 einen realen NGINX-Root-Master, Worker-Identität, Listener-Freigabe oder
-Artefakt-Upload. Dies sind erforderliche Evidence nach dem Push, keine
-vorliegenden Ergebnisse.
+Artefakt-Upload. Der Protected-master-Aufruf ist eine verpflichtende
+Resulting-master-Validierung nach der Broker-Integration: Ein Aufruf aus diesem
+PR würde den Vertrag verletzen, dass root nur den Protected-master-Helper
+ausführt. Er wird daher nicht als Pre-merge-PR-Evidence behauptet.
 
 ## Bekannte Einschränkungen
 
@@ -112,11 +114,12 @@ autorisieren.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Hosted CI, die SonarQube-Cloud-Analyse für den aktuellen SHA,
-Review-/Branch-Protection-Gates und der Protected-master-Root-Aufruf stehen
-bis zur Evidence für den aktuellen SHA noch aus. Sie bleiben vor jedem Merge
-erforderlich.
-Der lokale Security-Diff-Scan ist abgeschlossen; sein Report ist lokale
+Hosted CI, die SonarQube-Cloud-Analyse für den aktuellen SHA sowie
+Review-/Branch-Protection-Gates bleiben vor jedem Merge erforderlich. Der
+Protected-master-Root-Aufruf bleibt eine verpflichtende Resulting-master-
+Validierung unmittelbar nach der Integration; er ist absichtlich kein
+Pre-merge-PR-Lauf, weil dieser nicht geschützten PR-Code als root ausführen
+würde. Der lokale Security-Diff-Scan ist abgeschlossen; sein Report ist lokale
 Evidence und ersetzt nicht die erforderliche Hosted-Root-Lifecycle-Validierung.
 
 ## Finaler Diff- und Review-Status
