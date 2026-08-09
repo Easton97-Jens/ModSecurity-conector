@@ -452,8 +452,9 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 self.assertIn(original, text)
                 mutated = text.replace(original, replacement, 1)
                 if name == "duplicate uses":
+                    mutated_yaml = mutated.encode("utf-8")
                     with self.assertRaisesRegex(BROKER.BrokerError, r"duplicates mapping key 'uses'"):
-                        BROKER.parse_restricted_caller_workflow_yaml(mutated.encode("utf-8"))
+                        BROKER.parse_restricted_caller_workflow_yaml(mutated_yaml)
                     continue
                 document = BROKER.parse_restricted_caller_workflow_yaml(mutated.encode("utf-8"))
                 with self.assertRaises(BROKER.BrokerError):
@@ -607,7 +608,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
 
     def test_caller_workflow_is_read_only_from_one_regular_git_blob(self) -> None:
         caller_sha = "d" * 40
-        blob_sha = "e" * 40
+        blob_sha = "e" * 64
         expected_entry = (
             f"100644 blob {blob_sha}\t{BROKER.EXPECTED_CALLER_WORKFLOW_PATH}\n".encode("ascii")
         )
@@ -733,6 +734,26 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                     BROKER.read_caller_workflow_blob(Path("/untrusted/broker-src"), caller_sha)
                 git_run.assert_not_called()
 
+    def test_git_callers_reject_argument_injection_before_git(self) -> None:
+        malicious_shas = (
+            "a" * 39 + ";",
+            "-" + "a" * 39,
+            "a" * 40 + "^{tree}",
+            "a" * 39 + "\n",
+        )
+        operations = (
+            BROKER.git_caller_commit_type,
+            BROKER.git_caller_workflow_tree_entry,
+        )
+        for operation in operations:
+            for caller_sha in malicious_shas:
+                with self.subTest(operation=operation.__name__, caller_sha=caller_sha), mock.patch.object(
+                    BROKER.subprocess, "run"
+                ) as git_run:
+                    with self.assertRaisesRegex(BROKER.BrokerError, "caller_sha must be a lowercase full Git SHA"):
+                        operation(Path("/untrusted/broker-src"), caller_sha)
+                    git_run.assert_not_called()
+
     def test_caller_workflow_validates_all_cli_shas_before_any_git_read(self) -> None:
         valid_values = {
             "caller_sha": "d" * 40,
@@ -743,9 +764,10 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             with self.subTest(field=field):
                 values = dict(valid_values)
                 values[field] = "not-a-commit"
+                arguments = argparse.Namespace(**values)
                 with mock.patch.object(BROKER.subprocess, "run") as git_run:
                     with self.assertRaisesRegex(BROKER.BrokerError, "lowercase full Git SHA"):
-                        BROKER.validate_caller_workflow(argparse.Namespace(**values))
+                        BROKER.validate_caller_workflow(arguments)
                 git_run.assert_not_called()
 
     def git_fixture(self, repository: Path, *arguments: str, input_data: bytes | None = None) -> bytes:

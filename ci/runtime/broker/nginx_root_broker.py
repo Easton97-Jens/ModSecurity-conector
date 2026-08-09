@@ -819,7 +819,8 @@ def protected_git_directory(repository: Path, label: str) -> str:
 def git_caller_commit_type(repository: Path, caller_sha: str) -> bytes:
     """Read the type of one caller commit using a fixed non-shell Git argv."""
 
-    caller_sha = require_commit(caller_sha, "caller_sha")
+    if not isinstance(caller_sha, str) or re.fullmatch(r"[0-9a-f]{40}", caller_sha) is None:
+        raise BrokerError("caller_sha must be a lowercase full Git SHA")
     directory = protected_git_directory(repository, CALLER_COMMIT_GIT_LABEL)
     try:
         completed = subprocess.run(
@@ -846,7 +847,8 @@ def git_caller_commit_type(repository: Path, caller_sha: str) -> bytes:
 def git_caller_workflow_tree_entry(repository: Path, caller_sha: str) -> bytes:
     """Read the fixed caller-workflow tree entry through a non-shell argv."""
 
-    caller_sha = require_commit(caller_sha, "caller_sha")
+    if not isinstance(caller_sha, str) or re.fullmatch(r"[0-9a-f]{40}", caller_sha) is None:
+        raise BrokerError("caller_sha must be a lowercase full Git SHA")
     directory = protected_git_directory(repository, CALLER_WORKFLOW_GIT_LABEL)
     try:
         completed = subprocess.run(
