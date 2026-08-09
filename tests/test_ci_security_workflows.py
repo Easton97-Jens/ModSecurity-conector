@@ -954,17 +954,51 @@ jobs:
                 "resolve-submodule-update",
                 "validate-submodule-update",
                 "create-submodule-update-pr",
+                "report-submodule-update-outcome",
             },
         )
-        self.assertEqual(job_permissions(jobs["resolve-submodule-update"]), {"contents": "read"})
-        self.assertEqual(job_permissions(jobs["validate-submodule-update"]), {"contents": "read"})
+        resolver = jobs["resolve-submodule-update"]
+        validator = jobs["validate-submodule-update"]
+        publisher = jobs["create-submodule-update-pr"]
+        outcome = jobs["report-submodule-update-outcome"]
+
+        self.assertEqual(job_permissions(resolver), {"contents": "read"})
+        self.assertEqual(job_permissions(validator), {"contents": "read"})
         self.assertEqual(
-            job_permissions(jobs["create-submodule-update-pr"]),
+            job_permissions(publisher),
             {"contents": "write", "pull-requests": "write"},
         )
-        self.assertIn("needs: resolve-submodule-update", jobs["validate-submodule-update"])
-        self.assertIn("submodules: recursive", jobs["validate-submodule-update"])
-        self.assertIn("make quick-check", jobs["validate-submodule-update"])
+        self.assertEqual(job_permissions(outcome), {"contents": "read"})
+        self.assertEqual(job_if_expression(outcome), "always()")
+        self.assertIn("github.ref == 'refs/heads/master'", resolver)
+        self.assertIn("github.event.repository.default_branch == 'master'", resolver)
+        self.assertIn("github.event.repository.fork == false", resolver)
+        self.assertIn("remote_ref_count", resolver)
+        self.assertIn('if [ "$remote_ref_count" != "1" ]; then', resolver)
+        self.assertIn('if [ "$candidate_ref" != "$SUBMODULE_REF" ]; then', resolver)
+        self.assertIn("Resolved submodule revision is not a full SHA-1", resolver)
+        self.assertIn("Current gitlink is not a full SHA-1", resolver)
+        self.assertIn('if [ "$candidate_sha" = "$current_sha" ]; then', resolver)
+        self.assertIn("changed=false", resolver)
+        self.assertIn("changed=true", resolver)
+        self.assertIn("Current Parent tree does not contain exactly one submodule entry", resolver)
+        self.assertIn("candidate_sha", resolver)
+        self.assertIn("current_sha", resolver)
+        self.assertIn("resolver_status=resolved", resolver)
+
+        self.assertIn("needs: resolve-submodule-update", validator)
+        self.assertEqual(
+            job_if_expression(validator),
+            "needs.resolve-submodule-update.result == 'success' && "
+            "needs.resolve-submodule-update.outputs.changed == 'true'",
+        )
+        self.assertIn("submodules: recursive", validator)
+        self.assertIn("make quick-check", validator)
+        self.assertIn("remote get-url origin", validator)
+        self.assertIn("merge-base --is-ancestor", validator)
+        self.assertIn("checkout --detach", validator)
+        self.assertIn("submodule update --init --recursive", validator)
+        self.assertIn("status --porcelain", validator)
         dependency_install = (
             "python3 -m pip install --disable-pip-version-check --only-binary=:all: "
             "--require-hashes --requirement "
@@ -982,28 +1016,97 @@ jobs:
         self.assertIn(dependency_install, jobs["validate-submodule-update"])
         self.assertIn(
             f'run: "{dependency_install}"',
-            jobs["validate-submodule-update"],
+            validator,
         )
         self.assertLess(
-            jobs["validate-submodule-update"].index("Verify Python interpreter contract"),
-            jobs["validate-submodule-update"].index(dependency_install),
+            validator.index("Verify Python interpreter contract"),
+            validator.index(dependency_install),
         )
         self.assertLess(
-            jobs["validate-submodule-update"].index(dependency_install),
-            jobs["validate-submodule-update"].index("make quick-check"),
+            validator.index(dependency_install),
+            validator.index("make quick-check"),
         )
-        self.assertNotIn("GH_TOKEN", jobs["validate-submodule-update"])
-        self.assertNotIn("secrets.", jobs["validate-submodule-update"])
+        self.assertNotIn("GH_TOKEN", validator)
+        self.assertNotIn("secrets.", validator)
 
-        publisher = jobs["create-submodule-update-pr"]
         self.assertIn("submodules: false", publisher)
         self.assertIn("persist-credentials: false", publisher)
+        self.assertEqual(
+            job_if_expression(publisher),
+            "needs.resolve-submodule-update.result == 'success' && "
+            "needs.resolve-submodule-update.outputs.changed == 'true' && "
+            "needs.validate-submodule-update.result == 'success'",
+        )
         self.assertIn("git ls-remote --exit-code", publisher)
         self.assertIn("git update-index --add --cacheinfo", publisher)
         self.assertIn("GH_TOKEN: ${{ github.token }}", publisher)
+        self.assertIn("git read-tree \"$MASTER_HEAD\"", publisher)
+        self.assertIn("git diff --cached --name-only \"$MASTER_HEAD\"", publisher)
+        self.assertIn("require_only_submodule_path", publisher)
+        self.assertIn("git diff --cached --raw \"$MASTER_HEAD\"", publisher)
+        self.assertIn("CANDIDATE_SHA", publisher)
+        self.assertIn("CURRENT_GITLINK_SHA", publisher)
+        self.assertIn("MASTER_OLD_SHA", publisher)
+        self.assertIn("Parent master Framework gitlink changed after resolution", publisher)
+        self.assertIn("PR_MARKER", publisher)
+        self.assertIn("--draft", publisher)
+        self.assertIn(".auto_merge", publisher)
+        self.assertIn("marker_count", publisher)
+        self.assertIn("verify_open_pr", publisher)
+        self.assertIn("verify_merged_pr", publisher)
+        self.assertIn("require_single_updater_commit", publisher)
+        self.assertIn("git rev-list --reverse", publisher)
+        self.assertIn("read_matching_merged_pr", publisher)
+        self.assertIn('case "$OPEN_PR_COUNT:$UPDATE_BRANCH_PRESENT" in', publisher)
+        self.assertIn("BRANCH_STATE=A", publisher)
+        self.assertIn("BRANCH_STATE=B", publisher)
+        self.assertIn("BRANCH_STATE=C", publisher)
+        self.assertIn("Unsafe maintenance branch/pull-request state", publisher)
+        self.assertIn("Maintenance state changed before normal branch creation", publisher)
+        self.assertIn("Maintenance branch or pull request changed before lease-bound update", publisher)
+        self.assertIn("Maintenance branch or pull request changed before lease-bound reuse", publisher)
+        self.assertIn(
+            'git push --force-with-lease="refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_HEAD" origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"',
+            publisher,
+        )
+        self.assertIn('git push origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"', publisher)
+        self.assertNotIn("git checkout -B", publisher)
+        self.assertNotIn("git push --force origin", publisher)
+        self.assertNotIn("git push --force-with-lease origin", publisher)
+        self.assertNotIn("git add ", publisher)
+        self.assertNotIn("|| true", publisher)
+        self.assertNotIn("continue-on-error", publisher)
+        self.assertNotIn("GH_PAT", publisher)
+        self.assertNotIn("PERSONAL_ACCESS_TOKEN", publisher)
+        self.assertNotIn("DEPLOY_KEY", publisher)
         self.assertNotIn("submodules: recursive", publisher)
         self.assertNotIn("git submodule", publisher)
         self.assertNotIn("make quick-check", publisher)
+
+        self.assertIn("RESOLVER_RESULT", outcome)
+        self.assertIn("VALIDATOR_RESULT", outcome)
+        self.assertIn("PUBLISHER_RESULT", outcome)
+        self.assertIn("RESOLVER_STATUS", outcome)
+        self.assertIn('case "$CHANGED" in', outcome)
+        self.assertIn('false)', outcome)
+        self.assertIn('"$VALIDATOR_RESULT" != "skipped"', outcome)
+        self.assertIn('"$PUBLISHER_RESULT" != "skipped"', outcome)
+        self.assertIn('true)', outcome)
+        self.assertIn('"$VALIDATOR_RESULT" != "success"', outcome)
+        self.assertIn('"$PUBLISHER_RESULT" != "success"', outcome)
+        self.assertIn("Submodule resolver output is missing or malformed", outcome)
+        self.assertIn("Submodule resolver changed output is missing or unexpected", outcome)
+        self.assertIn(
+            "The Framework submodule already points to the reviewed current master commit. No branch, commit, or pull request was created or modified.",
+            outcome,
+        )
+        self.assertIn(
+            "Das Framework-Submodule zeigt bereits auf den geprüften aktuellen Master-Commit. Es wurde kein Branch, Commit oder Pull Request erstellt oder verändert.",
+            outcome,
+        )
+        self.assertNotIn("GH_TOKEN", outcome)
+        self.assertNotIn("secrets.", outcome)
+        self.assertNotIn("continue-on-error", outcome)
 
     def test_manual_actions_updater_uses_a_trusted_default_branch(self) -> None:
         job = self.jobs("update-actions-versions.yml")["update-actions-versions"]
