@@ -494,20 +494,10 @@ def protected_nginx_broker_artifact(path: Path, expected: Path, *, executable_re
     }
 
 
-def protected_nginx_broker_runtime_environment(
-    context: dict[str, Any],
-    components: dict[str, dict[str, Any]],
-) -> tuple[dict[str, str], Path]:
-    """Build the fixed broker tuple and publish its canonical provenance first."""
-    if context["target_connector"] != "nginx":
-        raise RuntimeError("protected_nginx_broker_requires_nginx_target")
-    nginx = components["nginx"]
-    modsecurity = components["modsecurity"]
-    nginx_plan = components.get("nginx_plan", {})
-    if nginx.get("status") not in READY_COMPONENT_STATUSES or modsecurity.get("status") not in READY_COMPONENT_STATUSES:
-        raise RuntimeError("protected_nginx_broker_components_not_ready")
-    if not isinstance(nginx_plan, dict) or not connector_manifest_ready(nginx_plan):
-        raise RuntimeError("protected_nginx_broker_cache_completion_missing")
+def _protected_nginx_broker_plan_artifacts(
+    nginx_plan: dict[str, Any],
+) -> tuple[Path, Path, Path]:
+    """Validate the completed plan and return its canonical artifacts."""
     completed_manifest = read_json(Path(str(nginx_plan.get("manifest", ""))))
     if completed_manifest.get("build_flags") != nginx_plan.get("build_flags"):
         raise RuntimeError("protected_nginx_broker_completed_manifest_mismatch")
@@ -529,12 +519,23 @@ def protected_nginx_broker_runtime_environment(
     expected_module = plan_root / "nginx" / "modules" / NGINX_MODULE_FILENAME
     if binary != expected_binary or module != expected_module:
         raise RuntimeError("protected_nginx_broker_plan_output_paths_not_canonical")
+    return binary, module, plan_root
+
+
+def _protected_nginx_broker_modsecurity_prefix(
+    context: dict[str, Any],
+    modsecurity: dict[str, Any],
+) -> Path:
+    """Return the validated Cache-v2 ModSecurity prefix."""
     try:
         modsecurity_prefix = Path(str(modsecurity.get("prefix", ""))).resolve(strict=True)
     except OSError as exc:
         raise RuntimeError("protected_nginx_broker_modsecurity_prefix_missing") from exc
     expected_modsecurity_prefix = (
-        context["cache_root"] / "prefix" / "modsecurity" / str(modsecurity.get("build_id", ""))
+        context["cache_root"]
+        / "prefix"
+        / "modsecurity"
+        / str(modsecurity.get("build_id", ""))
     ).resolve()
     if (
         not modsecurity.get("build_id")
@@ -542,12 +543,27 @@ def protected_nginx_broker_runtime_environment(
         or not modsecurity_ready(modsecurity_prefix)
     ):
         raise RuntimeError("protected_nginx_broker_modsecurity_prefix_unvalidated")
+    return modsecurity_prefix
+
+
+def _protected_nginx_broker_source_revisions(
+    context: dict[str, Any],
+) -> tuple[str, str]:
+    """Return the immutable Parent and Framework source revisions."""
     parent_sha = git_revision(context["connector_root"])
     framework_sha = git_revision(context["framework_root"])
-    if not FULL_GIT_COMMIT_ID.fullmatch(parent_sha) or not FULL_GIT_COMMIT_ID.fullmatch(framework_sha):
+    if not FULL_GIT_COMMIT_ID.fullmatch(parent_sha) or not FULL_GIT_COMMIT_ID.fullmatch(
+        framework_sha
+    ):
         raise RuntimeError("protected_nginx_broker_source_revision_missing")
-    nginx_version = "1.31.3"
-    nginx_release_tag = "release-1.31.3"
+    return parent_sha, framework_sha
+
+
+def _protected_nginx_broker_release_provenance(
+    nginx_plan: dict[str, Any],
+    nginx_release_tag: str,
+) -> tuple[str, str]:
+    """Return the validated NGINX release source and digest."""
     try:
         plan_build_flags = json.loads(str(nginx_plan.get("build_flags", "")))
     except json.JSONDecodeError as exc:
@@ -562,6 +578,33 @@ def protected_nginx_broker_runtime_environment(
         or not re.fullmatch(r"[0-9a-f]{64}", source_sha256)
     ):
         raise RuntimeError("protected_nginx_broker_release_provenance_incomplete")
+    return source_repository, source_sha256
+
+
+def protected_nginx_broker_runtime_environment(
+    context: dict[str, Any],
+    components: dict[str, dict[str, Any]],
+) -> tuple[dict[str, str], Path]:
+    """Build the fixed broker tuple and publish its canonical provenance first."""
+    if context["target_connector"] != "nginx":
+        raise RuntimeError("protected_nginx_broker_requires_nginx_target")
+    nginx = components["nginx"]
+    modsecurity = components["modsecurity"]
+    nginx_plan = components.get("nginx_plan", {})
+    if nginx.get("status") not in READY_COMPONENT_STATUSES or modsecurity.get("status") not in READY_COMPONENT_STATUSES:
+        raise RuntimeError("protected_nginx_broker_components_not_ready")
+    if not isinstance(nginx_plan, dict) or not connector_manifest_ready(nginx_plan):
+        raise RuntimeError("protected_nginx_broker_cache_completion_missing")
+    binary, module, plan_root = _protected_nginx_broker_plan_artifacts(nginx_plan)
+    expected_binary = plan_root / "nginx" / "sbin" / "nginx"
+    expected_module = plan_root / "nginx" / "modules" / NGINX_MODULE_FILENAME
+    modsecurity_prefix = _protected_nginx_broker_modsecurity_prefix(context, modsecurity)
+    parent_sha, framework_sha = _protected_nginx_broker_source_revisions(context)
+    nginx_version = "1.31.3"
+    nginx_release_tag = "release-1.31.3"
+    source_repository, source_sha256 = _protected_nginx_broker_release_provenance(
+        nginx_plan, nginx_release_tag
+    )
     provenance_path = context["output_root"] / TRUSTED_NGINX_BROKER_PROVENANCE_FILENAME
     provenance_path = snapshot_path_within_output_root(provenance_path, context["output_root"])
     binary_artifact = protected_nginx_broker_artifact(binary, expected_binary, executable_required=True)

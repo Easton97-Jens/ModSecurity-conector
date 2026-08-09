@@ -99,6 +99,8 @@ RUNTIME_REPORTS_RELATIVE = Path("build") / "runtime-component-reports"
 NGINX_BROKER_PROVENANCE_FILENAME = "trusted-nginx-broker-provenance.json"
 NGINX_BROKER_PROVENANCE_LABEL = "trusted NGINX broker provenance"
 NGINX_BROKER_PROVENANCE_SCHEMA_VERSION = 1
+PROVENANCE_NGINX_ROOT_LABEL = "provenance nginx root"
+PROVENANCE_MODSECURITY_PREFIX_LABEL = "provenance ModSecurity prefix"
 ARTIFACT_BINARY_NAME = "nginx"
 ARTIFACT_MODULE_NAME = "ngx_http_modsecurity_module.so"
 ARTIFACT_LIBRARY_NAME = "libmodsecurity.so"
@@ -1268,6 +1270,79 @@ def validated_provenance_artifact(
     return expected
 
 
+def _validated_nginx_provenance_section(
+    nginx: dict[str, Any],
+    trusted_build_root: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    require_exact_keys(
+        nginx,
+        {
+            "version", "release_tag", "source_repository", "source_sha256", "cache_schema_version",
+            "cache_key", "connector_build_id", "root", "binary", "module",
+        },
+        "provenance nginx",
+    )
+    if nginx.get("version") != "1.31.3" or nginx.get("release_tag") != "release-1.31.3":
+        fail("trusted NGINX broker provenance does not describe the reviewed NGINX release")
+    require_string(nginx.get("source_repository"), "provenance nginx source_repository", maximum=1024)
+    require_sha256(nginx.get("source_sha256"), "provenance nginx source_sha256")
+    require_record_integer(
+        nginx.get("cache_schema_version"),
+        "provenance nginx cache_schema_version",
+        minimum=1,
+        maximum=1_000_000,
+    )
+    require_string(nginx.get("cache_key"), "provenance nginx cache_key", maximum=512)
+    require_string(nginx.get("connector_build_id"), "provenance nginx connector_build_id", maximum=512)
+    nginx_root = normalized_absolute(
+        require_string(nginx.get("root"), PROVENANCE_NGINX_ROOT_LABEL, maximum=4096),
+        PROVENANCE_NGINX_ROOT_LABEL,
+    )
+    if not is_within(nginx_root, trusted_build_root):
+        fail(f"{PROVENANCE_NGINX_ROOT_LABEL} must be inside the trusted build root")
+    directory_metadata(nginx_root, PROVENANCE_NGINX_ROOT_LABEL, owner=os.geteuid())
+    binary = validated_provenance_artifact(
+        nginx.get("binary"),
+        "provenance nginx binary",
+        trusted_build_root,
+        containing_root=nginx_root,
+    )
+    module = validated_provenance_artifact(
+        nginx.get("module"),
+        "provenance nginx module",
+        trusted_build_root,
+        containing_root=nginx_root,
+    )
+    if Path(binary["path"]) != nginx_root / "nginx" / "sbin" / ARTIFACT_BINARY_NAME:
+        fail("provenance nginx binary path is not canonical")
+    if Path(module["path"]) != nginx_root / "nginx" / "modules" / ARTIFACT_MODULE_NAME:
+        fail("provenance nginx module path is not canonical")
+    return binary, module
+
+
+def _validated_modsecurity_provenance_section(
+    modsecurity: dict[str, Any],
+    trusted_build_root: Path,
+) -> tuple[Path, dict[str, Any]]:
+    require_exact_keys(modsecurity, {"prefix", "library"}, "provenance modsecurity")
+    prefix = normalized_absolute(
+        require_string(modsecurity.get("prefix"), PROVENANCE_MODSECURITY_PREFIX_LABEL, maximum=4096),
+        PROVENANCE_MODSECURITY_PREFIX_LABEL,
+    )
+    if not is_within(prefix, trusted_build_root):
+        fail(f"{PROVENANCE_MODSECURITY_PREFIX_LABEL} must be inside the trusted build root")
+    directory_metadata(prefix, PROVENANCE_MODSECURITY_PREFIX_LABEL, owner=os.geteuid())
+    library = validated_provenance_artifact(
+        modsecurity.get("library"),
+        "provenance ModSecurity library",
+        trusted_build_root,
+        containing_root=prefix,
+    )
+    if Path(library["path"]) != prefix / "lib" / ARTIFACT_LIBRARY_NAME:
+        fail("provenance ModSecurity library path is not canonical")
+    return prefix, library
+
+
 def trusted_nginx_broker_provenance(
     trusted_build_root: Path,
     arguments: argparse.Namespace,
@@ -1294,39 +1369,8 @@ def trusted_nginx_broker_provenance(
     identity_payload["producer"].pop("identity")
     if require_sha256(producer.get("identity"), "provenance producer identity") != canonical_json_digest(identity_payload):
         fail("trusted NGINX broker provenance identity does not match its canonical record")
-    require_exact_keys(
-        nginx,
-        {
-            "version", "release_tag", "source_repository", "source_sha256", "cache_schema_version",
-            "cache_key", "connector_build_id", "root", "binary", "module",
-        },
-        "provenance nginx",
-    )
-    if nginx.get("version") != "1.31.3" or nginx.get("release_tag") != "release-1.31.3":
-        fail("trusted NGINX broker provenance does not describe the reviewed NGINX release")
-    require_string(nginx.get("source_repository"), "provenance nginx source_repository", maximum=1024)
-    require_sha256(nginx.get("source_sha256"), "provenance nginx source_sha256")
-    require_record_integer(nginx.get("cache_schema_version"), "provenance nginx cache_schema_version", minimum=1, maximum=1_000_000)
-    require_string(nginx.get("cache_key"), "provenance nginx cache_key", maximum=512)
-    require_string(nginx.get("connector_build_id"), "provenance nginx connector_build_id", maximum=512)
-    nginx_root = normalized_absolute(require_string(nginx.get("root"), "provenance nginx root", maximum=4096), "provenance nginx root")
-    if not is_within(nginx_root, trusted_build_root):
-        fail("provenance nginx root must be inside the trusted build root")
-    directory_metadata(nginx_root, "provenance nginx root", owner=os.geteuid())
-    binary = validated_provenance_artifact(nginx.get("binary"), "provenance nginx binary", trusted_build_root, containing_root=nginx_root)
-    module = validated_provenance_artifact(nginx.get("module"), "provenance nginx module", trusted_build_root, containing_root=nginx_root)
-    if Path(binary["path"]) != nginx_root / "nginx" / "sbin" / ARTIFACT_BINARY_NAME:
-        fail("provenance nginx binary path is not canonical")
-    if Path(module["path"]) != nginx_root / "nginx" / "modules" / ARTIFACT_MODULE_NAME:
-        fail("provenance nginx module path is not canonical")
-    require_exact_keys(modsecurity, {"prefix", "library"}, "provenance modsecurity")
-    prefix = normalized_absolute(require_string(modsecurity.get("prefix"), "provenance ModSecurity prefix", maximum=4096), "provenance ModSecurity prefix")
-    if not is_within(prefix, trusted_build_root):
-        fail("provenance ModSecurity prefix must be inside the trusted build root")
-    directory_metadata(prefix, "provenance ModSecurity prefix", owner=os.geteuid())
-    library = validated_provenance_artifact(modsecurity.get("library"), "provenance ModSecurity library", trusted_build_root, containing_root=prefix)
-    if Path(library["path"]) != prefix / "lib" / ARTIFACT_LIBRARY_NAME:
-        fail("provenance ModSecurity library path is not canonical")
+    binary, module = _validated_nginx_provenance_section(nginx, trusted_build_root)
+    prefix, library = _validated_modsecurity_provenance_section(modsecurity, trusted_build_root)
     return {"binary": binary, "module": module, "prefix": str(prefix), "library": library}
 
 
