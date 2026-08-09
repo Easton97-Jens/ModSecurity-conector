@@ -167,16 +167,26 @@ keine Framework- oder MRTS-Remote-Operation erforderlich.
 
 ## Finaler Review-Status
 
-Der Kandidat bleibt lokal, bis eine Exact-Head-PR-Validierung und Review-Runde
-abgeschlossen ist; aus diesen lokalen Checks wird keine Delivery-Schlussfolgerung
-abgeleitet.
+Die lokalen Checks belegen ausschließlich den Implementierungsvertrag. Dieser
+Record begleitet den task-eigenen Parent-PR-Lifecycle; jeder exakte PR-Head
+benötigt seine eigene Validierungs- und Review-Runde, und aus den lokalen
+Checks allein wird keine Delivery-Schlussfolgerung abgeleitet.
 
 ## Finaler Diff- und Review-Status
 
-Dies ist ein uncommitteter Phase-B-Kandidat im task-eigenen externen Worktree
-auf fix/ci-nginx-broker-runtime-snapshot, basierend auf
+Dieser Record beschreibt die versionierte Phase-B-Arbeit auf
+fix/ci-nginx-broker-runtime-snapshot, basierend auf
 ef88a616498e0a2893cd3da54003dd7cdea57015. Der finale Diff enthält nur die
 aufgeführten Parent-Workflow-/Producer-/Broker-/Test-/Dokumentationsdateien
 und den einen Framework-Gitlink. Ein unabhängiges fokussiertes Security-Review
-fand keine reportbare Trust-Boundary-Regression. Dieser Record behauptet keinen
-Commit, Push, Pull Request, Hosted Check, Merge oder Phase-C-Runtime-Ergebnis.
+fand keine reportbare Trust-Boundary-Regression. Hosted-PR-Evidence wird
+getrennt für ihren unveränderlichen Head aufbewahrt; dieser Record behauptet
+kein Merge- oder Phase-C-Runtime-Ergebnis.
+
+Vor dieser reinen Dokumentationskorrektur wurde der task-eigene Parent-PR
+[#269](https://github.com/Easton97-Jens/ModSecurity-conector/pull/269) am
+unveränderlichen Head `d159299e4b260525dff2f521a471f26c47046323` beobachtet;
+die erforderlichen Checks, CodeQL und das SonarQube-Cloud-Quality-Gate waren
+bestanden, bei null neuen Issues und Security Hotspots. Diese Evidence wird
+durch jeden späteren PR-Head ausdrücklich überholt und ist keine
+Merge-Evidence für dieses Record-Update.

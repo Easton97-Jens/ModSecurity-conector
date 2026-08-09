@@ -159,15 +159,24 @@ applicable local contract checks.
 
 ## Final review status
 
-The candidate remains local until an exact-head PR validation and review round
-has completed; no delivery conclusion is inferred from these local checks.
+The local checks establish the implementation contract only. This record
+accompanies the task-owned Parent PR lifecycle; each exact PR head requires its
+own validation and review round, and no delivery conclusion is inferred from
+the local checks alone.
 
 ## Final diff and review status
 
-This is an uncommitted Phase-B candidate in the task-owned external worktree
-on fix/ci-nginx-broker-runtime-snapshot, based on
+This record describes the versioned Phase-B work on
+fix/ci-nginx-broker-runtime-snapshot, based on
 ef88a616498e0a2893cd3da54003dd7cdea57015. The final diff contains only the
 listed Parent workflow/producer/broker/test/documentation files and the one
 Framework Gitlink. An independent focused security review found no reportable
-trust-boundary regression. No commit, push, pull request, hosted check, merge,
-or Phase-C runtime result is claimed by this record.
+trust-boundary regression. Hosted PR evidence is retained separately for its
+immutable head; this record makes no merge or Phase-C runtime claim.
+
+Before this documentation-only record correction, task-owned Parent PR
+[#269](https://github.com/Easton97-Jens/ModSecurity-conector/pull/269) was
+observed at immutable head `d159299e4b260525dff2f521a471f26c47046323` with
+the required checks, CodeQL, and the SonarQube Cloud Quality Gate passing and
+zero new issues or security hotspots. That evidence is explicitly superseded
+by every later PR head and is not merge evidence for this record update.
