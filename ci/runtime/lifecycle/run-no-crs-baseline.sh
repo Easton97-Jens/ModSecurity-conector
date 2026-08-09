@@ -23,6 +23,9 @@ CACHE_ROOT=${CACHE_ROOT:-$VERIFIED_RUN_ROOT/cache-v2}
 NO_CRS_RUN_ID=${NO_CRS_RUN_ID:-$(date -u +%Y-%m-%dT%H-%M-%SZ)-$(git -C "$CONNECTOR_ROOT" rev-parse --short=8 HEAD 2>/dev/null || printf unknown)}
 NO_CRS_RULES_FILE=${NO_CRS_RULES_FILE:-$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf}
 NO_CRS_ARTIFACT_PROFILE=${NO_CRS_ARTIFACT_PROFILE:-generic}
+FIVE_CONNECTOR_PROFILE=${FIVE_CONNECTOR_PROFILE:-}
+FIVE_CONNECTOR_PARENT_COMMIT=${FIVE_CONNECTOR_PARENT_COMMIT:-}
+FIVE_CONNECTOR_FRAMEWORK_COMMIT=${FIVE_CONNECTOR_FRAMEWORK_COMMIT:-}
 NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR=${NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR:-}
 NO_CRS_PROTOCOL_CLIENT=${NO_CRS_PROTOCOL_CLIENT:-0}
 FULL_LIFECYCLE_HOST_PROFILE=${FULL_LIFECYCLE_HOST_PROFILE:-}
@@ -67,12 +70,38 @@ fi
 CAPABILITIES_FILE=$CONNECTOR_ROOT/connectors/$connector/capabilities.json
 RUNTIME_PATH_RESOLVER=$CONNECTOR_ROOT/ci/runtime/common/resolve-runtime-paths.py
 PROFILE_RESOLVER=$CONNECTOR_ROOT/ci/runtime/lifecycle/resolve-full-lifecycle-profile.py
+FIVE_CONNECTOR_PROFILE_RESOLVER=$CONNECTOR_ROOT/ci/runtime/lifecycle/five-connector-no-crs-profile.py
 LOG_SANITIZER=$CONNECTOR_ROOT/ci/runtime/lifecycle/sanitize-full-lifecycle-log.py
 ENGINE_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-engine-lifecycle-artifacts.py
 FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT='/./{p;q;}'
 TRANSPORT_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-transport-lifecycle-artifacts.py
 TRAEFIK_ARTIFACT_STAGER=$CONNECTOR_ROOT/ci/runtime/lifecycle/stage-traefik-runtime-artifacts.py
 SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
+
+# Reject a future/unknown closed profile before consulting Framework tooling,
+# builds, or runtime roots.  The selected connector must also be one of the
+# profile's fixed rows, so this mode cannot reach a generic connector route.
+[ -f "$CAPABILITIES_FILE" ] || {
+    echo "FAIL: connector capability manifest is missing: $CAPABILITIES_FILE" >&2
+    exit 1
+}
+[ -z "$FIVE_CONNECTOR_PROFILE" ] || [ -f "$FIVE_CONNECTOR_PROFILE_RESOLVER" ] || {
+    echo "FAIL: five-connector profile resolver is missing: $FIVE_CONNECTOR_PROFILE_RESOLVER" >&2
+    exit 1
+}
+five_connector_profile_enabled=0
+if [ -n "$FIVE_CONNECTOR_PROFILE" ]; then
+    "$PYTHON" "$FIVE_CONNECTOR_PROFILE_RESOLVER" \
+        --profile "$FIVE_CONNECTOR_PROFILE" \
+        --verify-connector \
+        --connector "$connector" \
+        --capabilities "$CAPABILITIES_FILE"
+    if [ "$NO_CRS_ARTIFACT_PROFILE" != generic ]; then
+        echo "FAIL: the closed five-connector profile requires NO_CRS_ARTIFACT_PROFILE=generic" >&2
+        exit 1
+    fi
+    five_connector_profile_enabled=1
+fi
 
 [ -f "$FRAMEWORK_ROOT/ci/checks/catalog/no_crs_baseline.py" ] || {
     echo "BLOCKED: canonical framework runner is missing: $FRAMEWORK_ROOT/ci/checks/catalog/no_crs_baseline.py" >&2
@@ -98,10 +127,6 @@ SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
     echo "FAIL: synchronized upstream helper is missing: $SYNCHRONIZED_UPSTREAM" >&2
     exit 1
 }
-[ -f "$CAPABILITIES_FILE" ] || {
-    echo "FAIL: connector capability manifest is missing: $CAPABILITIES_FILE" >&2
-    exit 1
-}
 [ -f "$RUNTIME_PATH_RESOLVER" ] || {
     echo "FAIL: runtime path resolver is missing: $RUNTIME_PATH_RESOLVER" >&2
     exit 1
@@ -114,6 +139,30 @@ SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
     echo "FAIL: canonical no-CRS rules are missing: $NO_CRS_RULES_FILE" >&2
     exit 1
 }
+
+# The reusable workflow supplies both checkout identities.  Resolve and bind
+# them after the normal Framework presence checks, still before any runtime or
+# evidence directory exists.  The generic master runner remains unchanged
+# whenever no closed profile is selected.
+if [ "$five_connector_profile_enabled" -eq 1 ]; then
+    if [ -z "$FIVE_CONNECTOR_PARENT_COMMIT$FIVE_CONNECTOR_FRAMEWORK_COMMIT" ]; then
+        echo "FAIL: the closed five-connector profile requires parent and Framework commit identities" >&2
+        exit 1
+    fi
+    actual_parent_commit=$(git -C "$CONNECTOR_ROOT" rev-parse HEAD) || {
+        echo "FAIL: cannot resolve the current Parent commit for the closed profile" >&2
+        exit 1
+    }
+    actual_framework_commit=$(git -C "$FRAMEWORK_ROOT" rev-parse HEAD) || {
+        echo "FAIL: cannot resolve the current Framework commit for the closed profile" >&2
+        exit 1
+    }
+    if [ "$FIVE_CONNECTOR_PARENT_COMMIT" != "$actual_parent_commit" ] || \
+       [ "$FIVE_CONNECTOR_FRAMEWORK_COMMIT" != "$actual_framework_commit" ]; then
+        echo "FAIL: closed five-connector profile commit identity does not match this checkout" >&2
+        exit 1
+    fi
+fi
 
 expected_full_lifecycle_profile() {
     requested_connector=$1
@@ -531,6 +580,9 @@ NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR="$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR" \
 FULL_LIFECYCLE_HOST_PROFILE="$FULL_LIFECYCLE_HOST_PROFILE" \
 FULL_LIFECYCLE_EXECUTED_TARGET="$FULL_LIFECYCLE_EXECUTED_TARGET" \
 FULL_LIFECYCLE_EVIDENCE_OUTPUT="$STAGE_FIRST_BYTE_EVIDENCE_OUTPUT" \
+FIVE_CONNECTOR_PROFILE="$FIVE_CONNECTOR_PROFILE" \
+FIVE_CONNECTOR_PARENT_COMMIT="$FIVE_CONNECTOR_PARENT_COMMIT" \
+FIVE_CONNECTOR_FRAMEWORK_COMMIT="$FIVE_CONNECTOR_FRAMEWORK_COMMIT" \
 MSCONNECTOR_EXPECTED_RULE_ID="$EXPECTED_RULE_ID" \
 NO_CRS_RUN_ID="$NO_CRS_RUN_ID" \
 sh "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-connector-stage.sh" "$connector" "$evidence_stage" \
@@ -539,6 +591,7 @@ stage_rc=$?
 set -e
 ended_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 PROCESS_CLEANUP_LOG=$LOG_DIR/process-cleanup.log
+cleanup_status=passed
 if ps -eo pid=,comm=,args= | MSCONNECTOR_PROCESS_ROOT="$CONNECTOR_RUN_ROOT" awk '
     BEGIN { root=ENVIRON["MSCONNECTOR_PROCESS_ROOT"] }
     index($0, root) > 0 && ($2 ~ /^(httpd|apache2|nginx|haproxy|envoy|traefik|lighttpd|spoa|msconnector)/ || ($2 ~ /^python/ && $0 ~ /serve-upstream/)) { print $1, $2; found=1 }
@@ -547,6 +600,7 @@ if ps -eo pid=,comm=,args= | MSCONNECTOR_PROCESS_ROOT="$CONNECTOR_RUN_ROOT" awk 
     printf 'none\n' > "$PROCESS_CLEANUP_LOG"
 else
     cleanup_rc=$?
+    cleanup_status=failed
     if [ "$cleanup_rc" -eq 1 ] && [ -s "$PROCESS_CLEANUP_LOG" ]; then
         echo "FAIL: connector processes remain after canonical run; see $PROCESS_CLEANUP_LOG" >&2
         stage_rc=1
@@ -657,6 +711,9 @@ set -- \
     --source-event-scrub-log "$SOURCE_EVENT_SCRUB_LOG" \
     --events-output "$NORMALIZED_EVENTS" \
     --output "$SOURCE_RESULT"
+if [ "$five_connector_profile_enabled" -eq 1 ]; then
+    set -- "$@" --five-connector-profile "$FIVE_CONNECTOR_PROFILE"
+fi
 if [ -n "$source_result" ] && [ -f "$source_result" ]; then
     set -- "$@" --source-result "$source_result"
 fi
@@ -701,6 +758,20 @@ for label, value in zip(("stage_stdout", "stage_stderr"), sys.argv[1:]):
     print(f"{label}_bytes={len(raw)}")
 PY
 } > "$CANONICAL_HOST_LOG"
+FIVE_CONNECTOR_PROFILE_RECEIPT=
+if [ "$five_connector_profile_enabled" -eq 1 ]; then
+    FIVE_CONNECTOR_PROFILE_RECEIPT=$CONNECTOR_RUN_ROOT/five-connector-profile-receipt.json
+    "$PYTHON" "$FIVE_CONNECTOR_PROFILE_RESOLVER" \
+        --profile "$FIVE_CONNECTOR_PROFILE" \
+        --write-receipt \
+        --runtime-root "$CONNECTOR_RUN_ROOT" \
+        --output "$FIVE_CONNECTOR_PROFILE_RECEIPT" \
+        --connector "$connector" \
+        --run-id "$NO_CRS_RUN_ID" \
+        --connector-commit "$FIVE_CONNECTOR_PARENT_COMMIT" \
+        --framework-commit "$FIVE_CONNECTOR_FRAMEWORK_COMMIT" \
+        --cleanup-status "$cleanup_status"
+fi
 if [ ! -f "$NORMALIZED_EVENTS" ]; then
     : > "$NORMALIZED_EVENTS"
 fi
@@ -975,6 +1046,9 @@ set -- \
     --libmodsecurity-version "$libmodsecurity_version" \
     --started-at "$started_at" \
     --ended-at "$ended_at"
+if [ "$five_connector_profile_enabled" -eq 1 ]; then
+    set -- "$@" --source-log "five_connector_profile_receipt=$FIVE_CONNECTOR_PROFILE_RECEIPT"
+fi
 if [ -n "$FULL_LIFECYCLE_STAGE_REASON" ]; then
     set -- "$@" --stage-reason "$FULL_LIFECYCLE_STAGE_REASON"
 fi

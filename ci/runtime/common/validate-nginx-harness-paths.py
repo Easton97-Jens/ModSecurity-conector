@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import stat
 import sys
 from pathlib import Path
@@ -24,46 +23,8 @@ sys.path.insert(0, str(REPO_ROOT / "ci" / "lib"))
 from runtime_path_utils import (  # noqa: E402
     is_safe_runtime_root,
     runtime_artifact_path,
-    runtime_artifact_path_with_owners,
     verified_runtime_artifact_root,
-    verified_runtime_artifact_root_with_owners,
 )
-
-
-ROOT_HANDOFF_CALLER_UID_ENV = "MSCONNECTOR_NGINX_ROOT_HANDOFF_CALLER_UID"
-_CANONICAL_NONROOT_UID = re.compile(r"^[1-9][0-9]{0,9}$")
-_MAX_LINUX_UID = (1 << 32) - 1
-
-
-def handoff_owners(environment: dict[str, str] | os._Environ[str] = os.environ) -> frozenset[int] | None:
-    """Return the sole elevated handoff exception, or retain default ownership."""
-    value = environment.get(ROOT_HANDOFF_CALLER_UID_ENV, "")
-    if (
-        os.geteuid() != 0
-        or environment.get("NGINX_ROOT_HANDOFF") != "1"
-        or not _CANONICAL_NONROOT_UID.fullmatch(value)
-    ):
-        return None
-    caller_uid = int(value)
-    if caller_uid > _MAX_LINUX_UID:
-        return None
-    return frozenset({0, caller_uid})
-
-
-def artifact_root(value: Path, owners: frozenset[int] | None) -> Path:
-    return (
-        verified_runtime_artifact_root_with_owners(value, owners)
-        if owners is not None
-        else verified_runtime_artifact_root(value)
-    )
-
-
-def artifact_path(root: Path, value: Path, label: str, owners: frozenset[int] | None) -> Path:
-    return (
-        runtime_artifact_path_with_owners(root, value, label, owners)
-        if owners is not None
-        else runtime_artifact_path(root, value, label)
-    )
 
 
 def parse_path_spec(values: list[str], option: str) -> tuple[str, Path]:
@@ -75,13 +36,13 @@ def parse_path_spec(values: list[str], option: str) -> tuple[str, Path]:
     return label, Path(raw_path)
 
 
-def validate_direct_child(root: Path, label: str, candidate: Path, owners: frozenset[int] | None) -> None:
-    validated = artifact_path(root, candidate, label, owners)
+def validate_direct_child(root: Path, label: str, candidate: Path) -> None:
+    validated = runtime_artifact_path(root, candidate, label)
     if validated.parent != root:
         raise ValueError(f"{label} must be a direct child of its authorized parent")
 
 
-def validate_existing_private_directory(label: str, candidate: Path, owners: frozenset[int] | None) -> Path:
+def validate_existing_private_directory(label: str, candidate: Path) -> Path:
     """Validate a caller-supplied worker-visible projection parent without writing.
 
     A worker-visible docroot cannot be below the private `VERIFIED_RUN_ROOT`:
@@ -104,7 +65,7 @@ def validate_existing_private_directory(label: str, candidate: Path, owners: fro
         raise ValueError(f"{label} must be an existing non-symlink directory: {normalized}")
     # The shared verifier follows each existing component through no-follow
     # descriptors and verifies current-user ownership and non-writability.
-    return artifact_root(normalized, owners)
+    return verified_runtime_artifact_root(normalized)
 
 
 def parse_direct_child_spec(values: list[str], option: str) -> tuple[str, str, str]:
@@ -117,14 +78,13 @@ def authorize_directories(
     verified_root: Path,
     raw_specs: list[list[str]],
     authorized: list[tuple[str, Path]],
-    owners: frozenset[int] | None,
 ) -> None:
     for raw_spec in raw_specs:
         label, candidate = parse_path_spec(raw_spec, "--directory")
-        validated = artifact_path(verified_root, candidate, label, owners)
+        validated = runtime_artifact_path(verified_root, candidate, label)
         # The descriptor-safe helper has already verified every ancestor.
         # Creating the final directory only occurs below verified_root.
-        artifact_root(validated, owners)
+        verified_runtime_artifact_root(validated)
         authorized.append((label, validated))
 
 
@@ -132,12 +92,11 @@ def authorize_paths(
     verified_root: Path,
     raw_specs: list[list[str]],
     authorized: list[tuple[str, Path]],
-    owners: frozenset[int] | None,
 ) -> None:
     for raw_spec in raw_specs:
         label, candidate = parse_path_spec(raw_spec, "--path")
         authorized.append(
-            (label, artifact_path(verified_root, candidate, label, owners))
+            (label, runtime_artifact_path(verified_root, candidate, label))
         )
 
 
@@ -145,42 +104,43 @@ def authorize_direct_children(
     verified_root: Path,
     raw_specs: list[list[str]],
     authorized: list[tuple[str, Path]],
-    owners: frozenset[int] | None,
 ) -> None:
     for raw_spec in raw_specs:
         label, raw_candidate, raw_parent = parse_direct_child_spec(
             raw_spec, "--direct-child"
         )
-        parent = artifact_path(verified_root, Path(raw_parent), f"{label} parent", owners)
-        artifact_root(parent, owners)
-        validate_direct_child(parent, label, Path(raw_candidate), owners)
+        parent = runtime_artifact_path(
+            verified_root, Path(raw_parent), f"{label} parent"
+        )
+        verified_runtime_artifact_root(parent)
+        validate_direct_child(parent, label, Path(raw_candidate))
         authorized.append((label, Path(raw_candidate)))
 
 
 def authorize_existing_private_directories(
     raw_specs: list[list[str]],
     authorized: list[tuple[str, Path]],
-    owners: frozenset[int] | None,
 ) -> None:
     for raw_spec in raw_specs:
         label, candidate = parse_path_spec(raw_spec, "--existing-private-directory")
         authorized.append(
-            (label, validate_existing_private_directory(label, candidate, owners))
+            (label, validate_existing_private_directory(label, candidate))
         )
 
 
 def authorize_existing_direct_children(
     raw_specs: list[list[str]],
     authorized: list[tuple[str, Path]],
-    owners: frozenset[int] | None,
 ) -> None:
     for raw_spec in raw_specs:
         label, raw_candidate, raw_parent = parse_direct_child_spec(
             raw_spec, "--existing-direct-child"
         )
-        parent = validate_existing_private_directory(f"{label} parent", Path(raw_parent), owners)
+        parent = validate_existing_private_directory(
+            f"{label} parent", Path(raw_parent)
+        )
         candidate = Path(raw_candidate)
-        validate_direct_child(parent, label, candidate, owners)
+        validate_direct_child(parent, label, candidate)
         if candidate.exists() or candidate.is_symlink():
             raise ValueError(f"{label} must be a fresh non-symlink child")
         authorized.append((label, candidate))
@@ -236,16 +196,15 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
-        owners = handoff_owners()
-        verified_root = artifact_root(args.verified_run_root, owners)
+        verified_root = verified_runtime_artifact_root(args.verified_run_root)
         authorized: list[tuple[str, Path]] = []
-        authorize_directories(verified_root, args.directory, authorized, owners)
-        authorize_paths(verified_root, args.path, authorized, owners)
-        authorize_direct_children(verified_root, args.direct_child, authorized, owners)
+        authorize_directories(verified_root, args.directory, authorized)
+        authorize_paths(verified_root, args.path, authorized)
+        authorize_direct_children(verified_root, args.direct_child, authorized)
         authorize_existing_private_directories(
-            args.existing_private_directory, authorized, owners
+            args.existing_private_directory, authorized
         )
-        authorize_existing_direct_children(args.existing_direct_child, authorized, owners)
+        authorize_existing_direct_children(args.existing_direct_child, authorized)
     except (OSError, ValueError) as exc:
         print(f"nginx harness path authority rejected: {exc}", file=sys.stderr)
         return 2

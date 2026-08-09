@@ -9,6 +9,7 @@ request or response payloads into its output.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -31,6 +32,25 @@ from runtime_path_utils import (
 
 
 CORE_CASES = {"allow_without_marker": 200, "deny_header_marker_403": 403}
+
+
+def verify_closed_five_connector_profile(profile_name: str, connector: str) -> None:
+    """Reject a profile-selected collector invocation outside its fixed rows.
+
+    The profile module is loaded from a fixed sibling path rather than from a
+    caller-controlled import location.  This keeps collection aligned with
+    the workflow matrix and runner dispatch without extending Framework's
+    canonical result schema.
+    """
+    profile_path = Path(__file__).with_name("five-connector-no-crs-profile.py")
+    spec = importlib.util.spec_from_file_location("five_connector_no_crs_profile", profile_path)
+    if spec is None or spec.loader is None:
+        raise ValueError("cannot load the closed five-connector profile")
+    profile = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(profile)
+    if profile_name != profile.PROFILE:
+        raise ValueError(f"unsupported closed five-connector profile: {profile_name!r}")
+    profile.profile_row(connector)
 
 # These names are intentionally limited to the explicit summaries written by
 # the selected native host runners.  They are *not* generic status aliases:
@@ -1752,6 +1772,7 @@ def collector_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allowed-log-root", type=Path)
     parser.add_argument("--scrub-source-events", action="store_true")
     parser.add_argument("--source-event-scrub-log", type=Path)
+    parser.add_argument("--five-connector-profile")
     parser.add_argument("--events-output", type=Path)
     parser.add_argument("--stdout", type=Path)
     parser.add_argument("--stderr", type=Path)
@@ -1790,6 +1811,11 @@ def normalize_diagnostic_artifact(
 def prepare_collector_arguments(
     parser: argparse.ArgumentParser, args: argparse.Namespace
 ) -> Path:
+    if args.five_connector_profile:
+        try:
+            verify_closed_five_connector_profile(args.five_connector_profile, args.connector)
+        except ValueError as exc:
+            parser.error(str(exc))
     if args.allowed_source_root is None:
         parser.error("--allowed-source-root is required to confine runtime artifacts")
     if args.allowed_log_root is None:

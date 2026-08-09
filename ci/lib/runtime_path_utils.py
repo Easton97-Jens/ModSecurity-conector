@@ -364,24 +364,10 @@ def _open_runtime_component(
         ) from exc
 
 
-def _runtime_owner_allowlist(owners: object) -> frozenset[int]:
-    """Normalize the narrow elevated-handoff owner exception."""
-    try:
-        normalized = frozenset(owners)  # type: ignore[arg-type]
-    except TypeError as exc:
-        raise ValueError("runtime owner allowlist must be a nonempty set of uids") from exc
-    if not normalized or any(type(owner) is not int or owner < 0 for owner in normalized):
-        raise ValueError("runtime owner allowlist must be nonempty nonnegative integer uids")
-    if os.geteuid() not in normalized:
-        raise ValueError("runtime owner allowlist must include the effective uid")
-    return normalized
-
-
 def _validate_runtime_ancestor(
     descriptor: int,
     current_path: Path,
     shared_temp_root: Path | None,
-    owners: frozenset[int],
 ) -> Path | None:
     """Validate one opened ancestor and track a trusted sticky shared root."""
     details = os.fstat(descriptor)
@@ -395,7 +381,7 @@ def _validate_runtime_ancestor(
         )
     if trusted_shared_root:
         return current_path
-    if shared_temp_root is not None and details.st_uid not in owners:
+    if shared_temp_root is not None and details.st_uid not in {os.geteuid(), 0}:
         raise ValueError(
             "runtime directory has an untrusted owner below shared temporary root "
             f"{shared_temp_root}: {current_path}"
@@ -403,14 +389,12 @@ def _validate_runtime_ancestor(
     return shared_temp_root
 
 
-def _validate_runtime_leaf(
-    descriptor: int, directory_path: Path, owners: frozenset[int]
-) -> None:
+def _validate_runtime_leaf(descriptor: int, directory_path: Path) -> None:
     """Require a private directory at the final writable runtime path."""
     details = os.fstat(descriptor)
     if not stat.S_ISDIR(details.st_mode):
         raise ValueError(f"runtime directory is not a directory: {directory_path}")
-    if details.st_uid not in owners:
+    if details.st_uid != os.geteuid():
         raise ValueError(
             f"runtime directory is not owned by the current user: {directory_path}"
         )
@@ -418,15 +402,7 @@ def _validate_runtime_leaf(
         raise ValueError(f"runtime directory is group- or world-writable: {directory_path}")
 
 
-def ensure_safe_runtime_directory_with_owners(
-    path: Path | str, owners: object
-) -> Path:
-    """Elevated-handoff-only variant that accepts a fixed owner allowlist."""
-    allowed_owners = _runtime_owner_allowlist(owners)
-    return _ensure_safe_runtime_directory(path, allowed_owners)
-
-
-def _ensure_safe_runtime_directory(path: Path | str, owners: frozenset[int]) -> Path:
+def ensure_safe_runtime_directory(path: Path | str) -> Path:
     """Create or open one runtime directory without following path symlinks.
 
     The returned leaf must be owned by the current user and not writable by
@@ -450,18 +426,13 @@ def _ensure_safe_runtime_directory(path: Path | str, owners: frozenset[int]) -> 
             descriptor = child_descriptor
             current_path /= component
             shared_temp_root = _validate_runtime_ancestor(
-                descriptor, current_path, shared_temp_root, owners
+                descriptor, current_path, shared_temp_root
             )
 
-        _validate_runtime_leaf(descriptor, directory_path, owners)
+        _validate_runtime_leaf(descriptor, directory_path)
     finally:
         os.close(descriptor)
     return directory_path
-
-
-def ensure_safe_runtime_directory(path: Path | str) -> Path:
-    """Create or open a runtime directory owned by the effective user only."""
-    return _ensure_safe_runtime_directory(path, frozenset({os.geteuid()}))
 
 
 def verified_runtime_artifact_root(value: Path | str) -> Path:
@@ -473,17 +444,6 @@ def verified_runtime_artifact_root(value: Path | str) -> Path:
     if not is_safe_runtime_root(normalized):
         raise ValueError(f"runtime root is unsafe for writes: {normalized}")
     return ensure_safe_runtime_directory(normalized)
-
-
-def verified_runtime_artifact_root_with_owners(value: Path | str, owners: object) -> Path:
-    """Elevated-handoff-only artifact-root validator with explicit owners."""
-    root = Path(value)
-    if not root.is_absolute():
-        raise ValueError(f"runtime root must be absolute: {root}")
-    normalized = _absolute_path_without_resolution(root)
-    if not is_safe_runtime_root(normalized):
-        raise ValueError(f"runtime root is unsafe for writes: {normalized}")
-    return ensure_safe_runtime_directory_with_owners(normalized, owners)
 
 
 def prepare_verified_runtime_artifact_root(
@@ -527,32 +487,6 @@ def runtime_artifact_path(
     if normalized.is_symlink():
         raise ValueError(f"{label} must not be a symbolic link: {normalized}")
     parent = ensure_safe_runtime_directory(normalized.parent)
-    if not is_under(parent, verified_root):
-        raise ValueError(f"{label} parent escaped the runtime root: {parent}")
-    if must_exist and (not normalized.is_file() or normalized.is_symlink()):
-        raise ValueError(f"{label} must be an existing regular file: {normalized}")
-    return normalized
-
-
-def runtime_artifact_path_with_owners(
-    root: Path,
-    value: Path | str,
-    label: str,
-    owners: object,
-    *,
-    must_exist: bool = False,
-) -> Path:
-    """Elevated-handoff-only artifact validator with explicit owners."""
-    candidate = Path(value)
-    if not candidate.is_absolute():
-        raise ValueError(f"{label} must be absolute: {candidate}")
-    verified_root = ensure_safe_runtime_directory_with_owners(root, owners)
-    normalized = _absolute_path_without_resolution(candidate)
-    if normalized == verified_root or not is_under(normalized, verified_root):
-        raise ValueError(f"{label} must be below the runtime root: {normalized}")
-    if normalized.is_symlink():
-        raise ValueError(f"{label} must not be a symbolic link: {normalized}")
-    parent = ensure_safe_runtime_directory_with_owners(normalized.parent, owners)
     if not is_under(parent, verified_root):
         raise ValueError(f"{label} parent escaped the runtime root: {parent}")
     if must_exist and (not normalized.is_file() or normalized.is_symlink()):

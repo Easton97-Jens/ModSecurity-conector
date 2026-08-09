@@ -20,7 +20,6 @@ import sys
 
 PROJECTED_FILENAMES = ("index.html", "__modsec_smoke_ready")
 PUBLIC_TRAVERSE_MODE = stat.S_IXOTH
-WORKER_GROUP_TRAVERSE_MODE = stat.S_IXGRP
 PROJECTION_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
@@ -68,13 +67,7 @@ def overlaps(left: Path, right: Path) -> bool:
     return is_descendant(left, right) or is_descendant(right, left)
 
 
-def worker_can_traverse_parent(metadata: os.stat_result, worker_gid: int) -> bool:
-    return bool(metadata.st_mode & PUBLIC_TRAVERSE_MODE) or (
-        metadata.st_gid == worker_gid and bool(metadata.st_mode & WORKER_GROUP_TRAVERSE_MODE)
-    )
-
-
-def ensure_private_parent(path: Path, label: str, worker_gid: int) -> None:
+def ensure_private_parent(path: Path, label: str) -> None:
     require_no_symlink_directory(path, label)
     metadata = path.lstat()
     if metadata.st_uid != os.geteuid():
@@ -83,9 +76,9 @@ def ensure_private_parent(path: Path, label: str, worker_gid: int) -> None:
         fail(f"{label} is group- or other-writable: {path}")
     if metadata.st_mode & 0o044:
         fail(f"{label} is group- or other-readable: {path}")
-    if not worker_can_traverse_parent(metadata, worker_gid):
+    if not metadata.st_mode & PUBLIC_TRAVERSE_MODE:
         fail(f"{label} is not worker-traversable: {path}")
-    for ancestor in (Path("/").joinpath(*path.parts[:index]) for index in range(2, len(path.parts))):
+    for ancestor in (Path("/").joinpath(*path.parts[:index]) for index in range(2, len(path.parts) + 1)):
         ancestor_metadata = ancestor.lstat()
         if not ancestor_metadata.st_mode & PUBLIC_TRAVERSE_MODE:
             fail(f"projection parent has a non-traversable ancestor: {ancestor}")
@@ -182,7 +175,7 @@ def prepare_projection(
         fail("projection root must be a direct child of projection parent")
     if not PROJECTION_NAME_RE.fullmatch(projection_root.name):
         fail(f"projection root name is unsafe: {projection_root.name}")
-    ensure_private_parent(parent, "projection parent", worker_gid)
+    ensure_private_parent(parent, "projection parent")
 
     checked_avoid_roots = [normalized_absolute(root, "avoid root") for root in avoid_roots]
     for root in checked_avoid_roots:
