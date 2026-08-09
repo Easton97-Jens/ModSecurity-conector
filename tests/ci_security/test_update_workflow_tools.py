@@ -13,7 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Any
+from typing import Any, Callable
 import unittest
 from unittest.mock import call, patch
 
@@ -72,6 +72,51 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             actions={} if actions is None else actions,
             tools={} if tools is None else tools,
         )
+
+    def proposed_tree_fixture(
+        self, temporary_root: Path
+    ) -> tuple[Path, dict[str, object], bytes, Path]:
+        """Build the isolated Connector tree used by proposed-tree validation."""
+
+        root = self.copied_update_root(temporary_root)
+        _path, lock, _digest = UPDATER.load_lock(root)
+        checkout = self.changed_action(lock, "actions/checkout", "v9.9.9", "a" * 40)
+        candidate = self.candidate_for(root, {"actions/checkout": checkout})
+        source_lock = (root / "ci/tooling/security-tools.lock.yml").read_bytes()
+        runner_temp = temporary_root / "runner-temp"
+        runner_temp.mkdir()
+        return root, candidate, source_lock, runner_temp
+
+    def assert_connector_lock_unchanged(self, root: Path, source_lock: bytes) -> None:
+        """Assert the source Connector lock remains untouched by validation."""
+
+        self.assertEqual(
+            source_lock,
+            (root / "ci/tooling/security-tools.lock.yml").read_bytes(),
+        )
+
+    @staticmethod
+    def generated_branch_blobs(
+        base_root: Path, head_root: Path
+    ) -> dict[tuple[str, str], bytes]:
+        """Read the allow-listed base and generated branch blobs for comparison."""
+
+        return {
+            (revision, relative_text): (root / relative_text).read_bytes()
+            for revision, root in (("base", base_root), ("head", head_root))
+            for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
+        }
+
+    @staticmethod
+    def generated_branch_blob_reader(
+        blobs: dict[tuple[str, str], bytes]
+    ) -> Callable[[Path, str, Path], bytes]:
+        """Provide a Git-blob mock backed by the generated branch fixture."""
+
+        def git_blob(_root: Path, revision: str, relative: Path) -> bytes:
+            return blobs[(revision, relative.as_posix())]
+
+        return git_blob
 
     @staticmethod
     def normalized_connector_lock(lock_blob: bytes) -> dict[str, Any]:
@@ -725,11 +770,9 @@ jobs:
         _path, lock, digest = UPDATER.load_lock(ROOT)
         baseline = lock["tools"]["actionlint"]
         identity = UPDATER.release_identity(baseline, "actionlint")
-        candidate = {
-            "schema_version": UPDATER.CANDIDATE_SCHEMA_VERSION,
-            "lock_sha256": digest,
-            "actions": {},
-            "tools": {
+        candidate = self.candidate_for(
+            ROOT,
+            tools={
                 "actionlint": {
                     "version": "v9.9.9",
                     "immutable_commit": "c" * 40,
@@ -739,7 +782,7 @@ jobs:
                     "sha256": "d" * 64,
                 }
             },
-        }
+        )
         with self.assertRaisesRegex(UPDATER.UpdateError, "reviewed naming rule"):
             UPDATER.validate_candidate_shape(candidate, lock, digest)
 
@@ -901,13 +944,9 @@ jobs:
     def test_proposed_tree_validation_does_not_modify_the_source_checkout(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
-            root = self.copied_update_root(temporary_root)
-            _path, lock, _digest = UPDATER.load_lock(root)
-            checkout = self.changed_action(lock, "actions/checkout", "v9.9.9", "a" * 40)
-            candidate = self.candidate_for(root, {"actions/checkout": checkout})
-            source_lock = (root / "ci/tooling/security-tools.lock.yml").read_bytes()
-            runner_temp = temporary_root / "runner-temp"
-            runner_temp.mkdir()
+            root, candidate, source_lock, runner_temp = self.proposed_tree_fixture(
+                temporary_root
+            )
             commands: list[tuple[list[str], Path]] = []
 
             def successful_check(
@@ -923,10 +962,7 @@ jobs:
                     "commit_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                     proposed_lock,
                 )
-                self.assertEqual(
-                    source_lock,
-                    (root / "ci/tooling/security-tools.lock.yml").read_bytes(),
-                )
+                self.assert_connector_lock_unchanged(root, source_lock)
                 return subprocess.CompletedProcess(arguments, 0, "", "")
 
             with (
@@ -938,10 +974,7 @@ jobs:
             self.assertEqual(len(commands), 1)
             self.assertEqual(commands[0][0][-1], "check-ci-security-contract")
             self.assertEqual(list(runner_temp.iterdir()), [])
-            self.assertEqual(
-                source_lock,
-                (root / "ci/tooling/security-tools.lock.yml").read_bytes(),
-            )
+            self.assert_connector_lock_unchanged(root, source_lock)
 
     def test_scope_verification_rejects_the_unallowlisted_source_of_a_rename(
         self,
@@ -1035,11 +1068,7 @@ jobs:
         base_lock = self.normalized_connector_lock(base_lock_blob)
         base_lock_digest = UPDATER.hashlib.sha256(base_lock_blob).hexdigest()
         head_lock = deepcopy(base_lock)
-        blobs = {
-            (revision, relative_text): (ROOT / relative_text).read_bytes()
-            for revision in ("base", "head")
-            for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
-        }
+        blobs = self.generated_branch_blobs(ROOT, ROOT)
         updater_path = ".github/workflows/update-workflow-tools.yml"
         publisher_workflow = blobs[("head", updater_path)].decode("utf-8")
         blobs[("head", updater_path)] = publisher_workflow.replace(
@@ -1051,15 +1080,16 @@ jobs:
             1,
         ).encode("utf-8")
 
-        def git_blob(_root: Path, revision: str, relative: Path) -> bytes:
-            return blobs[(revision, relative.as_posix())]
-
         with tempfile.TemporaryDirectory() as temporary_directory:
             runner_temp = Path(temporary_directory) / "runner-temp"
             runner_temp.mkdir()
             with (
                 patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}),
-                patch.object(UPDATER, "git_blob", side_effect=git_blob),
+                patch.object(
+                    UPDATER,
+                    "git_blob",
+                    side_effect=self.generated_branch_blob_reader(blobs),
+                ),
             ):
                 with self.assertRaisesRegex(
                     UPDATER.UpdateError,
@@ -1081,11 +1111,7 @@ jobs:
         checkout = self.changed_action(
             base_lock, "actions/checkout", "v9.9.9", "a" * 40
         )
-        candidate = UPDATER.candidate_payload(
-            UPDATER.hashlib.sha256(base_lock_blob).hexdigest(),
-            actions={"actions/checkout": checkout},
-            tools={},
-        )
+        candidate = self.candidate_for(ROOT, {"actions/checkout": checkout})
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
             expected_root = self.copied_update_root(temporary_root / "expected")
@@ -1093,23 +1119,17 @@ jobs:
             head_lock = self.normalized_connector_lock(
                 (expected_root / "ci/tooling/security-tools.lock.yml").read_bytes()
             )
-            blobs = {
-                ("base", relative_text): (ROOT / relative_text).read_bytes()
-                for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
-            }
-            for relative_text in UPDATER.ALLOWED_UPDATE_PATHS:
-                blobs[("head", relative_text)] = (
-                    expected_root / relative_text
-                ).read_bytes()
-
-            def git_blob(_root: Path, revision: str, relative: Path) -> bytes:
-                return blobs[(revision, relative.as_posix())]
+            blobs = self.generated_branch_blobs(ROOT, expected_root)
 
             runner_temp = temporary_root / "runner-temp"
             runner_temp.mkdir()
             with (
                 patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}),
-                patch.object(UPDATER, "git_blob", side_effect=git_blob),
+                patch.object(
+                    UPDATER,
+                    "git_blob",
+                    side_effect=self.generated_branch_blob_reader(blobs),
+                ),
             ):
                 UPDATER.verify_existing_branch_generated_blobs(
                     ROOT,
