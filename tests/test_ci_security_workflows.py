@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -17,6 +18,7 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 WORKFLOW_PATTERNS = ("*.yml", "*.yaml")
 PERMISSION_FIXTURES = ROOT / "ci" / "fixtures" / "workflow-permission-contract"
 SHA_PIN = re.compile(r"^[a-z\d_.-]+(?:/[a-z\d_.-]+)+@[a-f\d]{40}\s+# v\d", re.MULTILINE)
+SHELL_CONTINUATION = re.compile(r"\\\r?\n[ \t]*")
 JOB_HEADER = re.compile(r"^ {2}(?P<name>[A-Za-z0-9_-]+):\s*$")
 STEP_HEADER = re.compile(r"^(?P<indent>\s*)-\s")
 GO_MODULE_REQUIREMENT = re.compile(
@@ -50,6 +52,28 @@ WRITE_PERMISSION_KEYS = {
     "id-token",
     "attestations",
 }
+
+
+def normalize_shell_script(script: str) -> str:
+    """Normalize layout for static shell contracts without executing shell."""
+
+    without_continuations = SHELL_CONTINUATION.sub(" ", script)
+    return " ".join(without_continuations.split())
+
+
+def has_exact_framework_gitlink_staging(script: str) -> bool:
+    """Recognize only the narrowly scoped Framework gitlink index update."""
+
+    normalized = normalize_shell_script(script)
+    required = (
+        'git update-index --add --cacheinfo '
+        '"160000,$CANDIDATE_SHA,$SUBMODULE_PATH"'
+    )
+    return (
+        required in normalized
+        and "git add ." not in normalized
+        and "git add -A" not in normalized
+    )
 
 EXPECTED_WRITE_PERMISSIONS = {
     ("cleanup-artifacts.yml", "cleanup-artifacts"): {"actions": "write"},
@@ -960,6 +984,7 @@ jobs:
         resolver = jobs["resolve-submodule-update"]
         validator = jobs["validate-submodule-update"]
         publisher = jobs["create-submodule-update-pr"]
+        normalized_publisher = normalize_shell_script(publisher)
         outcome = jobs["report-submodule-update-outcome"]
 
         self.assertEqual(job_permissions(resolver), {"contents": "read"})
@@ -1038,12 +1063,12 @@ jobs:
             "needs.validate-submodule-update.result == 'success'",
         )
         self.assertIn("git ls-remote --exit-code", publisher)
-        self.assertIn("git update-index --add --cacheinfo", publisher)
+        self.assertTrue(has_exact_framework_gitlink_staging(publisher))
         self.assertIn("GH_TOKEN: ${{ github.token }}", publisher)
         self.assertIn("git read-tree \"$MASTER_HEAD\"", publisher)
-        self.assertIn("git diff --cached --name-only \"$MASTER_HEAD\"", publisher)
+        self.assertIn('git diff --cached --name-only "$MASTER_HEAD"', normalized_publisher)
         self.assertIn("require_only_submodule_path", publisher)
-        self.assertIn("git diff --cached --raw \"$MASTER_HEAD\"", publisher)
+        self.assertIn("git diff --cached --raw --no-abbrev --no-renames", normalized_publisher)
         self.assertIn("CANDIDATE_SHA", publisher)
         self.assertIn("CURRENT_GITLINK_SHA", publisher)
         self.assertIn("MASTER_OLD_SHA", publisher)
@@ -1052,7 +1077,17 @@ jobs:
         self.assertIn("--draft", publisher)
         self.assertIn(".auto_merge", publisher)
         self.assertIn("marker_count", publisher)
-        self.assertIn("verify_open_pr", publisher)
+        self.assertIn("verify_open_pr_identity", publisher)
+        self.assertIn("verify_open_draft_pr", publisher)
+        self.assertIn("ensure_open_pr_is_draft", publisher)
+        self.assertIn('gh pr ready "$pr_number" --repo "$GITHUB_REPOSITORY" --undo', publisher)
+        self.assertLess(
+            publisher.index('verify_open_pr_identity "$pr_number" "$expected_head"'),
+            publisher.index('gh pr ready "$pr_number" --repo "$GITHUB_REPOSITORY" --undo'),
+        )
+        self.assertIn('[ "$pr_draft" != "true" ]', publisher)
+        self.assertIn('[ "$pr_base_repo" != "$GITHUB_REPOSITORY" ]', publisher)
+        self.assertIn('[ "$pr_head_repo" != "$GITHUB_REPOSITORY" ]', publisher)
         self.assertIn("verify_merged_pr", publisher)
         self.assertIn("require_single_updater_commit", publisher)
         self.assertIn("git rev-list --reverse", publisher)
@@ -1107,6 +1142,94 @@ jobs:
         self.assertNotIn("GH_TOKEN", outcome)
         self.assertNotIn("secrets.", outcome)
         self.assertNotIn("continue-on-error", outcome)
+
+    def test_framework_gitlink_staging_contract_normalizes_layout_only(self) -> None:
+        one_line = (
+            'git update-index --add --cacheinfo '
+            '"160000,$CANDIDATE_SHA,$SUBMODULE_PATH"'
+        )
+        continued = (
+            "git update-index \\\n"
+            "  --add \\\n"
+            '  --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"'
+        )
+        self.assertTrue(has_exact_framework_gitlink_staging(one_line))
+        self.assertTrue(has_exact_framework_gitlink_staging(continued))
+        self.assertFalse(
+            has_exact_framework_gitlink_staging(
+                'git update-index --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"'
+            )
+        )
+        self.assertFalse(
+            has_exact_framework_gitlink_staging(
+                'git update-index --add "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"'
+            )
+        )
+        self.assertFalse(
+            has_exact_framework_gitlink_staging(
+                'git update-index --add --cacheinfo "100644,$CANDIDATE_SHA,$SUBMODULE_PATH"'
+            )
+        )
+        self.assertFalse(
+            has_exact_framework_gitlink_staging(
+                'git update-index --add --cacheinfo "160000,$CANDIDATE_SHA,$OTHER_PATH"'
+            )
+        )
+        for broad_staging in ("git add .", "git add -A"):
+            self.assertFalse(has_exact_framework_gitlink_staging(f"{one_line}\n{broad_staging}"))
+
+    def test_framework_gitlink_raw_diff_contract_is_functional(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            repository = Path(temporary_directory)
+
+            def git(*arguments: str, input_text: str | None = None) -> str:
+                return subprocess.run(
+                    ["git", *arguments],
+                    cwd=repository,
+                    input=input_text,
+                    text=True,
+                    check=True,
+                    capture_output=True,
+                    env={
+                        **os.environ,
+                        "GIT_AUTHOR_NAME": "test",
+                        "GIT_AUTHOR_EMAIL": "test@example.invalid",
+                        "GIT_COMMITTER_NAME": "test",
+                        "GIT_COMMITTER_EMAIL": "test@example.invalid",
+                    },
+                ).stdout.strip()
+
+            git("init", "-q")
+            empty_tree = git("mktree", input_text="")
+            old_gitlink = git("commit-tree", empty_tree, "-m", "old target")
+            new_gitlink = git("commit-tree", empty_tree, "-m", "new target")
+            self.assertRegex(old_gitlink, r"^[0-9a-f]{40}$")
+            self.assertRegex(new_gitlink, r"^[0-9a-f]{40}$")
+
+            framework_path = "modules/ModSecurity-test-Framework"
+            git("update-index", "--add", "--cacheinfo", f"160000,{old_gitlink},{framework_path}")
+            parent_tree = git("write-tree")
+            parent_commit = git("commit-tree", parent_tree, "-m", "parent")
+            git("read-tree", parent_commit)
+            git("update-index", "--add", "--cacheinfo", f"160000,{new_gitlink},{framework_path}")
+            index_entry = git("ls-files", "--stage", "--", framework_path).split()
+            self.assertEqual(index_entry[:2], ["160000", new_gitlink])
+
+            raw = git("diff", "--cached", "--raw", "--no-abbrev", "--no-renames", parent_commit)
+            records = raw.splitlines()
+            expected = re.compile(
+                rf"^:160000 160000 {old_gitlink} {new_gitlink} M\t{re.escape(framework_path)}$"
+            )
+            self.assertEqual(len(records), 1)
+            self.assertRegex(records[0], expected)
+
+            extra_blob = git("hash-object", "-w", "--stdin", input_text="extra\n")
+            git("update-index", "--add", "--cacheinfo", f"100644,{extra_blob},extra.txt")
+            widened_records = git(
+                "diff", "--cached", "--raw", "--no-abbrev", "--no-renames", parent_commit
+            ).splitlines()
+            self.assertEqual(len(widened_records), 2)
+            self.assertFalse(len(widened_records) == 1 and bool(expected.fullmatch(widened_records[0])))
 
     def test_manual_actions_updater_uses_a_trusted_default_branch(self) -> None:
         job = self.jobs("update-actions-versions.yml")["update-actions-versions"]
