@@ -52,6 +52,28 @@ class ReleaseEndpoint:
     user_agent: str
 
 
+@dataclass(frozen=True)
+class ReleaseMetadataSource:
+    """Bind an adapter's mutable URL seam to the shared hardened transport."""
+
+    endpoint: ReleaseEndpoint
+    url_provider: Callable[[], object]
+
+    def validate(self, url: object) -> None:
+        """Validate a candidate URL against this source's exact endpoint."""
+
+        validate_release_endpoint(url, self.endpoint)
+
+    def fetch(self, opener: object | None = None) -> object:
+        """Fetch from the adapter's current URL through the hardened transport."""
+
+        return fetch_release_metadata(
+            self.url_provider(),
+            self.endpoint,
+            opener=opener,
+        )
+
+
 class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     """Reject redirects instead of allowing urllib to follow them."""
 

@@ -9,13 +9,12 @@ from dataclasses import dataclass
 from version_updater_common import (
     MetadataError,
     ReleaseEndpoint,
+    ReleaseMetadataSource,
     UpdaterRuntime,
     VersionError,
     _UNSET,
-    _decode_metadata,
-    _parse_content_length,
-    fetch_release_metadata as _fetch_release_metadata,
-    validate_release_endpoint,
+    _decode_metadata as _decode_metadata,
+    _parse_content_length as _parse_content_length,
 )
 
 
@@ -32,6 +31,7 @@ RELEASE_ENDPOINT = ReleaseEndpoint(
     endpoint_name="go.dev",
     user_agent="modsecurity-go-version-updater",
 )
+_RELEASE_METADATA = ReleaseMetadataSource(RELEASE_ENDPOINT, lambda: RELEASE_API_URL)
 
 
 @dataclass(frozen=True, order=True)
@@ -55,16 +55,8 @@ def parse_stable_version(value: object) -> GoVersion:
     return GoVersion(patch=int(match.group("patch")))
 
 
-def _validate_release_endpoint(url: object) -> None:
-    """Defend the fixed API URL against accidental or test-time substitution."""
-
-    validate_release_endpoint(url, RELEASE_ENDPOINT)
-
-
-def fetch_release_metadata(opener: object | None = None) -> object:
-    """Fetch the fixed release API with no redirects and bounded JSON input."""
-
-    return _fetch_release_metadata(RELEASE_API_URL, RELEASE_ENDPOINT, opener=opener)
+_validate_release_endpoint = _RELEASE_METADATA.validate
+fetch_release_metadata = _RELEASE_METADATA.fetch
 
 
 def select_latest_stable_version(metadata: object) -> GoVersion:
