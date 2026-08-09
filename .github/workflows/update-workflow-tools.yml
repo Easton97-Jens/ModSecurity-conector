@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: framework-workflow-tool-maintenance-${{ github.repository }}
+  group: modsecurity-conector-workflow-tool-maintenance-${{ github.repository }}
   cancel-in-progress: false
 
 defaults:
@@ -96,7 +96,7 @@ jobs:
                 --candidate-b64 "$CANDIDATE_B64" \
                 --expected-candidate-sha256 "$CANDIDATE_SHA256" \
                 --require-updates --verify-tool-assets \
-                --output-dir "$RUNNER_TEMP/framework-workflow-tool-validation" \
+                --output-dir "$RUNNER_TEMP/modsecurity-conector-workflow-tool-validation" \
                 --validate-proposed-tree
               ;;
             false)
@@ -104,7 +104,7 @@ jobs:
                 --candidate-b64 "$CANDIDATE_B64" \
                 --expected-candidate-sha256 "$CANDIDATE_SHA256" \
                 --verify-tool-assets \
-                --output-dir "$RUNNER_TEMP/framework-workflow-tool-validation" \
+                --output-dir "$RUNNER_TEMP/modsecurity-conector-workflow-tool-validation" \
                 --validate-proposed-tree
               ;;
             *)
@@ -113,12 +113,8 @@ jobs:
               ;;
           esac
 
-      - name: Validate immutable Action and tool contracts
-        run: |
-          set -euo pipefail
-          python3 ci/checks/security/check-github-actions-workflows.py --check all
-          python3 ci/checks/security/check-workflow-action-pins.py
-          python3 ci/checks/security/check-ci-security-contract.py
+      - name: Run Connector CI security contract
+        run: make check-ci-security-contract
 
   publisher:
     needs:
@@ -186,9 +182,9 @@ jobs:
         with:
           github-token: ${{ steps.publisher_app_token.outputs.token }}
           script: |
-            const branch = "automation/update-framework-workflow-tools";
+            const branch = "automation/update-modsecurity-conector-workflow-tools";
             const title = "chore(ci): update pinned workflow tools";
-            const marker = "<!-- framework-workflow-tool-updater -->";
+            const marker = "<!-- modsecurity-conector-workflow-tool-updater -->";
             const { owner, repo } = context.repo;
             const defaultBranch = context.payload.repository.default_branch;
             const references = await github.rest.git.listMatchingRefs({
@@ -231,13 +227,14 @@ jobs:
             core.setOutput("existing", "true");
 
       - name: Prepare the constrained maintenance branch
+        id: prepare_branch
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           MAINTENANCE_PR_EXISTS: ${{ steps.maintenance_pr.outputs.existing }}
           PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}
         run: |
           set -euo pipefail
-          UPDATE_BRANCH="automation/update-framework-workflow-tools"
+          UPDATE_BRANCH="automation/update-modsecurity-conector-workflow-tools"
           git check-ref-format --branch "$DEFAULT_BRANCH" >/dev/null
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -253,10 +250,16 @@ jobs:
               python3 ci/tools/update-workflow-tools.py verify-existing-branch --root . \
                 --base "origin/$DEFAULT_BRANCH" \
                 --head "origin/$UPDATE_BRANCH"
-              git switch --create "$UPDATE_BRANCH" --track "origin/$UPDATE_BRANCH"
+              # The resolver candidate is bound to the default-branch lock.
+              # Preserve the verified remote branch only as the force-with-lease
+              # target; rebuild its replacement from that trusted base so the
+              # candidate remains byte-for-byte bound to the checked-out lock.
+              git switch --detach "origin/$DEFAULT_BRANCH"
+              echo "reused=true" >> "$GITHUB_OUTPUT"
               ;;
             false)
               git switch --create "$UPDATE_BRANCH" "origin/$DEFAULT_BRANCH"
+              echo "reused=false" >> "$GITHUB_OUTPUT"
               ;;
             *)
               echo "maintenance PR state is invalid" >&2
@@ -264,14 +267,12 @@ jobs:
               ;;
           esac
 
-      - name: Revalidate the reusable Draft branch before modifying it
+      - name: Revalidate the default-base worktree before modifying it
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          python3 ci/checks/security/check-github-actions-workflows.py --check all
-          python3 ci/checks/security/check-workflow-action-pins.py
-          python3 ci/checks/security/check-ci-security-contract.py
+          make check-ci-security-contract
           python3 ci/tools/update-workflow-tools.py verify-scope --root . \
             --base "origin/$DEFAULT_BRANCH" --head HEAD
 
@@ -281,31 +282,30 @@ jobs:
           CANDIDATE_SHA256: ${{ needs.resolver.outputs.candidate_sha256 }}
         run: |
           set -euo pipefail
-          CANDIDATE="$RUNNER_TEMP/framework-workflow-tool-candidate.json"
+          CANDIDATE="$RUNNER_TEMP/modsecurity-conector-workflow-tool-candidate.json"
           python3 ci/tools/update-workflow-tools.py validate --root . \
             --candidate-b64 "$CANDIDATE_B64" \
             --expected-candidate-sha256 "$CANDIDATE_SHA256" \
             --require-updates --verify-tool-assets \
-            --output-dir "$RUNNER_TEMP/framework-workflow-tool-resolver-validation"
+            --output-dir "$RUNNER_TEMP/modsecurity-conector-workflow-tool-resolver-validation"
           python3 ci/tools/update-workflow-tools.py resolve --root . --output "$CANDIDATE"
           python3 ci/tools/update-workflow-tools.py validate --root . --candidate "$CANDIDATE" \
             --expected-candidate-sha256 "$CANDIDATE_SHA256" \
             --require-updates --verify-tool-assets \
-            --output-dir "$RUNNER_TEMP/framework-workflow-tool-publisher-validation"
+            --output-dir "$RUNNER_TEMP/modsecurity-conector-workflow-tool-publisher-validation"
           python3 ci/tools/update-workflow-tools.py apply --root . --candidate "$CANDIDATE" \
             --expected-candidate-sha256 "$CANDIDATE_SHA256" --require-updates
-          python3 ci/checks/security/check-github-actions-workflows.py --check all
-          python3 ci/checks/security/check-workflow-action-pins.py
-          python3 ci/checks/security/check-ci-security-contract.py
+          make check-ci-security-contract
           python3 ci/tools/update-workflow-tools.py verify-scope --root .
 
       - name: Commit and push only approved updater paths
         id: commit
         env:
           PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}
+          REUSED_MAINTENANCE_BRANCH: ${{ steps.prepare_branch.outputs.reused }}
         run: |
           set -euo pipefail
-          UPDATE_BRANCH="automation/update-framework-workflow-tools"
+          UPDATE_BRANCH="automation/update-modsecurity-conector-workflow-tools"
           if git diff --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -313,30 +313,54 @@ jobs:
           python3 ci/tools/update-workflow-tools.py verify-scope --root .
           git add -- \
             ci/tooling/security-tools.lock.yml \
-            .github/workflows/check-action-versions.yml \
-            .github/workflows/check-common-versions.yml \
-            .github/workflows/check-python-version.yml \
+            .github/workflows/all-connectors-no-crs.yml \
+            .github/workflows/check-actions-versions.yml \
             .github/workflows/cleanup-artifacts.yml \
-            .github/workflows/ci-security-codeql-pr.yml \
             .github/workflows/ci-security-codeql.yml \
-            .github/workflows/ci-security-dependency-review.yml \
             .github/workflows/ci-security-osv.yml \
-            .github/workflows/ci-security-quality.yml \
             .github/workflows/ci-security-scorecard.yml \
             .github/workflows/ci-security-secrets.yml \
             .github/workflows/ci-security-workflow-lint.yml \
             .github/workflows/lint.yml \
+            .github/workflows/open-connectors-smoke.yml \
+            .github/workflows/protocol-contract.yml \
+            .github/workflows/quick-framework-check.yml \
+            .github/workflows/test-apache.yml \
             .github/workflows/test-common.yml \
+            .github/workflows/test-envoy.yml \
+            .github/workflows/test-full-smoke-sequential.yml \
+            .github/workflows/test-haproxy.yml \
+            .github/workflows/test-lighttpd.yml \
+            .github/workflows/test-nginx.yml \
+            .github/workflows/test-traefik.yml \
+            .github/workflows/update-actions-versions.yml \
+            .github/workflows/update-go-version.yml \
+            .github/workflows/update-python-version.yml \
             .github/workflows/update-submodules.yml \
             .github/workflows/update-workflow-tools.yml \
-            docs/github-actions-workflow-security.md \
-            docs/github-actions-workflow-security.de.md
+            .github/workflows/verified-report-governance.yml \
+            docs/security/ci-security-tooling.md \
+            docs/security/ci-security-tooling.de.md
           python3 ci/tools/update-workflow-tools.py verify-scope --root . --staged
           git diff --cached --check
           git commit -m "chore(ci): update pinned workflow tools"
           git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISH_TOKEN\"; }; f"
           trap 'git config --local --unset-all credential.helper' EXIT
-          git push origin "HEAD:refs/heads/$UPDATE_BRANCH"
+          case "$REUSED_MAINTENANCE_BRANCH" in
+            true)
+              EXPECTED_REMOTE_TIP="$(git rev-parse --verify "origin/$UPDATE_BRANCH^{commit}")"
+              git push \
+                "--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP" \
+                origin "HEAD:refs/heads/$UPDATE_BRANCH"
+              ;;
+            false)
+              git push origin "HEAD:refs/heads/$UPDATE_BRANCH"
+              ;;
+            *)
+              echo "maintenance branch reuse state is invalid" >&2
+              exit 2
+              ;;
+          esac
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Create the matching Draft pull request
@@ -346,22 +370,22 @@ jobs:
           github-token: ${{ steps.publisher_app_token.outputs.token }}
           script: |
             const body = [
-              "<!-- framework-workflow-tool-updater -->",
+              "<!-- modsecurity-conector-workflow-tool-updater -->",
               "## English",
               "",
-              "This Draft PR was created by the constrained Framework workflow/tool updater.",
+              "This Draft PR was created by the constrained ModSecurity-conector workflow/tool updater.",
               "It contains only resolver-validated immutable Action pins and checksum-validated downloaded-tool provenance.",
               "",
               "## Deutsch",
               "",
-              "Dieser Draft-PR wurde vom eingeschränkten Framework-Workflow-/Tool-Updater erstellt.",
+              "Dieser Draft-PR wurde vom eingeschränkten ModSecurity-conector-Workflow-/Tool-Updater erstellt.",
               "Er enthält ausschließlich vom Resolver validierte unveränderliche Action-Pins und prüfsummenvalidierte Provenance heruntergeladener Tools.",
             ].join("\n");
             await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: "chore(ci): update pinned workflow tools",
-              head: "automation/update-framework-workflow-tools",
+              head: "automation/update-modsecurity-conector-workflow-tools",
               base: context.payload.repository.default_branch,
               body,
               draft: true,
@@ -421,10 +445,10 @@ jobs:
                 '## Maintenance updater outcome' \
                 '' \
                 'A reviewed workflow or tool update was validated and published through the constrained maintenance path.' \
-                'Maintenance branch: automation/update-framework-workflow-tools. The matching Draft pull request was created or updated when a change remained.' \
+                'Maintenance branch: automation/update-modsecurity-conector-workflow-tools. The matching Draft pull request was created or updated when a change remained.' \
                 '' \
                 'Eine geprüfte Workflow- oder Tool-Aktualisierung wurde validiert und über den eingeschränkten Wartungspfad veröffentlicht.' \
-                'Wartungs-Branch: automation/update-framework-workflow-tools. Der passende Draft Pull Request wurde erstellt oder aktualisiert, sofern eine Änderung verblieb.' \
+                'Wartungs-Branch: automation/update-modsecurity-conector-workflow-tools. Der passende Draft Pull Request wurde erstellt oder aktualisiert, sofern eine Änderung verblieb.' \
                 >> "$GITHUB_STEP_SUMMARY"
               ;;
             *)

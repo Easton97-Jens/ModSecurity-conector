@@ -1,233 +1,124 @@
-"""Regression coverage for the Framework GitHub Actions security contract."""
+"""Regression coverage for the Connector GitHub Actions security contract.
+
+The historical test depended on a non-existent standalone checker.  This
+suite keeps the security regression intent by exercising the checked-in
+Connector contract (`make check-ci-security-contract`) and the constrained
+workflow-tool updater's exact allowlist and YAML defenses.
+"""
 
 from __future__ import annotations
 
+import importlib.util
 import os
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 import unittest
+
+from tests import test_ci_security_workflows as native_contract
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CHECKER = ROOT / "ci/checks/security/check-github-actions-workflows.py"
-FIXTURES = ROOT / "tests/fixtures/workflow_security_contract"
+UPDATER_PATH = ROOT / "ci/tools/update-workflow-tools.py"
+WORKFLOW_PATH = ROOT / ".github/workflows/update-workflow-tools.yml"
+
+
+def load_updater():
+    spec = importlib.util.spec_from_file_location(
+        "update_workflow_tools_security_regression", UPDATER_PATH
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {UPDATER_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+UPDATER = load_updater()
 
 
 class WorkflowSecurityContractTests(unittest.TestCase):
-    def fixture_path(self, name: str) -> Path:
-        directory = FIXTURES / name
-        return directory if directory.is_dir() else directory.with_suffix(".yml")
-
-    def run_checker(
-        self, workflow_root: Path, check: str = "all", working_directory: Path = ROOT
-    ) -> subprocess.CompletedProcess[str]:
-        environment = os.environ.copy()
-        environment["PYTHONDONTWRITEBYTECODE"] = "1"
-        return subprocess.run(
+    def test_current_connector_workflows_meet_the_native_contract(self) -> None:
+        result = subprocess.run(
             [
                 sys.executable,
-                str(CHECKER),
-                "--workflow-root",
-                str(workflow_root),
-                "--check",
-                check,
+                "-m",
+                "unittest",
+                "-v",
+                "tests.test_ci_security_workflows",
             ],
-            cwd=working_directory,
+            cwd=ROOT,
             check=False,
             capture_output=True,
-            text=True,
-            env=environment,
+            encoding="utf-8",
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
         )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_framework_workflows_meet_full_contract(self) -> None:
-        result = self.run_checker(ROOT / ".github/workflows")
-        self.assertEqual(result.returncode, 0, result.stderr)
+    def test_parent_allowlist_exactly_covers_every_current_workflow(self) -> None:
+        _path, lock, _digest = UPDATER.load_lock(ROOT)
+        actual_workflows = {
+            str(path.relative_to(ROOT))
+            for path in (ROOT / ".github/workflows").glob("*.yml")
+        }
+        references = UPDATER.locked_action_workflow_references(ROOT, lock)
+        referenced_workflows = set().union(*references.values())
+        self.assertEqual(referenced_workflows, actual_workflows)
+        self.assertEqual(set(UPDATER.WORKFLOW_UPDATE_PATHS), actual_workflows)
+        UPDATER.ensure_locked_action_workflow_coverage(ROOT, lock)
 
-    def test_safe_fixtures_meet_full_contract(self) -> None:
-        for name in ("safe_read_only_pr", "safe_trusted_writer"):
-            with self.subTest(name=name):
-                result = self.run_checker(FIXTURES / name)
-                self.assertEqual(result.returncode, 0, result.stderr)
+    def test_update_workflow_preserves_the_separated_security_boundary(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        jobs = native_contract.job_blocks(workflow)
+        self.assertEqual(set(jobs), {"resolver", "validator", "publisher", "outcome"})
+        self.assertEqual(
+            native_contract.job_permissions(jobs["resolver"]), {"contents": "read"}
+        )
+        self.assertEqual(
+            native_contract.job_permissions(jobs["validator"]), {"contents": "read"}
+        )
+        self.assertEqual(
+            native_contract.job_permissions(jobs["publisher"]), {"contents": "read"}
+        )
+        self.assertEqual(native_contract.job_permissions(jobs["outcome"]), {})
+        self.assertIn("persist-credentials: false", jobs["resolver"])
+        self.assertIn("persist-credentials: false", jobs["validator"])
+        self.assertIn("persist-credentials: false", jobs["publisher"])
+        self.assertIn("--expected-candidate-sha256", workflow)
+        self.assertIn("draft: true", workflow)
+        self.assertIn("verify-scope --root . --staged", workflow)
 
-    def test_validator_recurses_into_nested_workflow_directories(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_root:
-            workflow_root = Path(temporary_root)
-            nested_directory = workflow_root / "nested"
-            nested_directory.mkdir()
-            (nested_directory / "workflow.yaml").write_text(
-                """\
-name: nested workflow
-on: pull_request
-permissions:
-  contents: read
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-""",
-                encoding="utf-8",
-            )
-            result = self.run_checker(
-                workflow_root, check="pins", working_directory=workflow_root
-            )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("immutable full SHA", result.stderr)
+    def test_yaml_indirection_is_rejected_in_both_updater_and_native_contract(self) -> None:
+        unsafe = "defaults: &unsafe {value: true}\njob: {<<: *unsafe}\n"
+        self.assertTrue(UPDATER.yaml_safety_errors(unsafe))
+        self.assertTrue(native_contract.yaml_security_errors(unsafe))
+        checked_paths = [
+            ROOT / "ci/tooling/security-tools.lock.yml",
+            *sorted((ROOT / ".github/workflows").glob("*.yml")),
+        ]
+        for path in checked_paths:
+            with self.subTest(path=path):
+                text = path.read_text(encoding="utf-8")
+                self.assertEqual(UPDATER.yaml_safety_errors(text), [])
+                self.assertEqual(native_contract.yaml_security_errors(text), [])
 
-    def test_validator_allows_only_an_explicit_empty_permissions_mapping(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_root:
-            workflow_root = Path(temporary_root)
-            workflow = workflow_root / "outcome.yml"
-            workflow.write_text(
-                """\
-name: terminal outcome
-on: workflow_dispatch
-permissions:
-  contents: read
-jobs:
-  outcome:
-    runs-on: ubuntu-latest
-    permissions: {}
-    steps:
-      - run: true
-""",
-                encoding="utf-8",
-            )
-            result = self.run_checker(workflow_root, working_directory=workflow_root)
-            self.assertEqual(result.returncode, 0, result.stderr)
-
-            workflow.write_text(
-                workflow.read_text(encoding="utf-8").replace(
-                    "permissions: {}", "permissions: {contents: read}"
-                ),
-                encoding="utf-8",
-            )
-            result = self.run_checker(
-                workflow_root, check="pins", working_directory=workflow_root
-            )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("flow-style YAML collections", result.stderr)
-
-    def test_python_maintenance_scopes_read_permissions_to_jobs(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_root:
-            workflow_root = Path(temporary_root)
-            workflow = workflow_root / "check-python-version.yml"
-            safe_workflow = """\
-name: Python maintenance fixture
-on: workflow_dispatch
-permissions: {}
-jobs:
-  resolve:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - run: true
-"""
-            workflow.write_text(safe_workflow, encoding="utf-8")
-            result = self.run_checker(
-                workflow_root, check="permissions", working_directory=workflow_root
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-
-            workflow.write_text(
-                safe_workflow.replace("permissions: {}\n", "", 1),
-                encoding="utf-8",
-            )
-            result = self.run_checker(
-                workflow_root, check="permissions", working_directory=workflow_root
-            )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("top-level permissions", result.stderr)
-
-            workflow.write_text(safe_workflow, encoding="utf-8")
-            workflow.rename(workflow_root / "other.yml")
-            result = self.run_checker(
-                workflow_root, check="permissions", working_directory=workflow_root
-            )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("top-level permissions", result.stderr)
-
-    def test_validator_rejects_workflow_roots_outside_the_repository(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_root:
-            workflow = Path(temporary_root) / "workflow.yml"
-            workflow.write_text("name: external\n", encoding="utf-8")
-            result = self.run_checker(workflow, check="pins")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("no .yml or .yaml workflow files found", result.stderr)
-
-    def test_validator_does_not_follow_a_workflow_symlink_outside_repository(
-        self,
-    ) -> None:
-        with (
-            tempfile.TemporaryDirectory() as repository,
-            tempfile.TemporaryDirectory() as external,
+    def test_no_legacy_missing_checker_or_fetcher_is_reintroduced(self) -> None:
+        updater = UPDATER_PATH.read_text(encoding="utf-8")
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertIn('with_name("fetch_security_tool.py")', updater)
+        self.assertIn("check-ci-security-contract", updater)
+        self.assertIn("run: make check-ci-security-contract", workflow)
+        for absent_path in (
+            "ci/checks/security/check-ci-security-contract.py",
+            "ci/checks/security/check-github-actions-workflows.py",
+            "ci/checks/security/check-workflow-action-pins.py",
+            "ci/tools/fetch-security-tool.py",
         ):
-            repository_root = Path(repository)
-            external_workflow = Path(external) / "workflow.yml"
-            external_workflow.write_text("name: external\n", encoding="utf-8")
-            (repository_root / "escaped.yml").symlink_to(external_workflow)
-            result = self.run_checker(
-                repository_root, check="pins", working_directory=repository_root
-            )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("no .yml or .yaml workflow files found", result.stderr)
+            with self.subTest(absent_path=absent_path):
+                self.assertNotIn(absent_path, updater)
+                self.assertNotIn(absent_path, workflow)
 
-    def test_pin_validator_rejects_mutable_tags_in_both_extensions(self) -> None:
-        cases = {
-            "unsafe_mutable_tag": "immutable full SHA",
-            "unsafe_yaml_mutable_tag": "immutable full SHA",
-            "unsafe_dynamic_uses": "immutable full SHA",
-            "unsafe_spaced_uses": "immutable full SHA",
-            "unsafe_quoted_uses": "immutable full SHA",
-            "unsafe_flow_uses": "flow-style YAML collections",
-            "unsafe_flow_sequence_uses": "flow-style YAML collections",
-            "unsafe_nested_flow_uses": "flow-style YAML collections",
-            "unsafe_block_scalar_uses": "must not use YAML block scalars",
-            "unsafe_explicit_key_uses": "explicit mapping keys",
-            "unsafe_tagged_key_uses": "YAML tags, anchors, aliases, and merge keys",
-            "unsafe_tagged_flow_sequence_uses": "YAML tags, anchors, aliases, and merge keys",
-            "unsafe_escaped_key_uses": "escaped double-quoted mapping keys",
-            "unsafe_document_start_tagged_flow": "YAML document markers",
-            "unsafe_bom_document_start_tagged_flow": "YAML document markers",
-        }
-        for name, expected_message in cases.items():
-            with self.subTest(name=name):
-                result = self.run_checker(self.fixture_path(name), check="pins")
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn(expected_message, result.stderr)
 
-    def test_permission_and_trust_boundary_validator_rejects_unsafe_fixtures(
-        self,
-    ) -> None:
-        cases = {
-            "unsafe_pull_request_target": "pull_request_target",
-            "unsafe_pr_write_permission": "write permission",
-            "unsafe_top_level_write_permission": "top-level permissions",
-            "unsafe_checkout_credentials": "persist-credentials",
-            "unsafe_job_token_scope": "job-level GITHUB_TOKEN",
-            "unsafe_pr_submodules": "submodules",
-            "unsafe_pr_dynamic_submodules": "submodules",
-            "unsafe_pr_secret": "secrets",
-            "unsafe_pr_secret_bracket": "secrets",
-            "unsafe_pr_secret_serialized": "secrets",
-            "unsafe_pr_reusable_secrets": "reusable-workflow secrets",
-            "unsafe_workflow_token_scope": "workflow-level GITHUB_TOKEN",
-            "unsafe_renamed_workflow_token": "workflow-level env must not expose github.token",
-            "unsafe_serialized_workflow_token": "workflow-level env must not expose github.token",
-            "unsafe_duplicate_key": "duplicate key",
-            "unsafe_yaml_anchor": "anchors",
-            "unsafe_missing_version_comment": "release comment",
-        }
-        for name, expected_message in cases.items():
-            with self.subTest(name=name):
-                check = (
-                    "pins"
-                    if name == "unsafe_missing_version_comment"
-                    else "permissions"
-                )
-                result = self.run_checker(self.fixture_path(name), check=check)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn(expected_message, result.stderr)
+if __name__ == "__main__":
+    unittest.main()

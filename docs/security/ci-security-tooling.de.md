@@ -20,6 +20,40 @@ Release-Asset, prüft den SHA-256-Digest vor dem Entpacken, weist absolute und
 Traversal-Archivpfade zurück und extrahiert genau eine deklarierte Executable.
 Das Tool installiert keine Abhängigkeiten und verändert keine Repository-Dateien.
 
+## Eingeschränkter Workflow-/Tool-Updater
+
+`.github/workflows/update-workflow-tools.yml` behält `resolver`, `validator`,
+`publisher` und `outcome` als getrennte Jobs. Die ersten beiden Jobs sind
+read-only; der Publisher erhält erst nach Candidate- und Proposed-Tree-
+Validierung einen kurzlebigen, auf das Repository begrenzten GitHub-App-Token.
+Er erstellt ausschließlich Draft-Pull-Requests und erst nach expliziten Pfad-,
+Symlink-, Staging-Scope- und Candidate-SHA-256-Prüfungen.
+
+Die eingecheckte `ci/tooling/security-tools.lock.yml` bleibt die einzige
+Lockdatei und Source of Truth. Ihre On-Disk-`pinned_actions`-Einträge verwenden
+`commit_sha` und `upstream`; Tool-Einträge verwenden `release_commit`, `url`
+und `upstream`. Der Updater adaptiert diese Felder nur im Speicher, sodass
+bestehende Connector-Consumer kein paralleles Lock-Schema benötigen.
+
+| Action | Version | Unveränderlicher Commit |
+| --- | --- | --- |
+| `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
+| `actions/create-github-app-token` | `v3.2.0` | `bcd2ba49218906704ab6c1aa796996da409d3eb1` |
+| `actions/download-artifact` | `v8.0.1` | `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c` |
+| `actions/github-script` | `v9` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` |
+| `actions/setup-go` | `v7.0.0` | `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` |
+| `actions/setup-python` | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` |
+| `actions/upload-artifact` | `v7.0.1` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` |
+| `github/codeql-action` | `v4.37.4` | `f205ea1c3313d32999d8d6a48b4f6530d4437b38` |
+| `google/osv-scanner-action` | `v2.3.8` | `9a498708959aeaef5ef730655706c5a1df1edbc2` |
+| `ossf/scorecard-action` | `v2.4.4` | `2d1146689b8cda280b9bc96326124645441f03bc` |
+
+Für die gehostete Ausführung konfigurieren Sie die Repository-Variable
+`WORKFLOW_UPDATER_APP_CLIENT_ID` und das Repository-Secret
+`WORKFLOW_UPDATER_APP_PRIVATE_KEY`. Keiner der beiden Werte gehört in das
+Repository. Die GitHub App muss auf dieses Repository begrenzt sein und darf
+nur `Contents: write`, `Pull requests: write` und `Workflows: write` erhalten.
+
 ## Workflow-Linting
 
 `ci-security-workflow-lint.yml` führt checksum-verifiziertes `actionlint` aus
