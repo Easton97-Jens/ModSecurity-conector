@@ -296,7 +296,14 @@ jobs:
             fi
             commit_paths="$(git diff-tree --no-commit-id --name-only -r "$commit")"
             require_only_submodule_path "$commit_paths"
-            if ! git diff-tree --no-commit-id --raw -r "$commit" -- "$SUBMODULE_PATH" | awk -v path="$SUBMODULE_PATH" '$1 == ":160000" && $2 == "160000" && $5 == "M" && $6 == path { count += 1 } END { exit count == 1 ? 0 : 1 }'; then
+            if ! git diff-tree \
+                  --no-commit-id \
+                  --raw \
+                  --no-abbrev \
+                  --no-renames \
+                  -r \
+                  "$commit" \
+                  -- "$SUBMODULE_PATH" | awk -v path="$SUBMODULE_PATH" '$1 == ":160000" && $2 == "160000" && $5 == "M" && $6 == path { count += 1 } END { exit count == 1 ? 0 : 1 }'; then
               echo "Maintenance commit is not exactly one Framework gitlink update: $commit" >&2
               exit 1
             fi
@@ -424,13 +431,63 @@ jobs:
           esac
 
           git read-tree "$MASTER_HEAD"
-          git update-index --add --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"
-          changed_paths="$(git diff --cached --name-only "$MASTER_HEAD")"
+          git update-index \
+            --add \
+            --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"
+
+          changed_paths="$(
+            git diff \
+              --cached \
+              --name-only \
+              "$MASTER_HEAD"
+          )"
           require_only_submodule_path "$changed_paths"
-          if ! git diff --cached --raw "$MASTER_HEAD" -- "$SUBMODULE_PATH" | awk -v old="$MASTER_OLD_SHA" -v new="$CANDIDATE_SHA" -v path="$SUBMODULE_PATH" '$1 == ":160000" && $2 == "160000" && $3 == old && $4 == new && $5 == "M" && $6 == path { count += 1 } END { exit count == 1 ? 0 : 1 }'; then
+
+          # `git diff --raw` abbreviates object IDs by default. The updater compares
+          # exact SHA-40 values, so require unabbreviated IDs and exactly one gitlink
+          # modification record.
+          staged_gitlink_diff="$(
+            git diff \
+              --cached \
+              --raw \
+              --no-abbrev \
+              --no-renames \
+              "$MASTER_HEAD" \
+              -- "$SUBMODULE_PATH"
+          )"
+
+          if ! printf '%s\n' "$staged_gitlink_diff" |
+            awk \
+              -v old="$MASTER_OLD_SHA" \
+              -v new="$CANDIDATE_SHA" \
+              -v path="$SUBMODULE_PATH" \
+              '
+                NF {
+                  records += 1
+                }
+
+                $1 == ":160000" &&
+                $2 == "160000" &&
+                $3 == old &&
+                $4 == new &&
+                $5 == "M" &&
+                $6 == path {
+                  matches += 1
+                }
+
+                END {
+                  exit (records == 1 && matches == 1) ? 0 : 1
+                }
+              '
+          then
             echo "Staged change is not exactly the expected Framework gitlink transition." >&2
+            echo "Expected old gitlink: $MASTER_OLD_SHA" >&2
+            echo "Expected new gitlink: $CANDIDATE_SHA" >&2
+            echo "Observed staged raw diff:" >&2
+            printf '%s\n' "$staged_gitlink_diff" >&2
             exit 1
           fi
+
           git diff --cached --check "$MASTER_HEAD"
           tree="$(git write-tree)"
           git config user.name "$UPDATER_NAME"
