@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | `CR-20260809-001` |
 | Date (UTC) | `2026-08-09` |
-| Base revision | `27e8756e212fd9452d99e285743dbadc43c814a6` |
+| Base revision | `cc58f94e6a0dd17eea651cd46376843472b83f7c` |
 | Scope | Parent repository only; no Framework, MRTS, Gitlink, workflow, lock-file, or quality-gate change |
 
 ## Motivation and problem statement
@@ -87,10 +87,12 @@ weakened control.
 | Check | Actual result |
 | --- | --- |
 | Focused unittest suite | Passed: 51 tests in 11.926 s |
+| Rebased-current-master focused unittest suite | Blocked: 50 tests passed and one fail-closed publisher-allowlist error named only `.github/workflows/nginx-root-broker.yml` |
 | `python -m py_compile` for the changed Python modules | Passed |
-| `make check-ci-security-contract` | Passed: 22 tests; checksum-locked actionlint, zizmor, and gitleaks validation passed |
+| `make check-ci-security-contract` | Passed: 23 tests; checksum-locked actionlint, zizmor, and gitleaks validation passed |
 | checksum-locked actionlint with ShellCheck | Passed for `.github/workflows/*.yml` |
-| checksum-locked `zizmor --offline .github/workflows` | Passed: no findings (87 repository-suppressed findings reported by zizmor) |
+| checksum-locked `zizmor --offline .github/workflows` | Passed: no findings (88 repository-suppressed findings reported by zizmor) |
+| checksum-locked diff-range gitleaks | Passed: three task commits scanned, no leaks found |
 | `git diff --check HEAD` | Passed |
 | Focused security-diff scan | Passed: complete six-file coverage and zero reportable findings |
 | `make check-bilingual-docs` | Blocked only by 20 missing Framework-link targets in the unmaterialized task-worktree Gitlink; the Change Record emitted no heading/identity error |
@@ -109,8 +111,8 @@ applicable evidence is the focused unit/contract suite and the sealed
 security-diff scan at
 `/var/tmp/codex/ModSecurity-conector/tmp/codex-security-scans/ModSecurity-conector/27e8756e212fd9452d99e285743dbadc43c814a6_20260809T053956Z/report.md`.
 
-Hosted GitHub Actions and SonarCloud PR analysis are pending at publication of
-this local record and must be recorded from their observed results.
+Hosted GitHub Actions and SonarCloud PR analysis cannot start until the current
+master publisher-allowlist blocker is repaired under explicit user authority.
 
 ## Checks not run and rationale
 
@@ -120,10 +122,9 @@ this local record and must be recorded from their observed results.
   applicable.
 - `ruff` and `pyright` are not installed locally and the repository contains
   no configured replacement target.  No tool was installed or bypassed.
-- actionlint, zizmor, and gitleaks were not preinstalled.  The first two were
-  downloaded to the external task directory only through the repository's
-  checksum-locked fetcher and then executed; the diff-based gitleaks run is
-  deferred until the review commits give the work an exact Git range.
+- actionlint, zizmor, and gitleaks were not preinstalled. They were downloaded
+  to the external task directory only through the repository's checksum-locked
+  fetcher; all three applicable checks then passed.
 - The first `make lint` run exited 2 when a Parent test hard-coded a Framework
   source path relative to the isolated task worktree.  The pinned Framework
   source exists in the authoritative checkout, but this test ignores the
@@ -135,7 +136,10 @@ this local record and must be recorded from their observed results.
 Local checks cannot prove the post-change SonarCloud duplication metrics or
 the hosted PR quality gate.  The requested hosted analysis remains the
 authoritative measurement.  The full local lint target is currently blocked
-only by the task worktree's unmaterialized Framework Gitlink dependency.
+by the task worktree's unmaterialized Framework Gitlink dependency. In
+addition, current master adds a trusted workflow using locked Actions without
+the matching updater publisher/staging entry; the complete one-path repair
+requires a GitHub workflow modification that the user currently prohibits.
 
 ## Remaining risks
 
@@ -151,10 +155,12 @@ lock-file path.
 
 ## Final diff and review status
 
-Local refactor validation is complete except for the documented full-lint and
-documentation-link infrastructure blockers caused by the unmaterialized
-Framework Gitlink. The Change Record's machine-required headings and identity
-fields were accepted before those unrelated link checks. It is pending
-reviewable commits, a single Draft PR, a diff-based secret scan, hosted GitHub
-Actions, and post-PR SonarCloud metric/block comparison. It does not authorize
-a merge.
+The refactor commits are reviewable and based on current master, but delivery
+is blocked by FND-PARENT-0111. The exact source-only candidate proves that the
+corresponding one-path staging entry in
+`.github/workflows/update-workflow-tools.yml` is required; the user explicitly
+prohibits GitHub workflow changes. The candidate was reverted and no test,
+publisher-scope, scanner, lock, Framework, MRTS, or Gitlink control was
+weakened. A single Draft PR, hosted actions, and SonarCloud comparison remain
+pending explicit authority for that exact workflow entry. This record does not
+authorize a merge.

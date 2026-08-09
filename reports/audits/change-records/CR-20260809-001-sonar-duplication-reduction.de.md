@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | `CR-20260809-001` |
 | Datum (UTC) | `2026-08-09` |
-| Basis-Revision | `27e8756e212fd9452d99e285743dbadc43c814a6` |
+| Basis-Revision | `cc58f94e6a0dd17eea651cd46376843472b83f7c` |
 | Umfang | Nur Parent-Repository; keine Änderung an Framework, MRTS, Gitlink, Workflow, Lock-Datei oder Quality Gate |
 
 ## Motivation und Problemstellung
@@ -89,10 +89,12 @@ Angriffspfad und keine abgeschwächte Kontrolle.
 | Prüfung | Tatsächliches Ergebnis |
 | --- | --- |
 | Fokussierte Unittest-Suite | Bestanden: 51 Tests in 11.926 s |
+| Fokussierte Unittest-Suite auf rebased current master | Blockiert: 50 Tests bestanden und ein Fail-Closed-Publisher-Allowlist-Error nannte nur `.github/workflows/nginx-root-broker.yml` |
 | `python -m py_compile` für die geänderten Python-Module | Bestanden |
-| `make check-ci-security-contract` | Bestanden: 22 Tests; checksum-gesperrte actionlint-, zizmor- und gitleaks-Validierung bestanden |
+| `make check-ci-security-contract` | Bestanden: 23 Tests; checksum-gesperrte actionlint-, zizmor- und gitleaks-Validierung bestanden |
 | checksum-gesperrtes actionlint mit ShellCheck | Bestanden für `.github/workflows/*.yml` |
-| checksum-gesperrtes `zizmor --offline .github/workflows` | Bestanden: keine Findings (87 vom Repository unterdrückte Findings wurden von zizmor gemeldet) |
+| checksum-gesperrtes `zizmor --offline .github/workflows` | Bestanden: keine Findings (88 vom Repository unterdrückte Findings wurden von zizmor gemeldet) |
+| checksum-gesperrtes diff-range gitleaks | Bestanden: drei Task-Commits gescannt, keine Leaks gefunden |
 | `git diff --check HEAD` | Bestanden |
 | Fokussierter Security-Diff-Scan | Bestanden: vollständige Sechs-Dateien-Abdeckung und null berichtspflichtige Findings |
 | `make check-bilingual-docs` | Nur durch 20 fehlende Framework-Link-Ziele im nicht materialisierten Task-Worktree-Gitlink blockiert; der Change Record gab keinen Überschriften-/Identitätsfehler aus |
@@ -111,9 +113,9 @@ ist. Die anwendbare Evidenz ist die fokussierte Unit-/Vertragssuite und der
 versiegelte Security-Diff-Scan unter
 `/var/tmp/codex/ModSecurity-conector/tmp/codex-security-scans/ModSecurity-conector/27e8756e212fd9452d99e285743dbadc43c814a6_20260809T053956Z/report.md`.
 
-Gehostete GitHub Actions und die SonarCloud-PR-Analyse stehen bei
-Veröffentlichung dieses lokalen Records noch aus und müssen mit ihren
-beobachteten Ergebnissen dokumentiert werden.
+Gehostete GitHub Actions und die SonarCloud-PR-Analyse können erst beginnen,
+wenn der Current-Master-Publisher-Allowlist-Blocker unter ausdrücklicher
+Benutzerautorisierung repariert ist.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -124,11 +126,10 @@ beobachteten Ergebnissen dokumentiert werden.
 - `ruff` und `pyright` sind lokal nicht installiert und das Repository enthält
   kein konfiguriertes Ersatz-Target. Es wurde kein Tool installiert oder
   umgangen.
-- actionlint, zizmor und gitleaks waren nicht vorinstalliert. Die ersten
-  beiden wurden ausschließlich über den checksum-gesperrten Repository-Fetcher
-  in das externe Task-Verzeichnis geladen und dann ausgeführt; der
-  diff-basierte gitleaks-Lauf wird aufgeschoben, bis überprüfbare Commits einen
-  exakten Git-Bereich liefern.
+- actionlint, zizmor und gitleaks waren nicht vorinstalliert. Sie wurden
+  ausschließlich über den checksum-gesperrten Repository-Fetcher in das
+  externe Task-Verzeichnis geladen; alle drei anwendbaren Prüfungen bestanden
+  anschließend.
 - Der erste `make lint`-Lauf endete mit Exit 2, weil ein Parent-Test einen
   Framework-Quellpfad relativ zum isolierten Task-Worktree fest kodiert. Der
   gepinnte Framework-Quellcode existiert im autoritativen Checkout, aber dieser
@@ -140,8 +141,11 @@ beobachteten Ergebnissen dokumentiert werden.
 Lokale Prüfungen können weder die SonarCloud-Duplikatmetriken nach der Änderung
 noch das gehostete PR-Quality-Gate beweisen. Die angeforderte gehostete Analyse
 bleibt die maßgebliche Messung. Das vollständige lokale Lint-Target ist derzeit
-nur durch die nicht materialisierte Framework-Gitlink-Abhängigkeit des
-Task-Worktrees blockiert.
+durch die nicht materialisierte Framework-Gitlink-Abhängigkeit des Task-
+Worktrees blockiert. Außerdem ergänzt current master einen vertrauenswürdigen
+Workflow mit gesperrten Actions ohne passenden Updater-Publisher-/Staging-
+Eintrag; die vollständige Einpfad-Reparatur verlangt eine GitHub-Workflow-
+Änderung, die der Benutzer derzeit verbietet.
 
 ## Verbleibende Risiken
 
@@ -157,11 +161,12 @@ URL deterministisch ab; dies ist daher kein erreichbarer Lock-Datei-Pfad.
 
 ## Finaler Diff- und Review-Status
 
-Die lokale Refaktor-Validierung ist bis auf die dokumentierten vollständigen
-Lint- und Dokumentationslink-Infrastrukturblocker durch den nicht
-materialisierten Framework-Gitlink abgeschlossen. Die maschinell verlangten
-Überschriften und Identitätsfelder des Change Records wurden vor diesen
-unabhängigen Link-Prüfungen akzeptiert. Er wartet auf überprüfbare Commits,
-genau einen Draft-PR, einen diff-basierten Secret-Scan, gehostete GitHub
-Actions und den SonarCloud-Metrik-/Blockvergleich nach dem PR. Er autorisiert
-keinen Merge.
+Die Refaktor-Commits sind überprüfbar und basieren auf current master, aber
+die Auslieferung ist durch FND-PARENT-0111 blockiert. Der exakte Source-only-
+Kandidat beweist, dass der korrespondierende Einpfad-Staging-Eintrag in
+`.github/workflows/update-workflow-tools.yml` nötig ist; der Benutzer verbietet
+GitHub-Workflow-Änderungen ausdrücklich. Der Kandidat wurde zurückgenommen und
+kein Test-, Publisher-Scope-, Scanner-, Lock-, Framework-, MRTS- oder Gitlink-
+Control wurde geschwächt. Genau ein Draft-PR, gehostete Actions und der
+SonarCloud-Metrikvergleich warten auf ausdrückliche Autorisierung für diesen
+exakten Workflow-Eintrag. Dieser Record autorisiert keinen Merge.
