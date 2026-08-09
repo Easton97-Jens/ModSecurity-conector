@@ -418,10 +418,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         self,
     ) -> None:
         release = self.release_fixture("v4.38.0")
+        confirmation = self.release_fixture("v4.38.0", immutable=False)
         with self.assertRaisesRegex(UPDATER.UpdateError, "must be immutable"):
-            self.resolve_codeql_from_page(
-                [release], self.release_fixture("v4.38.0", immutable=False)
-            )
+            self.resolve_codeql_from_page([release], confirmation)
 
     def test_codeql_resolver_rechecks_the_selected_release_object(self) -> None:
         page_release = self.release_fixture("v4.38.0")
