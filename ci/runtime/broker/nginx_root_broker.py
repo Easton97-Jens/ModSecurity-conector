@@ -1158,9 +1158,7 @@ def json_load_bounded(path: Path, label: str) -> dict[str, Any]:
     return json_load_bounded_limit(path, label, MAX_MANIFEST_BYTES)
 
 
-def parse_runtime_snapshot(path: Path) -> dict[str, str]:
-    """Read only three declarative exports; never source the snapshot shell."""
-
+def _read_runtime_snapshot_lines(path: Path) -> list[str]:
     descriptor, metadata = open_regular_no_follow(path, RUNTIME_SNAPSHOT_LABEL)
     try:
         if metadata.st_size > MAX_MANIFEST_BYTES:
@@ -1176,9 +1174,15 @@ def parse_runtime_snapshot(path: Path) -> dict[str, str]:
     if len(raw) > MAX_MANIFEST_BYTES:
         fail("runtime environment snapshot exceeds the size limit")
     try:
-        lines = raw.decode("utf-8").splitlines()
+        return raw.decode("utf-8").splitlines()
     except UnicodeDecodeError as exc:
         fail(f"runtime environment snapshot is not UTF-8: {exc}")
+
+
+def parse_runtime_snapshot(path: Path) -> dict[str, str]:
+    """Read only three declarative exports; never source the snapshot shell."""
+
+    lines = _read_runtime_snapshot_lines(path)
     required = {"NGINX_BINARY", "NGINX_MODULE", "MODSECURITY_SHARED_PREFIX"}
     if len(lines) != len(required):
         fail("runtime environment snapshot must contain exactly three exports")
