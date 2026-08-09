@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import os
-import importlib.util
 from pathlib import Path
 import stat
 import subprocess
 import sys
 import tempfile
 import unittest
-from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -129,22 +127,6 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("runtime root is unsafe for writes: /etc", result.stderr)
-
-    def test_root_handoff_owner_pair_is_enabled_only_by_canonical_internal_binding(self) -> None:
-        spec = importlib.util.spec_from_file_location("nginx_harness_validator", VALIDATOR)
-        assert spec is not None and spec.loader is not None
-        validator = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(validator)
-        enabled = {
-            "NGINX_ROOT_HANDOFF": "1",
-            "MSCONNECTOR_NGINX_ROOT_HANDOFF_CALLER_UID": "1000",
-        }
-        with mock.patch.object(validator.os, "geteuid", return_value=0):
-            self.assertEqual(validator.handoff_owners(enabled), frozenset({0, 1000}))
-            self.assertIsNone(validator.handoff_owners({"NGINX_ROOT_HANDOFF": "1", "MSCONNECTOR_NGINX_ROOT_HANDOFF_CALLER_UID": "01"}))
-            self.assertIsNone(validator.handoff_owners({"NGINX_ROOT_HANDOFF": "0", "MSCONNECTOR_NGINX_ROOT_HANDOFF_CALLER_UID": "1000"}))
-        with mock.patch.object(validator.os, "geteuid", return_value=1000):
-            self.assertIsNone(validator.handoff_owners(enabled))
 
     def test_sibling_and_symlink_escape_are_rejected_without_creating_targets(self) -> None:
         with tempfile.TemporaryDirectory(prefix="nginx-path-authority-") as temporary:

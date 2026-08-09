@@ -64,8 +64,9 @@ class JobIdentity:
 # prospective patch before the canonical .python-version file is changed.
 EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
     {
-        JobIdentity("all-connectors-no-crs.yml", "aggregate"),
-        JobIdentity("all-connectors-no-crs.yml", "no-crs"),
+        JobIdentity("reusable-five-connectors-profile.yml", "aggregate"),
+        JobIdentity("reusable-five-connectors-profile.yml", "no-crs"),
+        JobIdentity("reusable-five-connectors-profile.yml", "resolve-profile"),
         JobIdentity("check-actions-versions.yml", "check-actions-versions"),
         JobIdentity("ci-security-secrets.yml", "advisory-full-history"),
         JobIdentity("ci-security-secrets.yml", "pull-request-range"),
@@ -107,6 +108,16 @@ EXPECTED_IMMUTABLE_REUSABLE_PYTHON_JOBS: Mapping[JobIdentity, str] = {
         PROTECTED_NGINX_BROKER_REUSABLE_WORKFLOW,
     JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "run-with-crs-broker"):
         PROTECTED_NGINX_BROKER_REUSABLE_WORKFLOW,
+}
+
+# Local reusable callers do not themselves execute Python, but their calls are
+# conservatively classified as Python-bearing. Keep the one approved caller in
+# a separate closed mapping so its callee jobs retain the normal strict setup
+# and verifier contract above.
+EXPECTED_LOCAL_REUSABLE_PYTHON_CALLERS: Mapping[JobIdentity, str] = {
+    JobIdentity("all-connectors-no-crs.yml", "no-crs"): (
+        "./.github/workflows/reusable-five-connectors-profile.yml"
+    ),
 }
 
 # This is intentionally an exact pair, not a filename/job-name pattern.  It
@@ -1844,11 +1855,43 @@ def immutable_reusable_job_violations(
     return violations
 
 
+def local_reusable_caller_violations(
+    jobs: dict[JobIdentity, Job],
+    expected: Mapping[JobIdentity, str],
+    detected: set[JobIdentity],
+) -> list[str]:
+    """Validate the closed inventory of approved local reusable callers."""
+
+    violations: list[str] = []
+    for identity, reference in sorted(expected.items()):
+        job = jobs.get(identity)
+        if job is None:
+            continue
+        if identity not in detected:
+            violations.append(
+                f"expected local reusable Python caller has no reusable invocation: "
+                f"{identity.display()}"
+            )
+            continue
+        if python_job_reason(job) != "job-level reusable workflow invocation":
+            violations.append(
+                f"local reusable Python caller has an unexpected execution shape: "
+                f"{identity.display()}"
+            )
+        if job.scalar("uses") != reference:
+            violations.append(
+                f"local reusable Python caller must use exactly {reference}: "
+                f"{identity.display()}"
+            )
+    return violations
+
+
 def unlisted_python_job_violations(
     jobs: dict[JobIdentity, Job],
     expected: frozenset[JobIdentity],
     expected_candidate_job: JobIdentity | None,
     expected_immutable_reusable_jobs: Mapping[JobIdentity, str],
+    expected_local_reusable_callers: Mapping[JobIdentity, str],
     detected: set[JobIdentity],
 ) -> list[str]:
     """Reject detected Python jobs absent from the explicit inventory."""
@@ -1859,6 +1902,7 @@ def unlisted_python_job_violations(
             identity in expected
             or identity == expected_candidate_job
             or identity in expected_immutable_reusable_jobs
+            or identity in expected_local_reusable_callers
         ):
             continue
         violations.append(
@@ -1877,6 +1921,7 @@ def evaluate_workflow_contract(
     expected_normal_jobs: Iterable[JobIdentity] = EXPECTED_NORMAL_PYTHON_JOBS,
     expected_candidate_job: JobIdentity | None = CANDIDATE_VALIDATION_JOB,
     expected_immutable_reusable_jobs: Mapping[JobIdentity, str] | None = None,
+    expected_local_reusable_callers: Mapping[JobIdentity, str] | None = None,
 ) -> tuple[str, list[str], set[JobIdentity]]:
     """Evaluate source-only workflow policy and return version, violations, inventory."""
 
@@ -1893,6 +1938,11 @@ def evaluate_workflow_contract(
         if expected_immutable_reusable_jobs is None
         else expected_immutable_reusable_jobs
     )
+    expected_local_callers = dict(
+        EXPECTED_LOCAL_REUSABLE_PYTHON_CALLERS
+        if expected_local_reusable_callers is None
+        else expected_local_reusable_callers
+    )
     violations.extend(
         missing_inventory_violations(jobs, expected, expected_candidate_job, expected_reusable)
     )
@@ -1901,11 +1951,15 @@ def evaluate_workflow_contract(
     violations.extend(candidate_job_violations(jobs, expected_candidate_job, detected))
     violations.extend(immutable_reusable_job_violations(jobs, expected_reusable, detected))
     violations.extend(
+        local_reusable_caller_violations(jobs, expected_local_callers, detected)
+    )
+    violations.extend(
         unlisted_python_job_violations(
             jobs,
             expected,
             expected_candidate_job,
             expected_reusable,
+            expected_local_callers,
             detected,
         )
     )

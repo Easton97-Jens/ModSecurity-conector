@@ -84,6 +84,15 @@ class CollectNoCrsSourceHelpersTest(unittest.TestCase):
         self.assertTrue(actions["framework_root"].required)
         self.assertTrue(actions["catalog"].required)
 
+    def test_closed_profile_collector_boundary_uses_the_fixed_connector_source(self) -> None:
+        self.assertIsNone(
+            COLLECTOR.verify_closed_five_connector_profile("no-crs", "traefik")
+        )
+        with self.assertRaisesRegex(ValueError, "unsupported closed five-connector profile"):
+            COLLECTOR.verify_closed_five_connector_profile("with-crs", "traefik")
+        with self.assertRaisesRegex(ValueError, "closed no-crs profile"):
+            COLLECTOR.verify_closed_five_connector_profile("no-crs", "nginx")
+
     def test_collector_arguments_keep_lifecycle_logs_in_their_log_root(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-collector-roots-") as temporary:
             root = Path(temporary)

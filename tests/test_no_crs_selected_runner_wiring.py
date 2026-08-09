@@ -162,6 +162,42 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
                 "target=runtime-smoke-envoy-ext-proc connector=envoy selected=\n",
             )
 
+    def test_closed_profile_rejects_future_profiles_and_nginx_before_runtime_setup(self) -> None:
+        runner = ROOT / "ci" / "runtime" / "lifecycle" / "run-no-crs-baseline.sh"
+        with tempfile.TemporaryDirectory(prefix="msconnector-closed-profile-") as temporary:
+            temporary_root = Path(temporary)
+            for connector, profile, expected_error in (
+                ("apache", "with-crs", "invalid choice"),
+                ("nginx", "no-crs", "closed no-crs profile"),
+            ):
+                with self.subTest(connector=connector, profile=profile):
+                    environment = os.environ.copy()
+                    environment.update(
+                        {
+                            "CONNECTOR_ROOT": str(ROOT),
+                            "FRAMEWORK_ROOT": str(temporary_root / "missing-framework"),
+                            "FIVE_CONNECTOR_PROFILE": profile,
+                            "NO_CRS_ARTIFACT_PROFILE": "generic",
+                            "NO_CRS_RUN_ID": "closed-profile-101",
+                            "VERIFIED_RUN_ROOT": str(temporary_root / f"verified-{connector}"),
+                        }
+                    )
+                    result = subprocess.run(
+                        ["sh", str(runner), connector, "minimal_runtime_smoke"],
+                        cwd=ROOT,
+                        env=environment,
+                        check=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertIn(expected_error, result.stderr)
+                    self.assertFalse(
+                        Path(environment["VERIFIED_RUN_ROOT"]).exists(),
+                        "closed-profile rejection must precede runtime root creation",
+                    )
+
     def test_remaining_connectors_keep_compatibility_and_native_targets_distinct(self) -> None:
         stage = (ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh").read_text(encoding="utf-8")
         for connector, native_target, compatibility_target in (

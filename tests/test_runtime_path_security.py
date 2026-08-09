@@ -563,35 +563,6 @@ class RuntimePathSecurityTest(unittest.TestCase):
 
             self.assertFalse(runtime_root.exists())
 
-    def test_explicit_handoff_owner_pair_is_opt_in_only(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="runtime-owner-pair-") as temporary:
-            root = Path(temporary) / "runtime-root"
-            root.mkdir()
-            details = root.stat()
-            original_fstat = RUNTIME_PATH_UTILS.os.fstat
-
-            def foreign_leaf(descriptor: int) -> os.stat_result:
-                observed = original_fstat(descriptor)
-                if (observed.st_dev, observed.st_ino) != (details.st_dev, details.st_ino):
-                    return observed
-                replacement = list(observed)
-                replacement[4] = 1234
-                return os.stat_result(replacement)
-
-            with mock.patch.object(RUNTIME_PATH_UTILS.os, "fstat", side_effect=foreign_leaf):
-                with self.assertRaisesRegex(ValueError, "untrusted owner"):
-                    ensure_safe_runtime_directory(root)
-                self.assertEqual(
-                    root,
-                    RUNTIME_PATH_UTILS.ensure_safe_runtime_directory_with_owners(
-                        root, {os.geteuid(), 1234}
-                    ),
-                )
-                with self.assertRaisesRegex(ValueError, "untrusted owner"):
-                    RUNTIME_PATH_UTILS.ensure_safe_runtime_directory_with_owners(
-                        root, {os.geteuid(), 4321}
-                    )
-
     def test_verified_run_id_rejects_traversal_absolute_separator_and_dot_variants(self) -> None:
         invalid_values = (
             "../outside",

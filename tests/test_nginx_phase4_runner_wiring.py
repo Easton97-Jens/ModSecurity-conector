@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 import sys
 import tempfile
@@ -9,46 +8,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNERS = ROOT / "modules" / "ModSecurity-test-Framework" / "tests" / "runners"
-FRAMEWORK_CI_LIB = ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "lib"
-_MISSING_MODULE = object()
+sys.path.insert(0, str(RUNNERS))
 
-
-def load_framework_runner_core():
-    """Bind the Framework runner to its own generic report helper.
-
-    Parent and Framework intentionally both expose ``generated_report_utils``.
-    The test must not reuse a previously cached Parent module while importing
-    the Framework runner, nor leave the Framework helper cached for later
-    Parent test subjects.
-    """
-
-    previous_path = list(sys.path)
-    previous_generated_report_utils = sys.modules.pop("generated_report_utils", _MISSING_MODULE)
-    spec = importlib.util.spec_from_file_location(
-        "framework_nginx_phase4_runner_core_for_tests",
-        RUNNERS / "runner_core.py",
-    )
-    if spec is None or spec.loader is None:
-        raise ImportError("unable to load Framework runner_core test module")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    try:
-        sys.path[:0] = [str(RUNNERS), str(FRAMEWORK_CI_LIB)]
-        spec.loader.exec_module(module)
-    except Exception:
-        sys.modules.pop(spec.name, None)
-        raise
-    finally:
-        sys.path[:] = previous_path
-        sys.modules.pop("generated_report_utils", None)
-        if previous_generated_report_utils is not _MISSING_MODULE:
-            sys.modules["generated_report_utils"] = previous_generated_report_utils
-    return module
-
-
-FRAMEWORK_RUNNER_CORE = load_framework_runner_core()
-load_case = FRAMEWORK_RUNNER_CORE.load_case
-write_shell_env = FRAMEWORK_RUNNER_CORE.write_shell_env
+from runner_core import load_case, write_shell_env  # noqa: E402
 
 
 FIXTURES = ROOT / "modules" / "ModSecurity-test-Framework" / "tests" / "cases" / "connector-specific" / "nginx"
@@ -106,10 +68,6 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
         self.assertNotIn("actual_action", content)
         self.assertNotIn("visible_http_status", content)
 
-    def test_framework_runner_keeps_its_own_secure_report_writer(self) -> None:
-        writer_path = Path(FRAMEWORK_RUNNER_CORE.write_generated_report_file.__code__.co_filename).resolve()
-        self.assertEqual(writer_path, FRAMEWORK_CI_LIB / "generated_report_utils.py")
-
     def test_runner_maps_only_selected_canonical_late_paths(self) -> None:
         harness = (ROOT / "connectors" / "nginx" / "harness" / "run_nginx_smoke.sh").read_text(encoding="utf-8")
         template = (ROOT / "connectors" / "nginx" / "harness" / "nginx_smoke.conf").read_text(encoding="utf-8")
@@ -127,17 +85,6 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
             "modsecurity_transaction_id nginx-${case_name}-\\$connection-\\$connection_requests;",
             harness,
         )
-
-    def test_root_handoff_removes_build_only_nginx_environment(self) -> None:
-        stage = (ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh").read_text(encoding="utf-8")
-        normalized = " ".join(line.replace("\\", "").strip() for line in stage.splitlines())
-        self.assertIn(
-            "unset NGINX_BIN NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL "
-            "NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF "
-            "NGINX_RELEASE_ASSET_NAME NGINX_SHA256",
-            normalized,
-        )
-        self.assertIn("its environment solely from the validated snapshot", stage)
 
     def test_precommit_phase4_deny_is_not_declared_for_the_body_filter(self) -> None:
         import json

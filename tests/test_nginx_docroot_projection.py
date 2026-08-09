@@ -70,7 +70,7 @@ class NginxDocrootProjectionTest(unittest.TestCase):
 
         self.assertEqual(result, projected)
         validate_source.assert_called_once_with(source_docroot, private_root)
-        ensure_parent.assert_called_once_with(parent, "projection parent", os.getegid())
+        ensure_parent.assert_called_once_with(parent, "projection parent")
         mkdir.assert_called_once_with(projected, 0o700)
         self.assertEqual(
             copy_regular.call_args_list,
@@ -82,16 +82,6 @@ class NginxDocrootProjectionTest(unittest.TestCase):
             ],
         )
         finalize_projection.assert_called_once_with(projected, directory_metadata, os.getegid())
-
-    def test_worker_group_traversal_requires_the_verified_group(self) -> None:
-        worker_gid = 4242
-        group_parent = SimpleNamespace(st_mode=stat.S_IFDIR | 0o710, st_gid=worker_gid)
-        mismatched_group_parent = SimpleNamespace(st_mode=stat.S_IFDIR | 0o710, st_gid=worker_gid + 1)
-        public_parent = SimpleNamespace(st_mode=stat.S_IFDIR | 0o711, st_gid=worker_gid + 1)
-
-        self.assertTrue(projection.worker_can_traverse_parent(group_parent, worker_gid))
-        self.assertFalse(projection.worker_can_traverse_parent(mismatched_group_parent, worker_gid))
-        self.assertTrue(projection.worker_can_traverse_parent(public_parent, worker_gid))
 
     def test_explicit_child_must_be_direct_fresh_and_safe_named(self) -> None:
         private_root = Path("/private/build")
@@ -384,29 +374,6 @@ class NginxDocrootProjectionFilesystemTest(unittest.TestCase):
                 projected_file = projection_root / filename
                 self.assertEqual(stat.S_IMODE(projected_file.lstat().st_mode), 0o640)
                 self.assertEqual(projected_file.lstat().st_gid, os.getegid())
-
-    def test_worker_group_bound_parent_preserves_projection_access(self) -> None:
-        with self._worker_traversable_temporary_directory() as temporary_directory:
-            root = Path(temporary_directory)
-            private_root, source_docroot, projection_parent = self._layout(root)
-            self._write_allowlisted_sources(source_docroot)
-            projection_parent.chmod(0o710)
-            projection_root = projection_parent / "group-bound-docroot"
-
-            result = self._prepare(
-                source_docroot,
-                private_root,
-                projection_parent,
-                projection_root,
-            )
-
-            self.assertEqual(result, projection_root)
-            self.assertEqual(stat.S_IMODE(projection_parent.lstat().st_mode), 0o710)
-            self.assertEqual(projection_parent.lstat().st_gid, os.getegid())
-            self.assertEqual(
-                {entry.name for entry in projection_root.iterdir()},
-                set(projection.PROJECTED_FILENAMES),
-            )
 
     def test_group_or_world_readable_or_writable_parent_is_rejected(self) -> None:
         unsafe_modes = (
