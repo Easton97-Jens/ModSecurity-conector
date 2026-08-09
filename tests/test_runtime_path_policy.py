@@ -111,6 +111,22 @@ class RuntimePathPolicyTest(unittest.TestCase):
         checker = load_checker()
         checker.check_python_policy()
 
+    def test_explicit_build_root_cannot_be_overridden_by_environment(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-path-override-") as temporary:
+            parent = Path(temporary)
+            run_root = parent / "verified-run"
+            explicit = parent / "explicit-build"
+            inherited = parent / "inherited-build"
+            paths = verified_runtime_paths(
+                {
+                    "VERIFIED_RUN_ROOT": str(run_root),
+                    "BUILD_ROOT": str(inherited),
+                },
+                build_root_override=explicit,
+            )
+
+            self.assertEqual(str(explicit.resolve()), paths["BUILD_ROOT"])
+
     def test_policy_environment_uses_only_the_verified_run_root_for_temp_controls(self) -> None:
         """Self-test child processes cannot inherit broad public temp directories."""
         checker = load_checker()

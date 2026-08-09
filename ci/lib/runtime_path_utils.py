@@ -269,8 +269,11 @@ def verified_runtime_paths(
         values, "VERIFIED_COMPONENT_CACHE", cache_root / "shared"
     )
 
-    selected_build_root = build_root_override if build_root_override is not None else verified_build_root
-    build_root = _environment_runtime_path(values, "BUILD_ROOT", selected_build_root)
+    build_root = (
+        _runtime_path(build_root_override, "BUILD_ROOT")
+        if build_root_override is not None
+        else _environment_runtime_path(values, "BUILD_ROOT", verified_build_root)
+    )
     source_root = _environment_runtime_path(values, "SOURCE_ROOT", verified_source_root)
     tmp_root = _environment_runtime_path(values, "TMP_ROOT", verified_tmp_root)
     log_root = _environment_runtime_path(values, "LOG_ROOT", verified_log_root)
