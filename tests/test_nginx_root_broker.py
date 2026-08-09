@@ -327,6 +327,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 values[4] = 0
                 return os.stat_result(values)
 
+            runner_gid = os.getegid()
             with (
                 mock.patch.object(BROKER, "ROOT_STATE_BASE", state_base),
                 mock.patch.object(BROKER, "ROOT_PARENT", parent),
@@ -334,7 +335,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 mock.patch.object(BROKER.os, "chown", side_effect=OSError("fault-injected chown failure")),
             ):
                 with self.assertRaisesRegex(OSError, "fault-injected"):
-                    BROKER.secure_root_parent(os.getegid())
+                    BROKER.secure_root_parent(runner_gid)
             self.assertFalse(parent.exists())
 
             BROKER.safe_mkdir(parent, BROKER.ROOT_PARENT_MODE, "test broker root parent")
@@ -346,7 +347,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 mock.patch.object(BROKER.os, "chown", side_effect=OSError("fault-injected chown failure")),
             ):
                 with self.assertRaisesRegex(OSError, "fault-injected"):
-                    BROKER.create_admitted_root(run_root, os.getegid())
+                    BROKER.create_admitted_root(run_root, runner_gid)
             self.assertFalse(run_root.exists())
 
     def test_descriptor_cleanup_removes_special_entries_without_following_links(self) -> None:

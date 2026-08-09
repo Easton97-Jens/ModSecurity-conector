@@ -57,12 +57,17 @@ path used across the privilege boundary.
 Python compilation, the focused broker/workflow/CI-security suite (`39` tests),
 `make check-ci-security-contract`, `make check-bilingual-docs`,
 `make check-doc-links`, `git diff --check`, actionlint with ShellCheck, and
-zizmor offline completed successfully. `make lint` completed successfully; its
-optional NGINX C17 compile check was explicitly blocked/skipped because this
-local environment has no NGINX headers/source. The final security-diff scan
-completed with no reportable finding and a valid sealed artifact. Hosted checks,
-SonarQube Cloud, review/branch-protection gates, and the protected-master root
-invocation remain pending delivery evidence.
+zizmor offline completed successfully in the initial review. `make lint`
+completed successfully; its optional NGINX C17 compile check was explicitly
+blocked/skipped because this local environment has no NGINX headers/source.
+The final security-diff scan completed with no reportable finding and a valid
+sealed artifact. After the branch was normally merged with `origin/master` at
+`27e8756e212fd9452d99e285743dbadc43c814a6`, the five PR-scoped SonarQube
+Cloud maintainability issues were addressed locally. The focused broker/workflow/
+CI-security suite (`40` tests) and `git diff --check` then completed
+successfully. Hosted checks, the current-SHA SonarQube Cloud analysis,
+review/branch-protection gates, and the protected-master root invocation
+remain pending delivery evidence.
 
 ## Security impact
 
@@ -72,7 +77,10 @@ or executable path. Root execution is limited to the exact protected helper,
 the exact root-copied NGINX binary, and fixed actions. Cleanup is
 descriptor-relative and cannot recursively follow caller-controlled paths. A
 fault-injected failed `chown` also removes a newly created fixed root parent or
-run root, rather than leaving privileged stale state behind.
+run root, rather than leaving privileged stale state behind. The post-review
+Sonar remediation only centralizes fixed diagnostic labels and evaluates the
+test runner GID before its exception assertion; it does not alter manifest,
+path, ownership, or cleanup validation.
 
 ## Runtime evidence
 
@@ -97,15 +105,17 @@ fallback to PR-branch root execution.
 
 ## Checks not run and rationale
 
-Hosted CI, SonarQube Cloud, review/branch-protection gates, and the
-protected-master root invocation remain pending the first normal publication
-of the broker branch. They remain required before any merge. The local
-security-diff scan is complete; its report is local evidence and does not
-replace the required hosted root-lifecycle validation.
+Hosted CI, the current-SHA SonarQube Cloud analysis, review/branch-protection
+gates, and the protected-master root invocation remain pending current-SHA
+evidence. They remain required before any merge. The local security-diff scan
+is complete; its report is local evidence and does not replace the required
+hosted root-lifecycle validation.
 
 ## Final diff and review status
 
-Status at the local-validation capture: local validation is complete. At that
-capture, no Parent PR #240 change, Framework change, MRTS change, push, Draft
-PR, or merge had occurred for this broker record. Subsequent delivery facts
-must be recorded only after they are observed.
+Status at this local remediation capture: the branch contains a normal merge
+of `origin/master` at `27e8756e212fd9452d99e285743dbadc43c814a6` and the
+Sonar remediation. No Parent PR #240 change, Framework source change, MRTS
+change, force-push, history rewrite, or master merge was made for this broker
+record. Exact publication, PR, checks, and merge facts must be recorded only
+after they are observed.

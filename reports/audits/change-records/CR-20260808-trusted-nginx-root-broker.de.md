@@ -60,11 +60,17 @@ oder Broker-CLI-Input kann Parent, Staging-Root oder Runtime-Snapshot-Pfad
 Python-Kompilierung, die fokussierte Broker-/Workflow-/CI-Security-Suite
 (`39` Tests), `make check-ci-security-contract`, `make check-bilingual-docs`,
 `make check-doc-links`, `git diff --check`, actionlint mit ShellCheck und
-zizmor offline waren erfolgreich. `make lint` war erfolgreich; sein optionaler
-NGINX-C17-Compile-Check wurde explizit blockiert/übersprungen, weil dieser
-lokalen Umgebung NGINX-Header/-Source fehlen. Der finale Security-Diff-Scan
-endete ohne reportable Finding und mit einem gültigen versiegelten Artefakt.
-Hosted-Checks, SonarQube Cloud, Review-/Branch-Protection-Gates und der
+zizmor offline waren in der ersten Prüfung erfolgreich. `make lint` war
+erfolgreich; sein optionaler NGINX-C17-Compile-Check wurde explizit
+blockiert/übersprungen, weil dieser lokalen Umgebung NGINX-Header/-Source
+fehlen. Der finale Security-Diff-Scan endete ohne reportable Finding und mit
+einem gültigen versiegelten Artefakt. Nachdem der Branch normal mit
+`origin/master` bei `27e8756e212fd9452d99e285743dbadc43c814a6` gemergt wurde,
+wurden die fünf PR-spezifischen SonarQube-Cloud-Wartbarkeitsbefunde lokal
+adressiert.
+Danach waren die fokussierte Broker-/Workflow-/CI-Security-Suite (`40` Tests)
+und `git diff --check` erfolgreich. Hosted-Checks, die SonarQube-Cloud-Analyse
+für den aktuellen SHA, Review-/Branch-Protection-Gates und der
 Protected-master-Root-Aufruf bleiben ausstehende Delivery-Evidence.
 
 ## Security-Auswirkung
@@ -77,6 +83,9 @@ Aktionen begrenzt. Cleanup ist descriptor-relativ und kann keine
 caller-kontrollierten Pfade rekursiv verfolgen. Ein per Fault-Injection
 ausgelöstes fehlgeschlagenes `chown` entfernt außerdem einen neu angelegten
 festen Root-Parent oder Run-Root, statt privilegierten Stale-State zu behalten.
+Die Sonar-Nachbesserung nach dem Review zentralisiert nur feste
+Diagnosebezeichner und wertet die Test-Runner-GID vor ihrer Exception-Assertion
+aus; sie ändert keine Manifest-, Pfad-, Owner- oder Cleanup-Validierung.
 
 ## Runtime-Evidence
 
@@ -103,16 +112,19 @@ autorisieren.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Hosted CI, SonarQube Cloud, Review-/Branch-Protection-Gates und der
-Protected-master-Root-Aufruf stehen bis zur ersten normalen Veröffentlichung
-des Broker-Branches noch aus. Sie bleiben vor jedem Merge erforderlich. Der
-lokale Security-Diff-Scan ist abgeschlossen; sein Report ist lokale Evidence
-und ersetzt nicht die erforderliche Hosted-Root-Lifecycle-Validierung.
+Hosted CI, die SonarQube-Cloud-Analyse für den aktuellen SHA,
+Review-/Branch-Protection-Gates und der Protected-master-Root-Aufruf stehen
+bis zur Evidence für den aktuellen SHA noch aus. Sie bleiben vor jedem Merge
+erforderlich.
+Der lokale Security-Diff-Scan ist abgeschlossen; sein Report ist lokale
+Evidence und ersetzt nicht die erforderliche Hosted-Root-Lifecycle-Validierung.
 
 ## Finaler Diff- und Review-Status
 
-Status zum Zeitpunkt der lokalen Validierungsaufnahme: lokale Validierung
-abgeschlossen. Zu diesem Zeitpunkt gab es für diesen Broker-Record keine
-Parent-PR-240-Änderung, keine Framework-Änderung, keine MRTS-Änderung, keinen
-Push, keinen Draft-PR und keinen Merge. Spätere Delivery-Fakten dürfen erst
-nach ihrer Beobachtung dokumentiert werden.
+Status zum Zeitpunkt dieser lokalen Nachbesserungsaufnahme: Der Branch enthält
+einen normalen Merge von `origin/master` bei
+`27e8756e212fd9452d99e285743dbadc43c814a6` und die Sonar-Nachbesserung. Für
+diesen Broker-Record wurden keine Parent-PR-240-Änderung, keine
+Framework-Source-Änderung, keine MRTS-Änderung, kein Force-Push, kein
+History-Rewrite und kein Master-Merge vorgenommen. Exakte Publikations-, PR-,
+Check- und Merge-Fakten dürfen erst nach ihrer Beobachtung dokumentiert werden.

@@ -66,6 +66,9 @@ CALLER_MANIFEST_LABEL = "caller manifest"
 CANDIDATE_LABEL = "broker candidate"
 CANDIDATE_STAGING_LABEL = "candidate staging root"
 TRUSTED_BUILD_ROOT_LABEL = "trusted build root"
+RUNTIME_SNAPSHOT_LABEL = "runtime environment snapshot"
+TRUSTED_MODSECURITY_LIBRARY_LABEL = "trusted ModSecurity shared library"
+BROKER_ROOT_PARENT_LABEL = "broker root parent"
 CANDIDATE_DIRECTORY_NAME = "broker-candidate"
 RUNTIME_REPORTS_RELATIVE = Path("build") / "runtime-component-reports"
 ARTIFACT_BINARY_NAME = "nginx"
@@ -264,7 +267,7 @@ def json_load_bounded(path: Path, label: str) -> dict[str, Any]:
 def parse_runtime_snapshot(path: Path) -> dict[str, str]:
     """Read only three declarative exports; never source the snapshot shell."""
 
-    descriptor, metadata = open_regular_no_follow(path, "runtime environment snapshot")
+    descriptor, metadata = open_regular_no_follow(path, RUNTIME_SNAPSHOT_LABEL)
     try:
         if metadata.st_size > MAX_MANIFEST_BYTES:
             fail("runtime environment snapshot exceeds the size limit")
@@ -662,10 +665,10 @@ def runtime_snapshot_from_trusted_build(trusted_build_root: Path) -> Path:
     snapshots = sorted(reports_root.glob("runtime-env-snapshot.*.sh"))
     if len(snapshots) != 1:
         fail("trusted build must provide exactly one runtime environment snapshot")
-    snapshot = normalized_absolute(snapshots[0], "runtime environment snapshot")
+    snapshot = normalized_absolute(snapshots[0], RUNTIME_SNAPSHOT_LABEL)
     if not is_within(snapshot, trusted_build_root):
         fail("runtime environment snapshot is outside the trusted build root")
-    regular_metadata(snapshot, "runtime environment snapshot", owner=os.geteuid())
+    regular_metadata(snapshot, RUNTIME_SNAPSHOT_LABEL, owner=os.geteuid())
     return snapshot
 
 
@@ -678,8 +681,8 @@ def shared_library_from_snapshot(values: dict[str, str], trusted_build_root: Pat
     candidates = sorted(library_root.glob("libmodsecurity.so.*"))
     if len(candidates) != 1:
         fail("trusted build must provide exactly one non-symlink ModSecurity shared library")
-    library = normalized_absolute(candidates[0], "trusted ModSecurity shared library")
-    regular_metadata(library, "trusted ModSecurity shared library", owner=os.geteuid())
+    library = normalized_absolute(candidates[0], TRUSTED_MODSECURITY_LIBRARY_LABEL)
+    regular_metadata(library, TRUSTED_MODSECURITY_LIBRARY_LABEL, owner=os.geteuid())
     return library
 
 
@@ -692,7 +695,7 @@ def prepare_candidate_from_snapshot(arguments: argparse.Namespace) -> Path:
     arguments.modsecurity_library = str(library)
     arguments.binary_sha256 = sha256_file(Path(arguments.binary), "trusted NGINX binary")
     arguments.module_sha256 = sha256_file(Path(arguments.module), "trusted NGINX module")
-    arguments.library_sha256 = sha256_file(library, "trusted ModSecurity shared library")
+    arguments.library_sha256 = sha256_file(library, TRUSTED_MODSECURITY_LIBRARY_LABEL)
     return prepare_candidate(arguments)
 
 
@@ -836,12 +839,12 @@ def sudo_runner_gid() -> int:
 def secure_root_parent(runner_gid: int) -> Path:
     directory_metadata(ROOT_STATE_BASE, "broker state base", owner=0)
     if ROOT_PARENT.exists() or ROOT_PARENT.is_symlink():
-        metadata = directory_metadata(ROOT_PARENT, "broker root parent", owner=0)
+        metadata = directory_metadata(ROOT_PARENT, BROKER_ROOT_PARENT_LABEL, owner=0)
     else:
-        safe_mkdir(ROOT_PARENT, ROOT_PARENT_MODE, "broker root parent")
+        safe_mkdir(ROOT_PARENT, ROOT_PARENT_MODE, BROKER_ROOT_PARENT_LABEL)
         try:
             os.chown(ROOT_PARENT, 0, runner_gid)
-            metadata = directory_metadata(ROOT_PARENT, "broker root parent", owner=0)
+            metadata = directory_metadata(ROOT_PARENT, BROKER_ROOT_PARENT_LABEL, owner=0)
         except Exception as original_error:
             try:
                 remove_empty_new_root_parent()
