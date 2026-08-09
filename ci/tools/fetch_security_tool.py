@@ -10,12 +10,19 @@ import shutil
 import tarfile
 import tempfile
 import urllib.request
+from collections.abc import Mapping
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK = ROOT / "ci" / "tooling" / "security-tools.lock.yml"
-SHA256 = re.compile(r"^[a-f\d]{64}$")
+SHA256 = re.compile(r"^[a-f\d]{64}$", re.ASCII)
+VERSION = re.compile(r"^v?\d+(?:\.\d+){1,3}$", re.ASCII)
+GITHUB_UPSTREAM = re.compile(
+    r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+)
+SAFE_COMPONENT = re.compile(r"^[A-Za-z0-9_.-]+$")
+REQUIRED_FIELDS = frozenset({"version", "asset", "url", "sha256", "executable", "upstream"})
 
 
 def record(tool: str) -> dict[str, str]:
@@ -25,15 +32,43 @@ def record(tool: str) -> dict[str, str]:
     if match is None:
         raise ValueError(f"unknown security tool: {tool}")
     values = dict(re.findall(r"^ {4}([a-z\d_]+): (.+)$", match.group(1), re.MULTILINE))
-    required = {"asset", "url", "sha256", "executable", "upstream"}
-    if set(values).intersection(required) != required:
+    return validated_record(tool, values)
+
+
+def safe_component(value: str) -> bool:
+    return bool(SAFE_COMPONENT.fullmatch(value)) and value not in {".", ".."}
+
+
+def validated_record(tool: str, values: Mapping[str, object]) -> dict[str, str]:
+    """Validate the precise immutable asset tuple before any download."""
+
+    if not isinstance(tool, str) or not safe_component(tool):
+        raise ValueError("security tool name is unsafe")
+    missing = REQUIRED_FIELDS.difference(values)
+    if missing:
         raise ValueError(f"{tool}: incomplete lock record")
-    if not SHA256.fullmatch(values["sha256"]):
+    result = {field: values[field] for field in REQUIRED_FIELDS}
+    if not all(isinstance(value, str) for value in result.values()):
+        raise ValueError(f"{tool}: lock record fields must be strings")
+    typed = {field: str(value) for field, value in result.items()}
+    if not VERSION.fullmatch(typed["version"]):
+        raise ValueError(f"{tool}: malformed release version")
+    if not SHA256.fullmatch(typed["sha256"]):
         raise ValueError(f"{tool}: malformed SHA-256")
-    expected = values["upstream"].rstrip("/") + "/releases/download/"
-    if not values["url"].startswith(expected):
-        raise ValueError(f"{tool}: release asset is not from the recorded upstream")
-    return values
+    if not safe_component(typed["asset"]) or not safe_component(typed["executable"]):
+        raise ValueError(f"{tool}: asset or executable name is unsafe")
+    if not GITHUB_UPSTREAM.fullmatch(typed["upstream"]):
+        raise ValueError(f"{tool}: upstream must be an official GitHub repository")
+    expected = (
+        typed["upstream"]
+        + "/releases/download/"
+        + typed["version"]
+        + "/"
+        + typed["asset"]
+    )
+    if typed["url"] != expected:
+        raise ValueError(f"{tool}: release asset is not the recorded upstream tuple")
+    return typed
 
 
 def sha256(path: Path) -> str:
@@ -49,9 +84,19 @@ def safe_member(member: tarfile.TarInfo) -> bool:
     return member.isfile() and not path.is_absolute() and ".." not in path.parts
 
 
-def fetch(tool: str, destination: Path) -> Path:
-    values = record(tool)
-    destination.mkdir(parents=True, exist_ok=True)
+def fetch_record(tool: str, values: Mapping[str, object], destination: Path) -> Path:
+    """Fetch a validated on-disk or candidate asset tuple without executing it."""
+
+    values = validated_record(tool, values)
+    if destination.is_symlink():
+        raise ValueError(f"{tool}: destination must not be a symlink")
+    destination.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if destination.is_symlink() or not destination.is_dir():
+        raise ValueError(f"{tool}: destination must be a directory")
+    destination.chmod(0o700)
+    target = destination / values["executable"]
+    if target.exists() or target.is_symlink():
+        raise ValueError(f"{tool}: destination executable already exists")
     with tempfile.TemporaryDirectory(prefix="security-tool-", dir=destination) as temp:
         archive = Path(temp) / values["asset"]
         request = urllib.request.Request(values["url"], headers={"User-Agent": "ModSecurity-conector-security-tools"})
@@ -71,6 +116,12 @@ def fetch(tool: str, destination: Path) -> Path:
                 shutil.copyfileobj(source, output)
     target.chmod(0o755)
     return target
+
+
+def fetch(tool: str, destination: Path) -> Path:
+    """Fetch one existing on-disk lock record through the legacy CLI API."""
+
+    return fetch_record(tool, record(tool), destination)
 
 
 def main() -> None:

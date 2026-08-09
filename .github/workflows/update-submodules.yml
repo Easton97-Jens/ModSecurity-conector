@@ -13,37 +13,70 @@ permissions:
   contents: read
 
 env:
+  DEFAULT_BRANCH: master
   SUBMODULE_PATH: modules/ModSecurity-test-Framework
   SUBMODULE_URL: https://github.com/Easton97-Jens/ModSecurity-test-Framework.git
   SUBMODULE_REF: refs/heads/master
+  UPDATE_BRANCH: chore/update-submodules
+  PR_TITLE: "chore: update submodules"
+  PR_MARKER: "<!-- connector-submodule-updater -->"
+  UPDATER_NAME: github-actions[bot]
+  UPDATER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
 
 jobs:
   resolve-submodule-update:
     name: Resolve submodule update
+    if: ${{ github.ref == 'refs/heads/master' && github.event.repository.default_branch == 'master' && github.event.repository.fork == false }}
     permissions:
       contents: read
     runs-on: ubuntu-latest
     outputs:
       candidate_sha: ${{ steps.resolve.outputs.candidate_sha }}
+      current_sha: ${{ steps.resolve.outputs.current_sha }}
       changed: ${{ steps.resolve.outputs.changed }}
+      resolver_status: ${{ steps.resolve.outputs.resolver_status }}
     steps:
       - name: Checkout Parent metadata
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: master
+          ref: ${{ github.event.repository.default_branch }}
           submodules: false
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Resolve the official submodule commit
+      - name: Resolve exactly one official submodule commit
         id: resolve
         run: |
           set -euo pipefail
-          candidate_sha="$(git ls-remote --exit-code "$SUBMODULE_URL" "$SUBMODULE_REF" | awk 'NR == 1 { print $1 }')"
-          current_sha="$(git ls-tree HEAD -- "$SUBMODULE_PATH" | awk '{ print $3 }')"
-
+          remote_refs="$(git ls-remote --exit-code "$SUBMODULE_URL" "$SUBMODULE_REF")"
+          remote_ref_count="$(printf '%s\n' "$remote_refs" | awk 'NF { count += 1 } END { print count + 0 }')"
+          if [ "$remote_ref_count" != "1" ]; then
+            echo "Official submodule ref resolution is ambiguous: expected one $SUBMODULE_REF record, got $remote_ref_count." >&2
+            exit 1
+          fi
+          candidate_ref="$(printf '%s\n' "$remote_refs" | awk 'NF { print $2 }')"
+          candidate_sha="$(printf '%s\n' "$remote_refs" | awk 'NF { print $1 }')"
+          if [ "$candidate_ref" != "$SUBMODULE_REF" ]; then
+            echo "Resolved unexpected submodule ref: $candidate_ref" >&2
+            exit 1
+          fi
           if ! printf '%s\n' "$candidate_sha" | grep -Eq '^[0-9a-f]{40}$'; then
             echo "Resolved submodule revision is not a full SHA-1: $candidate_sha" >&2
+            exit 1
+          fi
+
+          current_entry="$(git ls-tree HEAD -- "$SUBMODULE_PATH")"
+          current_entry_count="$(printf '%s\n' "$current_entry" | awk 'NF { count += 1 } END { print count + 0 }')"
+          if [ "$current_entry_count" != "1" ]; then
+            echo "Current Parent tree does not contain exactly one submodule entry at $SUBMODULE_PATH." >&2
+            exit 1
+          fi
+          current_mode="$(printf '%s\n' "$current_entry" | awk 'NF { print $1 }')"
+          current_type="$(printf '%s\n' "$current_entry" | awk 'NF { print $2 }')"
+          current_sha="$(printf '%s\n' "$current_entry" | awk 'NF { print $3 }')"
+          current_path="$(printf '%s\n' "$current_entry" | awk 'NF { print $4 }')"
+          if [ "$current_mode" != "160000" ] || [ "$current_type" != "commit" ] || [ "$current_path" != "$SUBMODULE_PATH" ]; then
+            echo "Current Parent entry is not the expected Framework gitlink: $current_entry" >&2
             exit 1
           fi
           if ! printf '%s\n' "$current_sha" | grep -Eq '^[0-9a-f]{40}$'; then
@@ -51,29 +84,38 @@ jobs:
             exit 1
           fi
 
-          printf 'candidate_sha=%s\n' "$candidate_sha" >> "$GITHUB_OUTPUT"
           if [ "$candidate_sha" = "$current_sha" ]; then
-            printf 'changed=false\n' >> "$GITHUB_OUTPUT"
+            changed=false
+          else
+            changed=true
+          fi
+          {
+            printf 'candidate_sha=%s\n' "$candidate_sha"
+            printf 'current_sha=%s\n' "$current_sha"
+            printf 'resolver_status=resolved\n'
+            printf 'changed=%s\n' "$changed"
+          } >> "$GITHUB_OUTPUT"
+          if [ "$changed" = false ]; then
             echo "No submodule changes detected."
           else
-            printf 'changed=true\n' >> "$GITHUB_OUTPUT"
             echo "Resolved submodule update: $current_sha -> $candidate_sha"
           fi
 
   validate-submodule-update:
     name: Validate submodule update
     needs: resolve-submodule-update
-    if: needs.resolve-submodule-update.outputs.changed == 'true'
+    if: ${{ needs.resolve-submodule-update.result == 'success' && needs.resolve-submodule-update.outputs.changed == 'true' }}
     permissions:
       contents: read
     runs-on: ubuntu-latest
     env:
       CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
+      CURRENT_GITLINK_SHA: ${{ needs.resolve-submodule-update.outputs.current_sha }}
     steps:
       - name: Checkout candidate for read-only validation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: master
+          ref: ${{ github.event.repository.default_branch }}
           submodules: recursive
           fetch-depth: 0
           persist-credentials: false
@@ -93,16 +135,38 @@ jobs:
       - name: Install hash-locked validation dependency
         run: "python3 -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes --requirement ci/requirements/update-submodules-validation-linux-x86_64.txt"
 
-      - name: Check out the resolved submodule revision
+      - name: Check out the resolved descendant revision
         run: |
           set -euo pipefail
-          if ! printf '%s\n' "$CANDIDATE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
-            echo "Candidate revision is not a full SHA-1: $CANDIDATE_SHA" >&2
+          for revision in "$CURRENT_GITLINK_SHA" "$CANDIDATE_SHA"; do
+            if ! printf '%s\n' "$revision" | grep -Eq '^[0-9a-f]{40}$'; then
+              echo "Submodule revision is not a full SHA-1: $revision" >&2
+              exit 1
+            fi
+          done
+          submodule_origin="$(git -C "$SUBMODULE_PATH" remote get-url origin)"
+          if [ "$submodule_origin" != "$SUBMODULE_URL" ]; then
+            echo "Submodule origin is not the official configured repository: $submodule_origin" >&2
             exit 1
           fi
+          git -C "$SUBMODULE_PATH" fetch --no-tags origin "$CURRENT_GITLINK_SHA"
           git -C "$SUBMODULE_PATH" fetch --no-tags origin "$CANDIDATE_SHA"
+          git -C "$SUBMODULE_PATH" cat-file -e "$CURRENT_GITLINK_SHA^{commit}"
+          git -C "$SUBMODULE_PATH" cat-file -e "$CANDIDATE_SHA^{commit}"
+          if ! git -C "$SUBMODULE_PATH" merge-base --is-ancestor "$CURRENT_GITLINK_SHA" "$CANDIDATE_SHA"; then
+            echo "Candidate is not a descendant of the reviewed current Framework gitlink." >&2
+            exit 1
+          fi
           git -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"
           git -C "$SUBMODULE_PATH" submodule update --init --recursive
+          if [ -n "$(git -C "$SUBMODULE_PATH" status --porcelain)" ]; then
+            echo "Candidate Framework checkout is not clean." >&2
+            exit 1
+          fi
+          if git -C "$SUBMODULE_PATH" submodule status --recursive | grep -Eq '^[+-]'; then
+            echo "Candidate Framework recursive submodules are not fully initialized." >&2
+            exit 1
+          fi
 
       - name: Run quick check without write permissions
         run: make quick-check
@@ -112,78 +176,541 @@ jobs:
     needs:
       - resolve-submodule-update
       - validate-submodule-update
-    if: ${{ needs.resolve-submodule-update.outputs.changed == 'true' && needs.validate-submodule-update.result == 'success' }}
+    if: ${{ needs.resolve-submodule-update.result == 'success' && needs.resolve-submodule-update.outputs.changed == 'true' && needs.validate-submodule-update.result == 'success' }}
     permissions:
       contents: write
       pull-requests: write
     runs-on: ubuntu-latest
     env:
       CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
+      CURRENT_GITLINK_SHA: ${{ needs.resolve-submodule-update.outputs.current_sha }}
     steps:
       - name: Checkout Parent repository without submodules
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: master
+          ref: ${{ github.event.repository.default_branch }}
           submodules: false
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Revalidate the official submodule revision
+      - name: Publish only a verified Framework gitlink through a safe maintenance state
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if ! printf '%s\n' "$CANDIDATE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
-            echo "Candidate revision is not a full SHA-1: $CANDIDATE_SHA" >&2
+
+          require_only_submodule_path() {
+            changed_paths="$1"
+            changed_path_count="$(printf '%s\n' "$changed_paths" | awk 'NF { count += 1 } END { print count + 0 }')"
+            if [ "$changed_path_count" != "1" ] || [ "$changed_paths" != "$SUBMODULE_PATH" ]; then
+              echo "Maintenance branch changes paths outside $SUBMODULE_PATH: $changed_paths" >&2
+              exit 1
+            fi
+          }
+
+          read_update_branch() {
+            remote_refs="$(git ls-remote --heads origin "refs/heads/$UPDATE_BRANCH")"
+            remote_ref_count="$(printf '%s\n' "$remote_refs" | awk 'NF { count += 1 } END { print count + 0 }')"
+            case "$remote_ref_count" in
+              0)
+                UPDATE_BRANCH_PRESENT=false
+                EXPECTED_REMOTE_HEAD=""
+                ;;
+              1)
+                remote_ref="$(printf '%s\n' "$remote_refs" | awk 'NF { print $2 }')"
+                EXPECTED_REMOTE_HEAD="$(printf '%s\n' "$remote_refs" | awk 'NF { print $1 }')"
+                if [ "$remote_ref" != "refs/heads/$UPDATE_BRANCH" ] || ! printf '%s\n' "$EXPECTED_REMOTE_HEAD" | grep -Eq '^[0-9a-f]{40}$'; then
+                  echo "Maintenance branch resolution is malformed: $remote_refs" >&2
+                  exit 1
+                fi
+                UPDATE_BRANCH_PRESENT=true
+                ;;
+              *)
+                echo "Maintenance branch resolution is ambiguous: $remote_ref_count records." >&2
+                exit 1
+                ;;
+            esac
+          }
+
+          read_open_prs() {
+            OPEN_PR_COUNT="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+              -f state=open \
+              -f base="$DEFAULT_BRANCH" \
+              -f head="${GITHUB_REPOSITORY_OWNER}:$UPDATE_BRANCH" \
+              -f per_page=100 \
+              --jq 'length')"
+            case "$OPEN_PR_COUNT" in
+              0)
+                OPEN_PR_NUMBER=""
+                ;;
+              1)
+                OPEN_PR_NUMBER="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+                  -f state=open \
+                  -f base="$DEFAULT_BRANCH" \
+                  -f head="${GITHUB_REPOSITORY_OWNER}:$UPDATE_BRANCH" \
+                  -f per_page=100 \
+                  --jq '.[0].number')"
+                if ! printf '%s\n' "$OPEN_PR_NUMBER" | grep -Eq '^[1-9][0-9]*$'; then
+                  echo "Open maintenance pull request number is malformed: $OPEN_PR_NUMBER" >&2
+                  exit 1
+                fi
+                ;;
+              *)
+                echo "Expected zero or one open maintenance pull request, got $OPEN_PR_COUNT." >&2
+                exit 1
+                ;;
+            esac
+          }
+
+          verify_open_pr_identity() {
+            pr_number="$1"
+            expected_head="$2"
+            pr_state="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.state')"
+            pr_base="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.base.ref')"
+            pr_head="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.head.ref')"
+            pr_head_sha="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.head.sha')"
+            pr_draft="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.draft')"
+            pr_title="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.title')"
+            pr_author="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.user.login')"
+            pr_auto_merge="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.auto_merge')"
+            pr_base_repo="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.base.repo.full_name')"
+            pr_head_repo="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.head.repo.full_name')"
+            pr_body="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.body // ""')"
+            marker_count="$(printf '%s\n' "$pr_body" | awk -v marker="$PR_MARKER" '$0 == marker { count += 1 } END { print count + 0 }')"
+            title_match=false
+            head_sha_match=false
+            auto_merge_present=true
+            [ "$pr_title" = "$PR_TITLE" ] && title_match=true
+            [ "$pr_head_sha" = "$expected_head" ] && head_sha_match=true
+            [ "$pr_auto_merge" = "null" ] && auto_merge_present=false
+            if [ "$pr_state" != "open" ] || [ "$pr_base" != "$DEFAULT_BRANCH" ] || [ "$pr_head" != "$UPDATE_BRANCH" ] || [ "$head_sha_match" != "true" ] || [ "$title_match" != "true" ] || [ "$pr_author" != "$UPDATER_NAME" ] || [ "$auto_merge_present" != "false" ] || [ "$marker_count" != "1" ] || [ "$pr_base_repo" != "$GITHUB_REPOSITORY" ] || [ "$pr_head_repo" != "$GITHUB_REPOSITORY" ]; then
+              echo "Open maintenance PR identity verification failed:" >&2
+              printf 'state=%s\nbase=%s\nhead=%s\nhead_sha_match=%s\ndraft=%s\ntitle_match=%s\nauthor=%s\nauto_merge_present=%s\nmarker_count=%s\n' \
+                "$pr_state" "$pr_base" "$pr_head" "$head_sha_match" "$pr_draft" "$title_match" "$pr_author" "$auto_merge_present" "$marker_count" >&2
+              exit 1
+            fi
+          }
+
+          verify_open_draft_pr() {
+            pr_number="$1"
+            expected_head="$2"
+            verify_open_pr_identity "$pr_number" "$expected_head"
+            if [ "$pr_draft" != "true" ]; then
+              echo "Open maintenance PR final verification failed: draft=$pr_draft" >&2
+              exit 1
+            fi
+          }
+
+          ensure_open_pr_is_draft() {
+            pr_number="$1"
+            expected_head="$2"
+            verify_open_pr_identity "$pr_number" "$expected_head"
+            case "$pr_draft" in
+              true)
+                return 0
+                ;;
+              false)
+                # Re-read both independently controlled objects and every identity
+                # field immediately before the only permitted PR mutation.
+                read_update_branch
+                if [ "$UPDATE_BRANCH_PRESENT" != true ] || [ "$EXPECTED_REMOTE_HEAD" != "$expected_head" ]; then
+                  echo "Maintenance branch changed before Draft enforcement." >&2
+                  exit 1
+                fi
+                verify_open_pr_identity "$pr_number" "$expected_head"
+                if [ "$pr_draft" != "false" ]; then
+                  echo "Maintenance PR Draft state changed before enforcement: $pr_draft" >&2
+                  exit 1
+                fi
+                gh pr ready "$pr_number" --repo "$GITHUB_REPOSITORY" --undo
+                ;;
+              *)
+                echo "Maintenance PR Draft state is malformed: $pr_draft" >&2
+                exit 1
+                ;;
+            esac
+            verify_open_draft_pr "$pr_number" "$expected_head"
+          }
+
+          require_single_updater_commit() {
+            commit="$1"
+            parent_shas="$(git show -s --format=%P "$commit")"
+            parent_count="$(printf '%s\n' "$parent_shas" | awk 'NF { count += NF } END { print count + 0 }')"
+            if [ "$parent_count" != "1" ]; then
+              echo "Maintenance commit does not have exactly one parent: $commit" >&2
+              exit 1
+            fi
+            if [ "$(git show -s --format=%an "$commit")" != "$UPDATER_NAME" ] || [ "$(git show -s --format=%ae "$commit")" != "$UPDATER_EMAIL" ] || [ "$(git show -s --format=%cn "$commit")" != "$UPDATER_NAME" ] || [ "$(git show -s --format=%ce "$commit")" != "$UPDATER_EMAIL" ] || [ "$(git show -s --format=%s "$commit")" != "$PR_TITLE" ]; then
+              echo "Maintenance commit metadata is not updater-conformant: $commit" >&2
+              exit 1
+            fi
+            commit_paths="$(git diff-tree --no-commit-id --name-only -r "$commit")"
+            require_only_submodule_path "$commit_paths"
+            if ! git diff-tree \
+                  --no-commit-id \
+                  --raw \
+                  --no-abbrev \
+                  --no-renames \
+                  -r \
+                  "$commit" \
+                  -- "$SUBMODULE_PATH" | awk -v path="$SUBMODULE_PATH" '$1 == ":160000" && $2 == "160000" && $5 == "M" && $6 == path { count += 1 } END { exit count == 1 ? 0 : 1 }'; then
+              echo "Maintenance commit is not exactly one Framework gitlink update: $commit" >&2
+              exit 1
+            fi
+          }
+
+          verify_open_branch_history() {
+            git fetch --no-tags origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
+            merge_base="$(git merge-base "origin/$DEFAULT_BRANCH" "origin/$UPDATE_BRANCH")"
+            if [ -z "$merge_base" ]; then
+              echo "Open maintenance branch has no default-branch merge base." >&2
+              exit 1
+            fi
+            branch_commits="$(git rev-list --reverse "$merge_base..origin/$UPDATE_BRANCH")"
+            branch_commit_count="$(printf '%s\n' "$branch_commits" | awk 'NF { count += 1 } END { print count + 0 }')"
+            if [ "$branch_commit_count" != "1" ]; then
+              echo "Open maintenance branch has unexpected commit history." >&2
+              exit 1
+            fi
+            require_single_updater_commit "$branch_commits"
+            branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"
+            require_only_submodule_path "$branch_paths"
+          }
+
+          read_matching_merged_pr() {
+            merged_pr_numbers="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+              -f state=closed \
+              -f base="$DEFAULT_BRANCH" \
+              -f head="${GITHUB_REPOSITORY_OWNER}:$UPDATE_BRANCH" \
+              -f per_page=100 \
+              --jq ".[] | select(.merged_at != null and .head.sha == \"$EXPECTED_REMOTE_HEAD\") | .number")"
+            MERGED_PR_COUNT="$(printf '%s\n' "$merged_pr_numbers" | awk 'NF { count += 1 } END { print count + 0 }')"
+            if [ "$MERGED_PR_COUNT" != "1" ]; then
+              echo "Expected one merged updater pull request for maintenance head $EXPECTED_REMOTE_HEAD, got $MERGED_PR_COUNT." >&2
+              exit 1
+            fi
+            MERGED_PR_NUMBER="$(printf '%s\n' "$merged_pr_numbers" | awk 'NF { print }')"
+            if ! printf '%s\n' "$MERGED_PR_NUMBER" | grep -Eq '^[1-9][0-9]*$'; then
+              echo "Merged maintenance pull request number is malformed: $MERGED_PR_NUMBER" >&2
+              exit 1
+            fi
+          }
+
+          verify_merged_pr() {
+            pr_number="$1"
+            expected_head="$2"
+            pr_state="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.state')"
+            pr_base="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.base.ref')"
+            pr_head="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.head.ref')"
+            pr_head_sha="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.head.sha')"
+            pr_title="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.title')"
+            pr_author="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.user.login')"
+            pr_merged_at="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.merged_at')"
+            if [ "$pr_state" != "closed" ] || [ "$pr_base" != "$DEFAULT_BRANCH" ] || [ "$pr_head" != "$UPDATE_BRANCH" ] || [ "$pr_head_sha" != "$expected_head" ] || [ "$pr_title" != "$PR_TITLE" ] || [ "$pr_author" != "$UPDATER_NAME" ] || [ "$pr_merged_at" = "null" ] || [ -z "$pr_merged_at" ]; then
+              echo "Merged maintenance pull request is not updater-conformant." >&2
+              exit 1
+            fi
+          }
+
+          remote_refs="$(git ls-remote --exit-code "$SUBMODULE_URL" "$SUBMODULE_REF")"
+          remote_ref_count="$(printf '%s\n' "$remote_refs" | awk 'NF { count += 1 } END { print count + 0 }')"
+          if [ "$remote_ref_count" != "1" ]; then
+            echo "Official submodule ref changed to an ambiguous state before publication." >&2
             exit 1
           fi
-          expected_sha="$(git ls-remote --exit-code "$SUBMODULE_URL" "$SUBMODULE_REF" | awk 'NR == 1 { print $1 }')"
-          if [ "$expected_sha" != "$CANDIDATE_SHA" ]; then
+          expected_ref="$(printf '%s\n' "$remote_refs" | awk 'NF { print $2 }')"
+          expected_sha="$(printf '%s\n' "$remote_refs" | awk 'NF { print $1 }')"
+          if [ "$expected_ref" != "$SUBMODULE_REF" ] || ! printf '%s\n' "$expected_sha" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Official submodule ref is malformed before publication." >&2
+            exit 1
+          fi
+          if ! printf '%s\n' "$CANDIDATE_SHA" | grep -Eq '^[0-9a-f]{40}$' || [ "$expected_sha" != "$CANDIDATE_SHA" ]; then
             echo "Official submodule branch changed after validation; refusing to publish $CANDIDATE_SHA." >&2
             exit 1
           fi
 
-      - name: Commit and push submodule update branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B chore/update-submodules
-          git update-index --add --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"
-
-          if git diff --cached --quiet; then
-            echo "No staged submodule changes."
+          git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          MASTER_HEAD="$(git rev-parse "origin/$DEFAULT_BRANCH")"
+          if ! printf '%s\n' "$MASTER_HEAD" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Current Parent master is not a full SHA-1: $MASTER_HEAD" >&2
+            exit 1
+          fi
+          master_entry="$(git ls-tree "$MASTER_HEAD" -- "$SUBMODULE_PATH")"
+          master_entry_count="$(printf '%s\n' "$master_entry" | awk 'NF { count += 1 } END { print count + 0 }')"
+          MASTER_GITLINK_MODE="$(printf '%s\n' "$master_entry" | awk 'NF { print $1 }')"
+          MASTER_GITLINK_TYPE="$(printf '%s\n' "$master_entry" | awk 'NF { print $2 }')"
+          MASTER_OLD_SHA="$(printf '%s\n' "$master_entry" | awk 'NF { print $3 }')"
+          MASTER_GITLINK_PATH="$(printf '%s\n' "$master_entry" | awk 'NF { print $4 }')"
+          if [ "$master_entry_count" != "1" ] || [ "$MASTER_GITLINK_MODE" != "160000" ] || [ "$MASTER_GITLINK_TYPE" != "commit" ] || [ "$MASTER_GITLINK_PATH" != "$SUBMODULE_PATH" ] || ! printf '%s\n' "$MASTER_OLD_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Current Parent master does not contain the expected Framework gitlink." >&2
+            exit 1
+          fi
+          if ! printf '%s\n' "$CURRENT_GITLINK_SHA" | grep -Eq '^[0-9a-f]{40}$' || [ "$MASTER_OLD_SHA" != "$CURRENT_GITLINK_SHA" ]; then
+            echo "Parent master Framework gitlink changed after resolution; refusing to publish a stale candidate transition." >&2
+            exit 1
+          fi
+          if [ "$MASTER_OLD_SHA" = "$CANDIDATE_SHA" ]; then
+            echo "Current Parent master already points to the validated Framework candidate; no branch or pull request will be changed."
+            printf 'published=false\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          git commit -m "chore: update submodules"
-          gh auth setup-git
-          git push --force-with-lease origin chore/update-submodules
+          read_open_prs
+          read_update_branch
+          ORIGINAL_REMOTE_HEAD="$EXPECTED_REMOTE_HEAD"
+          case "$OPEN_PR_COUNT:$UPDATE_BRANCH_PRESENT" in
+            0:false)
+              BRANCH_STATE=A
+              ;;
+            1:true)
+              BRANCH_STATE=B
+              ensure_open_pr_is_draft "$OPEN_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"
+              verify_open_draft_pr "$OPEN_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"
+              verify_open_branch_history
+              ;;
+            0:true)
+              BRANCH_STATE=C
+              git fetch --no-tags origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
+              require_single_updater_commit "origin/$UPDATE_BRANCH"
+              read_matching_merged_pr
+              verify_merged_pr "$MERGED_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"
+              ;;
+            *)
+              echo "Unsafe maintenance branch/pull-request state: branch=$UPDATE_BRANCH_PRESENT open_prs=$OPEN_PR_COUNT." >&2
+              exit 1
+              ;;
+          esac
 
-      - name: Create pull request with GitHub CLI
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          existing_pr_count=$(gh pr list \
-            --repo "$GITHUB_REPOSITORY" \
-            --base master \
-            --head chore/update-submodules \
-            --state open \
-            --json number \
-            --jq 'length')
+          git read-tree "$MASTER_HEAD"
+          git update-index \
+            --add \
+            --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"
 
-          if [ "$existing_pr_count" -gt 0 ]; then
-            echo "Pull request already exists for chore/update-submodules -> master."
-          elif ! gh pr create \
-            --repo "$GITHUB_REPOSITORY" \
-            --base master \
-            --head chore/update-submodules \
-            --title "chore: update submodules" \
-            --body "Automated recursive submodule update.
+          changed_paths="$(
+            git diff \
+              --cached \
+              --name-only \
+              "$MASTER_HEAD"
+          )"
+          require_only_submodule_path "$changed_paths"
 
-          Validation:
-          - the isolated read-only validation job completed successfully."; then
-            echo "::error::GitHub CLI could not create the pull request with github.token. Enable the repository setting: Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests."
+          # `git diff --raw` abbreviates object IDs by default. The updater compares
+          # exact SHA-40 values, so require unabbreviated IDs and exactly one gitlink
+          # modification record.
+          staged_gitlink_diff="$(
+            git diff \
+              --cached \
+              --raw \
+              --no-abbrev \
+              --no-renames \
+              "$MASTER_HEAD" \
+              -- "$SUBMODULE_PATH"
+          )"
+
+          if ! printf '%s\n' "$staged_gitlink_diff" |
+            awk \
+              -v old="$MASTER_OLD_SHA" \
+              -v new="$CANDIDATE_SHA" \
+              -v path="$SUBMODULE_PATH" \
+              '
+                NF {
+                  records += 1
+                }
+
+                $1 == ":160000" &&
+                $2 == "160000" &&
+                $3 == old &&
+                $4 == new &&
+                $5 == "M" &&
+                $6 == path {
+                  matches += 1
+                }
+
+                END {
+                  exit (records == 1 && matches == 1) ? 0 : 1
+                }
+              '
+          then
+            echo "Staged change is not exactly the expected Framework gitlink transition." >&2
+            echo "Expected old gitlink: $MASTER_OLD_SHA" >&2
+            echo "Expected new gitlink: $CANDIDATE_SHA" >&2
+            echo "Observed staged raw diff:" >&2
+            printf '%s\n' "$staged_gitlink_diff" >&2
             exit 1
           fi
+
+          git diff --cached --check "$MASTER_HEAD"
+          tree="$(git write-tree)"
+          git config user.name "$UPDATER_NAME"
+          git config user.email "$UPDATER_EMAIL"
+          NEW_COMMIT="$(git commit-tree "$tree" -p "$MASTER_HEAD" -m "$PR_TITLE")"
+          if ! printf '%s\n' "$NEW_COMMIT" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Generated maintenance commit is malformed: $NEW_COMMIT" >&2
+            exit 1
+          fi
+
+          git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          if [ "$(git rev-parse "origin/$DEFAULT_BRANCH")" != "$MASTER_HEAD" ]; then
+            echo "Parent master changed during publication preparation; refusing to publish a stale gitlink update." >&2
+            exit 1
+          fi
+          read_open_prs
+          read_update_branch
+          case "$BRANCH_STATE" in
+            A)
+              if [ "$OPEN_PR_COUNT" != "0" ] || [ "$UPDATE_BRANCH_PRESENT" != false ]; then
+                echo "Maintenance state changed before normal branch creation." >&2
+                exit 1
+              fi
+              gh auth setup-git
+              git push origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"
+              ;;
+            B)
+              if [ "$OPEN_PR_COUNT" != "1" ] || [ "$UPDATE_BRANCH_PRESENT" != true ] || [ "$EXPECTED_REMOTE_HEAD" != "$ORIGINAL_REMOTE_HEAD" ]; then
+                echo "Maintenance branch or pull request changed before lease-bound update." >&2
+                exit 1
+              fi
+              verify_open_draft_pr "$OPEN_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"
+              gh auth setup-git
+              git push --force-with-lease="refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_HEAD" origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"
+              ;;
+            C)
+              if [ "$OPEN_PR_COUNT" != "0" ] || [ "$UPDATE_BRANCH_PRESENT" != true ] || [ "$EXPECTED_REMOTE_HEAD" != "$ORIGINAL_REMOTE_HEAD" ]; then
+                echo "Maintenance branch or pull request changed before lease-bound reuse." >&2
+                exit 1
+              fi
+              read_matching_merged_pr
+              verify_merged_pr "$MERGED_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"
+              gh auth setup-git
+              git push --force-with-lease="refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_HEAD" origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"
+              ;;
+            *)
+              echo "Unrecognized maintenance branch state: $BRANCH_STATE" >&2
+              exit 1
+              ;;
+          esac
+
+          read_update_branch
+          if [ "$EXPECTED_REMOTE_HEAD" != "$NEW_COMMIT" ]; then
+            echo "Maintenance branch did not advance to the exact generated commit." >&2
+            exit 1
+          fi
+
+          pr_body="$RUNNER_TEMP/submodule-update-pr-body.md"
+          cat > "$pr_body" <<EOF
+          $PR_MARKER
+
+          Automated recursive submodule update.
+
+          - Previous Framework gitlink: $MASTER_OLD_SHA
+          - Proposed Framework gitlink: $CANDIDATE_SHA
+          - Validation: the isolated read-only quick check passed.
+          - Changed path: $SUBMODULE_PATH only.
+          - Merge: no automatic merge.
+          EOF
+
+          case "$BRANCH_STATE" in
+            B)
+              verify_open_draft_pr "$OPEN_PR_NUMBER" "$NEW_COMMIT"
+              gh pr edit "$OPEN_PR_NUMBER" --repo "$GITHUB_REPOSITORY" --title "$PR_TITLE" --body-file "$pr_body"
+              verify_open_draft_pr "$OPEN_PR_NUMBER" "$NEW_COMMIT"
+              ;;
+            A|C)
+              read_open_prs
+              if [ "$OPEN_PR_COUNT" != "0" ]; then
+                echo "A pull request appeared before creation; refusing to create or modify an ambiguous maintenance PR." >&2
+                exit 1
+              fi
+              if ! gh pr create \
+                --repo "$GITHUB_REPOSITORY" \
+                --draft \
+                --base "$DEFAULT_BRANCH" \
+                --head "$UPDATE_BRANCH" \
+                --title "$PR_TITLE" \
+                --body-file "$pr_body"; then
+                echo "::error::GitHub CLI could not create the Draft pull request with github.token. Enable Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests." >&2
+                exit 1
+              fi
+              read_open_prs
+              if [ "$OPEN_PR_COUNT" != "1" ]; then
+                echo "Draft pull request creation did not leave exactly one matching open PR." >&2
+                exit 1
+              fi
+              verify_open_pr_identity "$OPEN_PR_NUMBER" "$NEW_COMMIT"
+              ensure_open_pr_is_draft "$OPEN_PR_NUMBER" "$NEW_COMMIT"
+              verify_open_draft_pr "$OPEN_PR_NUMBER" "$NEW_COMMIT"
+              ;;
+          esac
+
+          {
+            printf 'published=true\n'
+            printf 'previous_sha=%s\n' "$MASTER_OLD_SHA"
+            printf 'candidate_sha=%s\n' "$CANDIDATE_SHA"
+            printf 'branch_state=%s\n' "$BRANCH_STATE"
+          } >> "$GITHUB_OUTPUT"
+
+  report-submodule-update-outcome:
+    name: Report submodule update outcome
+    needs:
+      - resolve-submodule-update
+      - validate-submodule-update
+      - create-submodule-update-pr
+    if: ${{ always() }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    env:
+      RESOLVER_RESULT: ${{ needs.resolve-submodule-update.result }}
+      VALIDATOR_RESULT: ${{ needs.validate-submodule-update.result }}
+      PUBLISHER_RESULT: ${{ needs.create-submodule-update-pr.result }}
+      RESOLVER_STATUS: ${{ needs.resolve-submodule-update.outputs.resolver_status }}
+      CHANGED: ${{ needs.resolve-submodule-update.outputs.changed }}
+      CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
+      CURRENT_SHA: ${{ needs.resolve-submodule-update.outputs.current_sha }}
+    steps:
+      - name: Enforce the explicit updater result contract
+        run: |
+          set -euo pipefail
+          if [ "$RESOLVER_RESULT" != "success" ] || [ "$RESOLVER_STATUS" != "resolved" ]; then
+            echo "::error::Submodule resolver did not produce a recognized successful result." >&2
+            exit 1
+          fi
+          if ! printf '%s\n' "$CANDIDATE_SHA" | grep -Eq '^[0-9a-f]{40}$' || ! printf '%s\n' "$CURRENT_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::Submodule resolver output is missing or malformed." >&2
+            exit 1
+          fi
+          case "$CHANGED" in
+            false)
+              if [ "$VALIDATOR_RESULT" != "skipped" ] || [ "$PUBLISHER_RESULT" != "skipped" ]; then
+                echo "::error::No-update result has an unexpected validator or publisher state." >&2
+                exit 1
+              fi
+              printf '%s\n' \
+                '## Submodule updater outcome' \
+                '' \
+                'The Framework submodule already points to the reviewed current master commit. No branch, commit, or pull request was created or modified.' \
+                '' \
+                'Das Framework-Submodule zeigt bereits auf den geprüften aktuellen Master-Commit. Es wurde kein Branch, Commit oder Pull Request erstellt oder verändert.' \
+                >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            true)
+              if [ "$VALIDATOR_RESULT" != "success" ] || [ "$PUBLISHER_RESULT" != "success" ]; then
+                echo "::error::Validated submodule update was not fully published." >&2
+                exit 1
+              fi
+              printf '%s\n' \
+                '## Submodule updater outcome' \
+                '' \
+                'The Framework submodule update passed the isolated read-only quick check and completed the constrained publisher path.' \
+                'A matching Draft pull request was created or updated only when the current Parent master still required the gitlink change.' \
+                '' \
+                'Das Framework-Submodule-Update bestand den isolierten read-only Quick-Check und den eingeschränkten Publisher-Pfad.' \
+                'Ein passender Draft Pull Request wurde nur erstellt oder aktualisiert, wenn der aktuelle Parent-Master die Gitlink-Änderung weiterhin benötigte.' \
+                >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "::error::Submodule resolver changed output is missing or unexpected: $CHANGED" >&2
+              exit 1
+              ;;
+          esac

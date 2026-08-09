@@ -20,6 +20,7 @@ vollständige Matrix oder Strict-Verhalten für jeden Connector zu behaupten.
 | Tests oder Artefakte deuten | [Tests und Nachweise](testing-and-evidence.de.md) | Ausgewählte Run-Records und Framework-Schemata |
 | Sicher betreiben | [Betrieb und Sicherheit](operations-and-security.de.md) | Explizite Deployment-, Limit-, Datenschutz- und Provenienzgrenze |
 | CI-Sicherheitsautomatisierung prüfen | [CI-Sicherheitswerkzeuge](security/ci-security-tooling.de.md) | Unveränderliche Pins, Scanner, Berechtigungen und ihre Evidenzgrenzen |
+| Die privilegierte NGINX-Testgrenze prüfen | [Vertrauenswürdiger NGINX-Root-Broker](security/trusted-nginx-root-broker.de.md) | Unveränderlicher Protected-master-Code, begrenzte Root-Aktionen und Root-zu-Runner-Evidence |
 | Einen Connector wählen | [Connector-Index](connectors/README.de.md) | Ausgewählter Integrationsmodus und Connector-Guide |
 | Eine wesentliche Änderung dokumentieren | [Nachvollziehbarkeit von Änderungen](change-traceability.de.md) / [Change Records](../reports/audits/change-records/README.de.md) | Verbindlicher Ablauf, gepaarte Records sowie Evidence-/Datengrenze |
 

@@ -218,6 +218,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             "TRAEFIK_BIN",
             "TRAEFIK_NATIVE_RUNTIME_ROOT",
             "TRAEFIK_ENGINE_SOCKET_PARENT",
+            "TRAEFIK_ENGINE_SOCKET_TEST_PARENT",
             "PYTHON",
             "BUILD_ROOT",
             "MODSECURITY_INCLUDE_DIR",
@@ -241,7 +242,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             native_makefile,
         )
         self.assertIn(
-            "export TRAEFIK_BIN TRAEFIK_NATIVE_RUNTIME_ROOT TRAEFIK_ENGINE_SOCKET_PARENT PYTHON",
+            "export TRAEFIK_BIN TRAEFIK_NATIVE_RUNTIME_ROOT TRAEFIK_ENGINE_SOCKET_PARENT TRAEFIK_ENGINE_SOCKET_TEST_PARENT PYTHON",
             native_makefile,
         )
         self.assertEqual(native_recipe, "\tsh scripts/runtime-native-middleware.sh")
@@ -349,6 +350,10 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
                 f"{temporary_root}/$(shell printf MAKE_PARENT_INJECTION_REACHED >&2)",
             ),
             (
+                "TRAEFIK_ENGINE_SOCKET_TEST_PARENT",
+                f"{temporary_root}/$(shell printf MAKE_TEST_PARENT_INJECTION_REACHED >&2)",
+            ),
+            (
                 "PYTHON",
                 f"{temporary_root}/$(shell printf MAKE_PYTHON_INJECTION_REACHED >&2)",
             ),
@@ -369,6 +374,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             "--eval=show-exported-values:; @printf '%s\\n' \"$$TRAEFIK_BIN\"; "
             "printf '%s\\n' \"$$TRAEFIK_NATIVE_RUNTIME_ROOT\"; "
             "printf '%s\\n' \"$$TRAEFIK_ENGINE_SOCKET_PARENT\"; "
+            "printf '%s\\n' \"$$TRAEFIK_ENGINE_SOCKET_TEST_PARENT\"; "
             "printf '%s\\n' \"$$PYTHON\"; "
             "printf '%s\\n' \"$$MODSECURITY_INCLUDE_DIR\"; "
             "printf '%s\\n' \"$$MODSECURITY_LIB_DIR\"; "
@@ -402,6 +408,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             "MAKE_BIN_INJECTION_REACHED",
             "MAKE_ROOT_INJECTION_REACHED",
             "MAKE_PARENT_INJECTION_REACHED",
+            "MAKE_TEST_PARENT_INJECTION_REACHED",
             "MAKE_PYTHON_INJECTION_REACHED",
             "MAKE_INCLUDE_INJECTION_REACHED",
             "MAKE_LIBRARY_INJECTION_REACHED",

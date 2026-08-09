@@ -2024,9 +2024,24 @@ def runtime_artifact_path(
     )
 
 
-def lighttpd_artifacts(runtime_paths: RuntimeOutputPaths) -> LighttpdArtifacts:
-    work_dir = runtime_paths.config_root
-    log_dir = runtime_paths.log_dir
+def lighttpd_artifact_namespace(args: argparse.Namespace) -> str:
+    """Return the validated scenario namespace used for lighttpd evidence."""
+
+    if args.modsecurity_ruleset == "crs":
+        return f"crs-{args.crs_smoke_case}"
+    return args.modsecurity_smoke_case
+
+
+def lighttpd_artifacts(
+    args: argparse.Namespace, runtime_paths: RuntimeOutputPaths
+) -> LighttpdArtifacts:
+    namespace = lighttpd_artifact_namespace(args)
+    work_dir = runtime_artifact_path(
+        runtime_paths, runtime_paths.config_root, f"lighttpd-{namespace}", "CONFIG_ROOT"
+    )
+    log_dir = runtime_artifact_path(
+        runtime_paths, runtime_paths.log_dir, f"lighttpd-{namespace}", "LOG_DIR"
+    )
     return LighttpdArtifacts(
         work_dir=work_dir,
         log_dir=log_dir,
@@ -2216,6 +2231,7 @@ def lighttpd_evidence(args: argparse.Namespace, decision_backend: object, sideca
 
 def lighttpd_outcome(
     args: argparse.Namespace,
+    decision_backend: SimpleDecisionBackend | ModSecurityDecisionBackend,
     artifacts: LighttpdArtifacts,
     decision_log_path: Path | None,
     binary_verified: bool,
@@ -2267,7 +2283,7 @@ def run_lighttpd_sidecar_smoke(
 ) -> int:
     upstream_port = selected_loopback_port(args.upstream_port)
     listen_port = selected_loopback_port(args.listen_port)
-    artifacts = lighttpd_artifacts(runtime_paths)
+    artifacts = lighttpd_artifacts(args, runtime_paths)
     binary_verified = False
     probe: LighttpdProbe | None = None
     process: subprocess.Popen[object] | None = None
@@ -2282,7 +2298,8 @@ def run_lighttpd_sidecar_smoke(
         sidecar_verified = probe.lighttpd_http_verified and probe.allowed_status == 200 and probe.blocked_status == 403
         evidence = lighttpd_evidence(args, decision_backend, sidecar_verified)
         return lighttpd_outcome(
-            args, artifacts, decision_log_path, binary_verified, probe, evidence
+            args, decision_backend, artifacts, decision_log_path,
+            binary_verified, probe, evidence
         )
     except Exception as exc:  # noqa: BLE001 - runtime startup failures become blocked evidence.
         evidence = collect_backend_evidence(decision_backend)
