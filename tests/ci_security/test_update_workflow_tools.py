@@ -70,6 +70,12 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             "tools": {},
         }
 
+    @staticmethod
+    def normalized_connector_lock(lock_blob: bytes) -> dict[str, Any]:
+        """Load a Connector lock through the production compatibility adapter."""
+
+        return UPDATER.normalize_connector_lock(UPDATER.yaml.safe_load(lock_blob))
+
     def test_resolver_uses_only_release_and_tag_identity(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
         record = lock["actions"]["actions/checkout"]
@@ -888,7 +894,7 @@ jobs:
     def test_existing_branch_rejects_a_manually_modified_publisher_blob(self) -> None:
         lock_path = ROOT / "ci/tooling/security-tools.lock.yml"
         base_lock_blob = lock_path.read_bytes()
-        base_lock = UPDATER.normalize_connector_lock(UPDATER.yaml.safe_load(base_lock_blob))
+        base_lock = self.normalized_connector_lock(base_lock_blob)
         base_lock_digest = UPDATER.hashlib.sha256(base_lock_blob).hexdigest()
         head_lock = deepcopy(base_lock)
         blobs = {
@@ -933,7 +939,7 @@ jobs:
 
     def test_existing_branch_accepts_exact_trusted_base_derived_blobs(self) -> None:
         base_lock_blob = (ROOT / "ci/tooling/security-tools.lock.yml").read_bytes()
-        base_lock = UPDATER.normalize_connector_lock(UPDATER.yaml.safe_load(base_lock_blob))
+        base_lock = self.normalized_connector_lock(base_lock_blob)
         checkout = self.changed_action(
             base_lock, "actions/checkout", "v9.9.9", "a" * 40
         )
@@ -947,12 +953,8 @@ jobs:
             temporary_root = Path(temporary_directory)
             expected_root = self.copied_update_root(temporary_root / "expected")
             UPDATER.apply_candidate(expected_root, candidate)
-            head_lock = UPDATER.normalize_connector_lock(
-                UPDATER.yaml.safe_load(
-                    (expected_root / "ci/tooling/security-tools.lock.yml").read_text(
-                        encoding="utf-8"
-                    )
-                )
+            head_lock = self.normalized_connector_lock(
+                (expected_root / "ci/tooling/security-tools.lock.yml").read_bytes()
             )
             blobs = {
                 ("base", relative_text): (ROOT / relative_text).read_bytes()
