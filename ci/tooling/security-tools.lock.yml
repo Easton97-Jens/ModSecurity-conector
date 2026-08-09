@@ -20,7 +20,7 @@ pinned_actions:
     commit_sha: b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
     upstream: https://github.com/actions/setup-go
   actions/github-script:
-    version: v9
+    version: v9.0.0
     commit_sha: 3a2844b7e9c422d3c10d287c895573f7108da1b3
     upstream: https://github.com/actions/github-script
   actions/upload-artifact:
@@ -32,12 +32,12 @@ pinned_actions:
     commit_sha: 3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
     upstream: https://github.com/actions/download-artifact
   github/codeql-action:
-    version: v4.37.4
-    commit_sha: f205ea1c3313d32999d8d6a48b4f6530d4437b38
+    version: v4.37.6
+    commit_sha: 5595ccaf912efad79be6eef63a5619ff05969be3
     upstream: https://github.com/github/codeql-action
   google/osv-scanner-action:
-    version: v2.3.8
-    commit_sha: 9a498708959aeaef5ef730655706c5a1df1edbc2
+    version: v2.5.0
+    commit_sha: 8deb546fdb875b9996d27d4950be7312dac076a1
     upstream: https://github.com/google/osv-scanner-action
   ossf/scorecard-action:
     version: v2.4.4
@@ -57,11 +57,11 @@ tools:
     purpose: GitHub Actions syntax, expression, and ShellCheck integration.
     permissions: contents:read
   zizmor:
-    version: v1.27.0
-    release_commit: e2627367eb7c917a90503ce05a66872fd91da6fb
+    version: v1.29.0
+    release_commit: 3c116961091b50bd1a08ffefe916469d4d90093c
     asset: zizmor-x86_64-unknown-linux-gnu.tar.gz
-    url: https://github.com/zizmorcore/zizmor/releases/download/v1.27.0/zizmor-x86_64-unknown-linux-gnu.tar.gz
-    sha256: 277f2bd8fd37cf60c42ab7afca6faa884e65440fa31e02b44bdaae60f62a358f
+    url: https://github.com/zizmorcore/zizmor/releases/download/v1.29.0/zizmor-x86_64-unknown-linux-gnu.tar.gz
+    sha256: dd96df044a6e8538d5f423790f453bdd03d49e5b2bcc38214acc41a2f1297839
     executable: zizmor
     upstream: https://github.com/zizmorcore/zizmor
     license: MIT
