@@ -19,6 +19,40 @@ beide festen Brokerprofile `no-crs` und `owasp-crs`, ihre hochgeladene
 Evidence und den descriptor-relativen Cleanup beweisen, bevor PR #240 auf
 dieser Grenze aufbaut.
 
+## Nachfolgende Reparatur der Reusable-Broker-Bindung
+
+Nach dem Merge des Callers schlug der resulting-master-Dispatch
+[`31310183097`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31310183097)
+fail-closed vor Broker-Checkout, Build, CRS-Erzeugung, `sudo`, Root-Admission,
+NGINX-Start, Evidence-Projektion oder Cleanup fehl. Die frühere Prüfung
+erwartete die Broker-Identität
+`Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@e06254ea9622d214a9030b9ba786756560ace417`,
+GitHub lieferte jedoch die Caller-Identität
+`Easton97-Jens/ModSecurity-conector/.github/workflows/run-protected-nginx-root-broker.yml@refs/heads/master`.
+Der frühere Vergleich war korrekt fail-closed, aber konzeptionell falsch:
+GitHub ordnet den `github`-Kontext in einem aufgerufenen wiederverwendbaren
+Workflow seinem Caller zu. Dieser Lauf liefert deshalb keine Root-, NGINX-,
+CRS-, Worker-, Artefakt- oder Cleanup-PASS-Evidence.
+
+Die Reparatur behält eine Binding-Stufe bei, trennt jedoch Caller-Kontext,
+Caller-Commit, Caller-YAML, unveränderlichen Reusable-Workflow-Input-SHA,
+ausgecheckten Broker-HEAD, beide Broker-Source-Blobs und Framework-Gitlink.
+Sie akzeptiert nur den exakten dispatch-only Protected-master-Caller-Kontext,
+liest den festen Caller-Pfad ausschließlich als begrenzten regulären Gitblob
+am tatsächlichen Caller-Commit und validiert ein eingeschränktes deklaratives
+YAML-Schema. Exakt die zwei festen Brokerjobs müssen einen Literal-SHA-40
+gleich ihrem `protected_broker_sha`-Input, die festen Varianten und Inputs,
+read-only-Berechtigungen und keine Secrets verwenden. Der Broker-Commit muss
+Protected-master-Vorfahr sein; sowohl sein Workflow- als auch sein Python-Blob
+müssen vor Candidate-Erzeugung und unmittelbar vor Root-Aktionen übereinstimmen.
+
+Es wird weder `id-token: write` noch eine OIDC-Alternative hinzugefügt. Der
+Caller bleibt während dieser Reparatur auf dem alten Pin
+`e06254ea9622d214a9030b9ba786756560ace417`. Weil das Repository Squash-Merge
+verwendet, muss ein getrennter Caller-Repin-PR den resultierenden
+Broker-Repair-Merge-SHA verwenden, bevor ein neuer Protected-master-Dispatch
+Lifecycle-Evidence liefern kann.
+
 ## Akzeptanzkriterien
 
 Der neue Caller ist nur über `workflow_dispatch` auf dem kanonischen
@@ -67,16 +101,24 @@ Lockeintrag einzuordnen.
 
 ## Geänderte Dateien
 
-- `.github/workflows/run-protected-nginx-root-broker.yml`
-- `ci/runtime/broker/protected_nginx_broker_caller.py`
-- `ci/checks/common/check-python-version-contract.py`
-- `tests/test_protected_nginx_broker_caller.py`
-- `tests/test_ci_security_workflows.py`
-- `tests/test_python_version_contract.py`
-- `docs/security/trusted-nginx-root-broker.md` und `.de.md`
-- dieser Change Record und sein deutsches Gegenstück
+Dieser Record umfasst den bereits gemergten geschützten Caller (PR #259) und
+diese nachfolgende Reusable-Binding-Reparatur. Die nachstehenden Caller-Pfade
+gehören zur gemergten Caller-Änderung und nicht zum aktuellen Repair-Diff.
+
+- **Gemergter Caller PR #259:** `.github/workflows/run-protected-nginx-root-broker.yml`,
+  `ci/runtime/broker/protected_nginx_broker_caller.py` und
+  `tests/test_protected_nginx_broker_caller.py`.
+- **Reusable-Binding-Reparatur:** `.github/workflows/nginx-root-broker.yml`,
+  `ci/runtime/broker/nginx_root_broker.py`,
+  `ci/checks/common/check-python-version-contract.py`,
+  `tests/test_ci_security_workflows.py`, `tests/test_python_version_contract.py`,
+  `tests/test_nginx_root_broker.py` und `tests/test_nginx_root_broker_workflow.py`.
+- **Gepaarte Dokumentation:** `docs/security/trusted-nginx-root-broker.md` und
+  `.de.md` sowie dieser Change Record und sein deutsches Gegenstück.
 
 ## Ausgeführte Befehle
+
+### Historische Caller-PR-Validierung
 
 Die Exact-Head-Lokalvalidierung bestand mit dem verfügbaren lokalen Python
 3.14.4 als nicht kanonischem statischem Fallback: Die fokussierten Caller-,
@@ -102,6 +144,25 @@ ShellCheck, zizmor offline und Diff-Prüfungen bestanden lokal mit dem
 verfügbaren Python-3.14.4-Fallback. Jeder aktuelle PR-Head benötigt unabhängig
 frische Hosted- und SonarQube-Cloud-Evidence; ein historisches Head-Ergebnis
 ist kein Ersatz.
+
+### Aktuelle Validierung der Reusable-Binding-Reparatur
+
+Im aktuellen lokalen Kandidatenzustand bestanden die fokussierten Python-
+Contract-, Broker-, Broker-Workflow- und CI-Security-Suites mit 80 Tests unter
+dem verfügbaren Python-3.14.4-Fallback. `make check-ci-security-contract`,
+Quell-`py_compile`, actionlint mit ShellCheck, zizmor offline, die bilinguale
+Dokumentations-Unit-Suite und `git diff --check` bestanden. Das exakte
+Python-3.14.6-Gate sowie jede Current-Head-Hosted-, SonarQube-Cloud-, Review-
+und Branch-Protection-Evidence stehen noch aus.
+
+`make check-python-version-contract` bleibt ausschließlich wegen
+vorbestehender, außerhalb dieser Reparatur liegender `master`-
+Inventarfehler nichtnull; der reparierte Job
+`nginx-root-broker.yml:trusted-root-smoke` erscheint nicht in seinen
+Diagnosen. Repository-weite bilinguale und Link-Targets sind durch die
+absichtlich nicht initialisierten, vorbestehenden Framework-Submodul-
+Linkziele blockiert; sie melden keinen reparaturspezifischen Paar-
+Dokumentationsfehler.
 
 ## Security-Auswirkung
 

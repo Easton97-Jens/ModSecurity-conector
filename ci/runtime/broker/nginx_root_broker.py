@@ -128,7 +128,89 @@ MAX_MANIFEST_BYTES = 64 * 1024
 MAX_CRS_BUNDLE_MANIFEST_BYTES = 2 * 1024 * 1024
 MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024
 MAX_EVIDENCE_TOTAL_BYTES = 20 * 1024 * 1024
+MAX_CALLER_WORKFLOW_BYTES = 256 * 1024
+MAX_CALLER_WORKFLOW_LINES = 4_000
+MAX_CALLER_WORKFLOW_LINE_CHARACTERS = 4_096
+MAX_CALLER_WORKFLOW_DEPTH = 32
+MAX_CALLER_WORKFLOW_JOBS = 32
 RUNTIME_EXPORT_RE = re.compile(r"^export (?P<key>[A-Z0-9_]+)='(?P<value>[^'\r\n]*)'$")
+YAML_KEY_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+GIT_BLOB_PATTERN = r"[0-9a-f]{40,64}"
+GIT_BLOB_RE = re.compile(rf"^{GIT_BLOB_PATTERN}$")
+
+EXPECTED_CALLER_REPOSITORY = "Easton97-Jens/ModSecurity-conector"
+EXPECTED_CALLER_WORKFLOW_PATH = ".github/workflows/run-protected-nginx-root-broker.yml"
+EXPECTED_CALLER_WORKFLOW_REF = (
+    f"{EXPECTED_CALLER_REPOSITORY}/{EXPECTED_CALLER_WORKFLOW_PATH}@refs/heads/master"
+)
+EXPECTED_BROKER_WORKFLOW_PATH = ".github/workflows/nginx-root-broker.yml"
+EXPECTED_BROKER_WORKFLOW_PREFIX = (
+    f"{EXPECTED_CALLER_REPOSITORY}/{EXPECTED_BROKER_WORKFLOW_PATH}@"
+)
+EXPECTED_CALLER_REUSABLE_JOB_KEYS = frozenset({"needs", "if", "permissions", "uses", "with"})
+EXPECTED_CALLER_TOP_LEVEL_KEYS = frozenset({"name", "on", "permissions", "concurrency", "jobs"})
+EXPECTED_CALLER_WORKFLOW_NAME = "Protected NGINX Root Broker Lifecycle"
+EXPECTED_CALLER_TRIGGER_KEYS = frozenset({"workflow_dispatch"})
+EXPECTED_CALLER_DISPATCH_KEYS = frozenset({"inputs"})
+EXPECTED_CALLER_DISPATCH_INPUT_KEYS = frozenset({"parent_head_sha"})
+EXPECTED_CALLER_PARENT_HEAD_INPUT_KEYS = frozenset({"description", "required", "type"})
+EXPECTED_CALLER_CONCURRENCY = {
+    "group": "protected-nginx-root-broker-caller",
+    "cancel-in-progress": "false",
+}
+EXPECTED_CALLER_BROKER_INPUT_KEYS = frozenset(
+    {
+        "caller_manifest_artifact",
+        "parent_head_sha",
+        "framework_sha",
+        "protected_broker_sha",
+        "matrix_variant",
+        "run_id",
+    }
+)
+EXPECTED_CALLER_BROKER_VARIANTS = {
+    "run-no-crs-broker": "no-crs",
+    "run-with-crs-broker": "with-crs",
+}
+EXPECTED_CALLER_MASTER_GATE = " ".join(
+    (
+        "github.event_name == 'workflow_dispatch' &&",
+        "github.repository == 'Easton97-Jens/ModSecurity-conector' &&",
+        "github.event.repository.fork == false &&",
+        "github.ref == 'refs/heads/master' &&",
+        "github.event.repository.default_branch == 'master'",
+    )
+)
+EXPECTED_CALLER_BROKER_GATE = " ".join(
+    (
+        EXPECTED_CALLER_MASTER_GATE + " &&",
+        "needs.prepare-manifests.result == 'success'",
+    )
+)
+EXPECTED_CALLER_EVIDENCE_GATE = " ".join(
+    (
+        "${{ always() &&",
+        EXPECTED_CALLER_MASTER_GATE + " &&",
+        "needs.prepare-manifests.result == 'success' &&",
+        "needs.run-no-crs-broker.result == 'success' &&",
+        "needs.run-with-crs-broker.result == 'success' }}",
+    )
+)
+EXPECTED_CALLER_RESULT_GATE = " ".join(
+    (
+        "${{ always() &&",
+        EXPECTED_CALLER_MASTER_GATE + " }}",
+    )
+)
+EXPECTED_CALLER_JOB_NAMES = frozenset(
+    {
+        "prepare-manifests",
+        "run-no-crs-broker",
+        "run-with-crs-broker",
+        "verify-evidence",
+        "result",
+    }
+)
 
 # These values are copied from the exact protected Framework gitlink recorded
 # by this broker revision. The protected workflow checks that gitlink before
@@ -176,6 +258,538 @@ def require_string(value: object, label: str, *, maximum: int = 256) -> str:
     if "\x00" in value or "\n" in value or "\r" in value:
         fail(f"{label} must not contain control characters")
     return value
+
+
+@dataclass(frozen=True)
+class RestrictedYamlLine:
+    """One non-empty line in the deliberately narrow caller-workflow YAML subset."""
+
+    number: int
+    indent: int
+    content: str
+    raw_content: str
+
+
+def fail_caller_workflow_yaml(line_number: int, message: str) -> None:
+    fail(f"caller workflow YAML line {line_number}: {message}")
+
+
+def strip_yaml_inline_comment(value: str, line_number: int) -> str:
+    """Remove a YAML comment without evaluating quoted text or shell content."""
+
+    quote = ""
+    escaped = False
+    for index, character in enumerate(value):
+        if quote:
+            if quote == '"' and character == "\\" and not escaped:
+                escaped = True
+                continue
+            if character == quote and not escaped:
+                quote = ""
+            escaped = False
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            continue
+        if character == "#" and (index == 0 or value[index - 1].isspace()):
+            return value[:index].rstrip()
+    if quote:
+        fail_caller_workflow_yaml(line_number, "has an unterminated quoted scalar")
+    return value.rstrip()
+
+
+def restricted_yaml_lines(raw: bytes) -> list[RestrictedYamlLine]:
+    """Decode a bounded, single-document YAML subset without YAML coercions.
+
+    The caller file is declarative data.  This parser intentionally accepts
+    only the indentation, mapping, sequence, and opaque block-scalar forms
+    used by the protected caller.  It rejects YAML features whose implicit
+    semantics could hide a second binding from a general-purpose safe loader.
+    """
+
+    if len(raw) > MAX_CALLER_WORKFLOW_BYTES:
+        fail("caller workflow YAML exceeds the maximum allowed size")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        fail(f"caller workflow YAML is not UTF-8: {exc}")
+    if text.startswith("\ufeff"):
+        fail("caller workflow YAML must not contain a byte-order mark")
+    if "\x00" in text or "\r" in text:
+        fail("caller workflow YAML contains forbidden control characters")
+
+    result: list[RestrictedYamlLine] = []
+    for number, raw_line in enumerate(text.splitlines(), start=1):
+        if len(raw_line) > MAX_CALLER_WORKFLOW_LINE_CHARACTERS:
+            fail_caller_workflow_yaml(number, "exceeds the maximum line length")
+        if "\t" in raw_line:
+            fail_caller_workflow_yaml(number, "contains a tab")
+        structural = strip_yaml_inline_comment(raw_line, number)
+        if structural in {"---", "..."}:
+            fail_caller_workflow_yaml(number, "uses an unsupported document marker")
+        indent = len(raw_line) - len(raw_line.lstrip(" "))
+        raw_content = raw_line[indent:]
+        if not structural.strip():
+            if not raw_content.lstrip().startswith("#"):
+                continue
+            result.append(RestrictedYamlLine(number, indent, "", raw_content))
+            if len(result) > MAX_CALLER_WORKFLOW_LINES:
+                fail("caller workflow YAML exceeds the maximum allowed line count")
+            continue
+        structural_indent = len(structural) - len(structural.lstrip(" "))
+        if structural_indent != indent:
+            fail_caller_workflow_yaml(number, "has malformed indentation")
+        content = structural[indent:]
+        result.append(RestrictedYamlLine(number, indent, content, raw_content))
+        if len(result) > MAX_CALLER_WORKFLOW_LINES:
+            fail("caller workflow YAML exceeds the maximum allowed line count")
+    if not result:
+        fail("caller workflow YAML is empty")
+    return result
+
+
+class RestrictedYamlParser:
+    """Fail-closed parser for the protected caller's declarative YAML subset.
+
+    This is deliberately not a general YAML implementation.  It parses just
+    enough structure to reject duplicate keys and indirection while keeping
+    executable block-scalar bodies opaque.  GitHub expressions remain ordinary
+    string scalars and are never evaluated.
+    """
+
+    def __init__(self, lines: list[RestrictedYamlLine]) -> None:
+        self.lines = lines
+
+    def parse(self) -> dict[str, Any]:
+        index = self.skip_comments(0)
+        if index >= len(self.lines):
+            fail("caller workflow YAML is empty")
+        if self.lines[index].indent != 0:
+            fail_caller_workflow_yaml(self.lines[index].number, "must begin at indentation zero")
+        value, index = self.parse_block(index, 0, 0)
+        index = self.skip_comments(index)
+        if index != len(self.lines):
+            fail_caller_workflow_yaml(self.lines[index].number, "has trailing unparsed content")
+        if not isinstance(value, dict):
+            fail("caller workflow YAML root must be a mapping")
+        return value
+
+    def parse_block(self, index: int, indent: int, depth: int) -> tuple[Any, int]:
+        if depth > MAX_CALLER_WORKFLOW_DEPTH:
+            fail("caller workflow YAML exceeds the maximum nesting depth")
+        index = self.skip_comments(index)
+        if index >= len(self.lines):
+            fail("caller workflow YAML has an incomplete nested value")
+        line = self.lines[index]
+        if line.indent != indent:
+            fail_caller_workflow_yaml(line.number, "has malformed indentation")
+        if line.content.startswith("- "):
+            return self.parse_sequence(index, indent, depth)
+        if line.content == "-":
+            fail_caller_workflow_yaml(line.number, "has an empty sequence item")
+        return self.parse_mapping(index, indent, depth)
+
+    def parse_mapping(self, index: int, indent: int, depth: int) -> tuple[dict[str, Any], int]:
+        mapping: dict[str, Any] = {}
+        while index < len(self.lines):
+            line = self.lines[index]
+            if not line.content:
+                index += 1
+                continue
+            if line.indent < indent:
+                break
+            if line.indent > indent:
+                fail_caller_workflow_yaml(line.number, "has unexpected nested indentation")
+            if line.content.startswith("- ") or line.content == "-":
+                fail_caller_workflow_yaml(line.number, "mixes a sequence into a mapping")
+            key, raw_value = self.mapping_entry(line)
+            if key in mapping:
+                fail_caller_workflow_yaml(line.number, f"duplicates mapping key {key!r}")
+            if key == "<<":
+                fail_caller_workflow_yaml(line.number, "uses an unsupported merge key")
+            if not raw_value:
+                value, index = self.child_value(index + 1, indent, depth)
+            elif self.is_block_scalar(raw_value):
+                value, index = self.block_scalar(index + 1, indent)
+            else:
+                value = self.scalar(raw_value, line.number)
+                index += 1
+            mapping[key] = value
+        return mapping, index
+
+    def parse_sequence(self, index: int, indent: int, depth: int) -> tuple[list[Any], int]:
+        items: list[Any] = []
+        while index < len(self.lines):
+            line = self.lines[index]
+            if not line.content:
+                index += 1
+                continue
+            if line.indent < indent:
+                break
+            if line.indent > indent:
+                fail_caller_workflow_yaml(line.number, "has unexpected nested indentation")
+            if not line.content.startswith("- "):
+                fail_caller_workflow_yaml(line.number, "mixes a mapping into a sequence")
+            raw_item = line.content[2:].strip()
+            if not raw_item:
+                value, index = self.child_value(index + 1, indent, depth)
+            elif self.looks_like_mapping_entry(raw_item):
+                key, raw_value = self.mapping_entry(
+                    RestrictedYamlLine(line.number, line.indent, raw_item, raw_item)
+                )
+                if key == "<<":
+                    fail_caller_workflow_yaml(line.number, "uses an unsupported merge key")
+                item: dict[str, Any] = {}
+                if not raw_value:
+                    value, index = self.child_value(index + 1, indent, depth)
+                elif self.is_block_scalar(raw_value):
+                    value, index = self.block_scalar(index + 1, indent)
+                else:
+                    value = self.scalar(raw_value, line.number)
+                    index += 1
+                item[key] = value
+                index = self.skip_comments(index)
+                if index < len(self.lines) and self.lines[index].indent > indent:
+                    if self.lines[index].indent != indent + 2:
+                        fail_caller_workflow_yaml(self.lines[index].number, "has malformed list indentation")
+                    additional, index = self.parse_mapping(index, indent + 2, depth + 1)
+                    overlap = set(item).intersection(additional)
+                    if overlap:
+                        fail_caller_workflow_yaml(
+                            line.number,
+                            f"duplicates list mapping key {sorted(overlap)[0]!r}",
+                        )
+                    item.update(additional)
+                value = item
+            else:
+                value = self.scalar(raw_item, line.number)
+                index += 1
+                index = self.skip_comments(index)
+                if index < len(self.lines) and self.lines[index].indent > indent:
+                    fail_caller_workflow_yaml(
+                        self.lines[index].number,
+                        "nests content below a scalar sequence item",
+                    )
+            items.append(value)
+        return items, index
+
+    def child_value(self, index: int, parent_indent: int, depth: int) -> tuple[Any, int]:
+        index = self.skip_comments(index)
+        if index >= len(self.lines) or self.lines[index].indent <= parent_indent:
+            return None, index
+        if self.lines[index].indent != parent_indent + 2:
+            fail_caller_workflow_yaml(self.lines[index].number, "has non-canonical indentation")
+        return self.parse_block(index, parent_indent + 2, depth + 1)
+
+    def block_scalar(self, index: int, parent_indent: int) -> tuple[str, int]:
+        """Return a bounded block scalar without interpreting its content."""
+
+        if index >= len(self.lines) or self.lines[index].indent <= parent_indent:
+            fail("caller workflow YAML has an empty block scalar")
+        minimum_indent = parent_indent + 2
+        if self.lines[index].indent != minimum_indent:
+            fail_caller_workflow_yaml(self.lines[index].number, "has non-canonical block indentation")
+        content: list[str] = []
+        while index < len(self.lines) and self.lines[index].indent > parent_indent:
+            if self.lines[index].indent < minimum_indent:
+                fail_caller_workflow_yaml(self.lines[index].number, "has malformed block indentation")
+            content.append(self.lines[index].raw_content)
+            index += 1
+        if not content:
+            fail("caller workflow YAML has an empty block scalar")
+        return "\n".join(content), index
+
+    def skip_comments(self, index: int) -> int:
+        while index < len(self.lines) and not self.lines[index].content:
+            index += 1
+        return index
+
+    @staticmethod
+    def is_block_scalar(value: str) -> bool:
+        return value in {"|", "|-", "|+", ">", ">-", ">+"}
+
+    @staticmethod
+    def looks_like_mapping_entry(value: str) -> bool:
+        return bool(re.match(r"^[A-Za-z0-9_.-]+:\s*", value))
+
+    @staticmethod
+    def mapping_entry(line: RestrictedYamlLine) -> tuple[str, str]:
+        separator = line.content.find(":")
+        if separator <= 0:
+            fail_caller_workflow_yaml(line.number, "is not a supported mapping entry")
+        key = line.content[:separator]
+        if not YAML_KEY_RE.fullmatch(key):
+            fail_caller_workflow_yaml(line.number, "has an unsupported mapping key")
+        return key, line.content[separator + 1 :].lstrip(" ")
+
+    @staticmethod
+    def scalar(value: str, line_number: int) -> str:
+        candidate = value.strip()
+        if not candidate:
+            fail_caller_workflow_yaml(line_number, "has an empty scalar")
+        if candidate.startswith(("[", "{")):
+            fail_caller_workflow_yaml(line_number, "uses unsupported flow syntax")
+        if candidate.startswith(("&", "*", "!")):
+            fail_caller_workflow_yaml(line_number, "uses an anchor, alias, or tag")
+        if re.search(r"(^|\s)(?:&[A-Za-z0-9_.-]+|\*[A-Za-z0-9_.-]+|![A-Za-z0-9_.-]*)", candidate):
+            fail_caller_workflow_yaml(line_number, "uses an anchor, alias, or tag")
+        return candidate
+
+
+def parse_restricted_caller_workflow_yaml(raw: bytes) -> dict[str, Any]:
+    """Return a duplicate-safe structure for the protected caller workflow."""
+
+    return RestrictedYamlParser(restricted_yaml_lines(raw)).parse()
+
+
+def required_yaml_mapping(value: object, label: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        fail(f"caller workflow {label} must be a mapping")
+    return value
+
+
+def require_exact_yaml_keys(mapping: dict[str, Any], expected: frozenset[str], label: str) -> None:
+    if set(mapping) != expected:
+        fail(f"caller workflow {label} has an unexpected key set")
+
+
+def expected_caller_artifact_name(variant: str) -> str:
+    return "protected-nginx-caller-${{ github.run_id }}-${{ github.run_attempt }}-" + variant
+
+
+def expected_caller_run_id(variant: str) -> str:
+    return "protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-" + variant
+
+
+def normalized_caller_gate(value: object, label: str) -> str:
+    if not isinstance(value, str):
+        fail(f"caller workflow {label} must have a string gate")
+    return " ".join(value.split())
+
+
+def require_exact_caller_gate(value: object, expected: str, label: str) -> None:
+    if normalized_caller_gate(value, label) != expected:
+        fail(f"caller workflow {label} must have the exact protected gate")
+
+
+def validate_caller_top_level_contract(document: dict[str, Any]) -> None:
+    """Require the caller's dispatch-only, read-only declarative envelope."""
+
+    require_exact_yaml_keys(document, EXPECTED_CALLER_TOP_LEVEL_KEYS, "top-level")
+    if document["name"] != EXPECTED_CALLER_WORKFLOW_NAME:
+        fail("caller workflow has an unexpected name")
+    triggers = required_yaml_mapping(document["on"], "triggers")
+    require_exact_yaml_keys(triggers, EXPECTED_CALLER_TRIGGER_KEYS, "triggers")
+    dispatch = required_yaml_mapping(triggers["workflow_dispatch"], "workflow_dispatch")
+    require_exact_yaml_keys(dispatch, EXPECTED_CALLER_DISPATCH_KEYS, "workflow_dispatch")
+    inputs = required_yaml_mapping(dispatch["inputs"], "workflow_dispatch inputs")
+    require_exact_yaml_keys(inputs, EXPECTED_CALLER_DISPATCH_INPUT_KEYS, "workflow_dispatch inputs")
+    parent_head = required_yaml_mapping(inputs["parent_head_sha"], "parent_head_sha input")
+    require_exact_yaml_keys(
+        parent_head,
+        EXPECTED_CALLER_PARENT_HEAD_INPUT_KEYS,
+        "parent_head_sha input",
+    )
+    if parent_head["required"] != "true" or parent_head["type"] != "string":
+        fail("caller workflow parent_head_sha input is not required string data")
+    permissions = required_yaml_mapping(document["permissions"], "top-level permissions")
+    if permissions != {"contents": "read"}:
+        fail("caller workflow top-level permissions must be exactly contents: read")
+    concurrency = required_yaml_mapping(document["concurrency"], "concurrency")
+    if concurrency != EXPECTED_CALLER_CONCURRENCY:
+        fail("caller workflow has an unexpected concurrency contract")
+
+
+def validate_caller_unprivileged_job(
+    job_name: str,
+    job: object,
+    *,
+    expected_keys: frozenset[str],
+    expected_gate: str,
+    expected_timeout_minutes: str,
+    expected_needs: object | None = None,
+) -> None:
+    mapping = required_yaml_mapping(job, f"job {job_name}")
+    require_exact_yaml_keys(mapping, expected_keys, f"job {job_name}")
+    if "secrets" in mapping or "uses" in mapping:
+        fail(f"caller workflow job {job_name} has an unexpected privileged or reusable key")
+    permissions = required_yaml_mapping(mapping["permissions"], f"job {job_name} permissions")
+    if permissions != {"contents": "read"}:
+        fail(f"caller workflow job {job_name} must have exactly contents: read")
+    if mapping["runs-on"] != "ubuntu-latest":
+        fail(f"caller workflow job {job_name} has an unexpected runner")
+    if mapping["timeout-minutes"] != expected_timeout_minutes:
+        fail(f"caller workflow job {job_name} has an unexpected timeout")
+    if not isinstance(mapping["steps"], list) or not mapping["steps"]:
+        fail(f"caller workflow job {job_name} must have declarative steps")
+    require_exact_caller_gate(mapping["if"], expected_gate, f"job {job_name}")
+    if expected_needs is None:
+        return
+    if mapping["needs"] != expected_needs:
+        fail(f"caller workflow job {job_name} has unexpected dependencies")
+
+
+def validate_caller_reusable_job(
+    job_name: str,
+    job: object,
+    *,
+    expected_variant: str,
+    broker_sha: str,
+    framework_sha: str,
+) -> None:
+    mapping = required_yaml_mapping(job, f"job {job_name}")
+    require_exact_yaml_keys(mapping, EXPECTED_CALLER_REUSABLE_JOB_KEYS, f"job {job_name}")
+    if mapping["needs"] != "prepare-manifests":
+        fail(f"caller workflow job {job_name} has an unexpected dependency")
+    require_exact_caller_gate(mapping["if"], EXPECTED_CALLER_BROKER_GATE, f"job {job_name}")
+    permissions = required_yaml_mapping(mapping["permissions"], f"job {job_name} permissions")
+    if permissions != {"contents": "read"}:
+        fail(f"caller workflow job {job_name} must have exactly contents: read")
+    uses = require_string(mapping["uses"], f"caller workflow job {job_name} uses")
+    if uses != f"{EXPECTED_BROKER_WORKFLOW_PREFIX}{broker_sha}":
+        fail(f"caller workflow job {job_name} does not use the immutable protected broker SHA")
+    inputs = required_yaml_mapping(mapping["with"], f"job {job_name} inputs")
+    require_exact_yaml_keys(inputs, EXPECTED_CALLER_BROKER_INPUT_KEYS, f"job {job_name} inputs")
+    expected_inputs = {
+        "caller_manifest_artifact": expected_caller_artifact_name(expected_variant),
+        "parent_head_sha": "${{ inputs.parent_head_sha }}",
+        "framework_sha": framework_sha,
+        "protected_broker_sha": broker_sha,
+        "matrix_variant": expected_variant,
+        "run_id": expected_caller_run_id(expected_variant),
+    }
+    if inputs != expected_inputs:
+        fail(f"caller workflow job {job_name} has inconsistent immutable broker inputs")
+
+
+def validate_caller_workflow_document(
+    document: dict[str, Any], *, broker_sha: str, framework_sha: str
+) -> None:
+    """Bind both caller reusable jobs to one immutable broker and Framework tuple."""
+
+    broker_sha = require_commit(broker_sha, "broker_sha")
+    framework_sha = require_commit(framework_sha, "framework_sha")
+    validate_caller_top_level_contract(document)
+    jobs = required_yaml_mapping(document.get("jobs"), "jobs")
+    if len(jobs) > MAX_CALLER_WORKFLOW_JOBS:
+        fail("caller workflow has too many jobs")
+    if set(jobs) != EXPECTED_CALLER_JOB_NAMES:
+        fail("caller workflow has an unexpected job inventory")
+    validate_caller_unprivileged_job(
+        "prepare-manifests",
+        jobs["prepare-manifests"],
+        expected_keys=frozenset({"if", "permissions", "runs-on", "timeout-minutes", "steps"}),
+        expected_gate=EXPECTED_CALLER_MASTER_GATE,
+        expected_timeout_minutes="10",
+    )
+    validate_caller_unprivileged_job(
+        "verify-evidence",
+        jobs["verify-evidence"],
+        expected_keys=frozenset({"needs", "if", "permissions", "runs-on", "timeout-minutes", "steps"}),
+        expected_gate=EXPECTED_CALLER_EVIDENCE_GATE,
+        expected_timeout_minutes="10",
+        expected_needs=["prepare-manifests", "run-no-crs-broker", "run-with-crs-broker"],
+    )
+    validate_caller_unprivileged_job(
+        "result",
+        jobs["result"],
+        expected_keys=frozenset({"needs", "if", "permissions", "runs-on", "timeout-minutes", "steps"}),
+        expected_gate=EXPECTED_CALLER_RESULT_GATE,
+        expected_timeout_minutes="5",
+        expected_needs=[
+            "prepare-manifests",
+            "run-no-crs-broker",
+            "run-with-crs-broker",
+            "verify-evidence",
+        ],
+    )
+    for job_name, variant in EXPECTED_CALLER_BROKER_VARIANTS.items():
+        if job_name not in jobs:
+            fail(f"caller workflow is missing protected broker job {job_name}")
+        validate_caller_reusable_job(
+            job_name,
+            jobs[job_name],
+            expected_variant=variant,
+            broker_sha=broker_sha,
+            framework_sha=framework_sha,
+        )
+
+
+def run_protected_git(repository: Path, arguments: list[str], label: str) -> bytes:
+    """Run a fixed Git argument vector against the verified broker checkout."""
+
+    try:
+        metadata = repository.lstat()
+    except OSError as exc:
+        fail(f"{label} repository cannot be inspected: {exc}")
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        fail(f"{label} repository is not a real directory")
+    try:
+        completed = subprocess.run(
+            ["git", "-C", os.fspath(repository), *arguments],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except OSError as exc:
+        fail(f"{label} Git invocation failed: {exc}")
+    if completed.returncode != 0:
+        fail(f"{label} Git object is unavailable")
+    return completed.stdout
+
+
+def read_caller_workflow_blob(repository: Path, caller_sha: str) -> bytes:
+    """Read only a regular caller workflow blob from the immutable Git object DB."""
+
+    caller_sha = require_commit(caller_sha, "caller_sha")
+    object_type = run_protected_git(repository, ["cat-file", "-t", caller_sha], "caller commit")
+    if object_type != b"commit\n":
+        fail("caller SHA does not name a commit")
+    entry = run_protected_git(
+        repository,
+        ["ls-tree", caller_sha, "--", EXPECTED_CALLER_WORKFLOW_PATH],
+        "caller workflow",
+    )
+    try:
+        entry_text = entry.decode("ascii")
+    except UnicodeDecodeError as exc:
+        fail(f"caller workflow Git entry is not ASCII: {exc}")
+    entry_match = re.fullmatch(
+        rf"100644 blob (?P<blob>{GIT_BLOB_PATTERN})\t{re.escape(EXPECTED_CALLER_WORKFLOW_PATH)}\n",
+        entry_text,
+    )
+    if entry_match is None:
+        fail("caller workflow must be a regular Git blob")
+    blob = entry_match.group("blob")
+    size_raw = run_protected_git(repository, ["cat-file", "-s", blob], "caller workflow").strip()
+    try:
+        size_text = size_raw.decode("ascii")
+    except UnicodeDecodeError as exc:
+        fail(f"caller workflow Git size is not ASCII: {exc}")
+    if not size_text.isdecimal():
+        fail("caller workflow Git size is invalid")
+    size = int(size_text)
+    if size > MAX_CALLER_WORKFLOW_BYTES:
+        fail("caller workflow Git blob exceeds the maximum allowed size")
+    content = run_protected_git(repository, ["cat-file", "blob", blob], "caller workflow")
+    if len(content) != size:
+        fail("caller workflow Git blob size changed while reading")
+    return content
+
+
+def validate_caller_workflow(arguments: argparse.Namespace) -> None:
+    """Validate the caller YAML as data before any artifact or build activity."""
+
+    caller_sha = require_commit(arguments.caller_sha, "caller_sha")
+    broker_sha = require_commit(arguments.broker_sha, "broker_sha")
+    framework_sha = require_commit(arguments.framework_sha, "framework_sha")
+    raw = read_caller_workflow_blob(Path.cwd(), caller_sha)
+    document = parse_restricted_caller_workflow_yaml(raw)
+    validate_caller_workflow_document(
+        document,
+        broker_sha=broker_sha,
+        framework_sha=framework_sha,
+    )
 
 
 def require_schema_version(value: object, label: str) -> int:
@@ -3726,6 +4340,11 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     bundle.add_argument("--framework-sha", required=True)
     bundle.add_argument("--broker-sha", required=True)
 
+    caller_workflow = commands.add_parser("validate-caller-workflow")
+    caller_workflow.add_argument("--caller-sha", required=True)
+    caller_workflow.add_argument("--broker-sha", required=True)
+    caller_workflow.add_argument("--framework-sha", required=True)
+
     action = commands.add_parser("action")
     action.add_argument("--action", required=True, choices=sorted(ALLOWED_ACTIONS))
     action.add_argument("--broker-sha", required=True)
@@ -3743,6 +4362,8 @@ def main(argv: list[str] | None = None) -> int:
             print(prepare_candidate_from_snapshot(arguments))
         elif arguments.command == "prepare-crs-bundle":
             print(prepare_crs_bundle(arguments))
+        elif arguments.command == "validate-caller-workflow":
+            validate_caller_workflow(arguments)
         else:
             if arguments.action == "validate-manifest":
                 if not arguments.candidate:

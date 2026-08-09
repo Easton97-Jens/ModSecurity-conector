@@ -72,6 +72,7 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("ci-security-workflow-lint.yml", "actionlint"),
         JobIdentity("ci-security-workflow-lint.yml", "zizmor"),
         JobIdentity("lint.yml", "scaffold-lint"),
+        JobIdentity("nginx-root-broker.yml", "trusted-root-smoke"),
         JobIdentity("open-connectors-smoke.yml", "open-connectors-smoke"),
         JobIdentity("protocol-contract.yml", "nginx-profile-and-client-preflight"),
         JobIdentity("protocol-contract.yml", "protocol-contract"),

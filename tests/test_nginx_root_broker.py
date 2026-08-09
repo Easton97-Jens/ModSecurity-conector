@@ -16,6 +16,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -385,6 +386,386 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             os.mkfifo(fifo)
             with self.assertRaisesRegex(BROKER.BrokerError, "single-link regular"):
                 BROKER.open_regular_no_follow(fifo, "FIFO evidence")
+
+    def test_caller_yaml_contract_accepts_the_exact_two_immutable_broker_jobs(self) -> None:
+        raw = (ROOT / ".github" / "workflows" / "run-protected-nginx-root-broker.yml").read_bytes()
+
+        document = BROKER.parse_restricted_caller_workflow_yaml(raw)
+
+        BROKER.validate_caller_workflow_document(
+            document,
+            broker_sha="e06254ea9622d214a9030b9ba786756560ace417",
+            framework_sha="c71e15db7b7517b237add9fa09b3493e7bc93627",
+        )
+
+    def test_caller_yaml_contract_rejects_pin_job_variant_permission_and_secret_mutations(self) -> None:
+        text = (ROOT / ".github" / "workflows" / "run-protected-nginx-root-broker.yml").read_text(
+            encoding="utf-8"
+        )
+        broker_sha = "e06254ea9622d214a9030b9ba786756560ace417"
+        framework_sha = "c71e15db7b7517b237add9fa09b3493e7bc93627"
+        extra_broker_job = "\n".join(
+            (
+                "  run-extra-broker:",
+                "    uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
+                + broker_sha,
+                "",
+            )
+        )
+        mutations = {
+            "mutable broker ref": (f"@{broker_sha}", "@master"),
+            "mismatched broker input": (f"protected_broker_sha: {broker_sha}", "protected_broker_sha: " + "0" * 40),
+            "missing protected job": ("  run-no-crs-broker:\n", "  run-no-crs-broker-missing:\n"),
+            "extra protected job": ("  verify-evidence:\n", extra_broker_job + "  verify-evidence:\n"),
+            "swapped variant": ("matrix_variant: no-crs", "matrix_variant: with-crs"),
+            "write permission": (
+                "      needs.prepare-manifests.result == 'success'\n"
+                "    permissions:\n      contents: read\n"
+                "    uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@",
+                "      needs.prepare-manifests.result == 'success'\n"
+                "    permissions:\n      contents: write\n"
+                "    uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@",
+            ),
+            "secret inheritance": (
+                f"    uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@{broker_sha}\n",
+                "\n".join(
+                    (
+                        f"    uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@{broker_sha}",
+                        "    secrets: inherit",
+                        "",
+                    )
+                ),
+            ),
+            "duplicate uses": (
+                f"    uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@{broker_sha}\n",
+                "\n".join(
+                    (
+                        f"    uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@{broker_sha}",
+                        f"    uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@{broker_sha}",
+                        "",
+                    )
+                ),
+            ),
+        }
+        for name, (original, replacement) in mutations.items():
+            with self.subTest(name=name):
+                self.assertIn(original, text)
+                mutated = text.replace(original, replacement, 1)
+                with self.assertRaises(BROKER.BrokerError):
+                    document = BROKER.parse_restricted_caller_workflow_yaml(mutated.encode("utf-8"))
+                    BROKER.validate_caller_workflow_document(
+                        document,
+                        broker_sha=broker_sha,
+                        framework_sha=framework_sha,
+                    )
+
+    def test_caller_yaml_contract_rejects_top_level_and_unprivileged_job_mutations(self) -> None:
+        raw = (ROOT / ".github" / "workflows" / "run-protected-nginx-root-broker.yml").read_bytes()
+        broker_sha = "e06254ea9622d214a9030b9ba786756560ace417"
+        framework_sha = "c71e15db7b7517b237add9fa09b3493e7bc93627"
+
+        def add_extra_trigger(document: dict[str, object]) -> None:
+            document["on"]["push"] = {}
+
+        def add_extra_input(document: dict[str, object]) -> None:
+            document["on"]["workflow_dispatch"]["inputs"]["matrix_variant"] = {
+                "required": "true",
+                "type": "string",
+            }
+
+        def add_top_level_write_permission(document: dict[str, object]) -> None:
+            document["permissions"] = {"contents": "write"}
+
+        def weaken_prepare_gate(document: dict[str, object]) -> None:
+            document["jobs"]["prepare-manifests"]["if"] = "true"
+
+        def lengthen_prepare_timeout(document: dict[str, object]) -> None:
+            document["jobs"]["prepare-manifests"]["timeout-minutes"] = "999"
+
+        def weaken_evidence_gate(document: dict[str, object]) -> None:
+            document["jobs"]["verify-evidence"]["if"] = "${{ always() }}"
+
+        def weaken_result_dependencies(document: dict[str, object]) -> None:
+            document["jobs"]["result"]["needs"] = ["prepare-manifests"]
+
+        mutations = {
+            "extra trigger": add_extra_trigger,
+            "extra dispatch input": add_extra_input,
+            "top-level write permission": add_top_level_write_permission,
+            "weakened preparation gate": weaken_prepare_gate,
+            "unexpected preparation timeout": lengthen_prepare_timeout,
+            "weakened evidence gate": weaken_evidence_gate,
+            "weakened result dependencies": weaken_result_dependencies,
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                document = BROKER.parse_restricted_caller_workflow_yaml(raw)
+                mutate(document)
+                with self.assertRaises(BROKER.BrokerError):
+                    BROKER.validate_caller_workflow_document(
+                        document,
+                        broker_sha=broker_sha,
+                        framework_sha=framework_sha,
+                    )
+
+    def test_caller_yaml_contract_rejects_any_weakened_reusable_job_gate(self) -> None:
+        raw = (ROOT / ".github" / "workflows" / "run-protected-nginx-root-broker.yml").read_bytes()
+        broker_sha = "e06254ea9622d214a9030b9ba786756560ace417"
+        framework_sha = "c71e15db7b7517b237add9fa09b3493e7bc93627"
+        required_terms = (
+            "github.event_name == 'workflow_dispatch'",
+            "github.repository == 'Easton97-Jens/ModSecurity-conector'",
+            "github.event.repository.fork == false",
+            "github.ref == 'refs/heads/master'",
+            "github.event.repository.default_branch == 'master'",
+            "needs.prepare-manifests.result == 'success'",
+        )
+        for job_name in BROKER.EXPECTED_CALLER_BROKER_VARIANTS:
+            for required_term in required_terms:
+                with self.subTest(job_name=job_name, required_term=required_term):
+                    document = BROKER.parse_restricted_caller_workflow_yaml(raw)
+                    gate = document["jobs"][job_name]["if"]
+                    self.assertIsInstance(gate, str)
+                    self.assertIn(required_term, gate)
+                    document["jobs"][job_name]["if"] = gate.replace(required_term, "true", 1)
+                    with self.assertRaisesRegex(BROKER.BrokerError, "exact protected gate"):
+                        BROKER.validate_caller_workflow_document(
+                            document,
+                            broker_sha=broker_sha,
+                            framework_sha=framework_sha,
+                        )
+
+    def test_caller_yaml_contract_rejects_a_constant_true_reusable_job_gate(self) -> None:
+        raw = (ROOT / ".github" / "workflows" / "run-protected-nginx-root-broker.yml").read_bytes()
+        broker_sha = "e06254ea9622d214a9030b9ba786756560ace417"
+        framework_sha = "c71e15db7b7517b237add9fa09b3493e7bc93627"
+        document = BROKER.parse_restricted_caller_workflow_yaml(raw)
+        document["jobs"]["run-no-crs-broker"]["if"] = "true"
+
+        with self.assertRaisesRegex(BROKER.BrokerError, "exact protected gate"):
+            BROKER.validate_caller_workflow_document(
+                document,
+                broker_sha=broker_sha,
+                framework_sha=framework_sha,
+            )
+
+    def test_caller_yaml_contract_preserves_block_scalar_hash_data(self) -> None:
+        raw = (ROOT / ".github" / "workflows" / "run-protected-nginx-root-broker.yml").read_bytes()
+        broker_sha = "e06254ea9622d214a9030b9ba786756560ace417"
+        framework_sha = "c71e15db7b7517b237add9fa09b3493e7bc93627"
+        documented = BROKER.parse_restricted_caller_workflow_yaml(b"# ordinary YAML comment\n" + raw)
+        BROKER.validate_caller_workflow_document(
+            documented,
+            broker_sha=broker_sha,
+            framework_sha=framework_sha,
+        )
+        commented_steps = raw.replace(
+            b"      - name: Check out protected master caller source\n",
+            b"      - name: Check out protected master caller source\n"
+            b"      # ordinary list-item comment\n",
+            1,
+        )
+        document = BROKER.parse_restricted_caller_workflow_yaml(commented_steps)
+        BROKER.validate_caller_workflow_document(
+            document,
+            broker_sha=broker_sha,
+            framework_sha=framework_sha,
+        )
+        mutated = raw.replace(
+            b"needs.prepare-manifests.result == 'success'",
+            b"needs.prepare-manifests.result == 'success' # literal-block-data",
+            1,
+        )
+        document = BROKER.parse_restricted_caller_workflow_yaml(mutated)
+        with self.assertRaisesRegex(BROKER.BrokerError, "exact protected gate"):
+            BROKER.validate_caller_workflow_document(
+                document,
+                broker_sha=broker_sha,
+                framework_sha=framework_sha,
+            )
+
+    def test_restricted_caller_yaml_parser_rejects_indirection_duplicates_and_unsafe_encoding(self) -> None:
+        invalid_documents = {
+            "byte-order mark": b"\xef\xbb\xbfjobs:\n",
+            "carriage return": b"jobs:\r\n",
+            "tab": b"jobs:\n\trun: value\n",
+            "document marker": b"---\njobs:\n",
+            "anchor": b"jobs:\n  run: &anchor\n",
+            "alias": b"jobs:\n  run: *anchor\n",
+            "tag": b"jobs:\n  run: !unsafe value\n",
+            "merge": b"jobs:\n  <<: *anchor\n",
+            "flow mapping": b"jobs: {}\n",
+            "duplicate key": b"jobs:\n  run: one\n  run: two\n",
+        }
+        for name, raw in invalid_documents.items():
+            with self.subTest(name=name), self.assertRaises(BROKER.BrokerError):
+                BROKER.parse_restricted_caller_workflow_yaml(raw)
+
+    def test_caller_workflow_is_read_only_from_one_regular_git_blob(self) -> None:
+        caller_sha = "d" * 40
+        blob_sha = "e" * 40
+        expected_entry = (
+            f"100644 blob {blob_sha}\t{BROKER.EXPECTED_CALLER_WORKFLOW_PATH}\n".encode("ascii")
+        )
+        calls: list[tuple[str, ...]] = []
+
+        def protected_git(_repository: Path, arguments: list[str], _label: str) -> bytes:
+            calls.append(tuple(arguments))
+            if arguments == ["cat-file", "-t", caller_sha]:
+                return b"commit\n"
+            if arguments[:2] == ["ls-tree", caller_sha]:
+                return expected_entry
+            if arguments == ["cat-file", "-s", blob_sha]:
+                return b"9\n"
+            if arguments == ["cat-file", "blob", blob_sha]:
+                return b"jobs: {}\n"
+            self.fail(f"unexpected Git arguments: {arguments}")
+
+        with mock.patch.object(BROKER, "run_protected_git", side_effect=protected_git):
+            raw = BROKER.read_caller_workflow_blob(Path("/protected/broker-src"), caller_sha)
+
+        self.assertEqual(raw, b"jobs: {}\n")
+        self.assertEqual(
+            calls,
+            [
+                ("cat-file", "-t", caller_sha),
+                ("ls-tree", caller_sha, "--", BROKER.EXPECTED_CALLER_WORKFLOW_PATH),
+                ("cat-file", "-s", blob_sha),
+                ("cat-file", "blob", blob_sha),
+            ],
+        )
+
+    def test_caller_workflow_rejects_a_non_regular_git_tree_entry(self) -> None:
+        caller_sha = "d" * 40
+        entry = (
+            f"120000 blob {'e' * 40}\t{BROKER.EXPECTED_CALLER_WORKFLOW_PATH}\n".encode("ascii")
+        )
+
+        def protected_git(_repository: Path, arguments: list[str], _label: str) -> bytes:
+            if arguments == ["cat-file", "-t", caller_sha]:
+                return b"commit\n"
+            if arguments[:2] == ["ls-tree", caller_sha]:
+                return entry
+            self.fail(f"unexpected Git arguments: {arguments}")
+
+        with mock.patch.object(BROKER, "run_protected_git", side_effect=protected_git):
+            with self.assertRaisesRegex(BROKER.BrokerError, "regular Git blob"):
+                BROKER.read_caller_workflow_blob(Path("/protected/broker-src"), caller_sha)
+
+    def git_fixture(self, repository: Path, *arguments: str, input_data: bytes | None = None) -> bytes:
+        completed = subprocess.run(
+            ["git", "-C", os.fspath(repository), *arguments],
+            check=True,
+            input=input_data,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        return completed.stdout
+
+    def commit_caller_workflow_fixture(
+        self,
+        repository: Path,
+        content: bytes | None,
+        *,
+        mode: int = 0o644,
+        symlink: bool = False,
+    ) -> str:
+        self.git_fixture(repository, "init", "--quiet", "--initial-branch=master")
+        self.git_fixture(repository, "config", "user.email", "broker-test@example.invalid")
+        self.git_fixture(repository, "config", "user.name", "Broker Test")
+        workflow_path = repository / BROKER.EXPECTED_CALLER_WORKFLOW_PATH
+        workflow_path.parent.mkdir(parents=True)
+        if content is None:
+            (repository / "README").write_text("fixture\n", encoding="utf-8")
+        elif symlink:
+            target = workflow_path.with_name("other.yml")
+            target.write_bytes(content)
+            workflow_path.symlink_to(target.name)
+        else:
+            workflow_path.write_bytes(content)
+            workflow_path.chmod(mode)
+        self.git_fixture(repository, "add", "--all")
+        self.git_fixture(repository, "commit", "--quiet", "-m", "caller fixture")
+        return self.git_fixture(repository, "rev-parse", "HEAD").decode("ascii").strip()
+
+    def test_caller_workflow_uses_the_committed_blob_not_a_mutable_worktree_copy(self) -> None:
+        raw = (ROOT / ".github" / "workflows" / "run-protected-nginx-root-broker.yml").read_bytes()
+        broker_sha = "e06254ea9622d214a9030b9ba786756560ace417"
+        framework_sha = "c71e15db7b7517b237add9fa09b3493e7bc93627"
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-git-") as temporary:
+            repository = Path(temporary) / "broker-src"
+            repository.mkdir()
+            caller_sha = self.commit_caller_workflow_fixture(repository, raw)
+            mutable_copy = repository / BROKER.EXPECTED_CALLER_WORKFLOW_PATH
+            mutable_copy.write_text("jobs: {}\n", encoding="utf-8")
+
+            with mock.patch.object(BROKER.Path, "cwd", return_value=repository):
+                BROKER.validate_caller_workflow(
+                    argparse.Namespace(
+                        caller_sha=caller_sha,
+                        broker_sha=broker_sha,
+                        framework_sha=framework_sha,
+                    )
+                )
+
+    def test_caller_workflow_real_git_object_rejections_are_fail_closed(self) -> None:
+        valid = (ROOT / ".github" / "workflows" / "run-protected-nginx-root-broker.yml").read_bytes()
+        mutable_pin = valid.replace(
+            b"@e06254ea9622d214a9030b9ba786756560ace417",
+            b"@master",
+        )
+        fixtures = {
+            "absent path": (None, 0o644, False, "regular Git blob"),
+            "executable workflow": (valid, 0o755, False, "regular Git blob"),
+            "symlink workflow": (valid, 0o644, True, "regular Git blob"),
+            "oversized workflow": (
+                b"#" * (BROKER.MAX_CALLER_WORKFLOW_BYTES + 1),
+                0o644,
+                False,
+                "exceeds the maximum",
+            ),
+        }
+        for name, (content, mode, symlink, message) in fixtures.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory(
+                prefix="nginx-root-broker-git-"
+            ) as temporary:
+                repository = Path(temporary) / "broker-src"
+                repository.mkdir()
+                caller_sha = self.commit_caller_workflow_fixture(
+                    repository,
+                    content,
+                    mode=mode,
+                    symlink=symlink,
+                )
+                with self.assertRaisesRegex(BROKER.BrokerError, message):
+                    BROKER.read_caller_workflow_blob(repository, caller_sha)
+
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-git-") as temporary:
+            repository = Path(temporary) / "broker-src"
+            repository.mkdir()
+            caller_sha = self.commit_caller_workflow_fixture(repository, mutable_pin)
+            raw = BROKER.read_caller_workflow_blob(repository, caller_sha)
+            document = BROKER.parse_restricted_caller_workflow_yaml(raw)
+            with self.assertRaisesRegex(BROKER.BrokerError, "immutable protected broker SHA"):
+                BROKER.validate_caller_workflow_document(
+                    document,
+                    broker_sha="e06254ea9622d214a9030b9ba786756560ace417",
+                    framework_sha="c71e15db7b7517b237add9fa09b3493e7bc93627",
+                )
+
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-git-") as temporary:
+            repository = Path(temporary) / "broker-src"
+            repository.mkdir()
+            self.commit_caller_workflow_fixture(repository, valid)
+            non_commit = self.git_fixture(
+                repository,
+                "hash-object",
+                "-w",
+                "--stdin",
+                input_data=b"not a commit\n",
+            ).decode("ascii").strip()
+            with self.assertRaisesRegex(BROKER.BrokerError, "does not name a commit"):
+                BROKER.read_caller_workflow_blob(repository, non_commit)
 
 
 if __name__ == "__main__":
