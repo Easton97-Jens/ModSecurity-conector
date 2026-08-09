@@ -90,8 +90,9 @@ checks only fixed runner-temp roots, extracts the reported validation branches,
 and adds pre-I/O path regression coverage. Focused caller/CI-security tests,
 Python compilation, CI-security contract checks, full `make lint`, bilingual
 and link checks, actionlint with ShellCheck, zizmor offline, and diff checks
-passed locally on the available Python 3.14.4 fallback. Fresh exact-head hosted
-and SonarQube Cloud analysis remain required.
+passed locally on the available Python 3.14.4 fallback. Every current PR head
+independently requires fresh hosted and SonarQube Cloud evidence; no historical
+head result is a substitute.
 
 ## Security impact
 
@@ -122,21 +123,21 @@ cross-field identity rather than inventing a separate artifact signing scheme.
 
 ## Remaining risks
 
-The still-unobserved hosted environment may reject the read-only API request,
-reusable-workflow context, artifact transfer, NGINX/ModSecurity/CRS runtime, or
-cleanup. A pre-merge caller quality or protection-gate failure blocks the
-caller merge. A resulting-`master` runtime-dispatch failure instead blocks
-resumption of PR #240 after that caller merge; neither outcome authorizes a
-branch ref, target-code execution, synthetic PASS, or PR #240 merge.
+The distinct protected-`master` runtime environment may reject the read-only
+API request, reusable-workflow context, artifact transfer,
+NGINX/ModSecurity/CRS runtime, or cleanup. A failure of a current-head
+pre-merge caller quality or protection gate blocks the caller merge. A
+resulting-`master` runtime-dispatch failure instead blocks resumption of PR
+#240 after that caller merge; neither outcome authorizes a branch ref,
+target-code execution, synthetic PASS, or PR #240 merge.
 
 ## Checks not run and rationale
 
-The final exact Python 3.14.6 test gate, hosted checks, CodeQL, SonarQube
-Cloud, review/branch-protection gates, and protected-master runtime dispatch
-have not yet been observed for the final head. All except the separately
-post-merge protected-master runtime dispatch remain required before caller
-delivery or caller master integration. That runtime dispatch is instead
-required before PR #240 can resume.
+The exact Python 3.14.6 local test gate is unavailable in this environment.
+For every current PR head, hosted checks, CodeQL, SonarQube Cloud, review, and
+branch-protection evidence must be read afresh at the merge decision; a record
+or older head cannot provide that evidence. The protected-`master` runtime
+dispatch is necessarily post-merge and is required before PR #240 can resume.
 
 ## Final diff and review status
 
@@ -148,6 +149,9 @@ and CodeQL checks passed, while SonarQube Cloud found the task-owned issues
 recorded above. The upstream synchronization carries no task-owned Framework
 or MRTS gitlink change in the final PR diff. No PR #240 change, Framework
 source change, MRTS source change, force-push, history rewrite, admin bypass,
-or auto-merge has occurred. The caller PR must remain Draft and merge-blocked
-until its exact-head local, security, hosted, Sonar, review, and branch-
-protection evidence is complete.
+or auto-merge has occurred. This Change Record intentionally makes no mutable
+Draft, check, review, or merge-state assertion: GitHub and SonarQube Cloud are
+the authority for the current PR head. A normal protected merge may be
+considered only when current exact-head local, security, hosted, Sonar, review,
+and branch-protection evidence is complete and the current user authorization
+remains valid.

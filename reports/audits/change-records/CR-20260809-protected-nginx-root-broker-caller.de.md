@@ -99,8 +99,9 @@ Validierungszweige und ergänzt Pre-I/O-Pfadregressionstests. Fokussierte
 Caller-/CI-Security-Tests, Python-Kompilierung, CI-Security-Contract-Checks,
 vollständiges `make lint`, bilinguale und Link-Prüfungen, actionlint mit
 ShellCheck, zizmor offline und Diff-Prüfungen bestanden lokal mit dem
-verfügbaren Python-3.14.4-Fallback. Frische Exact-Head-Hosted- und
-SonarQube-Cloud-Analyse bleiben erforderlich.
+verfügbaren Python-3.14.4-Fallback. Jeder aktuelle PR-Head benötigt unabhängig
+frische Hosted- und SonarQube-Cloud-Evidence; ein historisches Head-Ergebnis
+ist kein Ersatz.
 
 ## Security-Auswirkung
 
@@ -135,21 +136,22 @@ Signaturschema zu erfinden.
 
 ## Verbleibende Risiken
 
-Die noch nicht beobachtete Hosted-Umgebung kann die read-only-API-Anfrage, den
-Reusable-Workflow-Kontext, Artefakttransfer, NGINX-/ModSecurity-/CRS-Runtime
-oder Cleanup abweisen. Ein Fehler eines Pre-Merge-Caller-Quality- oder
-Protection-Gates blockiert den Caller-Merge. Ein Fehler des resulting-master-
-Runtime-Dispatches blockiert dagegen nach diesem Caller-Merge die Fortsetzung
-von PR #240; keines der Ergebnisse autorisiert einen Branch-Ref, Target-Code-
-Ausführung, synthetisches PASS oder einen PR-240-Merge.
+Die getrennte Protected-`master`-Runtime-Umgebung kann die read-only-
+API-Anfrage, den Reusable-Workflow-Kontext, Artefakttransfer,
+NGINX-/ModSecurity-/CRS-Runtime oder Cleanup abweisen. Ein Fehler eines
+Current-Head-Pre-Merge-Caller-Quality- oder Protection-Gates blockiert den
+Caller-Merge. Ein Fehler des resulting-master-Runtime-Dispatches blockiert
+dagegen nach diesem Caller-Merge die Fortsetzung von PR #240; keines der
+Ergebnisse autorisiert einen Branch-Ref, Target-Code-Ausführung, synthetisches
+PASS oder einen PR-240-Merge.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Das finale Python-3.14.6-Testgate, Hosted-Checks, CodeQL, SonarQube Cloud,
-Review-/Branch-Protection-Gates und der Protected-master-Runtime-Dispatch
-wurden für den finalen Head noch nicht beobachtet. Alle außer dem separaten
-Post-Merge-Protected-master-Runtime-Dispatch bleiben vor Caller-Delivery oder
-Caller-Master-Integration erforderlich. Dieser Runtime-Dispatch ist stattdessen
+Das exakte lokale Python-3.14.6-Testgate ist in dieser Umgebung nicht
+verfügbar. Für jeden aktuellen PR-Head müssen Hosted-Checks, CodeQL, SonarQube
+Cloud, Review- und Branch-Protection-Evidence bei der Merge-Entscheidung frisch
+abgelesen werden; ein Record oder älterer Head liefert diese Evidence nicht.
+Der Protected-`master`-Runtime-Dispatch ist notwendigerweise post-merge und
 vor der Fortsetzung von PR #240 erforderlich.
 
 ## Finaler Diff- und Review-Status
@@ -162,6 +164,10 @@ und CodeQL-Checks bestanden, während SonarQube Cloud die oben festgehaltenen
 aufgabeneigenen Befunde fand. Die Upstream-Synchronisierung enthält im finalen
 PR-Diff keine task-eigene Framework- oder MRTS-Gitlink-Änderung. Es gab keine
 PR-240-Änderung, Framework-Quelländerung, MRTS-Quelländerung, keinen Force-
-Push, History-Rewrite, Admin-Bypass oder Auto-Merge. Der Caller-PR muss Draft
-und merge-blockiert bleiben, bis seine Exact-Head-Lokal-, Security-, Hosted-,
-Sonar-, Review- und Branch-Protection-Evidence vollständig ist.
+Push, History-Rewrite, Admin-Bypass oder Auto-Merge. Dieser Change Record
+trifft absichtlich keine veränderliche Aussage zu Draft-, Check-, Review- oder
+Merge-Status: GitHub und SonarQube Cloud sind für den aktuellen PR-Head
+autoritativ. Ein normaler geschützter Merge darf nur erwogen werden, wenn
+aktuelle Exact-Head-Lokal-, Security-, Hosted-, Sonar-, Review- und
+Branch-Protection-Evidence vollständig ist und die aktuelle Nutzerautorisierung
+fortbesteht.
