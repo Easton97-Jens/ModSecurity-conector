@@ -55,15 +55,21 @@ def github_ssh_repository_reference(repository: str) -> str:
     return f"git@{GITHUB_HOST}:{repository}"
 
 
+def github_ssh_url_repository_reference(repository: str) -> str:
+    return urlunsplit(("ssh", f"git@{GITHUB_HOST}", f"/{repository}", "", ""))
+
+
 INSECURE_REPO_URL_PATTERNS = (
     *(github_repository_url(scheme, "") for scheme in INSECURE_REPOSITORY_SCHEMES),
     github_ssh_repository_reference(""),
+    github_ssh_url_repository_reference(""),
 )
 
 negative_tests = (
     github_repository_url("http", FTW_REPOSITORY),
     github_ssh_repository_reference(FTW_REPOSITORY_GIT),
     github_repository_url("ssh", FTW_REPOSITORY_GIT),
+    github_ssh_url_repository_reference(FTW_REPOSITORY_GIT),
     github_repository_url("git", FTW_REPOSITORY_GIT),
     urlunsplit((HTTPS_SCHEME, "gitlab.com", f"/{FTW_REPOSITORY}", "", "")),
     github_repository_url(HTTPS_SCHEME, "coreruleset"),

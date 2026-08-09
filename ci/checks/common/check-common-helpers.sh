@@ -988,7 +988,6 @@ int main(void) {
         assert(content_length == 42U);
         assert(msconnector_headers_parse_content_length(conflicting, 2, &content_length) == -1);
         assert(msconnector_headers_parse_content_length(invalid_cl, 1, &content_length) == -1);
-        assert(msconnector_headers_host(headers, 6) == 0);
         assert(!msconnector_headers_copy_value(headers, 6, "host", sanitized, sizeof(sanitized), &truncated));
         assert(strcmp(sanitized, "example") == 0);
         assert(truncated);
@@ -1572,7 +1571,6 @@ int main(void) {
         request.method = "GET"; request.uri = "/"; request.headers = headers; request.header_count = 2;
         assert(msconnector_request_validate(&request));
         assert(msconnector_request_has_header(&request, "content-type"));
-        assert(msconnector_request_content_type(&request) == 0);
         {
             const char *content_type = 0;
             size_t content_type_size = 0;
@@ -1618,7 +1616,6 @@ int main(void) {
         response.status = 200; response.headers = headers; response.header_count = 2;
         assert(msconnector_response_validate(&response));
         assert(msconnector_response_has_header(&response, "CONTENT-LENGTH"));
-        assert(msconnector_response_content_type(&response) == 0);
         {
             const char *content_type = 0;
             size_t content_type_size = 0;

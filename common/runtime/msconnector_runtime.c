@@ -1751,8 +1751,8 @@ static int begin_request_body_processing(
                 "request body is disabled", "runtime");
             return 0;
         }
-        transaction->request_body.finished = 1;
-        return mark_flow(transaction, MSCONNECTOR_PHASE_REQUEST_BODY, error);
+        return msconnector_runtime_transaction_finish_request_body(
+            transaction, decision, error);
     }
     if (runtime->body_policy.request_body_mode == MSCONNECTOR_BODY_MODE_BUFFERED) {
         return msconnector_runtime_transaction_append_request_body_chunk(
@@ -1924,10 +1924,6 @@ int msconnector_runtime_transaction_finish_request_body(
     if (transaction->finish_attempted || transaction->request_body.finished) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "request body may only be finalized once", "runtime");
-    }
-    if (runtime->body_policy.request_body_mode == MSCONNECTOR_BODY_MODE_NONE) {
-        transaction->request_body.finished = 1;
-        return mark_flow(transaction, MSCONNECTOR_PHASE_REQUEST_BODY, error);
     }
     if (runtime->config.enable == MSCONNECTOR_BOOL_ON &&
         !transaction->request_blocked &&

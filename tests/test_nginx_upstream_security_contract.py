@@ -326,7 +326,7 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertIn("return ngx_http_next_body_filter(r, in);", tail)
         self.assertLess(tail.index("break;"), tail.rindex("return ngx_http_next_body_filter(r, in);"))
 
-    def test_out_of_scope_phase4_body_is_bounded_then_mapped_log_only(self) -> None:
+    def test_out_of_scope_phase4_body_is_not_exposed_and_is_mapped_log_only(self) -> None:
         append = function_definition(
             self.body, "ngx_http_modsecurity_append_limited_response_body"
         )
@@ -335,7 +335,12 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertIn("msc_append_response_body", append)
 
         body_filter = function_definition(self.body, "ngx_http_modsecurity_body_filter")
-        self.assertNotIn("ngx_http_modsecurity_phase4_in_scope(r)", body_filter)
+        self.assertIn(
+            "phase4_in_scope = ngx_http_modsecurity_phase4_in_scope(r)",
+            body_filter,
+        )
+        scoped_append = conditional_block(body_filter, "if (phase4_in_scope != 0")
+        self.assertIn("ngx_http_modsecurity_append_limited_response_body", scoped_append)
 
         phase4 = function_definition(
             self.body, "ngx_http_modsecurity_phase4_handle_intervention"
@@ -347,8 +352,8 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         scope_reason = self.capabilities["capabilities"]["content_type_scope"][
             "reason"
         ]
-        self.assertIn("maps a detected out-of-scope response intervention", scope_reason)
-        self.assertIn("bounded current buffers still reach ModSecurity", scope_reason)
+        self.assertIn("checks its configured response Content-Type scope", scope_reason)
+        self.assertIn("out-of-scope response bodies are not appended", scope_reason)
 
 
 if __name__ == "__main__":
