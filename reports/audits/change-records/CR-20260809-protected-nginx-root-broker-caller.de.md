@@ -135,7 +135,7 @@ vor der Fortsetzung von PR #240 erforderlich.
 
 ## Finaler Diff- und Review-Status
 
-Dies ist eine uncommittete Implementierung auf dem getrennten Branch
+Dies ist eine lokal committete, noch unveröffentlichte Implementierung auf dem getrennten Branch
 `fix/ci-protected-nginx-broker-caller`, vor der Veröffentlichung mit aktuellem
 `origin/master` bei `83094eb659f0b5df8c2df30b1ae718d524a9adf0`
 synchronisiert. Die Upstream-Synchronisierung enthält im finalen PR-Diff keine

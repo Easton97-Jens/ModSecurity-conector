@@ -123,7 +123,7 @@ required before PR #240 can resume.
 
 ## Final diff and review status
 
-This is an uncommitted implementation on the separate branch
+This is a locally committed, unpublished implementation on the separate branch
 `fix/ci-protected-nginx-broker-caller`, synchronized before publication with
 current `origin/master` at `83094eb659f0b5df8c2df30b1ae718d524a9adf0`. The
 upstream synchronization carries no task-owned Framework or MRTS gitlink
