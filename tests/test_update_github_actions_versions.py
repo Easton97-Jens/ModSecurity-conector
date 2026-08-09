@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import os
 import sys
 import tempfile
@@ -78,6 +79,19 @@ class UpdateGitHubActionsVersionsTest(unittest.TestCase):
             with self.assertRaisesRegex(updater.ActionLookupError, "size limit"):
                 resolver._request_json("/repos/actions/checkout/tags")
         self.assertEqual(response.limit, updater.MAX_API_RESPONSE_BYTES + 1)
+
+    def test_api_error_response_is_also_bounded(self):
+        resolver = updater.GitHubActionResolver()
+        error = updater.urllib.error.HTTPError(
+            "https://api.github.com/repos/actions/checkout/tags",
+            500,
+            "failure",
+            {},
+            io.BytesIO(b"x" * (updater.MAX_API_RESPONSE_BYTES + 1)),
+        )
+        with mock.patch.object(resolver.opener, "open", side_effect=error):
+            with self.assertRaisesRegex(updater.ActionLookupError, "size limit"):
+                resolver._request_json("/repos/actions/checkout/tags")
 
     def test_api_redirects_are_not_followed(self):
         handler = updater.NoRedirectHandler()

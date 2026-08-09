@@ -63,6 +63,19 @@ def normalized_api_url(value: str) -> str:
     return value.rstrip("/")
 
 
+def read_bounded_api_body(response: object) -> bytes:
+    """Read an API success or error body without permitting unbounded allocation."""
+
+    if not hasattr(response, "read"):
+        raise ActionLookupError("GitHub API response cannot be read")
+    body = response.read(MAX_API_RESPONSE_BYTES + 1)
+    if type(body) is not bytes:
+        raise ActionLookupError("GitHub API response body is not bytes")
+    if len(body) > MAX_API_RESPONSE_BYTES:
+        raise ActionLookupError("GitHub API response exceeds the size limit")
+    return body
+
+
 @dataclass(frozen=True)
 class SemverRef:
     tag: str
@@ -373,13 +386,11 @@ class GitHubActionResolver:
         request = urllib.request.Request(url, headers=headers)
         try:
             with self.opener.open(request, timeout=30) as response:
-                body = response.read(MAX_API_RESPONSE_BYTES + 1)
-                if len(body) > MAX_API_RESPONSE_BYTES:
-                    raise ActionLookupError("GitHub API response exceeds the size limit")
+                body = read_bounded_api_body(response)
                 data = json.loads(body.decode("utf-8"))
                 return data, {key.lower(): value for key, value in response.headers.items()}
         except urllib.error.HTTPError as error:
-            body = error.read().decode("utf-8", errors="replace")
+            body = read_bounded_api_body(error).decode("utf-8", errors="replace")
             remaining = error.headers.get("X-RateLimit-Remaining")
             if error.code in {403, 429} and (remaining == "0" or "rate limit" in body.lower()):
                 self.rate_limited = True
