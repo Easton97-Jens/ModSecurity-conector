@@ -17,15 +17,6 @@ int msconnector_request_validate_with_limits(const msconnector_request *request,
     return msconnector_request_validate(request) && msconnector_resource_limits_headers_ok(request->headers, request->header_count, limits) && msconnector_resource_limits_body_ok(request->body.size, limits->max_request_body_bytes);
 }
 int msconnector_request_has_header(const msconnector_request *request, const char *name) { return request != 0 && msconnector_headers_find_first(request->headers, request->header_count, name) != 0; }
-const char *msconnector_request_header_value(const msconnector_request *request, const char *name) {
-    (void)request;
-    (void)name;
-    return 0;
-}
-const char *msconnector_request_content_type(const msconnector_request *request) {
-    (void)request;
-    return 0;
-}
 int msconnector_request_content_type_slice(const msconnector_request *request, const char **value, size_t *value_size) {
     if (value != 0) { *value = 0; }
     if (value_size != 0) { *value_size = 0; }

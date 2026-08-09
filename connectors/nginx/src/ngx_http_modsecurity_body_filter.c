@@ -183,6 +183,7 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     ngx_chain_t *chain = in;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_http_modsecurity_conf_t *mcf;
+    ngx_int_t phase4_in_scope;
     ngx_uint_t final_body_forwarded;
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
     ngx_list_part_t *part = &r->headers_out.headers.part;
@@ -302,6 +303,7 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 
     int is_request_processed = 0;
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    phase4_in_scope = ngx_http_modsecurity_phase4_in_scope(r);
     for (; chain != NULL; chain = chain->next)
     {
         u_char *data = chain->buf->pos;
@@ -310,7 +312,8 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             : 0;
         int ret;
 
-        if (ngx_http_modsecurity_append_limited_response_body(ctx, mcf, data,
+        if (phase4_in_scope != 0 &&
+            ngx_http_modsecurity_append_limited_response_body(ctx, mcf, data,
                 len) != NGX_OK) {
             return NGX_ERROR;
         }

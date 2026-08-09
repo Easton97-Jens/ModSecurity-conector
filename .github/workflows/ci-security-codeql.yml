@@ -13,6 +13,29 @@ permissions:
   contents: read
 
 jobs:
+  trusted-go-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          persist-credentials: false
+      - id: version
+        name: Read trusted-base Go version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(cat -- .go-version)"
+          if [[ ! "$version" =~ ^1\.26\.(0|[1-9][0-9]*)$ ]]; then
+            echo "invalid trusted-base Go version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   actions:
     runs-on: ubuntu-latest
     permissions:
@@ -29,6 +52,7 @@ jobs:
       - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
 
   envoy-go:
+    needs: trusted-go-version
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,7 +63,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: .go-version
+          go-version: ${{ needs.trusted-go-version.outputs.version }}
           check-latest: false
       - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
@@ -51,6 +75,7 @@ jobs:
       - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
 
   traefik-go:
+    needs: trusted-go-version
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -61,7 +86,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: .go-version
+          go-version: ${{ needs.trusted-go-version.outputs.version }}
           check-latest: false
       - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
