@@ -54,21 +54,22 @@ GITHUB_API_ORIGIN = "https://api.github.com"
 GITHUB_WEB_ORIGIN = "https://github.com"
 GITHUB_USER_AGENT = "modsecurity-conector-workflow-tool-updater/1"
 RUNNER_TEMP_STRICT_CHILD_ERROR = "candidate path must be a strict child of RUNNER_TEMP"
-SHA40 = re.compile(r"^[0-9a-f]{40}$")
-SHA256 = re.compile(r"^[0-9a-f]{64}$")
-STABLE_RELEASE_TAG = r"v?[0-9]+(?:\.[0-9]+){0,3}"
-RELEASE_TAG = re.compile(rf"^{STABLE_RELEASE_TAG}$")
+SHA40 = re.compile(r"^[0-9a-f]{40}$", re.ASCII)
+SHA256 = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
+STABLE_RELEASE_TAG = r"v?\d+(?:\.\d+){0,3}"
+RELEASE_TAG = re.compile(rf"^{STABLE_RELEASE_TAG}$", re.ASCII)
 # Connector Actions may intentionally use an immutable major-only release tag
 # (currently `actions/github-script@v9`); downloaded tools must retain a
 # dotted release tag because their asset naming and URL tuple depend on it.
-ACTION_RELEASE_TAG = re.compile(r"^v[0-9]+(?:\.[0-9]+){0,3}$")
-TOOL_RELEASE_TAG = re.compile(r"^v?[0-9]+(?:\.[0-9]+){1,3}$")
+ACTION_RELEASE_TAG = re.compile(r"^v\d+(?:\.\d+){0,3}$", re.ASCII)
+TOOL_RELEASE_TAG = re.compile(r"^v?\d+(?:\.\d+){1,3}$", re.ASCII)
 ACTION_SERIES_TAG = re.compile(
     r"^v(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)$", re.ASCII
 )
 UPSTREAM_RELEASE = re.compile(
     r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/releases/tag/"
-    rf"({STABLE_RELEASE_TAG})$"
+    rf"({STABLE_RELEASE_TAG})$",
+    re.ASCII,
 )
 UPSTREAM_REPOSITORY = re.compile(
     r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)$"
@@ -1077,6 +1078,44 @@ def runner_temp_path(path: Path, *, for_write: bool) -> Path:
     return candidate_read_path(path, runner_root)
 
 
+def output_directory_stat(path: Path) -> os.stat_result:
+    """Inspect one output-directory component without following symlinks."""
+
+    try:
+        return path.lstat()
+    except OSError as exc:
+        raise UpdateError("tool validation output directory cannot be inspected") from exc
+
+
+def validate_existing_output_directory_component(path: Path, *, final: bool) -> bool:
+    """Accept a safe intermediate directory and reject an existing target."""
+
+    if not (path.exists() or path.is_symlink()):
+        return False
+    details = output_directory_stat(path)
+    if stat.S_ISLNK(details.st_mode) or not stat.S_ISDIR(details.st_mode):
+        raise UpdateError("tool validation output directory must not traverse a symlink")
+    if final:
+        raise UpdateError("tool validation output directory already exists")
+    return True
+
+
+def create_output_directory_component(path: Path) -> None:
+    """Create and verify a runner-owned directory component."""
+
+    try:
+        path.mkdir(mode=0o700)
+    except OSError as exc:
+        raise UpdateError("tool validation output directory cannot be created") from exc
+    details = output_directory_stat(path)
+    if (
+        stat.S_ISLNK(details.st_mode)
+        or not stat.S_ISDIR(details.st_mode)
+        or details.st_uid != os.geteuid()
+    ):
+        raise UpdateError("tool validation output directory is unsafe")
+
+
 def runner_temp_output_directory(path: Path) -> Path:
     """Create one private, empty tool-validation directory below RUNNER_TEMP."""
 
@@ -1087,26 +1126,10 @@ def runner_temp_output_directory(path: Path) -> Path:
     for index, component in enumerate(relative.parts):
         current = current / component
         final_component = index == len(relative.parts) - 1
-        if current.exists() or current.is_symlink():
-            try:
-                mode = current.lstat().st_mode
-            except OSError as exc:
-                raise UpdateError("tool validation output directory cannot be inspected") from exc
-            if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
-                raise UpdateError("tool validation output directory must not traverse a symlink")
-            if final_component:
-                raise UpdateError("tool validation output directory already exists")
-            continue
-        try:
-            current.mkdir(mode=0o700)
-        except OSError as exc:
-            raise UpdateError("tool validation output directory cannot be created") from exc
-        try:
-            mode = current.lstat().st_mode
-        except OSError as exc:
-            raise UpdateError("tool validation output directory cannot be inspected") from exc
-        if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode) or current.stat().st_uid != os.geteuid():
-            raise UpdateError("tool validation output directory is unsafe")
+        if not validate_existing_output_directory_component(
+            current, final=final_component
+        ):
+            create_output_directory_component(current)
     return resolved_runner_temp_child(path, runner_root, strict=True)
 
 
@@ -1407,71 +1430,118 @@ def apply_lock_changes(
     write_verified_text(lock_path, text)
 
 
+def action_comment_pattern(name: str, baseline: dict[str, Any]) -> re.Pattern[str]:
+    """Build the exact release-comment grammar allowed for one locked Action."""
+
+    baseline_version = str(baseline["version"])
+    if not ACTION_RELEASE_TAG.fullmatch(baseline_version):
+        raise UpdateError(f"action {name!r} has an unsafe baseline version")
+    version_parts = baseline_version.removeprefix("v").split(".")
+    if len(version_parts) == 1:
+        # A major-only Action lock such as `v9` may be documented by a pinned
+        # workflow with the concrete matching release `v9.0.0`.  The immutable
+        # SHA still selects the exact source, so a different major is rejected.
+        return re.compile(
+            rf"{re.escape(baseline_version)}(?:\.\d+){{0,3}}", re.ASCII
+        )
+    accepted_comments = tuple(
+        f"v{'.'.join(version_parts[:length])}"
+        for length in range(1, len(version_parts) + 1)
+    )
+    return re.compile(
+        rf"(?:{'|'.join(map(re.escape, accepted_comments))})", re.ASCII
+    )
+
+
+def action_reference_patterns(
+    name: str, baseline: dict[str, Any]
+) -> tuple[re.Pattern[str], re.Pattern[str], re.Pattern[str]]:
+    """Build reviewed source and replacement patterns for one Action record."""
+
+    accepted_comment = action_comment_pattern(name, baseline)
+    prefix = (
+        rf"{re.escape(name)}(?P<suffix>(?:/[A-Za-z0-9_.-]+)*)@"
+        rf"{re.escape(str(baseline['immutable_commit']))}"
+    )
+    source_reference = re.compile(
+        rf"{prefix}(?:\s+# (?P<comment>{ACTION_RELEASE_TAG.pattern[1:-1]}))?"
+        rf"(?=$|\s)",
+        re.ASCII,
+    )
+    reference = re.compile(
+        rf"{prefix}\s+# (?:{accepted_comment.pattern})(?=$|\s)", re.ASCII
+    )
+    return accepted_comment, source_reference, reference
+
+
+def validate_action_reference_comments(
+    text: str,
+    relative: Path,
+    name: str,
+    accepted_comment: re.Pattern[str],
+    source_reference: re.Pattern[str],
+) -> None:
+    """Require every current immutable Action reference to have an approved tag."""
+
+    for match in source_reference.finditer(text):
+        comment = match.group("comment")
+        if comment is None or accepted_comment.fullmatch(comment) is None:
+            raise UpdateError(
+                f"workflow {relative} uses action {name!r} with an "
+                "unreviewed or missing release-tag comment"
+            )
+
+
+def update_action_references_in_workflow(
+    path: Path,
+    relative: Path,
+    name: str,
+    changes: dict[str, Any],
+    accepted_comment: re.Pattern[str],
+    source_reference: re.Pattern[str],
+    reference: re.Pattern[str],
+) -> int:
+    """Validate and replace one Action's approved references in one workflow."""
+
+    text = path.read_text(encoding="utf-8")
+    validate_action_reference_comments(
+        text, relative, name, accepted_comment, source_reference
+    )
+    replacements = len(reference.findall(text))
+    if replacements == 0:
+        return 0
+
+    def replacement(match: re.Match[str]) -> str:
+        return (
+            f"{name}{match.group('suffix')}@{changes['immutable_commit']}"
+            f" # {changes['version']}"
+        )
+
+    write_verified_text(path, reference.sub(replacement, text))
+    return replacements
+
+
 def update_workflow_references(
     root: Path, lock: dict[str, Any], candidate: dict[str, Any]
 ) -> None:
     for name, changes in sorted(candidate["actions"].items()):
         baseline = lock_record(lock, "actions", name)
-        # Most records are used directly (``owner/action@sha``).  CodeQL is a
-        # reviewed exception with explicit subactions such as ``/init`` and
-        # ``/analyze``; retain only a simple safe suffix when replacing its
-        # immutable pin rather than broadening the source/action allowlist.
-        baseline_version = str(baseline["version"])
-        if not ACTION_RELEASE_TAG.fullmatch(baseline_version):
-            raise UpdateError(f"action {name!r} has an unsafe baseline version")
-        version_parts = baseline_version.removeprefix("v").split(".")
-        if len(version_parts) == 1:
-            # A major-only Action lock such as `v9` may be documented by a
-            # pinned workflow with the concrete matching release `v9.0.0`.
-            # The immutable SHA still selects the exact source; reject a
-            # different major rather than treating a semantic comment as data.
-            accepted_comment = re.compile(
-                rf"{re.escape(baseline_version)}(?:\.[0-9]+){{0,3}}"
-            )
-        else:
-            accepted_comments = tuple(
-                f"v{'.'.join(version_parts[:length])}"
-                for length in range(1, len(version_parts) + 1)
-            )
-            accepted_comment = re.compile(
-                rf"(?:{'|'.join(map(re.escape, accepted_comments))})"
-            )
-        source_reference = re.compile(
-            rf"{re.escape(name)}(?P<suffix>(?:/[A-Za-z0-9_.-]+)*)@"
-            rf"{re.escape(str(baseline['immutable_commit']))}"
-            rf"(?:\s+# (?P<comment>{ACTION_RELEASE_TAG.pattern[1:-1]}))?"
-            rf"(?=$|\s)"
-        )
-        reference = re.compile(
-            rf"{re.escape(name)}(?P<suffix>(?:/[A-Za-z0-9_.-]+)*)@"
-            rf"{re.escape(str(baseline['immutable_commit']))}"
-            rf"\s+# (?:{accepted_comment.pattern})(?=$|\s)"
+        accepted_comment, source_reference, reference = action_reference_patterns(
+            name, baseline
         )
         replacements = 0
         for relative_text in WORKFLOW_UPDATE_PATHS:
             relative = Path(relative_text)
             path = resolve_regular_file(root, relative)
-            text = path.read_text(encoding="utf-8")
-            for match in source_reference.finditer(text):
-                comment = match.group("comment")
-                if comment is None or accepted_comment.fullmatch(comment) is None:
-                    raise UpdateError(
-                        f"workflow {relative} uses action {name!r} with an "
-                        "unreviewed or missing release-tag comment"
-                    )
-            count = len(reference.findall(text))
-            if count:
-                write_verified_text(
-                    path,
-                    reference.sub(
-                        lambda match: (
-                            f"{name}{match.group('suffix')}@{changes['immutable_commit']}"
-                            f" # {changes['version']}"
-                        ),
-                        text,
-                    ),
-                )
-                replacements += count
+            replacements += update_action_references_in_workflow(
+                path,
+                relative,
+                name,
+                changes,
+                accepted_comment,
+                source_reference,
+                reference,
+            )
         if replacements == 0:
             raise UpdateError(
                 f"action {name!r} has no reviewed workflow reference to update"

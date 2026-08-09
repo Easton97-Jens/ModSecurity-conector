@@ -16,8 +16,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK = ROOT / "ci" / "tooling" / "security-tools.lock.yml"
-SHA256 = re.compile(r"^[a-f\d]{64}$")
-VERSION = re.compile(r"^v?[0-9]+(?:\.[0-9]+){1,3}$")
+SHA256 = re.compile(r"^[a-f\d]{64}$", re.ASCII)
+VERSION = re.compile(r"^v?\d+(?:\.\d+){1,3}$", re.ASCII)
 GITHUB_UPSTREAM = re.compile(
     r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
 )

@@ -133,7 +133,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             },
         )
         UPDATER.validate_candidate_shape(candidate_payload, lock, digest)
-        self.assertFalse(UPDATER.TOOL_RELEASE_TAG.fullmatch("v9"))
+        self.assertIsNone(UPDATER.TOOL_RELEASE_TAG.fullmatch("v9"))
+        self.assertIsNone(UPDATER.ACTION_RELEASE_TAG.fullmatch("v９"))
+        self.assertIsNone(UPDATER.TOOL_RELEASE_TAG.fullmatch("v9.９"))
 
     def test_apply_accepts_a_concrete_comment_for_a_major_only_action_lock(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
