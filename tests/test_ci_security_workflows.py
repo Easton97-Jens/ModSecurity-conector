@@ -727,8 +727,8 @@ jobs:
                 path.name,
             )
 
-    def test_verified_report_governance_enforces_strict_existing_evidence(self) -> None:
-        """Reject stale critical evidence without producing or refreshing it in CI."""
+    def test_report_governance_and_strict_evidence_lifecycles_are_isolated(self) -> None:
+        """Keep fresh-checkout governance separate from materialized runtime evidence."""
 
         text = self.workflow("verified-report-governance.yml")
         jobs = self.jobs("verified-report-governance.yml")
@@ -736,13 +736,28 @@ jobs:
         job = jobs["report-governance"]
         self.assertIn("timeout-minutes: 20", job)
         self.assertIn("make report-governance", job)
-        self.assertIn("make verified-report-evidence-gate", job)
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         lint_body = makefile.split("lint:", 1)[1].split("\nsummary:", 1)[0]
         self.assertIn("$(MAKE) report-governance", lint_body)
-        self.assertIn("$(MAKE) verified-report-evidence-gate", lint_body)
+        self.assertNotIn("verified-report-evidence-gate", lint_body)
+        strict_target = makefile.split("verified-report-evidence-gate:", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("check-generated-report-layout", strict_target)
+        lifecycle = (ROOT / "ci/runtime/lifecycle/run-verified-report-run.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('["make", "verified-report-evidence-gate"]', lifecycle)
+
+        # Generic CI and maintenance workflows must not invoke the strict gate;
+        # only the runtime lifecycle above may do so after its producer/refresh phases.
+        for path in self.workflow_paths():
+            self.assertNotIn(
+                "verified-report-evidence-gate",
+                path.read_text(encoding="utf-8"),
+                path.name,
+            )
         for forbidden in (
             "verified-report-run",
+            "verified-report-evidence-gate",
             "refresh-all-reports",
             "generate-system-environment-proof",
             "runtime-matrix-all",

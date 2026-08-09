@@ -1368,7 +1368,6 @@ lint: check-framework
 	$(MAKE) check-directive-parity
 	$(MAKE) check-framework-fixture-syntax
 	$(MAKE) report-governance
-	$(MAKE) verified-report-evidence-gate
 	$(PYTHON) -m json.tool config/testing/import-status.json >/dev/null
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/tools/check-python-deps.py"
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/checks/documentation/check-workflow-yaml.py"
