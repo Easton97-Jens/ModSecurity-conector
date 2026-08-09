@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "update-github-actions-versions.py"
@@ -44,6 +45,62 @@ class FailingResolver(FakeResolver):
 
 
 class UpdateGitHubActionsVersionsTest(unittest.TestCase):
+    def test_api_url_must_be_credential_free_https(self):
+        for value in (
+            "http://api.github.com",
+            "https://token@api.github.com",
+            "https://api.github.com?redirect=evil",
+            "https://api.github.com/#fragment",
+        ):
+            with self.subTest(value=value), self.assertRaises(updater.ActionLookupError):
+                updater.GitHubActionResolver(api_url=value)
+
+        resolver = updater.GitHubActionResolver(api_url="https://github.example/api/v3/")
+        self.assertEqual(resolver.api_url, "https://github.example/api/v3")
+
+    def test_api_response_is_bounded_before_json_decoding(self):
+        class OversizedResponse:
+            headers = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def read(self, limit):
+                self.limit = limit
+                return b" " * limit
+
+        response = OversizedResponse()
+        resolver = updater.GitHubActionResolver()
+        with mock.patch.object(resolver.opener, "open", return_value=response):
+            with self.assertRaisesRegex(updater.ActionLookupError, "size limit"):
+                resolver._request_json("/repos/actions/checkout/tags")
+        self.assertEqual(response.limit, updater.MAX_API_RESPONSE_BYTES + 1)
+
+    def test_api_redirects_are_not_followed(self):
+        handler = updater.NoRedirectHandler()
+        request = updater.urllib.request.Request("https://api.github.com/repos/example/project")
+        self.assertIsNone(
+            handler.redirect_request(
+                request,
+                None,
+                302,
+                "Found",
+                {},
+                "https://attacker.invalid/collect",
+            )
+        )
+
+    def test_api_pagination_is_bounded(self):
+        resolver = updater.GitHubActionResolver()
+        full_page = ([{}] * 100, {})
+        with mock.patch.object(resolver, "_request_json", return_value=full_page) as request:
+            with self.assertRaisesRegex(updater.ActionLookupError, "page limit"):
+                resolver._paged("/repos/actions/checkout/tags")
+        self.assertEqual(request.call_count, updater.MAX_API_PAGES)
+
     def test_checkout_major_ref_updates(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
