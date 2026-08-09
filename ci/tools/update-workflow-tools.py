@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve, validate, and narrowly apply Framework CI Action/tool updates.
+"""Resolve, validate, and narrowly apply Connector CI Action/tool updates.
 
 The updater deliberately separates three capabilities used by the GitHub
 Actions workflow:
@@ -41,6 +41,7 @@ from urllib.parse import quote, urlparse
 from urllib.request import Request, urlopen
 
 import yaml
+from yaml.tokens import AliasToken, AnchorToken, KeyToken, ScalarToken, TagToken
 
 
 class UpdateError(RuntimeError):
@@ -51,12 +52,17 @@ LOCK_RELATIVE_PATH = Path("ci/tooling/security-tools.lock.yml")
 CANDIDATE_SCHEMA_VERSION = 1
 GITHUB_API_ORIGIN = "https://api.github.com"
 GITHUB_WEB_ORIGIN = "https://github.com"
-GITHUB_USER_AGENT = "framework-workflow-tool-updater/1"
+GITHUB_USER_AGENT = "modsecurity-conector-workflow-tool-updater/1"
 RUNNER_TEMP_STRICT_CHILD_ERROR = "candidate path must be a strict child of RUNNER_TEMP"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
-STABLE_RELEASE_TAG = r"v?[0-9]+(?:\.[0-9]+){1,3}"
+STABLE_RELEASE_TAG = r"v?[0-9]+(?:\.[0-9]+){0,3}"
 RELEASE_TAG = re.compile(rf"^{STABLE_RELEASE_TAG}$")
+# Connector Actions may intentionally use an immutable major-only release tag
+# (currently `actions/github-script@v9`); downloaded tools must retain a
+# dotted release tag because their asset naming and URL tuple depend on it.
+ACTION_RELEASE_TAG = re.compile(r"^v[0-9]+(?:\.[0-9]+){0,3}$")
+TOOL_RELEASE_TAG = re.compile(r"^v?[0-9]+(?:\.[0-9]+){1,3}$")
 ACTION_SERIES_TAG = re.compile(
     r"^v(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)$", re.ASCII
 )
@@ -64,7 +70,31 @@ UPSTREAM_RELEASE = re.compile(
     r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/releases/tag/"
     rf"({STABLE_RELEASE_TAG})$"
 )
+UPSTREAM_REPOSITORY = re.compile(
+    r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)$"
+)
 GIT_REVISION = re.compile(r"^[A-Za-z0-9_./-]+$")
+
+# The on-disk Connector schema is the only source of truth. The updater
+# normalizes it in memory so candidates remain stable without adding a second
+# lockfile or migrating existing consumers.
+LOCK_ACTIONS_KEY = "pinned_actions"
+LOCK_GROUP_BY_CANDIDATE_GROUP = {"actions": LOCK_ACTIONS_KEY, "tools": "tools"}
+LOCK_FIELD_BY_CANDIDATE_FIELD = {
+    "actions": {
+        "version": "version",
+        "immutable_commit": "commit_sha",
+        "upstream_release": None,
+    },
+    "tools": {
+        "version": "version",
+        "immutable_commit": "release_commit",
+        "upstream_release": None,
+        "asset": "asset",
+        "asset_url": "url",
+        "sha256": "sha256",
+    },
+}
 
 # These are deliberately individual files, not broad directory prefixes.  A
 # new workflow must be reviewed and added here before this publisher can touch
@@ -73,24 +103,34 @@ GIT_REVISION = re.compile(r"^[A-Za-z0-9_./-]+$")
 ALLOWED_UPDATE_PATHS = frozenset(
     {
         "ci/tooling/security-tools.lock.yml",
-        ".github/workflows/check-action-versions.yml",
-        ".github/workflows/check-common-versions.yml",
-        ".github/workflows/check-python-version.yml",
+        ".github/workflows/all-connectors-no-crs.yml",
+        ".github/workflows/check-actions-versions.yml",
         ".github/workflows/cleanup-artifacts.yml",
-        ".github/workflows/ci-security-codeql-pr.yml",
         ".github/workflows/ci-security-codeql.yml",
-        ".github/workflows/ci-security-dependency-review.yml",
         ".github/workflows/ci-security-osv.yml",
-        ".github/workflows/ci-security-quality.yml",
         ".github/workflows/ci-security-scorecard.yml",
         ".github/workflows/ci-security-secrets.yml",
         ".github/workflows/ci-security-workflow-lint.yml",
         ".github/workflows/lint.yml",
+        ".github/workflows/open-connectors-smoke.yml",
+        ".github/workflows/protocol-contract.yml",
+        ".github/workflows/quick-framework-check.yml",
+        ".github/workflows/test-apache.yml",
         ".github/workflows/test-common.yml",
+        ".github/workflows/test-envoy.yml",
+        ".github/workflows/test-full-smoke-sequential.yml",
+        ".github/workflows/test-haproxy.yml",
+        ".github/workflows/test-lighttpd.yml",
+        ".github/workflows/test-nginx.yml",
+        ".github/workflows/test-traefik.yml",
+        ".github/workflows/update-actions-versions.yml",
+        ".github/workflows/update-go-version.yml",
+        ".github/workflows/update-python-version.yml",
         ".github/workflows/update-submodules.yml",
         ".github/workflows/update-workflow-tools.yml",
-        "docs/github-actions-workflow-security.md",
-        "docs/github-actions-workflow-security.de.md",
+        ".github/workflows/verified-report-governance.yml",
+        "docs/security/ci-security-tooling.md",
+        "docs/security/ci-security-tooling.de.md",
     }
 )
 WORKFLOW_UPDATE_PATHS = tuple(
@@ -116,6 +156,22 @@ REVIEWED_ACTION_RELEASE_RESOLUTIONS = {
     "github/codeql-action": ACTION_RELEASE_RESOLUTION_SAME_MAJOR,
 }
 
+# `make check-ci-security-contract` is the existing Connector baseline. The
+# proposed tree contains exactly its regular-file inputs plus the explicit
+# update surface; it never invokes absent checker paths or follows symlinks.
+PROPOSED_TREE_BASELINE_PATHS = frozenset(
+    {
+        "Makefile",
+        "requirements-dev.txt",
+        "connectors/envoy/ext_proc/go.mod",
+        "ci/fixtures/workflow-permission-contract/safe.yml",
+        "ci/fixtures/workflow-permission-contract/unsafe.yml",
+        "ci/requirements/update-submodules-validation-linux-x86_64.txt",
+        "ci/tools/fetch_security_tool.py",
+        "tests/test_ci_security_workflows.py",
+    }
+)
+
 
 @dataclass(frozen=True)
 class RepositoryIdentity:
@@ -130,7 +186,7 @@ class RepositoryIdentity:
         return f"{self.owner}/{self.repository}"
 
 
-def framework_root() -> Path:
+def repository_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
@@ -196,33 +252,173 @@ def resolve_root(root: Path) -> Path:
     return resolved
 
 
+def yaml_safety_errors(text: str) -> list[str]:
+    """Return forbidden YAML tokens without misreading block-scalar scripts."""
+
+    errors: list[str] = []
+    key_token_seen = False
+    try:
+        tokens = yaml.scan(text)
+        for token in tokens:
+            line_number = token.start_mark.line + 1
+            if isinstance(token, KeyToken):
+                key_token_seen = True
+                continue
+            if isinstance(token, AnchorToken):
+                errors.append(f"line {line_number}: YAML anchors are forbidden")
+            elif isinstance(token, AliasToken):
+                errors.append(f"line {line_number}: YAML aliases are forbidden")
+            elif isinstance(token, TagToken):
+                errors.append(f"line {line_number}: YAML tags are forbidden")
+            elif (
+                key_token_seen
+                and isinstance(token, ScalarToken)
+                and token.style is None
+                and token.value == "<<"
+            ):
+                errors.append(f"line {line_number}: YAML merge keys are forbidden")
+            if not isinstance(token, KeyToken):
+                key_token_seen = False
+    except yaml.YAMLError as exc:
+        line_number = getattr(getattr(exc, "problem_mark", None), "line", 0) + 1
+        errors.append(f"line {line_number}: malformed YAML is forbidden")
+    return errors
+
+
+def reject_unsafe_yaml_syntax(text: str, description: str) -> None:
+    errors = yaml_safety_errors(text)
+    if errors:
+        raise UpdateError(
+            f"{description} uses forbidden YAML syntax: {'; '.join(errors)}"
+        )
+
+
+def lock_upstream(record: dict[str, Any], name: str, group: str) -> str:
+    upstream = record.get("upstream")
+    if not isinstance(upstream, str):
+        raise UpdateError(f"{group} {name!r} has no official upstream URL")
+    match = UPSTREAM_REPOSITORY.fullmatch(upstream)
+    if match is None:
+        raise UpdateError(f"{group} {name!r} must use an exact official GitHub URL")
+    if group == "action" and f"{match.group(1)}/{match.group(2)}" != name:
+        raise UpdateError(f"action {name!r} upstream owner/repository must match")
+    return upstream
+
+
+def canonical_action_record(name: str, record: Any) -> dict[str, Any]:
+    """Normalize one Connector `pinned_actions` record for internal use."""
+
+    if not isinstance(record, dict):
+        raise UpdateError(f"action {name!r} must be a mapping")
+    forbidden = {"immutable_commit", "upstream_release", "release_resolution"}
+    if forbidden.intersection(record):
+        raise UpdateError(f"action {name!r} must use the Connector lock schema")
+    version = record.get("version")
+    if not isinstance(version, str) or not ACTION_RELEASE_TAG.fullmatch(version):
+        raise UpdateError(f"action {name!r} has an unsafe current release version")
+    commit = require_sha40(record.get("commit_sha"), f"action {name!r} commit")
+    upstream = lock_upstream(record, name, "action")
+    canonical = deepcopy(record)
+    canonical.pop("commit_sha")
+    canonical["immutable_commit"] = commit
+    canonical["upstream_release"] = f"{upstream}/releases/tag/{version}"
+    canonical["release_resolution"] = REVIEWED_ACTION_RELEASE_RESOLUTIONS.get(
+        name, ACTION_RELEASE_RESOLUTION_LATEST
+    )
+    return canonical
+
+
+def canonical_tool_record(name: str, record: Any) -> dict[str, Any]:
+    """Normalize one Connector tool record for internal updater use."""
+
+    if not isinstance(record, dict):
+        raise UpdateError(f"tool {name!r} must be a mapping")
+    forbidden = {"immutable_commit", "upstream_release", "asset_url"}
+    if forbidden.intersection(record):
+        raise UpdateError(f"tool {name!r} must use the Connector lock schema")
+    version = record.get("version")
+    if not isinstance(version, str) or not TOOL_RELEASE_TAG.fullmatch(version):
+        raise UpdateError(f"tool {name!r} has an unsafe current release version")
+    commit = require_sha40(record.get("release_commit"), f"tool {name!r} release commit")
+    upstream = lock_upstream(record, name, "tool")
+    asset = record.get("asset")
+    if not isinstance(asset, str) or not is_safe_component(asset):
+        raise UpdateError(f"tool {name!r} has an unsafe current asset record")
+    asset_url = record.get("url")
+    expected_url = f"{upstream}/releases/download/{version}/{asset}"
+    if asset_url != expected_url:
+        raise UpdateError(
+            f"tool {name!r} URL does not match its release owner/repository/tag"
+        )
+    require_sha256(record.get("sha256"), f"tool {name!r} asset")
+    canonical = deepcopy(record)
+    canonical.pop("release_commit")
+    canonical.pop("url")
+    canonical["immutable_commit"] = commit
+    canonical["upstream_release"] = f"{upstream}/releases/tag/{version}"
+    canonical["asset_url"] = asset_url
+    return canonical
+
+
+def normalize_connector_lock(data: Any) -> dict[str, Any]:
+    """Adapt the sole on-disk Connector schema to the updater's internal view."""
+
+    if not isinstance(data, dict):
+        raise UpdateError("security tool lock must be a mapping")
+    if "actions" in data:
+        raise UpdateError("security tool lock must use Connector pinned_actions records")
+    actions = data.get(LOCK_ACTIONS_KEY)
+    tools = data.get("tools")
+    if not isinstance(actions, dict) or not isinstance(tools, dict):
+        raise UpdateError(
+            "security tool lock must contain Connector pinned_actions and tool mappings"
+        )
+    if not all(isinstance(name, str) for name in actions):
+        raise UpdateError("security tool lock action names must be strings")
+    if not all(isinstance(name, str) for name in tools):
+        raise UpdateError("security tool lock tool names must be strings")
+    normalized: dict[str, Any] = {
+        key: deepcopy(value)
+        for key, value in data.items()
+        if key not in {LOCK_ACTIONS_KEY, "tools"}
+    }
+    normalized["actions"] = {
+        name: canonical_action_record(name, record)
+        for name, record in sorted(actions.items())
+    }
+    normalized["tools"] = {
+        name: canonical_tool_record(name, record)
+        for name, record in sorted(tools.items())
+    }
+    return normalized
+
+
 def load_lock(root: Path) -> tuple[Path, dict[str, Any], str]:
     lock_path = resolve_regular_file(root, LOCK_RELATIVE_PATH)
     try:
-        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as exc:
+        text = lock_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise UpdateError(f"cannot read the security tool lock: {exc}") from exc
+    reject_unsafe_yaml_syntax(text, "security tool lock")
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
         raise UpdateError(f"cannot parse the security tool lock: {exc}") from exc
-    if not isinstance(data, dict):
-        raise UpdateError("security tool lock must be a mapping")
-    if not isinstance(data.get("actions"), dict) or not isinstance(
-        data.get("tools"), dict
-    ):
-        raise UpdateError("security tool lock must contain action and tool mappings")
-    return lock_path, data, sha256_file(lock_path)
+    return lock_path, normalize_connector_lock(data), sha256_file(lock_path)
 
 
 def workflow_source_paths(root: Path) -> list[Path]:
-    """Return every regular Framework workflow without following symlinks."""
+    """Return every regular Connector workflow without following symlinks."""
 
     workflow_root = root / ".github" / "workflows"
     for directory in (root / ".github", workflow_root):
         try:
             mode = directory.lstat().st_mode
         except OSError as exc:
-            raise UpdateError("Framework workflow directory is missing") from exc
+            raise UpdateError("Connector workflow directory is missing") from exc
         if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
             raise UpdateError(
-                "Framework workflow directory must be a non-symlink directory"
+                "Connector workflow directory must be a non-symlink directory"
             )
     paths: list[Path] = []
     for candidate in sorted(workflow_root.rglob("*")):
@@ -238,25 +434,71 @@ def workflow_source_paths(root: Path) -> list[Path]:
     return paths
 
 
-def ensure_locked_action_workflow_coverage(root: Path, lock: dict[str, Any]) -> None:
-    """Fail if a lock-managed Action appears outside publisher-approved paths."""
+def workflow_uses_values(text: str, description: str) -> set[str]:
+    """Return scalar YAML ``uses`` values without treating comments as uses.
+
+    Coverage must include a locked Action even if an unreviewed workflow uses a
+    mutable, dynamic, or otherwise non-SHA ref.  Scanning parsed ``uses`` keys
+    rather than only ``owner/action@<sha>`` text avoids silently overlooking
+    exactly the unpinned reference that the surrounding security contract
+    would reject.
+    """
+
+    reject_unsafe_yaml_syntax(text, description)
+    try:
+        document = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise UpdateError(f"{description} is malformed: {exc}") from exc
+
+    values: set[str] = set()
+
+    def visit(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, nested in value.items():
+                if key == "uses" and isinstance(nested, str):
+                    values.add(nested)
+                visit(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                visit(nested)
+
+    visit(document)
+    return values
+
+
+def locked_action_workflow_references(
+    root: Path, lock: dict[str, Any]
+) -> dict[str, set[str]]:
+    """Return every actual workflow use for each lock-managed Action."""
 
     workflow_paths = workflow_source_paths(root)
-    missing: dict[str, list[str]] = {}
+    workflow_uses: dict[Path, set[str]] = {}
+    for path in workflow_paths:
+        text = path.read_text(encoding="utf-8")
+        workflow_uses[path] = workflow_uses_values(
+            text, f"workflow {path.relative_to(root)}"
+        )
     actions = lock.get("actions")
     if not isinstance(actions, dict):
         raise UpdateError("lock actions records are missing")
+    references: dict[str, set[str]] = {}
     for name in sorted(actions):
         if not isinstance(name, str):
             raise UpdateError("lock action name is invalid")
-        reference = re.compile(
-            rf"{re.escape(name)}(?:/[A-Za-z0-9_.-]+)*@[0-9a-f]{{40}}"
-        )
-        referenced = {
+        reference = re.compile(rf"{re.escape(name)}(?:/[A-Za-z0-9_.-]+)*@")
+        references[name] = {
             str(path.relative_to(root))
-            for path in workflow_paths
-            if reference.search(path.read_text(encoding="utf-8"))
+            for path, uses_values in workflow_uses.items()
+            if any(reference.search(value) for value in uses_values)
         }
+    return references
+
+
+def ensure_locked_action_workflow_coverage(root: Path, lock: dict[str, Any]) -> None:
+    """Fail if a lock-managed Action appears outside publisher-approved paths."""
+
+    missing: dict[str, list[str]] = {}
+    for name, referenced in locked_action_workflow_references(root, lock).items():
         unapproved = sorted(referenced.difference(WORKFLOW_UPDATE_PATHS))
         if unapproved:
             missing[name] = unapproved
@@ -415,30 +657,36 @@ def release_page(identity: RepositoryIdentity) -> list[dict[str, Any]]:
     )
 
 
-def stable_release_tag(release: dict[str, Any], description: str) -> str:
+def stable_release_tag(
+    release: dict[str, Any], description: str, *, action: bool = False
+) -> str:
     """Return a stable official release tag, rejecting all preview states."""
 
     if release.get("draft") is not False or release.get("prerelease") is not False:
         raise UpdateError(f"{description} must be a published non-prerelease release")
     tag = release.get("tag_name")
-    if not isinstance(tag, str) or not RELEASE_TAG.fullmatch(tag):
+    pattern = ACTION_RELEASE_TAG if action else TOOL_RELEASE_TAG
+    if not isinstance(tag, str) or not pattern.fullmatch(tag):
         raise UpdateError(f"{description} has no supported stable tag")
     return tag
 
 
-def stable_release_tag_or_none(release: dict[str, Any]) -> str | None:
+def stable_release_tag_or_none(
+    release: dict[str, Any], *, action: bool = False
+) -> str | None:
     """Return a published stable tag when a list entry is selectable."""
 
     if release.get("draft") is not False or release.get("prerelease") is not False:
         return None
     tag = release.get("tag_name")
-    return tag if isinstance(tag, str) and RELEASE_TAG.fullmatch(tag) else None
+    pattern = ACTION_RELEASE_TAG if action else TOOL_RELEASE_TAG
+    return tag if isinstance(tag, str) and pattern.fullmatch(tag) else None
 
 
 def stable_tag_key(tag: str) -> tuple[int, int, int, int]:
     """Normalize a reviewed numeric Action tag for an exact-major comparison."""
 
-    if not RELEASE_TAG.fullmatch(tag):
+    if not ACTION_RELEASE_TAG.fullmatch(tag):
         raise UpdateError(f"unsupported stable release tag {tag!r}")
     parts = [int(part) for part in tag.removeprefix("v").split(".")]
     parts.extend([0] * (4 - len(parts)))
@@ -465,7 +713,7 @@ def latest_same_major_action_release(
     current_key = stable_tag_key(current_tag)
     candidates: list[tuple[tuple[int, int, int, int], dict[str, Any]]] = []
     for release in release_page(identity):
-        tag = stable_release_tag_or_none(release)
+        tag = stable_release_tag_or_none(release, action=True)
         if tag is None or not same_major_action_tag(current_tag, tag):
             continue
         candidates.append((stable_tag_key(tag), release))
@@ -492,10 +740,12 @@ def selected_action_release(
         return latest_release(identity)
     if resolution == ACTION_RELEASE_RESOLUTION_SAME_MAJOR:
         release = latest_same_major_action_release(identity, identity.current_tag)
-        tag = stable_release_tag(release, f"action {name!r} selected page release")
+        tag = stable_release_tag(
+            release, f"action {name!r} selected page release", action=True
+        )
         confirmed = release_by_tag(identity, tag)
         confirmed_tag = stable_release_tag(
-            confirmed, f"action {name!r} selected release"
+            confirmed, f"action {name!r} selected release", action=True
         )
         if confirmed_tag != tag:
             raise UpdateError(
@@ -529,7 +779,7 @@ def selected_action_release_tag(
 ) -> str:
     """Validate the Action release object selected from its reviewed stream."""
 
-    tag = stable_release_tag(release, description)
+    tag = stable_release_tag(release, description, action=True)
     resolution = action_release_resolution(record, name)
     validate_action_release_tag(identity, name, record, tag)
     if (
@@ -827,6 +1077,39 @@ def runner_temp_path(path: Path, *, for_write: bool) -> Path:
     return candidate_read_path(path, runner_root)
 
 
+def runner_temp_output_directory(path: Path) -> Path:
+    """Create one private, empty tool-validation directory below RUNNER_TEMP."""
+
+    runner_root = runner_temp_root()
+    relative = runner_temp_relative_path(path, runner_root)
+    reject_runner_temp_symlinks(runner_root, relative)
+    current = runner_root
+    for index, component in enumerate(relative.parts):
+        current = current / component
+        final_component = index == len(relative.parts) - 1
+        if current.exists() or current.is_symlink():
+            try:
+                mode = current.lstat().st_mode
+            except OSError as exc:
+                raise UpdateError("tool validation output directory cannot be inspected") from exc
+            if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
+                raise UpdateError("tool validation output directory must not traverse a symlink")
+            if final_component:
+                raise UpdateError("tool validation output directory already exists")
+            continue
+        try:
+            current.mkdir(mode=0o700)
+        except OSError as exc:
+            raise UpdateError("tool validation output directory cannot be created") from exc
+        try:
+            mode = current.lstat().st_mode
+        except OSError as exc:
+            raise UpdateError("tool validation output directory cannot be inspected") from exc
+        if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode) or current.stat().st_uid != os.geteuid():
+            raise UpdateError("tool validation output directory is unsafe")
+    return resolved_runner_temp_child(path, runner_root, strict=True)
+
+
 def write_candidate(path: Path, candidate: dict[str, Any]) -> None:
     destination = runner_temp_path(path, for_write=True)
     # Resolve immediately at the filesystem sink as a defense in depth layer
@@ -916,7 +1199,8 @@ def validate_changed_record(
     if group == "tools":
         validate_tool_baseline_provenance(baseline, identity, name)
     version = changes["version"]
-    if not RELEASE_TAG.fullmatch(version):
+    pattern = ACTION_RELEASE_TAG if group == "actions" else TOOL_RELEASE_TAG
+    if not pattern.fullmatch(version):
         raise UpdateError(
             f"candidate {group} {name!r} version is not a supported stable tag"
         )
@@ -944,9 +1228,9 @@ def validate_changed_record(
 
 
 def load_fetcher_module() -> Any:
-    module_path = Path(__file__).with_name("fetch-security-tool.py")
+    module_path = Path(__file__).with_name("fetch_security_tool.py")
     spec = importlib.util.spec_from_file_location(
-        "framework_security_tool_fetcher", module_path
+        "connector_security_tool_fetcher", module_path
     )
     if spec is None or spec.loader is None:
         raise UpdateError("cannot load the checksum-verified tool downloader")
@@ -964,10 +1248,24 @@ def verify_changed_tool_assets(
     if not changed_tools:
         return
     fetcher = load_fetcher_module()
-    # The downloader independently enforces that this is a safe RUNNER_TEMP
-    # child, verifies the SHA-256 before extraction, and never executes assets.
+    # `run_validate_command` constrains output_dir to a fresh RUNNER_TEMP child.
+    # The downloader independently revalidates the exact candidate asset tuple,
+    # verifies SHA-256 before extraction, and never executes downloaded files.
     for name, record in sorted(changed_tools.items()):
-        fetcher.fetch(record, output_dir / name)
+        if not is_safe_component(name):
+            raise UpdateError(f"candidate tool name is unsafe: {name!r}")
+        downloader_record = {
+            "version": record.get("version"),
+            "asset": record.get("asset"),
+            "url": record.get("asset_url"),
+            "sha256": record.get("sha256"),
+            "executable": record.get("executable"),
+            "upstream": record.get("upstream"),
+        }
+        try:
+            fetcher.fetch_record(name, downloader_record, output_dir / name)
+        except (OSError, ValueError) as exc:
+            raise UpdateError(f"candidate tool {name!r} asset verification failed: {exc}") from exc
 
 
 def proposed_validation_root() -> Path:
@@ -975,7 +1273,9 @@ def proposed_validation_root() -> Path:
 
     runner_root = runner_temp_root()
     proposed = Path(
-        tempfile.mkdtemp(prefix="framework-workflow-tool-proposed-", dir=runner_root)
+        tempfile.mkdtemp(
+            prefix="modsecurity-conector-workflow-tool-proposed-", dir=runner_root
+        )
     )
     mode = proposed.lstat().st_mode
     if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
@@ -987,9 +1287,9 @@ def proposed_validation_root() -> Path:
 
 
 def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
-    """Copy only the explicit update surface into a fresh private temp root."""
+    """Copy the strict update surface and Connector contract inputs privately."""
 
-    for relative_text in sorted(ALLOWED_UPDATE_PATHS):
+    for relative_text in sorted(ALLOWED_UPDATE_PATHS | PROPOSED_TREE_BASELINE_PATHS):
         relative = Path(relative_text)
         source = resolve_regular_file(source_root, relative)
         destination = destination_root / relative
@@ -1002,40 +1302,22 @@ def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
 
 
 def run_proposed_tree_contract_checks(proposed_root: Path) -> None:
-    """Run fixed trusted checkers against the candidate-only proposed tree."""
+    """Run the existing Connector CI-security baseline against the temp tree."""
 
-    source_root = framework_root()
-    checks = (
-        (
-            Path("ci/checks/security/check-github-actions-workflows.py"),
-            ("--workflow-root", ".github/workflows", "--check", "all"),
-            "workflow metadata",
-        ),
-        (
-            Path("ci/checks/security/check-workflow-action-pins.py"),
-            ("--workflow-root", ".github/workflows"),
-            "workflow Action pins",
-        ),
-        (
-            Path("ci/checks/security/check-ci-security-contract.py"),
-            ("--root", "."),
-            "CI security contract",
-        ),
+    resolve_regular_file(proposed_root, Path("Makefile"))
+    result = subprocess.run(
+        ["make", f"PYTHON={sys.executable}", "check-ci-security-contract"],
+        cwd=proposed_root,
+        check=False,
+        capture_output=True,
+        text=True,
     )
-    for relative, arguments, description in checks:
-        checker = resolve_regular_file(source_root, relative)
-        result = subprocess.run(
-            [sys.executable, str(checker), *arguments],
-            cwd=proposed_root,
-            check=False,
-            capture_output=True,
-            text=True,
+    if result.returncode != 0:
+        output = f"{result.stdout}{result.stderr}".strip()
+        raise UpdateError(
+            "proposed workflow-tool candidate fails Connector CI security contract: "
+            f"{output}"
         )
-        if result.returncode != 0:
-            output = f"{result.stdout}{result.stderr}".strip()
-            raise UpdateError(
-                f"proposed workflow-tool candidate fails {description}: {output}"
-            )
 
 
 def validate_proposed_tree(root: Path, candidate: dict[str, Any]) -> None:
@@ -1107,10 +1389,19 @@ def apply_lock_changes(
     ):
         for name, changes in sorted(candidate[group].items()):
             baseline = lock_record(lock, group, name)
-            start, end, section = lock_record_section(text, group, name)
+            start, end, section = lock_record_section(
+                text, LOCK_GROUP_BY_CANDIDATE_GROUP[group], name
+            )
             for field in fields:
+                disk_field = LOCK_FIELD_BY_CANDIDATE_FIELD[group][field]
+                if disk_field is None:
+                    continue
                 section = replace_lock_field(
-                    section, field, str(baseline[field]), changes[field], name
+                    section,
+                    disk_field,
+                    str(baseline[field]),
+                    changes[field],
+                    name,
                 )
             text = f"{text[:start]}{section}{text[end:]}"
     write_verified_text(lock_path, text)
@@ -1125,16 +1416,49 @@ def update_workflow_references(
         # reviewed exception with explicit subactions such as ``/init`` and
         # ``/analyze``; retain only a simple safe suffix when replacing its
         # immutable pin rather than broadening the source/action allowlist.
+        baseline_version = str(baseline["version"])
+        if not ACTION_RELEASE_TAG.fullmatch(baseline_version):
+            raise UpdateError(f"action {name!r} has an unsafe baseline version")
+        version_parts = baseline_version.removeprefix("v").split(".")
+        if len(version_parts) == 1:
+            # A major-only Action lock such as `v9` may be documented by a
+            # pinned workflow with the concrete matching release `v9.0.0`.
+            # The immutable SHA still selects the exact source; reject a
+            # different major rather than treating a semantic comment as data.
+            accepted_comment = re.compile(
+                rf"{re.escape(baseline_version)}(?:\.[0-9]+){{0,3}}"
+            )
+        else:
+            accepted_comments = tuple(
+                f"v{'.'.join(version_parts[:length])}"
+                for length in range(1, len(version_parts) + 1)
+            )
+            accepted_comment = re.compile(
+                rf"(?:{'|'.join(map(re.escape, accepted_comments))})"
+            )
+        source_reference = re.compile(
+            rf"{re.escape(name)}(?P<suffix>(?:/[A-Za-z0-9_.-]+)*)@"
+            rf"{re.escape(str(baseline['immutable_commit']))}"
+            rf"(?:\s+# (?P<comment>{ACTION_RELEASE_TAG.pattern[1:-1]}))?"
+            rf"(?=$|\s)"
+        )
         reference = re.compile(
             rf"{re.escape(name)}(?P<suffix>(?:/[A-Za-z0-9_.-]+)*)@"
             rf"{re.escape(str(baseline['immutable_commit']))}"
-            rf" # {re.escape(str(baseline['version']))}"
+            rf"\s+# (?:{accepted_comment.pattern})(?=$|\s)"
         )
         replacements = 0
         for relative_text in WORKFLOW_UPDATE_PATHS:
             relative = Path(relative_text)
             path = resolve_regular_file(root, relative)
             text = path.read_text(encoding="utf-8")
+            for match in source_reference.finditer(text):
+                comment = match.group("comment")
+                if comment is None or accepted_comment.fullmatch(comment) is None:
+                    raise UpdateError(
+                        f"workflow {relative} uses action {name!r} with an "
+                        "unreviewed or missing release-tag comment"
+                    )
             count = len(reference.findall(text))
             if count:
                 write_verified_text(
@@ -1318,20 +1642,20 @@ def git_lock_blob_data(root: Path, revision: str) -> tuple[bytes, dict[str, Any]
 
     blob = git_blob(root, revision, LOCK_RELATIVE_PATH)
     try:
-        data = yaml.safe_load(blob.decode("utf-8"))
+        text = blob.decode("utf-8")
     except (UnicodeDecodeError, yaml.YAMLError) as exc:
         raise UpdateError(
             f"security tool lock at {revision} is malformed: {exc}"
         ) from exc
-    if (
-        not isinstance(data, dict)
-        or not isinstance(data.get("actions"), dict)
-        or not isinstance(data.get("tools"), dict)
-    ):
+    reject_unsafe_yaml_syntax(text, f"security tool lock at {revision}")
+    try:
+        data = yaml.safe_load(text)
+        normalized = normalize_connector_lock(data)
+    except yaml.YAMLError as exc:
         raise UpdateError(
-            f"security tool lock at {revision} must contain action and tool mappings"
-        )
-    return blob, data
+            f"security tool lock at {revision} is malformed: {exc}"
+        ) from exc
+    return blob, normalized
 
 
 def changed_lock_record_fields(
@@ -1568,7 +1892,7 @@ def parse_args() -> argparse.Namespace:
     resolve = subparsers.add_parser(
         "resolve", help="resolve a public read-only candidate"
     )
-    resolve.add_argument("--root", type=Path, default=framework_root())
+    resolve.add_argument("--root", type=Path, default=repository_root())
     output = resolve.add_mutually_exclusive_group(required=True)
     output.add_argument("--output", type=Path)
     output.add_argument("--github-output", action="store_true")
@@ -1576,7 +1900,7 @@ def parse_args() -> argparse.Namespace:
     validate = subparsers.add_parser(
         "validate", help="validate a candidate without source writes"
     )
-    validate.add_argument("--root", type=Path, default=framework_root())
+    validate.add_argument("--root", type=Path, default=repository_root())
     candidate = validate.add_mutually_exclusive_group(required=True)
     candidate.add_argument("--candidate", type=Path)
     candidate.add_argument("--candidate-b64")
@@ -1593,7 +1917,7 @@ def parse_args() -> argparse.Namespace:
     apply = subparsers.add_parser(
         "apply", help="apply the narrow allow-listed candidate"
     )
-    apply.add_argument("--root", type=Path, default=framework_root())
+    apply.add_argument("--root", type=Path, default=repository_root())
     candidate = apply.add_mutually_exclusive_group(required=True)
     candidate.add_argument("--candidate", type=Path)
     candidate.add_argument("--candidate-b64")
@@ -1603,7 +1927,7 @@ def parse_args() -> argparse.Namespace:
     scope = subparsers.add_parser(
         "verify-scope", help="fail if a publisher diff escapes the allowlist"
     )
-    scope.add_argument("--root", type=Path, default=framework_root())
+    scope.add_argument("--root", type=Path, default=repository_root())
     scope.add_argument("--staged", action="store_true")
     scope.add_argument("--base")
     scope.add_argument("--head")
@@ -1612,7 +1936,7 @@ def parse_args() -> argparse.Namespace:
         "verify-existing-branch",
         help="verify a reusable branch against the trusted base lock before switching",
     )
-    existing.add_argument("--root", type=Path, default=framework_root())
+    existing.add_argument("--root", type=Path, default=repository_root())
     existing.add_argument("--base", required=True)
     existing.add_argument("--head", required=True)
     return parser.parse_args()
@@ -1645,7 +1969,7 @@ def run_validate_command(args: argparse.Namespace) -> int:
     if args.verify_tool_assets:
         if args.output_dir is None:
             raise UpdateError("--verify-tool-assets requires --output-dir")
-        verify_changed_tool_assets(changes, args.output_dir)
+        verify_changed_tool_assets(changes, runner_temp_output_directory(args.output_dir))
     if args.validate_proposed_tree:
         validate_proposed_tree(root, candidate)
     print("workflow-tool candidate passed validation")
