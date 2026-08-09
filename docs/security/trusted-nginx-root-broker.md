@@ -15,7 +15,7 @@ The caller uses the reusable workflow at the exact 40-character merge SHA
 already reachable from protected Parent `master`:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@<broker-merge-sha>
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@e06254ea9622d214a9030b9ba786756560ace417
 ```
 
 The broker accepts only same-repository `workflow_dispatch` or scheduled
@@ -30,7 +30,54 @@ fork context, broad `sudo`, `sudo -E`, `sudo sh -c`, `sudo bash -c`, shell
 callback, command string, or caller-provided executable path is part of this
 contract.
 
+## Protected resulting-master caller
+
+The reusable-only broker cannot itself create resulting-`master` runtime
+evidence. The separate `Protected NGINX Root Broker Lifecycle` workflow at
+`.github/workflows/run-protected-nginx-root-broker.yml` supplies that narrow
+entry point. It has only `workflow_dispatch`, accepts only required
+`parent_head_sha`, grants only `contents: read`, and has a non-cancelling
+workflow-wide concurrency group. Every caller job requires the canonical
+non-fork repository, a `workflow_dispatch` event, and `refs/heads/master` as
+the protected default branch.
+
+`parent_head_sha` is a declarative evidence identity, not a source selector.
+The unprivileged preparation job accepts only lowercase SHA-40, confirms that
+commit through a fixed read-only GitHub API endpoint, and records it in the two
+caller manifests. It never checks out, imports, sources, builds, starts,
+loads, or root-executes that commit. The caller checks out only its protected
+current-master source to run its reviewed data-only helper. The only root
+actions remain inside this immutable call and the Framework gitlink is fixed
+to the broker revision rather than to a later Parent state:
+
+```yaml
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@e06254ea9622d214a9030b9ba786756560ace417
+```
+
+```text
+protected_broker_sha = e06254ea9622d214a9030b9ba786756560ace417
+framework_sha        = c71e15db7b7517b237add9fa09b3493e7bc93627
+```
+
+The caller makes two explicit immutable calls, never a user-selected matrix:
+`no-crs` with profile `no-crs`, and `with-crs` with profile `owasp-crs`. It
+creates one private, deterministic, parsed-before-upload manifest artifact for
+each fixed run ID. Each artifact contains only `caller-manifest.json`, has one
+day retention, and is supplied to the matching immutable reusable call.
+
 ## Versioned declarative caller contract
+
+The reusable-workflow interface has exactly six inputs:
+
+- `caller_manifest_artifact`
+- `parent_head_sha`
+- `framework_sha`
+- `protected_broker_sha`
+- `matrix_variant`
+- `run_id`
+
+Those call inputs are distinct from the schema-v2 JSON manifest. Schema v2 has
+exactly seven fields; the additional field is the closed `policy_profile`:
 
 Schema v1 remains the reproducible no-CRS control contract. Schema v2 accepts
 exactly the v1 identity fields plus `policy_profile`:
@@ -128,6 +175,15 @@ profile's own root/master/worker/artifact lifecycle has passed. For `owasp-crs`
 that result also contains the fixed CRS tuple and bundle identity; it is not an
 Apache result and a bare HTTP 403 is insufficient.
 
+The caller then downloads only the two run-bound broker artifacts in an
+unprivileged evidence-readback job. It requires the exact profile-specific
+file set, rejects unknown JSON fields and symlinks, binds both run IDs, the
+declarative Parent SHA, the immutable broker/Framework SHAs, root master and
+non-root worker identities, `PASS` cleanup, and the CRS bundle/audit digest
+for `owasp-crs`. The no-CRS artifact must not contain an audit file. Its final
+always-run result job fails if manifest preparation, either broker profile, or
+evidence readback did not succeed; it cannot turn a failed broker job green.
+
 ## Validation boundary
 
 Local focused tests cover schema/profile rejection, provenance, bundle path and
@@ -138,3 +194,9 @@ required to prove GitHub reusable-workflow context semantics, a real root
 master/non-root worker, real CRS execution, audit output, listener release,
 and final uploaded cleanup evidence. This document is a security contract, not
 that runtime evidence.
+
+PR #240 remains blocked until this caller has been normally merged, dispatched
+from resulting protected `master`, and observed to pass both `no-crs` and
+`owasp-crs` profiles with successful evidence readback and cleanup. A later
+dispatch may bind PR #240's final head only as declarative evidence; it never
+executes PR #240 code at the root boundary.

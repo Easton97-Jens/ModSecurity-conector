@@ -17,7 +17,7 @@ Der Caller verwendet den wiederverwendbaren Workflow über den exakten
 ist:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@<broker-merge-sha>
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@e06254ea9622d214a9030b9ba786756560ace417
 ```
 
 Der Broker akzeptiert nur Same-Repository-`workflow_dispatch`- oder
@@ -34,7 +34,58 @@ Kein `@master`, kein PR-Branch-Ref, kein lokales `uses: ./`, kein
 kein Command-String und kein vom Caller vorgegebener Ausführungspfad gehören zu
 diesem Vertrag.
 
+## Geschützter resulting-master-Caller
+
+Der nur wiederverwendbare Broker kann selbst keine resulting-`master`-
+Runtime-Evidence erzeugen. Der getrennte Workflow `Protected NGINX Root Broker
+Lifecycle` unter `.github/workflows/run-protected-nginx-root-broker.yml`
+liefert diesen engen Einstiegspunkt. Er besitzt ausschließlich
+`workflow_dispatch`, akzeptiert ausschließlich das erforderliche
+`parent_head_sha`, erhält nur `contents: read` und hat eine nicht abbrechende
+workflowweite Concurrency-Gruppe. Jeder Caller-Job fordert das kanonische
+Nicht-Fork-Repository, ein `workflow_dispatch`-Event und `refs/heads/master`
+als geschützten Default-Branch.
+
+`parent_head_sha` ist eine deklarative Evidence-Identität und kein
+Source-Selektor. Der unprivilegierte Vorbereitungsjob akzeptiert ausschließlich
+lowercase SHA-40, bestätigt den Commit über einen festen read-only-GitHub-API-
+Endpunkt und bindet ihn in die zwei Caller-Manifeste. Er checkt diesen Commit
+nicht aus, importiert, sourct, baut, startet, lädt oder root-exekutiert ihn
+nicht. Der Caller checkt nur seinen geschützten aktuellen Master-Source aus,
+um den geprüften reinen Datenhelper auszuführen. Die einzigen Root-Aktionen
+bleiben im folgenden unveränderlichen Aufruf; der Framework-Gitlink ist an die
+Broker-Revision und nicht an einen späteren Parent-Stand gebunden:
+
+```yaml
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@e06254ea9622d214a9030b9ba786756560ace417
+```
+
+```text
+protected_broker_sha = e06254ea9622d214a9030b9ba786756560ace417
+framework_sha        = c71e15db7b7517b237add9fa09b3493e7bc93627
+```
+
+Der Caller erstellt zwei explizite unveränderliche Aufrufe und niemals eine
+benutzergewählte Matrix: `no-crs` mit Profil `no-crs` sowie `with-crs` mit
+Profil `owasp-crs`. Für jede feste Run-ID erzeugt er ein privates,
+deterministisches, vor dem Upload erneut geparstes Manifest-Artefakt. Jedes
+Artefakt enthält ausschließlich `caller-manifest.json`, wird einen Tag
+aufbewahrt und dem passenden unveränderlichen Reusable-Aufruf übergeben.
+
 ## Versionierter deklarativer Caller-Vertrag
+
+Die wiederverwendbare Workflow-Schnittstelle besitzt exakt sechs Inputs:
+
+- `caller_manifest_artifact`
+- `parent_head_sha`
+- `framework_sha`
+- `protected_broker_sha`
+- `matrix_variant`
+- `run_id`
+
+Diese Call-Inputs unterscheiden sich vom Schema-v2-JSON-Manifest. Schema v2
+besitzt exakt sieben Felder; das zusätzliche Feld ist das geschlossene
+`policy_profile`:
 
 Schema v1 bleibt der reproduzierbare No-CRS-Kontrollvertrag. Schema v2
 akzeptiert exakt die v1-Identitätsfelder plus `policy_profile`:
@@ -138,6 +189,17 @@ hat. Für `owasp-crs` enthält dieses Ergebnis zusätzlich das feste CRS-Tupel
 und die Bundle-Identität; es ist kein Apache-Ergebnis und ein bloßer HTTP 403
 genügt nicht.
 
+Anschließend lädt der Caller nur die zwei Run-gebundenen Broker-Artefakte in
+einem unprivilegierten Evidence-Readback-Job herunter. Er fordert die exakte
+profilabhängige Dateimenge, weist unbekannte JSON-Felder und Symlinks ab und
+bindet beide Run-IDs, den deklarativen Parent-SHA, die unveränderlichen
+Broker-/Framework-SHAs, Root-Master- und Nicht-root-Worker-Identitäten,
+`PASS`-Cleanup sowie für `owasp-crs` Bundle-/Audit-Digest. Das No-CRS-Artefakt
+darf keine Auditdatei enthalten. Sein finaler Always-Run-Ergebnisjob schlägt
+fehl, falls Manifestvorbereitung, eines der Brokerprofile oder Evidence-
+Readback nicht erfolgreich waren; er kann keinen fehlgeschlagenen Brokerjob
+grün überdecken.
+
 ## Validierungsgrenze
 
 Lokale fokussierte Tests decken Schema-/Profil-Ablehnung, Provenance,
@@ -149,3 +211,9 @@ Reusable-Workflow-Kontextsemantik, einen realen Root-Master/Nicht-root-Worker,
 reale CRS-Ausführung, Audit-Ausgabe, Listener-Freigabe und die endgültig
 hochgeladene Cleanup-Evidence zu beweisen. Dieses Dokument ist ein
 Sicherheitsvertrag, nicht diese Runtime-Evidence.
+
+PR #240 bleibt blockiert, bis dieser Caller normal gemergt, vom resultierenden
+geschützten `master` gestartet und mit erfolgreichen `no-crs`- sowie
+`owasp-crs`-Profilen einschließlich Evidence-Readback und Cleanup beobachtet
+wurde. Ein späterer Dispatch darf den finalen PR-240-Head nur als deklarative
+Evidence binden; er führt niemals PR-240-Code an der Root-Grenze aus.

@@ -24,6 +24,20 @@ GO_MODULE_REQUIREMENT = re.compile(
     r"(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(?:\s+//.*)?$"
 )
 PCRE2_SHA256 = "47fe8c99461250d42f89e6e8fdaeba9da057855d06eb7fc08d9ca03fd08d7bc7"
+PROTECTED_NGINX_BROKER_CALLER_WORKFLOW = "run-protected-nginx-root-broker.yml"
+PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
+    "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
+    "e06254ea9622d214a9030b9ba786756560ace417"
+)
+PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
+    {
+        "github.event_name == 'workflow_dispatch'",
+        "github.repository == 'Easton97-Jens/ModSecurity-conector'",
+        "github.event.repository.fork == false",
+        "github.ref == 'refs/heads/master'",
+        "github.event.repository.default_branch == 'master'",
+    }
+)
 
 WRITE_PERMISSION_KEYS = {
     "contents",
@@ -141,6 +155,68 @@ def job_permissions(job: str) -> dict[str, str]:
     return {}
 
 
+def job_if_expression(job: str) -> str | None:
+    """Return the unique job-level ``if`` expression without YAML evaluation."""
+
+    lines = job.splitlines()
+    expressions: list[str] = []
+    for index, line in enumerate(lines):
+        if not line.startswith("    if:"):
+            continue
+        value = line.removeprefix("    if:").strip()
+        if value in {">", ">-", "|", "|-"}:
+            continuation: list[str] = []
+            for candidate in lines[index + 1 :]:
+                if candidate.startswith("      "):
+                    continuation.append(candidate.strip())
+                    continue
+                if candidate.strip():
+                    break
+            value = " ".join(continuation)
+        expressions.append(value)
+    if len(expressions) != 1:
+        return None
+    expression = expressions[0]
+    if expression.startswith("${{") and expression.endswith("}}"):
+        expression = expression.removeprefix("${{").removesuffix("}}").strip()
+    return " ".join(expression.split())
+
+
+def has_exact_master_only_gate(job: str, extra_terms: set[str]) -> bool:
+    """Require a conjunction of the fixed master gate and approved job clauses."""
+
+    expression = job_if_expression(job)
+    if expression is None:
+        return False
+    terms = {term.strip() for term in expression.split("&&")}
+    return terms == PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS | extra_terms
+
+
+def job_direct_key_count(job: str, key: str) -> int:
+    """Count direct job mapping keys, including malformed duplicate keys."""
+
+    return sum(line.startswith(f"    {key}:") for line in job.splitlines())
+
+
+def job_with_keys(job: str) -> list[str] | None:
+    """Return direct ``with`` keys only when the job has one such mapping."""
+
+    lines = job.splitlines()
+    with_indexes = [index for index, line in enumerate(lines) if line.startswith("    with:")]
+    if len(with_indexes) != 1:
+        return None
+    keys: list[str] = []
+    for line in lines[with_indexes[0] + 1 :]:
+        if not line.strip():
+            continue
+        if len(line) - len(line.lstrip()) <= 4:
+            break
+        match = re.match(r"^      (?P<key>[A-Za-z_][A-Za-z0-9_-]*):", line)
+        if match is not None:
+            keys.append(match.group("key"))
+    return keys
+
+
 def checkout_step_blocks(text: str) -> list[str]:
     """Return each checkout step through the next step at the same indent."""
 
@@ -222,6 +298,165 @@ def yaml_security_errors(text: str) -> list[str]:
     return errors
 
 
+def protected_nginx_broker_caller_errors(text: str) -> list[str]:
+    """Return exact trust-contract violations for the protected dispatch caller."""
+
+    errors: list[str] = []
+    if not text.startswith("name: Protected NGINX Root Broker Lifecycle\n"):
+        errors.append("caller workflow name")
+    trigger_match = re.search(r"(?ms)^on:\n(?P<body>.*?)(?=^permissions:\n)", text)
+    if trigger_match is None:
+        errors.append("caller trigger section")
+        trigger_body = ""
+    else:
+        trigger_body = trigger_match.group("body")
+        triggers = re.findall(r"(?m)^  ([A-Za-z_][A-Za-z0-9_-]*):", trigger_body)
+        if triggers != ["workflow_dispatch"]:
+            errors.append("caller must have only workflow_dispatch")
+        inputs = re.findall(r"(?m)^      ([A-Za-z_][A-Za-z0-9_-]*):", trigger_body)
+        if inputs != ["parent_head_sha"]:
+            errors.append("caller must expose only parent_head_sha")
+        if "        required: true" not in trigger_body or "        type: string" not in trigger_body:
+            errors.append("caller parent_head_sha must be required string")
+    for forbidden in (
+        "pull_request:",
+        "pull_request_target:",
+        "push:",
+        "workflow_call:",
+        "repository_dispatch:",
+        "workflow_run:",
+    ):
+        if forbidden in text:
+            errors.append(f"forbidden trigger {forbidden}")
+    try:
+        if top_level_permissions(text) != {"contents": "read"}:
+            errors.append("caller top-level permissions")
+    except AssertionError:
+        errors.append("caller top-level permissions")
+    if (
+        "  group: protected-nginx-root-broker-caller" not in text
+        or "  cancel-in-progress: false" not in text
+    ):
+        errors.append("caller non-cancelling concurrency")
+    expected_jobs = {
+        "prepare-manifests",
+        "run-no-crs-broker",
+        "run-with-crs-broker",
+        "verify-evidence",
+        "result",
+    }
+    jobs = job_blocks(text)
+    if set(jobs) != expected_jobs:
+        errors.append("caller job inventory")
+    expected_gate_extras = {
+        "prepare-manifests": set(),
+        "run-no-crs-broker": {"needs.prepare-manifests.result == 'success'"},
+        "run-with-crs-broker": {"needs.prepare-manifests.result == 'success'"},
+        "verify-evidence": {
+            "always()",
+            "needs.prepare-manifests.result == 'success'",
+            "needs.run-no-crs-broker.result == 'success'",
+            "needs.run-with-crs-broker.result == 'success'",
+        },
+        "result": {"always()"},
+    }
+    for name, job in jobs.items():
+        if job_permissions(job) != {"contents": "read"}:
+            errors.append(f"caller job permissions {name}")
+        if not has_exact_master_only_gate(job, expected_gate_extras.get(name, set())):
+            errors.append(f"caller master-only gate {name}")
+    if "matrix:" in text or "strategy:" in text:
+        errors.append("caller must not use a dynamic matrix")
+    protected_calls = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip().startswith("uses: Easton97-Jens/ModSecurity-conector/.github/workflows/")
+    ]
+    if protected_calls != [
+        f"uses: {PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE}",
+        f"uses: {PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE}",
+    ]:
+        errors.append("caller immutable protected broker reference")
+    required_no_crs = (
+        "      caller_manifest_artifact: protected-nginx-caller-${{ github.run_id }}-${{ github.run_attempt }}-no-crs",
+        "      parent_head_sha: ${{ inputs.parent_head_sha }}",
+        "      framework_sha: c71e15db7b7517b237add9fa09b3493e7bc93627",
+        "      protected_broker_sha: e06254ea9622d214a9030b9ba786756560ace417",
+        "      matrix_variant: no-crs",
+        "      run_id: protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-no-crs",
+    )
+    required_with_crs = tuple(item.replace("no-crs", "with-crs") for item in required_no_crs)
+    required_with_crs = tuple(
+        item.replace("matrix_variant: with-crs", "matrix_variant: with-crs")
+        for item in required_with_crs
+    )
+    expected_broker_input_keys = [
+        "caller_manifest_artifact",
+        "parent_head_sha",
+        "framework_sha",
+        "protected_broker_sha",
+        "matrix_variant",
+        "run_id",
+    ]
+    for job_name, requirements in (
+        ("run-no-crs-broker", required_no_crs),
+        ("run-with-crs-broker", required_with_crs),
+    ):
+        job = jobs.get(job_name, "")
+        if job_direct_key_count(job, "uses") != 1:
+            errors.append(f"caller immutable protected broker reference {job_name}")
+        if job_direct_key_count(job, "with") != 1 or job_with_keys(job) != expected_broker_input_keys:
+            errors.append(f"caller exact broker input keys {job_name}")
+        for required in requirements:
+            if required not in job:
+                errors.append(f"caller fixed broker input {job_name} {required}")
+    if "policy_profile:" in trigger_body or "matrix_variant:" in trigger_body:
+        errors.append("caller exposes a dynamic profile or variant")
+    prepare = jobs.get("prepare-manifests", "")
+    if "create-manifests" not in prepare or '--target-sha "$TARGET_PARENT_SHA"' not in prepare:
+        errors.append("caller manifest preparation")
+    if prepare.count("caller-manifest.json") != 2:
+        errors.append("caller must upload exactly two single-file manifests")
+    if any(
+        pattern in text
+        for pattern in (
+            "uses: ./",
+            "@master",
+            "@fix/",
+            "secrets.",
+            "${{ secrets.",
+            "sudo",
+            "git checkout \"$TARGET_PARENT_SHA\"",
+            "git checkout '${TARGET_PARENT_SHA}'",
+            "ref: ${{ inputs.parent_head_sha }}",
+            "python3 \"$TARGET_PARENT_SHA\"",
+            "source \"$TARGET_PARENT_SHA\"",
+            "make $TARGET_PARENT_SHA",
+        )
+    ):
+        errors.append("caller target-code or privilege boundary")
+    evidence = jobs.get("verify-evidence", "")
+    if (
+        "verify-evidence" not in evidence
+        or "Download no-CRS broker evidence" not in evidence
+        or "Download OWASP CRS broker evidence" not in evidence
+    ):
+        errors.append("caller evidence readback")
+    result = jobs.get("result", "")
+    for required in (
+        "always()",
+        '"$PREPARE_RESULT" != success',
+        '"$NO_CRS_RESULT" != success',
+        '"$WITH_CRS_RESULT" != success',
+        '"$EVIDENCE_RESULT" != success',
+        "exit 1",
+    ):
+        if required not in result:
+            errors.append("caller fail-closed result")
+            break
+    return errors
+
+
 def go_module_requirements(text: str) -> dict[str, tuple[int, int, int]]:
     """Return stable semantic versions declared in Go require directives."""
 
@@ -268,6 +503,12 @@ class CiSecurityWorkflowTest(unittest.TestCase):
                 if "uses:" not in line or "@" not in line or "./" in line:
                     continue
                 reference = line.split("uses:", 1)[1].strip()
+                if reference.startswith(
+                    "Easton97-Jens/ModSecurity-conector/.github/workflows/"
+                ):
+                    self.assertEqual(path.name, PROTECTED_NGINX_BROKER_CALLER_WORKFLOW)
+                    self.assertEqual(reference, PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE)
+                    continue
                 self.assertRegex(reference, SHA_PIN, f"{path}: {line}")
                 self.assertIn(reference.split("@", 1)[1].split()[0], recorded_shas, f"{path}: {line}")
 
@@ -512,6 +753,114 @@ jobs:
             "sudo python",
         ):
             self.assertNotIn(forbidden, text)
+
+    def test_protected_master_caller_is_exactly_pinned_and_fail_closed(self) -> None:
+        text = self.workflow(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW)
+        self.assertEqual(protected_nginx_broker_caller_errors(text), [])
+        mutations = {
+            "broker master ref": (
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE,
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE.replace(
+                    "@e06254ea9622d214a9030b9ba786756560ace417", "@master"
+                ),
+            ),
+            "broker branch ref": (
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE,
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE.replace(
+                    "@e06254ea9622d214a9030b9ba786756560ace417", "@fix/unsafe"
+                ),
+            ),
+            "local reusable workflow": (
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE,
+                "./.github/workflows/nginx-root-broker.yml",
+            ),
+            "wrong broker SHA": (
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE,
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE.replace(
+                    "e06254ea9622d214a9030b9ba786756560ace417",
+                    "0" * 40,
+                ),
+            ),
+            "duplicate broker reference": (
+                f"    uses: {PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE}",
+                "\n".join(
+                    (
+                        f"    uses: {PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE}",
+                        f"    uses: {PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE}",
+                    )
+                ),
+            ),
+            "mutable Framework SHA": (
+                "framework_sha: c71e15db7b7517b237add9fa09b3493e7bc93627",
+                "framework_sha: 0" * 40,
+            ),
+            "duplicate broker input": (
+                "      framework_sha: c71e15db7b7517b237add9fa09b3493e7bc93627",
+                "\n".join(
+                    (
+                        "      framework_sha: c71e15db7b7517b237add9fa09b3493e7bc93627",
+                        "      framework_sha: c71e15db7b7517b237add9fa09b3493e7bc93627",
+                    )
+                ),
+            ),
+            "missing master guard": (
+                "github.ref == 'refs/heads/master' &&\n",
+                "",
+            ),
+            "short-circuited master guard": (
+                "github.event_name == 'workflow_dispatch'",
+                "true || github.event_name == 'workflow_dispatch'",
+            ),
+            "pull request trigger": (
+                "  workflow_dispatch:\n",
+                "  pull_request:\n  workflow_dispatch:\n",
+            ),
+            "pull request target trigger": (
+                "  workflow_dispatch:\n",
+                "  pull_request_target:\n  workflow_dispatch:\n",
+            ),
+            "push trigger": (
+                "  workflow_dispatch:\n",
+                "  push:\n  workflow_dispatch:\n",
+            ),
+            "additional workflow input": (
+                "      parent_head_sha:\n",
+                "      policy_profile:\n        required: true\n        type: string\n      parent_head_sha:\n",
+            ),
+            "dynamic variant input": (
+                "      parent_head_sha:\n",
+                "      matrix_variant:\n        required: true\n        type: string\n      parent_head_sha:\n",
+            ),
+            "target checkout": (
+                "          ref: ${{ github.sha }}",
+                "          ref: ${{ inputs.parent_head_sha }}",
+            ),
+            "target execution": (
+                "          set -euo pipefail",
+                "          set -euo pipefail\n          python3 \"$TARGET_PARENT_SHA\"",
+            ),
+            "write permission": (
+                "permissions:\n  contents: read",
+                "permissions:\n  contents: write",
+            ),
+            "secret reference": (
+                "          set -euo pipefail",
+                "          set -euo pipefail\n          printf '%s\\n' \"${{ secrets.CALLER_SECRET }}\"",
+            ),
+            "sudo in caller": (
+                "          set -euo pipefail",
+                "          set -euo pipefail\n          sudo true",
+            ),
+            "result masks a failed broker": (
+                '"$NO_CRS_RESULT" != success',
+                '"$NO_CRS_RESULT" = success',
+            ),
+        }
+        for name, (original, replacement) in mutations.items():
+            with self.subTest(name=name):
+                self.assertIn(original, text)
+                mutated = text.replace(original, replacement, 1)
+                self.assertNotEqual(protected_nginx_broker_caller_errors(mutated), [])
 
     def test_untrusted_pull_request_model(self) -> None:
         sarif_write_jobs = {
