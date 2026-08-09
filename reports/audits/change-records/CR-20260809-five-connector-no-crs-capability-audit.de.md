@@ -10,7 +10,7 @@
 | Datum (UTC) | `2026-08-09` |
 | Basis-Revision | `ef88a616498e0a2893cd3da54003dd7cdea57015` |
 | Umfang | Nur Parent; der Framework-Gitlink bleibt `a7a8dcdd62da8d0e4d7ea36549f7c54c5d614e68` und MRTS wurde nicht geändert. Die Basis wurde lokal als `d9f73ca0558ca499d92ae2736d1be642b9005ee7` gemergt. |
-| Lieferstatus | Entwurfsrecord. Die lokalen Source- und Test-Commits gehen diesem Dokumentationsupdate voraus; kein Push, gehostetes Workflow-Ergebnis, Review-Ergebnis oder Merge ist hier dokumentiert. |
+| Lieferstatus | Entwurfsrecord. Lokale Source-, Test- und Fail-Closed-Sicherheitsremediation-Commits gehen diesem Dokumentationsupdate voraus; kein Push, gehostetes Workflow-Ergebnis, Review-Ergebnis oder Merge ist hier dokumentiert. |
 
 ## Motivation und Problemstellung
 
@@ -84,21 +84,21 @@ abgeglichen werden.
 
 | Prüfung | Tatsächliches Ergebnis |
 | --- | --- |
-| Fokussierte Suite | Bestanden: 225 Tests |
+| Fokussierte Suite | Bestanden: 200 aktuelle fokussierte Tests |
 | `make check-ci-security-contract` | Bestanden |
 | `make check-runtime-path-policy` | Bestanden |
 | `make check-bilingual-docs` | Bestanden |
 | `make check-doc-links` | Bestanden |
 | `make check-no-crs-doc-consistency` | Bestanden |
-| actionlint | Bestanden |
-| zizmor | Bestanden |
+| actionlint | Mit dem checksum-gepinnten Repository-Release-Asset bestanden |
+| zizmor | Mit dem checksum-gepinnten Repository-Release-Asset bestanden (eine bestehende Suppression) |
 | Shell-Syntax und Python-AST | Bestanden |
 | `git diff --check` | Bestanden |
 | Python-Version-Contract | Der neue Caller-/Callee-Contract bestand seine 24 fokussierten Tests; das repositoryweite Target bleibt durch die identischen unabhängigen Inventarfehler auf `origin/master` blockiert |
 
 Dies sind während der Implementierung beobachtete lokale Ergebnisse.
 Gehostete Workflow-, Pull-Request-, Review- und SonarQube-Ergebnisse bleiben
-ausstehend; dieser Record behauptet keinen Commit oder Push.
+ausstehend; dieser Record behauptet keinen Push.
 
 ## Security-Auswirkung
 
@@ -106,8 +106,20 @@ Diese Änderung betrifft CI-Berechtigungen, nicht vertrauenswürdige Workflow-
 Eingaben, externe Pfade, Artefaktprovenienz und Prozess-Cleanup. Das Profil ist
 geschlossen, nutzt nur die Contents-Leseberechtigung, enthält keinen
 privilegierten Handoff und weist unbekannte Profil-/Connector-Werte zurück,
-bevor Profilevidence akzeptiert wird. Vor der Lieferung bleibt ein finaler
-fokussierter Sicherheitsreview erforderlich.
+bevor Profilevidence akzeptiert wird.
+
+Ein fokussierter Security-Diff-Review reproduzierte zwei Kandidatenpfade, und
+die lokale Remediation wurde erneut validiert. Erstens konnte ein vom Framework
+abgewiesenes Artefakt ansonsten ein Fünf-Ergebnis-Aggregate-`PASS` erzeugen;
+die Aggregation erhält nun nur aus der unmittelbar vorhergehenden erfolgreichen
+kanonischen Validierung `passed` und erzeugt für jedes andere Ergebnis ihre
+Fail-Diagnose. Zweitens fehlte einem unterbrochenen HAProxy-Runtime-Baum die
+registrierte Cleanup-Autorität; das Runtime-Kind wird nun unter seinem
+verwalteten Build-Root vorab beansprucht, weist parallele oder nicht zugeordnete
+Wiederverwendung ab und bewahrt ein sicheres Cleanup unvollständiger Bäume.
+Fokussierte Negativtests und unabhängige Reviews fanden in beiden Pfaden keinen
+verbleibenden reportierbaren Bypass. Gehostete End-to-End-Evidence bleibt
+ausstehend.
 
 ## Runtime-Evidence
 
@@ -135,6 +147,8 @@ kann diese nicht unterstützten Claims nicht promoten.
 
 ## Finaler Diff- und Review-Status
 
-In Arbeit. Der finale Abgleich muss die genaue Branch-/Commit-/PR-Head-
-Beziehung, tatsächliche lokale und gehostete Check-Ergebnisse, Review-Status
-und Lieferdisposition enthalten.
+Die lokale Security-Remediation und die abgegrenzte lokale Validierung sind
+abgeschlossen. Der finale Lieferabgleich benötigt weiterhin den exakten
+gepushten Branch-/PR-Head, die gehosteten Workflow- und Required-Check-
+Ergebnisse, Review-Status und Lieferdisposition. Der Pull Request bleibt Draft
+und ist nicht zum Merge autorisiert.

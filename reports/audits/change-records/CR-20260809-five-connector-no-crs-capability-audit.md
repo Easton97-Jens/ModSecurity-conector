@@ -10,7 +10,7 @@
 | Date (UTC) | `2026-08-09` |
 | Base revision | `ef88a616498e0a2893cd3da54003dd7cdea57015` |
 | Scope | Parent only; the Framework Gitlink remains `a7a8dcdd62da8d0e4d7ea36549f7c54c5d614e68` and MRTS was not changed. The base was merged locally as `d9f73ca0558ca499d92ae2736d1be642b9005ee7`. |
-| Delivery status | Draft record. The local source and test commits precede this documentation update; no push, hosted workflow result, review result, or merge is recorded here. |
+| Delivery status | Draft record. Local source, test, and fail-closed security-remediation commits precede this documentation update; no push, hosted workflow result, review result, or merge is recorded here. |
 
 ## Motivation and problem statement
 
@@ -80,29 +80,39 @@ delivery.
 
 | Check | Actual result |
 | --- | --- |
-| Focused suite | Passed: 225 tests |
+| Focused suite | Passed: 200 current focused tests |
 | `make check-ci-security-contract` | Passed |
 | `make check-runtime-path-policy` | Passed |
 | `make check-bilingual-docs` | Passed |
 | `make check-doc-links` | Passed |
 | `make check-no-crs-doc-consistency` | Passed |
-| actionlint | Passed |
-| zizmor | Passed |
+| actionlint | Passed with the checksum-pinned repository release asset |
+| zizmor | Passed with the checksum-pinned repository release asset (one existing suppression) |
 | Shell syntax and Python AST | Passed |
 | `git diff --check` | Passed |
 | Python-version contract | The new caller/callee contract passed its 24 focused tests; the repository-wide target remains blocked by the identical unrelated inventory failures on `origin/master` |
 
 These are local results observed during implementation. Hosted workflow,
-pull-request, review, and SonarQube results remain pending; no commit or push
-is claimed by this record.
+pull-request, review, and SonarQube results remain pending; no push is claimed
+by this record.
 
 ## Security impact
 
 This change affects CI permissions, untrusted workflow inputs, external paths,
 artifact provenance, and process cleanup. The profile is closed, uses
 read-only contents permission, contains no privileged handoff, and rejects
-unknown profile/connector values before profile evidence is accepted. A final
-focused security review remains required before delivery.
+unknown profile/connector values before profile evidence is accepted.
+
+A focused security-diff review reproduced two candidate paths and the local
+remediation was revalidated. First, an artifact rejected by the Framework
+could otherwise have produced a five-result aggregate `PASS`; aggregation now
+receives `passed` only from the immediately preceding successful canonical
+validation and emits its fail diagnostic for every other outcome. Second, an
+interrupted HAProxy runtime tree lacked registered cleanup authority; the
+runtime child is now preclaimed under its managed build root, rejects
+concurrent or unowned reuse, and preserves safe incomplete-tree cleanup.
+Focused negative tests and independent reviews found no residual reportable
+bypass in either path. Hosted end-to-end evidence remains pending.
 
 ## Runtime evidence
 
@@ -128,6 +138,7 @@ Reusing this profile alone cannot promote those unsupported claims.
 
 ## Final diff and review status
 
-In progress. The final reconciliation must include the exact branch/commit/
-PR-head relationship, actual local and hosted check outcomes, review status,
-and delivery disposition.
+The local security remediation and scoped local validation are complete. Final
+delivery reconciliation still requires the exact pushed branch/PR head,
+hosted workflow and required-check outcomes, review status, and delivery
+disposition. The pull request remains Draft and is not authorized for merge.
