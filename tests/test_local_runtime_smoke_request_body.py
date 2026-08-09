@@ -11,6 +11,7 @@ import socket
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "common/scripts/run_local_runtime_smoke.py"
@@ -48,6 +49,49 @@ class RequestBodyReader:
 
 
 class LocalRuntimeSmokeRequestBodyTest(unittest.TestCase):
+    def test_lighttpd_artifacts_are_isolated_by_validated_scenario(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = SMOKE.RuntimeOutputPaths(
+                root,
+                root / "evidence",
+                root / "results",
+                root / "tmp",
+                root / "logs",
+                root / "logs" / "shared",
+                root / "config",
+            )
+            targeted = SMOKE.lighttpd_artifacts(
+                SimpleNamespace(
+                    modsecurity_ruleset="targeted",
+                    modsecurity_smoke_case="targeted",
+                    crs_smoke_case="minimal",
+                ),
+                paths,
+            )
+            request_body = SMOKE.lighttpd_artifacts(
+                SimpleNamespace(
+                    modsecurity_ruleset="targeted",
+                    modsecurity_smoke_case="request_body",
+                    crs_smoke_case="minimal",
+                ),
+                paths,
+            )
+            crs = SMOKE.lighttpd_artifacts(
+                SimpleNamespace(
+                    modsecurity_ruleset="crs",
+                    modsecurity_smoke_case="targeted",
+                    crs_smoke_case="secondary",
+                ),
+                paths,
+            )
+
+        self.assertEqual(len({targeted.log_dir, request_body.log_dir, crs.log_dir}), 3)
+        self.assertEqual(
+            {targeted.log_dir.name, request_body.log_dir.name, crs.log_dir.name},
+            {"lighttpd-targeted", "lighttpd-request_body", "lighttpd-crs-secondary"},
+        )
+
     def test_shared_http_literals_preserve_the_smoke_contract(self) -> None:
         self.assertEqual(SMOKE.DEFAULT_TEXT_CONTENT_TYPE, "text/plain")
         self.assertEqual(SMOKE.DEFAULT_ALLOWED_PATH, "/allowed")
