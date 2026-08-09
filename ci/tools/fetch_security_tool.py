@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 import shutil
 import stat
@@ -85,11 +86,37 @@ def safe_member(member: tarfile.TarInfo) -> bool:
     return member.isfile() and not path.is_absolute() and ".." not in path.parts
 
 
-def safe_destination(destination: Path) -> None:
-    """Reject relative, traversal, and symlink destination components."""
+def runner_temp_root() -> Path:
+    """Return the owned physical runner temporary root without symlinks."""
+
+    runner_value = os.environ.get("RUNNER_TEMP")
+    if not runner_value:
+        raise ValueError("RUNNER_TEMP is required for security tool downloads")
+    runner_root = Path(runner_value)
+    if not runner_root.is_absolute() or any(
+        part == ".." for part in runner_root.parts
+    ):
+        raise ValueError("RUNNER_TEMP must be an absolute non-traversal path")
+    if runner_root.is_symlink() or not runner_root.is_dir():
+        raise ValueError("RUNNER_TEMP must be an existing non-symlink directory")
+    resolved = runner_root.resolve(strict=True)
+    if resolved.stat().st_uid != os.geteuid():
+        raise ValueError("RUNNER_TEMP must be owned by the current user")
+    return resolved
+
+
+def safe_destination(destination: Path, *, runner_root: Path | None = None) -> Path:
+    """Return a canonical destination after lexical and physical path checks."""
 
     if not destination.is_absolute() or any(part == ".." for part in destination.parts):
         raise ValueError("security tool destination must be an absolute non-traversal path")
+    if runner_root is not None:
+        try:
+            relative = destination.relative_to(runner_root)
+        except ValueError as exc:
+            raise ValueError("security tool destination must stay under RUNNER_TEMP") from exc
+        if not relative.parts:
+            raise ValueError("security tool destination must be a RUNNER_TEMP child")
     current = Path(destination.anchor)
     for part in destination.parts[1:]:
         current = current / part
@@ -99,18 +126,44 @@ def safe_destination(destination: Path) -> None:
             continue
         if stat.S_ISLNK(mode):
             raise ValueError("security tool destination must not traverse a symlink")
+    try:
+        resolved = destination.resolve(strict=False)
+    except OSError as exc:
+        raise ValueError("security tool destination cannot be resolved") from exc
+    if resolved != destination:
+        raise ValueError("security tool destination must not traverse a symlink")
+    if runner_root is not None:
+        try:
+            resolved.relative_to(runner_root)
+        except ValueError as exc:
+            raise ValueError("security tool destination must stay under RUNNER_TEMP") from exc
+    return resolved
+
+
+def safe_executable_target(destination: Path, executable: str) -> Path:
+    """Validate the constructed executable path immediately before its sink."""
+
+    target = destination / executable
+    try:
+        resolved = target.resolve(strict=False)
+    except OSError as exc:
+        raise ValueError("security tool executable target cannot be resolved") from exc
+    if resolved != target or resolved.parent != destination:
+        raise ValueError("security tool executable target must not traverse a symlink")
+    return resolved
 
 
 def fetch_record(tool: str, values: Mapping[str, str], destination: Path) -> Path:
     """Fetch one already-validated Parent release tuple without executing it."""
 
     values = validate_record(tool, values)
-    safe_destination(destination)
+    destination = safe_destination(destination)
     try:
         destination.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         raise ValueError(f"{tool}: destination must be a directory") from exc
-    if destination.is_symlink() or not destination.is_dir():
+    destination = safe_destination(destination)
+    if not destination.is_dir():
         raise ValueError(f"{tool}: destination must be a directory")
     with tempfile.TemporaryDirectory(prefix="security-tool-", dir=destination) as temp:
         archive = Path(temp) / values["asset"]
@@ -126,10 +179,15 @@ def fetch_record(tool: str, values: Mapping[str, str], destination: Path) -> Pat
             source = bundle.extractfile(entries[0])
             if source is None:
                 raise ValueError(f"{tool}: unreadable executable")
-            target = destination / values["executable"]
-            with target.open("wb") as output:
+            target = safe_executable_target(destination, values["executable"])
+            flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+            try:
+                descriptor = os.open(target, flags, 0o755)
+            except OSError as exc:
+                raise ValueError(f"{tool}: executable target must be a regular file") from exc
+            with os.fdopen(descriptor, "wb") as output:
                 shutil.copyfileobj(source, output)
-    target.chmod(0o755)
+                os.fchmod(output.fileno(), 0o755)
     return target
 
 
@@ -152,8 +210,10 @@ def main() -> None:
     if destination is None:
         parser.error("--destination is required unless --validate-only is used")
         return
-    if not destination.is_absolute():
-        destination = Path.cwd() / destination
+    try:
+        destination = safe_destination(destination, runner_root=runner_temp_root())
+    except ValueError as exc:
+        parser.error(str(exc))
     print(fetch(args.tool, destination))
 
 

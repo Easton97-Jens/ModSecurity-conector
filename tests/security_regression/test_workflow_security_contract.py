@@ -95,6 +95,14 @@ class WorkflowSecurityRegressionTests(unittest.TestCase):
             parent_alias.symlink_to(root, target_is_directory=True)
             with self.assertRaisesRegex(ValueError, "symlink"):
                 FETCHER.fetch_record("actionlint", values, parent_alias / "tool")
+            with self.assertRaisesRegex(ValueError, "traversal"):
+                FETCHER.safe_destination(root / "child" / ".." / "outside")
+            regular_destination = root / "regular-destination"
+            regular_destination.mkdir()
+            target_alias = regular_destination / "actionlint"
+            target_alias.symlink_to(root / "outside")
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                FETCHER.safe_executable_target(regular_destination, "actionlint")
 
         traversal = tarfile.TarInfo("../actionlint")
         symlink = tarfile.TarInfo("actionlint")
@@ -104,6 +112,68 @@ class WorkflowSecurityRegressionTests(unittest.TestCase):
         self.assertFalse(FETCHER.safe_member(traversal))
         self.assertFalse(FETCHER.safe_member(symlink))
         self.assertTrue(FETCHER.safe_member(regular))
+
+    def test_fetcher_cli_requires_an_owned_runner_temp_child(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            runner_temp = root / "runner-temp"
+            runner_temp.mkdir()
+            destination = runner_temp / "security-tools"
+            calls: list[tuple[str, Path]] = []
+
+            def fake_fetch(tool: str, path: Path) -> Path:
+                calls.append((tool, path))
+                return path / tool
+
+            with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+                with patch.object(FETCHER, "fetch", side_effect=fake_fetch):
+                    with patch.object(
+                        sys,
+                        "argv",
+                        [
+                            "fetch_security_tool.py",
+                            "--tool",
+                            "actionlint",
+                            "--destination",
+                            str(destination),
+                        ],
+                    ):
+                        FETCHER.main()
+                    self.assertEqual(calls, [("actionlint", destination)])
+                    for unsafe in ("relative", str(root / "outside")):
+                        with self.subTest(destination=unsafe):
+                            with patch.object(
+                                sys,
+                                "argv",
+                                [
+                                    "fetch_security_tool.py",
+                                    "--tool",
+                                    "actionlint",
+                                    "--destination",
+                                    unsafe,
+                                ],
+                            ):
+                                with self.assertRaises(SystemExit) as error:
+                                    FETCHER.main()
+                            self.assertEqual(error.exception.code, 2)
+                    runner_alias = root / "runner-alias"
+                    runner_alias.symlink_to(runner_temp, target_is_directory=True)
+                    with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_alias)}):
+                        with patch.object(
+                            sys,
+                            "argv",
+                            [
+                                "fetch_security_tool.py",
+                                "--tool",
+                                "actionlint",
+                                "--destination",
+                                str(runner_alias / "security-tools"),
+                            ],
+                        ):
+                            with self.assertRaises(SystemExit) as error:
+                                FETCHER.main()
+                        self.assertEqual(error.exception.code, 2)
+                    self.assertEqual(calls, [("actionlint", destination)])
 
     def test_read_only_jobs_reject_bracket_secret_and_github_token_references(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
