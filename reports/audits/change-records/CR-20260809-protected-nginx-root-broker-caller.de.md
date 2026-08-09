@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260809-protected-nginx-root-broker-caller |
 | Datum (UTC) | 2026-08-09 |
-| Basis-Revision | f549561d7f1b2a2f9192d5e1f814904b2cc4f83c |
+| Basis-Revision | 83094eb659f0b5df8c2df30b1ae718d524a9adf0 |
 
 ## Motivation und Problemstellung
 
@@ -136,11 +136,12 @@ vor der Fortsetzung von PR #240 erforderlich.
 ## Finaler Diff- und Review-Status
 
 Dies ist eine uncommittete Implementierung auf dem getrennten Branch
-`fix/ci-protected-nginx-broker-caller`, vor dem Task-Commit per Fast-Forward
-auf aktuelles `origin/master` bei
-`f549561d7f1b2a2f9192d5e1f814904b2cc4f83c` aktualisiert. Es gab noch keinen
-Caller-PR, Push, Merge, keine PR-240-Änderung, Framework-Änderung, MRTS-
-Änderung, keinen Force-Push, History-Rewrite, Admin-Bypass oder Auto-Merge.
-Der Caller-PR muss Draft und merge-blockiert bleiben, bis seine Exact-Head-
-Lokal-, Security-, Hosted-, Sonar-, Review- und Branch-Protection-Evidence
-vollständig ist.
+`fix/ci-protected-nginx-broker-caller`, vor der Veröffentlichung mit aktuellem
+`origin/master` bei `83094eb659f0b5df8c2df30b1ae718d524a9adf0`
+synchronisiert. Die Upstream-Synchronisierung enthält im finalen PR-Diff keine
+task-eigene Framework- oder MRTS-Gitlink-Änderung. Es gab noch keinen Caller-
+PR, Push, keine PR-240-Änderung, Framework-Quelländerung, MRTS-
+Quelländerung, keinen Force-Push, History-Rewrite, Admin-Bypass oder
+Auto-Merge. Der Caller-PR muss Draft und merge-blockiert bleiben, bis seine
+Exact-Head-Lokal-, Security-, Hosted-, Sonar-, Review- und Branch-Protection-
+Evidence vollständig ist.

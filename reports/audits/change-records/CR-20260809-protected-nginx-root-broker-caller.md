@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260809-protected-nginx-root-broker-caller |
 | Date (UTC) | 2026-08-09 |
-| Base revision | f549561d7f1b2a2f9192d5e1f814904b2cc4f83c |
+| Base revision | 83094eb659f0b5df8c2df30b1ae718d524a9adf0 |
 
 ## Motivation and problem statement
 
@@ -124,9 +124,11 @@ required before PR #240 can resume.
 ## Final diff and review status
 
 This is an uncommitted implementation on the separate branch
-`fix/ci-protected-nginx-broker-caller`, fast-forwarded before task commit to
-current `origin/master` at `f549561d7f1b2a2f9192d5e1f814904b2cc4f83c`. No
-caller PR, push, merge, PR #240 change, Framework change, MRTS change,
-force-push, history rewrite, admin bypass, or auto-merge has occurred. The
-caller PR must remain Draft and merge-blocked until its exact-head local,
-security, hosted, Sonar, review, and branch-protection evidence is complete.
+`fix/ci-protected-nginx-broker-caller`, synchronized before publication with
+current `origin/master` at `83094eb659f0b5df8c2df30b1ae718d524a9adf0`. The
+upstream synchronization carries no task-owned Framework or MRTS gitlink
+change in the final PR diff. No caller PR, push, PR #240 change, Framework
+source change, MRTS source change, force-push, history rewrite, admin bypass,
+or auto-merge has occurred. The caller PR must remain Draft and merge-blocked
+until its exact-head local, security, hosted, Sonar, review, and branch-
+protection evidence is complete.
