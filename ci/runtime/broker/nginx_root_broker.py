@@ -117,6 +117,15 @@ CANDIDATE_CRS_BUNDLE_MANIFEST_LABEL = "candidate CRS bundle manifest"
 CANDIDATE_CRS_BUNDLE_FILES_LABEL = "candidate CRS bundle files"
 ROOT_CRS_BUNDLE_MANIFEST_LABEL = "root CRS bundle manifest"
 BROKER_CRS_AUDIT_LOG_LABEL = "broker CRS audit log"
+CALLER_COMMIT_GIT_LABEL = "caller commit"
+CALLER_WORKFLOW_GIT_LABEL = "caller workflow"
+CALLER_WORKFLOW_BLOB_GIT_LABEL = "caller workflow blob"
+GIT_EXECUTABLE = "git"
+GIT_WORKTREE_OPTION = "-C"
+GIT_CAT_FILE_COMMAND = "cat-file"
+GIT_LS_TREE_COMMAND = "ls-tree"
+GIT_INVOCATION_FAILURE_SUFFIX = " Git invocation failed: "
+GIT_OBJECT_UNAVAILABLE_SUFFIX = " Git object is unavailable"
 PID_FILENAME = "nginx.pid"
 STATE_FILENAME = "state.json"
 ARTIFACT_DESTINATION_NAMES = {
@@ -240,6 +249,12 @@ def require_commit(value: object, label: str) -> str:
     return value
 
 
+def require_git_blob(value: object, label: str) -> str:
+    if not isinstance(value, str) or not GIT_BLOB_RE.fullmatch(value):
+        fail(f"{label} must be a lowercase full Git object ID")
+    return value
+
+
 def require_sha256(value: object, label: str) -> str:
     if not isinstance(value, str) or not SHA256_RE.fullmatch(value):
         fail(f"{label} must be a lowercase SHA-256")
@@ -274,6 +289,20 @@ def fail_caller_workflow_yaml(line_number: int, message: str) -> None:
     fail(f"caller workflow YAML line {line_number}: {message}")
 
 
+def advance_yaml_quote_state(quote: str, escaped: bool, character: str) -> tuple[str, bool]:
+    """Return the quote/escape state after reading one YAML scalar character."""
+
+    if quote:
+        if quote == '"' and character == "\\" and not escaped:
+            return quote, True
+        if character == quote and not escaped:
+            return "", False
+        return quote, False
+    if character in {"'", '"'}:
+        return character, False
+    return "", False
+
+
 def strip_yaml_inline_comment(value: str, line_number: int) -> str:
     """Remove a YAML comment without evaluating quoted text or shell content."""
 
@@ -281,15 +310,10 @@ def strip_yaml_inline_comment(value: str, line_number: int) -> str:
     escaped = False
     for index, character in enumerate(value):
         if quote:
-            if quote == '"' and character == "\\" and not escaped:
-                escaped = True
-                continue
-            if character == quote and not escaped:
-                quote = ""
-            escaped = False
+            quote, escaped = advance_yaml_quote_state(quote, escaped, character)
             continue
-        if character in {"'", '"'}:
-            quote = character
+        quote, escaped = advance_yaml_quote_state(quote, escaped, character)
+        if quote:
             continue
         if character == "#" and (index == 0 or value[index - 1].isspace()):
             return value[:index].rstrip()
@@ -298,14 +322,8 @@ def strip_yaml_inline_comment(value: str, line_number: int) -> str:
     return value.rstrip()
 
 
-def restricted_yaml_lines(raw: bytes) -> list[RestrictedYamlLine]:
-    """Decode a bounded, single-document YAML subset without YAML coercions.
-
-    The caller file is declarative data.  This parser intentionally accepts
-    only the indentation, mapping, sequence, and opaque block-scalar forms
-    used by the protected caller.  It rejects YAML features whose implicit
-    semantics could hide a second binding from a general-purpose safe loader.
-    """
+def decode_restricted_yaml(raw: bytes) -> str:
+    """Decode and apply document-wide safety limits for caller YAML."""
 
     if len(raw) > MAX_CALLER_WORKFLOW_BYTES:
         fail("caller workflow YAML exceeds the maximum allowed size")
@@ -317,32 +335,55 @@ def restricted_yaml_lines(raw: bytes) -> list[RestrictedYamlLine]:
         fail("caller workflow YAML must not contain a byte-order mark")
     if "\x00" in text or "\r" in text:
         fail("caller workflow YAML contains forbidden control characters")
+    return text
+
+
+def restricted_yaml_line(raw_line: str, number: int) -> RestrictedYamlLine | None:
+    """Normalize one caller-workflow line without evaluating YAML semantics."""
+
+    if len(raw_line) > MAX_CALLER_WORKFLOW_LINE_CHARACTERS:
+        fail_caller_workflow_yaml(number, "exceeds the maximum line length")
+    if "\t" in raw_line:
+        fail_caller_workflow_yaml(number, "contains a tab")
+    structural = strip_yaml_inline_comment(raw_line, number)
+    if structural in {"---", "..."}:
+        fail_caller_workflow_yaml(number, "uses an unsupported document marker")
+    indent = len(raw_line) - len(raw_line.lstrip(" "))
+    raw_content = raw_line[indent:]
+    if not structural.strip():
+        if not raw_content.lstrip().startswith("#"):
+            return None
+        return RestrictedYamlLine(number, indent, "", raw_content)
+    structural_indent = len(structural) - len(structural.lstrip(" "))
+    if structural_indent != indent:
+        fail_caller_workflow_yaml(number, "has malformed indentation")
+    return RestrictedYamlLine(number, indent, structural[indent:], raw_content)
+
+
+def append_restricted_yaml_line(
+    result: list[RestrictedYamlLine], line: RestrictedYamlLine
+) -> None:
+    """Append a meaningful caller-workflow line while retaining its hard bound."""
+
+    result.append(line)
+    if len(result) > MAX_CALLER_WORKFLOW_LINES:
+        fail("caller workflow YAML exceeds the maximum allowed line count")
+
+
+def restricted_yaml_lines(raw: bytes) -> list[RestrictedYamlLine]:
+    """Decode a bounded, single-document YAML subset without YAML coercions.
+
+    The caller file is declarative data.  This parser intentionally accepts
+    only the indentation, mapping, sequence, and opaque block-scalar forms
+    used by the protected caller.  It rejects YAML features whose implicit
+    semantics could hide a second binding from a general-purpose safe loader.
+    """
 
     result: list[RestrictedYamlLine] = []
-    for number, raw_line in enumerate(text.splitlines(), start=1):
-        if len(raw_line) > MAX_CALLER_WORKFLOW_LINE_CHARACTERS:
-            fail_caller_workflow_yaml(number, "exceeds the maximum line length")
-        if "\t" in raw_line:
-            fail_caller_workflow_yaml(number, "contains a tab")
-        structural = strip_yaml_inline_comment(raw_line, number)
-        if structural in {"---", "..."}:
-            fail_caller_workflow_yaml(number, "uses an unsupported document marker")
-        indent = len(raw_line) - len(raw_line.lstrip(" "))
-        raw_content = raw_line[indent:]
-        if not structural.strip():
-            if not raw_content.lstrip().startswith("#"):
-                continue
-            result.append(RestrictedYamlLine(number, indent, "", raw_content))
-            if len(result) > MAX_CALLER_WORKFLOW_LINES:
-                fail("caller workflow YAML exceeds the maximum allowed line count")
-            continue
-        structural_indent = len(structural) - len(structural.lstrip(" "))
-        if structural_indent != indent:
-            fail_caller_workflow_yaml(number, "has malformed indentation")
-        content = structural[indent:]
-        result.append(RestrictedYamlLine(number, indent, content, raw_content))
-        if len(result) > MAX_CALLER_WORKFLOW_LINES:
-            fail("caller workflow YAML exceeds the maximum allowed line count")
+    for number, raw_line in enumerate(decode_restricted_yaml(raw).splitlines(), start=1):
+        line = restricted_yaml_line(raw_line, number)
+        if line is not None:
+            append_restricted_yaml_line(result, line)
     if not result:
         fail("caller workflow YAML is empty")
     return result
@@ -389,6 +430,22 @@ class RestrictedYamlParser:
             fail_caller_workflow_yaml(line.number, "has an empty sequence item")
         return self.parse_mapping(index, indent, depth)
 
+    def mapping_value(
+        self,
+        raw_value: str,
+        line_number: int,
+        index: int,
+        parent_indent: int,
+        depth: int,
+    ) -> tuple[Any, int]:
+        """Parse one mapping value without changing its original failure order."""
+
+        if not raw_value:
+            return self.child_value(index + 1, parent_indent, depth)
+        if self.is_block_scalar(raw_value):
+            return self.block_scalar(index + 1, parent_indent)
+        return self.scalar(raw_value, line_number), index + 1
+
     def parse_mapping(self, index: int, indent: int, depth: int) -> tuple[dict[str, Any], int]:
         mapping: dict[str, Any] = {}
         while index < len(self.lines):
@@ -407,15 +464,86 @@ class RestrictedYamlParser:
                 fail_caller_workflow_yaml(line.number, f"duplicates mapping key {key!r}")
             if key == "<<":
                 fail_caller_workflow_yaml(line.number, "uses an unsupported merge key")
-            if not raw_value:
-                value, index = self.child_value(index + 1, indent, depth)
-            elif self.is_block_scalar(raw_value):
-                value, index = self.block_scalar(index + 1, indent)
-            else:
-                value = self.scalar(raw_value, line.number)
-                index += 1
+            value, index = self.mapping_value(raw_value, line.number, index, indent, depth)
             mapping[key] = value
         return mapping, index
+
+    def parse_sequence_item(
+        self,
+        line: RestrictedYamlLine,
+        index: int,
+        indent: int,
+        depth: int,
+    ) -> tuple[Any, int]:
+        """Parse one already-validated sequence item."""
+
+        raw_item = line.content[2:].strip()
+        if not raw_item:
+            return self.child_value(index + 1, indent, depth)
+        if self.looks_like_mapping_entry(raw_item):
+            return self.parse_inline_mapping_sequence_item(line, raw_item, index, indent, depth)
+        return self.parse_scalar_sequence_item(raw_item, line.number, index, indent)
+
+    def parse_inline_mapping_sequence_item(
+        self,
+        line: RestrictedYamlLine,
+        raw_item: str,
+        index: int,
+        indent: int,
+        depth: int,
+    ) -> tuple[dict[str, Any], int]:
+        """Parse and extend a mapping that begins on a sequence-item line."""
+
+        key, raw_value = self.mapping_entry(
+            RestrictedYamlLine(line.number, line.indent, raw_item, raw_item)
+        )
+        if key == "<<":
+            fail_caller_workflow_yaml(line.number, "uses an unsupported merge key")
+        value, index = self.mapping_value(raw_value, line.number, index, indent, depth)
+        return self.extend_inline_sequence_mapping({key: value}, index, indent, depth, line.number)
+
+    def extend_inline_sequence_mapping(
+        self,
+        item: dict[str, Any],
+        index: int,
+        indent: int,
+        depth: int,
+        source_line_number: int,
+    ) -> tuple[dict[str, Any], int]:
+        """Merge the following indented mapping into a sequence-item mapping."""
+
+        index = self.skip_comments(index)
+        if index >= len(self.lines) or self.lines[index].indent <= indent:
+            return item, index
+        if self.lines[index].indent != indent + 2:
+            fail_caller_workflow_yaml(self.lines[index].number, "has malformed list indentation")
+        additional, index = self.parse_mapping(index, indent + 2, depth + 1)
+        overlap = set(item).intersection(additional)
+        if overlap:
+            fail_caller_workflow_yaml(
+                source_line_number,
+                f"duplicates list mapping key {min(overlap)!r}",
+            )
+        item.update(additional)
+        return item, index
+
+    def parse_scalar_sequence_item(
+        self,
+        raw_item: str,
+        line_number: int,
+        index: int,
+        indent: int,
+    ) -> tuple[str, int]:
+        """Parse a scalar sequence item and reject nested content below it."""
+
+        value = self.scalar(raw_item, line_number)
+        index = self.skip_comments(index + 1)
+        if index < len(self.lines) and self.lines[index].indent > indent:
+            fail_caller_workflow_yaml(
+                self.lines[index].number,
+                "nests content below a scalar sequence item",
+            )
+        return value, index
 
     def parse_sequence(self, index: int, indent: int, depth: int) -> tuple[list[Any], int]:
         items: list[Any] = []
@@ -430,46 +558,7 @@ class RestrictedYamlParser:
                 fail_caller_workflow_yaml(line.number, "has unexpected nested indentation")
             if not line.content.startswith("- "):
                 fail_caller_workflow_yaml(line.number, "mixes a mapping into a sequence")
-            raw_item = line.content[2:].strip()
-            if not raw_item:
-                value, index = self.child_value(index + 1, indent, depth)
-            elif self.looks_like_mapping_entry(raw_item):
-                key, raw_value = self.mapping_entry(
-                    RestrictedYamlLine(line.number, line.indent, raw_item, raw_item)
-                )
-                if key == "<<":
-                    fail_caller_workflow_yaml(line.number, "uses an unsupported merge key")
-                item: dict[str, Any] = {}
-                if not raw_value:
-                    value, index = self.child_value(index + 1, indent, depth)
-                elif self.is_block_scalar(raw_value):
-                    value, index = self.block_scalar(index + 1, indent)
-                else:
-                    value = self.scalar(raw_value, line.number)
-                    index += 1
-                item[key] = value
-                index = self.skip_comments(index)
-                if index < len(self.lines) and self.lines[index].indent > indent:
-                    if self.lines[index].indent != indent + 2:
-                        fail_caller_workflow_yaml(self.lines[index].number, "has malformed list indentation")
-                    additional, index = self.parse_mapping(index, indent + 2, depth + 1)
-                    overlap = set(item).intersection(additional)
-                    if overlap:
-                        fail_caller_workflow_yaml(
-                            line.number,
-                            f"duplicates list mapping key {sorted(overlap)[0]!r}",
-                        )
-                    item.update(additional)
-                value = item
-            else:
-                value = self.scalar(raw_item, line.number)
-                index += 1
-                index = self.skip_comments(index)
-                if index < len(self.lines) and self.lines[index].indent > indent:
-                    fail_caller_workflow_yaml(
-                        self.lines[index].number,
-                        "nests content below a scalar sequence item",
-                    )
+            value, index = self.parse_sequence_item(line, index, indent, depth)
             items.append(value)
         return items, index
 
@@ -715,8 +804,8 @@ def validate_caller_workflow_document(
         )
 
 
-def run_protected_git(repository: Path, arguments: list[str], label: str) -> bytes:
-    """Run a fixed Git argument vector against the verified broker checkout."""
+def protected_git_directory(repository: Path, label: str) -> str:
+    """Return a verified directory for one fixed Git object operation."""
 
     try:
         metadata = repository.lstat()
@@ -724,17 +813,115 @@ def run_protected_git(repository: Path, arguments: list[str], label: str) -> byt
         fail(f"{label} repository cannot be inspected: {exc}")
     if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
         fail(f"{label} repository is not a real directory")
+    return os.fspath(repository)
+
+
+def git_caller_commit_type(repository: Path, caller_sha: str) -> bytes:
+    """Read the type of one caller commit using a fixed non-shell Git argv."""
+
+    caller_sha = require_commit(caller_sha, "caller_sha")
+    directory = protected_git_directory(repository, CALLER_COMMIT_GIT_LABEL)
     try:
         completed = subprocess.run(
-            ["git", "-C", os.fspath(repository), *arguments],
+            [
+                GIT_EXECUTABLE,
+                GIT_WORKTREE_OPTION,
+                directory,
+                GIT_CAT_FILE_COMMAND,
+                "-t",
+                caller_sha,
+            ],
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            shell=False,
         )
     except OSError as exc:
-        fail(f"{label} Git invocation failed: {exc}")
+        fail(f"{CALLER_COMMIT_GIT_LABEL}{GIT_INVOCATION_FAILURE_SUFFIX}{exc}")
     if completed.returncode != 0:
-        fail(f"{label} Git object is unavailable")
+        fail(f"{CALLER_COMMIT_GIT_LABEL}{GIT_OBJECT_UNAVAILABLE_SUFFIX}")
+    return completed.stdout
+
+
+def git_caller_workflow_tree_entry(repository: Path, caller_sha: str) -> bytes:
+    """Read the fixed caller-workflow tree entry through a non-shell argv."""
+
+    caller_sha = require_commit(caller_sha, "caller_sha")
+    directory = protected_git_directory(repository, CALLER_WORKFLOW_GIT_LABEL)
+    try:
+        completed = subprocess.run(
+            [
+                GIT_EXECUTABLE,
+                GIT_WORKTREE_OPTION,
+                directory,
+                GIT_LS_TREE_COMMAND,
+                caller_sha,
+                "--",
+                EXPECTED_CALLER_WORKFLOW_PATH,
+            ],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+        )
+    except OSError as exc:
+        fail(f"{CALLER_WORKFLOW_GIT_LABEL}{GIT_INVOCATION_FAILURE_SUFFIX}{exc}")
+    if completed.returncode != 0:
+        fail(f"{CALLER_WORKFLOW_GIT_LABEL}{GIT_OBJECT_UNAVAILABLE_SUFFIX}")
+    return completed.stdout
+
+
+def git_caller_workflow_blob_size(repository: Path, blob: str) -> bytes:
+    """Read one validated caller-workflow blob size through a fixed Git argv."""
+
+    blob = require_git_blob(blob, CALLER_WORKFLOW_BLOB_GIT_LABEL)
+    directory = protected_git_directory(repository, CALLER_WORKFLOW_GIT_LABEL)
+    try:
+        completed = subprocess.run(
+            [
+                GIT_EXECUTABLE,
+                GIT_WORKTREE_OPTION,
+                directory,
+                GIT_CAT_FILE_COMMAND,
+                "-s",
+                blob,
+            ],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+        )
+    except OSError as exc:
+        fail(f"{CALLER_WORKFLOW_GIT_LABEL}{GIT_INVOCATION_FAILURE_SUFFIX}{exc}")
+    if completed.returncode != 0:
+        fail(f"{CALLER_WORKFLOW_GIT_LABEL}{GIT_OBJECT_UNAVAILABLE_SUFFIX}")
+    return completed.stdout
+
+
+def git_caller_workflow_blob_content(repository: Path, blob: str) -> bytes:
+    """Read one validated caller-workflow blob through a fixed Git argv."""
+
+    blob = require_git_blob(blob, CALLER_WORKFLOW_BLOB_GIT_LABEL)
+    directory = protected_git_directory(repository, CALLER_WORKFLOW_GIT_LABEL)
+    try:
+        completed = subprocess.run(
+            [
+                GIT_EXECUTABLE,
+                GIT_WORKTREE_OPTION,
+                directory,
+                GIT_CAT_FILE_COMMAND,
+                "blob",
+                blob,
+            ],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+        )
+    except OSError as exc:
+        fail(f"{CALLER_WORKFLOW_GIT_LABEL}{GIT_INVOCATION_FAILURE_SUFFIX}{exc}")
+    if completed.returncode != 0:
+        fail(f"{CALLER_WORKFLOW_GIT_LABEL}{GIT_OBJECT_UNAVAILABLE_SUFFIX}")
     return completed.stdout
 
 
@@ -742,14 +929,10 @@ def read_caller_workflow_blob(repository: Path, caller_sha: str) -> bytes:
     """Read only a regular caller workflow blob from the immutable Git object DB."""
 
     caller_sha = require_commit(caller_sha, "caller_sha")
-    object_type = run_protected_git(repository, ["cat-file", "-t", caller_sha], "caller commit")
+    object_type = git_caller_commit_type(repository, caller_sha)
     if object_type != b"commit\n":
         fail("caller SHA does not name a commit")
-    entry = run_protected_git(
-        repository,
-        ["ls-tree", caller_sha, "--", EXPECTED_CALLER_WORKFLOW_PATH],
-        "caller workflow",
-    )
+    entry = git_caller_workflow_tree_entry(repository, caller_sha)
     try:
         entry_text = entry.decode("ascii")
     except UnicodeDecodeError as exc:
@@ -760,8 +943,8 @@ def read_caller_workflow_blob(repository: Path, caller_sha: str) -> bytes:
     )
     if entry_match is None:
         fail("caller workflow must be a regular Git blob")
-    blob = entry_match.group("blob")
-    size_raw = run_protected_git(repository, ["cat-file", "-s", blob], "caller workflow").strip()
+    blob = require_git_blob(entry_match.group("blob"), CALLER_WORKFLOW_BLOB_GIT_LABEL)
+    size_raw = git_caller_workflow_blob_size(repository, blob).strip()
     try:
         size_text = size_raw.decode("ascii")
     except UnicodeDecodeError as exc:
@@ -771,7 +954,7 @@ def read_caller_workflow_blob(repository: Path, caller_sha: str) -> bytes:
     size = int(size_text)
     if size > MAX_CALLER_WORKFLOW_BYTES:
         fail("caller workflow Git blob exceeds the maximum allowed size")
-    content = run_protected_git(repository, ["cat-file", "blob", blob], "caller workflow")
+    content = git_caller_workflow_blob_content(repository, blob)
     if len(content) != size:
         fail("caller workflow Git blob size changed while reading")
     return content

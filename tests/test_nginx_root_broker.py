@@ -451,8 +451,12 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIn(original, text)
                 mutated = text.replace(original, replacement, 1)
+                if name == "duplicate uses":
+                    with self.assertRaisesRegex(BROKER.BrokerError, r"duplicates mapping key 'uses'"):
+                        BROKER.parse_restricted_caller_workflow_yaml(mutated.encode("utf-8"))
+                    continue
+                document = BROKER.parse_restricted_caller_workflow_yaml(mutated.encode("utf-8"))
                 with self.assertRaises(BROKER.BrokerError):
-                    document = BROKER.parse_restricted_caller_workflow_yaml(mutated.encode("utf-8"))
                     BROKER.validate_caller_workflow_document(
                         document,
                         broker_sha=broker_sha,
@@ -607,31 +611,82 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
         expected_entry = (
             f"100644 blob {blob_sha}\t{BROKER.EXPECTED_CALLER_WORKFLOW_PATH}\n".encode("ascii")
         )
-        calls: list[tuple[str, ...]] = []
+        calls: list[tuple[tuple[str, ...], bool]] = []
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-git-") as temporary:
+            repository = Path(temporary) / "broker-src"
+            repository.mkdir()
 
-        def protected_git(_repository: Path, arguments: list[str], _label: str) -> bytes:
-            calls.append(tuple(arguments))
-            if arguments == ["cat-file", "-t", caller_sha]:
-                return b"commit\n"
-            if arguments[:2] == ["ls-tree", caller_sha]:
-                return expected_entry
-            if arguments == ["cat-file", "-s", blob_sha]:
-                return b"9\n"
-            if arguments == ["cat-file", "blob", blob_sha]:
-                return b"jobs: {}\n"
-            self.fail(f"unexpected Git arguments: {arguments}")
+            def protected_git(arguments: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+                calls.append((tuple(arguments), kwargs.get("shell") is False))
+                if arguments[-3:] == ["cat-file", "-t", caller_sha]:
+                    output = b"commit\n"
+                elif arguments[-4:] == [
+                    "ls-tree",
+                    caller_sha,
+                    "--",
+                    BROKER.EXPECTED_CALLER_WORKFLOW_PATH,
+                ]:
+                    output = expected_entry
+                elif arguments[-3:] == ["cat-file", "-s", blob_sha]:
+                    output = b"9\n"
+                elif arguments[-3:] == ["cat-file", "blob", blob_sha]:
+                    output = b"jobs: {}\n"
+                else:
+                    self.fail(f"unexpected Git arguments: {arguments}")
+                return subprocess.CompletedProcess(arguments, 0, stdout=output, stderr=b"")
 
-        with mock.patch.object(BROKER, "run_protected_git", side_effect=protected_git):
-            raw = BROKER.read_caller_workflow_blob(Path("/protected/broker-src"), caller_sha)
+            with mock.patch.object(BROKER.subprocess, "run", side_effect=protected_git):
+                raw = BROKER.read_caller_workflow_blob(repository, caller_sha)
 
         self.assertEqual(raw, b"jobs: {}\n")
         self.assertEqual(
             calls,
             [
-                ("cat-file", "-t", caller_sha),
-                ("ls-tree", caller_sha, "--", BROKER.EXPECTED_CALLER_WORKFLOW_PATH),
-                ("cat-file", "-s", blob_sha),
-                ("cat-file", "blob", blob_sha),
+                (
+                    (
+                        BROKER.GIT_EXECUTABLE,
+                        BROKER.GIT_WORKTREE_OPTION,
+                        str(repository),
+                        BROKER.GIT_CAT_FILE_COMMAND,
+                        "-t",
+                        caller_sha,
+                    ),
+                    True,
+                ),
+                (
+                    (
+                        BROKER.GIT_EXECUTABLE,
+                        BROKER.GIT_WORKTREE_OPTION,
+                        str(repository),
+                        BROKER.GIT_LS_TREE_COMMAND,
+                        caller_sha,
+                        "--",
+                        BROKER.EXPECTED_CALLER_WORKFLOW_PATH,
+                    ),
+                    True,
+                ),
+                (
+                    (
+                        BROKER.GIT_EXECUTABLE,
+                        BROKER.GIT_WORKTREE_OPTION,
+                        str(repository),
+                        BROKER.GIT_CAT_FILE_COMMAND,
+                        "-s",
+                        blob_sha,
+                    ),
+                    True,
+                ),
+                (
+                    (
+                        BROKER.GIT_EXECUTABLE,
+                        BROKER.GIT_WORKTREE_OPTION,
+                        str(repository),
+                        BROKER.GIT_CAT_FILE_COMMAND,
+                        "blob",
+                        blob_sha,
+                    ),
+                    True,
+                ),
             ],
         )
 
@@ -641,16 +696,57 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             f"120000 blob {'e' * 40}\t{BROKER.EXPECTED_CALLER_WORKFLOW_PATH}\n".encode("ascii")
         )
 
-        def protected_git(_repository: Path, arguments: list[str], _label: str) -> bytes:
-            if arguments == ["cat-file", "-t", caller_sha]:
-                return b"commit\n"
-            if arguments[:2] == ["ls-tree", caller_sha]:
-                return entry
-            self.fail(f"unexpected Git arguments: {arguments}")
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-git-") as temporary:
+            repository = Path(temporary) / "broker-src"
+            repository.mkdir()
 
-        with mock.patch.object(BROKER, "run_protected_git", side_effect=protected_git):
-            with self.assertRaisesRegex(BROKER.BrokerError, "regular Git blob"):
-                BROKER.read_caller_workflow_blob(Path("/protected/broker-src"), caller_sha)
+            def protected_git(arguments: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+                if arguments[-3:] == ["cat-file", "-t", caller_sha]:
+                    output = b"commit\n"
+                elif arguments[-4:] == [
+                    "ls-tree",
+                    caller_sha,
+                    "--",
+                    BROKER.EXPECTED_CALLER_WORKFLOW_PATH,
+                ]:
+                    output = entry
+                else:
+                    self.fail(f"unexpected Git arguments: {arguments}")
+                return subprocess.CompletedProcess(arguments, 0, stdout=output, stderr=b"")
+
+            with mock.patch.object(BROKER.subprocess, "run", side_effect=protected_git):
+                with self.assertRaisesRegex(BROKER.BrokerError, "regular Git blob"):
+                    BROKER.read_caller_workflow_blob(repository, caller_sha)
+
+    def test_caller_workflow_rejects_argument_injection_before_git(self) -> None:
+        malicious_shas = (
+            "a" * 39 + ";",
+            "-" + "a" * 39,
+            "a" * 40 + "^{tree}",
+            "a" * 39 + "\n",
+        )
+        for caller_sha in malicious_shas:
+            with self.subTest(caller_sha=caller_sha), mock.patch.object(
+                BROKER.subprocess, "run"
+            ) as git_run:
+                with self.assertRaisesRegex(BROKER.BrokerError, "caller_sha must be a lowercase full Git SHA"):
+                    BROKER.read_caller_workflow_blob(Path("/untrusted/broker-src"), caller_sha)
+                git_run.assert_not_called()
+
+    def test_caller_workflow_validates_all_cli_shas_before_any_git_read(self) -> None:
+        valid_values = {
+            "caller_sha": "d" * 40,
+            "broker_sha": "e" * 40,
+            "framework_sha": "f" * 40,
+        }
+        for field in valid_values:
+            with self.subTest(field=field):
+                values = dict(valid_values)
+                values[field] = "not-a-commit"
+                with mock.patch.object(BROKER.subprocess, "run") as git_run:
+                    with self.assertRaisesRegex(BROKER.BrokerError, "lowercase full Git SHA"):
+                        BROKER.validate_caller_workflow(argparse.Namespace(**values))
+                git_run.assert_not_called()
 
     def git_fixture(self, repository: Path, *arguments: str, input_data: bytes | None = None) -> bytes:
         completed = subprocess.run(
