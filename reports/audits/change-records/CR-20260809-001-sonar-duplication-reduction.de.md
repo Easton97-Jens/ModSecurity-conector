@@ -9,7 +9,7 @@
 | Change-ID | `CR-20260809-001` |
 | Datum (UTC) | `2026-08-09` |
 | Basis-Revision | `cc58f94e6a0dd17eea651cd46376843472b83f7c` |
-| Umfang | Nur Parent-Repository; keine Änderung an Framework, MRTS, Gitlink, Workflow, Lock-Datei oder Quality Gate |
+| Umfang | Nur Parent-Repository; keine Änderung an Framework, MRTS, Gitlink, Lock-Datei oder Quality Gate; ein benutzerautorisierter exakter Publisher-Staging-Eintrag |
 
 ## Motivation und Problemstellung
 
@@ -71,9 +71,19 @@ Der fokussierte Security-Diff-Scan deckte alle sechs geänderten Codedateien ab
 und lieferte null berichtspflichtige Kandidaten. Er identifizierte keinen neuen
 Angriffspfad und keine abgeschwächte Kontrolle.
 
+Nach dem Rebase auf current `origin/master` machte der bereits vorhandene
+vertrauenswürdige NGINX-Root-Broker-Workflow eine Fail-Closed-Lücke sichtbar:
+Seine gesperrten Action-Pins fehlten im endlichen Publisher-Pfadset des
+Updaters. Der Benutzer autorisierte die einzige vollständige Begleitreparatur:
+denselben Literalpfad in der bestehenden Publisher-`git add --`-Liste. Die
+Source-/Staging-Gleichheitskontrolle, der reale Coverage-Test und das bestehende
+Fail-Closed-Negative-Control bestehen. Ein zweites fokussiertes Zwei-Dateien-
+Security-Diff-Review hat ebenfalls null berichtspflichtige Findings.
+
 ## Geänderte Dateien
 
 - `ci/tools/update-workflow-tools.py`
+- `.github/workflows/update-workflow-tools.yml` (ein benutzerautorisierter passender Staging-Pfad)
 - `tests/ci_security/test_update_workflow_tools.py`
 - `tests/c_source_contract.py`
 - `tests/test_c_source_contract.py`
@@ -89,14 +99,16 @@ Angriffspfad und keine abgeschwächte Kontrolle.
 | Prüfung | Tatsächliches Ergebnis |
 | --- | --- |
 | Fokussierte Unittest-Suite | Bestanden: 51 Tests in 11.926 s |
-| Fokussierte Unittest-Suite auf rebased current master | Blockiert: 50 Tests bestanden und ein Fail-Closed-Publisher-Allowlist-Error nannte nur `.github/workflows/nginx-root-broker.yml` |
+| Fokussierte Unittest-Suite auf rebased current master vor der engen Reparatur | Historische Reproduktion: 50 Tests bestanden und ein Fail-Closed-Publisher-Allowlist-Error nannte nur `.github/workflows/nginx-root-broker.yml` |
+| Benutzerautorisierte Einpfad-Publisher-Reparatur | Bestanden: fokussierte Suite 51 Tests in 11.394 s; realer Coverage- und Fail-Closed-Negative-Controls für unzulässige/YAML-unsafe Workflows bestehen |
 | `python -m py_compile` für die geänderten Python-Module | Bestanden |
 | `make check-ci-security-contract` | Bestanden: 23 Tests; checksum-gesperrte actionlint-, zizmor- und gitleaks-Validierung bestanden |
 | checksum-gesperrtes actionlint mit ShellCheck | Bestanden für `.github/workflows/*.yml` |
 | checksum-gesperrtes `zizmor --offline .github/workflows` | Bestanden: keine Findings (88 vom Repository unterdrückte Findings wurden von zizmor gemeldet) |
-| checksum-gesperrtes diff-range gitleaks | Bestanden: drei Task-Commits gescannt, keine Leaks gefunden |
+| checksum-gesperrtes diff-range gitleaks | Bestanden: sechs Task-Commits gescannt, keine Leaks gefunden |
 | `git diff --check HEAD` | Bestanden |
 | Fokussierter Security-Diff-Scan | Bestanden: vollständige Sechs-Dateien-Abdeckung und null berichtspflichtige Findings |
+| Fokussierter Security-Diff-Scan des autorisierten Workflows | Bestanden: vollständige Zwei-Dateien-Abdeckung und null berichtspflichtige Findings |
 | `make check-bilingual-docs` | Nur durch 20 fehlende Framework-Link-Ziele im nicht materialisierten Task-Worktree-Gitlink blockiert; der Change Record gab keinen Überschriften-/Identitätsfehler aus |
 | `make check-doc-links` mit autoritativem `FRAMEWORK_ROOT` | Nur durch dieselben lokalen Gitlink-Link-Ziele blockiert |
 
@@ -113,9 +125,8 @@ ist. Die anwendbare Evidenz ist die fokussierte Unit-/Vertragssuite und der
 versiegelte Security-Diff-Scan unter
 `/var/tmp/codex/ModSecurity-conector/tmp/codex-security-scans/ModSecurity-conector/27e8756e212fd9452d99e285743dbadc43c814a6_20260809T053956Z/report.md`.
 
-Gehostete GitHub Actions und die SonarCloud-PR-Analyse können erst beginnen,
-wenn der Current-Master-Publisher-Allowlist-Blocker unter ausdrücklicher
-Benutzerautorisierung repariert ist.
+Gehostete GitHub Actions und die SonarCloud-PR-Analyse warten nun auf den
+normalen Push und genau einen Draft-PR; daraus folgt keine Merge-Autorisierung.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -142,10 +153,9 @@ Lokale Prüfungen können weder die SonarCloud-Duplikatmetriken nach der Änderu
 noch das gehostete PR-Quality-Gate beweisen. Die angeforderte gehostete Analyse
 bleibt die maßgebliche Messung. Das vollständige lokale Lint-Target ist derzeit
 durch die nicht materialisierte Framework-Gitlink-Abhängigkeit des Task-
-Worktrees blockiert. Außerdem ergänzt current master einen vertrauenswürdigen
-Workflow mit gesperrten Actions ohne passenden Updater-Publisher-/Staging-
-Eintrag; die vollständige Einpfad-Reparatur verlangt eine GitHub-Workflow-
-Änderung, die der Benutzer derzeit verbietet.
+Worktrees blockiert. Die nach dem Rebase erkannte Publisher-Pfad-Lücke ist
+unter der ausdrücklichen Einpfad-Workflow-Autorisierung des Benutzers lokal
+behoben.
 
 ## Verbleibende Risiken
 
@@ -161,12 +171,9 @@ URL deterministisch ab; dies ist daher kein erreichbarer Lock-Datei-Pfad.
 
 ## Finaler Diff- und Review-Status
 
-Die Refaktor-Commits sind überprüfbar und basieren auf current master, aber
-die Auslieferung ist durch FND-PARENT-0111 blockiert. Der exakte Source-only-
-Kandidat beweist, dass der korrespondierende Einpfad-Staging-Eintrag in
-`.github/workflows/update-workflow-tools.yml` nötig ist; der Benutzer verbietet
-GitHub-Workflow-Änderungen ausdrücklich. Der Kandidat wurde zurückgenommen und
-kein Test-, Publisher-Scope-, Scanner-, Lock-, Framework-, MRTS- oder Gitlink-
-Control wurde geschwächt. Genau ein Draft-PR, gehostete Actions und der
-SonarCloud-Metrikvergleich warten auf ausdrückliche Autorisierung für diesen
-exakten Workflow-Eintrag. Dieser Record autorisiert keinen Merge.
+Die Refaktor-Commits sind überprüfbar und basieren auf current master. Die
+benutzerautorisierte Zwei-Zeilen-Publisher-Reparatur stellt den endlichen
+Source-/Staging-Vertrag wieder her, ohne Action-Pin, Berechtigung, Lock,
+Framework, MRTS oder Gitlink zu ändern. Ein normaler Push, genau ein Draft-PR,
+Exact-Head-Hosted-Actions und der SonarCloud-Vergleich bleiben erforderlich.
+Dieser Record autorisiert keinen Merge.

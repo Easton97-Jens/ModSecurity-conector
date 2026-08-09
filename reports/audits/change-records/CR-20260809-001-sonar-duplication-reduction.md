@@ -9,7 +9,7 @@
 | Change ID | `CR-20260809-001` |
 | Date (UTC) | `2026-08-09` |
 | Base revision | `cc58f94e6a0dd17eea651cd46376843472b83f7c` |
-| Scope | Parent repository only; no Framework, MRTS, Gitlink, workflow, lock-file, or quality-gate change |
+| Scope | Parent repository only; no Framework, MRTS, Gitlink, lock-file, or quality-gate change; one user-authorized exact publisher staging entry |
 
 ## Motivation and problem statement
 
@@ -69,9 +69,18 @@ The focused security-diff scan covered all six changed code files and produced
 zero reportable candidates.  It did not identify a new attack path or a
 weakened control.
 
+After the rebase onto current `origin/master`, the pre-existing trusted NGINX
+root-broker workflow exposed a fail-closed gap: its locked Action pins were not
+in the updater's finite publisher path set. The user explicitly authorized the
+only complete companion repair: the exact same literal path in the existing
+publisher `git add --` list. The source/staging equality control, real coverage
+test, and existing fail-closed negative control pass. A second focused
+two-file Security diff review also has zero reportable findings.
+
 ## Changed files
 
 - `ci/tools/update-workflow-tools.py`
+- `.github/workflows/update-workflow-tools.yml` (one user-authorized matching staging path)
 - `tests/ci_security/test_update_workflow_tools.py`
 - `tests/c_source_contract.py`
 - `tests/test_c_source_contract.py`
@@ -87,14 +96,16 @@ weakened control.
 | Check | Actual result |
 | --- | --- |
 | Focused unittest suite | Passed: 51 tests in 11.926 s |
-| Rebased-current-master focused unittest suite | Blocked: 50 tests passed and one fail-closed publisher-allowlist error named only `.github/workflows/nginx-root-broker.yml` |
+| Rebased-current-master focused unittest suite before the narrow repair | Historical reproduction: 50 tests passed and one fail-closed publisher-allowlist error named only `.github/workflows/nginx-root-broker.yml` |
+| User-authorized one-path publisher repair | Passed: focused suite 51 tests in 11.394 s; real coverage and fail-closed unallowlisted/YAML negative controls pass |
 | `python -m py_compile` for the changed Python modules | Passed |
 | `make check-ci-security-contract` | Passed: 23 tests; checksum-locked actionlint, zizmor, and gitleaks validation passed |
 | checksum-locked actionlint with ShellCheck | Passed for `.github/workflows/*.yml` |
 | checksum-locked `zizmor --offline .github/workflows` | Passed: no findings (88 repository-suppressed findings reported by zizmor) |
-| checksum-locked diff-range gitleaks | Passed: three task commits scanned, no leaks found |
+| checksum-locked diff-range gitleaks | Passed: six task commits scanned, no leaks found |
 | `git diff --check HEAD` | Passed |
 | Focused security-diff scan | Passed: complete six-file coverage and zero reportable findings |
+| Focused authorized-workflow security-diff scan | Passed: complete two-file coverage and zero reportable findings |
 | `make check-bilingual-docs` | Blocked only by 20 missing Framework-link targets in the unmaterialized task-worktree Gitlink; the Change Record emitted no heading/identity error |
 | `make check-doc-links` with the authoritative `FRAMEWORK_ROOT` | Blocked only by the same local Gitlink link targets |
 
@@ -111,8 +122,8 @@ applicable evidence is the focused unit/contract suite and the sealed
 security-diff scan at
 `/var/tmp/codex/ModSecurity-conector/tmp/codex-security-scans/ModSecurity-conector/27e8756e212fd9452d99e285743dbadc43c814a6_20260809T053956Z/report.md`.
 
-Hosted GitHub Actions and SonarCloud PR analysis cannot start until the current
-master publisher-allowlist blocker is repaired under explicit user authority.
+Hosted GitHub Actions and SonarCloud PR analysis are now pending the normal
+push and exactly one Draft PR; no merge authority is implied.
 
 ## Checks not run and rationale
 
@@ -136,10 +147,9 @@ master publisher-allowlist blocker is repaired under explicit user authority.
 Local checks cannot prove the post-change SonarCloud duplication metrics or
 the hosted PR quality gate.  The requested hosted analysis remains the
 authoritative measurement.  The full local lint target is currently blocked
-by the task worktree's unmaterialized Framework Gitlink dependency. In
-addition, current master adds a trusted workflow using locked Actions without
-the matching updater publisher/staging entry; the complete one-path repair
-requires a GitHub workflow modification that the user currently prohibits.
+by the task worktree's unmaterialized Framework Gitlink dependency. The
+publisher-path gap discovered after the rebase is fixed locally under the
+user's explicit one-path workflow authorization.
 
 ## Remaining risks
 
@@ -155,12 +165,8 @@ lock-file path.
 
 ## Final diff and review status
 
-The refactor commits are reviewable and based on current master, but delivery
-is blocked by FND-PARENT-0111. The exact source-only candidate proves that the
-corresponding one-path staging entry in
-`.github/workflows/update-workflow-tools.yml` is required; the user explicitly
-prohibits GitHub workflow changes. The candidate was reverted and no test,
-publisher-scope, scanner, lock, Framework, MRTS, or Gitlink control was
-weakened. A single Draft PR, hosted actions, and SonarCloud comparison remain
-pending explicit authority for that exact workflow entry. This record does not
-authorize a merge.
+The refactor commits are reviewable and based on current master. The
+user-authorized two-line publisher repair restores the finite source/staging
+contract without changing any Action pin, permission, lock, Framework, MRTS,
+or Gitlink. A normal push, one Draft PR, exact-head hosted actions, and
+SonarCloud comparison remain required. This record does not authorize a merge.
