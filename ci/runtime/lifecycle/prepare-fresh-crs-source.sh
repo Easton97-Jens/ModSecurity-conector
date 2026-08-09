@@ -32,11 +32,17 @@ case "$fresh_crs_source_root" in
         ci_blocked "broker CRS fresh source root must not be inside CONNECTOR_COMPONENT_CACHE"
         exit 77
         ;;
+    *)
+        :
+        ;;
 esac
 case "$CONNECTOR_COMPONENT_CACHE" in
     "$fresh_crs_source_root"|"$fresh_crs_source_root"/*)
         ci_blocked "broker CRS CONNECTOR_COMPONENT_CACHE must not be inside the fresh source root"
         exit 77
+        ;;
+    *)
+        :
         ;;
 esac
 

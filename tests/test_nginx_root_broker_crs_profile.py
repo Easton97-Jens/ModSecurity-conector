@@ -350,6 +350,12 @@ class TrustedNginxRootBrokerCrsProfileTest(unittest.TestCase):
             destination_fd = os.open(destination, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             original_sha256_fd = BROKER.sha256_fd
             calls = 0
+            source_device = source_files.stat().st_dev
+            relative = Path("rules/rule.conf")
+            expected_size = source.stat().st_size
+            runner_uid = os.geteuid()
+            worker_gid = os.getegid()
+            destination_device = destination.stat().st_dev
 
             def replace_after_initial_digest(descriptor: int) -> str:
                 nonlocal calls
@@ -366,14 +372,14 @@ class TrustedNginxRootBrokerCrsProfileTest(unittest.TestCase):
                     with self.assertRaisesRegex(BROKER.BrokerError, "digest mismatch after root admission"):
                         BROKER.copy_bundle_file_into_root(
                             source_fd,
-                            source_files.stat().st_dev,
-                            Path("rules/rule.conf"),
+                            source_device,
+                            relative,
                             destination_fd,
                             expected_sha256=expected,
-                            expected_size=source.stat().st_size,
-                            runner_uid=os.geteuid(),
-                            worker_gid=os.getegid(),
-                            destination_device=destination.stat().st_dev,
+                            expected_size=expected_size,
+                            runner_uid=runner_uid,
+                            worker_gid=worker_gid,
+                            destination_device=destination_device,
                             label="test CRS replacement",
                         )
             finally:
