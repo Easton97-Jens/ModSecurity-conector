@@ -15,14 +15,13 @@ The existing caller uses the reusable workflow at the exact 40-character merge
 SHA already reachable from protected Parent `master`:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@e06254ea9622d214a9030b9ba786756560ace417
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@c2836f74510b9f72bae466d8b7d92a3f9f38c007
 ```
 
-This pin remains `e06254ea9622d214a9030b9ba786756560ace417` throughout the
-broker-repair PR. A separate follow-up caller-repin PR must replace both
-caller `uses` values and both `protected_broker_sha` values with the resulting
-protected broker merge SHA; neither a branch nor `master` is an acceptable
-substitute.
+Both caller `uses` values and both `protected_broker_sha` values are pinned to
+the resulting protected broker-repair merge SHA
+`c2836f74510b9f72bae466d8b7d92a3f9f38c007`; neither a branch nor `master` is
+an acceptable substitute.
 
 GitHub documents that the `github` context in a called reusable workflow is
 associated with its caller, including `github.workflow_ref`. The broker
@@ -113,12 +112,12 @@ actions remain inside this immutable call and the Framework gitlink is fixed
 to the broker revision rather than to a later Parent state:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@e06254ea9622d214a9030b9ba786756560ace417
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@c2836f74510b9f72bae466d8b7d92a3f9f38c007
 ```
 
 ```text
-protected_broker_sha = e06254ea9622d214a9030b9ba786756560ace417
-framework_sha        = c71e15db7b7517b237add9fa09b3493e7bc93627
+protected_broker_sha = c2836f74510b9f72bae466d8b7d92a3f9f38c007
+framework_sha        = 4c9af1cee72caa0107fa011e59eef9e853338cf5
 ```
 
 The caller makes two explicit immutable calls, never a user-selected matrix:

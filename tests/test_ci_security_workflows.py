@@ -27,9 +27,11 @@ GO_MODULE_REQUIREMENT = re.compile(
 )
 PCRE2_SHA256 = "47fe8c99461250d42f89e6e8fdaeba9da057855d06eb7fc08d9ca03fd08d7bc7"
 PROTECTED_NGINX_BROKER_CALLER_WORKFLOW = "run-protected-nginx-root-broker.yml"
+PROTECTED_NGINX_BROKER_SHA = "c2836f74510b9f72bae466d8b7d92a3f9f38c007"
+PROTECTED_NGINX_BROKER_FRAMEWORK_SHA = "4c9af1cee72caa0107fa011e59eef9e853338cf5"
 PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
-    "e06254ea9622d214a9030b9ba786756560ace417"
+    + PROTECTED_NGINX_BROKER_SHA
 )
 PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
     {
@@ -404,8 +406,8 @@ def protected_nginx_broker_caller_errors(text: str) -> list[str]:
     required_no_crs = (
         "      caller_manifest_artifact: protected-nginx-caller-${{ github.run_id }}-${{ github.run_attempt }}-no-crs",
         "      parent_head_sha: ${{ inputs.parent_head_sha }}",
-        "      framework_sha: c71e15db7b7517b237add9fa09b3493e7bc93627",
-        "      protected_broker_sha: e06254ea9622d214a9030b9ba786756560ace417",
+        f"      framework_sha: {PROTECTED_NGINX_BROKER_FRAMEWORK_SHA}",
+        f"      protected_broker_sha: {PROTECTED_NGINX_BROKER_SHA}",
         "      matrix_variant: no-crs",
         "      run_id: protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-no-crs",
     )
@@ -809,13 +811,13 @@ jobs:
             "broker master ref": (
                 PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE,
                 PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE.replace(
-                    "@e06254ea9622d214a9030b9ba786756560ace417", "@master"
+                    f"@{PROTECTED_NGINX_BROKER_SHA}", "@master"
                 ),
             ),
             "broker branch ref": (
                 PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE,
                 PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE.replace(
-                    "@e06254ea9622d214a9030b9ba786756560ace417", "@fix/unsafe"
+                    f"@{PROTECTED_NGINX_BROKER_SHA}", "@fix/unsafe"
                 ),
             ),
             "local reusable workflow": (
@@ -825,7 +827,7 @@ jobs:
             "wrong broker SHA": (
                 PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE,
                 PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE.replace(
-                    "e06254ea9622d214a9030b9ba786756560ace417",
+                    PROTECTED_NGINX_BROKER_SHA,
                     "0" * 40,
                 ),
             ),
@@ -839,15 +841,15 @@ jobs:
                 ),
             ),
             "mutable Framework SHA": (
-                "framework_sha: c71e15db7b7517b237add9fa09b3493e7bc93627",
+                f"framework_sha: {PROTECTED_NGINX_BROKER_FRAMEWORK_SHA}",
                 "framework_sha: " + "0" * 40,
             ),
             "duplicate broker input": (
-                "      framework_sha: c71e15db7b7517b237add9fa09b3493e7bc93627",
+                f"      framework_sha: {PROTECTED_NGINX_BROKER_FRAMEWORK_SHA}",
                 "\n".join(
                     (
-                        "      framework_sha: c71e15db7b7517b237add9fa09b3493e7bc93627",
-                        "      framework_sha: c71e15db7b7517b237add9fa09b3493e7bc93627",
+                        f"      framework_sha: {PROTECTED_NGINX_BROKER_FRAMEWORK_SHA}",
+                        f"      framework_sha: {PROTECTED_NGINX_BROKER_FRAMEWORK_SHA}",
                     )
                 ),
             ),

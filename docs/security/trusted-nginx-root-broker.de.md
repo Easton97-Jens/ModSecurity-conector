@@ -17,15 +17,13 @@ Der Caller verwendet den wiederverwendbaren Workflow über den exakten
 ist:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@e06254ea9622d214a9030b9ba786756560ace417
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@c2836f74510b9f72bae466d8b7d92a3f9f38c007
 ```
 
-Dieser Pin bleibt während des Broker-Repair-PRs
-`e06254ea9622d214a9030b9ba786756560ace417`. Ein getrennter nachfolgender
-Caller-Repin-PR muss beide Caller-`uses`-Werte und beide
-`protected_broker_sha`-Werte durch den resultierenden geschützten
-Broker-Merge-SHA ersetzen; weder ein Branch noch `master` sind zulässige
-Alternativen.
+Beide Caller-`uses`-Werte und beide `protected_broker_sha`-Werte sind an den
+resultierenden geschützten Broker-Repair-Merge-SHA
+`c2836f74510b9f72bae466d8b7d92a3f9f38c007` gepinnt; weder ein Branch noch
+`master` sind zulässige Alternativen.
 
 GitHub dokumentiert, dass der `github`-Kontext in einem aufgerufenen
 wiederverwendbaren Workflow einschließlich `github.workflow_ref` seinem Caller
@@ -125,12 +123,12 @@ bleiben im folgenden unveränderlichen Aufruf; der Framework-Gitlink ist an die
 Broker-Revision und nicht an einen späteren Parent-Stand gebunden:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@e06254ea9622d214a9030b9ba786756560ace417
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@c2836f74510b9f72bae466d8b7d92a3f9f38c007
 ```
 
 ```text
-protected_broker_sha = e06254ea9622d214a9030b9ba786756560ace417
-framework_sha        = c71e15db7b7517b237add9fa09b3493e7bc93627
+protected_broker_sha = c2836f74510b9f72bae466d8b7d92a3f9f38c007
+framework_sha        = 4c9af1cee72caa0107fa011e59eef9e853338cf5
 ```
 
 Der Caller erstellt zwei explizite unveränderliche Aufrufe und niemals eine
