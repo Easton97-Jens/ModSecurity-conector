@@ -69,8 +69,10 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
 
     def prepare_arguments(self, root: Path, **overrides: object) -> argparse.Namespace:
         build = self.private_dir(root / "trusted-build")
-        binary = self.write(build / "nginx", "trusted binary\n", 0o700)
-        module = self.write(build / "ngx_http_modsecurity_module.so", "trusted module\n")
+        self.private_dir(build / "nginx" / "sbin")
+        self.private_dir(build / "nginx" / "modules")
+        binary = self.write(build / "nginx" / "sbin" / "nginx", "trusted binary\n", 0o700)
+        module = self.write(build / "nginx" / "modules" / "ngx_http_modsecurity_module.so", "trusted module\n")
         library = self.write(build / "libmodsecurity.so", "trusted library\n")
         caller = self.caller_manifest(root)
         values: dict[str, object] = {
@@ -87,9 +89,73 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             "worker_user": "www-data",
             "loopback": "127.0.0.1",
             "port": 18443,
+            "expected_parent_head": PARENT_SHA,
+            "expected_framework_sha": FRAMEWORK_SHA,
+            "expected_run_id": "broker-run-1",
+            "expected_matrix_variant": "no-crs",
         }
         values.update(overrides)
         return argparse.Namespace(**values)
+
+    def write_snapshot_provenance(
+        self,
+        arguments: argparse.Namespace,
+        *,
+        binary: Path,
+        module: Path,
+        prefix: Path,
+        library: Path,
+    ) -> Path:
+        def artifact(path: Path) -> dict[str, object]:
+            metadata = path.stat()
+            return {
+                "path": str(path),
+                "sha256": digest(path),
+                "device": metadata.st_dev,
+                "uid": metadata.st_uid,
+                "mode": stat.S_IMODE(metadata.st_mode),
+                "size": metadata.st_size,
+            }
+
+        payload: dict[str, object] = {
+            "schema_version": BROKER.NGINX_BROKER_PROVENANCE_SCHEMA_VERSION,
+            "producer": {
+                "parent_sha": BROKER_SHA,
+                "framework_sha": FRAMEWORK_SHA,
+                "identity": "",
+            },
+            "nginx": {
+                "version": "1.31.3",
+                "release_tag": "release-1.31.3",
+                "source_repository": "https://nginx.org/download/nginx-1.31.3.tar.gz",
+                "source_sha256": "d" * 64,
+                "cache_schema_version": 1,
+                "cache_key": "test-cache-key",
+                "connector_build_id": "test-build-id",
+                "root": str(binary.parents[2]),
+                "binary": artifact(binary),
+                "module": artifact(module),
+            },
+            "modsecurity": {"prefix": str(prefix), "library": artifact(library)},
+        }
+        unsigned = json.loads(json.dumps(payload))
+        unsigned["producer"].pop("identity")  # type: ignore[index]
+        payload["producer"]["identity"] = BROKER.canonical_json_digest(unsigned)  # type: ignore[index]
+        reports = Path(arguments.trusted_build_root) / BROKER.RUNTIME_REPORTS_RELATIVE
+        if reports.exists():
+            reports.chmod(0o700)
+        else:
+            self.private_dir(reports)
+        return self.write(
+            reports / BROKER.NGINX_BROKER_PROVENANCE_FILENAME,
+            json.dumps(payload, sort_keys=True) + "\n",
+            0o600,
+        )
+
+    def refresh_provenance_identity(self, payload: dict[str, object]) -> None:
+        unsigned = json.loads(json.dumps(payload))
+        unsigned["producer"].pop("identity")  # type: ignore[index]
+        payload["producer"]["identity"] = BROKER.canonical_json_digest(unsigned)  # type: ignore[index]
 
     def test_valid_declarative_manifest_copies_only_verified_build_artifacts(self) -> None:
         with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
@@ -282,8 +348,15 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             trusted_build = Path(arguments.trusted_build_root)
             prefix = self.private_dir(trusted_build / "modsecurity-prefix")
             library_root = self.private_dir(prefix / "lib")
-            library = self.write(library_root / "libmodsecurity.so.3", "trusted library\n")
+            library = self.write(library_root / "libmodsecurity.so", "trusted library\n")
             reports = self.private_dir(trusted_build / BROKER.RUNTIME_REPORTS_RELATIVE)
+            self.write_snapshot_provenance(
+                arguments,
+                binary=Path(arguments.binary),
+                module=Path(arguments.module),
+                prefix=prefix,
+                library=library,
+            )
             self.write(
                 reports / "runtime-env-snapshot.test.sh",
                 "\n".join(
@@ -295,6 +368,14 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                     )
                 ),
             )
+            # Direct harness arguments are deliberately ignored by this mode;
+            # only the validated record can supply candidate artifact inputs.
+            arguments.binary = "/bin/false"
+            arguments.binary_sha256 = "0" * 64
+            arguments.module = "/bin/false"
+            arguments.module_sha256 = "0" * 64
+            arguments.modsecurity_library = "/bin/false"
+            arguments.library_sha256 = "0" * 64
 
             candidate_path = BROKER.prepare_candidate_from_snapshot(arguments)
 
@@ -303,6 +384,229 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             self.assertEqual(candidate["artifacts"]["module"]["sha256"], digest(Path(arguments.module)))
             self.assertEqual(candidate["artifacts"]["modsecurity_library"]["sha256"], digest(library))
             self.assertEqual(candidate_path.parent.parent, trusted_build / BROKER.CANDIDATE_DIRECTORY_NAME)
+
+    def test_runtime_snapshot_rejects_duplicate_empty_malformed_and_arbitrary_exports(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            snapshot = Path(temporary) / "runtime-env-snapshot.test.sh"
+            cases = {
+                "duplicate": "\n".join(
+                    (
+                        "export NGINX_BINARY='/trusted/nginx'",
+                        "export NGINX_MODULE='/trusted/module.so'",
+                        "export NGINX_BINARY='/trusted/replacement'",
+                    )
+                ),
+                "empty": "\n".join(
+                    (
+                        "export NGINX_BINARY=''",
+                        "export NGINX_MODULE='/trusted/module.so'",
+                        "export MODSECURITY_SHARED_PREFIX='/trusted/prefix'",
+                    )
+                ),
+                "malformed": "\n".join(
+                    (
+                        "export NGINX_BINARY='/trusted/nginx'",
+                        "NGINX_MODULE='/trusted/module.so'",
+                        "export MODSECURITY_SHARED_PREFIX='/trusted/prefix'",
+                    )
+                ),
+                "arbitrary": "\n".join(
+                    (
+                        "export NGINX_BINARY='/trusted/nginx'",
+                        "export NGINX_MODULE='/trusted/module.so'",
+                        "export EVIL='/trusted/prefix'",
+                    )
+                ),
+            }
+            for name, content in cases.items():
+                self.write(snapshot, content + "\n")
+                with self.subTest(name=name), self.assertRaises(BROKER.BrokerError):
+                    BROKER.parse_runtime_snapshot(snapshot)
+
+    def test_prepare_from_snapshot_rejects_untrusted_provenance_and_snapshot_replacement(self) -> None:
+        def fixture(root: Path) -> tuple[argparse.Namespace, Path, Path]:
+            arguments = self.prepare_arguments(root)
+            trusted_build = Path(arguments.trusted_build_root)
+            prefix = self.private_dir(trusted_build / "modsecurity-prefix")
+            library_root = self.private_dir(prefix / "lib")
+            library = self.write(library_root / "libmodsecurity.so", "trusted library\n")
+            record = self.write_snapshot_provenance(
+                arguments,
+                binary=Path(arguments.binary),
+                module=Path(arguments.module),
+                prefix=prefix,
+                library=library,
+            )
+            snapshot = self.write(
+                trusted_build / BROKER.RUNTIME_REPORTS_RELATIVE / "runtime-env-snapshot.test.sh",
+                "\n".join(
+                    (
+                        f"export NGINX_BINARY='{arguments.binary}'",
+                        f"export NGINX_MODULE='{arguments.module}'",
+                        f"export MODSECURITY_SHARED_PREFIX='{prefix}'",
+                        "",
+                    )
+                ),
+            )
+            return arguments, record, snapshot
+
+        def mutate_record(record: Path, mutate: object) -> None:
+            payload = json.loads(record.read_text(encoding="utf-8"))
+            mutate(payload)
+            self.refresh_provenance_identity(payload)
+            self.write(record, json.dumps(payload, sort_keys=True) + "\n", 0o600)
+
+        cases = {
+            "relative path": lambda payload: payload["nginx"].__setitem__("root", "relative"),
+            "system path": lambda payload: payload["nginx"]["binary"].__setitem__("path", "/bin/false"),
+            "outside path": lambda payload: payload["nginx"]["binary"].__setitem__("path", "/tmp/outside-nginx"),
+            "owner": lambda payload: payload["nginx"]["binary"].__setitem__("uid", os.geteuid() + 1),
+            "mode": lambda payload: payload["nginx"]["binary"].__setitem__("mode", 0o600),
+            "digest": lambda payload: payload["nginx"]["binary"].__setitem__("sha256", "0" * 64),
+            "parent SHA": lambda payload: payload["producer"].__setitem__("parent_sha", "d" * 40),
+            "framework SHA": lambda payload: payload["producer"].__setitem__("framework_sha", "d" * 40),
+        }
+        for name, mutate in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+                arguments, record, _ = fixture(Path(temporary))
+                mutate_record(record, mutate)
+                with self.assertRaises(BROKER.BrokerError):
+                    BROKER.prepare_candidate_from_snapshot(arguments)
+
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            arguments, record, _ = fixture(Path(temporary))
+            record.unlink()
+            with self.assertRaises(BROKER.BrokerError):
+                BROKER.prepare_candidate_from_snapshot(arguments)
+
+    def test_prepare_from_snapshot_rejects_each_artifact_before_candidate_creation(self) -> None:
+        def fixture(root: Path) -> tuple[argparse.Namespace, Path, Path, Path, Path, Path]:
+            arguments = self.prepare_arguments(root)
+            trusted_build = Path(arguments.trusted_build_root)
+            prefix = self.private_dir(trusted_build / "modsecurity-prefix")
+            self.private_dir(prefix / "lib")
+            library = self.write(prefix / "lib" / "libmodsecurity.so", "trusted library\n")
+            record = self.write_snapshot_provenance(
+                arguments,
+                binary=Path(arguments.binary),
+                module=Path(arguments.module),
+                prefix=prefix,
+                library=library,
+            )
+            snapshot = trusted_build / BROKER.RUNTIME_REPORTS_RELATIVE / "runtime-env-snapshot.test.sh"
+            write_snapshot(snapshot, arguments, prefix)
+            return arguments, record, snapshot, Path(arguments.binary), Path(arguments.module), prefix
+
+        def write_snapshot(snapshot: Path, arguments: argparse.Namespace, prefix: Path, *, omit: str = "", empty: str = "", duplicate: str = "", overrides: dict[str, str] | None = None) -> None:
+            values = {
+                "NGINX_BINARY": str(arguments.binary),
+                "NGINX_MODULE": str(arguments.module),
+                "MODSECURITY_SHARED_PREFIX": str(prefix),
+            }
+            values.update(overrides or {})
+            lines = [f"export {key}='{value if key != empty else ''}'" for key, value in values.items() if key != omit]
+            if duplicate:
+                lines.append(f"export {duplicate}='{values[duplicate]}'")
+            self.write(snapshot, "\n".join(lines) + "\n", 0o600)
+
+        def mutate_record(record: Path, mutate: object) -> None:
+            payload = json.loads(record.read_text(encoding="utf-8"))
+            mutate(payload)
+            self.refresh_provenance_identity(payload)
+            self.write(record, json.dumps(payload, sort_keys=True) + "\n", 0o600)
+
+        def assert_rejected(arguments: argparse.Namespace) -> None:
+            with self.assertRaises(BROKER.BrokerError):
+                BROKER.prepare_candidate_from_snapshot(arguments)
+            self.assertFalse((Path(arguments.trusted_build_root) / BROKER.CANDIDATE_DIRECTORY_NAME).exists())
+
+        for field in ("NGINX_BINARY", "NGINX_MODULE", "MODSECURITY_SHARED_PREFIX"):
+            for mutation in ("missing", "empty", "duplicate"):
+                with self.subTest(snapshot_field=field, mutation=mutation), tempfile.TemporaryDirectory(
+                    prefix="nginx-root-broker-"
+                ) as temporary:
+                    arguments, _, snapshot, _, _, prefix = fixture(Path(temporary))
+                    if mutation == "missing":
+                        write_snapshot(snapshot, arguments, prefix, omit=field)
+                    elif mutation == "empty":
+                        write_snapshot(snapshot, arguments, prefix, empty=field)
+                    else:
+                        write_snapshot(snapshot, arguments, prefix, duplicate=field)
+                    assert_rejected(arguments)
+
+        snapshot_cases = {
+            "relative binary": {"NGINX_BINARY": "relative/nginx"},
+            "relative module": {"NGINX_MODULE": "relative/module.so"},
+            "system binary": {"NGINX_BINARY": "/bin/false"},
+        }
+        for name, overrides in snapshot_cases.items():
+            with self.subTest(snapshot=name), tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+                arguments, _, snapshot, _, _, prefix = fixture(Path(temporary))
+                write_snapshot(snapshot, arguments, prefix, overrides=overrides)
+                assert_rejected(arguments)
+
+        for artifact_name, record_key in (("binary", "binary"), ("module", "module")):
+            for mutation in ("digest", "owner", "mode"):
+                with self.subTest(artifact=artifact_name, mutation=mutation), tempfile.TemporaryDirectory(
+                    prefix="nginx-root-broker-"
+                ) as temporary:
+                    arguments, record, _, _, _, _ = fixture(Path(temporary))
+                    field = {"digest": "sha256", "owner": "uid", "mode": "mode"}[mutation]
+                    value: object = {
+                        "digest": "0" * 64,
+                        "owner": os.geteuid() + 1,
+                        "mode": 0o600 if record_key == "binary" else 0o400,
+                    }[mutation]
+                    mutate_record(record, lambda payload, key=record_key, field=field, value=value: payload["nginx"][key].__setitem__(field, value))
+                    assert_rejected(arguments)
+
+        for artifact_name in ("binary", "module"):
+            with self.subTest(artifact=artifact_name, mutation="symlink"), tempfile.TemporaryDirectory(
+                prefix="nginx-root-broker-"
+            ) as temporary:
+                arguments, _, _, binary, module, _ = fixture(Path(temporary))
+                artifact = binary if artifact_name == "binary" else module
+                target = self.write(artifact.parent / f"replacement-{artifact_name}", "replacement\n", 0o700)
+                artifact.unlink()
+                artifact.symlink_to(target)
+                assert_rejected(arguments)
+
+            with self.subTest(artifact=artifact_name, mutation="group-writable"), tempfile.TemporaryDirectory(
+                prefix="nginx-root-broker-"
+            ) as temporary:
+                arguments, _, _, binary, module, _ = fixture(Path(temporary))
+                artifact = binary if artifact_name == "binary" else module
+                artifact.chmod(0o720)
+                assert_rejected(arguments)
+
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            arguments, _, snapshot, _, _, _ = fixture(Path(temporary))
+            snapshot.chmod(0o644)
+            assert_rejected(arguments)
+
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            arguments, record, snapshot, _, _, _ = fixture(Path(temporary))
+            snapshot.write_text(
+                "\n".join(
+                    (
+                        "export NGINX_BINARY='/bin/false'",
+                        f"export NGINX_MODULE='{arguments.module}'",
+                        f"export MODSECURITY_SHARED_PREFIX='{json.loads(record.read_text(encoding='utf-8'))['modsecurity']['prefix']}'",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            snapshot.chmod(0o600)
+            assert_rejected(arguments)
+
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            arguments, _, _, _, _, _ = fixture(Path(temporary))
+            binary = Path(arguments.binary)
+            target = self.write(binary.parent / "replacement-nginx", "replacement\n", 0o700)
+            binary.unlink()
+            binary.symlink_to(target)
+            assert_rejected(arguments)
 
     def test_root_creation_rolls_back_when_chown_fails(self) -> None:
         with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:

@@ -96,6 +96,9 @@ TRUSTED_MODSECURITY_LIBRARY_LABEL = "trusted ModSecurity shared library"
 BROKER_ROOT_PARENT_LABEL = "broker root parent"
 CANDIDATE_DIRECTORY_NAME = "broker-candidate"
 RUNTIME_REPORTS_RELATIVE = Path("build") / "runtime-component-reports"
+NGINX_BROKER_PROVENANCE_FILENAME = "trusted-nginx-broker-provenance.json"
+NGINX_BROKER_PROVENANCE_LABEL = "trusted NGINX broker provenance"
+NGINX_BROKER_PROVENANCE_SCHEMA_VERSION = 1
 ARTIFACT_BINARY_NAME = "nginx"
 ARTIFACT_MODULE_NAME = "ngx_http_modsecurity_module.so"
 ARTIFACT_LIBRARY_NAME = "libmodsecurity.so"
@@ -1175,14 +1178,18 @@ def parse_runtime_snapshot(path: Path) -> dict[str, str]:
     except UnicodeDecodeError as exc:
         fail(f"runtime environment snapshot is not UTF-8: {exc}")
     required = {"NGINX_BINARY", "NGINX_MODULE", "MODSECURITY_SHARED_PREFIX"}
+    if len(lines) != len(required):
+        fail("runtime environment snapshot must contain exactly three exports")
     values: dict[str, str] = {}
     for line in lines:
         match = RUNTIME_EXPORT_RE.fullmatch(line)
         if match is None:
-            continue
+            fail("runtime environment snapshot contains a malformed export")
         key = match.group("key")
         if key not in required:
-            continue
+            fail(f"runtime environment snapshot contains an unapproved export: {key}")
+        if key in values:
+            fail(f"runtime environment snapshot duplicates export: {key}")
         value = match.group("value")
         if not value or "'\"'\"'" in value:
             fail(f"runtime environment snapshot {key} has an unsupported quoted value")
@@ -1190,6 +1197,137 @@ def parse_runtime_snapshot(path: Path) -> dict[str, str]:
     if set(values) != required:
         fail("runtime environment snapshot lacks required trusted NGINX exports")
     return values
+
+
+def read_private_json_record(path: Path, label: str) -> dict[str, Any]:
+    """Load one bounded private record without following or racing a replacement."""
+
+    metadata = regular_metadata(path, label, owner=os.geteuid())
+    if stat.S_IMODE(metadata.st_mode) != 0o600:
+        fail(f"{label} must have mode 0600")
+    descriptor, opened = open_regular_no_follow(path, label)
+    try:
+        if opened.st_size <= 0 or opened.st_size > MAX_MANIFEST_BYTES:
+            fail(f"{label} has an invalid size")
+        raw = bytearray()
+        while len(raw) <= MAX_MANIFEST_BYTES:
+            chunk = os.read(descriptor, min(8192, MAX_MANIFEST_BYTES + 1 - len(raw)))
+            if not chunk:
+                break
+            raw.extend(chunk)
+        after = os.fstat(descriptor)
+        if (after.st_dev, after.st_ino, after.st_size) != (opened.st_dev, opened.st_ino, opened.st_size):
+            fail(f"{label} changed while being read")
+    finally:
+        os.close(descriptor)
+    if len(raw) != opened.st_size or len(raw) > MAX_MANIFEST_BYTES:
+        fail(f"{label} has an invalid size")
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        fail(f"{label} is not valid UTF-8 JSON: {exc}")
+    if not isinstance(payload, dict):
+        fail(f"{label} must be a JSON object")
+    return payload
+
+
+def require_record_integer(value: object, label: str, *, minimum: int, maximum: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or not minimum <= value <= maximum:
+        fail(f"{label} must be an integer in the accepted range")
+    return value
+
+
+def validated_provenance_artifact(
+    payload: object,
+    label: str,
+    trusted_build_root: Path,
+    *,
+    containing_root: Path,
+) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        fail(f"{label} must be an object")
+    require_exact_keys(payload, {"path", "sha256", "device", "uid", "mode", "size"}, label)
+    path = normalized_absolute(require_string(payload.get("path"), f"{label} path", maximum=4096), f"{label} path")
+    if not is_within(path, trusted_build_root) or not is_within(path, containing_root):
+        fail(f"{label} path must be inside the trusted build root")
+    metadata = regular_metadata(path, label, owner=os.geteuid())
+    expected = {
+        "path": str(path),
+        "sha256": require_sha256(payload.get("sha256"), f"{label} sha256"),
+        "device": require_record_integer(payload.get("device"), f"{label} device", minimum=0, maximum=sys.maxsize),
+        "uid": require_record_integer(payload.get("uid"), f"{label} uid", minimum=0, maximum=sys.maxsize),
+        "mode": require_record_integer(payload.get("mode"), f"{label} mode", minimum=0, maximum=0o777),
+        "size": require_record_integer(payload.get("size"), f"{label} size", minimum=1, maximum=MAX_EVIDENCE_FILE_BYTES),
+    }
+    if (metadata.st_dev, metadata.st_uid, stat.S_IMODE(metadata.st_mode), metadata.st_size) != (
+        expected["device"], expected["uid"], expected["mode"], expected["size"],
+    ):
+        fail(f"{label} metadata does not match provenance")
+    if sha256_file(path, label) != expected["sha256"]:
+        fail(f"{label} digest does not match provenance")
+    return expected
+
+
+def trusted_nginx_broker_provenance(
+    trusted_build_root: Path,
+    arguments: argparse.Namespace,
+) -> dict[str, Any]:
+    reports_root = trusted_build_root / RUNTIME_REPORTS_RELATIVE
+    directory_metadata(reports_root, "trusted runtime reports root", owner=os.geteuid())
+    record_path = reports_root / NGINX_BROKER_PROVENANCE_FILENAME
+    payload = read_private_json_record(record_path, NGINX_BROKER_PROVENANCE_LABEL)
+    require_exact_keys(payload, {"schema_version", "producer", "nginx", "modsecurity"}, NGINX_BROKER_PROVENANCE_LABEL)
+    if payload.get("schema_version") != NGINX_BROKER_PROVENANCE_SCHEMA_VERSION:
+        fail("trusted NGINX broker provenance schema version is not supported")
+    producer = payload.get("producer")
+    nginx = payload.get("nginx")
+    modsecurity = payload.get("modsecurity")
+    if not isinstance(producer, dict) or not isinstance(nginx, dict) or not isinstance(modsecurity, dict):
+        fail("trusted NGINX broker provenance has malformed sections")
+    require_exact_keys(producer, {"parent_sha", "framework_sha", "identity"}, "provenance producer")
+    if require_commit(producer.get("parent_sha"), "provenance parent_sha") != require_commit(arguments.broker_sha, "broker_sha"):
+        fail("trusted NGINX broker provenance parent SHA does not match broker_sha")
+    expected_framework_sha = require_commit(arguments.expected_framework_sha, "expected_framework_sha")
+    if require_commit(producer.get("framework_sha"), "provenance framework_sha") != expected_framework_sha:
+        fail("trusted NGINX broker provenance framework SHA does not match expected_framework_sha")
+    identity_payload = json.loads(json.dumps(payload))
+    identity_payload["producer"].pop("identity")
+    if require_sha256(producer.get("identity"), "provenance producer identity") != canonical_json_digest(identity_payload):
+        fail("trusted NGINX broker provenance identity does not match its canonical record")
+    require_exact_keys(
+        nginx,
+        {
+            "version", "release_tag", "source_repository", "source_sha256", "cache_schema_version",
+            "cache_key", "connector_build_id", "root", "binary", "module",
+        },
+        "provenance nginx",
+    )
+    if nginx.get("version") != "1.31.3" or nginx.get("release_tag") != "release-1.31.3":
+        fail("trusted NGINX broker provenance does not describe the reviewed NGINX release")
+    require_string(nginx.get("source_repository"), "provenance nginx source_repository", maximum=1024)
+    require_sha256(nginx.get("source_sha256"), "provenance nginx source_sha256")
+    require_record_integer(nginx.get("cache_schema_version"), "provenance nginx cache_schema_version", minimum=1, maximum=1_000_000)
+    require_string(nginx.get("cache_key"), "provenance nginx cache_key", maximum=512)
+    require_string(nginx.get("connector_build_id"), "provenance nginx connector_build_id", maximum=512)
+    nginx_root = normalized_absolute(require_string(nginx.get("root"), "provenance nginx root", maximum=4096), "provenance nginx root")
+    if not is_within(nginx_root, trusted_build_root):
+        fail("provenance nginx root must be inside the trusted build root")
+    directory_metadata(nginx_root, "provenance nginx root", owner=os.geteuid())
+    binary = validated_provenance_artifact(nginx.get("binary"), "provenance nginx binary", trusted_build_root, containing_root=nginx_root)
+    module = validated_provenance_artifact(nginx.get("module"), "provenance nginx module", trusted_build_root, containing_root=nginx_root)
+    if Path(binary["path"]) != nginx_root / "nginx" / "sbin" / ARTIFACT_BINARY_NAME:
+        fail("provenance nginx binary path is not canonical")
+    if Path(module["path"]) != nginx_root / "nginx" / "modules" / ARTIFACT_MODULE_NAME:
+        fail("provenance nginx module path is not canonical")
+    require_exact_keys(modsecurity, {"prefix", "library"}, "provenance modsecurity")
+    prefix = normalized_absolute(require_string(modsecurity.get("prefix"), "provenance ModSecurity prefix", maximum=4096), "provenance ModSecurity prefix")
+    if not is_within(prefix, trusted_build_root):
+        fail("provenance ModSecurity prefix must be inside the trusted build root")
+    directory_metadata(prefix, "provenance ModSecurity prefix", owner=os.geteuid())
+    library = validated_provenance_artifact(modsecurity.get("library"), "provenance ModSecurity library", trusted_build_root, containing_root=prefix)
+    if Path(library["path"]) != prefix / "lib" / ARTIFACT_LIBRARY_NAME:
+        fail("provenance ModSecurity library path is not canonical")
+    return {"binary": binary, "module": module, "prefix": str(prefix), "library": library}
 
 
 def write_all(descriptor: int, data: bytes) -> None:
@@ -2224,7 +2362,9 @@ def runtime_snapshot_from_trusted_build(trusted_build_root: Path) -> Path:
     snapshot = normalized_absolute(snapshots[0], RUNTIME_SNAPSHOT_LABEL)
     if not is_within(snapshot, trusted_build_root):
         fail("runtime environment snapshot is outside the trusted build root")
-    regular_metadata(snapshot, RUNTIME_SNAPSHOT_LABEL, owner=os.geteuid())
+    metadata = regular_metadata(snapshot, RUNTIME_SNAPSHOT_LABEL, owner=os.geteuid())
+    if stat.S_IMODE(metadata.st_mode) != 0o600:
+        fail("runtime environment snapshot must have mode 0600")
     return snapshot
 
 
@@ -2244,14 +2384,23 @@ def shared_library_from_snapshot(values: dict[str, str], trusted_build_root: Pat
 
 def prepare_candidate_from_snapshot(arguments: argparse.Namespace) -> Path:
     trusted_build_root = trusted_build_root_from_arguments(arguments)
+    provenance = trusted_nginx_broker_provenance(trusted_build_root, arguments)
     values = parse_runtime_snapshot(runtime_snapshot_from_trusted_build(trusted_build_root))
-    library = shared_library_from_snapshot(values, trusted_build_root)
-    arguments.binary = values["NGINX_BINARY"]
-    arguments.module = values["NGINX_MODULE"]
-    arguments.modsecurity_library = str(library)
-    arguments.binary_sha256 = sha256_file(Path(arguments.binary), "trusted NGINX binary")
-    arguments.module_sha256 = sha256_file(Path(arguments.module), "trusted NGINX module")
-    arguments.library_sha256 = sha256_file(library, TRUSTED_MODSECURITY_LIBRARY_LABEL)
+    expected_snapshot = {
+        "NGINX_BINARY": provenance["binary"]["path"],
+        "NGINX_MODULE": provenance["module"]["path"],
+        "MODSECURITY_SHARED_PREFIX": provenance["prefix"],
+    }
+    if values != expected_snapshot:
+        fail("runtime environment snapshot does not match trusted NGINX broker provenance")
+    # Snapshot text establishes no candidate input: all paths and digests below
+    # come only from the independently verified producer provenance record.
+    arguments.binary = provenance["binary"]["path"]
+    arguments.module = provenance["module"]["path"]
+    arguments.modsecurity_library = provenance["library"]["path"]
+    arguments.binary_sha256 = provenance["binary"]["sha256"]
+    arguments.module_sha256 = provenance["module"]["sha256"]
+    arguments.library_sha256 = provenance["library"]["sha256"]
     return prepare_candidate(arguments)
 
 

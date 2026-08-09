@@ -219,6 +219,7 @@ jobs:
           CONNECTOR_COMPONENT_CACHE: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/component-cache
           RUNTIME_REPORT_OUTPUT_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/build/runtime-component-reports
           RUNTIME_COMPONENT_TARGET: nginx
+          RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: protected-nginx-broker
         run: |
           set -euo pipefail
           verify_broker_source() {
