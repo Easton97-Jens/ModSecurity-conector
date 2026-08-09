@@ -50,23 +50,30 @@ class FiveConnectorNoCrsProfileTest(unittest.TestCase):
             with self.subTest(aggregate_profile=unsupported), redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                 AGGREGATE.parse_args(["--profile", unsupported])
 
-    def test_row_and_connector_manifest_checks_are_fail_closed(self) -> None:
+    def test_row_and_connector_checks_are_closed_without_capability_paths(self) -> None:
+        row = PROFILE.profile_row("apache")
+        self.assertEqual(PROFILE.verify_row(row), row)
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "capabilities.json"
             path.write_text(json.dumps(self.manifest("apache")), encoding="utf-8")
-            row = PROFILE.profile_row("apache")
-            self.assertEqual(PROFILE.verify_row(row, path), row)
+            original_path = PROFILE.canonical_capabilities_path
+            self.addCleanup(setattr, PROFILE, "canonical_capabilities_path", original_path)
+            PROFILE.canonical_capabilities_path = lambda _: path
+            self.assertEqual(PROFILE.verify_connector("apache"), row)
             wrong = dict(row)
             wrong["protocol"] = "h2"
             with self.assertRaisesRegex(ValueError, "protocol"):
-                PROFILE.verify_row(wrong, path)
+                PROFILE.verify_row(wrong)
             manifest = self.manifest("apache")
             manifest["capabilities"]["http1_content_length"] = {"state": "not_implemented"}  # type: ignore[index]
             path.write_text(json.dumps(manifest), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "http1_content_length"):
-                PROFILE.verify_connector("apache", path)
-            with self.assertRaisesRegex(ValueError, "closed no-crs profile"):
-                PROFILE.verify_connector("nginx", path)
+                PROFILE.verify_connector("apache")
+        with self.assertRaisesRegex(ValueError, "closed no-crs profile"):
+            PROFILE.verify_connector("nginx")
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            PROFILE.parse_args(["--profile", "no-crs", "--verify-connector", "--connector", "apache",
+                                "--capabilities", "connectors/apache/capabilities.json"])
 
     def _write_run(self, root: Path, connector: str, *, bad_identity: bool = False,
                    omit_artifact: bool = False, cleanup_status: str = "passed",

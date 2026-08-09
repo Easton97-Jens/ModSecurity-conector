@@ -198,6 +198,43 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
                         "closed-profile rejection must precede runtime root creation",
                     )
 
+    def test_closed_profile_stage_uses_the_resolver_canonical_capability_manifest(self) -> None:
+        stage_runner = ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh"
+        with tempfile.TemporaryDirectory(prefix="msconnector-closed-profile-stage-") as temporary:
+            temporary_root = Path(temporary)
+            connector_root = temporary_root / "connector"
+            connector_root.mkdir()
+            (connector_root / "ci").symlink_to(ROOT / "ci", target_is_directory=True)
+            framework_common = temporary_root / "framework" / "ci" / "lib" / "common.sh"
+            framework_common.parent.mkdir(parents=True)
+            framework_common.write_text("# hermetic framework presence marker\n", encoding="utf-8")
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "CONNECTOR_ROOT": str(connector_root),
+                    "FRAMEWORK_ROOT": str(temporary_root / "framework"),
+                    "VERIFIED_RUN_ROOT": str(temporary_root / "verified"),
+                    "FIVE_CONNECTOR_PROFILE": "no-crs",
+                    "NO_CRS_ARTIFACT_PROFILE": "generic",
+                }
+            )
+            environment.pop("NO_CRS_SELECTED_CASES", None)
+            result = subprocess.run(
+                ["sh", str(stage_runner), "apache", "no_crs_baseline"],
+                cwd=ROOT,
+                env=environment,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(
+            result.stderr,
+            "FAIL: capability-selected No-CRS runner cases are missing\n",
+        )
+
     def test_remaining_connectors_keep_compatibility_and_native_targets_distinct(self) -> None:
         stage = (ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh").read_text(encoding="utf-8")
         for connector, native_target, compatibility_target in (

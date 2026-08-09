@@ -11,7 +11,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 _CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
 if str(_CI_ROOT / "lib") not in sys.path:
@@ -46,6 +46,17 @@ def fail(message: str) -> ValueError:
     return ValueError(message)
 
 
+def profile_row(connector: str) -> dict[str, str]:
+    try:
+        return dict(ROW_BY_CONNECTOR[connector])
+    except KeyError as exc:
+        raise fail(f"connector is not in the closed {PROFILE} profile: {connector!r}") from exc
+
+
+def canonical_capabilities_path(connector: str) -> Path:
+    return _CI_ROOT.parent / "connectors" / connector / "capabilities.json"
+
+
 def load_json(path: Path, label: str) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -56,16 +67,10 @@ def load_json(path: Path, label: str) -> dict[str, Any]:
     return value
 
 
-def profile_row(connector: str) -> dict[str, str]:
-    try:
-        return dict(ROW_BY_CONNECTOR[connector])
-    except KeyError as exc:
-        raise fail(f"connector is not in the closed {PROFILE} profile: {connector!r}") from exc
-
-
-def verify_connector(connector: str, capabilities: Path) -> dict[str, str]:
+def verify_connector(connector: str) -> dict[str, str]:
+    """Verify an allowlisted connector against its canonical source manifest."""
     row = profile_row(connector)
-    manifest = load_json(capabilities, "capability manifest")
+    manifest = load_json(canonical_capabilities_path(connector), "capability manifest")
     if manifest.get("connector") != connector:
         raise fail("capability manifest connector does not match selected row")
     if manifest.get("integration_mode") != row["integration_mode"]:
@@ -90,9 +95,9 @@ def verify_connector(connector: str, capabilities: Path) -> dict[str, str]:
     return row
 
 
-def verify_row(values: Mapping[str, str], capabilities: Path) -> dict[str, str]:
+def verify_row(values: Mapping[str, str]) -> dict[str, str]:
     connector = values.get("connector", "")
-    expected = verify_connector(connector, capabilities)
+    expected = verify_connector(connector)
     for name, expected_value in expected.items():
         if values.get(name) != expected_value:
             raise fail(f"row {name} must be {expected_value!r}, got {values.get(name)!r}")
@@ -152,7 +157,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--phase4-mode")
     parser.add_argument("--connector-profile")
     parser.add_argument("--evidence-scope")
-    parser.add_argument("--capabilities", type=Path)
     parser.add_argument("--runtime-root", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--run-id")
@@ -162,29 +166,77 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def emit_github_matrix(_: argparse.Namespace) -> str:
+    return json.dumps({"include": list(ROWS)}, separators=(",", ":"), sort_keys=True)
+
+
+def emit_connectors(_: argparse.Namespace) -> str:
+    return "\n".join(CONNECTORS)
+
+
+def verify_declared_row(args: argparse.Namespace) -> None:
+    verify_row({
+        "connector": args.connector or "",
+        "integration_mode": args.integration_mode or "",
+        "protocol": args.protocol or "",
+        "phase4_mode": args.phase4_mode or "",
+        "connector_profile": args.connector_profile or "",
+        "evidence_scope": args.evidence_scope or "",
+    })
+
+
+def verify_declared_connector(args: argparse.Namespace) -> None:
+    if not args.connector:
+        raise fail("--verify-connector requires --connector")
+    verify_connector(args.connector)
+
+
+def write_declared_receipt(args: argparse.Namespace) -> None:
+    required = (
+        args.runtime_root,
+        args.output,
+        args.connector,
+        args.run_id,
+        args.connector_commit,
+        args.framework_commit,
+        args.cleanup_status,
+    )
+    if any(value is None for value in required):
+        raise fail("--write-receipt requires runtime/output/identity/cleanup arguments")
+    write_receipt(
+        args.runtime_root,
+        args.output,
+        connector=args.connector,
+        run_id=args.run_id,
+        connector_commit=args.connector_commit,
+        framework_commit=args.framework_commit,
+        cleanup_status=args.cleanup_status,
+    )
+
+
+ACTION_HANDLERS: tuple[tuple[str, Callable[[argparse.Namespace], str | None]], ...] = (
+    ("emit_github_matrix", emit_github_matrix),
+    ("emit_connectors", emit_connectors),
+    ("verify_row", verify_declared_row),
+    ("verify_connector", verify_declared_connector),
+    ("write_receipt", write_declared_receipt),
+)
+
+
+def execute_action(args: argparse.Namespace) -> None:
+    for attribute, action in ACTION_HANDLERS:
+        if getattr(args, attribute):
+            output = action(args)
+            if output is not None:
+                print(output)
+            return
+    raise fail("an action is required")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        if args.emit_github_matrix:
-            print(json.dumps({"include": list(ROWS)}, separators=(",", ":"), sort_keys=True))
-            return 0
-        if args.emit_connectors:
-            print("\n".join(CONNECTORS))
-            return 0
-        if args.verify_row:
-            if not args.capabilities:
-                raise fail("--verify-row requires --capabilities")
-            verify_row({"connector": args.connector or "", "integration_mode": args.integration_mode or "", "protocol": args.protocol or "", "phase4_mode": args.phase4_mode or "", "connector_profile": args.connector_profile or "", "evidence_scope": args.evidence_scope or ""}, args.capabilities)
-            return 0
-        if args.verify_connector:
-            if not args.connector or not args.capabilities:
-                raise fail("--verify-connector requires --connector and --capabilities")
-            verify_connector(args.connector, args.capabilities)
-            return 0
-        required = (args.runtime_root, args.output, args.connector, args.run_id, args.connector_commit, args.framework_commit, args.cleanup_status)
-        if any(value is None for value in required):
-            raise fail("--write-receipt requires runtime/output/identity/cleanup arguments")
-        write_receipt(args.runtime_root, args.output, connector=args.connector, run_id=args.run_id, connector_commit=args.connector_commit, framework_commit=args.framework_commit, cleanup_status=args.cleanup_status)
+        execute_action(args)
         return 0
     except ValueError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)

@@ -94,8 +94,7 @@ if [ -n "$FIVE_CONNECTOR_PROFILE" ]; then
     "$PYTHON" "$FIVE_CONNECTOR_PROFILE_RESOLVER" \
         --profile "$FIVE_CONNECTOR_PROFILE" \
         --verify-connector \
-        --connector "$connector" \
-        --capabilities "$CAPABILITIES_FILE"
+        --connector "$connector"
     if [ "$NO_CRS_ARTIFACT_PROFILE" != generic ]; then
         echo "FAIL: the closed five-connector profile requires NO_CRS_ARTIFACT_PROFILE=generic" >&2
         exit 1
@@ -497,6 +496,10 @@ fi
 case "$evidence_stage" in
     minimal_runtime_smoke) executed_target=runtime-smoke-$connector ;;
     no_crs_baseline) executed_target=no-crs-baseline-$connector ;;
+    *)
+        echo "FAIL: unsupported evidence stage: $evidence_stage" >&2
+        exit 2
+        ;;
 esac
 if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     executed_target=$FULL_LIFECYCLE_EXECUTED_TARGET

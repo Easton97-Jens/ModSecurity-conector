@@ -43,6 +43,8 @@ PROTECTED_NGINX_BROKER_REUSABLE_WORKFLOW = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
     "c2836f74510b9f72bae466d8b7d92a3f9f38c007"
 )
+REUSABLE_FIVE_CONNECTORS_PROFILE_WORKFLOW = "reusable-five-connectors-profile.yml"
+JOB_LEVEL_REUSABLE_WORKFLOW_INVOCATION = "job-level reusable workflow invocation"
 
 
 @dataclass(frozen=True, order=True)
@@ -64,9 +66,9 @@ class JobIdentity:
 # prospective patch before the canonical .python-version file is changed.
 EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
     {
-        JobIdentity("reusable-five-connectors-profile.yml", "aggregate"),
-        JobIdentity("reusable-five-connectors-profile.yml", "no-crs"),
-        JobIdentity("reusable-five-connectors-profile.yml", "resolve-profile"),
+        JobIdentity(REUSABLE_FIVE_CONNECTORS_PROFILE_WORKFLOW, "aggregate"),
+        JobIdentity(REUSABLE_FIVE_CONNECTORS_PROFILE_WORKFLOW, "no-crs"),
+        JobIdentity(REUSABLE_FIVE_CONNECTORS_PROFILE_WORKFLOW, "resolve-profile"),
         JobIdentity("check-actions-versions.yml", "check-actions-versions"),
         JobIdentity("ci-security-secrets.yml", "advisory-full-history"),
         JobIdentity("ci-security-secrets.yml", "pull-request-range"),
@@ -1473,7 +1475,7 @@ def python_job_reason(job: Job) -> str | None:
     if syntax_error is not None:
         return f"unsupported/malformed shell syntax: {syntax_error[1]}"
     if job.scalar("uses") is not None:
-        return "job-level reusable workflow invocation"
+        return JOB_LEVEL_REUSABLE_WORKFLOW_INVOCATION
     if has_python_matrix_selector(job):
         return "Python-related matrix selector"
     return None
@@ -1842,7 +1844,7 @@ def immutable_reusable_job_violations(
                 f"{identity.display()}"
             )
             continue
-        if python_job_reason(job) != "job-level reusable workflow invocation":
+        if python_job_reason(job) != JOB_LEVEL_REUSABLE_WORKFLOW_INVOCATION:
             violations.append(
                 f"immutable reusable Python job has an unexpected execution shape: "
                 f"{identity.display()}"
@@ -1873,7 +1875,7 @@ def local_reusable_caller_violations(
                 f"{identity.display()}"
             )
             continue
-        if python_job_reason(job) != "job-level reusable workflow invocation":
+        if python_job_reason(job) != JOB_LEVEL_REUSABLE_WORKFLOW_INVOCATION:
             violations.append(
                 f"local reusable Python caller has an unexpected execution shape: "
                 f"{identity.display()}"

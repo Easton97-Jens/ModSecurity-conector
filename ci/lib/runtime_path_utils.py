@@ -669,56 +669,23 @@ def write_runtime_artifact_text_atomic(
     return target
 
 
-def move_runtime_artifact_atomic(
-    source_root: Path,
-    source: Path | str,
-    destination_root: Path,
-    destination: Path | str,
+def _copy_runtime_artifact_to_destination(
+    source_descriptor: int,
+    destination_parent_descriptor: int,
+    destination_target: Path,
     label: str,
-) -> Path:
-    """Move one private regular artifact between verified roots without link traversal.
-
-    The destination is written through a fresh no-follow temporary file and
-    atomically installed before the source is removed.  The source descriptor
-    pins the bytes being copied; the final unlink additionally requires the
-    original inode so a concurrent replacement cannot be removed by mistake.
-    """
-
-    source_target = runtime_artifact_path(
-        source_root, source, f"{label} source", must_exist=True
-    )
-    destination_target = runtime_artifact_path(
-        destination_root, destination, f"{label} destination"
-    )
-    if source_target == destination_target:
-        raise ValueError(f"{label} source and destination must differ")
-
-    no_follow = getattr(os, "O_NOFOLLOW", None)
-    if no_follow is None:
-        raise ValueError("safe runtime artifact moves require O_NOFOLLOW")
-
-    source_parent_descriptor = open_runtime_artifact_parent(source_target)
-    destination_parent_descriptor = open_runtime_artifact_parent(destination_target)
-    source_descriptor = -1
-    destination_descriptor = -1
+    no_follow: int,
+) -> None:
+    """Copy a pinned source descriptor into a private, atomically installed file."""
     temporary_name: str | None = None
     temporary_created = False
+    destination_descriptor = -1
     try:
-        source_descriptor = os.open(
-            source_target.name,
-            os.O_RDONLY | no_follow,
-            dir_fd=source_parent_descriptor,
-        )
-        require_regular_runtime_artifact(source_descriptor, f"{label} source")
-        source_details = os.fstat(source_descriptor)
-
         _existing_regular_runtime_artifact(
             destination_parent_descriptor, destination_target, f"{label} destination"
         )
         for _ in range(100):
-            temporary_name = (
-                f".{destination_target.name}.{secrets.token_hex(16)}.tmp"
-            )
+            temporary_name = f".{destination_target.name}.{secrets.token_hex(16)}.tmp"
             try:
                 destination_descriptor = os.open(
                     temporary_name,
@@ -763,22 +730,7 @@ def move_runtime_artifact_atomic(
         )
         temporary_name = None
         temporary_created = False
-
-        current_source = os.stat(
-            source_target.name,
-            dir_fd=source_parent_descriptor,
-            follow_symlinks=False,
-        )
-        if (
-            not stat.S_ISREG(current_source.st_mode)
-            or current_source.st_dev != source_details.st_dev
-            or current_source.st_ino != source_details.st_ino
-        ):
-            raise ValueError(f"{label} source changed while being moved")
-        os.unlink(source_target.name, dir_fd=source_parent_descriptor)
     finally:
-        if source_descriptor >= 0:
-            os.close(source_descriptor)
         if destination_descriptor >= 0:
             os.close(destination_descriptor)
         if temporary_created and temporary_name is not None:
@@ -786,6 +738,82 @@ def move_runtime_artifact_atomic(
                 os.unlink(temporary_name, dir_fd=destination_parent_descriptor)
             except FileNotFoundError:
                 pass
+
+
+def _unlink_unchanged_runtime_artifact(
+    source_parent_descriptor: int,
+    source_target: Path,
+    source_details: os.stat_result,
+    label: str,
+) -> None:
+    """Remove the original name only when it still references the pinned source."""
+    current_source = os.stat(
+        source_target.name,
+        dir_fd=source_parent_descriptor,
+        follow_symlinks=False,
+    )
+    if (
+        not stat.S_ISREG(current_source.st_mode)
+        or current_source.st_dev != source_details.st_dev
+        or current_source.st_ino != source_details.st_ino
+    ):
+        raise ValueError(f"{label} source changed while being moved")
+    os.unlink(source_target.name, dir_fd=source_parent_descriptor)
+
+
+def move_runtime_artifact_atomic(
+    source_root: Path,
+    source: Path | str,
+    destination_root: Path,
+    destination: Path | str,
+    label: str,
+) -> Path:
+    """Move one private regular artifact between verified roots without link traversal.
+
+    The destination is written through a fresh no-follow temporary file and
+    atomically installed before the source is removed.  The source descriptor
+    pins the bytes being copied; the final unlink additionally requires the
+    original inode so a concurrent replacement cannot be removed by mistake.
+    """
+
+    source_target = runtime_artifact_path(
+        source_root, source, f"{label} source", must_exist=True
+    )
+    destination_target = runtime_artifact_path(
+        destination_root, destination, f"{label} destination"
+    )
+    if source_target == destination_target:
+        raise ValueError(f"{label} source and destination must differ")
+
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise ValueError("safe runtime artifact moves require O_NOFOLLOW")
+
+    source_parent_descriptor = open_runtime_artifact_parent(source_target)
+    destination_parent_descriptor = open_runtime_artifact_parent(destination_target)
+    source_descriptor = -1
+    try:
+        source_descriptor = os.open(
+            source_target.name,
+            os.O_RDONLY | no_follow,
+            dir_fd=source_parent_descriptor,
+        )
+        require_regular_runtime_artifact(source_descriptor, f"{label} source")
+        source_details = os.fstat(source_descriptor)
+
+        _copy_runtime_artifact_to_destination(
+            source_descriptor,
+            destination_parent_descriptor,
+            destination_target,
+            label,
+            no_follow,
+        )
+        _unlink_unchanged_runtime_artifact(
+            source_parent_descriptor, source_target, source_details, label
+        )
+    finally:
+        if source_descriptor >= 0:
+            os.close(source_descriptor)
         os.close(destination_parent_descriptor)
         os.close(source_parent_descriptor)
     return destination_target

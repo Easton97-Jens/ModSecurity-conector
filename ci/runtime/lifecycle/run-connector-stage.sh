@@ -39,20 +39,14 @@ esac
 # before any host-specific dispatch can start.
 if [ -n "$FIVE_CONNECTOR_PROFILE" ]; then
     FIVE_CONNECTOR_PROFILE_RESOLVER=$CONNECTOR_ROOT/ci/runtime/lifecycle/five-connector-no-crs-profile.py
-    CAPABILITIES_FILE=$CONNECTOR_ROOT/connectors/$connector/capabilities.json
     [ -f "$FIVE_CONNECTOR_PROFILE_RESOLVER" ] || {
         echo "FAIL: five-connector profile resolver is missing: $FIVE_CONNECTOR_PROFILE_RESOLVER" >&2
-        exit 1
-    }
-    [ -f "$CAPABILITIES_FILE" ] || {
-        echo "FAIL: connector capability manifest is missing: $CAPABILITIES_FILE" >&2
         exit 1
     }
     "$PYTHON" "$FIVE_CONNECTOR_PROFILE_RESOLVER" \
         --profile "$FIVE_CONNECTOR_PROFILE" \
         --verify-connector \
-        --connector "$connector" \
-        --capabilities "$CAPABILITIES_FILE"
+        --connector "$connector"
 fi
 
 expected_full_lifecycle_profile() {

@@ -100,8 +100,7 @@ jobs:
             --protocol "$CI_PROTOCOL" \
             --phase4-mode "$CI_PHASE4_MODE" \
             --evidence-scope "$CI_EVIDENCE_SCOPE" \
-            --connector-profile "$CI_CONNECTOR_PROFILE" \
-            --capabilities "connectors/$CONNECTOR/capabilities.json"
+            --connector-profile "$CI_CONNECTOR_PROFILE"
 
       - name: Declare selected profile and evidence scope
         env:

@@ -119,10 +119,17 @@ def aggregate(evidence_root: Path, *, run_id: str, connector_commit: str,
             "status": "PASS", "results": rows}
 
 
+def rendered_status(summary: dict[str, Any], german: bool) -> str:
+    passed = summary.get("status") == "PASS"
+    if german:
+        return "BESTANDEN" if passed else "FEHLER"
+    return str(summary.get("status", "FAIL"))
+
+
 def render(summary: dict[str, Any], german: bool = False) -> str:
     title = "Fünf-Connector-No-CRS-Ergebnis" if german else "Five-connector No-CRS result"
     passed = summary.get("status") == "PASS"
-    status = "BESTANDEN" if german and passed else ("FEHLER" if german else summary.get("status", "FAIL"))
+    status = rendered_status(summary, german)
     lines = [f"# {title}", "", f"Status: **{status}**", "", "| Connector | Status |", "| --- | --- |"]
     lines.extend(f"| {row['connector']} | {row['status']} |" for row in summary["results"])
     errors = summary.get("errors")

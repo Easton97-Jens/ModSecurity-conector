@@ -318,6 +318,30 @@ class RuntimeArtifactUtilsTest(unittest.TestCase):
             self.assertEqual(destination.read_text(encoding="utf-8"), "original\n")
             self.assertEqual(list(destination.parent.glob(".result.json.*.tmp")), [])
 
+    def test_atomic_move_completes_short_writes_before_replacing_destination(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-artifact-move-short-write-") as temporary:
+            parent = Path(temporary)
+            source_root = self.private_root(str(parent / "source-parent"))
+            destination_root = self.private_root(str(parent / "destination-parent"))
+            source = source_root / "producer" / "result.json"
+            destination = destination_root / "raw" / "result.json"
+            source.parent.mkdir()
+            contents = "one short write is not enough\n"
+            source.write_text(contents, encoding="utf-8")
+            original_write = RUNTIME_PATH_UTILS.os.write
+
+            def short_write(descriptor: int, data: bytes) -> int:
+                return original_write(descriptor, data[:1])
+
+            with mock.patch.object(RUNTIME_PATH_UTILS.os, "write", side_effect=short_write):
+                move_runtime_artifact_atomic(
+                    source_root, source, destination_root, destination, "result"
+                )
+
+            self.assertFalse(source.exists())
+            self.assertEqual(destination.read_text(encoding="utf-8"), contents)
+            self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
+
     def test_connector_facades_preserve_serialization_and_private_modes(self) -> None:
         haproxy = load_helper(
             "haproxy_runtime_artifacts_contract",

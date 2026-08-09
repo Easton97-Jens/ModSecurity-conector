@@ -18,7 +18,8 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         cls.caller = CALLER.read_text(encoding="utf-8")
         cls.reusable = REUSABLE.read_text(encoding="utf-8")
         spec = importlib.util.spec_from_file_location("five_connector_profile", PROFILE_RESOLVER)
-        assert spec and spec.loader
+        assert spec is not None
+        assert spec.loader is not None
         cls.profile = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.profile)
 
