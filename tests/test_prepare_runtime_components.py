@@ -15,6 +15,10 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 LEGACY_FRAMEWORK_HAPROXY_CACHE_SHA = "784977615acfc55567e37b863309abc4a38ac877"
 PINNED_EXPAT_COMMIT = "c61098da494eea1cbd091118118dcee417faacea"
+TEST_HAPROXY_BASELINE_VERSION = "3.2.9000"
+TEST_HAPROXY_TARGET_VERSION = "3.2.9001"
+TEST_HAPROXY_BASELINE_SHA256 = "a" * 64
+TEST_HAPROXY_TARGET_SHA256 = "b" * 64
 sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
     "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
@@ -1114,6 +1118,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         *,
         managed: bool,
         separate_build_root: bool = False,
+        haproxy_version: str = TEST_HAPROXY_BASELINE_VERSION,
+        haproxy_sha256: str = TEST_HAPROXY_BASELINE_SHA256,
     ) -> dict[str, str]:
         cache_root = root / "cache-v2" / "shared"
         cache_root.mkdir(parents=True)
@@ -1135,12 +1141,13 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         binary.parent.mkdir(parents=True)
         binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         binary.chmod(0o755)
+        haproxy_source_url = f"https://example.invalid/haproxy-{haproxy_version}.tar.gz"
         (runtime_dir / "haproxy.provenance").write_text(
             "\n".join(
                 (
-                    "haproxy_version=3.2.21",
-                    "haproxy_source_url=https://www.haproxy.org/download/3.2/src/haproxy-3.2.21.tar.gz",
-                    "haproxy_sha256=0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339",
+                    f"haproxy_version={haproxy_version}",
+                    f"haproxy_source_url={haproxy_source_url}",
+                    f"haproxy_sha256={haproxy_sha256}",
                     "",
                 )
             ),
@@ -1211,7 +1218,11 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             "LOG_DIR": str(build_root / "logs" / "haproxy-prepare"),
             "HAPROXY_SOURCE_ROOT": str(cache_root / "sources" / "haproxy"),
             "HAPROXY_DOWNLOAD_DIR": str(cache_root / "archives" / "haproxy"),
-            "HAPROXY_SOURCE_DIR": str(cache_root / "sources" / "haproxy" / "haproxy-3.2.21"),
+            "HAPROXY_VERSION": haproxy_version,
+            "HAPROXY_SOURCE_URL": haproxy_source_url,
+            "HAPROXY_SHA256_URL": f"{haproxy_source_url}.sha256",
+            "HAPROXY_SHA256": haproxy_sha256,
+            "HAPROXY_SOURCE_DIR": str(cache_root / "sources" / "haproxy" / f"haproxy-{haproxy_version}"),
             "HAPROXY_RUNTIME_BUILD_DIR": str(runtime_build),
             "HAPROXY_RUNTIME_BUILD_WORKTREE": str(runtime_worktree),
             "HAPROXY_RUNTIME_DIR": str(runtime_dir),
@@ -1252,6 +1263,24 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             env = self.managed_haproxy_cache_environment(Path(temporary), managed=True)
             result = self.run_haproxy_prepare_with_shared_cache(env)
             self.assertFalse((Path(env["HAPROXY_RUNTIME_BUILD_WORKTREE"]) / "Makefile").exists())
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("ready existing provenance-verified binary", result.stdout)
+
+    def test_haproxy_prepare_reuses_a_synthetic_future_provenance_tuple(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-future-pin-") as temporary:
+            env = self.managed_haproxy_cache_environment(
+                Path(temporary),
+                managed=True,
+                haproxy_version=TEST_HAPROXY_TARGET_VERSION,
+                haproxy_sha256=TEST_HAPROXY_TARGET_SHA256,
+            )
+            result = self.run_haproxy_prepare_with_shared_cache(env)
+            self.assertEqual(env["HAPROXY_VERSION"], TEST_HAPROXY_TARGET_VERSION)
+            self.assertEqual(env["HAPROXY_SHA256"], TEST_HAPROXY_TARGET_SHA256)
+            self.assertEqual(
+                Path(env["HAPROXY_SOURCE_DIR"]).name,
+                f"haproxy-{TEST_HAPROXY_TARGET_VERSION}",
+            )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("ready existing provenance-verified binary", result.stdout)
 
