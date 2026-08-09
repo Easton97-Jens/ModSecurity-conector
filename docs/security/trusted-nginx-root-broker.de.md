@@ -182,6 +182,24 @@ Regelinclude, Ref, Commit, Bundle-Digest, ModSecurity-Direktive, Command noch
 Umgebungswert wählen. Ein Runtime-Environment-Snapshot wird nur als
 deklarativer Text geparst; er wird niemals als Shellcode gesourct.
 
+## Geschützter Runtime-Snapshot-Vertrag
+
+Der Broker akzeptiert ausschließlich einen privaten Record mit fester Provenance
+unter `build/runtime-component-reports/trusted-nginx-broker-provenance.json`
+und seinen passenden privaten Snapshot. Der Snapshot exportiert exakt diese
+drei Werte und keine weiteren:
+
+- `NGINX_BINARY`
+- `NGINX_MODULE`
+- `MODSECURITY_SHARED_PREFIX`
+
+Vor der Admission validiert der Broker die Pfade, Digests, Metadaten sowie die
+Parent- und Framework-Identitäten des Records. Ein generischer Runtime-Snapshot
+oder ein direkter Harness-Environment-Override wird an der Broker-Grenze nicht
+akzeptiert. Der Phase-B-Source dokumentiert diesen geschützten Vertrag, ist
+aber erst dann ein aktiver Caller-Pin, wenn eine zukünftige Phase-C-Änderung
+ihn ausdrücklich dazu macht.
+
 ## Geschützte Artefakte und CRS-Bundle
 
 Der Workflow baut das geprüfte NGINX-Binary, das ModSecurity-NGINX-Modul und

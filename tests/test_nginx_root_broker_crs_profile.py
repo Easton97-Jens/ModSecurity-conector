@@ -184,6 +184,21 @@ class TrustedNginxRootBrokerCrsProfileTest(unittest.TestCase):
             self.write_bundle(Path(with_crs_arguments.trusted_build_root))
             candidate = json.loads(BROKER.prepare_candidate(with_crs_arguments).read_text(encoding="utf-8"))
             self.assertEqual(candidate["policy_profile"], BROKER.POLICY_PROFILE_OWASP_CRS)
+            self.assertEqual(
+                {
+                    name: record["sha256"]
+                    for name, record in no_crs_candidate["artifacts"].items()
+                },
+                {
+                    name: record["sha256"]
+                    for name, record in candidate["artifacts"].items()
+                },
+            )
+            self.assertNotEqual(
+                no_crs_candidate["artifacts"]["binary"]["path"],
+                candidate["artifacts"]["binary"]["path"],
+            )
+            self.assertNotEqual(no_crs_candidate["staging_root"], candidate["staging_root"])
             self.assertEqual(candidate["crs"]["crs_commit"], BROKER.CRS_APPROVED_COMMIT)
             self.assertEqual(candidate["crs"]["expected_crs_evidence"]["rule_id"], BROKER.CRS_EXPECTED_RULE_ID)
             staged = Path(candidate["staging_root"]) / BROKER.CRS_BUNDLE_DIRECTORY_NAME

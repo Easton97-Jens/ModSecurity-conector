@@ -151,6 +151,39 @@ def python_version_materialization_errors(workflow: str) -> list[str]:
     return errors
 
 
+def runtime_component_snapshot_contract_errors(workflow: str) -> list[str]:
+    """Return static violations for the fixed protected build snapshot selector."""
+
+    build_step_name = "Build only trusted protected-source artifacts without root"
+    required_selection = (
+        "          RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: protected-nginx-broker"
+    )
+    if f"      - name: {build_step_name}\n" not in workflow:
+        return ["missing protected build step"]
+
+    errors: list[str] = []
+    build_step = step_block(workflow, build_step_name)
+    if workflow.count(required_selection) != 1:
+        errors.append("snapshot selector is not unique and fixed")
+    if required_selection not in build_step:
+        errors.append("snapshot selector is outside the trusted build step")
+    if "\n        if:" in build_step:
+        errors.append("trusted build step can conditionally select a snapshot contract")
+    if "continue-on-error:" in build_step:
+        errors.append("trusted build step can continue after snapshot preparation failure")
+    if "RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: ${{" in workflow:
+        errors.append("snapshot selector accepts a mutable expression")
+    if "inputs.runtime_component_snapshot_contract" in workflow:
+        errors.append("snapshot selector accepts a caller input")
+    if required_selection in workflow:
+        selection = workflow.index(required_selection)
+        fetch_dependencies = workflow.index("make fetch-deps")
+        prepare_from_snapshot = workflow.index("prepare-from-snapshot")
+        if not selection < fetch_dependencies < prepare_from_snapshot:
+            errors.append("snapshot selector does not precede dependency and candidate preparation")
+    return errors
+
+
 class TrustedNginxRootBrokerWorkflowTest(unittest.TestCase):
     def setUp(self) -> None:
         self.workflow = WORKFLOW.read_text(encoding="utf-8")
@@ -434,6 +467,38 @@ class TrustedNginxRootBrokerWorkflowTest(unittest.TestCase):
             self.assertNotIn(forbidden, self.workflow)
         for forbidden in ("--broker-parent", "--staging-root", "--runtime-snapshot"):
             self.assertNotIn(forbidden, self.workflow)
+
+    def test_runtime_component_snapshot_contract_is_fixed_before_build_and_candidate_use(self) -> None:
+        self.assertEqual(runtime_component_snapshot_contract_errors(self.workflow), [])
+        required_selection = (
+            "          RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: protected-nginx-broker"
+        )
+        build_step_header = (
+            "      - name: Build only trusted protected-source artifacts without root\n"
+            "        working-directory:"
+        )
+        mutations = {
+            "selector omitted": (required_selection, ""),
+            "selector accepts caller expression": (
+                required_selection,
+                "          RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: ${{ inputs.runtime_component_snapshot_contract }}",
+            ),
+            "selector duplicated outside the trusted build": (
+                required_selection,
+                "\n".join((required_selection, required_selection)),
+            ),
+            "trusted build conditionally selects the contract": (
+                build_step_header,
+                "      - name: Build only trusted protected-source artifacts without root\n"
+                "        if: ${{ github.ref == 'refs/heads/master' }}\n"
+                "        working-directory:",
+            ),
+        }
+        for name, (original, replacement) in mutations.items():
+            with self.subTest(name=name):
+                self.assertIn(original, self.workflow)
+                mutated = self.workflow.replace(original, replacement, 1)
+                self.assertNotEqual(runtime_component_snapshot_contract_errors(mutated), [])
 
     def test_bounded_evidence_is_staged_before_descriptor_cleanup_and_records_its_outcome(self) -> None:
         self.assertLess(

@@ -167,6 +167,23 @@ commit, bundle digest, ModSecurity directive, command, or environment value.
 A runtime environment snapshot is parsed as declarative text only; it is never
 sourced as shell code.
 
+## Protected runtime snapshot contract
+
+The broker admits only a private fixed-provenance record at
+`build/runtime-component-reports/trusted-nginx-broker-provenance.json` and its
+matching private snapshot. The snapshot contains exactly these three values,
+and no others:
+
+- `NGINX_BINARY`
+- `NGINX_MODULE`
+- `MODSECURITY_SHARED_PREFIX`
+
+Before admission, the broker validates the record's paths, digests, metadata,
+and Parent and Framework identities. A generic runtime snapshot, or a direct
+harness environment override, is not accepted at the broker boundary. The
+Phase B source documents this protected contract, but is not an active caller
+pin until a future Phase C change explicitly makes it one.
+
 ## Protected artifacts and CRS bundle
 
 The workflow rebuilds the reviewed NGINX binary, ModSecurity NGINX module, and

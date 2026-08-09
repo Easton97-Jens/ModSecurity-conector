@@ -810,6 +810,23 @@ jobs:
         self.assertIn("verify_broker_source ci/runtime/broker/nginx_root_broker.py", text)
         self.assertIn("prepare-fresh-crs-source.sh", text)
         self.assertIn("prepare-crs-bundle", text)
+        self.assertEqual(
+            text.count(
+                "          RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: protected-nginx-broker"
+            ),
+            1,
+        )
+        self.assertLess(
+            text.index("RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: protected-nginx-broker"),
+            text.index("make fetch-deps"),
+        )
+        self.assertLess(
+            text.index("make fetch-deps"),
+            text.index("prepare-from-snapshot"),
+        )
+        self.assertNotIn(
+            "RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: ${{", text
+        )
         self.assertIn("verify-runtime-profile", text)
         self.assertIn("cleanup.json", text)
         self.assertIn("sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action", text)
