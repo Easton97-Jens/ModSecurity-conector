@@ -11,6 +11,8 @@ from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "update-github-actions-versions.py"
+if str(SCRIPT.parent) not in sys.path:
+    sys.path.insert(0, str(SCRIPT.parent))
 
 
 def load_module():
@@ -248,6 +250,17 @@ class UpdateGitHubActionsVersionsTest(unittest.TestCase):
         parsed = updater.split_action_ref("github/codeql-action/init@v3")
         self.assertEqual(parsed, ("github/codeql-action/init", "v3"))
         self.assertEqual(updater.action_repo_slug(parsed[0]), "github/codeql-action")
+
+    def test_action_repository_slug_rejects_path_and_url_confusion(self):
+        for action in (
+            "owner/../action",
+            "../owner/action",
+            "owner/%2e%2e/action",
+            "owner:443/action",
+            "owner@attacker/action",
+        ):
+            with self.subTest(action=action):
+                self.assertIsNone(updater.action_repo_slug(action))
 
     def test_local_action_is_skipped(self):
         row = self._single_row("  - uses: ./foo\n")

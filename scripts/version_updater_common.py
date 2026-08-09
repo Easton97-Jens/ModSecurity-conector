@@ -75,10 +75,10 @@ class ReleaseMetadataSource:
 
 
 class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Reject redirects instead of allowing urllib to follow them."""
+    """Reject redirects without forwarding headers to another origin."""
 
     def redirect_request(self, request, fp, code, msg, headers, newurl):
-        raise MetadataError("redirects are not allowed for release metadata")
+        return None
 
 
 def validate_release_endpoint(url: object, endpoint: ReleaseEndpoint) -> None:

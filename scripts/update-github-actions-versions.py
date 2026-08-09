@@ -15,9 +15,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from version_updater_common import NoRedirectHandler
+
 
 SEMVER_RE = re.compile(r"^v(?P<major>\d+)(?:\.(?P<minor>\d+))?(?:\.(?P<patch>\d+))?$")
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40,64}$")
+ACTION_COMPONENT_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 MODULE_PATH = Path("modules/ModSecurity-test-Framework")
 REPORT_DEFAULT = "actions-update-report.md"
@@ -35,13 +38,6 @@ class RateLimitError(RuntimeError):
 
 class ActionLookupError(RuntimeError):
     """Action metadata could not be resolved."""
-
-
-class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Prevent API redirects from forwarding the optional bearer token."""
-
-    def redirect_request(self, request, fp, code, msg, headers, newurl):
-        return None
 
 
 def normalized_api_url(value: str) -> str:
@@ -152,7 +148,13 @@ def compare_semver_refs(left: str, right: str) -> int:
 
 def action_repo_slug(action: str) -> str | None:
     parts = action.split("/")
-    if len(parts) < 2 or not parts[0] or not parts[1]:
+    if (
+        len(parts) < 2
+        or not ACTION_COMPONENT_RE.fullmatch(parts[0])
+        or not ACTION_COMPONENT_RE.fullmatch(parts[1])
+        or parts[0] in {".", ".."}
+        or parts[1] in {".", ".."}
+    ):
         return None
     return f"{parts[0]}/{parts[1]}"
 
