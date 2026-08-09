@@ -11,24 +11,86 @@ generated environment files never run as host root.
 
 ## Immutable invocation boundary
 
-The caller uses the reusable workflow at the exact 40-character merge SHA
-already reachable from protected Parent `master`:
+The existing caller uses the reusable workflow at the exact 40-character merge
+SHA already reachable from protected Parent `master`:
 
 ```yaml
 uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@e06254ea9622d214a9030b9ba786756560ace417
 ```
 
-The broker accepts only same-repository `workflow_dispatch` or scheduled
-contexts, has read-only `contents` permission, checks the called workflow ref,
-checks out the exact broker SHA without persisted credentials, and verifies
-that SHA is an ancestor of current `master`. Immediately before every
-privileged action it compares the helper's Git blob with the blob at that
-protected SHA and invokes Python in isolated mode.
+This pin remains `e06254ea9622d214a9030b9ba786756560ace417` throughout the
+broker-repair PR. A separate follow-up caller-repin PR must replace both
+caller `uses` values and both `protected_broker_sha` values with the resulting
+protected broker merge SHA; neither a branch nor `master` is an acceptable
+substitute.
+
+GitHub documents that the `github` context in a called reusable workflow is
+associated with its caller, including `github.workflow_ref`. The broker
+therefore treats that value exclusively as the exact caller identity
+`Easton97-Jens/ModSecurity-conector/.github/workflows/run-protected-nginx-root-broker.yml@refs/heads/master`,
+not as the identity of `.github/workflows/nginx-root-broker.yml`. The
+immutable `uses` SHA selects the called workflow; GitHub recommends a commit
+SHA as the safest reference. [Reusable-workflow reference](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations)
+and the [contexts reference](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts)
+define those semantics.
+
+Before the broker checkout, a fixed shell gate accepts only the exact
+same-repository `workflow_dispatch` caller context: canonical repository,
+non-fork, `refs/heads/master`, default branch `master`, exact caller workflow
+reference, and canonical `github.sha`. If `github.workflow_sha` is available,
+it must also be canonical SHA-40 and equal `github.sha`; otherwise the caller
+commit is bound through `github.sha` and its Git object without fabricating a
+positive check. The broker separately validates canonical
+`protected_broker_sha`, then checks out exactly that broker SHA without
+persisted credentials and with full history. That checkout is used only to
+prove protected-`master` ancestry, interrogate the caller Git object, and bind
+the broker source; caller-YAML validation completes before any manifest
+download, build, candidate generation, or root action. The broker proves the
+caller commit exists, is on protected `master`, and descends from the broker
+commit.
+
+The caller workflow file is never checked out, sourced, or executed by the
+broker. The broker reads only its fixed path as a bounded regular `100644`
+Git blob from the caller commit, using `git cat-file`, then parses a deliberately
+restricted declarative YAML subset. It rejects duplicate keys, anchors,
+aliases, tags, merge keys, flow syntax, unsafe encodings, malformed nesting,
+and unexpected job schemas. Exactly `run-no-crs-broker` and
+`run-with-crs-broker` may call the broker; both must use the same literal
+SHA-40 equal to `protected_broker_sha`, exact variant, exact inputs, and only
+`contents: read`, with no secrets or additional reusable job.
+
+The broker binds the checked-out Framework HEAD and input to the `160000`
+Framework gitlink recorded by the broker commit and requires recursive clean
+submodules. It verifies both `.github/workflows/nginx-root-broker.yml` and
+`ci/runtime/broker/nginx_root_broker.py` as regular non-symlink files whose
+Git blobs match the broker commit before caller-YAML validation, after setup
+or build activity, before candidate generation, and immediately before every
+root action. Python remains isolated for root actions.
+
+Neither workflow grants `id-token: write`; the observed token boundary is
+limited to `Contents: read` and `Metadata: read`. This Git-object and
+declarative-YAML contract removes any need for an OIDC alternative.
 
 No `@master`, PR-branch reference, local `uses: ./`, `pull_request_target`,
 fork context, broad `sudo`, `sudo -E`, `sudo sh -c`, `sudo bash -c`, shell
 callback, command string, or caller-provided executable path is part of this
 contract.
+
+### Observed fail-closed mismatch
+
+[Run `31310183097`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31310183097)
+was a `workflow_dispatch` from `master` at caller SHA
+`128a2f63f182758b1c1a1d4746f5e56f609d245d`. Its manifest preparation passed,
+but both broker profiles failed at the former binding step and evidence
+readback was skipped. The old check expected
+`Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@e06254ea9622d214a9030b9ba786756560ace417`,
+while GitHub supplied the actual caller reference
+`Easton97-Jens/ModSecurity-conector/.github/workflows/run-protected-nginx-root-broker.yml@refs/heads/master`.
+The failure was correctly fail-closed but compared identities from different
+layers. It occurred before protected broker checkout, build, CRS creation,
+`sudo`, root admission, NGINX start, artifact projection, and cleanup. It is
+caller-context evidence only; it is not root, NGINX, CRS, worker, artifact, or
+cleanup PASS evidence.
 
 ## Protected resulting-master caller
 

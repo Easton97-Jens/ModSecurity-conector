@@ -439,6 +439,12 @@ def protected_nginx_broker_caller_errors(text: str) -> list[str]:
     prepare = jobs.get("prepare-manifests", "")
     if "create-manifests" not in prepare or '--target-sha "$TARGET_PARENT_SHA"' not in prepare:
         errors.append("caller manifest preparation")
+    if (
+        "ref: ${{ github.sha }}" not in prepare
+        or 'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"' not in prepare
+        or "persist-credentials: false" not in prepare
+    ):
+        errors.append("caller checkout identity")
     if "--output-root" in prepare:
         errors.append("caller manifest path must be derived from the trusted runner temporary directory")
     if prepare.count("caller-manifest.json") != 2:
@@ -760,10 +766,23 @@ jobs:
         self.assertIn("workflow_call:", text)
         self.assertNotIn("pull_request:", text)
         self.assertNotIn("pull_request_target:", text)
-        self.assertIn("github.workflow_ref", text)
+        self.assertIn("ACTUAL_CALLER_WORKFLOW_REF: ${{ github.workflow_ref }}", text)
+        self.assertIn(
+            "EXPECTED_CALLER_WORKFLOW_REF: Easton97-Jens/ModSecurity-conector/.github/workflows/run-protected-nginx-root-broker.yml@refs/heads/master",
+            text,
+        )
+        self.assertNotIn("EXPECTED_WORKFLOW_REF:", text)
+        self.assertIn("CALLER_SHA: ${{ github.sha }}", text)
+        self.assertIn("CALLER_WORKFLOW_SHA: ${{ github.workflow_sha }}", text)
+        self.assertIn('git cat-file -e "$CALLER_SHA^{commit}"', text)
+        self.assertIn('git merge-base --is-ancestor "$CALLER_SHA" FETCH_HEAD', text)
+        self.assertIn("validate-caller-workflow", text)
         self.assertIn('git merge-base --is-ancestor "$BROKER_SHA" FETCH_HEAD', text)
-        self.assertIn('git rev-parse "$BROKER_SHA:ci/runtime/broker/nginx_root_broker.py"', text)
-        self.assertIn("git hash-object ci/runtime/broker/nginx_root_broker.py", text)
+        self.assertIn('git ls-tree "$BROKER_SHA" -- modules/ModSecurity-test-Framework', text)
+        self.assertIn("verify_broker_source .github/workflows/nginx-root-broker.yml", text)
+        self.assertIn('git rev-parse "$BROKER_SHA:$source_path"', text)
+        self.assertIn('git hash-object "$source_path"', text)
+        self.assertIn("verify_broker_source ci/runtime/broker/nginx_root_broker.py", text)
         self.assertIn("prepare-fresh-crs-source.sh", text)
         self.assertIn("prepare-crs-bundle", text)
         self.assertIn("verify-runtime-profile", text)
@@ -775,6 +794,7 @@ jobs:
             "sudo sh -c",
             "sudo bash -c",
             "shell: bash -c",
+            "id-token: write",
             "--broker-parent",
             "--staging-root",
             "--runtime-snapshot",
@@ -820,7 +840,7 @@ jobs:
             ),
             "mutable Framework SHA": (
                 "framework_sha: c71e15db7b7517b237add9fa09b3493e7bc93627",
-                "framework_sha: 0" * 40,
+                "framework_sha: " + "0" * 40,
             ),
             "duplicate broker input": (
                 "      framework_sha: c71e15db7b7517b237add9fa09b3493e7bc93627",
@@ -834,6 +854,18 @@ jobs:
             "missing master guard": (
                 "github.ref == 'refs/heads/master' &&\n",
                 "",
+            ),
+            "wrong repository guard": (
+                "github.repository == 'Easton97-Jens/ModSecurity-conector'",
+                "github.repository == 'attacker/example'",
+            ),
+            "missing fork guard": (
+                "github.event.repository.fork == false &&\n",
+                "",
+            ),
+            "missing default branch guard": (
+                "github.event.repository.default_branch == 'master'",
+                "github.event.repository.default_branch == 'main'",
             ),
             "short-circuited master guard": (
                 "github.event_name == 'workflow_dispatch'",
@@ -862,6 +894,14 @@ jobs:
             "target checkout": (
                 "          ref: ${{ github.sha }}",
                 "          ref: ${{ inputs.parent_head_sha }}",
+            ),
+            "mutable caller checkout": (
+                "          ref: ${{ github.sha }}",
+                "          ref: master",
+            ),
+            "missing caller checkout head assertion": (
+                '          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"\n',
+                "",
             ),
             "target execution": (
                 "          set -euo pipefail",
