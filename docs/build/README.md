@@ -99,8 +99,9 @@ and `python`/`python3` equivalence validation.
 
 | Workflow | Job | Python execution chain | Baseline condition |
 | --- | --- | --- | --- |
-| `all-connectors-no-crs.yml` | `no-crs` | Direct `python3`, Framework scripts, and Python-backed Make targets | Existing minor-only setup |
-| `all-connectors-no-crs.yml` | `aggregate` | Direct `python3` validation and summarization | Ambient or bootstrapped Python |
+| `reusable-five-connectors-profile.yml` | `resolve-profile` | Pinned `actions/setup-python`, interpreter-contract verification, then `python3 ci/runtime/lifecycle/five-connector-no-crs-profile.py --emit-github-matrix` | Explicit `.python-version` setup |
+| `reusable-five-connectors-profile.yml` | `no-crs` | Pinned `actions/setup-python`, interpreter-contract verification, then profile validation and Python-backed Framework/Make lifecycle targets | Explicit `.python-version` setup |
+| `reusable-five-connectors-profile.yml` | `aggregate` | Pinned `actions/setup-python`, interpreter-contract verification, then `python3` evidence validation and five-result aggregation | Explicit `.python-version` setup |
 | `check-actions-versions.yml` | `check-actions-versions` | `python3 scripts/check-github-actions-versions.py` | Existing minor-only setup |
 | `ci-security-secrets.yml` | `pull-request-range` | `python3 ci/tools/fetch_security_tool.py` | Ambient or bootstrapped Python |
 | `ci-security-secrets.yml` | `advisory-full-history` | `python3 ci/tools/fetch_security_tool.py` | Ambient or bootstrapped Python |
@@ -434,25 +435,45 @@ Advanced source/provenance values such as <code>HAPROXY_SOURCE_URL</code>,
 checksums, and source paths change provisioning identity and may cause
 rebuilds. They do not change a connector capability or promote an outcome.
 
-### All-connectors No-CRS baseline layout
+### Five-connector No-CRS baseline layout
 
-The <code>all-connectors-no-crs.yml</code> baseline runs only on its scheduled
-or repository-authorized manual dispatch path. It has read-only repository
-permissions and no pull-request trigger. Each invocation uses sibling
-<code>build</code>, <code>evidence</code>, and <code>cache-v2</code> roots
-below <code>$RUNNER_TEMP/ModSecurity-conector-verified</code>; mutable build
-or cache data is therefore not placed below the evidence root.
+The visible <code>all-connectors-no-crs.yml</code> caller is limited to its
+scheduled or repository-authorized manual dispatch path. It delegates only the
+hard-coded <code>no-crs</code> input to
+<code>reusable-five-connectors-profile.yml</code>. Both workflows use
+read-only repository permissions and have no pull-request trigger.
 
-The NGINX matrix row uses a narrow root handoff only for the root-required
-Phase-4 configuration/start checks and the fixed minimal runtime smoke. The
-runner identity first prepares the components and writes an invocation-local
-runtime-environment snapshot. The handoff validates the approved snapshot
-metadata and paths, invokes the fixed Framework runner with an explicit
-environment and a fixed non-root worker, and disables fetches and builds in
-that elevated step. It never sources the snapshot as root and is not a
-general-purpose privileged runner. The No-CRS document-root projection is
-created under a controlled external parent and cleaned only when its exact
-expected contents are present.
+The reusable profile has one closed, authoritative connector map: Apache,
+HAProxy, Envoy, Traefik, and lighttpd. A profile value or connector row that is
+not in that map is rejected before it can produce profile evidence. NGINX is
+not part of this baseline and this workflow makes no NGINX result claim.
+Each invocation uses private sibling <code>build</code>, <code>evidence</code>,
+<code>runs</code>, <code>run-logs</code>, and <code>cache-v2</code> roots below
+<code>$RUNNER_TEMP/ModSecurity-conector-verified</code>. Mutable build, cache,
+and logs are consequently outside the canonical evidence root.
+
+For each selected connector, the finalizer records its existing scoped result
+and a profile receipt bound to the profile, connector, run ID, Parent commit,
+Framework commit, and cleanup disposition. The aggregate accepts exactly one
+valid result and receipt for each of the five names. This is an evidence
+contract, not a statement that a hosted runtime run has passed.
+
+#### Capability audit and future-profile extension contract
+
+The <code>no-crs</code> profile selects the existing HTTP/1.1 routes and their
+declared integration/Phase-4 boundaries: Apache
+<code>native-httpd-module</code>, HAProxy <code>spoe-spop-agent</code>, Envoy
+<code>http-ext-authz-service</code>, Traefik
+<code>http-forwardauth-service</code>, and lighttpd
+<code>native-lighttpd-plugin</code>. These selections do not claim CRS, MRTS,
+production readiness, a complete connector matrix, HTTP/2, HTTP/3, or
+unobserved response behavior.
+
+A future profile must add an explicit closed map and matching validation for
+its connector set, capability fields, receipt schema, aggregation expectations,
+tests, and English/German documentation. It must fail closed for unknown
+profiles and unsupported rows. It cannot obtain CRS, MRTS, or full-lifecycle
+coverage merely by reusing this No-CRS workflow.
 
 ## Selected build routes
 

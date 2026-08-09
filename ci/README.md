@@ -37,6 +37,15 @@ Use Make targets rather than nested files from an arbitrary working directory. T
 
 `NO_CRS_RUN_ID` is a filesystem-safe run identifier, for example `repository-cleanup-core-20260712T164725Z`. Do not use secrets, user names, or ticket text. See the [variables reference](../docs/reference/variables.md).
 
+The six-connector Make targets above are generic local orchestration targets.
+They are not the scheduled/manual CI baseline. That baseline is the closed
+<code>no-crs</code> profile in
+<code>.github/workflows/reusable-five-connectors-profile.yml</code>, called by
+<code>all-connectors-no-crs.yml</code>. It selects only Apache, HAProxy, Envoy,
+Traefik, and lighttpd, rejects unknown profiles and connector rows, and
+aggregates only the five bound result/receipt pairs. It makes no NGINX, CRS,
+MRTS, full-matrix, or hosted-runtime-pass claim.
+
 ## Evidence flow
 
 1. Make resolves repository, build, cache, runtime, and evidence roots.
