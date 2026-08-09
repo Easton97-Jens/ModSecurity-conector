@@ -47,15 +47,23 @@ class TrustedNginxRootBrokerWorkflowTest(unittest.TestCase):
     def test_root_invocation_is_fixed_after_unprivileged_protected_build(self) -> None:
         self.assertLess(
             self.workflow.index("Build only trusted protected-source artifacts without root"),
+            self.workflow.index("Build a protected immutable OWASP CRS bundle without root"),
+        )
+        self.assertLess(
+            self.workflow.index("Build a protected immutable OWASP CRS bundle without root"),
             self.workflow.index("Admit only verified artifacts into the root-owned broker root"),
         )
         self.assertIn("make fetch-deps", self.workflow)
+        self.assertIn("prepare-fresh-crs-source.sh", self.workflow)
+        self.assertIn("ci/provisioning/fetch-crs.sh", self.workflow)
+        self.assertIn("prepare-crs-bundle", self.workflow)
         self.assertIn("prepare-from-snapshot", self.workflow)
         self.assertIn("sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action", self.workflow)
         for action in (
             "validate-manifest",
             "config-test",
             "start",
+            "verify-runtime-profile",
             "verify-master-worker-identity",
             "project-evidence",
             "stop",
@@ -66,6 +74,33 @@ class TrustedNginxRootBrokerWorkflowTest(unittest.TestCase):
             self.assertNotIn(forbidden, self.workflow)
         for forbidden in ("--broker-parent", "--staging-root", "--runtime-snapshot"):
             self.assertNotIn(forbidden, self.workflow)
+
+    def test_bounded_evidence_is_staged_before_descriptor_cleanup_and_records_its_outcome(self) -> None:
+        self.assertLess(
+            self.workflow.index("Run fixed root-only NGINX actions"),
+            self.workflow.index("Stage the fixed root-to-user evidence outside the cleanup root"),
+        )
+        self.assertLess(
+            self.workflow.index("Stage the fixed root-to-user evidence outside the cleanup root"),
+            self.workflow.index("Stop and verify root cleanup"),
+        )
+        self.assertLess(
+            self.workflow.index("Stop and verify root cleanup"),
+            self.workflow.index("Upload bounded root-to-user evidence"),
+        )
+        for filename in (
+            "identity.json",
+            "runtime.json",
+            "policy.json",
+            "nginx-access.log",
+            "nginx-error.log",
+            "nginx-audit.log",
+            "cleanup.json",
+        ):
+            self.assertIn(filename, self.workflow)
+        self.assertIn('"cleanup_status":"%s"', self.workflow)
+        self.assertNotIn("cp -r", self.workflow)
+        self.assertNotIn("tar ", self.workflow)
 
     def test_caller_data_is_limited_to_a_declarative_artifact_and_pinned_inputs(self) -> None:
         for field in (

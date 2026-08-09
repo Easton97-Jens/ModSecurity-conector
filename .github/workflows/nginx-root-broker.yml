@@ -132,6 +132,40 @@ jobs:
           make setup-dev
           make fetch-deps
 
+      - name: Build a protected immutable OWASP CRS bundle without root
+        working-directory: broker-src
+        env:
+          TRUSTED_BUILD_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}
+          VERIFIED_RUN_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/verified
+          BUILD_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/build
+          SOURCE_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/sources
+          TMP_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/tmp
+          LOG_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/logs
+          CONNECTOR_COMPONENT_CACHE: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/component-cache
+        run: |
+          set -euo pipefail
+          case "$BROKER_VARIANT" in
+            no-crs)
+              exit 0
+              ;;
+            with-crs)
+              ;;
+            *)
+              echo "BLOCKED: unknown protected broker matrix variant" >&2
+              exit 77
+              ;;
+          esac
+          umask 077
+          export CONNECTOR_ROOT="$PWD" REPO_ROOT="$PWD"
+          . modules/ModSecurity-test-Framework/ci/lib/common.sh
+          . ci/runtime/lifecycle/prepare-fresh-crs-source.sh
+          sh modules/ModSecurity-test-Framework/ci/provisioning/fetch-crs.sh
+          .venv/bin/python ci/runtime/broker/nginx_root_broker.py prepare-crs-bundle \
+            --trusted-build-root "$TRUSTED_BUILD_ROOT" \
+            --framework-root "$PWD/modules/ModSecurity-test-Framework" \
+            --framework-sha "$EXPECTED_FRAMEWORK_SHA" \
+            --broker-sha "$BROKER_SHA"
+
       - name: Produce a non-executable trusted candidate manifest
         working-directory: broker-src
         env:
@@ -186,10 +220,8 @@ jobs:
           sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action config-test --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
           verify_broker_source
           sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action start --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
-          allow_status=$(curl --silent --show-error --max-time 10 --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18443/)
-          test "$allow_status" = 200
-          block_status=$(curl --silent --show-error --max-time 10 --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18443/blocked)
-          test "$block_status" = 403
+          verify_broker_source
+          sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action verify-runtime-profile --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
           verify_broker_source
           sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action verify-master-worker-identity --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
           verify_broker_source
@@ -197,13 +229,47 @@ jobs:
           verify_broker_source
           sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action project-evidence --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
 
-      - name: Upload bounded root-to-user evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: trusted-nginx-root-broker-${{ inputs.run_id }}
-          retention-days: 1
-          if-no-files-found: error
-          path: ${{ env.BROKER_PROJECTION }}
+      - name: Stage the fixed root-to-user evidence outside the cleanup root
+        if: ${{ always() && env.BROKER_PROJECTION != '' }}
+        run: |
+          set -euo pipefail
+          source="$BROKER_PROJECTION"
+          target="$RUNNER_TEMP/trusted-nginx-broker-evidence-$BROKER_RUN_ID"
+          test -d "$source"
+          test ! -e "$target"
+          test ! -L "$target"
+          umask 077
+          mkdir "$target"
+          chmod 700 "$target"
+          copy_fixed_evidence() {
+            name="$1"
+            test -f "$source/$name"
+            test ! -L "$source/$name"
+            cp -- "$source/$name" "$target/$name"
+            chmod 600 "$target/$name"
+          }
+          copy_fixed_evidence identity.json
+          copy_fixed_evidence runtime.json
+          copy_fixed_evidence nginx-access.log
+          copy_fixed_evidence nginx-error.log
+          if [ -f "$source/policy.json" ]; then
+            test ! -L "$source/policy.json"
+            cp -- "$source/policy.json" "$target/policy.json"
+            chmod 600 "$target/policy.json"
+          fi
+          case "$BROKER_VARIANT" in
+            with-crs)
+              copy_fixed_evidence nginx-audit.log
+              ;;
+            no-crs)
+              test ! -e "$source/nginx-audit.log"
+              ;;
+            *)
+              echo "BLOCKED: unknown protected broker matrix variant" >&2
+              exit 77
+              ;;
+          esac
+          echo "BROKER_ARTIFACT_EVIDENCE=$target" >> "$GITHUB_ENV"
 
       - name: Stop and verify root cleanup
         if: ${{ always() && env.BROKER_MANIFEST != '' }}
@@ -216,6 +282,41 @@ jobs:
             test "$actual" = "$expected"
           }
           verify_broker_source
+          evidence_root="${BROKER_ARTIFACT_EVIDENCE:-$RUNNER_TEMP/trusted-nginx-broker-evidence-$BROKER_RUN_ID}"
+          if [ ! -d "$evidence_root" ]; then
+            test ! -e "$evidence_root"
+            test ! -L "$evidence_root"
+            umask 077
+            mkdir "$evidence_root"
+            chmod 700 "$evidence_root"
+          fi
+          set +e
           sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action stop --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
+          stop_code=$?
+          set -e
           verify_broker_source
+          set +e
           sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action cleanup-status --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
+          cleanup_code=$?
+          set -e
+          case "$stop_code:$cleanup_code" in
+            0:0) cleanup_status=PASS ;;
+            *) cleanup_status=FAIL ;;
+          esac
+          printf '{"broker_sha":"%s","cleanup_status":"%s","matrix_variant":"%s","run_id":"%s"}\n' \
+            "$BROKER_SHA" "$cleanup_status" "$BROKER_VARIANT" "$BROKER_RUN_ID" > "$evidence_root/cleanup.json"
+          chmod 600 "$evidence_root/cleanup.json"
+          echo "BROKER_ARTIFACT_EVIDENCE=$evidence_root" >> "$GITHUB_ENV"
+          if [ "$stop_code" -ne 0 ]; then
+            exit "$stop_code"
+          fi
+          exit "$cleanup_code"
+
+      - name: Upload bounded root-to-user evidence
+        if: ${{ always() && env.BROKER_ARTIFACT_EVIDENCE != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: trusted-nginx-root-broker-${{ inputs.run_id }}
+          retention-days: 1
+          if-no-files-found: error
+          path: ${{ env.BROKER_ARTIFACT_EVIDENCE }}
