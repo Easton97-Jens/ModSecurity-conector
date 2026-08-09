@@ -1188,6 +1188,66 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             ):
                 components.haproxy_runtime_context(plan, cache_root / "mutable-build")
 
+    def test_haproxy_runtime_preclaim_allows_incomplete_runtime_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-runtime-preclaim-") as temporary:
+            root = Path(temporary)
+            plan = self.haproxy_runtime_plan(root / "cache")
+            context = components.haproxy_runtime_context(plan, root / "build")
+            self.assertEqual(components.claim_haproxy_runtime_entry(plan, context), "")
+            marker = components.read_json(
+                components.cache_entry_marker_path(context["root"], context["build_root"])
+            )
+            self.assertEqual(marker["component"], "runtime:haproxy")
+            self.assertEqual(marker["cache_key"], plan["cache_key"])
+            self.assertTrue(context["root"].is_dir())
+            self.assertFalse(context["root"].is_symlink())
+
+            record: dict[str, object] = {}
+            self.assertEqual(
+                components.reconcile_haproxy_cached_entry(plan, context, record),
+                "",
+            )
+            self.assertFalse(context["root"].exists())
+            self.assertEqual(record["invalidation_reason"], "missing_or_incomplete_haproxy_runtime")
+
+    def test_haproxy_runtime_preclaim_rejects_a_concurrently_created_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-runtime-race-") as temporary:
+            root = Path(temporary)
+            plan = self.haproxy_runtime_plan(root / "cache")
+            context = components.haproxy_runtime_context(plan, root / "build")
+            original_mark = components.mark_managed_cache_entry
+
+            def mark_then_create(*args: object, **kwargs: object) -> None:
+                original_mark(*args, **kwargs)
+                context["root"].mkdir(parents=True)
+
+            with mock.patch.object(
+                components,
+                "mark_managed_cache_entry",
+                side_effect=mark_then_create,
+            ):
+                error = components.claim_haproxy_runtime_entry(plan, context)
+
+            self.assertEqual(error, f"haproxy_runtime_root_already_exists: {context['root']}")
+            self.assertFalse(
+                components.cache_entry_marker_valid(context["root"], context["build_root"])
+            )
+
+    def test_haproxy_runtime_reuse_requires_a_preclaimed_runtime_entry(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-runtime-unowned-reuse-") as temporary:
+            root = Path(temporary)
+            plan = self.haproxy_runtime_plan(root / "cache")
+            context = components.haproxy_runtime_context(plan, root / "build")
+            for executable_path in (context["haproxy_bin"], context["spoa_bin"]):
+                executable_path.parent.mkdir(parents=True, exist_ok=True)
+                executable_path.write_text("#!/bin/sh\n", encoding="utf-8")
+                executable_path.chmod(0o700)
+            context["paths_env"].parent.mkdir(parents=True, exist_ok=True)
+            context["paths_env"].write_text("HAPROXY_BIN=unused\n", encoding="utf-8")
+
+            with mock.patch.object(components, "connector_manifest_ready", return_value=True):
+                self.assertFalse(components.haproxy_cached_entry_reusable(plan, context))
+
     def test_haproxy_runtime_context_rejects_build_key_path_escape(self) -> None:
         with tempfile.TemporaryDirectory(prefix="haproxy-build-key-escape-") as temporary:
             root = Path(temporary)

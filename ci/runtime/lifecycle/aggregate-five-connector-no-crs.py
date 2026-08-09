@@ -104,7 +104,9 @@ def validate_run(root: Path, connector: str, *, run_id: str, connector_commit: s
 
 
 def aggregate(evidence_root: Path, *, run_id: str, connector_commit: str,
-              framework_commit: str) -> dict[str, Any]:
+              framework_commit: str, canonical_validation_status: str) -> dict[str, Any]:
+    if canonical_validation_status != "passed":
+        raise ValueError("canonical evidence validation did not pass")
     evidence_root = prepare_verified_runtime_artifact_root(evidence_root)
     if evidence_root.is_symlink() or not evidence_root.is_dir():
         raise ValueError("evidence root is missing or unsafe")
@@ -140,6 +142,8 @@ def write_outputs(root: Path, args: argparse.Namespace, summary: dict[str, Any])
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", required=True, choices=(profile.PROFILE,))
+    parser.add_argument("--canonical-validation-status", required=True,
+                        choices=("passed", "failed"))
     parser.add_argument("--evidence-root", type=Path, required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--connector-commit", required=True)
@@ -159,7 +163,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                                 framework_commit=args.framework_commit, cleanup_status="passed")
         summary = aggregate(args.evidence_root, run_id=args.run_id,
                             connector_commit=args.connector_commit,
-                            framework_commit=args.framework_commit)
+                            framework_commit=args.framework_commit,
+                            canonical_validation_status=args.canonical_validation_status)
         write_outputs(output_root, args, summary)
         return 0
     except ValueError as exc:

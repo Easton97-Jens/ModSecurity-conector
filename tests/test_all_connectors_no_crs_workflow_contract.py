@@ -137,9 +137,20 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
 
     def test_aggregation_is_fail_closed_and_result_only(self) -> None:
         self.assertIn("if: always()", self.reusable)
+        self.assertIn("id: validate-profile-evidence", self.reusable)
         self.assertIn("Missing five-profile artifact for $connector", self.reusable)
         self.assertIn("status=1", self.reusable)
         self.assertIn('exit "$status"', self.reusable)
+        self.assertIn("canonical_validation_status=failed", self.reusable)
+        self.assertIn(
+            '[ "${{ steps.validate-profile-evidence.outcome }}" = "success" ]',
+            self.reusable,
+        )
+        self.assertIn('canonical_validation_status=passed', self.reusable)
+        self.assertIn(
+            '--canonical-validation-status "$canonical_validation_status"',
+            self.reusable,
+        )
         self.assertIn("aggregate-five-connector-no-crs.py", self.reusable)
         self.assertIn("five-connectors-no-crs-summary.json", self.reusable)
         self.assertNotIn("continue-on-error", self.reusable)

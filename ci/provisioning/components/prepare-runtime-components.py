@@ -7332,7 +7332,9 @@ def reconcile_haproxy_cached_entry(
 
 def haproxy_cached_entry_reusable(plan: dict[str, Any], context: dict[str, Any]) -> bool:
     return (
-        executable(context["haproxy_bin"])
+        cache_root_marker_valid(Path(context["build_root"]))
+        and cache_entry_marker_valid(Path(context["root"]), Path(context["build_root"]))
+        and executable(context["haproxy_bin"])
         and executable(context["spoa_bin"])
         and context["paths_env"].is_file()
         and connector_manifest_ready(plan)
@@ -7348,6 +7350,41 @@ def claim_haproxy_cache_entry(plan: dict[str, Any], cache_root: Path) -> str:
             cache_key=str(plan.get("cache_key", plan.get("connector_build_id", ""))),
         )
     except RuntimeError as exc:
+        return str(exc)
+    return ""
+
+
+def claim_haproxy_runtime_entry(plan: dict[str, Any], context: dict[str, Any]) -> str:
+    """Pre-claim and create the invocation-local runtime tree fail closed.
+
+    A later incomplete build may remove only a registered child of its
+    invocation build root.  Registering the deterministic, verified path
+    before a non-idempotent create preserves that cleanup authority across
+    interruption and rejects a directory that appeared concurrently.
+    """
+    try:
+        build_root = ensure_managed_cache_root(Path(context["build_root"]))
+        root = Path(context["root"])
+        marker_path = cache_entry_marker_path(root, build_root)
+        mark_managed_cache_entry(
+            root,
+            build_root,
+            component="runtime:haproxy",
+            cache_key=haproxy_runtime_build_key(plan),
+        )
+        try:
+            root.mkdir(parents=True)
+        except FileExistsError:
+            marker_path.unlink(missing_ok=True)
+            return f"haproxy_runtime_root_already_exists: {root}"
+        if (
+            root.is_symlink()
+            or not root.is_dir()
+            or not cache_entry_marker_valid(root, build_root)
+        ):
+            marker_path.unlink(missing_ok=True)
+            return f"haproxy_runtime_root_invalid_after_claim: {root}"
+    except (OSError, RuntimeError) as exc:
         return str(exc)
     return ""
 
@@ -7509,7 +7546,10 @@ def prepare_haproxy_runtime(
     if claim_error:
         record.update(status="blocked", blocker_reason=claim_error)
         return write_haproxy_record(plan, record)
-    context["root"].mkdir(parents=True, exist_ok=True)
+    runtime_claim_error = claim_haproxy_runtime_entry(plan, context)
+    if runtime_claim_error:
+        record.update(status="blocked", blocker_reason=runtime_claim_error)
+        return write_haproxy_record(plan, record)
     prep_env = haproxy_prepare_environment(
         env,
         connector_root,

@@ -320,6 +320,7 @@ jobs:
           merge-multiple: false
 
       - name: Restore and validate exact profile evidence
+        id: validate-profile-evidence
         if: always()
         run: |
           set -euo pipefail
@@ -380,8 +381,13 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
+          canonical_validation_status=failed
+          if [ "${{ steps.validate-profile-evidence.outcome }}" = "success" ]; then
+            canonical_validation_status=passed
+          fi
           python3 ci/runtime/lifecycle/aggregate-five-connector-no-crs.py \
             --profile "$FIVE_CONNECTOR_PROFILE" \
+            --canonical-validation-status "$canonical_validation_status" \
             --evidence-root "$EVIDENCE_ROOT" \
             --run-id "$NO_CRS_RUN_ID" \
             --connector-commit "$FIVE_CONNECTOR_PARENT_COMMIT" \

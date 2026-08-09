@@ -126,6 +126,7 @@ class FiveConnectorNoCrsProfileTest(unittest.TestCase):
             markdown = evidence / "summary.md"
             german = evidence / "summary.de.md"
             rc = AGGREGATE.main(["--profile", "no-crs", "--evidence-root", str(evidence),
+                "--canonical-validation-status", "passed",
                 "--run-id", RUN_ID, "--connector-commit", COMMIT, "--framework-commit", FRAMEWORK_COMMIT,
                 "--output-json", str(output), "--output-md", str(markdown), "--output-md-de", str(german)])
             payload = json.loads(output.read_text(encoding="utf-8"))
@@ -135,6 +136,21 @@ class FiveConnectorNoCrsProfileTest(unittest.TestCase):
         self.assertEqual([row["connector"] for row in payload["results"]], list(PROFILE.CONNECTORS))
         self.assertNotIn("artifacts", payload)
         self.assertIn("Fünf-Connector", german_text)
+
+    def test_failed_canonical_validation_cannot_emit_pass_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            evidence = self._success_root(Path(temporary))
+            output = evidence / "summary.json"
+            rc = AGGREGATE.main(["--profile", "no-crs", "--evidence-root", str(evidence),
+                "--canonical-validation-status", "failed",
+                "--run-id", RUN_ID, "--connector-commit", COMMIT, "--framework-commit", FRAMEWORK_COMMIT,
+                "--output-json", str(output), "--output-md", str(evidence / "summary.md"),
+                "--output-md-de", str(evidence / "summary.de.md")])
+            payload = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(rc, 1)
+        self.assertEqual(payload["status"], "FAIL")
+        self.assertEqual(payload["results"], [])
+        self.assertIn("canonical evidence validation did not pass", payload["errors"])
 
     def test_receipt_preserves_failed_cleanup_for_aggregate_rejection(self) -> None:
         payload = PROFILE.receipt_payload(connector="apache", run_id=RUN_ID,
@@ -149,6 +165,7 @@ class FiveConnectorNoCrsProfileTest(unittest.TestCase):
                 evidence = self._success_root(root)
                 self._write_run(evidence, "apache", **options)
                 rc = AGGREGATE.main(["--profile", "no-crs", "--evidence-root", str(evidence),
+                    "--canonical-validation-status", "passed",
                     "--run-id", RUN_ID, "--connector-commit", COMMIT, "--framework-commit", FRAMEWORK_COMMIT,
                     "--output-json", str(evidence / "summary.json"), "--output-md", str(evidence / "summary.md"),
                     "--output-md-de", str(evidence / "summary.de.md")])
@@ -170,6 +187,7 @@ class FiveConnectorNoCrsProfileTest(unittest.TestCase):
                 else:
                     (evidence / "nginx").mkdir()
                 rc = AGGREGATE.main(["--profile", "no-crs", "--evidence-root", str(evidence),
+                    "--canonical-validation-status", "passed",
                     "--run-id", RUN_ID, "--connector-commit", COMMIT, "--framework-commit", FRAMEWORK_COMMIT,
                     "--output-json", str(evidence / "summary.json"), "--output-md", str(evidence / "summary.md"),
                     "--output-md-de", str(evidence / "summary.de.md")])
