@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260809-protected-nginx-root-broker-caller-repin |
 | Datum (UTC) | 2026-08-09 |
-| Basis-Revision | cabf949553f40ef93c4d4add0bbca0f03372a259 |
+| Basis-Revision | b71da9803484dacce7d3349ffdff4d1ccdcfe4d6 |
 
 ## Motivation und Problemstellung
 
@@ -52,7 +52,7 @@ geprüften Pfad sowohl in seiner Source-Allowlist als auch in seiner passenden
 Staging-Liste; dies stellt vollständige zentral gesperrte Action-Pin-Coverage
 ohne ein breites Präfix wieder her. Dieselbe endliche Pfadkorrektur ist bereits
 in der normal integrierten Basis
-`cabf949553f40ef93c4d4add0bbca0f03372a259` enthalten; sie ist damit
+`b71da9803484dacce7d3349ffdff4d1ccdcfe4d6` enthalten; sie ist damit
 Current-master-Control-Evidence und keine nur branch-spezifische Dateiänderung
 dieses Repin-Range.
 
@@ -99,6 +99,15 @@ Diagnosen fehl; die Fehler nennen `verified-report-governance.yml`,
 repository-weite Bilingual-Target schlägt ebenso nur wegen fehlender
 Framework-Submodule-Link-Targets fehl. Es wird kein Runtime-Lifecycle-Ergebnis
 beansprucht.
+
+Nach der späteren normalen Synchronisierung mit
+`b71da9803484dacce7d3349ffdff4d1ccdcfe4d6` und dem Merge-Commit
+`0f2605eeda78aaa80a895d91ab0baa71c7c12852` bestanden dieselbe fokussierte
+133-Test-Suite, der 26-Test-CI-Security-Contract, actionlint mit ShellCheck,
+offline zizmor, der Immutable-Blob-Caller-Validator und die gezielte EN/DE-
+Pair-Prüfung erneut. Die globalen Python-Version- und repository-weiten
+Bilingual-Targets behalten die oben aufgezeichneten identischen
+Current-master-/Umgebungsblocker.
 
 ## Security-Auswirkung
 
@@ -153,10 +162,11 @@ den späteren PR-Head frisch beobachtet werden.
 ## Finaler Diff- und Review-Status
 
 Dieser lokale Phase-B-Candidate ist normal mit der Protected-master-Revision
-cabf949553f40ef93c4d4add0bbca0f03372a259 synchronisiert. Ein reiner
-Traceability-Follow-up-Commit und das erneuerte finale Security-Diff-Review
-stehen vor der Auslieferung noch aus. Er beansprucht nicht, dass ein Push,
-Pull Request, Merge, Hosted Check oder Lifecycle bereits abgeschlossen ist.
-Der finale Range enthält nur Parent-eigene Caller-, Contract-, Test-,
+b71da9803484dacce7d3349ffdff4d1ccdcfe4d6 nach dem späteren normalen
+Merge-Commit `0f2605eeda78aaa80a895d91ab0baa71c7c12852` synchronisiert.
+Exact-Head-Validierung und ein erneuertes finales Security-Diff-Review bleiben
+vor der Auslieferung erforderlich. Er beansprucht nicht, dass ein Push, Pull
+Request, Merge, Hosted Check oder Lifecycle bereits abgeschlossen ist. Der
+finale Range enthält nur Parent-eigene Caller-, Contract-, Test-,
 Dokumentations- und Record-Änderungen; er enthält keine Framework- oder
 MRTS-Source- oder Gitlink-Änderung.

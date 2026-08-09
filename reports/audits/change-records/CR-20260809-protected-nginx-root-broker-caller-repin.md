@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260809-protected-nginx-root-broker-caller-repin |
 | Date (UTC) | 2026-08-09 |
-| Base revision | cabf949553f40ef93c4d4add0bbca0f03372a259 |
+| Base revision | b71da9803484dacce7d3349ffdff4d1ccdcfe4d6 |
 
 ## Motivation and problem statement
 
@@ -47,7 +47,7 @@ The constrained workflow-tool publisher receives the caller as one exact
 reviewed path in both its source allowlist and matching staging list; this
 restores complete centrally locked Action-pin coverage without a broad prefix.
 That same finite-path correction is already present in the normally integrated
-`cabf949553f40ef93c4d4add0bbca0f03372a259` base, so it is current-master
+`b71da9803484dacce7d3349ffdff4d1ccdcfe4d6` base, so it is current-master
 control evidence rather than a branch-only file change in this repin range.
 
 No branch, tag, master reference, local reusable path, caller-selected broker
@@ -90,6 +90,14 @@ the errors name `verified-report-governance.yml`, `ci-security-codeql.yml`,
 caller-repin file. The repository-wide bilingual target likewise fails only on
 missing Framework-submodule link targets. No runtime lifecycle result is
 claimed here.
+
+After the later normal synchronization with
+`b71da9803484dacce7d3349ffdff4d1ccdcfe4d6` and merge commit
+`0f2605eeda78aaa80a895d91ab0baa71c7c12852`, the same 133-test focused suite,
+the 26-test CI-security contract, actionlint with ShellCheck, offline zizmor,
+the immutable-blob caller validator, and the targeted EN/DE pair check passed
+again. The global Python-version and repository-wide bilingual targets retain
+the identical current-master/environment blockers recorded above.
 
 ## Security impact
 
@@ -140,9 +148,10 @@ observed for the eventual PR head.
 ## Final diff and review status
 
 This local Phase-B candidate is normally synchronized with protected-master
-revision cabf949553f40ef93c4d4add0bbca0f03372a259. A traceability-only follow-up
-commit and the refreshed final security-diff review remain before delivery. It
-makes no claim that a push, pull request, merge, hosted check, or lifecycle has
+revision b71da9803484dacce7d3349ffdff4d1ccdcfe4d6 after the later normal merge
+commit `0f2605eeda78aaa80a895d91ab0baa71c7c12852`. Exact-head validation and a
+refreshed final security-diff review remain required before delivery. It makes
+no claim that a push, pull request, merge, hosted check, or lifecycle has
 completed. The final range contains only Parent-owned caller, contract, test,
 documentation, and record changes; it contains no Framework or MRTS source or
 Gitlink change.
