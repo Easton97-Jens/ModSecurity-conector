@@ -29,6 +29,7 @@ PROJECT_GIT_COMMIT_API = (
 API_USER_AGENT = "ModSecurity-conector-protected-nginx-broker-caller"
 TARGET_PARENT_SHA_LABEL = "target Parent SHA"
 RUNNER_TEMP_ENVIRONMENT = "RUNNER_TEMP"
+FIXED_RUN_PAIR_ERROR = "broker run IDs do not form the fixed caller pair"
 
 SCHEMA_VERSION = 2
 NO_CRS_VARIANT = "no-crs"
@@ -147,12 +148,12 @@ def require_fixed_run_pair(no_crs_run_id: str, with_crs_run_id: str) -> str:
     if not no_crs_value.startswith(CALLER_RUN_ID_PREFIX) or not no_crs_value.endswith(
         NO_CRS_RUN_ID_SUFFIX
     ):
-        fail("broker run IDs do not form the fixed caller pair")
+        fail(FIXED_RUN_PAIR_ERROR)
     run_token = no_crs_value[len(CALLER_RUN_ID_PREFIX) : -len(NO_CRS_RUN_ID_SUFFIX)]
     if not run_token:
-        fail("broker run IDs do not form the fixed caller pair")
+        fail(FIXED_RUN_PAIR_ERROR)
     if with_crs_value != f"{CALLER_RUN_ID_PREFIX}{run_token}{WITH_CRS_RUN_ID_SUFFIX}":
-        fail("broker run IDs do not form the fixed caller pair")
+        fail(FIXED_RUN_PAIR_ERROR)
     return run_token
 
 
@@ -173,9 +174,33 @@ def trusted_runner_temp() -> Path:
     return directory
 
 
+def validated_direct_child_path(parent: Path, child_name: str, label: str) -> Path:
+    """Return one canonical direct non-symlink child before filesystem use."""
+    if Path(child_name).name != child_name or child_name in {".", ".."}:
+        fail(f"{label} name must select one direct child")
+    require_directory(parent, f"{label} parent")
+    try:
+        resolved_parent = parent.resolve(strict=True)
+        constructed_path = resolved_parent / child_name
+        resolved_path = constructed_path.resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        fail(f"could not resolve {label} path: {exc}")
+    try:
+        resolved_path.relative_to(resolved_parent)
+    except ValueError:
+        fail(f"{label} escapes its trusted parent")
+    if resolved_path != constructed_path or resolved_path.parent != resolved_parent:
+        fail(f"{label} must be a direct non-symlink child of its trusted parent")
+    return resolved_path
+
+
 def caller_artifact_root(root_prefix: str, no_crs_run_id: str, with_crs_run_id: str) -> Path:
     run_token = require_fixed_run_pair(no_crs_run_id, with_crs_run_id)
-    return trusted_runner_temp() / f"{root_prefix}{run_token}"
+    return validated_direct_child_path(
+        trusted_runner_temp(),
+        f"{root_prefix}{run_token}",
+        "caller artifact root",
+    )
 
 
 def require_positive_int(value: Any, label: str, *, minimum: int = 0) -> int:
@@ -218,9 +243,9 @@ def require_private_directory(path: Path, label: str) -> None:
 
 
 def create_private_directory(path: Path, label: str) -> None:
+    path = validated_direct_child_path(path.parent, path.name, label)
     if path.exists() or path.is_symlink():
         fail(f"{label} already exists")
-    require_directory(path.parent, f"{label} parent")
     try:
         path.mkdir(mode=0o700)
     except OSError as exc:
@@ -235,6 +260,7 @@ def write_all(descriptor: int, raw: bytes) -> None:
 
 
 def write_private_json(path: Path, payload: dict[str, Any], label: str) -> None:
+    path = validated_direct_child_path(path.parent, path.name, label)
     if path.exists() or path.is_symlink():
         fail(f"{label} destination already exists")
     raw = (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
@@ -257,6 +283,7 @@ def write_private_json(path: Path, payload: dict[str, Any], label: str) -> None:
 
 
 def read_regular_file(path: Path, label: str, maximum_size: int) -> bytes:
+    path = validated_direct_child_path(path.parent, path.name, label)
     try:
         descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     except OSError as exc:

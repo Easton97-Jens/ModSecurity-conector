@@ -237,6 +237,29 @@ class ProtectedNginxBrokerCallerTest(unittest.TestCase):
             root = Path(temporary)
             outside = root / "outside"
             bad_with_crs_run_id = "protected-nginx-root-foreign-with-crs"
+            argument_parser = CALLER.parser()
+            create_arguments = [
+                "create-manifests",
+                "--target-sha",
+                TARGET_SHA,
+                "--no-crs-run-id",
+                NO_CRS_RUN_ID,
+                "--with-crs-run-id",
+                WITH_CRS_RUN_ID,
+                "--output-root",
+                str(outside),
+            ]
+            verify_arguments = [
+                "verify-evidence",
+                "--target-sha",
+                TARGET_SHA,
+                "--no-crs-run-id",
+                NO_CRS_RUN_ID,
+                "--with-crs-run-id",
+                WITH_CRS_RUN_ID,
+                "--no-crs-directory",
+                str(outside),
+            ]
             with mock.patch.dict(os.environ, {CALLER.RUNNER_TEMP_ENVIRONMENT: str(root)}):
                 with mock.patch.object(CALLER, "urlopen") as opener:
                     with self.assertRaises(CALLER.CallerContractError):
@@ -245,34 +268,40 @@ class ProtectedNginxBrokerCallerTest(unittest.TestCase):
             self.assertFalse(outside.exists())
             with mock.patch.object(sys, "stderr"):
                 with self.assertRaises(SystemExit):
-                    CALLER.parser().parse_args(
-                        [
-                            "create-manifests",
-                            "--target-sha",
-                            TARGET_SHA,
-                            "--no-crs-run-id",
-                            NO_CRS_RUN_ID,
-                            "--with-crs-run-id",
-                            WITH_CRS_RUN_ID,
-                            "--output-root",
-                            str(outside),
-                        ]
-                    )
+                    argument_parser.parse_args(create_arguments)
                 with self.assertRaises(SystemExit):
-                    CALLER.parser().parse_args(
-                        [
-                            "verify-evidence",
-                            "--target-sha",
-                            TARGET_SHA,
-                            "--no-crs-run-id",
-                            NO_CRS_RUN_ID,
-                            "--with-crs-run-id",
-                            WITH_CRS_RUN_ID,
-                            "--no-crs-directory",
-                            str(outside),
-                        ]
-                    )
+                    argument_parser.parse_args(verify_arguments)
             self.assertFalse(outside.exists())
+
+    def test_constructed_child_path_rejects_escape_and_symlink_before_use(self) -> None:
+        with self.temporary_root() as temporary:
+            root = Path(temporary)
+            trusted = root / "trusted"
+            trusted.mkdir()
+            outside = root / "outside"
+            with self.assertRaises(CALLER.CallerContractError):
+                CALLER.validated_direct_child_path(trusted, "../outside", "candidate")
+            symlink = trusted / "linked"
+            symlink.symlink_to(outside)
+            with self.assertRaises(CALLER.CallerContractError):
+                CALLER.validated_direct_child_path(trusted, symlink.name, "candidate")
+            self.assertFalse(outside.exists())
+
+    def test_file_sinks_reject_a_symlink_before_opening_it(self) -> None:
+        with self.temporary_root() as temporary:
+            root = Path(temporary)
+            trusted = root / "trusted"
+            trusted.mkdir()
+            linked = trusted / "linked"
+            linked.symlink_to(root / "outside")
+            with mock.patch.object(CALLER.os, "open") as opener:
+                with self.assertRaises(CALLER.CallerContractError):
+                    CALLER.write_private_json(linked, {}, "candidate")
+            opener.assert_not_called()
+            with mock.patch.object(CALLER.os, "open") as opener:
+                with self.assertRaises(CALLER.CallerContractError):
+                    CALLER.read_regular_file(linked, "candidate", 1024)
+            opener.assert_not_called()
 
     def test_runner_temp_must_be_absolute_and_non_symlink_before_manifest_api_access(self) -> None:
         with mock.patch.dict(os.environ, {}, clear=True):
