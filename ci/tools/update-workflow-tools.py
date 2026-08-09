@@ -1271,9 +1271,9 @@ def verify_changed_tool_assets(
     if not changed_tools:
         return
     fetcher = load_fetcher_module()
-    # `run_validate_command` constrains output_dir to a fresh RUNNER_TEMP child.
-    # The downloader independently revalidates the exact candidate asset tuple,
-    # verifies SHA-256 before extraction, and never executes downloaded files.
+    # Validation allocates a fresh `RUNNER_TEMP` child before this call.
+    # The fetcher rechecks the candidate tuple and SHA-256 without extraction
+    # or execution.
     for name, record in sorted(changed_tools.items()):
         if not is_safe_component(name):
             raise UpdateError(f"candidate tool name is unsafe: {name!r}")
