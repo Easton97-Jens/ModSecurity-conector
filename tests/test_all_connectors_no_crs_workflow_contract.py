@@ -133,7 +133,23 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         self.assertIn("name: five-no-crs-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}", self.reusable)
         self.assertIn("pattern: five-no-crs-*-${{ github.run_id }}-${{ github.run_attempt }}", self.reusable)
         self.assertIn("--emit-connectors > \"$connector_list\"", self.reusable)
-        self.assertIn('artifact_dir="downloaded/five-no-crs-$connector-$NO_CRS_RUN_ID"', self.reusable)
+        self.assertIn(
+            "path: ${{ runner.temp }}/five-connector-profile-artifacts/${{ github.run_id }}-${{ github.run_attempt }}",
+            self.reusable,
+        )
+        self.assertIn(
+            'artifact_root="$RUNNER_TEMP/five-connector-profile-artifacts/$NO_CRS_RUN_ID"',
+            self.reusable,
+        )
+        self.assertIn(
+            'artifact_dir="$artifact_root/five-no-crs-$connector-$NO_CRS_RUN_ID"',
+            self.reusable,
+        )
+        self.assertNotIn('path: downloaded', self.reusable)
+        self.assertNotIn(
+            'artifact_dir="downloaded/five-no-crs-$connector-$NO_CRS_RUN_ID"',
+            self.reusable,
+        )
         self.assertIn('destination="$EVIDENCE_ROOT/$connector/$NO_CRS_RUN_ID"', self.reusable)
 
     def test_aggregation_is_fail_closed_and_result_only(self) -> None:
