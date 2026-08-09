@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 from copy import deepcopy
+from dataclasses import FrozenInstanceError
 import importlib.util
 import io
 import os
@@ -12,7 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Any
+from typing import Any, Callable
 import unittest
 from unittest.mock import call, patch
 
@@ -60,21 +61,177 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         }
 
     def candidate_for(
-        self, root: Path, actions: dict[str, dict[str, str]]
+        self,
+        root: Path,
+        actions: dict[str, dict[str, str]] | None = None,
+        tools: dict[str, dict[str, str]] | None = None,
     ) -> dict[str, object]:
         _path, _lock, digest = UPDATER.load_lock(root)
+        return UPDATER.candidate_payload(
+            digest,
+            actions={} if actions is None else actions,
+            tools={} if tools is None else tools,
+        )
+
+    def proposed_tree_fixture(
+        self, temporary_root: Path
+    ) -> tuple[Path, dict[str, object], bytes, Path]:
+        """Build the isolated Connector tree used by proposed-tree validation."""
+
+        root = self.copied_update_root(temporary_root)
+        _path, lock, _digest = UPDATER.load_lock(root)
+        checkout = self.changed_action(lock, "actions/checkout", "v9.9.9", "a" * 40)
+        candidate = self.candidate_for(root, {"actions/checkout": checkout})
+        source_lock = (root / "ci/tooling/security-tools.lock.yml").read_bytes()
+        runner_temp = temporary_root / "runner-temp"
+        runner_temp.mkdir()
+        return root, candidate, source_lock, runner_temp
+
+    def assert_connector_lock_unchanged(self, root: Path, source_lock: bytes) -> None:
+        """Assert the source Connector lock remains untouched by validation."""
+
+        self.assertEqual(
+            source_lock,
+            (root / "ci/tooling/security-tools.lock.yml").read_bytes(),
+        )
+
+    @staticmethod
+    def generated_branch_blobs(
+        base_root: Path, head_root: Path
+    ) -> dict[tuple[str, str], bytes]:
+        """Read the allow-listed base and generated branch blobs for comparison."""
+
         return {
-            "schema_version": UPDATER.CANDIDATE_SCHEMA_VERSION,
-            "lock_sha256": digest,
-            "actions": actions,
-            "tools": {},
+            (revision, relative_text): (root / relative_text).read_bytes()
+            for revision, root in (("base", base_root), ("head", head_root))
+            for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
         }
+
+    @staticmethod
+    def generated_branch_blob_reader(
+        blobs: dict[tuple[str, str], bytes]
+    ) -> Callable[[Path, str, Path], bytes]:
+        """Provide a Git-blob mock backed by the generated branch fixture."""
+
+        def git_blob(_root: Path, revision: str, relative: Path) -> bytes:
+            return blobs[(revision, relative.as_posix())]
+
+        return git_blob
 
     @staticmethod
     def normalized_connector_lock(lock_blob: bytes) -> dict[str, Any]:
         """Load a Connector lock through the production compatibility adapter."""
 
         return UPDATER.normalize_connector_lock(UPDATER.yaml.safe_load(lock_blob))
+
+    @staticmethod
+    def release_fixture(
+        tag: str, *, draft: bool = False, prerelease: bool = False, **extra: Any
+    ) -> dict[str, Any]:
+        """Build one explicit GitHub release response for resolver controls."""
+
+        return {
+            "tag_name": tag,
+            "draft": draft,
+            "prerelease": prerelease,
+            **extra,
+        }
+
+    def resolve_codeql_from_page(
+        self,
+        releases: list[dict[str, Any]],
+        confirmation: dict[str, Any] | None = None,
+        *,
+        commit: str = "a" * 40,
+        reject_latest: bool = False,
+    ) -> dict[str, str] | None:
+        """Exercise the separate reviewed CodeQL same-major release path."""
+
+        _path, lock, _digest = UPDATER.load_lock(ROOT)
+        with contextlib.ExitStack() as patches:
+            patches.enter_context(
+                patch.object(UPDATER, "release_page", return_value=releases)
+            )
+            patches.enter_context(
+                patch.object(UPDATER, "release_tag_commit", return_value=commit)
+            )
+            if confirmation is not None:
+                patches.enter_context(
+                    patch.object(UPDATER, "release_by_tag", return_value=confirmation)
+                )
+            if reject_latest:
+                patches.enter_context(
+                    patch.object(
+                        UPDATER,
+                        "latest_release",
+                        side_effect=AssertionError("CodeQL must not use releases/latest"),
+                    )
+                )
+            return UPDATER.action_candidate("github/codeql-action", lock["actions"]["github/codeql-action"])
+
+    @staticmethod
+    def changed_tool(
+        lock: dict[str, Any], name: str, version: str, commit: str, sha256: str
+    ) -> dict[str, str]:
+        """Build the full immutable tool tuple from the trusted base identity."""
+
+        record = lock["tools"][name]
+        identity = UPDATER.release_identity(record, name)
+        asset = UPDATER.expected_asset_name(record, version, name)
+        return {
+            "version": version,
+            "immutable_commit": commit,
+            "upstream_release": (
+                f"https://github.com/{identity.slug}/releases/tag/{version}"
+            ),
+            "asset": asset,
+            "asset_url": (
+                f"https://github.com/{identity.slug}/releases/download/{version}/{asset}"
+            ),
+            "sha256": sha256,
+        }
+
+    def tool_release_fixture(self, changes: dict[str, str]) -> dict[str, Any]:
+        """Build the sole release asset fixture matching a changed tool tuple."""
+
+        return self.release_fixture(
+            changes["version"],
+            assets=[
+                {
+                    "name": changes["asset"],
+                    "digest": f"sha256:{changes['sha256']}",
+                    "browser_download_url": changes["asset_url"],
+                }
+            ],
+        )
+
+    @staticmethod
+    def replace_reviewed_record_fields(
+        record: dict[str, Any], changes: dict[str, str], specification: Any
+    ) -> None:
+        """Mutate only one complete reviewed tuple without a generic merge."""
+
+        if set(changes) != set(specification.mutable_fields):
+            raise AssertionError("test fixture must supply the exact mutable tuple")
+        for field in specification.mutable_fields:
+            record[field] = changes[field]
+
+    @staticmethod
+    def changed_fixture_field(
+        changes: dict[str, str], field: str, value: str
+    ) -> dict[str, str]:
+        """Copy one fixture tuple and explicitly alter one named field."""
+
+        altered = deepcopy(changes)
+        altered[field] = value
+        return altered
+
+    @contextlib.contextmanager
+    def runner_temp_environment(self, runner_temp: Path):
+        """Provide one explicitly owned test RUNNER_TEMP boundary."""
+
+        with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+            yield
 
     def test_resolver_uses_only_release_and_tag_identity(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
@@ -104,8 +261,11 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
 
     def test_major_only_action_tag_is_supported_without_relaxing_tool_tags(self) -> None:
         _path, lock, digest = UPDATER.load_lock(ROOT)
-        record = lock["actions"]["actions/github-script"]
-        self.assertEqual(record["version"], "v9")
+        record = deepcopy(lock["actions"]["actions/github-script"])
+        record["version"] = "v9"
+        record["upstream_release"] = (
+            "https://github.com/actions/github-script/releases/tag/v9"
+        )
         with (
             patch.object(
                 UPDATER,
@@ -142,6 +302,12 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         self.assertIsNone(UPDATER.TOOL_RELEASE_TAG.fullmatch("v9"))
         self.assertIsNone(UPDATER.ACTION_RELEASE_TAG.fullmatch("v９"))
         self.assertIsNone(UPDATER.TOOL_RELEASE_TAG.fullmatch("v9.９"))
+        self.assertEqual(
+            UPDATER.ACTION_CANDIDATE_SPEC.mutable_fields,
+            UPDATER.ACTION_MUTABLE_FIELDS,
+        )
+        with self.assertRaises(FrozenInstanceError):
+            UPDATER.ACTION_CANDIDATE_SPEC.candidate_group = "tools"
 
     def test_apply_accepts_a_concrete_comment_for_a_major_only_action_lock(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -188,10 +354,8 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                     "actions/github-script": self.changed_action(
                         lock_l0,
                         "actions/github-script",
-                        "v9.0.0",
-                        lock_l0["actions"]["actions/github-script"][
-                            "immutable_commit"
-                        ],
+                        "v10.0.0",
+                        "d" * 40,
                     )
                 },
             )
@@ -218,57 +382,18 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
     def test_codeql_resolver_selects_only_the_latest_same_major_action_release(
         self,
     ) -> None:
-        _path, lock, _digest = UPDATER.load_lock(ROOT)
-        record = lock["actions"]["github/codeql-action"]
         releases = [
-            {
-                "tag_name": "codeql-bundle-v2.26.1",
-                "draft": False,
-                "prerelease": False,
-            },
-            {
-                "tag_name": "v4.38.0",
-                "draft": False,
-                "prerelease": False,
-                "target_commitish": "main",
-            },
-            {
-                "tag_name": "v4.38.0.1",
-                "draft": False,
-                "prerelease": False,
-            },
-            {
-                "tag_name": "v4.39.0-rc.1",
-                "draft": False,
-                "prerelease": True,
-            },
-            {
-                "tag_name": "v5.0.0",
-                "draft": False,
-                "prerelease": False,
-            },
+            self.release_fixture("codeql-bundle-v2.26.1"),
+            self.release_fixture("v4.38.0", target_commitish="main"),
+            self.release_fixture("v4.38.0.1"),
+            self.release_fixture("v4.39.0-rc.1", prerelease=True),
+            self.release_fixture("v5.0.0"),
         ]
-        with (
-            patch.object(UPDATER, "release_page", return_value=releases),
-            patch.object(
-                UPDATER,
-                "latest_release",
-                side_effect=AssertionError("CodeQL must not use releases/latest"),
-            ),
-            patch.object(
-                UPDATER,
-                "release_by_tag",
-                return_value={
-                    "tag_name": "v4.38.0",
-                    "draft": False,
-                    "prerelease": False,
-                    "immutable": True,
-                    "target_commitish": "main",
-                },
-            ),
-            patch.object(UPDATER, "release_tag_commit", return_value="a" * 40),
-        ):
-            candidate = UPDATER.action_candidate("github/codeql-action", record)
+        candidate = self.resolve_codeql_from_page(
+            releases,
+            self.release_fixture("v4.38.0", immutable=True, target_commitish="main"),
+            reject_latest=True,
+        )
 
         self.assertEqual(
             candidate,
@@ -280,85 +405,35 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         )
 
     def test_codeql_resolver_rejects_unrelated_bundle_or_major_releases(self) -> None:
-        _path, lock, _digest = UPDATER.load_lock(ROOT)
-        record = lock["actions"]["github/codeql-action"]
         releases = [
-            {
-                "tag_name": "codeql-bundle-v2.26.1",
-                "draft": False,
-                "prerelease": False,
-            },
-            {
-                "tag_name": "v5.0.0",
-                "draft": False,
-                "prerelease": False,
-            },
-            {
-                "tag_name": "v4.38",
-                "draft": False,
-                "prerelease": False,
-            },
-            {
-                "tag_name": "v4.38.0.1",
-                "draft": False,
-                "prerelease": False,
-            },
+            self.release_fixture("codeql-bundle-v2.26.1"),
+            self.release_fixture("v5.0.0"),
+            self.release_fixture("v4.38"),
+            self.release_fixture("v4.38.0.1"),
         ]
-        with patch.object(UPDATER, "release_page", return_value=releases):
-            with self.assertRaisesRegex(UPDATER.UpdateError, "reviewed major"):
-                UPDATER.action_candidate("github/codeql-action", record)
+        with self.assertRaisesRegex(UPDATER.UpdateError, "reviewed major"):
+            self.resolve_codeql_from_page(releases)
 
     def test_codeql_resolver_requires_an_immutable_confirmed_action_release(
         self,
     ) -> None:
-        _path, lock, _digest = UPDATER.load_lock(ROOT)
-        record = lock["actions"]["github/codeql-action"]
-        release = {
-            "tag_name": "v4.38.0",
-            "draft": False,
-            "prerelease": False,
-        }
-        with (
-            patch.object(UPDATER, "release_page", return_value=[release]),
-            patch.object(
-                UPDATER, "release_by_tag", return_value={**release, "immutable": False}
-            ),
-        ):
-            with self.assertRaisesRegex(UPDATER.UpdateError, "must be immutable"):
-                UPDATER.action_candidate("github/codeql-action", record)
+        release = self.release_fixture("v4.38.0")
+        confirmation = self.release_fixture("v4.38.0", immutable=False)
+        with self.assertRaisesRegex(UPDATER.UpdateError, "must be immutable"):
+            self.resolve_codeql_from_page([release], confirmation)
 
     def test_codeql_resolver_rechecks_the_selected_release_object(self) -> None:
-        _path, lock, _digest = UPDATER.load_lock(ROOT)
-        record = lock["actions"]["github/codeql-action"]
-        page_release = {
-            "tag_name": "v4.38.0",
-            "draft": False,
-            "prerelease": False,
-        }
+        page_release = self.release_fixture("v4.38.0")
         confirmations = {
-            "draft": {
-                "tag_name": "v4.38.0",
-                "draft": True,
-                "prerelease": False,
-                "immutable": True,
-            },
-            "tag-mismatch": {
-                "tag_name": "v4.38.1",
-                "draft": False,
-                "prerelease": False,
-                "immutable": True,
-            },
+            "draft": self.release_fixture("v4.38.0", draft=True, immutable=True),
+            "tag-mismatch": self.release_fixture("v4.38.1", immutable=True),
         }
         for name, confirmation in confirmations.items():
             with self.subTest(name=name):
-                with (
-                    patch.object(UPDATER, "release_page", return_value=[page_release]),
-                    patch.object(UPDATER, "release_by_tag", return_value=confirmation),
+                with self.assertRaisesRegex(
+                    UPDATER.UpdateError, "published non-prerelease|does not match"
                 ):
-                    with self.assertRaisesRegex(
-                        UPDATER.UpdateError, "published non-prerelease|does not match"
-                    ):
-                        UPDATER.action_candidate("github/codeql-action", record)
+                    self.resolve_codeql_from_page([page_release], confirmation)
 
     def test_codeql_annotated_tag_resolves_to_the_locked_commit(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
@@ -405,11 +480,11 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         action = lock["actions"]["actions/checkout"]
         tool = lock["tools"]["actionlint"]
         releases = (
-            {"tag_name": "v9.9.9", "draft": True, "prerelease": False},
-            {"tag_name": "v9.9.9", "draft": False, "prerelease": True},
-            {"tag_name": "v9.9.9-rc.1", "draft": False, "prerelease": False},
-            {"tag_name": "v9.9.9-beta", "draft": False, "prerelease": False},
-            {"tag_name": "v9.9.9-dev", "draft": False, "prerelease": False},
+            self.release_fixture("v9.9.9", draft=True),
+            self.release_fixture("v9.9.9", prerelease=True),
+            self.release_fixture("v9.9.9-rc.1"),
+            self.release_fixture("v9.9.9-beta"),
+            self.release_fixture("v9.9.9-dev"),
         )
         for release in releases:
             with self.subTest(release=release):
@@ -422,16 +497,24 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
     def test_candidate_rejects_unapproved_fields_and_stale_lock_digest(self) -> None:
         _path, lock, digest = UPDATER.load_lock(ROOT)
         valid = self.changed_action(lock, "actions/checkout", "v9.9.9", "a" * 40)
+        unapproved_action = self.changed_fixture_field(
+            valid, "license", "untrusted"
+        )
         candidate = {
             "schema_version": UPDATER.CANDIDATE_SCHEMA_VERSION,
             "lock_sha256": digest,
-            "actions": {"actions/checkout": {**valid, "license": "untrusted"}},
+            "actions": {"actions/checkout": unapproved_action},
             "tools": {},
         }
         with self.assertRaisesRegex(UPDATER.UpdateError, "unapproved field"):
             UPDATER.validate_candidate_shape(candidate, lock, digest)
 
         candidate["actions"] = {"actions/checkout": valid}
+        candidate["unexpected"] = {}
+        with self.assertRaisesRegex(UPDATER.UpdateError, "top-level field"):
+            UPDATER.validate_candidate_shape(candidate, lock, digest)
+
+        del candidate["unexpected"]
         candidate["lock_sha256"] = "0" * 64
         with self.assertRaisesRegex(UPDATER.UpdateError, "current trusted lock"):
             UPDATER.validate_candidate_shape(candidate, lock, digest)
@@ -461,6 +544,53 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             {"actions": {"actions/checkout": {}}, "tools": {}}, True
         )
 
+    def test_candidate_payload_keeps_the_fixed_canonical_json_and_sha(self) -> None:
+        candidate = UPDATER.candidate_payload(
+            "b" * 64,
+            actions={
+                "actions/checkout": {
+                    "version": "v9.9.9",
+                    "immutable_commit": "a" * 40,
+                    "upstream_release": (
+                        "https://github.com/actions/checkout/releases/tag/v9.9.9"
+                    ),
+                }
+            },
+            tools={},
+        )
+        self.assertEqual(
+            UPDATER.canonical_candidate(candidate),
+            '{"actions":{"actions/checkout":{"immutable_commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","upstream_release":"https://github.com/actions/checkout/releases/tag/v9.9.9","version":"v9.9.9"}},"lock_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","schema_version":1,"tools":{}}',
+        )
+        self.assertEqual(
+            UPDATER.candidate_sha256(candidate),
+            "5e1418e2a25471f01d218964435418a515bb8d4d0e4007d090c6d7b718fcd150",
+        )
+
+    def test_validate_and_apply_keep_the_shared_candidate_cli_contract(self) -> None:
+        expected_digest = "a" * 64
+        for mode in ("validate", "apply"):
+            with self.subTest(mode=mode):
+                with patch.object(
+                    sys,
+                    "argv",
+                    [
+                        str(UPDATER_PATH),
+                        mode,
+                        "--candidate",
+                        "/tmp/candidate.json",
+                        "--expected-candidate-sha256",
+                        expected_digest,
+                        "--require-updates",
+                    ],
+                ):
+                    args = UPDATER.parse_args()
+                self.assertEqual(args.mode, mode)
+                self.assertEqual(args.candidate, Path("/tmp/candidate.json"))
+                self.assertIsNone(args.candidate_b64)
+                self.assertEqual(args.expected_candidate_sha256, expected_digest)
+                self.assertTrue(args.require_updates)
+
     def test_resolve_github_output_binds_payload_digest_and_update_state(self) -> None:
         candidate = self.candidate_for(ROOT, {})
         output = io.StringIO()
@@ -486,46 +616,52 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = self.copied_update_root(Path(temporary_directory))
             _path, lock, _digest = UPDATER.load_lock(root)
-            checkout = self.changed_action(lock, "actions/checkout", "v9.9.9", "a" * 40)
-            python = self.changed_action(
-                lock, "actions/setup-python", "v9.9.8", "b" * 40
+            action_updates = (
+                ("actions/checkout", "v9.9.9", "a" * 40),
+                ("actions/setup-python", "v9.9.8", "b" * 40),
             )
             candidate = self.candidate_for(
                 root,
                 {
-                    "actions/checkout": checkout,
-                    "actions/setup-python": python,
+                    name: self.changed_action(lock, name, version, commit)
+                    for name, version, commit in action_updates
                 },
             )
 
             changed = UPDATER.apply_candidate(root, candidate)
 
-            self.assertIn("ci/tooling/security-tools.lock.yml", changed)
-            self.assertIn("docs/security/ci-security-tooling.md", changed)
-            self.assertIn("docs/security/ci-security-tooling.de.md", changed)
+            for expected_path in (
+                "ci/tooling/security-tools.lock.yml",
+                "docs/security/ci-security-tooling.md",
+                "docs/security/ci-security-tooling.de.md",
+            ):
+                with self.subTest(expected_path=expected_path):
+                    self.assertIn(expected_path, changed)
             self.assertTrue(
                 all(path in UPDATER.ALLOWED_UPDATE_PATHS for path in changed)
             )
             workflow_text = (
                 root / ".github/workflows/all-connectors-no-crs.yml"
             ).read_text(encoding="utf-8")
-            self.assertIn(f"actions/checkout@{'a' * 40} # v9.9.9", workflow_text)
-            self.assertIn(f"actions/setup-python@{'b' * 40} # v9.9.8", workflow_text)
+            for name, version, commit in action_updates:
+                with self.subTest(workflow_action=name):
+                    self.assertIn(f"{name}@{commit} # {version}", workflow_text)
             for workflow_path in (root / ".github/workflows").glob("*.yml"):
                 workflow = workflow_path.read_text(encoding="utf-8")
-                self.assertNotIn(
+                for retired_reference in (
                     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-                    workflow,
-                )
-                self.assertNotIn(
                     "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
-                    workflow,
-                )
+                ):
+                    with self.subTest(
+                        workflow=workflow_path.name, retired_reference=retired_reference
+                    ):
+                        self.assertNotIn(retired_reference, workflow)
             documentation = (
                 root / "docs/security/ci-security-tooling.md"
             ).read_text(encoding="utf-8")
-            self.assertIn(f"`v9.9.9` | `{'a' * 40}`", documentation)
-            self.assertIn(f"`v9.9.8` | `{'b' * 40}`", documentation)
+            for _name, version, commit in action_updates:
+                with self.subTest(documented_version=version):
+                    self.assertIn(f"`{version}` | `{commit}`", documentation)
 
     def test_apply_preserves_reviewed_codeql_subaction_suffixes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -541,10 +677,12 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             workflow = (root / ".github/workflows/ci-security-codeql.yml").read_text(
                 encoding="utf-8"
             )
-            self.assertIn(f"github/codeql-action/init@{'c' * 40} # v4.99.7", workflow)
-            self.assertIn(
-                f"github/codeql-action/analyze@{'c' * 40} # v4.99.7", workflow
-            )
+            for suffix in ("init", "analyze"):
+                with self.subTest(suffix=suffix):
+                    self.assertIn(
+                        f"github/codeql-action/{suffix}@{'c' * 40} # v4.99.7",
+                        workflow,
+                    )
 
     def test_all_locked_action_references_are_in_the_publisher_allowlist(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
@@ -596,15 +734,15 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             root = self.copied_update_root(Path(temporary_directory))
             _path, lock, _digest = UPDATER.load_lock(root)
             escaped = root / ".github/workflows/unallowlisted.yml"
-            escaped.write_text(
-                "uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n",
-                encoding="utf-8",
-            )
-            with self.assertRaisesRegex(UPDATER.UpdateError, "escape the publisher allowlist"):
-                UPDATER.ensure_locked_action_workflow_coverage(root, lock)
-
-            escaped.write_text(
-                """\
+            rejected_workflows = (
+                (
+                    "pinned-unallowlisted",
+                    "uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n",
+                    "escape the publisher allowlist",
+                ),
+                (
+                    "mutable-unallowlisted",
+                    """\
 name: unallowlisted mutable Action
 on: workflow_dispatch
 jobs:
@@ -613,27 +751,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 """,
-                encoding="utf-8",
+                    "escape the publisher allowlist",
+                ),
+                (
+                    "yaml-anchor",
+                    "defaults: &unsafe\n  run:\n    shell: bash\n",
+                    "YAML anchors",
+                ),
             )
-            with self.assertRaisesRegex(UPDATER.UpdateError, "escape the publisher allowlist"):
-                UPDATER.ensure_locked_action_workflow_coverage(root, lock)
-
-            escaped.write_text(
-                "defaults: &unsafe\n  run:\n    shell: bash\n",
-                encoding="utf-8",
-            )
-            with self.assertRaisesRegex(UPDATER.UpdateError, "YAML anchors"):
-                UPDATER.ensure_locked_action_workflow_coverage(root, lock)
+            for name, contents, error in rejected_workflows:
+                with self.subTest(name=name):
+                    escaped.write_text(contents, encoding="utf-8")
+                    with self.assertRaisesRegex(UPDATER.UpdateError, error):
+                        UPDATER.ensure_locked_action_workflow_coverage(root, lock)
 
     def test_tool_candidate_requires_the_reviewed_asset_naming_rule(self) -> None:
         _path, lock, digest = UPDATER.load_lock(ROOT)
         baseline = lock["tools"]["actionlint"]
         identity = UPDATER.release_identity(baseline, "actionlint")
-        candidate = {
-            "schema_version": UPDATER.CANDIDATE_SCHEMA_VERSION,
-            "lock_sha256": digest,
-            "actions": {},
-            "tools": {
+        candidate = self.candidate_for(
+            ROOT,
+            tools={
                 "actionlint": {
                     "version": "v9.9.9",
                     "immutable_commit": "c" * 40,
@@ -643,9 +781,56 @@ jobs:
                     "sha256": "d" * 64,
                 }
             },
-        }
+        )
         with self.assertRaisesRegex(UPDATER.UpdateError, "reviewed naming rule"):
             UPDATER.validate_candidate_shape(candidate, lock, digest)
+
+    def test_candidate_groups_reject_cross_group_fields_and_bad_tool_tuples(self) -> None:
+        _path, lock, digest = UPDATER.load_lock(ROOT)
+        action_changes = self.changed_action(
+            lock, "actions/checkout", "v9.9.9", "a" * 40
+        )
+        action_changes["asset"] = "not-an-action-field"
+        tool_changes = self.changed_tool(
+            lock, "actionlint", "v9.9.9", "c" * 40, "d" * 64
+        )
+        invalid_candidates = (
+            (
+                "action-tool-mix-up",
+                self.candidate_for(ROOT, {"actions/checkout": action_changes}),
+                "unapproved field",
+            ),
+            (
+                "tool-url",
+                self.candidate_for(
+                    ROOT,
+                    tools={
+                        "actionlint": self.changed_fixture_field(
+                            tool_changes,
+                            "asset_url",
+                            "https://example.invalid/actionlint.tar.gz",
+                        )
+                    },
+                ),
+                "untrusted asset URL",
+            ),
+            (
+                "tool-digest",
+                self.candidate_for(
+                    ROOT,
+                    tools={
+                        "actionlint": self.changed_fixture_field(
+                            tool_changes, "sha256", "g" * 64
+                        )
+                    },
+                ),
+                "SHA-256",
+            ),
+        )
+        for name, candidate, error in invalid_candidates:
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(UPDATER.UpdateError, error):
+                    UPDATER.validate_candidate_shape(candidate, lock, digest)
 
     def test_changed_tool_assets_use_the_existing_checksum_safe_fetcher(self) -> None:
         calls: list[tuple[str, dict[str, object], Path]] = []
@@ -694,12 +879,12 @@ jobs:
             traversal = runner_temp / ".." / "outside" / "candidate.json"
             traversal.parent.mkdir(exist_ok=True)
             traversal.write_text("{}\n", encoding="utf-8")
-            with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+            with self.runner_temp_environment(runner_temp):
                 with self.assertRaisesRegex(UPDATER.UpdateError, "strict child"):
                     UPDATER.runner_temp_path(traversal, for_write=True)
 
             output_directory = runner_temp / "tool-validation"
-            with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+            with self.runner_temp_environment(runner_temp):
                 self.assertEqual(
                     UPDATER.runner_temp_output_directory(output_directory), output_directory
                 )
@@ -708,17 +893,32 @@ jobs:
 
             symlink = runner_temp / "escaped-output"
             symlink.symlink_to(outside, target_is_directory=True)
-            with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
-                with self.assertRaisesRegex(UPDATER.UpdateError, "symlink"):
-                    UPDATER.runner_temp_output_directory(symlink)
-                with self.assertRaisesRegex(UPDATER.UpdateError, "strict child"):
-                    UPDATER.runner_temp_path(traversal, for_write=False)
-                redirected = runner_temp / "redirected"
-                redirected.symlink_to(outside, target_is_directory=True)
-                with self.assertRaisesRegex(UPDATER.UpdateError, "symlink"):
-                    UPDATER.write_candidate(
-                        redirected / "candidate.json", {"safe": True}
-                    )
+            redirected = runner_temp / "redirected"
+            redirected.symlink_to(outside, target_is_directory=True)
+            with self.runner_temp_environment(runner_temp):
+                rejected_operations = (
+                    (
+                        "symlink-output-directory",
+                        lambda: UPDATER.runner_temp_output_directory(symlink),
+                        "symlink",
+                    ),
+                    (
+                        "traversal-read",
+                        lambda: UPDATER.runner_temp_path(traversal, for_write=False),
+                        "strict child",
+                    ),
+                    (
+                        "redirected-write",
+                        lambda: UPDATER.write_candidate(
+                            redirected / "candidate.json", {"safe": True}
+                        ),
+                        "symlink",
+                    ),
+                )
+                for name, operation, error in rejected_operations:
+                    with self.subTest(name=name):
+                        with self.assertRaisesRegex(UPDATER.UpdateError, error):
+                            operation()
 
                 candidate_path = runner_temp / "nested" / "candidate.json"
                 candidate = {"safe": True}
@@ -743,13 +943,9 @@ jobs:
     def test_proposed_tree_validation_does_not_modify_the_source_checkout(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
-            root = self.copied_update_root(temporary_root)
-            _path, lock, _digest = UPDATER.load_lock(root)
-            checkout = self.changed_action(lock, "actions/checkout", "v9.9.9", "a" * 40)
-            candidate = self.candidate_for(root, {"actions/checkout": checkout})
-            source_lock = (root / "ci/tooling/security-tools.lock.yml").read_bytes()
-            runner_temp = temporary_root / "runner-temp"
-            runner_temp.mkdir()
+            root, candidate, source_lock, runner_temp = self.proposed_tree_fixture(
+                temporary_root
+            )
             commands: list[tuple[list[str], Path]] = []
 
             def successful_check(
@@ -765,10 +961,7 @@ jobs:
                     "commit_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                     proposed_lock,
                 )
-                self.assertEqual(
-                    source_lock,
-                    (root / "ci/tooling/security-tools.lock.yml").read_bytes(),
-                )
+                self.assert_connector_lock_unchanged(root, source_lock)
                 return subprocess.CompletedProcess(arguments, 0, "", "")
 
             with (
@@ -780,10 +973,7 @@ jobs:
             self.assertEqual(len(commands), 1)
             self.assertEqual(commands[0][0][-1], "check-ci-security-contract")
             self.assertEqual(list(runner_temp.iterdir()), [])
-            self.assertEqual(
-                source_lock,
-                (root / "ci/tooling/security-tools.lock.yml").read_bytes(),
-            )
+            self.assert_connector_lock_unchanged(root, source_lock)
 
     def test_scope_verification_rejects_the_unallowlisted_source_of_a_rename(
         self,
@@ -837,16 +1027,16 @@ jobs:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
         base = deepcopy(lock)
         head = deepcopy(lock)
-        tool = head["tools"]["actionlint"]
-        tool.update(
-            {
-                "version": "v9.9.9",
-                "immutable_commit": "c" * 40,
-                "upstream_release": "https://github.com/attacker/actionlint/releases/tag/v9.9.9",
-                "asset": "actionlint_9.9.9_linux_amd64.tar.gz",
-                "asset_url": "https://github.com/attacker/actionlint/releases/download/v9.9.9/actionlint_9.9.9_linux_amd64.tar.gz",
-                "sha256": "d" * 64,
-            }
+        changes = self.changed_tool(lock, "actionlint", "v9.9.9", "c" * 40, "d" * 64)
+        changes["upstream_release"] = (
+            "https://github.com/attacker/actionlint/releases/tag/v9.9.9"
+        )
+        changes["asset_url"] = (
+            "https://github.com/attacker/actionlint/releases/download/"
+            "v9.9.9/actionlint_9.9.9_linux_amd64.tar.gz"
+        )
+        self.replace_reviewed_record_fields(
+            head["tools"]["actionlint"], changes, UPDATER.TOOL_CANDIDATE_SPEC
         )
         with self.assertRaisesRegex(UPDATER.UpdateError, "untrusted release URL"):
             UPDATER.verify_existing_branch_lock_records(base, head)
@@ -857,36 +1047,16 @@ jobs:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
         base = deepcopy(lock)
         head = deepcopy(lock)
-        baseline = base["tools"]["actionlint"]
-        identity = UPDATER.release_identity(baseline, "actionlint")
-        asset = "actionlint_9.9.9_linux_amd64.tar.gz"
-        asset_url = (
-            f"https://github.com/{identity.slug}/releases/download/v9.9.9/{asset}"
+        changes = self.changed_tool(
+            base, "actionlint", "v9.9.9", "c" * 40, "d" * 64
         )
-        head["tools"]["actionlint"].update(
-            {
-                "version": "v9.9.9",
-                "immutable_commit": "c" * 40,
-                "upstream_release": f"https://github.com/{identity.slug}/releases/tag/v9.9.9",
-                "asset": asset,
-                "asset_url": asset_url,
-                "sha256": "d" * 64,
-            }
+        self.replace_reviewed_record_fields(
+            head["tools"]["actionlint"], changes, UPDATER.TOOL_CANDIDATE_SPEC
         )
-        release = {
-            "tag_name": "v9.9.9",
-            "draft": False,
-            "prerelease": False,
-            "assets": [
-                {
-                    "name": asset,
-                    "digest": f"sha256:{'d' * 64}",
-                    "browser_download_url": asset_url,
-                }
-            ],
-        }
         with (
-            patch.object(UPDATER, "release_by_tag", return_value=release),
+            patch.object(
+                UPDATER, "release_by_tag", return_value=self.tool_release_fixture(changes)
+            ),
             patch.object(UPDATER, "release_tag_commit", return_value="c" * 40),
         ):
             UPDATER.verify_existing_branch_lock_records(base, head)
@@ -897,11 +1067,7 @@ jobs:
         base_lock = self.normalized_connector_lock(base_lock_blob)
         base_lock_digest = UPDATER.hashlib.sha256(base_lock_blob).hexdigest()
         head_lock = deepcopy(base_lock)
-        blobs = {
-            (revision, relative_text): (ROOT / relative_text).read_bytes()
-            for revision in ("base", "head")
-            for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
-        }
+        blobs = self.generated_branch_blobs(ROOT, ROOT)
         updater_path = ".github/workflows/update-workflow-tools.yml"
         publisher_workflow = blobs[("head", updater_path)].decode("utf-8")
         blobs[("head", updater_path)] = publisher_workflow.replace(
@@ -913,15 +1079,16 @@ jobs:
             1,
         ).encode("utf-8")
 
-        def git_blob(_root: Path, revision: str, relative: Path) -> bytes:
-            return blobs[(revision, relative.as_posix())]
-
         with tempfile.TemporaryDirectory() as temporary_directory:
             runner_temp = Path(temporary_directory) / "runner-temp"
             runner_temp.mkdir()
             with (
                 patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}),
-                patch.object(UPDATER, "git_blob", side_effect=git_blob),
+                patch.object(
+                    UPDATER,
+                    "git_blob",
+                    side_effect=self.generated_branch_blob_reader(blobs),
+                ),
             ):
                 with self.assertRaisesRegex(
                     UPDATER.UpdateError,
@@ -943,12 +1110,7 @@ jobs:
         checkout = self.changed_action(
             base_lock, "actions/checkout", "v9.9.9", "a" * 40
         )
-        candidate = {
-            "schema_version": UPDATER.CANDIDATE_SCHEMA_VERSION,
-            "lock_sha256": UPDATER.hashlib.sha256(base_lock_blob).hexdigest(),
-            "actions": {"actions/checkout": checkout},
-            "tools": {},
-        }
+        candidate = self.candidate_for(ROOT, {"actions/checkout": checkout})
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
             expected_root = self.copied_update_root(temporary_root / "expected")
@@ -956,27 +1118,17 @@ jobs:
             head_lock = self.normalized_connector_lock(
                 (expected_root / "ci/tooling/security-tools.lock.yml").read_bytes()
             )
-            blobs = {
-                ("base", relative_text): (ROOT / relative_text).read_bytes()
-                for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
-            }
-            blobs.update(
-                {
-                    ("head", relative_text): (
-                        expected_root / relative_text
-                    ).read_bytes()
-                    for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
-                }
-            )
-
-            def git_blob(_root: Path, revision: str, relative: Path) -> bytes:
-                return blobs[(revision, relative.as_posix())]
+            blobs = self.generated_branch_blobs(ROOT, expected_root)
 
             runner_temp = temporary_root / "runner-temp"
             runner_temp.mkdir()
             with (
                 patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}),
-                patch.object(UPDATER, "git_blob", side_effect=git_blob),
+                patch.object(
+                    UPDATER,
+                    "git_blob",
+                    side_effect=self.generated_branch_blob_reader(blobs),
+                ),
             ):
                 UPDATER.verify_existing_branch_generated_blobs(
                     ROOT,
@@ -994,11 +1146,40 @@ jobs:
         workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("resolver:", workflow)
-        self.assertIn("validator:", workflow)
-        self.assertIn("publisher:", workflow)
-        self.assertIn("outcome:", workflow)
-        self.assertIn("actions/create-github-app-token@", workflow)
+        required_workflow_markers = (
+            "resolver:",
+            "validator:",
+            "publisher:",
+            "outcome:",
+            "actions/create-github-app-token@",
+            "client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}",
+            "private-key: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}",
+            "permission-contents: write",
+            "permission-pull-requests: write",
+            "permission-workflows: write",
+            "${{ steps.publisher_app_token.outputs.token }}",
+            "Verify workflow publisher GitHub App configuration",
+            "resolver_status",
+            "candidate_sha256",
+            "--expected-candidate-sha256",
+            "--require-updates",
+            "--verify-tool-assets",
+            "--validate-proposed-tree",
+            "modsecurity-conector-workflow-tool-publisher-validation",
+            "verify-existing-branch --root .",
+            'git switch --detach "origin/$DEFAULT_BRANCH"',
+            'echo "reused=true" >> "$GITHUB_OUTPUT"',
+            '"--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP"',
+            "draft: true",
+            "verify-scope --root . --staged",
+            "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+            "if: ${{ always() }}",
+            "permissions: {}",
+            "No reviewed workflow or tool updates are currently available.",
+        )
+        for marker in required_workflow_markers:
+            with self.subTest(marker=marker):
+                self.assertIn(marker, workflow)
         _lock_path, lock, _digest = UPDATER.load_lock(ROOT)
         app_token = lock["actions"]["actions/create-github-app-token"]
         self.assertEqual(app_token["version"], "v3.2.0")
@@ -1009,45 +1190,11 @@ jobs:
         self.assertEqual(
             app_token["upstream"], "https://github.com/actions/create-github-app-token"
         )
-        self.assertIn("client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}", workflow)
-        self.assertIn(
-            "private-key: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}", workflow
-        )
-        self.assertIn("permission-contents: write", workflow)
-        self.assertIn("permission-pull-requests: write", workflow)
-        self.assertIn("permission-workflows: write", workflow)
-        self.assertIn("${{ steps.publisher_app_token.outputs.token }}", workflow)
         self.assertNotIn("${{ github.token }}", workflow)
-        self.assertIn("Verify workflow publisher GitHub App configuration", workflow)
-        self.assertIn("resolver_status", workflow)
-        self.assertIn("candidate_sha256", workflow)
-        self.assertIn("--expected-candidate-sha256", workflow)
-        self.assertIn("--require-updates", workflow)
-        self.assertIn("--verify-tool-assets", workflow)
-        self.assertIn("--validate-proposed-tree", workflow)
-        self.assertIn("modsecurity-conector-workflow-tool-publisher-validation", workflow)
-        self.assertIn("verify-existing-branch --root .", workflow)
-        self.assertIn('git switch --detach "origin/$DEFAULT_BRANCH"', workflow)
-        self.assertIn('echo "reused=true" >> "$GITHUB_OUTPUT"', workflow)
-        self.assertIn(
-            '"--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP"',
-            workflow,
-        )
-        self.assertIn("draft: true", workflow)
-        self.assertIn("verify-scope --root . --staged", workflow)
-        self.assertIn(
-            "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
-            workflow,
-        )
-        self.assertIn("if: ${{ always() }}", workflow)
-        self.assertIn("permissions: {}", workflow)
-        self.assertIn(
-            "No reviewed workflow or tool updates are currently available.", workflow
-        )
-        self.assertNotIn("|| true", workflow)
+        for forbidden_marker in ("|| true", "git push --force ", "pull_request_target"):
+            with self.subTest(forbidden_marker=forbidden_marker):
+                self.assertNotIn(forbidden_marker, workflow)
         self.assertNotRegex(workflow, r"git push\s+--force(?:\s|$)")
-        self.assertNotIn("git push --force ", workflow)
-        self.assertNotIn("pull_request_target", workflow)
 
 
 if __name__ == "__main__":
