@@ -590,11 +590,15 @@ jobs:
                 self.assertIn(module, requirements)
                 self.assertGreaterEqual(requirements[module], floor)
 
-    def test_codeql_uses_central_go_file_and_bounded_cpp_scope(self) -> None:
+    def test_codeql_uses_trusted_base_go_version_and_bounded_cpp_scope(self) -> None:
         text = self.workflow("ci-security-codeql.yml")
-        self.assertEqual(text.count("go-version-file: .go-version"), 2)
+        self.assertIn("ref: ${{ github.event.pull_request.base.sha || github.sha }}", text)
+        self.assertEqual(
+            text.count("go-version: ${{ needs.trusted-go-version.outputs.version }}"),
+            2,
+        )
         self.assertEqual(text.count("check-latest: false"), 2)
-        self.assertNotIn("go-version:", text)
+        self.assertNotIn("go-version-file: .go-version", text)
         self.assertIn("connectors/envoy/ext_proc", text)
         self.assertIn("connectors/traefik/native_middleware", text)
         self.assertIn("Fuzz Traefik UDS frame parser", text)
@@ -717,8 +721,8 @@ jobs:
                 path.name,
             )
 
-    def test_verified_report_governance_stays_lightweight(self) -> None:
-        """Keep expensive runtime evidence and report production local-only."""
+    def test_verified_report_governance_enforces_strict_existing_evidence(self) -> None:
+        """Reject stale critical evidence without producing or refreshing it in CI."""
 
         text = self.workflow("verified-report-governance.yml")
         jobs = self.jobs("verified-report-governance.yml")
@@ -726,9 +730,13 @@ jobs:
         job = jobs["report-governance"]
         self.assertIn("timeout-minutes: 20", job)
         self.assertIn("make report-governance", job)
+        self.assertIn("make verified-report-evidence-gate", job)
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        lint_body = makefile.split("lint:", 1)[1].split("\nsummary:", 1)[0]
+        self.assertIn("$(MAKE) report-governance", lint_body)
+        self.assertIn("$(MAKE) verified-report-evidence-gate", lint_body)
         for forbidden in (
             "verified-report-run",
-            "verified-report-evidence-gate",
             "refresh-all-reports",
             "generate-system-environment-proof",
             "runtime-matrix-all",

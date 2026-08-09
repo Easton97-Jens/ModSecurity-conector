@@ -18,13 +18,14 @@ CANONICAL_VERSION_FILE = ".go-version"
 CODEQL_WORKFLOW = Path(".github/workflows/ci-security-codeql.yml")
 SETUP_GO_REFERENCE = "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0"
 EXPECTED_JOBS = frozenset({"envoy-go", "traefik-go"})
+TRUSTED_VERSION_JOB = "trusted-go-version"
 VERSION_RE = re.compile(r"^1\.26\.(?:0|[1-9]\d*)$", re.ASCII)
 JOB_HEADER = re.compile(r"^ {2}(?P<name>[A-Za-z0-9_-]+):\s*$")
 SETUP_GO_PREFIX = "      - uses: actions/setup-go@"
 EXPECTED_SETUP_GO_BODY = "\n".join(
     (
         "        with:",
-        "          go-version-file: .go-version",
+        "          go-version: ${{ needs.trusted-go-version.outputs.version }}",
         "          check-latest: false",
     )
 )
@@ -143,6 +144,8 @@ def setup_go_blocks(job: str) -> list[SetupGoStep]:
 
 def job_violations(job_name: str, job: str) -> list[str]:
     violations: list[str] = []
+    if "    needs: trusted-go-version" not in job:
+        violations.append(f"{job_name} must depend on the trusted Go version job")
     setup_steps = setup_go_blocks(job)
     if len(setup_steps) != 1:
         return [f"{job_name} must contain exactly one actions/setup-go step"]
@@ -153,7 +156,7 @@ def job_violations(job_name: str, job: str) -> list[str]:
     body = setup.body
     if body != EXPECTED_SETUP_GO_BODY:
         violations.append(
-            f"{job_name} must use only the exact central .go-version selector inputs"
+            f"{job_name} must use only the trusted-base Go version output"
         )
     return violations
 
@@ -173,6 +176,16 @@ def evaluate(root: Path) -> Result:
 
     blocks = job_blocks(text)
     violations: list[str] = []
+    trusted_job = blocks.get(TRUSTED_VERSION_JOB, "")
+    for marker in (
+        "ref: ${{ github.event.pull_request.base.sha || github.sha }}",
+        "version: ${{ steps.version.outputs.version }}",
+        'version="$(cat -- .go-version)"',
+        '[[ ! "$version" =~ ^1\\.26\\.(0|[1-9][0-9]*)$ ]]',
+        'echo "version=$version" >> "$GITHUB_OUTPUT"',
+    ):
+        if marker not in trusted_job:
+            violations.append(f"trusted Go version job lacks required contract: {marker}")
     for job_name in sorted(EXPECTED_JOBS):
         job = blocks.get(job_name)
         if job is None:
