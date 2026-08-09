@@ -27,6 +27,14 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Install pinned CI test dependencies
+        run: |
+          python3 -m pip install \
+            --disable-pip-version-check \
+            --no-input \
+            --only-binary=:all: \
+            --require-hashes \
+            -r requirements-ci.lock
       - name: Fetch checksum-verified actionlint
         run: python3 ci/tools/fetch_security_tool.py --tool actionlint --destination "$RUNNER_TEMP/security-tools"
       - name: Lint workflows with ShellCheck when present
