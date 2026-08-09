@@ -55,6 +55,11 @@ The recorded pre-change SonarCloud metrics were:
 - Replaced repeated test fixture maps with explicit fixtures and table-driven
   cases.  Existing test methods remain present and additional rejection and
   immutability cases were added.
+- A follow-up test-only consolidation shares Connector-specific proposed-tree
+  and generated-branch fixtures while retaining independent lock, RUNNER_TEMP,
+  exact-blob, and malicious-publisher assertions. It also isolates a release
+  fixture before the exception context, resolving S5778 without changing the
+  negative test.
 
 ## Security impact
 
@@ -77,6 +82,13 @@ publisher `git add --` list. The source/staging equality control, real coverage
 test, and existing fail-closed negative control pass. A second focused
 two-file Security diff review also has zero reportable findings.
 
+SonarCloud initially identified one task-owned S5778 test smell. Its
+two-invocation exception context was split into explicit setup plus the single
+operation under assertion; the original immutable-release rejection remains
+covered. The resulting PR code head has Quality Gate OK, zero unresolved
+issues, zero Security Hotspots, and no accepted issue. The historical S5778
+record is resolved as FIXED, not accepted or open.
+
 ## Changed files
 
 - `ci/tools/update-workflow-tools.py`
@@ -96,6 +108,7 @@ two-file Security diff review also has zero reportable findings.
 | Check | Actual result |
 | --- | --- |
 | Focused unittest suite | Passed: 51 tests in 11.926 s |
+| Follow-up updater/NGINX/helper suite | Passed: 51 tests in 12.602 s; the updater module retains 34 test methods |
 | Rebased-current-master focused unittest suite before the narrow repair | Historical reproduction: 50 tests passed and one fail-closed publisher-allowlist error named only `.github/workflows/nginx-root-broker.yml` |
 | User-authorized one-path publisher repair | Passed: focused suite 51 tests in 11.394 s; real coverage and fail-closed unallowlisted/YAML negative controls pass |
 | `python -m py_compile` for the changed Python modules | Passed |
@@ -106,6 +119,8 @@ two-file Security diff review also has zero reportable findings.
 | `git diff --check HEAD` | Passed |
 | Focused security-diff scan | Passed: complete six-file coverage and zero reportable findings |
 | Focused authorized-workflow security-diff scan | Passed: complete two-file coverage and zero reportable findings |
+| PR 256 code-head hosted checks | Passed: all applicable checks, including SonarCloud Code Analysis, CodeQL, actionlint, zizmor, pull-request diff/range, structure, and connector-contract checks |
+| PR 256 SonarCloud code-head readback | Quality Gate OK; 0 unresolved issues; 0 Security Hotspots; the sole intermediate S5778 record is FIXED |
 | `make check-bilingual-docs` | Blocked only by 20 missing Framework-link targets in the unmaterialized task-worktree Gitlink; the Change Record emitted no heading/identity error |
 | `make check-doc-links` with the authoritative `FRAMEWORK_ROOT` | Blocked only by the same local Gitlink link targets |
 
@@ -122,8 +137,9 @@ applicable evidence is the focused unit/contract suite and the sealed
 security-diff scan at
 `/var/tmp/codex/ModSecurity-conector/tmp/codex-security-scans/ModSecurity-conector/27e8756e212fd9452d99e285743dbadc43c814a6_20260809T053956Z/report.md`.
 
-Hosted GitHub Actions and SonarCloud PR analysis are now pending the normal
-push and exactly one Draft PR; no merge authority is implied.
+At code-change head c43df1b01771523a9f8903a252232a9002786cdd, hosted GitHub
+Actions and SonarCloud PR analysis passed. The PR remains Draft/open and no
+merge authority is implied.
 
 ## Checks not run and rationale
 
@@ -144,20 +160,29 @@ push and exactly one Draft PR; no merge authority is implied.
 
 ## Known limitations
 
-Local checks cannot prove the post-change SonarCloud duplication metrics or
-the hosted PR quality gate.  The requested hosted analysis remains the
-authoritative measurement.  The full local lint target is currently blocked
-by the task worktree's unmaterialized Framework Gitlink dependency. The
-publisher-path gap discovered after the rebase is fixed locally under the
-user's explicit one-path workflow authorization.
+The requested hosted analysis is retained as the authoritative measurement.
+The full local lint target remains blocked by the task worktree's
+unmaterialized Framework Gitlink dependency. The publisher-path gap discovered
+after the rebase is repaired under the user's explicit one-path workflow
+authorization.
+
+The NGINX files are both at 0.0% duplication. The updater test reaches 21.0%
+and 252 duplicated lines, a 64.5% reduction from 709 and below the requested
+25% target. The production updater improves from 1,305 to 951 lines at 41.5%
+but does not reach the requested 50% or under-20% target. Every remaining block is an
+exact Parent versus separately owned Framework counterpart. The blocks cover
+path/symlink boundaries, release provenance, candidate schemas, immutable
+lock mutation, publisher scope, and reusable-branch verification. Rewriting
+them solely for CPD would be a security-sensitive reimplementation; sharing
+them requires a coordinated Framework delivery, outside this task. Exact raw
+block evidence is retained externally under the task Sonar evidence directory.
 
 ## Remaining risks
 
 The principal residual risk is behavioral drift in the security-sensitive
 updater.  It is reduced by preservation tests, explicit immutable schema
 objects, an independent diff audit, the focused security-diff scan, and the
-pending hosted checks; it is not eliminated until those checks and SonarCloud
-remeasurement are observed.  The audit noted that an artificial,
+observed hosted checks and SonarCloud remeasurement. The audit noted that an artificial,
 non-normalized in-memory action record could cause a derived release URL to be
 classified as changed before same-version validation rejects it. Valid lock
 normalization deterministically derives that URL, so this is not a reachable
@@ -168,5 +193,7 @@ lock-file path.
 The refactor commits are reviewable and based on current master. The
 user-authorized two-line publisher repair restores the finite source/staging
 contract without changing any Action pin, permission, lock, Framework, MRTS,
-or Gitlink. A normal push, one Draft PR, exact-head hosted actions, and
-SonarCloud comparison remain required. This record does not authorize a merge.
+or Gitlink. PR 256 is one Draft PR and remains unmerged. The NGINX and updater
+test targets are met, while the updater-source target is documented as
+partially blocked by the independent Framework ownership boundary. This record
+does not authorize a merge.
