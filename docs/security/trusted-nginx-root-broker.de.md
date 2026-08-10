@@ -389,12 +389,13 @@ vor Candidate-Admission, jeder Root-Aktion, NGINX-Start, Evidence-Projektion
 und Cleanup-Verifikation. PR #273 mergte anschließend Broker-Commit
 `7a9240d35e50475cc1a381fa103b0bb5cca2bee3` nach `master` und machte diese
 Broker-Revision verfügbar. Sein commitierter Caller-Workflow/-Helper pinnt
-weiterhin `409caa5b9664bcb8e1919d35684575e00a959f6a`; dieser getrennte
-uncommitted Phase-B-Caller-Repin-Patch wählt das Tupel
-`7a9240d35e50475cc1a381fa103b0bb5cca2bee3`/
-`03880bf66b3905940466ff10b3a431a27ecc6b26`. Weder der Merge noch dieser
-lokale Patch sind Runtime-Nachweis; ein frischer resulting-master-Lifecycle
-bleibt zwingend.
+weiterhin `409caa5b9664bcb8e1919d35684575e00a959f6a`; der getrennte
+Phase-B-Caller-Repin-Commit `9a54f316248edf22b3e43ccfbb3310a651253921`
+wählt das Tupel `7a9240d35e50475cc1a381fa103b0bb5cca2bee3`/
+`03880bf66b3905940466ff10b3a431a27ecc6b26` und wird als Draft
+[PR #274](https://github.com/Easton97-Jens/ModSecurity-conector/pull/274)
+verfolgt. Weder der Merge noch diese lokale Source-/Static-Evidence sind
+Runtime-Nachweis; ein frischer resulting-master-Lifecycle bleibt zwingend.
 
 PR #240 bleibt blockiert, bis dieser resulting-master-Caller gestartet wurde
 und mit erfolgreichen `no-crs`- sowie `owasp-crs`-Profilen einschließlich

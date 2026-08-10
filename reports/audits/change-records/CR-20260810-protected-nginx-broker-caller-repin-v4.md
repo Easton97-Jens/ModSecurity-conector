@@ -13,25 +13,28 @@
 | Active protected broker SHA | 7a9240d35e50475cc1a381fa103b0bb5cca2bee3 |
 | Broker Framework gitlink | 03880bf66b3905940466ff10b3a431a27ecc6b26 |
 | Broker availability | [PR #273](https://github.com/Easton97-Jens/ModSecurity-conector/pull/273) merged broker commit `7a9240d35e50475cc1a381fa103b0bb5cca2bee3` at 2026-08-10T14:13:09Z |
+| Delivery PR | Draft [PR #274](https://github.com/Easton97-Jens/ModSecurity-conector/pull/274), initially observed at `9a54f316248edf22b3e43ccfbb3310a651253921` |
 
 ## Motivation and problem statement
 
-The trusted-broker guides must name the caller tuple selected by this separate
-uncommitted Phase-B patch. PR #273 merged broker commit
+The trusted-broker guides must name the caller tuple selected by the separate
+Phase-B caller-repin commit `9a54f316248edf22b3e43ccfbb3310a651253921`.
+PR #273 merged broker commit
 `7a9240d35e50475cc1a381fa103b0bb5cca2bee3` to `master`, making that broker
 revision available, but its committed caller workflow/helper still pin
-`409caa5b9664bcb8e1919d35684575e00a959f6a`. This Phase-B patch repins the
+`409caa5b9664bcb8e1919d35684575e00a959f6a`. The Phase-B commit repins the
 caller to broker `7a9240d35e50475cc1a381fa103b0bb5cca2bee3` with Framework
-gitlink `03880bf66b3905940466ff10b3a431a27ecc6b26`. Historical Change Records
-are retained unchanged.
+gitlink `03880bf66b3905940466ff10b3a431a27ecc6b26`; Draft PR #274 carries
+the delivery. Historical Change Records are retained unchanged.
 
 ## Acceptance criteria
 
 The English and German guides contain the same active broker SHA-40 and
 Framework gitlink in both reusable-workflow examples and the caller tuple.
 They accurately distinguish PR #273 making the broker revision available from
-this uncommitted Phase-B patch selecting the tuple, without treating either
-the merge, its master checks, or local validation as protected runtime evidence.
+the separate Phase-B commit and Draft PR #274 selecting the tuple, without
+treating the merge, its master checks, or local validation as protected runtime
+evidence.
 This record and its German companion link reciprocally, disclose only observed
 Phase-B local, hosted, and lifecycle status, and contain no private path or
 secret.
@@ -47,9 +50,10 @@ Framework value is the exact mode-`160000` gitlink recorded by the broker
 revision. The synchronization changes no behavior, admission gate, permission,
 schema, or root command. PR #273 supplies the available broker commit; its
 committed caller remains at `409caa5b9664bcb8e1919d35684575e00a959f6a`, and
-this uncommitted Phase-B patch performs the caller repin. The record separates
-that state, the observed PR #273 master checks, and the separate dispatch-only
-protected lifecycle, which is not established by ordinary `push` workflows.
+the separate Phase-B commit performs the caller repin under Draft PR #274.
+The record separates that state, the observed PR #273 master checks, and the
+separate dispatch-only protected lifecycle, which is not established by
+ordinary `push` workflows.
 
 ## Security impact
 
@@ -112,6 +116,9 @@ nonpassing baseline evidence, not a Phase-B pin violation.
 
 - `rtk proxy gh pr view 273 --repo Easton97-Jens/ModSecurity-conector --json number,url,state,isDraft,mergedAt,mergeCommit,headRefName,headRefOid,baseRefName,statusCheckRollup,reviewDecision` — observed PR #273 as `MERGED` into `master`, with head `bf838c3985e574756870498de176fd3294cba028`, resulting SHA `7a9240d35e50475cc1a381fa103b0bb5cca2bee3`, and merge time `2026-08-10T14:13:09Z`.
 - `rtk proxy gh run list --repo Easton97-Jens/ModSecurity-conector --commit 7a9240d35e50475cc1a381fa103b0bb5cca2bee3 --limit 100 --json databaseId,name,status,conclusion,workflowName,event,headSha,url,createdAt,updatedAt` — PASS: the 14 exact-head `push` runs listed above completed with `success`.
+- `rtk proxy gh pr view 274 --repo Easton97-Jens/ModSecurity-conector --json number,state,isDraft,baseRefName,headRefName,headRefOid,mergeable,mergeStateStatus,reviewDecision,url,autoMergeRequest,reviews` — observed Draft PR #274 as `OPEN` against `master`, initially at `9a54f316248edf22b3e43ccfbb3310a651253921`, `MERGEABLE`/`CLEAN`, with no reviews and no auto-merge request.
+- `rtk proxy gh api 'repos/Easton97-Jens/ModSecurity-conector/commits/9a54f316248edf22b3e43ccfbb3310a651253921/check-runs?per_page=100' -H 'Accept: application/vnd.github+json' --jq '[.check_runs[] | {status, conclusion}] | group_by([.status, .conclusion]) | map({status: .[0].status, conclusion: .[0].conclusion, count: length})'` — observed 35 terminal current-head checks: 29 `success` and 6 scope-conditional `skipped`; CodeQL completed successfully.
+- `rtk proxy gh api repos/Easton97-Jens/ModSecurity-conector/check-runs/93500714235 --jq '{status, conclusion, title: .output.title, summary: .output.summary, details_url}'` — SonarCloud Code Analysis completed with `success`; its Quality Gate passed with 0 New issues, 0 Accepted issues, and 0 Security Hotspots for initial head `9a54f316248edf22b3e43ccfbb3310a651253921`.
 - `rtk proxy make check-bilingual-docs` — first run BLOCKED because this new pair lacked required headings; corrected rerun BLOCKED only by 20 pre-existing missing Framework-gitlink targets and reported no diagnostic for either v4 record or either trusted-broker guide.
 - `rtk proxy make check-doc-links` — BLOCKED only by 16 pre-existing missing Framework-gitlink targets outside this scope; no scoped-path diagnostic was reported.
 - `rtk proxy git diff --check -- docs/security/trusted-nginx-root-broker.md docs/security/trusted-nginx-root-broker.de.md` — PASS.
@@ -126,7 +133,7 @@ nonpassing baseline evidence, not a Phase-B pin violation.
 No resulting-caller Phase-B protected lifecycle evidence was observed. The
 exact-head listing above contains the 14 ordinary `push` workflows for the
 broker-availability commit only; it does not show a successful dispatch of
-`Protected NGINX Root Broker Lifecycle` for this uncommitted caller repin and
+`Protected NGINX Root Broker Lifecycle` for Draft PR #274's caller repin and
 cannot prove its root-master/non-root-worker, CRS, artifact, or cleanup
 behavior.
 
@@ -140,25 +147,28 @@ are not implied by PR #273 or its exact-master checks.
 ## Known limitations
 
 This record documents the complete Phase-B caller-repin scope and the observed
-local validation above. PR #273 established broker availability only; this
-uncommitted nine-file patch has no new PR, hosted exact-head check, review,
-merge, branch-protection, SonarQube Cloud, or resulting-caller lifecycle
-result.
+local validation above. PR #273 established broker availability only. Initial
+Draft PR #274 head `9a54f316248edf22b3e43ccfbb3310a651253921` has the hosted
+check and SonarQube Cloud evidence recorded above, but that evidence does not
+cover a later documentation-only delivery commit, prove final exact-head
+branch-protection or review/merge status, or establish a resulting-caller
+lifecycle result.
 
 ## Remaining risks
 
-The uncommitted caller tuple still needs a separate resulting-master protected
-lifecycle to establish runtime evidence for both `no-crs` and `owasp-crs`
-profiles.
+The Draft PR #274 caller tuple still needs a separate resulting-master
+protected lifecycle to establish runtime evidence for both `no-crs` and
+`owasp-crs` profiles.
 
 ## Final review status
 
 Scoped literal, bilingual-pair, reciprocal-link, and whitespace review is
 complete. Global documentation checks remain blocked by the pre-existing
-unmaterialized Framework targets. The observed Phase-B local validation is
-recorded above; PR, hosted, and protected-lifecycle evidence remain separate
-and unclaimed. No staging, commit, push, pull request, or merge is authorized
-by this record.
+unmaterialized Framework targets. The observed Phase-B local validation and
+initial PR-head hosted evidence are recorded above; that evidence remains
+separate from unobserved protected-lifecycle evidence, and no final delivery
+or lifecycle conclusion is claimed. This record itself grants no staging,
+commit, push, pull-request, or merge authority.
 
 ## Final diff and review status
 
