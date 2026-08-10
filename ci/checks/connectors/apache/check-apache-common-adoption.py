@@ -76,7 +76,7 @@ checks.append(("msconnector_request_mapper_contract" in mapper_h + mapper_c and 
 checks.append(("int msc_apache_map_response" in mapper_h + mapper_c and "msconnector_response_mapper_contract" in mapper_h + mapper_c, "Apache response mapper is present"))
 checks.append(("msconnector_response_mapper_validate_output" in mapper_c, "Response mapper uses Common contract validation"))
 checks.append(("copy_apr_response_headers" in mapper_c and "err_headers_out" in mapper_c and "r->content_type" in mapper_c, "Response mapper includes err_headers_out and synthesized Content-Type"))
-checks.append(("msconnector_headers_host" in mapper_c, "Apache mapper uses Common header helper"))
+checks.append(("msconnector_headers_find" in mapper_c, "Apache mapper uses Common header helper"))
 checks.append(("msconnector_event_write_jsonl_line" in filters_c and "msconnector_event_init" in filters_c, "Apache event JSONL uses Common event primitives"))
 checks.append(("event.decision.status = MSCONNECTOR_STATUS_BLOCKED" in intervention_event_helper, "Apache P3/P4 intervention events set a non-OK status"))
 checks.append((

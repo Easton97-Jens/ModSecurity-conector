@@ -5,6 +5,8 @@ from pathlib import Path
 import re
 import unittest
 
+from tests.c_source_contract import function_definition, matching_delimiter
+
 
 ROOT = Path(__file__).resolve().parents[1]
 NGINX_SOURCE = ROOT / "connectors" / "nginx" / "src"
@@ -14,33 +16,6 @@ COMMON = NGINX_SOURCE / "ngx_http_modsecurity_common.h"
 HEADER = NGINX_SOURCE / "ngx_http_modsecurity_header_filter.c"
 MODULE = NGINX_SOURCE / "ngx_http_modsecurity_module.c"
 CAPABILITIES = ROOT / "connectors" / "nginx" / "capabilities.json"
-
-
-def matching_delimiter(source: str, opening: int, left: str, right: str) -> int:
-    depth = 0
-    for index in range(opening, len(source)):
-        if source[index] == left:
-            depth += 1
-        elif source[index] == right:
-            depth -= 1
-            if depth == 0:
-                return index
-    raise AssertionError(f"unterminated {left}{right} pair")
-
-
-def function_definition(source: str, name: str) -> str:
-    for match in re.finditer(rf"\b{re.escape(name)}\s*\(", source):
-        opening = source.index("(", match.start())
-        closing = matching_delimiter(source, opening, "(", ")")
-        cursor = closing + 1
-        while cursor < len(source) and source[cursor].isspace():
-            cursor += 1
-        if cursor >= len(source) or source[cursor] != "{":
-            continue
-        end = matching_delimiter(source, cursor, "{", "}")
-        start = source.rfind("\n", 0, match.start()) + 1
-        return source[start : end + 1]
-    raise AssertionError(f"{name} definition was not found")
 
 
 def conditional_block(source: str, marker: str, start: int = 0) -> str:
@@ -351,7 +326,7 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertIn("return ngx_http_next_body_filter(r, in);", tail)
         self.assertLess(tail.index("break;"), tail.rindex("return ngx_http_next_body_filter(r, in);"))
 
-    def test_out_of_scope_phase4_body_is_bounded_then_mapped_log_only(self) -> None:
+    def test_out_of_scope_phase4_body_is_not_exposed_and_is_mapped_log_only(self) -> None:
         append = function_definition(
             self.body, "ngx_http_modsecurity_append_limited_response_body"
         )
@@ -360,7 +335,12 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertIn("msc_append_response_body", append)
 
         body_filter = function_definition(self.body, "ngx_http_modsecurity_body_filter")
-        self.assertNotIn("ngx_http_modsecurity_phase4_in_scope(r)", body_filter)
+        self.assertIn(
+            "phase4_in_scope = ngx_http_modsecurity_phase4_in_scope(r)",
+            body_filter,
+        )
+        scoped_append = conditional_block(body_filter, "if (phase4_in_scope != 0")
+        self.assertIn("ngx_http_modsecurity_append_limited_response_body", scoped_append)
 
         phase4 = function_definition(
             self.body, "ngx_http_modsecurity_phase4_handle_intervention"
@@ -372,8 +352,8 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         scope_reason = self.capabilities["capabilities"]["content_type_scope"][
             "reason"
         ]
-        self.assertIn("maps a detected out-of-scope response intervention", scope_reason)
-        self.assertIn("bounded current buffers still reach ModSecurity", scope_reason)
+        self.assertIn("checks its configured response Content-Type scope", scope_reason)
+        self.assertIn("out-of-scope response bodies are not appended", scope_reason)
 
 
 if __name__ == "__main__":

@@ -118,6 +118,7 @@ int msc_apache_map_request(request_rec *r,
     size_t error_len)
 {
     msconnector_header *headers = NULL;
+    const msconnector_header *host_header;
     size_t header_count = 0;
     msconnector_resource_limits limits;
 
@@ -135,11 +136,8 @@ int msc_apache_map_request(request_rec *r,
     out->method = r->method;
     out->uri = r->unparsed_uri;
     out->http_version = r->protocol;
-    out->hostname = msconnector_headers_host(headers, header_count);
-    if (out->hostname == NULL)
-    {
-        out->hostname = r->hostname;
-    }
+    host_header = msconnector_headers_find(headers, header_count, "Host");
+    out->hostname = host_header != NULL ? host_header->value : r->hostname;
     out->headers = headers;
     out->header_count = header_count;
     out->body.size = 0U;

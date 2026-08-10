@@ -33,12 +33,6 @@ size_t msconnector_headers_count_name(const msconnector_header *headers, size_t 
     for (size_t index = 0; index < header_count; ++index) { if (msconnector_header_name_equals(&headers[index], name)) { ++count; } }
     return count;
 }
-const char *msconnector_headers_find_value(const msconnector_header *headers, size_t header_count, const char *name) {
-    (void)headers;
-    (void)header_count;
-    (void)name;
-    return 0;
-}
 int msconnector_headers_find_value_slice(const msconnector_header *headers, size_t header_count, const char *name, const char **value, size_t *value_size) {
     const msconnector_header *header = msconnector_headers_find(headers, header_count, name);
     if (value != 0) { *value = 0; }
@@ -115,11 +109,6 @@ int msconnector_headers_parse_content_length(const msconnector_header *headers, 
     if (!seen) { return 0; }
     if (out != 0) { *out = parsed; }
     return 1;
-}
-const char *msconnector_headers_host(const msconnector_header *headers, size_t header_count) {
-    (void)headers;
-    (void)header_count;
-    return 0;
 }
 size_t msconnector_header_sanitize_value_for_log(const char *src, size_t src_size, char *dst, size_t dst_size, int *truncated) {
     size_t written = 0;

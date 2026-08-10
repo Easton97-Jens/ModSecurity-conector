@@ -48,6 +48,28 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
         self.assertIn("unrun_selected_runner_cases=deny_with_alternative_status.yaml", result.stdout)
         self.assertNotIn("PASS", result.stdout)
 
+    def test_consumer_accepts_the_canonical_full_lifecycle_namespace(self) -> None:
+        result = self.consume(
+            "lighttpd",
+            " ".join(
+                (
+                    "allow_without_marker.yaml",
+                    "deny_header_marker_403.yaml",
+                    "full-lifecycle/phase3_deny_before_commit.yaml",
+                )
+            ),
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("full-lifecycle/phase3_deny_before_commit.yaml", result.stdout)
+
+    def test_consumer_rejects_full_lifecycle_traversal(self) -> None:
+        result = self.consume(
+            "lighttpd",
+            "allow_without_marker.yaml deny_header_marker_403.yaml full-lifecycle/../escape.yaml",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unsafe characters", result.stderr)
+
     def test_stage_rejects_missing_selected_cases_and_preserves_dispatch_controls(self) -> None:
         stage_runner = ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh"
         missing_cases_message = "FAIL: capability-selected No-CRS runner cases are missing"
@@ -140,6 +162,79 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
                 "target=runtime-smoke-envoy-ext-proc connector=envoy selected=\n",
             )
 
+    def test_closed_profile_rejects_future_profiles_and_nginx_before_runtime_setup(self) -> None:
+        runner = ROOT / "ci" / "runtime" / "lifecycle" / "run-no-crs-baseline.sh"
+        with tempfile.TemporaryDirectory(prefix="msconnector-closed-profile-") as temporary:
+            temporary_root = Path(temporary)
+            for connector, profile, expected_error in (
+                ("apache", "with-crs", "invalid choice"),
+                ("nginx", "no-crs", "closed no-crs profile"),
+            ):
+                with self.subTest(connector=connector, profile=profile):
+                    environment = os.environ.copy()
+                    environment.update(
+                        {
+                            "CONNECTOR_ROOT": str(ROOT),
+                            "FRAMEWORK_ROOT": str(temporary_root / "missing-framework"),
+                            "FIVE_CONNECTOR_PROFILE": profile,
+                            "NO_CRS_ARTIFACT_PROFILE": "generic",
+                            "NO_CRS_RUN_ID": "closed-profile-101",
+                            "VERIFIED_RUN_ROOT": str(temporary_root / f"verified-{connector}"),
+                        }
+                    )
+                    result = subprocess.run(
+                        ["sh", str(runner), connector, "minimal_runtime_smoke"],
+                        cwd=ROOT,
+                        env=environment,
+                        check=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertIn(expected_error, result.stderr)
+                    self.assertFalse(
+                        Path(environment["VERIFIED_RUN_ROOT"]).exists(),
+                        "closed-profile rejection must precede runtime root creation",
+                    )
+
+    def test_closed_profile_stage_uses_the_resolver_canonical_capability_manifest(self) -> None:
+        stage_runner = ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh"
+        with tempfile.TemporaryDirectory(prefix="msconnector-closed-profile-stage-") as temporary:
+            temporary_root = Path(temporary)
+            connector_root = temporary_root / "connector"
+            connector_root.mkdir()
+            (connector_root / "ci").symlink_to(ROOT / "ci", target_is_directory=True)
+            framework_common = temporary_root / "framework" / "ci" / "lib" / "common.sh"
+            framework_common.parent.mkdir(parents=True)
+            framework_common.write_text("# hermetic framework presence marker\n", encoding="utf-8")
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "CONNECTOR_ROOT": str(connector_root),
+                    "FRAMEWORK_ROOT": str(temporary_root / "framework"),
+                    "VERIFIED_RUN_ROOT": str(temporary_root / "verified"),
+                    "FIVE_CONNECTOR_PROFILE": "no-crs",
+                    "NO_CRS_ARTIFACT_PROFILE": "generic",
+                }
+            )
+            environment.pop("NO_CRS_SELECTED_CASES", None)
+            result = subprocess.run(
+                ["sh", str(stage_runner), "apache", "no_crs_baseline"],
+                cwd=ROOT,
+                env=environment,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(
+            result.stderr,
+            "FAIL: capability-selected No-CRS runner cases are missing\n",
+        )
+
     def test_remaining_connectors_keep_compatibility_and_native_targets_distinct(self) -> None:
         stage = (ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh").read_text(encoding="utf-8")
         for connector, native_target, compatibility_target in (
@@ -196,6 +291,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             "TRAEFIK_BIN",
             "TRAEFIK_NATIVE_RUNTIME_ROOT",
             "TRAEFIK_ENGINE_SOCKET_PARENT",
+            "TRAEFIK_ENGINE_SOCKET_TEST_PARENT",
             "PYTHON",
             "BUILD_ROOT",
             "MODSECURITY_INCLUDE_DIR",
@@ -219,7 +315,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             native_makefile,
         )
         self.assertIn(
-            "export TRAEFIK_BIN TRAEFIK_NATIVE_RUNTIME_ROOT TRAEFIK_ENGINE_SOCKET_PARENT PYTHON",
+            "export TRAEFIK_BIN TRAEFIK_NATIVE_RUNTIME_ROOT TRAEFIK_ENGINE_SOCKET_PARENT TRAEFIK_ENGINE_SOCKET_TEST_PARENT PYTHON",
             native_makefile,
         )
         self.assertEqual(native_recipe, "\tsh scripts/runtime-native-middleware.sh")
@@ -327,6 +423,10 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
                 f"{temporary_root}/$(shell printf MAKE_PARENT_INJECTION_REACHED >&2)",
             ),
             (
+                "TRAEFIK_ENGINE_SOCKET_TEST_PARENT",
+                f"{temporary_root}/$(shell printf MAKE_TEST_PARENT_INJECTION_REACHED >&2)",
+            ),
+            (
                 "PYTHON",
                 f"{temporary_root}/$(shell printf MAKE_PYTHON_INJECTION_REACHED >&2)",
             ),
@@ -347,6 +447,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             "--eval=show-exported-values:; @printf '%s\\n' \"$$TRAEFIK_BIN\"; "
             "printf '%s\\n' \"$$TRAEFIK_NATIVE_RUNTIME_ROOT\"; "
             "printf '%s\\n' \"$$TRAEFIK_ENGINE_SOCKET_PARENT\"; "
+            "printf '%s\\n' \"$$TRAEFIK_ENGINE_SOCKET_TEST_PARENT\"; "
             "printf '%s\\n' \"$$PYTHON\"; "
             "printf '%s\\n' \"$$MODSECURITY_INCLUDE_DIR\"; "
             "printf '%s\\n' \"$$MODSECURITY_LIB_DIR\"; "
@@ -380,6 +481,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             "MAKE_BIN_INJECTION_REACHED",
             "MAKE_ROOT_INJECTION_REACHED",
             "MAKE_PARENT_INJECTION_REACHED",
+            "MAKE_TEST_PARENT_INJECTION_REACHED",
             "MAKE_PYTHON_INJECTION_REACHED",
             "MAKE_INCLUDE_INJECTION_REACHED",
             "MAKE_LIBRARY_INJECTION_REACHED",

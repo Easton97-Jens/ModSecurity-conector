@@ -10,6 +10,15 @@ layer does not imply that another layer passed. The selected documentation is
 limited to the six HTTP/1.1 core routes and makes no production, CRS,
 complete-matrix, HTTP/2, HTTP/3, or strict-for-all-connectors claim.
 
+The general Make targets in this guide retain their six-connector scope. The
+scheduled/manual <code>all-connectors-no-crs.yml</code> workflow is narrower:
+its closed <code>no-crs</code> profile runs only Apache, HAProxy, Envoy,
+Traefik, and lighttpd. It rejects unknown profiles and rows outside that map;
+NGINX is not a result in that workflow. The profile aggregate validates one
+bound result and receipt per selected connector, including run and commit
+identity plus cleanup status. That validation is not hosted-runtime proof and
+does not provide CRS, MRTS, HTTP/2, HTTP/3, full-matrix, or production claims.
+
 ## Test layers
 
 | Layer | Typical target | Establishes | Does not establish |

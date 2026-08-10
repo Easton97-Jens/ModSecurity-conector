@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -17,6 +18,7 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 WORKFLOW_PATTERNS = ("*.yml", "*.yaml")
 PERMISSION_FIXTURES = ROOT / "ci" / "fixtures" / "workflow-permission-contract"
 SHA_PIN = re.compile(r"^[a-z\d_.-]+(?:/[a-z\d_.-]+)+@[a-f\d]{40}\s+# v\d", re.MULTILINE)
+SHELL_CONTINUATION = re.compile(r"\\\r?\n[ \t]*")
 JOB_HEADER = re.compile(r"^ {2}(?P<name>[A-Za-z0-9_-]+):\s*$")
 STEP_HEADER = re.compile(r"^(?P<indent>\s*)-\s")
 GO_MODULE_REQUIREMENT = re.compile(
@@ -24,6 +26,22 @@ GO_MODULE_REQUIREMENT = re.compile(
     r"(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(?:\s+//.*)?$"
 )
 PCRE2_SHA256 = "47fe8c99461250d42f89e6e8fdaeba9da057855d06eb7fc08d9ca03fd08d7bc7"
+PROTECTED_NGINX_BROKER_CALLER_WORKFLOW = "run-protected-nginx-root-broker.yml"
+PROTECTED_NGINX_BROKER_SHA = "7a9240d35e50475cc1a381fa103b0bb5cca2bee3"
+PROTECTED_NGINX_BROKER_FRAMEWORK_SHA = "03880bf66b3905940466ff10b3a431a27ecc6b26"
+PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
+    "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
+    + PROTECTED_NGINX_BROKER_SHA
+)
+PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
+    {
+        "github.event_name == 'workflow_dispatch'",
+        "github.repository == 'Easton97-Jens/ModSecurity-conector'",
+        "github.event.repository.fork == false",
+        "github.ref == 'refs/heads/master'",
+        "github.event.repository.default_branch == 'master'",
+    }
+)
 
 WRITE_PERMISSION_KEYS = {
     "contents",
@@ -36,6 +54,28 @@ WRITE_PERMISSION_KEYS = {
     "id-token",
     "attestations",
 }
+
+
+def normalize_shell_script(script: str) -> str:
+    """Normalize layout for static shell contracts without executing shell."""
+
+    without_continuations = SHELL_CONTINUATION.sub(" ", script)
+    return " ".join(without_continuations.split())
+
+
+def has_exact_framework_gitlink_staging(script: str) -> bool:
+    """Recognize only the narrowly scoped Framework gitlink index update."""
+
+    normalized = normalize_shell_script(script)
+    required = (
+        'git update-index --add --cacheinfo '
+        '"160000,$CANDIDATE_SHA,$SUBMODULE_PATH"'
+    )
+    return (
+        required in normalized
+        and "git add ." not in normalized
+        and "git add -A" not in normalized
+    )
 
 EXPECTED_WRITE_PERMISSIONS = {
     ("cleanup-artifacts.yml", "cleanup-artifacts"): {"actions": "write"},
@@ -141,6 +181,68 @@ def job_permissions(job: str) -> dict[str, str]:
     return {}
 
 
+def job_if_expression(job: str) -> str | None:
+    """Return the unique job-level ``if`` expression without YAML evaluation."""
+
+    lines = job.splitlines()
+    expressions: list[str] = []
+    for index, line in enumerate(lines):
+        if not line.startswith("    if:"):
+            continue
+        value = line.removeprefix("    if:").strip()
+        if value in {">", ">-", "|", "|-"}:
+            continuation: list[str] = []
+            for candidate in lines[index + 1 :]:
+                if candidate.startswith("      "):
+                    continuation.append(candidate.strip())
+                    continue
+                if candidate.strip():
+                    break
+            value = " ".join(continuation)
+        expressions.append(value)
+    if len(expressions) != 1:
+        return None
+    expression = expressions[0]
+    if expression.startswith("${{") and expression.endswith("}}"):
+        expression = expression.removeprefix("${{").removesuffix("}}").strip()
+    return " ".join(expression.split())
+
+
+def has_exact_master_only_gate(job: str, extra_terms: set[str]) -> bool:
+    """Require a conjunction of the fixed master gate and approved job clauses."""
+
+    expression = job_if_expression(job)
+    if expression is None:
+        return False
+    terms = {term.strip() for term in expression.split("&&")}
+    return terms == PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS | extra_terms
+
+
+def job_direct_key_count(job: str, key: str) -> int:
+    """Count direct job mapping keys, including malformed duplicate keys."""
+
+    return sum(line.startswith(f"    {key}:") for line in job.splitlines())
+
+
+def job_with_keys(job: str) -> list[str] | None:
+    """Return direct ``with`` keys only when the job has one such mapping."""
+
+    lines = job.splitlines()
+    with_indexes = [index for index, line in enumerate(lines) if line.startswith("    with:")]
+    if len(with_indexes) != 1:
+        return None
+    keys: list[str] = []
+    for line in lines[with_indexes[0] + 1 :]:
+        if not line.strip():
+            continue
+        if len(line) - len(line.lstrip()) <= 4:
+            break
+        match = re.match(r"^      (?P<key>[A-Za-z_][A-Za-z0-9_-]*):", line)
+        if match is not None:
+            keys.append(match.group("key"))
+    return keys
+
+
 def checkout_step_blocks(text: str) -> list[str]:
     """Return each checkout step through the next step at the same indent."""
 
@@ -222,6 +324,175 @@ def yaml_security_errors(text: str) -> list[str]:
     return errors
 
 
+def protected_nginx_broker_caller_errors(text: str) -> list[str]:
+    """Return exact trust-contract violations for the protected dispatch caller."""
+
+    errors: list[str] = []
+    if not text.startswith("name: Protected NGINX Root Broker Lifecycle\n"):
+        errors.append("caller workflow name")
+    trigger_match = re.search(r"(?ms)^on:\n(?P<body>.*?)(?=^permissions:\n)", text)
+    if trigger_match is None:
+        errors.append("caller trigger section")
+        trigger_body = ""
+    else:
+        trigger_body = trigger_match.group("body")
+        triggers = re.findall(r"(?m)^  ([A-Za-z_][A-Za-z0-9_-]*):", trigger_body)
+        if triggers != ["workflow_dispatch"]:
+            errors.append("caller must have only workflow_dispatch")
+        inputs = re.findall(r"(?m)^      ([A-Za-z_][A-Za-z0-9_-]*):", trigger_body)
+        if inputs != ["parent_head_sha"]:
+            errors.append("caller must expose only parent_head_sha")
+        if "        required: true" not in trigger_body or "        type: string" not in trigger_body:
+            errors.append("caller parent_head_sha must be required string")
+    for forbidden in (
+        "pull_request:",
+        "pull_request_target:",
+        "push:",
+        "workflow_call:",
+        "repository_dispatch:",
+        "workflow_run:",
+    ):
+        if forbidden in text:
+            errors.append(f"forbidden trigger {forbidden}")
+    try:
+        if top_level_permissions(text) != {"contents": "read"}:
+            errors.append("caller top-level permissions")
+    except AssertionError:
+        errors.append("caller top-level permissions")
+    if (
+        "  group: protected-nginx-root-broker-caller" not in text
+        or "  cancel-in-progress: false" not in text
+    ):
+        errors.append("caller non-cancelling concurrency")
+    expected_jobs = {
+        "prepare-manifests",
+        "run-no-crs-broker",
+        "run-with-crs-broker",
+        "verify-evidence",
+        "result",
+    }
+    jobs = job_blocks(text)
+    if set(jobs) != expected_jobs:
+        errors.append("caller job inventory")
+    expected_gate_extras = {
+        "prepare-manifests": set(),
+        "run-no-crs-broker": {"needs.prepare-manifests.result == 'success'"},
+        "run-with-crs-broker": {"needs.prepare-manifests.result == 'success'"},
+        "verify-evidence": {
+            "always()",
+            "needs.prepare-manifests.result == 'success'",
+            "needs.run-no-crs-broker.result == 'success'",
+            "needs.run-with-crs-broker.result == 'success'",
+        },
+        "result": {"always()"},
+    }
+    for name, job in jobs.items():
+        if job_permissions(job) != {"contents": "read"}:
+            errors.append(f"caller job permissions {name}")
+        if not has_exact_master_only_gate(job, expected_gate_extras.get(name, set())):
+            errors.append(f"caller master-only gate {name}")
+    if "matrix:" in text or "strategy:" in text:
+        errors.append("caller must not use a dynamic matrix")
+    protected_calls = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip().startswith("uses: Easton97-Jens/ModSecurity-conector/.github/workflows/")
+    ]
+    if protected_calls != [
+        f"uses: {PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE}",
+        f"uses: {PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE}",
+    ]:
+        errors.append("caller immutable protected broker reference")
+    required_no_crs = (
+        "      caller_manifest_artifact: protected-nginx-caller-${{ github.run_id }}-${{ github.run_attempt }}-no-crs",
+        "      parent_head_sha: ${{ inputs.parent_head_sha }}",
+        f"      framework_sha: {PROTECTED_NGINX_BROKER_FRAMEWORK_SHA}",
+        f"      protected_broker_sha: {PROTECTED_NGINX_BROKER_SHA}",
+        "      matrix_variant: no-crs",
+        "      run_id: protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-no-crs",
+    )
+    required_with_crs = tuple(item.replace("no-crs", "with-crs") for item in required_no_crs)
+    required_with_crs = tuple(
+        item.replace("matrix_variant: with-crs", "matrix_variant: with-crs")
+        for item in required_with_crs
+    )
+    expected_broker_input_keys = [
+        "caller_manifest_artifact",
+        "parent_head_sha",
+        "framework_sha",
+        "protected_broker_sha",
+        "matrix_variant",
+        "run_id",
+    ]
+    for job_name, requirements in (
+        ("run-no-crs-broker", required_no_crs),
+        ("run-with-crs-broker", required_with_crs),
+    ):
+        job = jobs.get(job_name, "")
+        if job_direct_key_count(job, "uses") != 1:
+            errors.append(f"caller immutable protected broker reference {job_name}")
+        if job_direct_key_count(job, "with") != 1 or job_with_keys(job) != expected_broker_input_keys:
+            errors.append(f"caller exact broker input keys {job_name}")
+        for required in requirements:
+            if required not in job:
+                errors.append(f"caller fixed broker input {job_name} {required}")
+    if "policy_profile:" in trigger_body or "matrix_variant:" in trigger_body:
+        errors.append("caller exposes a dynamic profile or variant")
+    prepare = jobs.get("prepare-manifests", "")
+    if "create-manifests" not in prepare or '--target-sha "$TARGET_PARENT_SHA"' not in prepare:
+        errors.append("caller manifest preparation")
+    if (
+        "ref: ${{ github.sha }}" not in prepare
+        or 'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"' not in prepare
+        or "persist-credentials: false" not in prepare
+    ):
+        errors.append("caller checkout identity")
+    if "--output-root" in prepare:
+        errors.append("caller manifest path must be derived from the trusted runner temporary directory")
+    if prepare.count("caller-manifest.json") != 2:
+        errors.append("caller must upload exactly two single-file manifests")
+    if any(
+        pattern in text
+        for pattern in (
+            "uses: ./",
+            "@master",
+            "@fix/",
+            "secrets.",
+            "${{ secrets.",
+            "sudo",
+            "git checkout \"$TARGET_PARENT_SHA\"",
+            "git checkout '${TARGET_PARENT_SHA}'",
+            "ref: ${{ inputs.parent_head_sha }}",
+            "python3 \"$TARGET_PARENT_SHA\"",
+            "source \"$TARGET_PARENT_SHA\"",
+            "make $TARGET_PARENT_SHA",
+        )
+    ):
+        errors.append("caller target-code or privilege boundary")
+    evidence = jobs.get("verify-evidence", "")
+    if (
+        "verify-evidence" not in evidence
+        or "Download no-CRS broker evidence" not in evidence
+        or "Download OWASP CRS broker evidence" not in evidence
+    ):
+        errors.append("caller evidence readback")
+    if "--no-crs-directory" in evidence or "--with-crs-directory" in evidence:
+        errors.append("caller evidence paths must be derived from the trusted runner temporary directory")
+    result = jobs.get("result", "")
+    for required in (
+        "always()",
+        '"$PREPARE_RESULT" != success',
+        '"$NO_CRS_RESULT" != success',
+        '"$WITH_CRS_RESULT" != success',
+        '"$EVIDENCE_RESULT" != success',
+        "exit 1",
+    ):
+        if required not in result:
+            errors.append("caller fail-closed result")
+            break
+    return errors
+
+
 def go_module_requirements(text: str) -> dict[str, tuple[int, int, int]]:
     """Return stable semantic versions declared in Go require directives."""
 
@@ -268,6 +539,12 @@ class CiSecurityWorkflowTest(unittest.TestCase):
                 if "uses:" not in line or "@" not in line or "./" in line:
                     continue
                 reference = line.split("uses:", 1)[1].strip()
+                if reference.startswith(
+                    "Easton97-Jens/ModSecurity-conector/.github/workflows/"
+                ):
+                    self.assertEqual(path.name, PROTECTED_NGINX_BROKER_CALLER_WORKFLOW)
+                    self.assertEqual(reference, PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE)
+                    continue
                 self.assertRegex(reference, SHA_PIN, f"{path}: {line}")
                 self.assertIn(reference.split("@", 1)[1].split()[0], recorded_shas, f"{path}: {line}")
 
@@ -321,11 +598,15 @@ jobs:
                 self.assertIn(module, requirements)
                 self.assertGreaterEqual(requirements[module], floor)
 
-    def test_codeql_uses_central_go_file_and_bounded_cpp_scope(self) -> None:
+    def test_codeql_uses_trusted_base_go_version_and_bounded_cpp_scope(self) -> None:
         text = self.workflow("ci-security-codeql.yml")
-        self.assertEqual(text.count("go-version-file: .go-version"), 2)
+        self.assertIn("ref: ${{ github.event.pull_request.base.sha || github.sha }}", text)
+        self.assertEqual(
+            text.count("go-version: ${{ needs.trusted-go-version.outputs.version }}"),
+            2,
+        )
         self.assertEqual(text.count("check-latest: false"), 2)
-        self.assertNotIn("go-version:", text)
+        self.assertNotIn("go-version-file: .go-version", text)
         self.assertIn("connectors/envoy/ext_proc", text)
         self.assertIn("connectors/traefik/native_middleware", text)
         self.assertIn("Fuzz Traefik UDS frame parser", text)
@@ -448,8 +729,8 @@ jobs:
                 path.name,
             )
 
-    def test_verified_report_governance_stays_lightweight(self) -> None:
-        """Keep expensive runtime evidence and report production local-only."""
+    def test_report_governance_and_strict_evidence_lifecycles_are_isolated(self) -> None:
+        """Keep fresh-checkout governance separate from materialized runtime evidence."""
 
         text = self.workflow("verified-report-governance.yml")
         jobs = self.jobs("verified-report-governance.yml")
@@ -457,6 +738,25 @@ jobs:
         job = jobs["report-governance"]
         self.assertIn("timeout-minutes: 20", job)
         self.assertIn("make report-governance", job)
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        lint_body = makefile.split("lint:", 1)[1].split("\nsummary:", 1)[0]
+        self.assertIn("$(MAKE) report-governance", lint_body)
+        self.assertNotIn("verified-report-evidence-gate", lint_body)
+        strict_target = makefile.split("verified-report-evidence-gate:", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("check-generated-report-layout", strict_target)
+        lifecycle = (ROOT / "ci/runtime/lifecycle/run-verified-report-run.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('["make", "verified-report-evidence-gate"]', lifecycle)
+
+        # Generic CI and maintenance workflows must not invoke the strict gate;
+        # only the runtime lifecycle above may do so after its producer/refresh phases.
+        for path in self.workflow_paths():
+            self.assertNotIn(
+                "verified-report-evidence-gate",
+                path.read_text(encoding="utf-8"),
+                path.name,
+            )
         for forbidden in (
             "verified-report-run",
             "verified-report-evidence-gate",
@@ -491,10 +791,44 @@ jobs:
         self.assertIn("workflow_call:", text)
         self.assertNotIn("pull_request:", text)
         self.assertNotIn("pull_request_target:", text)
-        self.assertIn("github.workflow_ref", text)
+        self.assertIn("ACTUAL_CALLER_WORKFLOW_REF: ${{ github.workflow_ref }}", text)
+        self.assertIn(
+            "EXPECTED_CALLER_WORKFLOW_REF: Easton97-Jens/ModSecurity-conector/.github/workflows/run-protected-nginx-root-broker.yml@refs/heads/master",
+            text,
+        )
+        self.assertNotIn("EXPECTED_WORKFLOW_REF:", text)
+        self.assertIn("CALLER_SHA: ${{ github.sha }}", text)
+        self.assertIn("CALLER_WORKFLOW_SHA: ${{ github.workflow_sha }}", text)
+        self.assertIn('git cat-file -e "$CALLER_SHA^{commit}"', text)
+        self.assertIn('git merge-base --is-ancestor "$CALLER_SHA" FETCH_HEAD', text)
+        self.assertIn("validate-caller-workflow", text)
         self.assertIn('git merge-base --is-ancestor "$BROKER_SHA" FETCH_HEAD', text)
-        self.assertIn('git rev-parse "$BROKER_SHA:ci/runtime/broker/nginx_root_broker.py"', text)
-        self.assertIn("git hash-object ci/runtime/broker/nginx_root_broker.py", text)
+        self.assertIn('git ls-tree "$BROKER_SHA" -- modules/ModSecurity-test-Framework', text)
+        self.assertIn("verify_broker_source .github/workflows/nginx-root-broker.yml", text)
+        self.assertIn('git rev-parse "$BROKER_SHA:$source_path"', text)
+        self.assertIn('git hash-object "$source_path"', text)
+        self.assertIn("verify_broker_source ci/runtime/broker/nginx_root_broker.py", text)
+        self.assertIn("prepare-fresh-crs-source.sh", text)
+        self.assertIn("prepare-crs-bundle", text)
+        self.assertEqual(
+            text.count(
+                "          RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: protected-nginx-broker"
+            ),
+            1,
+        )
+        self.assertLess(
+            text.index("RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: protected-nginx-broker"),
+            text.index("make fetch-deps"),
+        )
+        self.assertLess(
+            text.index("make fetch-deps"),
+            text.index("prepare-from-snapshot"),
+        )
+        self.assertNotIn(
+            "RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: ${{", text
+        )
+        self.assertIn("verify-runtime-profile", text)
+        self.assertIn("cleanup.json", text)
         self.assertIn("sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action", text)
         self.assertNotIn("uses: ./", text)
         for forbidden in (
@@ -502,11 +836,150 @@ jobs:
             "sudo sh -c",
             "sudo bash -c",
             "shell: bash -c",
+            "id-token: write",
             "--broker-parent",
             "--staging-root",
             "--runtime-snapshot",
+            "sudo python",
         ):
             self.assertNotIn(forbidden, text)
+
+    def test_protected_master_caller_is_exactly_pinned_and_fail_closed(self) -> None:
+        text = self.workflow(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW)
+        self.assertEqual(protected_nginx_broker_caller_errors(text), [])
+        mutations = {
+            "broker master ref": (
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE,
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE.replace(
+                    f"@{PROTECTED_NGINX_BROKER_SHA}", "@master"
+                ),
+            ),
+            "broker branch ref": (
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE,
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE.replace(
+                    f"@{PROTECTED_NGINX_BROKER_SHA}", "@fix/unsafe"
+                ),
+            ),
+            "local reusable workflow": (
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE,
+                "./.github/workflows/nginx-root-broker.yml",
+            ),
+            "wrong broker SHA": (
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE,
+                PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE.replace(
+                    PROTECTED_NGINX_BROKER_SHA,
+                    "0" * 40,
+                ),
+            ),
+            "duplicate broker reference": (
+                f"    uses: {PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE}",
+                "\n".join(
+                    (
+                        f"    uses: {PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE}",
+                        f"    uses: {PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE}",
+                    )
+                ),
+            ),
+            "mutable Framework SHA": (
+                f"framework_sha: {PROTECTED_NGINX_BROKER_FRAMEWORK_SHA}",
+                "framework_sha: " + "0" * 40,
+            ),
+            "duplicate broker input": (
+                f"      framework_sha: {PROTECTED_NGINX_BROKER_FRAMEWORK_SHA}",
+                "\n".join(
+                    (
+                        f"      framework_sha: {PROTECTED_NGINX_BROKER_FRAMEWORK_SHA}",
+                        f"      framework_sha: {PROTECTED_NGINX_BROKER_FRAMEWORK_SHA}",
+                    )
+                ),
+            ),
+            "missing master guard": (
+                "github.ref == 'refs/heads/master' &&\n",
+                "",
+            ),
+            "wrong repository guard": (
+                "github.repository == 'Easton97-Jens/ModSecurity-conector'",
+                "github.repository == 'attacker/example'",
+            ),
+            "missing fork guard": (
+                "github.event.repository.fork == false &&\n",
+                "",
+            ),
+            "missing default branch guard": (
+                "github.event.repository.default_branch == 'master'",
+                "github.event.repository.default_branch == 'main'",
+            ),
+            "short-circuited master guard": (
+                "github.event_name == 'workflow_dispatch'",
+                "true || github.event_name == 'workflow_dispatch'",
+            ),
+            "pull request trigger": (
+                "  workflow_dispatch:\n",
+                "  pull_request:\n  workflow_dispatch:\n",
+            ),
+            "pull request target trigger": (
+                "  workflow_dispatch:\n",
+                "  pull_request_target:\n  workflow_dispatch:\n",
+            ),
+            "push trigger": (
+                "  workflow_dispatch:\n",
+                "  push:\n  workflow_dispatch:\n",
+            ),
+            "additional workflow input": (
+                "      parent_head_sha:\n",
+                "      policy_profile:\n        required: true\n        type: string\n      parent_head_sha:\n",
+            ),
+            "dynamic variant input": (
+                "      parent_head_sha:\n",
+                "      matrix_variant:\n        required: true\n        type: string\n      parent_head_sha:\n",
+            ),
+            "target checkout": (
+                "          ref: ${{ github.sha }}",
+                "          ref: ${{ inputs.parent_head_sha }}",
+            ),
+            "mutable caller checkout": (
+                "          ref: ${{ github.sha }}",
+                "          ref: master",
+            ),
+            "missing caller checkout head assertion": (
+                '          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"\n',
+                "",
+            ),
+            "target execution": (
+                "          set -euo pipefail",
+                "          set -euo pipefail\n          python3 \"$TARGET_PARENT_SHA\"",
+            ),
+            "caller-selected manifest path": (
+                '            --with-crs-run-id "$WITH_CRS_RUN_ID"',
+                '            --with-crs-run-id "$WITH_CRS_RUN_ID" \\\n            --output-root "$RUNNER_TEMP/unsafe"',
+            ),
+            "caller-selected evidence path": (
+                "          python3 ci/runtime/broker/protected_nginx_broker_caller.py verify-evidence \\\n",
+                "          python3 ci/runtime/broker/protected_nginx_broker_caller.py verify-evidence \\\n"
+                '            --no-crs-directory "$RUNNER_TEMP/unsafe" \\\n',
+            ),
+            "write permission": (
+                "permissions:\n  contents: read",
+                "permissions:\n  contents: write",
+            ),
+            "secret reference": (
+                "          set -euo pipefail",
+                "          set -euo pipefail\n          printf '%s\\n' \"${{ secrets.CALLER_SECRET }}\"",
+            ),
+            "sudo in caller": (
+                "          set -euo pipefail",
+                "          set -euo pipefail\n          sudo true",
+            ),
+            "result masks a failed broker": (
+                '"$NO_CRS_RESULT" != success',
+                '"$NO_CRS_RESULT" = success',
+            ),
+        }
+        for name, (original, replacement) in mutations.items():
+            with self.subTest(name=name):
+                self.assertIn(original, text)
+                mutated = text.replace(original, replacement, 1)
+                self.assertNotEqual(protected_nginx_broker_caller_errors(mutated), [])
 
     def test_untrusted_pull_request_model(self) -> None:
         sarif_write_jobs = {
@@ -547,17 +1020,52 @@ jobs:
                 "resolve-submodule-update",
                 "validate-submodule-update",
                 "create-submodule-update-pr",
+                "report-submodule-update-outcome",
             },
         )
-        self.assertEqual(job_permissions(jobs["resolve-submodule-update"]), {"contents": "read"})
-        self.assertEqual(job_permissions(jobs["validate-submodule-update"]), {"contents": "read"})
+        resolver = jobs["resolve-submodule-update"]
+        validator = jobs["validate-submodule-update"]
+        publisher = jobs["create-submodule-update-pr"]
+        normalized_publisher = normalize_shell_script(publisher)
+        outcome = jobs["report-submodule-update-outcome"]
+
+        self.assertEqual(job_permissions(resolver), {"contents": "read"})
+        self.assertEqual(job_permissions(validator), {"contents": "read"})
         self.assertEqual(
-            job_permissions(jobs["create-submodule-update-pr"]),
+            job_permissions(publisher),
             {"contents": "write", "pull-requests": "write"},
         )
-        self.assertIn("needs: resolve-submodule-update", jobs["validate-submodule-update"])
-        self.assertIn("submodules: recursive", jobs["validate-submodule-update"])
-        self.assertIn("make quick-check", jobs["validate-submodule-update"])
+        self.assertEqual(job_permissions(outcome), {"contents": "read"})
+        self.assertEqual(job_if_expression(outcome), "always()")
+        self.assertIn("github.ref == 'refs/heads/master'", resolver)
+        self.assertIn("github.event.repository.default_branch == 'master'", resolver)
+        self.assertIn("github.event.repository.fork == false", resolver)
+        self.assertIn("remote_ref_count", resolver)
+        self.assertIn('if [ "$remote_ref_count" != "1" ]; then', resolver)
+        self.assertIn('if [ "$candidate_ref" != "$SUBMODULE_REF" ]; then', resolver)
+        self.assertIn("Resolved submodule revision is not a full SHA-1", resolver)
+        self.assertIn("Current gitlink is not a full SHA-1", resolver)
+        self.assertIn('if [ "$candidate_sha" = "$current_sha" ]; then', resolver)
+        self.assertIn("changed=false", resolver)
+        self.assertIn("changed=true", resolver)
+        self.assertIn("Current Parent tree does not contain exactly one submodule entry", resolver)
+        self.assertIn("candidate_sha", resolver)
+        self.assertIn("current_sha", resolver)
+        self.assertIn("resolver_status=resolved", resolver)
+
+        self.assertIn("needs: resolve-submodule-update", validator)
+        self.assertEqual(
+            job_if_expression(validator),
+            "needs.resolve-submodule-update.result == 'success' && "
+            "needs.resolve-submodule-update.outputs.changed == 'true'",
+        )
+        self.assertIn("submodules: recursive", validator)
+        self.assertIn("make quick-check", validator)
+        self.assertIn("remote get-url origin", validator)
+        self.assertIn("merge-base --is-ancestor", validator)
+        self.assertIn("checkout --detach", validator)
+        self.assertIn("submodule update --init --recursive", validator)
+        self.assertIn("status --porcelain", validator)
         dependency_install = (
             "python3 -m pip install --disable-pip-version-check --only-binary=:all: "
             "--require-hashes --requirement "
@@ -575,28 +1083,195 @@ jobs:
         self.assertIn(dependency_install, jobs["validate-submodule-update"])
         self.assertIn(
             f'run: "{dependency_install}"',
-            jobs["validate-submodule-update"],
+            validator,
         )
         self.assertLess(
-            jobs["validate-submodule-update"].index("Verify Python interpreter contract"),
-            jobs["validate-submodule-update"].index(dependency_install),
+            validator.index("Verify Python interpreter contract"),
+            validator.index(dependency_install),
         )
         self.assertLess(
-            jobs["validate-submodule-update"].index(dependency_install),
-            jobs["validate-submodule-update"].index("make quick-check"),
+            validator.index(dependency_install),
+            validator.index("make quick-check"),
         )
-        self.assertNotIn("GH_TOKEN", jobs["validate-submodule-update"])
-        self.assertNotIn("secrets.", jobs["validate-submodule-update"])
+        self.assertNotIn("GH_TOKEN", validator)
+        self.assertNotIn("secrets.", validator)
 
-        publisher = jobs["create-submodule-update-pr"]
         self.assertIn("submodules: false", publisher)
         self.assertIn("persist-credentials: false", publisher)
+        self.assertEqual(
+            job_if_expression(publisher),
+            "needs.resolve-submodule-update.result == 'success' && "
+            "needs.resolve-submodule-update.outputs.changed == 'true' && "
+            "needs.validate-submodule-update.result == 'success'",
+        )
         self.assertIn("git ls-remote --exit-code", publisher)
-        self.assertIn("git update-index --add --cacheinfo", publisher)
+        self.assertTrue(has_exact_framework_gitlink_staging(publisher))
         self.assertIn("GH_TOKEN: ${{ github.token }}", publisher)
+        self.assertIn("git read-tree \"$MASTER_HEAD\"", publisher)
+        self.assertIn('git diff --cached --name-only "$MASTER_HEAD"', normalized_publisher)
+        self.assertIn("require_only_submodule_path", publisher)
+        self.assertIn("git diff --cached --raw --no-abbrev --no-renames", normalized_publisher)
+        self.assertIn("CANDIDATE_SHA", publisher)
+        self.assertIn("CURRENT_GITLINK_SHA", publisher)
+        self.assertIn("MASTER_OLD_SHA", publisher)
+        self.assertIn("Parent master Framework gitlink changed after resolution", publisher)
+        self.assertIn("PR_MARKER", publisher)
+        self.assertIn("--draft", publisher)
+        self.assertIn(".auto_merge", publisher)
+        self.assertIn("marker_count", publisher)
+        self.assertIn("verify_open_pr_identity", publisher)
+        self.assertIn("verify_open_draft_pr", publisher)
+        self.assertIn("ensure_open_pr_is_draft", publisher)
+        self.assertIn('gh pr ready "$pr_number" --repo "$GITHUB_REPOSITORY" --undo', publisher)
+        self.assertLess(
+            publisher.index('verify_open_pr_identity "$pr_number" "$expected_head"'),
+            publisher.index('gh pr ready "$pr_number" --repo "$GITHUB_REPOSITORY" --undo'),
+        )
+        self.assertIn('[ "$pr_draft" != "true" ]', publisher)
+        self.assertIn('[ "$pr_base_repo" != "$GITHUB_REPOSITORY" ]', publisher)
+        self.assertIn('[ "$pr_head_repo" != "$GITHUB_REPOSITORY" ]', publisher)
+        self.assertIn("verify_merged_pr", publisher)
+        self.assertIn("require_single_updater_commit", publisher)
+        self.assertIn("git rev-list --reverse", publisher)
+        self.assertIn("read_matching_merged_pr", publisher)
+        self.assertIn('case "$OPEN_PR_COUNT:$UPDATE_BRANCH_PRESENT" in', publisher)
+        self.assertIn("BRANCH_STATE=A", publisher)
+        self.assertIn("BRANCH_STATE=B", publisher)
+        self.assertIn("BRANCH_STATE=C", publisher)
+        self.assertIn("Unsafe maintenance branch/pull-request state", publisher)
+        self.assertIn("Maintenance state changed before normal branch creation", publisher)
+        self.assertIn("Maintenance branch or pull request changed before lease-bound update", publisher)
+        self.assertIn("Maintenance branch or pull request changed before lease-bound reuse", publisher)
+        self.assertIn(
+            'git push --force-with-lease="refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_HEAD" origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"',
+            publisher,
+        )
+        self.assertIn('git push origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"', publisher)
+        self.assertNotIn("git checkout -B", publisher)
+        self.assertNotIn("git push --force origin", publisher)
+        self.assertNotIn("git push --force-with-lease origin", publisher)
+        self.assertNotIn("git add ", publisher)
+        self.assertNotIn("|| true", publisher)
+        self.assertNotIn("continue-on-error", publisher)
+        self.assertNotIn("GH_PAT", publisher)
+        self.assertNotIn("PERSONAL_ACCESS_TOKEN", publisher)
+        self.assertNotIn("DEPLOY_KEY", publisher)
         self.assertNotIn("submodules: recursive", publisher)
         self.assertNotIn("git submodule", publisher)
         self.assertNotIn("make quick-check", publisher)
+
+        self.assertIn("RESOLVER_RESULT", outcome)
+        self.assertIn("VALIDATOR_RESULT", outcome)
+        self.assertIn("PUBLISHER_RESULT", outcome)
+        self.assertIn("RESOLVER_STATUS", outcome)
+        self.assertIn('case "$CHANGED" in', outcome)
+        self.assertIn('false)', outcome)
+        self.assertIn('"$VALIDATOR_RESULT" != "skipped"', outcome)
+        self.assertIn('"$PUBLISHER_RESULT" != "skipped"', outcome)
+        self.assertIn('true)', outcome)
+        self.assertIn('"$VALIDATOR_RESULT" != "success"', outcome)
+        self.assertIn('"$PUBLISHER_RESULT" != "success"', outcome)
+        self.assertIn("Submodule resolver output is missing or malformed", outcome)
+        self.assertIn("Submodule resolver changed output is missing or unexpected", outcome)
+        self.assertIn(
+            "The Framework submodule already points to the reviewed current master commit. No branch, commit, or pull request was created or modified.",
+            outcome,
+        )
+        self.assertIn(
+            "Das Framework-Submodule zeigt bereits auf den geprüften aktuellen Master-Commit. Es wurde kein Branch, Commit oder Pull Request erstellt oder verändert.",
+            outcome,
+        )
+        self.assertNotIn("GH_TOKEN", outcome)
+        self.assertNotIn("secrets.", outcome)
+        self.assertNotIn("continue-on-error", outcome)
+
+    def test_framework_gitlink_staging_contract_normalizes_layout_only(self) -> None:
+        one_line = (
+            'git update-index --add --cacheinfo '
+            '"160000,$CANDIDATE_SHA,$SUBMODULE_PATH"'
+        )
+        continued = (
+            "git update-index \\\n"
+            "  --add \\\n"
+            '  --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"'
+        )
+        self.assertTrue(has_exact_framework_gitlink_staging(one_line))
+        self.assertTrue(has_exact_framework_gitlink_staging(continued))
+        self.assertFalse(
+            has_exact_framework_gitlink_staging(
+                'git update-index --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"'
+            )
+        )
+        self.assertFalse(
+            has_exact_framework_gitlink_staging(
+                'git update-index --add "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"'
+            )
+        )
+        self.assertFalse(
+            has_exact_framework_gitlink_staging(
+                'git update-index --add --cacheinfo "100644,$CANDIDATE_SHA,$SUBMODULE_PATH"'
+            )
+        )
+        self.assertFalse(
+            has_exact_framework_gitlink_staging(
+                'git update-index --add --cacheinfo "160000,$CANDIDATE_SHA,$OTHER_PATH"'
+            )
+        )
+        for broad_staging in ("git add .", "git add -A"):
+            self.assertFalse(has_exact_framework_gitlink_staging(f"{one_line}\n{broad_staging}"))
+
+    def test_framework_gitlink_raw_diff_contract_is_functional(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            repository = Path(temporary_directory)
+
+            def git(*arguments: str, input_text: str | None = None) -> str:
+                return subprocess.run(
+                    ["git", *arguments],
+                    cwd=repository,
+                    input=input_text,
+                    text=True,
+                    check=True,
+                    capture_output=True,
+                    env={
+                        **os.environ,
+                        "GIT_AUTHOR_NAME": "test",
+                        "GIT_AUTHOR_EMAIL": "test@example.invalid",
+                        "GIT_COMMITTER_NAME": "test",
+                        "GIT_COMMITTER_EMAIL": "test@example.invalid",
+                    },
+                ).stdout.strip()
+
+            git("init", "-q")
+            empty_tree = git("mktree", input_text="")
+            old_gitlink = git("commit-tree", empty_tree, "-m", "old target")
+            new_gitlink = git("commit-tree", empty_tree, "-m", "new target")
+            self.assertRegex(old_gitlink, r"^[0-9a-f]{40}$")
+            self.assertRegex(new_gitlink, r"^[0-9a-f]{40}$")
+
+            framework_path = "modules/ModSecurity-test-Framework"
+            git("update-index", "--add", "--cacheinfo", f"160000,{old_gitlink},{framework_path}")
+            parent_tree = git("write-tree")
+            parent_commit = git("commit-tree", parent_tree, "-m", "parent")
+            git("read-tree", parent_commit)
+            git("update-index", "--add", "--cacheinfo", f"160000,{new_gitlink},{framework_path}")
+            index_entry = git("ls-files", "--stage", "--", framework_path).split()
+            self.assertEqual(index_entry[:2], ["160000", new_gitlink])
+
+            raw = git("diff", "--cached", "--raw", "--no-abbrev", "--no-renames", parent_commit)
+            records = raw.splitlines()
+            expected = re.compile(
+                rf"^:160000 160000 {old_gitlink} {new_gitlink} M\t{re.escape(framework_path)}$"
+            )
+            self.assertEqual(len(records), 1)
+            self.assertRegex(records[0], expected)
+
+            extra_blob = git("hash-object", "-w", "--stdin", input_text="extra\n")
+            git("update-index", "--add", "--cacheinfo", f"100644,{extra_blob},extra.txt")
+            widened_records = git(
+                "diff", "--cached", "--raw", "--no-abbrev", "--no-renames", parent_commit
+            ).splitlines()
+            self.assertEqual(len(widened_records), 2)
+            self.assertFalse(len(widened_records) == 1 and bool(expected.fullmatch(widened_records[0])))
 
     def test_manual_actions_updater_uses_a_trusted_default_branch(self) -> None:
         job = self.jobs("update-actions-versions.yml")["update-actions-versions"]

@@ -269,8 +269,11 @@ def verified_runtime_paths(
         values, "VERIFIED_COMPONENT_CACHE", cache_root / "shared"
     )
 
-    selected_build_root = build_root_override if build_root_override is not None else verified_build_root
-    build_root = _environment_runtime_path(values, "BUILD_ROOT", selected_build_root)
+    build_root = (
+        _runtime_path(build_root_override, "BUILD_ROOT")
+        if build_root_override is not None
+        else _environment_runtime_path(values, "BUILD_ROOT", verified_build_root)
+    )
     source_root = _environment_runtime_path(values, "SOURCE_ROOT", verified_source_root)
     tmp_root = _environment_runtime_path(values, "TMP_ROOT", verified_tmp_root)
     log_root = _environment_runtime_path(values, "LOG_ROOT", verified_log_root)
@@ -664,6 +667,185 @@ def write_runtime_artifact_text_atomic(
                 pass
         os.close(parent_descriptor)
     return target
+
+
+def _open_temporary_runtime_artifact(
+    destination_parent_descriptor: int,
+    destination_target: Path,
+    label: str,
+    no_follow: int,
+) -> tuple[int, str]:
+    """Exclusively create a private no-follow temporary destination artifact."""
+    for _ in range(100):
+        temporary_name = f".{destination_target.name}.{secrets.token_hex(16)}.tmp"
+        try:
+            descriptor = os.open(
+                temporary_name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,
+                0o600,
+                dir_fd=destination_parent_descriptor,
+            )
+        except FileExistsError:
+            continue
+        return descriptor, temporary_name
+    raise ValueError(f"could not allocate a temporary {label} destination")
+
+
+def _copy_runtime_artifact_bytes(
+    source_descriptor: int,
+    destination_descriptor: int,
+    label: str,
+) -> None:
+    """Copy every source byte, retrying short writes and failing on no progress."""
+    while True:
+        chunk = os.read(source_descriptor, 1024 * 1024)
+        if not chunk:
+            return
+        written = 0
+        while written < len(chunk):
+            count = os.write(destination_descriptor, chunk[written:])
+            if count <= 0:
+                raise OSError(f"unable to write {label} destination")
+            written += count
+
+
+def _unlink_temporary_runtime_artifact(
+    destination_parent_descriptor: int,
+    temporary_name: str,
+) -> None:
+    """Remove a task-created temporary artifact when it still exists."""
+    try:
+        os.unlink(temporary_name, dir_fd=destination_parent_descriptor)
+    except FileNotFoundError:
+        pass
+
+
+def _copy_runtime_artifact_to_destination(
+    source_descriptor: int,
+    destination_parent_descriptor: int,
+    destination_target: Path,
+    label: str,
+    no_follow: int,
+) -> None:
+    """Copy a pinned source descriptor into a private, atomically installed file."""
+    temporary_name: str | None = None
+    destination_descriptor = -1
+    try:
+        _existing_regular_runtime_artifact(
+            destination_parent_descriptor, destination_target, f"{label} destination"
+        )
+        destination_descriptor, temporary_name = _open_temporary_runtime_artifact(
+            destination_parent_descriptor,
+            destination_target,
+            label,
+            no_follow,
+        )
+
+        require_regular_runtime_artifact(
+            destination_descriptor, f"{label} destination"
+        )
+        _copy_runtime_artifact_bytes(source_descriptor, destination_descriptor, label)
+        os.fchmod(destination_descriptor, 0o600)
+        os.fsync(destination_descriptor)
+        os.close(destination_descriptor)
+        destination_descriptor = -1
+
+        _existing_regular_runtime_artifact(
+            destination_parent_descriptor, destination_target, f"{label} destination"
+        )
+        os.replace(
+            temporary_name,
+            destination_target.name,
+            src_dir_fd=destination_parent_descriptor,
+            dst_dir_fd=destination_parent_descriptor,
+        )
+        temporary_name = None
+    finally:
+        if destination_descriptor >= 0:
+            os.close(destination_descriptor)
+        if temporary_name is not None:
+            _unlink_temporary_runtime_artifact(
+                destination_parent_descriptor, temporary_name
+            )
+
+
+def _unlink_unchanged_runtime_artifact(
+    source_parent_descriptor: int,
+    source_target: Path,
+    source_details: os.stat_result,
+    label: str,
+) -> None:
+    """Remove the original name only when it still references the pinned source."""
+    current_source = os.stat(
+        source_target.name,
+        dir_fd=source_parent_descriptor,
+        follow_symlinks=False,
+    )
+    if (
+        not stat.S_ISREG(current_source.st_mode)
+        or current_source.st_dev != source_details.st_dev
+        or current_source.st_ino != source_details.st_ino
+    ):
+        raise ValueError(f"{label} source changed while being moved")
+    os.unlink(source_target.name, dir_fd=source_parent_descriptor)
+
+
+def move_runtime_artifact_atomic(
+    source_root: Path,
+    source: Path | str,
+    destination_root: Path,
+    destination: Path | str,
+    label: str,
+) -> Path:
+    """Move one private regular artifact between verified roots without link traversal.
+
+    The destination is written through a fresh no-follow temporary file and
+    atomically installed before the source is removed.  The source descriptor
+    pins the bytes being copied; the final unlink additionally requires the
+    original inode so a concurrent replacement cannot be removed by mistake.
+    """
+
+    source_target = runtime_artifact_path(
+        source_root, source, f"{label} source", must_exist=True
+    )
+    destination_target = runtime_artifact_path(
+        destination_root, destination, f"{label} destination"
+    )
+    if source_target == destination_target:
+        raise ValueError(f"{label} source and destination must differ")
+
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise ValueError("safe runtime artifact moves require O_NOFOLLOW")
+
+    source_parent_descriptor = open_runtime_artifact_parent(source_target)
+    destination_parent_descriptor = open_runtime_artifact_parent(destination_target)
+    source_descriptor = -1
+    try:
+        source_descriptor = os.open(
+            source_target.name,
+            os.O_RDONLY | no_follow,
+            dir_fd=source_parent_descriptor,
+        )
+        require_regular_runtime_artifact(source_descriptor, f"{label} source")
+        source_details = os.fstat(source_descriptor)
+
+        _copy_runtime_artifact_to_destination(
+            source_descriptor,
+            destination_parent_descriptor,
+            destination_target,
+            label,
+            no_follow,
+        )
+        _unlink_unchanged_runtime_artifact(
+            source_parent_descriptor, source_target, source_details, label
+        )
+    finally:
+        if source_descriptor >= 0:
+            os.close(source_descriptor)
+        os.close(destination_parent_descriptor)
+        os.close(source_parent_descriptor)
+    return destination_target
 
 
 def ensure_safe_writable_runtime_paths(paths: Mapping[str, str]) -> None:

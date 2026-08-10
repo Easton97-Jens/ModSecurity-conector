@@ -8,7 +8,6 @@ import json
 import os
 import re
 import subprocess
-import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -16,13 +15,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from version_updater_common import NoRedirectHandler
+
 
 SEMVER_RE = re.compile(r"^v(?P<major>\d+)(?:\.(?P<minor>\d+))?(?:\.(?P<patch>\d+))?$")
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40,64}$")
+ACTION_COMPONENT_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 MODULE_PATH = Path("modules/ModSecurity-test-Framework")
 REPORT_DEFAULT = "actions-update-report.md"
 WORKFLOW_GLOBS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
+MAX_API_RESPONSE_BYTES = 2 * 1024 * 1024
+MAX_API_PAGES = 100
 QUOTE_CHARACTERS = frozenset({"'", '"'})
 SKIPPED_DYNAMIC = "Skipped dynamic"
 USES_MAPPING_KEY = "uses:"
@@ -34,6 +38,38 @@ class RateLimitError(RuntimeError):
 
 class ActionLookupError(RuntimeError):
     """Action metadata could not be resolved."""
+
+
+def normalized_api_url(value: str) -> str:
+    """Return a credential-free HTTPS API origin or reject it fail closed."""
+
+    try:
+        parsed = urllib.parse.urlsplit(value)
+    except ValueError as error:
+        raise ActionLookupError("GitHub API URL is invalid") from error
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ActionLookupError("GitHub API URL must be a credential-free HTTPS URL")
+    return value.rstrip("/")
+
+
+def read_bounded_api_body(response: object) -> bytes:
+    """Read an API success or error body without permitting unbounded allocation."""
+
+    if not hasattr(response, "read"):
+        raise ActionLookupError("GitHub API response cannot be read")
+    body = response.read(MAX_API_RESPONSE_BYTES + 1)
+    if type(body) is not bytes:
+        raise ActionLookupError("GitHub API response body is not bytes")
+    if len(body) > MAX_API_RESPONSE_BYTES:
+        raise ActionLookupError("GitHub API response exceeds the size limit")
+    return body
 
 
 @dataclass(frozen=True)
@@ -112,7 +148,13 @@ def compare_semver_refs(left: str, right: str) -> int:
 
 def action_repo_slug(action: str) -> str | None:
     parts = action.split("/")
-    if len(parts) < 2 or not parts[0] or not parts[1]:
+    if (
+        len(parts) < 2
+        or not ACTION_COMPONENT_RE.fullmatch(parts[0])
+        or not ACTION_COMPONENT_RE.fullmatch(parts[1])
+        or parts[0] in {".", ".."}
+        or parts[1] in {".", ".."}
+    ):
         return None
     return f"{parts[0]}/{parts[1]}"
 
@@ -313,7 +355,10 @@ def select_latest_ref(current_ref: str, candidate_tags: Iterable[str]) -> str | 
 class GitHubActionResolver:
     def __init__(self, token: str | None = None, api_url: str | None = None) -> None:
         self.token = token
-        self.api_url = (api_url or os.environ.get("GITHUB_API_URL") or "https://api.github.com").rstrip("/")
+        self.api_url = normalized_api_url(
+            api_url or os.environ.get("GITHUB_API_URL") or "https://api.github.com"
+        )
+        self.opener = urllib.request.build_opener(NoRedirectHandler())
         self.cache: dict[str, tuple[list[str], str]] = {}
         self.rate_limited = False
 
@@ -342,11 +387,12 @@ class GitHubActionResolver:
             headers["Authorization"] = f"Bearer {self.token}"
         request = urllib.request.Request(url, headers=headers)
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
-                data = json.loads(response.read().decode("utf-8"))
+            with self.opener.open(request, timeout=30) as response:
+                body = read_bounded_api_body(response)
+                data = json.loads(body.decode("utf-8"))
                 return data, {key.lower(): value for key, value in response.headers.items()}
         except urllib.error.HTTPError as error:
-            body = error.read().decode("utf-8", errors="replace")
+            body = read_bounded_api_body(error).decode("utf-8", errors="replace")
             remaining = error.headers.get("X-RateLimit-Remaining")
             if error.code in {403, 429} and (remaining == "0" or "rate limit" in body.lower()):
                 self.rate_limited = True
@@ -360,6 +406,8 @@ class GitHubActionResolver:
         page = 1
         separator = "&" if "?" in path else "?"
         while True:
+            if page > MAX_API_PAGES:
+                raise ActionLookupError("GitHub API pagination exceeds the page limit")
             data, _headers = self._request_json(f"{path}{separator}per_page=100&page={page}")
             if not isinstance(data, list):
                 raise ActionLookupError("GitHub API returned a non-list response")

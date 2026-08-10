@@ -39,12 +39,13 @@ def go_job(
 ) -> str:
     reference = checker.SETUP_GO_REFERENCE if setup_reference is None else setup_reference
     version_line = (
-        "          go-version-file: .go-version"
+        "          go-version: ${{ needs.trusted-go-version.outputs.version }}"
         if selector == "file"
         else "          go-version: '1.26.5'"
     )
     extra_lines = "".join(f"          {line}\n" for line in extra_with_lines)
     return f'''  {name}:
+    needs: trusted-go-version
     runs-on: ubuntu-latest
     steps:
       - uses: {reference}
@@ -68,7 +69,21 @@ class GoVersionContractTests(unittest.TestCase):
         return status, json.loads(output.getvalue())
 
     def valid_workflow(self) -> str:
-        return "name: CodeQL\n\non:\n  workflow_dispatch:\n\njobs:\n" + go_job("envoy-go") + go_job("traefik-go")
+        trusted = r'''  trusted-go-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@example
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+      - id: version
+        run: |
+          version="$(cat -- .go-version)"
+          [[ ! "$version" =~ ^1\.26\.(0|[1-9][0-9]*)$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+'''
+        return "name: CodeQL\n\non:\n  workflow_dispatch:\n\njobs:\n" + trusted + go_job("envoy-go") + go_job("traefik-go")
 
     def test_valid_contract_accepts_two_central_selectors(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -89,7 +104,7 @@ class GoVersionContractTests(unittest.TestCase):
             status, result = self.check_json(self.root_with_workflow(Path(temporary), workflow))
         self.assertEqual(status, 2)
         self.assertEqual(result["status"], "failed")
-        self.assertTrue(any("exact central" in entry for entry in result["violations"]))
+        self.assertTrue(any("trusted-base" in entry for entry in result["violations"]))
         self.assertTrue(any("unlisted" in entry for entry in result["violations"]))
 
     def test_yaml_equivalent_literal_selector_variants_are_rejected(self) -> None:
@@ -111,7 +126,7 @@ class GoVersionContractTests(unittest.TestCase):
                 )
             self.assertEqual(status, 2)
             self.assertEqual(result["status"], "failed")
-            self.assertTrue(any("exact central" in entry for entry in result["violations"]))
+            self.assertTrue(any("trusted-base" in entry for entry in result["violations"]))
 
     def test_wrong_action_pin_and_invalid_version_file_fail_closed(self) -> None:
         wrong_reference = "actions/setup-go@main"

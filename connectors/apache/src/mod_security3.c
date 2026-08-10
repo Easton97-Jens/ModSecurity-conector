@@ -302,6 +302,7 @@ static void store_tx_context(msc_t *msr, request_rec *r)
 static msc_t *create_tx_context(request_rec *r) {
     msc_t *msr = NULL;
     msc_conf_t *z = NULL;
+    char *modsecurity_transaction_id = NULL;
     char *unique_id = NULL;
     const char *transaction_id = NULL;
     const char *expr_error = NULL;
@@ -341,8 +342,15 @@ static msc_t *create_tx_context(request_rec *r) {
     }
 
     if (transaction_id != NULL && transaction_id[0] != '\0') {
+        /* libModSecurity 3.0 declares this argument as mutable even though the
+         * transaction ID is an input.  Give it request-owned writable storage
+         * instead of discarding the const qualifier at the API boundary. */
+        modsecurity_transaction_id = apr_pstrdup(r->pool, transaction_id);
+        if (modsecurity_transaction_id == NULL) {
+            return NULL;
+        }
         msr->t = msc_new_transaction_with_id(msc_apache->modsec,
-            z->rules_set, transaction_id, (void *)r);
+            z->rules_set, modsecurity_transaction_id, (void *)r);
     } else {
         msr->t = msc_new_transaction(msc_apache->modsec,
             z->rules_set, (void *)r);

@@ -80,22 +80,74 @@ GIT_REVISION = re.compile(r"^[A-Za-z0-9_./-]+$")
 # normalizes it in memory so candidates remain stable without adding a second
 # lockfile or migrating existing consumers.
 LOCK_ACTIONS_KEY = "pinned_actions"
-LOCK_GROUP_BY_CANDIDATE_GROUP = {"actions": LOCK_ACTIONS_KEY, "tools": "tools"}
-LOCK_FIELD_BY_CANDIDATE_FIELD = {
-    "actions": {
-        "version": "version",
-        "immutable_commit": "commit_sha",
-        "upstream_release": None,
-    },
-    "tools": {
-        "version": "version",
-        "immutable_commit": "release_commit",
-        "upstream_release": None,
-        "asset": "asset",
-        "asset_url": "url",
-        "sha256": "sha256",
-    },
-}
+
+
+@dataclass(frozen=True)
+class CandidateGroupSpec:
+    """Reviewed immutable schema for one candidate and lock-record group."""
+
+    candidate_group: str
+    lock_group: str
+    mutable_fields: tuple[str, ...]
+    lock_fields: tuple[tuple[str, str | None], ...]
+    release_tag: re.Pattern[str]
+    require_name_match: bool
+
+    def lock_field(self, candidate_field: str) -> str | None:
+        """Return the reviewed on-disk field for one approved candidate field."""
+        for field, lock_field in self.lock_fields:
+            if field == candidate_field:
+                return lock_field
+        raise UpdateError(
+            f"candidate {self.candidate_group} field is not approved: "
+            f"{candidate_field!r}"
+        )
+
+
+ACTION_CANDIDATE_SPEC = CandidateGroupSpec(
+    candidate_group="actions",
+    lock_group=LOCK_ACTIONS_KEY,
+    mutable_fields=("version", "immutable_commit", "upstream_release"),
+    lock_fields=(
+        ("version", "version"),
+        ("immutable_commit", "commit_sha"),
+        ("upstream_release", None),
+    ),
+    release_tag=ACTION_RELEASE_TAG,
+    require_name_match=True,
+)
+TOOL_CANDIDATE_SPEC = CandidateGroupSpec(
+    candidate_group="tools",
+    lock_group="tools",
+    mutable_fields=(
+        "version",
+        "immutable_commit",
+        "upstream_release",
+        "asset",
+        "asset_url",
+        "sha256",
+    ),
+    lock_fields=(
+        ("version", "version"),
+        ("immutable_commit", "release_commit"),
+        ("upstream_release", None),
+        ("asset", "asset"),
+        ("asset_url", "url"),
+        ("sha256", "sha256"),
+    ),
+    release_tag=TOOL_RELEASE_TAG,
+    require_name_match=False,
+)
+CANDIDATE_GROUP_SPECS = (ACTION_CANDIDATE_SPEC, TOOL_CANDIDATE_SPEC)
+CANDIDATE_TOP_LEVEL_FIELDS = frozenset(
+    {"schema_version", "lock_sha256", "actions", "tools"}
+)
+
+# Keep these focused names for the group-specific resolver and validation
+# routines. They are derived from the immutable specifications above rather
+# than being a second source of mutable candidate schema data.
+ACTION_MUTABLE_FIELDS = ACTION_CANDIDATE_SPEC.mutable_fields
+TOOL_MUTABLE_FIELDS = TOOL_CANDIDATE_SPEC.mutable_fields
 
 # These are deliberately individual files, not broad directory prefixes.  A
 # new workflow must be reviewed and added here before this publisher can touch
@@ -113,9 +165,11 @@ ALLOWED_UPDATE_PATHS = frozenset(
         ".github/workflows/ci-security-secrets.yml",
         ".github/workflows/ci-security-workflow-lint.yml",
         ".github/workflows/lint.yml",
+        ".github/workflows/nginx-root-broker.yml",
         ".github/workflows/open-connectors-smoke.yml",
         ".github/workflows/protocol-contract.yml",
         ".github/workflows/quick-framework-check.yml",
+        ".github/workflows/run-protected-nginx-root-broker.yml",
         ".github/workflows/test-apache.yml",
         ".github/workflows/test-common.yml",
         ".github/workflows/test-envoy.yml",
@@ -141,15 +195,6 @@ WORKFLOW_UPDATE_PATHS = tuple(
 )
 DOCUMENTATION_UPDATE_PATHS = tuple(
     path for path in sorted(ALLOWED_UPDATE_PATHS) if path.startswith("docs/")
-)
-ACTION_MUTABLE_FIELDS = ("version", "immutable_commit", "upstream_release")
-TOOL_MUTABLE_FIELDS = (
-    "version",
-    "immutable_commit",
-    "upstream_release",
-    "asset",
-    "asset_url",
-    "sha256",
 )
 ACTION_RELEASE_RESOLUTION_LATEST = "latest-release"
 ACTION_RELEASE_RESOLUTION_SAME_MAJOR = "same-major-release"
@@ -214,17 +259,19 @@ def is_safe_posix_path(value: str) -> bool:
     )
 
 
-def resolve_regular_file(root: Path, relative: Path) -> Path:
-    """Resolve an existing regular non-symlink file contained by ``root``."""
+def safe_relative_parts(relative: Path) -> tuple[str, ...]:
+    """Return non-traversing relative path components for a checked input."""
 
-    if (
-        relative.is_absolute()
-        or not relative.parts
-        or any(part == ".." for part in relative.parts)
-    ):
+    if relative.is_absolute() or not relative.parts or ".." in relative.parts:
         raise UpdateError(f"unsafe relative path: {relative}")
+    return relative.parts
+
+
+def contained_lstat(root: Path, relative: Path) -> tuple[Path, int]:
+    """Walk an existing relative path while refusing every symlink component."""
+
     current = root
-    for part in relative.parts:
+    for part in safe_relative_parts(relative):
         current = current / part
         try:
             mode = current.lstat().st_mode
@@ -232,6 +279,13 @@ def resolve_regular_file(root: Path, relative: Path) -> Path:
             raise UpdateError(f"required path is missing: {relative}") from exc
         if stat.S_ISLNK(mode):
             raise UpdateError(f"required path must not traverse a symlink: {relative}")
+    return current, mode
+
+
+def resolve_regular_file(root: Path, relative: Path) -> Path:
+    """Resolve an existing regular non-symlink file contained by ``root``."""
+
+    current, mode = contained_lstat(root, relative)
     if not stat.S_ISREG(mode):
         raise UpdateError(f"required path is not a regular file: {relative}")
     return current
@@ -408,31 +462,64 @@ def load_lock(root: Path) -> tuple[Path, dict[str, Any], str]:
     return lock_path, normalize_connector_lock(data), sha256_file(lock_path)
 
 
+@dataclass(frozen=True)
+class WorkflowInventory:
+    """Read-only, non-symlink inventory for checked workflow content."""
+
+    root: Path
+
+    @property
+    def workflow_root(self) -> Path:
+        return self.root / ".github" / "workflows"
+
+    def require_directories(self) -> None:
+        for directory in (self.root / ".github", self.workflow_root):
+            try:
+                details = directory.lstat()
+            except OSError as exc:
+                raise UpdateError("Connector workflow directory is missing") from exc
+            if stat.S_ISLNK(details.st_mode) or not stat.S_ISDIR(details.st_mode):
+                raise UpdateError(
+                    "Connector workflow directory must be a non-symlink directory"
+                )
+
+    def source_paths(self) -> list[Path]:
+        self.require_directories()
+        paths: list[Path] = []
+        for candidate in sorted(self.workflow_root.rglob("*")):
+            relative = candidate.relative_to(self.root)
+            try:
+                details = candidate.lstat()
+            except OSError as exc:
+                raise UpdateError(f"cannot inspect workflow path: {relative}") from exc
+            if stat.S_ISLNK(details.st_mode):
+                raise UpdateError(f"workflow path must not be a symlink: {relative}")
+            if stat.S_ISREG(details.st_mode) and candidate.suffix in {".yml", ".yaml"}:
+                paths.append(resolve_regular_file(self.root, relative))
+        return paths
+
+    def uses_by_path(self) -> dict[Path, set[str]]:
+        return {
+            path: workflow_uses_values(
+                path.read_text(encoding="utf-8"),
+                f"workflow {path.relative_to(self.root)}",
+            )
+            for path in self.source_paths()
+        }
+
+    def action_references(self, action_name: str, uses_by_path: dict[Path, set[str]]) -> set[str]:
+        reference = re.compile(rf"{re.escape(action_name)}(?:/[A-Za-z0-9_.-]+)*@")
+        return {
+            str(path.relative_to(self.root))
+            for path, uses_values in uses_by_path.items()
+            if any(reference.search(value) for value in uses_values)
+        }
+
+
 def workflow_source_paths(root: Path) -> list[Path]:
     """Return every regular Connector workflow without following symlinks."""
 
-    workflow_root = root / ".github" / "workflows"
-    for directory in (root / ".github", workflow_root):
-        try:
-            mode = directory.lstat().st_mode
-        except OSError as exc:
-            raise UpdateError("Connector workflow directory is missing") from exc
-        if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
-            raise UpdateError(
-                "Connector workflow directory must be a non-symlink directory"
-            )
-    paths: list[Path] = []
-    for candidate in sorted(workflow_root.rglob("*")):
-        relative = candidate.relative_to(root)
-        try:
-            mode = candidate.lstat().st_mode
-        except OSError as exc:
-            raise UpdateError(f"cannot inspect workflow path: {relative}") from exc
-        if stat.S_ISLNK(mode):
-            raise UpdateError(f"workflow path must not be a symlink: {relative}")
-        if stat.S_ISREG(mode) and candidate.suffix in {".yml", ".yaml"}:
-            paths.append(resolve_regular_file(root, relative))
-    return paths
+    return WorkflowInventory(root).source_paths()
 
 
 def workflow_uses_values(text: str, description: str) -> set[str]:
@@ -472,26 +559,16 @@ def locked_action_workflow_references(
 ) -> dict[str, set[str]]:
     """Return every actual workflow use for each lock-managed Action."""
 
-    workflow_paths = workflow_source_paths(root)
-    workflow_uses: dict[Path, set[str]] = {}
-    for path in workflow_paths:
-        text = path.read_text(encoding="utf-8")
-        workflow_uses[path] = workflow_uses_values(
-            text, f"workflow {path.relative_to(root)}"
-        )
     actions = lock.get("actions")
     if not isinstance(actions, dict):
         raise UpdateError("lock actions records are missing")
+    inventory = WorkflowInventory(root)
+    workflow_uses = inventory.uses_by_path()
     references: dict[str, set[str]] = {}
     for name in sorted(actions):
         if not isinstance(name, str):
             raise UpdateError("lock action name is invalid")
-        reference = re.compile(rf"{re.escape(name)}(?:/[A-Za-z0-9_.-]+)*@")
-        references[name] = {
-            str(path.relative_to(root))
-            for path, uses_values in workflow_uses.items()
-            if any(reference.search(value) for value in uses_values)
-        }
+        references[name] = inventory.action_references(name, workflow_uses)
     return references
 
 
@@ -596,27 +673,44 @@ def require_sha256(value: Any, description: str) -> str:
     return value
 
 
+@dataclass(frozen=True)
+class OfficialGitHubApi:
+    """Small read-only gateway for the fixed public GitHub API boundary."""
+
+    origin: str
+    user_agent: str
+
+    def repository_url(self, path: str) -> str:
+        if not path.startswith("/repos/"):
+            raise UpdateError("only repository-scoped GitHub API paths are allowed")
+        return f"{self.origin}{path}"
+
+    def payload(self, path: str) -> Any:
+        request = Request(
+            self.repository_url(path),
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": self.user_agent,
+            },
+        )
+        try:
+            with urlopen(request, timeout=30) as response:
+                final = urlparse(response.geturl())
+                if final.scheme != "https" or final.netloc != "api.github.com":
+                    raise UpdateError(
+                        "GitHub API redirect escaped the official HTTPS API"
+                    )
+                return json.loads(response.read().decode("utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise UpdateError(f"official GitHub API request failed: {exc}") from exc
+
+OFFICIAL_GITHUB_API = OfficialGitHubApi(GITHUB_API_ORIGIN, GITHUB_USER_AGENT)
+
+
 def github_payload(path: str) -> Any:
     """Read one fixed official GitHub API response without a token."""
 
-    if not path.startswith("/repos/"):
-        raise UpdateError("only repository-scoped GitHub API paths are allowed")
-    request = Request(
-        f"{GITHUB_API_ORIGIN}{path}",
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": GITHUB_USER_AGENT,
-        },
-    )
-    try:
-        with urlopen(request, timeout=30) as response:
-            final = urlparse(response.geturl())
-            if final.scheme != "https" or final.netloc != "api.github.com":
-                raise UpdateError("GitHub API redirect escaped the official HTTPS API")
-            payload = json.loads(response.read().decode("utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise UpdateError(f"official GitHub API request failed: {exc}") from exc
-    return payload
+    return OFFICIAL_GITHUB_API.payload(path)
 
 
 def github_json(path: str) -> dict[str, Any]:
@@ -639,23 +733,24 @@ def github_json_list(path: str) -> list[dict[str, Any]]:
     return payload
 
 
+def release_api_path(identity: RepositoryIdentity, suffix: str) -> str:
+    """Build a repository-scoped release path from a validated lock identity."""
+
+    return f"/repos/{identity.owner}/{identity.repository}/releases{suffix}"
+
+
 def latest_release(identity: RepositoryIdentity) -> dict[str, Any]:
-    return github_json(f"/repos/{identity.owner}/{identity.repository}/releases/latest")
+    return github_json(release_api_path(identity, "/latest"))
 
 
 def release_by_tag(identity: RepositoryIdentity, tag: str) -> dict[str, Any]:
-    return github_json(
-        f"/repos/{identity.owner}/{identity.repository}/releases/tags/"
-        f"{quote(tag, safe='')}"
-    )
+    return github_json(release_api_path(identity, f"/tags/{quote(tag, safe='')}"))
 
 
 def release_page(identity: RepositoryIdentity) -> list[dict[str, Any]]:
     """Read the bounded newest release page for an explicitly selected Action."""
 
-    return github_json_list(
-        f"/repos/{identity.owner}/{identity.repository}/releases?per_page=100"
-    )
+    return github_json_list(release_api_path(identity, "?per_page=100"))
 
 
 def stable_release_tag(
@@ -881,6 +976,30 @@ def selected_release_asset(
     return tag, asset_name, sha256
 
 
+def immutable_release_candidate(
+    identity: RepositoryIdentity, version: str, commit: str
+) -> dict[str, str]:
+    """Build the shared immutable release tuple after group-specific validation."""
+
+    return {
+        "version": version,
+        "immutable_commit": commit,
+        "upstream_release": f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/tag/{version}",
+    }
+
+
+def candidate_changes_record(
+    baseline: dict[str, Any],
+    candidate: dict[str, str],
+    specification: CandidateGroupSpec,
+) -> bool:
+    """Compare exactly the reviewed mutable tuple for one candidate group."""
+
+    return any(
+        candidate[field] != baseline[field] for field in specification.mutable_fields
+    )
+
+
 def action_candidate(name: str, record: dict[str, Any]) -> dict[str, str] | None:
     identity = release_identity(record, name, require_name_match=True)
     release = selected_action_release(identity, name, record)
@@ -888,13 +1007,12 @@ def action_candidate(name: str, record: dict[str, Any]) -> dict[str, str] | None
         identity, name, record, release, f"action {name!r} selected release"
     )
     commit = release_tag_commit(identity, tag)
-    if tag == record["version"] and commit == record["immutable_commit"]:
-        return None
-    return {
-        "version": tag,
-        "immutable_commit": commit,
-        "upstream_release": f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/tag/{tag}",
-    }
+    candidate = immutable_release_candidate(identity, tag, commit)
+    return (
+        candidate
+        if candidate_changes_record(record, candidate, ACTION_CANDIDATE_SPEC)
+        else None
+    )
 
 
 def tool_candidate(name: str, record: dict[str, Any]) -> dict[str, str] | None:
@@ -903,17 +1021,17 @@ def tool_candidate(name: str, record: dict[str, Any]) -> dict[str, str] | None:
     release = latest_release(identity)
     tag, asset, asset_digest = selected_release_asset(identity, release, record, name)
     commit = release_tag_commit(identity, tag)
-    candidate = {
-        "version": tag,
-        "immutable_commit": commit,
-        "upstream_release": f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/tag/{tag}",
-        "asset": asset,
-        "asset_url": f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/{tag}/{asset}",
-        "sha256": asset_digest,
-    }
-    if all(candidate[field] == record[field] for field in TOOL_MUTABLE_FIELDS):
-        return None
-    return candidate
+    candidate = immutable_release_candidate(identity, tag, commit)
+    candidate["asset"] = asset
+    candidate["asset_url"] = (
+        f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/{tag}/{asset}"
+    )
+    candidate["sha256"] = asset_digest
+    return (
+        candidate
+        if candidate_changes_record(record, candidate, TOOL_CANDIDATE_SPEC)
+        else None
+    )
 
 
 def resolve_candidate(root: Path) -> dict[str, Any]:
@@ -935,6 +1053,17 @@ def resolve_candidate(root: Path) -> dict[str, Any]:
         resolved = tool_candidate(name, record)
         if resolved is not None:
             tools[name] = resolved
+    return candidate_payload(lock_digest, actions=actions, tools=tools)
+
+
+def candidate_payload(
+    lock_digest: str,
+    *,
+    actions: dict[str, dict[str, str]],
+    tools: dict[str, dict[str, str]],
+) -> dict[str, Any]:
+    """Build the sole exact candidate envelope from reviewed named groups."""
+
     return {
         "schema_version": CANDIDATE_SCHEMA_VERSION,
         "lock_sha256": lock_digest,
@@ -990,92 +1119,127 @@ def decode_candidate(value: str) -> dict[str, Any]:
     return candidate
 
 
+@dataclass(frozen=True)
+class RunnerTempBoundary:
+    """One verified RUNNER_TEMP root and its constrained child operations."""
+
+    root: Path
+
+    @classmethod
+    def from_environment(cls) -> RunnerTempBoundary:
+        runner_value = os.environ.get("RUNNER_TEMP")
+        if not runner_value:
+            raise UpdateError("RUNNER_TEMP is required for candidate files")
+        runner_temp = Path(runner_value)
+        if not runner_temp.is_absolute():
+            raise UpdateError("RUNNER_TEMP and candidate paths must be absolute")
+        if any(part == ".." for part in runner_temp.parts):
+            raise UpdateError("RUNNER_TEMP must not contain traversal components")
+        if runner_temp.is_symlink() or not runner_temp.is_dir():
+            raise UpdateError("RUNNER_TEMP must be an existing non-symlink directory")
+        runner_root = runner_temp.resolve(strict=True)
+        if runner_root.stat().st_uid != os.geteuid():
+            raise UpdateError("RUNNER_TEMP must be owned by the current runner user")
+        return cls(runner_root)
+
+    def lexical_relative(self, path: Path) -> Path:
+        """Require an absolute, lexical strict child before filesystem access."""
+
+        if not path.is_absolute():
+            raise UpdateError("RUNNER_TEMP and candidate paths must be absolute")
+        try:
+            relative = path.relative_to(self.root)
+        except ValueError as exc:
+            raise UpdateError(RUNNER_TEMP_STRICT_CHILD_ERROR) from exc
+        if not relative.parts or any(
+            part in {"", ".", ".."} for part in relative.parts
+        ):
+            raise UpdateError(RUNNER_TEMP_STRICT_CHILD_ERROR)
+        return relative
+
+    def reject_symlinks(self, relative: Path) -> None:
+        """Reject each existing lexical component that could redirect I/O."""
+
+        current = self.root
+        for component in relative.parts:
+            current = current / component
+            if current.is_symlink():
+                raise UpdateError("candidate path must not traverse a symlink")
+
+    def resolved_child(self, path: Path, *, strict: bool) -> Path:
+        """Canonicalize a path and retain proof that it remains a strict child."""
+
+        try:
+            resolved = path.resolve(strict=strict)
+        except OSError as exc:
+            raise UpdateError("candidate path cannot be resolved") from exc
+        try:
+            relative = resolved.relative_to(self.root)
+        except ValueError as exc:
+            raise UpdateError(RUNNER_TEMP_STRICT_CHILD_ERROR) from exc
+        if not relative.parts:
+            raise UpdateError(RUNNER_TEMP_STRICT_CHILD_ERROR)
+        return resolved
+
+    def candidate_path(self, path: Path, *, for_write: bool) -> Path:
+        """Prepare a single safe candidate file path for read or exclusive write."""
+
+        relative = self.lexical_relative(path)
+        self.reject_symlinks(relative)
+        if for_write:
+            path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            self.reject_symlinks(relative)
+            if path.exists() or path.is_symlink():
+                raise UpdateError("refusing to overwrite an existing candidate file")
+            return self.resolved_child(path, strict=False)
+        if path.is_symlink() or not path.is_file():
+            raise UpdateError("candidate must be a regular non-symlink file")
+        return self.resolved_child(path, strict=True)
+
+    def output_directory(self, path: Path) -> Path:
+        """Create exactly one private empty output directory below this root."""
+
+        relative = self.lexical_relative(path)
+        self.reject_symlinks(relative)
+        current = self.root
+        for index, component in enumerate(relative.parts):
+            current = current / component
+            final_component = index == len(relative.parts) - 1
+            if not validate_existing_output_directory_component(
+                current, final=final_component
+            ):
+                create_output_directory_component(current)
+        return self.resolved_child(path, strict=True)
+
+
 def runner_temp_root() -> Path:
     """Return the owned physical runner temp root without accepting a symlink."""
 
-    runner_value = os.environ.get("RUNNER_TEMP")
-    if not runner_value:
-        raise UpdateError("RUNNER_TEMP is required for candidate files")
-    runner_temp = Path(runner_value)
-    if not runner_temp.is_absolute():
-        raise UpdateError("RUNNER_TEMP and candidate paths must be absolute")
-    if any(part == ".." for part in runner_temp.parts):
-        raise UpdateError("RUNNER_TEMP must not contain traversal components")
-    if runner_temp.is_symlink() or not runner_temp.is_dir():
-        raise UpdateError("RUNNER_TEMP must be an existing non-symlink directory")
-    runner_root = runner_temp.resolve(strict=True)
-    if runner_root.stat().st_uid != os.geteuid():
-        raise UpdateError("RUNNER_TEMP must be owned by the current runner user")
-    return runner_root
+    return RunnerTempBoundary.from_environment().root
 
 
 def runner_temp_relative_path(path: Path, runner_root: Path) -> Path:
-    """Return one lexical, strict child path before any filesystem access."""
+    """Return one lexical strict child path for a previously verified root."""
 
-    if not path.is_absolute():
-        raise UpdateError("RUNNER_TEMP and candidate paths must be absolute")
-    try:
-        relative = path.relative_to(runner_root)
-    except ValueError as exc:
-        raise UpdateError(RUNNER_TEMP_STRICT_CHILD_ERROR) from exc
-    if not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
-        raise UpdateError(RUNNER_TEMP_STRICT_CHILD_ERROR)
-    return relative
+    return RunnerTempBoundary(runner_root).lexical_relative(path)
 
 
 def reject_runner_temp_symlinks(runner_root: Path, relative: Path) -> None:
     """Reject every existing lexical component that could redirect candidate I/O."""
 
-    current = runner_root
-    for component in relative.parts:
-        current = current / component
-        if current.is_symlink():
-            raise UpdateError("candidate path must not traverse a symlink")
+    RunnerTempBoundary(runner_root).reject_symlinks(relative)
 
 
 def resolved_runner_temp_child(path: Path, runner_root: Path, *, strict: bool) -> Path:
     """Canonicalize a candidate path and prove it remains a strict temp child."""
 
-    try:
-        resolved = path.resolve(strict=strict)
-    except OSError as exc:
-        raise UpdateError("candidate path cannot be resolved") from exc
-    try:
-        relative = resolved.relative_to(runner_root)
-    except ValueError as exc:
-        raise UpdateError(RUNNER_TEMP_STRICT_CHILD_ERROR) from exc
-    if not relative.parts:
-        raise UpdateError(RUNNER_TEMP_STRICT_CHILD_ERROR)
-    return resolved
-
-
-def candidate_write_path(path: Path, runner_root: Path, relative: Path) -> Path:
-    """Create a candidate-only parent without permitting an existing target."""
-
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    reject_runner_temp_symlinks(runner_root, relative)
-    if path.exists() or path.is_symlink():
-        raise UpdateError("refusing to overwrite an existing candidate file")
-    return resolved_runner_temp_child(path, runner_root, strict=False)
-
-
-def candidate_read_path(path: Path, runner_root: Path) -> Path:
-    """Require an existing candidate to remain a regular non-symlink file."""
-
-    if path.is_symlink() or not path.is_file():
-        raise UpdateError("candidate must be a regular non-symlink file")
-    return resolved_runner_temp_child(path, runner_root, strict=True)
+    return RunnerTempBoundary(runner_root).resolved_child(path, strict=strict)
 
 
 def runner_temp_path(path: Path, *, for_write: bool) -> Path:
     """Require a regular path beneath a runner-owned, non-symlink temp root."""
 
-    runner_root = runner_temp_root()
-    relative = runner_temp_relative_path(path, runner_root)
-    reject_runner_temp_symlinks(runner_root, relative)
-    if for_write:
-        return candidate_write_path(path, runner_root, relative)
-    return candidate_read_path(path, runner_root)
+    return RunnerTempBoundary.from_environment().candidate_path(path, for_write=for_write)
 
 
 def output_directory_stat(path: Path) -> os.stat_result:
@@ -1119,18 +1283,7 @@ def create_output_directory_component(path: Path) -> None:
 def runner_temp_output_directory(path: Path) -> Path:
     """Create one private, empty tool-validation directory below RUNNER_TEMP."""
 
-    runner_root = runner_temp_root()
-    relative = runner_temp_relative_path(path, runner_root)
-    reject_runner_temp_symlinks(runner_root, relative)
-    current = runner_root
-    for index, component in enumerate(relative.parts):
-        current = current / component
-        final_component = index == len(relative.parts) - 1
-        if not validate_existing_output_directory_component(
-            current, final=final_component
-        ):
-            create_output_directory_component(current)
-    return resolved_runner_temp_child(path, runner_root, strict=True)
+    return RunnerTempBoundary.from_environment().output_directory(path)
 
 
 def write_candidate(path: Path, candidate: dict[str, Any]) -> None:
@@ -1157,40 +1310,66 @@ def read_candidate(path: Path) -> dict[str, Any]:
     return loaded
 
 
+def candidate_group_spec(group: str) -> CandidateGroupSpec:
+    """Return the one reviewed specification for an exact candidate group."""
+
+    for specification in CANDIDATE_GROUP_SPECS:
+        if specification.candidate_group == group:
+            return specification
+    raise UpdateError(f"candidate group is not approved: {group!r}")
+
+
+def resulting_candidate_record(
+    baseline: dict[str, Any], changes: dict[str, str], specification: CandidateGroupSpec
+) -> dict[str, Any]:
+    """Apply only a reviewed complete mutable tuple to a trusted lock record."""
+
+    resulting = deepcopy(baseline)
+    for field in specification.mutable_fields:
+        resulting[field] = changes[field]
+    return resulting
+
+
 def validated_candidate_record(
-    group: str, fields: tuple[str, ...], lock: dict[str, Any], name: Any, changes: Any
+    specification: CandidateGroupSpec,
+    lock: dict[str, Any],
+    name: Any,
+    changes: Any,
 ) -> tuple[str, dict[str, Any]]:
     """Validate one candidate entry and reconstruct its resulting lock record."""
 
+    group = specification.candidate_group
     if not isinstance(name, str) or not isinstance(changes, dict):
         raise UpdateError(f"candidate {group} entry is malformed")
     baseline = lock_record(lock, group, name)
-    if set(changes) != set(fields):
+    if set(changes) != set(specification.mutable_fields):
         raise UpdateError(f"candidate {group} {name!r} changes an unapproved field")
-    if not all(isinstance(changes[field], str) and changes[field] for field in fields):
+    if not all(
+        isinstance(changes[field], str) and changes[field]
+        for field in specification.mutable_fields
+    ):
         raise UpdateError(f"candidate {group} {name!r} has an empty field")
     if changes["version"] == baseline.get("version"):
         raise UpdateError(
             f"candidate {group} {name!r} must not include a no-op version"
         )
     validate_changed_record(group, name, baseline, changes)
-    resulting = deepcopy(baseline)
-    resulting.update(changes)
-    return name, resulting
+    return name, resulting_candidate_record(baseline, changes, specification)
 
 
 def validated_candidate_group(
-    candidate: dict[str, Any], lock: dict[str, Any], group: str, fields: tuple[str, ...]
+    candidate: dict[str, Any], lock: dict[str, Any], specification: CandidateGroupSpec
 ) -> dict[str, dict[str, Any]]:
     """Validate every changed record for one lock group."""
 
+    group = specification.candidate_group
     proposed = candidate.get(group)
     if not isinstance(proposed, dict):
         raise UpdateError(f"candidate {group} must be a mapping")
     changed_records: dict[str, dict[str, Any]] = {}
     for name, changes in proposed.items():
         record_name, resulting = validated_candidate_record(
-            group, fields, lock, name, changes
+            specification, lock, name, changes
         )
         changed_records[record_name] = resulting
     return changed_records
@@ -1205,25 +1384,27 @@ def validate_candidate_shape(
         raise UpdateError("candidate schema version is not supported")
     if candidate.get("lock_sha256") != lock_digest:
         raise UpdateError("candidate does not describe the current trusted lock")
+    if set(candidate) != CANDIDATE_TOP_LEVEL_FIELDS:
+        raise UpdateError("candidate has an unapproved top-level field")
     return {
-        "actions": validated_candidate_group(
-            candidate, lock, "actions", ACTION_MUTABLE_FIELDS
-        ),
-        "tools": validated_candidate_group(
-            candidate, lock, "tools", TOOL_MUTABLE_FIELDS
-        ),
+        specification.candidate_group: validated_candidate_group(
+            candidate, lock, specification
+        )
+        for specification in CANDIDATE_GROUP_SPECS
     }
 
 
 def validate_changed_record(
     group: str, name: str, baseline: dict[str, Any], changes: dict[str, str]
 ) -> None:
-    identity = release_identity(baseline, name, require_name_match=group == "actions")
+    specification = candidate_group_spec(group)
+    identity = release_identity(
+        baseline, name, require_name_match=specification.require_name_match
+    )
     if group == "tools":
         validate_tool_baseline_provenance(baseline, identity, name)
     version = changes["version"]
-    pattern = ACTION_RELEASE_TAG if group == "actions" else TOOL_RELEASE_TAG
-    if not pattern.fullmatch(version):
+    if not specification.release_tag.fullmatch(version):
         raise UpdateError(
             f"candidate {group} {name!r} version is not a supported stable tag"
         )
@@ -1405,17 +1586,15 @@ def apply_lock_changes(
     lock_path: Path, lock: dict[str, Any], candidate: dict[str, Any]
 ) -> None:
     text = lock_path.read_text(encoding="utf-8")
-    for group, fields in (
-        ("actions", ACTION_MUTABLE_FIELDS),
-        ("tools", TOOL_MUTABLE_FIELDS),
-    ):
+    for specification in CANDIDATE_GROUP_SPECS:
+        group = specification.candidate_group
         for name, changes in sorted(candidate[group].items()):
             baseline = lock_record(lock, group, name)
             start, end, section = lock_record_section(
-                text, LOCK_GROUP_BY_CANDIDATE_GROUP[group], name
+                text, specification.lock_group, name
             )
-            for field in fields:
-                disk_field = LOCK_FIELD_BY_CANDIDATE_FIELD[group][field]
+            for field in specification.mutable_fields:
+                disk_field = specification.lock_field(field)
                 if disk_field is None:
                     continue
                 section = replace_lock_field(
@@ -1732,9 +1911,7 @@ def changed_lock_record_fields(
 ) -> dict[str, str] | None:
     """Allow only a complete mutable release tuple to differ from the base lock."""
 
-    mutable_fields = (
-        ACTION_MUTABLE_FIELDS if group == "actions" else TOOL_MUTABLE_FIELDS
-    )
+    mutable_fields = candidate_group_spec(group).mutable_fields
     if set(base_record) != set(head_record):
         raise UpdateError(
             f"existing branch {group} {name!r} adds or removes lock fields"
@@ -1759,8 +1936,11 @@ def verify_changed_existing_branch_record(
 ) -> None:
     """Resolve a reused branch's changed tuple from the *base* lock identity."""
 
+    specification = candidate_group_spec(group)
     validate_changed_record(group, name, baseline, changes)
-    identity = release_identity(baseline, name, require_name_match=group == "actions")
+    identity = release_identity(
+        baseline, name, require_name_match=specification.require_name_match
+    )
     release = release_by_tag(identity, changes["version"])
     if group == "actions":
         tag = selected_action_release_tag(
@@ -1804,9 +1984,12 @@ def verify_existing_branch_lock_metadata(
             raise UpdateError(f"existing branch changes immutable lock field {field!r}")
 
 
-def existing_branch_group_records(lock: dict[str, Any], group: str) -> dict[str, Any]:
+def existing_branch_group_records(
+    lock: dict[str, Any], specification: CandidateGroupSpec
+) -> dict[str, Any]:
     """Return one required lock-record mapping from a reusable branch."""
 
+    group = specification.candidate_group
     records = lock.get(group)
     if not isinstance(records, dict):
         raise UpdateError(f"existing branch {group} lock records are missing")
@@ -1814,10 +1997,11 @@ def existing_branch_group_records(lock: dict[str, Any], group: str) -> dict[str,
 
 
 def verify_existing_branch_group_record(
-    group: str, name: Any, baseline: Any, head_record: Any
+    specification: CandidateGroupSpec, name: Any, baseline: Any, head_record: Any
 ) -> None:
     """Verify the sole permissible mutable release tuple for one lock entry."""
 
+    group = specification.candidate_group
     if (
         not isinstance(name, str)
         or not isinstance(baseline, dict)
@@ -1830,15 +2014,18 @@ def verify_existing_branch_group_record(
 
 
 def verify_existing_branch_group_records(
-    group: str, base_records: dict[str, Any], head_records: dict[str, Any]
+    specification: CandidateGroupSpec,
+    base_records: dict[str, Any],
+    head_records: dict[str, Any],
 ) -> None:
     """Verify every lock entry in one immutable record group."""
 
+    group = specification.candidate_group
     if set(base_records) != set(head_records):
         raise UpdateError(f"existing branch {group} lock records add or remove entries")
     for name in sorted(base_records):
         verify_existing_branch_group_record(
-            group, name, base_records[name], head_records[name]
+            specification, name, base_records[name], head_records[name]
         )
 
 
@@ -1848,11 +2035,11 @@ def verify_existing_branch_lock_records(
     """Reject a reusable branch unless its lock is a base-identity verified update."""
 
     verify_existing_branch_lock_metadata(base_lock, head_lock)
-    for group in ("actions", "tools"):
+    for specification in CANDIDATE_GROUP_SPECS:
         verify_existing_branch_group_records(
-            group,
-            existing_branch_group_records(base_lock, group),
-            existing_branch_group_records(head_lock, group),
+            specification,
+            existing_branch_group_records(base_lock, specification),
+            existing_branch_group_records(head_lock, specification),
         )
 
 
@@ -1861,10 +2048,13 @@ def existing_branch_candidate(
 ) -> dict[str, Any]:
     """Derive the sole updater candidate that can produce a reusable branch."""
 
-    candidate: dict[str, dict[str, dict[str, str]]] = {"actions": {}, "tools": {}}
-    for group in ("actions", "tools"):
-        base_records = base_lock[group]
-        head_records = head_lock[group]
+    actions: dict[str, dict[str, str]] = {}
+    tools: dict[str, dict[str, str]] = {}
+    group_changes = {"actions": actions, "tools": tools}
+    for specification in CANDIDATE_GROUP_SPECS:
+        group = specification.candidate_group
+        base_records = existing_branch_group_records(base_lock, specification)
+        head_records = existing_branch_group_records(head_lock, specification)
         if not isinstance(base_records, dict) or not isinstance(head_records, dict):
             raise UpdateError(f"existing branch {group} lock records are missing")
         for name in sorted(base_records):
@@ -1878,13 +2068,8 @@ def existing_branch_candidate(
                 raise UpdateError(f"existing branch {group} lock record is malformed")
             changes = changed_lock_record_fields(group, name, baseline, head_record)
             if changes is not None:
-                candidate[group][name] = changes
-    return {
-        "schema_version": CANDIDATE_SCHEMA_VERSION,
-        "lock_sha256": base_lock_digest,
-        "actions": candidate["actions"],
-        "tools": candidate["tools"],
-    }
+                group_changes[group][name] = changes
+    return candidate_payload(base_lock_digest, actions=actions, tools=tools)
 
 
 def copy_git_update_inputs(root: Path, revision: str, destination_root: Path) -> None:
@@ -1954,6 +2139,21 @@ def candidate_from_arguments(args: argparse.Namespace) -> dict[str, Any]:
     return read_candidate(args.candidate)
 
 
+def add_candidate_input(parser: argparse.ArgumentParser) -> None:
+    """Add the sole mutually exclusive candidate transport contract."""
+
+    candidate = parser.add_mutually_exclusive_group(required=True)
+    candidate.add_argument("--candidate", type=Path)
+    candidate.add_argument("--candidate-b64")
+
+
+def add_candidate_binding_options(parser: argparse.ArgumentParser) -> None:
+    """Add the immutable resolver binding and non-empty update controls."""
+
+    parser.add_argument("--expected-candidate-sha256")
+    parser.add_argument("--require-updates", action="store_true")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -1970,13 +2170,10 @@ def parse_args() -> argparse.Namespace:
         "validate", help="validate a candidate without source writes"
     )
     validate.add_argument("--root", type=Path, default=repository_root())
-    candidate = validate.add_mutually_exclusive_group(required=True)
-    candidate.add_argument("--candidate", type=Path)
-    candidate.add_argument("--candidate-b64")
+    add_candidate_input(validate)
+    add_candidate_binding_options(validate)
     validate.add_argument("--verify-tool-assets", action="store_true")
     validate.add_argument("--output-dir", type=Path)
-    validate.add_argument("--expected-candidate-sha256")
-    validate.add_argument("--require-updates", action="store_true")
     validate.add_argument(
         "--validate-proposed-tree",
         action="store_true",
@@ -1987,11 +2184,8 @@ def parse_args() -> argparse.Namespace:
         "apply", help="apply the narrow allow-listed candidate"
     )
     apply.add_argument("--root", type=Path, default=repository_root())
-    candidate = apply.add_mutually_exclusive_group(required=True)
-    candidate.add_argument("--candidate", type=Path)
-    candidate.add_argument("--candidate-b64")
-    apply.add_argument("--expected-candidate-sha256")
-    apply.add_argument("--require-updates", action="store_true")
+    add_candidate_input(apply)
+    add_candidate_binding_options(apply)
 
     scope = subparsers.add_parser(
         "verify-scope", help="fail if a publisher diff escapes the allowlist"

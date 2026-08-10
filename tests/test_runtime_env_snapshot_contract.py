@@ -265,6 +265,114 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                     cache_root=root / "cache-v2" / "shared",
                 )
 
+    def test_protected_nginx_broker_snapshot_uses_only_canonical_plan_outputs(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="protected-nginx-broker-snapshot-") as temporary:
+            root = Path(temporary)
+            cache_root = root / "cache-v2" / "shared"
+            plan_root = cache_root / "builds" / "connectors" / "nginx" / "cache-key"
+            binary = plan_root / "nginx" / "sbin" / "nginx"
+            module = plan_root / "nginx" / "modules" / components.NGINX_MODULE_FILENAME
+            prefix = cache_root / "prefix" / "modsecurity" / "modsecurity-build"
+            for path, contents, mode in (
+                (binary, "#!/bin/sh\nexit 0\n", 0o755),
+                (module, "module\n", 0o644),
+                (prefix / "lib" / components.MODSECURITY_LIBRARY_FILENAME, "library\n", 0o644),
+                (prefix / "lib" / components.MODSECURITY_RUNTIME_LIBRARY_FILENAME, "runtime library\n", 0o644),
+                (prefix / "include" / "modsecurity" / "modsecurity.h", "header\n", 0o644),
+            ):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(contents, encoding="utf-8")
+                path.chmod(mode)
+            output_root = root / "build" / "runtime-component-reports"
+            snapshot = output_root / "runtime-env-snapshot.protected.sh"
+            plan = {
+                "root": str(plan_root),
+                "manifest": str(plan_root / "manifest.json"),
+                "output_paths": {"binary": str(binary), "module": str(module)},
+                "cache_schema_version": components.CACHE_SCHEMA_VERSION,
+                "cache_key": "cache-key",
+                "connector_build_id": "cache-key",
+                "build_flags": json.dumps(
+                    {
+                        "NGINX_RELEASE_TAG": "release-1.31.3",
+                        "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
+                        "NGINX_SHA256": "a" * 64,
+                    }
+                ),
+            }
+            components.write_json(plan_root / "manifest.json", {"build_flags": plan["build_flags"]})
+            context = {
+                "target_connector": "nginx",
+                "cache_root": cache_root,
+                "connector_root": root / "connector",
+                "framework_root": root / "framework",
+                "output_root": output_root,
+                "requested_runtime_env_snapshot": snapshot,
+                "runtime_env_snapshot_contract": components.PROTECTED_NGINX_BROKER_SNAPSHOT_CONTRACT,
+                "env": {
+                    "NGINX_SOURCE_MODE": "github-release",
+                    "NGINX_RELEASE_TAG": "release-1.31.3",
+                    "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
+                    "NGINX_SHA256": "a" * 64,
+                    # These must not influence the fixed snapshot values.
+                    "NGINX_BINARY": "/ambient/nginx",
+                    "NGINX_MODULE": "/ambient/module.so",
+                    "MRTS_NATIVE_NGINX_BIN": "/ambient/mrts-nginx",
+                    "MRTS_NATIVE_NGINX_MODULE_DIR": "/ambient/mrts-modules",
+                },
+            }
+            component_records = {
+                "nginx": {"status": "reused", "nginx_bin": "/ambient/nginx"},
+                "nginx_plan": plan,
+                "modsecurity": {"status": "reused", "build_id": "modsecurity-build", "prefix": str(prefix)},
+            }
+            context["components"] = component_records
+            with (
+                mock.patch.object(components, "connector_manifest_ready", return_value=True),
+                mock.patch.object(components, "git_revision", side_effect=["b" * 40, "c" * 40]),
+            ):
+                written = components.write_runtime_environment_exports(
+                    context,
+                    {"UNRELATED_GENERIC_EXPORT": "must-not-appear"},
+                )
+
+            self.assertEqual(written, snapshot)
+            self.assertEqual(
+                snapshot.read_text(encoding="utf-8"),
+                "export MODSECURITY_SHARED_PREFIX='{}'\n"
+                "export NGINX_BINARY='{}'\n"
+                "export NGINX_MODULE='{}'\n".format(prefix, binary, module),
+            )
+            provenance_path = output_root / components.TRUSTED_NGINX_BROKER_PROVENANCE_FILENAME
+            record = json.loads(provenance_path.read_text(encoding="utf-8"))
+            self.assertEqual(set(record), {"schema_version", "producer", "nginx", "modsecurity"})
+            self.assertEqual(record["nginx"]["binary"]["path"], str(binary))
+            self.assertEqual(record["nginx"]["module"]["path"], str(module))
+            self.assertEqual(record["modsecurity"]["prefix"], str(prefix))
+            self.assertEqual(
+                record["modsecurity"]["library"]["path"],
+                str(prefix / "lib" / components.MODSECURITY_RUNTIME_LIBRARY_FILENAME),
+            )
+            self.assertFalse(Path(record["modsecurity"]["library"]["path"]).is_symlink())
+            self.assertIsInstance(record["nginx"]["binary"]["mode"], int)
+            self.assertEqual(provenance_path.stat().st_mode & 0o777, 0o600)
+            unsigned = json.loads(json.dumps(record))
+            identity = unsigned["producer"].pop("identity")
+            self.assertEqual(identity, components.stable_hash(unsigned))
+
+            # A record or snapshot is never published from an ambient or
+            # otherwise noncanonical plan output path.
+            rejected_snapshot = output_root / "runtime-env-snapshot.rejected.sh"
+            plan["output_paths"]["binary"] = "/ambient/nginx"
+            context["requested_runtime_env_snapshot"] = rejected_snapshot
+            with (
+                mock.patch.object(components, "connector_manifest_ready", return_value=True),
+                mock.patch.object(components, "git_revision", side_effect=["b" * 40, "c" * 40]),
+                self.assertRaisesRegex(RuntimeError, "plan_output_paths_not_canonical"),
+            ):
+                components.write_runtime_environment_exports(context, {})
+            self.assertFalse(rejected_snapshot.exists())
+
     def test_with_runner_consumes_the_prepared_snapshot_without_reading_shared_env(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-env-snapshot-") as temporary:
             root = Path(temporary)

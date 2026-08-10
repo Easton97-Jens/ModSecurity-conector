@@ -67,6 +67,7 @@ set +e
     --build-root "$BUILD_ROOT" \
     --native-root "$MRTS_NATIVE_ROOT" \
     --runtime-env-snapshot "$RUNTIME_COMPONENT_ENV_SNAPSHOT" \
+    --runtime-env-snapshot-contract "${RUNTIME_COMPONENT_SNAPSHOT_CONTRACT:-generic}" \
     --target-connector "${RUNTIME_COMPONENT_TARGET:-all}"
 prepare_rc=$?
 set -e

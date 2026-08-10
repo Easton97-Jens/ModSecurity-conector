@@ -554,10 +554,16 @@ request_hpp = (ROOT / "common" / "include" / "msconnector" / "request.hpp").read
 for alias in ("using Bytes = msconnector_bytes", "using Header = msconnector_header", "using Endpoint = msconnector_endpoint", "using Request = msconnector_request"):
     if alias not in request_hpp:
         fail("request.hpp must preserve C++ wrapper aliases")
-if "msconnector_request_content_type(const msconnector_request *request)" not in request_helpers_source or SUCCESS_RETURN_LITERAL not in request_helpers_source:
-    fail("request raw content-type helper must not expose bounded slices as C strings")
-if "msconnector_response_content_type(const msconnector_response *response)" not in response_helpers_source or SUCCESS_RETURN_LITERAL not in response_helpers_source:
-    fail("response raw content-type helper must not expose bounded slices as C strings")
+for unsafe_getter in (
+    "msconnector_headers_find_value(",
+    "msconnector_headers_host(",
+    "msconnector_request_header_value(",
+    "msconnector_request_content_type(",
+    "msconnector_response_header_value(",
+    "msconnector_response_content_type(",
+):
+    if unsafe_getter in headers_source + request_helpers_source + response_helpers_source + request_helpers_header + response_helpers_header:
+        fail("raw header getters must not expose pointer+length slices as C strings")
 
 # PR 29 review hardening checks.
 late_intervention_source = (ROOT / "common" / "src" / "late_intervention.c").read_text(encoding="utf-8")

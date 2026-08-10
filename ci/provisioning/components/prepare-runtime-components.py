@@ -95,6 +95,7 @@ DEFAULT_NGINX_QUIC_TLS_SOURCE_SHA256 = (
 
 PATH_POLICY_ENV = dict(os.environ)
 FULL_GIT_COMMIT_ID = re.compile(r"[0-9a-fA-F]{40,64}")
+SAFE_RUNTIME_BUILD_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 
 # Bump this whenever the on-disk cache contract or the identity inputs change.
@@ -111,6 +112,11 @@ EXPAT_BUILDCONF_FILENAME = "buildconf.sh"
 MISSING_COMMAND_TEXT = "not found"
 MISSING_FILE_TEXT = "no such file"
 MODSECURITY_LIBRARY_FILENAME = "libmodsecurity.so"
+# The shared-object SONAME shipped by the approved ModSecurity v3 build.  The
+# generic prefix keeps the libtool linker alias above, while the protected
+# NGINX broker records only this regular, non-symlinked runtime artifact.
+MODSECURITY_RUNTIME_LIBRARY_FILENAME = "libmodsecurity.so.3"
+MODSECURITY_OUTPUT_LAYOUT_VERSION = 1
 NGINX_MODULE_FILENAME = "ngx_http_modsecurity_module.so"
 NATIVE_NGINX_OVERRIDE_ENV = "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR"
 NGINX_REQUIRE_PINNED_PROVENANCE_ENV = "NGINX_REQUIRE_PINNED_PROVENANCE"
@@ -133,6 +139,10 @@ READY_COMPONENT_STATUSES = frozenset({"present", "built", "reused"})
 CONNECTOR_BUILD_ID_LABEL = "Connector build ID"
 USES_MODSECURITY_BUILD_ID_LABEL = "Uses ModSecurity build ID"
 RUNTIME_ENV_SNAPSHOT_SCHEMA_VERSION = 1
+PROTECTED_NGINX_BROKER_SNAPSHOT_CONTRACT = "protected-nginx-broker"
+GENERIC_RUNTIME_ENV_SNAPSHOT_CONTRACT = "generic"
+TRUSTED_NGINX_BROKER_PROVENANCE_FILENAME = "trusted-nginx-broker-provenance.json"
+TRUSTED_NGINX_BROKER_PROVENANCE_SCHEMA_VERSION = 1
 _TRUSTED_FRAMEWORK_GUARD_SHELL = Path("/bin/sh")
 _TRUSTED_FRAMEWORK_GUARD_GIT = Path("/usr/bin/git")
 _TRUSTED_FRAMEWORK_GUARD_PATH = "/usr/bin:/bin"
@@ -453,6 +463,206 @@ def write_runtime_env_snapshot(
     )
     atomic_write_text(destination, runtime_env_shell_text(values))
     return destination
+
+
+def _private_atomic_write_json(path: Path, data: dict[str, Any]) -> None:
+    """Atomically replace one private provenance record, never a partial file."""
+    if path.exists() or path.is_symlink():
+        details = path.lstat()
+        if path.is_symlink() or not stat.S_ISREG(details.st_mode) or details.st_mode & 0o077:
+            raise RuntimeError(f"protected_nginx_broker_unsafe_provenance_path:{path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.tmp-", dir=str(path.parent))
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(data, indent=2, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        path.chmod(0o600)
+    except Exception:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def protected_nginx_broker_artifact(path: Path, expected: Path, *, executable_required: bool) -> dict[str, Any]:
+    """Return immutable facts only for the canonical, non-symlinked artifact."""
+    if path != expected or not path.is_absolute():
+        raise RuntimeError(f"protected_nginx_broker_noncanonical_artifact:{path}")
+    try:
+        details = path.lstat()
+    except OSError as exc:
+        raise RuntimeError(f"protected_nginx_broker_artifact_unavailable:{path}") from exc
+    if stat.S_ISLNK(details.st_mode) or not stat.S_ISREG(details.st_mode):
+        raise RuntimeError(f"protected_nginx_broker_unsafe_artifact:{path}")
+    if details.st_mode & 0o022:
+        raise RuntimeError(f"protected_nginx_broker_writable_artifact:{path}")
+    if executable_required and not os.access(path, os.X_OK):
+        raise RuntimeError(f"protected_nginx_broker_artifact_not_executable:{path}")
+    return {
+        "path": str(path),
+        "sha256": sha256_file(path),
+        "device": details.st_dev,
+        "uid": details.st_uid,
+        "mode": stat.S_IMODE(details.st_mode),
+        "size": details.st_size,
+    }
+
+
+def _protected_nginx_broker_plan_artifacts(
+    nginx_plan: dict[str, Any],
+) -> tuple[Path, Path, Path]:
+    """Validate the completed plan and return its canonical artifacts."""
+    completed_manifest = read_json(Path(str(nginx_plan.get("manifest", ""))))
+    if completed_manifest.get("build_flags") != nginx_plan.get("build_flags"):
+        raise RuntimeError("protected_nginx_broker_completed_manifest_mismatch")
+    output_paths = nginx_plan.get("output_paths")
+    if not isinstance(output_paths, dict):
+        raise RuntimeError("protected_nginx_broker_plan_output_paths_missing")
+    try:
+        binary = Path(str(output_paths["binary"]))
+        module = Path(str(output_paths["module"]))
+    except KeyError as exc:
+        raise RuntimeError("protected_nginx_broker_plan_artifact_missing") from exc
+    if not binary.is_absolute() or not module.is_absolute():
+        raise RuntimeError("protected_nginx_broker_plan_artifact_not_absolute")
+    try:
+        plan_root = Path(str(nginx_plan.get("root", ""))).resolve(strict=True)
+    except OSError as exc:
+        raise RuntimeError("protected_nginx_broker_plan_root_missing") from exc
+    expected_binary = plan_root / "nginx" / "sbin" / "nginx"
+    expected_module = plan_root / "nginx" / "modules" / NGINX_MODULE_FILENAME
+    if binary != expected_binary or module != expected_module:
+        raise RuntimeError("protected_nginx_broker_plan_output_paths_not_canonical")
+    return binary, module, plan_root
+
+
+def _protected_nginx_broker_modsecurity_prefix(
+    context: dict[str, Any],
+    modsecurity: dict[str, Any],
+) -> Path:
+    """Return the validated Cache-v2 ModSecurity prefix."""
+    try:
+        modsecurity_prefix = Path(str(modsecurity.get("prefix", ""))).resolve(strict=True)
+    except OSError as exc:
+        raise RuntimeError("protected_nginx_broker_modsecurity_prefix_missing") from exc
+    expected_modsecurity_prefix = (
+        context["cache_root"]
+        / "prefix"
+        / "modsecurity"
+        / str(modsecurity.get("build_id", ""))
+    ).resolve()
+    if (
+        not modsecurity.get("build_id")
+        or modsecurity_prefix != expected_modsecurity_prefix
+        or not modsecurity_ready(modsecurity_prefix)
+    ):
+        raise RuntimeError("protected_nginx_broker_modsecurity_prefix_unvalidated")
+    return modsecurity_prefix
+
+
+def _protected_nginx_broker_source_revisions(
+    context: dict[str, Any],
+) -> tuple[str, str]:
+    """Return the immutable Parent and Framework source revisions."""
+    parent_sha = git_revision(context["connector_root"])
+    framework_sha = git_revision(context["framework_root"])
+    if not FULL_GIT_COMMIT_ID.fullmatch(parent_sha) or not FULL_GIT_COMMIT_ID.fullmatch(
+        framework_sha
+    ):
+        raise RuntimeError("protected_nginx_broker_source_revision_missing")
+    return parent_sha, framework_sha
+
+
+def _protected_nginx_broker_release_provenance(
+    nginx_plan: dict[str, Any],
+    nginx_release_tag: str,
+) -> tuple[str, str]:
+    """Return the validated NGINX release source and digest."""
+    try:
+        plan_build_flags = json.loads(str(nginx_plan.get("build_flags", "")))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("protected_nginx_broker_plan_release_provenance_missing") from exc
+    if not isinstance(plan_build_flags, dict):
+        raise RuntimeError("protected_nginx_broker_plan_release_provenance_missing")
+    source_repository = str(plan_build_flags.get("NGINX_SOURCE_REPO_URL", ""))
+    source_sha256 = str(plan_build_flags.get("NGINX_SHA256", "")).lower()
+    if (
+        plan_build_flags.get("NGINX_RELEASE_TAG", "") != nginx_release_tag
+        or not source_repository
+        or not re.fullmatch(r"[0-9a-f]{64}", source_sha256)
+    ):
+        raise RuntimeError("protected_nginx_broker_release_provenance_incomplete")
+    return source_repository, source_sha256
+
+
+def protected_nginx_broker_runtime_environment(
+    context: dict[str, Any],
+    components: dict[str, dict[str, Any]],
+) -> tuple[dict[str, str], Path]:
+    """Build the fixed broker tuple and publish its canonical provenance first."""
+    if context["target_connector"] != "nginx":
+        raise RuntimeError("protected_nginx_broker_requires_nginx_target")
+    nginx = components["nginx"]
+    modsecurity = components["modsecurity"]
+    nginx_plan = components.get("nginx_plan", {})
+    if nginx.get("status") not in READY_COMPONENT_STATUSES or modsecurity.get("status") not in READY_COMPONENT_STATUSES:
+        raise RuntimeError("protected_nginx_broker_components_not_ready")
+    if not isinstance(nginx_plan, dict) or not connector_manifest_ready(nginx_plan):
+        raise RuntimeError("protected_nginx_broker_cache_completion_missing")
+    binary, module, plan_root = _protected_nginx_broker_plan_artifacts(nginx_plan)
+    expected_binary = plan_root / "nginx" / "sbin" / "nginx"
+    expected_module = plan_root / "nginx" / "modules" / NGINX_MODULE_FILENAME
+    modsecurity_prefix = _protected_nginx_broker_modsecurity_prefix(context, modsecurity)
+    parent_sha, framework_sha = _protected_nginx_broker_source_revisions(context)
+    nginx_version = "1.31.3"
+    nginx_release_tag = "release-1.31.3"
+    source_repository, source_sha256 = _protected_nginx_broker_release_provenance(
+        nginx_plan, nginx_release_tag
+    )
+    provenance_path = context["output_root"] / TRUSTED_NGINX_BROKER_PROVENANCE_FILENAME
+    provenance_path = snapshot_path_within_output_root(provenance_path, context["output_root"])
+    binary_artifact = protected_nginx_broker_artifact(binary, expected_binary, executable_required=True)
+    module_artifact = protected_nginx_broker_artifact(module, expected_module, executable_required=False)
+    library = modsecurity_prefix / "lib" / MODSECURITY_RUNTIME_LIBRARY_FILENAME
+    library_artifact = protected_nginx_broker_artifact(library, library, executable_required=False)
+    provenance = {
+        "schema_version": TRUSTED_NGINX_BROKER_PROVENANCE_SCHEMA_VERSION,
+        "producer": {
+            "parent_sha": parent_sha.lower(),
+            "framework_sha": framework_sha.lower(),
+        },
+        "nginx": {
+            "version": nginx_version,
+            "release_tag": nginx_release_tag,
+            "source_repository": source_repository,
+            "source_sha256": source_sha256,
+            "cache_schema_version": nginx_plan.get("cache_schema_version"),
+            "cache_key": nginx_plan.get("cache_key"),
+            "connector_build_id": nginx_plan.get("connector_build_id"),
+            "root": str(plan_root),
+            "binary": binary_artifact,
+            "module": module_artifact,
+        },
+        "modsecurity": {
+            "prefix": str(modsecurity_prefix),
+            "library": library_artifact,
+        },
+    }
+    provenance["producer"]["identity"] = stable_hash(provenance)
+    _private_atomic_write_json(provenance_path, provenance)
+    if read_json(provenance_path) != provenance:
+        raise RuntimeError("protected_nginx_broker_provenance_validation_failed")
+    return {
+        "NGINX_BINARY": str(provenance["nginx"]["binary"]["path"]),
+        "NGINX_MODULE": str(provenance["nginx"]["module"]["path"]),
+        "MODSECURITY_SHARED_PREFIX": str(provenance["modsecurity"]["prefix"]),
+    }, provenance_path
 
 
 def nginx_runtime_environment(
@@ -3814,6 +4024,7 @@ def modsecurity_cache_identity(
         toolchain=toolchain,
         extra_inputs={
             "dependency_hash": dependency_hash,
+            "modsecurity_output_layout_version": MODSECURITY_OUTPUT_LAYOUT_VERSION,
             "recursive_submodule_status": git_record.get("submodule_status", ""),
         },
     )
@@ -3932,26 +4143,189 @@ def cache_entry_lock_path(cache_root: Path, component: str, cache_key: str) -> P
     return cache_root / "locks" / f"{safe_component}-{safe_key}.lock"
 
 
+def _modsecurity_runtime_library_terminal_details(
+    current: str, details: os.stat_result
+) -> os.stat_result | None:
+    """Return a verified Libtool terminal or reject an unexpected inode type."""
+    if stat.S_ISREG(details.st_mode):
+        if not current.startswith(f"{MODSECURITY_RUNTIME_LIBRARY_FILENAME}."):
+            raise RuntimeError("modsecurity_library_terminal_name_invalid_after_build")
+        if details.st_mode & 0o022:
+            raise RuntimeError("modsecurity_library_terminal_writable_after_build")
+        return details
+    if not stat.S_ISLNK(details.st_mode):
+        raise RuntimeError("modsecurity_library_terminal_nonregular_after_build")
+    return None
+
+
+def _modsecurity_runtime_library_alias_target(
+    libs_descriptor: int, current: str, details: os.stat_result
+) -> str:
+    """Read one stable, direct-basename Libtool alias target."""
+    try:
+        target = os.readlink(current, dir_fd=libs_descriptor)
+        link_after_read = os.stat(current, dir_fd=libs_descriptor, follow_symlinks=False)
+    except OSError as exc:
+        raise RuntimeError("modsecurity_library_symlink_changed_after_build") from exc
+    if (details.st_dev, details.st_ino) != (
+        link_after_read.st_dev,
+        link_after_read.st_ino,
+    ):
+        raise RuntimeError("modsecurity_library_symlink_changed_after_build")
+    target_path = Path(target)
+    if (
+        not target
+        or target_path.is_absolute()
+        or target_path.name != target
+        or target in {".", ".."}
+    ):
+        raise RuntimeError("modsecurity_library_symlink_outside_after_build")
+    return target
+
+
+def _contained_modsecurity_runtime_library(
+    libs_descriptor: int, start_name: str
+) -> tuple[str, os.stat_result]:
+    """Resolve one Libtool alias relative to an already verified directory.
+
+    The protected broker cannot publish a symlink, including one that merely
+    happens to resolve to a regular file today.  Resolve the two expected
+    aliases explicitly.  Libtool emits basename-only links in ``src/.libs``;
+    rejecting every path component also prevents a symlinked intermediate
+    directory from escaping that directory.
+    """
+    current = start_name
+    seen: set[str] = set()
+    while True:
+        if current in seen:
+            raise RuntimeError("modsecurity_library_symlink_cycle_after_build")
+        seen.add(current)
+        try:
+            details = os.stat(current, dir_fd=libs_descriptor, follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError("modsecurity_library_symlink_dangling_after_build") from exc
+        terminal_details = _modsecurity_runtime_library_terminal_details(current, details)
+        if terminal_details is not None:
+            return current, terminal_details
+        current = _modsecurity_runtime_library_alias_target(libs_descriptor, current, details)
+
+
+def _verified_modsecurity_runtime_library(libs: Path) -> tuple[int, os.stat_result]:
+    """Open the one regular inode backing both expected Libtool aliases."""
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    file_flags = os.O_RDONLY | os.O_NOFOLLOW
+    try:
+        libs_descriptor = os.open(libs, directory_flags)
+    except OSError as exc:
+        raise RuntimeError("modsecurity_library_directory_unsafe_after_build") from exc
+    terminal_descriptors: list[tuple[int, os.stat_result]] = []
+    try:
+        resolved = [
+            _contained_modsecurity_runtime_library(libs_descriptor, name)
+            for name in (MODSECURITY_LIBRARY_FILENAME, MODSECURITY_RUNTIME_LIBRARY_FILENAME)
+        ]
+        for terminal_name, expected_details in resolved:
+            try:
+                descriptor = os.open(terminal_name, file_flags, dir_fd=libs_descriptor)
+            except OSError as exc:
+                raise RuntimeError("modsecurity_library_terminal_changed_after_build") from exc
+            details = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(details.st_mode)
+                or (details.st_dev, details.st_ino)
+                != (expected_details.st_dev, expected_details.st_ino)
+            ):
+                os.close(descriptor)
+                raise RuntimeError("modsecurity_library_terminal_changed_after_build")
+            if details.st_mode & 0o022:
+                os.close(descriptor)
+                raise RuntimeError("modsecurity_library_terminal_writable_after_build")
+            terminal_descriptors.append((descriptor, details))
+        if len({(details.st_dev, details.st_ino) for _, details in terminal_descriptors}) != 1:
+            raise RuntimeError("modsecurity_library_multiple_terminal_targets_after_build")
+        verified_descriptor, verified_details = terminal_descriptors.pop()
+        return verified_descriptor, verified_details
+    finally:
+        os.close(libs_descriptor)
+        for descriptor, _ in terminal_descriptors:
+            os.close(descriptor)
+
+
+def _copy_verified_modsecurity_runtime_library(
+    source_descriptor: int,
+    source_details: os.stat_result,
+    destination: Path,
+) -> None:
+    """Atomically copy the verified source inode without reopening its path."""
+    temporary_descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{destination.name}.tmp-", dir=str(destination.parent)
+    )
+    temporary = Path(temporary_name)
+    try:
+        os.lseek(source_descriptor, 0, os.SEEK_SET)
+        with os.fdopen(os.dup(source_descriptor), "rb") as source_handle, os.fdopen(
+            temporary_descriptor, "wb"
+        ) as destination_handle:
+            temporary_descriptor = -1
+            shutil.copyfileobj(source_handle, destination_handle)
+            destination_handle.flush()
+            os.fsync(destination_handle.fileno())
+            os.fchmod(destination_handle.fileno(), stat.S_IMODE(source_details.st_mode))
+            os.utime(
+                destination_handle.fileno(),
+                ns=(source_details.st_atime_ns, source_details.st_mtime_ns),
+            )
+        details_after_copy = os.fstat(source_descriptor)
+        if (
+            details_after_copy.st_size,
+            details_after_copy.st_mtime_ns,
+        ) != (
+            source_details.st_size,
+            source_details.st_mtime_ns,
+        ):
+            raise RuntimeError("modsecurity_library_terminal_changed_during_copy")
+        os.replace(temporary, destination)
+        if not stat.S_ISREG(destination.lstat().st_mode):
+            raise RuntimeError("modsecurity_library_runtime_nonregular_after_copy")
+    except Exception:
+        if temporary_descriptor >= 0:
+            os.close(temporary_descriptor)
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
 def copy_modsecurity_outputs(source_dir: Path, prefix: Path) -> None:
     headers = source_dir / "headers"
     libs = source_dir / "src/.libs"
     if not (headers / "modsecurity/modsecurity.h").is_file():
         raise RuntimeError("modsecurity_headers_missing_after_build")
-    if not (libs / MODSECURITY_LIBRARY_FILENAME).is_file():
-        raise RuntimeError("modsecurity_library_missing_after_build")
+    terminal_descriptor, terminal_details = _verified_modsecurity_runtime_library(libs)
     include_dir = prefix / "include"
     lib_dir = prefix / "lib"
     include_dir.mkdir(parents=True, exist_ok=True)
     lib_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(headers, include_dir, dirs_exist_ok=True, symlinks=True)
-    for item in libs.glob(f"{MODSECURITY_LIBRARY_FILENAME}*"):
-        dest = lib_dir / item.name
-        if dest.exists() or dest.is_symlink():
-            dest.unlink()
-        if item.is_symlink():
-            os.symlink(os.readlink(item), dest)
-        else:
-            shutil.copy2(item, dest)
+    try:
+        shutil.copytree(headers, include_dir, dirs_exist_ok=True, symlinks=True)
+        for item in libs.glob(f"{MODSECURITY_LIBRARY_FILENAME}*"):
+            dest = lib_dir / item.name
+            if dest.exists() or dest.is_symlink():
+                dest.unlink()
+            if item.is_symlink():
+                os.symlink(os.readlink(item), dest)
+            else:
+                shutil.copy2(item, dest)
+        # Preserve the ordinary libtool aliases for generic consumers, but
+        # publish the protected regular file from the descriptor held since
+        # alias verification, never by reopening the terminal pathname.
+        runtime_library = lib_dir / MODSECURITY_RUNTIME_LIBRARY_FILENAME
+        _copy_verified_modsecurity_runtime_library(
+            terminal_descriptor, terminal_details, runtime_library
+        )
+    finally:
+        os.close(terminal_descriptor)
 
 
 _FRAMEWORK_MODSECURITY_V3_GUARD = (
@@ -5127,11 +5501,10 @@ def connector_output_layout(connector: str, root: Path) -> dict[str, Any]:
     if connector == "haproxy":
         return {
             "build_root": str(root),
-            "output_paths": {
-                "binary": str(root / "haproxy-runtime/haproxy/sbin/haproxy"),
-                "module": str(root / "haproxy-spoa-runtime/haproxy-modsecurity-spoa"),
-                "config": str(root / "haproxy-modsecurity-binding/paths.env"),
-            },
+            # HAProxy's connector-cache entry owns identity/provenance and its
+            # manifest, not mutable runtime artifacts.  The invocation-local
+            # output paths are recorded after they are derived from BUILD_ROOT.
+            "output_paths": {},
         }
     return {}
 
@@ -8021,9 +8394,49 @@ def _prepare_nginx_runtime_for_plan(
     )
 
 
+def haproxy_runtime_build_key(plan: dict[str, Any]) -> str:
+    """Return one validated cache identity for the mutable runtime namespace."""
+    cache_key = plan.get("cache_key")
+    connector_build_id = plan.get("connector_build_id")
+    cache_identity = plan.get("cache_identity")
+    identity_key = cache_identity.get("cache_key") if isinstance(cache_identity, dict) else None
+    if not (
+        plan.get("connector") == "haproxy"
+        and isinstance(cache_key, str)
+        and cache_key
+        and connector_build_id == cache_key
+        and identity_key == cache_key
+    ):
+        raise RuntimeError("haproxy_source_build_key_mismatch")
+    if cache_key in {".", ".."} or not SAFE_RUNTIME_BUILD_KEY.fullmatch(cache_key):
+        raise RuntimeError("unsafe_haproxy_runtime_build_key")
+    identity_inputs = cache_identity.get("extra_inputs")
+    source_hash = plan.get("source_hash")
+    if not (
+        cache_identity.get("component") == "haproxy"
+        and cache_identity_is_self_consistent(cache_identity)
+        and isinstance(identity_inputs, dict)
+        and isinstance(source_hash, str)
+        and source_hash
+        and identity_inputs.get("connector_source_hash") == source_hash
+    ):
+        raise RuntimeError("haproxy_source_build_key_mismatch")
+    return cache_key
+
+
 def haproxy_runtime_context(plan: dict[str, Any], build_root: Path) -> dict[str, Any]:
-    root = Path(str(plan.get("build_root"))).resolve()
+    cache_key = haproxy_runtime_build_key(plan)
+    invocation_build_root = build_root.resolve()
+    cache_root = Path(str(plan.get("cache_root", ""))).resolve()
+    root = (
+        invocation_build_root / "runtime-components" / "haproxy" / cache_key
+    ).resolve()
+    if root == invocation_build_root or not is_within(root, invocation_build_root):
+        raise RuntimeError("haproxy_runtime_path_outside_build_root")
+    if paths_overlap(root, cache_root):
+        raise RuntimeError("haproxy_runtime_output_overlaps_component_cache")
     haproxy_runtime_build_dir = root / "haproxy-runtime-build"
+    haproxy_runtime_build_worktree = haproxy_runtime_build_dir / "worktree"
     haproxy_runtime_dir = root / "haproxy-runtime/haproxy"
     haproxy_bin = haproxy_runtime_dir / "sbin/haproxy"
     binding_dir = root / "haproxy-modsecurity-binding"
@@ -8032,14 +8445,17 @@ def haproxy_runtime_context(plan: dict[str, Any], build_root: Path) -> dict[str,
     paths_env = binding_dir / "paths.env"
     return {
         "root": root,
+        "build_root": invocation_build_root,
+        "cache_root": cache_root,
         "haproxy_runtime_build_dir": haproxy_runtime_build_dir,
+        "haproxy_runtime_build_worktree": haproxy_runtime_build_worktree,
         "haproxy_runtime_dir": haproxy_runtime_dir,
         "haproxy_bin": haproxy_bin,
         "binding_dir": binding_dir,
         "spoa_dir": spoa_dir,
         "spoa_bin": spoa_bin,
         "paths_env": paths_env,
-        "log_path": build_root / "logs/runtime-components/haproxy-build.log",
+        "log_path": root / "logs/haproxy-build.log",
     }
 
 
@@ -8095,14 +8511,30 @@ def haproxy_preflight_blocked(
     for path in (
         context["root"],
         context["haproxy_runtime_build_dir"],
+        context["haproxy_runtime_build_worktree"],
         context["haproxy_runtime_dir"],
+        context["haproxy_bin"],
         context["binding_dir"],
         context["spoa_dir"],
+        context["spoa_bin"],
+        context["paths_env"],
+        context["log_path"],
     ):
-        if is_system_path(path) or not is_within(path, cache_root):
+        if (
+            is_system_path(path)
+            or path == context["build_root"]
+            or not is_within(path, context["build_root"])
+        ):
             record.update(
                 status="blocked",
-                blocker_reason="system_path_write_forbidden",
+                blocker_reason="haproxy_runtime_path_outside_build_root",
+                blocked_path=str(path),
+            )
+            return True
+        if paths_overlap(path, cache_root):
+            record.update(
+                status="blocked",
+                blocker_reason="haproxy_runtime_output_overlaps_component_cache",
                 blocked_path=str(path),
             )
             return True
@@ -8111,39 +8543,75 @@ def haproxy_preflight_blocked(
 
 def reconcile_haproxy_cached_entry(
     plan: dict[str, Any],
-    cache_root: Path,
     context: dict[str, Any],
     record: dict[str, Any],
 ) -> str:
     root = context["root"]
-    if not root.exists() or connector_manifest_ready(plan):
+    if not root.exists() or haproxy_cached_entry_reusable(plan, context):
         return ""
     try:
-        safe_remove_dir(root, cache_root)
+        safe_remove_dir(root, context["build_root"])
     except RuntimeError as exc:
         return str(exc)
-    record["invalidation_reason"] = "missing_or_incomplete_connector_manifest"
+    record["invalidation_reason"] = "missing_or_incomplete_haproxy_runtime"
     return ""
 
 
 def haproxy_cached_entry_reusable(plan: dict[str, Any], context: dict[str, Any]) -> bool:
     return (
-        executable(context["haproxy_bin"])
+        cache_root_marker_valid(Path(context["build_root"]))
+        and cache_entry_marker_valid(Path(context["root"]), Path(context["build_root"]))
+        and executable(context["haproxy_bin"])
         and executable(context["spoa_bin"])
         and context["paths_env"].is_file()
         and connector_manifest_ready(plan)
     )
 
 
-def claim_haproxy_cache_entry(plan: dict[str, Any], cache_root: Path, root: Path) -> str:
+def claim_haproxy_cache_entry(plan: dict[str, Any], cache_root: Path) -> str:
     try:
         mark_managed_cache_entry(
-            root,
+            Path(str(plan["root"])),
             cache_root,
             component="connector:haproxy",
             cache_key=str(plan.get("cache_key", plan.get("connector_build_id", ""))),
         )
     except RuntimeError as exc:
+        return str(exc)
+    return ""
+
+
+def claim_haproxy_runtime_entry(plan: dict[str, Any], context: dict[str, Any]) -> str:
+    """Pre-claim and create the invocation-local runtime tree fail closed.
+
+    A later incomplete build may remove only a registered child of its
+    invocation build root.  Registering the deterministic, verified path
+    before a non-idempotent create preserves that cleanup authority across
+    interruption and rejects a directory that appeared concurrently.
+    """
+    try:
+        build_root = ensure_managed_cache_root(Path(context["build_root"]))
+        root = Path(context["root"])
+        marker_path = cache_entry_marker_path(root, build_root)
+        mark_managed_cache_entry(
+            root,
+            build_root,
+            component="runtime:haproxy",
+            cache_key=haproxy_runtime_build_key(plan),
+        )
+        try:
+            root.mkdir(parents=True)
+        except FileExistsError:
+            marker_path.unlink(missing_ok=True)
+            return f"haproxy_runtime_root_already_exists: {root}"
+        if (
+            root.is_symlink()
+            or not root.is_dir()
+            or not cache_entry_marker_valid(root, build_root)
+        ):
+            marker_path.unlink(missing_ok=True)
+            return f"haproxy_runtime_root_invalid_after_claim: {root}"
+    except (OSError, RuntimeError) as exc:
         return str(exc)
     return ""
 
@@ -8164,16 +8632,16 @@ def haproxy_prepare_environment(
         CONNECTOR_ROOT=str(connector_root),
         CONNECTOR_COMPONENT_CACHE=str(cache_root),
         SOURCE_ROOT=str(sources_root),
-        BUILD_ROOT=str(context["root"]),
+        BUILD_ROOT=str(context["build_root"]),
         TMP_ROOT=str(context["root"] / "tmp"),
-        LOG_ROOT=str(build_root / "logs"),
+        LOG_ROOT=str(context["root"] / "logs"),
         HAPROXY_SOURCE_ROOT=str(sources_root / "haproxy"),
         HAPROXY_DOWNLOAD_DIR=str(archives_root / "haproxy"),
         HAPROXY_SOURCE_DIR=str(
             sources_root / "haproxy" / f"haproxy-{env.get('HAPROXY_VERSION', '3.2.19')}"
         ),
         HAPROXY_RUNTIME_BUILD_DIR=str(context["haproxy_runtime_build_dir"]),
-        HAPROXY_RUNTIME_BUILD_WORKTREE=str(context["haproxy_runtime_build_dir"] / "worktree"),
+        HAPROXY_RUNTIME_BUILD_WORKTREE=str(context["haproxy_runtime_build_worktree"]),
         HAPROXY_RUNTIME_DIR=str(context["haproxy_runtime_dir"]),
         HAPROXY_BIN=str(context["haproxy_bin"]),
         REFRESH="0",
@@ -8261,6 +8729,17 @@ def prepare_haproxy_runtime(
     plan: dict[str, Any],
     _transactional: bool = False,
 ) -> dict[str, Any]:
+    try:
+        haproxy_runtime_build_key(plan)
+    except RuntimeError as exc:
+        return {
+            "connector": "haproxy",
+            "connector_build_id": plan.get("connector_build_id", ""),
+            "cache_key": plan.get("cache_key", ""),
+            "modsecurity_build_id": modsecurity.get("build_id", ""),
+            "status": "blocked",
+            "blocker_reason": str(exc),
+        }
     if plan.get("root") and not _transactional:
         return prepare_connector_transactionally(
             "haproxy",
@@ -8283,18 +8762,21 @@ def prepare_haproxy_runtime(
     record = haproxy_runtime_record(plan, modsecurity, context)
     if haproxy_preflight_blocked(record, modsecurity, cache_root, context):
         return write_haproxy_record(plan, record)
-    cache_blocker = reconcile_haproxy_cached_entry(plan, cache_root, context, record)
+    cache_blocker = reconcile_haproxy_cached_entry(plan, context, record)
     if cache_blocker:
         record.update(status="blocked", blocker_reason=cache_blocker)
         return write_haproxy_record(plan, record)
     if haproxy_cached_entry_reusable(plan, context):
         record.update(status="reused", tree=tree_manifest(context["root"]))
         return write_haproxy_record(plan, record)
-    claim_error = claim_haproxy_cache_entry(plan, cache_root, context["root"])
+    claim_error = claim_haproxy_cache_entry(plan, cache_root)
     if claim_error:
         record.update(status="blocked", blocker_reason=claim_error)
         return write_haproxy_record(plan, record)
-    context["root"].mkdir(parents=True, exist_ok=True)
+    runtime_claim_error = claim_haproxy_runtime_entry(plan, context)
+    if runtime_claim_error:
+        record.update(status="blocked", blocker_reason=runtime_claim_error)
+        return write_haproxy_record(plan, record)
     prep_env = haproxy_prepare_environment(
         env,
         connector_root,
@@ -8861,6 +9343,15 @@ def runtime_component_argument_parser() -> argparse.ArgumentParser:
             "a unique file is allocated below --output-root."
         ),
     )
+    parser.add_argument(
+        "--runtime-env-snapshot-contract",
+        choices=(GENERIC_RUNTIME_ENV_SNAPSHOT_CONTRACT, PROTECTED_NGINX_BROKER_SNAPSHOT_CONTRACT),
+        default=os.environ.get(
+            "RUNTIME_COMPONENT_SNAPSHOT_CONTRACT",
+            GENERIC_RUNTIME_ENV_SNAPSHOT_CONTRACT,
+        ),
+        help="Select the generic compatibility snapshot or the fixed protected NGINX broker tuple.",
+    )
     parser.add_argument("--build-root", default=None)
     parser.add_argument("--native-root", default=None)
     parser.add_argument(
@@ -8979,6 +9470,7 @@ def runtime_component_context(args: argparse.Namespace) -> tuple[dict[str, Any] 
         "native_root": native_root,
         "report_dir": output_root / GENERATED_ROOT,
         "requested_runtime_env_snapshot": requested_runtime_env_snapshot,
+        "runtime_env_snapshot_contract": args.runtime_env_snapshot_contract,
         "strict": strict,
         "target_connector": args.target_connector,
         **sources,
@@ -9319,6 +9811,7 @@ def prepare_native_component_records(
         "modsecurity": modsecurity,
         "apache_httpd": apache_httpd,
         "nginx": nginx,
+        "nginx_plan": connector_plans["nginx"],
         "haproxy": haproxy,
         "go_ftw": go_ftw,
         "albedo": albedo,
@@ -9449,6 +9942,11 @@ def write_runtime_environment_exports(context: dict[str, Any], runtime_env: dict
     snapshot_reserved_here = requested_snapshot is None
     runtime_env_snapshot = requested_snapshot or allocate_runtime_env_snapshot(output_root)
     try:
+        if context["runtime_env_snapshot_contract"] == PROTECTED_NGINX_BROKER_SNAPSHOT_CONTRACT:
+            protected_env, _ = protected_nginx_broker_runtime_environment(context, context["components"])
+            destination = snapshot_path_within_output_root(runtime_env_snapshot, output_root)
+            atomic_write_text(destination, runtime_env_shell_text(protected_env))
+            return destination
         return write_runtime_env_snapshot(
             runtime_env,
             snapshot_path=runtime_env_snapshot,
@@ -9674,6 +10172,7 @@ def main() -> int:
     archives = prepare_runtime_archives(context, paths)
 
     components = prepare_native_component_records(context, paths, git_components, archives)
+    context["components"] = components
     runtime_env = runtime_component_environment(context, paths, components)
     runtime_env_snapshot = write_runtime_environment_exports(context, runtime_env)
     payload, build_cache = runtime_component_payload(

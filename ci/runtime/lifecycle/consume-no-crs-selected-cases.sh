@@ -25,14 +25,18 @@ seen_cases=' '
 set -f
 for runner_case in $selected_cases; do
     case "$runner_case" in
+        full-lifecycle/*) case_leaf=${runner_case#full-lifecycle/} ;;
+        *) case_leaf=$runner_case ;;
+    esac
+    case "$case_leaf" in
         *.yaml) ;;
         *)
             echo "FAIL: $connector No-CRS selected runner case is not a YAML fixture: $runner_case" >&2
             exit 1
             ;;
     esac
-    case "$runner_case" in
-        *[!A-Za-z0-9_.-]*)
+    case "$case_leaf" in
+        ""|.*|*..*|*/*|*[!A-Za-z0-9_.-]*)
             echo "FAIL: $connector No-CRS selected runner case contains unsafe characters: $runner_case" >&2
             exit 1
             ;;
