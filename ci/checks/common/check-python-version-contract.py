@@ -41,7 +41,7 @@ UPDATE_GO_VERSION_WORKFLOW = "update-go-version.yml"
 PROTECTED_NGINX_BROKER_CALLER_WORKFLOW = "run-protected-nginx-root-broker.yml"
 PROTECTED_NGINX_BROKER_REUSABLE_WORKFLOW = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
-    "409caa5b9664bcb8e1919d35684575e00a959f6a"
+    "7a9240d35e50475cc1a381fa103b0bb5cca2bee3"
 )
 REUSABLE_FIVE_CONNECTORS_PROFILE_WORKFLOW = "reusable-five-connectors-profile.yml"
 JOB_LEVEL_REUSABLE_WORKFLOW_INVOCATION = "job-level reusable workflow invocation"

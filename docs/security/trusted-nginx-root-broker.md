@@ -11,16 +11,17 @@ generated environment files never run as host root.
 
 ## Immutable invocation boundary
 
-The existing caller uses the reusable workflow at the exact 40-character commit
-SHA already reachable from protected Parent `master`:
+This separate Phase-B caller-repin patch updates the caller to use the
+reusable workflow at the exact 40-character broker commit SHA already reachable
+from protected Parent `master`:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@409caa5b9664bcb8e1919d35684575e00a959f6a
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@7a9240d35e50475cc1a381fa103b0bb5cca2bee3
 ```
 
-Both caller `uses` values and both `protected_broker_sha` values are pinned to
-the active protected broker-repair commit SHA
-`409caa5b9664bcb8e1919d35684575e00a959f6a`; neither a branch nor `master` is
+Both caller `uses` values and both `protected_broker_sha` values in this
+Phase-B patch are pinned to the available protected broker-repair commit SHA
+`7a9240d35e50475cc1a381fa103b0bb5cca2bee3`; neither a branch nor `master` is
 an acceptable substitute.
 
 GitHub documents that the `github` context in a called reusable workflow is
@@ -112,11 +113,11 @@ actions remain inside this immutable call and the Framework gitlink is fixed
 to the broker revision rather than to a later Parent state:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@409caa5b9664bcb8e1919d35684575e00a959f6a
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@7a9240d35e50475cc1a381fa103b0bb5cca2bee3
 ```
 
 ```text
-protected_broker_sha = 409caa5b9664bcb8e1919d35684575e00a959f6a
+protected_broker_sha = 7a9240d35e50475cc1a381fa103b0bb5cca2bee3
 framework_sha        = 03880bf66b3905940466ff10b3a431a27ecc6b26
 ```
 
@@ -333,8 +334,16 @@ descriptor-relative cleanup. After the initial loader repair, 83 focused tests
 passed. After the expanded security remediation, a later broker/CRS suite
 passed 43 tests, the focused remediation passed 2 tests, and the producer
 focused matrix passed 5 tests. The full owning cache module passed 38 tests and
-had one known isolated-worktree fixture error. These are local source/static
-results. A protected-master hosted invocation remains required to prove GitHub
+had one known isolated-worktree fixture error. Phase-B local validation then
+passed 109 tests in 9.253s across the protected caller, broker, workflow, CI
+security-workflow, and Python-version-contract test modules. The Phase-B CI
+security contract also passed its 26 CI security tests plus validate-only
+actionlint/zizmor/gitleaks locks. The standalone Python-version-contract check
+exited 2 only for unchanged current-`master` inventory violations in
+`verified-report-governance`, `ci-security-codeql` trusted-go-version,
+Apache/HAProxy, and `update-workflow-tools`; it is nonpassing baseline evidence
+and not a Phase-B pin violation. These are local source/static results. A
+protected-master hosted invocation remains required to prove GitHub
 reusable-workflow context semantics, a real root master/non-root worker, real
 CRS execution, audit output, listener release, and final uploaded cleanup
 evidence. This document is a security contract, not that runtime evidence.
@@ -343,13 +352,19 @@ Run `31368594208` is retained pre-fix failure evidence only: its no-CRS leg
 rejected the genuine protected library under the generic 8 MiB evidence limit,
 and its with-CRS leg rejected fresh checkout files that inherited `umask 077`.
 Both legs stopped before candidate admission, every root action, NGINX startup,
-evidence projection, and cleanup verification. This Phase-A broker repair is
-not runtime proof and is not selected by the active caller until the separately
-reviewed caller repin has merged; a fresh resulting-master lifecycle remains
-mandatory.
+evidence projection, and cleanup verification. PR #273 subsequently merged
+broker commit `7a9240d35e50475cc1a381fa103b0bb5cca2bee3` to `master`, making
+that broker revision available. Its committed caller workflow/helper still pin
+`409caa5b9664bcb8e1919d35684575e00a959f6a`; the separate Phase-B
+caller-repin commit `9a54f316248edf22b3e43ccfbb3310a651253921` selects the
+`7a9240d35e50475cc1a381fa103b0bb5cca2bee3`/
+`03880bf66b3905940466ff10b3a431a27ecc6b26` tuple and is tracked as Draft
+[PR #274](https://github.com/Easton97-Jens/ModSecurity-conector/pull/274).
+Neither the merge nor this local source/static evidence is runtime proof; a
+fresh resulting-master lifecycle remains mandatory.
 
-PR #240 remains blocked until this caller has been normally merged, dispatched
-from resulting protected `master`, and observed to pass both `no-crs` and
-`owasp-crs` profiles with successful evidence readback and cleanup. A later
-dispatch may bind PR #240's final head only as declarative evidence; it never
-executes PR #240 code at the root boundary.
+PR #240 remains blocked until this resulting-master caller is dispatched and
+observed to pass both `no-crs` and `owasp-crs` profiles with successful
+evidence readback and cleanup. A later dispatch may bind PR #240's final head
+only as declarative evidence; it never executes PR #240 code at the root
+boundary.
