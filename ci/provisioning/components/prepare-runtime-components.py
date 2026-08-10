@@ -126,7 +126,7 @@ NGINX_REQUIRE_PINNED_PROVENANCE_ENV = "NGINX_REQUIRE_PINNED_PROVENANCE"
 NGINX_PINNED_SOURCE_MODE = "github-release"
 NGINX_PINNED_SOURCE_REPOSITORY = "https://github.com/nginx/nginx"
 NGINX_PINNED_RELEASE_TAG = "release-1.31.3"
-NGINX_PINNED_SOURCE_REF = "release-1.31.3"
+NGINX_PINNED_SOURCE_REF = NGINX_PINNED_RELEASE_TAG
 NGINX_PINNED_RELEASE_ASSET_NAME = "nginx-1.31.3.tar.gz"
 NGINX_PINNED_RELEASE_ASSET_SHA256 = (
     "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525"
@@ -621,7 +621,7 @@ def protected_nginx_broker_runtime_environment(
     modsecurity_prefix = _protected_nginx_broker_modsecurity_prefix(context, modsecurity)
     parent_sha, framework_sha = _protected_nginx_broker_source_revisions(context)
     nginx_version = "1.31.3"
-    nginx_release_tag = "release-1.31.3"
+    nginx_release_tag = NGINX_PINNED_RELEASE_TAG
     source_repository, source_sha256 = _protected_nginx_broker_release_provenance(
         nginx_plan, nginx_release_tag
     )
