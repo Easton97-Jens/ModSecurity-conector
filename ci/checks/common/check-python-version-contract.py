@@ -41,7 +41,7 @@ UPDATE_GO_VERSION_WORKFLOW = "update-go-version.yml"
 PROTECTED_NGINX_BROKER_CALLER_WORKFLOW = "run-protected-nginx-root-broker.yml"
 PROTECTED_NGINX_BROKER_REUSABLE_WORKFLOW = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
-    "c2836f74510b9f72bae466d8b7d92a3f9f38c007"
+    "1df2fcbd0c764c52253348a29034ff9e9b1bf7e2"
 )
 
 

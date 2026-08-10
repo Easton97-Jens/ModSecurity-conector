@@ -13,16 +13,16 @@ Umgebungsdateien laufen niemals als Host-root.
 ## Unveränderliche Aufrufgrenze
 
 Der Caller verwendet den wiederverwendbaren Workflow über den exakten
-40-stelligen Merge-SHA, der bereits vom geschützten Parent-`master` erreichbar
+40-stelligen Commit-SHA, der bereits vom geschützten Parent-`master` erreichbar
 ist:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@c2836f74510b9f72bae466d8b7d92a3f9f38c007
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@1df2fcbd0c764c52253348a29034ff9e9b1bf7e2
 ```
 
 Beide Caller-`uses`-Werte und beide `protected_broker_sha`-Werte sind an den
-resultierenden geschützten Broker-Repair-Merge-SHA
-`c2836f74510b9f72bae466d8b7d92a3f9f38c007` gepinnt; weder ein Branch noch
+resultierenden geschützten Broker-Repair-Commit-SHA
+`1df2fcbd0c764c52253348a29034ff9e9b1bf7e2` gepinnt; weder ein Branch noch
 `master` sind zulässige Alternativen.
 
 GitHub dokumentiert, dass der `github`-Kontext in einem aufgerufenen
@@ -123,12 +123,12 @@ bleiben im folgenden unveränderlichen Aufruf; der Framework-Gitlink ist an die
 Broker-Revision und nicht an einen späteren Parent-Stand gebunden:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@c2836f74510b9f72bae466d8b7d92a3f9f38c007
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@1df2fcbd0c764c52253348a29034ff9e9b1bf7e2
 ```
 
 ```text
-protected_broker_sha = c2836f74510b9f72bae466d8b7d92a3f9f38c007
-framework_sha        = 4c9af1cee72caa0107fa011e59eef9e853338cf5
+protected_broker_sha = 1df2fcbd0c764c52253348a29034ff9e9b1bf7e2
+framework_sha        = 03880bf66b3905940466ff10b3a431a27ecc6b26
 ```
 
 Der Caller erstellt zwei explizite unveränderliche Aufrufe und niemals eine
@@ -196,9 +196,9 @@ drei Werte und keine weiteren:
 Vor der Admission validiert der Broker die Pfade, Digests, Metadaten sowie die
 Parent- und Framework-Identitäten des Records. Ein generischer Runtime-Snapshot
 oder ein direkter Harness-Environment-Override wird an der Broker-Grenze nicht
-akzeptiert. Der Phase-B-Source dokumentiert diesen geschützten Vertrag, ist
-aber erst dann ein aktiver Caller-Pin, wenn eine zukünftige Phase-C-Änderung
-ihn ausdrücklich dazu macht.
+akzeptiert. Der aktive Caller pinnt die Broker-Revision, die diesen geschützten
+Snapshot-Vertrag enthält; ein resultierender Parent-master-Dispatch wählt ihn
+damit direkt.
 
 ## Geschützte Artefakte und CRS-Bundle
 
