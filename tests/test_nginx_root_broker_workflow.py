@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import re
+import subprocess
+import tempfile
+import textwrap
 import unittest
 
 
@@ -195,6 +199,89 @@ def runtime_component_snapshot_contract_errors(workflow: str) -> list[str]:
         if not rpath_selection < fetch_dependencies < prepare_from_snapshot:
             errors.append("RPATH selector does not precede dependency and candidate preparation")
     return errors
+
+
+def crs_fetch_umask_contract_errors(workflow: str) -> list[str]:
+    """Return violations of the isolated CRS-fetch mode contract."""
+
+    step_name = "Build a protected immutable OWASP CRS bundle without root"
+    if f"      - name: {step_name}\n" not in workflow:
+        return ["missing protected CRS bundle step"]
+
+    errors: list[str] = []
+    step = step_block(workflow, step_name)
+    fetch_command = "sh modules/ModSecurity-test-Framework/ci/provisioning/fetch-crs.sh"
+    required_sequence = "\n".join(
+        (
+            "          umask 077",
+            '          case "$(umask)" in',
+            "            077|0077) ;;",
+            "            *) exit 77 ;;",
+            "          esac",
+            "          verify_broker_source .github/workflows/nginx-root-broker.yml",
+            "          verify_broker_source ci/runtime/broker/nginx_root_broker.py",
+            '          export CONNECTOR_ROOT="$PWD" REPO_ROOT="$PWD"',
+            "          . modules/ModSecurity-test-Framework/ci/lib/common.sh",
+            "          . ci/runtime/lifecycle/prepare-fresh-crs-source.sh",
+            "          if (",
+            "            umask 022",
+            '            case "$(umask)" in',
+            "              022|0022) ;;",
+            "              *) exit 77 ;;",
+            "            esac",
+            f"            {fetch_command}",
+            "          ); then",
+            "            fetch_status=0",
+            "          else",
+            "            fetch_status=$?",
+            "          fi",
+            '          case "$(umask)" in',
+            "            077|0077) ;;",
+            "            *) exit 77 ;;",
+            "          esac",
+            '          if [ "$fetch_status" -ne 0 ]; then',
+            '            exit "$fetch_status"',
+            "          fi",
+        )
+    )
+    if required_sequence not in step:
+        errors.append("CRS fetch umask scope or restoration sequence is unexpected")
+    if workflow.count(fetch_command) != 1 or step.count(fetch_command) != 1:
+        errors.append("CRS fetch command is not unique and fixed")
+    if workflow.count("umask 022") != 1 or step.count("umask 022") != 1:
+        errors.append("CRS fetch umask is not uniquely scoped")
+    if "chmod -R" in step:
+        errors.append("CRS source modes are normalized recursively")
+    return errors
+
+
+def run_failed_crs_fetch_umask_probe(workflow: str) -> tuple[int, str]:
+    """Run the workflow's fetch-status branch with a hermetic failed fetch."""
+
+    step = step_block(workflow, "Build a protected immutable OWASP CRS bundle without root")
+    fetch_command = "sh modules/ModSecurity-test-Framework/ci/provisioning/fetch-crs.sh"
+    start = step.index("          if (\n")
+    end = step.index("          verify_broker_source", start)
+    failure_branch = textwrap.dedent(step[start:end]).replace(fetch_command, "false", 1)
+
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        umask_trace = Path(temporary_directory) / "outer-umask"
+        probe = "\n".join(
+            (
+                "set -u",
+                "umask 077",
+                'trap \'umask > "$UMASK_TRACE"\' EXIT',
+                failure_branch,
+            )
+        )
+        result = subprocess.run(
+            ["bash", "-c", probe],
+            check=False,
+            capture_output=True,
+            env={"LC_ALL": "C", "PATH": os.defpath, "UMASK_TRACE": str(umask_trace)},
+            text=True,
+        )
+        return result.returncode, umask_trace.read_text(encoding="utf-8").strip()
 
 
 def nginx_explicit_library_rpath_contract_errors(config: str) -> list[str]:
@@ -540,6 +627,65 @@ class TrustedNginxRootBrokerWorkflowTest(unittest.TestCase):
                 self.assertIn(original, self.workflow)
                 mutated = self.workflow.replace(original, replacement, 1)
                 self.assertNotEqual(runtime_component_snapshot_contract_errors(mutated), [])
+
+    def test_crs_fetch_umask_is_scoped_and_restored(self) -> None:
+        self.assertEqual(crs_fetch_umask_contract_errors(self.workflow), [])
+        scoped_fetch = "\n".join(
+            (
+                "          if (",
+                "            umask 022",
+                '            case "$(umask)" in',
+                "              022|0022) ;;",
+                "              *) exit 77 ;;",
+                "            esac",
+                "            sh modules/ModSecurity-test-Framework/ci/provisioning/fetch-crs.sh",
+                "          ); then",
+            )
+        )
+        restore = "\n".join(
+            (
+                "          fi",
+                '          case "$(umask)" in',
+                "            077|0077) ;;",
+                "            *) exit 77 ;;",
+                "          esac",
+                '          if [ "$fetch_status" -ne 0 ]; then',
+                '            exit "$fetch_status"',
+                "          fi",
+            )
+        )
+        mutations = {
+            "global 022": (scoped_fetch, "          umask 022\n" + scoped_fetch),
+            "fetch outside the subshell": (
+                scoped_fetch,
+                "\n".join(
+                    (
+                        "          umask 022",
+                        '          case "$(umask)" in',
+                        "            022|0022) ;;",
+                        "            *) exit 77 ;;",
+                        "          esac",
+                        "          sh modules/ModSecurity-test-Framework/ci/provisioning/fetch-crs.sh",
+                    )
+                ),
+            ),
+            "outer restoration omitted": (restore, "          fi"),
+            "fetch failure accepted": ('            exit "$fetch_status"', "            true"),
+            "recursive mode normalization": (
+                "          . ci/runtime/lifecycle/prepare-fresh-crs-source.sh",
+                "          . ci/runtime/lifecycle/prepare-fresh-crs-source.sh\n          chmod -R u=rwX,go=rX \"$CRS_SOURCE_DIR\"",
+            ),
+        }
+        for name, (original, replacement) in mutations.items():
+            with self.subTest(name=name):
+                self.assertIn(original, self.workflow)
+                mutated = self.workflow.replace(original, replacement, 1)
+                self.assertNotEqual(crs_fetch_umask_contract_errors(mutated), [])
+
+    def test_failed_crs_fetch_restores_outer_umask_and_fails_closed(self) -> None:
+        returncode, outer_umask = run_failed_crs_fetch_umask_probe(self.workflow)
+        self.assertEqual(returncode, 1)
+        self.assertIn(outer_umask, {"077", "0077"})
 
     def test_protected_build_uses_the_existing_no_rpath_opt_in(self) -> None:
         config = NGINX_CONFIG.read_text(encoding="utf-8")

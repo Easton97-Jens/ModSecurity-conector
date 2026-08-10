@@ -199,6 +199,33 @@ revision independently cross-checks this reviewed tuple:
 | Commit | `55b09f5acfd16413e7b31041100711ceb7adc89c` |
 | Expected CRS block rule | `949110` |
 
+The root-to-runner evidence limits remain exactly
+`MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024` and
+`MAX_EVIDENCE_TOTAL_BYTES = 20 * 1024 * 1024`; this repair does not widen
+either limit for logs, JSON evidence, manifests, CRS bundles, or NGINX
+artifacts. Only the canonical, provenance-bound regular
+`prefix/lib/libmodsecurity.so.3` uses the separate fixed broker-policy ceiling
+`MAX_TRUSTED_MODSECURITY_LIBRARY_BYTES = 64 * 1024 * 1024`. It is a code
+constant, never a caller input, environment value, or manifest field. A
+retained protected producer record measured the reviewed library at 60,085,848
+bytes, leaving 7,023,016 bytes of bounded build-variance headroom. The ceiling
+is enforced both while validating the producer record and again on the opened
+source descriptor before hashing or copying; NGINX binary and module retain
+the 8 MiB ceiling.
+
+The broker-owned outer build mode remains `umask 077`. Only the fixed
+`sh modules/ModSecurity-test-Framework/ci/provisioning/fetch-crs.sh` invocation
+runs in a subshell at `umask 022`, with an explicit outer `077` check before
+the subshell and after either its success or failure. The checks accept the
+canonical shell renderings `077` and `0077` (and correspondingly `022` and
+`0022`) rather than depending on one spelling. The fetch status is then
+re-thrown unchanged. The checked-out CRS source root and required `rules`
+directory, plus `plugins` when it exists, must be exact `0755`
+directories; selected regular CRS
+files must be exact `0644`. No global `022`, recursive `chmod`, caller command,
+or relaxation of private manifests, snapshots, evidence, broker state, audit,
+or root-admission files is part of this contract.
+
 ### Active ABI loader contract
 
 The ordinary ModSecurity prefix may retain Libtool's unversioned linker alias
@@ -311,6 +338,15 @@ results. A protected-master hosted invocation remains required to prove GitHub
 reusable-workflow context semantics, a real root master/non-root worker, real
 CRS execution, audit output, listener release, and final uploaded cleanup
 evidence. This document is a security contract, not that runtime evidence.
+
+Run `31368594208` is retained pre-fix failure evidence only: its no-CRS leg
+rejected the genuine protected library under the generic 8 MiB evidence limit,
+and its with-CRS leg rejected fresh checkout files that inherited `umask 077`.
+Both legs stopped before candidate admission, every root action, NGINX startup,
+evidence projection, and cleanup verification. This Phase-A broker repair is
+not runtime proof and is not selected by the active caller until the separately
+reviewed caller repin has merged; a fresh resulting-master lifecycle remains
+mandatory.
 
 PR #240 remains blocked until this caller has been normally merged, dispatched
 from resulting protected `master`, and observed to pass both `no-crs` and

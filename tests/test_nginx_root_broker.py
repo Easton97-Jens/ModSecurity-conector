@@ -394,6 +394,244 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 BROKER.ARTIFACT_LIBRARY_NAME,
             )
 
+    def test_protected_modsecurity_library_has_a_separate_finite_artifact_limit(self) -> None:
+        policy_limit = 64 * 1024 * 1024
+
+        def fixture(root: Path, *, library_size: int) -> tuple[argparse.Namespace, Path]:
+            arguments = self.prepare_arguments(root)
+            trusted_build = Path(arguments.trusted_build_root)
+            prefix = self.private_dir(trusted_build / "modsecurity-prefix")
+            library_root = self.private_dir(prefix / "lib")
+            library = self.write_binary(
+                library_root / BROKER.ARTIFACT_LIBRARY_NAME,
+                Path("/usr/bin/true"),
+            )
+            with library.open("r+b") as handle:
+                handle.truncate(library_size)
+            self.write_snapshot_provenance(
+                arguments,
+                binary=Path(arguments.binary),
+                module=Path(arguments.module),
+                prefix=prefix,
+                library=library,
+            )
+            reports = trusted_build / BROKER.RUNTIME_REPORTS_RELATIVE
+            self.write(
+                reports / "runtime-env-snapshot.test.sh",
+                "\n".join(
+                    (
+                        f"export NGINX_BINARY='{arguments.binary}'",
+                        f"export NGINX_MODULE='{arguments.module}'",
+                        f"export MODSECURITY_SHARED_PREFIX='{prefix}'",
+                        "",
+                    )
+                ),
+                0o600,
+            )
+            return arguments, library
+
+        for name, size, accepted in (
+            ("below evidence limit", BROKER.MAX_EVIDENCE_FILE_BYTES - 1, True),
+            ("above evidence limit", BROKER.MAX_EVIDENCE_FILE_BYTES + 1, True),
+            ("exact protected library limit", policy_limit, True),
+            ("one byte above protected library limit", policy_limit + 1, False),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+                arguments, library = fixture(Path(temporary), library_size=size)
+                if accepted:
+                    candidate_path = BROKER.prepare_candidate_from_snapshot(arguments)
+                    candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+                    self.assertEqual(
+                        candidate["artifacts"]["modsecurity_library"]["sha256"],
+                        digest(library),
+                    )
+                else:
+                    with self.assertRaisesRegex(BROKER.BrokerError, "accepted range|size limit"):
+                        BROKER.prepare_candidate_from_snapshot(arguments)
+                    self.assertFalse(
+                        (Path(arguments.trusted_build_root) / BROKER.CANDIDATE_DIRECTORY_NAME).exists()
+                    )
+
+        for artifact_name in ("binary", "module"):
+            with self.subTest(artifact=artifact_name), tempfile.TemporaryDirectory(
+                prefix="nginx-root-broker-"
+            ) as temporary:
+                arguments, library = fixture(
+                    Path(temporary), library_size=BROKER.MAX_EVIDENCE_FILE_BYTES - 1
+                )
+                artifact = Path(str(getattr(arguments, artifact_name)))
+                with artifact.open("r+b") as handle:
+                    handle.truncate(BROKER.MAX_EVIDENCE_FILE_BYTES + 1)
+                self.write_snapshot_provenance(
+                    arguments,
+                    binary=Path(arguments.binary),
+                    module=Path(arguments.module),
+                    prefix=library.parents[1],
+                    library=library,
+                )
+                with self.assertRaisesRegex(BROKER.BrokerError, "accepted range"):
+                    BROKER.prepare_candidate_from_snapshot(arguments)
+                self.assertFalse(
+                    (Path(arguments.trusted_build_root) / BROKER.CANDIDATE_DIRECTORY_NAME).exists()
+                )
+
+        self.assertEqual(BROKER.MAX_TRUSTED_MODSECURITY_LIBRARY_BYTES, policy_limit)
+
+    def test_candidate_copy_enforces_the_library_limit_on_the_opened_descriptor(self) -> None:
+        policy_limit = 64 * 1024 * 1024
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            root = Path(temporary)
+            trusted_build = self.private_dir(root / "trusted-build")
+            source = self.write_binary(trusted_build / BROKER.ARTIFACT_LIBRARY_NAME, Path("/usr/bin/true"))
+            with source.open("r+b") as handle:
+                handle.truncate(policy_limit + 1)
+            destination = trusted_build / "candidate"
+            artifact = BROKER.ArtifactInput(
+                "modsecurity_library",
+                source,
+                digest(source),
+                BROKER.ARTIFACT_LIBRARY_NAME,
+                maximum_bytes=policy_limit,
+            )
+            with mock.patch.object(BROKER, "sha256_fd") as hashed:
+                with self.assertRaisesRegex(BROKER.BrokerError, "trusted artifact size limit"):
+                    BROKER.copy_verified_artifact(artifact, destination, trusted_build)
+            hashed.assert_not_called()
+            self.assertFalse(destination.exists())
+
+    def test_candidate_copy_rejects_library_growth_after_its_opened_fd_limit_check(self) -> None:
+        policy_limit = 64 * 1024 * 1024
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            root = Path(temporary)
+            trusted_build = self.private_dir(root / "trusted-build")
+            source = self.write_binary(trusted_build / BROKER.ARTIFACT_LIBRARY_NAME, Path("/usr/bin/true"))
+            expected_digest = digest(source)
+            destination = trusted_build / "candidate"
+            original_sha256_fd = BROKER.sha256_fd
+            artifact = BROKER.ArtifactInput(
+                "modsecurity_library",
+                source,
+                expected_digest,
+                BROKER.ARTIFACT_LIBRARY_NAME,
+                maximum_bytes=policy_limit,
+            )
+
+            def grow_after_hash(descriptor: int) -> str:
+                observed_digest = original_sha256_fd(descriptor)
+                with source.open("ab") as handle:
+                    handle.write(b"growth-after-opened-fd-check")
+                return observed_digest
+
+            with mock.patch.object(BROKER, "sha256_fd", side_effect=grow_after_hash):
+                with self.assertRaisesRegex(BROKER.BrokerError, "source changed while being copied"):
+                    BROKER.copy_verified_artifact(artifact, destination, trusted_build)
+            self.assertGreater(source.stat().st_size, Path("/usr/bin/true").stat().st_size)
+
+    def test_snapshot_bound_library_replacement_is_rejected_before_candidate_manifest(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            root = Path(temporary)
+            arguments = self.prepare_arguments(root)
+            trusted_build = Path(arguments.trusted_build_root)
+            prefix = self.private_dir(trusted_build / "modsecurity-prefix")
+            library_root = self.private_dir(prefix / "lib")
+            library = self.write_binary(
+                library_root / BROKER.ARTIFACT_LIBRARY_NAME,
+                Path("/usr/bin/true"),
+            )
+            reports = self.private_dir(trusted_build / BROKER.RUNTIME_REPORTS_RELATIVE)
+            self.write_snapshot_provenance(
+                arguments,
+                binary=Path(arguments.binary),
+                module=Path(arguments.module),
+                prefix=prefix,
+                library=library,
+            )
+            self.write(
+                reports / "runtime-env-snapshot.test.sh",
+                "\n".join(
+                    (
+                        f"export NGINX_BINARY='{arguments.binary}'",
+                        f"export NGINX_MODULE='{arguments.module}'",
+                        f"export MODSECURITY_SHARED_PREFIX='{prefix}'",
+                        "",
+                    )
+                ),
+                0o600,
+            )
+
+            def replace_library(_: Path, label: str) -> None:
+                if label == "ModSecurity shared library":
+                    replacement = self.write_binary(library.parent / "replacement", Path("/usr/bin/false"))
+                    os.replace(replacement, library)
+
+            with mock.patch.object(BROKER, "reject_dynamic_search_paths", side_effect=replace_library):
+                with self.assertRaisesRegex(BROKER.BrokerError, "digest does not match"):
+                    BROKER.prepare_candidate_from_snapshot(arguments)
+            candidate = Path(arguments.trusted_build_root) / BROKER.CANDIDATE_DIRECTORY_NAME / "control" / "candidate.json"
+            self.assertFalse(candidate.exists())
+
+    def test_evidence_file_and_total_limits_remain_bounded(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            root = Path(temporary)
+            source = self.write_binary(root / "oversized-evidence", Path("/usr/bin/true"))
+            with source.open("r+b") as handle:
+                handle.truncate(BROKER.MAX_EVIDENCE_FILE_BYTES + 1)
+            destination = root / "projected-evidence"
+            runner_gid = os.getegid()
+            allowed_owners = {os.geteuid()}
+            expected_device = source.stat().st_dev
+            with self.assertRaisesRegex(BROKER.BrokerError, "evidence file size limit"):
+                BROKER.copy_evidence_file(
+                    source,
+                    destination,
+                    runner_gid=runner_gid,
+                    allowed_owners=allowed_owners,
+                    expected_device=expected_device,
+                    label="oversized evidence",
+                )
+            self.assertFalse(destination.exists())
+
+            source_root = self.private_dir(root / "evidence-source")
+            broker_root = self.private_dir(root / "broker-root")
+            payload = {
+                "projection": {
+                    "source_root": str(source_root),
+                    "target_root": str(root / "projected-evidence-root"),
+                },
+                "runtime": {
+                    "access_log": str(source_root / BROKER.ACCESS_LOG_FILENAME),
+                    "error_log": str(source_root / BROKER.ERROR_LOG_FILENAME),
+                },
+                "worker": {"uid": os.geteuid()},
+                "broker_root": str(broker_root),
+                "runner_gid": os.getegid(),
+            }
+            expected_names = (
+                BROKER.IDENTITY_EVIDENCE_FILENAME,
+                BROKER.RUNTIME_EVIDENCE_FILENAME,
+                BROKER.ACCESS_LOG_FILENAME,
+                BROKER.ERROR_LOG_FILENAME,
+            )
+            with (
+                mock.patch.object(BROKER, "read_state", return_value={"stopped": True}),
+                mock.patch.object(BROKER, "write_runtime_evidence"),
+                mock.patch.object(
+                    BROKER,
+                    "final_manifest_schema_and_profile",
+                    return_value=(BROKER.SCHEMA_VERSION_V1, BROKER.POLICY_PROFILE_NO_CRS),
+                ),
+                mock.patch.object(BROKER, "expected_evidence_for", return_value=expected_names),
+                mock.patch.object(BROKER, "directory_metadata", return_value=broker_root.stat()),
+                mock.patch.object(
+                    BROKER,
+                    "copy_evidence_file",
+                    return_value=BROKER.MAX_EVIDENCE_TOTAL_BYTES + 1,
+                ) as copy_evidence,
+            ):
+                with self.assertRaisesRegex(BROKER.BrokerError, "total size limit"):
+                    BROKER.project_evidence(payload)
+            self.assertEqual(copy_evidence.call_count, 1)
+
     def test_prepare_from_snapshot_rejects_dynamic_loader_redirection_before_candidate_creation(self) -> None:
         def fixture(root: Path) -> argparse.Namespace:
             arguments = self.prepare_arguments(root)
@@ -750,7 +988,15 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 artifact.chmod(0o720)
                 assert_rejected(arguments)
 
-        for mutation in ("outside", "digest", "mode", "symlink"):
+        for mutation in (
+            "outside",
+            "digest",
+            "group-writable",
+            "other-writable",
+            "symlink",
+            "hardlink",
+            "fifo",
+        ):
             with self.subTest(artifact="modsecurity_library", mutation=mutation), tempfile.TemporaryDirectory(
                 prefix="nginx-root-broker-"
             ) as temporary:
@@ -761,12 +1007,19 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                     mutate_record(record, lambda payload: payload["modsecurity"]["library"].__setitem__("path", str(outside)))
                 elif mutation == "digest":
                     mutate_record(record, lambda payload: payload["modsecurity"]["library"].__setitem__("sha256", "0" * 64))
-                elif mutation == "mode":
+                elif mutation == "group-writable":
                     library.chmod(0o620)
-                else:
+                elif mutation == "other-writable":
+                    library.chmod(0o602)
+                elif mutation == "symlink":
                     target = self.write(library.parent / "replacement-modsecurity", "replacement\n")
                     library.unlink()
                     library.symlink_to(target)
+                elif mutation == "hardlink":
+                    os.link(library, library.parent / "linked-modsecurity")
+                else:
+                    library.unlink()
+                    os.mkfifo(library)
                 assert_rejected(arguments)
 
         with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:

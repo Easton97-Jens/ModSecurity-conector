@@ -275,12 +275,34 @@ jobs:
               ;;
           esac
           umask 077
+          case "$(umask)" in
+            077|0077) ;;
+            *) exit 77 ;;
+          esac
           verify_broker_source .github/workflows/nginx-root-broker.yml
           verify_broker_source ci/runtime/broker/nginx_root_broker.py
           export CONNECTOR_ROOT="$PWD" REPO_ROOT="$PWD"
           . modules/ModSecurity-test-Framework/ci/lib/common.sh
           . ci/runtime/lifecycle/prepare-fresh-crs-source.sh
-          sh modules/ModSecurity-test-Framework/ci/provisioning/fetch-crs.sh
+          if (
+            umask 022
+            case "$(umask)" in
+              022|0022) ;;
+              *) exit 77 ;;
+            esac
+            sh modules/ModSecurity-test-Framework/ci/provisioning/fetch-crs.sh
+          ); then
+            fetch_status=0
+          else
+            fetch_status=$?
+          fi
+          case "$(umask)" in
+            077|0077) ;;
+            *) exit 77 ;;
+          esac
+          if [ "$fetch_status" -ne 0 ]; then
+            exit "$fetch_status"
+          fi
           verify_broker_source .github/workflows/nginx-root-broker.yml
           verify_broker_source ci/runtime/broker/nginx_root_broker.py
           .venv/bin/python ci/runtime/broker/nginx_root_broker.py prepare-crs-bundle \

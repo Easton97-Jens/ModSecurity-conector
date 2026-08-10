@@ -32,7 +32,7 @@ import stat
 import subprocess
 import sys
 import time
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 
 SCHEMA_VERSION_V1 = 1
@@ -152,6 +152,10 @@ MAX_MANIFEST_BYTES = 64 * 1024
 MAX_CRS_BUNDLE_MANIFEST_BYTES = 2 * 1024 * 1024
 MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024
 MAX_EVIDENCE_TOTAL_BYTES = 20 * 1024 * 1024
+# The protected ModSecurity runtime library is a verified build artifact, not
+# projected evidence.  The fixed ceiling covers the retained 57 MiB v3.0.15
+# artifact with bounded build variance, without widening any evidence limit.
+MAX_TRUSTED_MODSECURITY_LIBRARY_BYTES = 64 * 1024 * 1024
 MAX_CALLER_WORKFLOW_BYTES = 256 * 1024
 MAX_CALLER_WORKFLOW_LINES = 4_000
 MAX_CALLER_WORKFLOW_LINE_CHARACTERS = 4_096
@@ -1259,6 +1263,7 @@ def validated_provenance_artifact(
     trusted_build_root: Path,
     *,
     containing_root: Path,
+    maximum_bytes: int,
 ) -> dict[str, Any]:
     if not isinstance(payload, dict):
         fail(f"{label} must be an object")
@@ -1273,7 +1278,7 @@ def validated_provenance_artifact(
         "device": require_record_integer(payload.get("device"), f"{label} device", minimum=0, maximum=sys.maxsize),
         "uid": require_record_integer(payload.get("uid"), f"{label} uid", minimum=0, maximum=sys.maxsize),
         "mode": require_record_integer(payload.get("mode"), f"{label} mode", minimum=0, maximum=0o777),
-        "size": require_record_integer(payload.get("size"), f"{label} size", minimum=1, maximum=MAX_EVIDENCE_FILE_BYTES),
+        "size": require_record_integer(payload.get("size"), f"{label} size", minimum=1, maximum=maximum_bytes),
     }
     if (metadata.st_dev, metadata.st_uid, stat.S_IMODE(metadata.st_mode), metadata.st_size) != (
         expected["device"], expected["uid"], expected["mode"], expected["size"],
@@ -1320,12 +1325,14 @@ def _validated_nginx_provenance_section(
         "provenance nginx binary",
         trusted_build_root,
         containing_root=nginx_root,
+        maximum_bytes=MAX_EVIDENCE_FILE_BYTES,
     )
     module = validated_provenance_artifact(
         nginx.get("module"),
         "provenance nginx module",
         trusted_build_root,
         containing_root=nginx_root,
+        maximum_bytes=MAX_EVIDENCE_FILE_BYTES,
     )
     if Path(binary["path"]) != nginx_root / "nginx" / "sbin" / ARTIFACT_BINARY_NAME:
         fail("provenance nginx binary path is not canonical")
@@ -1351,6 +1358,7 @@ def _validated_modsecurity_provenance_section(
         "provenance ModSecurity library",
         trusted_build_root,
         containing_root=prefix,
+        maximum_bytes=MAX_TRUSTED_MODSECURITY_LIBRARY_BYTES,
     )
     if Path(library["path"]) != prefix / "lib" / ARTIFACT_LIBRARY_NAME:
         fail("provenance ModSecurity library path is not canonical")
@@ -1636,6 +1644,7 @@ class ArtifactInput:
     source: Path
     expected_sha256: str
     destination_name: str
+    maximum_bytes: int | None = None
 
 
 def copy_verified_artifact(item: ArtifactInput, destination: Path, trusted_build_root: Path) -> dict[str, str]:
@@ -1647,6 +1656,8 @@ def copy_verified_artifact(item: ArtifactInput, destination: Path, trusted_build
         fail(f"{item.name} source must not be empty")
     source_fd, source_metadata = open_regular_no_follow(source, f"{item.name} source")
     try:
+        if item.maximum_bytes is not None and source_metadata.st_size > item.maximum_bytes:
+            fail(f"{item.name} source exceeds its trusted artifact size limit")
         digest = sha256_fd(source_fd)
         if digest != item.expected_sha256:
             fail(f"{item.name} source digest does not match the expected digest")
@@ -1869,14 +1880,26 @@ def copy_candidate_artifacts(
     trusted_build_root: Path,
 ) -> list[dict[str, str]]:
     artifact_specs = (
-        ("binary", arguments.binary, arguments.binary_sha256, ARTIFACT_BINARY_NAME),
-        ("module", arguments.module, arguments.module_sha256, ARTIFACT_MODULE_NAME),
-        ("modsecurity_library", arguments.modsecurity_library, arguments.library_sha256, ARTIFACT_LIBRARY_NAME),
+        ("binary", arguments.binary, arguments.binary_sha256, ARTIFACT_BINARY_NAME, MAX_EVIDENCE_FILE_BYTES),
+        ("module", arguments.module, arguments.module_sha256, ARTIFACT_MODULE_NAME, MAX_EVIDENCE_FILE_BYTES),
+        (
+            "modsecurity_library",
+            arguments.modsecurity_library,
+            arguments.library_sha256,
+            ARTIFACT_LIBRARY_NAME,
+            MAX_TRUSTED_MODSECURITY_LIBRARY_BYTES,
+        ),
     )
     records: list[dict[str, str]] = []
-    for name, source, digest, destination_name in artifact_specs:
+    for name, source, digest, destination_name, maximum_bytes in artifact_specs:
         result = copy_verified_artifact(
-            ArtifactInput(name, Path(source), require_sha256(digest, f"{name}_sha256"), destination_name),
+            ArtifactInput(
+                name,
+                Path(source),
+                require_sha256(digest, f"{name}_sha256"),
+                destination_name,
+                maximum_bytes=maximum_bytes,
+            ),
             layout["artifacts"] / destination_name,
             trusted_build_root,
         )
@@ -2090,8 +2113,25 @@ def regular_crs_source_file(
     return metadata, sha256_file(path, label)
 
 
+def append_optional_crs_plugin_files(
+    source_root: Path,
+    source_metadata: os.stat_result,
+    append_file: Callable[[Path, Path], None],
+) -> None:
+    plugins = source_root / "plugins"
+    if plugins.exists() or plugins.is_symlink():
+        plugins_metadata = directory_metadata(plugins, "protected CRS plugins directory", owner=os.geteuid())
+        if plugins_metadata.st_dev != source_metadata.st_dev or stat.S_IMODE(plugins_metadata.st_mode) != 0o755:
+            fail("protected CRS plugins directory has an unexpected device or mode")
+        for entry in sorted(plugins.iterdir(), key=lambda path: path.name):
+            if entry.name.endswith(CRS_PLUGIN_SUFFIXES):
+                append_file(entry, Path("plugins") / entry.name)
+
+
 def selected_crs_source_files(source_root: Path, broker_sha: str) -> list[tuple[Path, dict[str, Any]]]:
     source_metadata = directory_metadata(source_root, "fresh protected CRS source", owner=os.geteuid())
+    if stat.S_IMODE(source_metadata.st_mode) != 0o755:
+        fail("fresh protected CRS source directory must have mode 0755")
     selected: list[tuple[Path, dict[str, Any]]] = []
 
     def append_file(source: Path, relative: Path) -> None:
@@ -2118,21 +2158,14 @@ def selected_crs_source_files(source_root: Path, broker_sha: str) -> list[tuple[
     append_file(source_root / CRS_SETUP_EXAMPLE_FILENAME, Path(CRS_SETUP_EXAMPLE_FILENAME))
     rules = source_root / "rules"
     rules_metadata = directory_metadata(rules, "protected CRS rules directory", owner=os.geteuid())
-    if rules_metadata.st_dev != source_metadata.st_dev:
-        fail("protected CRS rules directory is on an unexpected device")
+    if rules_metadata.st_dev != source_metadata.st_dev or stat.S_IMODE(rules_metadata.st_mode) != 0o755:
+        fail("protected CRS rules directory has an unexpected device or mode")
     for entry in sorted(rules.iterdir(), key=lambda path: path.name):
         if entry.name.endswith(".conf"):
             append_file(entry, Path("rules") / entry.name)
     if not any(record["path"].startswith("rules/") for _, record in selected):
         fail("protected CRS source has no rule files")
-    plugins = source_root / "plugins"
-    if plugins.exists() or plugins.is_symlink():
-        plugins_metadata = directory_metadata(plugins, "protected CRS plugins directory", owner=os.geteuid())
-        if plugins_metadata.st_dev != source_metadata.st_dev:
-            fail("protected CRS plugins directory is on an unexpected device")
-        for entry in sorted(plugins.iterdir(), key=lambda path: path.name):
-            if entry.name.endswith(CRS_PLUGIN_SUFFIXES):
-                append_file(entry, Path("plugins") / entry.name)
+    append_optional_crs_plugin_files(source_root, source_metadata, append_file)
     selected.sort(key=lambda item: item[1]["path"])
     return selected
 
@@ -2203,7 +2236,9 @@ def validate_protected_crs_contract(
         "CRS_APPROVED_COMMIT": CRS_APPROVED_COMMIT,
     }:
         fail("protected Framework CRS provenance tuple does not match this broker revision")
-    directory_metadata(source_root, "fresh protected CRS source", owner=os.geteuid())
+    source_metadata = directory_metadata(source_root, "fresh protected CRS source", owner=os.geteuid())
+    if stat.S_IMODE(source_metadata.st_mode) != 0o755:
+        fail("fresh protected CRS source directory must have mode 0755")
     if protected_git_value(source_root, "protected CRS origin", "config", "--get", "remote.origin.url") != CRS_APPROVED_REPOSITORY:
         fail("fresh protected CRS source repository is invalid")
     if protected_git_value(source_root, "protected CRS HEAD", "rev-parse", "HEAD") != CRS_APPROVED_COMMIT:
