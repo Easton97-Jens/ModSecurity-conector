@@ -4,7 +4,7 @@ set -eu
 connector=${1:?connector is required}
 stage=${2:?stage is required}
 
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT=${CONNECTOR_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)}
 FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}
 VERIFIED_RUN_ROOT=${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}
@@ -18,6 +18,7 @@ RESULTS_DIR=${RESULTS_DIR:-$BUILD_ROOT/stages/$connector/$stage/results}
 RUNTIME_REPORT_OUTPUT_ROOT=${RUNTIME_REPORT_OUTPUT_ROOT:-$BUILD_ROOT/runtime-component-reports}
 PYTHON=${PYTHON:-python3}
 NO_CRS_ARTIFACT_PROFILE=${NO_CRS_ARTIFACT_PROFILE:-generic}
+FIVE_CONNECTOR_PROFILE=${FIVE_CONNECTOR_PROFILE:-}
 FULL_LIFECYCLE_HOST_PROFILE=${FULL_LIFECYCLE_HOST_PROFILE:-}
 FULL_LIFECYCLE_EXECUTED_TARGET=${FULL_LIFECYCLE_EXECUTED_TARGET:-}
 NO_CRS_SELECTED_CASES_MISSING_MESSAGE='FAIL: capability-selected No-CRS runner cases are missing'
@@ -31,6 +32,22 @@ case "$stage" in
     build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline) ;;
     *) echo "usage: $0 apache|nginx|haproxy|envoy|traefik|lighttpd build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline" >&2; exit 2 ;;
 esac
+
+# A profile-selected stage has no fallback route.  The shared generic runner
+# still serves the existing master connector targets when no profile is set,
+# while the reusable five-connector workflow gets one closed source of truth
+# before any host-specific dispatch can start.
+if [ -n "$FIVE_CONNECTOR_PROFILE" ]; then
+    FIVE_CONNECTOR_PROFILE_RESOLVER=$CONNECTOR_ROOT/ci/runtime/lifecycle/five-connector-no-crs-profile.py
+    [ -f "$FIVE_CONNECTOR_PROFILE_RESOLVER" ] || {
+        echo "FAIL: five-connector profile resolver is missing: $FIVE_CONNECTOR_PROFILE_RESOLVER" >&2
+        exit 1
+    }
+    "$PYTHON" "$FIVE_CONNECTOR_PROFILE_RESOLVER" \
+        --profile "$FIVE_CONNECTOR_PROFILE" \
+        --verify-connector \
+        --connector "$connector"
+fi
 
 expected_full_lifecycle_profile() {
     requested_connector=$1
@@ -159,6 +176,7 @@ run_full_lifecycle_haproxy_htx() {
         */*) python_bin=$CONNECTOR_ROOT/$PYTHON ;;
         *) python_bin=$PYTHON ;;
     esac
+    # shellcheck disable=SC2016 # The explicitly invoked inner shell expands this script.
     exec "$CONNECTOR_ROOT/ci/provisioning/cache/with-runtime-components.sh" env PYTHON="$python_bin" sh -eu -c '
         : "${HAPROXY_SOURCE_DIR:?HAProxy source was not provisioned}"
         : "${MODSECURITY_INCLUDE_DIR:?libmodsecurity headers were not provisioned}"
@@ -182,6 +200,7 @@ case "$connector:$stage" in
         run_framework_host run-nginx-smoke.sh build
         ;;
     haproxy:build)
+        # shellcheck disable=SC2016 # The explicitly invoked inner shell expands this script.
         exec "$CONNECTOR_ROOT/ci/provisioning/cache/with-runtime-components.sh" sh -eu -c '
             sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-haproxy-runtime.sh"
             make -C "$CONNECTOR_ROOT/connectors/haproxy" build-modsecurity-binding build-spoa-runtime \

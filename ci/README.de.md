@@ -37,6 +37,16 @@ Verwende Make-Targets statt verschachtelte Dateien aus einem beliebigen Arbeitsv
 
 `NO_CRS_RUN_ID` ist eine dateisystemsichere Laufkennung, beispielsweise `repository-cleanup-core-20260712T164725Z`. Keine Secrets, Benutzernamen oder Tickettexte verwenden. Details stehen in der [Variablenreferenz](../docs/reference/variables.de.md).
 
+Die obigen Sechs-Connector-Make-Targets sind allgemeine lokale
+Orchestrierungs-Targets. Sie sind nicht die zeitgesteuerte/manuelle
+CI-Baseline. Diese Baseline ist das geschlossene Profil <code>no-crs</code> in
+<code>.github/workflows/reusable-five-connectors-profile.yml</code>, das von
+<code>all-connectors-no-crs.yml</code> aufgerufen wird. Es wählt nur Apache,
+HAProxy, Envoy, Traefik und lighttpd, weist unbekannte Profile und
+Connector-Zeilen ab und aggregiert nur die fünf gebundenen Ergebnis-/Receipt-
+Paare. Es behauptet weder NGINX noch CRS, MRTS, eine vollständige Matrix oder
+einen bestandenen gehosteten Runtime-Lauf.
+
 ## Evidence-Ablauf
 
 1. Make löst Repository-, Build-, Cache-, Runtime- und Evidence-Roots auf.

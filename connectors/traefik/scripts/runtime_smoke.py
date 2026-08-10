@@ -243,7 +243,13 @@ def consume_no_crs_selected_cases(repo_root: Path) -> None:
     """
     if os.environ.get("MSCONNECTOR_NO_CRS_BASELINE", "") != "1":
         return
-    consumer = repo_root / "ci" / "consume-no-crs-selected-cases.sh"
+    consumer = (
+        repo_root
+        / "ci"
+        / "runtime"
+        / "lifecycle"
+        / "consume-no-crs-selected-cases.sh"
+    )
     if not consumer.is_file() or not os.access(consumer, os.X_OK):
         raise MissingDependency(f"No-CRS selected-case consumer is missing: {consumer}")
     completed = subprocess.run(

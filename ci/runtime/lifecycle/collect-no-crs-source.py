@@ -9,6 +9,7 @@ request or response payloads into its output.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -31,6 +32,25 @@ from runtime_path_utils import (
 
 
 CORE_CASES = {"allow_without_marker": 200, "deny_header_marker_403": 403}
+
+
+def verify_closed_five_connector_profile(profile_name: str, connector: str) -> None:
+    """Reject a profile-selected collector invocation outside its fixed rows.
+
+    The profile module is loaded from a fixed sibling path rather than from a
+    caller-controlled import location.  This keeps collection aligned with
+    the workflow matrix and runner dispatch without extending Framework's
+    canonical result schema.
+    """
+    profile_path = Path(__file__).with_name("five-connector-no-crs-profile.py")
+    spec = importlib.util.spec_from_file_location("five_connector_no_crs_profile", profile_path)
+    if spec is None or spec.loader is None:
+        raise ValueError("cannot load the closed five-connector profile")
+    profile = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(profile)
+    if profile_name != profile.PROFILE:
+        raise ValueError(f"unsupported closed five-connector profile: {profile_name!r}")
+    profile.profile_row(connector)
 
 # These names are intentionally limited to the explicit summaries written by
 # the selected native host runners.  They are *not* generic status aliases:
@@ -391,6 +411,27 @@ def runtime_artifact_paths(
         runtime_artifact_path(root, value, label, must_exist=must_exist)
         for value in values
     ]
+
+
+def paired_runtime_log_root(source_root: Path, log_root: Path) -> Path:
+    """Bind diagnostic logs to the same invocation, connector, and run."""
+
+    source_identity = (
+        source_root.parent.parent.parent,
+        source_root.parent.name,
+        source_root.name,
+    )
+    log_identity = (
+        log_root.parent.parent.parent,
+        log_root.parent.name,
+        log_root.name,
+    )
+    if source_root == log_root or source_identity != log_identity:
+        raise ValueError(
+            "allowed log root must differ from and match the allowed source "
+            "root's invocation, connector, and run identity"
+        )
+    return log_root
 
 
 def catalog_runner_case_path(catalog_root: Path, runner_case: object) -> Path:
@@ -1731,6 +1772,7 @@ def collector_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allowed-log-root", type=Path)
     parser.add_argument("--scrub-source-events", action="store_true")
     parser.add_argument("--source-event-scrub-log", type=Path)
+    parser.add_argument("--five-connector-profile")
     parser.add_argument("--events-output", type=Path)
     parser.add_argument("--stdout", type=Path)
     parser.add_argument("--stderr", type=Path)
@@ -1738,16 +1780,51 @@ def collector_argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def prepare_diagnostic_log_root(
+    parser: argparse.ArgumentParser, args: argparse.Namespace, source_root: Path
+) -> Path | None:
+    has_lifecycle_logs = (
+        args.stdout is not None
+        or args.stderr is not None
+        or args.source_event_scrub_log is not None
+    )
+    if has_lifecycle_logs and args.allowed_log_root is None:
+        parser.error("--allowed-log-root is required to confine runtime logs")
+    if args.allowed_log_root is None:
+        return None
+    log_root = prepare_verified_runtime_artifact_root(args.allowed_log_root)
+    if has_lifecycle_logs:
+        return paired_runtime_log_root(source_root, log_root)
+    return log_root
+
+
+def normalize_diagnostic_artifact(
+    log_root: Path | None, artifact: Path | None, label: str
+) -> Path | None:
+    if artifact is None:
+        return None
+    if log_root is None:
+        raise ValueError(f"{label} requires an allowed log root")
+    return runtime_artifact_path(log_root, artifact, label)
+
+
 def prepare_collector_arguments(
     parser: argparse.ArgumentParser, args: argparse.Namespace
 ) -> Path:
+    if args.five_connector_profile:
+        try:
+            verify_closed_five_connector_profile(args.five_connector_profile, args.connector)
+        except ValueError as exc:
+            parser.error(str(exc))
     if args.allowed_source_root is None:
         parser.error("--allowed-source-root is required to confine runtime artifacts")
     if args.allowed_log_root is None:
         parser.error("--allowed-log-root is required to confine lifecycle logs")
     try:
         source_root = prepare_verified_runtime_artifact_root(args.allowed_source_root)
-        log_root = prepare_verified_runtime_artifact_root(args.allowed_log_root)
+        log_root = prepare_diagnostic_log_root(parser, args, source_root)
+        if log_root is None:
+            raise ValueError("allowed log root is required to confine lifecycle logs")
         args.allowed_log_root = log_root
         args.framework_root = canonical_framework_root(args.framework_root)
         args.catalog = canonical_catalog_path(args.catalog, args.framework_root)
@@ -1760,14 +1837,8 @@ def prepare_collector_arguments(
         args.source_events = runtime_artifact_paths(
             source_root, args.source_events, "source events", must_exist=True
         )
-        if args.stdout is not None:
-            args.stdout = runtime_artifact_path(
-                log_root, args.stdout, "stdout"
-            )
-        if args.stderr is not None:
-            args.stderr = runtime_artifact_path(
-                log_root, args.stderr, "stderr"
-            )
+        args.stdout = normalize_diagnostic_artifact(log_root, args.stdout, "stdout")
+        args.stderr = normalize_diagnostic_artifact(log_root, args.stderr, "stderr")
         args.output = runtime_artifact_path(source_root, args.output, "output")
         if args.events_output is not None:
             args.events_output = runtime_artifact_path(
@@ -1850,6 +1921,23 @@ def core_response_statuses(
     return allowed, blocked
 
 
+def reported_core_response_statuses(
+    nonpromoted_host: bool,
+    allowed: int | None,
+    blocked: int | None,
+    cases: list[dict[str, Any]],
+) -> tuple[int | None, int | None]:
+    """Avoid deriving a second Framework core record from an explicit case."""
+
+    if nonpromoted_host:
+        return None, None
+    reported_case_ids = {case.get("case_id") for case in cases}
+    return (
+        None if "allow_without_marker" in reported_case_ids else allowed,
+        None if "deny_header_marker_403" in reported_case_ids else blocked,
+    )
+
+
 def collector_observed_rule_ids(
     objects: list[dict[str, Any]], events: dict[str, Any]
 ) -> list[str]:
@@ -1907,18 +1995,8 @@ def collector_payload(
     # host probe. That response is host-selection metadata, not a canonical
     # Phase-1 allow result, so do not let the Framework derive a case PASS
     # from it later.
-    recorded_case_ids = {
-        str(case.get("case_id") or "") for case in cases if isinstance(case, dict)
-    }
-    reported_allowed = (
-        None
-        if nonpromoted_host or "allow_without_marker" in recorded_case_ids
-        else allowed
-    )
-    reported_blocked = (
-        None
-        if nonpromoted_host or "deny_header_marker_403" in recorded_case_ids
-        else blocked
+    reported_allowed, reported_blocked = reported_core_response_statuses(
+        nonpromoted_host, allowed, blocked, cases
     )
     return {
         "schema_version": 1,

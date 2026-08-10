@@ -99,8 +99,9 @@ and `python`/`python3` equivalence validation.
 
 | Workflow | Job | Python execution chain | Baseline condition |
 | --- | --- | --- | --- |
-| `all-connectors-no-crs.yml` | `no-crs` | Direct `python3`, Framework scripts, and Python-backed Make targets | Existing minor-only setup |
-| `all-connectors-no-crs.yml` | `aggregate` | Direct `python3` validation and summarization | Ambient or bootstrapped Python |
+| `reusable-five-connectors-profile.yml` | `resolve-profile` | Pinned `actions/setup-python`, interpreter-contract verification, then `python3 ci/runtime/lifecycle/five-connector-no-crs-profile.py --emit-github-matrix` | Explicit `.python-version` setup |
+| `reusable-five-connectors-profile.yml` | `no-crs` | Pinned `actions/setup-python`, interpreter-contract verification, then profile validation and Python-backed Framework/Make lifecycle targets | Explicit `.python-version` setup |
+| `reusable-five-connectors-profile.yml` | `aggregate` | Pinned `actions/setup-python`, interpreter-contract verification, then `python3` evidence validation and five-result aggregation | Explicit `.python-version` setup |
 | `check-actions-versions.yml` | `check-actions-versions` | `python3 scripts/check-github-actions-versions.py` | Existing minor-only setup |
 | `ci-security-secrets.yml` | `pull-request-range` | `python3 ci/tools/fetch_security_tool.py` | Ambient or bootstrapped Python |
 | `ci-security-secrets.yml` | `advisory-full-history` | `python3 ci/tools/fetch_security_tool.py` | Ambient or bootstrapped Python |
@@ -433,6 +434,46 @@ Advanced source/provenance values such as <code>HAPROXY_SOURCE_URL</code>,
 <code>MODSECURITY_V3_GIT_REF</code> are Framework-forwarded. URLs, revisions,
 checksums, and source paths change provisioning identity and may cause
 rebuilds. They do not change a connector capability or promote an outcome.
+
+### Five-connector No-CRS baseline layout
+
+The visible <code>all-connectors-no-crs.yml</code> caller is limited to its
+scheduled or repository-authorized manual dispatch path. It delegates only the
+hard-coded <code>no-crs</code> input to
+<code>reusable-five-connectors-profile.yml</code>. Both workflows use
+read-only repository permissions and have no pull-request trigger.
+
+The reusable profile has one closed, authoritative connector map: Apache,
+HAProxy, Envoy, Traefik, and lighttpd. A profile value or connector row that is
+not in that map is rejected before it can produce profile evidence. NGINX is
+not part of this baseline and this workflow makes no NGINX result claim.
+Each invocation uses private sibling <code>build</code>, <code>evidence</code>,
+<code>runs</code>, <code>run-logs</code>, and <code>cache-v2</code> roots below
+<code>$RUNNER_TEMP/ModSecurity-conector-verified</code>. Mutable build, cache,
+and logs are consequently outside the canonical evidence root.
+
+For each selected connector, the finalizer records its existing scoped result
+and a profile receipt bound to the profile, connector, run ID, Parent commit,
+Framework commit, and cleanup disposition. The aggregate accepts exactly one
+valid result and receipt for each of the five names. This is an evidence
+contract, not a statement that a hosted runtime run has passed.
+
+#### Capability audit and future-profile extension contract
+
+The <code>no-crs</code> profile selects the existing HTTP/1.1 routes and their
+declared integration/Phase-4 boundaries: Apache
+<code>native-httpd-module</code>, HAProxy <code>spoe-spop-agent</code>, Envoy
+<code>http-ext-authz-service</code>, Traefik
+<code>http-forwardauth-service</code>, and lighttpd
+<code>native-lighttpd-plugin</code>. These selections do not claim CRS, MRTS,
+production readiness, a complete connector matrix, HTTP/2, HTTP/3, or
+unobserved response behavior.
+
+A future profile must add an explicit closed map and matching validation for
+its connector set, capability fields, receipt schema, aggregation expectations,
+tests, and English/German documentation. It must fail closed for unknown
+profiles and unsupported rows. It cannot obtain CRS, MRTS, or full-lifecycle
+coverage merely by reusing this No-CRS workflow.
 
 ## Selected build routes
 

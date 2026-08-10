@@ -55,6 +55,7 @@ class PythonVersionContractTest(unittest.TestCase):
         expected_normal_jobs: set[object],
         expected_candidate_job: object | None = None,
         expected_immutable_reusable_jobs: dict[object, str] | None = None,
+        expected_local_reusable_callers: dict[object, str] | None = None,
     ) -> tuple[str, list[str], set[object]]:
         with self.temporary_root() as directory:
             root = Path(directory)
@@ -70,6 +71,7 @@ class PythonVersionContractTest(unittest.TestCase):
                 expected_normal_jobs=expected_normal_jobs,
                 expected_candidate_job=expected_candidate_job,
                 expected_immutable_reusable_jobs=expected_immutable_reusable_jobs or {},
+                expected_local_reusable_callers=expected_local_reusable_callers or {},
             )
 
     def fixture_result(self, fixture_name: str) -> tuple[str, list[str], set[object]]:
@@ -125,6 +127,11 @@ class PythonVersionContractTest(unittest.TestCase):
     uses: {CHECKER.PROTECTED_NGINX_BROKER_REUSABLE_WORKFLOW}
 '''
 
+    def local_reusable_caller_block(self, job_name: str, reference: str) -> str:
+        return f'''  {job_name}:
+    uses: {reference}
+'''
+
     def write_complete_contract_root(self, root: Path, candidate_override: str | None = None) -> None:
         by_workflow: dict[str, list[str]] = {}
         for identity in sorted(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS):
@@ -139,6 +146,12 @@ class PythonVersionContractTest(unittest.TestCase):
             by_workflow.setdefault(identity.workflow, []).append(
                 self.immutable_reusable_job_block(identity.job)
             )
+        for identity, reference in sorted(
+            CHECKER.EXPECTED_LOCAL_REUSABLE_PYTHON_CALLERS.items()
+        ):
+            by_workflow.setdefault(identity.workflow, []).append(
+                self.local_reusable_caller_block(identity.job, reference)
+            )
         workflows = root / ".github" / "workflows"
         workflows.mkdir(parents=True)
         for workflow, jobs in by_workflow.items():
@@ -149,10 +162,39 @@ class PythonVersionContractTest(unittest.TestCase):
             )
         (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
 
-    def test_expected_inventory_has_31_normal_jobs_and_one_special_job(self) -> None:
-        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 31)
+    def test_expected_inventory_has_32_normal_jobs_and_one_special_job(self) -> None:
+        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 32)
         self.assertIn(
             CHECKER.JobIdentity("nginx-root-broker.yml", "trusted-root-smoke"),
+            CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
+        )
+        self.assertEqual(
+            {
+                CHECKER.JobIdentity(
+                    "reusable-five-connectors-profile.yml", job_name
+                )
+                for job_name in ("aggregate", "no-crs", "resolve-profile")
+            },
+            {
+                identity
+                for identity in CHECKER.EXPECTED_NORMAL_PYTHON_JOBS
+                if identity.workflow == "reusable-five-connectors-profile.yml"
+            },
+        )
+        self.assertEqual(
+            CHECKER.EXPECTED_LOCAL_REUSABLE_PYTHON_CALLERS,
+            {
+                CHECKER.JobIdentity("all-connectors-no-crs.yml", "no-crs"): (
+                    "./.github/workflows/reusable-five-connectors-profile.yml"
+                )
+            },
+        )
+        self.assertNotIn(
+            CHECKER.JobIdentity("all-connectors-no-crs.yml", "aggregate"),
+            CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
+        )
+        self.assertNotIn(
+            CHECKER.JobIdentity("all-connectors-no-crs.yml", "no-crs"),
             CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
         )
         self.assertNotIn(
@@ -360,7 +402,7 @@ printf '%s\\n' 'make quick-check'
         self.assertEqual(violations, [], violations)
         self.assertEqual(expected, detected)
 
-    def test_local_reusable_workflow_caller_is_rejected_not_silently_ignored(self) -> None:
+    def test_local_reusable_workflow_caller_requires_exact_approved_path(self) -> None:
         callee = CHECKER.JobIdentity("reusable-callee.yml", "callee-python")
         _, safe_violations, safe_detected = self.fixture_root_result(
             ("reusable-callee.yml",), {callee}
@@ -369,18 +411,23 @@ printf '%s\\n' 'make quick-check'
         self.assertEqual(safe_detected, {callee})
 
         caller = CHECKER.JobIdentity("reusable-caller.yml", "call-local-python")
+        expected_caller = {caller: "./.github/workflows/reusable-callee.yml"}
         _, violations, detected = self.fixture_root_result(
-            ("reusable-callee.yml", "reusable-caller.yml"), {callee}
+            ("reusable-callee.yml", "reusable-caller.yml"),
+            {callee},
+            expected_local_reusable_callers=expected_caller,
         )
         self.assertIn(caller, detected)
+        self.assertEqual(violations, [], violations)
+
+        malformed_caller = {caller: "./.github/workflows/other-callee.yml"}
+        _, violations, _ = self.fixture_root_result(
+            ("reusable-callee.yml", "reusable-caller.yml"),
+            {callee},
+            expected_local_reusable_callers=malformed_caller,
+        )
         self.assertTrue(
-            any(
-                "unlisted Python-related workflow job: reusable-caller.yml:call-local-python"
-                in violation
-                and "job-level reusable workflow invocation" in violation
-                for violation in violations
-            ),
-            violations,
+            any("must use exactly" in violation for violation in violations), violations
         )
 
     def test_malformed_canonical_version_is_an_input_error(self) -> None:
@@ -496,7 +543,7 @@ printf '%s\\n' 'make quick-check'
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(exit_code, 0)
         self.assertEqual(payload["status"], "valid")
-        self.assertEqual(len(payload["detected_python_jobs"]), 34)
+        self.assertEqual(len(payload["detected_python_jobs"]), 36)
 
 
 if __name__ == "__main__":
