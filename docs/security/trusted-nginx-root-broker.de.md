@@ -17,12 +17,12 @@ Der Caller verwendet den wiederverwendbaren Workflow über den exakten
 ist:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@1df2fcbd0c764c52253348a29034ff9e9b1bf7e2
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@409caa5b9664bcb8e1919d35684575e00a959f6a
 ```
 
 Beide Caller-`uses`-Werte und beide `protected_broker_sha`-Werte sind an den
-resultierenden geschützten Broker-Repair-Commit-SHA
-`1df2fcbd0c764c52253348a29034ff9e9b1bf7e2` gepinnt; weder ein Branch noch
+aktiven geschützten Broker-Repair-Commit-SHA
+`409caa5b9664bcb8e1919d35684575e00a959f6a` gepinnt; weder ein Branch noch
 `master` sind zulässige Alternativen.
 
 GitHub dokumentiert, dass der `github`-Kontext in einem aufgerufenen
@@ -123,11 +123,11 @@ bleiben im folgenden unveränderlichen Aufruf; der Framework-Gitlink ist an die
 Broker-Revision und nicht an einen späteren Parent-Stand gebunden:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@1df2fcbd0c764c52253348a29034ff9e9b1bf7e2
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@409caa5b9664bcb8e1919d35684575e00a959f6a
 ```
 
 ```text
-protected_broker_sha = 1df2fcbd0c764c52253348a29034ff9e9b1bf7e2
+protected_broker_sha = 409caa5b9664bcb8e1919d35684575e00a959f6a
 framework_sha        = 03880bf66b3905940466ff10b3a431a27ecc6b26
 ```
 
@@ -215,11 +215,11 @@ Framework-Gitlinks. Die Broker-Revision prüft dieses geprüfte Tupel unabhängi
 | Commit | `55b09f5acfd16413e7b31041100711ceb7adc89c` |
 | Erwartete CRS-Blockregel | `949110` |
 
-### ABI-Loader-Vertrag für die nächste Broker-Revision
+### Aktiver ABI-Loader-Vertrag
 
 Das gewöhnliche ModSecurity-Präfix darf Libtools unversionierten Linker-Alias
 `libmodsecurity.so` behalten, aber dieser Alias ist üblicherweise ein Symlink
-und kein vertrauenswürdiges Runtime-Artefakt. Die nächste unveränderliche
+und kein vertrauenswürdiges Runtime-Artefakt. Die aktive unveränderliche
 Broker-Revision löst die Libtool-Aliasse descriptor-relativ auf und fordert,
 dass jeder erwartete Alias ein direktes Basename-Ziel enthält. Beide Aliasse
 müssen sich auf dasselbe reguläre Terminalobjekt auflösen. Die geschützte
@@ -242,10 +242,9 @@ enthaltendes `DT_NEEDED` oder jeder Eintrag `DT_AUDIT`, `DT_DEPAUDIT`,
 `DT_FILTER` beziehungsweise `DT_AUXILIARY` die Admission; dasselbe gilt für
 eine fehlgeschlagene Untersuchung oder Nicht-Text-Ausgabe. Diese Untersuchung
 läuft unprivilegiert und endet vor der Candidate-Erstellung sowie jeder
-Root-Aktion. Diese Prüfungen sind Teil der ausstehenden Broker-Reparatur und
-kein Nachweis, dass der aktuell gepinnte Caller einen Runtime-Lifecycle
-abgeschlossen hat. Ein separater unveränderlicher Caller-Repin und ein neuer
-Protected-master-Lauf bleiben erforderlich.
+Root-Aktion. Diese Prüfungen sind im ausgewählten Broker aktiv, aber kein
+Nachweis, dass der repinnte Caller einen Runtime-Lifecycle abgeschlossen hat.
+Ein neuer Protected-master-Lauf bleibt erforderlich.
 
 Das Bundle-Manifest bindet das Tupel, den Framework-Gitlink, den
 Broker-Commit, Erzeugungszeitpunkt, sortierte erlaubte Dateirecords,

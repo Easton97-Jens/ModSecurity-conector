@@ -15,12 +15,12 @@ The existing caller uses the reusable workflow at the exact 40-character commit
 SHA already reachable from protected Parent `master`:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@1df2fcbd0c764c52253348a29034ff9e9b1bf7e2
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@409caa5b9664bcb8e1919d35684575e00a959f6a
 ```
 
 Both caller `uses` values and both `protected_broker_sha` values are pinned to
-the resulting protected broker-repair commit SHA
-`1df2fcbd0c764c52253348a29034ff9e9b1bf7e2`; neither a branch nor `master` is
+the active protected broker-repair commit SHA
+`409caa5b9664bcb8e1919d35684575e00a959f6a`; neither a branch nor `master` is
 an acceptable substitute.
 
 GitHub documents that the `github` context in a called reusable workflow is
@@ -112,11 +112,11 @@ actions remain inside this immutable call and the Framework gitlink is fixed
 to the broker revision rather than to a later Parent state:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@1df2fcbd0c764c52253348a29034ff9e9b1bf7e2
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@409caa5b9664bcb8e1919d35684575e00a959f6a
 ```
 
 ```text
-protected_broker_sha = 1df2fcbd0c764c52253348a29034ff9e9b1bf7e2
+protected_broker_sha = 409caa5b9664bcb8e1919d35684575e00a959f6a
 framework_sha        = 03880bf66b3905940466ff10b3a431a27ecc6b26
 ```
 
@@ -199,11 +199,11 @@ revision independently cross-checks this reviewed tuple:
 | Commit | `55b09f5acfd16413e7b31041100711ceb7adc89c` |
 | Expected CRS block rule | `949110` |
 
-### ABI loader contract for the next broker revision
+### Active ABI loader contract
 
 The ordinary ModSecurity prefix may retain Libtool's unversioned linker alias
 `libmodsecurity.so`, but that alias is normally a symlink and is not a trusted
-runtime artifact. The next immutable broker revision resolves the Libtool
+runtime artifact. The active immutable broker revision resolves the Libtool
 aliases descriptor-relatively and requires each expected alias to contain a
 direct basename target. Both aliases must resolve to the same regular terminal
 object. The regular `prefix/lib/libmodsecurity.so.3` protected copy is created
@@ -222,10 +222,9 @@ empty `PATH`, bounded output, and a real bounded deadline. For either ELF,
 `DT_RPATH`, `DT_RUNPATH`, a slash-bearing `DT_NEEDED`, or any `DT_AUDIT`,
 `DT_DEPAUDIT`, `DT_FILTER`, or `DT_AUXILIARY` entry blocks admission, as does a
 failed or non-text inspection. This inspection is unprivileged and completes
-before candidate creation and every root action. These checks are part of the
-pending broker repair, not evidence that the currently pinned caller has
-completed a runtime lifecycle. A separate immutable caller repin and a new
-protected-master run remain required.
+before candidate creation and every root action. These checks are active in
+the selected broker, but are not evidence that the repinned caller has
+completed a runtime lifecycle. A new protected-master run remains required.
 
 The bundle manifest binds the tuple, Framework gitlink, broker commit,
 creation time, sorted allowed-file records, file count, and aggregate digest.
