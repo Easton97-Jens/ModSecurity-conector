@@ -12,17 +12,17 @@ Umgebungsdateien laufen niemals als Host-root.
 
 ## Unveränderliche Aufrufgrenze
 
-Der Caller verwendet den wiederverwendbaren Workflow über den exakten
-40-stelligen Commit-SHA, der bereits vom geschützten Parent-`master` erreichbar
-ist:
+Dieser getrennte Phase-B-Caller-Repin-Patch aktualisiert den Caller auf den
+wiederverwendbaren Workflow mit dem exakten 40-stelligen Broker-Commit-SHA,
+der bereits vom geschützten Parent-`master` erreichbar ist:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@409caa5b9664bcb8e1919d35684575e00a959f6a
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@7a9240d35e50475cc1a381fa103b0bb5cca2bee3
 ```
 
-Beide Caller-`uses`-Werte und beide `protected_broker_sha`-Werte sind an den
-aktiven geschützten Broker-Repair-Commit-SHA
-`409caa5b9664bcb8e1919d35684575e00a959f6a` gepinnt; weder ein Branch noch
+Beide Caller-`uses`-Werte und beide `protected_broker_sha`-Werte in diesem
+Phase-B-Patch sind an den verfügbaren geschützten Broker-Repair-Commit-SHA
+`7a9240d35e50475cc1a381fa103b0bb5cca2bee3` gepinnt; weder ein Branch noch
 `master` sind zulässige Alternativen.
 
 GitHub dokumentiert, dass der `github`-Kontext in einem aufgerufenen
@@ -123,11 +123,11 @@ bleiben im folgenden unveränderlichen Aufruf; der Framework-Gitlink ist an die
 Broker-Revision und nicht an einen späteren Parent-Stand gebunden:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@409caa5b9664bcb8e1919d35684575e00a959f6a
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@7a9240d35e50475cc1a381fa103b0bb5cca2bee3
 ```
 
 ```text
-protected_broker_sha = 409caa5b9664bcb8e1919d35684575e00a959f6a
+protected_broker_sha = 7a9240d35e50475cc1a381fa103b0bb5cca2bee3
 framework_sha        = 03880bf66b3905940466ff10b3a431a27ecc6b26
 ```
 
@@ -364,8 +364,18 @@ anfänglichen Loader-Reparatur bestanden 83 fokussierte Tests. Nach der
 erweiterten Security-Remediation bestand eine spätere Broker-/CRS-Suite 43
 Tests, die fokussierte Remediation bestand 2 Tests und die fokussierte
 Producer-Matrix bestand 5 Tests. Das vollständige owning Cache-Modul bestand
-38 Tests und hatte einen bekannten Isolated-Worktree-Fixture-Fehler. Dies sind
-lokale Source-/Static-Ergebnisse. Ein Protected-master-Hosted-Aufruf bleibt
+38 Tests und hatte einen bekannten Isolated-Worktree-Fixture-Fehler. Die
+lokale Phase-B-Validierung bestand danach 109 Tests in 9.253s über die
+Testmodule für geschützten Caller, Broker, Workflow, CI-Security-Workflow und
+Python-Version-Contract. Der Phase-B-CI-Security-Contract bestand außerdem
+seine 26 CI-Security-Tests sowie validate-only-actionlint/zizmor/gitleaks
+locks. Die eigenständige Python-Version-Contract-Prüfung endete nur wegen
+unveränderter aktueller-`master`-Inventarverletzungen in
+`verified-report-governance`, `ci-security-codeql` trusted-go-version,
+Apache/HAProxy und `update-workflow-tools` mit Exit 2; sie ist Evidenz einer
+nicht bestandenen Baseline-Prüfung und keine Phase-B-Pin-
+Verletzung. Dies sind lokale
+Source-/Static-Ergebnisse. Ein Protected-master-Hosted-Aufruf bleibt
 erforderlich, um GitHub-Reusable-Workflow-Kontextsemantik, einen realen
 Root-Master/Nicht-root-Worker, reale CRS-Ausführung, Audit-Ausgabe,
 Listener-Freigabe und die endgültig hochgeladene Cleanup-Evidence zu beweisen.
@@ -376,12 +386,18 @@ No-CRS-Abschnitt wies die echte geschützte Library unter dem generischen
 8-MiB-Evidence-Limit ab, und sein With-CRS-Abschnitt wies frische
 Checkout-Dateien ab, die `umask 077` geerbt hatten. Beide Abschnitte stoppten
 vor Candidate-Admission, jeder Root-Aktion, NGINX-Start, Evidence-Projektion
-und Cleanup-Verifikation. Diese Phase-A-Broker-Reparatur ist kein Runtime-
-Nachweis und wird erst nach dem getrennt geprüften Caller-Repin vom aktiven
-Caller ausgewählt; ein frischer resulting-master-Lifecycle bleibt zwingend.
+und Cleanup-Verifikation. PR #273 mergte anschließend Broker-Commit
+`7a9240d35e50475cc1a381fa103b0bb5cca2bee3` nach `master` und machte diese
+Broker-Revision verfügbar. Sein commitierter Caller-Workflow/-Helper pinnt
+weiterhin `409caa5b9664bcb8e1919d35684575e00a959f6a`; dieser getrennte
+uncommitted Phase-B-Caller-Repin-Patch wählt das Tupel
+`7a9240d35e50475cc1a381fa103b0bb5cca2bee3`/
+`03880bf66b3905940466ff10b3a431a27ecc6b26`. Weder der Merge noch dieser
+lokale Patch sind Runtime-Nachweis; ein frischer resulting-master-Lifecycle
+bleibt zwingend.
 
-PR #240 bleibt blockiert, bis dieser Caller normal gemergt, vom resultierenden
-geschützten `master` gestartet und mit erfolgreichen `no-crs`- sowie
-`owasp-crs`-Profilen einschließlich Evidence-Readback und Cleanup beobachtet
-wurde. Ein späterer Dispatch darf den finalen PR-240-Head nur als deklarative
-Evidence binden; er führt niemals PR-240-Code an der Root-Grenze aus.
+PR #240 bleibt blockiert, bis dieser resulting-master-Caller gestartet wurde
+und mit erfolgreichen `no-crs`- sowie `owasp-crs`-Profilen einschließlich
+Evidence-Readback und Cleanup beobachtet wurde. Ein späterer Dispatch darf den
+finalen PR-240-Head nur als deklarative Evidence binden; er führt niemals
+PR-240-Code an der Root-Grenze aus.
