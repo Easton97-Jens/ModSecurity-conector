@@ -32,7 +32,7 @@ import stat
 import subprocess
 import sys
 import time
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 
 SCHEMA_VERSION_V1 = 1
@@ -2113,6 +2113,21 @@ def regular_crs_source_file(
     return metadata, sha256_file(path, label)
 
 
+def append_optional_crs_plugin_files(
+    source_root: Path,
+    source_metadata: os.stat_result,
+    append_file: Callable[[Path, Path], None],
+) -> None:
+    plugins = source_root / "plugins"
+    if plugins.exists() or plugins.is_symlink():
+        plugins_metadata = directory_metadata(plugins, "protected CRS plugins directory", owner=os.geteuid())
+        if plugins_metadata.st_dev != source_metadata.st_dev or stat.S_IMODE(plugins_metadata.st_mode) != 0o755:
+            fail("protected CRS plugins directory has an unexpected device or mode")
+        for entry in sorted(plugins.iterdir(), key=lambda path: path.name):
+            if entry.name.endswith(CRS_PLUGIN_SUFFIXES):
+                append_file(entry, Path("plugins") / entry.name)
+
+
 def selected_crs_source_files(source_root: Path, broker_sha: str) -> list[tuple[Path, dict[str, Any]]]:
     source_metadata = directory_metadata(source_root, "fresh protected CRS source", owner=os.geteuid())
     if stat.S_IMODE(source_metadata.st_mode) != 0o755:
@@ -2150,14 +2165,7 @@ def selected_crs_source_files(source_root: Path, broker_sha: str) -> list[tuple[
             append_file(entry, Path("rules") / entry.name)
     if not any(record["path"].startswith("rules/") for _, record in selected):
         fail("protected CRS source has no rule files")
-    plugins = source_root / "plugins"
-    if plugins.exists() or plugins.is_symlink():
-        plugins_metadata = directory_metadata(plugins, "protected CRS plugins directory", owner=os.geteuid())
-        if plugins_metadata.st_dev != source_metadata.st_dev or stat.S_IMODE(plugins_metadata.st_mode) != 0o755:
-            fail("protected CRS plugins directory has an unexpected device or mode")
-        for entry in sorted(plugins.iterdir(), key=lambda path: path.name):
-            if entry.name.endswith(CRS_PLUGIN_SUFFIXES):
-                append_file(entry, Path("plugins") / entry.name)
+    append_optional_crs_plugin_files(source_root, source_metadata, append_file)
     selected.sort(key=lambda item: item[1]["path"])
     return selected
 

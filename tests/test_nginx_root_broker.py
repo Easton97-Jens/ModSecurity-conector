@@ -486,19 +486,16 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             with source.open("r+b") as handle:
                 handle.truncate(policy_limit + 1)
             destination = trusted_build / "candidate"
+            artifact = BROKER.ArtifactInput(
+                "modsecurity_library",
+                source,
+                digest(source),
+                BROKER.ARTIFACT_LIBRARY_NAME,
+                maximum_bytes=policy_limit,
+            )
             with mock.patch.object(BROKER, "sha256_fd") as hashed:
                 with self.assertRaisesRegex(BROKER.BrokerError, "trusted artifact size limit"):
-                    BROKER.copy_verified_artifact(
-                        BROKER.ArtifactInput(
-                            "modsecurity_library",
-                            source,
-                            digest(source),
-                            BROKER.ARTIFACT_LIBRARY_NAME,
-                            maximum_bytes=policy_limit,
-                        ),
-                        destination,
-                        trusted_build,
-                    )
+                    BROKER.copy_verified_artifact(artifact, destination, trusted_build)
             hashed.assert_not_called()
             self.assertFalse(destination.exists())
 
@@ -511,6 +508,13 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             expected_digest = digest(source)
             destination = trusted_build / "candidate"
             original_sha256_fd = BROKER.sha256_fd
+            artifact = BROKER.ArtifactInput(
+                "modsecurity_library",
+                source,
+                expected_digest,
+                BROKER.ARTIFACT_LIBRARY_NAME,
+                maximum_bytes=policy_limit,
+            )
 
             def grow_after_hash(descriptor: int) -> str:
                 observed_digest = original_sha256_fd(descriptor)
@@ -520,17 +524,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
 
             with mock.patch.object(BROKER, "sha256_fd", side_effect=grow_after_hash):
                 with self.assertRaisesRegex(BROKER.BrokerError, "source changed while being copied"):
-                    BROKER.copy_verified_artifact(
-                        BROKER.ArtifactInput(
-                            "modsecurity_library",
-                            source,
-                            expected_digest,
-                            BROKER.ARTIFACT_LIBRARY_NAME,
-                            maximum_bytes=policy_limit,
-                        ),
-                        destination,
-                        trusted_build,
-                    )
+                    BROKER.copy_verified_artifact(artifact, destination, trusted_build)
             self.assertGreater(source.stat().st_size, Path("/usr/bin/true").stat().st_size)
 
     def test_snapshot_bound_library_replacement_is_rejected_before_candidate_manifest(self) -> None:
@@ -583,13 +577,16 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             with source.open("r+b") as handle:
                 handle.truncate(BROKER.MAX_EVIDENCE_FILE_BYTES + 1)
             destination = root / "projected-evidence"
+            runner_gid = os.getegid()
+            allowed_owners = {os.geteuid()}
+            expected_device = source.stat().st_dev
             with self.assertRaisesRegex(BROKER.BrokerError, "evidence file size limit"):
                 BROKER.copy_evidence_file(
                     source,
                     destination,
-                    runner_gid=os.getegid(),
-                    allowed_owners={os.geteuid()},
-                    expected_device=source.stat().st_dev,
+                    runner_gid=runner_gid,
+                    allowed_owners=allowed_owners,
+                    expected_device=expected_device,
                     label="oversized evidence",
                 )
             self.assertFalse(destination.exists())

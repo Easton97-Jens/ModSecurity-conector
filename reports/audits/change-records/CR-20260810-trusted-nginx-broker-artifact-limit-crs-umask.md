@@ -55,6 +55,13 @@ Before the repair, four focused regression tests failed as expected: a valid lib
 
 After the repair, eight direct broker, CRS-profile, and workflow tests passed. They cover the separate library bound and opened-descriptor enforcement, replacement resistance before candidate creation, retained evidence caps, legitimate and unsafe CRS modes, and the scoped workflow umask contract, including a hermetic failed-fetch execution that preserves outer `077` and propagates failure.
 
+A normal PR #273 Sonar follow-up then made four PR-specific, non-functional
+quality corrections without a suppression: the optional CRS-plugin selection
+was extracted into a private helper without changing its validation or
+admission order, and three test assertions now construct deterministic inputs
+outside their exception-capture scopes. The focused broker, CRS-profile, and
+workflow suite passed 64 tests for that exact follow-up working-tree diff.
+
 The final broker, caller, workflow, CI-security, and Python-contract suite passed
 123 tests. The cache-contract and cache-identity suite passed 46 tests. The
 full snapshot module passed nine tests and reported one environmental failure
@@ -69,6 +76,12 @@ rtk proxy env TMPDIR=../tmp PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 python3
 ```
 
 Result: PASS, 63 tests.
+
+```sh
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_nginx_root_broker tests.test_nginx_root_broker_crs_profile tests.test_nginx_root_broker_workflow
+```
+
+Result: PASS, 64 tests for the normal Sonar follow-up.
 
 ```sh
 rtk proxy env TMPDIR=../tmp PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 python3 -m unittest -v tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_ready_nginx_snapshot_values_bind_the_parent_common_source_root tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_unready_nginx_does_not_publish_runtime_snapshot_values tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_snapshot_is_unique_local_atomic_and_keeps_shared_compatibility_export tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_snapshot_writer_rejects_a_path_outside_the_invocation_report_root tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_protected_nginx_broker_snapshot_uses_only_canonical_plan_outputs tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_native_comparison_uses_the_wrapper_snapshot_not_shared_env tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_native_comparison_does_not_fallback_to_shared_env_for_an_invalid_snapshot tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_central_runners_use_the_exact_local_snapshot_not_shared_runtime_env
@@ -125,13 +138,37 @@ rtk proxy git diff --check
 
 Result: exit 0 for the final tracked Phase-A diff.
 
+The same whitespace check passed for the two-file Sonar follow-up before its
+normal commit.
+
+## Sonar follow-up and static security receipt
+
+The prior PR #273 head `b5681438a1e1a616190ea6f5d79bc8d3ae7ecec1` had a
+passing Quality Gate but four new PR-specific Sonar findings: one `python:S3776`
+and three `python:S5778`. The normal follow-up above addresses those findings
+without `NOSONAR`, issue acceptance, a Quality-Profile or Quality-Gate change,
+or an analysis exclusion.
+
+The sealed external static receipt `b5681438_20260810T122838Z` covers the
+complete two-file follow-up worklist (`ci/runtime/broker/nginx_root_broker.py`
+and `tests/test_nginx_root_broker.py`) against that base head. Its local
+snapshot digest is
+`cea33809b578a3223bc45a82fd92f595fab17110cb965891f0a97cc55692c627`; it
+records zero reportable findings and a canonical HTTPS repository target. The
+receipt is pre-commit static evidence only: it does not replace exact-new-head
+SonarQube Cloud analysis, hosted checks, review evidence, or the later
+protected lifecycle.
+
 ## Hosted delivery evidence for immutable code head
 
 [Draft PR #273](https://github.com/Easton97-Jens/ModSecurity-conector/pull/273)
 was created from the task-owned branch after the local Phase-A repair commit
-`3042b984484637192742a2d22d9e029f8ad97b61`. This record claims no
-exact-head hosted check, SonarQube Cloud analysis, review, merge, or protected
-lifecycle success; those remain required before the later caller repin.
+`3042b984484637192742a2d22d9e029f8ad97b61`. The pre-follow-up head
+`b5681438a1e1a616190ea6f5d79bc8d3ae7ecec1` is historical only and must not
+be used as hosted evidence for the normal Sonar follow-up documented above.
+This record claims no exact-new-head hosted check, SonarQube Cloud analysis,
+review, merge, or protected lifecycle success; those remain required before
+the later caller repin.
 
 ## Security impact
 

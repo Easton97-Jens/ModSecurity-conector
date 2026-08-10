@@ -56,6 +56,14 @@ Vor der Reparatur schlugen vier fokussierte Regressionstests erwartungsgemäß f
 
 Nach der Reparatur bestanden acht direkte Broker-, CRS-Profil- und Workflow-Tests. Sie decken die getrennte Library-Grenze und die Durchsetzung am geöffneten Deskriptor, Austauschresistenz vor Candidate-Erstellung, beibehaltene Evidence-Limits, legitime und unsichere CRS-Modi sowie den begrenzten Workflow-Umask-Vertrag ab, einschließlich einer hermetischen fehlgeschlagenen Fetch-Ausführung, die äußeres `077` bewahrt und den Fehler weitergibt.
 
+Ein normaler Sonar-Folgecommit für PR #273 führte danach vier PR-spezifische,
+nichtfunktionale Qualitätskorrekturen ohne Suppression aus: Die Auswahl
+optionaler CRS-Plugins wurde in einen privaten Helper ausgelagert, ohne deren
+Validierungs- oder Admission-Reihenfolge zu ändern, und drei Test-Assertions
+konstruieren deterministische Eingaben nun außerhalb ihrer Exception-Capture-
+Scopes. Die fokussierte Broker-, CRS-Profil- und Workflow-Suite bestand für
+diesen exakten Folgecommit-Working-Tree-Diff 64 Tests.
+
 Die finale Broker-, Caller-, Workflow-, CI-Sicherheits- und Python-Contract-Suite
 bestand 123 Tests. Die Cache-Contract- und Cache-Identity-Suite bestand 46
 Tests. Das vollständige Snapshot-Modul bestand neun Tests und meldete einen
@@ -70,6 +78,12 @@ rtk proxy env TMPDIR=../tmp PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 python3
 ```
 
 Ergebnis: PASS, 63 Tests.
+
+```sh
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_nginx_root_broker tests.test_nginx_root_broker_crs_profile tests.test_nginx_root_broker_workflow
+```
+
+Ergebnis: PASS, 64 Tests für den normalen Sonar-Folgecommit.
 
 ```sh
 rtk proxy env TMPDIR=../tmp PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 python3 -m unittest -v tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_ready_nginx_snapshot_values_bind_the_parent_common_source_root tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_unready_nginx_does_not_publish_runtime_snapshot_values tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_snapshot_is_unique_local_atomic_and_keeps_shared_compatibility_export tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_snapshot_writer_rejects_a_path_outside_the_invocation_report_root tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_protected_nginx_broker_snapshot_uses_only_canonical_plan_outputs tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_native_comparison_uses_the_wrapper_snapshot_not_shared_env tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_native_comparison_does_not_fallback_to_shared_env_for_an_invalid_snapshot tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_central_runners_use_the_exact_local_snapshot_not_shared_runtime_env
@@ -127,14 +141,40 @@ rtk proxy git diff --check
 
 Ergebnis: Exit 0 für den finalen getrackten Phase-A-Diff.
 
+Dieselbe Whitespace-Prüfung bestand für den Zwei-Dateien-Sonar-Folgecommit vor
+seinem normalen Commit.
+
+## Sonar-Folgecommit und statischer Security-Receipt
+
+Der vorherige PR-273-Head `b5681438a1e1a616190ea6f5d79bc8d3ae7ecec1` hatte
+ein bestehendes Quality Gate, aber vier neue PR-spezifische Sonar-Findings:
+ein `python:S3776` und drei `python:S5778`. Der obige normale Folgecommit
+behebt diese Findings ohne `NOSONAR`, Issue-Akzeptanz, Änderung eines
+Quality-Profils oder -Gates oder einen Analyse-Ausschluss.
+
+Der versiegelte externe statische Receipt `b5681438_20260810T122838Z` deckt
+die vollständige Zwei-Dateien-Worklist des Folgecommits
+(`ci/runtime/broker/nginx_root_broker.py` und
+`tests/test_nginx_root_broker.py`) gegen diesen Basis-Head ab. Sein lokaler
+Snapshot-Digest lautet
+`cea33809b578a3223bc45a82fd92f595fab17110cb965891f0a97cc55692c627`; er
+verzeichnet null reportable Findings und ein kanonisches HTTPS-
+Repositoryziel. Der Receipt ist nur Static-Evidence vor dem Commit: Er ersetzt
+weder die SonarQube-Cloud-Analyse des exakten neuen Heads noch Hosted-Checks,
+Review-Evidence oder den späteren geschützten Lifecycle.
+
 ## Hosted-Delivery-Evidence für unveränderlichen Code-Head
 
 [Draft-PR #273](https://github.com/Easton97-Jens/ModSecurity-conector/pull/273)
 wurde nach dem lokalen Phase-A-Repair-Commit
 `3042b984484637192742a2d22d9e029f8ad97b61` vom task-eigenen Branch erstellt.
-Dieser Record beansprucht keinen Exact-Head-Hosted-Check, keine SonarQube-
-Cloud-Analyse, kein Review, keinen Merge und keinen erfolgreichen geschützten
-Lifecycle; dies alles bleibt vor dem späteren Caller-Repin erforderlich.
+Der Head vor dem Folgecommit
+`b5681438a1e1a616190ea6f5d79bc8d3ae7ecec1` ist nur historisch und darf nicht
+als Hosted-Evidence für den oben dokumentierten normalen Sonar-Folgecommit
+verwendet werden. Dieser Record beansprucht keinen Exact-New-Head-Hosted-
+Check, keine SonarQube-Cloud-Analyse, kein Review, keinen Merge und keinen
+erfolgreichen geschützten Lifecycle; dies alles bleibt vor dem späteren
+Caller-Repin erforderlich.
 
 ## Security-Auswirkung
 
