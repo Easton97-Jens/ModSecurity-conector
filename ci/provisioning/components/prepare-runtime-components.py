@@ -120,6 +120,10 @@ READY_COMPONENT_STATUSES = frozenset({"present", "built", "reused"})
 CONNECTOR_BUILD_ID_LABEL = "Connector build ID"
 USES_MODSECURITY_BUILD_ID_LABEL = "Uses ModSecurity build ID"
 RUNTIME_ENV_SNAPSHOT_SCHEMA_VERSION = 1
+PROTECTED_NGINX_BROKER_SNAPSHOT_CONTRACT = "protected-nginx-broker"
+GENERIC_RUNTIME_ENV_SNAPSHOT_CONTRACT = "generic"
+TRUSTED_NGINX_BROKER_PROVENANCE_FILENAME = "trusted-nginx-broker-provenance.json"
+TRUSTED_NGINX_BROKER_PROVENANCE_SCHEMA_VERSION = 1
 _TRUSTED_FRAMEWORK_GUARD_SHELL = Path("/bin/sh")
 _TRUSTED_FRAMEWORK_GUARD_GIT = Path("/usr/bin/git")
 _TRUSTED_FRAMEWORK_GUARD_PATH = "/usr/bin:/bin"
@@ -440,6 +444,206 @@ def write_runtime_env_snapshot(
     )
     atomic_write_text(destination, runtime_env_shell_text(values))
     return destination
+
+
+def _private_atomic_write_json(path: Path, data: dict[str, Any]) -> None:
+    """Atomically replace one private provenance record, never a partial file."""
+    if path.exists() or path.is_symlink():
+        details = path.lstat()
+        if path.is_symlink() or not stat.S_ISREG(details.st_mode) or details.st_mode & 0o077:
+            raise RuntimeError(f"protected_nginx_broker_unsafe_provenance_path:{path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.tmp-", dir=str(path.parent))
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(data, indent=2, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        path.chmod(0o600)
+    except Exception:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def protected_nginx_broker_artifact(path: Path, expected: Path, *, executable_required: bool) -> dict[str, Any]:
+    """Return immutable facts only for the canonical, non-symlinked artifact."""
+    if path != expected or not path.is_absolute():
+        raise RuntimeError(f"protected_nginx_broker_noncanonical_artifact:{path}")
+    try:
+        details = path.lstat()
+    except OSError as exc:
+        raise RuntimeError(f"protected_nginx_broker_artifact_unavailable:{path}") from exc
+    if stat.S_ISLNK(details.st_mode) or not stat.S_ISREG(details.st_mode):
+        raise RuntimeError(f"protected_nginx_broker_unsafe_artifact:{path}")
+    if details.st_mode & 0o022:
+        raise RuntimeError(f"protected_nginx_broker_writable_artifact:{path}")
+    if executable_required and not os.access(path, os.X_OK):
+        raise RuntimeError(f"protected_nginx_broker_artifact_not_executable:{path}")
+    return {
+        "path": str(path),
+        "sha256": sha256_file(path),
+        "device": details.st_dev,
+        "uid": details.st_uid,
+        "mode": stat.S_IMODE(details.st_mode),
+        "size": details.st_size,
+    }
+
+
+def _protected_nginx_broker_plan_artifacts(
+    nginx_plan: dict[str, Any],
+) -> tuple[Path, Path, Path]:
+    """Validate the completed plan and return its canonical artifacts."""
+    completed_manifest = read_json(Path(str(nginx_plan.get("manifest", ""))))
+    if completed_manifest.get("build_flags") != nginx_plan.get("build_flags"):
+        raise RuntimeError("protected_nginx_broker_completed_manifest_mismatch")
+    output_paths = nginx_plan.get("output_paths")
+    if not isinstance(output_paths, dict):
+        raise RuntimeError("protected_nginx_broker_plan_output_paths_missing")
+    try:
+        binary = Path(str(output_paths["binary"]))
+        module = Path(str(output_paths["module"]))
+    except KeyError as exc:
+        raise RuntimeError("protected_nginx_broker_plan_artifact_missing") from exc
+    if not binary.is_absolute() or not module.is_absolute():
+        raise RuntimeError("protected_nginx_broker_plan_artifact_not_absolute")
+    try:
+        plan_root = Path(str(nginx_plan.get("root", ""))).resolve(strict=True)
+    except OSError as exc:
+        raise RuntimeError("protected_nginx_broker_plan_root_missing") from exc
+    expected_binary = plan_root / "nginx" / "sbin" / "nginx"
+    expected_module = plan_root / "nginx" / "modules" / NGINX_MODULE_FILENAME
+    if binary != expected_binary or module != expected_module:
+        raise RuntimeError("protected_nginx_broker_plan_output_paths_not_canonical")
+    return binary, module, plan_root
+
+
+def _protected_nginx_broker_modsecurity_prefix(
+    context: dict[str, Any],
+    modsecurity: dict[str, Any],
+) -> Path:
+    """Return the validated Cache-v2 ModSecurity prefix."""
+    try:
+        modsecurity_prefix = Path(str(modsecurity.get("prefix", ""))).resolve(strict=True)
+    except OSError as exc:
+        raise RuntimeError("protected_nginx_broker_modsecurity_prefix_missing") from exc
+    expected_modsecurity_prefix = (
+        context["cache_root"]
+        / "prefix"
+        / "modsecurity"
+        / str(modsecurity.get("build_id", ""))
+    ).resolve()
+    if (
+        not modsecurity.get("build_id")
+        or modsecurity_prefix != expected_modsecurity_prefix
+        or not modsecurity_ready(modsecurity_prefix)
+    ):
+        raise RuntimeError("protected_nginx_broker_modsecurity_prefix_unvalidated")
+    return modsecurity_prefix
+
+
+def _protected_nginx_broker_source_revisions(
+    context: dict[str, Any],
+) -> tuple[str, str]:
+    """Return the immutable Parent and Framework source revisions."""
+    parent_sha = git_revision(context["connector_root"])
+    framework_sha = git_revision(context["framework_root"])
+    if not FULL_GIT_COMMIT_ID.fullmatch(parent_sha) or not FULL_GIT_COMMIT_ID.fullmatch(
+        framework_sha
+    ):
+        raise RuntimeError("protected_nginx_broker_source_revision_missing")
+    return parent_sha, framework_sha
+
+
+def _protected_nginx_broker_release_provenance(
+    nginx_plan: dict[str, Any],
+    nginx_release_tag: str,
+) -> tuple[str, str]:
+    """Return the validated NGINX release source and digest."""
+    try:
+        plan_build_flags = json.loads(str(nginx_plan.get("build_flags", "")))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("protected_nginx_broker_plan_release_provenance_missing") from exc
+    if not isinstance(plan_build_flags, dict):
+        raise RuntimeError("protected_nginx_broker_plan_release_provenance_missing")
+    source_repository = str(plan_build_flags.get("NGINX_SOURCE_REPO_URL", ""))
+    source_sha256 = str(plan_build_flags.get("NGINX_SHA256", "")).lower()
+    if (
+        plan_build_flags.get("NGINX_RELEASE_TAG", "") != nginx_release_tag
+        or not source_repository
+        or not re.fullmatch(r"[0-9a-f]{64}", source_sha256)
+    ):
+        raise RuntimeError("protected_nginx_broker_release_provenance_incomplete")
+    return source_repository, source_sha256
+
+
+def protected_nginx_broker_runtime_environment(
+    context: dict[str, Any],
+    components: dict[str, dict[str, Any]],
+) -> tuple[dict[str, str], Path]:
+    """Build the fixed broker tuple and publish its canonical provenance first."""
+    if context["target_connector"] != "nginx":
+        raise RuntimeError("protected_nginx_broker_requires_nginx_target")
+    nginx = components["nginx"]
+    modsecurity = components["modsecurity"]
+    nginx_plan = components.get("nginx_plan", {})
+    if nginx.get("status") not in READY_COMPONENT_STATUSES or modsecurity.get("status") not in READY_COMPONENT_STATUSES:
+        raise RuntimeError("protected_nginx_broker_components_not_ready")
+    if not isinstance(nginx_plan, dict) or not connector_manifest_ready(nginx_plan):
+        raise RuntimeError("protected_nginx_broker_cache_completion_missing")
+    binary, module, plan_root = _protected_nginx_broker_plan_artifacts(nginx_plan)
+    expected_binary = plan_root / "nginx" / "sbin" / "nginx"
+    expected_module = plan_root / "nginx" / "modules" / NGINX_MODULE_FILENAME
+    modsecurity_prefix = _protected_nginx_broker_modsecurity_prefix(context, modsecurity)
+    parent_sha, framework_sha = _protected_nginx_broker_source_revisions(context)
+    nginx_version = "1.31.3"
+    nginx_release_tag = "release-1.31.3"
+    source_repository, source_sha256 = _protected_nginx_broker_release_provenance(
+        nginx_plan, nginx_release_tag
+    )
+    provenance_path = context["output_root"] / TRUSTED_NGINX_BROKER_PROVENANCE_FILENAME
+    provenance_path = snapshot_path_within_output_root(provenance_path, context["output_root"])
+    binary_artifact = protected_nginx_broker_artifact(binary, expected_binary, executable_required=True)
+    module_artifact = protected_nginx_broker_artifact(module, expected_module, executable_required=False)
+    library = modsecurity_prefix / "lib" / MODSECURITY_LIBRARY_FILENAME
+    library_artifact = protected_nginx_broker_artifact(library, library, executable_required=False)
+    provenance = {
+        "schema_version": TRUSTED_NGINX_BROKER_PROVENANCE_SCHEMA_VERSION,
+        "producer": {
+            "parent_sha": parent_sha.lower(),
+            "framework_sha": framework_sha.lower(),
+        },
+        "nginx": {
+            "version": nginx_version,
+            "release_tag": nginx_release_tag,
+            "source_repository": source_repository,
+            "source_sha256": source_sha256,
+            "cache_schema_version": nginx_plan.get("cache_schema_version"),
+            "cache_key": nginx_plan.get("cache_key"),
+            "connector_build_id": nginx_plan.get("connector_build_id"),
+            "root": str(plan_root),
+            "binary": binary_artifact,
+            "module": module_artifact,
+        },
+        "modsecurity": {
+            "prefix": str(modsecurity_prefix),
+            "library": library_artifact,
+        },
+    }
+    provenance["producer"]["identity"] = stable_hash(provenance)
+    _private_atomic_write_json(provenance_path, provenance)
+    if read_json(provenance_path) != provenance:
+        raise RuntimeError("protected_nginx_broker_provenance_validation_failed")
+    return {
+        "NGINX_BINARY": str(provenance["nginx"]["binary"]["path"]),
+        "NGINX_MODULE": str(provenance["nginx"]["module"]["path"]),
+        "MODSECURITY_SHARED_PREFIX": str(provenance["modsecurity"]["prefix"]),
+    }, provenance_path
 
 
 def nginx_runtime_environment(
@@ -8116,6 +8320,15 @@ def runtime_component_argument_parser() -> argparse.ArgumentParser:
             "a unique file is allocated below --output-root."
         ),
     )
+    parser.add_argument(
+        "--runtime-env-snapshot-contract",
+        choices=(GENERIC_RUNTIME_ENV_SNAPSHOT_CONTRACT, PROTECTED_NGINX_BROKER_SNAPSHOT_CONTRACT),
+        default=os.environ.get(
+            "RUNTIME_COMPONENT_SNAPSHOT_CONTRACT",
+            GENERIC_RUNTIME_ENV_SNAPSHOT_CONTRACT,
+        ),
+        help="Select the generic compatibility snapshot or the fixed protected NGINX broker tuple.",
+    )
     parser.add_argument("--build-root", default=None)
     parser.add_argument("--native-root", default=None)
     parser.add_argument(
@@ -8230,6 +8443,7 @@ def runtime_component_context(args: argparse.Namespace) -> tuple[dict[str, Any] 
         "native_root": native_root,
         "report_dir": output_root / GENERATED_ROOT,
         "requested_runtime_env_snapshot": requested_runtime_env_snapshot,
+        "runtime_env_snapshot_contract": args.runtime_env_snapshot_contract,
         "strict": strict,
         "target_connector": args.target_connector,
         **sources,
@@ -8530,6 +8744,7 @@ def prepare_native_component_records(
         "modsecurity": modsecurity,
         "apache_httpd": apache_httpd,
         "nginx": nginx,
+        "nginx_plan": connector_plans["nginx"],
         "haproxy": haproxy,
         "go_ftw": go_ftw,
         "albedo": albedo,
@@ -8660,6 +8875,11 @@ def write_runtime_environment_exports(context: dict[str, Any], runtime_env: dict
     snapshot_reserved_here = requested_snapshot is None
     runtime_env_snapshot = requested_snapshot or allocate_runtime_env_snapshot(output_root)
     try:
+        if context["runtime_env_snapshot_contract"] == PROTECTED_NGINX_BROKER_SNAPSHOT_CONTRACT:
+            protected_env, _ = protected_nginx_broker_runtime_environment(context, context["components"])
+            destination = snapshot_path_within_output_root(runtime_env_snapshot, output_root)
+            atomic_write_text(destination, runtime_env_shell_text(protected_env))
+            return destination
         return write_runtime_env_snapshot(
             runtime_env,
             snapshot_path=runtime_env_snapshot,
@@ -8885,6 +9105,7 @@ def main() -> int:
     archives = prepare_runtime_archives(context, paths)
 
     components = prepare_native_component_records(context, paths, git_components, archives)
+    context["components"] = components
     runtime_env = runtime_component_environment(context, paths, components)
     runtime_env_snapshot = write_runtime_environment_exports(context, runtime_env)
     payload, build_cache = runtime_component_payload(
