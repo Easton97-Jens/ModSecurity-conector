@@ -42,6 +42,7 @@ def load_parent_prepare_runtime_components():
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     try:
+        sys.path.insert(0, str(ROOT / "ci" / "lib"))
         sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
         spec.loader.exec_module(module)
     except Exception:

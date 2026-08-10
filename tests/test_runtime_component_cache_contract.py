@@ -1499,7 +1499,14 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             partial.write_text("partial\n", encoding="utf-8")
             connector_root = root / "connector"
             framework_root = root / "framework"
-            (connector_root / "common/src").mkdir(parents=True)
+            common_source_root = connector_root / "common/src"
+            common_source_root.mkdir(parents=True)
+            # The production stager requires this private sibling header for
+            # the copied Common translation units.  Keep this cache-cleanup
+            # fixture source-valid without broadening the scenario under test.
+            (common_source_root / "header_validation_internal.h").write_text(
+                "#pragma once\n", encoding="utf-8"
+            )
             framework_root.mkdir()
 
             def build_nginx(*args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:

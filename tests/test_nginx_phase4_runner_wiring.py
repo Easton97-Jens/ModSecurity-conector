@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 import sys
 import tempfile
@@ -8,9 +9,40 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNERS = ROOT / "modules" / "ModSecurity-test-Framework" / "tests" / "runners"
-sys.path.insert(0, str(RUNNERS))
+_MISSING_MODULE = object()
 
-from runner_core import load_case, write_shell_env  # noqa: E402
+
+def load_framework_runner_core():
+    """Load the Framework runner without retaining its generic CI helper.
+
+    Parent and Framework both provide ``generated_report_utils``.  Discovery
+    must bind the Framework implementation for this test, then restore the
+    surrounding interpreter state so later Parent tests resolve their own
+    helper.
+    """
+
+    previous_path = list(sys.path)
+    previous_runner_core = sys.modules.pop("runner_core", _MISSING_MODULE)
+    previous_generated_report_utils = sys.modules.pop(
+        "generated_report_utils", _MISSING_MODULE
+    )
+    try:
+        sys.path.insert(0, str(RUNNERS))
+        module = importlib.import_module("runner_core")
+    finally:
+        sys.path[:] = previous_path
+        sys.modules.pop("runner_core", None)
+        if previous_runner_core is not _MISSING_MODULE:
+            sys.modules["runner_core"] = previous_runner_core
+        sys.modules.pop("generated_report_utils", None)
+        if previous_generated_report_utils is not _MISSING_MODULE:
+            sys.modules["generated_report_utils"] = previous_generated_report_utils
+    return module
+
+
+runner_core = load_framework_runner_core()
+load_case = runner_core.load_case
+write_shell_env = runner_core.write_shell_env
 
 
 FIXTURES = ROOT / "modules" / "ModSecurity-test-Framework" / "tests" / "cases" / "connector-specific" / "nginx"
