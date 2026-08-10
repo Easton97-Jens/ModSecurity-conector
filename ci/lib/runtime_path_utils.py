@@ -669,6 +669,57 @@ def write_runtime_artifact_text_atomic(
     return target
 
 
+def _open_temporary_runtime_artifact(
+    destination_parent_descriptor: int,
+    destination_target: Path,
+    label: str,
+    no_follow: int,
+) -> tuple[int, str]:
+    """Exclusively create a private no-follow temporary destination artifact."""
+    for _ in range(100):
+        temporary_name = f".{destination_target.name}.{secrets.token_hex(16)}.tmp"
+        try:
+            descriptor = os.open(
+                temporary_name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,
+                0o600,
+                dir_fd=destination_parent_descriptor,
+            )
+        except FileExistsError:
+            continue
+        return descriptor, temporary_name
+    raise ValueError(f"could not allocate a temporary {label} destination")
+
+
+def _copy_runtime_artifact_bytes(
+    source_descriptor: int,
+    destination_descriptor: int,
+    label: str,
+) -> None:
+    """Copy every source byte, retrying short writes and failing on no progress."""
+    while True:
+        chunk = os.read(source_descriptor, 1024 * 1024)
+        if not chunk:
+            return
+        written = 0
+        while written < len(chunk):
+            count = os.write(destination_descriptor, chunk[written:])
+            if count <= 0:
+                raise OSError(f"unable to write {label} destination")
+            written += count
+
+
+def _unlink_temporary_runtime_artifact(
+    destination_parent_descriptor: int,
+    temporary_name: str,
+) -> None:
+    """Remove a task-created temporary artifact when it still exists."""
+    try:
+        os.unlink(temporary_name, dir_fd=destination_parent_descriptor)
+    except FileNotFoundError:
+        pass
+
+
 def _copy_runtime_artifact_to_destination(
     source_descriptor: int,
     destination_parent_descriptor: int,
@@ -678,42 +729,22 @@ def _copy_runtime_artifact_to_destination(
 ) -> None:
     """Copy a pinned source descriptor into a private, atomically installed file."""
     temporary_name: str | None = None
-    temporary_created = False
     destination_descriptor = -1
     try:
         _existing_regular_runtime_artifact(
             destination_parent_descriptor, destination_target, f"{label} destination"
         )
-        for _ in range(100):
-            temporary_name = f".{destination_target.name}.{secrets.token_hex(16)}.tmp"
-            try:
-                destination_descriptor = os.open(
-                    temporary_name,
-                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,
-                    0o600,
-                    dir_fd=destination_parent_descriptor,
-                )
-            except FileExistsError:
-                temporary_name = None
-                continue
-            temporary_created = True
-            break
-        else:
-            raise ValueError(f"could not allocate a temporary {label} destination")
+        destination_descriptor, temporary_name = _open_temporary_runtime_artifact(
+            destination_parent_descriptor,
+            destination_target,
+            label,
+            no_follow,
+        )
 
         require_regular_runtime_artifact(
             destination_descriptor, f"{label} destination"
         )
-        while True:
-            chunk = os.read(source_descriptor, 1024 * 1024)
-            if not chunk:
-                break
-            written = 0
-            while written < len(chunk):
-                count = os.write(destination_descriptor, chunk[written:])
-                if count <= 0:
-                    raise OSError(f"unable to write {label} destination")
-                written += count
+        _copy_runtime_artifact_bytes(source_descriptor, destination_descriptor, label)
         os.fchmod(destination_descriptor, 0o600)
         os.fsync(destination_descriptor)
         os.close(destination_descriptor)
@@ -729,15 +760,13 @@ def _copy_runtime_artifact_to_destination(
             dst_dir_fd=destination_parent_descriptor,
         )
         temporary_name = None
-        temporary_created = False
     finally:
         if destination_descriptor >= 0:
             os.close(destination_descriptor)
-        if temporary_created and temporary_name is not None:
-            try:
-                os.unlink(temporary_name, dir_fd=destination_parent_descriptor)
-            except FileNotFoundError:
-                pass
+        if temporary_name is not None:
+            _unlink_temporary_runtime_artifact(
+                destination_parent_descriptor, temporary_name
+            )
 
 
 def _unlink_unchanged_runtime_artifact(
