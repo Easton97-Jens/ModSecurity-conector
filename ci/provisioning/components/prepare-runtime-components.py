@@ -95,6 +95,7 @@ DEFAULT_NGINX_QUIC_TLS_SOURCE_SHA256 = (
 
 PATH_POLICY_ENV = dict(os.environ)
 FULL_GIT_COMMIT_ID = re.compile(r"[0-9a-fA-F]{40,64}")
+SAFE_RUNTIME_BUILD_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 
 # Bump this whenever the on-disk cache contract or the identity inputs change.
@@ -5282,11 +5283,10 @@ def connector_output_layout(connector: str, root: Path) -> dict[str, Any]:
     if connector == "haproxy":
         return {
             "build_root": str(root),
-            "output_paths": {
-                "binary": str(root / "haproxy-runtime/haproxy/sbin/haproxy"),
-                "module": str(root / "haproxy-spoa-runtime/haproxy-modsecurity-spoa"),
-                "config": str(root / "haproxy-modsecurity-binding/paths.env"),
-            },
+            # HAProxy's connector-cache entry owns identity/provenance and its
+            # manifest, not mutable runtime artifacts.  The invocation-local
+            # output paths are recorded after they are derived from BUILD_ROOT.
+            "output_paths": {},
         }
     return {}
 
@@ -7540,9 +7540,49 @@ def _prepare_nginx_runtime_for_plan(
     return finish_planned_connector_record(plan, record)
 
 
+def haproxy_runtime_build_key(plan: dict[str, Any]) -> str:
+    """Return one validated cache identity for the mutable runtime namespace."""
+    cache_key = plan.get("cache_key")
+    connector_build_id = plan.get("connector_build_id")
+    cache_identity = plan.get("cache_identity")
+    identity_key = cache_identity.get("cache_key") if isinstance(cache_identity, dict) else None
+    if not (
+        plan.get("connector") == "haproxy"
+        and isinstance(cache_key, str)
+        and cache_key
+        and connector_build_id == cache_key
+        and identity_key == cache_key
+    ):
+        raise RuntimeError("haproxy_source_build_key_mismatch")
+    if cache_key in {".", ".."} or not SAFE_RUNTIME_BUILD_KEY.fullmatch(cache_key):
+        raise RuntimeError("unsafe_haproxy_runtime_build_key")
+    identity_inputs = cache_identity.get("extra_inputs")
+    source_hash = plan.get("source_hash")
+    if not (
+        cache_identity.get("component") == "haproxy"
+        and cache_identity_is_self_consistent(cache_identity)
+        and isinstance(identity_inputs, dict)
+        and isinstance(source_hash, str)
+        and source_hash
+        and identity_inputs.get("connector_source_hash") == source_hash
+    ):
+        raise RuntimeError("haproxy_source_build_key_mismatch")
+    return cache_key
+
+
 def haproxy_runtime_context(plan: dict[str, Any], build_root: Path) -> dict[str, Any]:
-    root = Path(str(plan.get("build_root"))).resolve()
+    cache_key = haproxy_runtime_build_key(plan)
+    invocation_build_root = build_root.resolve()
+    cache_root = Path(str(plan.get("cache_root", ""))).resolve()
+    root = (
+        invocation_build_root / "runtime-components" / "haproxy" / cache_key
+    ).resolve()
+    if root == invocation_build_root or not is_within(root, invocation_build_root):
+        raise RuntimeError("haproxy_runtime_path_outside_build_root")
+    if paths_overlap(root, cache_root):
+        raise RuntimeError("haproxy_runtime_output_overlaps_component_cache")
     haproxy_runtime_build_dir = root / "haproxy-runtime-build"
+    haproxy_runtime_build_worktree = haproxy_runtime_build_dir / "worktree"
     haproxy_runtime_dir = root / "haproxy-runtime/haproxy"
     haproxy_bin = haproxy_runtime_dir / "sbin/haproxy"
     binding_dir = root / "haproxy-modsecurity-binding"
@@ -7551,14 +7591,17 @@ def haproxy_runtime_context(plan: dict[str, Any], build_root: Path) -> dict[str,
     paths_env = binding_dir / "paths.env"
     return {
         "root": root,
+        "build_root": invocation_build_root,
+        "cache_root": cache_root,
         "haproxy_runtime_build_dir": haproxy_runtime_build_dir,
+        "haproxy_runtime_build_worktree": haproxy_runtime_build_worktree,
         "haproxy_runtime_dir": haproxy_runtime_dir,
         "haproxy_bin": haproxy_bin,
         "binding_dir": binding_dir,
         "spoa_dir": spoa_dir,
         "spoa_bin": spoa_bin,
         "paths_env": paths_env,
-        "log_path": build_root / "logs/runtime-components/haproxy-build.log",
+        "log_path": root / "logs/haproxy-build.log",
     }
 
 
@@ -7614,14 +7657,30 @@ def haproxy_preflight_blocked(
     for path in (
         context["root"],
         context["haproxy_runtime_build_dir"],
+        context["haproxy_runtime_build_worktree"],
         context["haproxy_runtime_dir"],
+        context["haproxy_bin"],
         context["binding_dir"],
         context["spoa_dir"],
+        context["spoa_bin"],
+        context["paths_env"],
+        context["log_path"],
     ):
-        if is_system_path(path) or not is_within(path, cache_root):
+        if (
+            is_system_path(path)
+            or path == context["build_root"]
+            or not is_within(path, context["build_root"])
+        ):
             record.update(
                 status="blocked",
-                blocker_reason="system_path_write_forbidden",
+                blocker_reason="haproxy_runtime_path_outside_build_root",
+                blocked_path=str(path),
+            )
+            return True
+        if paths_overlap(path, cache_root):
+            record.update(
+                status="blocked",
+                blocker_reason="haproxy_runtime_output_overlaps_component_cache",
                 blocked_path=str(path),
             )
             return True
@@ -7630,39 +7689,75 @@ def haproxy_preflight_blocked(
 
 def reconcile_haproxy_cached_entry(
     plan: dict[str, Any],
-    cache_root: Path,
     context: dict[str, Any],
     record: dict[str, Any],
 ) -> str:
     root = context["root"]
-    if not root.exists() or connector_manifest_ready(plan):
+    if not root.exists() or haproxy_cached_entry_reusable(plan, context):
         return ""
     try:
-        safe_remove_dir(root, cache_root)
+        safe_remove_dir(root, context["build_root"])
     except RuntimeError as exc:
         return str(exc)
-    record["invalidation_reason"] = "missing_or_incomplete_connector_manifest"
+    record["invalidation_reason"] = "missing_or_incomplete_haproxy_runtime"
     return ""
 
 
 def haproxy_cached_entry_reusable(plan: dict[str, Any], context: dict[str, Any]) -> bool:
     return (
-        executable(context["haproxy_bin"])
+        cache_root_marker_valid(Path(context["build_root"]))
+        and cache_entry_marker_valid(Path(context["root"]), Path(context["build_root"]))
+        and executable(context["haproxy_bin"])
         and executable(context["spoa_bin"])
         and context["paths_env"].is_file()
         and connector_manifest_ready(plan)
     )
 
 
-def claim_haproxy_cache_entry(plan: dict[str, Any], cache_root: Path, root: Path) -> str:
+def claim_haproxy_cache_entry(plan: dict[str, Any], cache_root: Path) -> str:
     try:
         mark_managed_cache_entry(
-            root,
+            Path(str(plan["root"])),
             cache_root,
             component="connector:haproxy",
             cache_key=str(plan.get("cache_key", plan.get("connector_build_id", ""))),
         )
     except RuntimeError as exc:
+        return str(exc)
+    return ""
+
+
+def claim_haproxy_runtime_entry(plan: dict[str, Any], context: dict[str, Any]) -> str:
+    """Pre-claim and create the invocation-local runtime tree fail closed.
+
+    A later incomplete build may remove only a registered child of its
+    invocation build root.  Registering the deterministic, verified path
+    before a non-idempotent create preserves that cleanup authority across
+    interruption and rejects a directory that appeared concurrently.
+    """
+    try:
+        build_root = ensure_managed_cache_root(Path(context["build_root"]))
+        root = Path(context["root"])
+        marker_path = cache_entry_marker_path(root, build_root)
+        mark_managed_cache_entry(
+            root,
+            build_root,
+            component="runtime:haproxy",
+            cache_key=haproxy_runtime_build_key(plan),
+        )
+        try:
+            root.mkdir(parents=True)
+        except FileExistsError:
+            marker_path.unlink(missing_ok=True)
+            return f"haproxy_runtime_root_already_exists: {root}"
+        if (
+            root.is_symlink()
+            or not root.is_dir()
+            or not cache_entry_marker_valid(root, build_root)
+        ):
+            marker_path.unlink(missing_ok=True)
+            return f"haproxy_runtime_root_invalid_after_claim: {root}"
+    except (OSError, RuntimeError) as exc:
         return str(exc)
     return ""
 
@@ -7683,16 +7778,16 @@ def haproxy_prepare_environment(
         CONNECTOR_ROOT=str(connector_root),
         CONNECTOR_COMPONENT_CACHE=str(cache_root),
         SOURCE_ROOT=str(sources_root),
-        BUILD_ROOT=str(context["root"]),
+        BUILD_ROOT=str(context["build_root"]),
         TMP_ROOT=str(context["root"] / "tmp"),
-        LOG_ROOT=str(build_root / "logs"),
+        LOG_ROOT=str(context["root"] / "logs"),
         HAPROXY_SOURCE_ROOT=str(sources_root / "haproxy"),
         HAPROXY_DOWNLOAD_DIR=str(archives_root / "haproxy"),
         HAPROXY_SOURCE_DIR=str(
             sources_root / "haproxy" / f"haproxy-{env.get('HAPROXY_VERSION', '3.2.19')}"
         ),
         HAPROXY_RUNTIME_BUILD_DIR=str(context["haproxy_runtime_build_dir"]),
-        HAPROXY_RUNTIME_BUILD_WORKTREE=str(context["haproxy_runtime_build_dir"] / "worktree"),
+        HAPROXY_RUNTIME_BUILD_WORKTREE=str(context["haproxy_runtime_build_worktree"]),
         HAPROXY_RUNTIME_DIR=str(context["haproxy_runtime_dir"]),
         HAPROXY_BIN=str(context["haproxy_bin"]),
         REFRESH="0",
@@ -7780,6 +7875,17 @@ def prepare_haproxy_runtime(
     plan: dict[str, Any],
     _transactional: bool = False,
 ) -> dict[str, Any]:
+    try:
+        haproxy_runtime_build_key(plan)
+    except RuntimeError as exc:
+        return {
+            "connector": "haproxy",
+            "connector_build_id": plan.get("connector_build_id", ""),
+            "cache_key": plan.get("cache_key", ""),
+            "modsecurity_build_id": modsecurity.get("build_id", ""),
+            "status": "blocked",
+            "blocker_reason": str(exc),
+        }
     if plan.get("root") and not _transactional:
         return prepare_connector_transactionally(
             "haproxy",
@@ -7802,18 +7908,21 @@ def prepare_haproxy_runtime(
     record = haproxy_runtime_record(plan, modsecurity, context)
     if haproxy_preflight_blocked(record, modsecurity, cache_root, context):
         return write_haproxy_record(plan, record)
-    cache_blocker = reconcile_haproxy_cached_entry(plan, cache_root, context, record)
+    cache_blocker = reconcile_haproxy_cached_entry(plan, context, record)
     if cache_blocker:
         record.update(status="blocked", blocker_reason=cache_blocker)
         return write_haproxy_record(plan, record)
     if haproxy_cached_entry_reusable(plan, context):
         record.update(status="reused", tree=tree_manifest(context["root"]))
         return write_haproxy_record(plan, record)
-    claim_error = claim_haproxy_cache_entry(plan, cache_root, context["root"])
+    claim_error = claim_haproxy_cache_entry(plan, cache_root)
     if claim_error:
         record.update(status="blocked", blocker_reason=claim_error)
         return write_haproxy_record(plan, record)
-    context["root"].mkdir(parents=True, exist_ok=True)
+    runtime_claim_error = claim_haproxy_runtime_entry(plan, context)
+    if runtime_claim_error:
+        record.update(status="blocked", blocker_reason=runtime_claim_error)
+        return write_haproxy_record(plan, record)
     prep_env = haproxy_prepare_environment(
         env,
         connector_root,

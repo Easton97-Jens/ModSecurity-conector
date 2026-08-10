@@ -11,6 +11,17 @@ ausgewählte Dokumentation ist auf die sechs HTTP/1.1-Kernpfade begrenzt und
 behauptet keine Produktionsreife, kein CRS, keine vollständige Matrix, kein
 HTTP/2, kein HTTP/3 und kein Strict-Verhalten für alle Connectoren.
 
+Die allgemeinen Make-Targets in diesem Leitfaden behalten ihren
+Sechs-Connector-Scope. Der zeitgesteuerte/manuelle Workflow
+<code>all-connectors-no-crs.yml</code> ist enger: Sein geschlossenes Profil
+<code>no-crs</code> führt nur Apache, HAProxy, Envoy, Traefik und lighttpd aus.
+Es weist unbekannte Profile und Zeilen außerhalb dieser Zuordnung ab; NGINX ist
+kein Ergebnis dieses Workflows. Das Profile-Aggregate validiert je ein
+gebundenes Ergebnis und einen Receipt pro ausgewähltem Connector, einschließlich
+Run-/Commit-Identität und Cleanup-Status. Diese Validierung ist kein Nachweis
+eines bestandenen gehosteten Runtime-Laufs und liefert keine CRS-, MRTS-,
+HTTP/2-, HTTP/3-, Full-Matrix- oder Produktions-Claims.
+
 ## Testebenen
 
 | Ebene | Typisches Target | Belegt | Belegt nicht |

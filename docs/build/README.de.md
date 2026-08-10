@@ -104,8 +104,9 @@ dasselbe explizite <code>3.14.6</code>-Setup und dieselbe
 
 | Workflow | Job | Python-Ausführungskette | Baseline-Zustand |
 | --- | --- | --- | --- |
-| `all-connectors-no-crs.yml` | `no-crs` | Direktes `python3`, Framework-Skripte und Python-gestützte Make-Targets | Vorhandenes Minor-only-Setup |
-| `all-connectors-no-crs.yml` | `aggregate` | Direkte `python3`-Validierung und -Zusammenfassung | Ambientes oder Bootstrap-Python |
+| `reusable-five-connectors-profile.yml` | `resolve-profile` | Gesperrtes `actions/setup-python`, Interpreter-Contract-Validierung, dann `python3 ci/runtime/lifecycle/five-connector-no-crs-profile.py --emit-github-matrix` | Explizites `.python-version`-Setup |
+| `reusable-five-connectors-profile.yml` | `no-crs` | Gesperrtes `actions/setup-python`, Interpreter-Contract-Validierung, dann Profilvalidierung und Python-gestützte Framework-/Make-Lifecycle-Targets | Explizites `.python-version`-Setup |
+| `reusable-five-connectors-profile.yml` | `aggregate` | Gesperrtes `actions/setup-python`, Interpreter-Contract-Validierung, dann `python3`-Evidence-Validierung und Fünf-Ergebnis-Aggregation | Explizites `.python-version`-Setup |
 | `check-actions-versions.yml` | `check-actions-versions` | `python3 scripts/check-github-actions-versions.py` | Vorhandenes Minor-only-Setup |
 | `ci-security-secrets.yml` | `pull-request-range` | `python3 ci/tools/fetch_security_tool.py` | Ambientes oder Bootstrap-Python |
 | `ci-security-secrets.yml` | `advisory-full-history` | `python3 ci/tools/fetch_security_tool.py` | Ambientes oder Bootstrap-Python |
@@ -458,6 +459,49 @@ Fortgeschrittene Source-/Provenance-Werte wie <code>HAPROXY_SOURCE_URL</code>,
 Revisionen, Checksums und Source-Pfade ändern die Provisionierungsidentität und
 können Rebuilds auslösen. Sie ändern keine Connector-Capability und promoten
 kein Ergebnis.
+
+### Layout der Fünf-Connector-No-CRS-Baseline
+
+Der sichtbare Aufrufer <code>all-connectors-no-crs.yml</code> ist auf seinen
+Zeitplan oder einen repository-autorisierten manuellen Dispatch begrenzt. Er
+übergibt ausschließlich die fest verdrahtete Eingabe <code>no-crs</code> an
+<code>reusable-five-connectors-profile.yml</code>. Beide Workflows verwenden
+nur lesende Repository-Berechtigungen und haben keinen Pull-Request-Trigger.
+
+Das wiederverwendbare Profil besitzt genau eine geschlossene, autoritative
+Connector-Zuordnung: Apache, HAProxy, Envoy, Traefik und lighttpd. Ein
+Profilwert oder eine Connector-Zeile außerhalb dieser Zuordnung wird
+abgewiesen, bevor Profilevidence entstehen kann. NGINX ist nicht Teil dieser
+Baseline und dieser Workflow behauptet kein NGINX-Ergebnis. Jede Ausführung
+verwendet private gleichrangige Roots <code>build</code>, <code>evidence</code>,
+<code>runs</code>, <code>run-logs</code> und <code>cache-v2</code> unter
+<code>$RUNNER_TEMP/ModSecurity-conector-verified</code>. Veränderbare Build-,
+Cache- und Log-Daten liegen deshalb außerhalb des kanonischen Evidence-Roots.
+
+Für jeden ausgewählten Connector zeichnet der Finalizer sein vorhandenes
+begrenztes Ergebnis und einen Profile-Receipt auf, der an Profil, Connector,
+Run-ID, Parent-Commit, Framework-Commit und den Cleanup-Status gebunden ist.
+Das Aggregate akzeptiert genau ein gültiges Ergebnis und einen Receipt für
+jeden der fünf Namen. Dies ist ein Evidence-Vertrag, keine Aussage, dass ein
+gehosteter Runtime-Lauf bestanden hat.
+
+#### Capability-Audit und Erweiterungsvertrag für zukünftige Profile
+
+Das Profil <code>no-crs</code> wählt die vorhandenen HTTP/1.1-Routen und ihre
+deklarierten Integrations-/Phase-4-Grenzen: Apache
+<code>native-httpd-module</code>, HAProxy <code>spoe-spop-agent</code>, Envoy
+<code>http-ext-authz-service</code>, Traefik
+<code>http-forwardauth-service</code> und lighttpd
+<code>native-lighttpd-plugin</code>. Diese Auswahl behauptet weder CRS noch
+MRTS, Produktionsreife, eine vollständige Connector-Matrix, HTTP/2, HTTP/3
+oder nicht beobachtetes Response-Verhalten.
+
+Ein zukünftiges Profil muss eine explizite geschlossene Zuordnung und passende
+Validierung für Connector-Menge, Capability-Felder, Receipt-Schema,
+Aggregations-Erwartungen, Tests und englische/deutsche Dokumentation ergänzen.
+Es muss für unbekannte Profile und nicht unterstützte Zeilen geschlossen
+fehlschlagen. Es kann nicht allein durch Wiederverwendung dieses No-CRS-
+Workflows CRS-, MRTS- oder Full-Lifecycle-Abdeckung erhalten.
 
 ## Ausgewählte Build-Routen
 

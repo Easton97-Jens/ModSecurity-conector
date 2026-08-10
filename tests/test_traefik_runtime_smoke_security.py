@@ -178,3 +178,29 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
             replaceable.chmod(0o777)
             with self.assertRaisesRegex(RUNNER.MissingDependency, "must not be group or world writable"):
                 RUNNER.require_private_result_root(replaceable / "result", build_root)
+
+    def test_canonical_lifecycle_keeps_traefik_results_below_the_stage_build_root(self) -> None:
+        lifecycle = (ROOT / "ci" / "runtime" / "lifecycle" / "run-no-crs-baseline.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("TRAEFIK_RUNTIME_ROOT=$STAGE_BUILD_ROOT/traefik-runtime", lifecycle)
+        self.assertNotIn("TRAEFIK_RUNTIME_ROOT=$CONNECTOR_RUN_ROOT/traefik-runtime", lifecycle)
+
+    def test_no_crs_consumer_uses_the_canonical_parent_lifecycle_path(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="traefik-no-crs-consumer-") as temporary:
+            repo_root = Path(temporary) / "checkout"
+            consumer = (
+                repo_root
+                / "ci"
+                / "runtime"
+                / "lifecycle"
+                / "consume-no-crs-selected-cases.sh"
+            )
+            self.make_executable(consumer)
+            with mock.patch.dict(os.environ, {"MSCONNECTOR_NO_CRS_BASELINE": "1"}, clear=False):
+                RUNNER.consume_no_crs_selected_cases(repo_root)
+
+    def test_no_crs_consumer_is_not_required_for_non_baseline_runtime_smoke(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="traefik-no-crs-control-") as temporary:
+            with mock.patch.dict(os.environ, {"MSCONNECTOR_NO_CRS_BASELINE": ""}, clear=False):
+                RUNNER.consume_no_crs_selected_cases(Path(temporary) / "checkout")
