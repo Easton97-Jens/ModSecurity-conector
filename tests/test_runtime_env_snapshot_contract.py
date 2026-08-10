@@ -232,6 +232,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 (binary, "#!/bin/sh\nexit 0\n", 0o755),
                 (module, "module\n", 0o644),
                 (prefix / "lib" / components.MODSECURITY_LIBRARY_FILENAME, "library\n", 0o644),
+                (prefix / "lib" / components.MODSECURITY_RUNTIME_LIBRARY_FILENAME, "runtime library\n", 0o644),
                 (prefix / "include" / "modsecurity" / "modsecurity.h", "header\n", 0o644),
             ):
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -303,6 +304,11 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             self.assertEqual(record["nginx"]["binary"]["path"], str(binary))
             self.assertEqual(record["nginx"]["module"]["path"], str(module))
             self.assertEqual(record["modsecurity"]["prefix"], str(prefix))
+            self.assertEqual(
+                record["modsecurity"]["library"]["path"],
+                str(prefix / "lib" / components.MODSECURITY_RUNTIME_LIBRARY_FILENAME),
+            )
+            self.assertFalse(Path(record["modsecurity"]["library"]["path"]).is_symlink())
             self.assertIsInstance(record["nginx"]["binary"]["mode"], int)
             self.assertEqual(provenance_path.stat().st_mode & 0o777, 0o600)
             unsigned = json.loads(json.dumps(record))

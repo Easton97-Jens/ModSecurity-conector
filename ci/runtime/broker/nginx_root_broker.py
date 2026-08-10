@@ -25,6 +25,7 @@ import os
 from pathlib import Path, PurePosixPath
 import pwd
 import re
+import selectors
 import signal
 import socket
 import stat
@@ -103,7 +104,16 @@ PROVENANCE_NGINX_ROOT_LABEL = "provenance nginx root"
 PROVENANCE_MODSECURITY_PREFIX_LABEL = "provenance ModSecurity prefix"
 ARTIFACT_BINARY_NAME = "nginx"
 ARTIFACT_MODULE_NAME = "ngx_http_modsecurity_module.so"
-ARTIFACT_LIBRARY_NAME = "libmodsecurity.so"
+# This is the ELF SONAME emitted by the reviewed ModSecurity build.  The
+# unversioned name is a linker convenience and must never cross the protected
+# producer/root boundary: it is normally a libtool symlink.
+ARTIFACT_LIBRARY_NAME = "libmodsecurity.so.3"
+READELF_EXECUTABLE = "/usr/bin/readelf"
+MAX_READELF_OUTPUT_BYTES = 256 * 1024
+READELF_TIMEOUT_SECONDS = 5.0
+FORBIDDEN_DYNAMIC_LOADER_TAGS = frozenset(
+    {"RPATH", "RUNPATH", "AUDIT", "DEPAUDIT", "FILTER", "AUXILIARY"}
+)
 BROKER_RULES_FILENAME = "broker-rules.conf"
 BROKER_CONFIG_FILENAME = "nginx.conf"
 CRS_BUNDLE_DIRECTORY_NAME = "crs-bundle"
@@ -1347,6 +1357,155 @@ def _validated_modsecurity_provenance_section(
     return prefix, library
 
 
+def _bounded_readelf_stdout(
+    process: subprocess.Popen[bytes], deadline: float
+) -> bytes:
+    """Read at most one byte beyond the limit without defeating the deadline."""
+
+    assert process.stdout is not None
+    output = bytearray()
+    with selectors.SelectSelector() as selector:
+        selector.register(process.stdout, selectors.EVENT_READ)
+        while len(output) <= MAX_READELF_OUTPUT_BYTES:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not selector.select(remaining):
+                raise subprocess.TimeoutExpired(process.args, READELF_TIMEOUT_SECONDS)
+            chunk = os.read(
+                process.stdout.fileno(),
+                min(64 * 1024, MAX_READELF_OUTPUT_BYTES + 1 - len(output)),
+            )
+            if not chunk:
+                break
+            output.extend(chunk)
+    return bytes(output)
+
+
+def _stop_readelf_process(process: subprocess.Popen[bytes]) -> None:
+    """Best-effort bounded cleanup after a failed inspection."""
+
+    try:
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=1)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def dynamic_section_address_remainder(line: str) -> str | None:
+    """Return the text after a valid conventional ``readelf`` address."""
+
+    fields = line.split(maxsplit=1)
+    if len(fields) != 2:
+        return None
+    address, remainder = fields
+    if (
+        not address.startswith("0x")
+        or len(address) == 2
+        or not all(character in "0123456789abcdefABCDEF" for character in address[2:])
+    ):
+        return None
+    return remainder
+
+
+def dynamic_section_tag_value(remainder: str) -> tuple[str, str] | None:
+    """Return a conventional dynamic-section tag and its trailing value."""
+
+    tag, closing, value = remainder.partition(")")
+    if (
+        not closing
+        or not tag.startswith("(")
+        or len(tag) == 1
+        or not all(
+            "A" <= character <= "Z" or "0" <= character <= "9" or character == "_"
+            for character in tag[1:]
+        )
+        or not value
+        or not value[0].isspace()
+    ):
+        return None
+    return tag[1:], value.lstrip()
+
+
+def dynamic_section_entry(line: str) -> tuple[str, str] | None:
+    """Parse one conventional ``readelf -d`` entry without regex backtracking."""
+
+    remainder = dynamic_section_address_remainder(line)
+    if remainder is None:
+        return None
+    return dynamic_section_tag_value(remainder)
+
+
+def _reject_dynamic_loader_redirection(dynamic: str, label: str) -> None:
+    """Reject dynamic tags that can select a path outside broker admission."""
+
+    for line in dynamic.splitlines():
+        entry = dynamic_section_entry(line)
+        if entry is None:
+            continue
+        tag, value = entry
+        if tag in {"RPATH", "RUNPATH"}:
+            fail(f"{label} must not contain DT_RPATH or DT_RUNPATH")
+        if tag in FORBIDDEN_DYNAMIC_LOADER_TAGS:
+            fail(f"{label} must not contain DT_{tag}")
+        if tag == "NEEDED":
+            needed = re.search(r"\[([^]\r\n]*)\]", value)
+            if needed is None:
+                fail(f"unable to interpret {label} DT_NEEDED entry")
+            if "/" in needed.group(1):
+                fail(f"{label} DT_NEEDED must use a slash-free shared-library name")
+
+
+def reject_dynamic_search_paths(artifact: Path, label: str) -> None:
+    """Reject an ELF artifact that could redirect the root dynamic loader.
+
+    This intentionally runs before candidate creation and uses one fixed,
+    absolute inspection tool.  A failure to inspect is a failure to admit.
+    """
+    process: subprocess.Popen[bytes] | None = None
+    try:
+        process = subprocess.Popen(
+            [READELF_EXECUTABLE, "-d", str(artifact)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env={"PATH": "", "LANG": "C", "LC_ALL": "C"},
+        )
+        deadline = time.monotonic() + READELF_TIMEOUT_SECONDS
+        dynamic_bytes = _bounded_readelf_stdout(process, deadline)
+        if len(dynamic_bytes) > MAX_READELF_OUTPUT_BYTES:
+            _stop_readelf_process(process)
+            fail(f"{label} dynamic-section output exceeds its bound")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(process.args, READELF_TIMEOUT_SECONDS)
+        if process.wait(timeout=remaining) != 0:
+            fail(f"unable to inspect {label} dynamic section")
+    except subprocess.TimeoutExpired:
+        if process is not None:
+            _stop_readelf_process(process)
+        fail(f"unable to inspect {label} dynamic section: timed out")
+    except (OSError, subprocess.SubprocessError) as exc:
+        if process is not None:
+            _stop_readelf_process(process)
+        fail(f"unable to inspect {label} dynamic section: {exc}")
+    finally:
+        if process is not None and process.stdout is not None:
+            process.stdout.close()
+    try:
+        dynamic = dynamic_bytes.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        fail(f"{label} dynamic-section output is not UTF-8: {exc}")
+    _reject_dynamic_loader_redirection(dynamic, label)
+
+
+def validated_artifact_for_dynamic_inspection(artifact: Path, label: str, trusted_build_root: Path) -> Path:
+    source = normalized_absolute(artifact, f"{label} source")
+    if not is_within(source, trusted_build_root):
+        fail(f"{label} source must be inside the {TRUSTED_BUILD_ROOT_LABEL}")
+    regular_metadata(source, f"{label} source", owner=os.geteuid())
+    return source
+
+
 def trusted_nginx_broker_provenance(
     trusted_build_root: Path,
     arguments: argparse.Namespace,
@@ -2386,6 +2545,16 @@ def prepare_candidate(arguments: argparse.Namespace) -> Path:
     validate_caller_bindings(arguments, caller, broker_sha)
     worker = validated_worker(arguments)
     trusted_build_root = trusted_build_root_from_arguments(arguments)
+    reject_dynamic_search_paths(
+        validated_artifact_for_dynamic_inspection(Path(arguments.module), "NGINX module", trusted_build_root),
+        "NGINX module",
+    )
+    reject_dynamic_search_paths(
+        validated_artifact_for_dynamic_inspection(
+            Path(arguments.modsecurity_library), "ModSecurity shared library", trusted_build_root
+        ),
+        "ModSecurity shared library",
+    )
     staging_root, layout = create_candidate_staging(trusted_build_root)
     records = copy_candidate_artifacts(arguments, layout, trusted_build_root)
     crs: dict[str, Any] | None = None
@@ -2422,10 +2591,7 @@ def shared_library_from_snapshot(values: dict[str, str], trusted_build_root: Pat
     if not is_within(library_root, trusted_build_root):
         fail("ModSecurity shared prefix is outside the trusted build root")
     directory_metadata(library_root, "ModSecurity shared library root", owner=os.geteuid())
-    candidates = sorted(library_root.glob("libmodsecurity.so.*"))
-    if len(candidates) != 1:
-        fail("trusted build must provide exactly one non-symlink ModSecurity shared library")
-    library = normalized_absolute(candidates[0], TRUSTED_MODSECURITY_LIBRARY_LABEL)
+    library = normalized_absolute(library_root / ARTIFACT_LIBRARY_NAME, TRUSTED_MODSECURITY_LIBRARY_LABEL)
     regular_metadata(library, TRUSTED_MODSECURITY_LIBRARY_LABEL, owner=os.geteuid())
     return library
 
