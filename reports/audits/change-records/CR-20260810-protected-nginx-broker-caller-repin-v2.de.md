@@ -76,11 +76,11 @@ Jedes PR-spezifische Review-, Branch-Protection-, CodeQL-, SonarQube-Cloud- oder
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Der resultierende-master-Lifecycle, Root-Admission, NGINX-Start, Worker-Proof, CRS-Netzwerk-Fetch, Audit-Evidence, Artefakttransport, Evidence-Readback und Cleanup sind keine lokalen Prüfungen. Sie benötigen den späteren geschützten GitHub-hosted-Workflow nach einem separaten Exact-Head-PR und Master-Integration. Hosted GitHub Actions, CodeQL, SonarQube Cloud, Review- und Branch-Protection-Evidence sind ebenfalls erst verfügbar, wenn dieser Draft PR existiert.
+Der resultierende-master-Lifecycle, Root-Admission, NGINX-Start, Worker-Proof, CRS-Netzwerk-Fetch, Audit-Evidence, Artefakttransport, Evidence-Readback und Cleanup sind keine lokalen Prüfungen. Sie benötigen den späteren geschützten GitHub-hosted-Workflow nach Exact-Head-PR-Validierung und Master-Integration. Hosted GitHub Actions, CodeQL, SonarQube Cloud, Review- und Branch-Protection-Evidence bleiben für den finalen PR-Head unbestätigt.
 
 ## Finaler Review-Status
 
-Dieser Record hält die lokale Pre-Commit-Validierung fest. Bilinguale Dokumentations-, Link- und Whitespace-Checks nach diesem Record bestanden. Committed-Blob-Validierung und der separate Parent-PR-Lifecycle sind Delivery-Gates; es wird keine Delivery-Behauptung getroffen.
+Dieser Record hält die lokale Pre-Commit-Validierung und die anfängliche normale Veröffentlichung fest. Der Draft-Parent-PR [#270](https://github.com/Easton97-Jens/ModSecurity-conector/pull/270) wurde von `fix/ci-repin-nginx-broker-runtime-snapshot` nach `master` mit initialem Head `5e290bb228a47331a53038da258970b6d792ed2f` eröffnet; er ist nicht review-bereit und hat keinen Auto-Merge-Request. Die Committed-Blob-Validierung bestand; Hosted Exact-Head-, Review-, Branch-Protection-, Merge- und Lifecycle-Evidence bleiben Delivery-Gates. Dafür wird keine Erfolgsbehauptung getroffen.
 
 ## Finaler Diff- und Review-Status
 

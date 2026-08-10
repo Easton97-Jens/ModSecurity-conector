@@ -76,11 +76,11 @@ Any PR-specific review, branch-protection, CodeQL, SonarQube Cloud, or resulting
 
 ## Checks not run and rationale
 
-The resulting-master lifecycle, root admission, NGINX start, worker proof, CRS network fetch, audit evidence, artifact transport, evidence readback, and cleanup are not local checks. They require the later protected GitHub-hosted workflow after a separate exact-head PR and master integration. Hosted GitHub Actions, CodeQL, SonarQube Cloud, review, and branch-protection evidence are likewise unavailable until that Draft PR exists.
+The resulting-master lifecycle, root admission, NGINX start, worker proof, CRS network fetch, audit evidence, artifact transport, evidence readback, and cleanup are not local checks. They require the later protected GitHub-hosted workflow after exact-head PR verification and master integration. Hosted GitHub Actions, CodeQL, SonarQube Cloud, review, and branch-protection evidence remain unverified for the final PR head.
 
 ## Final review status
 
-This record captures pre-commit local validation. Post-record bilingual documentation, link, and whitespace checks passed. Committed-blob validation and the separate Parent PR lifecycle are delivery gates; no delivery claim is made.
+This record captures pre-commit local validation and the initial normal publication. Draft Parent PR [#270](https://github.com/Easton97-Jens/ModSecurity-conector/pull/270) was opened from `fix/ci-repin-nginx-broker-runtime-snapshot` to `master` at initial head `5e290bb228a47331a53038da258970b6d792ed2f`; it is not ready for review and has no auto-merge request. Committed-blob validation passed; hosted exact-head, review, branch-protection, merge, and lifecycle evidence remain delivery gates. No success claim is made for them.
 
 ## Final diff and review status
 
