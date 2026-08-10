@@ -199,6 +199,34 @@ revision independently cross-checks this reviewed tuple:
 | Commit | `55b09f5acfd16413e7b31041100711ceb7adc89c` |
 | Expected CRS block rule | `949110` |
 
+### ABI loader contract for the next broker revision
+
+The ordinary ModSecurity prefix may retain Libtool's unversioned linker alias
+`libmodsecurity.so`, but that alias is normally a symlink and is not a trusted
+runtime artifact. The next immutable broker revision resolves the Libtool
+aliases descriptor-relatively and requires each expected alias to contain a
+direct basename target. Both aliases must resolve to the same regular terminal
+object. The regular `prefix/lib/libmodsecurity.so.3` protected copy is created
+from the descriptor tied to that validated terminal, so a nested-symlink
+escape or replacement cannot redirect the copy. The producer provenance,
+candidate manifest, root-owned artifact directory, and `LD_LIBRARY_PATH` then
+all bind that ABI SONAME name. No symlink is admitted at the protected
+producer, candidate, or root boundary.
+
+For this protected build only, the fixed workflow value
+`NGX_IGNORE_RPATH=YES` prevents the explicitly supplied ModSecurity library
+directory from becoming an NGINX-module dynamic search path. Before candidate
+creation, the broker inspects both the verified module and the verified
+`libmodsecurity.so.3` with the fixed absolute tool `/usr/bin/readelf` and an
+empty `PATH`, bounded output, and a real bounded deadline. For either ELF,
+`DT_RPATH`, `DT_RUNPATH`, a slash-bearing `DT_NEEDED`, or any `DT_AUDIT`,
+`DT_DEPAUDIT`, `DT_FILTER`, or `DT_AUXILIARY` entry blocks admission, as does a
+failed or non-text inspection. This inspection is unprivileged and completes
+before candidate creation and every root action. These checks are part of the
+pending broker repair, not evidence that the currently pinned caller has
+completed a runtime lifecycle. A separate immutable caller repin and a new
+protected-master run remain required.
+
 The bundle manifest binds the tuple, Framework gitlink, broker commit,
 creation time, sorted allowed-file records, file count, and aggregate digest.
 Only `crs-setup.conf.example`, `rules/*.conf`, and the closed plugin-config
@@ -275,11 +303,15 @@ evidence readback did not succeed; it cannot turn a failed broker job green.
 Local focused tests cover schema/profile rejection, provenance, bundle path and
 file safety, fixed root-generated configuration, stale/missing audit evidence,
 IPv6 loopback handling, workflow pins/context, bounded evidence staging, and
-descriptor-relative cleanup. A protected-master hosted invocation remains
-required to prove GitHub reusable-workflow context semantics, a real root
-master/non-root worker, real CRS execution, audit output, listener release,
-and final uploaded cleanup evidence. This document is a security contract, not
-that runtime evidence.
+descriptor-relative cleanup. After the initial loader repair, 83 focused tests
+passed. After the expanded security remediation, a later broker/CRS suite
+passed 43 tests, the focused remediation passed 2 tests, and the producer
+focused matrix passed 5 tests. The full owning cache module passed 38 tests and
+had one known isolated-worktree fixture error. These are local source/static
+results. A protected-master hosted invocation remains required to prove GitHub
+reusable-workflow context semantics, a real root master/non-root worker, real
+CRS execution, audit output, listener release, and final uploaded cleanup
+evidence. This document is a security contract, not that runtime evidence.
 
 PR #240 remains blocked until this caller has been normally merged, dispatched
 from resulting protected `master`, and observed to pass both `no-crs` and

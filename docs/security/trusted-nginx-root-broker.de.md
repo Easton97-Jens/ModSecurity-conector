@@ -215,6 +215,38 @@ Framework-Gitlinks. Die Broker-Revision prüft dieses geprüfte Tupel unabhängi
 | Commit | `55b09f5acfd16413e7b31041100711ceb7adc89c` |
 | Erwartete CRS-Blockregel | `949110` |
 
+### ABI-Loader-Vertrag für die nächste Broker-Revision
+
+Das gewöhnliche ModSecurity-Präfix darf Libtools unversionierten Linker-Alias
+`libmodsecurity.so` behalten, aber dieser Alias ist üblicherweise ein Symlink
+und kein vertrauenswürdiges Runtime-Artefakt. Die nächste unveränderliche
+Broker-Revision löst die Libtool-Aliasse descriptor-relativ auf und fordert,
+dass jeder erwartete Alias ein direktes Basename-Ziel enthält. Beide Aliasse
+müssen sich auf dasselbe reguläre Terminalobjekt auflösen. Die geschützte
+reguläre Kopie `prefix/lib/libmodsecurity.so.3` wird über den an dieses
+validierte Terminal gebundenen Deskriptor erzeugt, sodass weder ein
+Nested-Symlink-Escape noch ein Austausch die Kopie umleiten kann.
+Producer-Provenance, Candidate-Manifest, root-owned Artefaktverzeichnis und
+`LD_LIBRARY_PATH` binden anschließend alle diesen ABI-SONAME-Namen. An der
+geschützten Producer-, Candidate- oder Root-Grenze wird kein Symlink
+zugelassen.
+
+Nur für diesen geschützten Build verhindert der feste Workflow-Wert
+`NGX_IGNORE_RPATH=YES`, dass das explizit angegebene ModSecurity-
+Library-Verzeichnis zu einem dynamischen Suchpfad des NGINX-Moduls wird. Vor
+der Candidate-Erstellung untersucht der Broker sowohl das geprüfte Modul als
+auch `libmodsecurity.so.3` mit dem festen absoluten Tool `/usr/bin/readelf`
+und leerem `PATH`, begrenzter Ausgabe sowie einer realen begrenzten Deadline.
+Für jedes der beiden ELFs blockieren `DT_RPATH`, `DT_RUNPATH`, ein Slash
+enthaltendes `DT_NEEDED` oder jeder Eintrag `DT_AUDIT`, `DT_DEPAUDIT`,
+`DT_FILTER` beziehungsweise `DT_AUXILIARY` die Admission; dasselbe gilt für
+eine fehlgeschlagene Untersuchung oder Nicht-Text-Ausgabe. Diese Untersuchung
+läuft unprivilegiert und endet vor der Candidate-Erstellung sowie jeder
+Root-Aktion. Diese Prüfungen sind Teil der ausstehenden Broker-Reparatur und
+kein Nachweis, dass der aktuell gepinnte Caller einen Runtime-Lifecycle
+abgeschlossen hat. Ein separater unveränderlicher Caller-Repin und ein neuer
+Protected-master-Lauf bleiben erforderlich.
+
 Das Bundle-Manifest bindet das Tupel, den Framework-Gitlink, den
 Broker-Commit, Erzeugungszeitpunkt, sortierte erlaubte Dateirecords,
 Dateianzahl und Gesamtdigest. Nur `crs-setup.conf.example`, `rules/*.conf`
@@ -299,12 +331,17 @@ grün überdecken.
 Lokale fokussierte Tests decken Schema-/Profil-Ablehnung, Provenance,
 Bundle-Pfad- und Dateisicherheit, feste root-generierte Konfiguration,
 stale/fehlende Audit-Evidence, IPv6-Loopback, Workflow-Pins/-Kontext,
-begrenztes Evidence-Staging und descriptor-relativen Cleanup ab. Ein
-Protected-master-Hosted-Aufruf bleibt erforderlich, um GitHub-
-Reusable-Workflow-Kontextsemantik, einen realen Root-Master/Nicht-root-Worker,
-reale CRS-Ausführung, Audit-Ausgabe, Listener-Freigabe und die endgültig
-hochgeladene Cleanup-Evidence zu beweisen. Dieses Dokument ist ein
-Sicherheitsvertrag, nicht diese Runtime-Evidence.
+begrenztes Evidence-Staging und descriptor-relativen Cleanup ab. Nach der
+anfänglichen Loader-Reparatur bestanden 83 fokussierte Tests. Nach der
+erweiterten Security-Remediation bestand eine spätere Broker-/CRS-Suite 43
+Tests, die fokussierte Remediation bestand 2 Tests und die fokussierte
+Producer-Matrix bestand 5 Tests. Das vollständige owning Cache-Modul bestand
+38 Tests und hatte einen bekannten Isolated-Worktree-Fixture-Fehler. Dies sind
+lokale Source-/Static-Ergebnisse. Ein Protected-master-Hosted-Aufruf bleibt
+erforderlich, um GitHub-Reusable-Workflow-Kontextsemantik, einen realen
+Root-Master/Nicht-root-Worker, reale CRS-Ausführung, Audit-Ausgabe,
+Listener-Freigabe und die endgültig hochgeladene Cleanup-Evidence zu beweisen.
+Dieses Dokument ist ein Sicherheitsvertrag, nicht diese Runtime-Evidence.
 
 PR #240 bleibt blockiert, bis dieser Caller normal gemergt, vom resultierenden
 geschützten `master` gestartet und mit erfolgreichen `no-crs`- sowie
