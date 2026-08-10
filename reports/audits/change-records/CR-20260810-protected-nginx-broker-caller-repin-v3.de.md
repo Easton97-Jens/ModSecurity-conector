@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260810-protected-nginx-broker-caller-repin-v3 |
 | Datum (UTC) | 2026-08-10 |
-| Basis-Revision | 409caa5b9664bcb8e1919d35684575e00a959f6a |
+| Basis-Revision | 34f62b11aa3726b0cc781014531d62422ed9bff9 |
 | Vorheriger geschützter Broker-SHA | 1df2fcbd0c764c52253348a29034ff9e9b1bf7e2 |
 | Aktiver geschützter Broker-SHA | 409caa5b9664bcb8e1919d35684575e00a959f6a |
 | Broker-Framework-Gitlink | 03880bf66b3905940466ff10b3a431a27ecc6b26 |
