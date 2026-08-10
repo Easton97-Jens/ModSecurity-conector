@@ -40,6 +40,11 @@ class TrustedNginxRootBrokerCrsProfileTest(unittest.TestCase):
         path.chmod(0o700)
         return path
 
+    def crs_source_dir(self, path: Path) -> Path:
+        path.mkdir(parents=True, exist_ok=True)
+        path.chmod(0o755)
+        return path
+
     def write(self, path: Path, text: str, mode: int = 0o600) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
@@ -225,8 +230,8 @@ class TrustedNginxRootBrokerCrsProfileTest(unittest.TestCase):
     def test_protected_bundle_builder_creates_a_closed_manifested_copy(self) -> None:
         with tempfile.TemporaryDirectory(prefix="nginx-root-broker-v2-") as temporary:
             trusted_build = self.private_dir(Path(temporary) / "trusted-build")
-            source = self.private_dir(trusted_build / BROKER.CRS_BUNDLE_SOURCE_RELATIVE)
-            self.private_dir(source / "rules")
+            source = self.crs_source_dir(trusted_build / BROKER.CRS_BUNDLE_SOURCE_RELATIVE)
+            self.crs_source_dir(source / "rules")
             self.write(source / "crs-setup.conf.example", "SecAction \"id:900000,phase:1,pass,nolog\"\n", 0o644)
             self.write(
                 source / "rules" / "REQUEST-949-BLOCKING-EVALUATION.conf",
@@ -255,6 +260,100 @@ class TrustedNginxRootBrokerCrsProfileTest(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(manifest_path.stat().st_mode), 0o400)
             copied_rule = output / BROKER.CRS_BUNDLE_FILES_DIRECTORY_NAME / "rules/REQUEST-949-BLOCKING-EVALUATION.conf"
             self.assertEqual(stat.S_IMODE(copied_rule.stat().st_mode), 0o400)
+
+    def test_protected_bundle_builder_rejects_unsafe_fresh_source_modes(self) -> None:
+        def fixture(root: Path) -> tuple[argparse.Namespace, Path, Path]:
+            trusted_build = self.private_dir(root / "trusted-build")
+            source = self.crs_source_dir(trusted_build / BROKER.CRS_BUNDLE_SOURCE_RELATIVE)
+            rules = self.crs_source_dir(source / "rules")
+            setup = self.write(
+                source / "crs-setup.conf.example",
+                "SecAction \"id:900000,phase:1,pass,nolog\"\n",
+                0o644,
+            )
+            self.write(
+                rules / "REQUEST-949-BLOCKING-EVALUATION.conf",
+                "SecRule ARGS \"@rx .+\" \"id:949110,phase:2,deny,status:403,log\"\n",
+                0o644,
+            )
+            return (
+                argparse.Namespace(
+                    trusted_build_root=str(trusted_build),
+                    framework_root=str(root / "protected-framework"),
+                    framework_sha=FRAMEWORK_SHA,
+                    broker_sha=BROKER_SHA,
+                ),
+                source,
+                setup,
+            )
+
+        for name, target, mode in (
+            ("source file 0600", "setup", 0o600),
+            ("source file 0664", "setup", 0o664),
+            ("source file 0666", "setup", 0o666),
+            ("source root 0700", "source", 0o700),
+            ("rules directory 0700", "rules", 0o700),
+            ("rules directory 0775", "rules", 0o775),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory(prefix="nginx-root-broker-v2-") as temporary:
+                arguments, source, setup = fixture(Path(temporary))
+                selected = {
+                    "setup": setup,
+                    "source": source,
+                    "rules": source / "rules",
+                }[target]
+                selected.chmod(mode)
+                with mock.patch.object(BROKER, "validate_protected_crs_contract"):
+                    with self.assertRaises(BROKER.BrokerError):
+                        BROKER.prepare_crs_bundle(arguments)
+
+        for name in ("symlink", "hardlink", "fifo"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory(prefix="nginx-root-broker-v2-") as temporary:
+                arguments, _, setup = fixture(Path(temporary))
+                if name == "symlink":
+                    replacement = self.write(setup.parent / "replacement.conf", "replacement\n", 0o644)
+                    setup.unlink()
+                    setup.symlink_to(replacement)
+                elif name == "hardlink":
+                    os.link(setup, setup.parent / "linked.conf")
+                else:
+                    setup.unlink()
+                    os.mkfifo(setup)
+                with mock.patch.object(BROKER, "validate_protected_crs_contract"):
+                    with self.assertRaises(BROKER.BrokerError):
+                        BROKER.prepare_crs_bundle(arguments)
+
+    def test_optional_protected_crs_plugins_must_be_exact_0755_directories(self) -> None:
+        def fixture(root: Path) -> tuple[Path, Path]:
+            source = self.crs_source_dir(root / BROKER.CRS_BUNDLE_SOURCE_RELATIVE)
+            rules = self.crs_source_dir(source / "rules")
+            plugins = self.crs_source_dir(source / "plugins")
+            self.write(source / "crs-setup.conf.example", "SecAction \"id:900000,phase:1,pass,nolog\"\n", 0o644)
+            self.write(
+                rules / "REQUEST-949-BLOCKING-EVALUATION.conf",
+                "SecRule ARGS \"@rx .+\" \"id:949110,phase:2,deny,status:403,log\"\n",
+                0o644,
+            )
+            self.write(
+                plugins / "optional-plugin-before.conf",
+                "SecAction \"id:900001,phase:1,pass,nolog\"\n",
+                0o644,
+            )
+            return source, plugins
+
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-v2-") as temporary:
+            source, _ = fixture(Path(temporary))
+            selected = BROKER.selected_crs_source_files(source, BROKER_SHA)
+            self.assertIn("plugins/optional-plugin-before.conf", [record["path"] for _, record in selected])
+
+        for mode in (0o700, 0o775):
+            with self.subTest(mode=oct(mode)), tempfile.TemporaryDirectory(
+                prefix="nginx-root-broker-v2-"
+            ) as temporary:
+                source, plugins = fixture(Path(temporary))
+                plugins.chmod(mode)
+                with self.assertRaisesRegex(BROKER.BrokerError, "plugins directory"):
+                    BROKER.selected_crs_source_files(source, BROKER_SHA)
 
     def test_bundle_manifest_rejects_moving_or_wrong_provenance(self) -> None:
         with tempfile.TemporaryDirectory(prefix="nginx-root-broker-v2-") as temporary:

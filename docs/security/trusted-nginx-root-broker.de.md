@@ -215,6 +215,35 @@ Framework-Gitlinks. Die Broker-Revision prüft dieses geprüfte Tupel unabhängi
 | Commit | `55b09f5acfd16413e7b31041100711ceb7adc89c` |
 | Erwartete CRS-Blockregel | `949110` |
 
+Die Root-zu-Runner-Evidence-Limits bleiben exakt
+`MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024` und
+`MAX_EVIDENCE_TOTAL_BYTES = 20 * 1024 * 1024`; diese Reparatur erweitert
+keines der beiden Limits für Logs, JSON-Evidence, Manifeste, CRS-Bundles oder
+NGINX-Artefakte. Nur die kanonische, Provenance-gebundene reguläre
+`prefix/lib/libmodsecurity.so.3` verwendet den getrennten festen
+Broker-Policy-Grenzwert
+`MAX_TRUSTED_MODSECURITY_LIBRARY_BYTES = 64 * 1024 * 1024`. Er ist eine
+Code-Konstante, niemals Caller-Input, Umgebungswert oder Manifestfeld. Ein
+aufbewahrter geschützter Producer-Record maß die geprüfte Library mit 60,085,848
+Bytes; damit bleiben 7,023,016 Bytes begrenzter Spielraum für Build-Varianz.
+Der Grenzwert wird sowohl bei der Validierung des Producer-Records als auch
+erneut am geöffneten Source-Deskriptor vor Hash oder Kopie erzwungen; NGINX-
+Binary und -Modul behalten den 8-MiB-Grenzwert.
+
+Der Broker-eigene äußere Build-Modus bleibt `umask 077`. Nur der feste Aufruf
+`sh modules/ModSecurity-test-Framework/ci/provisioning/fetch-crs.sh` läuft in
+einer Subshell mit `umask 022`; vor der Subshell und nach Erfolg oder Fehler
+prüft der äußere Prozess explizit `077`. Die Prüfungen akzeptieren die
+kanonischen Shell-Darstellungen `077` und `0077` (sowie entsprechend `022`
+und `0022`), statt von einer Schreibweise abzuhängen. Der Fetch-Status wird
+danach unverändert erneut ausgelöst. Die ausgecheckte CRS-Source-Root und das
+erforderliche `rules`-Verzeichnis sowie `plugins`, falls es vorhanden ist,
+müssen exakte `0755`-Verzeichnisse sein; ausgewählte reguläre CRS-Dateien
+müssen exakt `0644` sein. Keine globale `022`,
+kein rekursives `chmod`, kein Caller-Kommando und keine Lockerung privater
+Manifeste, Snapshots, Evidence, Broker-State-, Audit- oder Root-Admission-
+Dateien gehören zu diesem Vertrag.
+
 ### Aktiver ABI-Loader-Vertrag
 
 Das gewöhnliche ModSecurity-Präfix darf Libtools unversionierten Linker-Alias
@@ -341,6 +370,15 @@ erforderlich, um GitHub-Reusable-Workflow-Kontextsemantik, einen realen
 Root-Master/Nicht-root-Worker, reale CRS-Ausführung, Audit-Ausgabe,
 Listener-Freigabe und die endgültig hochgeladene Cleanup-Evidence zu beweisen.
 Dieses Dokument ist ein Sicherheitsvertrag, nicht diese Runtime-Evidence.
+
+Run `31368594208` bleibt ausschließlich Pre-Fix-Failure-Evidence: Sein
+No-CRS-Abschnitt wies die echte geschützte Library unter dem generischen
+8-MiB-Evidence-Limit ab, und sein With-CRS-Abschnitt wies frische
+Checkout-Dateien ab, die `umask 077` geerbt hatten. Beide Abschnitte stoppten
+vor Candidate-Admission, jeder Root-Aktion, NGINX-Start, Evidence-Projektion
+und Cleanup-Verifikation. Diese Phase-A-Broker-Reparatur ist kein Runtime-
+Nachweis und wird erst nach dem getrennt geprüften Caller-Repin vom aktiven
+Caller ausgewählt; ein frischer resulting-master-Lifecycle bleibt zwingend.
 
 PR #240 bleibt blockiert, bis dieser Caller normal gemergt, vom resultierenden
 geschützten `master` gestartet und mit erfolgreichen `no-crs`- sowie
