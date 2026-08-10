@@ -129,7 +129,12 @@ Ergebnis: Exit 0 für den finalen getrackten Phase-A-Diff.
 
 ## Hosted-Delivery-Evidence für unveränderlichen Code-Head
 
-Nicht ausgeführt. Dieser Record behauptet keinen Phase-A-Commit, Push, Pull Request, Hosted-Check, SonarQube-Cloud-Analyse oder erfolgreichen geschützten Lifecycle.
+[Draft-PR #273](https://github.com/Easton97-Jens/ModSecurity-conector/pull/273)
+wurde nach dem lokalen Phase-A-Repair-Commit
+`3042b984484637192742a2d22d9e029f8ad97b61` vom task-eigenen Branch erstellt.
+Dieser Record beansprucht keinen Exact-Head-Hosted-Check, keine SonarQube-
+Cloud-Analyse, kein Review, keinen Merge und keinen erfolgreichen geschützten
+Lifecycle; dies alles bleibt vor dem späteren Caller-Repin erforderlich.
 
 ## Security-Auswirkung
 

@@ -127,7 +127,11 @@ Result: exit 0 for the final tracked Phase-A diff.
 
 ## Hosted delivery evidence for immutable code head
 
-Not run. No Phase-A commit, push, pull request, hosted check, SonarQube Cloud analysis, or protected lifecycle success is claimed by this record.
+[Draft PR #273](https://github.com/Easton97-Jens/ModSecurity-conector/pull/273)
+was created from the task-owned branch after the local Phase-A repair commit
+`3042b984484637192742a2d22d9e029f8ad97b61`. This record claims no
+exact-head hosted check, SonarQube Cloud analysis, review, merge, or protected
+lifecycle success; those remain required before the later caller repin.
 
 ## Security impact
 
