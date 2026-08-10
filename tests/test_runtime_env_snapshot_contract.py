@@ -477,6 +477,140 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             r"""(?m)^\s*(?:["']MODSECURITY_GIT_REF["']|MODSECURITY_GIT_REF)\s*:""",
         )
 
+    def test_with_crs_replaces_the_cache_owned_source_with_a_fresh_run_source(self) -> None:
+        helper = ROOT / "ci" / "runtime" / "lifecycle" / "prepare-fresh-crs-source.sh"
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        target_start = makefile.index("test-with-crs: check-framework prepare-runtime-components")
+        target_end = makefile.index("\n\nmrts-generate:", target_start)
+        target = makefile[target_start:target_end]
+
+        self.assertIn("prepare-fresh-crs-source.sh", target)
+        self.assertLess(
+            target.index("prepare-fresh-crs-source.sh"),
+            target.index("fetch-crs.sh"),
+        )
+        no_crs_start = makefile.index("test-no-crs: check-framework prepare-runtime-components")
+        no_crs_end = makefile.index("\n\ntest-with-crs:", no_crs_start)
+        self.assertNotIn("prepare-fresh-crs-source.sh", makefile[no_crs_start:no_crs_end])
+
+        with tempfile.TemporaryDirectory(prefix="fresh-crs-source-") as temporary:
+            root = Path(temporary)
+            verified_root = root / "verified"
+            component_cache = verified_root / "component-cache"
+            verified_root.mkdir(mode=0o700)
+            component_cache.mkdir(mode=0o700)
+            environment = {
+                **os.environ,
+                "CONNECTOR_ROOT": str(ROOT),
+                "FRAMEWORK_ROOT": str(ROOT / "modules" / "ModSecurity-test-Framework"),
+                "REPO_ROOT": str(ROOT),
+                "VERIFIED_RUN_ROOT": str(verified_root),
+                "VERIFIED_SOURCE_ROOT": str(verified_root / "src"),
+                "BUILD_ROOT": str(verified_root / "build"),
+                "TMP_ROOT": str(verified_root / "tmp"),
+                "LOG_ROOT": str(verified_root / "logs"),
+                "CACHE_ROOT": str(verified_root / "cache-v2"),
+                "VERIFIED_COMPONENT_CACHE": str(component_cache),
+                "CONNECTOR_COMPONENT_CACHE": str(component_cache),
+                # Model the cache-owned path emitted by the component snapshot.
+                "SOURCE_ROOT": str(component_cache / "sources"),
+                "CRS_SOURCE_DIR": str(component_cache / "sources" / "coreruleset"),
+                "XDG_STATE_HOME": str(verified_root / "state"),
+            }
+            command = (
+                '. "$1"; . "$2"; printf "%s|%s" "$SOURCE_ROOT" "$CRS_SOURCE_DIR"'
+            )
+            result = subprocess.run(
+                [
+                    "sh",
+                    "-eu",
+                    "-c",
+                    command,
+                    "sh",
+                    str(ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "lib" / "common.sh"),
+                    str(helper),
+                ],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            expected_root = verified_root / "crs-fresh-source"
+            expected_source = expected_root / "coreruleset"
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stdout.rsplit("\n", 1)[-1], f"{expected_root}|{expected_source}")
+            self.assertFalse(expected_root.exists())
+            self.assertFalse(expected_source.exists())
+            self.assertNotEqual(expected_root, component_cache)
+            self.assertNotIn(f"{component_cache}/", f"{expected_root}/")
+
+            expected_root.mkdir(mode=0o700)
+            rejected = subprocess.run(
+                [
+                    "sh",
+                    "-eu",
+                    "-c",
+                    '. "$1"; . "$2"',
+                    "sh",
+                    str(ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "lib" / "common.sh"),
+                    str(helper),
+                ],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(rejected.returncode, 77, rejected.stdout + rejected.stderr)
+            self.assertIn(
+                "fresh CRS source root must not exist before fetch",
+                rejected.stdout + rejected.stderr,
+            )
+
+    def test_with_crs_fresh_source_rejects_component_cache_overlap(self) -> None:
+        helper = ROOT / "ci" / "runtime" / "lifecycle" / "prepare-fresh-crs-source.sh"
+        with tempfile.TemporaryDirectory(prefix="fresh-crs-source-") as temporary:
+            root = Path(temporary)
+            component_cache = root / "component-cache"
+            component_cache.mkdir(mode=0o700)
+            environment = {
+                **os.environ,
+                "CONNECTOR_ROOT": str(ROOT),
+                "FRAMEWORK_ROOT": str(ROOT / "modules" / "ModSecurity-test-Framework"),
+                "REPO_ROOT": str(ROOT),
+                "VERIFIED_RUN_ROOT": str(component_cache),
+                "VERIFIED_SOURCE_ROOT": str(component_cache / "src"),
+                "BUILD_ROOT": str(component_cache / "build"),
+                "TMP_ROOT": str(component_cache / "tmp"),
+                "LOG_ROOT": str(component_cache / "logs"),
+                "CACHE_ROOT": str(component_cache / "cache-v2"),
+                "VERIFIED_COMPONENT_CACHE": str(component_cache),
+                "CONNECTOR_COMPONENT_CACHE": str(component_cache),
+                "XDG_STATE_HOME": str(component_cache / "state"),
+            }
+            result = subprocess.run(
+                [
+                    "sh",
+                    "-eu",
+                    "-c",
+                    '. "$1"; . "$2"',
+                    "sh",
+                    str(ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "lib" / "common.sh"),
+                    str(helper),
+                ],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+            self.assertIn(
+                "fresh CRS source root must not be inside CONNECTOR_COMPONENT_CACHE",
+                result.stdout + result.stderr,
+            )
+
     def test_make_does_not_materialize_an_empty_nginx_github_repo_alias(self) -> None:
         environment = os.environ.copy()
         environment.pop("NGINX_GITHUB_REPO", None)

@@ -645,7 +645,7 @@ test-no-crs: check-framework prepare-runtime-components
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_RULE_PREAMBLE_FILE= sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/lib/common.sh"; RESULTS_DIR="$$BUILD_ROOT/results/no-crs"; export RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-smokes.sh"')
 
 test-with-crs: check-framework prepare-runtime-components
-	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/lib/common.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-smokes.sh"')
+	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/lib/common.sh"; . "$(CURDIR)/ci/runtime/lifecycle/prepare-fresh-crs-source.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-smokes.sh"')
 
 mrts-generate: check-framework
 	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-generate
