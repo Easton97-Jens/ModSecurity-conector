@@ -65,9 +65,10 @@ Library vor der Candidate-Erstellung zu prüfen.
 
 Ein lokales Follow-up behebt zwei Sonar-Findings aus PR #271: das
 Cognitive-Complexity-Problem (`python:S3776`) des Producer-Alias-Resolvers und
-das Regex-Problem (`python:S8786`) des Broker-Dynamic-Parsers. Dies ist nur
-lokale Remediation-Evidence und kein Ergebnis einer Post-Fix-Hosted-
-Sonar-Analyse.
+das Regex-Problem (`python:S8786`) des Broker-Dynamic-Parsers. Das Hosted-
+SonarQube-Cloud-Ergebnis für den unveränderlichen Code-Head
+`fc296c5cdf2d8953c4ddced3c4e90282f52aee12` ist unten erfasst; es deckt dieses
+spätere Dokumentations-Follow-up nicht ab.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -209,6 +210,21 @@ rtk proxy git diff --check
 
 Ergebnis: bestanden.
 
+## Hosted-Delivery-Evidence für unveränderlichen Code-Head
+
+Draft-PR #271 ist gegen `master` offen und steht auf dem unveränderlichen
+Code-Head `fc296c5cdf2d8953c4ddced3c4e90282f52aee12`. Ihre 35 terminalen
+Prüfungen verzeichneten 29 Erfolge und 6 dokumentierte Scope-Skips. Die
+erforderlichen Actions `bounded-c-cpp`, `envoy-go`, `traefik-go`, `actionlint`
+und `zizmor` waren erfolgreich; CodeQL war erfolgreich. SonarQube Cloud
+meldete Quality Gate `OK`, mit 0 neuen, offenen oder akzeptierten Issues und
+0 `TO_REVIEW`-Hotspots. Es gibt 0 Reviews und 0 Review-Threads.
+
+Diese Hosted-Evidence ist auf diesen unveränderlichen Code-Head begrenzt.
+Nachdem dieses Dokumentations-Follow-up committet und veröffentlicht ist, ist
+ein frischer Exact-Head-Zyklus für Checks, CodeQL, SonarQube Cloud und Review
+erforderlich, bevor die PR merge-bereit werden kann.
+
 ## Security-Auswirkung
 
 Der ursprüngliche Lauf bleibt fail-closed: Beide Profile stoppten vor
@@ -241,17 +257,18 @@ kanonische lokale Finding-Store ist read-only gemountet, daher konnte der
 getrennte vorgeschlagene Record FND-PARENT-0117 dort nicht erstellt werden;
 kein konkurrierender Record wurde erstellt. FND-PARENT-0113 bleibt blockiert.
 Die frühere Sonar-Analyse von PR #271 meldete `python:S3776` und
-`python:S8786`; die lokale Remediation hat noch keine Post-Fix-Hosted-
-Sonar-Analyse erhalten.
+`python:S8786`; das Hosted-Post-Fix-SonarQube-Cloud-Ergebnis ist auf den
+Code-Head `fc296c5cdf2d8953c4ddced3c4e90282f52aee12` begrenzt, nicht auf dieses
+Dokumentations-Follow-up.
 
 ## Verbleibende Risiken
 
-Die Broker-Reparatur benötigt weiterhin einen neuen unveränderlichen Commit,
-Exact-Head-Hosted-Checks, CodeQL, SonarQube Cloud, Review und normalen Merge.
-Ein separater Caller-Repin muss anschließend diesen neuen Broker-Commit und
-seinen Framework-Gitlink binden. Nur ein Resulting-master-geschützter No-CRS-
-und `owasp-crs`-Lifecycle mit Evidence-Readback und Cleanup kann PR #240
-entsperren.
+Das Dokumentations-Follow-up benötigt einen neuen unveränderlichen Head und
+frische Exact-Head-Hosted-Checks, CodeQL, SonarQube Cloud und Review vor einem
+normalen Merge. Ein separater Caller-Repin muss anschließend den gemergten
+Broker-Commit und seinen Framework-Gitlink binden. Nur ein
+Resulting-master-geschützter No-CRS- und `owasp-crs`-Lifecycle mit
+Evidence-Readback und Cleanup kann PR #240 entsperren.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -259,19 +276,26 @@ Kein lokales `make fetch-deps`, keine Root-Aktion, kein NGINX-Start, kein
 CRS-Fetch, Audit oder Cleanup-Lauf wurde versucht. Diese Aktionen benötigen
 den geschützten Resulting-master-Workflow, echte Hosted-Runner-Isolation und
 den separaten Post-Merge-Caller-Repin. Hosted-PR-Checks und SonarQube Cloud
-sind ebenfalls noch nicht verfügbar, weil diese Reparatur noch nicht
-committet oder veröffentlicht ist.
+wurden für den unveränderlichen Code-Head
+`fc296c5cdf2d8953c4ddced3c4e90282f52aee12` beobachtet; sie validieren nicht
+den späteren Dokumentations-Head, der einen frischen Exact-Head-Zyklus
+benötigt.
 
 ## Finaler Review-Status
 
-Dies ist ausschließlich lokale Reparatur-Evidence. Es erstellt keinen Pull
-Request und behauptet keinen Delivery-, Merge-, Caller-Repin- oder
-erfolgreichen Phase-D-Lifecycle.
+Dieser Record enthält beobachtete Hosted-Delivery-Evidence für den
+unveränderlichen Code-Head `fc296c5cdf2d8953c4ddced3c4e90282f52aee12` der
+Draft-PR #271, neben der lokalen Reparatur-Evidence. Er behauptet keinen
+Merge, Caller-Repin oder erfolgreichen Phase-D-Lifecycle; das
+Dokumentations-Follow-up benötigt vor der Merge-Bereitschaft weiterhin seine
+eigene Exact-Head-Revalidierung.
 
 ## Finaler Diff- und Review-Status
 
 Der task-owned Branch beginnt bei `e24527eb729584aac3d815cbf32ef6b7026f729c`.
-Der beabsichtigte Diff ist Parent-only und verändert weder Framework-Source,
-Framework-Gitlink, MRTS, Caller-Pins, Root-Action-Allowlist, Trigger noch
-Permissions. Vor der Veröffentlichung bleiben ein finaler scoped
-Security-Diff-Review und alle anwendbaren lokalen Prüfungen erforderlich.
+Die Code-Delivery-Evidence gilt für den Parent-only-unveränderlichen Head
+`fc296c5cdf2d8953c4ddced3c4e90282f52aee12`; sie verändert weder
+Framework-Source, Framework-Gitlink, MRTS, Caller-Pins, Root-Action-Allowlist,
+Trigger noch Permissions. Dieses Dokumentations-Follow-up benötigt einen
+finalen scoped Review und frische Exact-Head-Hosted-Revalidierung, bevor es
+merge-bereit sein kann.

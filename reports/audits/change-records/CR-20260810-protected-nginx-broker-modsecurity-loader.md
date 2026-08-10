@@ -61,8 +61,9 @@ library before candidate creation.
 
 A local follow-up remediates two PR #271 Sonar findings: the
 producer alias resolver's cognitive-complexity issue (`python:S3776`) and the
-broker dynamic parser's regex issue (`python:S8786`). This is local remediation
-evidence only; it is not a post-fix hosted Sonar analysis result.
+broker dynamic parser's regex issue (`python:S8786`). The hosted SonarQube
+Cloud result for immutable code head `fc296c5cdf2d8953c4ddced3c4e90282f52aee12`
+is recorded below; it does not cover this later documentation follow-up.
 
 ## Implementation decision and rationale
 
@@ -199,6 +200,21 @@ rtk proxy git diff --check
 
 Result: passed.
 
+## Hosted delivery evidence for immutable code head
+
+Draft PR #271 is open against `master` at immutable code head
+`fc296c5cdf2d8953c4ddced3c4e90282f52aee12`. Its 35 terminal checks recorded
+29 successes and 6 documented scope skips. Required Actions
+`bounded-c-cpp`, `envoy-go`, `traefik-go`, `actionlint`, and `zizmor` succeeded;
+CodeQL succeeded. SonarQube Cloud reported Quality Gate `OK`, with 0 new,
+open, or accepted issues and 0 `TO_REVIEW` hotspots. There are 0 reviews and
+0 review threads.
+
+This hosted evidence is limited to that immutable code head. After this
+documentation follow-up is committed and published, a fresh exact-head check,
+CodeQL, SonarQube Cloud, and review cycle is required before the PR can become
+ready for merge.
+
 ## Security impact
 
 The original run remains fail-closed: both profiles stopped before candidate
@@ -228,34 +244,41 @@ CI-equivalent interpreter or hosted-root evidence. The canonical local finding
 store is mounted read-only, so the distinct proposed FND-PARENT-0117 record
 could not be created there; no competing record was created. FND-PARENT-0113
 remains blocked. PR #271's prior Sonar analysis reported `python:S3776` and
-`python:S8786`; their local remediation has not yet received a post-fix hosted
-Sonar analysis.
+`python:S8786`; the hosted post-fix SonarQube Cloud result is limited to code
+head `fc296c5cdf2d8953c4ddced3c4e90282f52aee12`, not this documentation
+follow-up.
 
 ## Remaining risks
 
-The broker repair must still receive a new immutable commit, exact-head
-hosted checks, CodeQL, SonarQube Cloud, review, and normal merge. A separate
-caller repin must then bind that new broker commit and its Framework gitlink.
-Only a resulting-master protected no-CRS and `owasp-crs` lifecycle with
-evidence readback and cleanup can unblock PR #240.
+The documentation follow-up must receive a new immutable head and fresh
+exact-head hosted checks, CodeQL, SonarQube Cloud, and review before normal
+merge. A separate caller repin must then bind the merged broker commit and its
+Framework gitlink. Only a resulting-master protected no-CRS and `owasp-crs`
+lifecycle with evidence readback and cleanup can unblock PR #240.
 
 ## Checks not run and rationale
 
 No local `make fetch-deps`, root action, NGINX start, CRS fetch, audit, or
 cleanup run was attempted. Those actions require the protected resulting-master
 workflow, real hosted runner isolation, and the separate post-merge caller
-repin. Hosted PR checks and SonarQube Cloud are also not yet available because
-this repair has not been committed or published.
+repin. Hosted PR checks and SonarQube Cloud were observed for immutable code
+head `fc296c5cdf2d8953c4ddced3c4e90282f52aee12`; they do not validate the
+later documentation head, which requires a fresh exact-head cycle.
 
 ## Final review status
 
-This is local repair evidence only. It neither creates a pull request nor
-asserts a delivery, merge, caller-repin, or successful Phase-D lifecycle.
+This record contains observed hosted delivery evidence for Draft PR #271's
+immutable code head `fc296c5cdf2d8953c4ddced3c4e90282f52aee12`, alongside the
+local repair evidence. It does not assert a merge, caller repin, or successful
+Phase-D lifecycle; the documentation follow-up still requires its own
+exact-head revalidation before merge readiness.
 
 ## Final diff and review status
 
 The task-owned branch begins at `e24527eb729584aac3d815cbf32ef6b7026f729c`.
-The intended diff is Parent-only and does not alter Framework source, the
-Framework Gitlink, MRTS, caller pins, root action allowlists, triggers, or
-permissions. A final scoped security-diff review and all applicable local
-checks remain required before publication.
+The code delivery evidence is for Parent-only immutable head
+`fc296c5cdf2d8953c4ddced3c4e90282f52aee12`; it does not alter Framework
+source, the Framework Gitlink, MRTS, caller pins, root action allowlists,
+triggers, or permissions. This documentation follow-up requires a final
+scoped review and fresh exact-head hosted revalidation before it can be ready
+for merge.
