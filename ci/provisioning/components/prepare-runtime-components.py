@@ -3950,6 +3950,46 @@ def cache_entry_lock_path(cache_root: Path, component: str, cache_key: str) -> P
     return cache_root / "locks" / f"{safe_component}-{safe_key}.lock"
 
 
+def _modsecurity_runtime_library_terminal_details(
+    current: str, details: os.stat_result
+) -> os.stat_result | None:
+    """Return a verified Libtool terminal or reject an unexpected inode type."""
+    if stat.S_ISREG(details.st_mode):
+        if not current.startswith(f"{MODSECURITY_RUNTIME_LIBRARY_FILENAME}."):
+            raise RuntimeError("modsecurity_library_terminal_name_invalid_after_build")
+        if details.st_mode & 0o022:
+            raise RuntimeError("modsecurity_library_terminal_writable_after_build")
+        return details
+    if not stat.S_ISLNK(details.st_mode):
+        raise RuntimeError("modsecurity_library_terminal_nonregular_after_build")
+    return None
+
+
+def _modsecurity_runtime_library_alias_target(
+    libs_descriptor: int, current: str, details: os.stat_result
+) -> str:
+    """Read one stable, direct-basename Libtool alias target."""
+    try:
+        target = os.readlink(current, dir_fd=libs_descriptor)
+        link_after_read = os.stat(current, dir_fd=libs_descriptor, follow_symlinks=False)
+    except OSError as exc:
+        raise RuntimeError("modsecurity_library_symlink_changed_after_build") from exc
+    if (details.st_dev, details.st_ino) != (
+        link_after_read.st_dev,
+        link_after_read.st_ino,
+    ):
+        raise RuntimeError("modsecurity_library_symlink_changed_after_build")
+    target_path = Path(target)
+    if (
+        not target
+        or target_path.is_absolute()
+        or target_path.name != target
+        or target in {".", ".."}
+    ):
+        raise RuntimeError("modsecurity_library_symlink_outside_after_build")
+    return target
+
+
 def _contained_modsecurity_runtime_library(
     libs_descriptor: int, start_name: str
 ) -> tuple[str, os.stat_result]:
@@ -3971,35 +4011,10 @@ def _contained_modsecurity_runtime_library(
             details = os.stat(current, dir_fd=libs_descriptor, follow_symlinks=False)
         except OSError as exc:
             raise RuntimeError("modsecurity_library_symlink_dangling_after_build") from exc
-        if stat.S_ISREG(details.st_mode):
-            if not current.startswith(f"{MODSECURITY_RUNTIME_LIBRARY_FILENAME}."):
-                raise RuntimeError("modsecurity_library_terminal_name_invalid_after_build")
-            if details.st_mode & 0o022:
-                raise RuntimeError("modsecurity_library_terminal_writable_after_build")
-            return current, details
-        if not stat.S_ISLNK(details.st_mode):
-            raise RuntimeError("modsecurity_library_terminal_nonregular_after_build")
-        try:
-            target = os.readlink(current, dir_fd=libs_descriptor)
-            link_after_read = os.stat(
-                current, dir_fd=libs_descriptor, follow_symlinks=False
-            )
-        except OSError as exc:
-            raise RuntimeError("modsecurity_library_symlink_changed_after_build") from exc
-        if (details.st_dev, details.st_ino) != (
-            link_after_read.st_dev,
-            link_after_read.st_ino,
-        ):
-            raise RuntimeError("modsecurity_library_symlink_changed_after_build")
-        target_path = Path(target)
-        if (
-            not target
-            or target_path.is_absolute()
-            or target_path.name != target
-            or target in {".", ".."}
-        ):
-            raise RuntimeError("modsecurity_library_symlink_outside_after_build")
-        current = target
+        terminal_details = _modsecurity_runtime_library_terminal_details(current, details)
+        if terminal_details is not None:
+            return current, terminal_details
+        current = _modsecurity_runtime_library_alias_target(libs_descriptor, current, details)
 
 
 def _verified_modsecurity_runtime_library(libs: Path) -> tuple[int, os.stat_result]:

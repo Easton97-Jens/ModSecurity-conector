@@ -114,10 +114,6 @@ READELF_TIMEOUT_SECONDS = 5.0
 FORBIDDEN_DYNAMIC_LOADER_TAGS = frozenset(
     {"RPATH", "RUNPATH", "AUDIT", "DEPAUDIT", "FILTER", "AUXILIARY"}
 )
-DYNAMIC_SECTION_ENTRY_RE = re.compile(
-    r"^\s*0x[0-9a-fA-F]+\s+\((?P<tag>[A-Z0-9_]+)\)\s+(?P<value>.*)$",
-    re.MULTILINE,
-)
 BROKER_RULES_FILENAME = "broker-rules.conf"
 BROKER_CONFIG_FILENAME = "nginx.conf"
 CRS_BUNDLE_DIRECTORY_NAME = "crs-bundle"
@@ -1395,17 +1391,56 @@ def _stop_readelf_process(process: subprocess.Popen[bytes]) -> None:
         pass
 
 
+def dynamic_section_entry(line: str) -> tuple[str, str] | None:
+    """Parse one conventional ``readelf -d`` entry without regex backtracking."""
+
+    index = 0
+    length = len(line)
+    while index < length and line[index].isspace():
+        index += 1
+    if not line.startswith("0x", index):
+        return None
+    index += 2
+    hex_start = index
+    while index < length and line[index] in "0123456789abcdefABCDEF":
+        index += 1
+    if index == hex_start or index == length or not line[index].isspace():
+        return None
+    while index < length and line[index].isspace():
+        index += 1
+    if index == length or line[index] != "(":
+        return None
+    index += 1
+    tag_start = index
+    while index < length and (
+        "A" <= line[index] <= "Z" or "0" <= line[index] <= "9" or line[index] == "_"
+    ):
+        index += 1
+    if index == tag_start or index == length or line[index] != ")":
+        return None
+    tag = line[tag_start:index]
+    index += 1
+    if index == length or not line[index].isspace():
+        return None
+    while index < length and line[index].isspace():
+        index += 1
+    return tag, line[index:]
+
+
 def _reject_dynamic_loader_redirection(dynamic: str, label: str) -> None:
     """Reject dynamic tags that can select a path outside broker admission."""
 
-    for entry in DYNAMIC_SECTION_ENTRY_RE.finditer(dynamic):
-        tag = entry.group("tag")
+    for line in dynamic.splitlines():
+        entry = dynamic_section_entry(line)
+        if entry is None:
+            continue
+        tag, value = entry
         if tag in {"RPATH", "RUNPATH"}:
             fail(f"{label} must not contain DT_RPATH or DT_RUNPATH")
         if tag in FORBIDDEN_DYNAMIC_LOADER_TAGS:
             fail(f"{label} must not contain DT_{tag}")
         if tag == "NEEDED":
-            needed = re.search(r"\[([^]\r\n]*)\]", entry.group("value"))
+            needed = re.search(r"\[([^]\r\n]*)\]", value)
             if needed is None:
                 fail(f"unable to interpret {label} DT_NEEDED entry")
             if "/" in needed.group(1):

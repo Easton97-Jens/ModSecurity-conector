@@ -441,6 +441,10 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 b" 0x0000000000000001 (NEEDED)             Shared library: [/runner/libevil.so]\n",
                 "DT_NEEDED must use a slash-free shared-library name",
             ),
+            "malformed-needed": (
+                b" 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6\n",
+                "unable to interpret .* DT_NEEDED entry",
+            ),
             "audit": (
                 b" 0x000000006ffffefc (AUDIT)               Audit library: [/runner/audit.so]\n",
                 "must not contain DT_AUDIT",
@@ -539,6 +543,17 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
         ):
             with self.assertRaisesRegex(BROKER.BrokerError, "timed out"):
                 BROKER.reject_dynamic_search_paths(Path("/trusted/module.so"), "NGINX module")
+        self.assertLess(BROKER.time.monotonic() - started, 1.0)
+
+    def test_dynamic_section_parser_handles_long_malformed_output_without_backtracking(self) -> None:
+        malformed = "\n" * (BROKER.MAX_READELF_OUTPUT_BYTES // 4)
+        started = BROKER.time.monotonic()
+        with self.assertRaisesRegex(BROKER.BrokerError, "DT_RPATH or DT_RUNPATH"):
+            BROKER._reject_dynamic_loader_redirection(
+                malformed
+                + " 0x000000000000000f (RPATH)              Library rpath: [/unsafe]\n",
+                "NGINX module",
+            )
         self.assertLess(BROKER.time.monotonic() - started, 1.0)
 
     def test_runtime_snapshot_rejects_duplicate_empty_malformed_and_arbitrary_exports(self) -> None:

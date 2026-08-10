@@ -872,6 +872,27 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 (root / "prefix/lib/libmodsecurity.so.3").exists()
             )
 
+    def test_modsecurity_outputs_reject_cyclic_and_nonregular_libtool_chains(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            libs = source / "src/.libs"
+            headers = source / "headers/modsecurity"
+            headers.mkdir(parents=True)
+            headers.joinpath("modsecurity.h").write_text("header\n", encoding="utf-8")
+            libs.mkdir(parents=True)
+            (libs / "libmodsecurity.so").symlink_to("libmodsecurity.so.3")
+            (libs / "libmodsecurity.so.3").symlink_to("libmodsecurity.so")
+
+            with self.assertRaisesRegex(RuntimeError, "symlink_cycle"):
+                components.copy_modsecurity_outputs(source, root / "prefix")
+
+            (libs / "libmodsecurity.so.3").unlink()
+            (libs / "libmodsecurity.so.3").symlink_to("libmodsecurity.so.3.0.15")
+            (libs / "libmodsecurity.so.3.0.15").mkdir()
+            with self.assertRaisesRegex(RuntimeError, "terminal_nonregular"):
+                components.copy_modsecurity_outputs(source, root / "prefix")
+
     def test_modsecurity_runtime_copy_remains_bound_to_verified_inode(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)

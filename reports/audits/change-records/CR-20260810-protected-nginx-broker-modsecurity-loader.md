@@ -59,6 +59,11 @@ the fixed absolute `/usr/bin/readelf` with an empty `PATH`, bounded output, a
 real bounded deadline, and no shell to inspect the admitted source module and
 library before candidate creation.
 
+A local follow-up remediates two PR #271 Sonar findings: the
+producer alias resolver's cognitive-complexity issue (`python:S3776`) and the
+broker dynamic parser's regex issue (`python:S8786`). This is local remediation
+evidence only; it is not a post-fix hosted Sonar analysis result.
+
 ## Implementation decision and rationale
 
 `MODSECURITY_OUTPUT_LAYOUT_VERSION` is part of the ModSecurity cache identity,
@@ -105,6 +110,12 @@ isolated-worktree fixture error. The error was
 missing isolated fixture file
 `connector/common/src/header_validation_internal.h`. The error was not
 suppressed or represented as a pass.
+
+After the PR #271 Sonar findings were remediated locally, the expanded focused
+suite passed 88 tests. The local follow-up also passed syntax compilation for
+the producer and broker modules, the CI-security-contract check, and the
+tracked-diff whitespace check. These are local results, not hosted
+PR, Sonar, runtime, or cleanup evidence.
 
 ## Commands executed
 
@@ -161,6 +172,33 @@ Result: 38 tests passed and 1 error occurred in
 isolated fixture lacked `connector/common/src/header_validation_internal.h`.
 The error was not suppressed.
 
+The following commands were then executed for the local Sonar
+remediation follow-up:
+
+```sh
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 TMPDIR=../tmp python3 -m unittest -v tests.test_runtime_env_snapshot_contract.RuntimeEnvironmentSnapshotContractTest.test_protected_nginx_broker_snapshot_uses_only_canonical_plan_outputs tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_output_layout_version_changes_the_cache_identity tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_outputs_materialize_a_regular_runtime_soname tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_outputs_reject_unsafe_or_ambiguous_libtool_chains tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_outputs_reject_nested_symlink_parent_escape tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_runtime_copy_remains_bound_to_verified_inode tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_outputs_reject_cyclic_and_nonregular_libtool_chains tests.test_nginx_root_broker tests.test_nginx_root_broker_crs_profile tests.test_nginx_root_broker_workflow tests.test_ci_security_workflows
+```
+
+Result: PASS, 88 tests passed.
+
+```sh
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 python3 -m py_compile ci/provisioning/components/prepare-runtime-components.py ci/runtime/broker/nginx_root_broker.py
+```
+
+Result: passed.
+
+```sh
+rtk proxy make check-ci-security-contract
+```
+
+Result: passed.
+
+```sh
+rtk proxy git diff --check
+```
+
+Result: passed.
+
 ## Security impact
 
 The original run remains fail-closed: both profiles stopped before candidate
@@ -189,7 +227,9 @@ requires CPython 3.14.6. Local tests are source/static evidence, not
 CI-equivalent interpreter or hosted-root evidence. The canonical local finding
 store is mounted read-only, so the distinct proposed FND-PARENT-0117 record
 could not be created there; no competing record was created. FND-PARENT-0113
-remains blocked.
+remains blocked. PR #271's prior Sonar analysis reported `python:S3776` and
+`python:S8786`; their local remediation has not yet received a post-fix hosted
+Sonar analysis.
 
 ## Remaining risks
 
