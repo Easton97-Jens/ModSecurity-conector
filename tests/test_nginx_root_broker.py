@@ -53,6 +53,11 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
         path.chmod(mode)
         return path
 
+    def write_binary(self, path: Path, source: Path, mode: int = 0o600) -> Path:
+        path.write_bytes(source.read_bytes())
+        path.chmod(mode)
+        return path
+
     def caller_manifest(self, root: Path, **overrides: object) -> Path:
         payload: dict[str, object] = {
             "schema_version": BROKER.SCHEMA_VERSION,
@@ -72,8 +77,8 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
         self.private_dir(build / "nginx" / "sbin")
         self.private_dir(build / "nginx" / "modules")
         binary = self.write(build / "nginx" / "sbin" / "nginx", "trusted binary\n", 0o700)
-        module = self.write(build / "nginx" / "modules" / "ngx_http_modsecurity_module.so", "trusted module\n")
-        library = self.write(build / "libmodsecurity.so", "trusted library\n")
+        module = self.write_binary(build / "nginx" / "modules" / "ngx_http_modsecurity_module.so", Path("/usr/bin/true"))
+        library = self.write_binary(build / BROKER.ARTIFACT_LIBRARY_NAME, Path("/usr/bin/true"))
         caller = self.caller_manifest(root)
         values: dict[str, object] = {
             "caller_manifest": str(caller),
@@ -255,7 +260,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             "artifacts": {
                 "binary": {"path": str(root / "artifacts/nginx"), "sha256": "1" * 64},
                 "module": {"path": str(root / "artifacts/module.so"), "sha256": "2" * 64},
-                "modsecurity_library": {"path": str(root / "artifacts/libmodsecurity.so"), "sha256": "3" * 64},
+                "modsecurity_library": {"path": str(root / "artifacts" / BROKER.ARTIFACT_LIBRARY_NAME), "sha256": "3" * 64},
             },
             "nginx_version": "1.31.3",
             "runtime": {
@@ -348,7 +353,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             trusted_build = Path(arguments.trusted_build_root)
             prefix = self.private_dir(trusted_build / "modsecurity-prefix")
             library_root = self.private_dir(prefix / "lib")
-            library = self.write(library_root / "libmodsecurity.so", "trusted library\n")
+            library = self.write_binary(library_root / BROKER.ARTIFACT_LIBRARY_NAME, Path("/usr/bin/true"))
             reports = self.private_dir(trusted_build / BROKER.RUNTIME_REPORTS_RELATIVE)
             self.write_snapshot_provenance(
                 arguments,
@@ -384,6 +389,172 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             self.assertEqual(candidate["artifacts"]["module"]["sha256"], digest(Path(arguments.module)))
             self.assertEqual(candidate["artifacts"]["modsecurity_library"]["sha256"], digest(library))
             self.assertEqual(candidate_path.parent.parent, trusted_build / BROKER.CANDIDATE_DIRECTORY_NAME)
+            self.assertEqual(
+                Path(candidate["artifacts"]["modsecurity_library"]["path"]).name,
+                BROKER.ARTIFACT_LIBRARY_NAME,
+            )
+
+    def test_prepare_from_snapshot_rejects_dynamic_loader_redirection_before_candidate_creation(self) -> None:
+        def fixture(root: Path) -> argparse.Namespace:
+            arguments = self.prepare_arguments(root)
+            trusted_build = Path(arguments.trusted_build_root)
+            prefix = self.private_dir(trusted_build / "modsecurity-prefix")
+            self.private_dir(prefix / "lib")
+            library = self.write_binary(prefix / "lib" / BROKER.ARTIFACT_LIBRARY_NAME, Path("/usr/bin/true"))
+            self.write_snapshot_provenance(
+                arguments,
+                binary=Path(arguments.binary),
+                module=Path(arguments.module),
+                prefix=prefix,
+                library=library,
+            )
+            self.write(
+                trusted_build / BROKER.RUNTIME_REPORTS_RELATIVE / "runtime-env-snapshot.test.sh",
+                "\n".join(
+                    (
+                        f"export NGINX_BINARY='{arguments.binary}'",
+                        f"export NGINX_MODULE='{arguments.module}'",
+                        f"export MODSECURITY_SHARED_PREFIX='{prefix}'",
+                        "",
+                    )
+                ),
+            )
+            return arguments
+
+        ordinary = b"".join(
+            (
+                b"Dynamic section at offset 0x0 contains 2 entries:\n",
+                b" 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]\n",
+                b" 0x000000000000000e (SONAME)             Library soname: [safe.so]\n",
+            )
+        )
+        rejected_entries = {
+            "rpath": (
+                b" 0x000000000000000f (RPATH)              Library rpath: [/unsafe]\n",
+                "must not contain DT_RPATH or DT_RUNPATH",
+            ),
+            "runpath": (
+                b" 0x000000000000001d (RUNPATH)            Library runpath: [/unsafe]\n",
+                "must not contain DT_RPATH or DT_RUNPATH",
+            ),
+            "slash-needed": (
+                b" 0x0000000000000001 (NEEDED)             Shared library: [/runner/libevil.so]\n",
+                "DT_NEEDED must use a slash-free shared-library name",
+            ),
+            "malformed-needed": (
+                b" 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6\n",
+                "unable to interpret .* DT_NEEDED entry",
+            ),
+            "audit": (
+                b" 0x000000006ffffefc (AUDIT)               Audit library: [/runner/audit.so]\n",
+                "must not contain DT_AUDIT",
+            ),
+            "depaudit": (
+                b" 0x000000006ffffefb (DEPAUDIT)            Dependency audit library: [audit.so]\n",
+                "must not contain DT_DEPAUDIT",
+            ),
+            "filter": (
+                b" 0x000000007fffffff (FILTER)              Filter library: [filter.so]\n",
+                "must not contain DT_FILTER",
+            ),
+            "auxiliary": (
+                b" 0x000000007ffffffd (AUXILIARY)           Auxiliary library: [aux.so]\n",
+                "must not contain DT_AUXILIARY",
+            ),
+        }
+        cases = [("ordinary", ordinary, ordinary, False, "")]
+        for artifact in ("module", "library"):
+            for tag, (entry, message) in rejected_entries.items():
+                cases.append(
+                    (
+                        f"{artifact}-{tag}",
+                        entry if artifact == "module" else ordinary,
+                        entry if artifact == "library" else ordinary,
+                        True,
+                        message,
+                    )
+                )
+        for name, module_output, library_output, rejected, message in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+                arguments = fixture(Path(temporary))
+
+                def process(output: bytes) -> mock.Mock:
+                    value = mock.Mock()
+                    value.stdout = tempfile.TemporaryFile()
+                    value.stdout.write(output)
+                    value.stdout.seek(0)
+                    value.args = [BROKER.READELF_EXECUTABLE, "-d", "artifact"]
+                    value.poll.return_value = 0
+                    value.wait.return_value = 0
+                    return value
+
+                def readelf_process(command: list[str], **_kwargs: object) -> mock.Mock:
+                    return process(module_output if command[2] == str(Path(arguments.module)) else library_output)
+
+                with mock.patch.object(BROKER.subprocess, "Popen", side_effect=readelf_process) as readelf:
+                    if rejected:
+                        with self.assertRaisesRegex(BROKER.BrokerError, message):
+                            BROKER.prepare_candidate_from_snapshot(arguments)
+                        self.assertFalse((Path(arguments.trusted_build_root) / BROKER.CANDIDATE_DIRECTORY_NAME).exists())
+                    else:
+                        candidate = BROKER.prepare_candidate_from_snapshot(arguments)
+                        self.assertTrue(candidate.is_file())
+                inspected = [call.args[0][2] for call in readelf.call_args_list]
+                expected = [str(Path(arguments.module))]
+                if name == "ordinary" or name.startswith("library-"):
+                    expected.append(str(Path(arguments.modsecurity_library)))
+                self.assertEqual(inspected, expected)
+                for call in readelf.call_args_list:
+                    self.assertEqual(call.args[0][0], BROKER.READELF_EXECUTABLE)
+                    self.assertEqual(call.kwargs["env"]["PATH"], "")
+                    self.assertEqual(call.kwargs["env"]["LC_ALL"], "C")
+                    self.assertNotIn("shell", call.kwargs)
+
+    def test_dynamic_inspection_is_output_bounded_and_times_out(self) -> None:
+        def completed_process(output: bytes) -> mock.Mock:
+            value = mock.Mock()
+            value.stdout = tempfile.TemporaryFile()
+            value.stdout.write(output)
+            value.stdout.seek(0)
+            value.args = [BROKER.READELF_EXECUTABLE, "-d", "artifact"]
+            value.poll.return_value = 0
+            value.wait.return_value = 0
+            return value
+
+        with mock.patch.object(BROKER, "MAX_READELF_OUTPUT_BYTES", 16), mock.patch.object(
+            BROKER.subprocess, "Popen", return_value=completed_process(b"x" * 17)
+        ):
+            with self.assertRaisesRegex(BROKER.BrokerError, "output exceeds its bound"):
+                BROKER.reject_dynamic_search_paths(Path("/trusted/module.so"), "NGINX module")
+
+        real_popen = subprocess.Popen
+
+        def sleeping_process(*_args: object, **_kwargs: object) -> subprocess.Popen[bytes]:
+            return real_popen(
+                ["/usr/bin/python3", "-c", "import time; time.sleep(30)"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+
+        started = BROKER.time.monotonic()
+        with mock.patch.object(BROKER, "READELF_TIMEOUT_SECONDS", 0.05), mock.patch.object(
+            BROKER.subprocess, "Popen", side_effect=sleeping_process
+        ):
+            with self.assertRaisesRegex(BROKER.BrokerError, "timed out"):
+                BROKER.reject_dynamic_search_paths(Path("/trusted/module.so"), "NGINX module")
+        self.assertLess(BROKER.time.monotonic() - started, 1.0)
+
+    def test_dynamic_section_parser_handles_long_malformed_output_without_backtracking(self) -> None:
+        malformed = "\n" * (BROKER.MAX_READELF_OUTPUT_BYTES // 4)
+        started = BROKER.time.monotonic()
+        with self.assertRaisesRegex(BROKER.BrokerError, "DT_RPATH or DT_RUNPATH"):
+            BROKER._reject_dynamic_loader_redirection(
+                malformed
+                + " 0x000000000000000f (RPATH)              Library rpath: [/unsafe]\n",
+                "NGINX module",
+            )
+        self.assertLess(BROKER.time.monotonic() - started, 1.0)
 
     def test_runtime_snapshot_rejects_duplicate_empty_malformed_and_arbitrary_exports(self) -> None:
         with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
@@ -429,7 +600,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             trusted_build = Path(arguments.trusted_build_root)
             prefix = self.private_dir(trusted_build / "modsecurity-prefix")
             library_root = self.private_dir(prefix / "lib")
-            library = self.write(library_root / "libmodsecurity.so", "trusted library\n")
+            library = self.write_binary(library_root / BROKER.ARTIFACT_LIBRARY_NAME, Path("/usr/bin/true"))
             record = self.write_snapshot_provenance(
                 arguments,
                 binary=Path(arguments.binary),
@@ -485,7 +656,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             trusted_build = Path(arguments.trusted_build_root)
             prefix = self.private_dir(trusted_build / "modsecurity-prefix")
             self.private_dir(prefix / "lib")
-            library = self.write(prefix / "lib" / "libmodsecurity.so", "trusted library\n")
+            library = self.write_binary(prefix / "lib" / BROKER.ARTIFACT_LIBRARY_NAME, Path("/usr/bin/true"))
             record = self.write_snapshot_provenance(
                 arguments,
                 binary=Path(arguments.binary),
@@ -577,6 +748,25 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 arguments, _, _, binary, module, _ = fixture(Path(temporary))
                 artifact = binary if artifact_name == "binary" else module
                 artifact.chmod(0o720)
+                assert_rejected(arguments)
+
+        for mutation in ("outside", "digest", "mode", "symlink"):
+            with self.subTest(artifact="modsecurity_library", mutation=mutation), tempfile.TemporaryDirectory(
+                prefix="nginx-root-broker-"
+            ) as temporary:
+                arguments, record, _, _, _, prefix = fixture(Path(temporary))
+                library = prefix / "lib" / BROKER.ARTIFACT_LIBRARY_NAME
+                if mutation == "outside":
+                    outside = self.write(Path(temporary) / BROKER.ARTIFACT_LIBRARY_NAME, "outside\n")
+                    mutate_record(record, lambda payload: payload["modsecurity"]["library"].__setitem__("path", str(outside)))
+                elif mutation == "digest":
+                    mutate_record(record, lambda payload: payload["modsecurity"]["library"].__setitem__("sha256", "0" * 64))
+                elif mutation == "mode":
+                    library.chmod(0o620)
+                else:
+                    target = self.write(library.parent / "replacement-modsecurity", "replacement\n")
+                    library.unlink()
+                    library.symlink_to(target)
                 assert_rejected(arguments)
 
         with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:

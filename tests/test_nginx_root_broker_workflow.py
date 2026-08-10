@@ -9,6 +9,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "nginx-root-broker.yml"
+NGINX_CONFIG = ROOT / "connectors" / "nginx" / "config"
 
 
 def step_block(workflow: str, name: str) -> str:
@@ -152,35 +153,65 @@ def python_version_materialization_errors(workflow: str) -> list[str]:
 
 
 def runtime_component_snapshot_contract_errors(workflow: str) -> list[str]:
-    """Return static violations for the fixed protected build snapshot selector."""
+    """Return static violations for the fixed protected build selectors."""
 
     build_step_name = "Build only trusted protected-source artifacts without root"
-    required_selection = (
+    required_snapshot_selection = (
         "          RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: protected-nginx-broker"
     )
+    required_rpath_selection = '          NGX_IGNORE_RPATH: "YES"'
     if f"      - name: {build_step_name}\n" not in workflow:
         return ["missing protected build step"]
 
     errors: list[str] = []
     build_step = step_block(workflow, build_step_name)
-    if workflow.count(required_selection) != 1:
+    if workflow.count(required_snapshot_selection) != 1:
         errors.append("snapshot selector is not unique and fixed")
-    if required_selection not in build_step:
+    if required_snapshot_selection not in build_step:
         errors.append("snapshot selector is outside the trusted build step")
+    if workflow.count(required_rpath_selection) != 1:
+        errors.append("RPATH selector is not unique and fixed")
+    if required_rpath_selection not in build_step:
+        errors.append("RPATH selector is outside the trusted build step")
     if "\n        if:" in build_step:
         errors.append("trusted build step can conditionally select a snapshot contract")
     if "continue-on-error:" in build_step:
         errors.append("trusted build step can continue after snapshot preparation failure")
     if "RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: ${{" in workflow:
         errors.append("snapshot selector accepts a mutable expression")
+    if "NGX_IGNORE_RPATH: ${{" in workflow:
+        errors.append("RPATH selector accepts a mutable expression")
     if "inputs.runtime_component_snapshot_contract" in workflow:
         errors.append("snapshot selector accepts a caller input")
-    if required_selection in workflow:
-        selection = workflow.index(required_selection)
+    if "inputs.ngx_ignore_rpath" in workflow:
+        errors.append("RPATH selector accepts a caller input")
+    if required_snapshot_selection in workflow and required_rpath_selection in workflow:
+        snapshot_selection = workflow.index(required_snapshot_selection)
+        rpath_selection = workflow.index(required_rpath_selection)
         fetch_dependencies = workflow.index("make fetch-deps")
         prepare_from_snapshot = workflow.index("prepare-from-snapshot")
-        if not selection < fetch_dependencies < prepare_from_snapshot:
+        if not snapshot_selection < fetch_dependencies < prepare_from_snapshot:
             errors.append("snapshot selector does not precede dependency and candidate preparation")
+        if not rpath_selection < fetch_dependencies < prepare_from_snapshot:
+            errors.append("RPATH selector does not precede dependency and candidate preparation")
+    return errors
+
+
+def nginx_explicit_library_rpath_contract_errors(config: str) -> list[str]:
+    """Return violations of the protected build's explicit no-RPATH opt-in."""
+
+    required_branch = "\n".join(
+        (
+            '        if [ "$NGX_IGNORE_RPATH" = "YES" ]; then',
+            '            ngx_feature_libs="-L$MODSECURITY_LIB -lmodsecurity $YAJL_EXTRA"',
+            '        elif [ $NGX_RPATH = YES ]; then',
+        )
+    )
+    errors: list[str] = []
+    if config.count(required_branch) != 1:
+        errors.append("explicit ModSecurity library path does not honor the no-RPATH opt-in first")
+    if config.find(required_branch) > config.find("    . auto/feature", config.find("MODSECURITY_INC")):
+        errors.append("no-RPATH opt-in is outside the explicit ModSecurity library branch")
     return errors
 
 
@@ -470,22 +501,32 @@ class TrustedNginxRootBrokerWorkflowTest(unittest.TestCase):
 
     def test_runtime_component_snapshot_contract_is_fixed_before_build_and_candidate_use(self) -> None:
         self.assertEqual(runtime_component_snapshot_contract_errors(self.workflow), [])
-        required_selection = (
+        required_snapshot_selection = (
             "          RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: protected-nginx-broker"
         )
+        required_rpath_selection = '          NGX_IGNORE_RPATH: "YES"'
         build_step_header = (
             "      - name: Build only trusted protected-source artifacts without root\n"
             "        working-directory:"
         )
         mutations = {
-            "selector omitted": (required_selection, ""),
+            "snapshot selector omitted": (required_snapshot_selection, ""),
             "selector accepts caller expression": (
-                required_selection,
+                required_snapshot_selection,
                 "          RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: ${{ inputs.runtime_component_snapshot_contract }}",
             ),
             "selector duplicated outside the trusted build": (
-                required_selection,
-                "\n".join((required_selection, required_selection)),
+                required_snapshot_selection,
+                "\n".join((required_snapshot_selection, required_snapshot_selection)),
+            ),
+            "RPATH selector omitted": (required_rpath_selection, ""),
+            "RPATH selector accepts caller expression": (
+                required_rpath_selection,
+                "          NGX_IGNORE_RPATH: ${{ inputs.ngx_ignore_rpath }}",
+            ),
+            "RPATH selector duplicated outside the trusted build": (
+                required_rpath_selection,
+                "\n".join((required_rpath_selection, required_rpath_selection)),
             ),
             "trusted build conditionally selects the contract": (
                 build_step_header,
@@ -499,6 +540,29 @@ class TrustedNginxRootBrokerWorkflowTest(unittest.TestCase):
                 self.assertIn(original, self.workflow)
                 mutated = self.workflow.replace(original, replacement, 1)
                 self.assertNotEqual(runtime_component_snapshot_contract_errors(mutated), [])
+
+    def test_protected_build_uses_the_existing_no_rpath_opt_in(self) -> None:
+        config = NGINX_CONFIG.read_text(encoding="utf-8")
+        self.assertEqual(nginx_explicit_library_rpath_contract_errors(config), [])
+        expected = '\n'.join(
+            (
+                '        if [ "$NGX_IGNORE_RPATH" = "YES" ]; then',
+                '            ngx_feature_libs="-L$MODSECURITY_LIB -lmodsecurity $YAJL_EXTRA"',
+                '        elif [ $NGX_RPATH = YES ]; then',
+            )
+        )
+        mutated = config.replace(
+            expected,
+            '\n'.join(
+                (
+                    '        if [ $NGX_RPATH = YES ]; then',
+                    '            ngx_feature_libs="-R$MODSECURITY_LIB -L$MODSECURITY_LIB -lmodsecurity $YAJL_EXTRA"',
+                    '        elif [ "$NGX_IGNORE_RPATH" = "YES" ]; then',
+                )
+            ),
+            1,
+        )
+        self.assertNotEqual(nginx_explicit_library_rpath_contract_errors(mutated), [])
 
     def test_bounded_evidence_is_staged_before_descriptor_cleanup_and_records_its_outcome(self) -> None:
         self.assertLess(

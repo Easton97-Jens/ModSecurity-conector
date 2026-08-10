@@ -765,6 +765,177 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             self.assertIn("unmanaged_cache_entry_marker_missing", blocked["blocker_reason"])
             self.assertFalse(unmanaged_paths["manifest"].exists())
 
+    def test_modsecurity_output_layout_version_changes_the_cache_identity(self) -> None:
+        git_record = {
+            "url": "https://github.com/example/modsecurity",
+            "expected_ref": "v3.0.15",
+            "actual_head": "a" * 40,
+            "submodule_status": "",
+        }
+        build_flags = {"CFLAGS": ""}
+        patchset = {"sha256": "b" * 64}
+        toolchain = {"cc": "cc", "cc_version": "test", "cxx": "", "cxx_version": ""}
+        current = components.modsecurity_cache_identity(
+            {}, git_record, build_flags, "c" * 64, patchset, toolchain
+        )
+        with mock.patch.object(components, "MODSECURITY_OUTPUT_LAYOUT_VERSION", 2):
+            changed = components.modsecurity_cache_identity(
+                {}, git_record, build_flags, "c" * 64, patchset, toolchain
+            )
+        self.assertNotEqual(current["cache_key"], changed["cache_key"])
+        self.assertEqual(
+            current["extra_inputs"]["modsecurity_output_layout_version"],
+            components.MODSECURITY_OUTPUT_LAYOUT_VERSION,
+        )
+
+    def test_modsecurity_outputs_materialize_a_regular_runtime_soname(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            libs = source / "src/.libs"
+            headers = source / "headers/modsecurity"
+            headers.mkdir(parents=True)
+            headers.joinpath("modsecurity.h").write_text("header\n", encoding="utf-8")
+            libs.mkdir(parents=True)
+            terminal = libs / "libmodsecurity.so.3.0.15"
+            terminal.write_text("library\n", encoding="utf-8")
+            terminal.chmod(0o644)
+            (libs / "libmodsecurity.so.3").symlink_to(terminal.name)
+            (libs / "libmodsecurity.so").symlink_to("libmodsecurity.so.3")
+
+            prefix = root / "prefix"
+            components.copy_modsecurity_outputs(source, prefix)
+
+            runtime = prefix / "lib" / components.MODSECURITY_RUNTIME_LIBRARY_FILENAME
+            self.assertTrue(runtime.is_file())
+            self.assertFalse(runtime.is_symlink())
+            self.assertEqual(runtime.read_text(encoding="utf-8"), "library\n")
+            self.assertTrue((prefix / "lib" / components.MODSECURITY_LIBRARY_FILENAME).is_symlink())
+
+    def test_modsecurity_outputs_reject_unsafe_or_ambiguous_libtool_chains(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            libs = source / "src/.libs"
+            headers = source / "headers/modsecurity"
+            headers.mkdir(parents=True)
+            headers.joinpath("modsecurity.h").write_text("header\n", encoding="utf-8")
+            libs.mkdir(parents=True)
+            (libs / "libmodsecurity.so").symlink_to("../outside")
+            (libs / "libmodsecurity.so.3").symlink_to("libmodsecurity.so.3.0.15")
+            (libs / "libmodsecurity.so.3.0.15").write_text("library\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "symlink_outside"):
+                components.copy_modsecurity_outputs(source, root / "prefix")
+
+            (libs / "libmodsecurity.so").unlink()
+            (libs / "libmodsecurity.so").symlink_to("libmodsecurity.so.3.0.16")
+            (libs / "libmodsecurity.so.3.0.16").write_text("other\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "multiple_terminal_targets"):
+                components.copy_modsecurity_outputs(source, root / "prefix")
+
+            (libs / "libmodsecurity.so").unlink()
+            (libs / "libmodsecurity.so").symlink_to("libmodsecurity.so.3.0.15")
+            (libs / "libmodsecurity.so.3").unlink()
+            (libs / "libmodsecurity.so.3").symlink_to("missing-runtime-library")
+            with self.assertRaisesRegex(RuntimeError, "symlink_dangling"):
+                components.copy_modsecurity_outputs(source, root / "prefix")
+
+            (libs / "libmodsecurity.so.3").unlink()
+            (libs / "libmodsecurity.so.3").symlink_to("libmodsecurity.so.3.0.15")
+            (libs / "libmodsecurity.so.3.0.15").chmod(0o666)
+            with self.assertRaisesRegex(RuntimeError, "terminal_writable"):
+                components.copy_modsecurity_outputs(source, root / "prefix")
+
+    def test_modsecurity_outputs_reject_nested_symlink_parent_escape(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            libs = source / "src/.libs"
+            headers = source / "headers/modsecurity"
+            outside = root / "outside"
+            headers.mkdir(parents=True)
+            headers.joinpath("modsecurity.h").write_text("header\n", encoding="utf-8")
+            libs.mkdir(parents=True)
+            outside.mkdir()
+            outside.joinpath("libmodsecurity.so.3.0.15").write_text(
+                "outside\n", encoding="utf-8"
+            )
+            (libs / "nested").symlink_to(outside, target_is_directory=True)
+            (libs / "libmodsecurity.so.3").symlink_to(
+                "nested/libmodsecurity.so.3.0.15"
+            )
+            (libs / "libmodsecurity.so").symlink_to("libmodsecurity.so.3")
+
+            with self.assertRaisesRegex(RuntimeError, "symlink_outside"):
+                components.copy_modsecurity_outputs(source, root / "prefix")
+            self.assertFalse(
+                (root / "prefix/lib/libmodsecurity.so.3").exists()
+            )
+
+    def test_modsecurity_outputs_reject_cyclic_and_nonregular_libtool_chains(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            libs = source / "src/.libs"
+            headers = source / "headers/modsecurity"
+            headers.mkdir(parents=True)
+            headers.joinpath("modsecurity.h").write_text("header\n", encoding="utf-8")
+            libs.mkdir(parents=True)
+            (libs / "libmodsecurity.so").symlink_to("libmodsecurity.so.3")
+            (libs / "libmodsecurity.so.3").symlink_to("libmodsecurity.so")
+
+            with self.assertRaisesRegex(RuntimeError, "symlink_cycle"):
+                components.copy_modsecurity_outputs(source, root / "prefix")
+
+            (libs / "libmodsecurity.so.3").unlink()
+            (libs / "libmodsecurity.so.3").symlink_to("libmodsecurity.so.3.0.15")
+            (libs / "libmodsecurity.so.3.0.15").mkdir()
+            with self.assertRaisesRegex(RuntimeError, "terminal_nonregular"):
+                components.copy_modsecurity_outputs(source, root / "prefix")
+
+    def test_modsecurity_runtime_copy_remains_bound_to_verified_inode(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            libs = source / "src/.libs"
+            headers = source / "headers/modsecurity"
+            headers.mkdir(parents=True)
+            headers.joinpath("modsecurity.h").write_text("header\n", encoding="utf-8")
+            libs.mkdir(parents=True)
+            terminal = libs / "libmodsecurity.so.3.0.15"
+            terminal.write_text("verified\n", encoding="utf-8")
+            terminal.chmod(0o644)
+            verified_inode = terminal.stat().st_ino
+            (libs / "libmodsecurity.so.3").symlink_to(terminal.name)
+            (libs / "libmodsecurity.so").symlink_to("libmodsecurity.so.3")
+            original_copy2 = components.shutil.copy2
+            replaced = False
+
+            def replace_terminal_after_generic_copy(
+                source_path: Path, destination_path: Path
+            ) -> Path:
+                nonlocal replaced
+                result = original_copy2(source_path, destination_path)
+                if Path(source_path) == terminal and not replaced:
+                    replacement = libs / "replacement"
+                    replacement.write_text("replacement\n", encoding="utf-8")
+                    replacement.chmod(0o644)
+                    replacement.replace(terminal)
+                    replaced = True
+                return result
+
+            prefix = root / "prefix"
+            with mock.patch.object(
+                components.shutil, "copy2", side_effect=replace_terminal_after_generic_copy
+            ):
+                components.copy_modsecurity_outputs(source, prefix)
+
+            runtime = prefix / "lib" / components.MODSECURITY_RUNTIME_LIBRARY_FILENAME
+            self.assertTrue(replaced)
+            self.assertNotEqual(terminal.stat().st_ino, verified_inode)
+            self.assertEqual(runtime.read_text(encoding="utf-8"), "verified\n")
+            self.assertFalse(runtime.is_symlink())
+
     def test_modsecurity_builds_in_staging_then_publishes_complete_entries(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)
@@ -795,7 +966,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     headers.mkdir(parents=True, exist_ok=True)
                     libs.mkdir(parents=True, exist_ok=True)
                     (headers / "modsecurity.h").write_text("header\n", encoding="utf-8")
-                    (libs / "libmodsecurity.so").write_text("library\n", encoding="utf-8")
+                    terminal = libs / "libmodsecurity.so.3.0.15"
+                    terminal.write_text("library\n", encoding="utf-8")
+                    (libs / "libmodsecurity.so.3").symlink_to(terminal.name)
+                    (libs / "libmodsecurity.so").symlink_to("libmodsecurity.so.3")
                 return subprocess.CompletedProcess(command, 0, "", "")
 
             with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(

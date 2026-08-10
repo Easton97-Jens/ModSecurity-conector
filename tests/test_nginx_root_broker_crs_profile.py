@@ -46,6 +46,12 @@ class TrustedNginxRootBrokerCrsProfileTest(unittest.TestCase):
         path.chmod(mode)
         return path
 
+    def write_binary(self, path: Path, source: Path, mode: int = 0o600) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(source.read_bytes())
+        path.chmod(mode)
+        return path
+
     def caller_payload(self, *, variant: str, profile: str) -> dict[str, object]:
         return {
             "schema_version": BROKER.SCHEMA_VERSION_V2,
@@ -60,8 +66,8 @@ class TrustedNginxRootBrokerCrsProfileTest(unittest.TestCase):
     def prepare_arguments(self, root: Path) -> argparse.Namespace:
         build = self.private_dir(root / "trusted-build")
         binary = self.write(build / "nginx", "trusted binary\n", 0o700)
-        module = self.write(build / "ngx_http_modsecurity_module.so", "trusted module\n")
-        library = self.write(build / "libmodsecurity.so", "trusted library\n")
+        module = self.write_binary(build / "ngx_http_modsecurity_module.so", Path("/usr/bin/true"))
+        library = self.write_binary(build / BROKER.ARTIFACT_LIBRARY_NAME, Path("/usr/bin/true"))
         caller = self.write(root / "caller-manifest.json", "{}\n")
         return argparse.Namespace(
             caller_manifest=str(caller),

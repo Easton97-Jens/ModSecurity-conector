@@ -220,6 +220,7 @@ jobs:
           RUNTIME_REPORT_OUTPUT_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/build/runtime-component-reports
           RUNTIME_COMPONENT_TARGET: nginx
           RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: protected-nginx-broker
+          NGX_IGNORE_RPATH: "YES"
         run: |
           set -euo pipefail
           verify_broker_source() {
