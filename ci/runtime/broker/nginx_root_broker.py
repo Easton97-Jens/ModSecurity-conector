@@ -1391,40 +1391,48 @@ def _stop_readelf_process(process: subprocess.Popen[bytes]) -> None:
         pass
 
 
+def dynamic_section_address_remainder(line: str) -> str | None:
+    """Return the text after a valid conventional ``readelf`` address."""
+
+    fields = line.split(maxsplit=1)
+    if len(fields) != 2:
+        return None
+    address, remainder = fields
+    if (
+        not address.startswith("0x")
+        or len(address) == 2
+        or not all(character in "0123456789abcdefABCDEF" for character in address[2:])
+    ):
+        return None
+    return remainder
+
+
+def dynamic_section_tag_value(remainder: str) -> tuple[str, str] | None:
+    """Return a conventional dynamic-section tag and its trailing value."""
+
+    tag, closing, value = remainder.partition(")")
+    if (
+        not closing
+        or not tag.startswith("(")
+        or len(tag) == 1
+        or not all(
+            "A" <= character <= "Z" or "0" <= character <= "9" or character == "_"
+            for character in tag[1:]
+        )
+        or not value
+        or not value[0].isspace()
+    ):
+        return None
+    return tag[1:], value.lstrip()
+
+
 def dynamic_section_entry(line: str) -> tuple[str, str] | None:
     """Parse one conventional ``readelf -d`` entry without regex backtracking."""
 
-    index = 0
-    length = len(line)
-    while index < length and line[index].isspace():
-        index += 1
-    if not line.startswith("0x", index):
+    remainder = dynamic_section_address_remainder(line)
+    if remainder is None:
         return None
-    index += 2
-    hex_start = index
-    while index < length and line[index] in "0123456789abcdefABCDEF":
-        index += 1
-    if index == hex_start or index == length or not line[index].isspace():
-        return None
-    while index < length and line[index].isspace():
-        index += 1
-    if index == length or line[index] != "(":
-        return None
-    index += 1
-    tag_start = index
-    while index < length and (
-        "A" <= line[index] <= "Z" or "0" <= line[index] <= "9" or line[index] == "_"
-    ):
-        index += 1
-    if index == tag_start or index == length or line[index] != ")":
-        return None
-    tag = line[tag_start:index]
-    index += 1
-    if index == length or not line[index].isspace():
-        return None
-    while index < length and line[index].isspace():
-        index += 1
-    return tag, line[index:]
+    return dynamic_section_tag_value(remainder)
 
 
 def _reject_dynamic_loader_redirection(dynamic: str, label: str) -> None:
