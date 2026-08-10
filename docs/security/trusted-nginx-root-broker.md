@@ -11,16 +11,16 @@ generated environment files never run as host root.
 
 ## Immutable invocation boundary
 
-The existing caller uses the reusable workflow at the exact 40-character merge
+The existing caller uses the reusable workflow at the exact 40-character commit
 SHA already reachable from protected Parent `master`:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@c2836f74510b9f72bae466d8b7d92a3f9f38c007
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@1df2fcbd0c764c52253348a29034ff9e9b1bf7e2
 ```
 
 Both caller `uses` values and both `protected_broker_sha` values are pinned to
-the resulting protected broker-repair merge SHA
-`c2836f74510b9f72bae466d8b7d92a3f9f38c007`; neither a branch nor `master` is
+the resulting protected broker-repair commit SHA
+`1df2fcbd0c764c52253348a29034ff9e9b1bf7e2`; neither a branch nor `master` is
 an acceptable substitute.
 
 GitHub documents that the `github` context in a called reusable workflow is
@@ -112,12 +112,12 @@ actions remain inside this immutable call and the Framework gitlink is fixed
 to the broker revision rather than to a later Parent state:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@c2836f74510b9f72bae466d8b7d92a3f9f38c007
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@1df2fcbd0c764c52253348a29034ff9e9b1bf7e2
 ```
 
 ```text
-protected_broker_sha = c2836f74510b9f72bae466d8b7d92a3f9f38c007
-framework_sha        = 4c9af1cee72caa0107fa011e59eef9e853338cf5
+protected_broker_sha = 1df2fcbd0c764c52253348a29034ff9e9b1bf7e2
+framework_sha        = 03880bf66b3905940466ff10b3a431a27ecc6b26
 ```
 
 The caller makes two explicit immutable calls, never a user-selected matrix:
@@ -181,8 +181,8 @@ and no others:
 Before admission, the broker validates the record's paths, digests, metadata,
 and Parent and Framework identities. A generic runtime snapshot, or a direct
 harness environment override, is not accepted at the broker boundary. The
-Phase B source documents this protected contract, but is not an active caller
-pin until a future Phase C change explicitly makes it one.
+active caller pins the broker revision that contains this protected
+snapshot contract, so a resulting-Parent-master dispatch selects it directly.
 
 ## Protected artifacts and CRS bundle
 
