@@ -11,17 +11,17 @@ generated environment files never run as host root.
 
 ## Immutable invocation boundary
 
-This separate Phase-B caller-repin patch updates the caller to use the
+This separate caller-repin patch updates the caller to use the
 reusable workflow at the exact 40-character broker commit SHA already reachable
 from protected Parent `master`:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@7a9240d35e50475cc1a381fa103b0bb5cca2bee3
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@49c40779a7b6de9f699391bcd524ea069787df42
 ```
 
 Both caller `uses` values and both `protected_broker_sha` values in this
-Phase-B patch are pinned to the available protected broker-repair commit SHA
-`7a9240d35e50475cc1a381fa103b0bb5cca2bee3`; neither a branch nor `master` is
+caller-repin patch are pinned to the available protected broker-repair commit SHA
+`49c40779a7b6de9f699391bcd524ea069787df42`; neither a branch nor `master` is
 an acceptable substitute.
 
 GitHub documents that the `github` context in a called reusable workflow is
@@ -113,11 +113,11 @@ actions remain inside this immutable call and the Framework gitlink is fixed
 to the broker revision rather than to a later Parent state:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@7a9240d35e50475cc1a381fa103b0bb5cca2bee3
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@49c40779a7b6de9f699391bcd524ea069787df42
 ```
 
 ```text
-protected_broker_sha = 7a9240d35e50475cc1a381fa103b0bb5cca2bee3
+protected_broker_sha = 49c40779a7b6de9f699391bcd524ea069787df42
 framework_sha        = 03880bf66b3905940466ff10b3a431a27ecc6b26
 ```
 
@@ -199,6 +199,17 @@ revision independently cross-checks this reviewed tuple:
 | Release tag | `v4.28.0` |
 | Commit | `55b09f5acfd16413e7b31041100711ceb7adc89c` |
 | Expected CRS block rule | `949110` |
+
+The pinned CRS tree contains one intentionally empty plugin leaf,
+`plugins/empty-after.conf`. The broker admits that zero-byte leaf only when
+the protected Git object at
+`55b09f5acfd16413e7b31041100711ceb7adc89c:plugins/empty-after.conf` is exactly
+the Git blob `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` and the materialized
+regular `0644` file has SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Any
+other empty CRS file, a non-regular file, a symlink, a changed mode, a changed
+digest, or a changed pinned tag/commit fails closed. This is a fixed
+provenance check, not a general empty-file allowance.
 
 The root-to-runner evidence limits remain exactly
 `MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024` and
@@ -286,6 +297,15 @@ starts one root master only on loopback and a non-privileged port, requires one
 distinct non-root worker with the admitted binary inode, and verifies that the
 process group and listener are gone before cleanup.
 
+The only directories with the narrow `root:worker` `0730` layout are the
+broker-created log and state directories and, for `owasp-crs`, the CRS audit
+directory. Each must remain root-owned, belong to the admitted worker GID, have
+exact mode `0730`, and have an entirely non-symlink path. The allowance exists
+only so the admitted worker can write these broker-created runtime outputs; it
+does not relax the existing directory-metadata validation for any other path.
+All other root-bound ownership, mode, path, manifest, artifact, and
+pre-root/root-action controls remain unchanged.
+
 The `no-crs` profile retains only the broker-owned `/blocked` control rule and
 carries no pretend CRS tuple. The `owasp-crs` profile writes the portable serial
 audit configuration and fixed includes for the root-owned CRS bundle. It uses
@@ -352,19 +372,27 @@ Run `31368594208` is retained pre-fix failure evidence only: its no-CRS leg
 rejected the genuine protected library under the generic 8 MiB evidence limit,
 and its with-CRS leg rejected fresh checkout files that inherited `umask 077`.
 Both legs stopped before candidate admission, every root action, NGINX startup,
-evidence projection, and cleanup verification. PR #273 subsequently merged
-broker commit `7a9240d35e50475cc1a381fa103b0bb5cca2bee3` to `master`, making
-that broker revision available. Its committed caller workflow/helper still pin
-`409caa5b9664bcb8e1919d35684575e00a959f6a`; the separate Phase-B
-caller-repin commit `9a54f316248edf22b3e43ccfbb3310a651253921` selects the
-`7a9240d35e50475cc1a381fa103b0bb5cca2bee3`/
-`03880bf66b3905940466ff10b3a431a27ecc6b26` tuple and is tracked as Draft
-[PR #274](https://github.com/Easton97-Jens/ModSecurity-conector/pull/274).
-Neither the merge nor this local source/static evidence is runtime proof; a
-fresh resulting-master lifecycle remains mandatory.
+evidence projection, and cleanup verification. [PR #274](https://github.com/Easton97-Jens/ModSecurity-conector/pull/274)
+merged the prior caller repin at `4749c02c6dd5e285c4309b4e69b0bb28ae459e48`,
+selecting broker `7a9240d35e50475cc1a381fa103b0bb5cca2bee3`. [PR #275](https://github.com/Easton97-Jens/ModSecurity-conector/pull/275)
+subsequently merged broker commit `49c40779a7b6de9f699391bcd524ea069787df42`,
+making the FND-PARENT-0120/FND-PARENT-0121 repair available. This separate
+caller-repin patch selects the `49c40779a7b6de9f699391bcd524ea069787df42`/
+`03880bf66b3905940466ff10b3a431a27ecc6b26` tuple. Neither those merges nor
+this local source/static evidence is runtime proof; a fresh resulting-master
+lifecycle remains mandatory.
 
 PR #240 remains blocked until this resulting-master caller is dispatched and
 observed to pass both `no-crs` and `owasp-crs` profiles with successful
 evidence readback and cleanup. A later dispatch may bind PR #240's final head
 only as declarative evidence; it never executes PR #240 code at the root
 boundary.
+
+For the Parent-only FND-PARENT-0120/FND-PARENT-0121 repair based at
+`4749c02c6dd5e285c4309b4e69b0bb28ae459e48`, failure run `31421851336` remains
+failure evidence only. The in-memory compile check passed and the focused
+`tests.test_nginx_root_broker tests.test_nginx_root_broker_crs_profile` suite
+passed 55 tests in 11.750 seconds. A direct `py_compile` check was blocked
+because this worktree cannot create `__pycache__`. None of this local evidence
+proves a hosted run, pull-request state, root/worker lifecycle, CRS execution,
+evidence readback, or cleanup success.

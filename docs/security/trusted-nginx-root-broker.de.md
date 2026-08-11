@@ -12,17 +12,17 @@ Umgebungsdateien laufen niemals als Host-root.
 
 ## Unveränderliche Aufrufgrenze
 
-Dieser getrennte Phase-B-Caller-Repin-Patch aktualisiert den Caller auf den
+Dieser getrennte Caller-Repin-Patch aktualisiert den Caller auf den
 wiederverwendbaren Workflow mit dem exakten 40-stelligen Broker-Commit-SHA,
 der bereits vom geschützten Parent-`master` erreichbar ist:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@7a9240d35e50475cc1a381fa103b0bb5cca2bee3
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@49c40779a7b6de9f699391bcd524ea069787df42
 ```
 
 Beide Caller-`uses`-Werte und beide `protected_broker_sha`-Werte in diesem
-Phase-B-Patch sind an den verfügbaren geschützten Broker-Repair-Commit-SHA
-`7a9240d35e50475cc1a381fa103b0bb5cca2bee3` gepinnt; weder ein Branch noch
+Caller-Repin-Patch sind an den verfügbaren geschützten Broker-Repair-Commit-SHA
+`49c40779a7b6de9f699391bcd524ea069787df42` gepinnt; weder ein Branch noch
 `master` sind zulässige Alternativen.
 
 GitHub dokumentiert, dass der `github`-Kontext in einem aufgerufenen
@@ -123,11 +123,11 @@ bleiben im folgenden unveränderlichen Aufruf; der Framework-Gitlink ist an die
 Broker-Revision und nicht an einen späteren Parent-Stand gebunden:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@7a9240d35e50475cc1a381fa103b0bb5cca2bee3
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@49c40779a7b6de9f699391bcd524ea069787df42
 ```
 
 ```text
-protected_broker_sha = 7a9240d35e50475cc1a381fa103b0bb5cca2bee3
+protected_broker_sha = 49c40779a7b6de9f699391bcd524ea069787df42
 framework_sha        = 03880bf66b3905940466ff10b3a431a27ecc6b26
 ```
 
@@ -214,6 +214,18 @@ Framework-Gitlinks. Die Broker-Revision prüft dieses geprüfte Tupel unabhängi
 | Release-Tag | `v4.28.0` |
 | Commit | `55b09f5acfd16413e7b31041100711ceb7adc89c` |
 | Erwartete CRS-Blockregel | `949110` |
+
+Der gepinnte CRS-Tree enthält genau ein absichtlich leeres Plugin-Leaf,
+`plugins/empty-after.conf`. Der Broker akzeptiert dieses Zero-Byte-Leaf nur,
+wenn das geschützte Gitobjekt unter
+`55b09f5acfd16413e7b31041100711ceb7adc89c:plugins/empty-after.conf` exakt der
+Gitblob `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` ist und die materialisierte
+reguläre Datei mit Modus `0644` den SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` besitzt.
+Jede andere leere CRS-Datei, eine nicht reguläre Datei, ein Symlink, ein
+geänderter Modus, ein geänderter Digest oder ein geändertes gepinntes
+Tag/Commit schlägt fail-closed fehl. Dies ist eine feste Provenance-Prüfung
+und keine allgemeine Erlaubnis für leere Dateien.
 
 Die Root-zu-Runner-Evidence-Limits bleiben exakt
 `MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024` und
@@ -310,6 +322,16 @@ Port, fordert genau einen getrennten Nicht-root-Worker mit dem zugelassenen
 Binary-Inode und prüft vor dem Cleanup, dass Prozessgruppe und Listener
 verschwunden sind.
 
+Die einzigen Verzeichnisse mit dem engen Layout `root:worker` `0730` sind die
+vom Broker erzeugten Log- und State-Verzeichnisse sowie für `owasp-crs` das
+CRS-Audit-Verzeichnis. Jedes muss root-owned bleiben, zur zugelassenen
+Worker-GID gehören, exakt den Modus `0730` haben und einen vollständig
+nicht-symlinkenden Pfad besitzen. Die Erlaubnis besteht nur, damit der
+zugelassene Worker diese vom Broker erzeugten Runtime-Ausgaben schreiben kann;
+sie lockert die bestehende Directory-Metadata-Validierung für keinen anderen
+Pfad. Alle anderen Root-gebundenen Ownership-, Mode-, Pfad-, Manifest-,
+Artefakt- sowie Pre-root-/Root-Action-Kontrollen bleiben unverändert.
+
 Das `no-crs`-Profil behält ausschließlich die Broker-eigene `/blocked`-
 Kontrollregel und trägt kein scheinbares CRS-Tupel. Das `owasp-crs`-Profil
 schreibt die portable serielle Audit-Konfiguration und feste Includes für das
@@ -386,19 +408,29 @@ No-CRS-Abschnitt wies die echte geschützte Library unter dem generischen
 8-MiB-Evidence-Limit ab, und sein With-CRS-Abschnitt wies frische
 Checkout-Dateien ab, die `umask 077` geerbt hatten. Beide Abschnitte stoppten
 vor Candidate-Admission, jeder Root-Aktion, NGINX-Start, Evidence-Projektion
-und Cleanup-Verifikation. PR #273 mergte anschließend Broker-Commit
-`7a9240d35e50475cc1a381fa103b0bb5cca2bee3` nach `master` und machte diese
-Broker-Revision verfügbar. Sein commitierter Caller-Workflow/-Helper pinnt
-weiterhin `409caa5b9664bcb8e1919d35684575e00a959f6a`; der getrennte
-Phase-B-Caller-Repin-Commit `9a54f316248edf22b3e43ccfbb3310a651253921`
-wählt das Tupel `7a9240d35e50475cc1a381fa103b0bb5cca2bee3`/
-`03880bf66b3905940466ff10b3a431a27ecc6b26` und wird als Draft
-[PR #274](https://github.com/Easton97-Jens/ModSecurity-conector/pull/274)
-verfolgt. Weder der Merge noch diese lokale Source-/Static-Evidence sind
-Runtime-Nachweis; ein frischer resulting-master-Lifecycle bleibt zwingend.
+und Cleanup-Verifikation. [PR #274](https://github.com/Easton97-Jens/ModSecurity-conector/pull/274)
+mergte den vorherigen Caller-Repin bei `4749c02c6dd5e285c4309b4e69b0bb28ae459e48`
+und wählte Broker `7a9240d35e50475cc1a381fa103b0bb5cca2bee3`. [PR #275](https://github.com/Easton97-Jens/ModSecurity-conector/pull/275)
+mergte anschließend Broker-Commit `49c40779a7b6de9f699391bcd524ea069787df42`
+und machte die FND-PARENT-0120/FND-PARENT-0121-Reparatur verfügbar. Dieser
+getrennte Caller-Repin-Patch wählt das Tupel
+`49c40779a7b6de9f699391bcd524ea069787df42`/
+`03880bf66b3905940466ff10b3a431a27ecc6b26`. Weder diese Merges noch diese
+lokale Source-/Static-Evidence sind Runtime-Nachweis; ein frischer
+resulting-master-Lifecycle bleibt zwingend.
 
 PR #240 bleibt blockiert, bis dieser resulting-master-Caller gestartet wurde
 und mit erfolgreichen `no-crs`- sowie `owasp-crs`-Profilen einschließlich
 Evidence-Readback und Cleanup beobachtet wurde. Ein späterer Dispatch darf den
 finalen PR-240-Head nur als deklarative Evidence binden; er führt niemals
 PR-240-Code an der Root-Grenze aus.
+
+Für die Parent-only-Reparatur FND-PARENT-0120/FND-PARENT-0121 auf Basis von
+`4749c02c6dd5e285c4309b4e69b0bb28ae459e48` bleibt Failure-Run `31421851336`
+nur Failure-Evidence. Die In-Memory-Compile-Prüfung bestand und die fokussierte
+Suite `tests.test_nginx_root_broker tests.test_nginx_root_broker_crs_profile`
+bestand 55 Tests in 11.750 Sekunden. Eine direkte `py_compile`-Prüfung war
+blockiert, weil dieses Worktree kein `__pycache__` erstellen kann. Keine dieser
+lokalen Evidenzen beweist einen Hosted-Run, Pull-Request-Status, einen
+Root-/Worker-Lifecycle, CRS-Ausführung, Evidence-Readback oder erfolgreichen
+Cleanup.
