@@ -215,6 +215,18 @@ Framework-Gitlinks. Die Broker-Revision prüft dieses geprüfte Tupel unabhängi
 | Commit | `55b09f5acfd16413e7b31041100711ceb7adc89c` |
 | Erwartete CRS-Blockregel | `949110` |
 
+Der gepinnte CRS-Tree enthält genau ein absichtlich leeres Plugin-Leaf,
+`plugins/empty-after.conf`. Der Broker akzeptiert dieses Zero-Byte-Leaf nur,
+wenn das geschützte Gitobjekt unter
+`55b09f5acfd16413e7b31041100711ceb7adc89c:plugins/empty-after.conf` exakt der
+Gitblob `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` ist und die materialisierte
+reguläre Datei mit Modus `0644` den SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` besitzt.
+Jede andere leere CRS-Datei, eine nicht reguläre Datei, ein Symlink, ein
+geänderter Modus, ein geänderter Digest oder ein geändertes gepinntes
+Tag/Commit schlägt fail-closed fehl. Dies ist eine feste Provenance-Prüfung
+und keine allgemeine Erlaubnis für leere Dateien.
+
 Die Root-zu-Runner-Evidence-Limits bleiben exakt
 `MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024` und
 `MAX_EVIDENCE_TOTAL_BYTES = 20 * 1024 * 1024`; diese Reparatur erweitert
@@ -310,6 +322,16 @@ Port, fordert genau einen getrennten Nicht-root-Worker mit dem zugelassenen
 Binary-Inode und prüft vor dem Cleanup, dass Prozessgruppe und Listener
 verschwunden sind.
 
+Die einzigen Verzeichnisse mit dem engen Layout `root:worker` `0730` sind die
+vom Broker erzeugten Log- und State-Verzeichnisse sowie für `owasp-crs` das
+CRS-Audit-Verzeichnis. Jedes muss root-owned bleiben, zur zugelassenen
+Worker-GID gehören, exakt den Modus `0730` haben und einen vollständig
+nicht-symlinkenden Pfad besitzen. Die Erlaubnis besteht nur, damit der
+zugelassene Worker diese vom Broker erzeugten Runtime-Ausgaben schreiben kann;
+sie lockert die bestehende Directory-Metadata-Validierung für keinen anderen
+Pfad. Alle anderen Root-gebundenen Ownership-, Mode-, Pfad-, Manifest-,
+Artefakt- sowie Pre-root-/Root-Action-Kontrollen bleiben unverändert.
+
 Das `no-crs`-Profil behält ausschließlich die Broker-eigene `/blocked`-
 Kontrollregel und trägt kein scheinbares CRS-Tupel. Das `owasp-crs`-Profil
 schreibt die portable serielle Audit-Konfiguration und feste Includes für das
@@ -402,3 +424,13 @@ und mit erfolgreichen `no-crs`- sowie `owasp-crs`-Profilen einschließlich
 Evidence-Readback und Cleanup beobachtet wurde. Ein späterer Dispatch darf den
 finalen PR-240-Head nur als deklarative Evidence binden; er führt niemals
 PR-240-Code an der Root-Grenze aus.
+
+Für die Parent-only-Reparatur FND-PARENT-0120/FND-PARENT-0121 auf Basis von
+`4749c02c6dd5e285c4309b4e69b0bb28ae459e48` bleibt Failure-Run `31421851336`
+nur Failure-Evidence. Die In-Memory-Compile-Prüfung bestand und die fokussierte
+Suite `tests.test_nginx_root_broker tests.test_nginx_root_broker_crs_profile`
+bestand 55 Tests in 11.750 Sekunden. Eine direkte `py_compile`-Prüfung war
+blockiert, weil dieses Worktree kein `__pycache__` erstellen kann. Keine dieser
+lokalen Evidenzen beweist einen Hosted-Run, Pull-Request-Status, einen
+Root-/Worker-Lifecycle, CRS-Ausführung, Evidence-Readback oder erfolgreichen
+Cleanup.

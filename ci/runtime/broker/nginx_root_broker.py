@@ -252,6 +252,9 @@ CRS_SMOKE_REQUEST_PATH = "/?id=1%20UNION%20SELECT%20password%20FROM%20users"
 CRS_ALLOW_REQUEST_PATH = "/"
 CRS_BUNDLE_SCHEMA_VERSION = 1
 CRS_BUNDLE_SOURCE_RELATIVE = Path("verified") / "crs-fresh-source" / "coreruleset"
+CRS_EMPTY_AFTER_PLACEHOLDER_RELATIVE = Path("plugins") / "empty-after.conf"
+CRS_EMPTY_AFTER_PLACEHOLDER_BLOB = "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+CRS_EMPTY_AFTER_PLACEHOLDER_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 
 class BrokerError(RuntimeError):
@@ -1645,6 +1648,7 @@ class ArtifactInput:
     expected_sha256: str
     destination_name: str
     maximum_bytes: int | None = None
+    allow_empty: bool = False
 
 
 def copy_verified_artifact(item: ArtifactInput, destination: Path, trusted_build_root: Path) -> dict[str, str]:
@@ -1652,7 +1656,7 @@ def copy_verified_artifact(item: ArtifactInput, destination: Path, trusted_build
     if not is_within(source, trusted_build_root):
         fail(f"{item.name} source must be inside the {TRUSTED_BUILD_ROOT_LABEL}")
     metadata = regular_metadata(source, f"{item.name} source", owner=os.geteuid())
-    if metadata.st_size <= 0:
+    if metadata.st_size <= 0 and not item.allow_empty:
         fail(f"{item.name} source must not be empty")
     source_fd, source_metadata = open_regular_no_follow(source, f"{item.name} source")
     try:
@@ -2024,7 +2028,11 @@ def validate_crs_bundle_file_record(
     rendered_path: str,
     expected_broker_sha: str,
 ) -> dict[str, Any]:
-    if not isinstance(record.get("size"), int) or record["size"] <= 0:
+    relative = bundle_relative_path(rendered_path, "CRS bundle file path")
+    digest = require_sha256(record.get("sha256"), "CRS bundle file SHA-256")
+    if not isinstance(record.get("size"), int) or record["size"] < 0:
+        fail("CRS bundle manifest file size is invalid")
+    if record["size"] == 0 and not is_approved_empty_crs_placeholder(relative, digest):
         fail("CRS bundle manifest file size is invalid")
     if record.get("mode") != "0644" or record.get("type") != "regular":
         fail("CRS bundle manifest file mode or type is invalid")
@@ -2032,7 +2040,7 @@ def validate_crs_bundle_file_record(
         fail("CRS bundle manifest file provenance is invalid")
     return {
         "path": rendered_path,
-        "sha256": require_sha256(record.get("sha256"), "CRS bundle file SHA-256"),
+        "sha256": digest,
         "size": record["size"],
         "mode": record["mode"],
         "type": record["type"],
@@ -2096,21 +2104,33 @@ def private_relative_directory(root: Path, relative: Path, *, owner: int, label:
     return current
 
 
+def is_approved_empty_crs_placeholder(relative: Path, digest: str) -> bool:
+    """Return whether one fixed CRS leaf may be empty under the pinned tuple."""
+
+    return (
+        relative == CRS_EMPTY_AFTER_PLACEHOLDER_RELATIVE
+        and digest == CRS_EMPTY_AFTER_PLACEHOLDER_SHA256
+    )
+
+
 def regular_crs_source_file(
     path: Path,
     label: str,
     *,
     expected_device: int,
+    relative: Path,
 ) -> tuple[os.stat_result, str]:
     metadata = regular_metadata(path, label, owner=os.geteuid())
     if (
         metadata.st_dev != expected_device
         or metadata.st_nlink != 1
-        or metadata.st_size <= 0
         or stat.S_IMODE(metadata.st_mode) != 0o644
     ):
         fail(f"{label} must be a non-empty 0644 regular file")
-    return metadata, sha256_file(path, label)
+    digest = sha256_file(path, label)
+    if metadata.st_size == 0 and not is_approved_empty_crs_placeholder(relative, digest):
+        fail(f"{label} must be a non-empty 0644 regular file")
+    return metadata, digest
 
 
 def append_optional_crs_plugin_files(
@@ -2139,6 +2159,7 @@ def selected_crs_source_files(source_root: Path, broker_sha: str) -> list[tuple[
             source,
             f"protected CRS source {relative}",
             expected_device=source_metadata.st_dev,
+            relative=relative,
         )
         selected.append(
             (
@@ -2243,6 +2264,26 @@ def validate_protected_crs_contract(
         fail("fresh protected CRS source repository is invalid")
     if protected_git_value(source_root, "protected CRS HEAD", "rev-parse", "HEAD") != CRS_APPROVED_COMMIT:
         fail("fresh protected CRS source commit is invalid")
+    if (
+        protected_git_value(
+            source_root,
+            "protected CRS release tag",
+            "rev-parse",
+            f"refs/tags/{CRS_RELEASE_TAG}^{{}}",
+        )
+        != CRS_APPROVED_COMMIT
+    ):
+        fail("fresh protected CRS release tag is invalid")
+    if (
+        protected_git_value(
+            source_root,
+            "protected CRS empty placeholder object",
+            "rev-parse",
+            f"{CRS_APPROVED_COMMIT}:{CRS_EMPTY_AFTER_PLACEHOLDER_RELATIVE.as_posix()}",
+        )
+        != CRS_EMPTY_AFTER_PLACEHOLDER_BLOB
+    ):
+        fail("fresh protected CRS empty placeholder object is invalid")
 
 
 def prepare_crs_bundle(arguments: argparse.Namespace) -> Path:
@@ -2270,7 +2311,16 @@ def prepare_crs_bundle(arguments: argparse.Namespace) -> Path:
         )
         destination = destination_parent / relative.name
         copy_verified_artifact(
-            ArtifactInput("protected CRS bundle file", source, record["sha256"], destination.name),
+            ArtifactInput(
+                "protected CRS bundle file",
+                source,
+                record["sha256"],
+                destination.name,
+                allow_empty=is_approved_empty_crs_placeholder(
+                    relative,
+                    str(record["sha256"]),
+                ),
+            ),
             destination,
             trusted_build_root,
         )
@@ -2499,7 +2549,16 @@ def copy_crs_bundle_for_candidate(
         )
         destination = destination_parent / relative.name
         copy_verified_artifact(
-            ArtifactInput("candidate CRS bundle file", source, record["sha256"], destination.name),
+            ArtifactInput(
+                "candidate CRS bundle file",
+                source,
+                record["sha256"],
+                destination.name,
+                allow_empty=is_approved_empty_crs_placeholder(
+                    relative,
+                    str(record["sha256"]),
+                ),
+            ),
             destination,
             trusted_build_root,
         )
@@ -4000,6 +4059,30 @@ def require_directory_layout(path: Path, *, owner: int, group: int, mode: int, l
         fail(f"{label} ownership or mode changed")
 
 
+def require_worker_writable_directory_layout(path: Path, *, group: int, label: str) -> None:
+    """Validate one fixed root-owned `0730` directory for the admitted worker.
+
+    This deliberately does not relax :func:`directory_metadata`: only the
+    broker-created log, state, and CRS audit directories need group write
+    access, and each remains pinned to root ownership, the admitted worker GID,
+    exact mode, and an entirely non-symlink directory path.
+    """
+
+    no_symlink_components(path, label)
+    try:
+        metadata = os.lstat(path)
+    except FileNotFoundError:
+        fail(f"{label} is missing: {path}")
+    if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+        fail(f"{label} must be a non-symlink directory: {path}")
+    if (
+        metadata.st_uid != 0
+        or metadata.st_gid != group
+        or stat.S_IMODE(metadata.st_mode) != 0o730
+    ):
+        fail(f"{label} ownership or mode changed")
+
+
 def require_file_layout(path: Path, *, owner: int, group: int, mode: int, label: str) -> None:
     metadata = regular_metadata(path, label, owner=owner)
     if metadata.st_gid != group or stat.S_IMODE(metadata.st_mode) != mode:
@@ -4024,11 +4107,9 @@ def validate_common_root_layout(payload: dict[str, Any], root: Path, layout: dic
         label="broker runtime",
     )
     for key in ("logs", "state"):
-        require_directory_layout(
+        require_worker_writable_directory_layout(
             layout[key],
-            owner=0,
             group=int(payload["worker"]["gid"]),
-            mode=0o730,
             label=f"broker {key}",
         )
     require_directory_layout(
@@ -4050,11 +4131,9 @@ def validate_root_crs_layout(payload: dict[str, Any], layout: dict[str, Path]) -
         mode=0o750,
         label="broker CRS files root",
     )
-    require_directory_layout(
+    require_worker_writable_directory_layout(
         layout["audit_dir"],
-        owner=0,
         group=worker_gid,
-        mode=0o730,
         label="broker CRS audit directory",
     )
     manifest_path = layout["crs"] / CRS_BUNDLE_MANIFEST_FILENAME
