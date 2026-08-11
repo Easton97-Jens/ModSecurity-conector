@@ -213,13 +213,89 @@ jobs:
           write_root="$(mktemp -d "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX")"
           sudo -n chown root:root "$write_root"
           sudo -n chmod 0711 "$write_root"
-          sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py \
+          sandbox_prepare_output="$(sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py \
             --source-root "$GITHUB_WORKSPACE" \
             --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
             --write-root "$write_root" \
             --runner-temp "$RUNNER_TEMP" \
             --validator-user modsecurity-validator \
-            --validator-group modsecurity-validator
+            --validator-group modsecurity-validator)"
+          printf '%s\n' "$sandbox_prepare_output"
+          case "$sandbox_prepare_output" in
+            READONLY_SUBMODULE_VALIDATION_SANDBOX_READY\ external=*\ source_inventory_sha256=*) ;;
+            *)
+              echo "Read-only validation sandbox did not report READY." >&2
+              exit 1
+              ;;
+          esac
+          check_runner_temp_ancestor_acl() {
+            local acl_phase="$1"
+            local acl_path="$2"
+            local expected_base="${3-}"
+            local acl_output
+            local acl_base
+            acl_output="$(sudo -n getfacl --absolute-names --omit-header --no-effective -- "$acl_path")"
+            case "$acl_phase" in
+              before)
+                if ! printf '%s\n' "$acl_output" | awk '
+                  BEGIN { valid = 1; user = group = other = 0 }
+                  /^default:/ { valid = 0; next }
+                  /^user:[^:]+:/ { valid = 0; next }
+                  /^group:[^:]+:/ { valid = 0; next }
+                  /^user::[rwx-][rwx-][rwx-]$/ { user++; next }
+                  /^group::[rwx-][rwx-][rwx-]$/ { group++; next }
+                  /^other::[rwx-][rwx-][rwx-]$/ { other++; next }
+                  { valid = 0 }
+                  END { exit !(valid && user == 1 && group == 1 && other == 1) }
+                '; then
+                  printf 'unsafe %s ACL on %s\n' "$acl_phase" "$acl_path" >&2
+                  exit 1
+                fi
+                ;;
+              after)
+                if ! printf '%s\n' "$acl_output" | awk '
+                  BEGIN { valid = 1; user = group = other = mask = validator = 0 }
+                  /^default:/ { valid = 0; next }
+                  /^user::[rwx-][rwx-][rwx-]$/ { user++; next }
+                  /^group::[rwx-][rwx-][rwx-]$/ { group++; next }
+                  /^other::[rwx-][rwx-][rwx-]$/ { other++; next }
+                  /^mask::[r-][w-]x$/ { mask++; next }
+                  /^user:modsecurity-validator:--x$/ { validator++; next }
+                  /^user:[^:]+:/ { valid = 0; next }
+                  /^group:[^:]+:/ { valid = 0; next }
+                  { valid = 0 }
+                  END { exit !(valid && user == 1 && group == 1 && other == 1 && mask == 1 && validator == 1) }
+                '; then
+                  printf 'unsafe %s ACL on %s\n' "$acl_phase" "$acl_path" >&2
+                  exit 1
+                fi
+                ;;
+              *)
+                printf 'unknown ACL check phase %s\n' "$acl_phase" >&2
+                exit 1
+                ;;
+            esac
+            acl_base="$(printf '%s\n' "$acl_output" | awk '
+              /^user::[rwx-][rwx-][rwx-]$/ || /^group::[rwx-][rwx-][rwx-]$/ || /^other::[rwx-][rwx-][rwx-]$/ { print }
+            ')"
+            if [ "$acl_phase" = after ] && [ "$acl_base" != "$expected_base" ]; then
+              printf 'base ACL changed on %s\n' "$acl_path" >&2
+              exit 1
+            fi
+            printf '%s\n' "$acl_base"
+          }
+          runner_temp_ancestor="$RUNNER_TEMP"
+          while [ "$runner_temp_ancestor" != / ]; do
+            check_runner_temp_ancestor_acl before "$runner_temp_ancestor" >/dev/null
+            runner_temp_ancestor="$(dirname "$runner_temp_ancestor")"
+          done
+          runner_temp_ancestor="$RUNNER_TEMP"
+          while [ "$runner_temp_ancestor" != / ]; do
+            runner_temp_acl_base="$(check_runner_temp_ancestor_acl before "$runner_temp_ancestor")"
+            sudo -n setfacl -m "u:modsecurity-validator:--x" -- "$runner_temp_ancestor"
+            check_runner_temp_ancestor_acl after "$runner_temp_ancestor" "$runner_temp_acl_base" >/dev/null
+            runner_temp_ancestor="$(dirname "$runner_temp_ancestor")"
+          done
           printf 'write_root=%s\n' "$write_root" >> "$GITHUB_OUTPUT"
 
       - name: Run quick check as the isolated validator

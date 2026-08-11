@@ -217,6 +217,17 @@ abgegrenzte Dateisystemvertrag ist kein allgemeiner Kernel-Namespace und
 beweist nicht, dass bösartiger Candidate-Code nicht an beliebige nicht
 zusammenhängende, global world-writable Host-Orte schreiben kann.
 
+Der Hosted-Run `31479137202`, Validator-Job `93739826304`, ist historische
+Failure-Evidence und keine erfolgreiche Validierung: Die dedizierte Identität
+konnte den privaten Hosted-Runner-Ahnen `/home/runner` nicht durchqueren, um
+den `RUNNER_TEMP`-Guard zu erreichen; daher schlug ihr `mkdir` mit `Permission
+denied` fehl. Die Reparatur lässt das vertrauenswürdige Root-seitige Setup
+`modsecurity-validator` auf den benötigten Ahnen von `$RUNNER_TEMP` nur
+Traversal-ACL-Zugriff gewähren. Sie gewährt weder List- noch Schreibzugriff auf
+diese Ahnen, bewahrt Source-/Git-Locks, Root-Guard und privates Output-Child und
+ist auf diese Hosted-Host-Pfad-Bedingung begrenzt. Ein neuer Hosted-Run ist
+erforderlich, bevor die Reparatur funktionale Evidence ist.
+
 Der manuelle `workflow_dispatch`-Input `validate_only: true` ist ein nicht
 veröffentlichender Exact-Ref-Nachweis-/Revalidierungspfad mit genau zwei
 vertrauenswürdigen Refs im kanonischen Non-fork-Parent-Repository

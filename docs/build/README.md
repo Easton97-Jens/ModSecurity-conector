@@ -205,6 +205,17 @@ enforced beneath its private external child. This scoped filesystem contract is
 not a general kernel namespace and does not prove that malicious candidate code
 cannot write arbitrary unrelated globally world-writable host locations.
 
+Hosted run `31479137202`, validator job `93739826304`, is historical failure
+evidence, not a successful validation: the dedicated identity could not
+traverse the private hosted-runner ancestor `/home/runner` to reach the
+`RUNNER_TEMP` guard, so its `mkdir` failed with `Permission denied`. The repair
+has trusted root-side setup grant `modsecurity-validator` traversal-only ACL
+access on the required ancestors of `$RUNNER_TEMP`. It grants neither listing
+nor write access to those ancestors, preserves the source/Git locks, root
+guard, and private output child, and is limited to that hosted host-path
+condition. A new hosted run is required before the repair is functional
+evidence.
+
 The manual `workflow_dispatch` input `validate_only: true` is a
 non-publishing exact-ref proof/revalidation path with exactly two trusted refs
 in the canonical non-fork Parent repository

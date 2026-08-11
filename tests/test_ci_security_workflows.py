@@ -57,6 +57,15 @@ READONLY_SUBMODULE_SANDBOX_CALL = " ".join(
 )
 READONLY_SUBMODULE_WRITE_ROOT = "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX"
 READONLY_SUBMODULE_EXTERNAL_ROOT = "$VALIDATION_WRITE_ROOT/external"
+READONLY_SUBMODULE_RUNNER_TEMP_ACL = (
+    'sudo -n setfacl -m "u:modsecurity-validator:--x" -- "$runner_temp_ancestor"'
+)
+READONLY_SUBMODULE_RUNNER_TEMP_ACL_INSPECTION = (
+    'sudo -n getfacl --absolute-names --omit-header --no-effective -- "$acl_path"'
+)
+READONLY_SUBMODULE_SANDBOX_READY = (
+    "READONLY_SUBMODULE_VALIDATION_SANDBOX_READY\\ external=*\\ source_inventory_sha256=*"
+)
 SUBMODULE_VALIDATE_ONLY_INPUT = """\
   workflow_dispatch:
     inputs:
@@ -166,6 +175,17 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         "sudo -n useradd --system --no-create-home --shell /usr/sbin/nologin",
         'sudo -n chown root:root "$write_root"',
         'sudo -n chmod 0711 "$write_root"',
+        "sandbox_prepare_output=\"$(sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py",
+        READONLY_SUBMODULE_SANDBOX_READY,
+        "check_runner_temp_ancestor_acl() {",
+        READONLY_SUBMODULE_RUNNER_TEMP_ACL_INSPECTION,
+        'runner_temp_ancestor="$RUNNER_TEMP"',
+        'while [ "$runner_temp_ancestor" != / ]; do',
+        'check_runner_temp_ancestor_acl before "$runner_temp_ancestor"',
+        'runner_temp_acl_base="$(check_runner_temp_ancestor_acl before "$runner_temp_ancestor")"',
+        READONLY_SUBMODULE_RUNNER_TEMP_ACL,
+        'check_runner_temp_ancestor_acl after "$runner_temp_ancestor"',
+        'runner_temp_ancestor="$(dirname "$runner_temp_ancestor")"',
         "bash --noprofile --norc -ceu",
         'test "$(id -un)" = "modsecurity-validator"',
         'test ! -w "$VALIDATION_WRITE_ROOT"',
@@ -211,15 +231,73 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         errors.append("root setup and the isolated candidate must each set umask 077")
     if candidate_script.count("umask 077") != 1:
         errors.append("candidate output umask must be set exactly once inside its isolated shell")
+    if normalized.count('runner_temp_ancestor="$(dirname "$runner_temp_ancestor")"') != 2:
+        errors.append("runner-temp ACL precheck and mutation loops must reach every ancestor")
 
     setup_index = normalized.find(READONLY_SUBMODULE_SANDBOX_CALL)
     candidate_index = normalized.find("sudo -n -u modsecurity-validator env -i")
+    validator_useradd_index = normalized.find(
+        "sudo -n useradd --system --no-create-home --shell /usr/sbin/nologin"
+    )
+    runner_temp_acl_precheck_index = normalized.find(
+        'check_runner_temp_ancestor_acl before "$runner_temp_ancestor"'
+    )
+    runner_temp_acl_mutation_index = normalized.find(READONLY_SUBMODULE_RUNNER_TEMP_ACL)
+    runner_temp_acl_postcheck_index = normalized.find(
+        'check_runner_temp_ancestor_acl after "$runner_temp_ancestor"'
+    )
+    write_root_index = normalized.find(
+        'write_root="$(mktemp -d "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX")"'
+    )
     quick_check_index = normalized.find(
         "make PYTHON=\"$PYTHON\" BUILD_ROOT=\"$VALIDATOR_EXTERNAL_ROOT/build\" quick-check"
     )
     verification_index = normalized.find("Verify candidate source inventory and external outputs")
     if setup_index < 0 or candidate_index < 0 or setup_index >= candidate_index:
         errors.append("sandbox setup must precede candidate execution")
+    if (
+        validator_useradd_index < 0
+        or write_root_index < validator_useradd_index
+        or setup_index < write_root_index
+        or runner_temp_acl_precheck_index < setup_index
+        or runner_temp_acl_mutation_index < runner_temp_acl_precheck_index
+        or runner_temp_acl_postcheck_index < runner_temp_acl_mutation_index
+        or candidate_index < runner_temp_acl_postcheck_index
+    ):
+        errors.append(
+            "runner-temp ACL checks must follow a READY sandbox helper and bracket each mutation"
+        )
+    root_prepare = validator.partition("      - name: Run quick check as the isolated validator")[0]
+    setfacl_commands = [
+        command.strip()
+        for command in re.findall(r"(?m)^\s*sudo -n setfacl[^\n]*", root_prepare)
+    ]
+    if setfacl_commands != [READONLY_SUBMODULE_RUNNER_TEMP_ACL]:
+        errors.append("runner-temp ACL repair must have one exact named-user setfacl mutation")
+    if any(
+        forbidden in root_prepare
+        for forbidden in (
+            "setfacl -R",
+            "setfacl --recursive",
+            "setfacl -d",
+            "setfacl --default",
+            "setfacl -b",
+            "setfacl --remove-all",
+        )
+    ):
+        errors.append("runner-temp ACL repair must not recurse, set defaults, or erase ACLs")
+    if "^default:" not in root_prepare or "^group:[^:]+:" not in root_prepare:
+        errors.append("runner-temp ACL inspection must reject default and named-group ACLs")
+    if "^user:modsecurity-validator:--x$" not in root_prepare:
+        errors.append("runner-temp ACL inspection must require the exact validator ACL")
+    if "^mask::[r-][w-]x$" not in root_prepare:
+        errors.append("runner-temp ACL inspection must require an execute-capable ACL mask")
+    if "mask::--x" in root_prepare:
+        errors.append("runner-temp ACL repair must not narrow pre-existing base permissions")
+    if '[ "$acl_base" != "$expected_base" ]' not in root_prepare:
+        errors.append("runner-temp ACL inspection must preserve base ACL entries")
+    if candidate_script.count("setfacl") != 0:
+        errors.append("candidate code must not modify ACLs")
     if candidate_index < 0 or quick_check_index < candidate_index:
         errors.append("quick check must execute inside the validator boundary")
     candidate_umask_index = candidate_script.find("umask 077")
@@ -1477,6 +1555,35 @@ jobs:
             "validator has a login shell": (
                 "--shell /usr/sbin/nologin",
                 "--shell /bin/bash",
+            ),
+            "runner-temp traversal ACL removed": (
+                READONLY_SUBMODULE_RUNNER_TEMP_ACL,
+                "true",
+            ),
+            "runner-temp traversal ACL widens permissions": (
+                READONLY_SUBMODULE_RUNNER_TEMP_ACL,
+                'sudo -n setfacl -m "u:modsecurity-validator:rwx" "$runner_temp_ancestor"',
+            ),
+            "runner-temp traversal ACL has a broad subject": (
+                READONLY_SUBMODULE_RUNNER_TEMP_ACL,
+                'sudo -n setfacl -m "u:another-user:--x" "$runner_temp_ancestor"',
+            ),
+            "runner-temp traversal ACL creates a default ACL": (
+                READONLY_SUBMODULE_RUNNER_TEMP_ACL,
+                'sudo -n setfacl -d -m "u:modsecurity-validator:--x" "$runner_temp_ancestor"',
+            ),
+            "runner-temp traversal ACL has an additional mutation": (
+                READONLY_SUBMODULE_RUNNER_TEMP_ACL,
+                READONLY_SUBMODULE_RUNNER_TEMP_ACL
+                + '\n          sudo -n setfacl -m "u:modsecurity-validator:--x" "$write_root"',
+            ),
+            "sandbox helper readiness is not required": (
+                READONLY_SUBMODULE_SANDBOX_READY,
+                "READONLY_SUBMODULE_VALIDATION_SANDBOX_NOT_READY",
+            ),
+            "runner-temp traversal ACL loop does not reach ancestors": (
+                'runner_temp_ancestor="$(dirname "$runner_temp_ancestor")"',
+                "break",
             ),
             "candidate without scrubbed environment": (
                 "sudo -n -u modsecurity-validator env -i",

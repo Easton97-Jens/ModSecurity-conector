@@ -25,6 +25,14 @@ Parent-`master` erst nach dem Merge dieser Reparatur für die Sandbox-
 Revalidierung des resultierenden `master`, wenn GitHub
 `github.ref_protected == true` meldet, ohne den Publisher ausführbar zu machen.
 
+Der Hosted-Run `31479137202`, Validator-Job `93739826304`, zeigte eine in
+diesem Vertrag fehlende Host-Pfad-Voraussetzung: `modsecurity-validator` konnte
+das private `/home/runner` nicht durchqueren, um den `RUNNER_TEMP`-Guard zu
+erreichen, und das Guard-`mkdir` schlug mit `Permission denied` fehl. Die
+Reparatur bewahrt die schreibgeschützte Source-/Git-Grenze und erlaubt nur
+Traversal zum benötigten externen Guard; sie ist keine Evidence erfolgreicher
+Hosted-Validierung.
+
 ## Akzeptanzkriterien
 
 - Der Validator wendet `umask 077` vor dem Erstellen eines frischen privaten
@@ -38,6 +46,11 @@ Revalidierung des resultierenden `master`, wenn GitHub
 - `make quick-check` bleibt unverändert.
 - Der Validator erhält keine Produktions-Schreibrechte; diese bleiben allein
   dem separaten Publisher vorbehalten.
+- Vertrauenswürdiges Root-seitiges Setup gewährt `modsecurity-validator` auf
+  den benötigten Ahnen von `$RUNNER_TEMP` Traversal-only-ACL-Zugriff, wenn ein
+  Hosted-Runner einen privaten Ahnen hat. Die ACL gewährt weder List- noch
+  Schreibzugriff und bewahrt Source-/Git-Locks, Root-Guard und privates
+  Output-Child.
 - Manueller `workflow_dispatch` mit `validate_only: true` ist auf genau zwei
   vertrauenswürdige Refs im kanonischen Non-fork-Parent-Repository
   `Easton97-Jens/ModSecurity-conector` beschränkt: den task-eigenen/reviewten
@@ -83,6 +96,16 @@ Caches unter diesem Child ein. Vertrauenswürdige Probes gehen dem unveränderte
 `make quick-check` voraus. Der Validator ist schreibgeschützt; nur der
 separate Publisher behält nach der Validierung die eng begrenzte
 Produktions-Schreibgrenze.
+
+Die Reparatur fügt auf den benötigten Ahnen von `$RUNNER_TEMP` eine
+Root-trusted Traversal-only-ACL hinzu. Sie behebt den historischen Run
+`31479137202`, Validator-Job `93739826304`, in dem die dedizierte Identität
+`/home/runner` nicht durchqueren konnte und das Guard-`mkdir` `Permission
+denied` zurückgab. Sie gibt dem Validator keine List- oder Schreibberechtigung
+auf diesen Ahnen und lässt Root-Guard, privates Output-Child sowie Parent- /
+Framework-Source-/Git-Locks unverändert. Dies ist eine abgegrenzte Hosted-
+Host-Pfad-Reparatur, kein Nachweis allgemeiner Host-Isolation oder eines
+erfolgreichen Reruns.
 
 Für Exact-Head-Nachweis und Revalidierung des resultierenden `master` darf
 manueller `workflow_dispatch` `validate_only: true` nur im kanonischen
@@ -145,6 +168,12 @@ einen feindlichen Writer im selben Repository; der Master-Pfad erfordert auch
 `github.ref_protected == true`, während dieses Threat Model Branch Protection
 oder Environment Approval erfordert.
 
+Die ACL-Reparatur hat dieselbe Grenze: Vertrauenswürdiges Root-seitiges Setup
+darf auf den Ahnen, die zum Erreichen von `$RUNNER_TEMP` benötigt werden, nur
+Directory-Traversal gewähren; List- oder Schreibzugriff darf es nicht gewähren.
+Ihre Wirkung ist auf die in Run `31479137202` beobachtete private Hosted-
+Ahnenbedingung begrenzt, nicht auf allgemeine Host-Dateisystemisolation.
+
 ## Geänderte Dateien
 
 - `.github/workflows/update-submodules.yml`
@@ -178,17 +207,22 @@ ausgeführt und als direkte Evidence gemeldet:
 
 ## Runtime-Evidence
 
-Dieser Implementierungsrecord behauptet keine finalen Exact-Head-Hosted-
-Runtime- oder Validierungs-, Veröffentlichungs-, Pull-Request-, Merge- oder
-anderen Delivery-Ergebnisse; diese liegen in der zugehörigen PR-Evidence vor.
+Hosted-Run `31479137202`, Validator-Job `93739826304`, schlug vor der Candidate-
+Ausführung fehl, weil `modsecurity-validator` `/home/runner` nicht zum
+`RUNNER_TEMP`-Guard durchqueren konnte und `mkdir` `Permission denied`
+zurückgab. Dies ist Failure-Evidence nur für die fehlende Traversal-
+Berechtigung. Dieser Record behauptet keinen erfolgreichen Rerun und keine
+finalen Exact-Head-Hosted-Runtime- oder Validierungs-, Veröffentlichungs-, Pull-
+Request-, Merge- oder anderen Delivery-Ergebnisse.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 - `make quick-check` — durch diese Aufgabe unverändert; für den reinen
   Dokumentations-Scope wurde keine Candidate-Ausführung lokal durchgeführt.
-- Hosted-`update-submodules.yml`-Validierung einschließlich
-  `validate_only: true` — finale Exact-Head-Hosted-Evidence wird hier nicht
-  behauptet und liegt in der zugehörigen PR-Evidence vor.
+- Ein Hosted-Rerun von `update-submodules.yml` einschließlich
+  `validate_only: true` — für diesen Repair-Record nicht ausgeführt; der
+  beobachtete Run `31479137202` schlug vor der Candidate-Ausführung fehl und
+  ist daher keine erfolgreiche Repair-Evidence.
 - Security-Scan — finale Security-Scan-Evidence wird hier nicht behauptet und
   liegt in der zugehörigen Scan-Evidence vor.
 - `make check-bilingual-docs` schlug zunächst fehl, weil diesem Change Record
@@ -200,9 +234,11 @@ anderen Delivery-Ergebnisse; diese liegen in der zugehörigen PR-Evidence vor.
 
 Der Record dokumentiert die beabsichtigte Grenze anhand der Anforderungen der
 abgegrenzten Implementierung. Er liefert selbst keinen unabhängigen Nachweis
-für Runner-Identitätsverhalten, Dateisystemberechtigungen oder finale Hosted-
-Ausführung an einem der erlaubten dispatchten SHAs. Der abgegrenzte Source-/
-Output-Vertrag ist keine Evidence für allgemeine Host-Dateisystemisolierung.
+für Runner-Identitätsverhalten, reparierte ACL-Wirkung,
+Dateisystemberechtigungen oder eine erfolgreiche Hosted-Ausführung an einem
+der erlaubten dispatchten SHAs. Der abgegrenzte Source-/Output-Vertrag und die
+Host-Pfad-ACL-Reparatur sind keine Evidence für allgemeine Host-
+Dateisystemisolation.
 
 ## Verbleibende Risiken
 
