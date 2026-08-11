@@ -205,6 +205,31 @@ enforced beneath its private external child. This scoped filesystem contract is
 not a general kernel namespace and does not prove that malicious candidate code
 cannot write arbitrary unrelated globally world-writable host locations.
 
+The manual `workflow_dispatch` input `validate_only: true` is a one-task,
+non-publishing exact-ref proof path. It is restricted to the canonical Parent
+repository `Easton97-Jens/ModSecurity-conector` and the task-owned/reviewed
+Parent branch `fix/ci-enforce-readonly-submodule-validation`; it is not a
+general facility to execute arbitrary untrusted Parent refs. It checks out the
+dispatch event's `github.sha` for resolution and validation, forces the
+validator to run even when the resolved Framework candidate already equals the
+dispatched Parent gitlink, and makes the publisher ineligible. It cannot create
+or update a gitlink branch or pull request.
+
+This is not an untrusted Parent pull-request/ref sandbox: the task-owned/
+reviewed Parent workflow and helper SHA are trusted before root-side setup,
+while the Framework candidate remains untrusted code governed by the sandbox.
+A hosted success would be functional evidence only for that reviewed SHA. The
+allowlisted branch is a guardrail, not protection against a hostile same-
+repository writer; that threat model requires branch protection or environment
+approval.
+
+This invocation is not the authorized post-merge Parent updater dispatch. That
+separate dispatch runs on `master` with `validate_only` left false, validates
+the resolved Framework transition from the trusted default branch, and may
+enter the constrained publisher only after successful validation. Selecting
+`validate_only` neither grants publication authority nor substitutes for that
+post-merge updater dispatch.
+
 This boundary is deliberately narrower than a general read-only job label: the
 candidate receives one `sudo -n -u` entry with `env -i`, no user site, and
 `HOME`, Git configuration, pip cache, bytecode cache, build, log, and other

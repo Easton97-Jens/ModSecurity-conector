@@ -43,7 +43,7 @@ PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
         "github.event.repository.default_branch == 'master'",
     }
 )
-SUBMODULE_PUBLISHER_SHA256 = "11bbd8e565ce7a380cf1f32d04aa48586712fc1d412731add5a52faf2ad94ff0"
+SUBMODULE_PUBLISHER_SHA256 = "c1e70a1d4481faafea81e4d33159388beb4471f709fe583fe8f8744be0977508"
 READONLY_SUBMODULE_SANDBOX_CALL = " ".join(
     (
         "python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py",
@@ -57,6 +57,54 @@ READONLY_SUBMODULE_SANDBOX_CALL = " ".join(
 )
 READONLY_SUBMODULE_WRITE_ROOT = "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX"
 READONLY_SUBMODULE_EXTERNAL_ROOT = "$VALIDATION_WRITE_ROOT/external"
+SUBMODULE_VALIDATE_ONLY_INPUT = """\
+  workflow_dispatch:
+    inputs:
+      validate_only:
+        description: Run the non-publishing exact-ref validator only.
+        required: false
+        default: false
+        type: boolean
+"""
+SUBMODULE_VALIDATE_ONLY_EVENT = (
+    "github.event_name == 'workflow_dispatch' && "
+    "github.event.inputs.validate_only == 'true'"
+)
+SUBMODULE_VALIDATE_ONLY_REPOSITORY = "github.repository == 'Easton97-Jens/ModSecurity-conector'"
+SUBMODULE_VALIDATE_ONLY_BRANCH = (
+    "github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation'"
+)
+SUBMODULE_VALIDATE_ONLY_MANUAL_PREDICATE = (
+    f"{SUBMODULE_VALIDATE_ONLY_EVENT} && "
+    f"{SUBMODULE_VALIDATE_ONLY_REPOSITORY} && "
+    "github.event.repository.fork == false && "
+    f"{SUBMODULE_VALIDATE_ONLY_BRANCH}"
+)
+SUBMODULE_VALIDATE_ONLY_MASTER_EXCLUSION = (
+    "(github.event_name != 'workflow_dispatch' || "
+    "github.event.inputs.validate_only != 'true')"
+)
+SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF = (
+    f"ref: ${{{{ {SUBMODULE_VALIDATE_ONLY_MANUAL_PREDICATE} && github.sha || "
+    "github.event.repository.default_branch }}"
+)
+SUBMODULE_RESOLVER_GATE = (
+    f"{SUBMODULE_VALIDATE_ONLY_REPOSITORY} && github.event.repository.fork == false && "
+    "( ( github.ref == 'refs/heads/master' && "
+    "github.event.repository.default_branch == 'master' && "
+    f"{SUBMODULE_VALIDATE_ONLY_MASTER_EXCLUSION} ) || "
+    f"( {SUBMODULE_VALIDATE_ONLY_EVENT} && {SUBMODULE_VALIDATE_ONLY_BRANCH} ) )"
+)
+SUBMODULE_VALIDATOR_GATE = (
+    "needs.resolve-submodule-update.result == 'success' && "
+    "needs.resolve-submodule-update.outputs.changed == 'true'"
+)
+SUBMODULE_PUBLISHER_GATE = (
+    "needs.resolve-submodule-update.result == 'success' && "
+    "needs.resolve-submodule-update.outputs.changed == 'true' && "
+    "needs.resolve-submodule-update.outputs.validation_only == 'false' && "
+    "needs.validate-submodule-update.result == 'success'"
+)
 
 WRITE_PERMISSION_KEYS = {
     "contents",
@@ -322,6 +370,135 @@ def job_if_expression(job: str) -> str | None:
     if expression.startswith("${{") and expression.endswith("}}"):
         expression = expression.removeprefix("${{").removesuffix("}}").strip()
     return " ".join(expression.split())
+
+
+def update_submodule_validate_only_errors(text: str) -> list[str]:
+    """Return violations of the manual non-publishing validation contract."""
+
+    errors: list[str] = []
+    if text.count(SUBMODULE_VALIDATE_ONLY_INPUT) != 1:
+        errors.append("validate_only must be one exact optional-false boolean input")
+
+    jobs = job_blocks(text)
+    required_jobs = {
+        "resolve-submodule-update",
+        "validate-submodule-update",
+        "create-submodule-update-pr",
+        "report-submodule-update-outcome",
+    }
+    if not required_jobs.issubset(jobs):
+        return errors + ["validate_only contract jobs are missing"]
+
+    resolver = jobs["resolve-submodule-update"]
+    validator = jobs["validate-submodule-update"]
+    publisher = jobs["create-submodule-update-pr"]
+    outcome = jobs["report-submodule-update-outcome"]
+    normalized_resolver = normalize_shell_script(resolver)
+    normalized_outcome = normalize_shell_script(outcome)
+
+    if job_if_expression(resolver) != SUBMODULE_RESOLVER_GATE:
+        errors.append("resolver must allow only same-repository master or manual validate_only")
+    if job_if_expression(validator) != SUBMODULE_VALIDATOR_GATE:
+        errors.append("validator must retain its successful changed-candidate gate")
+    if job_if_expression(publisher) != SUBMODULE_PUBLISHER_GATE:
+        errors.append("publisher must be disabled by the resolver-derived validate_only flag")
+    if job_if_expression(outcome) != "always()":
+        errors.append("outcome reporter must inspect every terminal job state")
+
+    checkout_contracts = (
+        ("resolver", resolver, "Checkout Parent metadata"),
+        ("validator", validator, "Checkout candidate for read-only validation"),
+    )
+    for name, job, step_name in checkout_contracts:
+        checkout_steps = checkout_step_blocks(job)
+        if (
+            len(checkout_steps) != 1
+            or f"- name: {step_name}" not in checkout_steps[0]
+            or checkout_steps[0].count(SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF) != 1
+        ):
+            errors.append(
+                f"{name} named checkout must use the dispatched SHA only for validate_only"
+            )
+    if SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF in publisher:
+        errors.append("publisher must never check out the dispatched validate_only SHA")
+    if "ref: ${{ github.event.repository.default_branch }}" not in publisher:
+        errors.append("publisher must retain the default-branch checkout")
+
+    activation = (
+        "validation_only=false "
+        f'if [ "${{{{ {SUBMODULE_VALIDATE_ONLY_MANUAL_PREDICATE} }}}}" = true ]; then '
+        "validation_only=true fi"
+    )
+    force_changed = 'if [ "$validation_only" = true ]; then changed=true fi'
+    if activation not in normalized_resolver:
+        errors.append("resolver must derive validation_only only from the manual boolean input")
+    if normalized_resolver.count(force_changed) != 1:
+        errors.append("resolver must force changed exactly once and only inside validation_only")
+    if normalized_resolver.count("changed=true") != 2:
+        errors.append("changed may be true only for a real update or validate_only")
+    if re.findall(r"\bchanged=(?:false|true)\b", normalized_resolver) != [
+        "changed=false",
+        "changed=true",
+        "changed=true",
+    ]:
+        errors.append("validation_only must be the final changed assignment before outputs")
+    if (
+        activation in normalized_resolver
+        and force_changed in normalized_resolver
+        and normalized_resolver.index(activation) >= normalized_resolver.index(force_changed)
+    ):
+        errors.append("validation_only activation must precede its changed override")
+    if resolver.count("validation_only: ${{ steps.resolve.outputs.validation_only }}") != 1:
+        errors.append("resolver must expose one validation_only job output")
+    if normalized_resolver.count(
+        "printf 'validation_only=%s\\n' \"$validation_only\""
+    ) != 1:
+        errors.append("resolver must publish one validation_only step output")
+
+    if job_permissions(resolver) != {"contents": "read"}:
+        errors.append("resolver permissions must remain contents-read only")
+    if job_permissions(validator) != {"contents": "read"}:
+        errors.append("validator permissions must remain contents-read only")
+    if job_permissions(publisher) != {"contents": "write", "pull-requests": "write"}:
+        errors.append("publisher permissions changed outside the established boundary")
+    if job_permissions(outcome) != {"contents": "read"}:
+        errors.append("outcome reporter permissions must remain contents-read only")
+    if any(term in resolver or term in validator for term in ("GH_TOKEN", "secrets.", "github.token")):
+        errors.append("resolver and validator must not receive publishing credentials")
+    if any(term in publisher for term in ("gh pr merge", "--auto", "enablePullRequestAutoMerge")):
+        errors.append("publisher must not enable or perform auto-merge")
+
+    validation_only_case = 'case "$VALIDATION_ONLY" in'
+    changed_case = 'case "$CHANGED" in'
+    validation_only_success = (
+        'if [ "$CHANGED" != "true" ] || [ "$VALIDATOR_RESULT" != "success" ] || '
+        '[ "$PUBLISHER_RESULT" != "skipped" ]; then'
+    )
+    normal_update_success = (
+        'if [ "$VALIDATOR_RESULT" != "success" ] || '
+        '[ "$PUBLISHER_RESULT" != "success" ]; then'
+    )
+    if outcome.count(
+        "VALIDATION_ONLY: ${{ needs.resolve-submodule-update.outputs.validation_only }}"
+    ) != 1:
+        errors.append("outcome reporter must consume one resolver-derived validation_only output")
+    if normalized_outcome.count(validation_only_case) != 1:
+        errors.append("outcome reporter must have one validation_only state case")
+    if normalized_outcome.count(changed_case) != 1:
+        errors.append("outcome reporter must retain one normal changed state case")
+    if validation_only_case in normalized_outcome and changed_case in normalized_outcome:
+        validation_only_section = normalized_outcome.partition(validation_only_case)[2].partition(
+            changed_case
+        )[0]
+        if validation_only_success not in validation_only_section:
+            errors.append("validate_only success requires changed, validator success, and publisher skip")
+        if "exit 0" not in validation_only_section:
+            errors.append("successful validate_only reporting must exit before normal publishing checks")
+        if normalized_outcome.index(validation_only_case) >= normalized_outcome.index(changed_case):
+            errors.append("validate_only state must be handled before the normal changed state")
+    if normalized_outcome.count(normal_update_success) != 1:
+        errors.append("normal changed updates must still require validator and publisher success")
+    return errors
 
 
 def has_exact_master_only_gate(job: str, extra_terms: set[str]) -> bool:
@@ -1129,7 +1306,8 @@ jobs:
             self.assertNotIn("run:", job, workflow_name)
 
     def test_update_submodules_separates_validation_from_publishing(self) -> None:
-        jobs = self.jobs("update-submodules.yml")
+        workflow = self.workflow("update-submodules.yml")
+        jobs = job_blocks(workflow)
         self.assertEqual(
             set(jobs),
             {
@@ -1153,6 +1331,10 @@ jobs:
         )
         self.assertEqual(job_permissions(outcome), {"contents": "read"})
         self.assertEqual(job_if_expression(outcome), "always()")
+        self.assertEqual(update_submodule_validate_only_errors(workflow), [])
+        self.assertEqual(job_if_expression(resolver), SUBMODULE_RESOLVER_GATE)
+        self.assertEqual(resolver.count(SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF), 1)
+        self.assertEqual(validator.count(SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF), 1)
         self.assertIn("github.ref == 'refs/heads/master'", resolver)
         self.assertIn("github.event.repository.default_branch == 'master'", resolver)
         self.assertIn("github.event.repository.fork == false", resolver)
@@ -1172,8 +1354,7 @@ jobs:
         self.assertIn("needs: resolve-submodule-update", validator)
         self.assertEqual(
             job_if_expression(validator),
-            "needs.resolve-submodule-update.result == 'success' && "
-            "needs.resolve-submodule-update.outputs.changed == 'true'",
+            SUBMODULE_VALIDATOR_GATE,
         )
         self.assertIn("submodules: recursive", validator)
         self.assertIn('make PYTHON="$PYTHON" BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/build" quick-check', validator)
@@ -1343,15 +1524,110 @@ jobs:
         candidate_umask_removed = candidate_umask_prefix + "umask 022" + candidate_umask_suffix
         self.assertNotEqual(readonly_submodule_validator_errors(candidate_umask_removed), [])
 
+        validate_only_mutations = {
+            "input enables validate_only by default": (
+                SUBMODULE_VALIDATE_ONLY_INPUT,
+                SUBMODULE_VALIDATE_ONLY_INPUT.replace("default: false", "default: true"),
+            ),
+            "fork gate removed from resolver": (
+                "github.event.repository.fork == false &&",
+                "github.event.repository.fork == true ||",
+            ),
+            "canonical repository constraint removed": (
+                SUBMODULE_VALIDATE_ONLY_REPOSITORY,
+                "true",
+            ),
+            "canonical repository constraint changed": (
+                SUBMODULE_VALIDATE_ONLY_REPOSITORY,
+                "github.repository == 'attacker/ModSecurity-conector'",
+            ),
+            "repair branch constraint removed": (
+                SUBMODULE_VALIDATE_ONLY_BRANCH,
+                "true",
+            ),
+            "repair branch constraint changed": (
+                SUBMODULE_VALIDATE_ONLY_BRANCH,
+                "github.ref == 'refs/heads/arbitrary-validator-branch'",
+            ),
+            "master clause admits validate_only dispatch": (
+                SUBMODULE_VALIDATE_ONLY_MASTER_EXCLUSION,
+                "true",
+            ),
+            "scheduled run admitted through manual test gate": (
+                SUBMODULE_VALIDATE_ONLY_EVENT,
+                "github.event_name == 'schedule' && "
+                "github.event.inputs.validate_only == 'true'",
+            ),
+            "resolver validates default branch instead of dispatched SHA": (
+                SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF,
+                "ref: ${{ github.event.repository.default_branch }}",
+            ),
+            "resolver activation omits hosted-proof constraints": (
+                f'if [ "${{{{ {SUBMODULE_VALIDATE_ONLY_MANUAL_PREDICATE} }}}}" = true ]; then',
+                f'if [ "${{{{ {SUBMODULE_VALIDATE_ONLY_EVENT} }}}}" = true ]; then',
+            ),
+            "validate_only does not force existing gitlink validation": (
+                'if [ "$validation_only" = true ]; then\n'
+                "            changed=true\n"
+                "          fi",
+                'if [ "$validation_only" = true ]; then\n'
+                "            changed=false\n"
+                "          fi",
+            ),
+            "later resolver assignment cancels validate_only forcing": (
+                "          {\n            printf 'candidate_sha=%s\\n'",
+                "          changed=false\n          {\n            printf 'candidate_sha=%s\\n'",
+            ),
+            "publisher admits validate_only": (
+                "needs.resolve-submodule-update.outputs.validation_only == 'false' &&",
+                "needs.resolve-submodule-update.outputs.validation_only != 'true' &&",
+            ),
+            "resolver gains write permission": (
+                "    permissions:\n      contents: read",
+                "    permissions:\n      contents: write",
+            ),
+            "resolver receives publisher credential": (
+                "    runs-on: ubuntu-latest",
+                "    env:\n      GH_TOKEN: ${{ github.token }}\n    runs-on: ubuntu-latest",
+            ),
+            "publisher enables auto-merge": (
+                "--draft",
+                "--draft --auto",
+            ),
+            "outcome ignores resolver validation_only output": (
+                "VALIDATION_ONLY: ${{ needs.resolve-submodule-update.outputs.validation_only }}",
+                "VALIDATION_ONLY: ${{ needs.resolve-submodule-update.outputs.changed }}",
+            ),
+            "validate_only outcome requires publisher success": (
+                'if [ "$CHANGED" != "true" ] || [ "$VALIDATOR_RESULT" != "success" ] || [ "$PUBLISHER_RESULT" != "skipped" ]; then',
+                'if [ "$CHANGED" != "true" ] || [ "$VALIDATOR_RESULT" != "success" ] || [ "$PUBLISHER_RESULT" != "success" ]; then',
+            ),
+            "validate_only outcome falls through to publishing checks": (
+                "              exit 0\n              ;;\n            false)",
+                "              ;;\n            false)",
+            ),
+            "normal update accepts skipped publisher": (
+                'if [ "$VALIDATOR_RESULT" != "success" ] || [ "$PUBLISHER_RESULT" != "success" ]; then',
+                'if [ "$VALIDATOR_RESULT" != "success" ] || [ "$PUBLISHER_RESULT" != "skipped" ]; then',
+            ),
+        }
+        for name, (original, replacement) in validate_only_mutations.items():
+            with self.subTest(validate_only_mutation=name):
+                self.assertIn(original, workflow)
+                mutated = workflow.replace(original, replacement, 1)
+                self.assertNotEqual(update_submodule_validate_only_errors(mutated), [])
+
         self.assertIn("submodules: false", publisher)
         self.assertEqual(sha256(publisher.encode("utf-8")).hexdigest(), SUBMODULE_PUBLISHER_SHA256)
         self.assertIn("persist-credentials: false", publisher)
         self.assertEqual(
             job_if_expression(publisher),
-            "needs.resolve-submodule-update.result == 'success' && "
-            "needs.resolve-submodule-update.outputs.changed == 'true' && "
-            "needs.validate-submodule-update.result == 'success'",
+            SUBMODULE_PUBLISHER_GATE,
         )
+        self.assertNotIn(SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF, publisher)
+        self.assertNotIn("gh pr merge", publisher)
+        self.assertNotIn("--auto", publisher)
+        self.assertNotIn("enablePullRequestAutoMerge", publisher)
         self.assertIn("git ls-remote --exit-code", publisher)
         self.assertTrue(has_exact_framework_gitlink_staging(publisher))
         self.assertIn("GH_TOKEN: ${{ github.token }}", publisher)

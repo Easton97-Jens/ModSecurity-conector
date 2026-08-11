@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: '0 3 * * 1'
   workflow_dispatch:
+    inputs:
+      validate_only:
+        description: Run the non-publishing exact-ref validator only.
+        required: false
+        default: false
+        type: boolean
 
 # The isolated publisher job must be allowed to create pull requests:
 # Settings -> Actions -> General -> Workflow permissions:
@@ -26,7 +32,23 @@ env:
 jobs:
   resolve-submodule-update:
     name: Resolve submodule update
-    if: ${{ github.ref == 'refs/heads/master' && github.event.repository.default_branch == 'master' && github.event.repository.fork == false }}
+    if: >-
+      ${{
+        github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+        github.event.repository.fork == false &&
+        (
+          (
+            github.ref == 'refs/heads/master' &&
+            github.event.repository.default_branch == 'master' &&
+            (github.event_name != 'workflow_dispatch' || github.event.inputs.validate_only != 'true')
+          ) ||
+          (
+            github.event_name == 'workflow_dispatch' &&
+            github.event.inputs.validate_only == 'true' &&
+            github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation'
+          )
+        )
+      }}
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -35,11 +57,12 @@ jobs:
       current_sha: ${{ steps.resolve.outputs.current_sha }}
       changed: ${{ steps.resolve.outputs.changed }}
       resolver_status: ${{ steps.resolve.outputs.resolver_status }}
+      validation_only: ${{ steps.resolve.outputs.validation_only }}
     steps:
       - name: Checkout Parent metadata
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.validate_only == 'true' && github.repository == 'Easton97-Jens/ModSecurity-conector' && github.event.repository.fork == false && github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation' && github.sha || github.event.repository.default_branch }}
           submodules: false
           fetch-depth: 0
           persist-credentials: false
@@ -84,9 +107,17 @@ jobs:
             exit 1
           fi
 
+          validation_only=false
+          if [ "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.validate_only == 'true' && github.repository == 'Easton97-Jens/ModSecurity-conector' && github.event.repository.fork == false && github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation' }}" = true ]; then
+            validation_only=true
+          fi
+
           if [ "$candidate_sha" = "$current_sha" ]; then
             changed=false
           else
+            changed=true
+          fi
+          if [ "$validation_only" = true ]; then
             changed=true
           fi
           {
@@ -94,8 +125,11 @@ jobs:
             printf 'current_sha=%s\n' "$current_sha"
             printf 'resolver_status=resolved\n'
             printf 'changed=%s\n' "$changed"
+            printf 'validation_only=%s\n' "$validation_only"
           } >> "$GITHUB_OUTPUT"
-          if [ "$changed" = false ]; then
+          if [ "$validation_only" = true ]; then
+            echo "Running the non-publishing validation-only path."
+          elif [ "$changed" = false ]; then
             echo "No submodule changes detected."
           else
             echo "Resolved submodule update: $current_sha -> $candidate_sha"
@@ -115,7 +149,7 @@ jobs:
       - name: Checkout candidate for read-only validation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.validate_only == 'true' && github.repository == 'Easton97-Jens/ModSecurity-conector' && github.event.repository.fork == false && github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation' && github.sha || github.event.repository.default_branch }}
           submodules: recursive
           fetch-depth: 0
           persist-credentials: false
@@ -320,7 +354,13 @@ jobs:
     needs:
       - resolve-submodule-update
       - validate-submodule-update
-    if: ${{ needs.resolve-submodule-update.result == 'success' && needs.resolve-submodule-update.outputs.changed == 'true' && needs.validate-submodule-update.result == 'success' }}
+    if: >-
+      ${{
+        needs.resolve-submodule-update.result == 'success' &&
+        needs.resolve-submodule-update.outputs.changed == 'true' &&
+        needs.resolve-submodule-update.outputs.validation_only == 'false' &&
+        needs.validate-submodule-update.result == 'success'
+      }}
     permissions:
       contents: write
       pull-requests: write
@@ -809,6 +849,7 @@ jobs:
       VALIDATOR_RESULT: ${{ needs.validate-submodule-update.result }}
       PUBLISHER_RESULT: ${{ needs.create-submodule-update-pr.result }}
       RESOLVER_STATUS: ${{ needs.resolve-submodule-update.outputs.resolver_status }}
+      VALIDATION_ONLY: ${{ needs.resolve-submodule-update.outputs.validation_only }}
       CHANGED: ${{ needs.resolve-submodule-update.outputs.changed }}
       CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
       CURRENT_SHA: ${{ needs.resolve-submodule-update.outputs.current_sha }}
@@ -824,6 +865,28 @@ jobs:
             echo "::error::Submodule resolver output is missing or malformed." >&2
             exit 1
           fi
+          case "$VALIDATION_ONLY" in
+            true)
+              if [ "$CHANGED" != "true" ] || [ "$VALIDATOR_RESULT" != "success" ] || [ "$PUBLISHER_RESULT" != "skipped" ]; then
+                echo "::error::Validation-only result did not complete the isolated validator without publishing." >&2
+                exit 1
+              fi
+              printf '%s\n' \
+                '## Submodule updater outcome' \
+                '' \
+                'The exact-ref validation-only run passed the isolated read-only quick check. The publisher was intentionally skipped; no branch, commit, or pull request was created or modified.' \
+                '' \
+                'Der Exact-Ref-Validate-only-Lauf bestand den isolierten read-only Quick-Check. Der Publisher wurde absichtlich übersprungen; es wurde kein Branch, Commit oder Pull Request erstellt oder verändert.' \
+                >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+              ;;
+            false)
+              ;;
+            *)
+              echo "::error::Submodule resolver validation_only output is missing or unexpected: $VALIDATION_ONLY" >&2
+              exit 1
+              ;;
+          esac
           case "$CHANGED" in
             false)
               if [ "$VALIDATOR_RESULT" != "skipped" ] || [ "$PUBLISHER_RESULT" != "skipped" ]; then
