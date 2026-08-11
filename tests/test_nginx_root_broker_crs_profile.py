@@ -332,6 +332,7 @@ class TrustedNginxRootBrokerCrsProfileTest(unittest.TestCase):
             files = output / BROKER.CRS_BUNDLE_FILES_DIRECTORY_NAME
             unmanifested = files / "plugins/unmanifested-after.conf"
             self.write(unmanifested, "", 0o400)
+            expected_device = files.stat().st_dev
             with self.assertRaisesRegex(BROKER.BrokerError, "extra unmanifested"):
                 BROKER.validate_crs_bundle_files(
                     files,
@@ -339,7 +340,7 @@ class TrustedNginxRootBrokerCrsProfileTest(unittest.TestCase):
                     owner=os.geteuid(),
                     directory_mode=0o700,
                     file_mode=0o400,
-                    expected_device=files.stat().st_dev,
+                    expected_device=expected_device,
                     label="test protected CRS bundle",
                 )
 

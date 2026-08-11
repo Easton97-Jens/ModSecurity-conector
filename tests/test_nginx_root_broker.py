@@ -1166,18 +1166,19 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
 
                 for name, mode in (("group-writable", 0o620), ("other-writable", 0o602)):
                     access_log.chmod(mode)
-                    with self.subTest(log_mode=name), self.assertRaisesRegex(
-                        BROKER.BrokerError,
-                        "group- or other-writable",
-                    ):
-                        BROKER.copy_evidence_file(
-                            access_log,
-                            projection / f"{name}.json",
-                            runner_gid=worker_gid,
-                            allowed_owners={owner},
-                            expected_device=logs.stat().st_dev,
-                            label=f"{name} log",
-                        )
+                    with self.subTest(log_mode=name):
+                        with self.assertRaisesRegex(
+                            BROKER.BrokerError,
+                            "group- or other-writable",
+                        ):
+                            BROKER.copy_evidence_file(
+                                access_log,
+                                projection / f"{name}.json",
+                                runner_gid=worker_gid,
+                                allowed_owners={owner},
+                                expected_device=logs.stat().st_dev,
+                                label=f"{name} log",
+                            )
                 access_log.chmod(0o600)
 
                 logs.chmod(0o770)
