@@ -199,18 +199,22 @@ before candidate output, then runs `make quick-check`
 unchanged as the dedicated, non-login, non-sudo `modsecurity-validator`
 identity. A trusted root-side helper makes the Parent and Framework trees,
 including their `.git` metadata, root-owned and non-writable before candidate
-execution. Consequently, the candidate may write only its private external
-child, not source or Git state.
+execution. Consequently, Parent and Framework source/Git state is immutable to
+the candidate, and all supported, legitimate workflow output roots are
+enforced beneath its private external child. This scoped filesystem contract is
+not a general kernel namespace and does not prove that malicious candidate code
+cannot write arbitrary unrelated globally world-writable host locations.
 
 This boundary is deliberately narrower than a general read-only job label: the
 candidate receives one `sudo -n -u` entry with `env -i`, no user site, and
-external `HOME`, Git configuration, pip cache, bytecode cache, build, log, and
-other cache roots. Trusted setup probes verify Parent and Framework write
-rejection, sudo rejection, and external-write success before the unchanged
-quick check. The validator retains read-only repository permissions and cannot
-publish a gitlink or pull request. Production write permission remains solely
-with the separate publisher job after successful validation; it is not granted
-to the validator or to `make quick-check`.
+`HOME`, Git configuration, pip cache, bytecode cache, build, log, and other
+cache roots beneath that private external child. Trusted setup probes verify
+Parent and Framework write rejection, sudo rejection, and external-write
+success before the unchanged quick check. The validator retains read-only
+repository permissions and cannot publish a gitlink or pull request.
+Production write permission remains solely with the separate publisher job
+after successful validation; it is not granted to the validator or to
+`make quick-check`.
 
 Before the candidate starts, the root-side helper records a full post-lock
 inventory of the Parent and Framework source trees. Each entry captures its

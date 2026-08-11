@@ -23,8 +23,8 @@ evidence.
 
 - The validator applies `umask 077` before creating a fresh private `mktemp`
   root under `RUNNER_TEMP` and again inside the isolated candidate shell before
-  candidate output; the candidate has only its private external child for
-  writable output.
+  candidate output; all supported, legitimate workflow output roots are
+  enforced beneath the candidate's private external child.
 - Parent and Framework source trees and their `.git` metadata are read-only to
   the candidate.
 - The candidate runs as the dedicated non-login, non-sudo
@@ -44,12 +44,13 @@ evidence.
 
 The documented contract applies `umask 077` before its fresh private `mktemp`
 root under `RUNNER_TEMP` and again inside the isolated candidate shell before
-candidate output. It confines candidate writes to its external child rather than
-to either repository checkout. A root-side helper locks the Parent and
-Framework trees and their `.git` metadata root-owned and non-writable before
-candidate execution. The candidate enters once through `sudo -n -u` with
-`env -i`, no user site, and external `HOME`, Git configuration, pip cache,
-bytecode cache, build, log, and cache roots. Trusted probes precede the
+candidate output. A root-side helper locks the Parent and Framework trees and
+their `.git` metadata root-owned and non-writable before candidate execution,
+making source/Git state immutable to the candidate. All supported, legitimate
+workflow output roots are enforced beneath its private external child. The
+candidate enters once through `sudo -n -u` with `env -i`, no user site, and
+external `HOME`, Git configuration, pip cache, bytecode cache, build, log, and
+cache roots beneath that child. Trusted probes precede the
 unchanged `make quick-check`. The validator is read-only; only the separate
 publisher retains the narrowly scoped production-write boundary after
 validation.
@@ -70,9 +71,11 @@ has occurred.
 
 The relevant boundary is untrusted candidate execution versus Parent and
 Framework source/Git state. The documented design prevents the candidate from
-writing either repository or its `.git` metadata while retaining only its
-private external working child. No security scan was run or claimed by this
-documentation task.
+writing either repository or its `.git` metadata and enforces all supported,
+legitimate workflow output roots beneath its private external child. This is
+not a general kernel namespace and does not prove that malicious candidate code
+cannot write arbitrary unrelated globally world-writable host locations. No
+security scan was run or claimed by this documentation task.
 
 ## Changed files
 
@@ -124,14 +127,17 @@ pull-request, or merge claim.
 
 The record documents the intended boundary from the scoped implementation
 requirements. It does not independently demonstrate runner identity behavior,
-filesystem permissions, or a hosted candidate run.
+filesystem permissions, or a hosted candidate run. The scoped source/output
+contract is not evidence of general host filesystem isolation.
 
 ## Remaining risks
 
 Correct operation depends on the workflow implementation continuing to create
 the external private child and apply the dedicated identity and read-only
-permissions before candidate execution. Runtime and hosted verification remain
-separate evidence obligations.
+permissions before candidate execution. The contract does not contain
+unrelated globally world-writable host locations that malicious candidate code
+could use outside the supported workflow output contract. Runtime and hosted
+verification remain separate evidence obligations.
 
 ## Final diff and review status
 

@@ -23,8 +23,8 @@ unbeobachtete Hosted- oder Security-Evidence zu verwandeln.
 
 - Der Validator wendet `umask 077` vor dem Erstellen eines frischen privaten
   `mktemp`-Roots unter `RUNNER_TEMP` und erneut in der isolierten Candidate-
-  Shell vor Candidate-Ausgaben an; der Candidate besitzt nur dessen privaten
-  externen Child für beschreibbare Ausgaben.
+  Shell vor Candidate-Ausgaben an; alle unterstützten, legitimen Workflow-
+  Ausgabe-Roots werden unter dem privaten externen Child des Candidate erzwungen.
 - Parent- und Framework-Source-Trees sowie ihre `.git`-Metadaten sind für den
   Candidate schreibgeschützt.
 - Der Candidate läuft als dedizierte Non-login- und Non-sudo-Identität
@@ -45,13 +45,14 @@ unbeobachtete Hosted- oder Security-Evidence zu verwandeln.
 
 Der dokumentierte Vertrag wendet `umask 077` vor seinem frischen privaten
 `mktemp`-Root unter `RUNNER_TEMP` und erneut in der isolierten Candidate-Shell
-vor Candidate-Ausgaben an. Er beschränkt Candidate-Schreibzugriffe auf dessen externen
-privaten Child und nicht auf einen der beiden Repository-Checkouts. Ein
-Root-seitiger Helper sperrt Parent- und Framework-Trees sowie ihre `.git`-
-Metadaten vor der Candidate-Ausführung root-owned und nicht beschreibbar. Der
-Candidate tritt genau einmal über `sudo -n -u` mit `env -i`, ohne User Site und
-mit externen Roots für `HOME`, Git-Konfiguration, pip-Cache, Bytecode-Cache,
-Build, Logs und Caches ein. Vertrauenswürdige Probes gehen dem unveränderten
+vor Candidate-Ausgaben an. Ein Root-seitiger Helper sperrt Parent- und
+Framework-Trees sowie ihre `.git`-Metadaten vor der Candidate-Ausführung
+root-owned und nicht beschreibbar, wodurch Source-/Git-Zustand für den
+Candidate unveränderlich ist. Alle unterstützten, legitimen Workflow-Ausgabe-
+Roots werden unter seinem privaten externen Child erzwungen. Der Candidate tritt
+genau einmal über `sudo -n -u` mit `env -i`, ohne User Site und mit externen
+Roots für `HOME`, Git-Konfiguration, pip-Cache, Bytecode-Cache, Build, Logs und
+Caches unter diesem Child ein. Vertrauenswürdige Probes gehen dem unveränderten
 `make quick-check` voraus. Der Validator ist schreibgeschützt; nur der
 separate Publisher behält nach der Validierung die eng begrenzte
 Produktions-Schreibgrenze.
@@ -74,9 +75,12 @@ Veröffentlichung, ein Pull Request oder Merge stattgefunden hat.
 Die relevante Grenze liegt zwischen nicht vertrauenswürdiger Candidate-Ausführung
 und Parent-/Framework-Source- sowie Git-Zustand. Das dokumentierte Design
 verhindert, dass der Candidate in eines der Repositories oder dessen `.git`-
-Metadaten schreibt, und belässt ihm nur seinen privaten externen Arbeits-Child.
-Ein Security-Scan wurde in dieser Dokumentationsaufgabe weder ausgeführt noch
-behauptet.
+Metadaten schreibt, und erzwingt alle unterstützten, legitimen Workflow-
+Ausgabe-Roots unter seinem privaten externen Child. Dies ist kein allgemeiner
+Kernel-Namespace und beweist nicht, dass bösartiger Candidate-Code nicht an
+beliebige nicht zusammenhängende, global world-writable Host-Orte schreiben
+kann. Ein Security-Scan wurde in dieser Dokumentationsaufgabe weder ausgeführt
+noch behauptet.
 
 ## Geänderte Dateien
 
@@ -130,13 +134,18 @@ Veröffentlichungs-, Pull-Request- oder Merge-Behauptung.
 Der Record dokumentiert die beabsichtigte Grenze anhand der Anforderungen der
 abgegrenzten Implementierung. Er weist weder Runner-Identitätsverhalten,
 Dateisystemberechtigungen noch einen Hosted-Candidate-Lauf unabhängig nach.
+Der abgegrenzte Source-/Output-Vertrag ist keine Evidence für allgemeine
+Host-Dateisystemisolierung.
 
 ## Verbleibende Risiken
 
 Die korrekte Wirkung hängt davon ab, dass die Workflow-Implementierung den
 externen privaten Child weiterhin anlegt und die dedizierte Identität sowie die
-schreibgeschützten Berechtigungen vor der Candidate-Ausführung anwendet.
-Runtime- und Hosted-Verifikation bleiben separate Evidence-Pflichten.
+schreibgeschützten Berechtigungen vor der Candidate-Ausführung anwendet. Er
+umfasst keine nicht zusammenhängenden, global world-writable Host-Orte, die
+bösartiger Candidate-Code außerhalb des unterstützten Workflow-Output-Vertrags
+nutzen könnte. Runtime- und Hosted-Verifikation bleiben separate
+Evidence-Pflichten.
 
 ## Finaler Diff- und Review-Status
 

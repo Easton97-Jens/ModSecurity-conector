@@ -210,13 +210,18 @@ danach `make quick-check` unverändert als die
 dedizierte Non-login- und Non-sudo-Identität `modsecurity-validator` aus. Ein
 vertrauenswürdiger Root-seitiger Helper macht Parent- und Framework-Trees,
 einschließlich ihrer `.git`-Metadaten, vor der Candidate-Ausführung root-owned
-und nicht beschreibbar. Damit darf der Candidate nur in seinen privaten
-externen Child schreiben, nicht in Source oder Git-Zustand.
+und nicht beschreibbar. Damit sind Parent-/Framework-Source- und Git-Zustand
+für den Candidate unveränderlich, und alle unterstützten, legitimen Workflow-
+Ausgabe-Roots werden unter seinem privaten externen Child erzwungen. Dieser
+abgegrenzte Dateisystemvertrag ist kein allgemeiner Kernel-Namespace und
+beweist nicht, dass bösartiger Candidate-Code nicht an beliebige nicht
+zusammenhängende, global world-writable Host-Orte schreiben kann.
 
 Diese Grenze ist bewusst enger als ein allgemeines Read-only-Job-Label: Der
 Candidate erhält genau einen `sudo -n -u`-Einstieg mit `env -i`, ohne User Site
 und mit externen Roots für `HOME`, Git-Konfiguration, pip-Cache, Bytecode-Cache,
-Build, Logs und weitere Caches. Vertrauenswürdige Setup-Probes prüfen
+Build, Logs und weitere Caches unter diesem privaten externen Child.
+Vertrauenswürdige Setup-Probes prüfen
 Parent-/Framework-Schreibablehnung, sudo-Ablehnung und erfolgreiche externe
 Schreibzugriffe vor dem unveränderten Quick Check. Der Validator behält schreibgeschützte
 Repository-Berechtigungen und kann weder einen Gitlink noch einen Pull Request
