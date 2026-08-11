@@ -1151,6 +1151,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 )
                 with self.assertRaisesRegex(BROKER.BrokerError, "group- or other-writable"):
                     BROKER.directory_metadata(logs, "generic log directory")
+                expected_device = logs.stat().st_dev
                 with mock.patch.object(BROKER.os, "fchown"):
                     self.assertEqual(
                         BROKER.copy_evidence_file(
@@ -1158,7 +1159,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                             projection / "access.json",
                             runner_gid=worker_gid,
                             allowed_owners={owner},
-                            expected_device=logs.stat().st_dev,
+                            expected_device=expected_device,
                             label="safe access log",
                         ),
                         len("access\n"),
@@ -1176,7 +1177,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                                 projection / f"{name}.json",
                                 runner_gid=worker_gid,
                                 allowed_owners={owner},
-                                expected_device=logs.stat().st_dev,
+                                expected_device=expected_device,
                                 label=f"{name} log",
                             )
                 access_log.chmod(0o600)
