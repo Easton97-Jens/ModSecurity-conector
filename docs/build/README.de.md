@@ -217,34 +217,40 @@ abgegrenzte Dateisystemvertrag ist kein allgemeiner Kernel-Namespace und
 beweist nicht, dass bösartiger Candidate-Code nicht an beliebige nicht
 zusammenhängende, global world-writable Host-Orte schreiben kann.
 
-Der manuelle `workflow_dispatch`-Input `validate_only: true` ist ein
-nicht veröffentlichender Exact-Ref-Nachweispfad für diese eine Aufgabe. Er ist
-auf das kanonische Parent-Repository `Easton97-Jens/ModSecurity-conector` und
-den task-eigenen/reviewten Parent-Branch
-`fix/ci-enforce-readonly-submodule-validation` beschränkt; er ist keine
-allgemeine Einrichtung zum Ausführen beliebiger nicht vertrauenswürdiger
-Parent-Refs. Er checkt für Auflösung und Validierung den `github.sha` des
-Dispatch-Events aus, erzwingt den Validator-Lauf auch dann, wenn der aufgelöste
-Framework-Candidate bereits dem Parent-Gitlink des Dispatches entspricht, und
-schließt den Publisher von der Ausführung aus. Er kann weder einen Gitlink-
-Branch noch einen Pull Request erstellen oder aktualisieren.
+Der manuelle `workflow_dispatch`-Input `validate_only: true` ist ein nicht
+veröffentlichender Exact-Ref-Nachweis-/Revalidierungspfad mit genau zwei
+vertrauenswürdigen Refs im kanonischen Non-fork-Parent-Repository
+`Easton97-Jens/ModSecurity-conector`: dem task-eigenen/reviewten
+`fix/ci-enforce-readonly-submodule-validation`-Branch vor dem Merge für seinen
+Exact-Head-Nachweis und dem geschützten Parent-`master` erst nach dem Merge
+dieser Reparatur für die Sandbox-Revalidierung des resultierenden `master`; der
+letztere erfordert zusätzlich GitHub `github.ref_protected == true`. Er ist
+keine allgemeine Einrichtung zum Ausführen beliebiger nicht vertrauenswürdiger
+Parent-Refs oder Pull Requests. Jeder erlaubte Pfad checkt
+für Auflösung und Validierung den jeweiligen `github.sha` des Dispatch-Events
+aus,
+erzwingt den Validator-Lauf auch dann, wenn der aufgelöste Framework-Candidate
+bereits dem dispatchten Parent-Gitlink entspricht, und schließt den Publisher
+von der Ausführung aus. Er kann weder einen Gitlink-Branch noch einen Pull
+Request erstellen oder aktualisieren.
 
 Dies ist keine Sandbox für nicht vertrauenswürdige Parent-Pull-Requests/-Refs:
-Der task-eigene/reviewte Parent-Workflow- und Helper-SHA ist vor dem
+An beiden erlaubten Refs sind Parent-Workflow- und Helper-SHA vor dem
 Root-seitigen Setup vertrauenswürdig, während der Framework-Candidate nicht
 vertrauenswürdiger, durch die Sandbox regierter Code bleibt. Ein Hosted-Erfolg
-wäre funktionale Evidence nur für diesen reviewten SHA. Der allowlistete Branch
-ist eine Guardrail, kein Schutz gegen einen feindlichen Writer im selben
-Repository; dieses Threat Model erfordert Branch Protection oder Environment
-Approval.
+wäre funktionale Evidence nur für den jeweiligen reviewten Reparatur-SHA oder
+resultierenden geschützten Master-SHA. Die Zwei-Ref-Allowlist ist eine
+Guardrail; der Master-Pfad muss zusätzlich `github.ref_protected == true`
+erfüllen. Keine der Bedingungen schützt gegen einen feindlichen Writer im
+selben Repository ohne Branch Protection oder Environment Approval.
 
-Dieser Aufruf ist nicht der autorisierte Parent-Updater-Dispatch nach dem
-Merge. Dieser separate Dispatch läuft auf `master` mit unverändert falschem
-`validate_only`, validiert den aufgelösten Framework-Übergang vom
-vertrauenswürdigen Default Branch und darf erst nach erfolgreicher Validierung
-in den begrenzten Publisher eintreten. Die Auswahl von `validate_only` erteilt
-weder Veröffentlichungsberechtigung noch ersetzt sie diesen Updater-Dispatch
-nach dem Merge.
+Die Validierungs-only-Revalidierung auf geschütztem `master` ist nicht der
+autorisierte Parent-Updater-Dispatch nach dem Merge. Dieser separate Dispatch
+läuft auf `master` mit unverändert falschem `validate_only`, validiert den
+aufgelösten Framework-Übergang vom vertrauenswürdigen Default Branch und darf
+erst nach erfolgreicher Validierung in den begrenzten Publisher eintreten.
+Keiner der Validate-only-Pfade erteilt Veröffentlichungsberechtigung oder
+ersetzt diesen Updater-Dispatch nach dem Merge.
 
 Diese Grenze ist bewusst enger als ein allgemeines Read-only-Job-Label: Der
 Candidate erhält genau einen `sudo -n -u`-Einstieg mit `env -i`, ohne User Site

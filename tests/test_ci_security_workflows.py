@@ -74,11 +74,20 @@ SUBMODULE_VALIDATE_ONLY_REPOSITORY = "github.repository == 'Easton97-Jens/ModSec
 SUBMODULE_VALIDATE_ONLY_BRANCH = (
     "github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation'"
 )
+SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG = "github.ref_protected == true"
+SUBMODULE_VALIDATE_ONLY_PROTECTED_MASTER = (
+    "(github.ref == 'refs/heads/master' && "
+    "github.event.repository.default_branch == 'master' && "
+    f"{SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG})"
+)
+SUBMODULE_VALIDATE_ONLY_REF_ALLOWLIST = (
+    f"({SUBMODULE_VALIDATE_ONLY_BRANCH} || {SUBMODULE_VALIDATE_ONLY_PROTECTED_MASTER})"
+)
 SUBMODULE_VALIDATE_ONLY_MANUAL_PREDICATE = (
     f"{SUBMODULE_VALIDATE_ONLY_EVENT} && "
     f"{SUBMODULE_VALIDATE_ONLY_REPOSITORY} && "
     "github.event.repository.fork == false && "
-    f"{SUBMODULE_VALIDATE_ONLY_BRANCH}"
+    f"{SUBMODULE_VALIDATE_ONLY_REF_ALLOWLIST}"
 )
 SUBMODULE_VALIDATE_ONLY_MASTER_EXCLUSION = (
     "(github.event_name != 'workflow_dispatch' || "
@@ -93,7 +102,8 @@ SUBMODULE_RESOLVER_GATE = (
     "( ( github.ref == 'refs/heads/master' && "
     "github.event.repository.default_branch == 'master' && "
     f"{SUBMODULE_VALIDATE_ONLY_MASTER_EXCLUSION} ) || "
-    f"( {SUBMODULE_VALIDATE_ONLY_EVENT} && {SUBMODULE_VALIDATE_ONLY_BRANCH} ) )"
+    f"( {SUBMODULE_VALIDATE_ONLY_EVENT} && "
+    f"( {SUBMODULE_VALIDATE_ONLY_BRANCH} || {SUBMODULE_VALIDATE_ONLY_PROTECTED_MASTER} ) ) )"
 )
 SUBMODULE_VALIDATOR_GATE = (
     "needs.resolve-submodule-update.result == 'success' && "
@@ -378,6 +388,8 @@ def update_submodule_validate_only_errors(text: str) -> list[str]:
     errors: list[str] = []
     if text.count(SUBMODULE_VALIDATE_ONLY_INPUT) != 1:
         errors.append("validate_only must be one exact optional-false boolean input")
+    if text.count(SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG) != 4:
+        errors.append("protected-master validation must have four exact ref-protection checks")
 
     jobs = job_blocks(text)
     required_jobs = {
@@ -1548,6 +1560,26 @@ jobs:
             "repair branch constraint changed": (
                 SUBMODULE_VALIDATE_ONLY_BRANCH,
                 "github.ref == 'refs/heads/arbitrary-validator-branch'",
+            ),
+            "protected master removed from validate_only allowlist": (
+                SUBMODULE_VALIDATE_ONLY_PROTECTED_MASTER,
+                "false",
+            ),
+            "protected master loses default-branch condition": (
+                SUBMODULE_VALIDATE_ONLY_PROTECTED_MASTER,
+                "(github.ref == 'refs/heads/master')",
+            ),
+            "protected-ref condition deleted": (
+                SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG,
+                "true",
+            ),
+            "protected-ref condition inverted": (
+                SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG,
+                "github.ref_protected != true",
+            ),
+            "unprotected master explicitly allowed": (
+                SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG,
+                "github.ref_protected == false",
             ),
             "master clause admits validate_only dispatch": (
                 SUBMODULE_VALIDATE_ONLY_MASTER_EXCLUSION,

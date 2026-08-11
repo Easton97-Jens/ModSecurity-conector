@@ -18,10 +18,12 @@ ein separater Publisher eine Parent-Gitlink-Aktualisierung vorschlagen darf.
 Die Dokumentation für Leser muss die beabsichtigte Dateisystem- und
 Privilegiengrenze korrekt beschreiben, ohne die Implementierungsbeschreibung in
 unbeobachtete Hosted- oder Security-Evidence zu verwandeln. Zusätzlich ist ein
-enger Validate-only-Aufruf für diese eine Aufgabe erforderlich, damit der
-genaue Head des task-eigenen/reviewten Parent-Branch
-`fix/ci-enforce-readonly-submodule-validation` Hosted-Validator-Evidence
-erhalten kann, ohne den Publisher ausführbar zu machen.
+enger Validate-only-Aufruf für genau zwei vertrauenswürdige Parent-Refs
+erforderlich: den genauen Head des task-eigenen/reviewten Reparatur-Branch
+`fix/ci-enforce-readonly-submodule-validation` vor dem Merge und geschützten
+Parent-`master` erst nach dem Merge dieser Reparatur für die Sandbox-
+Revalidierung des resultierenden `master`, wenn GitHub
+`github.ref_protected == true` meldet, ohne den Publisher ausführbar zu machen.
 
 ## Akzeptanzkriterien
 
@@ -36,22 +38,27 @@ erhalten kann, ohne den Publisher ausführbar zu machen.
 - `make quick-check` bleibt unverändert.
 - Der Validator erhält keine Produktions-Schreibrechte; diese bleiben allein
   dem separaten Publisher vorbehalten.
-- Manueller `workflow_dispatch` mit `validate_only: true` ist auf das
-  kanonische Parent-Repository `Easton97-Jens/ModSecurity-conector` und den
-  task-eigenen/reviewten Branch
-  `fix/ci-enforce-readonly-submodule-validation` beschränkt; er ist keine
-  Einrichtung zum Ausführen beliebiger nicht vertrauenswürdiger Parent-Refs.
-  Er verwendet den dispatchten `github.sha`, erzwingt die Validierung auch bei
-  gleichem Candidate und Gitlink und schließt den Publisher von der Ausführung
-  aus.
-- Der task-eigene/reviewte Parent-Workflow- und Helper-SHA ist vor dem
+- Manueller `workflow_dispatch` mit `validate_only: true` ist auf genau zwei
+  vertrauenswürdige Refs im kanonischen Non-fork-Parent-Repository
+  `Easton97-Jens/ModSecurity-conector` beschränkt: den task-eigenen/reviewten
+  Reparatur-Branch `fix/ci-enforce-readonly-submodule-validation` vor dem
+  Merge und geschützten Parent-`master` erst nach dem Merge dieser Reparatur für
+  die Sandbox-Revalidierung des resultierenden `master` und wenn GitHub
+  `github.ref_protected == true` meldet. Er ist keine Einrichtung zum Ausführen
+  beliebiger nicht vertrauenswürdiger Parent-Refs oder Pull Requests. Jeder
+  erlaubte Pfad verwendet den jeweiligen dispatchten `github.sha`,
+  erzwingt die Validierung auch bei gleichem Candidate und Gitlink und schließt
+  den Publisher von der Ausführung aus.
+- An beiden erlaubten Refs sind Parent-Workflow- und Helper-SHA vor dem
   Root-seitigen Setup vertrauenswürdig; der Framework-Candidate bleibt nicht
-  vertrauenswürdiger, durch die Sandbox regierter Code. Die Branch-Allowlist
-  ist eine Guardrail, kein Schutz gegen einen feindlichen Writer im selben
-  Repository; dieses Threat Model erfordert Branch Protection oder Environment
-  Approval.
-- Der Validate-only-Aufruf unterscheidet sich vom autorisierten Updater-
-  Dispatch nach dem Merge auf `master` mit falschem `validate_only`.
+  vertrauenswürdiger, durch die Sandbox regierter Code. Die Zwei-Ref-Allowlist
+  ist eine Guardrail; der Master-Pfad erfordert zusätzlich
+  `github.ref_protected == true`. Keine der Bedingungen schützt gegen einen
+  feindlichen Writer im selben Repository ohne Branch Protection oder
+  Environment Approval.
+- Die Validate-only-Revalidierung auf geschütztem `master` unterscheidet sich
+  vom autorisierten Updater-Dispatch nach dem Merge auf `master` mit falschem
+  `validate_only`.
 - Vertrauenswürdige Setup-Probes prüfen Parent-/Framework-Schreibablehnung,
   sudo-Ablehnung und erfolgreiche externe Schreibzugriffe vor dem Quick Check.
 - Ein vollständiges Post-Lock-Source-Inventar von Parent/Framework muss nach
@@ -77,27 +84,35 @@ Caches unter diesem Child ein. Vertrauenswürdige Probes gehen dem unveränderte
 separate Publisher behält nach der Validierung die eng begrenzte
 Produktions-Schreibgrenze.
 
-Für Evidence zum genauen Branch-Head darf manueller `workflow_dispatch`
-`validate_only: true` nur im kanonischen Parent-Repository auf dem
-task-eigenen/reviewten Branch
-`fix/ci-enforce-readonly-submodule-validation` setzen. Er ist keine allgemeine
-Einrichtung zum Ausführen beliebiger nicht vertrauenswürdiger Parent-Refs.
-Dieser Pfad checkt den dispatchten `github.sha` in Resolver und Validator aus,
-erzwingt den Validierungsjob auch dann, wenn der Framework-Candidate diesem
-dispatchten Parent-Gitlink entspricht, und schließt den Publisher explizit
-aus. Er kann weder einen Gitlink-Branch noch einen Pull Request erstellen oder
-aktualisieren. Er ist keine Sandbox für nicht vertrauenswürdige Parent-Pull-
-Requests/-Refs: Der task-eigene/reviewte Parent-Workflow- und Helper-SHA ist
-vor dem Root-seitigen Setup vertrauenswürdig, während der Framework-Candidate
-nicht vertrauenswürdiger, durch die Sandbox regierter Code bleibt. Ein Hosted-
-Erfolg wäre funktionale Evidence nur für diesen reviewten SHA. Die Branch-
-Allowlist ist eine Guardrail, kein Schutz gegen einen feindlichen Writer im
-selben Repository; dieses Threat Model erfordert Branch Protection oder
-Environment Approval. Der separat autorisierte Updater-Dispatch nach dem Merge
+Für Exact-Head-Nachweis und Revalidierung des resultierenden `master` darf
+manueller `workflow_dispatch` `validate_only: true` nur im kanonischen
+Non-fork-Parent-Repository an genau zwei vertrauenswürdigen Refs setzen: am
+task-eigenen/reviewten Reparatur-Branch
+`fix/ci-enforce-readonly-submodule-validation` vor dem Merge oder am
+geschützten Parent-`master` erst nach dem Merge dieser Reparatur. Ersterer
+liefert den Exact-Head-Nachweis vor dem Merge; letzterer führt die Sandbox auf
+dem resultierenden `master`-Tree erneut aus und erfordert, dass GitHub
+`github.ref_protected == true` meldet. Keiner der Pfade ist eine allgemeine
+Einrichtung zum Ausführen beliebiger nicht vertrauenswürdiger Parent-Refs oder
+Pull Requests. Jeder checkt den jeweiligen dispatchten `github.sha` in Resolver
+und Validator aus, erzwingt den Validierungsjob auch dann, wenn der Framework-
+Candidate dem dispatchten Parent-Gitlink entspricht, und schließt den Publisher
+explizit aus. Er kann weder einen Gitlink-Branch noch einen Pull Request
+erstellen oder aktualisieren. Dies ist keine Sandbox für nicht vertrauenswürdige
+Parent-Pull-Requests/-Refs: An beiden erlaubten Refs sind Parent-Workflow- und
+Helper-SHA vor dem Root-seitigen Setup vertrauenswürdig, während der Framework-
+Candidate nicht vertrauenswürdiger, durch die Sandbox regierter Code bleibt.
+Ein Hosted-Erfolg wäre funktionale Evidence nur für den jeweiligen reviewten
+Reparatur-SHA oder resultierenden geschützten Master-SHA. Die Zwei-Ref-
+Allowlist ist eine Guardrail; der Master-Pfad erfordert zusätzlich
+`github.ref_protected == true`. Keine der Bedingungen schützt gegen einen
+feindlichen Writer im selben Repository ohne Branch Protection oder Environment
+Approval. Der separat autorisierte Updater-Dispatch nach dem Merge
 läuft auf `master` mit falschem `validate_only`; er validiert den Übergang vom
 vertrauenswürdigen Default Branch und darf nach der Validierung den begrenzten
-Publisher erreichen. Die beiden Aufrufe sind nicht austauschbar, und der
-Validate-only-Modus erteilt keine Delivery-Berechtigung.
+Publisher erreichen. Keiner der Validate-only-Pfade erteilt
+Veröffentlichungsberechtigung oder ersetzt diesen Updater-Dispatch nach dem
+Merge.
 
 Der Root-seitige Helper inventarisiert beide gesperrten Source-Trees vor der
 Candidate-Ausführung und prüft nach dem Check ihre exakte Gleichheit. Das
@@ -122,11 +137,13 @@ Ausgabe-Roots unter seinem privaten externen Child. Dies ist kein allgemeiner
 Kernel-Namespace und beweist nicht, dass bösartiger Candidate-Code nicht an
 beliebige nicht zusammenhängende, global world-writable Host-Orte schreiben
 kann. Finale Security-Scan-Evidence wird in diesem Implementierungsrecord nicht
-behauptet und liegt in der zugehörigen Scan-Evidence vor. Der Parent-Workflow-/
-Helper-SHA ist vor dem Root-seitigen Setup vertrauenswürdig; `validate_only`
-ist keine Sandbox für eine nicht vertrauenswürdige Parent-Ref. Seine Branch-
-Allowlist ist kein Schutz gegen einen feindlichen Writer im selben Repository;
-dies erfordert Branch Protection oder Environment Approval.
+behauptet und liegt in der zugehörigen Scan-Evidence vor. An beiden erlaubten
+Validate-only-Refs sind Parent-Workflow-/Helper-SHA vor dem Root-seitigen Setup
+vertrauenswürdig; `validate_only` ist keine Sandbox für eine nicht
+vertrauenswürdige Parent-Ref. Seine Zwei-Ref-Allowlist ist kein Schutz gegen
+einen feindlichen Writer im selben Repository; der Master-Pfad erfordert auch
+`github.ref_protected == true`, während dieses Threat Model Branch Protection
+oder Environment Approval erfordert.
 
 ## Geänderte Dateien
 
@@ -154,10 +171,10 @@ ausgeführt und als direkte Evidence gemeldet:
 
 - `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_prepare_readonly_submodule_validation_sandbox tests.test_ci_security_workflows` endete mit Exit 0: 38 Tests liefen, 37 bestanden und 1 war ein erwarteter Skip, weil die UID/GID `nobody` im User-Namespace nicht verfügbar ist.
 - `PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` endete mit Exit 0, einschließlich 26 CI-Workflow-Tests und Validate-only-Prüfungen für actionlint, zizmor und den gitleaks-Lock.
-- `make check-bilingual-docs` lief nach der Validate-only-Korrektur zum
-  Branch-Scope erneut und bestand (`bilingual docs ok`).
-- `git diff --check` endete nach der Validate-only-Korrektur zum Branch-Scope
-  mit Exit 0 ohne Ausgabe.
+- `make check-bilingual-docs` lief nach der Validate-only-Korrektur zur
+  Protected-master-Enforcement erneut und bestand (`bilingual docs ok`).
+- `git diff --check` endete nach der Validate-only-Korrektur zur Protected-
+  master-Enforcement mit Exit 0 ohne Ausgabe.
 
 ## Runtime-Evidence
 
@@ -184,8 +201,8 @@ anderen Delivery-Ergebnisse; diese liegen in der zugehörigen PR-Evidence vor.
 Der Record dokumentiert die beabsichtigte Grenze anhand der Anforderungen der
 abgegrenzten Implementierung. Er liefert selbst keinen unabhängigen Nachweis
 für Runner-Identitätsverhalten, Dateisystemberechtigungen oder finale Hosted-
-Ausführung am dispatchten SHA. Der abgegrenzte Source-/Output-Vertrag ist keine
-Evidence für allgemeine Host-Dateisystemisolierung.
+Ausführung an einem der erlaubten dispatchten SHAs. Der abgegrenzte Source-/
+Output-Vertrag ist keine Evidence für allgemeine Host-Dateisystemisolierung.
 
 ## Verbleibende Risiken
 
@@ -201,5 +218,6 @@ der zugehörigen PR- und Scan-Evidence vor.
 
 Abgegrenzter Englisch-/Deutsch-Paritäts- und `git diff --check`-Review
 bestanden. Dieser Implementierungsrecord behauptet nur seine lokale
-Dokumentationsvalidierung; finale Exact-Head-Hosted-Validierungs-, Security-
-Scan- und Delivery-Evidence liegt in der zugehörigen PR- und Scan-Evidence vor.
+Dokumentationsvalidierung; finale Hosted-Validierungs-, Security-Scan- und
+Delivery-Evidence für erlaubte Refs liegt in der zugehörigen PR- und Scan-
+Evidence vor.
