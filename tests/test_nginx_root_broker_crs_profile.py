@@ -261,6 +261,170 @@ class TrustedNginxRootBrokerCrsProfileTest(unittest.TestCase):
             copied_rule = output / BROKER.CRS_BUNDLE_FILES_DIRECTORY_NAME / "rules/REQUEST-949-BLOCKING-EVALUATION.conf"
             self.assertEqual(stat.S_IMODE(copied_rule.stat().st_mode), 0o400)
 
+    def test_only_the_pinned_empty_after_placeholder_may_be_empty(self) -> None:
+        def fixture(root: Path) -> tuple[argparse.Namespace, Path, Path, Path]:
+            trusted_build = self.private_dir(root / "trusted-build")
+            source = self.crs_source_dir(trusted_build / BROKER.CRS_BUNDLE_SOURCE_RELATIVE)
+            rules = self.crs_source_dir(source / "rules")
+            plugins = self.crs_source_dir(source / "plugins")
+            self.write(source / "crs-setup.conf.example", "SecAction \"id:900000,phase:1,pass,nolog\"\n", 0o644)
+            self.write(
+                rules / "REQUEST-949-BLOCKING-EVALUATION.conf",
+                "SecRule ARGS \"@rx .+\" \"id:949110,phase:2,deny,status:403,log\"\n",
+                0o644,
+            )
+            arguments = argparse.Namespace(
+                trusted_build_root=str(trusted_build),
+                framework_root=str(root / "protected-framework"),
+                framework_sha=FRAMEWORK_SHA,
+                broker_sha=BROKER_SHA,
+            )
+            return arguments, source, rules, plugins
+
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-v2-") as temporary:
+            arguments, _, _, plugins = fixture(Path(temporary))
+            placeholder = self.write(
+                plugins / BROKER.CRS_EMPTY_AFTER_PLACEHOLDER_RELATIVE.name,
+                "",
+                0o644,
+            )
+            self.assertEqual(digest(placeholder), BROKER.CRS_EMPTY_AFTER_PLACEHOLDER_SHA256)
+            with mock.patch.object(BROKER, "validate_protected_crs_contract"):
+                output = BROKER.prepare_crs_bundle(arguments)
+            manifest = json.loads((output / BROKER.CRS_BUNDLE_MANIFEST_FILENAME).read_text(encoding="utf-8"))
+            records = BROKER.validate_crs_bundle_manifest(
+                manifest,
+                expected_framework_sha=FRAMEWORK_SHA,
+                expected_broker_sha=BROKER_SHA,
+            )
+            empty_record = next(
+                record
+                for record in records
+                if record["path"] == BROKER.CRS_EMPTY_AFTER_PLACEHOLDER_RELATIVE.as_posix()
+            )
+            self.assertEqual(empty_record["size"], 0)
+            self.assertEqual(empty_record["sha256"], BROKER.CRS_EMPTY_AFTER_PLACEHOLDER_SHA256)
+            copied_placeholder = output / BROKER.CRS_BUNDLE_FILES_DIRECTORY_NAME / BROKER.CRS_EMPTY_AFTER_PLACEHOLDER_RELATIVE
+            self.assertEqual(copied_placeholder.stat().st_size, 0)
+            self.assertEqual(stat.S_IMODE(copied_placeholder.stat().st_mode), 0o400)
+
+            for field, value in (("release_tag", "v0.0.0"), ("commit", "d" * 40)):
+                changed = json.loads(json.dumps(manifest))
+                changed[field] = value
+                with self.subTest(manifest_field=field), self.assertRaises(BROKER.BrokerError):
+                    BROKER.validate_crs_bundle_manifest(
+                        changed,
+                        expected_framework_sha=FRAMEWORK_SHA,
+                        expected_broker_sha=BROKER_SHA,
+                    )
+
+            wrong_digest = json.loads(json.dumps(manifest))
+            for record in wrong_digest["files"]:
+                if record["path"] == BROKER.CRS_EMPTY_AFTER_PLACEHOLDER_RELATIVE.as_posix():
+                    record["sha256"] = "0" * 64
+            with self.assertRaisesRegex(BROKER.BrokerError, "file size"):
+                BROKER.validate_crs_bundle_manifest(
+                    wrong_digest,
+                    expected_framework_sha=FRAMEWORK_SHA,
+                    expected_broker_sha=BROKER_SHA,
+                )
+
+            files = output / BROKER.CRS_BUNDLE_FILES_DIRECTORY_NAME
+            unmanifested = files / "plugins/unmanifested-after.conf"
+            self.write(unmanifested, "", 0o400)
+            expected_device = files.stat().st_dev
+            owner = os.geteuid()
+            with self.assertRaisesRegex(BROKER.BrokerError, "extra unmanifested"):
+                BROKER.validate_crs_bundle_files(
+                    files,
+                    records,
+                    owner=owner,
+                    directory_mode=0o700,
+                    file_mode=0o400,
+                    expected_device=expected_device,
+                    label="test protected CRS bundle",
+                )
+
+        for name, relative, mode, kind in (
+            ("other empty plugin", Path("plugins/other-after.conf"), 0o644, "empty"),
+            ("empty rule", Path("rules/EMPTY.conf"), 0o644, "empty"),
+            ("wrong placeholder mode", BROKER.CRS_EMPTY_AFTER_PLACEHOLDER_RELATIVE, 0o600, "empty"),
+            ("placeholder symlink", BROKER.CRS_EMPTY_AFTER_PLACEHOLDER_RELATIVE, 0o644, "symlink"),
+            ("placeholder FIFO", BROKER.CRS_EMPTY_AFTER_PLACEHOLDER_RELATIVE, 0o644, "fifo"),
+        ):
+            with self.subTest(source_case=name), tempfile.TemporaryDirectory(prefix="nginx-root-broker-v2-") as temporary:
+                arguments, source, _, plugins = fixture(Path(temporary))
+                target = source / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if kind == "symlink":
+                    replacement = self.write(plugins / "replacement-after.conf", "replacement\n", 0o644)
+                    target.symlink_to(replacement)
+                elif kind == "fifo":
+                    os.mkfifo(target)
+                else:
+                    self.write(target, "", mode)
+                with mock.patch.object(BROKER, "validate_protected_crs_contract"):
+                    with self.assertRaises(BROKER.BrokerError):
+                        BROKER.prepare_crs_bundle(arguments)
+
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-v2-") as temporary:
+            arguments, _, _, plugins = fixture(Path(temporary))
+            self.write(plugins / "valid-after.conf", "SecAction \"id:900001,phase:1,pass,nolog\"\n", 0o644)
+            with mock.patch.object(BROKER, "validate_protected_crs_contract"):
+                output = BROKER.prepare_crs_bundle(arguments)
+            records = BROKER.validate_crs_bundle_manifest(
+                json.loads((output / BROKER.CRS_BUNDLE_MANIFEST_FILENAME).read_text(encoding="utf-8")),
+                expected_framework_sha=FRAMEWORK_SHA,
+                expected_broker_sha=BROKER_SHA,
+            )
+            self.assertIn("plugins/valid-after.conf", [record["path"] for record in records])
+
+    def test_protected_crs_contract_binds_the_tag_and_empty_placeholder_git_blob(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-v2-") as temporary:
+            root = Path(temporary)
+            framework = self.private_dir(root / "framework")
+            common = self.write(
+                framework / "ci/lib/common.sh",
+                "\n".join(
+                    (
+                        f'CRS_APPROVED_REPO_URL="{BROKER.CRS_APPROVED_REPOSITORY}"',
+                        f'CRS_RELEASE_TAG="{BROKER.CRS_RELEASE_TAG}"',
+                        f'CRS_APPROVED_COMMIT="{BROKER.CRS_APPROVED_COMMIT}"',
+                        "",
+                    )
+                ),
+                0o600,
+            )
+            self.assertTrue(common.is_file())
+            source = self.crs_source_dir(root / "source")
+
+            def protected_values(*, tag: str = BROKER.CRS_APPROVED_COMMIT, blob: str = BROKER.CRS_EMPTY_AFTER_PLACEHOLDER_BLOB):
+                def value(directory: Path, label: str, *arguments: str) -> str:
+                    if directory == framework and arguments == ("rev-parse", "HEAD"):
+                        return FRAMEWORK_SHA
+                    if directory == source and arguments == ("config", "--get", "remote.origin.url"):
+                        return BROKER.CRS_APPROVED_REPOSITORY
+                    if directory == source and arguments == ("rev-parse", "HEAD"):
+                        return BROKER.CRS_APPROVED_COMMIT
+                    if directory == source and arguments == ("rev-parse", f"refs/tags/{BROKER.CRS_RELEASE_TAG}^{{}}"):
+                        return tag
+                    if directory == source and arguments == (
+                        "rev-parse",
+                        f"{BROKER.CRS_APPROVED_COMMIT}:{BROKER.CRS_EMPTY_AFTER_PLACEHOLDER_RELATIVE.as_posix()}",
+                    ):
+                        return blob
+                    self.fail(f"unexpected protected Git lookup: {directory} {label} {arguments}")
+                return value
+
+            with mock.patch.object(BROKER, "protected_git_value", side_effect=protected_values()):
+                BROKER.validate_protected_crs_contract(source, framework, FRAMEWORK_SHA)
+            with mock.patch.object(BROKER, "protected_git_value", side_effect=protected_values(tag="d" * 40)):
+                with self.assertRaisesRegex(BROKER.BrokerError, "release tag"):
+                    BROKER.validate_protected_crs_contract(source, framework, FRAMEWORK_SHA)
+            with mock.patch.object(BROKER, "protected_git_value", side_effect=protected_values(blob="0" * 40)):
+                with self.assertRaisesRegex(BROKER.BrokerError, "empty placeholder object"):
+                    BROKER.validate_protected_crs_contract(source, framework, FRAMEWORK_SHA)
+
     def test_protected_bundle_builder_rejects_unsafe_fresh_source_modes(self) -> None:
         def fixture(root: Path) -> tuple[argparse.Namespace, Path, Path]:
             trusted_build = self.private_dir(root / "trusted-build")
