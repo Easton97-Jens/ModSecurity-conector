@@ -189,6 +189,43 @@ patch; it is not a claim that a scheduled run, candidate, pull request, or
 merge has occurred. Those results require separately observed CI and delivery
 evidence.
 
+### Read-only Framework-submodule candidate validation
+
+`update-submodules.yml` separates candidate validation from publication. Its
+`validate-submodule-update` job applies `umask 077` before creating a fresh
+private `mktemp` root beneath the runner-provided external `RUNNER_TEMP`
+directory. It applies `umask 077` again inside the isolated candidate shell
+before candidate output, then runs `make quick-check`
+unchanged as the dedicated, non-login, non-sudo `modsecurity-validator`
+identity. A trusted root-side helper makes the Parent and Framework trees,
+including their `.git` metadata, root-owned and non-writable before candidate
+execution. Consequently, the candidate may write only its private external
+child, not source or Git state.
+
+This boundary is deliberately narrower than a general read-only job label: the
+candidate receives one `sudo -n -u` entry with `env -i`, no user site, and
+external `HOME`, Git configuration, pip cache, bytecode cache, build, log, and
+other cache roots. Trusted setup probes verify Parent and Framework write
+rejection, sudo rejection, and external-write success before the unchanged
+quick check. The validator retains read-only repository permissions and cannot
+publish a gitlink or pull request. Production write permission remains solely
+with the separate publisher job after successful validation; it is not granted
+to the validator or to `make quick-check`.
+
+Before the candidate starts, the root-side helper records a full post-lock
+inventory of the Parent and Framework source trees. Each entry captures its
+path, type, size, mode, UID, GID, and link count; regular files also carry a
+SHA-256 digest and symbolic links carry their link text. After `make quick-check`
+the helper requires that inventory to match exactly, failing closed on any
+source-tree mutation. It also fail-closed scans the validator's external tree:
+only validator-owned directories and regular files without group/other write
+permissions are permitted; special objects, symbolic links, and source-tree
+hard links are rejected.
+
+This describes the intended workflow contract, not evidence of a hosted run,
+security scan, published update, or merge. Those results require separately
+observed execution evidence.
+
 ## Parent CI Go-toolchain contract
 
 The committed root <code>.go-version</code> is the sole machine-readable Go

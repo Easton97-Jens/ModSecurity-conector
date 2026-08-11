@@ -1,0 +1,487 @@
+#!/usr/bin/env python3
+"""Prepare and verify a read-only source boundary for CI validation.
+
+The trusted root-side entry point accepts a fresh root-owned guard directory
+below ``RUNNER_TEMP``.  It validates the source topology without following
+links, locks Parent and Framework source/Git trees, records a complete
+post-lock inventory inside the root-only guard, and creates the sole
+validator-owned ``external`` output root.  After candidate execution the same
+entry point compares that inventory and validates every candidate-created
+output object fail-closed.
+"""
+
+from __future__ import annotations
+
+import argparse
+from dataclasses import dataclass
+import grp
+import hashlib
+import json
+import os
+from pathlib import Path
+import pwd
+import stat
+import sys
+from typing import Iterator, Sequence
+
+
+PRIVILEGED_GROUPS = frozenset({"admin", "sudo", "wheel"})
+EXTERNAL_DIRNAME = "external"
+INVENTORY_FILENAME = "source-inventory.json"
+GITFILE_MAX_BYTES = 4096
+
+
+@dataclass(frozen=True)
+class ValidatorIdentity:
+    """The exact unprivileged identity allowed to own candidate output."""
+
+    user: str
+    group: str
+    uid: int
+    gid: int
+
+
+def parse_args(argv: Sequence[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="prepare or verify a locked source tree and private validator output root"
+    )
+    parser.add_argument("--source-root", required=True)
+    parser.add_argument("--framework-root", required=True)
+    parser.add_argument("--write-root", required=True)
+    parser.add_argument("--runner-temp", required=True)
+    parser.add_argument("--validator-user", required=True)
+    parser.add_argument("--validator-group", required=True)
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="compare the post-run source inventory and validate external outputs",
+    )
+    return parser.parse_args(argv)
+
+
+def _lexical_absolute_path(value: str, label: str) -> Path:
+    """Accept one canonical-looking absolute path without resolving links."""
+    if not value or not os.path.isabs(value):
+        raise ValueError(f"{label} must be an absolute path")
+    normalized = os.path.normpath(value)
+    if normalized != value or ".." in Path(value).parts:
+        raise ValueError(f"{label} must not contain traversal or redundant components: {value}")
+    return Path(value)
+
+
+def _existing_directory_without_symlinks(value: str, label: str) -> Path:
+    """Validate every existing component without following a symbolic link."""
+    path = _lexical_absolute_path(value, label)
+    current = Path(path.anchor)
+    for component in path.parts[1:]:
+        current /= component
+        try:
+            metadata = os.lstat(current)
+        except FileNotFoundError as error:
+            raise ValueError(f"{label} must be an existing directory: {path}") from error
+        if stat.S_ISLNK(metadata.st_mode):
+            raise ValueError(f"{label} must not contain symbolic links: {path}")
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise ValueError(f"{label} must be a directory: {path}")
+    return path
+
+
+def _is_below(candidate: Path, parent: Path) -> bool:
+    try:
+        candidate.relative_to(parent)
+    except ValueError:
+        return False
+    return candidate != parent
+
+
+def _is_within(candidate: Path, parent: Path) -> bool:
+    return candidate == parent or _is_below(candidate, parent)
+
+
+def _same_inode(first: os.stat_result, second: os.stat_result) -> bool:
+    return first.st_dev == second.st_dev and first.st_ino == second.st_ino
+
+
+def _walk_tree(root: Path) -> Iterator[tuple[Path, str, os.stat_result]]:
+    """Yield all tree entries in deterministic order without traversing links."""
+    pending: list[tuple[Path, str]] = [(root, ".")]
+    while pending:
+        path, relative = pending.pop()
+        metadata = os.lstat(path)
+        yield path, relative, metadata
+        if not stat.S_ISDIR(metadata.st_mode):
+            continue
+        with os.scandir(path) as entries:
+            children = sorted(entries, key=lambda entry: entry.name, reverse=True)
+        for entry in children:
+            child_relative = entry.name if relative == "." else f"{relative}/{entry.name}"
+            pending.append((Path(entry.path), child_relative))
+
+
+def _read_small_regular_text(path: Path, expected: os.stat_result) -> str:
+    """Read a bounded regular gitfile through a no-follow descriptor."""
+    flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC
+    descriptor = os.open(path, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or not _same_inode(expected, opened):
+            raise ValueError(f"git metadata changed while opening: {path}")
+        data = os.read(descriptor, GITFILE_MAX_BYTES + 1)
+        if len(data) > GITFILE_MAX_BYTES:
+            raise ValueError(f"git metadata is unexpectedly large: {path}")
+        if not _same_inode(opened, os.fstat(descriptor)):
+            raise ValueError(f"git metadata changed while reading: {path}")
+    finally:
+        os.close(descriptor)
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ValueError(f"git metadata is not UTF-8: {path}") from error
+
+
+def _digest_regular_file(path: Path, expected: os.stat_result) -> str:
+    """Hash one regular source file via a bounded, no-follow descriptor."""
+    flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC
+    descriptor = os.open(path, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or not _same_inode(expected, opened):
+            raise ValueError(f"source entry changed while opening: {path}")
+        digest = hashlib.sha256()
+        while True:
+            block = os.read(descriptor, 1024 * 1024)
+            if not block:
+                break
+            digest.update(block)
+        after = os.fstat(descriptor)
+        if not _same_inode(opened, after) or after.st_size != opened.st_size:
+            raise ValueError(f"source entry changed while reading: {path}")
+    finally:
+        os.close(descriptor)
+    return digest.hexdigest()
+
+
+def _source_inventory(root: Path) -> list[dict[str, object]]:
+    """Return the complete deterministic source/Git inventory after lockdown."""
+    entries: list[dict[str, object]] = []
+    for path, relative, metadata in _walk_tree(root):
+        mode = stat.S_IMODE(metadata.st_mode)
+        record: dict[str, object] = {
+            "path": relative,
+            "size": metadata.st_size,
+            "mode": mode,
+            "uid": metadata.st_uid,
+            "gid": metadata.st_gid,
+            "nlink": metadata.st_nlink,
+        }
+        if stat.S_ISDIR(metadata.st_mode):
+            record["type"] = "directory"
+        elif stat.S_ISREG(metadata.st_mode):
+            record["type"] = "regular"
+            record["sha256"] = _digest_regular_file(path, metadata)
+        elif stat.S_ISLNK(metadata.st_mode):
+            record["type"] = "symlink"
+            record["target"] = os.readlink(path)
+        else:
+            raise ValueError(f"source inventory rejects unsupported file type: {relative}")
+        entries.append(record)
+    return entries
+
+
+def _inventory_payload(entries: list[dict[str, object]]) -> bytes:
+    return (
+        json.dumps({"version": 1, "entries": entries}, sort_keys=True, separators=(",", ":"))
+        + "\n"
+    ).encode("utf-8")
+
+
+def _write_exact_regular_file(path: Path, payload: bytes) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        os.fchmod(descriptor, 0o600)
+        offset = 0
+        while offset < len(payload):
+            offset += os.write(descriptor, payload[offset:])
+    finally:
+        os.close(descriptor)
+
+
+def _read_inventory(path: Path) -> tuple[list[dict[str, object]], str]:
+    metadata = os.lstat(path)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != 0
+        or metadata.st_gid != 0
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise ValueError("source inventory must be one root-owned mode-0600 regular file")
+    flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC
+    descriptor = os.open(path, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or not _same_inode(metadata, opened):
+            raise ValueError("source inventory changed while opening")
+        blocks: list[bytes] = []
+        while True:
+            block = os.read(descriptor, 1024 * 1024)
+            if not block:
+                break
+            blocks.append(block)
+        payload = b"".join(blocks)
+        if not _same_inode(opened, os.fstat(descriptor)):
+            raise ValueError("source inventory changed while reading")
+    finally:
+        os.close(descriptor)
+    try:
+        decoded = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("source inventory is not valid JSON") from error
+    if not isinstance(decoded, dict) or decoded.get("version") != 1 or not isinstance(
+        decoded.get("entries"), list
+    ):
+        raise ValueError("source inventory has an unexpected schema")
+    entries = decoded["entries"]
+    if not all(isinstance(entry, dict) for entry in entries):
+        raise ValueError("source inventory contains an invalid entry")
+    return entries, hashlib.sha256(payload).hexdigest()
+
+
+def resolve_validator_identity(user: str, group: str) -> ValidatorIdentity:
+    """Require an existing dedicated identity with no privileged group."""
+    try:
+        account = pwd.getpwnam(user)
+        group_entry = grp.getgrnam(group)
+    except KeyError as error:
+        raise ValueError("validator user and group must already exist") from error
+    if account.pw_uid == 0 or group_entry.gr_gid == 0:
+        raise ValueError("validator user and group must be unprivileged")
+    groups = {entry.gr_name for entry in grp.getgrall() if user in entry.gr_mem}
+    try:
+        groups.add(grp.getgrgid(account.pw_gid).gr_name)
+    except KeyError as error:
+        raise ValueError("validator user primary group must exist") from error
+    if group not in groups:
+        raise ValueError("validator user must be a member of validator group")
+    if groups & PRIVILEGED_GROUPS:
+        raise ValueError("validator user must not belong to an administrative group")
+    return ValidatorIdentity(user=user, group=group, uid=account.pw_uid, gid=group_entry.gr_gid)
+
+
+def _validate_layout(
+    *, source_root: str, framework_root: str, write_root: str, runner_temp: str, fresh: bool
+) -> tuple[Path, Path, Path]:
+    source = _existing_directory_without_symlinks(source_root, "source root")
+    framework = _existing_directory_without_symlinks(framework_root, "framework root")
+    write = _existing_directory_without_symlinks(write_root, "write root")
+    temporary = _existing_directory_without_symlinks(runner_temp, "runner temp")
+    if not _is_below(framework, source):
+        raise ValueError("framework root must be a strict child of source root")
+    if write.parent != temporary:
+        raise ValueError("write root must be a direct private child of runner temp")
+    if any(
+        write == tree or _is_below(write, tree) or _is_below(tree, write)
+        for tree in (source, framework)
+    ):
+        raise ValueError("write root must be disjoint from source and framework roots")
+    write_metadata = os.lstat(write)
+    if write_metadata.st_uid != 0 or stat.S_IMODE(write_metadata.st_mode) != 0o711:
+        raise ValueError("write root must be root-owned with mode 0711")
+    if fresh:
+        with os.scandir(write) as entries:
+            if next(entries, None) is not None:
+                raise ValueError("write root must be newly created and empty")
+    return source, framework, write
+
+
+def validate_layout(
+    *, source_root: str, framework_root: str, write_root: str, runner_temp: str
+) -> tuple[Path, Path, Path]:
+    """Validate a fresh setup layout without creating or changing anything."""
+    return _validate_layout(
+        source_root=source_root,
+        framework_root=framework_root,
+        write_root=write_root,
+        runner_temp=runner_temp,
+        fresh=True,
+    )
+
+
+def _validate_source_links_and_git_metadata(source: Path) -> None:
+    """Reject links which could turn a source path into an external write path."""
+    source_git_root = source / ".git"
+    source_git_metadata = os.lstat(source_git_root)
+    if stat.S_ISLNK(source_git_metadata.st_mode) or not stat.S_ISDIR(source_git_metadata.st_mode):
+        raise ValueError("Parent .git must be a non-symlink directory")
+    modules = source_git_root / "modules"
+    modules_metadata = os.lstat(modules)
+    if stat.S_ISLNK(modules_metadata.st_mode) or not stat.S_ISDIR(modules_metadata.st_mode):
+        raise ValueError("Parent .git/modules must be a non-symlink directory")
+    for path, relative, metadata in _walk_tree(source):
+        if stat.S_ISLNK(metadata.st_mode):
+            target_text = os.readlink(path)
+            target = Path(
+                os.path.normpath(
+                    target_text if os.path.isabs(target_text) else os.path.join(path.parent, target_text)
+                )
+            )
+            if not _is_within(target, source):
+                raise ValueError(f"source symbolic link must remain inside source root: {relative}")
+        if path.name != ".git" or path == source_git_root:
+            continue
+        if stat.S_ISLNK(metadata.st_mode):
+            raise ValueError(f"Git metadata must not be a symbolic link: {relative}")
+        if stat.S_ISDIR(metadata.st_mode):
+            continue
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ValueError(f"Git metadata has an unsupported type: {relative}")
+        content = _read_small_regular_text(path, metadata).strip()
+        if not content.startswith("gitdir: "):
+            raise ValueError(f"Git metadata has an invalid gitdir declaration: {relative}")
+        target_text = content.removeprefix("gitdir: ")
+        if not target_text or "\x00" in target_text:
+            raise ValueError(f"Git metadata has an invalid gitdir target: {relative}")
+        target = Path(
+            os.path.normpath(
+                target_text if os.path.isabs(target_text) else os.path.join(path.parent, target_text)
+            )
+        )
+        if not _is_within(target, source_git_root):
+            raise ValueError(f"Git metadata target must remain below Parent .git: {relative}")
+        _existing_directory_without_symlinks(str(target), f"Git metadata target for {relative}")
+
+
+def _lock_tree(root: Path) -> None:
+    """Make every source inode root-owned and not group/other writable."""
+    for path, _relative, metadata in _walk_tree(root):
+        os.chown(path, 0, 0, follow_symlinks=False)
+        if stat.S_ISLNK(metadata.st_mode):
+            continue
+        os.chmod(path, stat.S_IMODE(metadata.st_mode) & ~0o022)
+
+
+def _make_external_root(write_root: Path, identity: ValidatorIdentity) -> Path:
+    """Create the only directory writable by the validator identity."""
+    external = write_root / EXTERNAL_DIRNAME
+    os.mkdir(external, 0o700)
+    os.chown(external, identity.uid, identity.gid, follow_symlinks=False)
+    os.chmod(external, 0o700)
+    return external
+
+
+def _prepared_control_paths(write_root: Path, identity: ValidatorIdentity) -> tuple[Path, Path]:
+    """Validate the root-only inventory and validator-only external root."""
+    with os.scandir(write_root) as entries:
+        names = {entry.name for entry in entries}
+    expected = {INVENTORY_FILENAME, EXTERNAL_DIRNAME}
+    if names != expected:
+        raise ValueError("write root contains an unexpected control or candidate output")
+    inventory = write_root / INVENTORY_FILENAME
+    external = write_root / EXTERNAL_DIRNAME
+    inventory_metadata = os.lstat(inventory)
+    if (
+        not stat.S_ISREG(inventory_metadata.st_mode)
+        or inventory_metadata.st_uid != 0
+        or inventory_metadata.st_gid != 0
+        or stat.S_IMODE(inventory_metadata.st_mode) != 0o600
+        or inventory_metadata.st_nlink != 1
+    ):
+        raise ValueError("source inventory must remain root-owned mode-0600 regular data")
+    external_metadata = os.lstat(external)
+    if (
+        stat.S_ISLNK(external_metadata.st_mode)
+        or not stat.S_ISDIR(external_metadata.st_mode)
+        or external_metadata.st_uid != identity.uid
+        or external_metadata.st_gid != identity.gid
+        or stat.S_IMODE(external_metadata.st_mode) != 0o700
+    ):
+        raise ValueError("external root must remain validator-owned mode-0700 directory")
+    return inventory, external
+
+
+def _validate_external_tree(external: Path, source: Path, identity: ValidatorIdentity) -> None:
+    """Reject output types, ownership, and links that escape the private root."""
+    source_regular_inodes = {
+        (metadata.st_dev, metadata.st_ino)
+        for _path, _relative, metadata in _walk_tree(source)
+        if stat.S_ISREG(metadata.st_mode)
+    }
+    for _path, relative, metadata in _walk_tree(external):
+        mode = stat.S_IMODE(metadata.st_mode)
+        if stat.S_ISLNK(metadata.st_mode):
+            raise ValueError(f"external output must not contain symbolic links: {relative}")
+        if not (stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode)):
+            raise ValueError(f"external output has an unsupported file type: {relative}")
+        if metadata.st_uid != identity.uid or metadata.st_gid != identity.gid:
+            raise ValueError(f"external output has a foreign owner: {relative}")
+        if mode & 0o022 or mode & 0o7000:
+            raise ValueError(f"external output has unsafe permissions: {relative}")
+        if stat.S_ISREG(metadata.st_mode) and (metadata.st_dev, metadata.st_ino) in source_regular_inodes:
+            raise ValueError(f"external output hardlinks a source file: {relative}")
+
+
+def prepare_sandbox(args: argparse.Namespace) -> tuple[Path, str]:
+    """Lock source, write its inventory into the root guard, and create output."""
+    if os.geteuid() != 0:
+        raise ValueError("readonly validation sandbox preparation must run as root")
+    source, framework, write = validate_layout(
+        source_root=args.source_root,
+        framework_root=args.framework_root,
+        write_root=args.write_root,
+        runner_temp=args.runner_temp,
+    )
+    identity = resolve_validator_identity(args.validator_user, args.validator_group)
+    _validate_source_links_and_git_metadata(source)
+    _lock_tree(source)
+    # Keep the Framework invocation explicit in case a future Parent traversal
+    # rule excludes it from the Parent tree.
+    _lock_tree(framework)
+    payload = _inventory_payload(_source_inventory(source))
+    _write_exact_regular_file(write / INVENTORY_FILENAME, payload)
+    external = _make_external_root(write, identity)
+    return external, hashlib.sha256(payload).hexdigest()
+
+
+def verify_sandbox(args: argparse.Namespace) -> tuple[Path, str]:
+    """Fail closed unless source inventory and candidate output are valid."""
+    if os.geteuid() != 0:
+        raise ValueError("readonly validation sandbox verification must run as root")
+    source, _framework, write = _validate_layout(
+        source_root=args.source_root,
+        framework_root=args.framework_root,
+        write_root=args.write_root,
+        runner_temp=args.runner_temp,
+        fresh=False,
+    )
+    identity = resolve_validator_identity(args.validator_user, args.validator_group)
+    inventory_path, external = _prepared_control_paths(write, identity)
+    expected, inventory_sha256 = _read_inventory(inventory_path)
+    current = _source_inventory(source)
+    if current != expected:
+        raise ValueError("source inventory changed after validator execution")
+    _validate_external_tree(external, source, identity)
+    return external, inventory_sha256
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    arguments = parse_args(sys.argv[1:] if argv is None else argv)
+    try:
+        if arguments.verify:
+            external, inventory_sha256 = verify_sandbox(arguments)
+            state = "VERIFIED"
+        else:
+            external, inventory_sha256 = prepare_sandbox(arguments)
+            state = "READY"
+    except (OSError, ValueError) as error:
+        print(f"readonly validation sandbox: {error}", file=sys.stderr)
+        return 2
+    print(
+        "READONLY_SUBMODULE_VALIDATION_SANDBOX_"
+        f"{state} external={external} source_inventory_sha256={inventory_sha256}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

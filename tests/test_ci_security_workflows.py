@@ -7,6 +7,7 @@ import re
 import subprocess
 import tempfile
 import unittest
+from hashlib import sha256
 from pathlib import Path
 
 import yaml
@@ -42,6 +43,20 @@ PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
         "github.event.repository.default_branch == 'master'",
     }
 )
+SUBMODULE_PUBLISHER_SHA256 = "11bbd8e565ce7a380cf1f32d04aa48586712fc1d412731add5a52faf2ad94ff0"
+READONLY_SUBMODULE_SANDBOX_CALL = " ".join(
+    (
+        "python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py",
+        '--source-root "$GITHUB_WORKSPACE"',
+        '--framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"',
+        '--write-root "$write_root"',
+        '--runner-temp "$RUNNER_TEMP"',
+        "--validator-user modsecurity-validator",
+        "--validator-group modsecurity-validator",
+    )
+)
+READONLY_SUBMODULE_WRITE_ROOT = "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX"
+READONLY_SUBMODULE_EXTERNAL_ROOT = "$VALIDATION_WRITE_ROOT/external"
 
 WRITE_PERMISSION_KEYS = {
     "contents",
@@ -76,6 +91,107 @@ def has_exact_framework_gitlink_staging(script: str) -> bool:
         and "git add ." not in normalized
         and "git add -A" not in normalized
     )
+
+
+def readonly_submodule_validator_errors(validator: str) -> list[str]:
+    """Return violations of the isolated candidate-validation boundary."""
+
+    normalized = normalize_shell_script(validator)
+    errors: list[str] = []
+    candidate_script = validator.partition("bash --noprofile --norc -ceu")[2].partition(
+        "      - name: Verify candidate source inventory and external outputs"
+    )[0]
+    required = (
+        READONLY_SUBMODULE_SANDBOX_CALL,
+        "sudo -n -u modsecurity-validator env -i",
+        "sudo -n groupadd --system modsecurity-validator",
+        "sudo -n useradd --system --no-create-home --shell /usr/sbin/nologin",
+        'sudo -n chown root:root "$write_root"',
+        'sudo -n chmod 0711 "$write_root"',
+        "bash --noprofile --norc -ceu",
+        'test "$(id -un)" = "modsecurity-validator"',
+        'test ! -w "$VALIDATION_WRITE_ROOT"',
+        'test ! -w "$GITHUB_WORKSPACE"',
+        'test ! -w "$GITHUB_WORKSPACE/.git"',
+        'test ! -w "$GITHUB_WORKSPACE/.git/modules"',
+        'test ! -w "$FRAMEWORK_ROOT"',
+        'test ! -w "$FRAMEWORK_ROOT/.git"',
+        'if touch "$GITHUB_WORKSPACE/.readonly-validator-write-probe"; then',
+        'if touch "$FRAMEWORK_ROOT/.readonly-validator-write-probe"; then',
+        'if touch "$VALIDATION_WRITE_ROOT/.readonly-validator-guard-probe"; then',
+        "if sudo -n true >/dev/null 2>&1; then",
+        "if /usr/bin/sudo -n true >/dev/null 2>&1; then",
+        'touch "$VALIDATOR_EXTERNAL_ROOT/write-probe"',
+        'test -f "$VALIDATOR_EXTERNAL_ROOT/write-probe"',
+        '"$PYTHON" -m pip install --disable-pip-version-check --only-binary=:all:',
+        '--target "$VALIDATOR_EXTERNAL_ROOT/python-packages"',
+        'make PYTHON="$PYTHON" BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/build" quick-check',
+        "PYTHONNOUSERSITE=1",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "GIT_OPTIONAL_LOCKS=0",
+        "TMP=\"$VALIDATOR_EXTERNAL_ROOT/tmp\"",
+        "TEMP=\"$VALIDATOR_EXTERNAL_ROOT/tmp\"",
+        'git config --global --add safe.directory "$GITHUB_WORKSPACE"',
+        'git config --global --add safe.directory "$FRAMEWORK_ROOT"',
+        "umask 077",
+        'write_root="$(mktemp -d "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX")"',
+        "id: prepare-readonly-candidate-sandbox",
+        "steps.prepare-readonly-candidate-sandbox.outputs.write_root",
+        "Verify candidate source inventory and external outputs",
+        "--verify",
+        "VALIDATOR SOURCE MUTATION BLOCKED",
+        "VALIDATOR WRITE-ROOT CONTRACT BLOCKED",
+        "sudo -n git -c core.hooksPath=/dev/null diff --check",
+        'sudo -n git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check',
+        "printf 'write_root=%s\\n' \"$write_root\" >> \"$GITHUB_OUTPUT\"",
+        'VALIDATOR_EXTERNAL_ROOT="$VALIDATION_WRITE_ROOT/external"',
+    )
+    for term in required:
+        if term not in normalized:
+            errors.append(f"missing {term}")
+    if normalized.count("umask 077") != 2:
+        errors.append("root setup and the isolated candidate must each set umask 077")
+    if candidate_script.count("umask 077") != 1:
+        errors.append("candidate output umask must be set exactly once inside its isolated shell")
+
+    setup_index = normalized.find(READONLY_SUBMODULE_SANDBOX_CALL)
+    candidate_index = normalized.find("sudo -n -u modsecurity-validator env -i")
+    quick_check_index = normalized.find(
+        "make PYTHON=\"$PYTHON\" BUILD_ROOT=\"$VALIDATOR_EXTERNAL_ROOT/build\" quick-check"
+    )
+    verification_index = normalized.find("Verify candidate source inventory and external outputs")
+    if setup_index < 0 or candidate_index < 0 or setup_index >= candidate_index:
+        errors.append("sandbox setup must precede candidate execution")
+    if candidate_index < 0 or quick_check_index < candidate_index:
+        errors.append("quick check must execute inside the validator boundary")
+    candidate_umask_index = candidate_script.find("umask 077")
+    candidate_quick_check_index = candidate_script.find(
+        "make PYTHON=\"$PYTHON\" BUILD_ROOT=\"$VALIDATOR_EXTERNAL_ROOT/build\" quick-check"
+    )
+    if (
+        candidate_umask_index < 0
+        or candidate_quick_check_index < 0
+        or candidate_umask_index >= candidate_quick_check_index
+    ):
+        errors.append("candidate output umask must precede candidate writes and quick check")
+    if verification_index < 0 or quick_check_index < 0 or verification_index <= quick_check_index:
+        errors.append("inventory and external-output verification must follow candidate execution")
+    if normalized.count("sudo -n -u modsecurity-validator env -i") != 1:
+        errors.append("candidate execution must have one validator sudo boundary")
+    if "sudo -E" in normalized or "sudo bash" in normalized or "sudo sh" in normalized:
+        errors.append("candidate sudo boundary preserves or expands privileges")
+    if "--validator-user root" in normalized or "--validator-group root" in normalized:
+        errors.append("validator identity is privileged")
+    candidate_sudo_commands = [
+        command.strip()
+        for command in re.findall(r"(?m)^\s*(?:if )?(?:sudo|/usr/bin/sudo)[^\n]*", candidate_script)
+    ]
+    if candidate_sudo_commands != [
+        "if sudo -n true >/dev/null 2>&1; then",
+        "if /usr/bin/sudo -n true >/dev/null 2>&1; then",
+    ]:
+        errors.append("candidate code must only use sudo paths for denied-access probes")
+    return errors
 
 EXPECTED_WRITE_PERMISSIONS = {
     ("cleanup-artifacts.yml", "cleanup-artifacts"): {"actions": "write"},
@@ -1060,17 +1176,13 @@ jobs:
             "needs.resolve-submodule-update.outputs.changed == 'true'",
         )
         self.assertIn("submodules: recursive", validator)
-        self.assertIn("make quick-check", validator)
+        self.assertIn('make PYTHON="$PYTHON" BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/build" quick-check', validator)
         self.assertIn("remote get-url origin", validator)
         self.assertIn("merge-base --is-ancestor", validator)
         self.assertIn("checkout --detach", validator)
         self.assertIn("submodule update --init --recursive", validator)
         self.assertIn("status --porcelain", validator)
-        dependency_install = (
-            "python3 -m pip install --disable-pip-version-check --only-binary=:all: "
-            "--require-hashes --requirement "
-            "ci/requirements/update-submodules-validation-linux-x86_64.txt"
-        )
+        dependency_install = '"$PYTHON" -m pip install --disable-pip-version-check --only-binary=:all:'
         dependency_lock = (
             ROOT / "ci" / "requirements" / "update-submodules-validation-linux-x86_64.txt"
         ).read_text(encoding="utf-8")
@@ -1080,23 +1192,159 @@ jobs:
             dependency_lock,
         )
         self.assertNotIn("PyYAML>=", dependency_lock)
-        self.assertIn(dependency_install, jobs["validate-submodule-update"])
+        self.assertIn(dependency_install, validator)
+        self.assertIn("EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}", validator)
+        self.assertIn('PYTHON="$EXPECTED_PYTHON"', validator)
+        self.assertIn('--target "$VALIDATOR_EXTERNAL_ROOT/python-packages"', validator)
+        self.assertIn("--require-hashes", validator)
         self.assertIn(
-            f'run: "{dependency_install}"',
+            '--requirement "$GITHUB_WORKSPACE/ci/requirements/update-submodules-validation-linux-x86_64.txt"',
             validator,
-        )
-        self.assertLess(
-            validator.index("Verify Python interpreter contract"),
-            validator.index(dependency_install),
-        )
-        self.assertLess(
-            validator.index(dependency_install),
-            validator.index("make quick-check"),
         )
         self.assertNotIn("GH_TOKEN", validator)
         self.assertNotIn("secrets.", validator)
+        self.assertEqual(readonly_submodule_validator_errors(validator), [])
+        self.assertLess(
+            validator.index("Prepare dedicated read-only candidate sandbox"),
+            validator.index("Run quick check as the isolated validator"),
+        )
+        self.assertLess(
+            validator.index("Run quick check as the isolated validator"),
+            validator.index("Verify candidate source inventory and external outputs"),
+        )
+        self.assertLess(
+            validator.index("Check out the resolved descendant revision"),
+            validator.index("Prepare dedicated read-only candidate sandbox"),
+        )
+        self.assertLess(
+            validator.index("Prepare dedicated read-only candidate sandbox"),
+            validator.index(dependency_install),
+        )
+        self.assertLess(
+            validator.index(dependency_install),
+            validator.index("make PYTHON="),
+        )
+        self.assertIn(READONLY_SUBMODULE_SANDBOX_CALL, normalize_shell_script(validator))
+        self.assertIn(READONLY_SUBMODULE_WRITE_ROOT, validator)
+        self.assertIn(READONLY_SUBMODULE_EXTERNAL_ROOT, validator)
+        for mutable_root in (
+            "HOME",
+            "TMPDIR",
+            "XDG_CACHE_HOME",
+            "XDG_CONFIG_HOME",
+            "XDG_DATA_HOME",
+            "XDG_STATE_HOME",
+            "PIP_CACHE_DIR",
+            "PYTHONPYCACHEPREFIX",
+            "PYTHONUSERBASE",
+            "GIT_CONFIG_GLOBAL",
+            "TMP",
+            "TEMP",
+            "VERIFIED_RUN_ROOT",
+            "VERIFIED_STATE_ROOT",
+            "VERIFIED_BUILD_ROOT",
+            "VERIFIED_SOURCE_ROOT",
+            "VERIFIED_TMP_ROOT",
+            "VERIFIED_LOG_ROOT",
+            "CACHE_ROOT",
+            "VERIFIED_COMPONENT_CACHE",
+            "CONNECTOR_COMPONENT_CACHE",
+            "VERIFIED_EVIDENCE_ROOT",
+            "EVIDENCE_ROOT",
+            "RUNTIME_EVIDENCE_ROOT",
+            "RUNTIME_RUN_ROOT",
+            "RUNTIME_LOG_ROOT",
+            "SOURCE_ROOT",
+            "TMP_ROOT",
+            "LOG_ROOT",
+            "MATRIX_ROOT",
+        ):
+            self.assertRegex(
+                validator,
+                rf"{mutable_root}=\"\$VALIDATOR_EXTERNAL_ROOT(?:/[^\"]*)?\"",
+            )
+
+        validator_mutations = {
+            "missing sandbox helper": (
+                "prepare-readonly-submodule-validation-sandbox.py",
+                "prepare-readonly-submodule-validation-sandbox.removed.py",
+            ),
+            "privileged validator": (
+                "--validator-user modsecurity-validator",
+                "--validator-user root",
+            ),
+            "root guard permits candidate writes": (
+                'sudo -n chmod 0711 "$write_root"',
+                'sudo -n chmod 0777 "$write_root"',
+            ),
+            "guard root is not created under a private umask": (
+                "umask 077",
+                "umask 022",
+            ),
+            "validator has a login shell": (
+                "--shell /usr/sbin/nologin",
+                "--shell /bin/bash",
+            ),
+            "candidate without scrubbed environment": (
+                "sudo -n -u modsecurity-validator env -i",
+                "sudo -n -u modsecurity-validator",
+            ),
+            "source lock probe removed": (
+                'test ! -w "$GITHUB_WORKSPACE/.git"',
+                "test -d \"$GITHUB_WORKSPACE/.git\"",
+            ),
+            "git modules lock probe removed": (
+                'test ! -w "$GITHUB_WORKSPACE/.git/modules"',
+                "true",
+            ),
+            "candidate source write accepted": (
+                'if touch "$GITHUB_WORKSPACE/.readonly-validator-write-probe"; then',
+                "if false; then",
+            ),
+            "validator sudo check removed": (
+                "if sudo -n true >/dev/null 2>&1; then",
+                "if false; then",
+            ),
+            "validator absolute sudo check removed": (
+                "if /usr/bin/sudo -n true >/dev/null 2>&1; then",
+                "if false; then",
+            ),
+            "external write probe removed": (
+                'touch "$VALIDATOR_EXTERNAL_ROOT/write-probe"',
+                "true",
+            ),
+            "quick check outside private build root": (
+                'make PYTHON="$PYTHON" BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/build" quick-check',
+                "make quick-check",
+            ),
+            "candidate dependency installed globally": (
+                '--target "$VALIDATOR_EXTERNAL_ROOT/python-packages"',
+                "--target /usr/local/lib/python3.14/site-packages",
+            ),
+            "post-candidate source verification removed": (
+                "Verify candidate source inventory and external outputs",
+                "Candidate verification removed",
+            ),
+            "inventory verification disabled": (
+                "--verify",
+                "--inspect",
+            ),
+        }
+        for name, (original, replacement) in validator_mutations.items():
+            with self.subTest(name=name):
+                self.assertIn(original, validator)
+                mutated = validator.replace(original, replacement, 1)
+                self.assertNotEqual(readonly_submodule_validator_errors(mutated), [])
+
+        candidate_umask_prefix, candidate_umask, candidate_umask_suffix = validator.rpartition(
+            "umask 077"
+        )
+        self.assertTrue(candidate_umask)
+        candidate_umask_removed = candidate_umask_prefix + "umask 022" + candidate_umask_suffix
+        self.assertNotEqual(readonly_submodule_validator_errors(candidate_umask_removed), [])
 
         self.assertIn("submodules: false", publisher)
+        self.assertEqual(sha256(publisher.encode("utf-8")).hexdigest(), SUBMODULE_PUBLISHER_SHA256)
         self.assertIn("persist-credentials: false", publisher)
         self.assertEqual(
             job_if_expression(publisher),

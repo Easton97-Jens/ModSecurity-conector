@@ -132,9 +132,6 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
-      - name: Install hash-locked validation dependency
-        run: "python3 -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes --requirement ci/requirements/update-submodules-validation-linux-x86_64.txt"
-
       - name: Check out the resolved descendant revision
         run: |
           set -euo pipefail
@@ -149,27 +146,174 @@ jobs:
             echo "Submodule origin is not the official configured repository: $submodule_origin" >&2
             exit 1
           fi
-          git -C "$SUBMODULE_PATH" fetch --no-tags origin "$CURRENT_GITLINK_SHA"
-          git -C "$SUBMODULE_PATH" fetch --no-tags origin "$CANDIDATE_SHA"
-          git -C "$SUBMODULE_PATH" cat-file -e "$CURRENT_GITLINK_SHA^{commit}"
-          git -C "$SUBMODULE_PATH" cat-file -e "$CANDIDATE_SHA^{commit}"
-          if ! git -C "$SUBMODULE_PATH" merge-base --is-ancestor "$CURRENT_GITLINK_SHA" "$CANDIDATE_SHA"; then
+          git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" fetch --no-tags origin "$CURRENT_GITLINK_SHA"
+          git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" fetch --no-tags origin "$CANDIDATE_SHA"
+          git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" cat-file -e "$CURRENT_GITLINK_SHA^{commit}"
+          git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" cat-file -e "$CANDIDATE_SHA^{commit}"
+          if ! git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" merge-base --is-ancestor "$CURRENT_GITLINK_SHA" "$CANDIDATE_SHA"; then
             echo "Candidate is not a descendant of the reviewed current Framework gitlink." >&2
             exit 1
           fi
-          git -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"
-          git -C "$SUBMODULE_PATH" submodule update --init --recursive
-          if [ -n "$(git -C "$SUBMODULE_PATH" status --porcelain)" ]; then
+          git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"
+          git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" submodule update --init --recursive
+          if [ -n "$(git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" status --porcelain)" ]; then
             echo "Candidate Framework checkout is not clean." >&2
             exit 1
           fi
-          if git -C "$SUBMODULE_PATH" submodule status --recursive | grep -Eq '^[+-]'; then
+          if git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" submodule status --recursive | grep -Eq '^[+-]'; then
             echo "Candidate Framework recursive submodules are not fully initialized." >&2
             exit 1
           fi
 
-      - name: Run quick check without write permissions
-        run: make quick-check
+      - name: Prepare dedicated read-only candidate sandbox
+        id: prepare-readonly-candidate-sandbox
+        run: |
+          set -euo pipefail
+          sudo -n groupadd --system modsecurity-validator
+          sudo -n useradd --system --no-create-home --shell /usr/sbin/nologin \
+            --gid modsecurity-validator modsecurity-validator
+          umask 077
+          write_root="$(mktemp -d "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX")"
+          sudo -n chown root:root "$write_root"
+          sudo -n chmod 0711 "$write_root"
+          sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py \
+            --source-root "$GITHUB_WORKSPACE" \
+            --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            --write-root "$write_root" \
+            --runner-temp "$RUNNER_TEMP" \
+            --validator-user modsecurity-validator \
+            --validator-group modsecurity-validator
+          printf 'write_root=%s\n' "$write_root" >> "$GITHUB_OUTPUT"
+
+      - name: Run quick check as the isolated validator
+        env:
+          VALIDATION_WRITE_ROOT: ${{ steps.prepare-readonly-candidate-sandbox.outputs.write_root }}
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: |
+          set -euo pipefail
+          readonly VALIDATOR_EXTERNAL_ROOT="$VALIDATION_WRITE_ROOT/external"
+          sudo -n -u modsecurity-validator env -i \
+            PATH="$PATH" \
+            PYTHON="$EXPECTED_PYTHON" \
+            HOME="$VALIDATOR_EXTERNAL_ROOT/home" \
+            TMPDIR="$VALIDATOR_EXTERNAL_ROOT/tmp" \
+            TMP="$VALIDATOR_EXTERNAL_ROOT/tmp" \
+            TEMP="$VALIDATOR_EXTERNAL_ROOT/tmp" \
+            XDG_CACHE_HOME="$VALIDATOR_EXTERNAL_ROOT/xdg-cache" \
+            XDG_CONFIG_HOME="$VALIDATOR_EXTERNAL_ROOT/xdg-config" \
+            XDG_DATA_HOME="$VALIDATOR_EXTERNAL_ROOT/xdg-data" \
+            XDG_STATE_HOME="$VALIDATOR_EXTERNAL_ROOT/xdg-state" \
+            PIP_CACHE_DIR="$VALIDATOR_EXTERNAL_ROOT/pip-cache" \
+            PYTHONPYCACHEPREFIX="$VALIDATOR_EXTERNAL_ROOT/pycache" \
+            PYTHONUSERBASE="$VALIDATOR_EXTERNAL_ROOT/python-user-base" \
+            PYTHONPATH="$VALIDATOR_EXTERNAL_ROOT/python-packages" \
+            PYTHONNOUSERSITE=1 \
+            PYTHONDONTWRITEBYTECODE=1 \
+            GIT_CONFIG_GLOBAL="$VALIDATOR_EXTERNAL_ROOT/gitconfig" \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_OPTIONAL_LOCKS=0 \
+            VERIFIED_RUN_ROOT="$VALIDATOR_EXTERNAL_ROOT/verified-run" \
+            VERIFIED_STATE_ROOT="$VALIDATOR_EXTERNAL_ROOT/verified-run/state" \
+            VERIFIED_BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/verified-run/build" \
+            VERIFIED_SOURCE_ROOT="$VALIDATOR_EXTERNAL_ROOT/verified-run/source" \
+            VERIFIED_TMP_ROOT="$VALIDATOR_EXTERNAL_ROOT/verified-run/tmp" \
+            VERIFIED_LOG_ROOT="$VALIDATOR_EXTERNAL_ROOT/verified-run/log" \
+            CACHE_ROOT="$VALIDATOR_EXTERNAL_ROOT/cache" \
+            VERIFIED_COMPONENT_CACHE="$VALIDATOR_EXTERNAL_ROOT/cache/shared" \
+            CONNECTOR_COMPONENT_CACHE="$VALIDATOR_EXTERNAL_ROOT/cache/components" \
+            VERIFIED_EVIDENCE_ROOT="$VALIDATOR_EXTERNAL_ROOT/evidence" \
+            EVIDENCE_ROOT="$VALIDATOR_EXTERNAL_ROOT/evidence/no-crs" \
+            RUNTIME_EVIDENCE_ROOT="$VALIDATOR_EXTERNAL_ROOT/evidence/runtime" \
+            RUNTIME_RUN_ROOT="$VALIDATOR_EXTERNAL_ROOT/runtime" \
+            RUNTIME_LOG_ROOT="$VALIDATOR_EXTERNAL_ROOT/runtime-log" \
+            SOURCE_ROOT="$VALIDATOR_EXTERNAL_ROOT/source" \
+            TMP_ROOT="$VALIDATOR_EXTERNAL_ROOT/tmp-root" \
+            LOG_ROOT="$VALIDATOR_EXTERNAL_ROOT/log" \
+            MATRIX_ROOT="$VALIDATOR_EXTERNAL_ROOT/matrix" \
+            GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+            FRAMEWORK_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            VALIDATION_WRITE_ROOT="$VALIDATION_WRITE_ROOT" \
+            VALIDATOR_EXTERNAL_ROOT="$VALIDATOR_EXTERNAL_ROOT" \
+            bash --noprofile --norc -ceu '
+              umask 077
+              test "$(id -un)" = "modsecurity-validator"
+              test ! -w "$VALIDATION_WRITE_ROOT"
+              test ! -w "$GITHUB_WORKSPACE"
+              test ! -w "$GITHUB_WORKSPACE/.git"
+              test ! -w "$GITHUB_WORKSPACE/.git/modules"
+              test ! -w "$FRAMEWORK_ROOT"
+              test ! -w "$FRAMEWORK_ROOT/.git"
+              if touch "$GITHUB_WORKSPACE/.readonly-validator-write-probe"; then
+                echo "Validator unexpectedly wrote the Parent source tree." >&2
+                exit 1
+              fi
+              if touch "$FRAMEWORK_ROOT/.readonly-validator-write-probe"; then
+                echo "Validator unexpectedly wrote the Framework source tree." >&2
+                exit 1
+              fi
+              if touch "$VALIDATION_WRITE_ROOT/.readonly-validator-guard-probe"; then
+                echo "Validator unexpectedly wrote the sandbox guard root." >&2
+                exit 1
+              fi
+              if sudo -n true >/dev/null 2>&1; then
+                echo "Validator unexpectedly obtained sudo." >&2
+                exit 1
+              fi
+              if /usr/bin/sudo -n true >/dev/null 2>&1; then
+                echo "Validator unexpectedly obtained sudo through its absolute path." >&2
+                exit 1
+              fi
+              mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" \
+                "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$PIP_CACHE_DIR" \
+                "$PYTHONPYCACHEPREFIX" "$PYTHONUSERBASE" "$VALIDATOR_EXTERNAL_ROOT/build" \
+                "$VALIDATOR_EXTERNAL_ROOT/python-packages" "$VERIFIED_STATE_ROOT" \
+                "$VERIFIED_BUILD_ROOT" "$VERIFIED_SOURCE_ROOT" "$VERIFIED_TMP_ROOT" \
+                "$VERIFIED_LOG_ROOT" "$CACHE_ROOT" "$VERIFIED_COMPONENT_CACHE" \
+                "$CONNECTOR_COMPONENT_CACHE" "$VERIFIED_EVIDENCE_ROOT" "$EVIDENCE_ROOT" \
+                "$RUNTIME_EVIDENCE_ROOT" "$RUNTIME_RUN_ROOT" "$RUNTIME_LOG_ROOT" \
+                "$SOURCE_ROOT" "$TMP_ROOT" "$LOG_ROOT" "$MATRIX_ROOT"
+              git config --global --add safe.directory "$GITHUB_WORKSPACE"
+              git config --global --add safe.directory "$FRAMEWORK_ROOT"
+              "$PYTHON" -m pip install --disable-pip-version-check --only-binary=:all: \
+                --require-hashes \
+                --target "$VALIDATOR_EXTERNAL_ROOT/python-packages" \
+                --requirement "$GITHUB_WORKSPACE/ci/requirements/update-submodules-validation-linux-x86_64.txt"
+              touch "$VALIDATOR_EXTERNAL_ROOT/write-probe"
+              test -f "$VALIDATOR_EXTERNAL_ROOT/write-probe"
+              make PYTHON="$PYTHON" BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/build" quick-check
+            '
+
+      - name: Verify candidate source inventory and external outputs
+        env:
+          VALIDATION_WRITE_ROOT: ${{ steps.prepare-readonly-candidate-sandbox.outputs.write_root }}
+        run: |
+          set -euo pipefail
+          verification_output="$(sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py \
+            --source-root "$GITHUB_WORKSPACE" \
+            --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            --write-root "$VALIDATION_WRITE_ROOT" \
+            --runner-temp "$RUNNER_TEMP" \
+            --validator-user modsecurity-validator \
+            --validator-group modsecurity-validator \
+            --verify 2>&1)" || {
+              printf '%s\n' "$verification_output" >&2
+              case "$verification_output" in
+                *"source inventory changed"*) echo "VALIDATOR SOURCE MUTATION BLOCKED" >&2 ;;
+                *) echo "VALIDATOR WRITE-ROOT CONTRACT BLOCKED" >&2 ;;
+              esac
+              exit 1
+            }
+          printf '%s\n' "$verification_output"
+          if [ -n "$(sudo -n git -c core.hooksPath=/dev/null status --porcelain --untracked-files=all)" ]; then
+            echo "VALIDATOR SOURCE MUTATION BLOCKED" >&2
+            exit 1
+          fi
+          if [ -n "$(sudo -n git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" status --porcelain --untracked-files=all)" ]; then
+            echo "VALIDATOR SOURCE MUTATION BLOCKED" >&2
+            exit 1
+          fi
+          sudo -n git -c core.hooksPath=/dev/null diff --check
+          sudo -n git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check
 
   create-submodule-update-pr:
     name: Create submodule update pull request

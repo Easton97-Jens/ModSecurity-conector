@@ -199,6 +199,46 @@ vorgeschlagenen Patch; sie behauptet nicht, dass ein geplanter Lauf, Candidate,
 Pull Request oder Merge stattgefunden hat. Solche Ergebnisse benötigen separat
 beobachtete CI- und Delivery-Evidence.
 
+### Schreibgeschützte Candidate-Validierung des Framework-Submodules
+
+`update-submodules.yml` trennt die Candidate-Validierung von der
+Veröffentlichung. Sein Job `validate-submodule-update` wendet `umask 077` vor
+dem Erstellen eines frischen privaten `mktemp`-Roots unterhalb des vom Runner
+bereitgestellten externen Verzeichnisses `RUNNER_TEMP` an. Er wendet `umask 077`
+erneut in der isolierten Candidate-Shell vor Candidate-Ausgaben an und führt
+danach `make quick-check` unverändert als die
+dedizierte Non-login- und Non-sudo-Identität `modsecurity-validator` aus. Ein
+vertrauenswürdiger Root-seitiger Helper macht Parent- und Framework-Trees,
+einschließlich ihrer `.git`-Metadaten, vor der Candidate-Ausführung root-owned
+und nicht beschreibbar. Damit darf der Candidate nur in seinen privaten
+externen Child schreiben, nicht in Source oder Git-Zustand.
+
+Diese Grenze ist bewusst enger als ein allgemeines Read-only-Job-Label: Der
+Candidate erhält genau einen `sudo -n -u`-Einstieg mit `env -i`, ohne User Site
+und mit externen Roots für `HOME`, Git-Konfiguration, pip-Cache, Bytecode-Cache,
+Build, Logs und weitere Caches. Vertrauenswürdige Setup-Probes prüfen
+Parent-/Framework-Schreibablehnung, sudo-Ablehnung und erfolgreiche externe
+Schreibzugriffe vor dem unveränderten Quick Check. Der Validator behält schreibgeschützte
+Repository-Berechtigungen und kann weder einen Gitlink noch einen Pull Request
+veröffentlichen. Produktions-Schreibrechte bleiben ausschließlich dem
+separaten Publisher-Job nach erfolgreicher Validierung vorbehalten; sie werden
+weder dem Validator noch `make quick-check` erteilt.
+
+Vor dem Candidate-Start zeichnet der Root-seitige Helper ein vollständiges
+Post-Lock-Inventar der Parent- und Framework-Source-Trees auf. Jeder Eintrag
+enthält Pfad, Typ, Größe, Modus, UID, GID und Link-Anzahl; reguläre Dateien
+enthalten zusätzlich einen SHA-256-Digest und symbolische Links ihren Link-Text.
+Nach `make quick-check` muss der Helper die exakte Gleichheit dieses Inventars
+nachweisen und schlägt bei jeder Source-Tree-Mutation fail-closed fehl. Er scannt
+außerdem den externen Tree des Validators fail-closed: Zulässig sind nur dem
+Validator gehörende Directories und reguläre Dateien ohne Group-/Other-
+Schreibrechte; Special Objects, symbolische Links und Hard Links in den
+Source-Tree werden abgewiesen.
+
+Dies beschreibt den beabsichtigten Workflow-Vertrag und ist keine Evidence für
+einen Hosted Run, einen Security-Scan, ein veröffentlichtes Update oder einen
+Merge. Diese Ergebnisse benötigen separat beobachtete Ausführungs-Evidence.
+
 ## Parent-CI-Go-Toolchain-Vertrag
 
 Die eingecheckte Root-<code>.go-version</code> ist der einzige
