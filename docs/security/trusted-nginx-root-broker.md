@@ -11,17 +11,17 @@ generated environment files never run as host root.
 
 ## Immutable invocation boundary
 
-This separate Phase-B caller-repin patch updates the caller to use the
+This separate caller-repin patch updates the caller to use the
 reusable workflow at the exact 40-character broker commit SHA already reachable
 from protected Parent `master`:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@7a9240d35e50475cc1a381fa103b0bb5cca2bee3
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@49c40779a7b6de9f699391bcd524ea069787df42
 ```
 
 Both caller `uses` values and both `protected_broker_sha` values in this
-Phase-B patch are pinned to the available protected broker-repair commit SHA
-`7a9240d35e50475cc1a381fa103b0bb5cca2bee3`; neither a branch nor `master` is
+caller-repin patch are pinned to the available protected broker-repair commit SHA
+`49c40779a7b6de9f699391bcd524ea069787df42`; neither a branch nor `master` is
 an acceptable substitute.
 
 GitHub documents that the `github` context in a called reusable workflow is
@@ -113,11 +113,11 @@ actions remain inside this immutable call and the Framework gitlink is fixed
 to the broker revision rather than to a later Parent state:
 
 ```yaml
-uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@7a9240d35e50475cc1a381fa103b0bb5cca2bee3
+uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@49c40779a7b6de9f699391bcd524ea069787df42
 ```
 
 ```text
-protected_broker_sha = 7a9240d35e50475cc1a381fa103b0bb5cca2bee3
+protected_broker_sha = 49c40779a7b6de9f699391bcd524ea069787df42
 framework_sha        = 03880bf66b3905940466ff10b3a431a27ecc6b26
 ```
 
@@ -372,16 +372,15 @@ Run `31368594208` is retained pre-fix failure evidence only: its no-CRS leg
 rejected the genuine protected library under the generic 8 MiB evidence limit,
 and its with-CRS leg rejected fresh checkout files that inherited `umask 077`.
 Both legs stopped before candidate admission, every root action, NGINX startup,
-evidence projection, and cleanup verification. PR #273 subsequently merged
-broker commit `7a9240d35e50475cc1a381fa103b0bb5cca2bee3` to `master`, making
-that broker revision available. Its committed caller workflow/helper still pin
-`409caa5b9664bcb8e1919d35684575e00a959f6a`; the separate Phase-B
-caller-repin commit `9a54f316248edf22b3e43ccfbb3310a651253921` selects the
-`7a9240d35e50475cc1a381fa103b0bb5cca2bee3`/
-`03880bf66b3905940466ff10b3a431a27ecc6b26` tuple and is tracked as Draft
-[PR #274](https://github.com/Easton97-Jens/ModSecurity-conector/pull/274).
-Neither the merge nor this local source/static evidence is runtime proof; a
-fresh resulting-master lifecycle remains mandatory.
+evidence projection, and cleanup verification. [PR #274](https://github.com/Easton97-Jens/ModSecurity-conector/pull/274)
+merged the prior caller repin at `4749c02c6dd5e285c4309b4e69b0bb28ae459e48`,
+selecting broker `7a9240d35e50475cc1a381fa103b0bb5cca2bee3`. [PR #275](https://github.com/Easton97-Jens/ModSecurity-conector/pull/275)
+subsequently merged broker commit `49c40779a7b6de9f699391bcd524ea069787df42`,
+making the FND-PARENT-0120/FND-PARENT-0121 repair available. This separate
+caller-repin patch selects the `49c40779a7b6de9f699391bcd524ea069787df42`/
+`03880bf66b3905940466ff10b3a431a27ecc6b26` tuple. Neither those merges nor
+this local source/static evidence is runtime proof; a fresh resulting-master
+lifecycle remains mandatory.
 
 PR #240 remains blocked until this resulting-master caller is dispatched and
 observed to pass both `no-crs` and `owasp-crs` profiles with successful
