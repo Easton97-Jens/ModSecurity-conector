@@ -63,6 +63,12 @@ READONLY_SUBMODULE_RUNNER_TEMP_ACL = (
 READONLY_SUBMODULE_RUNNER_TEMP_ACL_INSPECTION = (
     'sudo -n getfacl --absolute-names --omit-header --no-effective -- "$acl_path"'
 )
+READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK = (
+    'sudo -n -u modsecurity-validator test -x "$runner_temp_ancestor"'
+)
+READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_GATE = (
+    f"if {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK}; then continue fi"
+)
 READONLY_SUBMODULE_SANDBOX_READY = (
     "READONLY_SUBMODULE_VALIDATION_SANDBOX_READY\\ external=*\\ source_inventory_sha256=*"
 )
@@ -179,9 +185,13 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         READONLY_SUBMODULE_SANDBOX_READY,
         "check_runner_temp_ancestor_acl() {",
         READONLY_SUBMODULE_RUNNER_TEMP_ACL_INSPECTION,
+        'runner_temp_ancestors=()',
         'runner_temp_ancestor="$RUNNER_TEMP"',
         'while [ "$runner_temp_ancestor" != / ]; do',
-        'check_runner_temp_ancestor_acl before "$runner_temp_ancestor"',
+        'runner_temp_ancestors+=("$runner_temp_ancestor")',
+        'for ((ancestor_index=${#runner_temp_ancestors[@]} - 1; ancestor_index >= 0; ancestor_index--)); do',
+        'runner_temp_ancestor="${runner_temp_ancestors[$ancestor_index]}"',
+        READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_GATE,
         'runner_temp_acl_base="$(check_runner_temp_ancestor_acl before "$runner_temp_ancestor")"',
         READONLY_SUBMODULE_RUNNER_TEMP_ACL,
         'check_runner_temp_ancestor_acl after "$runner_temp_ancestor"',
@@ -231,8 +241,10 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         errors.append("root setup and the isolated candidate must each set umask 077")
     if candidate_script.count("umask 077") != 1:
         errors.append("candidate output umask must be set exactly once inside its isolated shell")
-    if normalized.count('runner_temp_ancestor="$(dirname "$runner_temp_ancestor")"') != 2:
-        errors.append("runner-temp ACL precheck and mutation loops must reach every ancestor")
+    if normalized.count('runner_temp_ancestor="$(dirname "$runner_temp_ancestor")"') != 1:
+        errors.append("runner-temp ACL ancestor collection must reach the filesystem root")
+    if normalized.count(READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK) != 1:
+        errors.append("each runner-temp ancestor must have one exact validator traverse gate")
 
     setup_index = normalized.find(READONLY_SUBMODULE_SANDBOX_CALL)
     candidate_index = normalized.find("sudo -n -u modsecurity-validator env -i")
@@ -242,6 +254,9 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
     runner_temp_acl_precheck_index = normalized.find(
         'check_runner_temp_ancestor_acl before "$runner_temp_ancestor"'
     )
+    runner_temp_traverse_gate_index = normalized.find(
+        READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_GATE
+    )
     runner_temp_acl_mutation_index = normalized.find(READONLY_SUBMODULE_RUNNER_TEMP_ACL)
     runner_temp_acl_postcheck_index = normalized.find(
         'check_runner_temp_ancestor_acl after "$runner_temp_ancestor"'
@@ -249,6 +264,7 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
     write_root_index = normalized.find(
         'write_root="$(mktemp -d "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX")"'
     )
+    sandbox_ready_index = normalized.find(READONLY_SUBMODULE_SANDBOX_READY)
     quick_check_index = normalized.find(
         "make PYTHON=\"$PYTHON\" BUILD_ROOT=\"$VALIDATOR_EXTERNAL_ROOT/build\" quick-check"
     )
@@ -259,7 +275,9 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         validator_useradd_index < 0
         or write_root_index < validator_useradd_index
         or setup_index < write_root_index
-        or runner_temp_acl_precheck_index < setup_index
+        or sandbox_ready_index < setup_index
+        or runner_temp_traverse_gate_index < sandbox_ready_index
+        or runner_temp_acl_precheck_index < runner_temp_traverse_gate_index
         or runner_temp_acl_mutation_index < runner_temp_acl_precheck_index
         or runner_temp_acl_postcheck_index < runner_temp_acl_mutation_index
         or candidate_index < runner_temp_acl_postcheck_index
@@ -1559,6 +1577,36 @@ jobs:
             "runner-temp traversal ACL removed": (
                 READONLY_SUBMODULE_RUNNER_TEMP_ACL,
                 "true",
+            ),
+            "runner-temp traverse gate removed": (
+                READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK,
+                "false",
+            ),
+            "runner-temp traverse gate inverted": (
+                f"if {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK}; then",
+                f"if ! {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK}; then",
+            ),
+            "runner-temp traverse gate uses the wrong access predicate": (
+                READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK,
+                'sudo -n -u modsecurity-validator test -r "$runner_temp_ancestor"',
+            ),
+            "runner-temp traverse gate accepts a failed access test": (
+                f"if {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK}; then",
+                f"if {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK} || true; then",
+            ),
+            "runner-temp traverse gate runs as root": (
+                READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK,
+                'sudo -n -u root test -x "$runner_temp_ancestor"',
+            ),
+            "runner-temp ACL precondition runs before traverse gate": (
+                f"if {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK}; then\n"
+                "              continue\n"
+                "            fi\n"
+                '            runner_temp_acl_base="$(check_runner_temp_ancestor_acl before "$runner_temp_ancestor")"',
+                'runner_temp_acl_base="$(check_runner_temp_ancestor_acl before "$runner_temp_ancestor")"\n'
+                f"            if {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK}; then\n"
+                "              continue\n"
+                "            fi",
             ),
             "runner-temp traversal ACL widens permissions": (
                 READONLY_SUBMODULE_RUNNER_TEMP_ACL,

@@ -25,13 +25,12 @@ Parent-`master` erst nach dem Merge dieser Reparatur für die Sandbox-
 Revalidierung des resultierenden `master`, wenn GitHub
 `github.ref_protected == true` meldet, ohne den Publisher ausführbar zu machen.
 
-Der Hosted-Run `31479137202`, Validator-Job `93739826304`, zeigte eine in
-diesem Vertrag fehlende Host-Pfad-Voraussetzung: `modsecurity-validator` konnte
-das private `/home/runner` nicht durchqueren, um den `RUNNER_TEMP`-Guard zu
-erreichen, und das Guard-`mkdir` schlug mit `Permission denied` fehl. Die
-Reparatur bewahrt die schreibgeschützte Source-/Git-Grenze und erlaubt nur
-Traversal zum benötigten externen Guard; sie ist keine Evidence erfolgreicher
-Hosted-Validierung.
+Der Hosted-Run `31484727901` ist Failure-Evidence und keine erfolgreiche
+Validierung: Vor der Candidate-Ausführung lehnte der ursprüngliche ACL-Precheck
+die bereits vorhandene ACL auf `/home` ab. Die ausstehende enge Reparatur
+bewahrt die schreibgeschützte Source-/Git-Grenze und repariert nur bedingt
+vertrauenswürdige `$RUNNER_TEMP`-Ahnen, die `modsecurity-validator` noch nicht
+durchqueren kann; sie ist keine Evidence erfolgreicher Hosted-Validierung.
 
 ## Akzeptanzkriterien
 
@@ -46,11 +45,14 @@ Hosted-Validierung.
 - `make quick-check` bleibt unverändert.
 - Der Validator erhält keine Produktions-Schreibrechte; diese bleiben allein
   dem separaten Publisher vorbehalten.
-- Vertrauenswürdiges Root-seitiges Setup gewährt `modsecurity-validator` auf
-  den benötigten Ahnen von `$RUNNER_TEMP` Traversal-only-ACL-Zugriff, wenn ein
-  Hosted-Runner einen privaten Ahnen hat. Die ACL gewährt weder List- noch
-  Schreibzugriff und bewahrt Source-/Git-Locks, Root-Guard und privates
-  Output-Child.
+- Vertrauenswürdiges Root-seitiges Setup betrachtet nur vertrauenswürdige
+  Ahnen von `$RUNNER_TEMP`, die `modsecurity-validator` noch nicht durchqueren
+  kann, und lässt ACLs bereits durchquerbarer Ahnen unverändert. Jeder
+  veränderte Ahne muss strenge Base-only-ACL-Voraussetzungen erfüllen; das Setup
+  darf genau einen benannten Grant `modsecurity-validator:--x` hinzufügen, muss
+  alle Base-ACL-Einträge unverändert bewahren und Default-ACLs, andere benannte
+  ACL-Einträge sowie Lese- oder Schreibzugriff ablehnen. Source-/Git-Locks,
+  Root-Guard und privates Output-Child bleiben bewahrt.
 - Manueller `workflow_dispatch` mit `validate_only: true` ist auf genau zwei
   vertrauenswürdige Refs im kanonischen Non-fork-Parent-Repository
   `Easton97-Jens/ModSecurity-conector` beschränkt: den task-eigenen/reviewten
@@ -97,15 +99,18 @@ Caches unter diesem Child ein. Vertrauenswürdige Probes gehen dem unveränderte
 separate Publisher behält nach der Validierung die eng begrenzte
 Produktions-Schreibgrenze.
 
-Die Reparatur fügt auf den benötigten Ahnen von `$RUNNER_TEMP` eine
-Root-trusted Traversal-only-ACL hinzu. Sie behebt den historischen Run
-`31479137202`, Validator-Job `93739826304`, in dem die dedizierte Identität
-`/home/runner` nicht durchqueren konnte und das Guard-`mkdir` `Permission
-denied` zurückgab. Sie gibt dem Validator keine List- oder Schreibberechtigung
-auf diesen Ahnen und lässt Root-Guard, privates Output-Child sowie Parent- /
-Framework-Source-/Git-Locks unverändert. Dies ist eine abgegrenzte Hosted-
-Host-Pfad-Reparatur, kein Nachweis allgemeiner Host-Isolation oder eines
-erfolgreichen Reruns.
+Die ausstehende Reparatur verändert nur bedingt vertrauenswürdige Ahnen von
+`$RUNNER_TEMP`, die `modsecurity-validator` noch nicht durchqueren kann, und
+lässt ACLs bereits durchquerbarer Ahnen unverändert. Sie adressiert den
+historischen Run `31484727901`, der vor der Candidate-Ausführung fehlschlug,
+weil der ursprüngliche ACL-Precheck die bereits vorhandene ACL auf `/home`
+ablehnte. Jeder veränderte Ahne muss strenge Base-only-ACL-Voraussetzungen
+erfüllen; er erhält genau einen benannten Grant `modsecurity-validator:--x`,
+unveränderte Base-ACL-Einträge, keine Default-ACLs oder anderen benannten ACL-
+Einträge und keinen Lese- oder Schreibzugriff. Root-Guard, privates Output-
+Child sowie Parent-/Framework-Source-/Git-Locks bleiben unverändert. Dies ist
+eine abgegrenzte Hosted-Host-Pfad-Reparatur, kein Nachweis allgemeiner Host-
+Isolation oder eines erfolgreichen Reruns.
 
 Für Exact-Head-Nachweis und Revalidierung des resultierenden `master` darf
 manueller `workflow_dispatch` `validate_only: true` nur im kanonischen
@@ -168,11 +173,15 @@ einen feindlichen Writer im selben Repository; der Master-Pfad erfordert auch
 `github.ref_protected == true`, während dieses Threat Model Branch Protection
 oder Environment Approval erfordert.
 
-Die ACL-Reparatur hat dieselbe Grenze: Vertrauenswürdiges Root-seitiges Setup
-darf auf den Ahnen, die zum Erreichen von `$RUNNER_TEMP` benötigt werden, nur
-Directory-Traversal gewähren; List- oder Schreibzugriff darf es nicht gewähren.
-Ihre Wirkung ist auf die in Run `31479137202` beobachtete private Hosted-
-Ahnenbedingung begrenzt, nicht auf allgemeine Host-Dateisystemisolation.
+Die ausstehende ACL-Reparatur hat dieselbe Grenze: Vertrauenswürdiges Root-
+seitiges Setup darf nur vertrauenswürdige `$RUNNER_TEMP`-Ahnen betrachten, die
+der Validator noch nicht durchqueren kann, und lässt bereits durchquerbare ACLs
+unverändert. Für jeden veränderten Ahnen verlangt sie strenge Base-only-ACL-
+Voraussetzungen, genau einen benannten Grant `modsecurity-validator:--x`,
+unveränderte Base-ACL-Einträge und keine Default-ACLs, anderen benannten ACL-
+Einträge, Lese- oder Schreibzugriff. Ihre Wirkung ist auf die in Run
+`31484727901` beobachtete private Hosted-Ahnenbedingung begrenzt, nicht auf
+allgemeine Host-Dateisystemisolation.
 
 ## Geänderte Dateien
 
@@ -207,21 +216,20 @@ ausgeführt und als direkte Evidence gemeldet:
 
 ## Runtime-Evidence
 
-Hosted-Run `31479137202`, Validator-Job `93739826304`, schlug vor der Candidate-
-Ausführung fehl, weil `modsecurity-validator` `/home/runner` nicht zum
-`RUNNER_TEMP`-Guard durchqueren konnte und `mkdir` `Permission denied`
-zurückgab. Dies ist Failure-Evidence nur für die fehlende Traversal-
-Berechtigung. Dieser Record behauptet keinen erfolgreichen Rerun und keine
-finalen Exact-Head-Hosted-Runtime- oder Validierungs-, Veröffentlichungs-, Pull-
-Request-, Merge- oder anderen Delivery-Ergebnisse.
+Hosted-Run `31484727901` schlug vor der Candidate-Ausführung fehl, weil der
+ursprüngliche ACL-Precheck die bereits vorhandene ACL auf `/home` ablehnte.
+Dies ist Failure-Evidence nur für dieses Precheck-Verhalten. Dieser Record
+behauptet keinen erfolgreichen Rerun und keine finalen Exact-Head-Hosted-
+Runtime- oder Validierungs-, Security-Scan-, Veröffentlichungs-, Pull-Request-,
+Merge- oder anderen Delivery-Ergebnisse.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 - `make quick-check` — durch diese Aufgabe unverändert; für den reinen
   Dokumentations-Scope wurde keine Candidate-Ausführung lokal durchgeführt.
-- Ein Hosted-Rerun von `update-submodules.yml` einschließlich
-  `validate_only: true` — für diesen Repair-Record nicht ausgeführt; der
-  beobachtete Run `31479137202` schlug vor der Candidate-Ausführung fehl und
+- Ein erfolgreicher Hosted-Rerun von `update-submodules.yml` einschließlich
+  `validate_only: true` — für diesen Repair-Record nicht beobachtet; der
+  beobachtete Run `31484727901` schlug vor der Candidate-Ausführung fehl und
   ist daher keine erfolgreiche Repair-Evidence.
 - Security-Scan — finale Security-Scan-Evidence wird hier nicht behauptet und
   liegt in der zugehörigen Scan-Evidence vor.

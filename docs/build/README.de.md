@@ -217,16 +217,18 @@ abgegrenzte Dateisystemvertrag ist kein allgemeiner Kernel-Namespace und
 beweist nicht, dass bösartiger Candidate-Code nicht an beliebige nicht
 zusammenhängende, global world-writable Host-Orte schreiben kann.
 
-Der Hosted-Run `31479137202`, Validator-Job `93739826304`, ist historische
-Failure-Evidence und keine erfolgreiche Validierung: Die dedizierte Identität
-konnte den privaten Hosted-Runner-Ahnen `/home/runner` nicht durchqueren, um
-den `RUNNER_TEMP`-Guard zu erreichen; daher schlug ihr `mkdir` mit `Permission
-denied` fehl. Die Reparatur lässt das vertrauenswürdige Root-seitige Setup
-`modsecurity-validator` auf den benötigten Ahnen von `$RUNNER_TEMP` nur
-Traversal-ACL-Zugriff gewähren. Sie gewährt weder List- noch Schreibzugriff auf
-diese Ahnen, bewahrt Source-/Git-Locks, Root-Guard und privates Output-Child und
-ist auf diese Hosted-Host-Pfad-Bedingung begrenzt. Ein neuer Hosted-Run ist
-erforderlich, bevor die Reparatur funktionale Evidence ist.
+Der Hosted-Run `31484727901` ist historische Failure-Evidence und keine
+erfolgreiche Validierung: Vor der Candidate-Ausführung lehnte der ursprüngliche
+ACL-Precheck die bereits vorhandene ACL auf `/home` ab. Die ausstehende enge
+Reparatur betrachtet nur vertrauenswürdige Ahnen von `$RUNNER_TEMP`, die
+`modsecurity-validator` noch nicht durchqueren kann; sie lässt die ACLs bereits
+durchquerbarer Ahnen unverändert. Für jeden Ahnen, den sie verändert, müssen
+weiterhin strenge Base-only-ACL-Voraussetzungen gelten; sie darf genau einen
+benannten Grant `modsecurity-validator:--x` hinzufügen, die Base-ACL-Einträge
+müssen unverändert bleiben, und Default-ACLs, andere benannte ACL-Einträge sowie
+Lese- oder Schreibzugriff sind verboten. Dies bleibt auf diese Hosted-Host-Pfad-
+Bedingung begrenzt und ist erst nach einem separat beobachteten erfolgreichen
+Hosted-Run funktionale Evidence.
 
 Der manuelle `workflow_dispatch`-Input `validate_only: true` ist ein nicht
 veröffentlichender Exact-Ref-Nachweis-/Revalidierungspfad mit genau zwei

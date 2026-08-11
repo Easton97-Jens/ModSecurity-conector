@@ -284,17 +284,20 @@ jobs:
             fi
             printf '%s\n' "$acl_base"
           }
+          runner_temp_ancestors=()
           runner_temp_ancestor="$RUNNER_TEMP"
           while [ "$runner_temp_ancestor" != / ]; do
-            check_runner_temp_ancestor_acl before "$runner_temp_ancestor" >/dev/null
+            runner_temp_ancestors+=("$runner_temp_ancestor")
             runner_temp_ancestor="$(dirname "$runner_temp_ancestor")"
           done
-          runner_temp_ancestor="$RUNNER_TEMP"
-          while [ "$runner_temp_ancestor" != / ]; do
+          for ((ancestor_index=${#runner_temp_ancestors[@]} - 1; ancestor_index >= 0; ancestor_index--)); do
+            runner_temp_ancestor="${runner_temp_ancestors[$ancestor_index]}"
+            if sudo -n -u modsecurity-validator test -x "$runner_temp_ancestor"; then
+              continue
+            fi
             runner_temp_acl_base="$(check_runner_temp_ancestor_acl before "$runner_temp_ancestor")"
             sudo -n setfacl -m "u:modsecurity-validator:--x" -- "$runner_temp_ancestor"
             check_runner_temp_ancestor_acl after "$runner_temp_ancestor" "$runner_temp_acl_base" >/dev/null
-            runner_temp_ancestor="$(dirname "$runner_temp_ancestor")"
           done
           printf 'write_root=%s\n' "$write_root" >> "$GITHUB_OUTPUT"
 

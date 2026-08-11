@@ -205,16 +205,17 @@ enforced beneath its private external child. This scoped filesystem contract is
 not a general kernel namespace and does not prove that malicious candidate code
 cannot write arbitrary unrelated globally world-writable host locations.
 
-Hosted run `31479137202`, validator job `93739826304`, is historical failure
-evidence, not a successful validation: the dedicated identity could not
-traverse the private hosted-runner ancestor `/home/runner` to reach the
-`RUNNER_TEMP` guard, so its `mkdir` failed with `Permission denied`. The repair
-has trusted root-side setup grant `modsecurity-validator` traversal-only ACL
-access on the required ancestors of `$RUNNER_TEMP`. It grants neither listing
-nor write access to those ancestors, preserves the source/Git locks, root
-guard, and private output child, and is limited to that hosted host-path
-condition. A new hosted run is required before the repair is functional
-evidence.
+Hosted run `31484727901` is historical failure evidence, not a successful
+validation: before candidate execution, the original ACL precheck rejected the
+pre-existing ACL on `/home`. The pending narrow repair considers only trusted
+ancestors of `$RUNNER_TEMP` that `modsecurity-validator` cannot already
+traverse; it leaves already traversable ancestor ACLs untouched. For each
+ancestor it mutates, strict base-only ACL preconditions must still hold, it may
+add exactly one named `modsecurity-validator:--x` grant, the base ACL entries
+must remain unchanged, and default ACLs, other named ACL entries, and read or
+write access are forbidden. This remains limited to that hosted host-path
+condition and is not functional evidence until a separately observed hosted
+run succeeds.
 
 The manual `workflow_dispatch` input `validate_only: true` is a
 non-publishing exact-ref proof/revalidation path with exactly two trusted refs

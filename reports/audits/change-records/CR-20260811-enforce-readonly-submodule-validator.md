@@ -24,12 +24,12 @@ protected Parent `master` only after that repair is merged for resulting-master
 sandbox revalidation when GitHub reports `github.ref_protected == true`, without
 making publication eligible.
 
-Hosted run `31479137202`, validator job `93739826304`, exposed a host-path
-precondition missing from that contract: `modsecurity-validator` could not
-traverse private `/home/runner` to reach the `RUNNER_TEMP` guard, and the guard
-`mkdir` failed with `Permission denied`. The repair preserves the read-only
-source/Git boundary while allowing only traversal to the required external
-guard; it is not successful hosted validation evidence.
+Hosted run `31484727901` is failure evidence, not a successful validation:
+before candidate execution, the original ACL precheck rejected the pre-existing
+ACL on `/home`. The pending narrow repair preserves the read-only source/Git
+boundary while conditionally repairing only trusted `$RUNNER_TEMP` ancestors
+that `modsecurity-validator` cannot already traverse; it is not successful
+hosted validation evidence.
 
 ## Acceptance criteria
 
@@ -44,10 +44,13 @@ guard; it is not successful hosted validation evidence.
 - `make quick-check` is unchanged.
 - The validator does not receive production write permission; that permission
   remains only with the separate publisher.
-- Trusted root-side setup grants `modsecurity-validator` traversal-only ACL
-  access on the required ancestors of `$RUNNER_TEMP` when a hosted runner has a
-  private ancestor. The ACL grants neither listing nor write access and
-  preserves the source/Git locks, root guard, and private output child.
+- Trusted root-side setup considers only trusted ancestors of `$RUNNER_TEMP`
+  that `modsecurity-validator` cannot already traverse, leaving already
+  traversable ancestor ACLs untouched. Every mutated ancestor must satisfy
+  strict base-only ACL preconditions; setup may add exactly one named
+  `modsecurity-validator:--x` grant, preserve all base ACL entries unchanged,
+  and reject default ACLs, other named ACL entries, and read or write access.
+  It preserves the source/Git locks, root guard, and private output child.
 - Manual `workflow_dispatch` with `validate_only: true` is restricted to two
   trusted refs in the canonical non-fork Parent repository
   `Easton97-Jens/ModSecurity-conector`: the task-owned/reviewed
@@ -90,14 +93,17 @@ unchanged `make quick-check`. The validator is read-only; only the separate
 publisher retains the narrowly scoped production-write boundary after
 validation.
 
-The repair adds a root-trusted, traversal-only ACL on the required ancestors
-of `$RUNNER_TEMP`. It addresses the historical run `31479137202`, validator
-job `93739826304`, where the dedicated identity could not traverse
-`/home/runner` and the guard `mkdir` returned `Permission denied`. It gives the
-validator no list or write permission on those ancestors and leaves the root
-guard, private output child, and Parent/Framework source/Git locks intact. This
-is a scoped hosted host-path repair, not proof of general host isolation or a
-successful rerun.
+The pending repair conditionally mutates only trusted ancestors of
+`$RUNNER_TEMP` that `modsecurity-validator` cannot already traverse, leaving
+already traversable ancestor ACLs untouched. It addresses historical run
+`31484727901`, which failed before candidate execution because the original ACL
+precheck rejected the pre-existing ACL on `/home`. Every ancestor it mutates
+must pass strict base-only ACL preconditions; it receives exactly one named
+`modsecurity-validator:--x` grant, unchanged base ACL entries, no default ACLs
+or other named ACL entries, and no read or write access. The repair leaves the
+root guard, private output child, and Parent/Framework source/Git locks intact.
+This is a scoped hosted host-path repair, not proof of general host isolation
+or a successful rerun.
 
 For exact branch-head proof and resulting-master revalidation, manual
 `workflow_dispatch` may set `validate_only: true` only in the canonical
@@ -152,11 +158,14 @@ protection against a hostile same-repository writer; the master path also
 requires `github.ref_protected == true`, while that threat model requires branch
 protection or environment approval.
 
-The ACL repair has the same boundary: trusted root-side setup may grant only
-directory traversal on the ancestors required to reach `$RUNNER_TEMP`; it must
-not grant listing or write access. Its effect is limited to the hosted
-private-ancestor condition observed in run `31479137202`, not general host
-filesystem isolation.
+The pending ACL repair has the same boundary: trusted root-side setup may
+consider only trusted `$RUNNER_TEMP` ancestors that the validator cannot
+already traverse, while leaving already traversable ACLs untouched. For every
+mutated ancestor it requires strict base-only ACL preconditions, exactly one
+named `modsecurity-validator:--x` grant, unchanged base ACL entries, and no
+default ACLs, other named ACL entries, read access, or write access. Its effect
+is limited to the hosted private-ancestor condition observed in run
+`31484727901`, not general host filesystem isolation.
 
 ## Changed files
 
@@ -191,20 +200,20 @@ reported as direct evidence:
 
 ## Runtime evidence
 
-Hosted run `31479137202`, validator job `93739826304`, failed before candidate
-execution because `modsecurity-validator` could not traverse `/home/runner` to
-the `RUNNER_TEMP` guard and `mkdir` returned `Permission denied`. This is
-failure evidence for the missing traversal permission only. This record does
-not assert a successful rerun, final exact-head hosted-runtime or validation,
+Hosted run `31484727901` failed before candidate execution because the original
+ACL precheck rejected the pre-existing ACL on `/home`. This is failure evidence
+for that precheck behavior only. This record does not assert a successful
+rerun, final exact-head hosted-runtime or validation, security scan,
 publication, pull-request, merge, or other delivery result.
 
 ## Checks not run and rationale
 
 - `make quick-check` — unchanged by this task; no candidate execution was
   run locally as part of the supplied evidence.
-- A hosted rerun of `update-submodules.yml`, including `validate_only: true` —
-  not run for this repair record; the observed run `31479137202` failed before
-  candidate execution, so it is not successful repair evidence.
+- A successful hosted rerun of `update-submodules.yml`, including
+  `validate_only: true` — not observed for this repair record; the observed run
+  `31484727901` failed before candidate execution, so it is not successful
+  repair evidence.
 - Security scan — final security-scan evidence is not asserted here and is
   retained in the associated scan evidence.
 - `make check-bilingual-docs` initially failed because this Change Record did
