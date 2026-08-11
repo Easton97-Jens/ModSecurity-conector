@@ -255,6 +255,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
     errors: list[str] = []
     required = (
         "CLONE_NEWNS | CLONE_NEWPID",
+        'tempfile.mkdtemp(prefix="modsecurity-readonly-validation-", dir=namespace_parent)',
         "PR_SET_NO_NEW_PRIVS = 38",
         "if LIBC.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:",
         "_set_no_new_privs()",
@@ -305,6 +306,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         "subprocess",
         "shell=True",
         "os.system",
+        "secrets.token_hex",
     )
     for term in forbidden:
         if term in runner:

@@ -15,9 +15,9 @@ import grp
 import os
 from pathlib import Path
 import pwd
-import secrets
 import stat
 import sys
+import tempfile
 from typing import Callable, Sequence
 
 
@@ -139,8 +139,9 @@ def _mountinfo_for(path: Path) -> list[str]:
 
 def _create_mount_layout(namespace_parent: Path) -> Path:
     """Create exact root-owned traversal placeholders irrespective of umask."""
-    mount_root = namespace_parent / f"modsecurity-readonly-validation-{secrets.token_hex(16)}"
-    mount_root.mkdir(mode=0o700)
+    mount_root = Path(
+        tempfile.mkdtemp(prefix="modsecurity-readonly-validation-", dir=namespace_parent)
+    )
     for path in (mount_root, mount_root / "source", mount_root / "external"):
         if path != mount_root:
             path.mkdir(mode=0o700)

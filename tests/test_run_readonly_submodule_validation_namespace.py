@@ -134,10 +134,18 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             previous_umask = os.umask(0o077)
             try:
-                root = HELPER._create_mount_layout(Path(raw))
+                with mock.patch.object(
+                    HELPER.tempfile, "mkdtemp", wraps=HELPER.tempfile.mkdtemp
+                ) as secure_mkdtemp:
+                    root = HELPER._create_mount_layout(Path(raw))
             finally:
                 os.umask(previous_umask)
             try:
+                secure_mkdtemp.assert_called_once_with(
+                    prefix="modsecurity-readonly-validation-", dir=Path(raw)
+                )
+                self.assertEqual(root.parent, Path(raw))
+                self.assertTrue(root.name.startswith("modsecurity-readonly-validation-"))
                 for path in (root, root / "source", root / "external"):
                     metadata = os.lstat(path)
                     self.assertEqual((metadata.st_uid, metadata.st_gid), (0, 0))
