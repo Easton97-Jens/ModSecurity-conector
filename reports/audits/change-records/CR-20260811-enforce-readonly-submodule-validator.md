@@ -30,6 +30,12 @@ skipped, so that run evidences no branch, commit, or pull-request mutation.
 security-relevant, and release/candidate-integration-blocking; it is neither
 fixed nor verified.
 
+The functional release-blocker repair models only the contained-relative shape
+associated with `checks/common.pem` in hosted run `31496603345`. That run ID
+identifies the affected hosted context only; a fresh exact-head hosted run must
+prove the actual link target conforms. This record does not claim the run
+passed or that any later hosted validation has succeeded.
+
 ## Acceptance criteria
 
 - Trusted root-side setup creates a private mount and PID namespace, makes
@@ -54,6 +60,12 @@ fixed nor verified.
   `make quick-check` and receives no publisher or production write authority.
 - Source inventory and physical output verification remain fail-closed after
   candidate exit.
+- An external output symbolic link is accepted only when validator-owned and
+  its link text is nonempty, NUL-free, relative, and lexically normalizes
+  within the physical `external` root. Verification must not resolve, stat, or
+  dereference its target; absolute targets, including in-root absolute targets,
+  lexical escapes to source, guard, or other paths, special objects, and
+  source-tree hard links remain rejected.
 - `validate_only: true` remains the existing non-publishing exact-ref path; it
   must not become a facility for arbitrary untrusted Parent refs.
 - English and German documents and Change Records carry the same material
@@ -83,6 +95,15 @@ ambient unrelated host paths remain outside this scoped contract. It preserves
 the separate publisher boundary and leaves Framework and MRTS source, the
 Parent Gitlink, and Make target semantics out of scope.
 
+The physical external-output verifier now permits only the narrow
+validator-owned relative-link case described in the acceptance criteria. Its
+check is lexical containment of nonempty, NUL-free link text inside the
+physical `external` root, not target resolution or filesystem inspection. This
+models only a contained-relative `checks/common.pem` shape; a fresh exact-head
+hosted run must prove the actual target conforms. It retains fail-closed
+rejection of absolute links (even in-root ones), lexical escapes, special
+objects, and source-tree hard links.
+
 The existing `workflow_dispatch` input `validate_only: true` stays limited to
 the trusted task repair ref before merge and protected Parent `master` after
 merge with `github.ref_protected == true`. Each allowed path uses its
@@ -110,6 +131,11 @@ code cannot use every unrelated globally writable host facility, exploit a
 kernel flaw, or escape a process boundary. The repair does not weaken source/Git
 locks, output verification, validation-only publication guardrails, branch
 protection, or publisher permissions.
+
+The permitted symbolic-link case does not widen that boundary: target text is
+checked lexically without resolving, calling `stat` on, or dereferencing an object, and
+all nonconforming links remain rejected. It is not evidence of full host
+isolation.
 
 ## Changed files
 
@@ -146,6 +172,11 @@ resolver and sandbox preparation, during the isolated quick check. Its
 root-side post-run source/output verification did not execute, its publisher
 was skipped, and its outcome failed because validation failed. It is not a
 successful namespace run, security scan, PR check, merge, or delivery result.
+
+Hosted run `31496603345` supplies the `checks/common.pem` context for the
+functional verifier repair. It is not recorded here as a successful hosted run
+or as validation of the repaired current head; a fresh exact-head hosted run
+must prove the actual target conforms.
 
 ## Checks not run and rationale
 

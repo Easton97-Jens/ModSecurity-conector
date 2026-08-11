@@ -237,6 +237,134 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
                 self.assertEqual(source_file.read_text(encoding="utf-8"), "inside")
                 self.assertEqual(HELPER.verify_sandbox(arguments)[0], external)
 
+    def test_accepts_contained_relative_external_symlink(self) -> None:
+        if os.geteuid() != 0:
+            self.skipTest("external-output controls require root")
+        with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
+            source, framework, runner_temp, write = self.make_layout(Path(raw))
+            (source / "input.txt").write_text("source", encoding="utf-8")
+            arguments = HELPER.parse_args(
+                [
+                    "--source-root", str(source), "--framework-root", str(framework),
+                    "--write-root", str(write), "--runner-temp", str(runner_temp),
+                    "--validator-user", "unused", "--validator-group", "unused",
+                ]
+            )
+            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
+                external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
+                shared = external / "shared"
+                checks = external / "reg-tests" / "checks"
+                shared.mkdir()
+                checks.mkdir(parents=True)
+                (shared / "common.pem").write_text("contained", encoding="utf-8")
+                (checks / "common.pem").symlink_to("../../shared/common.pem")
+                self.assertEqual(HELPER.verify_sandbox(arguments)[0], external)
+
+    def test_rejects_absolute_external_symlink_target(self) -> None:
+        if os.geteuid() != 0:
+            self.skipTest("external-output controls require root")
+        with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
+            source, framework, runner_temp, write = self.make_layout(Path(raw))
+            (source / "input.txt").write_text("source", encoding="utf-8")
+            arguments = HELPER.parse_args(
+                [
+                    "--source-root", str(source), "--framework-root", str(framework),
+                    "--write-root", str(write), "--runner-temp", str(runner_temp),
+                    "--validator-user", "unused", "--validator-group", "unused",
+                ]
+            )
+            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
+                external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
+                (external / "absolute-in-root").symlink_to(external / "target")
+                with self.assertRaisesRegex(ValueError, "unsafe target"):
+                    HELPER.verify_sandbox(arguments)
+
+    def test_rejects_external_symlink_to_source_or_guard_by_relative_escape(self) -> None:
+        if os.geteuid() != 0:
+            self.skipTest("external-output controls require root")
+        with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
+            source, framework, runner_temp, write = self.make_layout(Path(raw))
+            source_file = source / "input.txt"
+            source_file.write_text("source", encoding="utf-8")
+            arguments = HELPER.parse_args(
+                [
+                    "--source-root", str(source), "--framework-root", str(framework),
+                    "--write-root", str(write), "--runner-temp", str(runner_temp),
+                    "--validator-user", "unused", "--validator-group", "unused",
+                ]
+            )
+            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
+                external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
+                (external / "source-escape").symlink_to("../../../source/input.txt")
+                with self.assertRaisesRegex(ValueError, "escapes external root"):
+                    HELPER.verify_sandbox(arguments)
+                (external / "source-escape").unlink()
+                (external / "guard-escape").symlink_to("../source-inventory.json")
+                with self.assertRaisesRegex(ValueError, "escapes external root"):
+                    HELPER.verify_sandbox(arguments)
+
+    def test_rejects_external_symlink_chain_with_an_escaping_hop(self) -> None:
+        if os.geteuid() != 0:
+            self.skipTest("external-output controls require root")
+        with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
+            source, framework, runner_temp, write = self.make_layout(Path(raw))
+            (source / "input.txt").write_text("source", encoding="utf-8")
+            arguments = HELPER.parse_args(
+                [
+                    "--source-root", str(source), "--framework-root", str(framework),
+                    "--write-root", str(write), "--runner-temp", str(runner_temp),
+                    "--validator-user", "unused", "--validator-group", "unused",
+                ]
+            )
+            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
+                external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
+                links = external / "links"
+                links.mkdir()
+                (links / "first").symlink_to("second")
+                (links / "second").symlink_to("../../../../source/input.txt")
+                with self.assertRaisesRegex(ValueError, "escapes external root"):
+                    HELPER.verify_sandbox(arguments)
+
+    def test_rejects_foreign_owned_external_symlink_before_target_validation(self) -> None:
+        if os.geteuid() != 0:
+            self.skipTest("external-output controls require root")
+        with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
+            source, framework, runner_temp, write = self.make_layout(Path(raw))
+            (source / "input.txt").write_text("source", encoding="utf-8")
+            arguments = HELPER.parse_args(
+                [
+                    "--source-root", str(source), "--framework-root", str(framework),
+                    "--write-root", str(write), "--runner-temp", str(runner_temp),
+                    "--validator-user", "unused", "--validator-group", "unused",
+                ]
+            )
+            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
+                external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
+                link = external / "foreign-link"
+                link.symlink_to("target")
+                real_walk = HELPER._walk_tree
+
+                def walk_with_foreign_link(root: Path):
+                    for path, relative, metadata in real_walk(root):
+                        if root == external and path == link:
+                            metadata = SimpleNamespace(
+                                st_mode=metadata.st_mode,
+                                st_uid=identity.uid + 1,
+                                st_gid=metadata.st_gid,
+                                st_dev=metadata.st_dev,
+                                st_ino=metadata.st_ino,
+                            )
+                        yield path, relative, metadata
+
+                with mock.patch.object(HELPER, "_walk_tree", side_effect=walk_with_foreign_link):
+                    with self.assertRaisesRegex(ValueError, "foreign owner"):
+                        HELPER._validate_external_tree(external, source, identity)
+
     def test_rejects_unsafe_external_output_objects(self) -> None:
         if os.geteuid() != 0:
             self.skipTest("external-output controls require root")
@@ -255,7 +383,7 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 (external / "outside-link").symlink_to(source_file)
-                with self.assertRaisesRegex(ValueError, "symbolic links"):
+                with self.assertRaisesRegex(ValueError, "unsafe target"):
                     HELPER.verify_sandbox(arguments)
                 (external / "outside-link").unlink()
                 os.link(source_file, external / "source-hardlink")

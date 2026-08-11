@@ -289,9 +289,20 @@ path, type, size, mode, UID, GID, and link count; regular files also carry a
 SHA-256 digest and symbolic links carry their link text. After `make quick-check`
 the helper requires that inventory to match exactly, failing closed on any
 source-tree mutation. It also fail-closed scans the validator's external tree:
-only validator-owned directories and regular files without group/other write
-permissions are permitted; special objects, symbolic links, and source-tree
-hard links are rejected.
+validator-owned directories and regular files without group/other write
+permissions are permitted. An external output symbolic link is permitted only
+when it is validator-owned and its link text is nonempty, NUL-free, relative,
+and lexically normalizes within the physical `external` root. The verifier does
+not resolve, stat, or dereference that target. It rejects absolute targets,
+including in-root absolute targets, lexical escapes to source, guard, or other
+paths, special objects, and source-tree hard links.
+
+This narrow output rule models only the contained-relative shape associated
+with `checks/common.pem` in hosted run `31496603345`; a fresh exact-head hosted
+run must prove that the actual link target conforms. It records the verifier
+contract only; it is not a successful hosted run, current-head scan, SonarQube
+result, PR result, merge, delivery, or proof of full host isolation.
+`FND-PARENT-0122` remains open.
 
 This describes the implemented workflow contract and its bounded local evidence,
 not evidence of a hosted run, current-head security scan, published update, or

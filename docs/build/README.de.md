@@ -314,10 +314,23 @@ enthält Pfad, Typ, Größe, Modus, UID, GID und Link-Anzahl; reguläre Dateien
 enthalten zusätzlich einen SHA-256-Digest und symbolische Links ihren Link-Text.
 Nach `make quick-check` muss der Helper die exakte Gleichheit dieses Inventars
 nachweisen und schlägt bei jeder Source-Tree-Mutation fail-closed fehl. Er scannt
-außerdem den externen Tree des Validators fail-closed: Zulässig sind nur dem
+außerdem den externen Tree des Validators fail-closed: Zulässig sind dem
 Validator gehörende Directories und reguläre Dateien ohne Group-/Other-
-Schreibrechte; Special Objects, symbolische Links und Hard Links in den
-Source-Tree werden abgewiesen.
+Schreibrechte. Ein symbolischer Link für externe Ausgaben ist nur zulässig,
+wenn er dem Validator gehört und sein Link-Text nicht leer, NUL-frei, relativ
+ist und sich lexikalisch innerhalb des physischen Roots `external`
+normalisiert. Der Verifier löst dieses Target nicht auf, führt kein `stat` aus
+und dereferenziert es nicht. Er weist absolute Targets, auch in-root absolute
+Targets, lexikalische Escapes zu Source-, Guard- oder anderen Pfaden, Special
+Objects und Hard Links in den Source-Tree ab.
+
+Diese enge Output-Regel modelliert nur die enthaltene relative Form im
+Zusammenhang mit `checks/common.pem` im Hosted-Run `31496603345`; ein frischer
+Hosted-Run auf dem exakten Head muss nachweisen, dass das tatsächliche
+Link-Target der Regel entspricht. Sie dokumentiert nur den Verifier-Vertrag;
+sie ist kein erfolgreicher Hosted-Run, Current-Head-Scan, SonarQube-Ergebnis,
+PR-Ergebnis, Merge, Delivery oder Beweis vollständiger Host-Isolation.
+`FND-PARENT-0122` bleibt offen.
 
 Dies beschreibt den implementierten Workflow-Vertrag und seine begrenzte lokale
 Evidence, nicht Evidence für einen Hosted Run, einen Current-Head-Security-Scan,

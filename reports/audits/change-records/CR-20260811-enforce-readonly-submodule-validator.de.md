@@ -32,6 +32,13 @@ exakt als P1, bestätigt, `in_progress`, sicherheitsrelevant und
 release-/candidate-integration-blocking erfasst; es gibt keinen fixed- oder
 verified-Status.
 
+Die funktionale Release-Blocker-Reparatur modelliert nur die enthaltene
+relative Form im Zusammenhang mit `checks/common.pem` im Hosted-Run
+`31496603345`. Diese Run-ID identifiziert nur den betroffenen Hosted-Kontext;
+ein frischer Hosted-Run auf dem exakten Head muss nachweisen, dass das
+tatsächliche Link-Target der Regel entspricht. Dieser Record behauptet weder
+einen erfolgreichen Run noch eine erfolgreiche spätere Hosted-Validierung.
+
 ## Akzeptanzkriterien
 
 - Vertrauenswürdiges Root-seitiges Setup erstellt einen privaten Mount- und
@@ -57,6 +64,13 @@ verified-Status.
   und erhält keine Publisher- oder Produktions-Schreibberechtigung.
 - Source-Inventar und physische Output-Verifikation bleiben nach Candidate-Ende
   fail-closed.
+- Ein symbolischer Link für externe Ausgaben wird nur akzeptiert, wenn er dem
+  Validator gehört und sein Link-Text nicht leer, NUL-frei und relativ ist und
+  sich lexikalisch innerhalb des physischen Roots `external` normalisiert. Die
+  Verifikation darf sein Target nicht auflösen, kein `stat` ausführen und es
+  nicht dereferenzieren; absolute Targets, auch in-root absolute Targets,
+  lexikalische Escapes zu Source-, Guard- oder anderen Pfaden, Special Objects
+  und Hard Links in den Source-Tree bleiben abgewiesen.
 - `validate_only: true` bleibt der bestehende nicht veröffentlichende
   Exact-Ref-Pfad und darf keine Einrichtung für beliebige nicht vertrauenswürdige
   Parent-Refs werden.
@@ -88,6 +102,16 @@ nicht zusammenhängende ambient Host-Pfade bleiben außerhalb dieses Contracts.
 Die separate Publisher-Grenze bleibt erhalten; Framework- und MRTS-Source, der
 Parent-Gitlink sowie die Semantik der Make-Targets liegen außerhalb des Scopes.
 
+Der physische External-Output-Verifier erlaubt jetzt nur den engen,
+validator-owned Relative-Link-Fall aus den Akzeptanzkriterien. Seine Prüfung ist
+lexikalische Containment-Prüfung von nicht leerem, NUL-freiem Link-Text im
+physischen Root `external`, keine Target-Auflösung oder Filesystem-Inspektion.
+Dies modelliert nur eine enthaltene relative Form für `checks/common.pem`; ein
+frischer Hosted-Run auf dem exakten Head muss nachweisen, dass das tatsächliche
+Target entspricht. Es erhält zugleich die fail-closed-Abweisung absoluter
+Links (auch in-root), lexikalischer Escapes, Special Objects und Hard Links in
+den Source-Tree.
+
 Der vorhandene `workflow_dispatch`-Input `validate_only: true` bleibt auf den
 vertrauenswürdigen Task-Reparatur-Ref vor dem Merge und geschützten Parent-
 `master` nach dem Merge mit `github.ref_protected == true` beschränkt. Jeder
@@ -118,6 +142,11 @@ zusammenhängende, global beschreibbare Host-Einrichtung verwenden, einen
 Kernel-Fehler ausnutzen oder eine Prozessgrenze überwinden kann. Die Reparatur
 lockert weder Source-/Git-Locks, Output-Verifikation, Validate-only-Publisher-
 Guardrails, Branch Protection noch Publisher-Berechtigungen.
+
+Der zulässige Symbolic-Link-Fall erweitert diese Grenze nicht: Target-Text wird
+lexikalisch geprüft, ohne ein Objekt aufzulösen, zu statten oder zu
+dereferenzieren, und alle nicht konformen Links bleiben abgewiesen. Er ist kein
+Nachweis vollständiger Host-Isolation.
 
 ## Geänderte Dateien
 
@@ -158,6 +187,12 @@ während des isolierten Quick Checks fehl. Seine Root-seitige Post-Run-Source-/
 Output-Verifikation lief nicht, sein Publisher wurde übersprungen und sein
 Outcome schlug fehl, weil die Validierung fehlschlug. Er ist kein erfolgreicher
 Namespace-Run, Security-Scan, PR-Check, Merge- oder Delivery-Ergebnis.
+
+Hosted-Run `31496603345` liefert den `checks/common.pem`-Kontext für die
+funktionale Verifier-Reparatur. Er ist hier nicht als erfolgreicher Hosted-Run
+oder als Validierung des reparierten Current-Heads erfasst; ein frischer
+Hosted-Run auf dem exakten Head muss nachweisen, dass das tatsächliche Target
+der Regel entspricht.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 

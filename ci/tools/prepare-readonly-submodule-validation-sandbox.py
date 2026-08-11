@@ -407,14 +407,20 @@ def _validate_external_tree(external: Path, source: Path, identity: ValidatorIde
         for _path, _relative, metadata in _walk_tree(source)
         if stat.S_ISREG(metadata.st_mode)
     }
-    for _path, relative, metadata in _walk_tree(external):
+    for path, relative, metadata in _walk_tree(external):
         mode = stat.S_IMODE(metadata.st_mode)
-        if stat.S_ISLNK(metadata.st_mode):
-            raise ValueError(f"external output must not contain symbolic links: {relative}")
-        if not (stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode)):
-            raise ValueError(f"external output has an unsupported file type: {relative}")
         if metadata.st_uid != identity.uid or metadata.st_gid != identity.gid:
             raise ValueError(f"external output has a foreign owner: {relative}")
+        if stat.S_ISLNK(metadata.st_mode):
+            target = os.readlink(path)
+            if not target or "\x00" in target or os.path.isabs(target):
+                raise ValueError(f"external output link has an unsafe target: {relative}")
+            lexical_target = Path(os.path.normpath(os.path.join(path.parent, target)))
+            if not _is_within(lexical_target, external):
+                raise ValueError(f"external output link escapes external root: {relative}")
+            continue
+        if not (stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode)):
+            raise ValueError(f"external output has an unsupported file type: {relative}")
         if mode & 0o022 or mode & 0o7000:
             raise ValueError(f"external output has unsafe permissions: {relative}")
         if stat.S_ISREG(metadata.st_mode) and (metadata.st_dev, metadata.st_ino) in source_regular_inodes:
