@@ -17,7 +17,6 @@ from pathlib import Path
 import pwd
 import stat
 import sys
-import tempfile
 from typing import Callable, Sequence
 
 
@@ -56,7 +55,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--validator-user", required=True)
     parser.add_argument("--validator-group", required=True)
     parser.add_argument("--python", required=True)
-    parser.add_argument("--namespace-parent", default="/tmp")
+    parser.add_argument("--namespace-parent", required=True)
     return parser.parse_args(argv)
 
 
@@ -137,22 +136,49 @@ def _mountinfo_for(path: Path) -> list[str]:
     return [line for line in Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines() if f" {needle} " in line]
 
 
-def _create_mount_layout(namespace_parent: Path) -> Path:
-    """Create exact root-owned traversal placeholders irrespective of umask."""
-    mount_root = Path(
-        tempfile.mkdtemp(prefix="modsecurity-readonly-validation-", dir=namespace_parent)
-    )
+def _validate_namespace_parent(namespace_parent: Path, validator_gid: int) -> None:
+    """Accept only the root-created, private direct child of the sticky /tmp."""
+    tmp = Path("/tmp")
+    if namespace_parent == tmp or namespace_parent.parent != tmp:
+        raise ValueError("namespace parent must be a direct child of /tmp")
+    tmp_metadata = os.lstat(tmp)
+    if (
+        not stat.S_ISDIR(tmp_metadata.st_mode)
+        or stat.S_ISLNK(tmp_metadata.st_mode)
+        or tmp_metadata.st_uid != 0
+        or not tmp_metadata.st_mode & stat.S_ISVTX
+    ):
+        raise ValueError("namespace parent requires a root-owned sticky /tmp ancestor")
+    metadata = os.lstat(namespace_parent)
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or (metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode))
+        != (0, validator_gid, 0o750)
+    ):
+        raise ValueError("namespace parent must be root:validator mode 0750")
+    if any(os.scandir(namespace_parent)):
+        raise ValueError("namespace parent must be empty before mount layout creation")
+
+
+def _create_mount_layout(namespace_parent: Path, validator_gid: int) -> Path:
+    """Create fixed root:validator traversal placeholders irrespective of umask."""
+    mount_root = namespace_parent / "mount-root"
+    previous_umask = os.umask(0)
+    try:
+        for path in (mount_root, mount_root / "source", mount_root / "external"):
+            os.mkdir(path, mode=0o750)
+            os.chown(path, 0, validator_gid, follow_symlinks=False)
+    finally:
+        os.umask(previous_umask)
     for path in (mount_root, mount_root / "source", mount_root / "external"):
-        if path != mount_root:
-            path.mkdir(mode=0o700)
-        os.chmod(path, 0o755, follow_symlinks=False)
         metadata = os.lstat(path)
         if (
             not stat.S_ISDIR(metadata.st_mode)
             or stat.S_ISLNK(metadata.st_mode)
             or metadata.st_uid != 0
-            or metadata.st_gid != 0
-            or stat.S_IMODE(metadata.st_mode) != 0o755
+            or metadata.st_gid != validator_gid
+            or stat.S_IMODE(metadata.st_mode) != 0o750
         ):
             raise RuntimeError(f"unsafe namespace mount placeholder: {path}")
     return mount_root
@@ -290,26 +316,23 @@ def run(arguments: argparse.Namespace) -> int:
     framework = _absolute_existing_directory(arguments.framework_root, "framework root")
     write_root = _absolute_existing_directory(arguments.write_root, "write root")
     external = _absolute_existing_directory(arguments.external_root, "external root")
-    namespace_parent = _absolute_existing_directory(arguments.namespace_parent, "namespace parent")
     _strict_child(framework, source, "framework root")
     _disjoint(source, write_root, "source root", "write root")
     if external != write_root / "external":
         raise ValueError("external root must be exactly the write root external child")
+    namespace_parent = _absolute_existing_directory(arguments.namespace_parent, "namespace parent")
     python = Path(arguments.python)
     if not python.is_absolute() or not python.is_file() or not os.access(python, os.X_OK):
         raise ValueError("python must be an executable absolute path")
     uid, gid = _identity(arguments.validator_user, arguments.validator_group)
-    parent_metadata = os.stat(namespace_parent, follow_symlinks=False)
-    parent_mode = stat.S_IMODE(parent_metadata.st_mode)
-    if parent_metadata.st_uid != 0 or (parent_mode & 0o022 and not parent_mode & stat.S_ISVTX):
-        raise ValueError("namespace parent must be root-owned and non-writable or sticky")
+    _validate_namespace_parent(namespace_parent, gid)
     write_metadata = os.stat(write_root, follow_symlinks=False)
     external_metadata = os.stat(external, follow_symlinks=False)
     if write_metadata.st_uid != 0 or write_metadata.st_gid != 0 or stat.S_IMODE(write_metadata.st_mode) != 0o711:
         raise ValueError("write root must be root-owned mode 0711")
     if (external_metadata.st_uid, external_metadata.st_gid, stat.S_IMODE(external_metadata.st_mode)) != (uid, gid, 0o700):
         raise ValueError("external root must be validator-owned mode 0700")
-    mount_root = _create_mount_layout(namespace_parent)
+    mount_root = _create_mount_layout(namespace_parent, gid)
     before = _mountinfo_for(mount_root)
     try:
         child = os.fork()

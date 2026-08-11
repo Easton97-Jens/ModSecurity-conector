@@ -192,20 +192,29 @@ evidence.
 ### Read-only Framework-submodule candidate validation
 
 `update-submodules.yml` separates candidate validation from publication. Its
-`validate-submodule-update` job applies `umask 077` before creating a fresh
-private `mktemp` root beneath the runner-provided external `RUNNER_TEMP`
-directory. Trusted root-side setup then enters a private mount and PID
+`validate-submodule-update` job creates a fresh `mktemp -d`
+`/tmp/modsecurity-readonly-namespace.XXXXXX` direct child under sticky `/tmp`,
+then makes that parent exactly `root:modsecurity-validator` mode `0750` before
+passing it through the required `--namespace-parent` argument. The trusted
+launcher rejects any other topology: the supplied parent must be an empty,
+non-symlink direct child of root-owned sticky `/tmp` with that exact ownership
+and mode. Trusted root-side setup then enters a private mount and PID
 namespace. It first makes mount propagation `rprivate`, exposes the Parent and
 Framework source trees (including `.git`) only through non-recursive read-only,
 `nosuid,nodev` mounts, and exposes only the physical validator `external`
 directory, the exact child of the physical `--write-root`, through a writable
-`nosuid,nodev` mount. The root-owned mode-`0755` logical mount root contains
-only view names; the physical `external` root remains validator-owned mode
-`0700`. Parent, Framework, and supported output are presented to the candidate
-through those logical namespace views; unrelated ambient host paths are not
-claimed to be absent. It is PID 1 of that namespace and its completion is
-handled before the namespace lifecycle ends, guaranteeing no candidate
-stragglers. Teardown uses neither lazy unmount nor `rmtree`; root-side host
+`nosuid,nodev` mount. The fixed logical mount root and its `source` and
+`external` placeholders are each `root:modsecurity-validator` mode `0750`;
+they contain only namespace-view names. The physical write root remains
+`root:root` mode `0711`, and its exact physical `external` child remains
+validator-owned mode `0700`. Parent, Framework, and supported output are
+presented to the candidate through those logical namespace views; unrelated
+ambient host paths are not claimed to be absent. It is PID 1 of that namespace
+and its completion is handled before the namespace lifecycle ends, guaranteeing
+no candidate stragglers. Teardown uses neither lazy unmount nor `rmtree`: the
+helper removes only its exact empty `mount-root`, `source`, and `external`
+placeholders with non-recursive `rmdir`, and the workflow `EXIT` trap likewise
+uses non-recursive `rmdir` for the trusted namespace parent. Root-side host
 verification follows outside the candidate namespace.
 The root workflow invokes the trusted launcher through `sudo -n python3`; the
 launcher fail-closed sets `PR_SET_NO_NEW_PRIVS`, clears supplementary groups,
@@ -230,15 +239,16 @@ succeeded, but the isolated quick check failed with five no-CRS normalization
 errors at a runtime-directory traversal denial. The publisher was skipped. No
 successful rerun, current-head scan, or delivery result is claimed here.
 
-The namespace implementation has local evidence. `make check-ci-security-contract`
-successfully ran the workflow, root-preparer, and namespace suites: 48 tests
-completed with three expected capability skips in the normal sandbox. Three privileged
-regressions run outside that sandbox passed 3/3: validator write access only to
-the real external root, a real read-only bind mount, and PID-1 termination with
-no descendant. Documentation-link and bilingual checks, `py_compile`, actionlint,
-offline zizmor, targeted gitleaks, and `git diff --check` also passed locally.
-These are local implementation and control results only; they do not establish
-a current-head security scan, hosted validation, PR result, merge, or delivery.
+Final local evidence for this uncommitted repair is bounded: the focused
+`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v` namespace/workflow suites
+passed 55 tests with three expected capability skips, and
+`PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` passed the same
+55/3 suite result plus its `validate_only` actionlint, zizmor, and gitleaks-lock
+checks. `make check-bilingual-docs`, no-bytecode `py_compile`, and `git diff
+--check` also passed locally. The capability skips mean this evidence is not a
+privileged mount or validator-identity runtime proof. It does not establish a
+current-head security scan, hosted validation, PR result, SonarQube result,
+merge, or delivery.
 
 The manual `workflow_dispatch` input `validate_only: true` is a
 non-publishing exact-ref proof/revalidation path with exactly two trusted refs

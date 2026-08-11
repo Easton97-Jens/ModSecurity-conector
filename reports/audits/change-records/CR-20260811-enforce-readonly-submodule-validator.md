@@ -43,15 +43,25 @@ passed or that any later hosted validation has succeeded.
   control.
 - The candidate receives Parent and Framework sources, including `.git`, only
   through non-recursive read-only `nosuid,nodev` namespace views.
+- The workflow must create a fresh `mktemp -d`
+  `/tmp/modsecurity-readonly-namespace.XXXXXX` direct child under sticky `/tmp`,
+  set it to exactly `root:modsecurity-validator` mode `0750`, and pass it via
+  the required `--namespace-parent` argument. The launcher accepts only an
+  empty non-symlink direct child of root-owned sticky `/tmp` with that exact
+  ownership and mode.
 - The candidate receives a writable `nosuid,nodev` namespace view only for the
-  exact `external` child of the physical `--write-root`; it sees logical
-  namespace paths rooted at a root-owned mode-`0755` view-name directory, while
-  the physical `external` root remains validator-owned mode `0700` and
-  root-side verification checks the physical paths.
+  exact `external` child of the physical `--write-root`. The fixed logical
+  `mount-root`, `source`, and `external` placeholders are each
+  `root:modsecurity-validator` mode `0750`, while the physical write root is
+  `root:root` mode `0711` and its exact physical `external` child remains
+  validator-owned mode `0700`; root-side verification checks the physical
+  paths.
 - The candidate is PID 1 in the private namespace; the trusted launcher handles
   candidate completion before ending that namespace, guarantees no candidate
   stragglers, and then performs root-side host verification. Teardown uses
-  neither lazy unmount nor `rmtree`.
+  neither lazy unmount nor `rmtree`: it removes only exact empty placeholders
+  with non-recursive `rmdir`, and the workflow `EXIT` trap uses non-recursive
+  `rmdir` for the trusted namespace parent.
 - The root workflow invokes a trusted root `sudo -n python3` launcher. The
   launcher fail-closed sets `PR_SET_NO_NEW_PRIVS`, clears supplementary groups,
   drops to the non-login, non-sudo `modsecurity-validator` GID and UID, and
@@ -79,14 +89,22 @@ directory can require read permission even when traversal alone is sufficient.
 The root-side launcher makes propagation `rprivate` before creating the
 candidate mount view, bind-mounts Parent and Framework source/Git state
 read-only, non-recursively, with `nosuid,nodev`, and bind-mounts only the
-physical `--write-root`/`external` child writable with `nosuid,nodev`. A
-root-owned mode-`0755` logical mount root presents only the required view names;
-the physical `external` root remains validator-owned mode `0700`. The launcher
-fail-closed sets `PR_SET_NO_NEW_PRIVS`, clears supplementary groups, drops the
-candidate GID and UID, and calls `execve` with an explicit fixed environment.
-The candidate executes as PID 1 in that private PID namespace. The launcher
-waits for and handles its termination, tears down the private view without lazy
-unmount or `rmtree`, and verifies physical host source and output state as root.
+physical `--write-root`/`external` child writable with `nosuid,nodev`. Before
+launching, the workflow root-side creates the trusted direct `/tmp` child with
+`mktemp -d`, changes it to `root:modsecurity-validator` mode `0750`, and passes
+it through the required `--namespace-parent` argument. The launcher validates
+that exact empty non-symlink topology, then creates its fixed logical
+`mount-root`, `source`, and `external` placeholders as
+`root:modsecurity-validator` mode `0750`. The physical write root remains
+`root:root` mode `0711`, and its exact physical `external` child remains
+validator-owned mode `0700`. The launcher fail-closed sets `PR_SET_NO_NEW_PRIVS`,
+clears supplementary groups, drops the candidate GID and UID, and calls
+`execve` with an explicit fixed environment. The candidate executes as PID 1 in
+that private PID namespace. The launcher waits for and handles its termination,
+tears down only the exact empty placeholders with non-recursive `rmdir`, and
+verifies physical host source and output state as root; the workflow `EXIT`
+trap likewise removes only the trusted namespace parent with non-recursive
+`rmdir`.
 
 This maintains the intended output contract without granting the candidate a
 host-level traversal or listing right for runner-owned ancestors. Parent,
@@ -148,21 +166,22 @@ delivery.
 
 ## Commands executed
 
-The implemented namespace repair has the following observed local evidence:
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+  tests.test_ci_security_workflows
+  tests.test_prepare_readonly_submodule_validation_sandbox
+  tests.test_run_readonly_submodule_validation_namespace` passed: 55 tests
+  with three expected capability skips.
+- `PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` passed with the
+  same 55-test/three-skip suite result and its `validate_only` actionlint,
+  zizmor, and gitleaks-lock checks.
+- `PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs` passed (`bilingual
+  docs ok`); no-bytecode `py_compile` and `git diff --check` also passed.
 
-- `make check-ci-security-contract` successfully ran the workflow, root-preparer,
-  and namespace suites: 48 tests completed with three expected capability skips
-  in the normal sandbox. The suite covers the implemented workflow contract,
-  root-side preparer, and namespace launcher.
-- Three privileged regressions were run outside the normal sandbox and passed
-  3/3: real validator write-only access to the physical external root, a real
-  read-only bind mount, and PID-1 termination with no descendant.
-- Documentation-link and bilingual checks passed; `py_compile`, actionlint,
-  offline zizmor, targeted gitleaks, and `git diff --check` also passed.
-
-These local results validate the implementation and focused controls. They do
-not substitute for a current-head security scan, a hosted validation, PR checks,
-SonarQube Cloud, review, merge, resulting-master validation, or delivery.
+This is limited local test and contract evidence. The three expected capability
+skips mean it is not privileged mount or validator-identity runtime proof. It
+does not substitute for a current-head security scan, hosted validation, PR
+checks, SonarQube Cloud, review, merge, resulting-master validation, or
+delivery.
 
 ## Runtime evidence
 
@@ -208,6 +227,6 @@ fresh local, security, and hosted evidence is observed.
 
 ## Final diff and review status
 
-This is not a final delivery record. English/German parity and whitespace
-validation passed for the current documentation change; final current-head
-scan, hosted, PR, merge, and resulting-master evidence are still pending.
+This is not a final delivery record. The observed bilingual and scoped
+whitespace checks are recorded above; final current-head scan, hosted, PR,
+SonarQube, merge, and resulting-master evidence remain pending.

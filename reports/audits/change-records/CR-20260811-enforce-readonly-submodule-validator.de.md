@@ -46,15 +46,26 @@ einen erfolgreichen Run noch eine erfolgreiche spätere Hosted-Validierung.
   Lebenszyklus außerhalb der Candidate-Kontrolle.
 - Der Candidate erhält Parent- und Framework-Sources einschließlich `.git` nur
   über nicht-rekursive read-only-`nosuid,nodev`-Namespace-Views.
+- Der Workflow muss ein frisches `mktemp -d`-direktes Child
+  `/tmp/modsecurity-readonly-namespace.XXXXXX` unter dem sticky `/tmp`
+  erstellen, es exakt auf `root:modsecurity-validator` mit Modus `0750` setzen
+  und über das erforderliche Argument `--namespace-parent` übergeben. Der
+  Launcher akzeptiert nur ein leeres, nicht-symlinktes direktes Child des
+  root-owned sticky `/tmp` mit genau diesem Owner und Modus.
 - Der Candidate erhält eine schreibbare `nosuid,nodev`-Namespace-View nur für
-  das exakte Child `external` des physischen `--write-root`; er sieht logische
-  Namespace-Pfade unter einem root-owned View-Namen-Verzeichnis mit Modus
-  `0755`, während der physische Root `external` validator-owned mit Modus
-  `0700` bleibt und Root-seitige Verifikation die physischen Pfade prüft.
+  das exakte Child `external` des physischen `--write-root`. Die festen
+  logischen Platzhalter `mount-root`, `source` und `external` sind jeweils
+  `root:modsecurity-validator` mit Modus `0750`, während der physische
+  Write-Root `root:root` mit Modus `0711` ist und sein exaktes physisches Child
+  `external` validator-owned mit Modus `0700` bleibt; die Root-seitige
+  Verifikation prüft die physischen Pfade.
 - Der Candidate ist PID 1 im privaten Namespace; der vertrauenswürdige Launcher
   verarbeitet seine Beendigung vor dem Ende dieses Namespace, garantiert damit
   keine Candidate-Nachzügler und führt danach Root-seitige Host-Verifikation
-  durch. Teardown verwendet weder Lazy-Unmount noch `rmtree`.
+  durch. Teardown verwendet weder Lazy-Unmount noch `rmtree`: Er entfernt nur
+  exakte leere Platzhalter mit nicht-rekursivem `rmdir`, und der `EXIT`-Trap des
+  Workflows verwendet nicht-rekursives `rmdir` für das vertrauenswürdige
+  Namespace-Parent.
 - Der Root-Workflow ruft einen vertrauenswürdigen Root-`sudo -n python3`-
   Launcher auf. Der Launcher setzt `PR_SET_NO_NEW_PRIVS` fail-closed, entfernt
   zusätzliche Gruppen, fällt auf die Non-login- und Non-sudo-GID und UID von
@@ -86,14 +97,22 @@ obwohl reines Traversieren genügt. Der Root-seitige Launcher setzt `rprivate`,
 bevor er die Candidate-Mount-View erstellt, bind-mountet Parent- und
 Framework-Source-/Git-Zustand read-only, nicht-rekursiv, mit `nosuid,nodev` und
 bind-mountet nur das physische Child `--write-root`/`external` schreibbar mit
-`nosuid,nodev`. Ein root-owned Logical-Mount-Root mit Modus `0755` stellt nur
-die erforderlichen View-Namen bereit; der physische Root `external` bleibt
-validator-owned mit Modus `0700`. Der Launcher setzt `PR_SET_NO_NEW_PRIVS`
-fail-closed, entfernt zusätzliche Gruppen, setzt Candidate-GID und -UID und
-ruft `execve` mit einer expliziten festen Umgebung auf. Der Candidate läuft als
-PID 1 im privaten PID-Namespace. Der Launcher wartet auf und verarbeitet seine
-Beendigung, baut die private View ohne Lazy-Unmount oder `rmtree` ab und
-verifiziert als root physischen Host-Source- und Output-Zustand.
+`nosuid,nodev`. Vor dem Start erstellt die Root-Seite des Workflows das
+vertrauenswürdige direkte `/tmp`-Child mit `mktemp -d`, ändert es auf
+`root:modsecurity-validator` mit Modus `0750` und übergibt es über das
+erforderliche Argument `--namespace-parent`. Der Launcher validiert diese
+exakte leere Nicht-Symlink-Topologie und erstellt dann seine festen logischen
+Platzhalter `mount-root`, `source` und `external` als
+`root:modsecurity-validator` mit Modus `0750`. Der physische Write-Root bleibt
+`root:root` mit Modus `0711`, und sein exaktes physisches Child `external`
+bleibt validator-owned mit Modus `0700`. Der Launcher setzt
+`PR_SET_NO_NEW_PRIVS` fail-closed, entfernt zusätzliche Gruppen, setzt
+Candidate-GID und -UID und ruft `execve` mit einer expliziten festen Umgebung
+auf. Der Candidate läuft als PID 1 im privaten PID-Namespace. Der Launcher
+wartet auf und verarbeitet seine Beendigung, entfernt nur die exakten leeren
+Platzhalter mit nicht-rekursivem `rmdir` und verifiziert als root physischen
+Host-Source- und Output-Zustand; der `EXIT`-Trap des Workflows entfernt das
+vertrauenswürdige Namespace-Parent ebenfalls nur mit nicht-rekursivem `rmdir`.
 
 Dies erhält den beabsichtigten Output-Vertrag, ohne dem Candidate Host-seitiges
 Traverse- oder List-Recht für Runner-eigene Ahnen zu geben. Parent, Framework
@@ -159,24 +178,23 @@ Delivery mit dem reviewten Reparatur-Head abgeglichen werden.
 
 ## Ausgeführte Befehle
 
-Für die implementierte Namespace-Reparatur liegt folgende beobachtete lokale
-Evidence vor:
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+  tests.test_ci_security_workflows
+  tests.test_prepare_readonly_submodule_validation_sandbox
+  tests.test_run_readonly_submodule_validation_namespace` bestand: 55 Tests
+  mit drei erwarteten Capability-Skips.
+- `PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` bestand mit
+  demselben 55-Test-/Drei-Skip-Suite-Ergebnis sowie seinen `validate_only`-
+  actionlint-, zizmor- und gitleaks-lock-Prüfungen.
+- `PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs` bestand (`bilingual
+  docs ok`); no-bytecode `py_compile` und `git diff --check` bestanden ebenfalls.
 
-- `make check-ci-security-contract` führte die Workflow-, Root-Preparer- und
-  Namespace-Suites erfolgreich aus: 48 Tests endeten mit drei erwarteten
-  Capability-Skips in der normalen Sandbox. Die Suite deckt den implementierten Workflow-
-  Vertrag, den Root-seitigen Preparer und den Namespace-Launcher ab.
-- Drei privilegierte Regressionen liefen außerhalb der normalen Sandbox und
-  bestanden 3/3: realer Validator-Schreibzugriff nur auf den physischen
-  External-Root, ein realer read-only-Bind-Mount sowie PID-1-Terminierung ohne
-  Descendant.
-- Doku-Link- und Bilingual-Prüfungen bestanden; `py_compile`, actionlint,
-  offline zizmor, targeted gitleaks und `git diff --check` bestanden ebenfalls.
-
-Diese lokalen Ergebnisse validieren Implementierung und fokussierte Controls.
-Sie ersetzen keinen Current-Head-Security-Scan, keine Hosted-Validierung,
-keine PR-Checks, kein SonarQube Cloud, kein Review, keinen Merge, keine
-resulting-master-Validierung und keine Delivery.
+Dies ist begrenzte lokale Test- und Contract-Evidence. Die drei erwarteten
+Capability-Skips bedeuten, dass sie kein privilegierter Runtime-Nachweis für
+Mounts oder die Validator-Identität ist. Sie ersetzt keinen Current-Head-
+Security-Scan, keine Hosted-Validierung, keine PR-Checks, kein SonarQube Cloud,
+kein Review, keinen Merge, keine resulting-master-Validierung und keine
+Delivery.
 
 ## Runtime-Evidence
 
@@ -227,7 +245,7 @@ Evidence beobachtet wurde.
 
 ## Finaler Diff- und Review-Status
 
-Dies ist kein finaler Delivery-Record. Englisch-/Deutsch-Paritäts- und
-Whitespace-Validierung für die aktuelle Dokumentationsänderung bestanden;
-finale Current-Head-Scan-, Hosted-, PR-, Merge- und resulting-master-Evidence
-stehen weiterhin aus.
+Dies ist kein finaler Delivery-Record. Die beobachteten Bilingual- und
+eingeschränkten Whitespace-Prüfungen sind oben erfasst; finale Current-Head-
+Scan-, Hosted-, PR-, SonarQube-, Merge- und resulting-master-Evidence stehen
+weiterhin aus.

@@ -238,6 +238,21 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: |
           set -euo pipefail
+          namespace_parent=""
+          cleanup_namespace_parent() {
+            namespace_status=$?
+            if [ -n "$namespace_parent" ]; then
+              sudo -n rmdir -- "$namespace_parent" || {
+                echo "Unable to remove readonly namespace parent" >&2
+                return 1
+              }
+            fi
+            return "$namespace_status"
+          }
+          trap cleanup_namespace_parent EXIT
+          namespace_parent="$(sudo -n mktemp -d /tmp/modsecurity-readonly-namespace.XXXXXX)"
+          sudo -n chown root:modsecurity-validator "$namespace_parent"
+          sudo -n chmod 0750 "$namespace_parent"
           namespace_output="$(sudo -n python3 ci/tools/run-readonly-submodule-validation-namespace.py \
             --source-root "$GITHUB_WORKSPACE" \
             --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
@@ -246,7 +261,7 @@ jobs:
             --validator-user modsecurity-validator \
             --validator-group modsecurity-validator \
             --python "$EXPECTED_PYTHON" \
-            --namespace-parent /tmp)"
+            --namespace-parent "$namespace_parent")"
           printf '%s\n' "$namespace_output"
           case "$namespace_output" in
             *READONLY_SUBMODULE_VALIDATION_NAMESPACE_COMPLETE*) ;;

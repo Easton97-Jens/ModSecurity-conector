@@ -57,16 +57,44 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                 HELPER._set_no_new_privs()
 
     def test_cli_requires_all_physical_roots_and_identity(self) -> None:
+        required = [
+            "--source-root", "/source", "--framework-root", "/source/modules/framework",
+            "--write-root", "/write", "--external-root", "/write/external",
+            "--validator-user", "validator", "--validator-group", "validator",
+            "--python", "/usr/bin/python3",
+        ]
+        with self.assertRaises(SystemExit):
+            HELPER.parse_args(required)
         arguments = HELPER.parse_args(
-            [
-                "--source-root", "/source", "--framework-root", "/source/modules/framework",
-                "--write-root", "/write", "--external-root", "/write/external",
-                "--validator-user", "validator", "--validator-group", "validator",
-                "--python", "/usr/bin/python3",
-            ]
+            required + ["--namespace-parent", "/tmp/modsecurity-readonly-namespace.test"]
         )
-        self.assertEqual(arguments.namespace_parent, "/tmp")
+        self.assertEqual(arguments.namespace_parent, "/tmp/modsecurity-readonly-namespace.test")
         self.assertEqual(arguments.external_root, "/write/external")
+
+    def test_namespace_parent_validation_rejects_untrusted_topologies(self) -> None:
+        parent = Path("/tmp/modsecurity-readonly-namespace.test")
+        directory = stat.S_IFDIR
+        valid_tmp = SimpleNamespace(st_mode=directory | 0o1777, st_uid=0, st_gid=0)
+        valid_parent = SimpleNamespace(st_mode=directory | 0o750, st_uid=0, st_gid=4242)
+        with mock.patch.object(
+            HELPER.os, "lstat", side_effect=(valid_tmp, valid_parent)
+        ), mock.patch.object(HELPER.os, "scandir", return_value=[]):
+            HELPER._validate_namespace_parent(parent, 4242)
+        cases = {
+            "bad tmp ancestor": (SimpleNamespace(st_mode=directory | 0o777, st_uid=0, st_gid=0), valid_parent, []),
+            "wrong owner": (valid_tmp, SimpleNamespace(st_mode=directory | 0o750, st_uid=1, st_gid=4242), []),
+            "wrong group": (valid_tmp, SimpleNamespace(st_mode=directory | 0o750, st_uid=0, st_gid=1), []),
+            "wrong mode": (valid_tmp, SimpleNamespace(st_mode=directory | 0o755, st_uid=0, st_gid=4242), []),
+            "nonempty": (valid_tmp, valid_parent, [SimpleNamespace(name="unexpected")]),
+        }
+        with self.assertRaisesRegex(ValueError, "direct child"):
+            HELPER._validate_namespace_parent(Path("/tmp"), 4242)
+        for name, (tmp_metadata, parent_metadata, contents) in cases.items():
+            with self.subTest(name=name), mock.patch.object(
+                HELPER.os, "lstat", side_effect=(tmp_metadata, parent_metadata)
+            ), mock.patch.object(HELPER.os, "scandir", return_value=contents):
+                with self.assertRaises(ValueError):
+                    HELPER._validate_namespace_parent(parent, 4242)
 
     def test_candidate_environment_uses_only_namespace_views_for_sources(self) -> None:
         source = Path("/tmp/task/source")
@@ -113,7 +141,8 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             arguments = HELPER.parse_args(
                 ["--source-root", str(source), "--framework-root", str(framework),
                  "--write-root", str(write), "--external-root", str(external),
-                 "--validator-user", "nobody", "--validator-group", "nogroup", "--python", sys.executable]
+                 "--validator-user", "nobody", "--validator-group", "nogroup", "--python", sys.executable,
+                 "--namespace-parent", "/tmp/modsecurity-readonly-namespace.test"]
             )
             # The topology validation is intentionally tested independently
             # from the production root gate: hosted lint invokes this module
@@ -128,32 +157,32 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "unsafe mount flags"):
                 HELPER._verify_mount(target, readonly=True)
 
-    def test_mount_layout_forces_traversable_root_owned_modes_despite_umask(self) -> None:
+    def test_mount_layout_forces_traversable_root_validator_modes_despite_umask(self) -> None:
         if os.geteuid() != 0:
             self.skipTest("root ownership verification is unavailable")
         with tempfile.TemporaryDirectory() as raw:
+            validator_gid = os.getgid()
             previous_umask = os.umask(0o077)
             try:
-                with mock.patch.object(
-                    HELPER.tempfile, "mkdtemp", wraps=HELPER.tempfile.mkdtemp
-                ) as secure_mkdtemp:
-                    root = HELPER._create_mount_layout(Path(raw))
+                root = HELPER._create_mount_layout(Path(raw), validator_gid)
             finally:
                 os.umask(previous_umask)
             try:
-                secure_mkdtemp.assert_called_once_with(
-                    prefix="modsecurity-readonly-validation-", dir=Path(raw)
-                )
                 self.assertEqual(root.parent, Path(raw))
-                self.assertTrue(root.name.startswith("modsecurity-readonly-validation-"))
+                self.assertEqual(root.name, "mount-root")
                 for path in (root, root / "source", root / "external"):
                     metadata = os.lstat(path)
-                    self.assertEqual((metadata.st_uid, metadata.st_gid), (0, 0))
-                    self.assertEqual(stat.S_IMODE(metadata.st_mode), 0o755)
+                    self.assertEqual((metadata.st_uid, metadata.st_gid), (0, validator_gid))
+                    self.assertEqual(stat.S_IMODE(metadata.st_mode), 0o750)
                     self.assertTrue(stat.S_ISDIR(metadata.st_mode))
                     self.assertFalse(stat.S_ISLNK(metadata.st_mode))
             finally:
                 os.rmdir(root / "source"); os.rmdir(root / "external"); os.rmdir(root)
+
+    def test_launcher_never_uses_tempfile_or_python_chmod_for_mount_layout(self) -> None:
+        launcher = HELPER_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("tempfile", launcher)
+        self.assertNotIn("os.chmod(", launcher)
 
     def test_fixed_candidate_program_keeps_all_isolation_probes_and_pid1_exec(self) -> None:
         program = HELPER._candidate_script()

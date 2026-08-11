@@ -67,7 +67,7 @@ READONLY_SUBMODULE_NAMESPACE_CALL = " ".join(
         "--validator-user modsecurity-validator",
         "--validator-group modsecurity-validator",
         '--python "$EXPECTED_PYTHON"',
-        "--namespace-parent /tmp",
+        '--namespace-parent "$namespace_parent"',
     )
 )
 READONLY_SUBMODULE_SANDBOX_READY = (
@@ -183,6 +183,11 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         "sudo -n useradd --system --no-create-home --shell /usr/sbin/nologin",
         'sudo -n chown root:root "$write_root"',
         'sudo -n chmod 0711 "$write_root"',
+        'namespace_parent="$(sudo -n mktemp -d /tmp/modsecurity-readonly-namespace.XXXXXX)"',
+        'sudo -n chown root:modsecurity-validator "$namespace_parent"',
+        'sudo -n chmod 0750 "$namespace_parent"',
+        "trap cleanup_namespace_parent EXIT",
+        'sudo -n rmdir -- "$namespace_parent"',
         "sandbox_prepare_output=\"$(sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py",
         READONLY_SUBMODULE_SANDBOX_READY,
         "id: prepare-readonly-candidate-sandbox",
@@ -217,6 +222,7 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         "env -i",
         "bash --noprofile --norc -ceu",
         'make PYTHON="$PYTHON" BUILD_ROOT=',
+        "rm -rf",
     )
     for term in forbidden:
         if term in validator:
@@ -231,6 +237,8 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         errors.append("only root-side sandbox preparation may set the workflow umask")
     if "GH_TOKEN" in validator or "secrets." in validator or "github.token" in validator:
         errors.append("validator job must not receive credentials")
+    if "--namespace-parent /tmp" in validator or "--namespace-parent /var/tmp" in validator:
+        errors.append("namespace helper must not use a public namespace parent")
 
     verification_step = validator.partition(
         "- name: Verify candidate source inventory and external outputs"
@@ -255,7 +263,16 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
     errors: list[str] = []
     required = (
         "CLONE_NEWNS | CLONE_NEWPID",
-        'tempfile.mkdtemp(prefix="modsecurity-readonly-validation-", dir=namespace_parent)',
+        'parser.add_argument("--namespace-parent", required=True)',
+        "_validate_namespace_parent(namespace_parent, gid)",
+        "namespace parent must be a direct child of /tmp",
+        "namespace parent requires a root-owned sticky /tmp ancestor",
+        "namespace parent must be root:validator mode 0750",
+        "namespace parent must be empty before mount layout creation",
+        "mount_root = namespace_parent / \"mount-root\"",
+        "os.mkdir(path, mode=0o750)",
+        "os.chown(path, 0, validator_gid, follow_symlinks=False)",
+        "(0, validator_gid, 0o750)",
         "PR_SET_NO_NEW_PRIVS = 38",
         "if LIBC.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:",
         "_set_no_new_privs()",
@@ -298,6 +315,9 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
     for term in required:
         if term not in runner:
             errors.append(f"missing {term}")
+    for term in ("tempfile", "os.chmod("):
+        if term in runner:
+            errors.append(f"namespace runner must not use {term!r}")
     forbidden = (
         "MS_REC | MS_BIND",
         "MNT_DETACH",
@@ -1457,6 +1477,103 @@ jobs:
         self.assertNotIn("GH_TOKEN", validator)
         self.assertNotIn("secrets.", validator)
         self.assertEqual(readonly_submodule_validator_errors(validator), [])
+
+        """Run the exact workflow prelude with a test-local sudo implementation."""
+        workflow_payload = yaml.safe_load(self.workflow("update-submodules.yml"))
+        steps = workflow_payload["jobs"]["validate-submodule-update"]["steps"]
+        candidate_step = next(
+            step for step in steps if step["name"] == "Run quick check in the private read-only namespace"
+        )
+        prelude, separator, _candidate = candidate_step["run"].partition("namespace_output=")
+        expected_prelude = """\
+set -euo pipefail
+namespace_parent=""
+cleanup_namespace_parent() {
+  namespace_status=$?
+  if [ -n "$namespace_parent" ]; then
+    sudo -n rmdir -- "$namespace_parent" || {
+      echo "Unable to remove readonly namespace parent" >&2
+      return 1
+    }
+  fi
+  return "$namespace_status"
+}
+trap cleanup_namespace_parent EXIT
+namespace_parent="$(sudo -n mktemp -d /tmp/modsecurity-readonly-namespace.XXXXXX)"
+sudo -n chown root:modsecurity-validator "$namespace_parent"
+sudo -n chmod 0750 "$namespace_parent"
+"""
+        self.assertTrue(separator)
+        self.assertEqual(prelude, expected_prelude)
+        self.assertNotIn("run-readonly-submodule-validation-namespace.py", prelude)
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            mock_bin = temporary_root / "bin"; mock_bin.mkdir()
+            namespace_root = temporary_root / "namespace-parents"; namespace_root.mkdir()
+            sudo_log = temporary_root / "sudo.log"
+            created_paths = temporary_root / "created-paths.log"
+            mock_sudo = mock_bin / "sudo"
+            mock_sudo.write_text(
+                "\n".join(
+                    (
+                        "#!/bin/sh", "set -eu", "printf '%s\\n' \"$*\" >> \"$MOCK_SUDO_LOG\"",
+                        "test \"$1\" = -n", "shift", "case \"$1\" in",
+                        "  mktemp)",
+                        "    path=\"$(/usr/bin/mktemp -d \"$MOCK_NAMESPACE_ROOT/namespace.XXXXXX\")\"",
+                        "    printf '%s\\n' \"$path\" >> \"$MOCK_CREATED_PATHS\"",
+                        "    printf '%s\\n' \"$path\"", "    ;;",
+                        "  chown|chmod) exit 0 ;;", "  rmdir)", "    shift",
+                        "    if [ \"${MOCK_RMDIR_FAILURE:-0}\" = 1 ]; then exit 73; fi",
+                        "    exec /usr/bin/rmdir \"$@\"", "    ;;",
+                        "  *) echo \"unexpected mocked sudo command: $*\" >&2; exit 99 ;;", "esac", "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            mock_sudo.chmod(0o700)
+
+            def execute(candidate_status: int, *, rmdir_failure: bool = False) -> tuple[subprocess.CompletedProcess[str], Path]:
+                environment = {
+                    **os.environ,
+                    "PATH": f"{mock_bin}:{os.environ['PATH']}",
+                    "MOCK_SUDO_LOG": str(sudo_log),
+                    "MOCK_CREATED_PATHS": str(created_paths),
+                    "MOCK_NAMESPACE_ROOT": str(namespace_root),
+                    "MOCK_RMDIR_FAILURE": "1" if rmdir_failure else "0",
+                    "CANDIDATE_STATUS": str(candidate_status),
+                }
+                environment.pop("BASH_ENV", None)
+                result = subprocess.run(
+                    ["/bin/bash", "-ceu", "\n".join((expected_prelude, 'exit "$CANDIDATE_STATUS"', ""))],
+                    text=True, capture_output=True, env=environment, check=False,
+                )
+                if not created_paths.exists():
+                    self.fail(result.stderr)
+                created = Path(created_paths.read_text(encoding="utf-8").splitlines()[-1])
+                return result, created
+
+            success, success_parent = execute(0)
+            self.assertEqual(success.returncode, 0, success.stderr)
+            self.assertFalse(success_parent.exists())
+
+            candidate_failure, failed_parent = execute(47)
+            self.assertEqual(candidate_failure.returncode, 47, candidate_failure.stderr)
+            self.assertFalse(failed_parent.exists())
+
+            cleanup_failure, retained_parent = execute(0, rmdir_failure=True)
+            try:
+                self.assertNotEqual(cleanup_failure.returncode, 0)
+                self.assertTrue(retained_parent.is_dir())
+            finally:
+                if retained_parent.exists():
+                    retained_parent.rmdir()
+
+            log = sudo_log.read_text(encoding="utf-8")
+            self.assertIn(f"rmdir -- {success_parent}", log)
+            self.assertIn(f"rmdir -- {failed_parent}", log)
+            self.assertIn(f"rmdir -- {retained_parent}", log)
+            self.assertNotIn("rm -rf", log)
         namespace_runner = (
             ROOT / "ci" / "tools" / "run-readonly-submodule-validation-namespace.py"
         ).read_text(encoding="utf-8")
@@ -1497,6 +1614,18 @@ jobs:
             "namespace uses lazy cleanup": (
                 "os.rmdir(path)",
                 "MNT_DETACH",
+            ),
+            "namespace accepts a public parent": (
+                "namespace parent must be root:validator mode 0750",
+                "namespace parent may be public",
+            ),
+            "namespace mount root loses validator traversal": (
+                "os.mkdir(path, mode=0o750)",
+                "os.mkdir(path, mode=0o700)",
+            ),
+            "namespace restores unsafe Python chmod": (
+                "os.chown(path, 0, validator_gid, follow_symlinks=False)",
+                "os.chown(path, 0, validator_gid, follow_symlinks=False)\n    os.chmod(path, 0o755)",
             ),
         }
         for name, (original, replacement) in namespace_mutations.items():
@@ -1541,8 +1670,16 @@ jobs:
                 "--validator-user root",
             ),
             "namespace helper loses its private mount parent": (
+                '--namespace-parent "$namespace_parent"',
                 "--namespace-parent /tmp",
-                "--namespace-parent /var/tmp",
+            ),
+            "namespace parent is not trusted root-created storage": (
+                'namespace_parent="$(sudo -n mktemp -d /tmp/modsecurity-readonly-namespace.XXXXXX)"',
+                'namespace_parent="/tmp/modsecurity-readonly-namespace"',
+            ),
+            "namespace parent cleanup becomes recursive": (
+                'sudo -n rmdir -- "$namespace_parent"',
+                'sudo -n rm -rf -- "$namespace_parent"',
             ),
             "namespace completion marker is not required": (
                 READONLY_SUBMODULE_NAMESPACE_COMPLETE,

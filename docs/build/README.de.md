@@ -202,24 +202,34 @@ beobachtete CI- und Delivery-Evidence.
 ### Schreibgeschützte Candidate-Validierung des Framework-Submodules
 
 `update-submodules.yml` trennt die Candidate-Validierung von der
-Veröffentlichung. Sein Job `validate-submodule-update` wendet `umask 077` vor
-dem Erstellen eines frischen privaten `mktemp`-Roots unterhalb des vom Runner
-bereitgestellten externen Verzeichnisses `RUNNER_TEMP` an. Vertrauenswürdiges
-Root-seitiges Setup tritt danach in einen privaten Mount- und PID-Namespace
-ein. Es setzt zunächst die Mount-Propagation auf `rprivate`, stellt Parent- und
-Framework-Source-Trees einschließlich `.git` nur über nicht-rekursive
-read-only-`nosuid,nodev`-Mounts bereit und stellt nur das physische
-Validator-Verzeichnis `external`, das exakte Child des physischen
-`--write-root`, über einen schreibbaren `nosuid,nodev`-Mount bereit. Der
-root-owned Logical-Mount-Root mit Modus `0755` enthält nur View-Namen; der
-physische Root `external` bleibt validator-owned mit Modus `0700`. Der Candidate
-erhält Parent, Framework und unterstützte Ausgaben über diese logischen
-Namespace-Views; nicht zusammenhängende ambient Host-Pfade werden nicht als
-abwesend behauptet. Er ist PID 1 dieses Namespace, und seine Beendigung wird
-verarbeitet, bevor der Namespace-Lebenszyklus endet; dadurch bleiben keine
-Candidate-Nachzügler zurück. Teardown verwendet weder Lazy-Unmount noch
-`rmtree`; die Root-seitige Host-Verifikation folgt außerhalb des Candidate-
-Namespace. Innerhalb dieses Namespace wendet der Candidate vor
+Veröffentlichung. Sein Job `validate-submodule-update` erstellt ein frisches
+`mktemp -d`-direktes Child
+`/tmp/modsecurity-readonly-namespace.XXXXXX` unter dem sticky `/tmp`, setzt
+dieses Parent anschließend exakt auf `root:modsecurity-validator` mit Modus
+`0750` und übergibt es über das erforderliche Argument `--namespace-parent`.
+Der vertrauenswürdige Launcher weist jede andere Topologie zurück: Das
+übergebene Parent muss ein leeres, nicht-symlinktes direktes Child des
+root-owned sticky `/tmp` mit genau diesem Owner und Modus sein.
+Vertrauenswürdiges Root-seitiges Setup tritt danach in einen privaten Mount- und
+PID-Namespace ein. Es setzt zunächst die Mount-Propagation auf `rprivate`,
+stellt Parent- und Framework-Source-Trees einschließlich `.git` nur über
+nicht-rekursive read-only-`nosuid,nodev`-Mounts bereit und stellt nur das
+physische Validator-Verzeichnis `external`, das exakte Child des physischen
+`--write-root`, über einen schreibbaren `nosuid,nodev`-Mount bereit. Der feste
+logische Mount-Root und seine Platzhalter `source` und `external` sind jeweils
+`root:modsecurity-validator` mit Modus `0750`; sie enthalten nur Namespace-
+View-Namen. Der physische Write-Root bleibt `root:root` mit Modus `0711`, und
+sein exaktes physisches Child `external` bleibt validator-owned mit Modus
+`0700`. Der Candidate erhält Parent, Framework und unterstützte Ausgaben über
+diese logischen Namespace-Views; nicht zusammenhängende ambient Host-Pfade
+werden nicht als abwesend behauptet. Er ist PID 1 dieses Namespace, und seine
+Beendigung wird verarbeitet, bevor der Namespace-Lebenszyklus endet; dadurch
+bleiben keine Candidate-Nachzügler zurück. Teardown verwendet weder Lazy-
+Unmount noch `rmtree`: Der Helper entfernt nur seine exakten leeren Platzhalter
+`mount-root`, `source` und `external` mit nicht-rekursivem `rmdir`, und der
+`EXIT`-Trap des Workflows verwendet für das vertrauenswürdige Namespace-Parent
+ebenfalls nicht-rekursives `rmdir`; die Root-seitige Host-Verifikation folgt
+außerhalb des Candidate-Namespace. Innerhalb dieses Namespace wendet der Candidate vor
 Ausgaben `umask 077` an. Der Root-Workflow ruft den vertrauenswürdigen Launcher
 über `sudo -n python3` auf; der Launcher setzt `PR_SET_NO_NEW_PRIVS` fail-closed,
 entfernt zusätzliche Gruppen, fällt auf GID und UID von
@@ -247,17 +257,17 @@ fünf No-CRS-Normalisierungsfehlern an einer Runtime-Verzeichnis-
 Traversierungsverweigerung. Der Publisher wurde übersprungen. Hier wird kein
 erfolgreicher Rerun, Current-Head-Scan oder Delivery-Ergebnis behauptet.
 
-Für die Namespace-Implementierung liegt lokale Evidence vor.
-`make check-ci-security-contract` führte die Workflow-, Root-Preparer- und
-Namespace-Suites erfolgreich aus: 48 Tests endeten mit drei erwarteten Capability-Skips in
-der normalen Sandbox. Drei privilegierte Regressionen außerhalb dieser Sandbox
-bestanden 3/3: Validator-Schreibzugriff nur auf den realen External-Root, ein
-realer read-only-Bind-Mount sowie PID-1-Terminierung ohne Descendant. Doku-Link-
-und Bilingual-Prüfungen, `py_compile`, actionlint, offline zizmor, targeted
-gitleaks und `git diff --check` bestanden ebenfalls lokal. Dies sind nur lokale
-Implementierungs- und Control-Ergebnisse; sie belegen keinen Current-Head-
-Security-Scan, keine Hosted-Validierung, kein PR-Ergebnis, keinen Merge und
-keine Delivery.
+Die finale lokale Evidence für diese uncommittete Reparatur ist begrenzt: Die
+fokussierten `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v`-Namespace- und
+Workflow-Suites bestanden mit 55 Tests und drei erwarteten Capability-Skips,
+und `PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` bestand mit
+demselben 55/3-Suite-Ergebnis sowie seinen `validate_only`-actionlint-,
+zizmor- und gitleaks-lock-Prüfungen. `make check-bilingual-docs`, no-bytecode
+`py_compile` und `git diff --check` bestanden ebenfalls lokal. Die
+Capability-Skips bedeuten, dass diese Evidence kein privilegierter Runtime-
+Nachweis für Mounts oder die Validator-Identität ist. Sie belegt keinen
+Current-Head-Security-Scan, keine Hosted-Validierung, kein PR-Ergebnis, kein
+SonarQube-Ergebnis, keinen Merge und keine Delivery.
 
 Der manuelle `workflow_dispatch`-Input `validate_only: true` ist ein nicht
 veröffentlichender Exact-Ref-Nachweis-/Revalidierungspfad mit genau zwei
