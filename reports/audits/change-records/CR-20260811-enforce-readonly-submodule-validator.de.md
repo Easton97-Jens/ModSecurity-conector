@@ -8,260 +8,191 @@
 | --- | --- |
 | Change-ID | CR-20260811-enforce-readonly-submodule-validator |
 | Datum (UTC) | 2026-08-11 |
-| Basis-Revision | 4749c02c6dd5e285c4309b4e69b0bb28ae459e48 |
-| Delivery-Status | Implementierungsrecord; finale Exact-Head-Hosted-Validierungs-, Security-Scan- und Delivery-Evidence liegt in der zugehörigen PR- und Scan-Evidence vor |
+| Basis-Revision | `4749c02c6dd5e285c4309b4e69b0bb28ae459e48` |
+| Delivery-Status | Implementierte und lokal validierte Parent-Reparatur; Current-Head-Security-Scan, Hosted-Validierung, PR-Verifikation und Delivery sind noch ausstehend. |
 
 ## Motivation und Problemstellung
 
-Der Framework-Submodule-Updater validiert einen aufgelösten Candidate, bevor
-ein separater Publisher eine Parent-Gitlink-Aktualisierung vorschlagen darf.
-Die Dokumentation für Leser muss die beabsichtigte Dateisystem- und
-Privilegiengrenze korrekt beschreiben, ohne die Implementierungsbeschreibung in
-unbeobachtete Hosted- oder Security-Evidence zu verwandeln. Zusätzlich ist ein
-enger Validate-only-Aufruf für genau zwei vertrauenswürdige Parent-Refs
-erforderlich: den genauen Head des task-eigenen/reviewten Reparatur-Branch
-`fix/ci-enforce-readonly-submodule-validation` vor dem Merge und geschützten
-Parent-`master` erst nach dem Merge dieser Reparatur für die Sandbox-
-Revalidierung des resultierenden `master`, wenn GitHub
-`github.ref_protected == true` meldet, ohne den Publisher ausführbar zu machen.
+Der Framework-Submodule-Updater muss einen nicht vertrauenswürdigen
+Framework-Candidate validieren, ohne ihm Host-seitigen Schreibzugriff auf
+Parent, Framework oder deren Git-Metadaten zu geben. Der frühere Ansatz über
+Host-Pfad-ACLs lieferte für das private Pfadlayout des Hosted-Runners keine
+verlässliche Least-Privilege-Ausführungsgrenze. Die Reparatur verschob die
+Candidate-Ausführung deshalb in einen Root-seitig erstellten privaten Mount- und
+PID-Namespace, statt Host-Ahnen-ACLs zu erweitern.
 
-Der Hosted-Run `31484727901` ist Failure-Evidence und keine erfolgreiche
-Validierung: Vor der Candidate-Ausführung lehnte der ursprüngliche ACL-Precheck
-die bereits vorhandene ACL auf `/home` ab. Die ausstehende enge Reparatur
-bewahrt die schreibgeschützte Source-/Git-Grenze und repariert nur bedingt
-vertrauenswürdige `$RUNNER_TEMP`-Ahnen, die `modsecurity-validator` noch nicht
-durchqueren kann; sie ist keine Evidence erfolgreicher Hosted-Validierung.
+Der Hosted-Run [31488072111](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31488072111)
+ist nur historische Failure-Evidence auf exaktem Head
+`5d7d7bbbbb968aa9755d3c0c67a09d8acd651c77`: Resolver und Sandbox-Setup waren
+erfolgreich, aber der Validator scheiterte während `make quick-check` mit fünf
+No-CRS-Normalisierungsfehlern an einer Runtime-Verzeichnis-
+Traversierungsverweigerung. Der Publisher wurde übersprungen; der Run belegt
+somit keine Branch-, Commit- oder Pull-Request-Mutation. `FND-PARENT-0122` ist
+exakt als P1, bestätigt, `in_progress`, sicherheitsrelevant und
+release-/candidate-integration-blocking erfasst; es gibt keinen fixed- oder
+verified-Status.
 
 ## Akzeptanzkriterien
 
-- Der Validator wendet `umask 077` vor dem Erstellen eines frischen privaten
-  `mktemp`-Roots unter `RUNNER_TEMP` und erneut in der isolierten Candidate-
-  Shell vor Candidate-Ausgaben an; alle unterstützten, legitimen Workflow-
-  Ausgabe-Roots werden unter dem privaten externen Child des Candidate erzwungen.
-- Parent- und Framework-Source-Trees sowie ihre `.git`-Metadaten sind für den
-  Candidate schreibgeschützt.
-- Der Candidate läuft als dedizierte Non-login- und Non-sudo-Identität
-  `modsecurity-validator` über genau einen `sudo -n -u`- / `env -i`-Einstieg.
-- `make quick-check` bleibt unverändert.
-- Der Validator erhält keine Produktions-Schreibrechte; diese bleiben allein
-  dem separaten Publisher vorbehalten.
-- Vertrauenswürdiges Root-seitiges Setup betrachtet nur vertrauenswürdige
-  Ahnen von `$RUNNER_TEMP`, die `modsecurity-validator` noch nicht durchqueren
-  kann, und lässt ACLs bereits durchquerbarer Ahnen unverändert. Jeder
-  veränderte Ahne muss strenge Base-only-ACL-Voraussetzungen erfüllen; das Setup
-  darf genau einen benannten Grant `modsecurity-validator:--x` hinzufügen, muss
-  alle Base-ACL-Einträge unverändert bewahren und Default-ACLs, andere benannte
-  ACL-Einträge sowie Lese- oder Schreibzugriff ablehnen. Source-/Git-Locks,
-  Root-Guard und privates Output-Child bleiben bewahrt.
-- Manueller `workflow_dispatch` mit `validate_only: true` ist auf genau zwei
-  vertrauenswürdige Refs im kanonischen Non-fork-Parent-Repository
-  `Easton97-Jens/ModSecurity-conector` beschränkt: den task-eigenen/reviewten
-  Reparatur-Branch `fix/ci-enforce-readonly-submodule-validation` vor dem
-  Merge und geschützten Parent-`master` erst nach dem Merge dieser Reparatur für
-  die Sandbox-Revalidierung des resultierenden `master` und wenn GitHub
-  `github.ref_protected == true` meldet. Er ist keine Einrichtung zum Ausführen
-  beliebiger nicht vertrauenswürdiger Parent-Refs oder Pull Requests. Jeder
-  erlaubte Pfad verwendet den jeweiligen dispatchten `github.sha`,
-  erzwingt die Validierung auch bei gleichem Candidate und Gitlink und schließt
-  den Publisher von der Ausführung aus.
-- An beiden erlaubten Refs sind Parent-Workflow- und Helper-SHA vor dem
-  Root-seitigen Setup vertrauenswürdig; der Framework-Candidate bleibt nicht
-  vertrauenswürdiger, durch die Sandbox regierter Code. Die Zwei-Ref-Allowlist
-  ist eine Guardrail; der Master-Pfad erfordert zusätzlich
-  `github.ref_protected == true`. Keine der Bedingungen schützt gegen einen
-  feindlichen Writer im selben Repository ohne Branch Protection oder
-  Environment Approval.
-- Die Validate-only-Revalidierung auf geschütztem `master` unterscheidet sich
-  vom autorisierten Updater-Dispatch nach dem Merge auf `master` mit falschem
-  `validate_only`.
-- Vertrauenswürdige Setup-Probes prüfen Parent-/Framework-Schreibablehnung,
-  sudo-Ablehnung und erfolgreiche externe Schreibzugriffe vor dem Quick Check.
-- Ein vollständiges Post-Lock-Source-Inventar von Parent/Framework muss nach
-  dem Quick Check exakt gleich sein, und der externe Validator-Tree muss seinen
-  fail-closed Vertrag für Ownership, Typ, Berechtigungen, symbolische Links und
-  Hard Links erfüllen.
+- Vertrauenswürdiges Root-seitiges Setup erstellt einen privaten Mount- und
+  PID-Namespace, setzt die Mount-Propagation auf `rprivate` und hält dessen
+  Lebenszyklus außerhalb der Candidate-Kontrolle.
+- Der Candidate erhält Parent- und Framework-Sources einschließlich `.git` nur
+  über nicht-rekursive read-only-`nosuid,nodev`-Namespace-Views.
+- Der Candidate erhält eine schreibbare `nosuid,nodev`-Namespace-View nur für
+  das exakte Child `external` des physischen `--write-root`; er sieht logische
+  Namespace-Pfade unter einem root-owned View-Namen-Verzeichnis mit Modus
+  `0755`, während der physische Root `external` validator-owned mit Modus
+  `0700` bleibt und Root-seitige Verifikation die physischen Pfade prüft.
+- Der Candidate ist PID 1 im privaten Namespace; der vertrauenswürdige Launcher
+  verarbeitet seine Beendigung vor dem Ende dieses Namespace, garantiert damit
+  keine Candidate-Nachzügler und führt danach Root-seitige Host-Verifikation
+  durch. Teardown verwendet weder Lazy-Unmount noch `rmtree`.
+- Der Root-Workflow ruft einen vertrauenswürdigen Root-`sudo -n python3`-
+  Launcher auf. Der Launcher setzt `PR_SET_NO_NEW_PRIVS` fail-closed, entfernt
+  zusätzliche Gruppen, fällt auf die Non-login- und Non-sudo-GID und UID von
+  `modsecurity-validator` zurück und führt das feste Candidate-Programm über
+  `execve` mit einer expliziten festen Umgebung statt einer geerbten Runner-
+  Umgebung aus. Dieses Programm führt den unveränderten `make quick-check` aus
+  und erhält keine Publisher- oder Produktions-Schreibberechtigung.
+- Source-Inventar und physische Output-Verifikation bleiben nach Candidate-Ende
+  fail-closed.
+- `validate_only: true` bleibt der bestehende nicht veröffentlichende
+  Exact-Ref-Pfad und darf keine Einrichtung für beliebige nicht vertrauenswürdige
+  Parent-Refs werden.
 - Englische und deutsche Dokumente sowie Change Records enthalten dieselben
-  wesentlichen Fakten und Evidence-Grenzen.
+  wesentlichen Fakten, Evidence-Status und Einschränkungen.
 
 ## Implementierungsentscheidung und Begründung
 
-Der dokumentierte Vertrag wendet `umask 077` vor seinem frischen privaten
-`mktemp`-Root unter `RUNNER_TEMP` und erneut in der isolierten Candidate-Shell
-vor Candidate-Ausgaben an. Ein Root-seitiger Helper sperrt Parent- und
-Framework-Trees sowie ihre `.git`-Metadaten vor der Candidate-Ausführung
-root-owned und nicht beschreibbar, wodurch Source-/Git-Zustand für den
-Candidate unveränderlich ist. Alle unterstützten, legitimen Workflow-Ausgabe-
-Roots werden unter seinem privaten externen Child erzwungen. Der Candidate tritt
-genau einmal über `sudo -n -u` mit `env -i`, ohne User Site und mit externen
-Roots für `HOME`, Git-Konfiguration, pip-Cache, Bytecode-Cache, Build, Logs und
-Caches unter diesem Child ein. Vertrauenswürdige Probes gehen dem unveränderten
-`make quick-check` voraus. Der Validator ist schreibgeschützt; nur der
-separate Publisher behält nach der Validierung die eng begrenzte
-Produktions-Schreibgrenze.
+Die Reparatur verwendet Root-seitige Namespace-Konstruktion, weil x-only
+Host-ACLs für die bestehende Runtime-Pfad-Validierung keine angemessene
+Schnittstelle sind: Das Öffnen eines Verzeichnisses kann Leserecht verlangen,
+obwohl reines Traversieren genügt. Der Root-seitige Launcher setzt `rprivate`,
+bevor er die Candidate-Mount-View erstellt, bind-mountet Parent- und
+Framework-Source-/Git-Zustand read-only, nicht-rekursiv, mit `nosuid,nodev` und
+bind-mountet nur das physische Child `--write-root`/`external` schreibbar mit
+`nosuid,nodev`. Ein root-owned Logical-Mount-Root mit Modus `0755` stellt nur
+die erforderlichen View-Namen bereit; der physische Root `external` bleibt
+validator-owned mit Modus `0700`. Der Launcher setzt `PR_SET_NO_NEW_PRIVS`
+fail-closed, entfernt zusätzliche Gruppen, setzt Candidate-GID und -UID und
+ruft `execve` mit einer expliziten festen Umgebung auf. Der Candidate läuft als
+PID 1 im privaten PID-Namespace. Der Launcher wartet auf und verarbeitet seine
+Beendigung, baut die private View ohne Lazy-Unmount oder `rmtree` ab und
+verifiziert als root physischen Host-Source- und Output-Zustand.
 
-Die ausstehende Reparatur verändert nur bedingt vertrauenswürdige Ahnen von
-`$RUNNER_TEMP`, die `modsecurity-validator` noch nicht durchqueren kann, und
-lässt ACLs bereits durchquerbarer Ahnen unverändert. Sie adressiert den
-historischen Run `31484727901`, der vor der Candidate-Ausführung fehlschlug,
-weil der ursprüngliche ACL-Precheck die bereits vorhandene ACL auf `/home`
-ablehnte. Jeder veränderte Ahne muss strenge Base-only-ACL-Voraussetzungen
-erfüllen; er erhält genau einen benannten Grant `modsecurity-validator:--x`,
-unveränderte Base-ACL-Einträge, keine Default-ACLs oder anderen benannten ACL-
-Einträge und keinen Lese- oder Schreibzugriff. Root-Guard, privates Output-
-Child sowie Parent-/Framework-Source-/Git-Locks bleiben unverändert. Dies ist
-eine abgegrenzte Hosted-Host-Pfad-Reparatur, kein Nachweis allgemeiner Host-
-Isolation oder eines erfolgreichen Reruns.
+Dies erhält den beabsichtigten Output-Vertrag, ohne dem Candidate Host-seitiges
+Traverse- oder List-Recht für Runner-eigene Ahnen zu geben. Parent, Framework
+und unterstützte Ausgaben werden nur über Namespace-Views bereitgestellt;
+nicht zusammenhängende ambient Host-Pfade bleiben außerhalb dieses Contracts.
+Die separate Publisher-Grenze bleibt erhalten; Framework- und MRTS-Source, der
+Parent-Gitlink sowie die Semantik der Make-Targets liegen außerhalb des Scopes.
 
-Für Exact-Head-Nachweis und Revalidierung des resultierenden `master` darf
-manueller `workflow_dispatch` `validate_only: true` nur im kanonischen
-Non-fork-Parent-Repository an genau zwei vertrauenswürdigen Refs setzen: am
-task-eigenen/reviewten Reparatur-Branch
-`fix/ci-enforce-readonly-submodule-validation` vor dem Merge oder am
-geschützten Parent-`master` erst nach dem Merge dieser Reparatur. Ersterer
-liefert den Exact-Head-Nachweis vor dem Merge; letzterer führt die Sandbox auf
-dem resultierenden `master`-Tree erneut aus und erfordert, dass GitHub
-`github.ref_protected == true` meldet. Keiner der Pfade ist eine allgemeine
-Einrichtung zum Ausführen beliebiger nicht vertrauenswürdiger Parent-Refs oder
-Pull Requests. Jeder checkt den jeweiligen dispatchten `github.sha` in Resolver
-und Validator aus, erzwingt den Validierungsjob auch dann, wenn der Framework-
-Candidate dem dispatchten Parent-Gitlink entspricht, und schließt den Publisher
-explizit aus. Er kann weder einen Gitlink-Branch noch einen Pull Request
-erstellen oder aktualisieren. Dies ist keine Sandbox für nicht vertrauenswürdige
-Parent-Pull-Requests/-Refs: An beiden erlaubten Refs sind Parent-Workflow- und
-Helper-SHA vor dem Root-seitigen Setup vertrauenswürdig, während der Framework-
-Candidate nicht vertrauenswürdiger, durch die Sandbox regierter Code bleibt.
-Ein Hosted-Erfolg wäre funktionale Evidence nur für den jeweiligen reviewten
-Reparatur-SHA oder resultierenden geschützten Master-SHA. Die Zwei-Ref-
-Allowlist ist eine Guardrail; der Master-Pfad erfordert zusätzlich
-`github.ref_protected == true`. Keine der Bedingungen schützt gegen einen
-feindlichen Writer im selben Repository ohne Branch Protection oder Environment
-Approval. Der separat autorisierte Updater-Dispatch nach dem Merge
-läuft auf `master` mit falschem `validate_only`; er validiert den Übergang vom
-vertrauenswürdigen Default Branch und darf nach der Validierung den begrenzten
-Publisher erreichen. Keiner der Validate-only-Pfade erteilt
-Veröffentlichungsberechtigung oder ersetzt diesen Updater-Dispatch nach dem
-Merge.
-
-Der Root-seitige Helper inventarisiert beide gesperrten Source-Trees vor der
-Candidate-Ausführung und prüft nach dem Check ihre exakte Gleichheit. Das
-Inventar zeichnet Pfad, Typ, Größe, Modus, UID, GID und Link-Anzahl sowie
-SHA-256 für reguläre Dateien und Link-Text für symbolische Links auf. Separat
-scannt er den externen Tree fail-closed: Zugelassen sind nur dem Validator
-gehörende Directories und reguläre Dateien ohne Group-/Other-Schreibrechte;
-Special Objects, symbolische Links und Hard Links in den Source-Tree werden
-abgewiesen.
-
-Dieser Implementierungsrecord dokumentiert den beabsichtigten Vertrag. Er
-behauptet keine finalen Exact-Head-Hosted-Validierungs-, Security-Scan- oder
-Delivery-Ergebnisse; diese liegen in der zugehörigen PR- und Scan-Evidence vor.
+Der vorhandene `workflow_dispatch`-Input `validate_only: true` bleibt auf den
+vertrauenswürdigen Task-Reparatur-Ref vor dem Merge und geschützten Parent-
+`master` nach dem Merge mit `github.ref_protected == true` beschränkt. Jeder
+erlaubte Pfad verwendet seinen dispatchten `github.sha`, erzwingt Candidate-
+Validierung auch bei gleichem Candidate und Gitlink und macht den Publisher
+ineligible. Dies ist keine Sandbox für nicht vertrauenswürdige Parent-Pull-
+Requests/-Refs: Parent-Workflow und Helper sind vor dem Root-seitigen
+Namespace-Setup vertrauenswürdig, der Framework-Candidate ist die nicht
+vertrauenswürdige Payload.
 
 ## Security-Auswirkung
 
-Die relevante Grenze liegt zwischen nicht vertrauenswürdiger Candidate-Ausführung
-und Parent-/Framework-Source- sowie Git-Zustand. Das dokumentierte Design
-verhindert, dass der Candidate in eines der Repositories oder dessen `.git`-
-Metadaten schreibt, und erzwingt alle unterstützten, legitimen Workflow-
-Ausgabe-Roots unter seinem privaten externen Child. Dies ist kein allgemeiner
-Kernel-Namespace und beweist nicht, dass bösartiger Candidate-Code nicht an
-beliebige nicht zusammenhängende, global world-writable Host-Orte schreiben
-kann. Finale Security-Scan-Evidence wird in diesem Implementierungsrecord nicht
-behauptet und liegt in der zugehörigen Scan-Evidence vor. An beiden erlaubten
-Validate-only-Refs sind Parent-Workflow-/Helper-SHA vor dem Root-seitigen Setup
-vertrauenswürdig; `validate_only` ist keine Sandbox für eine nicht
-vertrauenswürdige Parent-Ref. Seine Zwei-Ref-Allowlist ist kein Schutz gegen
-einen feindlichen Writer im selben Repository; der Master-Pfad erfordert auch
-`github.ref_protected == true`, während dieses Threat Model Branch Protection
-oder Environment Approval erfordert.
+Die relevante Sicherheitsgrenze liegt zwischen nicht vertrauenswürdiger
+Framework-Candidate-Ausführung und Parent-/Framework-Source-/Git-Zustand sowie
+dem Updater-Publisher. Der private Mount-/PID-Namespace verhindert, dass der
+Candidate eine schreibbare Source-View erhält, und beschränkt unterstützte
+Candidate-Ausgaben auf den physischen externen Root, den Root-seitige
+Verifikation prüft. `rprivate` verhindert, dass Candidate-Mount-Änderungen
+über geteilte Mount-Propagation zurückwirken. `nosuid,nodev` reduziert die
+Angriffsfläche der Mount-Views. `PR_SET_NO_NEW_PRIVS` wird vor dem Candidate-
+Identity-Drop fail-closed gesetzt, und der Candidate prüft `NoNewPrivs: 1`.
 
-Die ausstehende ACL-Reparatur hat dieselbe Grenze: Vertrauenswürdiges Root-
-seitiges Setup darf nur vertrauenswürdige `$RUNNER_TEMP`-Ahnen betrachten, die
-der Validator noch nicht durchqueren kann, und lässt bereits durchquerbare ACLs
-unverändert. Für jeden veränderten Ahnen verlangt sie strenge Base-only-ACL-
-Voraussetzungen, genau einen benannten Grant `modsecurity-validator:--x`,
-unveränderte Base-ACL-Einträge und keine Default-ACLs, anderen benannten ACL-
-Einträge, Lese- oder Schreibzugriff. Ihre Wirkung ist auf die in Run
-`31484727901` beobachtete private Hosted-Ahnenbedingung begrenzt, nicht auf
-allgemeine Host-Dateisystemisolation.
+Dies ist keine vollständige Host- oder Kernel-Sicherheitsisolation. Parent,
+Framework und unterstützte Ausgaben sind die einzigen bereitgestellten
+Namespace-Views; nicht zusammenhängende ambient Host-Pfade bleiben außerhalb
+des Contracts. Es beweist nicht, dass bösartiger Candidate-Code jede nicht
+zusammenhängende, global beschreibbare Host-Einrichtung verwenden, einen
+Kernel-Fehler ausnutzen oder eine Prozessgrenze überwinden kann. Die Reparatur
+lockert weder Source-/Git-Locks, Output-Verifikation, Validate-only-Publisher-
+Guardrails, Branch Protection noch Publisher-Berechtigungen.
 
 ## Geänderte Dateien
 
-- `.github/workflows/update-submodules.yml`
-- `ci/tools/prepare-readonly-submodule-validation-sandbox.py`
-- `tests/test_ci_security_workflows.py`
-- `tests/test_prepare_readonly_submodule_validation_sandbox.py`
-- `docs/build/README.md`
-- `docs/build/README.de.md`
-- `reports/audits/change-records/README.md`
-- `reports/audits/change-records/README.de.md`
-- `reports/audits/change-records/CR-20260811-enforce-readonly-submodule-validator.md`
-- `reports/audits/change-records/CR-20260811-enforce-readonly-submodule-validator.de.md`
-
-Die implementierte Grenze liegt in `.github/workflows/update-submodules.yml`
-und `ci/tools/prepare-readonly-submodule-validation-sandbox.py`; Contract-
-Coverage liegt in `tests/test_ci_security_workflows.py` und
-`tests/test_prepare_readonly_submodule_validation_sandbox.py`. Die Änderung
-verändert weder Makefile, Parent-Gitlink, Framework noch MRTS.
+Die implementierte Reparatur ändert den Parent-Validator-Workflow, den
+Root-seitigen Preparer und Namespace-Launcher, fokussierte Contract-Tests sowie
+dieses englische/deutsche Build-Dokumentations- und Change-Record-Paar. Sie
+autorisiert keine Framework- oder MRTS-Änderung, keine Parent-Gitlink-Änderung
+und keine Delivery-Aktion. Die finale exakte Liste geänderter Dateien muss vor
+Delivery mit dem reviewten Reparatur-Head abgeglichen werden.
 
 ## Ausgeführte Befehle
 
-Die folgenden Parent-Prüfungen wurden unabhängig durch die Root-Aufgabe
-ausgeführt und als direkte Evidence gemeldet:
+Für die implementierte Namespace-Reparatur liegt folgende beobachtete lokale
+Evidence vor:
 
-- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_prepare_readonly_submodule_validation_sandbox tests.test_ci_security_workflows` endete mit Exit 0: 38 Tests liefen, 37 bestanden und 1 war ein erwarteter Skip, weil die UID/GID `nobody` im User-Namespace nicht verfügbar ist.
-- `PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` endete mit Exit 0, einschließlich 26 CI-Workflow-Tests und Validate-only-Prüfungen für actionlint, zizmor und den gitleaks-Lock.
-- `make check-bilingual-docs` lief nach der Validate-only-Korrektur zur
-  Protected-master-Enforcement erneut und bestand (`bilingual docs ok`).
-- `git diff --check` endete nach der Validate-only-Korrektur zur Protected-
-  master-Enforcement mit Exit 0 ohne Ausgabe.
+- `make check-ci-security-contract` führte die Workflow-, Root-Preparer- und
+  Namespace-Suites erfolgreich aus: 48 Tests endeten mit drei erwarteten
+  Capability-Skips in der normalen Sandbox. Die Suite deckt den implementierten Workflow-
+  Vertrag, den Root-seitigen Preparer und den Namespace-Launcher ab.
+- Drei privilegierte Regressionen liefen außerhalb der normalen Sandbox und
+  bestanden 3/3: realer Validator-Schreibzugriff nur auf den physischen
+  External-Root, ein realer read-only-Bind-Mount sowie PID-1-Terminierung ohne
+  Descendant.
+- Doku-Link- und Bilingual-Prüfungen bestanden; `py_compile`, actionlint,
+  offline zizmor, targeted gitleaks und `git diff --check` bestanden ebenfalls.
+
+Diese lokalen Ergebnisse validieren Implementierung und fokussierte Controls.
+Sie ersetzen keinen Current-Head-Security-Scan, keine Hosted-Validierung,
+keine PR-Checks, kein SonarQube Cloud, kein Review, keinen Merge, keine
+resulting-master-Validierung und keine Delivery.
 
 ## Runtime-Evidence
 
-Hosted-Run `31484727901` schlug vor der Candidate-Ausführung fehl, weil der
-ursprüngliche ACL-Precheck die bereits vorhandene ACL auf `/home` ablehnte.
-Dies ist Failure-Evidence nur für dieses Precheck-Verhalten. Dieser Record
-behauptet keinen erfolgreichen Rerun und keine finalen Exact-Head-Hosted-
-Runtime- oder Validierungs-, Security-Scan-, Veröffentlichungs-, Pull-Request-,
-Merge- oder anderen Delivery-Ergebnisse.
+Run `31488072111` ist die einzige neu erfasste Hosted-Tatsache in dieser
+Reparaturrunde: Er schlug auf exaktem Head
+`5d7d7bbbbb968aa9755d3c0c67a09d8acd651c77` nach Resolver und Sandbox-Setup
+während des isolierten Quick Checks fehl. Seine Root-seitige Post-Run-Source-/
+Output-Verifikation lief nicht, sein Publisher wurde übersprungen und sein
+Outcome schlug fehl, weil die Validierung fehlschlug. Er ist kein erfolgreicher
+Namespace-Run, Security-Scan, PR-Check, Merge- oder Delivery-Ergebnis.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- `make quick-check` — durch diese Aufgabe unverändert; für den reinen
-  Dokumentations-Scope wurde keine Candidate-Ausführung lokal durchgeführt.
-- Ein erfolgreicher Hosted-Rerun von `update-submodules.yml` einschließlich
-  `validate_only: true` — für diesen Repair-Record nicht beobachtet; der
-  beobachtete Run `31484727901` schlug vor der Candidate-Ausführung fehl und
-  ist daher keine erfolgreiche Repair-Evidence.
-- Security-Scan — finale Security-Scan-Evidence wird hier nicht behauptet und
-  liegt in der zugehörigen Scan-Evidence vor.
-- `make check-bilingual-docs` schlug zunächst fehl, weil diesem Change Record
-  die vom Checker verlangten Überschriften fehlten und der Baseline-Clone nicht
-  initialisierte Framework-Link-Targets enthält; nach der Korrektur bestand der
-  oben dokumentierte erneute Lauf.
+- Ein Current-Head-Security-Scan — bis zum finalen Namespace-Reparatur-Head
+  ausstehend.
+- Ein frischer Hosted-`validate_only`-Run — bis zum finalen Namespace-
+  Reparatur-Head ausstehend.
+- PR-Checks, Review-Disposition, SonarQube-Cloud-Ergebnis, Squash-Merge und
+  resulting-master-Verifikation — bis zu den Current-Head-Scan- und Hosted-
+  Validierungs-Gates ausstehend.
+- Ein Updater-Dispatch nach Merge und Draft-Gitlink-PR — außerhalb dieses
+  Reparaturrecords, bis die Parent-Reparatur gemergt ist und die
+  vertrauenswürdige Default-Branch-Validierung erfolgreich ist.
 
 ## Bekannte Einschränkungen
 
-Der Record dokumentiert die beabsichtigte Grenze anhand der Anforderungen der
-abgegrenzten Implementierung. Er liefert selbst keinen unabhängigen Nachweis
-für Runner-Identitätsverhalten, reparierte ACL-Wirkung,
-Dateisystemberechtigungen oder eine erfolgreiche Hosted-Ausführung an einem
-der erlaubten dispatchten SHAs. Der abgegrenzte Source-/Output-Vertrag und die
-Host-Pfad-ACL-Reparatur sind keine Evidence für allgemeine Host-
-Dateisystemisolation.
+Dieser Record beschreibt ein implementiertes Design mit begrenzter lokaler
+Validierung. Er beweist nicht unabhängig GitHub-hosted-Runner-Verhalten,
+Hosted-Mount-/PID-Namespace-Verfügbarkeit, Current-Head-Source-Integrität oder
+erfolgreiche Hosted-Ausführung. Der Reparatur-Head benötigt weiterhin
+Exact-Head-Security-Scan und Hosted-Validierung.
 
 ## Verbleibende Risiken
 
-Die korrekte Wirkung hängt davon ab, dass die Workflow-Implementierung den
-externen privaten Child weiterhin anlegt und die dedizierte Identität sowie die
-schreibgeschützten Berechtigungen vor der Candidate-Ausführung anwendet. Er
-umfasst keine nicht zusammenhängenden, global world-writable Host-Orte, die
-bösartiger Candidate-Code außerhalb des unterstützten Workflow-Output-Vertrags
-nutzen könnte. Finale Runtime-, Hosted-, Scan- und Delivery-Evidence liegt in
-der zugehörigen PR- und Scan-Evidence vor.
+Die korrekte Wirkung hängt von GitHub-hosted-Linux-Unterstützung für die
+erforderlichen Root-seitigen Namespace- und Mount-Operationen ab sowie davon,
+dass der Launcher bei Setup-, Lifecycle-Cleanup- oder physischer Host-
+Verifikationsstörung fail-closed scheitert. Ein privater Mount-/PID-Namespace
+ist bewusst enger als eine allgemeine Host-Sandbox. `FND-PARENT-0122` bleibt
+offen, bis der Fehler behoben ist und frische lokale, Security- und Hosted-
+Evidence beobachtet wurde.
 
 ## Finaler Diff- und Review-Status
 
-Abgegrenzter Englisch-/Deutsch-Paritäts- und `git diff --check`-Review
-bestanden. Dieser Implementierungsrecord behauptet nur seine lokale
-Dokumentationsvalidierung; finale Hosted-Validierungs-, Security-Scan- und
-Delivery-Evidence für erlaubte Refs liegt in der zugehörigen PR- und Scan-
-Evidence vor.
+Dies ist kein finaler Delivery-Record. Englisch-/Deutsch-Paritäts- und
+Whitespace-Validierung für die aktuelle Dokumentationsänderung bestanden;
+finale Current-Head-Scan-, Hosted-, PR-, Merge- und resulting-master-Evidence
+stehen weiterhin aus.

@@ -228,178 +228,36 @@ jobs:
               exit 1
               ;;
           esac
-          check_runner_temp_ancestor_acl() {
-            local acl_phase="$1"
-            local acl_path="$2"
-            local expected_base="${3-}"
-            local acl_output
-            local acl_base
-            acl_output="$(sudo -n getfacl --absolute-names --omit-header --no-effective -- "$acl_path")"
-            case "$acl_phase" in
-              before)
-                if ! printf '%s\n' "$acl_output" | awk '
-                  BEGIN { valid = 1; user = group = other = 0 }
-                  /^default:/ { valid = 0; next }
-                  /^user:[^:]+:/ { valid = 0; next }
-                  /^group:[^:]+:/ { valid = 0; next }
-                  /^user::[rwx-][rwx-][rwx-]$/ { user++; next }
-                  /^group::[rwx-][rwx-][rwx-]$/ { group++; next }
-                  /^other::[rwx-][rwx-][rwx-]$/ { other++; next }
-                  { valid = 0 }
-                  END { exit !(valid && user == 1 && group == 1 && other == 1) }
-                '; then
-                  printf 'unsafe %s ACL on %s\n' "$acl_phase" "$acl_path" >&2
-                  exit 1
-                fi
-                ;;
-              after)
-                if ! printf '%s\n' "$acl_output" | awk '
-                  BEGIN { valid = 1; user = group = other = mask = validator = 0 }
-                  /^default:/ { valid = 0; next }
-                  /^user::[rwx-][rwx-][rwx-]$/ { user++; next }
-                  /^group::[rwx-][rwx-][rwx-]$/ { group++; next }
-                  /^other::[rwx-][rwx-][rwx-]$/ { other++; next }
-                  /^mask::[r-][w-]x$/ { mask++; next }
-                  /^user:modsecurity-validator:--x$/ { validator++; next }
-                  /^user:[^:]+:/ { valid = 0; next }
-                  /^group:[^:]+:/ { valid = 0; next }
-                  { valid = 0 }
-                  END { exit !(valid && user == 1 && group == 1 && other == 1 && mask == 1 && validator == 1) }
-                '; then
-                  printf 'unsafe %s ACL on %s\n' "$acl_phase" "$acl_path" >&2
-                  exit 1
-                fi
-                ;;
-              *)
-                printf 'unknown ACL check phase %s\n' "$acl_phase" >&2
-                exit 1
-                ;;
-            esac
-            acl_base="$(printf '%s\n' "$acl_output" | awk '
-              /^user::[rwx-][rwx-][rwx-]$/ || /^group::[rwx-][rwx-][rwx-]$/ || /^other::[rwx-][rwx-][rwx-]$/ { print }
-            ')"
-            if [ "$acl_phase" = after ] && [ "$acl_base" != "$expected_base" ]; then
-              printf 'base ACL changed on %s\n' "$acl_path" >&2
-              exit 1
-            fi
-            printf '%s\n' "$acl_base"
-          }
-          runner_temp_ancestors=()
-          runner_temp_ancestor="$RUNNER_TEMP"
-          while [ "$runner_temp_ancestor" != / ]; do
-            runner_temp_ancestors+=("$runner_temp_ancestor")
-            runner_temp_ancestor="$(dirname "$runner_temp_ancestor")"
-          done
-          for ((ancestor_index=${#runner_temp_ancestors[@]} - 1; ancestor_index >= 0; ancestor_index--)); do
-            runner_temp_ancestor="${runner_temp_ancestors[$ancestor_index]}"
-            if sudo -n -u modsecurity-validator test -x "$runner_temp_ancestor"; then
-              continue
-            fi
-            runner_temp_acl_base="$(check_runner_temp_ancestor_acl before "$runner_temp_ancestor")"
-            sudo -n setfacl -m "u:modsecurity-validator:--x" -- "$runner_temp_ancestor"
-            check_runner_temp_ancestor_acl after "$runner_temp_ancestor" "$runner_temp_acl_base" >/dev/null
-          done
           printf 'write_root=%s\n' "$write_root" >> "$GITHUB_OUTPUT"
 
-      - name: Run quick check as the isolated validator
+      - name: Run quick check in the private read-only namespace
+        id: run-readonly-candidate-namespace
+        continue-on-error: true
         env:
           VALIDATION_WRITE_ROOT: ${{ steps.prepare-readonly-candidate-sandbox.outputs.write_root }}
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: |
           set -euo pipefail
-          readonly VALIDATOR_EXTERNAL_ROOT="$VALIDATION_WRITE_ROOT/external"
-          sudo -n -u modsecurity-validator env -i \
-            PATH="$PATH" \
-            PYTHON="$EXPECTED_PYTHON" \
-            HOME="$VALIDATOR_EXTERNAL_ROOT/home" \
-            TMPDIR="$VALIDATOR_EXTERNAL_ROOT/tmp" \
-            TMP="$VALIDATOR_EXTERNAL_ROOT/tmp" \
-            TEMP="$VALIDATOR_EXTERNAL_ROOT/tmp" \
-            XDG_CACHE_HOME="$VALIDATOR_EXTERNAL_ROOT/xdg-cache" \
-            XDG_CONFIG_HOME="$VALIDATOR_EXTERNAL_ROOT/xdg-config" \
-            XDG_DATA_HOME="$VALIDATOR_EXTERNAL_ROOT/xdg-data" \
-            XDG_STATE_HOME="$VALIDATOR_EXTERNAL_ROOT/xdg-state" \
-            PIP_CACHE_DIR="$VALIDATOR_EXTERNAL_ROOT/pip-cache" \
-            PYTHONPYCACHEPREFIX="$VALIDATOR_EXTERNAL_ROOT/pycache" \
-            PYTHONUSERBASE="$VALIDATOR_EXTERNAL_ROOT/python-user-base" \
-            PYTHONPATH="$VALIDATOR_EXTERNAL_ROOT/python-packages" \
-            PYTHONNOUSERSITE=1 \
-            PYTHONDONTWRITEBYTECODE=1 \
-            GIT_CONFIG_GLOBAL="$VALIDATOR_EXTERNAL_ROOT/gitconfig" \
-            GIT_CONFIG_NOSYSTEM=1 \
-            GIT_OPTIONAL_LOCKS=0 \
-            VERIFIED_RUN_ROOT="$VALIDATOR_EXTERNAL_ROOT/verified-run" \
-            VERIFIED_STATE_ROOT="$VALIDATOR_EXTERNAL_ROOT/verified-run/state" \
-            VERIFIED_BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/verified-run/build" \
-            VERIFIED_SOURCE_ROOT="$VALIDATOR_EXTERNAL_ROOT/verified-run/source" \
-            VERIFIED_TMP_ROOT="$VALIDATOR_EXTERNAL_ROOT/verified-run/tmp" \
-            VERIFIED_LOG_ROOT="$VALIDATOR_EXTERNAL_ROOT/verified-run/log" \
-            CACHE_ROOT="$VALIDATOR_EXTERNAL_ROOT/cache" \
-            VERIFIED_COMPONENT_CACHE="$VALIDATOR_EXTERNAL_ROOT/cache/shared" \
-            CONNECTOR_COMPONENT_CACHE="$VALIDATOR_EXTERNAL_ROOT/cache/components" \
-            VERIFIED_EVIDENCE_ROOT="$VALIDATOR_EXTERNAL_ROOT/evidence" \
-            EVIDENCE_ROOT="$VALIDATOR_EXTERNAL_ROOT/evidence/no-crs" \
-            RUNTIME_EVIDENCE_ROOT="$VALIDATOR_EXTERNAL_ROOT/evidence/runtime" \
-            RUNTIME_RUN_ROOT="$VALIDATOR_EXTERNAL_ROOT/runtime" \
-            RUNTIME_LOG_ROOT="$VALIDATOR_EXTERNAL_ROOT/runtime-log" \
-            SOURCE_ROOT="$VALIDATOR_EXTERNAL_ROOT/source" \
-            TMP_ROOT="$VALIDATOR_EXTERNAL_ROOT/tmp-root" \
-            LOG_ROOT="$VALIDATOR_EXTERNAL_ROOT/log" \
-            MATRIX_ROOT="$VALIDATOR_EXTERNAL_ROOT/matrix" \
-            GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
-            FRAMEWORK_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
-            VALIDATION_WRITE_ROOT="$VALIDATION_WRITE_ROOT" \
-            VALIDATOR_EXTERNAL_ROOT="$VALIDATOR_EXTERNAL_ROOT" \
-            bash --noprofile --norc -ceu '
-              umask 077
-              test "$(id -un)" = "modsecurity-validator"
-              test ! -w "$VALIDATION_WRITE_ROOT"
-              test ! -w "$GITHUB_WORKSPACE"
-              test ! -w "$GITHUB_WORKSPACE/.git"
-              test ! -w "$GITHUB_WORKSPACE/.git/modules"
-              test ! -w "$FRAMEWORK_ROOT"
-              test ! -w "$FRAMEWORK_ROOT/.git"
-              if touch "$GITHUB_WORKSPACE/.readonly-validator-write-probe"; then
-                echo "Validator unexpectedly wrote the Parent source tree." >&2
-                exit 1
-              fi
-              if touch "$FRAMEWORK_ROOT/.readonly-validator-write-probe"; then
-                echo "Validator unexpectedly wrote the Framework source tree." >&2
-                exit 1
-              fi
-              if touch "$VALIDATION_WRITE_ROOT/.readonly-validator-guard-probe"; then
-                echo "Validator unexpectedly wrote the sandbox guard root." >&2
-                exit 1
-              fi
-              if sudo -n true >/dev/null 2>&1; then
-                echo "Validator unexpectedly obtained sudo." >&2
-                exit 1
-              fi
-              if /usr/bin/sudo -n true >/dev/null 2>&1; then
-                echo "Validator unexpectedly obtained sudo through its absolute path." >&2
-                exit 1
-              fi
-              mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" \
-                "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$PIP_CACHE_DIR" \
-                "$PYTHONPYCACHEPREFIX" "$PYTHONUSERBASE" "$VALIDATOR_EXTERNAL_ROOT/build" \
-                "$VALIDATOR_EXTERNAL_ROOT/python-packages" "$VERIFIED_STATE_ROOT" \
-                "$VERIFIED_BUILD_ROOT" "$VERIFIED_SOURCE_ROOT" "$VERIFIED_TMP_ROOT" \
-                "$VERIFIED_LOG_ROOT" "$CACHE_ROOT" "$VERIFIED_COMPONENT_CACHE" \
-                "$CONNECTOR_COMPONENT_CACHE" "$VERIFIED_EVIDENCE_ROOT" "$EVIDENCE_ROOT" \
-                "$RUNTIME_EVIDENCE_ROOT" "$RUNTIME_RUN_ROOT" "$RUNTIME_LOG_ROOT" \
-                "$SOURCE_ROOT" "$TMP_ROOT" "$LOG_ROOT" "$MATRIX_ROOT"
-              git config --global --add safe.directory "$GITHUB_WORKSPACE"
-              git config --global --add safe.directory "$FRAMEWORK_ROOT"
-              "$PYTHON" -m pip install --disable-pip-version-check --only-binary=:all: \
-                --require-hashes \
-                --target "$VALIDATOR_EXTERNAL_ROOT/python-packages" \
-                --requirement "$GITHUB_WORKSPACE/ci/requirements/update-submodules-validation-linux-x86_64.txt"
-              touch "$VALIDATOR_EXTERNAL_ROOT/write-probe"
-              test -f "$VALIDATOR_EXTERNAL_ROOT/write-probe"
-              make PYTHON="$PYTHON" BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/build" quick-check
-            '
+          namespace_output="$(sudo -n python3 ci/tools/run-readonly-submodule-validation-namespace.py \
+            --source-root "$GITHUB_WORKSPACE" \
+            --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            --write-root "$VALIDATION_WRITE_ROOT" \
+            --external-root "$VALIDATION_WRITE_ROOT/external" \
+            --validator-user modsecurity-validator \
+            --validator-group modsecurity-validator \
+            --python "$EXPECTED_PYTHON" \
+            --namespace-parent /tmp)"
+          printf '%s\n' "$namespace_output"
+          case "$namespace_output" in
+            *READONLY_SUBMODULE_VALIDATION_NAMESPACE_COMPLETE*) ;;
+            *)
+              echo "Read-only namespace runner did not report COMPLETE." >&2
+              exit 1
+              ;;
+          esac
 
       - name: Verify candidate source inventory and external outputs
+        if: ${{ always() && steps.prepare-readonly-candidate-sandbox.outcome == 'success' }}
         env:
           VALIDATION_WRITE_ROOT: ${{ steps.prepare-readonly-candidate-sandbox.outputs.write_root }}
         run: |
@@ -430,6 +288,16 @@ jobs:
           fi
           sudo -n git -c core.hooksPath=/dev/null diff --check
           sudo -n git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check
+
+      - name: Enforce isolated candidate result after verification
+        if: ${{ always() }}
+        env:
+          SANDBOX_PREPARE_RESULT: ${{ steps.prepare-readonly-candidate-sandbox.outcome }}
+          CANDIDATE_RESULT: ${{ steps.run-readonly-candidate-namespace.outcome }}
+        run: |
+          set -euo pipefail
+          test "$SANDBOX_PREPARE_RESULT" = success
+          test "$CANDIDATE_RESULT" = success
 
   create-submodule-update-pr:
     name: Create submodule update pull request

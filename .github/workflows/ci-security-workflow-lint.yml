@@ -48,7 +48,7 @@ jobs:
             "$RUNNER_TEMP/security-tools/actionlint" "${workflows[@]}"
           fi
       - name: Validate CI-security workflow contracts
-        run: python3 -m unittest -v tests.test_ci_security_workflows
+        run: python3 -m unittest -v tests.test_ci_security_workflows tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace
 
   zizmor:
     runs-on: ubuntu-latest

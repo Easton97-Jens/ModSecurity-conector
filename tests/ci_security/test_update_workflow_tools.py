@@ -961,6 +961,18 @@ jobs:
                     "commit_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                     proposed_lock,
                 )
+                self.assertTrue(
+                    (
+                        proposed_root
+                        / "ci/tools/prepare-readonly-submodule-validation-sandbox.py"
+                    ).is_file()
+                )
+                self.assertTrue(
+                    (
+                        proposed_root
+                        / "ci/tools/run-readonly-submodule-validation-namespace.py"
+                    ).is_file()
+                )
                 self.assert_connector_lock_unchanged(root, source_lock)
                 return subprocess.CompletedProcess(arguments, 0, "", "")
 

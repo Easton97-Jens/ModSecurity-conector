@@ -204,31 +204,60 @@ beobachtete CI- und Delivery-Evidence.
 `update-submodules.yml` trennt die Candidate-Validierung von der
 Veröffentlichung. Sein Job `validate-submodule-update` wendet `umask 077` vor
 dem Erstellen eines frischen privaten `mktemp`-Roots unterhalb des vom Runner
-bereitgestellten externen Verzeichnisses `RUNNER_TEMP` an. Er wendet `umask 077`
-erneut in der isolierten Candidate-Shell vor Candidate-Ausgaben an und führt
-danach `make quick-check` unverändert als die
-dedizierte Non-login- und Non-sudo-Identität `modsecurity-validator` aus. Ein
-vertrauenswürdiger Root-seitiger Helper macht Parent- und Framework-Trees,
-einschließlich ihrer `.git`-Metadaten, vor der Candidate-Ausführung root-owned
-und nicht beschreibbar. Damit sind Parent-/Framework-Source- und Git-Zustand
-für den Candidate unveränderlich, und alle unterstützten, legitimen Workflow-
-Ausgabe-Roots werden unter seinem privaten externen Child erzwungen. Dieser
-abgegrenzte Dateisystemvertrag ist kein allgemeiner Kernel-Namespace und
-beweist nicht, dass bösartiger Candidate-Code nicht an beliebige nicht
-zusammenhängende, global world-writable Host-Orte schreiben kann.
+bereitgestellten externen Verzeichnisses `RUNNER_TEMP` an. Vertrauenswürdiges
+Root-seitiges Setup tritt danach in einen privaten Mount- und PID-Namespace
+ein. Es setzt zunächst die Mount-Propagation auf `rprivate`, stellt Parent- und
+Framework-Source-Trees einschließlich `.git` nur über nicht-rekursive
+read-only-`nosuid,nodev`-Mounts bereit und stellt nur das physische
+Validator-Verzeichnis `external`, das exakte Child des physischen
+`--write-root`, über einen schreibbaren `nosuid,nodev`-Mount bereit. Der
+root-owned Logical-Mount-Root mit Modus `0755` enthält nur View-Namen; der
+physische Root `external` bleibt validator-owned mit Modus `0700`. Der Candidate
+erhält Parent, Framework und unterstützte Ausgaben über diese logischen
+Namespace-Views; nicht zusammenhängende ambient Host-Pfade werden nicht als
+abwesend behauptet. Er ist PID 1 dieses Namespace, und seine Beendigung wird
+verarbeitet, bevor der Namespace-Lebenszyklus endet; dadurch bleiben keine
+Candidate-Nachzügler zurück. Teardown verwendet weder Lazy-Unmount noch
+`rmtree`; die Root-seitige Host-Verifikation folgt außerhalb des Candidate-
+Namespace. Innerhalb dieses Namespace wendet der Candidate vor
+Ausgaben `umask 077` an. Der Root-Workflow ruft den vertrauenswürdigen Launcher
+über `sudo -n python3` auf; der Launcher setzt `PR_SET_NO_NEW_PRIVS` fail-closed,
+entfernt zusätzliche Gruppen, fällt auf GID und UID von
+`modsecurity-validator` zurück und verwendet `execve` mit einer expliziten
+festen Umgebung statt einer geerbten Runner-Umgebung. Anschließend führt der
+Candidate `make quick-check` unverändert als diese dedizierte Non-login- und
+Non-sudo-Identität aus.
 
-Der Hosted-Run `31484727901` ist historische Failure-Evidence und keine
-erfolgreiche Validierung: Vor der Candidate-Ausführung lehnte der ursprüngliche
-ACL-Precheck die bereits vorhandene ACL auf `/home` ab. Die ausstehende enge
-Reparatur betrachtet nur vertrauenswürdige Ahnen von `$RUNNER_TEMP`, die
-`modsecurity-validator` noch nicht durchqueren kann; sie lässt die ACLs bereits
-durchquerbarer Ahnen unverändert. Für jeden Ahnen, den sie verändert, müssen
-weiterhin strenge Base-only-ACL-Voraussetzungen gelten; sie darf genau einen
-benannten Grant `modsecurity-validator:--x` hinzufügen, die Base-ACL-Einträge
-müssen unverändert bleiben, und Default-ACLs, andere benannte ACL-Einträge sowie
-Lese- oder Schreibzugriff sind verboten. Dies bleibt auf diese Hosted-Host-Pfad-
-Bedingung begrenzt und ist erst nach einem separat beobachteten erfolgreichen
-Hosted-Run funktionale Evidence.
+Dies ersetzt Host-Ahnen-ACL-Handling: Der Candidate erhält keinen Host-seitigen
+Traverse- oder Lese-Grant nur, um `RUNNER_TEMP` zu erreichen. Parent, Framework
+und unterstützte Ausgaben werden nur über diese Namespace-Views bereitgestellt;
+Root-seitiges Source-Inventar und Root-seitige Output-Verifikation beschränken
+legitime Ausgaben auf das exakte physische
+`--write-root`/`external`-Containment. Nicht zusammenhängende Host-Pfade
+außerhalb dieses Contracts bleiben ambient erreichbar. Dies ist keine
+vollständige Host- oder Kernel-Sicherheitsisolation und beweist nicht, dass
+bösartiger Candidate-Code nicht nicht zusammenhängende, global beschreibbare
+Host-Einrichtungen verwenden kann.
+
+Der Hosted-Run `31484727901` ist historische Failure-Evidence für den früheren
+ACL-Precheck. Der Hosted-Run `31488072111` ist ebenfalls nur historische
+Failure-Evidence: Auf `5d7d7bbbbb968aa9755d3c0c67a09d8acd651c77` waren Resolver
+und Sandbox-Setup erfolgreich, aber der isolierte Quick Check scheiterte mit
+fünf No-CRS-Normalisierungsfehlern an einer Runtime-Verzeichnis-
+Traversierungsverweigerung. Der Publisher wurde übersprungen. Hier wird kein
+erfolgreicher Rerun, Current-Head-Scan oder Delivery-Ergebnis behauptet.
+
+Für die Namespace-Implementierung liegt lokale Evidence vor.
+`make check-ci-security-contract` führte die Workflow-, Root-Preparer- und
+Namespace-Suites erfolgreich aus: 48 Tests endeten mit drei erwarteten Capability-Skips in
+der normalen Sandbox. Drei privilegierte Regressionen außerhalb dieser Sandbox
+bestanden 3/3: Validator-Schreibzugriff nur auf den realen External-Root, ein
+realer read-only-Bind-Mount sowie PID-1-Terminierung ohne Descendant. Doku-Link-
+und Bilingual-Prüfungen, `py_compile`, actionlint, offline zizmor, targeted
+gitleaks und `git diff --check` bestanden ebenfalls lokal. Dies sind nur lokale
+Implementierungs- und Control-Ergebnisse; sie belegen keinen Current-Head-
+Security-Scan, keine Hosted-Validierung, kein PR-Ergebnis, keinen Merge und
+keine Delivery.
 
 Der manuelle `workflow_dispatch`-Input `validate_only: true` ist ein nicht
 veröffentlichender Exact-Ref-Nachweis-/Revalidierungspfad mit genau zwei
@@ -266,19 +295,21 @@ Keiner der Validate-only-Pfade erteilt Veröffentlichungsberechtigung oder
 ersetzt diesen Updater-Dispatch nach dem Merge.
 
 Diese Grenze ist bewusst enger als ein allgemeines Read-only-Job-Label: Der
-Candidate erhält genau einen `sudo -n -u`-Einstieg mit `env -i`, ohne User Site
-und mit externen Roots für `HOME`, Git-Konfiguration, pip-Cache, Bytecode-Cache,
-Build, Logs und weitere Caches unter diesem privaten externen Child.
-Vertrauenswürdige Setup-Probes prüfen
-Parent-/Framework-Schreibablehnung, sudo-Ablehnung und erfolgreiche externe
-Schreibzugriffe vor dem unveränderten Quick Check. Der Validator behält schreibgeschützte
-Repository-Berechtigungen und kann weder einen Gitlink noch einen Pull Request
-veröffentlichen. Produktions-Schreibrechte bleiben ausschließlich dem
-separaten Publisher-Job nach erfolgreicher Validierung vorbehalten; sie werden
-weder dem Validator noch `make quick-check` erteilt.
+vertrauenswürdige Root-Launcher konstruiert die feste Candidate-Umgebung ohne
+geerbte Runner-Umgebung oder User Site und setzt `HOME`, Git-Konfiguration,
+pip-Cache, Bytecode-Cache, Build, Logs und weitere Caches unter die schreibbare
+Namespace-View des physischen Verzeichnisses `external`. Er setzt
+`PR_SET_NO_NEW_PRIVS` vor dem Identity-Drop fail-closed, und der Candidate prüft
+`NoNewPrivs: 1`. Vertrauenswürdiges Root-seitiges Setup verifiziert Mount-
+Konstruktion und Lebenszyklus; Root-seitige Host-Verifikation prüft nach dem
+Ende des Candidate-Namespace Parent-/Framework-Source-/Git-Zustand und die
+physischen externen Ausgaben. Der Validator kann weder einen Gitlink noch einen
+Pull Request veröffentlichen. Produktions-Schreibrechte bleiben ausschließlich
+dem separaten Publisher-Job nach erfolgreicher Validierung vorbehalten; sie
+werden weder dem Validator noch `make quick-check` erteilt.
 
 Vor dem Candidate-Start zeichnet der Root-seitige Helper ein vollständiges
-Post-Lock-Inventar der Parent- und Framework-Source-Trees auf. Jeder Eintrag
+Source-Inventar der Parent- und Framework-Source-Trees auf. Jeder Eintrag
 enthält Pfad, Typ, Größe, Modus, UID, GID und Link-Anzahl; reguläre Dateien
 enthalten zusätzlich einen SHA-256-Digest und symbolische Links ihren Link-Text.
 Nach `make quick-check` muss der Helper die exakte Gleichheit dieses Inventars
@@ -288,9 +319,10 @@ Validator gehörende Directories und reguläre Dateien ohne Group-/Other-
 Schreibrechte; Special Objects, symbolische Links und Hard Links in den
 Source-Tree werden abgewiesen.
 
-Dies beschreibt den beabsichtigten Workflow-Vertrag und ist keine Evidence für
-einen Hosted Run, einen Security-Scan, ein veröffentlichtes Update oder einen
-Merge. Diese Ergebnisse benötigen separat beobachtete Ausführungs-Evidence.
+Dies beschreibt den implementierten Workflow-Vertrag und seine begrenzte lokale
+Evidence, nicht Evidence für einen Hosted Run, einen Current-Head-Security-Scan,
+ein veröffentlichtes Update oder einen Merge. Diese Ergebnisse benötigen
+separat beobachtete Ausführungs-Evidence.
 
 ## Parent-CI-Go-Toolchain-Vertrag
 

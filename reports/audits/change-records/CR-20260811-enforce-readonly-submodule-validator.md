@@ -8,241 +8,175 @@
 | --- | --- |
 | Change ID | CR-20260811-enforce-readonly-submodule-validator |
 | Date (UTC) | 2026-08-11 |
-| Base revision | 4749c02c6dd5e285c4309b4e69b0bb28ae459e48 |
-| Delivery status | Implementation record; final exact-head hosted-validation, security-scan, and delivery evidence is retained in the associated PR and scan evidence |
+| Base revision | `4749c02c6dd5e285c4309b4e69b0bb28ae459e48` |
+| Delivery status | Implemented and locally validated Parent repair; current-head security scan, hosted validation, PR verification, and delivery remain pending. |
 
 ## Motivation and problem statement
 
-The Framework-submodule updater validates a resolved candidate before a
-separate publisher may propose a Parent gitlink update. Reader documentation
-must accurately state the intended filesystem and privilege boundary without
-turning the implementation description into unobserved hosted or security
-evidence. A narrow validation-only invocation is also required for exactly two
-trusted Parent refs: the exact head of the task-owned/reviewed
-`fix/ci-enforce-readonly-submodule-validation` repair branch before merge, and
-protected Parent `master` only after that repair is merged for resulting-master
-sandbox revalidation when GitHub reports `github.ref_protected == true`, without
-making publication eligible.
+The Framework-submodule updater must validate an untrusted Framework candidate
+without granting it host-level write access to Parent, Framework, or their Git
+metadata. The earlier host-path ACL approach did not provide a reliable
+least-privilege execution boundary for the hosted runner's private path layout.
+The repair therefore moved candidate execution into a root-created private
+mount and PID namespace rather than broadening host-ancestor ACLs.
 
-Hosted run `31484727901` is failure evidence, not a successful validation:
-before candidate execution, the original ACL precheck rejected the pre-existing
-ACL on `/home`. The pending narrow repair preserves the read-only source/Git
-boundary while conditionally repairing only trusted `$RUNNER_TEMP` ancestors
-that `modsecurity-validator` cannot already traverse; it is not successful
-hosted validation evidence.
+Hosted run [31488072111](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31488072111)
+is failure-only historical evidence at exact head
+`5d7d7bbbbb968aa9755d3c0c67a09d8acd651c77`: resolver and sandbox preparation
+succeeded, but the validator failed during `make quick-check` with five no-CRS
+normalization errors at a runtime-directory traversal denial. The publisher was
+skipped, so that run evidences no branch, commit, or pull-request mutation.
+`FND-PARENT-0122` is exactly recorded as P1, confirmed, `in_progress`,
+security-relevant, and release/candidate-integration-blocking; it is neither
+fixed nor verified.
 
 ## Acceptance criteria
 
-- The validator applies `umask 077` before creating a fresh private `mktemp`
-  root under `RUNNER_TEMP` and again inside the isolated candidate shell before
-  candidate output; all supported, legitimate workflow output roots are
-  enforced beneath the candidate's private external child.
-- Parent and Framework source trees and their `.git` metadata are read-only to
-  the candidate.
-- The candidate runs as the dedicated non-login, non-sudo
-  `modsecurity-validator` identity through one `sudo -n -u` / `env -i` entry.
-- `make quick-check` is unchanged.
-- The validator does not receive production write permission; that permission
-  remains only with the separate publisher.
-- Trusted root-side setup considers only trusted ancestors of `$RUNNER_TEMP`
-  that `modsecurity-validator` cannot already traverse, leaving already
-  traversable ancestor ACLs untouched. Every mutated ancestor must satisfy
-  strict base-only ACL preconditions; setup may add exactly one named
-  `modsecurity-validator:--x` grant, preserve all base ACL entries unchanged,
-  and reject default ACLs, other named ACL entries, and read or write access.
-  It preserves the source/Git locks, root guard, and private output child.
-- Manual `workflow_dispatch` with `validate_only: true` is restricted to two
-  trusted refs in the canonical non-fork Parent repository
-  `Easton97-Jens/ModSecurity-conector`: the task-owned/reviewed
-  `fix/ci-enforce-readonly-submodule-validation` repair branch before merge,
-  and protected Parent `master` only after that repair is merged for
-  resulting-master sandbox revalidation and GitHub reports
-  `github.ref_protected == true`. It is not a facility to execute arbitrary
-  untrusted Parent refs or pull requests. Each allowed path uses its dispatched
-  `github.sha`, forces validation even when candidate and gitlink are equal,
-  and makes the publisher ineligible.
-- At both allowed refs, the Parent workflow and helper SHA are trusted before
-  root-side setup; the Framework candidate remains untrusted sandbox-governed
-  code. The two-ref allowlist is a guardrail; the master path additionally
-  requires `github.ref_protected == true`. Neither condition protects against a
-  hostile same-repository writer absent branch protection or environment
-  approval.
-- The protected-master validation-only revalidation is distinct from the
-  authorized post-merge updater dispatch on `master` with `validate_only`
-  false.
-- Trusted setup probes verify Parent/Framework write rejection, sudo rejection,
-  and external-write success before the quick check.
-- A full post-lock Parent/Framework source inventory must be exactly equal
-  after the quick check, and the validator external tree must meet its
-  fail-closed ownership, type, permission, symlink, and hard-link contract.
+- Trusted root-side setup creates a private mount and PID namespace, makes
+  mount propagation `rprivate`, and keeps its lifecycle outside candidate
+  control.
+- The candidate receives Parent and Framework sources, including `.git`, only
+  through non-recursive read-only `nosuid,nodev` namespace views.
+- The candidate receives a writable `nosuid,nodev` namespace view only for the
+  exact `external` child of the physical `--write-root`; it sees logical
+  namespace paths rooted at a root-owned mode-`0755` view-name directory, while
+  the physical `external` root remains validator-owned mode `0700` and
+  root-side verification checks the physical paths.
+- The candidate is PID 1 in the private namespace; the trusted launcher handles
+  candidate completion before ending that namespace, guarantees no candidate
+  stragglers, and then performs root-side host verification. Teardown uses
+  neither lazy unmount nor `rmtree`.
+- The root workflow invokes a trusted root `sudo -n python3` launcher. The
+  launcher fail-closed sets `PR_SET_NO_NEW_PRIVS`, clears supplementary groups,
+  drops to the non-login, non-sudo `modsecurity-validator` GID and UID, and
+  `execve`s the fixed candidate program through an explicit fixed environment,
+  not an inherited runner environment. That program runs unchanged
+  `make quick-check` and receives no publisher or production write authority.
+- Source inventory and physical output verification remain fail-closed after
+  candidate exit.
+- `validate_only: true` remains the existing non-publishing exact-ref path; it
+  must not become a facility for arbitrary untrusted Parent refs.
 - English and German documents and Change Records carry the same material
-  facts and evidence limits.
+  facts, evidence status, and limitations.
 
 ## Implementation decision and rationale
 
-The documented contract applies `umask 077` before its fresh private `mktemp`
-root under `RUNNER_TEMP` and again inside the isolated candidate shell before
-candidate output. A root-side helper locks the Parent and Framework trees and
-their `.git` metadata root-owned and non-writable before candidate execution,
-making source/Git state immutable to the candidate. All supported, legitimate
-workflow output roots are enforced beneath its private external child. The
-candidate enters once through `sudo -n -u` with `env -i`, no user site, and
-external `HOME`, Git configuration, pip cache, bytecode cache, build, log, and
-cache roots beneath that child. Trusted probes precede the
-unchanged `make quick-check`. The validator is read-only; only the separate
-publisher retains the narrowly scoped production-write boundary after
-validation.
+The repair uses root-side namespace construction because x-only host ACLs are
+not an adequate interface for the existing runtime-path validation: opening a
+directory can require read permission even when traversal alone is sufficient.
+The root-side launcher makes propagation `rprivate` before creating the
+candidate mount view, bind-mounts Parent and Framework source/Git state
+read-only, non-recursively, with `nosuid,nodev`, and bind-mounts only the
+physical `--write-root`/`external` child writable with `nosuid,nodev`. A
+root-owned mode-`0755` logical mount root presents only the required view names;
+the physical `external` root remains validator-owned mode `0700`. The launcher
+fail-closed sets `PR_SET_NO_NEW_PRIVS`, clears supplementary groups, drops the
+candidate GID and UID, and calls `execve` with an explicit fixed environment.
+The candidate executes as PID 1 in that private PID namespace. The launcher
+waits for and handles its termination, tears down the private view without lazy
+unmount or `rmtree`, and verifies physical host source and output state as root.
 
-The pending repair conditionally mutates only trusted ancestors of
-`$RUNNER_TEMP` that `modsecurity-validator` cannot already traverse, leaving
-already traversable ancestor ACLs untouched. It addresses historical run
-`31484727901`, which failed before candidate execution because the original ACL
-precheck rejected the pre-existing ACL on `/home`. Every ancestor it mutates
-must pass strict base-only ACL preconditions; it receives exactly one named
-`modsecurity-validator:--x` grant, unchanged base ACL entries, no default ACLs
-or other named ACL entries, and no read or write access. The repair leaves the
-root guard, private output child, and Parent/Framework source/Git locks intact.
-This is a scoped hosted host-path repair, not proof of general host isolation
-or a successful rerun.
+This maintains the intended output contract without granting the candidate a
+host-level traversal or listing right for runner-owned ancestors. Parent,
+Framework, and supported output are presented only through namespace views;
+ambient unrelated host paths remain outside this scoped contract. It preserves
+the separate publisher boundary and leaves Framework and MRTS source, the
+Parent Gitlink, and Make target semantics out of scope.
 
-For exact branch-head proof and resulting-master revalidation, manual
-`workflow_dispatch` may set `validate_only: true` only in the canonical
-non-fork Parent repository at exactly two trusted refs: the task-owned/reviewed
-`fix/ci-enforce-readonly-submodule-validation` repair branch before merge, or
-protected Parent `master` only after that repair is merged. The former provides
-pre-merge exact-head proof; the latter reruns the sandbox on the resulting
-master tree and requires GitHub `github.ref_protected == true`. Neither path is
-a general facility to execute arbitrary untrusted Parent refs or pull requests.
-Each checks out its dispatched `github.sha` in the resolver and validator,
-forces validation even when the Framework candidate equals that dispatched
-Parent gitlink, and explicitly excludes the publisher.
-It cannot create or update a gitlink branch or pull request. It is not an
-untrusted Parent pull-request/ref sandbox: at both allowed refs, the Parent
-workflow and helper SHA are trusted before root-side setup, while the Framework
-candidate remains untrusted sandbox-governed code. A hosted success would be
-functional evidence only for the individual reviewed repair SHA or resulting
-protected-master SHA. The two-ref allowlist is a guardrail; the master path
-additionally requires `github.ref_protected == true`. Neither condition protects
-against a hostile same-repository writer absent branch protection or environment
-approval. The separately authorized post-merge
-updater dispatch runs on `master` with `validate_only` false; it validates the
-trusted-default-branch transition and may reach the constrained publisher after
-validation. Neither validation-only path grants publication authority or
-substitutes for that post-merge updater dispatch.
-
-The root-side helper inventories both locked source trees before candidate
-execution and verifies exact post-check equality. The inventory records path,
-type, size, mode, UID, GID, and link count, plus SHA-256 for regular files and
-link text for symbolic links. It separately fail-closed scans the external
-tree, permitting only validator-owned directories and regular files without
-group/other writes and rejecting special objects, symbolic links, and
-source-tree hard links.
-
-This implementation record documents the intended contract. It does not assert
-final exact-head hosted-validation, security-scan, or delivery results; those
-are retained in the associated PR and scan evidence.
+The existing `workflow_dispatch` input `validate_only: true` stays limited to
+the trusted task repair ref before merge and protected Parent `master` after
+merge with `github.ref_protected == true`. Each allowed path uses its
+dispatched `github.sha`, forces candidate validation even when candidate and
+gitlink match, and makes the publisher ineligible. This is not an untrusted
+Parent pull-request/ref sandbox: Parent workflow and helper code are trusted
+before root-side namespace setup; the Framework candidate is the untrusted
+payload.
 
 ## Security impact
 
-The relevant boundary is untrusted candidate execution versus Parent and
-Framework source/Git state. The documented design prevents the candidate from
-writing either repository or its `.git` metadata and enforces all supported,
-legitimate workflow output roots beneath its private external child. This is
-not a general kernel namespace and does not prove that malicious candidate code
-cannot write arbitrary unrelated globally world-writable host locations. Final
-security-scan evidence is not asserted in this implementation record and is
-retained in the associated scan evidence. At both allowed validation-only refs,
-the Parent workflow/helper SHA is trusted before root-side setup; `validate_only`
-does not sandbox an untrusted Parent ref. Its two-ref allowlist is not
-protection against a hostile same-repository writer; the master path also
-requires `github.ref_protected == true`, while that threat model requires branch
-protection or environment approval.
+The relevant security boundary is untrusted Framework-candidate execution
+against Parent and Framework source/Git state and the updater publisher. The
+private mount/PID namespace prevents the candidate from receiving a writable
+source view and confines supported candidate output to the physical external
+root that root-side verification examines. `rprivate` prevents propagation of
+candidate mount changes back through shared mount propagation. `nosuid,nodev`
+reduces the mount-view attack surface. `PR_SET_NO_NEW_PRIVS` is set fail-closed
+before the candidate identity drop, and the candidate verifies `NoNewPrivs: 1`.
 
-The pending ACL repair has the same boundary: trusted root-side setup may
-consider only trusted `$RUNNER_TEMP` ancestors that the validator cannot
-already traverse, while leaving already traversable ACLs untouched. For every
-mutated ancestor it requires strict base-only ACL preconditions, exactly one
-named `modsecurity-validator:--x` grant, unchanged base ACL entries, and no
-default ACLs, other named ACL entries, read access, or write access. Its effect
-is limited to the hosted private-ancestor condition observed in run
-`31484727901`, not general host filesystem isolation.
+This is not full host or kernel security isolation. Parent, Framework, and
+supported output are the only presented namespace views; unrelated ambient host
+paths remain outside the contract. It does not prove that malicious candidate
+code cannot use every unrelated globally writable host facility, exploit a
+kernel flaw, or escape a process boundary. The repair does not weaken source/Git
+locks, output verification, validation-only publication guardrails, branch
+protection, or publisher permissions.
 
 ## Changed files
 
-- `.github/workflows/update-submodules.yml`
-- `ci/tools/prepare-readonly-submodule-validation-sandbox.py`
-- `tests/test_ci_security_workflows.py`
-- `tests/test_prepare_readonly_submodule_validation_sandbox.py`
-- `docs/build/README.md`
-- `docs/build/README.de.md`
-- `reports/audits/change-records/README.md`
-- `reports/audits/change-records/README.de.md`
-- `reports/audits/change-records/CR-20260811-enforce-readonly-submodule-validator.md`
-- `reports/audits/change-records/CR-20260811-enforce-readonly-submodule-validator.de.md`
-
-The implemented boundary is in `.github/workflows/update-submodules.yml` and
-`ci/tools/prepare-readonly-submodule-validation-sandbox.py`, with contract
-coverage in `tests/test_ci_security_workflows.py` and
-`tests/test_prepare_readonly_submodule_validation_sandbox.py`. The change does
-not modify the Makefile, Parent gitlink, Framework, or MRTS.
+The implemented repair changes the Parent validator workflow, the root-side
+preparer and namespace launcher, focused contract tests, and this English/German
+build documentation and Change Record pair. It does not authorize a Framework
+or MRTS change, a Parent Gitlink change, or a delivery action. The final exact
+changed-file list must be reconciled with the reviewed repair head before
+delivery.
 
 ## Commands executed
 
-The following Parent checks were independently run by the root task and
-reported as direct evidence:
+The implemented namespace repair has the following observed local evidence:
 
-- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_prepare_readonly_submodule_validation_sandbox tests.test_ci_security_workflows` exited 0: 38 tests ran, 37 passed, and 1 was an expected skip because the `nobody` UID/GID is unavailable in the user namespace.
-- `PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` exited 0, including 26 CI-workflow tests and validate-only actionlint, zizmor, and gitleaks-lock checks.
-- `make check-bilingual-docs` reran after the validation-only protected-master
-  enforcement correction and passed (`bilingual docs ok`).
-- `git diff --check` exited 0 without output after the validation-only
-  protected-master enforcement correction.
+- `make check-ci-security-contract` successfully ran the workflow, root-preparer,
+  and namespace suites: 48 tests completed with three expected capability skips
+  in the normal sandbox. The suite covers the implemented workflow contract,
+  root-side preparer, and namespace launcher.
+- Three privileged regressions were run outside the normal sandbox and passed
+  3/3: real validator write-only access to the physical external root, a real
+  read-only bind mount, and PID-1 termination with no descendant.
+- Documentation-link and bilingual checks passed; `py_compile`, actionlint,
+  offline zizmor, targeted gitleaks, and `git diff --check` also passed.
+
+These local results validate the implementation and focused controls. They do
+not substitute for a current-head security scan, a hosted validation, PR checks,
+SonarQube Cloud, review, merge, resulting-master validation, or delivery.
 
 ## Runtime evidence
 
-Hosted run `31484727901` failed before candidate execution because the original
-ACL precheck rejected the pre-existing ACL on `/home`. This is failure evidence
-for that precheck behavior only. This record does not assert a successful
-rerun, final exact-head hosted-runtime or validation, security scan,
-publication, pull-request, merge, or other delivery result.
+Run `31488072111` is the only newly recorded hosted fact in this repair round:
+it failed at exact head `5d7d7bbbbb968aa9755d3c0c67a09d8acd651c77` after
+resolver and sandbox preparation, during the isolated quick check. Its
+root-side post-run source/output verification did not execute, its publisher
+was skipped, and its outcome failed because validation failed. It is not a
+successful namespace run, security scan, PR check, merge, or delivery result.
 
 ## Checks not run and rationale
 
-- `make quick-check` — unchanged by this task; no candidate execution was
-  run locally as part of the supplied evidence.
-- A successful hosted rerun of `update-submodules.yml`, including
-  `validate_only: true` — not observed for this repair record; the observed run
-  `31484727901` failed before candidate execution, so it is not successful
-  repair evidence.
-- Security scan — final security-scan evidence is not asserted here and is
-  retained in the associated scan evidence.
-- `make check-bilingual-docs` initially failed because this Change Record did
-  not have the checker-required headings and the baseline clone has
-  uninitialized Framework link targets; after correction, its rerun passed and
-  is recorded above.
+- A current-head security scan — pending the final namespace repair head.
+- A fresh hosted `validate_only` run — pending the final namespace repair head.
+- PR checks, review disposition, SonarQube Cloud result, squash merge, and
+  resulting-master verification — pending the current-head scan and hosted
+  validation gates.
+- A post-merge updater dispatch and Draft Gitlink PR — outside this repair
+  record until the Parent repair is merged and the trusted default-branch
+  validation succeeds.
 
 ## Known limitations
 
-The record documents the intended boundary from the scoped implementation
-requirements. It does not itself provide independent evidence of runner
-identity behavior, repaired ACL behavior, filesystem permissions, or a
-successful hosted execution at either allowed dispatched SHA. The scoped
-source/output contract and host-path ACL repair are not evidence of general
-host filesystem isolation.
+This record describes an implemented design with bounded local validation. It
+does not independently prove GitHub-hosted runner behavior, hosted mount/PID
+namespace availability, current-head source integrity, or a successful hosted
+execution. The repair head still requires an exact-head security scan and
+hosted validation.
 
 ## Remaining risks
 
-Correct operation depends on the workflow implementation continuing to create
-the external private child and apply the dedicated identity and read-only
-permissions before candidate execution. The contract does not contain
-unrelated globally world-writable host locations that malicious candidate code
-could use outside the supported workflow output contract. Final runtime,
-hosted, scan, and delivery evidence remains in the associated PR and scan
-evidence.
+Correct behavior depends on GitHub-hosted Linux support for the required
+root-side namespace and mount operations, and on the launcher failing closed
+when setup, lifecycle cleanup, or physical host verification fails. A private
+mount/PID namespace is deliberately narrower than a general host sandbox.
+`FND-PARENT-0122` remains open until the failure is remediated and the required
+fresh local, security, and hosted evidence is observed.
 
 ## Final diff and review status
 
-Scoped English/German parity and `git diff --check` review passed. This
-implementation record asserts only its local documentation validation; final
-allowed-ref hosted-validation, security-scan, and delivery evidence is retained
-in the associated PR and scan evidence.
+This is not a final delivery record. English/German parity and whitespace
+validation passed for the current documentation change; final current-head
+scan, hosted, PR, merge, and resulting-master evidence are still pending.

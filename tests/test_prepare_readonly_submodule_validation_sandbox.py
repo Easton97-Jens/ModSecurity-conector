@@ -103,7 +103,9 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         identity = HELPER.resolve_validator_identity(account.pw_name, group.gr_name)
         if not self.identity_is_mapped_in_current_namespace(identity):
             self.skipTest("the nobody identity is unavailable in this user namespace")
-        with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
+        with tempfile.TemporaryDirectory(
+            dir="/tmp", prefix="readonly-sandbox-"
+        ) as raw:
             temporary = Path(raw)
             # The child needs traversal through the disposable fixture parent,
             # but no permission to list or change the guarded write root.
@@ -127,36 +129,16 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
                     os.setuid(identity.uid)
 
                 return subprocess.run(
-                    [sys.executable, "-c", script, str(target)],
+                    ["/bin/sh", "-ceu", script, "readonly-sandbox-probe", str(target)],
                     check=False,
                     preexec_fn=drop_privileges,
                 ).returncode
 
-            cannot_write = (
-                "from pathlib import Path; import sys\n"
-                "try:\n Path(sys.argv[1]).write_text('blocked')\n"
-                "except PermissionError:\n raise SystemExit(0)\n"
-                "raise SystemExit(1)\n"
-            )
-            cannot_list = (
-                "from pathlib import Path; import sys\n"
-                "try:\n list(Path(sys.argv[1]).iterdir())\n"
-                "except PermissionError:\n raise SystemExit(0)\n"
-                "raise SystemExit(1)\n"
-            )
-            cannot_remove = (
-                "from pathlib import Path; import sys\n"
-                "try:\n Path(sys.argv[1]).unlink()\n"
-                "except PermissionError:\n raise SystemExit(0)\n"
-                "raise SystemExit(1)\n"
-            )
-            cannot_chmod = (
-                "from pathlib import Path; import sys\n"
-                "try:\n Path(sys.argv[1]).chmod(0o600)\n"
-                "except PermissionError:\n raise SystemExit(0)\n"
-                "raise SystemExit(1)\n"
-            )
-            can_write = "from pathlib import Path; import sys; Path(sys.argv[1]).write_text('allowed')"
+            cannot_write = 'if touch -- "$1" 2>/dev/null; then exit 1; fi'
+            cannot_list = 'if ls -A -- "$1" >/dev/null 2>&1; then exit 1; fi'
+            cannot_remove = 'if rm -- "$1" 2>/dev/null; then exit 1; fi'
+            cannot_chmod = 'if chmod 600 -- "$1" 2>/dev/null; then exit 1; fi'
+            can_write = 'printf allowed > "$1"'
 
             self.assertEqual(child_exit(cannot_write, source / "candidate-write"), 0)
             self.assertEqual(child_exit(cannot_remove, source / "input.txt"), 0)

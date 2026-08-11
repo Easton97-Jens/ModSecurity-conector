@@ -57,20 +57,25 @@ READONLY_SUBMODULE_SANDBOX_CALL = " ".join(
 )
 READONLY_SUBMODULE_WRITE_ROOT = "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX"
 READONLY_SUBMODULE_EXTERNAL_ROOT = "$VALIDATION_WRITE_ROOT/external"
-READONLY_SUBMODULE_RUNNER_TEMP_ACL = (
-    'sudo -n setfacl -m "u:modsecurity-validator:--x" -- "$runner_temp_ancestor"'
-)
-READONLY_SUBMODULE_RUNNER_TEMP_ACL_INSPECTION = (
-    'sudo -n getfacl --absolute-names --omit-header --no-effective -- "$acl_path"'
-)
-READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK = (
-    'sudo -n -u modsecurity-validator test -x "$runner_temp_ancestor"'
-)
-READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_GATE = (
-    f"if {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK}; then continue fi"
+READONLY_SUBMODULE_NAMESPACE_CALL = " ".join(
+    (
+        "sudo -n python3 ci/tools/run-readonly-submodule-validation-namespace.py",
+        '--source-root "$GITHUB_WORKSPACE"',
+        '--framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"',
+        '--write-root "$VALIDATION_WRITE_ROOT"',
+        '--external-root "$VALIDATION_WRITE_ROOT/external"',
+        "--validator-user modsecurity-validator",
+        "--validator-group modsecurity-validator",
+        '--python "$EXPECTED_PYTHON"',
+        "--namespace-parent /tmp",
+    )
 )
 READONLY_SUBMODULE_SANDBOX_READY = (
     "READONLY_SUBMODULE_VALIDATION_SANDBOX_READY\\ external=*\\ source_inventory_sha256=*"
+)
+READONLY_SUBMODULE_NAMESPACE_COMPLETE = "READONLY_SUBMODULE_VALIDATION_NAMESPACE_COMPLETE"
+READONLY_SUBMODULE_VERIFY_GATE = (
+    "if: ${{ always() && steps.prepare-readonly-candidate-sandbox.outcome == 'success' }}"
 )
 SUBMODULE_VALIDATE_ONLY_INPUT = """\
   workflow_dispatch:
@@ -167,185 +172,151 @@ def has_exact_framework_gitlink_staging(script: str) -> bool:
 
 
 def readonly_submodule_validator_errors(validator: str) -> list[str]:
-    """Return violations of the isolated candidate-validation boundary."""
+    """Return violations of the root-side namespace validation boundary."""
 
     normalized = normalize_shell_script(validator)
     errors: list[str] = []
-    candidate_script = validator.partition("bash --noprofile --norc -ceu")[2].partition(
-        "      - name: Verify candidate source inventory and external outputs"
-    )[0]
     required = (
         READONLY_SUBMODULE_SANDBOX_CALL,
-        "sudo -n -u modsecurity-validator env -i",
+        READONLY_SUBMODULE_NAMESPACE_CALL,
         "sudo -n groupadd --system modsecurity-validator",
         "sudo -n useradd --system --no-create-home --shell /usr/sbin/nologin",
         'sudo -n chown root:root "$write_root"',
         'sudo -n chmod 0711 "$write_root"',
         "sandbox_prepare_output=\"$(sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py",
         READONLY_SUBMODULE_SANDBOX_READY,
-        "check_runner_temp_ancestor_acl() {",
-        READONLY_SUBMODULE_RUNNER_TEMP_ACL_INSPECTION,
-        'runner_temp_ancestors=()',
-        'runner_temp_ancestor="$RUNNER_TEMP"',
-        'while [ "$runner_temp_ancestor" != / ]; do',
-        'runner_temp_ancestors+=("$runner_temp_ancestor")',
-        'for ((ancestor_index=${#runner_temp_ancestors[@]} - 1; ancestor_index >= 0; ancestor_index--)); do',
-        'runner_temp_ancestor="${runner_temp_ancestors[$ancestor_index]}"',
-        READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_GATE,
-        'runner_temp_acl_base="$(check_runner_temp_ancestor_acl before "$runner_temp_ancestor")"',
-        READONLY_SUBMODULE_RUNNER_TEMP_ACL,
-        'check_runner_temp_ancestor_acl after "$runner_temp_ancestor"',
-        'runner_temp_ancestor="$(dirname "$runner_temp_ancestor")"',
-        "bash --noprofile --norc -ceu",
-        'test "$(id -un)" = "modsecurity-validator"',
-        'test ! -w "$VALIDATION_WRITE_ROOT"',
-        'test ! -w "$GITHUB_WORKSPACE"',
-        'test ! -w "$GITHUB_WORKSPACE/.git"',
-        'test ! -w "$GITHUB_WORKSPACE/.git/modules"',
-        'test ! -w "$FRAMEWORK_ROOT"',
-        'test ! -w "$FRAMEWORK_ROOT/.git"',
-        'if touch "$GITHUB_WORKSPACE/.readonly-validator-write-probe"; then',
-        'if touch "$FRAMEWORK_ROOT/.readonly-validator-write-probe"; then',
-        'if touch "$VALIDATION_WRITE_ROOT/.readonly-validator-guard-probe"; then',
-        "if sudo -n true >/dev/null 2>&1; then",
-        "if /usr/bin/sudo -n true >/dev/null 2>&1; then",
-        'touch "$VALIDATOR_EXTERNAL_ROOT/write-probe"',
-        'test -f "$VALIDATOR_EXTERNAL_ROOT/write-probe"',
-        '"$PYTHON" -m pip install --disable-pip-version-check --only-binary=:all:',
-        '--target "$VALIDATOR_EXTERNAL_ROOT/python-packages"',
-        'make PYTHON="$PYTHON" BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/build" quick-check',
-        "PYTHONNOUSERSITE=1",
-        "PYTHONDONTWRITEBYTECODE=1",
-        "GIT_OPTIONAL_LOCKS=0",
-        "TMP=\"$VALIDATOR_EXTERNAL_ROOT/tmp\"",
-        "TEMP=\"$VALIDATOR_EXTERNAL_ROOT/tmp\"",
-        'git config --global --add safe.directory "$GITHUB_WORKSPACE"',
-        'git config --global --add safe.directory "$FRAMEWORK_ROOT"',
-        "umask 077",
-        'write_root="$(mktemp -d "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX")"',
         "id: prepare-readonly-candidate-sandbox",
-        "steps.prepare-readonly-candidate-sandbox.outputs.write_root",
+        "id: run-readonly-candidate-namespace",
+        "continue-on-error: true",
+        READONLY_SUBMODULE_NAMESPACE_COMPLETE,
         "Verify candidate source inventory and external outputs",
+        READONLY_SUBMODULE_VERIFY_GATE,
         "--verify",
         "VALIDATOR SOURCE MUTATION BLOCKED",
         "VALIDATOR WRITE-ROOT CONTRACT BLOCKED",
+        "Enforce isolated candidate result after verification",
+        "SANDBOX_PREPARE_RESULT: ${{ steps.prepare-readonly-candidate-sandbox.outcome }}",
+        "CANDIDATE_RESULT: ${{ steps.run-readonly-candidate-namespace.outcome }}",
+        'test "$SANDBOX_PREPARE_RESULT" = success',
+        'test "$CANDIDATE_RESULT" = success',
         "sudo -n git -c core.hooksPath=/dev/null diff --check",
         'sudo -n git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check',
         "printf 'write_root=%s\\n' \"$write_root\" >> \"$GITHUB_OUTPUT\"",
-        'VALIDATOR_EXTERNAL_ROOT="$VALIDATION_WRITE_ROOT/external"',
     )
     for term in required:
         if term not in normalized:
             errors.append(f"missing {term}")
-    if normalized.count("umask 077") != 2:
-        errors.append("root setup and the isolated candidate must each set umask 077")
-    if candidate_script.count("umask 077") != 1:
-        errors.append("candidate output umask must be set exactly once inside its isolated shell")
-    if normalized.count('runner_temp_ancestor="$(dirname "$runner_temp_ancestor")"') != 1:
-        errors.append("runner-temp ACL ancestor collection must reach the filesystem root")
-    if normalized.count(READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK) != 1:
-        errors.append("each runner-temp ancestor must have one exact validator traverse gate")
+
+    forbidden = (
+        "setfacl",
+        "getfacl",
+        "unshare",
+        "mount ",
+        "umount",
+        "sudo -n -u modsecurity-validator",
+        "env -i",
+        "bash --noprofile --norc -ceu",
+        'make PYTHON="$PYTHON" BUILD_ROOT=',
+    )
+    for term in forbidden:
+        if term in validator:
+            errors.append(f"workflow must delegate {term!r} exclusively to the namespace helper")
+
+    namespace_count = normalized.count(READONLY_SUBMODULE_NAMESPACE_CALL)
+    if namespace_count != 1:
+        errors.append("workflow must invoke the namespace helper exactly once")
+    if normalized.count("prepare-readonly-submodule-validation-sandbox.py") != 2:
+        errors.append("sandbox helper must prepare and physically verify exactly once each")
+    if normalized.count("umask 077") != 1:
+        errors.append("only root-side sandbox preparation may set the workflow umask")
+    if "GH_TOKEN" in validator or "secrets." in validator or "github.token" in validator:
+        errors.append("validator job must not receive credentials")
+
+    verification_step = validator.partition(
+        "- name: Verify candidate source inventory and external outputs"
+    )[2].partition("- name: Enforce isolated candidate result after verification")[0]
+    if READONLY_SUBMODULE_VERIFY_GATE not in verification_step:
+        errors.append("physical verification must follow a failed candidate but not failed preparation")
 
     setup_index = normalized.find(READONLY_SUBMODULE_SANDBOX_CALL)
-    candidate_index = normalized.find("sudo -n -u modsecurity-validator env -i")
-    validator_useradd_index = normalized.find(
-        "sudo -n useradd --system --no-create-home --shell /usr/sbin/nologin"
-    )
-    runner_temp_acl_precheck_index = normalized.find(
-        'check_runner_temp_ancestor_acl before "$runner_temp_ancestor"'
-    )
-    runner_temp_traverse_gate_index = normalized.find(
-        READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_GATE
-    )
-    runner_temp_acl_mutation_index = normalized.find(READONLY_SUBMODULE_RUNNER_TEMP_ACL)
-    runner_temp_acl_postcheck_index = normalized.find(
-        'check_runner_temp_ancestor_acl after "$runner_temp_ancestor"'
-    )
-    write_root_index = normalized.find(
-        'write_root="$(mktemp -d "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX")"'
-    )
-    sandbox_ready_index = normalized.find(READONLY_SUBMODULE_SANDBOX_READY)
-    quick_check_index = normalized.find(
-        "make PYTHON=\"$PYTHON\" BUILD_ROOT=\"$VALIDATOR_EXTERNAL_ROOT/build\" quick-check"
-    )
+    namespace_index = normalized.find(READONLY_SUBMODULE_NAMESPACE_CALL)
     verification_index = normalized.find("Verify candidate source inventory and external outputs")
-    if setup_index < 0 or candidate_index < 0 or setup_index >= candidate_index:
-        errors.append("sandbox setup must precede candidate execution")
-    if (
-        validator_useradd_index < 0
-        or write_root_index < validator_useradd_index
-        or setup_index < write_root_index
-        or sandbox_ready_index < setup_index
-        or runner_temp_traverse_gate_index < sandbox_ready_index
-        or runner_temp_acl_precheck_index < runner_temp_traverse_gate_index
-        or runner_temp_acl_mutation_index < runner_temp_acl_precheck_index
-        or runner_temp_acl_postcheck_index < runner_temp_acl_mutation_index
-        or candidate_index < runner_temp_acl_postcheck_index
+    result_index = normalized.find("Enforce isolated candidate result after verification")
+    if min(setup_index, namespace_index, verification_index, result_index) < 0 or not (
+        setup_index < namespace_index < verification_index < result_index
     ):
-        errors.append(
-            "runner-temp ACL checks must follow a READY sandbox helper and bracket each mutation"
-        )
-    root_prepare = validator.partition("      - name: Run quick check as the isolated validator")[0]
-    setfacl_commands = [
-        command.strip()
-        for command in re.findall(r"(?m)^\s*sudo -n setfacl[^\n]*", root_prepare)
-    ]
-    if setfacl_commands != [READONLY_SUBMODULE_RUNNER_TEMP_ACL]:
-        errors.append("runner-temp ACL repair must have one exact named-user setfacl mutation")
-    if any(
-        forbidden in root_prepare
-        for forbidden in (
-            "setfacl -R",
-            "setfacl --recursive",
-            "setfacl -d",
-            "setfacl --default",
-            "setfacl -b",
-            "setfacl --remove-all",
-        )
-    ):
-        errors.append("runner-temp ACL repair must not recurse, set defaults, or erase ACLs")
-    if "^default:" not in root_prepare or "^group:[^:]+:" not in root_prepare:
-        errors.append("runner-temp ACL inspection must reject default and named-group ACLs")
-    if "^user:modsecurity-validator:--x$" not in root_prepare:
-        errors.append("runner-temp ACL inspection must require the exact validator ACL")
-    if "^mask::[r-][w-]x$" not in root_prepare:
-        errors.append("runner-temp ACL inspection must require an execute-capable ACL mask")
-    if "mask::--x" in root_prepare:
-        errors.append("runner-temp ACL repair must not narrow pre-existing base permissions")
-    if '[ "$acl_base" != "$expected_base" ]' not in root_prepare:
-        errors.append("runner-temp ACL inspection must preserve base ACL entries")
-    if candidate_script.count("setfacl") != 0:
-        errors.append("candidate code must not modify ACLs")
-    if candidate_index < 0 or quick_check_index < candidate_index:
-        errors.append("quick check must execute inside the validator boundary")
-    candidate_umask_index = candidate_script.find("umask 077")
-    candidate_quick_check_index = candidate_script.find(
-        "make PYTHON=\"$PYTHON\" BUILD_ROOT=\"$VALIDATOR_EXTERNAL_ROOT/build\" quick-check"
-    )
-    if (
-        candidate_umask_index < 0
-        or candidate_quick_check_index < 0
-        or candidate_umask_index >= candidate_quick_check_index
-    ):
-        errors.append("candidate output umask must precede candidate writes and quick check")
-    if verification_index < 0 or quick_check_index < 0 or verification_index <= quick_check_index:
-        errors.append("inventory and external-output verification must follow candidate execution")
-    if normalized.count("sudo -n -u modsecurity-validator env -i") != 1:
-        errors.append("candidate execution must have one validator sudo boundary")
-    if "sudo -E" in normalized or "sudo bash" in normalized or "sudo sh" in normalized:
-        errors.append("candidate sudo boundary preserves or expands privileges")
-    if "--validator-user root" in normalized or "--validator-group root" in normalized:
-        errors.append("validator identity is privileged")
-    candidate_sudo_commands = [
-        command.strip()
-        for command in re.findall(r"(?m)^\s*(?:if )?(?:sudo|/usr/bin/sudo)[^\n]*", candidate_script)
-    ]
-    if candidate_sudo_commands != [
-        "if sudo -n true >/dev/null 2>&1; then",
-        "if /usr/bin/sudo -n true >/dev/null 2>&1; then",
-    ]:
-        errors.append("candidate code must only use sudo paths for denied-access probes")
+        errors.append("root preparation, namespace candidate, physical verification, and result gate must be ordered")
     return errors
+
+
+def readonly_namespace_runner_errors(runner: str) -> list[str]:
+    """Return violations of the trusted private namespace launcher contract."""
+
+    errors: list[str] = []
+    required = (
+        "CLONE_NEWNS | CLONE_NEWPID",
+        "PR_SET_NO_NEW_PRIVS = 38",
+        "if LIBC.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:",
+        "_set_no_new_privs()",
+        '_mount(None, Path("/"), MS_REC | MS_PRIVATE)',
+        "_mount(str(source), source_view, MS_BIND)",
+        "MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV",
+        "_mount(str(external), external_view, MS_BIND)",
+        "MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV",
+        "_verify_mount(source_view, readonly=True)",
+        "_verify_mount(external_view, readonly=False)",
+        "os.setgroups([]); os.setgid(gid); os.setuid(uid); os.chdir(source)",
+        "os.execve(\"/bin/bash\"",
+        "READONLY_SUBMODULE_VALIDATION_NAMESPACE_COMPLETE",
+        "if _mountinfo_for(mount_root) != before:",
+        "os.rmdir(path)",
+        'test "$PWD" = "$GITHUB_WORKSPACE"',
+        "/proc/self/status)",
+        "0000000000000000",
+        "NoNewPrivs:",
+        'if /usr/bin/mount -o remount,rw "$GITHUB_WORKSPACE"',
+        '"HOME": str(root / "home")',
+        '"TMPDIR": str(root / "tmp")',
+        '"XDG_CACHE_HOME": str(root / "xdg-cache")',
+        '"PIP_CACHE_DIR": str(root / "pip-cache")',
+        '"PYTHONPYCACHEPREFIX": str(root / "pycache")',
+        '"PYTHONUSERBASE": str(root / "python-user-base")',
+        '"PYTHONPATH": str(root / "python-packages")',
+        '"GIT_CONFIG_GLOBAL": str(root / "gitconfig")',
+        '"VERIFIED_RUN_ROOT": str(root / "verified-run")',
+        '"CACHE_ROOT": str(root / "cache")',
+        '"VERIFIED_EVIDENCE_ROOT": str(root / "evidence")',
+        '"RUNTIME_RUN_ROOT": str(root / "runtime")',
+        '"SOURCE_ROOT": str(root / "source")',
+        '"MATRIX_ROOT": str(root / "matrix")',
+        ".readonly-validator-write-probe",
+        "validator obtained sudo",
+        'exec make PYTHON="$PYTHON" BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/build" quick-check',
+        '--target "$PYTHONPATH" --requirement "$GITHUB_WORKSPACE/ci/requirements/update-submodules-validation-linux-x86_64.txt"',
+    )
+    for term in required:
+        if term not in runner:
+            errors.append(f"missing {term}")
+    forbidden = (
+        "MS_REC | MS_BIND",
+        "MNT_DETACH",
+        "shutil.",
+        "rmtree",
+        "subprocess",
+        "shell=True",
+        "os.system",
+    )
+    for term in forbidden:
+        if term in runner:
+            errors.append(f"namespace runner must not use {term}")
+    if runner.count("_mount(str(source), source_view, MS_BIND)") != 1:
+        errors.append("namespace runner must create exactly one non-recursive source bind")
+    if runner.count("_mount(str(external), external_view, MS_BIND)") != 1:
+        errors.append("namespace runner must create exactly one non-recursive output bind")
+    if runner.count("_umount(external_view); _umount(source_view)") != 1:
+        errors.append("namespace runner must synchronously unmount both exact views")
+    return errors
+
 
 EXPECTED_WRITE_PERMISSIONS = {
     ("cleanup-artifacts.yml", "cleanup-artifacts"): {"actions": "write"},
@@ -1465,13 +1436,12 @@ jobs:
             SUBMODULE_VALIDATOR_GATE,
         )
         self.assertIn("submodules: recursive", validator)
-        self.assertIn('make PYTHON="$PYTHON" BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/build" quick-check', validator)
+        self.assertIn(READONLY_SUBMODULE_NAMESPACE_CALL, normalize_shell_script(validator))
         self.assertIn("remote get-url origin", validator)
         self.assertIn("merge-base --is-ancestor", validator)
         self.assertIn("checkout --detach", validator)
         self.assertIn("submodule update --init --recursive", validator)
         self.assertIn("status --porcelain", validator)
-        dependency_install = '"$PYTHON" -m pip install --disable-pip-version-check --only-binary=:all:'
         dependency_lock = (
             ROOT / "ci" / "requirements" / "update-submodules-validation-linux-x86_64.txt"
         ).read_text(encoding="utf-8")
@@ -1481,193 +1451,100 @@ jobs:
             dependency_lock,
         )
         self.assertNotIn("PyYAML>=", dependency_lock)
-        self.assertIn(dependency_install, validator)
         self.assertIn("EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}", validator)
-        self.assertIn('PYTHON="$EXPECTED_PYTHON"', validator)
-        self.assertIn('--target "$VALIDATOR_EXTERNAL_ROOT/python-packages"', validator)
-        self.assertIn("--require-hashes", validator)
-        self.assertIn(
-            '--requirement "$GITHUB_WORKSPACE/ci/requirements/update-submodules-validation-linux-x86_64.txt"',
-            validator,
-        )
         self.assertNotIn("GH_TOKEN", validator)
         self.assertNotIn("secrets.", validator)
         self.assertEqual(readonly_submodule_validator_errors(validator), [])
+        namespace_runner = (
+            ROOT / "ci" / "tools" / "run-readonly-submodule-validation-namespace.py"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(readonly_namespace_runner_errors(namespace_runner), [])
+        namespace_mutations = {
+            "namespace loses PID isolation": (
+                "CLONE_NEWNS | CLONE_NEWPID",
+                "CLONE_NEWNS",
+            ),
+            "namespace propagation is not private": (
+                '_mount(None, Path("/"), MS_REC | MS_PRIVATE)',
+                '_mount(None, Path("/"), MS_REC)',
+            ),
+            "candidate can gain new privileges": (
+                "if LIBC.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:",
+                "if False:",
+            ),
+            "candidate does not prove no-new-privileges": (
+                "NoNewPrivs:",
+                "NoNewPrivileges:",
+            ),
+            "source is recursively bound": (
+                "_mount(str(source), source_view, MS_BIND)",
+                "_mount(str(source), source_view, MS_REC | MS_BIND)",
+            ),
+            "source loses read-only remount": (
+                "MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV",
+                "MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV",
+            ),
+            "output loses device restriction": (
+                "MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV",
+                "MS_BIND | MS_REMOUNT | MS_NOSUID",
+            ),
+            "candidate retains root identity": (
+                "os.setgroups([]); os.setgid(gid); os.setuid(uid); os.chdir(source)",
+                "os.chdir(source)",
+            ),
+            "namespace uses lazy cleanup": (
+                "os.rmdir(path)",
+                "MNT_DETACH",
+            ),
+        }
+        for name, (original, replacement) in namespace_mutations.items():
+            with self.subTest(name=name):
+                self.assertIn(original, namespace_runner)
+                mutated_runner = namespace_runner.replace(original, replacement, 1)
+                self.assertNotEqual(readonly_namespace_runner_errors(mutated_runner), [])
         self.assertLess(
             validator.index("Prepare dedicated read-only candidate sandbox"),
-            validator.index("Run quick check as the isolated validator"),
+            validator.index("Run quick check in the private read-only namespace"),
         )
         self.assertLess(
-            validator.index("Run quick check as the isolated validator"),
+            validator.index("Run quick check in the private read-only namespace"),
             validator.index("Verify candidate source inventory and external outputs"),
         )
         self.assertLess(
             validator.index("Check out the resolved descendant revision"),
             validator.index("Prepare dedicated read-only candidate sandbox"),
         )
-        self.assertLess(
-            validator.index("Prepare dedicated read-only candidate sandbox"),
-            validator.index(dependency_install),
-        )
-        self.assertLess(
-            validator.index(dependency_install),
-            validator.index("make PYTHON="),
-        )
         self.assertIn(READONLY_SUBMODULE_SANDBOX_CALL, normalize_shell_script(validator))
         self.assertIn(READONLY_SUBMODULE_WRITE_ROOT, validator)
         self.assertIn(READONLY_SUBMODULE_EXTERNAL_ROOT, validator)
-        for mutable_root in (
-            "HOME",
-            "TMPDIR",
-            "XDG_CACHE_HOME",
-            "XDG_CONFIG_HOME",
-            "XDG_DATA_HOME",
-            "XDG_STATE_HOME",
-            "PIP_CACHE_DIR",
-            "PYTHONPYCACHEPREFIX",
-            "PYTHONUSERBASE",
-            "GIT_CONFIG_GLOBAL",
-            "TMP",
-            "TEMP",
-            "VERIFIED_RUN_ROOT",
-            "VERIFIED_STATE_ROOT",
-            "VERIFIED_BUILD_ROOT",
-            "VERIFIED_SOURCE_ROOT",
-            "VERIFIED_TMP_ROOT",
-            "VERIFIED_LOG_ROOT",
-            "CACHE_ROOT",
-            "VERIFIED_COMPONENT_CACHE",
-            "CONNECTOR_COMPONENT_CACHE",
-            "VERIFIED_EVIDENCE_ROOT",
-            "EVIDENCE_ROOT",
-            "RUNTIME_EVIDENCE_ROOT",
-            "RUNTIME_RUN_ROOT",
-            "RUNTIME_LOG_ROOT",
-            "SOURCE_ROOT",
-            "TMP_ROOT",
-            "LOG_ROOT",
-            "MATRIX_ROOT",
-        ):
-            self.assertRegex(
-                validator,
-                rf"{mutable_root}=\"\$VALIDATOR_EXTERNAL_ROOT(?:/[^\"]*)?\"",
-            )
+        self.assertNotIn("setfacl", validator)
+        self.assertNotIn("getfacl", validator)
+        self.assertNotIn("sudo -n -u modsecurity-validator", validator)
 
         validator_mutations = {
-            "missing sandbox helper": (
-                "prepare-readonly-submodule-validation-sandbox.py",
-                "prepare-readonly-submodule-validation-sandbox.removed.py",
+            "namespace helper removed": (
+                "run-readonly-submodule-validation-namespace.py",
+                "run-readonly-submodule-validation-namespace.removed.py",
             ),
-            "privileged validator": (
+            "namespace helper loses the physical guard root": (
+                '--write-root "$VALIDATION_WRITE_ROOT"',
+                '--write-root /tmp/validator-guard',
+            ),
+            "namespace helper loses the physical external root": (
+                '--external-root "$VALIDATION_WRITE_ROOT/external"',
+                '--external-root /tmp/validator-output',
+            ),
+            "namespace helper loses the unprivileged user": (
                 "--validator-user modsecurity-validator",
                 "--validator-user root",
             ),
-            "root guard permits candidate writes": (
-                'sudo -n chmod 0711 "$write_root"',
-                'sudo -n chmod 0777 "$write_root"',
+            "namespace helper loses its private mount parent": (
+                "--namespace-parent /tmp",
+                "--namespace-parent /var/tmp",
             ),
-            "guard root is not created under a private umask": (
-                "umask 077",
-                "umask 022",
-            ),
-            "validator has a login shell": (
-                "--shell /usr/sbin/nologin",
-                "--shell /bin/bash",
-            ),
-            "runner-temp traversal ACL removed": (
-                READONLY_SUBMODULE_RUNNER_TEMP_ACL,
-                "true",
-            ),
-            "runner-temp traverse gate removed": (
-                READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK,
-                "false",
-            ),
-            "runner-temp traverse gate inverted": (
-                f"if {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK}; then",
-                f"if ! {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK}; then",
-            ),
-            "runner-temp traverse gate uses the wrong access predicate": (
-                READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK,
-                'sudo -n -u modsecurity-validator test -r "$runner_temp_ancestor"',
-            ),
-            "runner-temp traverse gate accepts a failed access test": (
-                f"if {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK}; then",
-                f"if {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK} || true; then",
-            ),
-            "runner-temp traverse gate runs as root": (
-                READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK,
-                'sudo -n -u root test -x "$runner_temp_ancestor"',
-            ),
-            "runner-temp ACL precondition runs before traverse gate": (
-                f"if {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK}; then\n"
-                "              continue\n"
-                "            fi\n"
-                '            runner_temp_acl_base="$(check_runner_temp_ancestor_acl before "$runner_temp_ancestor")"',
-                'runner_temp_acl_base="$(check_runner_temp_ancestor_acl before "$runner_temp_ancestor")"\n'
-                f"            if {READONLY_SUBMODULE_RUNNER_TEMP_TRAVERSE_CHECK}; then\n"
-                "              continue\n"
-                "            fi",
-            ),
-            "runner-temp traversal ACL widens permissions": (
-                READONLY_SUBMODULE_RUNNER_TEMP_ACL,
-                'sudo -n setfacl -m "u:modsecurity-validator:rwx" "$runner_temp_ancestor"',
-            ),
-            "runner-temp traversal ACL has a broad subject": (
-                READONLY_SUBMODULE_RUNNER_TEMP_ACL,
-                'sudo -n setfacl -m "u:another-user:--x" "$runner_temp_ancestor"',
-            ),
-            "runner-temp traversal ACL creates a default ACL": (
-                READONLY_SUBMODULE_RUNNER_TEMP_ACL,
-                'sudo -n setfacl -d -m "u:modsecurity-validator:--x" "$runner_temp_ancestor"',
-            ),
-            "runner-temp traversal ACL has an additional mutation": (
-                READONLY_SUBMODULE_RUNNER_TEMP_ACL,
-                READONLY_SUBMODULE_RUNNER_TEMP_ACL
-                + '\n          sudo -n setfacl -m "u:modsecurity-validator:--x" "$write_root"',
-            ),
-            "sandbox helper readiness is not required": (
-                READONLY_SUBMODULE_SANDBOX_READY,
-                "READONLY_SUBMODULE_VALIDATION_SANDBOX_NOT_READY",
-            ),
-            "runner-temp traversal ACL loop does not reach ancestors": (
-                'runner_temp_ancestor="$(dirname "$runner_temp_ancestor")"',
-                "break",
-            ),
-            "candidate without scrubbed environment": (
-                "sudo -n -u modsecurity-validator env -i",
-                "sudo -n -u modsecurity-validator",
-            ),
-            "source lock probe removed": (
-                'test ! -w "$GITHUB_WORKSPACE/.git"',
-                "test -d \"$GITHUB_WORKSPACE/.git\"",
-            ),
-            "git modules lock probe removed": (
-                'test ! -w "$GITHUB_WORKSPACE/.git/modules"',
-                "true",
-            ),
-            "candidate source write accepted": (
-                'if touch "$GITHUB_WORKSPACE/.readonly-validator-write-probe"; then',
-                "if false; then",
-            ),
-            "validator sudo check removed": (
-                "if sudo -n true >/dev/null 2>&1; then",
-                "if false; then",
-            ),
-            "validator absolute sudo check removed": (
-                "if /usr/bin/sudo -n true >/dev/null 2>&1; then",
-                "if false; then",
-            ),
-            "external write probe removed": (
-                'touch "$VALIDATOR_EXTERNAL_ROOT/write-probe"',
-                "true",
-            ),
-            "quick check outside private build root": (
-                'make PYTHON="$PYTHON" BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/build" quick-check',
-                "make quick-check",
-            ),
-            "candidate dependency installed globally": (
-                '--target "$VALIDATOR_EXTERNAL_ROOT/python-packages"',
-                "--target /usr/local/lib/python3.14/site-packages",
+            "namespace completion marker is not required": (
+                READONLY_SUBMODULE_NAMESPACE_COMPLETE,
+                "READONLY_SUBMODULE_VALIDATION_NAMESPACE_NOT_COMPLETE",
             ),
             "post-candidate source verification removed": (
                 "Verify candidate source inventory and external outputs",
@@ -1677,6 +1554,21 @@ jobs:
                 "--verify",
                 "--inspect",
             ),
+            "verification no longer runs after candidate failure": (
+                "- name: Verify candidate source inventory and external outputs\n"
+                "        " + READONLY_SUBMODULE_VERIFY_GATE,
+                "- name: Verify candidate source inventory and external outputs\n"
+                "        if: ${{ success() }}",
+            ),
+            "candidate result is not enforced after verification": (
+                'test "$CANDIDATE_RESULT" = success',
+                "true",
+            ),
+            "workflow regains ACL mutation": (
+                "printf 'write_root=%s\\n' \"$write_root\" >> \"$GITHUB_OUTPUT\"",
+                "printf 'write_root=%s\\n' \"$write_root\" >> \"$GITHUB_OUTPUT\"\n"
+                '          sudo -n setfacl -m "u:modsecurity-validator:--x" -- "$RUNNER_TEMP"',
+            ),
         }
         for name, (original, replacement) in validator_mutations.items():
             with self.subTest(name=name):
@@ -1684,12 +1576,12 @@ jobs:
                 mutated = validator.replace(original, replacement, 1)
                 self.assertNotEqual(readonly_submodule_validator_errors(mutated), [])
 
-        candidate_umask_prefix, candidate_umask, candidate_umask_suffix = validator.rpartition(
-            "umask 077"
+        namespace_runner_removed = validator.replace(
+            "run-readonly-submodule-validation-namespace.py",
+            "run-readonly-submodule-validation-namespace.removed.py",
+            1,
         )
-        self.assertTrue(candidate_umask)
-        candidate_umask_removed = candidate_umask_prefix + "umask 022" + candidate_umask_suffix
-        self.assertNotEqual(readonly_submodule_validator_errors(candidate_umask_removed), [])
+        self.assertNotEqual(readonly_submodule_validator_errors(namespace_runner_removed), [])
 
         validate_only_mutations = {
             "input enables validate_only by default": (
