@@ -1120,6 +1120,198 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             self.assertFalse(private.exists())
             self.assertEqual(outside.read_text(encoding="utf-8"), "outside remains\n")
 
+    def test_worker_writable_log_layout_is_exact_and_log_files_stay_fail_closed(self) -> None:
+        """Only the fixed root-owned worker directory may carry group write."""
+
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            root = Path(temporary)
+            runtime = self.private_dir(root / "runtime")
+            logs = runtime / "logs"
+            logs.mkdir(mode=0o730)
+            logs.chmod(0o730)
+            worker_gid = os.getegid()
+            owner = os.geteuid()
+            access_log = self.write(logs / BROKER.ACCESS_LOG_FILENAME, "access\n", 0o600)
+            projection = self.private_dir(root / "projection")
+            original_lstat = os.lstat
+
+            def root_owned_log_lstat(path: os.PathLike[str] | str) -> os.stat_result:
+                metadata = original_lstat(path)
+                if Path(path) == logs:
+                    values = list(metadata)
+                    values[4] = 0
+                    return os.stat_result(values)
+                return metadata
+
+            with mock.patch.object(BROKER.os, "lstat", side_effect=root_owned_log_lstat):
+                BROKER.require_worker_writable_directory_layout(
+                    logs,
+                    group=worker_gid,
+                    label="broker logs",
+                )
+                with self.assertRaisesRegex(BROKER.BrokerError, "group- or other-writable"):
+                    BROKER.directory_metadata(logs, "generic log directory")
+                expected_device = logs.stat().st_dev
+                with mock.patch.object(BROKER.os, "fchown"):
+                    self.assertEqual(
+                        BROKER.copy_evidence_file(
+                            access_log,
+                            projection / "access.json",
+                            runner_gid=worker_gid,
+                            allowed_owners={owner},
+                            expected_device=expected_device,
+                            label="safe access log",
+                        ),
+                        len("access\n"),
+                    )
+
+                for name, mode in (("group-writable", 0o620), ("other-writable", 0o602)):
+                    access_log.chmod(mode)
+                    with self.subTest(log_mode=name):
+                        with self.assertRaisesRegex(
+                            BROKER.BrokerError,
+                            "group- or other-writable",
+                        ):
+                            BROKER.copy_evidence_file(
+                                access_log,
+                                projection / f"{name}.json",
+                                runner_gid=worker_gid,
+                                allowed_owners={owner},
+                                expected_device=expected_device,
+                                label=f"{name} log",
+                            )
+                access_log.chmod(0o600)
+
+                logs.chmod(0o770)
+                with self.assertRaisesRegex(BROKER.BrokerError, "ownership or mode changed"):
+                    BROKER.require_worker_writable_directory_layout(
+                        logs,
+                        group=worker_gid,
+                        label="broker logs",
+                    )
+                logs.chmod(0o730)
+
+                logs.chmod(0o732)
+                with self.assertRaisesRegex(BROKER.BrokerError, "ownership or mode changed"):
+                    BROKER.require_worker_writable_directory_layout(
+                        logs,
+                        group=worker_gid,
+                        label="broker logs",
+                    )
+                logs.chmod(0o730)
+                with self.assertRaisesRegex(BROKER.BrokerError, "ownership or mode changed"):
+                    BROKER.require_worker_writable_directory_layout(
+                        logs,
+                        group=worker_gid + 1,
+                        label="broker logs",
+                    )
+
+                # A fresh action revalidates the current mode, so a replacement
+                # after an earlier successful check is not carried forward.
+                BROKER.require_worker_writable_directory_layout(
+                    logs,
+                    group=worker_gid,
+                    label="broker logs",
+                )
+                logs.chmod(0o750)
+                with self.assertRaisesRegex(BROKER.BrokerError, "ownership or mode changed"):
+                    BROKER.require_worker_writable_directory_layout(
+                        logs,
+                        group=worker_gid,
+                        label="broker logs",
+                    )
+                logs.chmod(0o730)
+
+                linked_logs = root / "linked-logs"
+                linked_logs.symlink_to(logs, target_is_directory=True)
+                with self.assertRaisesRegex(BROKER.BrokerError, "symlink"):
+                    BROKER.require_worker_writable_directory_layout(
+                        linked_logs,
+                        group=worker_gid,
+                        label="broker logs",
+                    )
+
+            def foreign_owned_log_lstat(path: os.PathLike[str] | str) -> os.stat_result:
+                metadata = original_lstat(path)
+                if Path(path) == logs:
+                    values = list(metadata)
+                    values[4] = owner + 1 if owner != 0 else 1
+                    return os.stat_result(values)
+                return metadata
+
+            with mock.patch.object(BROKER.os, "lstat", side_effect=foreign_owned_log_lstat):
+                with self.assertRaisesRegex(BROKER.BrokerError, "ownership or mode changed"):
+                    BROKER.require_worker_writable_directory_layout(
+                        logs,
+                        group=worker_gid,
+                        label="broker logs",
+                    )
+
+    def test_cleanup_removes_worker_layout_after_failed_config_test(self) -> None:
+        """The fail-closed config-test path still reaches descriptor-safe cleanup."""
+
+        with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
+            temporary_root = Path(temporary)
+            parent = temporary_root / "broker-parent"
+            parent.mkdir(mode=0o710)
+            parent.chmod(0o710)
+            run_id = "broker-run-1"
+            root = parent / run_id
+            root.mkdir(mode=0o710)
+            root.chmod(0o710)
+            runner_gid = os.getegid()
+            with mock.patch.object(BROKER.os, "chown"):
+                layout = BROKER.create_admitted_layout(root, runner_gid, BROKER.POLICY_PROFILE_NO_CRS)
+            payload = {
+                "run_id": run_id,
+                "runner_gid": runner_gid,
+                "broker_root": str(root),
+                "network": {"address": "127.0.0.1", "port": 18443},
+                "runtime": {
+                    "state": str(layout["control"] / BROKER.STATE_FILENAME),
+                    "pid": str(layout["runtime"] / BROKER.PID_FILENAME),
+                },
+            }
+            original_directory_metadata = BROKER.directory_metadata
+            original_stat = os.stat
+
+            def root_owned_parent_metadata(
+                path: Path,
+                label: str,
+                *,
+                owner: int | None = None,
+            ) -> os.stat_result:
+                metadata = original_directory_metadata(path, label)
+                if Path(path) == parent:
+                    values = list(metadata)
+                    values[4] = 0
+                    metadata = os.stat_result(values)
+                if owner is not None and metadata.st_uid != owner:
+                    BROKER.fail(f"{label} has an unexpected owner: {path}")
+                return metadata
+
+            def root_owned_run_stat(path: os.PathLike[str] | str, *args: object, **kwargs: object) -> os.stat_result:
+                metadata = original_stat(path, *args, **kwargs)
+                if kwargs.get("dir_fd") is not None and os.fspath(path) == run_id:
+                    values = list(metadata)
+                    values[4] = 0
+                    return os.stat_result(values)
+                return metadata
+
+            with (
+                mock.patch.object(BROKER, "ROOT_PARENT", parent),
+                mock.patch.object(BROKER, "directory_metadata", side_effect=root_owned_parent_metadata),
+                mock.patch.object(BROKER.os, "stat", side_effect=root_owned_run_stat),
+                mock.patch.object(BROKER.os, "fchown"),
+                mock.patch.object(BROKER, "verify_listener_released"),
+                mock.patch.object(BROKER, "validate_runtime_config", side_effect=BROKER.BrokerError("forced config failure")),
+            ):
+                with self.assertRaisesRegex(BROKER.BrokerError, "forced config failure"):
+                    BROKER.config_test(payload)
+                BROKER.stop(payload)
+                BROKER.cleanup_status(payload)
+            self.assertFalse(root.exists())
+
     def test_projection_rejects_symlink_or_special_inputs_before_copy(self) -> None:
         with tempfile.TemporaryDirectory(prefix="nginx-root-broker-") as temporary:
             root = Path(temporary)
