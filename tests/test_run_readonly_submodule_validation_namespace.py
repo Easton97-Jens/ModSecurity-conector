@@ -130,9 +130,13 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                     validator_user="validator", validator_group="validator",
                 )
                 with mock.patch.object(HELPER.os, "geteuid", return_value=0), mock.patch.object(
-                    HELPER, "_identity", return_value=(os.getuid(), os.getgid())
-                ), mock.patch.object(HELPER, "_validate_namespace_parent"), mock.patch.object(
-                    HELPER, "_create_mount_layout", return_value=mount_root
+                    HELPER,
+                    "_validated_configuration",
+                    return_value=(
+                        source, framework, write_root, external, namespace_parent,
+                        Path(sys.executable), os.getuid(), os.getgid(),
+                    ),
+                ), mock.patch.object(HELPER, "_create_mount_layout", return_value=mount_root
                 ), mock.patch.object(HELPER, "_mountinfo_for", return_value=[]), mock.patch.object(
                     HELPER.os, "fork", return_value=1
                 ), mock.patch.object(HELPER.os, "waitpid", side_effect=error_type("unexpected setup failure")):
