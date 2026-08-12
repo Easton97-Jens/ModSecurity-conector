@@ -290,6 +290,37 @@ release archive. Explicit
 `MODSECURITY_NGINX_SOURCE_DIR` overrides still use a sanitized external source
 copy.
 
+## Full-smoke pinned release provenance
+
+The Parent full-smoke workflow builds the selected direct GitHub release asset
+with this atomic tuple:
+
+```sh
+BUILD_NGINX_FROM_SOURCE=1
+NGINX_SOURCE_MODE=github-release
+NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
+NGINX_RELEASE_TAG=release-1.31.3
+NGINX_SOURCE_GIT_REF=release-1.31.3
+NGINX_RELEASE_ASSET_NAME=nginx-1.31.3.tar.gz
+NGINX_SHA256=a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
+NGINX_REQUIRE_PINNED_PROVENANCE=1
+```
+
+It resolves the direct release-asset URL from the fixed repository, tag, and
+asset name. The full-smoke resolver rejects `latest` and `/releases/latest`
+before any cache, network, download, or extraction operation. Its cache
+identity binds the complete provenance tuple, including the tag/ref equality
+and SHA-256; later updates must change and review every tuple value atomically.
+`NGINX_REQUIRE_PINNED_PROVENANCE=1` rejects inherited native binary/module
+overrides, so a system or MRTS NGINX binary is not accepted as full-smoke
+evidence.
+
+A managed full-smoke runtime-evidence record must identify the release, ref,
+and asset; expected and actual archive SHA-256 values; source version and
+directory; binary path, SHA-256, and version readback; configure arguments;
+build, Framework, and Parent identifiers; and generated time. This is the
+required evidence schema, not a claim that a current runtime record exists.
+
 The current NGINX common-header build contract passes:
 
 ```sh
@@ -303,7 +334,7 @@ Observed historically on 2026-05-15: `NGINX_RELEASE_TAG=latest` resolved to
 `release-1.31.0`, built `nginx/1.31.0`, built
 `ngx_http_modsecurity_module.so`, and the harness observed the YAML-expected
 HTTP status for all current shared minimal cases. This is not current canonical
-Phase-4 facet evidence.
+Phase-4 facet evidence and is not an accepted full-smoke provenance setting.
 
 ## Test Ownership And Runtime Claims
 

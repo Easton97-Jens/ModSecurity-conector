@@ -1,7 +1,7 @@
 #!/bin/sh
-# This file is sourced only by the protected broker workflow after the exact
-# Framework common.sh. It replaces a cache-owned CRS source path with a fresh,
-# invocation-owned source root before the protected Framework fetch-crs path.
+# This Parent helper is sourced by `test-with-crs` and the protected broker
+# workflow after Framework common.sh. It replaces a cache-owned CRS source path
+# with a fresh invocation-owned source root before Framework fetch-crs runs.
 
 set -eu
 
@@ -23,13 +23,13 @@ assert_runtime_path_under_root "$fresh_crs_source_dir" "$fresh_crs_source_root" 
 
 verified_run_root_canonical=$(ci_canonical_path "$VERIFIED_RUN_ROOT") || exit 77
 if [ "$verified_run_root_canonical" != "$VERIFIED_RUN_ROOT" ]; then
-    ci_blocked "broker CRS verified run root must not resolve through a symlink: $VERIFIED_RUN_ROOT"
+    ci_blocked "fresh CRS verified run root must not resolve through a symlink: $VERIFIED_RUN_ROOT"
     exit 77
 fi
 
 case "$fresh_crs_source_root" in
     "$CONNECTOR_COMPONENT_CACHE"|"$CONNECTOR_COMPONENT_CACHE"/*)
-        ci_blocked "broker CRS fresh source root must not be inside CONNECTOR_COMPONENT_CACHE"
+        ci_blocked "fresh CRS source root must not be inside CONNECTOR_COMPONENT_CACHE"
         exit 77
         ;;
     *)
@@ -38,7 +38,7 @@ case "$fresh_crs_source_root" in
 esac
 case "$CONNECTOR_COMPONENT_CACHE" in
     "$fresh_crs_source_root"|"$fresh_crs_source_root"/*)
-        ci_blocked "broker CRS CONNECTOR_COMPONENT_CACHE must not be inside the fresh source root"
+        ci_blocked "CONNECTOR_COMPONENT_CACHE must not be inside the fresh CRS source root"
         exit 77
         ;;
     *)
@@ -47,15 +47,15 @@ case "$CONNECTOR_COMPONENT_CACHE" in
 esac
 
 if [ -e "$fresh_crs_source_root" ] || [ -L "$fresh_crs_source_root" ]; then
-    ci_blocked "broker CRS fresh source root must not exist before fetch: $fresh_crs_source_root"
+    ci_blocked "fresh CRS source root must not exist before fetch: $fresh_crs_source_root"
     exit 77
 fi
 if [ -e "$fresh_crs_source_dir" ] || [ -L "$fresh_crs_source_dir" ]; then
-    ci_blocked "broker CRS fresh source directory must not exist before fetch: $fresh_crs_source_dir"
+    ci_blocked "fresh CRS source directory must not exist before fetch: $fresh_crs_source_dir"
     exit 77
 fi
 
 SOURCE_ROOT="$fresh_crs_source_root"
 CRS_SOURCE_DIR="$fresh_crs_source_dir"
 export SOURCE_ROOT CRS_SOURCE_DIR
-ci_info "broker CRS using fresh source root=$SOURCE_ROOT source=$CRS_SOURCE_DIR"
+ci_info "using fresh CRS source root=$SOURCE_ROOT source=$CRS_SOURCE_DIR"

@@ -122,7 +122,7 @@ verlassen; der Aufrufer oder ein Target muss den Wert liefern.
 | <code>MODSECURITY_SOURCE_DIR</code>, <code>MODSECURITY_V3_SOURCE_DIR</code>, <code>MODSECURITY_V3_ROOT</code>, <code>MODSECURITY_APACHE_SOURCE_DIR</code>, <code>MODSECURITY_NGINX_SOURCE_DIR</code> | Source-Pfade | nein | Framework-weitergereicht | absolute vorhandene Verzeichnisse | Wiederverwendung eines lokalen Source-Baums statt Fetch |
 | <code>MODSECURITY_APACHE_REPO_URL</code>, <code>MODSECURITY_NGINX_REPO_URL</code>, <code>ALLOW_EXTERNAL_CONNECTOR_REPOS</code> | Source-Provenance | nein | Framework-weitergereicht | URLs; Boolean | Steuert die Nutzung externer Apache-/NGINX-Sources |
 | <code>CRS_REPO_URL</code>, <code>CRS_GIT_REF</code>, <code>CRS_SOURCE_DIR</code>, <code>CRS_RUNTIME_DIR</code>, <code>MODSECURITY_RULE_PREAMBLE_FILE</code> | optionale CRS-Eingabe | nein | explizite vorbereitete Quelle oder explizite Runtime-Lookup-Root | URL/Ref; absolutes vertrauenswürdiges Verzeichnis/Pfad | CRS-Quelle sowie generiertes Konfigurations- und Audit-Log-Verzeichnis müssen symlinkfrei, dem Runner oder root gehörend, nicht gruppen-/weltbeschreibbar und entlang jedes eingebundenen Setup-, Rule- und Plugin-Pfads sicher sein; Directive-Pfade weisen Anführungszeichen, Backslashes, Zeilenumbrüche und Glob-Metazeichen zurück, und der Runner entdeckt CRS nie unter gemeinsam genutzten temporären Orten |
-| <code>BUILD_HTTPD_FROM_SOURCE</code>, <code>BUILD_PCRE2_FROM_SOURCE</code>, <code>BUILD_NGINX_FROM_SOURCE</code>, <code>NGINX_SOURCE_MODE</code>, <code>NGINX_SOURCE_REPO_URL</code>, <code>NGINX_SOURCE_GIT_REF</code>, <code>NGINX_GITHUB_REPO</code>, <code>NGINX_RELEASE_TAG</code> | Host-Provisionierung | nein | Framework-weitergereicht | Boolean, Mode, URL/Ref/Tag | Wählt Host-Source-Erwerb und Build-Policy |
+| <code>BUILD_HTTPD_FROM_SOURCE</code>, <code>BUILD_PCRE2_FROM_SOURCE</code>, <code>BUILD_NGINX_FROM_SOURCE</code>, <code>NGINX_SOURCE_MODE</code>, <code>NGINX_SOURCE_REPO_URL</code>, <code>NGINX_SOURCE_GIT_REF</code>, <code>NGINX_GITHUB_REPO</code>, <code>NGINX_RELEASE_TAG</code>, <code>NGINX_RELEASE_ASSET_NAME</code>, <code>NGINX_SHA256</code>, <code>NGINX_REQUIRE_PINNED_PROVENANCE</code> | Host-Provisionierung | nein | Framework-weitergereicht; Full-Smoke liefert ein festes Tupel | Boolean, Mode, URL/Ref/Tag/Asset-Name/SHA-256 | Wählt Host-Source-Erwerb und Build-Policy; strikte Full-Smoke-Provenance erfordert das vollständige feste NGINX-Tupel |
 | <code>HTTPD_VERSION</code>, <code>HTTPD_SOURCE_URL</code>, <code>HTTPD_SHA256</code>, <code>HTTPD_SHA256_URL</code>, <code>APR_VERSION</code>, <code>APR_SOURCE_URL</code>, <code>APR_SHA256</code>, <code>APR_SHA256_URL</code>, <code>APR_UTIL_VERSION</code>, <code>APR_UTIL_SOURCE_URL</code>, <code>APR_UTIL_SHA256</code>, <code>APR_UTIL_SHA256_URL</code>, <code>PCRE2_VERSION</code>, <code>PCRE2_SOURCE_URL</code>, <code>PCRE2_SHA256</code>, <code>PCRE2_SHA256_URL</code> | Apache-Provisionierung | nein | Framework-/Provider-Pin; Parent erhält die Grenze zwischen fehlendem und leerem PCRE2-Digest | Version, URL, SHA-256 | Apache-Dependency-Provenance; ein leerer oder fehlerhafter PCRE2-Digest schlägt fehlgeschlossen fehl und <code>PCRE2_SHA256_URL</code> ist kein Extraction-Fallback |
 | <code>HAPROXY_VERSION</code>, <code>HAPROXY_SOURCE_URL</code>, <code>HAPROXY_SHA256_URL</code>, <code>HAPROXY_SHA256</code>, <code>HAPROXY_SOURCE_ROOT</code>, <code>HAPROXY_DOWNLOAD_DIR</code>, <code>HAPROXY_SOURCE_DIR</code>, <code>HAPROXY_RUNTIME_BUILD_DIR</code>, <code>HAPROXY_RUNTIME_BUILD_WORKTREE</code>, <code>HAPROXY_RUNTIME_DIR</code>, <code>HAPROXY_BIN</code> | HAProxy-Provisionierung | nein | Framework/Provider-Pin | Version, URL, SHA-256, absolute Pfade | HAProxy-Source-, Build- und Host-Executable-Eingaben |
 | <code>EXPAT_SOURCE_URL</code>, <code>EXPAT_GIT_REF</code>, <code>EXPAT_GIT_URL</code>, <code>EXPAT_PROMPT_EXPECTED_LATEST</code> | Apache-Dependency | nein | Framework/Provider-Pin | URL/Ref/Boolean | Expat-Provenance und Prompt-Policy |
@@ -222,6 +222,33 @@ Eigenschaften:
 | Beispiel | <code>HAPROXY_VERSION=3.2.21</code>, <code>NGINX_SOURCE_MODE=release</code>, <code>CC=clang</code> |
 | Auswirkung | Kann einen Rebuild erzwingen, eine Source-Herkunft ändern oder ein anderes Executable wählen; upgraded niemals einen Capability-State oder ein Evidence-Ergebnis |
 | Sicherheit | HTTPS und verifizierte Checksums verwenden. Einen gepinnten Provenance-Wert in kanonischer CI nicht durch eine veränderliche oder nicht vertrauenswürdige Source ersetzen |
+
+#### Direktes NGINX-Release-Asset-Tupel für Full-Smoke
+
+Der strikte Parent-Full-Smoke-Pfad setzt alle NGINX-Provenance-Eingaben
+gemeinsam:
+
+```sh
+BUILD_NGINX_FROM_SOURCE=1
+NGINX_SOURCE_MODE=github-release
+NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
+NGINX_RELEASE_TAG=release-1.31.3
+NGINX_SOURCE_GIT_REF=release-1.31.3
+NGINX_RELEASE_ASSET_NAME=nginx-1.31.3.tar.gz
+NGINX_SHA256=a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
+NGINX_REQUIRE_PINNED_PROVENANCE=1
+```
+
+Er wählt das direkte Asset
+`https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz`.
+Der Full-Smoke-Release-Resolver weist `latest` und `/releases/latest` vor
+Cache-Zugriff, Netzwerkzugriff, Download oder Extraktion ab. Die
+Cache-Wiederverwendung ist an das gesamte Tupel gebunden: Source-Modus,
+Repository-URL, Tag, Ref, Asset-Name und SHA-256.
+`NGINX_REQUIRE_PINNED_PROVENANCE=1` weist außerdem geerbte native
+Binary-/Modul-Overrides ab. Alle Werte müssen atomar aktualisiert und das
+gesamte Tupel überprüft werden; ein System- oder MRTS-NGINX-Binary ist keine
+Full-Smoke-Evidence.
 
 <code>CC</code>, <code>CXX</code>, <code>CPPFLAGS</code>, <code>CFLAGS</code>,
 <code>CXXFLAGS</code>, <code>LDFLAGS</code>, <code>LIBS</code>,

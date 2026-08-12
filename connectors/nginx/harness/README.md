@@ -34,17 +34,31 @@ BUILD_ROOT=/src/ModSecurity-conector-build \
 make smoke-nginx
 ```
 
-The build helper defaults to the official GitHub release source:
+The full-smoke configuration uses a fixed direct official GitHub release asset:
 
 ```sh
+BUILD_NGINX_FROM_SOURCE=1
 NGINX_SOURCE_MODE=github-release
-NGINX_GITHUB_REPO=https://github.com/nginx/nginx
-NGINX_RELEASE_TAG=latest
+NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
+NGINX_RELEASE_TAG=release-1.31.3
+NGINX_SOURCE_GIT_REF=release-1.31.3
+NGINX_RELEASE_ASSET_NAME=nginx-1.31.3.tar.gz
+NGINX_SHA256=a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
+NGINX_REQUIRE_PINNED_PROVENANCE=1
 ```
 
-When `NGINX_RELEASE_TAG=latest`, the helper queries the GitHub Releases API and
-records the actual tag in `$BUILD_ROOT/logs/nginx/artifacts.txt`. To pin a
-specific release, set `NGINX_RELEASE_TAG=release-1.31.0` or another exact tag.
+This selects
+`https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz`.
+The full-smoke release resolver rejects `latest` and `/releases/latest` before
+cache lookup or writes, network access, download, or extraction. The cache
+identity binds the whole tuple: source mode, repository URL, release tag, source
+Git ref, release asset name, and SHA-256. Later NGINX updates must change that
+tuple atomically; changing only a tag or archive name is not valid full-smoke
+provenance.
+
+`NGINX_REQUIRE_PINNED_PROVENANCE=1` additionally rejects inherited native
+binary/module overrides. The full-smoke path builds the selected release asset
+and does not use a system or MRTS NGINX binary as full-smoke evidence.
 
 If NGINX, the dynamic module, or `libmodsecurity.so` is missing, the script
 exits `77` and marks the result as `blocked`.

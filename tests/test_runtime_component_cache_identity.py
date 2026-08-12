@@ -108,6 +108,47 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
         )
         self.assertEqual(h3["nginx_protocol_build"]["tls_library"], "openssl")
 
+    def test_nginx_pinned_release_tuple_changes_archive_cache_identity(self) -> None:
+        provenance = components.nginx_pinned_provenance(
+            {
+                "NGINX_SOURCE_MODE": "github-release",
+                "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
+                "NGINX_RELEASE_TAG": "release-1.31.3",
+                "NGINX_SOURCE_GIT_REF": "release-1.31.3",
+                "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.3.tar.gz",
+                "NGINX_SHA256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+            }
+        )
+        baseline = components.nginx_pinned_archive_cache_identity(provenance)
+
+        self.assertEqual(
+            baseline["source_tuple"],
+            {
+                "mode": "github-release",
+                "repo": "https://github.com/nginx/nginx",
+                "tag": "release-1.31.3",
+                "ref": "release-1.31.3",
+                "asset": "nginx-1.31.3.tar.gz",
+                "sha256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+            },
+        )
+
+        for field, changed_value in {
+            "mode": "github-release-other",
+            "repository": "https://github.com/example/nginx",
+            "release_tag": "release-1.31.2",
+            "source_ref": "release-1.31.2",
+            "release_asset_name": "nginx-1.31.2.tar.gz",
+            "sha256": "0" * 64,
+        }.items():
+            with self.subTest(field=field):
+                changed = dict(provenance)
+                changed[field] = changed_value
+                self.assertNotEqual(
+                    baseline["cache_key"],
+                    components.nginx_pinned_archive_cache_identity(changed)["cache_key"],
+                )
+
     def test_expat_reuse_requires_full_build_identity(self) -> None:
         with tempfile.TemporaryDirectory(prefix="expat-cache-identity-") as temporary:
             root = Path(temporary)

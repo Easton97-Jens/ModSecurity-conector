@@ -134,6 +134,51 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         )
         self.assertEqual(values, {})
 
+    def test_full_smoke_nginx_snapshot_fails_closed_without_a_valid_managed_contract(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-env-nginx-contract-") as temporary:
+            root = Path(temporary)
+            connector_root = root / "connector"
+            cache_root = root / "cache"
+            ready_nginx = {
+                "status": "built",
+                "require_pinned_provenance": True,
+                "nginx_bin": str(cache_root / "builds/connectors/nginx/cache-key/nginx/sbin/nginx"),
+                "module_dir": str(cache_root / "builds/connectors/nginx/cache-key/nginx/modules"),
+                "module_file": str(
+                    cache_root / "builds/connectors/nginx/cache-key/nginx/modules/ngx_http_modsecurity_module.so"
+                ),
+                "modsecurity_lib_dir": str(cache_root / "modsecurity/lib"),
+                "build_path": str(cache_root / "builds/connectors/nginx/cache-key/build"),
+                "nginx_prefix": str(cache_root / "builds/connectors/nginx/cache-key/nginx"),
+                "connector_build_id": "cache-key",
+                "protocol_profile": "h1",
+            }
+
+            self.assertEqual(
+                components.nginx_runtime_environment(connector_root, cache_root, ready_nginx),
+                {},
+            )
+            self.assertEqual(
+                components.nginx_runtime_environment(
+                    connector_root,
+                    cache_root,
+                    {**ready_nginx, "runtime_contract_valid": False},
+                ),
+                {},
+            )
+
+            values = components.nginx_runtime_environment(
+                connector_root,
+                cache_root,
+                {**ready_nginx, "runtime_contract_valid": True},
+            )
+            self.assertEqual(values["MRTS_NATIVE_NGINX_BIN"], ready_nginx["nginx_bin"])
+            self.assertEqual(values["NGINX_PREFIX"], ready_nginx["nginx_prefix"])
+            self.assertEqual(
+                values["MSCONNECTOR_COMMON_SRC"],
+                str(connector_root / "common" / "src"),
+            )
+
     def test_snapshot_is_unique_local_atomic_and_keeps_shared_compatibility_export(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-env-snapshot-") as temporary:
             root = Path(temporary)
@@ -500,6 +545,342 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         native_runner = NATIVE_COMPARISON_PATH.read_text(encoding="utf-8")
         self.assertIn("snapshot_value = env.get(\"RUNTIME_COMPONENT_ENV_SNAPSHOT\"", native_runner)
         self.assertIn("if snapshot_value:", native_runner)
+
+    def test_full_smoke_matrix_pins_the_complete_nginx_release_tuple_for_both_variants(self) -> None:
+        """The job-level NGINX tuple applies equally to both CRS variants.
+
+        Keeping the assertion at the workflow boundary prevents a later matrix
+        edit from silently reintroducing a floating NGINX source for one
+        full-smoke variant while the other remains pinned.
+        """
+        workflow = (ROOT / ".github" / "workflows" / "test-full-smoke-sequential.yml").read_text(
+            encoding="utf-8"
+        )
+        matrix_start = workflow.index("      matrix:\n        variant:\n")
+        env_start = workflow.index("    env:\n", matrix_start)
+        steps_start = workflow.index("    steps:\n", env_start)
+        matrix_block = workflow[matrix_start:env_start]
+        nginx_env = workflow[env_start:steps_start]
+
+        for variant in ("no-crs", "with-crs"):
+            with self.subTest(variant=variant):
+                self.assertIn(f"          - {variant}\n", matrix_block)
+                self.assertIn('BUILD_NGINX_FROM_SOURCE: "1"', nginx_env)
+                self.assertIn("NGINX_SOURCE_MODE: github-release", nginx_env)
+                self.assertIn("NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx", nginx_env)
+                self.assertIn("NGINX_RELEASE_TAG: release-1.31.3", nginx_env)
+                self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.3", nginx_env)
+                self.assertIn("NGINX_RELEASE_ASSET_NAME: nginx-1.31.3.tar.gz", nginx_env)
+                self.assertIn(
+                    "NGINX_SHA256: a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+                    nginx_env,
+                )
+                self.assertIn('NGINX_REQUIRE_PINNED_PROVENANCE: "1"', nginx_env)
+
+        self.assertNotIn("NGINX_RELEASE_TAG: latest", nginx_env)
+        self.assertNotIn("NGINX_SOURCE_GIT_REF: latest", nginx_env)
+        self.assertNotIn("NGINX_GITHUB_REPO:", nginx_env)
+        self.assertNotRegex(
+            nginx_env,
+            r"""(?m)^\s*(?:["']MODSECURITY_GIT_REF["']|MODSECURITY_GIT_REF)\s*:""",
+        )
+
+    def test_with_crs_replaces_the_cache_owned_source_with_a_fresh_run_source(self) -> None:
+        helper = ROOT / "ci" / "runtime" / "lifecycle" / "prepare-fresh-crs-source.sh"
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        target_start = makefile.index("test-with-crs: check-framework prepare-runtime-components")
+        target_end = makefile.index("\n\nmrts-generate:", target_start)
+        target = makefile[target_start:target_end]
+
+        self.assertIn("prepare-fresh-crs-source.sh", target)
+        self.assertLess(
+            target.index("prepare-fresh-crs-source.sh"),
+            target.index("fetch-crs.sh"),
+        )
+        no_crs_start = makefile.index("test-no-crs: check-framework prepare-runtime-components")
+        no_crs_end = makefile.index("\n\ntest-with-crs:", no_crs_start)
+        self.assertNotIn("prepare-fresh-crs-source.sh", makefile[no_crs_start:no_crs_end])
+
+        with tempfile.TemporaryDirectory(prefix="fresh-crs-source-") as temporary:
+            root = Path(temporary)
+            verified_root = root / "verified"
+            component_cache = verified_root / "component-cache"
+            verified_root.mkdir(mode=0o700)
+            component_cache.mkdir(mode=0o700)
+            environment = {
+                **os.environ,
+                "CONNECTOR_ROOT": str(ROOT),
+                "FRAMEWORK_ROOT": str(ROOT / "modules" / "ModSecurity-test-Framework"),
+                "REPO_ROOT": str(ROOT),
+                "VERIFIED_RUN_ROOT": str(verified_root),
+                "VERIFIED_SOURCE_ROOT": str(verified_root / "src"),
+                "BUILD_ROOT": str(verified_root / "build"),
+                "TMP_ROOT": str(verified_root / "tmp"),
+                "LOG_ROOT": str(verified_root / "logs"),
+                "CACHE_ROOT": str(verified_root / "cache-v2"),
+                "VERIFIED_COMPONENT_CACHE": str(component_cache),
+                "CONNECTOR_COMPONENT_CACHE": str(component_cache),
+                # Model the cache-owned path emitted by the component snapshot.
+                "SOURCE_ROOT": str(component_cache / "sources"),
+                "CRS_SOURCE_DIR": str(component_cache / "sources" / "coreruleset"),
+                "XDG_STATE_HOME": str(verified_root / "state"),
+            }
+            command = (
+                '. "$1"; . "$2"; printf "%s|%s" "$SOURCE_ROOT" "$CRS_SOURCE_DIR"'
+            )
+            result = subprocess.run(
+                [
+                    "sh",
+                    "-eu",
+                    "-c",
+                    command,
+                    "sh",
+                    str(ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "lib" / "common.sh"),
+                    str(helper),
+                ],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            expected_root = verified_root / "crs-fresh-source"
+            expected_source = expected_root / "coreruleset"
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stdout.rsplit("\n", 1)[-1], f"{expected_root}|{expected_source}")
+            self.assertFalse(expected_root.exists())
+            self.assertFalse(expected_source.exists())
+            self.assertNotEqual(expected_root, component_cache)
+            self.assertNotIn(f"{component_cache}/", f"{expected_root}/")
+
+            expected_root.mkdir(mode=0o700)
+            rejected = subprocess.run(
+                [
+                    "sh",
+                    "-eu",
+                    "-c",
+                    '. "$1"; . "$2"',
+                    "sh",
+                    str(ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "lib" / "common.sh"),
+                    str(helper),
+                ],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(rejected.returncode, 77, rejected.stdout + rejected.stderr)
+            self.assertIn(
+                "fresh CRS source root must not exist before fetch",
+                rejected.stdout + rejected.stderr,
+            )
+
+    def test_with_crs_fresh_source_rejects_component_cache_overlap(self) -> None:
+        helper = ROOT / "ci" / "runtime" / "lifecycle" / "prepare-fresh-crs-source.sh"
+        with tempfile.TemporaryDirectory(prefix="fresh-crs-source-") as temporary:
+            root = Path(temporary)
+            component_cache = root / "component-cache"
+            component_cache.mkdir(mode=0o700)
+            environment = {
+                **os.environ,
+                "CONNECTOR_ROOT": str(ROOT),
+                "FRAMEWORK_ROOT": str(ROOT / "modules" / "ModSecurity-test-Framework"),
+                "REPO_ROOT": str(ROOT),
+                "VERIFIED_RUN_ROOT": str(component_cache),
+                "VERIFIED_SOURCE_ROOT": str(component_cache / "src"),
+                "BUILD_ROOT": str(component_cache / "build"),
+                "TMP_ROOT": str(component_cache / "tmp"),
+                "LOG_ROOT": str(component_cache / "logs"),
+                "CACHE_ROOT": str(component_cache / "cache-v2"),
+                "VERIFIED_COMPONENT_CACHE": str(component_cache),
+                "CONNECTOR_COMPONENT_CACHE": str(component_cache),
+                "XDG_STATE_HOME": str(component_cache / "state"),
+            }
+            result = subprocess.run(
+                [
+                    "sh",
+                    "-eu",
+                    "-c",
+                    '. "$1"; . "$2"',
+                    "sh",
+                    str(ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "lib" / "common.sh"),
+                    str(helper),
+                ],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+            self.assertIn(
+                "fresh CRS source root must not be inside CONNECTOR_COMPONENT_CACHE",
+                result.stdout + result.stderr,
+            )
+
+    def test_make_does_not_materialize_an_empty_nginx_github_repo_alias(self) -> None:
+        environment = os.environ.copy()
+        environment.pop("NGINX_GITHUB_REPO", None)
+        result = subprocess.run(
+            [
+                "make",
+                "--no-print-directory",
+                "--silent",
+                "--eval=assert-nginx-github-repo-is-unset: ; @printenv NGINX_GITHUB_REPO >/dev/null; test $$? -eq 1; FRAMEWORK_ROOT=$(CURDIR)/modules/ModSecurity-test-Framework NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx sh -eu -c '. \"$$FRAMEWORK_ROOT/ci/lib/common.sh\"; test \"$$NGINX_GITHUB_REPO\" = \"$$NGINX_SOURCE_REPO_URL\"'",
+                "assert-nginx-github-repo-is-unset",
+            ],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_make_preserves_an_absent_apr_util_tuple_for_framework_defaults(self) -> None:
+        environment = os.environ.copy()
+        for variable in (
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        ):
+            environment.pop(variable, None)
+        assertion = (
+            "assert-apr-util-provenance-is-unset: ; @"
+            "for variable in APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 "
+            "APR_UTIL_SHA256_URL; do if printenv $$variable >/dev/null; then exit 1; "
+            "fi; done; FRAMEWORK_ROOT=$(CURDIR)/modules/ModSecurity-test-Framework "
+            "sh -eu -c '. \"$$FRAMEWORK_ROOT/ci/lib/common.sh\"; "
+            "test \"$$APR_UTIL_VERSION\" = \"1.6.4\"; "
+            "test \"$$APR_UTIL_SOURCE_URL\" = "
+            "\"https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2\"; "
+            "test \"$$APR_UTIL_SHA256\" = "
+            "\"3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b\"; "
+            "test \"$$APR_UTIL_SHA256_URL\" = "
+            "\"https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2.sha256\"'"
+        )
+        result = subprocess.run(
+            [
+                "make",
+                "--no-print-directory",
+                "--silent",
+                f"--eval={assertion}",
+                "assert-apr-util-provenance-is-unset",
+            ],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_make_forwards_an_explicit_empty_apr_util_override_to_the_guard(self) -> None:
+        assertion = (
+            "assert-empty-apr-util-override-is-rejected: ; @"
+            "FRAMEWORK_ROOT=$(CURDIR)/modules/ModSecurity-test-Framework "
+            "sh -eu -c '. \"$$FRAMEWORK_ROOT/ci/lib/common.sh\"; "
+            "ci_require_apr_util_pinned_provenance'"
+        )
+        for variable in (
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        ):
+            with self.subTest(variable=variable):
+                environment = os.environ.copy()
+                environment[variable] = ""
+                result = subprocess.run(
+                    [
+                        "make",
+                        "--no-print-directory",
+                        "--silent",
+                        f"--eval={assertion}",
+                        "assert-empty-apr-util-override-is-rejected",
+                    ],
+                    cwd=ROOT,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertNotEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"{variable} override is not permitted", result.stdout)
+
+    def test_make_forwards_a_mismatched_apr_util_override_to_the_guard(self) -> None:
+        assertion = (
+            "assert-mismatched-apr-util-override-is-rejected: ; @"
+            "FRAMEWORK_ROOT=$(CURDIR)/modules/ModSecurity-test-Framework "
+            "sh -eu -c '. \"$$FRAMEWORK_ROOT/ci/lib/common.sh\"; "
+            "ci_require_apr_util_pinned_provenance'"
+        )
+        for variable in (
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        ):
+            with self.subTest(variable=variable):
+                environment = os.environ.copy()
+                environment[variable] = "untrusted-value"
+                result = subprocess.run(
+                    [
+                        "make",
+                        "--no-print-directory",
+                        "--silent",
+                        f"--eval={assertion}",
+                        "assert-mismatched-apr-util-override-is-rejected",
+                    ],
+                    cwd=ROOT,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertNotEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"{variable} override is not permitted", result.stdout)
+
+    def test_full_smoke_cleanup_is_opt_in_and_skipping_it_keeps_the_matrix_eligible(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "test-full-smoke-sequential.yml").read_text(
+            encoding="utf-8"
+        )
+        dispatch_start = workflow.index("  workflow_dispatch:\n")
+        permissions_start = workflow.index("\npermissions:\n", dispatch_start)
+        dispatch = workflow[dispatch_start:permissions_start]
+        cleanup_start = workflow.index("  cleanup-artifacts:\n")
+        matrix_start = workflow.index("  manual-heavy-runtime-validation:\n", cleanup_start)
+        cleanup_job = workflow[cleanup_start:matrix_start]
+        matrix_job = workflow[matrix_start:]
+
+        self.assertIn("cleanup_artifacts:\n", dispatch)
+        self.assertIn("required: false", dispatch)
+        self.assertIn("default: false", dispatch)
+        self.assertIn("type: boolean", dispatch)
+        self.assertIn("if: ${{ inputs.cleanup_artifacts }}", cleanup_job)
+        self.assertIn("needs: cleanup-artifacts", matrix_job)
+        self.assertIn("if: ${{ always() }}", matrix_job)
+
+    def test_full_smoke_variants_use_isolated_verified_state_and_pycache_roots(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "test-full-smoke-sequential.yml").read_text(
+            encoding="utf-8"
+        )
+        paths_start = workflow.index("      - name: Initialize paths\n")
+        next_step = workflow.index("\n      - name: Lint and py-compile\n", paths_start)
+        initialize_paths = workflow[paths_start:next_step]
+
+        self.assertIn(
+            'verified_root="$RUNNER_TEMP/ModSecurity-conector-verified-${{ matrix.variant }}"',
+            initialize_paths,
+        )
+        self.assertIn('echo "XDG_STATE_HOME=$verified_root/state"', initialize_paths)
+        self.assertIn('echo "PYTHONPYCACHEPREFIX=$verified_root/python-pycache"', initialize_paths)
+        self.assertNotIn(
+            'verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"',
+            initialize_paths,
+        )
 
 
 if __name__ == "__main__":
