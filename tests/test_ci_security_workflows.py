@@ -2705,6 +2705,61 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
                 for action in uses:
                     self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
 
+    def test_runtime_dependencies_use_exact_hash_locked_framework_ci_install(
+        self,
+    ) -> None:
+        """Keep runtime rows off Framework's mutable development bootstrap."""
+
+        locked_install = (
+            "set -euo pipefail "
+            "python3 -m pip install --disable-pip-version-check --no-input "
+            "--only-binary=:all: --require-hashes -r "
+            "modules/ModSecurity-test-Framework/requirements-ci.lock "
+            "python3 -m pip check"
+        )
+        expected_conditions = {
+            "test-connectors-no-crs-no-mrts.yml": [None],
+            "test-connectors-with-crs-no-mrts.yml": [
+                "matrix.coverage_kind == 'contract'",
+                "matrix.coverage_kind == 'runtime'",
+            ],
+            "test-connectors-no-crs-with-mrts.yml": [
+                "matrix.coverage_kind == 'runtime'"
+            ],
+            "test-connectors-with-crs-with-mrts.yml": [
+                "matrix.coverage_kind == 'runtime'"
+            ],
+        }
+
+        for filename, expected_ifs in expected_conditions.items():
+            with self.subTest(filename=filename):
+                workflow, text = self.load_workflow(filename)
+                steps = workflow["jobs"]["connector-mode"]["steps"]
+                revision_step = next(
+                    step
+                    for step in steps
+                    if step["name"]
+                    == "Verify recorded Framework and MRTS revisions"
+                )
+                locked_steps = [
+                    step
+                    for step in steps
+                    if normalize_shell_script(step.get("run", "")) == locked_install
+                ]
+                self.assertEqual(
+                    [step.get("if") for step in locked_steps], expected_ifs
+                )
+                for step in locked_steps:
+                    self.assertLess(steps.index(revision_step), steps.index(step))
+
+                for forbidden in (
+                    "make setup-dev",
+                    "bootstrap-python.sh",
+                    "requirements-dev.txt",
+                    "pip install --upgrade pip",
+                ):
+                    self.assertNotIn(forbidden, text)
+
     def test_runtime_contract_and_negative_paths_have_honest_claims(self) -> None:
         no_crs, no_crs_text = self.load_workflow(
             "test-connectors-no-crs-no-mrts.yml"

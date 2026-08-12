@@ -38,6 +38,11 @@ Trust-Grenze hat.
   Action-Pins, keine Secrets oder Write-Tokens, keine persistierten Checkout-
   Credentials, kein `pull_request_target`, kein Cache, keine Privilege-
   Escalation und keine breiten Artifact-Veröffentlichungen.
+- Jede Framework-Python-Dependency-Installation in den neuen Workflows
+  verwendet `requirements-ci.lock` mit `--require-hashes` und
+  `--only-binary=:all:`; keine ruft `make setup-dev`,
+  `bootstrap-python.sh`, `requirements-dev.txt` oder ein ungepinntes Pip-
+  Upgrade auf.
 - Bei einem Pull Request verwenden Checkout und die aufgezeichnete Parent-
   Revision die unveränderliche Event-Head-SHA; `github.sha` ist nur der
   Fallback für manuellen Dispatch.
@@ -66,12 +71,15 @@ All-Workflow-Inventurregression scheitert bereits im sauberen Basisstand an
 einem action-freien lokalen Reusable-Caller; dieser Task schwächt oder ändert
 dieses Testorakel nicht.
 
-Vor dem statischen Framework-Contract wird dessen erforderliche CI-Dependency
-aus der hash-gesperrten Framework-`requirements-ci.lock` installiert; der
-Schritt verwendet `--require-hashes` und `pip check` statt eines veränderlichen
-Dependency-Pfads. Die ausgecheckten Parent-, Framework- und MRTS-Revisionen
-werden vor dem Lesen dieser Lockdatei gegen die aufgezeichneten immutable SHAs
-verifiziert.
+Die elf Runtime-Cells und die drei statischen Framework-Contract-Cells
+installieren ihre erforderliche Python-Dependency aus der hash-gesperrten
+Framework-`requirements-ci.lock`. Jede verwendet `--require-hashes`,
+`--only-binary=:all:` und `pip check` statt `make setup-dev`, des Framework-
+Development-Bootstraps oder eines veränderlichen Dependency-Pfads. Die
+ausgecheckten Parent-, Framework- und MRTS-Revisionen werden vor dem Lesen
+dieser Lockdatei gegen die aufgezeichneten immutable SHAs verifiziert. Dies
+vermeidet das zuvor identifizierte, in `FND-PARENT-0052` verfolgte
+Mutable-Pip-Muster, ohne einen Dependency-Lock oder Framework-Source zu ändern.
 
 Der fokussierte No-CRS/With-MRTS-HAProxy-Zweig setzt vor seinem nativen
 Case-Target den vorhandenen literalen Selektor
@@ -98,10 +106,14 @@ Source, Gitlink, Dependency-Lock, Ruleset oder NGINX-Workflow ist Teil dieser
 
 - Der gepinnte statische Framework-Five-Connector-CRS-Contract und die CRS-
   Provenance-Regression bestanden beide.
-- `tests.test_ci_security_workflows` zusammen mit
-  `tests.test_python_version_contract` bestand: 56 Tests.
+- `tests.test_ci_security_workflows`, `tests.test_python_version_contract`,
+  `tests.test_runtime_component_cache_contract` und
+  `tests.test_runtime_env_snapshot_contract` bestanden: 120 Tests. Der
+  fokussierte Connector-Mode-Contract weist eine Rückkehr zu `make setup-dev`,
+  `bootstrap-python.sh`, `requirements-dev.txt` oder einem ungepinnten Pip-
+  Upgrade zurück.
 - `make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python
-  check-ci-security-contract` bestand: 69 Tests, drei erwartete Environment-
+  check-ci-security-contract` bestand: 70 Tests, drei erwartete Environment-
   Capability-Skips und validate-only actionlint/zizmor/gitleaks-Lock-Checks.
 - PyYAML lud alle vier Workflows, und ShellCheck bestand für jedes extrahierte
   GitHub-hosted-Bash-`run:`-Skript mit Warning-Severity.
@@ -119,10 +131,11 @@ Revision-Gleichheitswert verwendet und nie in einen Shell-Body interpoliert.
 Unsupported-Routen führen nur eine Parser-Abweisung unter dem privaten
 Runner-Temp-Root aus; ein Rejection-Log ist ausschließlich diagnostisch und
 kein Build-/Evidence-Artifact wird hochgeladen. Statische Contract-Routen
-geben sich nicht als Host-Runtime-Evidence aus. Ihre einzige Dependency-
-Installation verwendet die hash-gesperrten CI-Requirements des Frameworks und
-scheitert nach der Prüfung der unveränderlichen Gitlink-Revisionen bei einem
-ungültigen Dependency-Set fail-closed.
+geben sich nicht als Host-Runtime-Evidence aus. Jede der elf Runtime-Cells und
+drei Contract-Cells verwendet die hash-gesperrten CI-Requirements des
+Frameworks und scheitert nach der Prüfung der unveränderlichen Gitlink-
+Revisionen bei einem ungültigen Dependency-Set fail-closed. Keine neue
+Workflow-Route ruft den veränderlichen Development-Bootstrap auf.
 
 ## Runtime-Evidence
 

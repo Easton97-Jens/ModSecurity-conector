@@ -36,6 +36,10 @@ separate trust boundary.
   pins, no secrets or write token, no persisted checkout credentials, no
   `pull_request_target`, no cache, no privilege escalation, and no broad
   artifact publication.
+- Every Framework Python dependency installation in the new workflows uses
+  `requirements-ci.lock` with `--require-hashes` and `--only-binary=:all:`;
+  none invokes `make setup-dev`, `bootstrap-python.sh`,
+  `requirements-dev.txt`, or an unpinned Pip upgrade.
 - On a pull request, checkout and the recorded Parent revision use the event's
   immutable head SHA; `github.sha` is only the manual-dispatch fallback.
 - Parent and Framework/MRTS Gitlinks stay fixed at
@@ -62,11 +66,15 @@ all-workflow inventory regression already fails for an action-free local
 reusable caller on the clean base; this task does not weaken or alter that
 test oracle.
 
-Before the static Framework contract is invoked, its required CI dependency is
-installed from the Framework's hash-locked `requirements-ci.lock`; the step
-uses `--require-hashes` and `pip check` rather than a mutable dependency path.
-The checked-out Parent, Framework, and MRTS revisions are verified against the
-recorded immutable SHAs before that lockfile is read.
+The eleven runtime cells and the three static Framework-contract cells install
+their required Python dependency from the Framework's hash-locked
+`requirements-ci.lock`. Each uses `--require-hashes`, `--only-binary=:all:`,
+and `pip check`, rather than `make setup-dev`, the Framework development
+bootstrap, or a mutable dependency path. The checked-out Parent, Framework,
+and MRTS revisions are verified against the recorded immutable SHAs before
+that lockfile is read. This avoids the previously identified mutable-Pip
+pattern tracked by `FND-PARENT-0052` without changing a dependency lock or
+Framework source.
 
 The focused no-CRS/with-MRTS HAProxy branch sets the existing literal
 `RUNTIME_COMPONENT_TARGET=haproxy` selector before its native case target.
@@ -92,10 +100,13 @@ of this change.
 
 - The pinned Framework static five-connector CRS contract and CRS-provenance
   regression both passed.
-- `tests.test_ci_security_workflows` plus
-  `tests.test_python_version_contract` passed: 56 tests.
+- `tests.test_ci_security_workflows`, `tests.test_python_version_contract`,
+  `tests.test_runtime_component_cache_contract`, and
+  `tests.test_runtime_env_snapshot_contract` passed: 120 tests. The focused
+  connector-mode contract rejects a return to `make setup-dev`,
+  `bootstrap-python.sh`, `requirements-dev.txt`, or an unpinned Pip upgrade.
 - `make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python
-  check-ci-security-contract` passed: 69 tests, three expected environment
+  check-ci-security-contract` passed: 70 tests, three expected environment
   capability skips, and validate-only actionlint/zizmor/gitleaks lock checks.
 - PyYAML loaded all four workflows, and ShellCheck passed every extracted
   GitHub-hosted Bash `run:` script at warning severity.
@@ -112,9 +123,10 @@ shell command. The event head SHA is used only as the declarative checkout and
 revision-equality input, never interpolated into a shell body. Unsupported routes execute only a parser rejection under the
 private runner temporary root; a rejection log is diagnostic-only and no
 build/evidence artifact is uploaded. Static contract routes do not pretend to
-be host runtime evidence. Their sole dependency installation uses the
-Framework's hash-locked CI requirements and fails closed on an invalid
-dependency set after the immutable Gitlink revisions have been verified.
+be host runtime evidence. Each of the eleven runtime cells and three contract
+cells uses the Framework's hash-locked CI requirements and fails closed on an
+invalid dependency set after the immutable Gitlink revisions have been
+verified. No new workflow route invokes the mutable development bootstrap.
 
 ## Runtime evidence
 

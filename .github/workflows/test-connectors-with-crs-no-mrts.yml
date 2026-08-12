@@ -160,11 +160,13 @@ jobs:
             echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
           } >> "$GITHUB_ENV"
 
-      - name: Prepare runtime dependencies
+      - name: Install hash-locked Framework runtime dependency
         if: matrix.coverage_kind == 'runtime'
         run: |
           set -euo pipefail
-          make setup-dev
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock
+          python3 -m pip check
 
       - name: Run existing focused runtime control
         if: matrix.coverage_kind == 'runtime'
