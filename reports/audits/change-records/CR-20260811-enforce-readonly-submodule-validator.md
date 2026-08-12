@@ -62,6 +62,13 @@ passed or that any later hosted validation has succeeded.
   neither lazy unmount nor `rmtree`: it removes only exact empty placeholders
   with non-recursive `rmdir`, and the workflow `EXIT` trap uses non-recursive
   `rmdir` for the trusted namespace parent.
+- The locally implemented narrow repair mounts a fresh private `proc` filesystem at `/proc`
+  inside PID 1 after `rprivate` is established, with
+  `readonly,nosuid,nodev,noexec`. Root mounts it before `PR_SET_NO_NEW_PRIVS`
+  and the validator identity drop, then unmounts it and restores the prior
+  `/proc` arrangement before namespace exit. It exists solely for
+  LeakSanitizer (LSan)'s PID-local `/proc` lookup and is neither full host or
+  kernel isolation; hosted validation and finding closure remain pending.
 - The root workflow invokes a trusted root `sudo -n python3` launcher. The
   launcher fail-closed sets `PR_SET_NO_NEW_PRIVS`, clears supplementary groups,
   drops to the non-login, non-sudo `modsecurity-validator` GID and UID, and
@@ -106,6 +113,15 @@ verifies physical host source and output state as root; the workflow `EXIT`
 trap likewise removes only the trusted namespace parent with non-recursive
 `rmdir`.
 
+The locally implemented narrow repair mounts a fresh private `proc` filesystem at `/proc`
+inside PID 1 only after the mount namespace is `rprivate`, with
+`readonly,nosuid,nodev,noexec`. Root performs this mount before setting
+`PR_SET_NO_NEW_PRIVS` and dropping the validator identity, then unmounts it and
+restores the prior `/proc` arrangement before namespace exit. This supports
+only LeakSanitizer (LSan)'s PID-local `/proc` lookup; it neither expands the
+namespace claim to full host or kernel isolation. Hosted validation and
+finding closure remain pending.
+
 This maintains the intended output contract without granting the candidate a
 host-level traversal or listing right for runner-owned ancestors. Parent,
 Framework, and supported output are presented only through namespace views;
@@ -141,6 +157,9 @@ root that root-side verification examines. `rprivate` prevents propagation of
 candidate mount changes back through shared mount propagation. `nosuid,nodev`
 reduces the mount-view attack surface. `PR_SET_NO_NEW_PRIVS` is set fail-closed
 before the candidate identity drop, and the candidate verifies `NoNewPrivs: 1`.
+The locally implemented private `/proc` mount is restricted to PID 1 and uses
+`readonly,nosuid,nodev,noexec`; it is mounted and removed by root during the
+namespace lifecycle solely to support LSan's PID-local lookup.
 
 This is not full host or kernel security isolation. Parent, Framework, and
 supported output are the only presented namespace views; unrelated ambient host

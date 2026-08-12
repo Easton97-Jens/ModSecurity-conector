@@ -209,6 +209,50 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "unsafe mount flags"):
                 HELPER._verify_mount(target, readonly=True)
 
+    def test_procfs_verifier_requires_one_hardened_proc_mount_at_literal_target(self) -> None:
+        hardened = "99 1 0:42 / /proc ro,nosuid,nodev,noexec - proc proc rw"
+        inherited = "98 1 0:42 / /proc rw,nosuid,nodev,noexec - proc proc rw"
+        with mock.patch.object(HELPER, "_mountinfo_for", return_value=[inherited, hardened]):
+            HELPER._verify_procfs(Path("/proc"))
+        for rows in (
+            [inherited],
+            ["99 1 0:42 / /proc ro,nosuid,nodev - proc proc rw"],
+            ["99 1 0:42 / /proc ro,nosuid,nodev,noexec - sysfs sysfs rw"],
+            [hardened, hardened],
+        ):
+            with self.subTest(rows=rows), mock.patch.object(HELPER, "_mountinfo_for", return_value=rows):
+                with self.assertRaisesRegex(RuntimeError, "hardened procfs"):
+                    HELPER._verify_procfs(Path("/proc"))
+        with self.assertRaisesRegex(RuntimeError, "literal /proc"):
+            HELPER._verify_procfs(Path("/untrusted-proc"))
+
+    def test_procfs_verification_failure_never_runs_candidate_and_restores_proc(self) -> None:
+        class ChildExit(BaseException):
+            pass
+
+        source = Path("/source")
+        framework = source / "modules/framework"
+        external = Path("/external")
+        mount_root = Path("/mount-root")
+        candidate = mock.Mock()
+        with mock.patch.object(HELPER, "_unshare"), mock.patch.object(
+            HELPER, "_mount"
+        ) as mount, mock.patch.object(HELPER, "_verify_mount"), mock.patch.object(
+            HELPER, "_mountinfo_for", return_value=[]
+        ), mock.patch.object(HELPER.os, "pipe", return_value=(30, 31)), mock.patch.object(
+            HELPER.os, "fork", return_value=0
+        ), mock.patch.object(HELPER.os, "close"), mock.patch.object(
+            HELPER.os, "_exit", side_effect=ChildExit
+        ), mock.patch.object(HELPER, "_verify_procfs", side_effect=RuntimeError("proc verification failed")), mock.patch.object(
+            HELPER, "_umount"
+        ) as umount, mock.patch.object(HELPER, "_set_no_new_privs") as no_new_privs:
+            with self.assertRaises(ChildExit):
+                HELPER._namespace_child(source, framework, external, mount_root, Path("/python"), 1000, 1000, candidate)
+        candidate.assert_not_called()
+        no_new_privs.assert_not_called()
+        mount.assert_any_call("proc", Path("/proc"), HELPER.MS_RDONLY | HELPER.MS_NOSUID | HELPER.MS_NODEV | HELPER.MS_NOEXEC, "proc")
+        umount.assert_called_once_with(Path("/proc"))
+
     def test_mount_layout_forces_traversable_root_validator_modes_despite_umask(self) -> None:
         if os.geteuid() != 0:
             self.skipTest("root ownership verification is unavailable")
@@ -308,6 +352,12 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                     HELPER._mount(str(source), target, HELPER.MS_BIND)
                     HELPER._mount(None, target, HELPER.MS_BIND | HELPER.MS_REMOUNT | HELPER.MS_RDONLY | HELPER.MS_NOSUID | HELPER.MS_NODEV)
                     HELPER._verify_mount(target, readonly=True)
+                    before_proc = HELPER._mountinfo_for(Path("/proc"))
+                    HELPER._mount("proc", Path("/proc"), HELPER.MS_RDONLY | HELPER.MS_NOSUID | HELPER.MS_NODEV | HELPER.MS_NOEXEC, "proc")
+                    HELPER._verify_procfs(Path("/proc"))
+                    HELPER._umount(Path("/proc"))
+                    if HELPER._mountinfo_for(Path("/proc")) != before_proc:
+                        os._exit(1)
                     HELPER._umount(target)
                 except HELPER.NamespaceUnavailable:
                     os._exit(125)
@@ -339,6 +389,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
 
         if not mapped(account.pw_uid, "uid_map") or not mapped(group.gr_gid, "gid_map"):
             self.skipTest("dedicated unprivileged identity capability is unavailable")
+        host_proc_before = HELPER._mountinfo_for(Path("/proc"))
         # The validator must traverse every fixture ancestor after its UID drop.
         # The task-local TMPDIR may be root-only, so use the host's sticky /tmp.
         with tempfile.TemporaryDirectory(dir="/tmp", prefix="readonly-namespace-") as raw:
@@ -356,6 +407,11 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
 
             def candidate(source_view: Path, framework_relative: Path, external_view: Path, _guard: Path, _python: Path, uid: int, gid: int) -> None:
                 if "NoNewPrivs:\t1" not in Path("/proc/self/status").read_text(encoding="utf-8"):
+                    os._exit(1)
+                local_pid = os.getpid()
+                if local_pid != 1 or not Path(f"/proc/{local_pid}/task/{local_pid}").is_dir():
+                    os._exit(1)
+                if os.readlink("/proc/self/ns/pid") != os.readlink(f"/proc/{local_pid}/ns/pid"):
                     os._exit(1)
                 os.setgroups([]); os.setgid(gid); os.setuid(uid); os.chdir(source_view)
                 framework_view = source_view / framework_relative
@@ -423,6 +479,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             os.close(control_write)
             self.assertFalse((external / "background-after-pid1").exists())
             os.rmdir(mount_root / "source"); os.rmdir(mount_root / "external"); os.rmdir(mount_root)
+        self.assertEqual(HELPER._mountinfo_for(Path("/proc")), host_proc_before)
 
 
 if __name__ == "__main__":

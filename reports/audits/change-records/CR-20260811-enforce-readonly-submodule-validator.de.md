@@ -66,6 +66,14 @@ einen erfolgreichen Run noch eine erfolgreiche spätere Hosted-Validierung.
   exakte leere Platzhalter mit nicht-rekursivem `rmdir`, und der `EXIT`-Trap des
   Workflows verwendet nicht-rekursives `rmdir` für das vertrauenswürdige
   Namespace-Parent.
+- Die lokal implementierte enge Reparatur mountet ein frisches privates `proc`-
+  Dateisystem bei `/proc` innerhalb von PID 1, nachdem `rprivate` eingerichtet
+  ist, mit `readonly,nosuid,nodev,noexec`. Root mountet es vor
+  `PR_SET_NO_NEW_PRIVS` und dem Drop der Validator-Identität, unmountet es
+  anschließend und stellt das vorherige `/proc`-Arrangement wieder her, bevor
+  der Namespace endet. Es dient ausschließlich dem PID-lokalen `/proc`-Lookup
+  von LeakSanitizer (LSan) und ist weder vollständige Host- oder Kernel-
+  Isolation; Hosted-Validierung und Finding-Abschluss bleiben ausstehend.
 - Der Root-Workflow ruft einen vertrauenswürdigen Root-`sudo -n python3`-
   Launcher auf. Der Launcher setzt `PR_SET_NO_NEW_PRIVS` fail-closed, entfernt
   zusätzliche Gruppen, fällt auf die Non-login- und Non-sudo-GID und UID von
@@ -114,6 +122,16 @@ Platzhalter mit nicht-rekursivem `rmdir` und verifiziert als root physischen
 Host-Source- und Output-Zustand; der `EXIT`-Trap des Workflows entfernt das
 vertrauenswürdige Namespace-Parent ebenfalls nur mit nicht-rekursivem `rmdir`.
 
+Die lokal implementierte enge Reparatur mountet ein frisches privates `proc`-Dateisystem
+bei `/proc` innerhalb von PID 1 erst, nachdem der Mount-Namespace `rprivate`
+ist, mit `readonly,nosuid,nodev,noexec`. Root führt diesen Mount vor dem Setzen
+von `PR_SET_NO_NEW_PRIVS` und dem Drop der Validator-Identität durch, unmountet
+ihn anschließend und stellt das vorherige `/proc`-Arrangement wieder her,
+bevor der Namespace endet. Dies unterstützt ausschließlich den PID-lokalen
+`/proc`-Lookup von LeakSanitizer (LSan); es erweitert weder den Namespace-Claim
+zu vollständiger Host- oder Kernel-Isolation. Hosted-Validierung und Finding-
+Abschluss bleiben ausstehend.
+
 Dies erhält den beabsichtigten Output-Vertrag, ohne dem Candidate Host-seitiges
 Traverse- oder List-Recht für Runner-eigene Ahnen zu geben. Parent, Framework
 und unterstützte Ausgaben werden nur über Namespace-Views bereitgestellt;
@@ -152,6 +170,9 @@ Verifikation prüft. `rprivate` verhindert, dass Candidate-Mount-Änderungen
 über geteilte Mount-Propagation zurückwirken. `nosuid,nodev` reduziert die
 Angriffsfläche der Mount-Views. `PR_SET_NO_NEW_PRIVS` wird vor dem Candidate-
 Identity-Drop fail-closed gesetzt, und der Candidate prüft `NoNewPrivs: 1`.
+Der lokal implementierte private `/proc`-Mount ist auf PID 1 beschränkt und verwendet
+`readonly,nosuid,nodev,noexec`; Root mountet und entfernt ihn während des
+Namespace-Lebenszyklus ausschließlich für den PID-lokalen LSan-Lookup.
 
 Dies ist keine vollständige Host- oder Kernel-Sicherheitsisolation. Parent,
 Framework und unterstützte Ausgaben sind die einzigen bereitgestellten

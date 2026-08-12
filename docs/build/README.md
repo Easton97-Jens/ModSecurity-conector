@@ -216,6 +216,14 @@ helper removes only its exact empty `mount-root`, `source`, and `external`
 placeholders with non-recursive `rmdir`, and the workflow `EXIT` trap likewise
 uses non-recursive `rmdir` for the trusted namespace parent. Root-side host
 verification follows outside the candidate namespace.
+The locally implemented narrow repair mounts a fresh private `proc` filesystem at `/proc`
+inside PID 1 after the mount namespace is already `rprivate`, with
+`readonly,nosuid,nodev,noexec`. Root performs that mount before setting
+`PR_SET_NO_NEW_PRIVS` and dropping the validator identity, then unmounts it and
+restores the prior `/proc` arrangement before the namespace exits. Its sole
+purpose is to make the PID-local `/proc` lookup used by LeakSanitizer (LSan)
+available; it is not a claim of full host or kernel isolation. Hosted
+validation remains pending, as does finding closure.
 The root workflow invokes the trusted launcher through `sudo -n python3`; the
 launcher fail-closed sets `PR_SET_NO_NEW_PRIVS`, clears supplementary groups,
 drops to the `modsecurity-validator` GID and UID, and uses `execve` with an

@@ -229,7 +229,16 @@ Unmount noch `rmtree`: Der Helper entfernt nur seine exakten leeren Platzhalter
 `mount-root`, `source` und `external` mit nicht-rekursivem `rmdir`, und der
 `EXIT`-Trap des Workflows verwendet für das vertrauenswürdige Namespace-Parent
 ebenfalls nicht-rekursives `rmdir`; die Root-seitige Host-Verifikation folgt
-außerhalb des Candidate-Namespace. Innerhalb dieses Namespace wendet der Candidate vor
+außerhalb des Candidate-Namespace. Die lokal implementierte enge Reparatur mountet ein
+frisches privates `proc`-Dateisystem bei `/proc` innerhalb von PID 1, nachdem
+der Mount-Namespace bereits `rprivate` ist, mit
+`readonly,nosuid,nodev,noexec`. Root führt diesen Mount vor dem Setzen von
+`PR_SET_NO_NEW_PRIVS` und dem Drop der Validator-Identität durch und unmountet
+ihn sowie stellt das vorherige `/proc`-Arrangement wieder her, bevor der
+Namespace endet. Sein einziger Zweck ist, den PID-lokalen `/proc`-Lookup von
+LeakSanitizer (LSan) bereitzustellen; dies ist keine Behauptung vollständiger
+Host- oder Kernel-Isolation. Hosted-Validierung und Finding-Abschluss bleiben
+ausstehend. Innerhalb dieses Namespace wendet der Candidate vor
 Ausgaben `umask 077` an. Der Root-Workflow ruft den vertrauenswürdigen Launcher
 über `sudo -n python3` auf; der Launcher setzt `PR_SET_NO_NEW_PRIVS` fail-closed,
 entfernt zusätzliche Gruppen, fällt auf GID und UID von

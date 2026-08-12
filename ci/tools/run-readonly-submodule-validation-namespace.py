@@ -25,6 +25,7 @@ CLONE_NEWPID = 0x20000000
 MS_RDONLY = 1
 MS_NOSUID = 2
 MS_NODEV = 4
+MS_NOEXEC = 8
 MS_BIND = 4096
 MS_REC = 16384
 MS_PRIVATE = 1 << 18
@@ -112,10 +113,12 @@ def _identity(user: str, group: str) -> tuple[int, int]:
     return account.pw_uid, group_entry.gr_gid
 
 
-def _mount(source: str | None, target: Path, flags: int) -> None:
+def _mount(source: str | None, target: Path, flags: int, filesystem_type: str | None = None) -> None:
     result = LIBC.mount(
         ctypes.c_char_p(source.encode() if source is not None else None),
-        ctypes.c_char_p(os.fsencode(target)), None, ctypes.c_ulong(flags), None
+        ctypes.c_char_p(os.fsencode(target)),
+        ctypes.c_char_p(filesystem_type.encode() if filesystem_type is not None else None),
+        ctypes.c_ulong(flags), None,
     )
     if result != 0:
         error = ctypes.get_errno()
@@ -132,8 +135,11 @@ def _umount(target: Path) -> None:
 
 
 def _mountinfo_for(path: Path) -> list[str]:
-    needle = str(path)
-    return [line for line in Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines() if f" {needle} " in line]
+    target = str(path)
+    return [
+        line for line in Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines()
+        if len(line.split(" - ", 1)[0].split()) > 4 and line.split(" - ", 1)[0].split()[4] == target
+    ]
 
 
 def _validate_namespace_parent(namespace_parent: Path, validator_gid: int) -> None:
@@ -195,6 +201,22 @@ def _verify_mount(target: Path, *, readonly: bool) -> None:
     options = rows[0].split(" - ", 1)[0].split()[5].split(",")
     if ("ro" in options) != readonly or "nosuid" not in options or "nodev" not in options:
         raise RuntimeError(f"unsafe mount flags for {target}: {','.join(options)}")
+
+
+def _verify_procfs(target: Path) -> None:
+    """Require one fresh, hardened procfs layer over the literal proc target."""
+    if target != Path("/proc"):
+        raise RuntimeError("procfs must be mounted at literal /proc")
+    hardened_rows = []
+    for row in _mountinfo_for(target):
+        before_separator, separator, after_separator = row.partition(" - ")
+        fields = before_separator.split()
+        filesystem = after_separator.split()[0] if separator and after_separator else ""
+        options = fields[5].split(",") if len(fields) > 5 else []
+        if filesystem == "proc" and {"ro", "nosuid", "nodev", "noexec"}.issubset(options):
+            hardened_rows.append(row)
+    if len(hardened_rows) != 1:
+        raise RuntimeError("expected exactly one hardened procfs mount at /proc")
 
 
 def _unshare() -> None:
@@ -300,18 +322,47 @@ def _namespace_child(
     _mount(None, external_view, MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV)
     _verify_mount(source_view, readonly=True); _verify_mount(external_view, readonly=False)
     framework_relative = framework.relative_to(source)
+    before_proc = _mountinfo_for(Path("/proc"))
+    proc_ready_read, proc_ready_write = os.pipe()
     child = os.fork()
     if child == 0:
+        os.close(proc_ready_read)
+        proc_mounted = False
         try:
+            _mount("proc", Path("/proc"), MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC, "proc")
+            proc_mounted = True
+            _verify_procfs(Path("/proc"))
+            os.write(proc_ready_write, b"1")
+            os.close(proc_ready_write)
             _set_no_new_privs()
             candidate_entry(source_view, framework_relative, external_view, mount_root, python, uid, gid)
         except Exception as error:
             print(f"readonly namespace candidate setup failed: {error}", file=sys.stderr)
+            if proc_mounted:
+                try:
+                    _umount(Path("/proc"))
+                    if _mountinfo_for(Path("/proc")) != before_proc:
+                        print("readonly namespace candidate procfs restoration failed", file=sys.stderr)
+                except Exception as cleanup_error:
+                    print(f"readonly namespace candidate procfs cleanup failed: {cleanup_error}", file=sys.stderr)
+            try:
+                os.close(proc_ready_write)
+            except OSError:
+                pass
             os._exit(127)
+    os.close(proc_ready_write)
     for descriptor in close_parent_fds:
         os.close(descriptor)
-    _pid, status = os.waitpid(child, 0)
-    _umount(external_view); _umount(source_view)
+    proc_mounted = os.read(proc_ready_read, 1) == b"1"
+    os.close(proc_ready_read)
+    try:
+        _pid, status = os.waitpid(child, 0)
+    finally:
+        if proc_mounted:
+            _umount(Path("/proc"))
+            if _mountinfo_for(Path("/proc")) != before_proc:
+                raise RuntimeError("namespace runner did not restore inherited procfs")
+        _umount(external_view); _umount(source_view)
     return os.waitstatus_to_exitcode(status)
 
 
