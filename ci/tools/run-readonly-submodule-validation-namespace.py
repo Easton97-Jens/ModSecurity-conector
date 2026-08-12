@@ -137,18 +137,18 @@ def _mountinfo_for(path: Path) -> list[str]:
 
 
 def _validate_namespace_parent(namespace_parent: Path, validator_gid: int) -> None:
-    """Accept only the root-created, private direct child of the sticky /tmp."""
-    tmp = Path("/tmp")
-    if namespace_parent == tmp or namespace_parent.parent != tmp:
-        raise ValueError("namespace parent must be a direct child of /tmp")
-    tmp_metadata = os.lstat(tmp)
+    """Accept only a root-created private child of a trusted sticky directory."""
+    namespace_ancestor = namespace_parent.parent
+    if namespace_parent == namespace_ancestor:
+        raise ValueError("namespace parent must have a trusted sticky ancestor")
+    ancestor_metadata = os.lstat(namespace_ancestor)
     if (
-        not stat.S_ISDIR(tmp_metadata.st_mode)
-        or stat.S_ISLNK(tmp_metadata.st_mode)
-        or tmp_metadata.st_uid != 0
-        or not tmp_metadata.st_mode & stat.S_ISVTX
+        not stat.S_ISDIR(ancestor_metadata.st_mode)
+        or stat.S_ISLNK(ancestor_metadata.st_mode)
+        or ancestor_metadata.st_uid != 0
+        or not ancestor_metadata.st_mode & stat.S_ISVTX
     ):
-        raise ValueError("namespace parent requires a root-owned sticky /tmp ancestor")
+        raise ValueError("namespace parent requires a root-owned sticky ancestor")
     metadata = os.lstat(namespace_parent)
     if (
         not stat.S_ISDIR(metadata.st_mode)
@@ -162,15 +162,19 @@ def _validate_namespace_parent(namespace_parent: Path, validator_gid: int) -> No
 
 
 def _create_mount_layout(namespace_parent: Path, validator_gid: int) -> Path:
-    """Create fixed root:validator traversal placeholders irrespective of umask."""
+    """Create and verify fixed root:validator traversal placeholders."""
     mount_root = namespace_parent / "mount-root"
-    previous_umask = os.umask(0)
-    try:
-        for path in (mount_root, mount_root / "source", mount_root / "external"):
-            os.mkdir(path, mode=0o750)
-            os.chown(path, 0, validator_gid, follow_symlinks=False)
-    finally:
-        os.umask(previous_umask)
+    for path in (mount_root, mount_root / "source", mount_root / "external"):
+        os.mkdir(path, mode=0o700)
+        descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0:
+                raise RuntimeError(f"unsafe namespace mount placeholder: {path}")
+            os.fchown(descriptor, 0, validator_gid)
+            os.fchmod(descriptor, 0o750)
+        finally:
+            os.close(descriptor)
     for path in (mount_root, mount_root / "source", mount_root / "external"):
         metadata = os.lstat(path)
         if (
@@ -299,7 +303,7 @@ def _namespace_child(
         try:
             _set_no_new_privs()
             candidate_entry(source_view, framework_relative, external_view, mount_root, python, uid, gid)
-        except BaseException as error:
+        except Exception as error:
             print(f"readonly namespace candidate setup failed: {error}", file=sys.stderr)
             os._exit(127)
     for descriptor in close_parent_fds:
@@ -309,9 +313,7 @@ def _namespace_child(
     return os.waitstatus_to_exitcode(status)
 
 
-def run(arguments: argparse.Namespace) -> int:
-    if os.name != "posix" or sys.platform != "linux" or os.geteuid() != 0:
-        raise NamespaceUnavailable("readonly namespace runner requires Linux root")
+def _validated_configuration(arguments: argparse.Namespace) -> tuple[Path, Path, Path, Path, Path, Path, int, int]:
     source = _absolute_existing_directory(arguments.source_root, "source root")
     framework = _absolute_existing_directory(arguments.framework_root, "framework root")
     write_root = _absolute_existing_directory(arguments.write_root, "write root")
@@ -332,6 +334,13 @@ def run(arguments: argparse.Namespace) -> int:
         raise ValueError("write root must be root-owned mode 0711")
     if (external_metadata.st_uid, external_metadata.st_gid, stat.S_IMODE(external_metadata.st_mode)) != (uid, gid, 0o700):
         raise ValueError("external root must be validator-owned mode 0700")
+    return source, framework, write_root, external, namespace_parent, python, uid, gid
+
+
+def run(arguments: argparse.Namespace) -> int:
+    if os.name != "posix" or sys.platform != "linux" or os.geteuid() != 0:
+        raise NamespaceUnavailable("readonly namespace runner requires Linux root")
+    source, framework, _write_root, external, namespace_parent, python, uid, gid = _validated_configuration(arguments)
     mount_root = _create_mount_layout(namespace_parent, gid)
     before = _mountinfo_for(mount_root)
     try:
@@ -339,7 +348,7 @@ def run(arguments: argparse.Namespace) -> int:
         if child == 0:
             try: os._exit(_namespace_child(source, framework, external, mount_root, python, uid, gid))
             except NamespaceUnavailable as error: print(str(error), file=sys.stderr); os._exit(125)
-            except BaseException as error: print(f"readonly namespace setup failed: {error}", file=sys.stderr); os._exit(126)
+            except Exception as error: print(f"readonly namespace setup failed: {error}", file=sys.stderr); os._exit(126)
         _pid, status = os.waitpid(child, 0)
         code = os.waitstatus_to_exitcode(status)
         if _mountinfo_for(mount_root) != before:
@@ -359,7 +368,7 @@ def run(arguments: argparse.Namespace) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         return run(parse_args(sys.argv[1:] if argv is None else argv))
-    except (ValueError, NamespaceUnavailable, OSError, RuntimeError) as error:
+    except (ValueError, OSError, RuntimeError) as error:
         print(f"readonly namespace validation blocked: {error}", file=sys.stderr)
         return 2
 

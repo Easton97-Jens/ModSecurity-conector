@@ -139,6 +139,15 @@ def _read_small_regular_text(path: Path, expected: os.stat_result) -> str:
         raise ValueError(f"git metadata is not UTF-8: {path}") from error
 
 
+def _lexical_link_target(path: Path, target_text: str) -> Path:
+    """Return a link target normalized without resolving any filesystem links."""
+    return Path(
+        os.path.normpath(
+            target_text if os.path.isabs(target_text) else os.path.join(path.parent, target_text)
+        )
+    )
+
+
 def _digest_regular_file(path: Path, expected: os.stat_result) -> str:
     """Hash one regular source file via a bounded, no-follow descriptor."""
     flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC
@@ -308,8 +317,8 @@ def validate_layout(
     )
 
 
-def _validate_source_links_and_git_metadata(source: Path) -> None:
-    """Reject links which could turn a source path into an external write path."""
+def _validate_parent_git_layout(source: Path) -> Path:
+    """Require Parent Git control directories to be real, non-link directories."""
     source_git_root = source / ".git"
     source_git_metadata = os.lstat(source_git_root)
     if stat.S_ISLNK(source_git_metadata.st_mode) or not stat.S_ISDIR(source_git_metadata.st_mode):
@@ -318,38 +327,47 @@ def _validate_source_links_and_git_metadata(source: Path) -> None:
     modules_metadata = os.lstat(modules)
     if stat.S_ISLNK(modules_metadata.st_mode) or not stat.S_ISDIR(modules_metadata.st_mode):
         raise ValueError("Parent .git/modules must be a non-symlink directory")
+    return source_git_root
+
+
+def _validate_source_symbolic_link(path: Path, relative: str, source: Path) -> None:
+    """Require one source symlink's lexical target to remain within source."""
+    target = _lexical_link_target(path, os.readlink(path))
+    if not _is_within(target, source):
+        raise ValueError(f"source symbolic link must remain inside source root: {relative}")
+
+
+def _validate_gitfile(
+    path: Path, relative: str, metadata: os.stat_result, source_git_root: Path
+) -> None:
+    """Validate one non-directory nested Git metadata entry."""
+    if stat.S_ISLNK(metadata.st_mode):
+        raise ValueError(f"Git metadata must not be a symbolic link: {relative}")
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ValueError(f"Git metadata has an unsupported type: {relative}")
+    content = _read_small_regular_text(path, metadata).strip()
+    if not content.startswith("gitdir: "):
+        raise ValueError(f"Git metadata has an invalid gitdir declaration: {relative}")
+    target_text = content.removeprefix("gitdir: ")
+    if not target_text or "\x00" in target_text:
+        raise ValueError(f"Git metadata has an invalid gitdir target: {relative}")
+    target = _lexical_link_target(path, target_text)
+    if not _is_within(target, source_git_root):
+        raise ValueError(f"Git metadata target must remain below Parent .git: {relative}")
+    _existing_directory_without_symlinks(str(target), f"Git metadata target for {relative}")
+
+
+def _validate_source_links_and_git_metadata(source: Path) -> None:
+    """Reject links which could turn a source path into an external write path."""
+    source_git_root = _validate_parent_git_layout(source)
     for path, relative, metadata in _walk_tree(source):
         if stat.S_ISLNK(metadata.st_mode):
-            target_text = os.readlink(path)
-            target = Path(
-                os.path.normpath(
-                    target_text if os.path.isabs(target_text) else os.path.join(path.parent, target_text)
-                )
-            )
-            if not _is_within(target, source):
-                raise ValueError(f"source symbolic link must remain inside source root: {relative}")
+            _validate_source_symbolic_link(path, relative, source)
         if path.name != ".git" or path == source_git_root:
             continue
-        if stat.S_ISLNK(metadata.st_mode):
-            raise ValueError(f"Git metadata must not be a symbolic link: {relative}")
         if stat.S_ISDIR(metadata.st_mode):
             continue
-        if not stat.S_ISREG(metadata.st_mode):
-            raise ValueError(f"Git metadata has an unsupported type: {relative}")
-        content = _read_small_regular_text(path, metadata).strip()
-        if not content.startswith("gitdir: "):
-            raise ValueError(f"Git metadata has an invalid gitdir declaration: {relative}")
-        target_text = content.removeprefix("gitdir: ")
-        if not target_text or "\x00" in target_text:
-            raise ValueError(f"Git metadata has an invalid gitdir target: {relative}")
-        target = Path(
-            os.path.normpath(
-                target_text if os.path.isabs(target_text) else os.path.join(path.parent, target_text)
-            )
-        )
-        if not _is_within(target, source_git_root):
-            raise ValueError(f"Git metadata target must remain below Parent .git: {relative}")
-        _existing_directory_without_symlinks(str(target), f"Git metadata target for {relative}")
+        _validate_gitfile(path, relative, metadata, source_git_root)
 
 
 def _lock_tree(root: Path) -> None:
@@ -400,31 +418,60 @@ def _prepared_control_paths(write_root: Path, identity: ValidatorIdentity) -> tu
     return inventory, external
 
 
-def _validate_external_tree(external: Path, source: Path, identity: ValidatorIdentity) -> None:
-    """Reject output types, ownership, and links that escape the private root."""
-    source_regular_inodes = {
+def _source_regular_inodes(source: Path) -> set[tuple[int, int]]:
+    """Collect regular-file identities that candidate output must not hardlink."""
+    return {
         (metadata.st_dev, metadata.st_ino)
         for _path, _relative, metadata in _walk_tree(source)
         if stat.S_ISREG(metadata.st_mode)
     }
+
+
+def _validate_external_symbolic_link(path: Path, relative: str, external: Path) -> None:
+    """Require one candidate output link to remain lexical and private."""
+    target = os.readlink(path)
+    if not target or "\x00" in target or os.path.isabs(target):
+        raise ValueError(f"external output link has an unsafe target: {relative}")
+    if not _is_within(_lexical_link_target(path, target), external):
+        raise ValueError(f"external output link escapes external root: {relative}")
+
+
+def _validate_external_entry(
+    *,
+    path: Path,
+    relative: str,
+    metadata: os.stat_result,
+    external: Path,
+    identity: ValidatorIdentity,
+    source_regular_inodes: set[tuple[int, int]],
+) -> None:
+    """Validate one candidate-created object against output safety invariants."""
+    if metadata.st_uid != identity.uid or metadata.st_gid != identity.gid:
+        raise ValueError(f"external output has a foreign owner: {relative}")
+    if stat.S_ISLNK(metadata.st_mode):
+        _validate_external_symbolic_link(path, relative, external)
+        return
+    if not (stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode)):
+        raise ValueError(f"external output has an unsupported file type: {relative}")
+    mode = stat.S_IMODE(metadata.st_mode)
+    if mode & 0o022 or mode & 0o7000:
+        raise ValueError(f"external output has unsafe permissions: {relative}")
+    if stat.S_ISREG(metadata.st_mode) and (metadata.st_dev, metadata.st_ino) in source_regular_inodes:
+        raise ValueError(f"external output hardlinks a source file: {relative}")
+
+
+def _validate_external_tree(external: Path, source: Path, identity: ValidatorIdentity) -> None:
+    """Reject output types, ownership, and links that escape the private root."""
+    source_regular_inodes = _source_regular_inodes(source)
     for path, relative, metadata in _walk_tree(external):
-        mode = stat.S_IMODE(metadata.st_mode)
-        if metadata.st_uid != identity.uid or metadata.st_gid != identity.gid:
-            raise ValueError(f"external output has a foreign owner: {relative}")
-        if stat.S_ISLNK(metadata.st_mode):
-            target = os.readlink(path)
-            if not target or "\x00" in target or os.path.isabs(target):
-                raise ValueError(f"external output link has an unsafe target: {relative}")
-            lexical_target = Path(os.path.normpath(os.path.join(path.parent, target)))
-            if not _is_within(lexical_target, external):
-                raise ValueError(f"external output link escapes external root: {relative}")
-            continue
-        if not (stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode)):
-            raise ValueError(f"external output has an unsupported file type: {relative}")
-        if mode & 0o022 or mode & 0o7000:
-            raise ValueError(f"external output has unsafe permissions: {relative}")
-        if stat.S_ISREG(metadata.st_mode) and (metadata.st_dev, metadata.st_ino) in source_regular_inodes:
-            raise ValueError(f"external output hardlinks a source file: {relative}")
+        _validate_external_entry(
+            path=path,
+            relative=relative,
+            metadata=metadata,
+            external=external,
+            identity=identity,
+            source_regular_inodes=source_regular_inodes,
+        )
 
 
 def prepare_sandbox(args: argparse.Namespace) -> tuple[Path, str]:

@@ -55,6 +55,28 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         os.chmod(write, 0o711)
         return source, framework, runner_temp, write
 
+    @staticmethod
+    def sandbox_args(
+        source: Path,
+        framework: Path,
+        runner_temp: Path,
+        write: Path,
+        *,
+        validator_user: str = "unused",
+        validator_group: str = "unused",
+    ) -> object:
+        return HELPER.parse_args(
+            [
+                "--source-root", str(source), "--framework-root", str(framework),
+                "--write-root", str(write), "--runner-temp", str(runner_temp),
+                "--validator-user", validator_user, "--validator-group", validator_group,
+            ]
+        )
+
+    @staticmethod
+    def current_identity() -> HELPER.ValidatorIdentity:
+        return HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+
     def test_valid_control_locks_sources_and_creates_only_external_root(self) -> None:
         if os.geteuid() != 0:
             self.skipTest("locking control requires root")
@@ -65,14 +87,8 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             git_module_file = source / ".git" / "modules" / "framework" / "config"
             git_module_file.parent.mkdir(parents=True, exist_ok=True)
             git_module_file.write_text("[core]", encoding="utf-8")
-            arguments = HELPER.parse_args(
-                [
-                    "--source-root", str(source), "--framework-root", str(framework),
-                    "--write-root", str(write), "--runner-temp", str(runner_temp),
-                    "--validator-user", "unused", "--validator-group", "unused",
-                ]
-            )
-            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            identity = self.current_identity()
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, inventory_sha256 = HELPER.prepare_sandbox(arguments)
             self.assertEqual(external, write / "external")
@@ -113,12 +129,9 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             source, framework, runner_temp, write = self.make_layout(temporary)
             os.chmod(runner_temp, 0o755)
             (source / "input.txt").write_text("trusted", encoding="utf-8")
-            arguments = HELPER.parse_args(
-                [
-                    "--source-root", str(source), "--framework-root", str(framework),
-                    "--write-root", str(write), "--runner-temp", str(runner_temp),
-                    "--validator-user", identity.user, "--validator-group", identity.group,
-                ]
+            arguments = self.sandbox_args(
+                source, framework, runner_temp, write,
+                validator_user=identity.user, validator_group=identity.group,
             )
             external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
 
@@ -161,14 +174,8 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             outside.write_text("outside", encoding="utf-8")
             original = outside.stat()
             (source / "outside-link").symlink_to(outside)
-            arguments = HELPER.parse_args(
-                [
-                    "--source-root", str(source), "--framework-root", str(framework),
-                    "--write-root", str(write), "--runner-temp", str(runner_temp),
-                    "--validator-user", "unused", "--validator-group", "unused",
-                ]
-            )
-            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            identity = self.current_identity()
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 with self.assertRaisesRegex(ValueError, "symbolic link must remain inside source"):
                     HELPER.prepare_sandbox(arguments)
@@ -186,14 +193,8 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             source, framework, runner_temp, write = self.make_layout(Path(raw))
             source_file = source / "input.txt"
             source_file.write_text("before", encoding="utf-8")
-            arguments = HELPER.parse_args(
-                [
-                    "--source-root", str(source), "--framework-root", str(framework),
-                    "--write-root", str(write), "--runner-temp", str(runner_temp),
-                    "--validator-user", "unused", "--validator-group", "unused",
-                ]
-            )
-            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            identity = self.current_identity()
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 HELPER.prepare_sandbox(arguments)
                 source_file.write_text("after", encoding="utf-8")
@@ -209,14 +210,8 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             source_file.write_text("inside", encoding="utf-8")
             source_link = source / "inside-link"
             source_link.symlink_to("input.txt")
-            arguments = HELPER.parse_args(
-                [
-                    "--source-root", str(source), "--framework-root", str(framework),
-                    "--write-root", str(write), "--runner-temp", str(runner_temp),
-                    "--validator-user", "unused", "--validator-group", "unused",
-                ]
-            )
-            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            identity = self.current_identity()
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 inventory, _inventory_digest = HELPER._read_inventory(
@@ -243,14 +238,8 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
             source, framework, runner_temp, write = self.make_layout(Path(raw))
             (source / "input.txt").write_text("source", encoding="utf-8")
-            arguments = HELPER.parse_args(
-                [
-                    "--source-root", str(source), "--framework-root", str(framework),
-                    "--write-root", str(write), "--runner-temp", str(runner_temp),
-                    "--validator-user", "unused", "--validator-group", "unused",
-                ]
-            )
-            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            identity = self.current_identity()
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 shared = external / "shared"
@@ -267,14 +256,8 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
             source, framework, runner_temp, write = self.make_layout(Path(raw))
             (source / "input.txt").write_text("source", encoding="utf-8")
-            arguments = HELPER.parse_args(
-                [
-                    "--source-root", str(source), "--framework-root", str(framework),
-                    "--write-root", str(write), "--runner-temp", str(runner_temp),
-                    "--validator-user", "unused", "--validator-group", "unused",
-                ]
-            )
-            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            identity = self.current_identity()
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 (external / "absolute-in-root").symlink_to(external / "target")
@@ -288,14 +271,8 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             source, framework, runner_temp, write = self.make_layout(Path(raw))
             source_file = source / "input.txt"
             source_file.write_text("source", encoding="utf-8")
-            arguments = HELPER.parse_args(
-                [
-                    "--source-root", str(source), "--framework-root", str(framework),
-                    "--write-root", str(write), "--runner-temp", str(runner_temp),
-                    "--validator-user", "unused", "--validator-group", "unused",
-                ]
-            )
-            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            identity = self.current_identity()
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 (external / "source-escape").symlink_to("../../../source/input.txt")
@@ -312,14 +289,8 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
             source, framework, runner_temp, write = self.make_layout(Path(raw))
             (source / "input.txt").write_text("source", encoding="utf-8")
-            arguments = HELPER.parse_args(
-                [
-                    "--source-root", str(source), "--framework-root", str(framework),
-                    "--write-root", str(write), "--runner-temp", str(runner_temp),
-                    "--validator-user", "unused", "--validator-group", "unused",
-                ]
-            )
-            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            identity = self.current_identity()
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 links = external / "links"
@@ -335,14 +306,8 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
             source, framework, runner_temp, write = self.make_layout(Path(raw))
             (source / "input.txt").write_text("source", encoding="utf-8")
-            arguments = HELPER.parse_args(
-                [
-                    "--source-root", str(source), "--framework-root", str(framework),
-                    "--write-root", str(write), "--runner-temp", str(runner_temp),
-                    "--validator-user", "unused", "--validator-group", "unused",
-                ]
-            )
-            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            identity = self.current_identity()
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 link = external / "foreign-link"
@@ -372,14 +337,8 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             source, framework, runner_temp, write = self.make_layout(Path(raw))
             source_file = source / "input.txt"
             source_file.write_text("source", encoding="utf-8")
-            arguments = HELPER.parse_args(
-                [
-                    "--source-root", str(source), "--framework-root", str(framework),
-                    "--write-root", str(write), "--runner-temp", str(runner_temp),
-                    "--validator-user", "unused", "--validator-group", "unused",
-                ]
-            )
-            identity = HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            identity = self.current_identity()
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 (external / "outside-link").symlink_to(source_file)

@@ -265,13 +265,19 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         "CLONE_NEWNS | CLONE_NEWPID",
         'parser.add_argument("--namespace-parent", required=True)',
         "_validate_namespace_parent(namespace_parent, gid)",
-        "namespace parent must be a direct child of /tmp",
-        "namespace parent requires a root-owned sticky /tmp ancestor",
+        "namespace_ancestor = namespace_parent.parent",
+        "namespace parent must have a trusted sticky ancestor",
+        "namespace parent requires a root-owned sticky ancestor",
         "namespace parent must be root:validator mode 0750",
         "namespace parent must be empty before mount layout creation",
         "mount_root = namespace_parent / \"mount-root\"",
-        "os.mkdir(path, mode=0o750)",
-        "os.chown(path, 0, validator_gid, follow_symlinks=False)",
+        "os.mkdir(path, mode=0o700)",
+        "os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)",
+        "metadata = os.fstat(descriptor)",
+        "not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0",
+        "os.fchown(descriptor, 0, validator_gid)",
+        "os.fchmod(descriptor, 0o750)",
+        "metadata = os.lstat(path)",
         "(0, validator_gid, 0o750)",
         "PR_SET_NO_NEW_PRIVS = 38",
         "if LIBC.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:",
@@ -315,7 +321,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
     for term in required:
         if term not in runner:
             errors.append(f"missing {term}")
-    for term in ("tempfile", "os.chmod("):
+    for term in ("tempfile", "os.chmod(", 'Path("/tmp")', "os.umask(", "BaseException"):
         if term in runner:
             errors.append(f"namespace runner must not use {term!r}")
     forbidden = (
@@ -1620,12 +1626,24 @@ sudo -n chmod 0750 "$namespace_parent"
                 "namespace parent may be public",
             ),
             "namespace mount root loses validator traversal": (
-                "os.mkdir(path, mode=0o750)",
+                "os.fchmod(descriptor, 0o750)",
                 "os.mkdir(path, mode=0o700)",
             ),
             "namespace restores unsafe Python chmod": (
-                "os.chown(path, 0, validator_gid, follow_symlinks=False)",
-                "os.chown(path, 0, validator_gid, follow_symlinks=False)\n    os.chmod(path, 0o755)",
+                "os.fchown(descriptor, 0, validator_gid)",
+                "os.fchown(descriptor, 0, validator_gid)\n            os.chmod(path, 0o755)",
+            ),
+            "namespace hardcodes the public temporary directory": (
+                "namespace_ancestor = namespace_parent.parent",
+                'namespace_ancestor = Path("/tmp")',
+            ),
+            "namespace changes the process umask": (
+                "os.fchmod(descriptor, 0o750)",
+                "os.umask(0)\n            os.fchmod(descriptor, 0o750)",
+            ),
+            "namespace catches process-control exceptions": (
+                "except Exception as error:",
+                "except BaseException as error:",
             ),
         }
         for name, (original, replacement) in namespace_mutations.items():

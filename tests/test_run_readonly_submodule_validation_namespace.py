@@ -87,7 +87,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             "wrong mode": (valid_tmp, SimpleNamespace(st_mode=directory | 0o755, st_uid=0, st_gid=4242), []),
             "nonempty": (valid_tmp, valid_parent, [SimpleNamespace(name="unexpected")]),
         }
-        with self.assertRaisesRegex(ValueError, "direct child"):
+        with self.assertRaisesRegex(ValueError, "sticky ancestor"):
             HELPER._validate_namespace_parent(Path("/tmp"), 4242)
         for name, (tmp_metadata, parent_metadata, contents) in cases.items():
             with self.subTest(name=name), mock.patch.object(
@@ -95,6 +95,50 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             ), mock.patch.object(HELPER.os, "scandir", return_value=contents):
                 with self.assertRaises(ValueError):
                     HELPER._validate_namespace_parent(parent, 4242)
+
+    def test_main_blocks_runtime_errors_including_namespace_unavailability(self) -> None:
+        for error in (RuntimeError("unsafe mount layout"), HELPER.NamespaceUnavailable("unshare denied")):
+            with self.subTest(error=type(error).__name__), mock.patch.object(
+                HELPER, "parse_args", return_value=SimpleNamespace()
+            ), mock.patch.object(HELPER, "run", side_effect=error), mock.patch.object(
+                HELPER.sys, "stderr"
+            ) as stderr:
+                self.assertEqual(HELPER.main([]), 2)
+                self.assertIn(str(error), "".join(call.args[0] for call in stderr.write.call_args_list))
+
+    def test_run_fails_closed_and_removes_mount_layout_after_unexpected_setup_errors(self) -> None:
+        for error_type in (OSError, RuntimeError):
+            with self.subTest(error_type=error_type.__name__), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                source = root / "source"
+                framework = source / "modules" / "framework"
+                write_root = root / "write"
+                external = write_root / "external"
+                namespace_parent = root / "namespace-parent"
+                framework.mkdir(parents=True)
+                external.mkdir(parents=True)
+                namespace_parent.mkdir()
+                mount_root = namespace_parent / "mount-root"
+                (mount_root / "source").mkdir(parents=True)
+                (mount_root / "external").mkdir()
+                os.chmod(write_root, 0o711)
+                os.chmod(external, 0o700)
+                arguments = SimpleNamespace(
+                    source_root=str(source), framework_root=str(framework),
+                    write_root=str(write_root), external_root=str(external),
+                    namespace_parent=str(namespace_parent), python=sys.executable,
+                    validator_user="validator", validator_group="validator",
+                )
+                with mock.patch.object(HELPER.os, "geteuid", return_value=0), mock.patch.object(
+                    HELPER, "_identity", return_value=(os.getuid(), os.getgid())
+                ), mock.patch.object(HELPER, "_validate_namespace_parent"), mock.patch.object(
+                    HELPER, "_create_mount_layout", return_value=mount_root
+                ), mock.patch.object(HELPER, "_mountinfo_for", return_value=[]), mock.patch.object(
+                    HELPER.os, "fork", return_value=1
+                ), mock.patch.object(HELPER.os, "waitpid", side_effect=error_type("unexpected setup failure")):
+                    with self.assertRaises(error_type):
+                        HELPER.run(arguments)
+                self.assertFalse(mount_root.exists())
 
     def test_candidate_environment_uses_only_namespace_views_for_sources(self) -> None:
         source = Path("/tmp/task/source")
