@@ -307,6 +307,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         '"PYTHONUSERBASE": str(root / "python-user-base")',
         '"PYTHONPATH": str(root / "python-packages")',
         '"GIT_CONFIG_GLOBAL": str(root / "gitconfig")',
+        '"GITHUB_ACTIONS": "true"',
         '"VERIFIED_RUN_ROOT": str(root / "verified-run")',
         '"CACHE_ROOT": str(root / "cache")',
         '"VERIFIED_EVIDENCE_ROOT": str(root / "evidence")',
@@ -1616,6 +1617,10 @@ sudo -n chmod 0750 "$namespace_parent"
             "candidate retains root identity": (
                 "os.setgroups([]); os.setgid(gid); os.setuid(uid); os.chdir(source)",
                 "os.chdir(source)",
+            ),
+            "candidate loses hosted-run classification": (
+                '"GITHUB_ACTIONS": "true"',
+                '"GITHUB_ACTIONS": "false"',
             ),
             "namespace uses lazy cleanup": (
                 "os.rmdir(path)",

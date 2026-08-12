@@ -155,6 +155,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             environment["FRAMEWORK_ROOT"], "/tmp/task/source/modules/ModSecurity-test-Framework"
         )
         self.assertEqual(environment["PATH"], HELPER.SAFE_PATH)
+        self.assertEqual(environment["GITHUB_ACTIONS"], "true")
         self.assertEqual(environment["VALIDATION_WRITE_ROOT"], "/tmp/task")
         self.assertNotIn("SUDO", " ".join(environment))
         self.assertEqual(
@@ -164,7 +165,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                 "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "PIP_CACHE_DIR",
                 "PYTHONPYCACHEPREFIX", "PYTHONUSERBASE", "PYTHONPATH", "PYTHONNOUSERSITE",
                 "PYTHONDONTWRITEBYTECODE", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM",
-                "GIT_OPTIONAL_LOCKS", "GITHUB_WORKSPACE", "FRAMEWORK_ROOT", "VALIDATOR_EXTERNAL_ROOT",
+                "GIT_OPTIONAL_LOCKS", "GITHUB_ACTIONS", "GITHUB_WORKSPACE", "FRAMEWORK_ROOT", "VALIDATOR_EXTERNAL_ROOT",
                 "VALIDATION_WRITE_ROOT", "VERIFIED_RUN_ROOT", "VERIFIED_STATE_ROOT", "VERIFIED_BUILD_ROOT",
                 "VERIFIED_SOURCE_ROOT", "VERIFIED_TMP_ROOT", "VERIFIED_LOG_ROOT", "CACHE_ROOT",
                 "VERIFIED_COMPONENT_CACHE", "CONNECTOR_COMPONENT_CACHE", "VERIFIED_EVIDENCE_ROOT",
@@ -174,7 +175,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         )
         for key, value in environment.items():
             if key not in {
-                "PATH", "PYTHON", "GITHUB_WORKSPACE", "FRAMEWORK_ROOT", "PYTHONNOUSERSITE",
+                "PATH", "PYTHON", "GITHUB_ACTIONS", "GITHUB_WORKSPACE", "FRAMEWORK_ROOT", "PYTHONNOUSERSITE",
                 "PYTHONDONTWRITEBYTECODE", "GIT_CONFIG_NOSYSTEM", "GIT_OPTIONAL_LOCKS", "VALIDATION_WRITE_ROOT",
             }:
                 self.assertTrue(value.startswith(str(external)), key)
