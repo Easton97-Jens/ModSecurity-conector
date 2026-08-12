@@ -140,6 +140,92 @@ class EvidenceOutputSecurityTests(unittest.TestCase):
             policy = SYSTEM_PROOF.https_repo_url_policy(root, root)
             self.assertEqual(policy["status"], "PASS")
 
+    def test_nginx_inventory_executes_only_a_validated_contract_binary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binary = root / "managed/nginx"
+            binary.parent.mkdir(parents=True)
+            binary.write_text("#!/bin/sh\nprintf 'nginx/1.31.3\\n'\n", encoding="utf-8")
+            binary.chmod(0o755)
+            digest = SYSTEM_PROOF.hashlib.sha256(binary.read_bytes()).hexdigest()
+            passed_contract = {
+                "nginx_runtime_contract": {
+                    "status": "PASS",
+                    "fields": {
+                        "binary_path": str(binary),
+                        "binary_sha256": digest,
+                    },
+                    "issues": [],
+                }
+            }
+            run_result = {
+                "output_excerpt": "nginx version: nginx/1.31.3",
+                "return_code": 0,
+                "output_sha256": digest,
+            }
+
+            with mock.patch.object(SYSTEM_PROOF, "run", return_value=run_result) as run:
+                record = SYSTEM_PROOF.resolve_nginx_tool(root, passed_contract)
+
+            self.assertEqual(record["status"], "present")
+            self.assertEqual(record["resolved_command"], str(binary))
+            self.assertEqual(record["source"], "validated NGINX runtime contract")
+            run.assert_called_once_with([str(binary), "-v"], root, timeout=60)
+
+    def test_nginx_inventory_blocks_before_any_binary_lookup_or_execution(self) -> None:
+        unvalidated_contract = {
+            "nginx_runtime_contract": {
+                "status": "BLOCKED",
+                "fields": {"binary_path": "/untrusted/nginx", "binary_sha256": "0" * 64},
+                "issues": ["missing required NGINX runtime contract fields: source_ref"],
+            }
+        }
+
+        with (
+            mock.patch.object(
+                SYSTEM_PROOF,
+                "command_exists",
+                side_effect=AssertionError("NGINX binary lookup must not run before validation"),
+            ),
+            mock.patch.object(
+                SYSTEM_PROOF,
+                "run",
+                side_effect=AssertionError("NGINX binary execution must not run before validation"),
+            ),
+        ):
+            record = SYSTEM_PROOF.resolve_nginx_tool(Path.cwd(), unvalidated_contract)
+
+        self.assertEqual(record["status"], "blocked")
+        self.assertEqual(record["return_code"], 125)
+        self.assertEqual(record["source"], "validated NGINX runtime contract")
+        self.assertIn("was not executed before runtime-contract validation", record["version_output"])
+
+    def test_nginx_inventory_rechecks_binary_digest_before_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binary = root / "managed/nginx"
+            binary.parent.mkdir(parents=True)
+            binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            binary.chmod(0o755)
+            stale_digest = "0" * 64
+            passed_contract = {
+                "nginx_runtime_contract": {
+                    "status": "PASS",
+                    "fields": {"binary_path": str(binary), "binary_sha256": stale_digest},
+                    "issues": [],
+                }
+            }
+
+            with mock.patch.object(
+                SYSTEM_PROOF,
+                "run",
+                side_effect=AssertionError("digest-mismatched NGINX binary must not execute"),
+            ):
+                record = SYSTEM_PROOF.resolve_nginx_tool(root, passed_contract)
+
+            self.assertEqual(record["status"], "blocked")
+            self.assertIn("binary_sha256 no longer matches", record["version_output"])
+
     def test_critical_batch_rejects_output_outside_generated_reports(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

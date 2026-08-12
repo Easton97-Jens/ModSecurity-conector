@@ -13,6 +13,14 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PINNED_NGINX_ENV = {
+    "NGINX_SOURCE_MODE": "github-release",
+    "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
+    "NGINX_RELEASE_TAG": "release-1.31.3",
+    "NGINX_SOURCE_GIT_REF": "release-1.31.3",
+    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.3.tar.gz",
+    "NGINX_SHA256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+}
 sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
     "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
@@ -21,6 +29,15 @@ assert SPEC is not None
 assert SPEC.loader is not None
 components = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(components)
+READINESS_SPEC = importlib.util.spec_from_file_location(
+    "runtime_component_cache_contract_readiness",
+    ROOT / "ci/checks/evidence/check-runtime-producer-readiness.py",
+)
+assert READINESS_SPEC is not None
+assert READINESS_SPEC.loader is not None
+runtime_producer_readiness = importlib.util.module_from_spec(READINESS_SPEC)
+sys.modules[READINESS_SPEC.name] = runtime_producer_readiness
+READINESS_SPEC.loader.exec_module(runtime_producer_readiness)
 
 
 class RuntimeComponentCacheContractTest(unittest.TestCase):
@@ -637,6 +654,114 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             self.assertEqual(components.CACHE_SCHEMA_VERSION, marker["schema_version"])
             self.assertEqual(identity["cache_key"], marker["cache_key"])
             self.assertEqual(marker["status"], "complete")
+
+    def test_nginx_legacy_dynamic_and_incomplete_archive_markers_are_not_reusable(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            cache_root = components.ensure_managed_cache_root(Path(temporary) / "cache")
+            provenance = components.nginx_pinned_provenance(dict(PINNED_NGINX_ENV))
+            identity = components.nginx_pinned_archive_cache_identity(provenance)
+            component = "archive:nginx"
+
+            legacy_path = cache_root / "archives/nginx/legacy.tar.gz"
+            legacy_path.parent.mkdir(parents=True)
+            legacy_path.write_bytes(b"legacy")
+            components.write_json(
+                components.cache_entry_marker_path(legacy_path, cache_root),
+                {
+                    "kind": "msconnector-runtime-cache-entry",
+                    "schema_version": 1,
+                    "cache_root": str(cache_root),
+                    "entry_path": str(legacy_path.resolve()),
+                    "component": component,
+                    "cache_key": "legacy-dynamic-key",
+                },
+            )
+            action, reason = components.archive_cache_entry_action(
+                legacy_path,
+                cache_root,
+                component,
+                str(identity["cache_key"]),
+                identity,
+            )
+            self.assertEqual((action, reason), ("replace", "cache_schema_changed"))
+
+            dynamic_path = cache_root / "archives/nginx/dynamic.tar.gz"
+            components.mark_managed_cache_entry(
+                dynamic_path,
+                cache_root,
+                component=component,
+                cache_key="dynamic-latest-key",
+            )
+            dynamic_path.parent.mkdir(parents=True, exist_ok=True)
+            dynamic_path.write_bytes(b"dynamic")
+            action, reason = components.archive_cache_entry_action(
+                dynamic_path,
+                cache_root,
+                component,
+                str(identity["cache_key"]),
+                identity,
+            )
+            self.assertEqual((action, reason), ("replace", "archive_cache_identity_changed"))
+
+            incomplete_path = cache_root / "archives/nginx/incomplete.tar.gz"
+            components.mark_managed_cache_entry(
+                incomplete_path,
+                cache_root,
+                component=component,
+                cache_key=str(identity["cache_key"]),
+            )
+            incomplete_path.parent.mkdir(parents=True, exist_ok=True)
+            incomplete_path.write_bytes(b"incomplete")
+            action, reason = components.archive_cache_entry_action(
+                incomplete_path,
+                cache_root,
+                component,
+                str(identity["cache_key"]),
+                identity,
+            )
+            self.assertEqual((action, reason), ("replace", "incomplete_archive_cache_entry"))
+
+    def test_nginx_archive_digest_mismatch_never_publishes_completion(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            cache_root = components.ensure_managed_cache_root(Path(temporary) / "cache")
+            archive_root = cache_root / "archives"
+            provenance = components.nginx_pinned_provenance(dict(PINNED_NGINX_ENV))
+            identity = components.nginx_pinned_archive_cache_identity(provenance)
+            archive_path = archive_root / "nginx/nginx-1.31.3.tar.gz"
+
+            def write_mismatched_archive(_url: str, destination: Path) -> None:
+                destination.write_bytes(b"not-the-reviewed-nginx-release-asset")
+
+            with (
+                mock.patch.object(components, "download", side_effect=write_mismatched_archive),
+                mock.patch.object(
+                    components,
+                    "write_cache_entry_completion",
+                    wraps=components.write_cache_entry_completion,
+                ) as publish_completion,
+                mock.patch.object(components, "archive_can_list") as inspect_archive,
+            ):
+                records = components.nginx_archive_records(
+                    dict(PINNED_NGINX_ENV),
+                    archive_root,
+                    cache_root,
+                )
+
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]["status"], "corrupt")
+            self.assertEqual(records[0]["blocker_reason"], "sha256_mismatch")
+            self.assertEqual(records[0]["checksum_status"], "FAIL")
+            publish_completion.assert_not_called()
+            inspect_archive.assert_not_called()
+            self.assertFalse(
+                components.cache_entry_complete(
+                    archive_path,
+                    cache_root,
+                    component="archive:nginx",
+                    cache_key=str(identity["cache_key"]),
+                    cache_identity=identity,
+                )
+            )
 
     def test_required_pcre2_digest_rejects_unsafe_values_before_archive_handling(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
@@ -1455,7 +1580,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 self.assertNotIn(str(staging_prefix.parent), (entry / "httpd" / relative).read_text(encoding="utf-8"))
             self.assertFalse(any(path.name.startswith(f".{entry.name}.tmp-") for path in entry.parent.iterdir()))
 
-    def test_nginx_discards_marker_owned_partial_root_before_build(self) -> None:
+    def test_corrupt_or_blocked_nginx_archive_stops_before_build_or_fallbacks(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)
             cache_root = components.ensure_managed_cache_root(root / "cache")
@@ -1466,11 +1591,98 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 upstream_version="test",
                 configuration_flags={},
                 toolchain={"cc": "cc", "cc_version": "cc test"},
+                extra_inputs={
+                    "framework_commit": "f" * 40,
+                    "connector_commit": "a" * 40,
+                },
+            )
+            connector_root = root / "connector"
+            framework_root = root / "framework"
+            for archive_status in ("corrupt", "blocked"):
+                with self.subTest(archive_status=archive_status):
+                    cache_key = f"{identity['cache_key']}-{archive_status}"
+                    entry = cache_root / "builds/connectors/nginx" / cache_key
+                    nginx_prefix = entry / "nginx"
+                    plan = {
+                        "connector": "nginx",
+                        "connector_build_id": cache_key,
+                        "cache_key": cache_key,
+                        "cache_schema_version": components.CACHE_SCHEMA_VERSION,
+                        "cache_identity": {**identity, "cache_key": cache_key},
+                        "cache_root": str(cache_root),
+                        "root": str(entry),
+                        "build_root": str(entry / "build"),
+                        "nginx_prefix": str(nginx_prefix),
+                        "manifest": str(entry / "manifest.json"),
+                        "output_paths": {
+                            "binary": str(nginx_prefix / "sbin/nginx"),
+                            "module": str(nginx_prefix / "modules/ngx_http_modsecurity_module.so"),
+                            "config": str(nginx_prefix / "conf/nginx.conf"),
+                        },
+                        "archive_inputs": {
+                            "nginx": {
+                                "status": archive_status,
+                                "blocker_reason": "sha256_mismatch",
+                            }
+                        },
+                    }
+                    with (
+                        mock.patch.object(components, "run_build") as run_build,
+                        mock.patch.object(components, "copy_nginx_common_sources") as copy_common_sources,
+                        mock.patch.object(components, "nginx_source_build_required") as source_build_required,
+                        mock.patch.object(components, "nginx_cached_entry_reusable") as cached_entry_reusable,
+                        mock.patch.object(components, "map_nginx_blocker") as map_blocker,
+                        mock.patch.object(components, "archive_can_list") as inspect_archive,
+                    ):
+                        record = components.prepare_nginx_runtime(
+                            dict(PINNED_NGINX_ENV),
+                            connector_root,
+                            framework_root,
+                            cache_root,
+                            root / "work",
+                            cache_root / "sources",
+                            cache_root / "archives",
+                            modsecurity={"status": "built", "build_id": "modsecurity"},
+                            plan=plan,
+                        )
+
+                    self.assertEqual(record["status"], "blocked")
+                    self.assertEqual(
+                        record["blocker_reason"],
+                        "nginx_pinned_provenance_archive_not_ready",
+                    )
+                    self.assertEqual(record["archive_blocker_reason"], "archive_not_present")
+                    run_build.assert_not_called()
+                    copy_common_sources.assert_not_called()
+                    source_build_required.assert_not_called()
+                    cached_entry_reusable.assert_not_called()
+                    map_blocker.assert_not_called()
+                    inspect_archive.assert_not_called()
+
+    def test_nginx_discards_marker_owned_partial_root_before_build(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            nginx_provenance = components.nginx_pinned_provenance(dict(PINNED_NGINX_ENV))
+            identity = components.canonical_cache_identity(
+                "nginx",
+                env={},
+                upstream_url="https://example.invalid/nginx",
+                upstream_version="test",
+                configuration_flags={},
+                toolchain={"cc": "cc", "cc_version": "cc test"},
+                extra_inputs={
+                    "framework_commit": "f" * 40,
+                    "connector_commit": "a" * 40,
+                },
             )
             cache_key = identity["cache_key"]
             entry = cache_root / "builds/connectors/nginx" / cache_key
             build_path = entry / "build"
             nginx_prefix = entry / "nginx"
+            archive_path = cache_root / "archives/nginx/nginx-1.31.3.tar.gz"
+            archive_path.parent.mkdir(parents=True)
+            archive_path.write_bytes(b"reviewed-nginx-release-fixture")
             modsecurity_lib = root / "shared-modsecurity/lib/libmodsecurity.so"
             modsecurity_lib.parent.mkdir(parents=True)
             modsecurity_lib.write_text("library\n", encoding="utf-8")
@@ -1491,6 +1703,17 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     "binary": str(nginx_prefix / "sbin/nginx"),
                     "module": str(nginx_prefix / "modules/ngx_http_modsecurity_module.so"),
                     "config": str(nginx_prefix / "conf/nginx.conf"),
+                },
+                "archive_inputs": {
+                    "nginx": {
+                        "status": "present",
+                        "path": str(archive_path),
+                        "checksum_status": "PASS",
+                        "archive_digest_verified": True,
+                        "expected_sha256": nginx_provenance["sha256"],
+                        "verified_archive_sha256": nginx_provenance["sha256"],
+                        "source_tuple": components.nginx_pinned_source_tuple(nginx_provenance),
+                    }
                 },
             }
             components.mark_managed_cache_entry(entry, cache_root, component="connector:nginx", cache_key=cache_key)
@@ -1522,7 +1745,14 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 self.assertEqual(build_env["NGINX_PROTOCOL_PROFILE"], "h1")
                 binary = active_nginx_prefix / "sbin/nginx"
                 binary.parent.mkdir(parents=True, exist_ok=True)
-                binary.write_text("#!/bin/sh\n", encoding="utf-8")
+                binary.write_text(
+                    "#!/bin/sh\n"
+                    "if [ \"$1\" = \"-V\" ]; then\n"
+                    "  printf '%s\\n' 'nginx version: nginx/1.31.3' >&2\n"
+                    "  printf '%s\\n' 'configure arguments: --prefix=/managed/nginx --add-dynamic-module=/managed/module' >&2\n"
+                    "fi\n",
+                    encoding="utf-8",
+                )
                 binary.chmod(0o755)
                 module = active_nginx_prefix / "modules/ngx_http_modsecurity_module.so"
                 module.parent.mkdir(parents=True, exist_ok=True)
@@ -1530,11 +1760,39 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 config = active_nginx_prefix / "conf/nginx.conf"
                 config.parent.mkdir(parents=True, exist_ok=True)
                 config.write_text("events {}\n", encoding="utf-8")
+                source_header = active_build_path / "nginx-1.31.3/src/core/nginx.h"
+                source_header.parent.mkdir(parents=True, exist_ok=True)
+                source_header.write_text(
+                    '#define NGINX_VERSION "1.31.3"\n',
+                    encoding="utf-8",
+                )
+                builder_artifacts = active_build_path / "logs/nginx/artifacts.txt"
+                builder_artifacts.parent.mkdir(parents=True, exist_ok=True)
+                builder_artifacts.write_text(
+                    "nginx_archive_sha256_local=" + nginx_provenance["sha256"] + "\n"
+                    "nginx_archive_verified=verified\n",
+                    encoding="utf-8",
+                )
                 return subprocess.CompletedProcess(["nginx-build"], 0, "", "")
 
-            with mock.patch.object(components, "run_build", side_effect=build_nginx) as run_build:
+            real_sha256_file = components.sha256_file
+
+            def readback_digest(path: Path) -> str:
+                if path.resolve(strict=False) == archive_path.resolve(strict=False):
+                    return nginx_provenance["sha256"]
+                return real_sha256_file(path)
+
+            full_smoke_env = {
+                **PINNED_NGINX_ENV,
+                "NGINX_REQUIRE_PINNED_PROVENANCE": "1",
+            }
+            with (
+                mock.patch.object(components, "run_build", side_effect=build_nginx) as run_build,
+                mock.patch.object(components, "sha256_file", side_effect=readback_digest),
+                mock.patch.object(components, "archive_can_list", return_value=True),
+            ):
                 record = components.prepare_nginx_runtime(
-                    {},
+                    full_smoke_env,
                     connector_root,
                     framework_root,
                     cache_root,
@@ -1550,6 +1808,185 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             self.assertTrue(components.executable(entry / "nginx/sbin/nginx"))
             self.assertTrue(components.connector_manifest_ready(plan))
             self.assertFalse(any(path.name.startswith(f".{entry.name}.tmp-") for path in entry.parent.iterdir()))
+            contract = record["runtime_contract"]
+            self.assertTrue(record["runtime_contract_valid"])
+            self.assertEqual(contract["component"], "nginx")
+            self.assertEqual(contract["source_repository"], nginx_provenance["repository"])
+            self.assertEqual(contract["source_mode"], nginx_provenance["mode"])
+            self.assertEqual(contract["release_tag"], nginx_provenance["release_tag"])
+            self.assertEqual(contract["source_ref"], nginx_provenance["source_ref"])
+            self.assertEqual(contract["release_asset_name"], nginx_provenance["release_asset_name"])
+            self.assertEqual(contract["expected_archive_sha256"], nginx_provenance["sha256"])
+            self.assertEqual(contract["actual_archive_sha256"], nginx_provenance["sha256"])
+            self.assertEqual(contract["parent_archive_sha256"], nginx_provenance["sha256"])
+            self.assertEqual(contract["builder_archive_sha256"], nginx_provenance["sha256"])
+            self.assertTrue(contract["builder_archive_verified"])
+            self.assertEqual(contract["source_version_readback"], "nginx/1.31.3")
+            self.assertEqual(contract["binary_path"], str(entry / "nginx/sbin/nginx"))
+            self.assertEqual(contract["binary_sha256"], real_sha256_file(entry / "nginx/sbin/nginx"))
+            self.assertEqual(contract["binary_version_readback"], "nginx/1.31.3")
+            self.assertTrue(contract["configure_arguments"])
+            self.assertEqual(contract["framework_commit"], "f" * 40)
+            self.assertEqual(contract["parent_commit"], "a" * 40)
+            self.assertTrue(contract["generated_at"].endswith("Z"))
+
+            persisted_components = {
+                "modsecurity": {"status": "built", "build_id": "modsecurity"},
+                "expat": {"status": "present"},
+                "apache_httpd": {
+                    "status": "built",
+                    "connector": "apache",
+                    "modsecurity_build_id": "modsecurity",
+                },
+                "nginx": record,
+                "haproxy": {
+                    "status": "built",
+                    "connector": "haproxy",
+                    "modsecurity_build_id": "modsecurity",
+                },
+                "go_ftw": {"status": "present"},
+                "albedo": {"status": "present"},
+            }
+            payload, _ = components.runtime_component_payload(
+                {
+                    "cache_root": cache_root,
+                    "connector_root": connector_root,
+                    "framework_root": framework_root,
+                    "build_root": root / "work",
+                    "native_root": root / "native",
+                    "strict": True,
+                    "target_connector": "nginx",
+                    "env": full_smoke_env,
+                },
+                persisted_components,
+                [],
+                [],
+                ["nginx"],
+                {},
+            )
+            components.write_json(cache_root / components.CACHE_MANIFEST_FILENAME, payload)
+            persisted = runtime_producer_readiness.nginx_runtime_contract_from_manifest(cache_root)
+            self.assertEqual(persisted["record_path"], "nginx.runtime_contract")
+            self.assertEqual(persisted["record_status"], "built")
+            checked = runtime_producer_readiness.validate_nginx_runtime_contract(
+                persisted,
+                {
+                    "cache": cache_root,
+                    "source": cache_root / "sources",
+                    "mrts_native_root": root / "mrts-native",
+                },
+            )
+            self.assertEqual(checked["status"], "PASS")
+            self.assertTrue(all(value == "PASS" for value in checked["field_status"].values()))
+
+            with (
+                mock.patch.object(components, "sha256_file", side_effect=readback_digest),
+                mock.patch.object(components, "archive_can_list", return_value=True),
+            ):
+                reused = components.prepare_nginx_runtime(
+                    full_smoke_env,
+                    connector_root,
+                    framework_root,
+                    cache_root,
+                    root / "work",
+                    cache_root / "sources",
+                    cache_root / "archives",
+                    modsecurity={"status": "built", "build_id": "modsecurity", "lib_dir": str(modsecurity_lib.parent)},
+                    plan=plan,
+                    _transactional=True,
+                )
+            self.assertEqual(reused["status"], "reused")
+            self.assertTrue(reused["runtime_contract_valid"])
+            self.assertEqual(
+                reused["runtime_contract"]["actual_archive_sha256"],
+                nginx_provenance["sha256"],
+            )
+            self.assertEqual(
+                reused["runtime_contract"]["binary_path"],
+                str(entry / "nginx/sbin/nginx"),
+            )
+
+            runtime_context = components.nginx_runtime_context(
+                full_smoke_env,
+                plan,
+                root / "work",
+                {"status": "built", "build_id": "modsecurity", "lib_dir": str(modsecurity_lib.parent)},
+            )
+
+            def assert_contract_blocked(expected_blocker: str) -> None:
+                invalid_record = dict(record)
+                self.assertTrue(
+                    components.nginx_runtime_contract_preflight_blocked(
+                        invalid_record,
+                        full_smoke_env,
+                        plan,
+                        runtime_context,
+                    )
+                )
+                self.assertEqual(
+                    invalid_record["blocker_reason"],
+                    "nginx_pinned_provenance_runtime_contract_not_ready",
+                )
+                self.assertIn(expected_blocker, invalid_record["runtime_contract_blockers"])
+
+            source_header = entry / "build/nginx-1.31.3/src/core/nginx.h"
+            original_source_header = source_header.read_text(encoding="utf-8")
+            source_header.unlink()
+            assert_contract_blocked("source_version_readback")
+            source_header.write_text('#define NGINX_VERSION "1.30.0"\n', encoding="utf-8")
+            assert_contract_blocked("mismatch:source_version_readback")
+            source_header.write_text(original_source_header, encoding="utf-8")
+
+            binary = entry / "nginx/sbin/nginx"
+            original_binary = binary.read_text(encoding="utf-8")
+            binary.write_text(
+                "#!/bin/sh\n"
+                "if [ \"$1\" = \"-V\" ]; then\n"
+                "  printf '%s\\n' 'configure arguments: --prefix=/managed/nginx' >&2\n"
+                "fi\n",
+                encoding="utf-8",
+            )
+            binary.chmod(0o755)
+            assert_contract_blocked("binary_version_readback")
+            binary.write_text(
+                "#!/bin/sh\n"
+                "if [ \"$1\" = \"-V\" ]; then\n"
+                "  printf '%s\\n' 'nginx version: nginx/1.30.0' >&2\n"
+                "  printf '%s\\n' 'configure arguments: --prefix=/managed/nginx' >&2\n"
+                "fi\n",
+                encoding="utf-8",
+            )
+            binary.chmod(0o755)
+            assert_contract_blocked("mismatch:binary_version_readback")
+            binary.write_text(original_binary, encoding="utf-8")
+            binary.chmod(0o755)
+
+            with (
+                mock.patch.object(components, "sha256_file", side_effect=readback_digest),
+                mock.patch.object(components, "archive_can_list", return_value=True),
+                mock.patch.object(components, "run_build") as run_build,
+            ):
+                system_override = components.prepare_nginx_runtime(
+                    {
+                        **full_smoke_env,
+                        "MRTS_NATIVE_NGINX_BIN": "/usr/bin/env",
+                    },
+                    connector_root,
+                    framework_root,
+                    cache_root,
+                    root / "work",
+                    cache_root / "sources",
+                    cache_root / "archives",
+                    modsecurity={"status": "built", "build_id": "modsecurity", "lib_dir": str(modsecurity_lib.parent)},
+                    plan=plan,
+                    _transactional=True,
+                )
+            self.assertEqual(system_override["status"], "blocked")
+            self.assertEqual(
+                system_override["blocker_reason"],
+                "nginx_pinned_provenance_native_override_forbidden",
+            )
+            run_build.assert_not_called()
 
     def test_go_tool_uses_identity_keyed_staging_entry_and_complete_manifest(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:

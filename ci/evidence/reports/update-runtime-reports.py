@@ -28,6 +28,26 @@ from report_path_safety import add_report_roots, add_safe_roots, read_json_file,
 
 
 COMPONENT_KEYS = ("modsecurity", "apache_httpd", "nginx", "haproxy", "go_ftw", "albedo", "expat")
+NGINX_RUNTIME_CONTRACT_FIELDS = (
+    "component",
+    "source_repository",
+    "source_mode",
+    "release_tag",
+    "source_ref",
+    "release_asset_name",
+    "expected_archive_sha256",
+    "actual_archive_sha256",
+    "source_version_readback",
+    "source_directory",
+    "binary_path",
+    "binary_sha256",
+    "binary_version_readback",
+    "configure_arguments",
+    "build_id",
+    "framework_commit",
+    "parent_commit",
+    "generated_at",
+)
 MARKER_START = "<!-- runtime-components:start -->"
 MARKER_END = "<!-- runtime-components:end -->"
 DIAG_MARKER_START = "<!-- runtime-diagnostics:start -->"
@@ -80,6 +100,27 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def runtime_contract_display(value: Any) -> str:
+    if isinstance(value, (dict, list, tuple)):
+        return json.dumps(value, sort_keys=True, separators=(",", ":"))
+    return str(value or "")
+
+
+def runtime_contract_markdown_value(value: Any) -> str:
+    return runtime_contract_display(value).replace("`", "\\`").replace("\n", " ")
+
+
+def nginx_runtime_contract(nginx: dict[str, Any]) -> dict[str, Any]:
+    nested = nginx.get("runtime_contract")
+    if isinstance(nested, dict):
+        return {field: nested.get(field, "") for field in NGINX_RUNTIME_CONTRACT_FIELDS}
+    # The component producer may expose its stable fields directly on the
+    # nginx record.  Do not synthesize fields from environment/defaults: a
+    # missing value remains visible as an empty contract field to the
+    # readiness consumer.
+    return {field: nginx.get(field, "") for field in NGINX_RUNTIME_CONTRACT_FIELDS}
+
+
 def local_cache_root(explicit: str | None = None) -> Path:
     if explicit:
         return Path(explicit).resolve()
@@ -113,13 +154,14 @@ def component_status_rows(components: dict[str, Any]) -> list[dict[str, Any]]:
     rows = []
     for name in COMPONENT_KEYS:
         item = components.get(name) if isinstance(components.get(name), dict) else {}
+        contract = nginx_runtime_contract(item) if name == "nginx" else {}
         rows.append(
             {
                 "name": name,
                 "status": item.get("status", "missing"),
-                "build_id": item.get("build_id") or item.get("connector_build_id") or "-",
-                "source_ref": item.get("source_ref") or item.get("expected_ref") or item.get("release_tag") or "-",
-                "path": item.get("prefix") or item.get("path") or item.get("build_path") or item.get("binary") or "-",
+                "build_id": contract.get("build_id") or item.get("build_id") or item.get("connector_build_id") or "-",
+                "source_ref": contract.get("source_ref") or item.get("source_ref") or item.get("expected_ref") or item.get("release_tag") or "-",
+                "path": contract.get("binary_path") or item.get("prefix") or item.get("path") or item.get("build_path") or item.get("binary") or "-",
             }
         )
     return rows
@@ -133,12 +175,13 @@ def important_cache_files(component_manifest: dict[str, Any], build_cache: dict[
     go_ftw = component_manifest.get("go_ftw") if isinstance(component_manifest.get("go_ftw"), dict) else {}
     albedo = component_manifest.get("albedo") if isinstance(component_manifest.get("albedo"), dict) else {}
     expat = component_manifest.get("expat") if isinstance(component_manifest.get("expat"), dict) else {}
+    nginx_contract = nginx_runtime_contract(nginx)
     files = [
         file_proof("libmodsecurity", modsecurity.get("lib_file")),
         file_proof("apache_httpd", apache.get("httpd_bin")),
         file_proof("apache_apxs", apache.get("apxs_bin")),
         file_proof("apache_mod_security3", apache.get("module_file")),
-        file_proof("nginx", nginx.get("nginx_bin") or nginx.get("local_nginx_bin")),
+        file_proof("nginx", nginx_contract.get("binary_path") or nginx.get("nginx_bin") or nginx.get("local_nginx_bin")),
         file_proof("nginx_modsecurity_module", nginx.get("module_file") or nginx.get("local_module_file")),
         file_proof("haproxy", haproxy.get("haproxy_bin")),
         file_proof("haproxy_spoa", haproxy.get("spoa_runtime_bin")),
@@ -159,6 +202,7 @@ def runtime_cache_index_payload(cache_root: Path, component_manifest: dict[str, 
     runtime_env_path = cache_root / "runtime-env.sh"
     component_status = component_status_rows(component_manifest)
     important_files = important_cache_files(component_manifest, build_cache)
+    nginx = component_manifest.get("nginx") if isinstance(component_manifest.get("nginx"), dict) else {}
     return {
         "report_kind": "runtime-cache-index",
         "status": "generated",
@@ -175,6 +219,7 @@ def runtime_cache_index_payload(cache_root: Path, component_manifest: dict[str, 
             file_proof("runtime env", runtime_env_path),
         ],
         "components": component_status,
+        "nginx_runtime_contract": nginx_runtime_contract(nginx),
         "important_files": important_files,
         "summary": {
             "components_present": sum(1 for item in component_status if item["status"] in {"present", "built", "reused"}),
@@ -833,7 +878,8 @@ def apache_component_lines(apache: dict[str, Any]) -> list[str]:
 
 
 def nginx_component_lines(nginx: dict[str, Any]) -> list[str]:
-    return [
+    contract = nginx_runtime_contract(nginx)
+    lines = [
         "### NGINX",
         f"- Status: `{nginx.get('status', '-')}`",
         f"- Blocker: `{first_truthy(nginx, 'blocker_reason')}`",
@@ -845,8 +891,18 @@ def nginx_component_lines(nginx: dict[str, Any]) -> list[str]:
         f"- Missing file: `{first_truthy(nginx, 'missing_file')}`",
         f"- Build component: `{first_truthy(nginx, 'build_component')}`",
         f"- Env variable to set: `{first_truthy(nginx, 'env_variable_can_set', 'env_override')}`",
-        "",
     ]
+    lines.extend(
+        [
+            "- Runtime contract:",
+            *[
+                f"  - {field}: `{runtime_contract_markdown_value(contract.get(field)) or '-'}`"
+                for field in NGINX_RUNTIME_CONTRACT_FIELDS
+            ],
+            "",
+        ]
+    )
+    return lines
 
 
 def expat_component_lines(expat: dict[str, Any]) -> list[str]:
