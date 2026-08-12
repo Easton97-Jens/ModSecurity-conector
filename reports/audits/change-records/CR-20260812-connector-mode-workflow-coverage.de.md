@@ -9,7 +9,7 @@
 | Change-ID | CR-20260812-connector-mode-workflow-coverage |
 | Datum (UTC) | 2026-08-12 |
 | Basis-Revision | `33973d094b3f0aeb47605f08ced16a4043f643a0` |
-| Delivery-Status | Im task-eigenen Parent-Worktree implementiert und lokal validiert; Commit, Push, Draft-PR, Hosted-Checks und Ready-for-Review-Disposition stehen noch aus. |
+| Delivery-Status | Draft-PR [#279](https://github.com/Easton97-Jens/ModSecurity-conector/pull/279) existiert auf seinem ursprünglichen Head; lokal validierte Korrektur-Commits warten auf genehmigte Veröffentlichung. Ready for Review bleibt durch die unten beschriebene Apache-Runtime-Abhängigkeit blockiert. |
 
 ## Motivation und Problemstellung
 
@@ -73,6 +73,17 @@ Dependency-Pfads. Die ausgecheckten Parent-, Framework- und MRTS-Revisionen
 werden vor dem Lesen dieser Lockdatei gegen die aufgezeichneten immutable SHAs
 verifiziert.
 
+Der fokussierte No-CRS/With-MRTS-HAProxy-Zweig setzt vor seinem nativen
+Case-Target den vorhandenen literalen Selektor
+`RUNTIME_COMPONENT_TARGET=haproxy`. Dieser Zweig benötigt kein CRS und kann
+deshalb das nicht zugehörige Apache-Archiv vermeiden, ohne seinen realen
+HAProxy-Runtime-Pfad zu ändern. Die beiden With-CRS-HAProxy-Zweige behalten
+bewusst die vorhandene All-Components-Vorbereitung: Der aktuelle Runtime-
+Snapshot bindet ihre CRS-Quelle an diesen Preparation-Cache, und ein separater
+frischer CRS-Fetch würde nicht Teil des zielgerichteten Snapshots. Apache
+bleibt bewusst auf seinem regulären nativen Pfad, der weiterhin sein geprüftes
+APR-util-Tupel benötigt.
+
 ## Geänderte Dateien
 
 - Vier `test-connectors-*.yml`-Workflows.
@@ -122,6 +133,14 @@ nur statische Evidence. Kein lokaler Connector-Build oder Host-Runtime wurde
 ausgeführt; die vier neuen Hosted-Workflows müssen ihre eigene Exact-Head-
 Runtime-Evidence liefern.
 
+Die ursprünglichen Hosted-Runs belegten einen aktuellen externen Blocker, noch
+bevor ein fokussierter Apache- oder HAProxy-Case ausgeführt wurde: Die gepinnte
+Framework-APR-util-1.6.4-Archiv-URL lieferte während der All-Components-
+Vorbereitung HTTP 404. Der eingegrenzte No-CRS/With-MRTS-HAProxy-Selektor
+entfernt dieses nicht zugehörige Archiv aus diesem einen HAProxy-Pfad. Apache
+und die With-CRS-HAProxy-Pfade bleiben fail-closed, bis das Framework sein
+geprüftes Provenance-Tupel unabhängig aktualisiert.
+
 ## Bekannte Einschränkungen
 
 Lokale `actionlint`- und `zizmor`-Binaries sind nicht verfügbar und wurden
@@ -137,12 +156,15 @@ erfordern.
 
 ## Verbleibende Risiken
 
-Die Apache- und HAProxy-Runtime-Cells hängen weiterhin von Hosted-Runner-
-Voraussetzungen und ihren vorhandenen Build-Pfaden ab. Envoy-, Traefik- und
-lighttpd-MRTS-Cells bleiben ausdrücklich unsupported, bis eine unabhängig
-autorisierte Capability- und Evidence-Änderung existiert. Ein Fehler in einem
-frischen Hosted-Run muss untersucht werden, ohne negative, statische Contract-,
-Cleanup- oder Security-Guards abzuschwächen.
+Apache-Runtime-Cells und die beiden With-CRS-HAProxy-Cells sind derzeit durch
+das fehlende geprüfte APR-util-1.6.4-Provider-Asset im gepinnten Framework
+blockiert; erforderlich sind ein Framework-eigenes Provenance-Update und
+danach ein unabhängig autorisiertes Parent-Gitlink-Update. Die No-CRS-
+HAProxy-Pfade und die offenen Connectoren hängen weiterhin von ihren Hosted-
+Runner-Voraussetzungen ab. Envoy-, Traefik- und lighttpd-MRTS-Cells bleiben
+ausdrücklich unsupported, bis eine unabhängig autorisierte Capability- und
+Evidence-Änderung existiert. Kein Fehler darf durch eine Abschwächung der
+negativen, statischen Contract-, Cleanup- oder Security-Guards verdeckt werden.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -152,15 +174,18 @@ Cleanup- oder Security-Guards abzuschwächen.
   erforderlich.
 - Lokale Connector-Runtime-/Build-Matrix: Der Task ist workflow-/test-only und
   die Hosted-Workflows sind der angeforderte Runtime-Evidence-Pfad.
-- Current-Head-PR-Checks, SonarQube-Cloud-Anwendbarkeit, Review, Merge und
-  resulting-master-Validierung: Es existieren noch kein Commit und kein Pull
-  Request. Ein Merge ist ausdrücklich außerhalb des Scopes.
+- Corrected-Head-PR-Checks, SonarQube-Cloud-Anwendbarkeit und Ready-for-Review-
+  Disposition: Die Veröffentlichung des lokalen Korrektur-Heads ist nicht
+  genehmigt, und der Apache-Runtime-Nachweis kann bis zur separaten Framework-
+  Provenance-Remediation nicht bestehen. Ein Merge ist ausdrücklich außerhalb
+  des Scopes.
 
 ## Finaler Diff- und Review-Status
 
-Dies ist ein Pre-Delivery-Record. Lokale eingeschränkte Contracts bestehen mit
-Ausnahme der separat reproduzierten bereits vorhandenen globalen Python-
-Inventurdiagnosen. Die finale Prüfung muss den exakten Commit-Head, Remote-
-Branch, PR-Head, vier Workflow-Runs, actionlint/ShellCheck/zizmor, Required
-Checks und die Sonar-Anwendbarkeit verifizieren, bevor der PR auf Ready for
-Review gesetzt wird.
+Dies ist ein Partial-Delivery-Record. Lokale eingeschränkte Contracts bestehen
+mit Ausnahme der separat reproduzierten bereits vorhandenen globalen Python-
+Inventurdiagnosen. Die finale Prüfung muss einen veröffentlichten exakten
+Commit-Head, Remote-Branch, PR-Head, vier Workflow-Runs,
+actionlint/ShellCheck/zizmor, Required Checks und die Sonar-Anwendbarkeit
+verifizieren, bevor der PR auf Ready for Review gesetzt wird; der aktuelle
+Apache-Blocker verhindert diese Disposition innerhalb dieses Parent-only-Tasks.

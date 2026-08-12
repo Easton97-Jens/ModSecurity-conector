@@ -2796,10 +2796,18 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
                     'make verified-apache-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"',
                     text,
                 )
-                self.assertIn(
-                    'make verified-haproxy-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"',
-                    text,
+                haproxy_case = (
+                    'make verified-haproxy-case CASE=action_deny_phase1 '
+                    'CRS="$CRS" MRTS="$MRTS"'
                 )
+                if filename == "test-connectors-no-crs-with-mrts.yml":
+                    self.assertIn(
+                        f"RUNTIME_COMPONENT_TARGET=haproxy {haproxy_case}", text
+                    )
+                else:
+                    self.assertIn(haproxy_case, text)
+                    self.assertNotIn("RUNTIME_COMPONENT_TARGET=haproxy", text)
+                    self.assertNotIn("make fetch-crs", text)
                 self.assertIn("Verify focused runtime cleanup", text)
 
     def test_full_matrix_allowlist_and_recorded_gitlinks_remain_fixed(self) -> None:

@@ -169,7 +169,7 @@ jobs:
               make verified-apache-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"
               ;;
             haproxy)
-              make verified-haproxy-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"
+              RUNTIME_COMPONENT_TARGET=haproxy make verified-haproxy-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"
               ;;
             *) echo "FAIL: runtime path is not permitted for $CONNECTOR" >&2; exit 2 ;;
           esac
