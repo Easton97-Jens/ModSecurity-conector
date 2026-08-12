@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 import subprocess
@@ -262,6 +263,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
 
     errors: list[str] = []
     required = (
+        'PROCFS_TARGET = Path("/proc")',
         "CLONE_NEWNS | CLONE_NEWPID",
         "MS_NOEXEC = 8",
         'parser.add_argument("--namespace-parent", required=True)',
@@ -290,7 +292,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         "MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV",
         "_verify_mount(source_view, readonly=True)",
         "_verify_mount(external_view, readonly=False)",
-        "_verify_procfs(Path(\"/proc\"))",
+        "_verify_procfs(PROCFS_TARGET)",
         "os.setgroups([]); os.setgid(gid); os.setuid(uid); os.chdir(source)",
         "os.execve(\"/bin/bash\"",
         "READONLY_SUBMODULE_VALIDATION_NAMESPACE_COMPLETE",
@@ -350,40 +352,81 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
     if runner.count("_umount(external_view); _umount(source_view)") != 1:
         errors.append("namespace runner must synchronously unmount both exact views")
 
-    namespace_child = runner.partition("def _namespace_child(")[2].partition(
-        "\ndef _validated_configuration"
-    )[0]
+    if runner.count('PROCFS_TARGET = Path("/proc")') != 1 or runner.count(
+        'Path("/proc")'
+    ) != 1:
+        errors.append("namespace runner must export one immutable literal procfs target")
+
+    try:
+        syntax_tree = ast.parse(runner)
+    except SyntaxError:
+        errors.append("namespace runner must remain valid Python")
+        return errors
+    functions = {
+        node.name: "\n".join(runner.splitlines()[node.lineno - 1 : node.end_lineno])
+        for node in syntax_tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.end_lineno is not None
+    }
+    pid1_candidate = functions.get("_run_pid1_candidate", "")
+    namespace_child = functions.get("_namespace_child", "")
+    if not pid1_candidate:
+        errors.append("namespace runner must retain the PID-one candidate helper")
     if not namespace_child:
         errors.append("namespace runner must retain the namespace child launcher")
         return errors
+    if pid1_candidate.count("ready_acknowledged = False") != 1 or pid1_candidate.count(
+        "ready_acknowledged = True"
+    ) != 1:
+        errors.append("namespace runner must transfer procfs cleanup ownership exactly once")
 
     proc_mount = re.compile(
-        r'''_mount\(\s*["']proc["']\s*,\s*Path\(["']/proc["']\)\s*,\s*'''
+        r'''_mount\(\s*["']proc["']\s*,\s*PROCFS_TARGET\s*,\s*'''
         r"MS_RDONLY\s*\|\s*MS_NOSUID\s*\|\s*MS_NODEV\s*\|\s*MS_NOEXEC"
         r'''\s*,\s*["']proc["']\s*\)'''
     )
-    proc_match = proc_mount.search(namespace_child)
+    proc_match = proc_mount.search(pid1_candidate)
     if proc_match is None:
         errors.append("namespace runner must mount a fresh readonly nosuid nodev noexec procfs at /proc")
         return errors
 
     fork_index = namespace_child.find("child = os.fork()")
-    no_new_privs_index = namespace_child.find("_set_no_new_privs()")
-    candidate_entry_index = namespace_child.find("candidate_entry(source_view")
-    if min(fork_index, no_new_privs_index, candidate_entry_index) < 0 or not (
-        fork_index < proc_match.start() < no_new_privs_index < candidate_entry_index
+    helper_call_index = namespace_child.find("_run_pid1_candidate(", fork_index)
+    verifier_index = pid1_candidate.find("_verify_procfs(PROCFS_TARGET)")
+    readiness_write_index = pid1_candidate.find('os.write(proc_ready_write, b"1")')
+    readiness_transfer_index = pid1_candidate.find("ready_acknowledged = True")
+    no_new_privs_index = pid1_candidate.find("_set_no_new_privs()")
+    candidate_entry_index = pid1_candidate.find("candidate_entry(*candidate_arguments)")
+    if min(
+        fork_index,
+        helper_call_index,
+        verifier_index,
+        readiness_write_index,
+        readiness_transfer_index,
+        no_new_privs_index,
+        candidate_entry_index,
+    ) < 0 or not (
+        fork_index < helper_call_index
+        and proc_match.start()
+        < verifier_index
+        < readiness_write_index
+        < readiness_transfer_index
+        < no_new_privs_index
+        < candidate_entry_index
     ):
-        errors.append("private procfs must mount after the PID child fork and before no_new_privs and candidate identity drop")
-    if namespace_child.count('_umount(Path("/proc"))') != 2:
+        errors.append("private procfs readiness ownership must transfer before no_new_privs and candidate identity drop")
+    if pid1_candidate.count("_umount(PROCFS_TARGET)") != 1 or namespace_child.count(
+        "_umount(PROCFS_TARGET)"
+    ) != 1:
         errors.append("namespace runner must retain guarded child cleanup and parent procfs restoration")
     child_proc_cleanup = re.search(
-        r'''if proc_mounted:\s+try:\s+_umount\(Path\(["']/proc["']\)\)\s+'''
-        r'''if _mountinfo_for\(Path\(["']/proc["']\)\) != before_proc:''',
-        namespace_child,
+        r'''if proc_mounted and not ready_acknowledged:\s+try:\s+_umount\(PROCFS_TARGET\)\s+'''
+        r'''if _mountinfo_for\(PROCFS_TARGET\) != before_proc:''',
+        pid1_candidate,
     )
     parent_proc_restoration = re.search(
-        r'''finally:\s+if proc_mounted:\s+_umount\(Path\(["']/proc["']\)\)\s+'''
-        r'''if _mountinfo_for\(Path\(["']/proc["']\)\) != before_proc:''',
+        r'''finally:\s+if proc_mounted:\s+_umount\(PROCFS_TARGET\)\s+'''
+        r'''if _mountinfo_for\(PROCFS_TARGET\) != before_proc:''',
         namespace_child,
     )
     if child_proc_cleanup is None:
@@ -391,12 +434,18 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
     if parent_proc_restoration is None:
         errors.append("namespace runner must synchronously restore procfs after the PID child exits")
     wait_index = namespace_child.find("os.waitpid(child, 0)")
+    readiness_read_index = namespace_child.find(
+        'proc_mounted = os.read(proc_ready_read, 1) == b"1"'
+    )
     if parent_proc_restoration is not None and (
-        wait_index < 0 or parent_proc_restoration.start() < wait_index
+        readiness_read_index < 0
+        or wait_index < 0
+        or not readiness_read_index < wait_index < parent_proc_restoration.start()
     ):
-        errors.append("namespace runner must restore /proc only after the PID child exits")
-    if "before_proc = _mountinfo_for(Path(\"/proc\"))" not in namespace_child or (
-        "if _mountinfo_for(Path(\"/proc\")) != before_proc:" not in namespace_child
+        errors.append("namespace runner must acknowledge readiness and restore /proc only after the PID child exits")
+    if "before_proc = _mountinfo_for(PROCFS_TARGET)" not in namespace_child or (
+        "if _mountinfo_for(PROCFS_TARGET) != before_proc:" not in namespace_child
+        or "if _mountinfo_for(PROCFS_TARGET) != before_proc:" not in pid1_candidate
     ):
         errors.append("namespace runner must verify /proc mount restoration after synchronous cleanup")
     return errors
@@ -1713,7 +1762,7 @@ sudo -n chmod 0750 "$namespace_parent"
                 self.assertNotEqual(readonly_namespace_runner_errors(mutated_runner), [])
 
         proc_match = re.search(
-            r'''_mount\(\s*["']proc["']\s*,\s*Path\(["']/proc["']\)\s*,\s*'''
+            r'''_mount\(\s*["']proc["']\s*,\s*PROCFS_TARGET\s*,\s*'''
             r"MS_RDONLY\s*\|\s*MS_NOSUID\s*\|\s*MS_NODEV\s*\|\s*MS_NOEXEC"
             r'''\s*,\s*["']proc["']\s*\)''',
             namespace_runner,
@@ -1722,35 +1771,100 @@ sudo -n chmod 0750 "$namespace_parent"
         assert proc_match is not None
         proc_mount = proc_match.group(0)
         proc_mutations = {
+            "private procfs constant is mutable to another target": (
+                'PROCFS_TARGET = Path("/proc")',
+                'PROCFS_TARGET = Path("/proc-unsafe")',
+            ),
             "private procfs is missing": proc_mount.replace('"proc"', '"none"', 1),
             "private procfs has executable flags": proc_mount.replace("| MS_NOEXEC", "", 1),
-            "private procfs has the wrong target": proc_mount.replace('Path("/proc")', 'Path("/proc-unsafe")', 1),
+            "private procfs has the wrong mount target": proc_mount.replace(
+                "PROCFS_TARGET", 'Path("/proc")', 1
+            ),
             "private procfs mounts before the PID child fork": "",
+            "private procfs verifier is missing": "",
+            "private procfs verifier runs after no-new-privileges": "",
+            "private procfs readiness ownership transfer is missing": "",
+            "private procfs readiness ownership transfers after no-new-privileges": "",
+            "private procfs child cleanup remains active after readiness": "",
             "private procfs guarded child cleanup is missing": "",
+            "private procfs parent ignores readiness acknowledgement": "",
             "private procfs parent restoration is missing": "",
             "private procfs restoration proof is missing": "before_proc = []",
         }
         for name, replacement in proc_mutations.items():
             with self.subTest(name=name):
-                if name == "private procfs mounts before the PID child fork":
-                    mutated_runner = namespace_runner.replace(proc_mount, "", 1).replace(
-                        "child = os.fork()", f"{proc_mount}\n    child = os.fork()", 1
+                if name == "private procfs constant is mutable to another target":
+                    original, mutated = replacement
+                    self.assertIn(original, namespace_runner)
+                    mutated_runner = namespace_runner.replace(original, mutated, 1)
+                elif name == "private procfs mounts before the PID child fork":
+                    helper_invocation_match = re.search(
+                        r"^        _run_pid1_candidate\(\n(?:^            .*\n)+^        \)$",
+                        namespace_runner,
+                        re.MULTILINE,
+                    )
+                    self.assertIsNotNone(helper_invocation_match)
+                    assert helper_invocation_match is not None
+                    helper_invocation = helper_invocation_match.group(0)
+                    relocated_invocation = "\n".join(
+                        line[4:] for line in helper_invocation.splitlines()
+                    )
+                    mutated_runner = namespace_runner.replace(helper_invocation, "", 1).replace(
+                        "    child = os.fork()",
+                        f"{relocated_invocation}\n    child = os.fork()",
+                        1,
+                    )
+                elif name == "private procfs verifier is missing":
+                    mutated_runner = namespace_runner.replace(
+                        "_verify_procfs(PROCFS_TARGET)", "", 1
+                    )
+                elif name == "private procfs verifier runs after no-new-privileges":
+                    mutated_runner = namespace_runner.replace(
+                        "_verify_procfs(PROCFS_TARGET)", "", 1
+                    ).replace(
+                        "_set_no_new_privs()",
+                        "_set_no_new_privs()\n        _verify_procfs(PROCFS_TARGET)",
+                        1,
+                    )
+                elif name == "private procfs readiness ownership transfer is missing":
+                    mutated_runner = namespace_runner.replace(
+                        "ready_acknowledged = True", "", 1
+                    )
+                elif name == "private procfs readiness ownership transfers after no-new-privileges":
+                    mutated_runner = namespace_runner.replace(
+                        "ready_acknowledged = True", "", 1
+                    ).replace(
+                        "_set_no_new_privs()",
+                        "_set_no_new_privs()\n        ready_acknowledged = True",
+                        1,
+                    )
+                elif name == "private procfs child cleanup remains active after readiness":
+                    mutated_runner = namespace_runner.replace(
+                        "if proc_mounted and not ready_acknowledged:",
+                        "if proc_mounted:",
+                        1,
                     )
                 elif name == "private procfs guarded child cleanup is missing":
                     mutated_runner = namespace_runner.replace(
-                        "if proc_mounted:\n                try:\n                    _umount(Path(\"/proc\"))",
-                        "if False:\n                try:\n                    _umount(Path(\"/proc\"))",
+                        "if proc_mounted and not ready_acknowledged:\n            try:\n                _umount(PROCFS_TARGET)",
+                        "if False:\n            try:\n                _umount(PROCFS_TARGET)",
+                        1,
+                    )
+                elif name == "private procfs parent ignores readiness acknowledgement":
+                    mutated_runner = namespace_runner.replace(
+                        'proc_mounted = os.read(proc_ready_read, 1) == b"1"',
+                        "proc_mounted = True",
                         1,
                     )
                 elif name == "private procfs parent restoration is missing":
                     mutated_runner = namespace_runner.replace(
-                        "finally:\n        if proc_mounted:\n            _umount(Path(\"/proc\"))",
-                        "finally:\n        if False:\n            _umount(Path(\"/proc\"))",
+                        "finally:\n        if proc_mounted:\n            _umount(PROCFS_TARGET)",
+                        "finally:\n        if False:\n            _umount(PROCFS_TARGET)",
                         1,
                     )
                 elif name == "private procfs restoration proof is missing":
                     mutated_runner = namespace_runner.replace(
-                        'before_proc = _mountinfo_for(Path("/proc"))', replacement, 1
+                        "before_proc = _mountinfo_for(PROCFS_TARGET)", replacement, 1
                     )
                 else:
                     mutated_runner = namespace_runner.replace(proc_mount, replacement, 1)

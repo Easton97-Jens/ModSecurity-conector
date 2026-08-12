@@ -24,6 +24,9 @@ SPEC.loader.exec_module(HELPER)
 
 
 class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
+    def test_procfs_target_is_the_exported_literal_target(self) -> None:
+        self.assertEqual(HELPER.PROCFS_TARGET, Path("/proc"))
+
     def test_identity_rejects_privileged_or_missing_account_topologies(self) -> None:
         account = SimpleNamespace(pw_uid=1001, pw_gid=1001)
         validator = SimpleNamespace(gr_name="validator", gr_gid=1001, gr_mem=())
@@ -213,7 +216,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         hardened = "99 1 0:42 / /proc ro,nosuid,nodev,noexec - proc proc rw"
         inherited = "98 1 0:42 / /proc rw,nosuid,nodev,noexec - proc proc rw"
         with mock.patch.object(HELPER, "_mountinfo_for", return_value=[inherited, hardened]):
-            HELPER._verify_procfs(Path("/proc"))
+            HELPER._verify_procfs(HELPER.PROCFS_TARGET)
         for rows in (
             [inherited],
             ["99 1 0:42 / /proc ro,nosuid,nodev - proc proc rw"],
@@ -222,7 +225,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         ):
             with self.subTest(rows=rows), mock.patch.object(HELPER, "_mountinfo_for", return_value=rows):
                 with self.assertRaisesRegex(RuntimeError, "hardened procfs"):
-                    HELPER._verify_procfs(Path("/proc"))
+                    HELPER._verify_procfs(HELPER.PROCFS_TARGET)
         with self.assertRaisesRegex(RuntimeError, "literal /proc"):
             HELPER._verify_procfs(Path("/untrusted-proc"))
 
@@ -250,8 +253,128 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                 HELPER._namespace_child(source, framework, external, mount_root, Path("/python"), 1000, 1000, candidate)
         candidate.assert_not_called()
         no_new_privs.assert_not_called()
-        mount.assert_any_call("proc", Path("/proc"), HELPER.MS_RDONLY | HELPER.MS_NOSUID | HELPER.MS_NODEV | HELPER.MS_NOEXEC, "proc")
-        umount.assert_called_once_with(Path("/proc"))
+        mount.assert_any_call("proc", HELPER.PROCFS_TARGET, HELPER.MS_RDONLY | HELPER.MS_NOSUID | HELPER.MS_NODEV | HELPER.MS_NOEXEC, "proc")
+        umount.assert_called_once_with(HELPER.PROCFS_TARGET)
+
+    def test_parent_restores_procfs_only_after_waiting_for_pid_one(self) -> None:
+        source = Path("/source")
+        framework = source / "modules/framework"
+        external = Path("/external")
+        mount_root = Path("/mount-root")
+        events: list[tuple[str, object]] = []
+
+        def waitpid(pid: int, options: int) -> tuple[int, int]:
+            events.append(("waitpid", pid))
+            self.assertEqual(options, 0)
+            return pid, 0
+
+        def umount(target: Path) -> None:
+            events.append(("umount", target))
+
+        mountinfo = mock.Mock(side_effect=[
+            ["inherited-proc"],
+            ["inherited-proc"],
+        ])
+        with mock.patch.object(HELPER, "_unshare"), mock.patch.object(
+            HELPER, "_mount"
+        ), mock.patch.object(HELPER, "_verify_mount"), mock.patch.object(
+            HELPER, "_mountinfo_for", mountinfo
+        ), mock.patch.object(HELPER.os, "pipe", return_value=(30, 31)), mock.patch.object(
+            HELPER.os, "fork", return_value=4321
+        ), mock.patch.object(HELPER.os, "close"), mock.patch.object(
+            HELPER.os, "read", return_value=b"1"
+        ), mock.patch.object(HELPER.os, "waitpid", side_effect=waitpid), mock.patch.object(
+            HELPER, "_umount", side_effect=umount
+        ):
+            result = HELPER._namespace_child(
+                source, framework, external, mount_root, Path("/python"), 1000, 1000
+            )
+
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            events,
+            [
+                ("waitpid", 4321),
+                ("umount", HELPER.PROCFS_TARGET),
+                ("umount", mount_root / "external"),
+                ("umount", mount_root / "source"),
+            ],
+        )
+        self.assertEqual(mountinfo.call_args_list[0], mock.call(HELPER.PROCFS_TARGET))
+        self.assertEqual(mountinfo.call_args_list[1], mock.call(HELPER.PROCFS_TARGET))
+
+    def test_post_ready_child_failure_transfers_procfs_cleanup_to_parent(self) -> None:
+        class ChildExit(BaseException):
+            pass
+
+        candidate_arguments = (
+            Path("/source"),
+            Path("modules/framework"),
+            Path("/external"),
+            Path("/mount-root"),
+            Path("/python"),
+            1000,
+            1000,
+        )
+        readiness = bytearray()
+        candidate = mock.Mock()
+
+        def write(_descriptor: int, value: bytes) -> int:
+            readiness.extend(value)
+            return len(value)
+
+        child_umount = mock.Mock()
+        with mock.patch.object(HELPER, "_mount"), mock.patch.object(
+            HELPER, "_verify_procfs"
+        ), mock.patch.object(HELPER.os, "write", side_effect=write) as child_write, mock.patch.object(
+            HELPER.os, "close"
+        ), mock.patch.object(
+            HELPER, "_set_no_new_privs", side_effect=RuntimeError("no_new_privs failed")
+        ), mock.patch.object(HELPER, "_umount", child_umount), mock.patch.object(
+            HELPER.os, "_exit", side_effect=ChildExit
+        ):
+            with self.assertRaises(ChildExit):
+                HELPER._run_pid1_candidate(
+                    candidate_arguments,
+                    candidate,
+                    (30, 31),
+                    ["inherited-proc"],
+                )
+
+        child_write.assert_called_once_with(31, b"1")
+        self.assertEqual(bytes(readiness), b"1")
+        candidate.assert_not_called()
+        child_umount.assert_not_called()
+
+        parent_umount = mock.Mock()
+        parent_read = mock.Mock(return_value=bytes(readiness))
+        with mock.patch.object(HELPER, "_unshare"), mock.patch.object(
+            HELPER, "_mount"
+        ), mock.patch.object(HELPER, "_verify_mount"), mock.patch.object(
+            HELPER, "_mountinfo_for", side_effect=[["inherited-proc"], ["inherited-proc"]]
+        ), mock.patch.object(HELPER.os, "pipe", return_value=(30, 31)), mock.patch.object(
+            HELPER.os, "fork", return_value=4321
+        ), mock.patch.object(HELPER.os, "close"), mock.patch.object(
+            HELPER.os, "read", parent_read
+        ), mock.patch.object(HELPER.os, "waitpid", return_value=(4321, 127 << 8)), mock.patch.object(
+            HELPER, "_umount", parent_umount
+        ):
+            result = HELPER._namespace_child(
+                Path("/source"),
+                Path("/source/modules/framework"),
+                Path("/external"),
+                Path("/mount-root"),
+                Path("/python"),
+                1000,
+                1000,
+            )
+
+        self.assertEqual(result, 127)
+        parent_read.assert_called_once_with(30, 1)
+        self.assertEqual(
+            [call for call in parent_umount.call_args_list if call == mock.call(HELPER.PROCFS_TARGET)],
+            [mock.call(HELPER.PROCFS_TARGET)],
+        )
 
     def test_mount_layout_forces_traversable_root_validator_modes_despite_umask(self) -> None:
         if os.geteuid() != 0:

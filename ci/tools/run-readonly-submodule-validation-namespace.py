@@ -41,6 +41,9 @@ LIBC.unshare.restype = ctypes.c_int
 LIBC.prctl.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong]
 LIBC.prctl.restype = ctypes.c_int
 SAFE_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+PROCFS_TARGET = Path("/proc")
+CandidateEntry = Callable[[Path, Path, Path, Path, Path, int, int], None]
+CandidateArguments = tuple[Path, Path, Path, Path, Path, int, int]
 
 
 class NamespaceUnavailable(RuntimeError):
@@ -205,7 +208,7 @@ def _verify_mount(target: Path, *, readonly: bool) -> None:
 
 def _verify_procfs(target: Path) -> None:
     """Require one fresh, hardened procfs layer over the literal proc target."""
-    if target != Path("/proc"):
+    if target != PROCFS_TARGET:
         raise RuntimeError("procfs must be mounted at literal /proc")
     hardened_rows = []
     for row in _mountinfo_for(target):
@@ -302,6 +305,41 @@ def _candidate_pid1(source: Path, framework_relative: Path, external: Path, guar
     os.execve("/bin/bash", ["bash", "--noprofile", "--norc", "-ceu", _candidate_script()], env)
 
 
+def _run_pid1_candidate(
+    candidate_arguments: CandidateArguments,
+    candidate_entry: CandidateEntry,
+    proc_ready: tuple[int, int],
+    before_proc: list[str],
+) -> None:
+    proc_ready_read, proc_ready_write = proc_ready
+    os.close(proc_ready_read)
+    proc_mounted = False
+    ready_acknowledged = False
+    try:
+        _mount("proc", PROCFS_TARGET, MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC, "proc")
+        proc_mounted = True
+        _verify_procfs(PROCFS_TARGET)
+        os.write(proc_ready_write, b"1")
+        ready_acknowledged = True
+        os.close(proc_ready_write)
+        _set_no_new_privs()
+        candidate_entry(*candidate_arguments)
+    except Exception as error:
+        print(f"readonly namespace candidate setup failed: {error}", file=sys.stderr)
+        if proc_mounted and not ready_acknowledged:
+            try:
+                _umount(PROCFS_TARGET)
+                if _mountinfo_for(PROCFS_TARGET) != before_proc:
+                    print("readonly namespace candidate procfs restoration failed", file=sys.stderr)
+            except Exception as cleanup_error:
+                print(f"readonly namespace candidate procfs cleanup failed: {cleanup_error}", file=sys.stderr)
+        try:
+            os.close(proc_ready_write)
+        except OSError:
+            pass
+        os._exit(127)
+
+
 def _namespace_child(
     source: Path,
     framework: Path,
@@ -310,7 +348,7 @@ def _namespace_child(
     python: Path,
     uid: int,
     gid: int,
-    candidate_entry: Callable[[Path, Path, Path, Path, Path, int, int], None] = _candidate_pid1,
+    candidate_entry: CandidateEntry = _candidate_pid1,
     close_parent_fds: Sequence[int] = (),
 ) -> int:
     _unshare()
@@ -322,34 +360,16 @@ def _namespace_child(
     _mount(None, external_view, MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV)
     _verify_mount(source_view, readonly=True); _verify_mount(external_view, readonly=False)
     framework_relative = framework.relative_to(source)
-    before_proc = _mountinfo_for(Path("/proc"))
+    before_proc = _mountinfo_for(PROCFS_TARGET)
     proc_ready_read, proc_ready_write = os.pipe()
     child = os.fork()
     if child == 0:
-        os.close(proc_ready_read)
-        proc_mounted = False
-        try:
-            _mount("proc", Path("/proc"), MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC, "proc")
-            proc_mounted = True
-            _verify_procfs(Path("/proc"))
-            os.write(proc_ready_write, b"1")
-            os.close(proc_ready_write)
-            _set_no_new_privs()
-            candidate_entry(source_view, framework_relative, external_view, mount_root, python, uid, gid)
-        except Exception as error:
-            print(f"readonly namespace candidate setup failed: {error}", file=sys.stderr)
-            if proc_mounted:
-                try:
-                    _umount(Path("/proc"))
-                    if _mountinfo_for(Path("/proc")) != before_proc:
-                        print("readonly namespace candidate procfs restoration failed", file=sys.stderr)
-                except Exception as cleanup_error:
-                    print(f"readonly namespace candidate procfs cleanup failed: {cleanup_error}", file=sys.stderr)
-            try:
-                os.close(proc_ready_write)
-            except OSError:
-                pass
-            os._exit(127)
+        _run_pid1_candidate(
+            (source_view, framework_relative, external_view, mount_root, python, uid, gid),
+            candidate_entry,
+            (proc_ready_read, proc_ready_write),
+            before_proc,
+        )
     os.close(proc_ready_write)
     for descriptor in close_parent_fds:
         os.close(descriptor)
@@ -359,8 +379,8 @@ def _namespace_child(
         _pid, status = os.waitpid(child, 0)
     finally:
         if proc_mounted:
-            _umount(Path("/proc"))
-            if _mountinfo_for(Path("/proc")) != before_proc:
+            _umount(PROCFS_TARGET)
+            if _mountinfo_for(PROCFS_TARGET) != before_proc:
                 raise RuntimeError("namespace runner did not restore inherited procfs")
         _umount(external_view); _umount(source_view)
     return os.waitstatus_to_exitcode(status)
