@@ -62,6 +62,12 @@ all-workflow inventory regression already fails for an action-free local
 reusable caller on the clean base; this task does not weaken or alter that
 test oracle.
 
+Before the static Framework contract is invoked, its required CI dependency is
+installed from the Framework's hash-locked `requirements-ci.lock`; the step
+uses `--require-hashes` and `pip check` rather than a mutable dependency path.
+The checked-out Parent, Framework, and MRTS revisions are verified against the
+recorded immutable SHAs before that lockfile is read.
+
 ## Changed files
 
 - Four `test-connectors-*.yml` workflows.
@@ -96,7 +102,9 @@ shell command. The event head SHA is used only as the declarative checkout and
 revision-equality input, never interpolated into a shell body. Unsupported routes execute only a parser rejection under the
 private runner temporary root; a rejection log is diagnostic-only and no
 build/evidence artifact is uploaded. Static contract routes do not pretend to
-be host runtime evidence.
+be host runtime evidence. Their sole dependency installation uses the
+Framework's hash-locked CI requirements and fails closed on an invalid
+dependency set after the immutable Gitlink revisions have been verified.
 
 ## Runtime evidence
 

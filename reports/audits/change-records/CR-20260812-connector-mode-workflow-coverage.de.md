@@ -66,6 +66,13 @@ All-Workflow-Inventurregression scheitert bereits im sauberen Basisstand an
 einem action-freien lokalen Reusable-Caller; dieser Task schwächt oder ändert
 dieses Testorakel nicht.
 
+Vor dem statischen Framework-Contract wird dessen erforderliche CI-Dependency
+aus der hash-gesperrten Framework-`requirements-ci.lock` installiert; der
+Schritt verwendet `--require-hashes` und `pip check` statt eines veränderlichen
+Dependency-Pfads. Die ausgecheckten Parent-, Framework- und MRTS-Revisionen
+werden vor dem Lesen dieser Lockdatei gegen die aufgezeichneten immutable SHAs
+verifiziert.
+
 ## Geänderte Dateien
 
 - Vier `test-connectors-*.yml`-Workflows.
@@ -101,7 +108,10 @@ Revision-Gleichheitswert verwendet und nie in einen Shell-Body interpoliert.
 Unsupported-Routen führen nur eine Parser-Abweisung unter dem privaten
 Runner-Temp-Root aus; ein Rejection-Log ist ausschließlich diagnostisch und
 kein Build-/Evidence-Artifact wird hochgeladen. Statische Contract-Routen
-geben sich nicht als Host-Runtime-Evidence aus.
+geben sich nicht als Host-Runtime-Evidence aus. Ihre einzige Dependency-
+Installation verwendet die hash-gesperrten CI-Requirements des Frameworks und
+scheitert nach der Prüfung der unveränderlichen Gitlink-Revisionen bei einem
+ungültigen Dependency-Set fail-closed.
 
 ## Runtime-Evidence
 

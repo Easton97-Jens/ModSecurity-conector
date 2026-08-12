@@ -97,6 +97,14 @@ jobs:
           test "$framework_commit" = "$EXPECTED_FRAMEWORK_SHA"
           test "$mrts_commit" = "$EXPECTED_MRTS_SHA"
 
+      - name: Install hash-locked Framework CI dependency
+        if: matrix.coverage_kind == 'contract'
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock
+          python3 -m pip check
+
       - name: Verify selected static cell
         env:
           CONNECTOR: ${{ matrix.connector }}

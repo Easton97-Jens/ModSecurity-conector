@@ -2724,6 +2724,36 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
         )
         self.assertIn("test-five-connectors-with-crs-no-mrts-contract", contract_text)
         self.assertIn("test-crs-provenance-contract", contract_text)
+        self.assertIn("Install hash-locked Framework CI dependency", contract_text)
+        self.assertIn(
+            "--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock",
+            contract_text,
+        )
+        self.assertIn("python3 -m pip check", contract_text)
+        dependency_step = next(
+            step
+            for step in contract["jobs"]["connector-mode"]["steps"]
+            if step["name"] == "Install hash-locked Framework CI dependency"
+        )
+        framework_revision_step = next(
+            step
+            for step in contract["jobs"]["connector-mode"]["steps"]
+            if step["name"] == "Verify recorded Framework and MRTS revisions"
+        )
+        steps = contract["jobs"]["connector-mode"]["steps"]
+        self.assertLess(
+            steps.index(framework_revision_step), steps.index(dependency_step)
+        )
+        self.assertEqual(dependency_step["if"], "matrix.coverage_kind == 'contract'")
+        self.assertEqual(
+            dependency_step["run"].splitlines(),
+            [
+                "set -euo pipefail",
+                "python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \\",
+                "  --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock",
+                "python3 -m pip check",
+            ],
+        )
         self.assertIn("CONTRACT_VALIDATED", contract_text)
         self.assertIn("host_runtime_status=UNATTESTED", contract_text)
         for target in (
