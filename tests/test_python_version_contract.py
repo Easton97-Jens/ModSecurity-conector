@@ -162,8 +162,8 @@ class PythonVersionContractTest(unittest.TestCase):
             )
         (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
 
-    def test_expected_inventory_has_32_normal_jobs_and_one_special_job(self) -> None:
-        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 32)
+    def test_expected_inventory_has_36_normal_jobs_and_one_special_job(self) -> None:
+        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 36)
         self.assertIn(
             CHECKER.JobIdentity("nginx-root-broker.yml", "trusted-root-smoke"),
             CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
@@ -543,7 +543,7 @@ printf '%s\\n' 'make quick-check'
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(exit_code, 0)
         self.assertEqual(payload["status"], "valid")
-        self.assertEqual(len(payload["detected_python_jobs"]), 36)
+        self.assertEqual(len(payload["detected_python_jobs"]), 40)
 
 
 if __name__ == "__main__":

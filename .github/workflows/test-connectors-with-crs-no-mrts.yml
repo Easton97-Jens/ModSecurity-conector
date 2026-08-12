@@ -1,0 +1,213 @@
+name: connector-tests-with-crs-no-mrts
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/test-connectors-with-crs-no-mrts.yml
+      - tests/test_ci_security_workflows.py
+      - tests/test_python_version_contract.py
+      - ci/checks/common/check-python-version-contract.py
+      - ci/runtime/**
+      - connectors/apache/**
+      - connectors/envoy/**
+      - connectors/haproxy/**
+      - connectors/lighttpd/**
+      - connectors/traefik/**
+      - config/**
+      - Makefile
+      - .python-version
+      - modules/ModSecurity-test-Framework
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: connector-tests-with-crs-no-mrts
+  cancel-in-progress: false
+
+jobs:
+  connector-mode:
+    name: with-crs/no-mrts / ${{ matrix.connector }} / ${{ matrix.coverage_kind }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - connector: apache
+            coverage_kind: runtime
+            crs: with-crs
+            mrts: no-mrts
+          - connector: envoy
+            coverage_kind: contract
+            crs: with-crs
+            mrts: no-mrts
+          - connector: haproxy
+            coverage_kind: runtime
+            crs: with-crs
+            mrts: no-mrts
+          - connector: lighttpd
+            coverage_kind: contract
+            crs: with-crs
+            mrts: no-mrts
+          - connector: traefik
+            coverage_kind: contract
+            crs: with-crs
+            mrts: no-mrts
+    env:
+      ALLOW_RUNTIME_BUILDS: "1"
+      ALLOW_RUNTIME_DOWNLOADS: "1"
+      EXPECTED_FRAMEWORK_SHA: 209389022c942d83113f6be88bf31d25637352f0
+      EXPECTED_MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
+      EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      CRS: ${{ matrix.crs }}
+      MRTS: ${{ matrix.mrts }}
+      COVERAGE_KIND: ${{ matrix.coverage_kind }}
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Checkout pinned Parent, Framework, and MRTS source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up toolchain
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Verify recorded Framework and MRTS revisions
+        run: |
+          set -euo pipefail
+          parent_commit=$(git rev-parse HEAD)
+          framework_commit=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+          mrts_commit=$(git -C modules/ModSecurity-test-Framework/tools/MRTS rev-parse HEAD)
+          test "$parent_commit" = "$EXPECTED_PARENT_SHA"
+          test "$framework_commit" = "$EXPECTED_FRAMEWORK_SHA"
+          test "$mrts_commit" = "$EXPECTED_MRTS_SHA"
+
+      - name: Verify selected static cell
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          test "$CRS" = with-crs
+          test "$MRTS" = no-mrts
+          case "$CONNECTOR:$COVERAGE_KIND" in
+            apache:runtime|haproxy:runtime|envoy:contract|lighttpd:contract|traefik:contract) ;;
+            *) echo "FAIL: static coverage cell is not permitted: $CONNECTOR/$COVERAGE_KIND" >&2; exit 2 ;;
+          esac
+
+      - name: Declare coverage classification
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          case "$COVERAGE_KIND" in
+            runtime) claim="existing focused host runtime control" ;;
+            contract) claim="static Framework contract; host_runtime_status=UNATTESTED" ;;
+            *) echo "FAIL: unsupported coverage kind: $COVERAGE_KIND" >&2; exit 2 ;;
+          esac
+          {
+            echo "### $CONNECTOR $CRS/$MRTS"
+            echo
+            echo "| Axis | Fixed value |"
+            echo "| --- | --- |"
+            echo "| coverage kind | $COVERAGE_KIND |"
+            echo "| claim | $claim |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Initialize private runner paths
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+          SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
+        run: |
+          set -euo pipefail
+          case "$CONNECTOR" in apache|envoy|haproxy|lighttpd|traefik) ;; *) exit 2 ;; esac
+          cell_root="$RUNNER_TEMP/ModSecurity-conector-connector-modes/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$CRS-$MRTS/$CONNECTOR"
+          case "$cell_root" in "$RUNNER_TEMP"/*) ;; *) echo "FAIL: unsafe runner path" >&2; exit 2 ;; esac
+          umask 077
+          mkdir -p "$cell_root"
+          {
+            echo "VERIFIED_RUN_ROOT=$cell_root/verified"
+            echo "BUILD_ROOT=$cell_root/build"
+            echo "SOURCE_ROOT=$cell_root/src"
+            echo "TMP_ROOT=$cell_root/tmp"
+            echo "LOG_ROOT=$cell_root/logs"
+            echo "CACHE_ROOT=$cell_root/cache"
+            echo "FRAMEWORK_CONTRACT_BUILD_ROOT=$cell_root/framework-contract"
+            echo "PYTHON=$SETUP_PYTHON_PATH"
+            echo "PYTHON_BIN=$SETUP_PYTHON_PATH"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+          } >> "$GITHUB_ENV"
+
+      - name: Prepare runtime dependencies
+        if: matrix.coverage_kind == 'runtime'
+        run: |
+          set -euo pipefail
+          make setup-dev
+
+      - name: Run existing focused runtime control
+        if: matrix.coverage_kind == 'runtime'
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          case "$CONNECTOR" in
+            apache)
+              make verified-apache-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"
+              ;;
+            haproxy)
+              make verified-haproxy-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"
+              ;;
+            *) echo "FAIL: runtime path is not permitted for $CONNECTOR" >&2; exit 2 ;;
+          esac
+
+      - name: Verify focused runtime cleanup
+        if: always() && matrix.coverage_kind == 'runtime'
+        run: |
+          set -euo pipefail
+          test -n "${BUILD_ROOT:-}"
+          if ps -eo comm=,args= | awk -v root="$BUILD_ROOT" '
+            index($0, root) > 0 && $1 ~ /^(httpd|apache2|haproxy|spoa|python|python3)$/ { found=1 }
+            END { exit found ? 0 : 1 }
+          '; then
+            echo "FAIL: a focused runtime process remains below $BUILD_ROOT" >&2
+            exit 1
+          fi
+
+      - name: Verify static Framework CRS contract
+        if: matrix.coverage_kind == 'contract'
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          case "$CONNECTOR" in
+            envoy) make -n check-config-envoy ;;
+            lighttpd) make -n check-config-lighttpd ;;
+            traefik) make -n check-config-traefik ;;
+            *) echo "FAIL: contract path is not permitted for $CONNECTOR" >&2; exit 2 ;;
+          esac
+          make -C modules/ModSecurity-test-Framework \
+            BUILD_ROOT="$FRAMEWORK_CONTRACT_BUILD_ROOT" \
+            PYTHON=python3 \
+            test-five-connectors-with-crs-no-mrts-contract
+          make -C modules/ModSecurity-test-Framework \
+            BUILD_ROOT="$FRAMEWORK_CONTRACT_BUILD_ROOT" \
+            PYTHON=python3 \
+            test-crs-provenance-contract
+          {
+            echo
+            echo "Framework contract result: CONTRACT_VALIDATED; host_runtime_status=UNATTESTED."
+          } >> "$GITHUB_STEP_SUMMARY"

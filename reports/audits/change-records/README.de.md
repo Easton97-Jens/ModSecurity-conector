@@ -16,3 +16,7 @@ angelegt werden.
   Framework-Submodule-Validator ausdrücklich autorisiert. Es weist nur
   beobachtete Validierung aus; Hosted-Ausführungs- und Security-Scan-Evidence
   werden nicht behauptet.
+- [CR-20260812-connector-mode-workflow-coverage](CR-20260812-connector-mode-workflow-coverage.de.md) —
+  dieses Paar ist für die vier statischen Connector-Mode-Workflows ausdrücklich
+  autorisiert. Es unterscheidet lokale statische Evidence von ausstehender
+  Exact-Head-Hosted-Runtime- und PR-Evidence.

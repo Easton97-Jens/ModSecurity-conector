@@ -15,3 +15,8 @@ reports without an explicit repository-policy decision or user decision.
   paired record is explicitly authorized for the read-only
   Framework-submodule-validator change. It records only observed validation;
   hosted execution and security-scan evidence are not asserted.
+- [CR-20260812-connector-mode-workflow-coverage](CR-20260812-connector-mode-workflow-coverage.md)
+  | [Deutsch](CR-20260812-connector-mode-workflow-coverage.de.md) — this
+  paired record is explicitly authorized for the four static connector-mode
+  workflows. It distinguishes local static evidence from pending exact-head
+  hosted runtime and PR evidence.
