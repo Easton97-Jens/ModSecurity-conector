@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 import subprocess
 import tempfile
 import unittest
+from hashlib import sha256
 from pathlib import Path
 
 import yaml
@@ -42,6 +44,98 @@ PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
         "github.event.repository.default_branch == 'master'",
     }
 )
+SUBMODULE_PUBLISHER_SHA256 = "c1e70a1d4481faafea81e4d33159388beb4471f709fe583fe8f8744be0977508"
+READONLY_SUBMODULE_SANDBOX_CALL = " ".join(
+    (
+        "python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py",
+        '--source-root "$GITHUB_WORKSPACE"',
+        '--framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"',
+        '--write-root "$write_root"',
+        '--runner-temp "$RUNNER_TEMP"',
+        "--validator-user modsecurity-validator",
+        "--validator-group modsecurity-validator",
+    )
+)
+READONLY_SUBMODULE_WRITE_ROOT = "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX"
+READONLY_SUBMODULE_EXTERNAL_ROOT = "$VALIDATION_WRITE_ROOT/external"
+READONLY_SUBMODULE_NAMESPACE_CALL = " ".join(
+    (
+        "sudo -n python3 ci/tools/run-readonly-submodule-validation-namespace.py",
+        '--source-root "$GITHUB_WORKSPACE"',
+        '--framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"',
+        '--write-root "$VALIDATION_WRITE_ROOT"',
+        '--external-root "$VALIDATION_WRITE_ROOT/external"',
+        "--validator-user modsecurity-validator",
+        "--validator-group modsecurity-validator",
+        '--python "$EXPECTED_PYTHON"',
+        '--namespace-parent "$namespace_parent"',
+    )
+)
+READONLY_SUBMODULE_SANDBOX_READY = (
+    "READONLY_SUBMODULE_VALIDATION_SANDBOX_READY\\ external=*\\ source_inventory_sha256=*"
+)
+READONLY_SUBMODULE_NAMESPACE_COMPLETE = "READONLY_SUBMODULE_VALIDATION_NAMESPACE_COMPLETE"
+READONLY_SUBMODULE_VERIFY_GATE = (
+    "if: ${{ always() && steps.prepare-readonly-candidate-sandbox.outcome == 'success' }}"
+)
+SUBMODULE_VALIDATE_ONLY_INPUT = """\
+  workflow_dispatch:
+    inputs:
+      validate_only:
+        description: Run the non-publishing exact-ref validator only.
+        required: false
+        default: false
+        type: boolean
+"""
+SUBMODULE_VALIDATE_ONLY_EVENT = (
+    "github.event_name == 'workflow_dispatch' && "
+    "github.event.inputs.validate_only == 'true'"
+)
+SUBMODULE_VALIDATE_ONLY_REPOSITORY = "github.repository == 'Easton97-Jens/ModSecurity-conector'"
+SUBMODULE_VALIDATE_ONLY_BRANCH = (
+    "github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation'"
+)
+SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG = "github.ref_protected == true"
+SUBMODULE_VALIDATE_ONLY_PROTECTED_MASTER = (
+    "(github.ref == 'refs/heads/master' && "
+    "github.event.repository.default_branch == 'master' && "
+    f"{SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG})"
+)
+SUBMODULE_VALIDATE_ONLY_REF_ALLOWLIST = (
+    f"({SUBMODULE_VALIDATE_ONLY_BRANCH} || {SUBMODULE_VALIDATE_ONLY_PROTECTED_MASTER})"
+)
+SUBMODULE_VALIDATE_ONLY_MANUAL_PREDICATE = (
+    f"{SUBMODULE_VALIDATE_ONLY_EVENT} && "
+    f"{SUBMODULE_VALIDATE_ONLY_REPOSITORY} && "
+    "github.event.repository.fork == false && "
+    f"{SUBMODULE_VALIDATE_ONLY_REF_ALLOWLIST}"
+)
+SUBMODULE_VALIDATE_ONLY_MASTER_EXCLUSION = (
+    "(github.event_name != 'workflow_dispatch' || "
+    "github.event.inputs.validate_only != 'true')"
+)
+SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF = (
+    f"ref: ${{{{ {SUBMODULE_VALIDATE_ONLY_MANUAL_PREDICATE} && github.sha || "
+    "github.event.repository.default_branch }}"
+)
+SUBMODULE_RESOLVER_GATE = (
+    f"{SUBMODULE_VALIDATE_ONLY_REPOSITORY} && github.event.repository.fork == false && "
+    "( ( github.ref == 'refs/heads/master' && "
+    "github.event.repository.default_branch == 'master' && "
+    f"{SUBMODULE_VALIDATE_ONLY_MASTER_EXCLUSION} ) || "
+    f"( {SUBMODULE_VALIDATE_ONLY_EVENT} && "
+    f"( {SUBMODULE_VALIDATE_ONLY_BRANCH} || {SUBMODULE_VALIDATE_ONLY_PROTECTED_MASTER} ) ) )"
+)
+SUBMODULE_VALIDATOR_GATE = (
+    "needs.resolve-submodule-update.result == 'success' && "
+    "needs.resolve-submodule-update.outputs.changed == 'true'"
+)
+SUBMODULE_PUBLISHER_GATE = (
+    "needs.resolve-submodule-update.result == 'success' && "
+    "needs.resolve-submodule-update.outputs.changed == 'true' && "
+    "needs.resolve-submodule-update.outputs.validation_only == 'false' && "
+    "needs.validate-submodule-update.result == 'success'"
+)
 
 WRITE_PERMISSION_KEYS = {
     "contents",
@@ -76,6 +170,286 @@ def has_exact_framework_gitlink_staging(script: str) -> bool:
         and "git add ." not in normalized
         and "git add -A" not in normalized
     )
+
+
+def readonly_submodule_validator_errors(validator: str) -> list[str]:
+    """Return violations of the root-side namespace validation boundary."""
+
+    normalized = normalize_shell_script(validator)
+    errors: list[str] = []
+    required = (
+        READONLY_SUBMODULE_SANDBOX_CALL,
+        READONLY_SUBMODULE_NAMESPACE_CALL,
+        "sudo -n groupadd --system modsecurity-validator",
+        "sudo -n useradd --system --no-create-home --shell /usr/sbin/nologin",
+        'sudo -n chown root:root "$write_root"',
+        'sudo -n chmod 0711 "$write_root"',
+        'namespace_parent="$(sudo -n mktemp -d /tmp/modsecurity-readonly-namespace.XXXXXX)"',
+        'sudo -n chown root:modsecurity-validator "$namespace_parent"',
+        'sudo -n chmod 0750 "$namespace_parent"',
+        "trap cleanup_namespace_parent EXIT",
+        'sudo -n rmdir -- "$namespace_parent"',
+        "sandbox_prepare_output=\"$(sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py",
+        READONLY_SUBMODULE_SANDBOX_READY,
+        "id: prepare-readonly-candidate-sandbox",
+        "id: run-readonly-candidate-namespace",
+        "continue-on-error: true",
+        READONLY_SUBMODULE_NAMESPACE_COMPLETE,
+        "Verify candidate source inventory and external outputs",
+        READONLY_SUBMODULE_VERIFY_GATE,
+        "--verify",
+        "VALIDATOR SOURCE MUTATION BLOCKED",
+        "VALIDATOR WRITE-ROOT CONTRACT BLOCKED",
+        "Enforce isolated candidate result after verification",
+        "SANDBOX_PREPARE_RESULT: ${{ steps.prepare-readonly-candidate-sandbox.outcome }}",
+        "CANDIDATE_RESULT: ${{ steps.run-readonly-candidate-namespace.outcome }}",
+        'test "$SANDBOX_PREPARE_RESULT" = success',
+        'test "$CANDIDATE_RESULT" = success',
+        "sudo -n git -c core.hooksPath=/dev/null diff --check",
+        'sudo -n git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check',
+        "printf 'write_root=%s\\n' \"$write_root\" >> \"$GITHUB_OUTPUT\"",
+    )
+    for term in required:
+        if term not in normalized:
+            errors.append(f"missing {term}")
+
+    forbidden = (
+        "setfacl",
+        "getfacl",
+        "unshare",
+        "mount ",
+        "umount",
+        "sudo -n -u modsecurity-validator",
+        "env -i",
+        "bash --noprofile --norc -ceu",
+        'make PYTHON="$PYTHON" BUILD_ROOT=',
+        "rm -rf",
+    )
+    for term in forbidden:
+        if term in validator:
+            errors.append(f"workflow must delegate {term!r} exclusively to the namespace helper")
+
+    namespace_count = normalized.count(READONLY_SUBMODULE_NAMESPACE_CALL)
+    if namespace_count != 1:
+        errors.append("workflow must invoke the namespace helper exactly once")
+    if normalized.count("prepare-readonly-submodule-validation-sandbox.py") != 2:
+        errors.append("sandbox helper must prepare and physically verify exactly once each")
+    if normalized.count("umask 077") != 1:
+        errors.append("only root-side sandbox preparation may set the workflow umask")
+    if "GH_TOKEN" in validator or "secrets." in validator or "github.token" in validator:
+        errors.append("validator job must not receive credentials")
+    if "--namespace-parent /tmp" in validator or "--namespace-parent /var/tmp" in validator:
+        errors.append("namespace helper must not use a public namespace parent")
+
+    verification_step = validator.partition(
+        "- name: Verify candidate source inventory and external outputs"
+    )[2].partition("- name: Enforce isolated candidate result after verification")[0]
+    if READONLY_SUBMODULE_VERIFY_GATE not in verification_step:
+        errors.append("physical verification must follow a failed candidate but not failed preparation")
+
+    setup_index = normalized.find(READONLY_SUBMODULE_SANDBOX_CALL)
+    namespace_index = normalized.find(READONLY_SUBMODULE_NAMESPACE_CALL)
+    verification_index = normalized.find("Verify candidate source inventory and external outputs")
+    result_index = normalized.find("Enforce isolated candidate result after verification")
+    if min(setup_index, namespace_index, verification_index, result_index) < 0 or not (
+        setup_index < namespace_index < verification_index < result_index
+    ):
+        errors.append("root preparation, namespace candidate, physical verification, and result gate must be ordered")
+    return errors
+
+
+def readonly_namespace_runner_errors(runner: str) -> list[str]:
+    """Return violations of the trusted private namespace launcher contract."""
+
+    errors: list[str] = []
+    required = (
+        'PROCFS_TARGET = Path("/proc")',
+        "CLONE_NEWNS | CLONE_NEWPID",
+        "MS_NOEXEC = 8",
+        'parser.add_argument("--namespace-parent", required=True)',
+        "_validate_namespace_parent(namespace_parent, gid)",
+        "namespace_ancestor = namespace_parent.parent",
+        "namespace parent must have a trusted sticky ancestor",
+        "namespace parent requires a root-owned sticky ancestor",
+        "namespace parent must be root:validator mode 0750",
+        "namespace parent must be empty before mount layout creation",
+        "mount_root = namespace_parent / \"mount-root\"",
+        "os.mkdir(path, mode=0o700)",
+        "os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)",
+        "metadata = os.fstat(descriptor)",
+        "not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0",
+        "os.fchown(descriptor, 0, validator_gid)",
+        "os.fchmod(descriptor, 0o750)",
+        "metadata = os.lstat(path)",
+        "(0, validator_gid, 0o750)",
+        "PR_SET_NO_NEW_PRIVS = 38",
+        "if LIBC.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:",
+        "_set_no_new_privs()",
+        '_mount(None, Path("/"), MS_REC | MS_PRIVATE)',
+        "_mount(str(source), source_view, MS_BIND)",
+        "MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV",
+        "_mount(str(external), external_view, MS_BIND)",
+        "MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV",
+        "_verify_mount(source_view, readonly=True)",
+        "_verify_mount(external_view, readonly=False)",
+        "_verify_procfs(PROCFS_TARGET)",
+        "os.setgroups([]); os.setgid(gid); os.setuid(uid); os.chdir(source)",
+        "os.execve(\"/bin/bash\"",
+        "READONLY_SUBMODULE_VALIDATION_NAMESPACE_COMPLETE",
+        "if _mountinfo_for(mount_root) != before:",
+        "os.rmdir(path)",
+        'test "$PWD" = "$GITHUB_WORKSPACE"',
+        "/proc/self/status)",
+        "0000000000000000",
+        "NoNewPrivs:",
+        'if /usr/bin/mount -o remount,rw "$GITHUB_WORKSPACE"',
+        '"HOME": str(root / "home")',
+        '"TMPDIR": str(root / "tmp")',
+        '"XDG_CACHE_HOME": str(root / "xdg-cache")',
+        '"PIP_CACHE_DIR": str(root / "pip-cache")',
+        '"PYTHONPYCACHEPREFIX": str(root / "pycache")',
+        '"PYTHONUSERBASE": str(root / "python-user-base")',
+        '"PYTHONPATH": str(root / "python-packages")',
+        '"GIT_CONFIG_GLOBAL": str(root / "gitconfig")',
+        '"GITHUB_ACTIONS": "true"',
+        '"BUILD_ROOT": str(root / "build")',
+        '"VERIFIED_RUN_ROOT": str(root / "verified-run")',
+        '"CACHE_ROOT": str(root / "cache")',
+        '"VERIFIED_EVIDENCE_ROOT": str(root / "evidence")',
+        '"RUNTIME_RUN_ROOT": str(root / "runtime")',
+        '"SOURCE_ROOT": str(root / "source")',
+        '"MATRIX_ROOT": str(root / "matrix")',
+        ".readonly-validator-write-probe",
+        "validator obtained sudo",
+        'exec make PYTHON="$PYTHON" quick-check',
+        '--target "$PYTHONPATH" --requirement "$GITHUB_WORKSPACE/ci/requirements/update-submodules-validation-linux-x86_64.txt"',
+    )
+    for term in required:
+        if term not in runner:
+            errors.append(f"missing {term}")
+    for term in ("tempfile", "os.chmod(", 'Path("/tmp")', "os.umask(", "BaseException"):
+        if term in runner:
+            errors.append(f"namespace runner must not use {term!r}")
+    if 'exec make PYTHON="$PYTHON" BUILD_ROOT=' in runner:
+        errors.append("namespace runner must pass BUILD_ROOT through the environment")
+    forbidden = (
+        "MS_REC | MS_BIND",
+        "MNT_DETACH",
+        "shutil.",
+        "rmtree",
+        "subprocess",
+        "shell=True",
+        "os.system",
+        "secrets.token_hex",
+    )
+    for term in forbidden:
+        if term in runner:
+            errors.append(f"namespace runner must not use {term}")
+    if runner.count("_mount(str(source), source_view, MS_BIND)") != 1:
+        errors.append("namespace runner must create exactly one non-recursive source bind")
+    if runner.count("_mount(str(external), external_view, MS_BIND)") != 1:
+        errors.append("namespace runner must create exactly one non-recursive output bind")
+    if runner.count("_umount(external_view); _umount(source_view)") != 1:
+        errors.append("namespace runner must synchronously unmount both exact views")
+
+    if runner.count('PROCFS_TARGET = Path("/proc")') != 1 or runner.count(
+        'Path("/proc")'
+    ) != 1:
+        errors.append("namespace runner must export one immutable literal procfs target")
+
+    try:
+        syntax_tree = ast.parse(runner)
+    except SyntaxError:
+        errors.append("namespace runner must remain valid Python")
+        return errors
+    functions = {
+        node.name: "\n".join(runner.splitlines()[node.lineno - 1 : node.end_lineno])
+        for node in syntax_tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.end_lineno is not None
+    }
+    pid1_candidate = functions.get("_run_pid1_candidate", "")
+    namespace_child = functions.get("_namespace_child", "")
+    if not pid1_candidate:
+        errors.append("namespace runner must retain the PID-one candidate helper")
+    if not namespace_child:
+        errors.append("namespace runner must retain the namespace child launcher")
+        return errors
+    if pid1_candidate.count("ready_acknowledged = False") != 1 or pid1_candidate.count(
+        "ready_acknowledged = True"
+    ) != 1:
+        errors.append("namespace runner must transfer procfs cleanup ownership exactly once")
+
+    proc_mount = re.compile(
+        r'''_mount\(\s*["']proc["']\s*,\s*PROCFS_TARGET\s*,\s*'''
+        r"MS_RDONLY\s*\|\s*MS_NOSUID\s*\|\s*MS_NODEV\s*\|\s*MS_NOEXEC"
+        r'''\s*,\s*["']proc["']\s*\)'''
+    )
+    proc_match = proc_mount.search(pid1_candidate)
+    if proc_match is None:
+        errors.append("namespace runner must mount a fresh readonly nosuid nodev noexec procfs at /proc")
+        return errors
+
+    fork_index = namespace_child.find("child = os.fork()")
+    helper_call_index = namespace_child.find("_run_pid1_candidate(", fork_index)
+    verifier_index = pid1_candidate.find("_verify_procfs(PROCFS_TARGET)")
+    readiness_write_index = pid1_candidate.find('os.write(proc_ready_write, b"1")')
+    readiness_transfer_index = pid1_candidate.find("ready_acknowledged = True")
+    no_new_privs_index = pid1_candidate.find("_set_no_new_privs()")
+    candidate_entry_index = pid1_candidate.find("candidate_entry(*candidate_arguments)")
+    if min(
+        fork_index,
+        helper_call_index,
+        verifier_index,
+        readiness_write_index,
+        readiness_transfer_index,
+        no_new_privs_index,
+        candidate_entry_index,
+    ) < 0 or not (
+        fork_index < helper_call_index
+        and proc_match.start()
+        < verifier_index
+        < readiness_write_index
+        < readiness_transfer_index
+        < no_new_privs_index
+        < candidate_entry_index
+    ):
+        errors.append("private procfs readiness ownership must transfer before no_new_privs and candidate identity drop")
+    if pid1_candidate.count("_umount(PROCFS_TARGET)") != 1 or namespace_child.count(
+        "_umount(PROCFS_TARGET)"
+    ) != 1:
+        errors.append("namespace runner must retain guarded child cleanup and parent procfs restoration")
+    child_proc_cleanup = re.search(
+        r'''if proc_mounted and not ready_acknowledged:\s+try:\s+_umount\(PROCFS_TARGET\)\s+'''
+        r'''if _mountinfo_for\(PROCFS_TARGET\) != before_proc:''',
+        pid1_candidate,
+    )
+    parent_proc_restoration = re.search(
+        r'''finally:\s+if proc_mounted:\s+_umount\(PROCFS_TARGET\)\s+'''
+        r'''if _mountinfo_for\(PROCFS_TARGET\) != before_proc:''',
+        namespace_child,
+    )
+    if child_proc_cleanup is None:
+        errors.append("namespace runner must synchronously clean up procfs if PID-one setup fails")
+    if parent_proc_restoration is None:
+        errors.append("namespace runner must synchronously restore procfs after the PID child exits")
+    wait_index = namespace_child.find("os.waitpid(child, 0)")
+    readiness_read_index = namespace_child.find(
+        'proc_mounted = os.read(proc_ready_read, 1) == b"1"'
+    )
+    if parent_proc_restoration is not None and (
+        readiness_read_index < 0
+        or wait_index < 0
+        or not readiness_read_index < wait_index < parent_proc_restoration.start()
+    ):
+        errors.append("namespace runner must acknowledge readiness and restore /proc only after the PID child exits")
+    if "before_proc = _mountinfo_for(PROCFS_TARGET)" not in namespace_child or (
+        "if _mountinfo_for(PROCFS_TARGET) != before_proc:" not in namespace_child
+        or "if _mountinfo_for(PROCFS_TARGET) != before_proc:" not in pid1_candidate
+    ):
+        errors.append("namespace runner must verify /proc mount restoration after synchronous cleanup")
+    return errors
+
 
 EXPECTED_WRITE_PERMISSIONS = {
     ("cleanup-artifacts.yml", "cleanup-artifacts"): {"actions": "write"},
@@ -206,6 +580,137 @@ def job_if_expression(job: str) -> str | None:
     if expression.startswith("${{") and expression.endswith("}}"):
         expression = expression.removeprefix("${{").removesuffix("}}").strip()
     return " ".join(expression.split())
+
+
+def update_submodule_validate_only_errors(text: str) -> list[str]:
+    """Return violations of the manual non-publishing validation contract."""
+
+    errors: list[str] = []
+    if text.count(SUBMODULE_VALIDATE_ONLY_INPUT) != 1:
+        errors.append("validate_only must be one exact optional-false boolean input")
+    if text.count(SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG) != 4:
+        errors.append("protected-master validation must have four exact ref-protection checks")
+
+    jobs = job_blocks(text)
+    required_jobs = {
+        "resolve-submodule-update",
+        "validate-submodule-update",
+        "create-submodule-update-pr",
+        "report-submodule-update-outcome",
+    }
+    if not required_jobs.issubset(jobs):
+        return errors + ["validate_only contract jobs are missing"]
+
+    resolver = jobs["resolve-submodule-update"]
+    validator = jobs["validate-submodule-update"]
+    publisher = jobs["create-submodule-update-pr"]
+    outcome = jobs["report-submodule-update-outcome"]
+    normalized_resolver = normalize_shell_script(resolver)
+    normalized_outcome = normalize_shell_script(outcome)
+
+    if job_if_expression(resolver) != SUBMODULE_RESOLVER_GATE:
+        errors.append("resolver must allow only same-repository master or manual validate_only")
+    if job_if_expression(validator) != SUBMODULE_VALIDATOR_GATE:
+        errors.append("validator must retain its successful changed-candidate gate")
+    if job_if_expression(publisher) != SUBMODULE_PUBLISHER_GATE:
+        errors.append("publisher must be disabled by the resolver-derived validate_only flag")
+    if job_if_expression(outcome) != "always()":
+        errors.append("outcome reporter must inspect every terminal job state")
+
+    checkout_contracts = (
+        ("resolver", resolver, "Checkout Parent metadata"),
+        ("validator", validator, "Checkout candidate for read-only validation"),
+    )
+    for name, job, step_name in checkout_contracts:
+        checkout_steps = checkout_step_blocks(job)
+        if (
+            len(checkout_steps) != 1
+            or f"- name: {step_name}" not in checkout_steps[0]
+            or checkout_steps[0].count(SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF) != 1
+        ):
+            errors.append(
+                f"{name} named checkout must use the dispatched SHA only for validate_only"
+            )
+    if SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF in publisher:
+        errors.append("publisher must never check out the dispatched validate_only SHA")
+    if "ref: ${{ github.event.repository.default_branch }}" not in publisher:
+        errors.append("publisher must retain the default-branch checkout")
+
+    activation = (
+        "validation_only=false "
+        f'if [ "${{{{ {SUBMODULE_VALIDATE_ONLY_MANUAL_PREDICATE} }}}}" = true ]; then '
+        "validation_only=true fi"
+    )
+    force_changed = 'if [ "$validation_only" = true ]; then changed=true fi'
+    if activation not in normalized_resolver:
+        errors.append("resolver must derive validation_only only from the manual boolean input")
+    if normalized_resolver.count(force_changed) != 1:
+        errors.append("resolver must force changed exactly once and only inside validation_only")
+    if normalized_resolver.count("changed=true") != 2:
+        errors.append("changed may be true only for a real update or validate_only")
+    if re.findall(r"\bchanged=(?:false|true)\b", normalized_resolver) != [
+        "changed=false",
+        "changed=true",
+        "changed=true",
+    ]:
+        errors.append("validation_only must be the final changed assignment before outputs")
+    if (
+        activation in normalized_resolver
+        and force_changed in normalized_resolver
+        and normalized_resolver.index(activation) >= normalized_resolver.index(force_changed)
+    ):
+        errors.append("validation_only activation must precede its changed override")
+    if resolver.count("validation_only: ${{ steps.resolve.outputs.validation_only }}") != 1:
+        errors.append("resolver must expose one validation_only job output")
+    if normalized_resolver.count(
+        "printf 'validation_only=%s\\n' \"$validation_only\""
+    ) != 1:
+        errors.append("resolver must publish one validation_only step output")
+
+    if job_permissions(resolver) != {"contents": "read"}:
+        errors.append("resolver permissions must remain contents-read only")
+    if job_permissions(validator) != {"contents": "read"}:
+        errors.append("validator permissions must remain contents-read only")
+    if job_permissions(publisher) != {"contents": "write", "pull-requests": "write"}:
+        errors.append("publisher permissions changed outside the established boundary")
+    if job_permissions(outcome) != {"contents": "read"}:
+        errors.append("outcome reporter permissions must remain contents-read only")
+    if any(term in resolver or term in validator for term in ("GH_TOKEN", "secrets.", "github.token")):
+        errors.append("resolver and validator must not receive publishing credentials")
+    if any(term in publisher for term in ("gh pr merge", "--auto", "enablePullRequestAutoMerge")):
+        errors.append("publisher must not enable or perform auto-merge")
+
+    validation_only_case = 'case "$VALIDATION_ONLY" in'
+    changed_case = 'case "$CHANGED" in'
+    validation_only_success = (
+        'if [ "$CHANGED" != "true" ] || [ "$VALIDATOR_RESULT" != "success" ] || '
+        '[ "$PUBLISHER_RESULT" != "skipped" ]; then'
+    )
+    normal_update_success = (
+        'if [ "$VALIDATOR_RESULT" != "success" ] || '
+        '[ "$PUBLISHER_RESULT" != "success" ]; then'
+    )
+    if outcome.count(
+        "VALIDATION_ONLY: ${{ needs.resolve-submodule-update.outputs.validation_only }}"
+    ) != 1:
+        errors.append("outcome reporter must consume one resolver-derived validation_only output")
+    if normalized_outcome.count(validation_only_case) != 1:
+        errors.append("outcome reporter must have one validation_only state case")
+    if normalized_outcome.count(changed_case) != 1:
+        errors.append("outcome reporter must retain one normal changed state case")
+    if validation_only_case in normalized_outcome and changed_case in normalized_outcome:
+        validation_only_section = normalized_outcome.partition(validation_only_case)[2].partition(
+            changed_case
+        )[0]
+        if validation_only_success not in validation_only_section:
+            errors.append("validate_only success requires changed, validator success, and publisher skip")
+        if "exit 0" not in validation_only_section:
+            errors.append("successful validate_only reporting must exit before normal publishing checks")
+        if normalized_outcome.index(validation_only_case) >= normalized_outcome.index(changed_case):
+            errors.append("validate_only state must be handled before the normal changed state")
+    if normalized_outcome.count(normal_update_success) != 1:
+        errors.append("normal changed updates must still require validator and publisher success")
+    return errors
 
 
 def has_exact_master_only_gate(job: str, extra_terms: set[str]) -> bool:
@@ -1013,7 +1518,8 @@ jobs:
             self.assertNotIn("run:", job, workflow_name)
 
     def test_update_submodules_separates_validation_from_publishing(self) -> None:
-        jobs = self.jobs("update-submodules.yml")
+        workflow = self.workflow("update-submodules.yml")
+        jobs = job_blocks(workflow)
         self.assertEqual(
             set(jobs),
             {
@@ -1037,6 +1543,10 @@ jobs:
         )
         self.assertEqual(job_permissions(outcome), {"contents": "read"})
         self.assertEqual(job_if_expression(outcome), "always()")
+        self.assertEqual(update_submodule_validate_only_errors(workflow), [])
+        self.assertEqual(job_if_expression(resolver), SUBMODULE_RESOLVER_GATE)
+        self.assertEqual(resolver.count(SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF), 1)
+        self.assertEqual(validator.count(SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF), 1)
         self.assertIn("github.ref == 'refs/heads/master'", resolver)
         self.assertIn("github.event.repository.default_branch == 'master'", resolver)
         self.assertIn("github.event.repository.fork == false", resolver)
@@ -1056,21 +1566,15 @@ jobs:
         self.assertIn("needs: resolve-submodule-update", validator)
         self.assertEqual(
             job_if_expression(validator),
-            "needs.resolve-submodule-update.result == 'success' && "
-            "needs.resolve-submodule-update.outputs.changed == 'true'",
+            SUBMODULE_VALIDATOR_GATE,
         )
         self.assertIn("submodules: recursive", validator)
-        self.assertIn("make quick-check", validator)
+        self.assertIn(READONLY_SUBMODULE_NAMESPACE_CALL, normalize_shell_script(validator))
         self.assertIn("remote get-url origin", validator)
         self.assertIn("merge-base --is-ancestor", validator)
         self.assertIn("checkout --detach", validator)
         self.assertIn("submodule update --init --recursive", validator)
         self.assertIn("status --porcelain", validator)
-        dependency_install = (
-            "python3 -m pip install --disable-pip-version-check --only-binary=:all: "
-            "--require-hashes --requirement "
-            "ci/requirements/update-submodules-validation-linux-x86_64.txt"
-        )
         dependency_lock = (
             ROOT / "ci" / "requirements" / "update-submodules-validation-linux-x86_64.txt"
         ).read_text(encoding="utf-8")
@@ -1080,30 +1584,504 @@ jobs:
             dependency_lock,
         )
         self.assertNotIn("PyYAML>=", dependency_lock)
-        self.assertIn(dependency_install, jobs["validate-submodule-update"])
-        self.assertIn(
-            f'run: "{dependency_install}"',
-            validator,
-        )
-        self.assertLess(
-            validator.index("Verify Python interpreter contract"),
-            validator.index(dependency_install),
-        )
-        self.assertLess(
-            validator.index(dependency_install),
-            validator.index("make quick-check"),
-        )
+        self.assertIn("EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}", validator)
         self.assertNotIn("GH_TOKEN", validator)
         self.assertNotIn("secrets.", validator)
+        self.assertEqual(readonly_submodule_validator_errors(validator), [])
+
+        """Run the exact workflow prelude with a test-local sudo implementation."""
+        workflow_payload = yaml.safe_load(self.workflow("update-submodules.yml"))
+        steps = workflow_payload["jobs"]["validate-submodule-update"]["steps"]
+        candidate_step = next(
+            step for step in steps if step["name"] == "Run quick check in the private read-only namespace"
+        )
+        prelude, separator, _candidate = candidate_step["run"].partition("namespace_output=")
+        expected_prelude = """\
+set -euo pipefail
+namespace_parent=""
+cleanup_namespace_parent() {
+  namespace_status=$?
+  if [ -n "$namespace_parent" ]; then
+    sudo -n rmdir -- "$namespace_parent" || {
+      echo "Unable to remove readonly namespace parent" >&2
+      return 1
+    }
+  fi
+  return "$namespace_status"
+}
+trap cleanup_namespace_parent EXIT
+namespace_parent="$(sudo -n mktemp -d /tmp/modsecurity-readonly-namespace.XXXXXX)"
+sudo -n chown root:modsecurity-validator "$namespace_parent"
+sudo -n chmod 0750 "$namespace_parent"
+"""
+        self.assertTrue(separator)
+        self.assertEqual(prelude, expected_prelude)
+        self.assertNotIn("run-readonly-submodule-validation-namespace.py", prelude)
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            mock_bin = temporary_root / "bin"; mock_bin.mkdir()
+            namespace_root = temporary_root / "namespace-parents"; namespace_root.mkdir()
+            sudo_log = temporary_root / "sudo.log"
+            created_paths = temporary_root / "created-paths.log"
+            mock_sudo = mock_bin / "sudo"
+            mock_sudo.write_text(
+                "\n".join(
+                    (
+                        "#!/bin/sh", "set -eu", "printf '%s\\n' \"$*\" >> \"$MOCK_SUDO_LOG\"",
+                        "test \"$1\" = -n", "shift", "case \"$1\" in",
+                        "  mktemp)",
+                        "    path=\"$(/usr/bin/mktemp -d \"$MOCK_NAMESPACE_ROOT/namespace.XXXXXX\")\"",
+                        "    printf '%s\\n' \"$path\" >> \"$MOCK_CREATED_PATHS\"",
+                        "    printf '%s\\n' \"$path\"", "    ;;",
+                        "  chown|chmod) exit 0 ;;", "  rmdir)", "    shift",
+                        "    if [ \"${MOCK_RMDIR_FAILURE:-0}\" = 1 ]; then exit 73; fi",
+                        "    exec /usr/bin/rmdir \"$@\"", "    ;;",
+                        "  *) echo \"unexpected mocked sudo command: $*\" >&2; exit 99 ;;", "esac", "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            mock_sudo.chmod(0o700)
+
+            def execute(candidate_status: int, *, rmdir_failure: bool = False) -> tuple[subprocess.CompletedProcess[str], Path]:
+                environment = {
+                    **os.environ,
+                    "PATH": f"{mock_bin}:{os.environ['PATH']}",
+                    "MOCK_SUDO_LOG": str(sudo_log),
+                    "MOCK_CREATED_PATHS": str(created_paths),
+                    "MOCK_NAMESPACE_ROOT": str(namespace_root),
+                    "MOCK_RMDIR_FAILURE": "1" if rmdir_failure else "0",
+                    "CANDIDATE_STATUS": str(candidate_status),
+                }
+                environment.pop("BASH_ENV", None)
+                result = subprocess.run(
+                    ["/bin/bash", "-ceu", "\n".join((expected_prelude, 'exit "$CANDIDATE_STATUS"', ""))],
+                    text=True, capture_output=True, env=environment, check=False,
+                )
+                if not created_paths.exists():
+                    self.fail(result.stderr)
+                created = Path(created_paths.read_text(encoding="utf-8").splitlines()[-1])
+                return result, created
+
+            success, success_parent = execute(0)
+            self.assertEqual(success.returncode, 0, success.stderr)
+            self.assertFalse(success_parent.exists())
+
+            candidate_failure, failed_parent = execute(47)
+            self.assertEqual(candidate_failure.returncode, 47, candidate_failure.stderr)
+            self.assertFalse(failed_parent.exists())
+
+            cleanup_failure, retained_parent = execute(0, rmdir_failure=True)
+            try:
+                self.assertNotEqual(cleanup_failure.returncode, 0)
+                self.assertTrue(retained_parent.is_dir())
+            finally:
+                if retained_parent.exists():
+                    retained_parent.rmdir()
+
+            log = sudo_log.read_text(encoding="utf-8")
+            self.assertIn(f"rmdir -- {success_parent}", log)
+            self.assertIn(f"rmdir -- {failed_parent}", log)
+            self.assertIn(f"rmdir -- {retained_parent}", log)
+            self.assertNotIn("rm -rf", log)
+        namespace_runner = (
+            ROOT / "ci" / "tools" / "run-readonly-submodule-validation-namespace.py"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(readonly_namespace_runner_errors(namespace_runner), [])
+        namespace_mutations = {
+            "namespace loses PID isolation": (
+                "CLONE_NEWNS | CLONE_NEWPID",
+                "CLONE_NEWNS",
+            ),
+            "namespace propagation is not private": (
+                '_mount(None, Path("/"), MS_REC | MS_PRIVATE)',
+                '_mount(None, Path("/"), MS_REC)',
+            ),
+            "candidate can gain new privileges": (
+                "if LIBC.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:",
+                "if False:",
+            ),
+            "candidate does not prove no-new-privileges": (
+                "NoNewPrivs:",
+                "NoNewPrivileges:",
+            ),
+            "source is recursively bound": (
+                "_mount(str(source), source_view, MS_BIND)",
+                "_mount(str(source), source_view, MS_REC | MS_BIND)",
+            ),
+            "source loses read-only remount": (
+                "MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV",
+                "MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV",
+            ),
+            "output loses device restriction": (
+                "MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV",
+                "MS_BIND | MS_REMOUNT | MS_NOSUID",
+            ),
+            "candidate retains root identity": (
+                "os.setgroups([]); os.setgid(gid); os.setuid(uid); os.chdir(source)",
+                "os.chdir(source)",
+            ),
+            "candidate loses hosted-run classification": (
+                '"GITHUB_ACTIONS": "true"',
+                '"GITHUB_ACTIONS": "false"',
+            ),
+            "namespace uses lazy cleanup": (
+                "os.rmdir(path)",
+                "MNT_DETACH",
+            ),
+            "namespace accepts a public parent": (
+                "namespace parent must be root:validator mode 0750",
+                "namespace parent may be public",
+            ),
+            "namespace mount root loses validator traversal": (
+                "os.fchmod(descriptor, 0o750)",
+                "os.mkdir(path, mode=0o700)",
+            ),
+            "namespace restores unsafe Python chmod": (
+                "os.fchown(descriptor, 0, validator_gid)",
+                "os.fchown(descriptor, 0, validator_gid)\n            os.chmod(path, 0o755)",
+            ),
+            "namespace hardcodes the public temporary directory": (
+                "namespace_ancestor = namespace_parent.parent",
+                'namespace_ancestor = Path("/tmp")',
+            ),
+            "namespace changes the process umask": (
+                "os.fchmod(descriptor, 0o750)",
+                "os.umask(0)\n            os.fchmod(descriptor, 0o750)",
+            ),
+            "namespace catches process-control exceptions": (
+                "except Exception as error:",
+                "except BaseException as error:",
+            ),
+        }
+        for name, (original, replacement) in namespace_mutations.items():
+            with self.subTest(name=name):
+                self.assertIn(original, namespace_runner)
+                mutated_runner = namespace_runner.replace(original, replacement, 1)
+                self.assertNotEqual(readonly_namespace_runner_errors(mutated_runner), [])
+
+        proc_match = re.search(
+            r'''_mount\(\s*["']proc["']\s*,\s*PROCFS_TARGET\s*,\s*'''
+            r"MS_RDONLY\s*\|\s*MS_NOSUID\s*\|\s*MS_NODEV\s*\|\s*MS_NOEXEC"
+            r'''\s*,\s*["']proc["']\s*\)''',
+            namespace_runner,
+        )
+        self.assertIsNotNone(proc_match)
+        assert proc_match is not None
+        proc_mount = proc_match.group(0)
+        proc_mutations = {
+            "private procfs constant is mutable to another target": (
+                'PROCFS_TARGET = Path("/proc")',
+                'PROCFS_TARGET = Path("/proc-unsafe")',
+            ),
+            "private procfs is missing": proc_mount.replace('"proc"', '"none"', 1),
+            "private procfs has executable flags": proc_mount.replace("| MS_NOEXEC", "", 1),
+            "private procfs has the wrong mount target": proc_mount.replace(
+                "PROCFS_TARGET", 'Path("/proc")', 1
+            ),
+            "private procfs mounts before the PID child fork": "",
+            "private procfs verifier is missing": "",
+            "private procfs verifier runs after no-new-privileges": "",
+            "private procfs readiness ownership transfer is missing": "",
+            "private procfs readiness ownership transfers after no-new-privileges": "",
+            "private procfs child cleanup remains active after readiness": "",
+            "private procfs guarded child cleanup is missing": "",
+            "private procfs parent ignores readiness acknowledgement": "",
+            "private procfs parent restoration is missing": "",
+            "private procfs restoration proof is missing": "before_proc = []",
+        }
+        for name, replacement in proc_mutations.items():
+            with self.subTest(name=name):
+                if name == "private procfs constant is mutable to another target":
+                    original, mutated = replacement
+                    self.assertIn(original, namespace_runner)
+                    mutated_runner = namespace_runner.replace(original, mutated, 1)
+                elif name == "private procfs mounts before the PID child fork":
+                    helper_invocation_match = re.search(
+                        r"^        _run_pid1_candidate\(\n(?:^            .*\n)+^        \)$",
+                        namespace_runner,
+                        re.MULTILINE,
+                    )
+                    self.assertIsNotNone(helper_invocation_match)
+                    assert helper_invocation_match is not None
+                    helper_invocation = helper_invocation_match.group(0)
+                    relocated_invocation = "\n".join(
+                        line[4:] for line in helper_invocation.splitlines()
+                    )
+                    mutated_runner = namespace_runner.replace(helper_invocation, "", 1).replace(
+                        "    child = os.fork()",
+                        f"{relocated_invocation}\n    child = os.fork()",
+                        1,
+                    )
+                elif name == "private procfs verifier is missing":
+                    mutated_runner = namespace_runner.replace(
+                        "_verify_procfs(PROCFS_TARGET)", "", 1
+                    )
+                elif name == "private procfs verifier runs after no-new-privileges":
+                    mutated_runner = namespace_runner.replace(
+                        "_verify_procfs(PROCFS_TARGET)", "", 1
+                    ).replace(
+                        "_set_no_new_privs()",
+                        "_set_no_new_privs()\n        _verify_procfs(PROCFS_TARGET)",
+                        1,
+                    )
+                elif name == "private procfs readiness ownership transfer is missing":
+                    mutated_runner = namespace_runner.replace(
+                        "ready_acknowledged = True", "", 1
+                    )
+                elif name == "private procfs readiness ownership transfers after no-new-privileges":
+                    mutated_runner = namespace_runner.replace(
+                        "ready_acknowledged = True", "", 1
+                    ).replace(
+                        "_set_no_new_privs()",
+                        "_set_no_new_privs()\n        ready_acknowledged = True",
+                        1,
+                    )
+                elif name == "private procfs child cleanup remains active after readiness":
+                    mutated_runner = namespace_runner.replace(
+                        "if proc_mounted and not ready_acknowledged:",
+                        "if proc_mounted:",
+                        1,
+                    )
+                elif name == "private procfs guarded child cleanup is missing":
+                    mutated_runner = namespace_runner.replace(
+                        "if proc_mounted and not ready_acknowledged:\n            try:\n                _umount(PROCFS_TARGET)",
+                        "if False:\n            try:\n                _umount(PROCFS_TARGET)",
+                        1,
+                    )
+                elif name == "private procfs parent ignores readiness acknowledgement":
+                    mutated_runner = namespace_runner.replace(
+                        'proc_mounted = os.read(proc_ready_read, 1) == b"1"',
+                        "proc_mounted = True",
+                        1,
+                    )
+                elif name == "private procfs parent restoration is missing":
+                    mutated_runner = namespace_runner.replace(
+                        "finally:\n        if proc_mounted:\n            _umount(PROCFS_TARGET)",
+                        "finally:\n        if False:\n            _umount(PROCFS_TARGET)",
+                        1,
+                    )
+                elif name == "private procfs restoration proof is missing":
+                    mutated_runner = namespace_runner.replace(
+                        "before_proc = _mountinfo_for(PROCFS_TARGET)", replacement, 1
+                    )
+                else:
+                    mutated_runner = namespace_runner.replace(proc_mount, replacement, 1)
+                self.assertNotEqual(readonly_namespace_runner_errors(mutated_runner), [])
+        self.assertLess(
+            validator.index("Prepare dedicated read-only candidate sandbox"),
+            validator.index("Run quick check in the private read-only namespace"),
+        )
+        self.assertLess(
+            validator.index("Run quick check in the private read-only namespace"),
+            validator.index("Verify candidate source inventory and external outputs"),
+        )
+        self.assertLess(
+            validator.index("Check out the resolved descendant revision"),
+            validator.index("Prepare dedicated read-only candidate sandbox"),
+        )
+        self.assertIn(READONLY_SUBMODULE_SANDBOX_CALL, normalize_shell_script(validator))
+        self.assertIn(READONLY_SUBMODULE_WRITE_ROOT, validator)
+        self.assertIn(READONLY_SUBMODULE_EXTERNAL_ROOT, validator)
+        self.assertNotIn("setfacl", validator)
+        self.assertNotIn("getfacl", validator)
+        self.assertNotIn("sudo -n -u modsecurity-validator", validator)
+
+        validator_mutations = {
+            "namespace helper removed": (
+                "run-readonly-submodule-validation-namespace.py",
+                "run-readonly-submodule-validation-namespace.removed.py",
+            ),
+            "namespace helper loses the physical guard root": (
+                '--write-root "$VALIDATION_WRITE_ROOT"',
+                '--write-root /tmp/validator-guard',
+            ),
+            "namespace helper loses the physical external root": (
+                '--external-root "$VALIDATION_WRITE_ROOT/external"',
+                '--external-root /tmp/validator-output',
+            ),
+            "namespace helper loses the unprivileged user": (
+                "--validator-user modsecurity-validator",
+                "--validator-user root",
+            ),
+            "namespace helper loses its private mount parent": (
+                '--namespace-parent "$namespace_parent"',
+                "--namespace-parent /tmp",
+            ),
+            "namespace parent is not trusted root-created storage": (
+                'namespace_parent="$(sudo -n mktemp -d /tmp/modsecurity-readonly-namespace.XXXXXX)"',
+                'namespace_parent="/tmp/modsecurity-readonly-namespace"',
+            ),
+            "namespace parent cleanup becomes recursive": (
+                'sudo -n rmdir -- "$namespace_parent"',
+                'sudo -n rm -rf -- "$namespace_parent"',
+            ),
+            "namespace completion marker is not required": (
+                READONLY_SUBMODULE_NAMESPACE_COMPLETE,
+                "READONLY_SUBMODULE_VALIDATION_NAMESPACE_NOT_COMPLETE",
+            ),
+            "post-candidate source verification removed": (
+                "Verify candidate source inventory and external outputs",
+                "Candidate verification removed",
+            ),
+            "inventory verification disabled": (
+                "--verify",
+                "--inspect",
+            ),
+            "verification no longer runs after candidate failure": (
+                "- name: Verify candidate source inventory and external outputs\n"
+                "        " + READONLY_SUBMODULE_VERIFY_GATE,
+                "- name: Verify candidate source inventory and external outputs\n"
+                "        if: ${{ success() }}",
+            ),
+            "candidate result is not enforced after verification": (
+                'test "$CANDIDATE_RESULT" = success',
+                "true",
+            ),
+            "workflow regains ACL mutation": (
+                "printf 'write_root=%s\\n' \"$write_root\" >> \"$GITHUB_OUTPUT\"",
+                "printf 'write_root=%s\\n' \"$write_root\" >> \"$GITHUB_OUTPUT\"\n"
+                '          sudo -n setfacl -m "u:modsecurity-validator:--x" -- "$RUNNER_TEMP"',
+            ),
+        }
+        for name, (original, replacement) in validator_mutations.items():
+            with self.subTest(name=name):
+                self.assertIn(original, validator)
+                mutated = validator.replace(original, replacement, 1)
+                self.assertNotEqual(readonly_submodule_validator_errors(mutated), [])
+
+        namespace_runner_removed = validator.replace(
+            "run-readonly-submodule-validation-namespace.py",
+            "run-readonly-submodule-validation-namespace.removed.py",
+            1,
+        )
+        self.assertNotEqual(readonly_submodule_validator_errors(namespace_runner_removed), [])
+
+        validate_only_mutations = {
+            "input enables validate_only by default": (
+                SUBMODULE_VALIDATE_ONLY_INPUT,
+                SUBMODULE_VALIDATE_ONLY_INPUT.replace("default: false", "default: true"),
+            ),
+            "fork gate removed from resolver": (
+                "github.event.repository.fork == false &&",
+                "github.event.repository.fork == true ||",
+            ),
+            "canonical repository constraint removed": (
+                SUBMODULE_VALIDATE_ONLY_REPOSITORY,
+                "true",
+            ),
+            "canonical repository constraint changed": (
+                SUBMODULE_VALIDATE_ONLY_REPOSITORY,
+                "github.repository == 'attacker/ModSecurity-conector'",
+            ),
+            "repair branch constraint removed": (
+                SUBMODULE_VALIDATE_ONLY_BRANCH,
+                "true",
+            ),
+            "repair branch constraint changed": (
+                SUBMODULE_VALIDATE_ONLY_BRANCH,
+                "github.ref == 'refs/heads/arbitrary-validator-branch'",
+            ),
+            "protected master removed from validate_only allowlist": (
+                SUBMODULE_VALIDATE_ONLY_PROTECTED_MASTER,
+                "false",
+            ),
+            "protected master loses default-branch condition": (
+                SUBMODULE_VALIDATE_ONLY_PROTECTED_MASTER,
+                "(github.ref == 'refs/heads/master')",
+            ),
+            "protected-ref condition deleted": (
+                SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG,
+                "true",
+            ),
+            "protected-ref condition inverted": (
+                SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG,
+                "github.ref_protected != true",
+            ),
+            "unprotected master explicitly allowed": (
+                SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG,
+                "github.ref_protected == false",
+            ),
+            "master clause admits validate_only dispatch": (
+                SUBMODULE_VALIDATE_ONLY_MASTER_EXCLUSION,
+                "true",
+            ),
+            "scheduled run admitted through manual test gate": (
+                SUBMODULE_VALIDATE_ONLY_EVENT,
+                "github.event_name == 'schedule' && "
+                "github.event.inputs.validate_only == 'true'",
+            ),
+            "resolver validates default branch instead of dispatched SHA": (
+                SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF,
+                "ref: ${{ github.event.repository.default_branch }}",
+            ),
+            "resolver activation omits hosted-proof constraints": (
+                f'if [ "${{{{ {SUBMODULE_VALIDATE_ONLY_MANUAL_PREDICATE} }}}}" = true ]; then',
+                f'if [ "${{{{ {SUBMODULE_VALIDATE_ONLY_EVENT} }}}}" = true ]; then',
+            ),
+            "validate_only does not force existing gitlink validation": (
+                'if [ "$validation_only" = true ]; then\n'
+                "            changed=true\n"
+                "          fi",
+                'if [ "$validation_only" = true ]; then\n'
+                "            changed=false\n"
+                "          fi",
+            ),
+            "later resolver assignment cancels validate_only forcing": (
+                "          {\n            printf 'candidate_sha=%s\\n'",
+                "          changed=false\n          {\n            printf 'candidate_sha=%s\\n'",
+            ),
+            "publisher admits validate_only": (
+                "needs.resolve-submodule-update.outputs.validation_only == 'false' &&",
+                "needs.resolve-submodule-update.outputs.validation_only != 'true' &&",
+            ),
+            "resolver gains write permission": (
+                "    permissions:\n      contents: read",
+                "    permissions:\n      contents: write",
+            ),
+            "resolver receives publisher credential": (
+                "    runs-on: ubuntu-latest",
+                "    env:\n      GH_TOKEN: ${{ github.token }}\n    runs-on: ubuntu-latest",
+            ),
+            "publisher enables auto-merge": (
+                "--draft",
+                "--draft --auto",
+            ),
+            "outcome ignores resolver validation_only output": (
+                "VALIDATION_ONLY: ${{ needs.resolve-submodule-update.outputs.validation_only }}",
+                "VALIDATION_ONLY: ${{ needs.resolve-submodule-update.outputs.changed }}",
+            ),
+            "validate_only outcome requires publisher success": (
+                'if [ "$CHANGED" != "true" ] || [ "$VALIDATOR_RESULT" != "success" ] || [ "$PUBLISHER_RESULT" != "skipped" ]; then',
+                'if [ "$CHANGED" != "true" ] || [ "$VALIDATOR_RESULT" != "success" ] || [ "$PUBLISHER_RESULT" != "success" ]; then',
+            ),
+            "validate_only outcome falls through to publishing checks": (
+                "              exit 0\n              ;;\n            false)",
+                "              ;;\n            false)",
+            ),
+            "normal update accepts skipped publisher": (
+                'if [ "$VALIDATOR_RESULT" != "success" ] || [ "$PUBLISHER_RESULT" != "success" ]; then',
+                'if [ "$VALIDATOR_RESULT" != "success" ] || [ "$PUBLISHER_RESULT" != "skipped" ]; then',
+            ),
+        }
+        for name, (original, replacement) in validate_only_mutations.items():
+            with self.subTest(validate_only_mutation=name):
+                self.assertIn(original, workflow)
+                mutated = workflow.replace(original, replacement, 1)
+                self.assertNotEqual(update_submodule_validate_only_errors(mutated), [])
 
         self.assertIn("submodules: false", publisher)
+        self.assertEqual(sha256(publisher.encode("utf-8")).hexdigest(), SUBMODULE_PUBLISHER_SHA256)
         self.assertIn("persist-credentials: false", publisher)
         self.assertEqual(
             job_if_expression(publisher),
-            "needs.resolve-submodule-update.result == 'success' && "
-            "needs.resolve-submodule-update.outputs.changed == 'true' && "
-            "needs.validate-submodule-update.result == 'success'",
+            SUBMODULE_PUBLISHER_GATE,
         )
+        self.assertNotIn(SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF, publisher)
+        self.assertNotIn("gh pr merge", publisher)
+        self.assertNotIn("--auto", publisher)
+        self.assertNotIn("enablePullRequestAutoMerge", publisher)
         self.assertIn("git ls-remote --exit-code", publisher)
         self.assertTrue(has_exact_framework_gitlink_staging(publisher))
         self.assertIn("GH_TOKEN: ${{ github.token }}", publisher)

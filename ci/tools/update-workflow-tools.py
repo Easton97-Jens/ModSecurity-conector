@@ -156,7 +156,6 @@ TOOL_MUTABLE_FIELDS = TOOL_CANDIDATE_SPEC.mutable_fields
 ALLOWED_UPDATE_PATHS = frozenset(
     {
         "ci/tooling/security-tools.lock.yml",
-        ".github/workflows/all-connectors-no-crs.yml",
         ".github/workflows/check-actions-versions.yml",
         ".github/workflows/cleanup-artifacts.yml",
         ".github/workflows/ci-security-codeql.yml",
@@ -169,6 +168,7 @@ ALLOWED_UPDATE_PATHS = frozenset(
         ".github/workflows/open-connectors-smoke.yml",
         ".github/workflows/protocol-contract.yml",
         ".github/workflows/quick-framework-check.yml",
+        ".github/workflows/reusable-five-connectors-profile.yml",
         ".github/workflows/run-protected-nginx-root-broker.yml",
         ".github/workflows/test-apache.yml",
         ".github/workflows/test-common.yml",
@@ -214,7 +214,11 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         "ci/fixtures/workflow-permission-contract/unsafe.yml",
         "ci/requirements/update-submodules-validation-linux-x86_64.txt",
         "ci/tools/fetch_security_tool.py",
+        "ci/tools/prepare-readonly-submodule-validation-sandbox.py",
+        "ci/tools/run-readonly-submodule-validation-namespace.py",
         "tests/test_ci_security_workflows.py",
+        "tests/test_prepare_readonly_submodule_validation_sandbox.py",
+        "tests/test_run_readonly_submodule_validation_namespace.py",
     }
 )
 

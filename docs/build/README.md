@@ -189,6 +189,143 @@ patch; it is not a claim that a scheduled run, candidate, pull request, or
 merge has occurred. Those results require separately observed CI and delivery
 evidence.
 
+### Read-only Framework-submodule candidate validation
+
+`update-submodules.yml` separates candidate validation from publication. Its
+`validate-submodule-update` job creates a fresh `mktemp -d`
+`/tmp/modsecurity-readonly-namespace.XXXXXX` direct child under sticky `/tmp`,
+then makes that parent exactly `root:modsecurity-validator` mode `0750` before
+passing it through the required `--namespace-parent` argument. The trusted
+launcher rejects any other topology: the supplied parent must be an empty,
+non-symlink direct child of root-owned sticky `/tmp` with that exact ownership
+and mode. Trusted root-side setup then enters a private mount and PID
+namespace. It first makes mount propagation `rprivate`, exposes the Parent and
+Framework source trees (including `.git`) only through non-recursive read-only,
+`nosuid,nodev` mounts, and exposes only the physical validator `external`
+directory, the exact child of the physical `--write-root`, through a writable
+`nosuid,nodev` mount. The fixed logical mount root and its `source` and
+`external` placeholders are each `root:modsecurity-validator` mode `0750`;
+they contain only namespace-view names. The physical write root remains
+`root:root` mode `0711`, and its exact physical `external` child remains
+validator-owned mode `0700`. Parent, Framework, and supported output are
+presented to the candidate through those logical namespace views; unrelated
+ambient host paths are not claimed to be absent. It is PID 1 of that namespace
+and its completion is handled before the namespace lifecycle ends, guaranteeing
+no candidate stragglers. Teardown uses neither lazy unmount nor `rmtree`: the
+helper removes only its exact empty `mount-root`, `source`, and `external`
+placeholders with non-recursive `rmdir`, and the workflow `EXIT` trap likewise
+uses non-recursive `rmdir` for the trusted namespace parent. Root-side host
+verification follows outside the candidate namespace.
+The locally implemented narrow repair mounts a fresh private `proc` filesystem at `/proc`
+inside PID 1 after the mount namespace is already `rprivate`, with
+`readonly,nosuid,nodev,noexec`. Root performs that mount before setting
+`PR_SET_NO_NEW_PRIVS` and dropping the validator identity, then unmounts it and
+restores the prior `/proc` arrangement before the namespace exits. Its sole
+purpose is to make the PID-local `/proc` lookup used by LeakSanitizer (LSan)
+available; it is not a claim of full host or kernel isolation. Hosted
+validation remains pending, as does finding closure.
+The root workflow invokes the trusted launcher through `sudo -n python3`; the
+launcher fail-closed sets `PR_SET_NO_NEW_PRIVS`, clears supplementary groups,
+drops to the `modsecurity-validator` GID and UID, and uses `execve` with an
+explicit fixed environment rather than an inherited runner environment. Within
+the namespace the candidate applies `umask 077` before output and runs the
+unchanged `make quick-check` as that dedicated, non-login, non-sudo identity.
+
+This replaces host-ancestor ACL handling: the candidate does not receive a
+host-level traversal or read grant merely to reach `RUNNER_TEMP`. Parent,
+Framework, and supported output are presented only through those namespace
+views; root-side source inventory and root-side output verification constrain
+legitimate output to the exact physical `--write-root`/`external` containment.
+Ambient unrelated host paths remain outside this scoped contract. It is not
+full host or kernel security isolation and does not prove that malicious
+candidate code cannot use unrelated globally writable host facilities.
+
+Hosted run `31484727901` is historical failure evidence for the earlier ACL
+precheck. Hosted run `31488072111` is also failure-only historical evidence: on
+`5d7d7bbbbb968aa9755d3c0c67a09d8acd651c77`, resolver and sandbox preparation
+succeeded, but the isolated quick check failed with five no-CRS normalization
+errors at a runtime-directory traversal denial. The publisher was skipped. No
+successful rerun, current-head scan, or delivery result is claimed here.
+
+Final local evidence for this uncommitted repair is bounded: the focused
+`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v` namespace/workflow suites
+passed 55 tests with three expected capability skips, and
+`PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` passed the same
+55/3 suite result plus its `validate_only` actionlint, zizmor, and gitleaks-lock
+checks. `make check-bilingual-docs`, no-bytecode `py_compile`, and `git diff
+--check` also passed locally. The capability skips mean this evidence is not a
+privileged mount or validator-identity runtime proof. It does not establish a
+current-head security scan, hosted validation, PR result, SonarQube result,
+merge, or delivery.
+
+The manual `workflow_dispatch` input `validate_only: true` is a
+non-publishing exact-ref proof/revalidation path with exactly two trusted refs
+in the canonical non-fork Parent repository
+`Easton97-Jens/ModSecurity-conector`: the task-owned/reviewed
+`fix/ci-enforce-readonly-submodule-validation` branch before merge for its
+exact-head proof, and protected Parent `master` only after that repair is
+merged for resulting-master sandbox revalidation; the latter additionally
+requires GitHub `github.ref_protected == true`. It is not a general facility to
+execute arbitrary untrusted Parent refs or pull requests. Each allowed path
+checks out its dispatch event's `github.sha` for resolution and validation,
+forces the validator to run even when the resolved Framework candidate already
+equals the dispatched Parent gitlink, and makes the publisher ineligible. It
+cannot create or update a gitlink branch or pull request.
+
+This is not an untrusted Parent pull-request/ref sandbox: at both allowed refs,
+the Parent workflow and helper SHA are trusted before root-side setup, while
+the Framework candidate remains untrusted code governed by the sandbox. A
+hosted success would be functional evidence only for the individual reviewed
+repair SHA or resulting protected-master SHA. The two-ref allowlist is a
+guardrail; the master path must also satisfy `github.ref_protected == true`.
+Neither condition protects against a hostile same-repository writer absent
+branch protection or environment approval.
+
+The protected-master validation-only revalidation is not the authorized
+post-merge Parent updater dispatch. That separate dispatch runs on `master`
+with `validate_only` left false, validates the resolved Framework transition
+from the trusted default branch, and may enter the constrained publisher only
+after successful validation. Neither validation-only path grants publication
+authority or substitutes for that post-merge updater dispatch.
+
+This boundary is deliberately narrower than a general read-only job label: the
+trusted root launcher constructs the candidate's fixed environment, with no
+inherited runner environment or user site, and puts `HOME`, Git configuration,
+pip cache, bytecode cache, build, log, and other cache roots below the writable
+namespace view of the physical `external` directory. It sets
+`PR_SET_NO_NEW_PRIVS` fail-closed before the identity drop, and the candidate
+checks `NoNewPrivs: 1`. Trusted root-side setup verifies mount construction and
+lifecycle; root-side host verification checks Parent and Framework source/Git
+state and physical external output after the candidate namespace exits. The
+validator cannot publish a gitlink or pull request. Production write permission
+remains solely with the separate publisher job after successful validation; it
+is not granted to the validator or to `make quick-check`.
+
+Before the candidate starts, the root-side helper records a full source
+inventory of the Parent and Framework source trees. Each entry captures its
+path, type, size, mode, UID, GID, and link count; regular files also carry a
+SHA-256 digest and symbolic links carry their link text. After `make quick-check`
+the helper requires that inventory to match exactly, failing closed on any
+source-tree mutation. It also fail-closed scans the validator's external tree:
+validator-owned directories and regular files without group/other write
+permissions are permitted. An external output symbolic link is permitted only
+when it is validator-owned and its link text is nonempty, NUL-free, relative,
+and lexically normalizes within the physical `external` root. The verifier does
+not resolve, stat, or dereference that target. It rejects absolute targets,
+including in-root absolute targets, lexical escapes to source, guard, or other
+paths, special objects, and source-tree hard links.
+
+This narrow output rule models only the contained-relative shape associated
+with `checks/common.pem` in hosted run `31496603345`; a fresh exact-head hosted
+run must prove that the actual link target conforms. It records the verifier
+contract only; it is not a successful hosted run, current-head scan, SonarQube
+result, PR result, merge, delivery, or proof of full host isolation.
+`FND-PARENT-0122` remains open.
+
+This describes the implemented workflow contract and its bounded local evidence,
+not evidence of a hosted run, current-head security scan, published update, or
+merge. Those results require separately observed execution evidence.
+
 ## Parent CI Go-toolchain contract
 
 The committed root <code>.go-version</code> is the sole machine-readable Go

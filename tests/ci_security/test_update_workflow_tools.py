@@ -641,7 +641,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 all(path in UPDATER.ALLOWED_UPDATE_PATHS for path in changed)
             )
             workflow_text = (
-                root / ".github/workflows/all-connectors-no-crs.yml"
+                root / ".github/workflows/reusable-five-connectors-profile.yml"
             ).read_text(encoding="utf-8")
             for name, version, commit in action_updates:
                 with self.subTest(workflow_action=name):
@@ -960,6 +960,18 @@ jobs:
                 self.assertIn(
                     "commit_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                     proposed_lock,
+                )
+                self.assertTrue(
+                    (
+                        proposed_root
+                        / "ci/tools/prepare-readonly-submodule-validation-sandbox.py"
+                    ).is_file()
+                )
+                self.assertTrue(
+                    (
+                        proposed_root
+                        / "ci/tools/run-readonly-submodule-validation-namespace.py"
+                    ).is_file()
                 )
                 self.assert_connector_lock_unchanged(root, source_lock)
                 return subprocess.CompletedProcess(arguments, 0, "", "")
