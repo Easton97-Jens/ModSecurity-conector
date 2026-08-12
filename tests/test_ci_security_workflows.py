@@ -308,6 +308,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         '"PYTHONPATH": str(root / "python-packages")',
         '"GIT_CONFIG_GLOBAL": str(root / "gitconfig")',
         '"GITHUB_ACTIONS": "true"',
+        '"BUILD_ROOT": str(root / "build")',
         '"VERIFIED_RUN_ROOT": str(root / "verified-run")',
         '"CACHE_ROOT": str(root / "cache")',
         '"VERIFIED_EVIDENCE_ROOT": str(root / "evidence")',
@@ -316,7 +317,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         '"MATRIX_ROOT": str(root / "matrix")',
         ".readonly-validator-write-probe",
         "validator obtained sudo",
-        'exec make PYTHON="$PYTHON" BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/build" quick-check',
+        'exec make PYTHON="$PYTHON" quick-check',
         '--target "$PYTHONPATH" --requirement "$GITHUB_WORKSPACE/ci/requirements/update-submodules-validation-linux-x86_64.txt"',
     )
     for term in required:
@@ -325,6 +326,8 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
     for term in ("tempfile", "os.chmod(", 'Path("/tmp")', "os.umask(", "BaseException"):
         if term in runner:
             errors.append(f"namespace runner must not use {term!r}")
+    if 'exec make PYTHON="$PYTHON" BUILD_ROOT=' in runner:
+        errors.append("namespace runner must pass BUILD_ROOT through the environment")
     forbidden = (
         "MS_REC | MS_BIND",
         "MNT_DETACH",

@@ -225,6 +225,7 @@ def _candidate_environment(source: Path, framework_relative: Path, external: Pat
         "GIT_CONFIG_NOSYSTEM": "1", "GIT_OPTIONAL_LOCKS": "0", "GITHUB_ACTIONS": "true",
         "GITHUB_WORKSPACE": str(source),
         "FRAMEWORK_ROOT": str(source / framework_relative), "VALIDATOR_EXTERNAL_ROOT": str(root),
+        "BUILD_ROOT": str(root / "build"),
         "VALIDATION_WRITE_ROOT": str(guard), "VERIFIED_RUN_ROOT": str(root / "verified-run"),
         "VERIFIED_STATE_ROOT": str(root / "verified-run/state"), "VERIFIED_BUILD_ROOT": str(root / "verified-run/build"),
         "VERIFIED_SOURCE_ROOT": str(root / "verified-run/source"), "VERIFIED_TMP_ROOT": str(root / "verified-run/tmp"),
@@ -263,13 +264,13 @@ def _candidate_script() -> str:
         '"$VERIFIED_SOURCE_ROOT" "$VERIFIED_TMP_ROOT" "$VERIFIED_LOG_ROOT" "$CACHE_ROOT" '
         '"$VERIFIED_COMPONENT_CACHE" "$CONNECTOR_COMPONENT_CACHE" "$VERIFIED_EVIDENCE_ROOT" '
         '"$EVIDENCE_ROOT" "$RUNTIME_EVIDENCE_ROOT" "$RUNTIME_RUN_ROOT" "$RUNTIME_LOG_ROOT" '
-        '"$SOURCE_ROOT" "$TMP_ROOT" "$LOG_ROOT" "$MATRIX_ROOT" "$VALIDATOR_EXTERNAL_ROOT/build"\n'
+        '"$SOURCE_ROOT" "$TMP_ROOT" "$LOG_ROOT" "$MATRIX_ROOT" "$BUILD_ROOT"\n'
         'git config --global --add safe.directory "$GITHUB_WORKSPACE"\n'
         'git config --global --add safe.directory "$FRAMEWORK_ROOT"\n'
         'touch "$VALIDATOR_EXTERNAL_ROOT/write-probe"; test -f "$VALIDATOR_EXTERNAL_ROOT/write-probe"\n'
         '"$PYTHON" -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes '
         '--target "$PYTHONPATH" --requirement "$GITHUB_WORKSPACE/ci/requirements/update-submodules-validation-linux-x86_64.txt"\n'
-        'exec make PYTHON="$PYTHON" BUILD_ROOT="$VALIDATOR_EXTERNAL_ROOT/build" quick-check'
+        'exec make PYTHON="$PYTHON" quick-check'
     )
 
 

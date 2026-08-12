@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import pwd
 import stat
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -156,6 +157,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         )
         self.assertEqual(environment["PATH"], HELPER.SAFE_PATH)
         self.assertEqual(environment["GITHUB_ACTIONS"], "true")
+        self.assertEqual(environment["BUILD_ROOT"], "/tmp/task/external/build")
         self.assertEqual(environment["VALIDATION_WRITE_ROOT"], "/tmp/task")
         self.assertNotIn("SUDO", " ".join(environment))
         self.assertEqual(
@@ -166,6 +168,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                 "PYTHONPYCACHEPREFIX", "PYTHONUSERBASE", "PYTHONPATH", "PYTHONNOUSERSITE",
                 "PYTHONDONTWRITEBYTECODE", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM",
                 "GIT_OPTIONAL_LOCKS", "GITHUB_ACTIONS", "GITHUB_WORKSPACE", "FRAMEWORK_ROOT", "VALIDATOR_EXTERNAL_ROOT",
+                "BUILD_ROOT",
                 "VALIDATION_WRITE_ROOT", "VERIFIED_RUN_ROOT", "VERIFIED_STATE_ROOT", "VERIFIED_BUILD_ROOT",
                 "VERIFIED_SOURCE_ROOT", "VERIFIED_TMP_ROOT", "VERIFIED_LOG_ROOT", "CACHE_ROOT",
                 "VERIFIED_COMPONENT_CACHE", "CONNECTOR_COMPONENT_CACHE", "VERIFIED_EVIDENCE_ROOT",
@@ -243,7 +246,52 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             "expect_blocked rm", "expect_blocked chmod",
         ):
             self.assertIn(required, program)
+        self.assertIn('exec make PYTHON="$PYTHON" quick-check', program)
+        self.assertNotIn('exec make PYTHON="$PYTHON" BUILD_ROOT=', program)
         self.assertNotIn("eval ", program)
+
+    def test_environment_build_root_does_not_override_nested_make_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fixture_build_root = root / "fixture-build"
+            (root / "parent.mk").write_text(
+                ".PHONY: check\n"
+                "check:\n"
+                "\t@$(MAKE) --no-print-directory -f child.mk verify\n",
+                encoding="utf-8",
+            )
+            (root / "child.mk").write_text(
+                f"BUILD_ROOT := {fixture_build_root}\n"
+                ".PHONY: verify\n"
+                "verify:\n"
+                f"\t@test \"$(BUILD_ROOT)\" = \"{fixture_build_root}\"\n",
+                encoding="utf-8",
+            )
+            environment = os.environ.copy()
+            environment["BUILD_ROOT"] = str(root / "candidate-external" / "build")
+
+            environment_result = subprocess.run(
+                ["make", "--no-print-directory", "-f", "parent.mk", "check"],
+                cwd=root,
+                env=environment,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            command_line_result = subprocess.run(
+                [
+                    "make", "--no-print-directory", "-f", "parent.mk",
+                    f"BUILD_ROOT={environment['BUILD_ROOT']}", "check",
+                ],
+                cwd=root,
+                env=environment,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(environment_result.returncode, 0, environment_result.stderr)
+            self.assertNotEqual(command_line_result.returncode, 0)
 
     def test_privileged_namespace_mount_integration(self) -> None:
         """Exercise a real private read-only bind mount when the kernel permits it."""
