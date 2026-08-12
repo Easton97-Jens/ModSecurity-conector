@@ -641,7 +641,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 all(path in UPDATER.ALLOWED_UPDATE_PATHS for path in changed)
             )
             workflow_text = (
-                root / ".github/workflows/all-connectors-no-crs.yml"
+                root / ".github/workflows/reusable-five-connectors-profile.yml"
             ).read_text(encoding="utf-8")
             for name, version, commit in action_updates:
                 with self.subTest(workflow_action=name):

@@ -156,7 +156,6 @@ TOOL_MUTABLE_FIELDS = TOOL_CANDIDATE_SPEC.mutable_fields
 ALLOWED_UPDATE_PATHS = frozenset(
     {
         "ci/tooling/security-tools.lock.yml",
-        ".github/workflows/all-connectors-no-crs.yml",
         ".github/workflows/check-actions-versions.yml",
         ".github/workflows/cleanup-artifacts.yml",
         ".github/workflows/ci-security-codeql.yml",
@@ -169,6 +168,7 @@ ALLOWED_UPDATE_PATHS = frozenset(
         ".github/workflows/open-connectors-smoke.yml",
         ".github/workflows/protocol-contract.yml",
         ".github/workflows/quick-framework-check.yml",
+        ".github/workflows/reusable-five-connectors-profile.yml",
         ".github/workflows/run-protected-nginx-root-broker.yml",
         ".github/workflows/test-apache.yml",
         ".github/workflows/test-common.yml",
