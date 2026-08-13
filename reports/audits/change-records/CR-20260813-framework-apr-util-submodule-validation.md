@@ -120,6 +120,14 @@ or cache artifact is included.
 - `rtk make check-ci-security-contract` — passed: 74 tests and three expected
   capability skips; the target also validated pinned security-tool lock
   records.
+- The initial hosted Security workflow lint run
+  [31710687331](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31710687331)
+  at PR head `905555264c46da1742d27110cef05b908c910c4f` failed three local-Git
+  candidate-state tests because the cloned fixture submodule did not inherit a
+  Git identity. The fixture now configures that local clone explicitly; the
+  external PR worktree reran `rtk make check-ci-security-contract` successfully
+  (74 tests, three expected capability skips). A fresh hosted exact-head result
+  remains pending.
 - `rtk make lint` — passed. Its restricted `PATH` did not discover actionlint;
   the separate checksum-verified actionlint invocation with
   `-shellcheck=/usr/bin/shellcheck` passed for workflows and fixtures.
@@ -144,8 +152,8 @@ for this change.
 
 ## Checks not run and rationale
 
-- A GitHub-hosted updater validation and PR checks for the eventual exact PR
-  head were not yet available when this record was written.
+- Fresh GitHub-hosted updater validation and PR checks for the eventual exact
+  PR head are pending after the local-Git fixture identity repair.
 - SonarQube Cloud, review, merge, resulting-`master` validation, and workspace
   restoration are not claimed; the user authorized a Draft PR only.
 - Full component builds and connector runtime matrices were not run because

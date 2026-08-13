@@ -127,6 +127,15 @@ Runtime-Report, Secret oder Cache-Artefakt ist enthalten.
 - `rtk make check-ci-security-contract` — bestanden: 74 Tests und drei
   erwartete Capability-Skips; das Target validierte außerdem gepinnte
   Security-Tool-Lock-Records.
+- Der initiale Hosted-Security-Workflow-Lint-Run
+  [31710687331](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31710687331)
+  auf PR-Head `905555264c46da1742d27110cef05b908c910c4f` scheiterte in drei
+  Local-Git-Candidate-State-Tests, weil das geklonte Fixture-Submodule keine
+  Git-Identität erbte. Das Fixture konfiguriert diesen lokalen Clone jetzt
+  explizit; der externe PR-Worktree führte
+  `rtk make check-ci-security-contract` erfolgreich erneut aus (74 Tests,
+  drei erwartete Capability-Skips). Ein frisches Hosted-Exact-Head-Ergebnis
+  steht noch aus.
 - `rtk make lint` — bestanden. Sein eingeschränktes `PATH` fand actionlint
   nicht; der separate checksum-verifizierte actionlint-Aufruf mit
   `-shellcheck=/usr/bin/shellcheck` bestand für Workflows und Fixtures.
@@ -151,8 +160,8 @@ Ausführung wurden als Nachweis für diese Änderung verwendet.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- Eine GitHub-hosted-Updater-Validierung und PR-Checks für den späteren exakten
-  PR-Head waren beim Schreiben dieses Records noch nicht verfügbar.
+- Frische GitHub-hosted-Updater-Validierung und PR-Checks für den späteren
+  exakten PR-Head stehen nach der Local-Git-Fixture-Identity-Reparatur aus.
 - SonarQube Cloud, Review, Merge, resulting-`master`-Validierung und
   Workspace-Restoration werden nicht behauptet; der Benutzer hat nur einen
   Draft-PR autorisiert.

@@ -51,6 +51,12 @@ class ValidateSubmoduleCandidateStateTests(unittest.TestCase):
         self.git(parent, "config", "user.name", "Validator Test")
         self.commit_file(parent, "README", "parent\n", "parent")
         self.git(parent, "-c", "protocol.file.allow=always", "submodule", "add", str(framework), "framework")
+        # The submodule clone deliberately does not inherit the source
+        # repository's local identity. Configure this fixture worktree so the
+        # forward-candidate commits are independent of a developer's global
+        # Git configuration, as they are on GitHub-hosted runners.
+        self.git(parent / "framework", "config", "user.email", "test@example.invalid")
+        self.git(parent / "framework", "config", "user.name", "Validator Test")
         self.git(parent, "commit", "-m", "add framework")
         if nested:
             self.git(parent, "-c", "protocol.file.allow=always", "submodule", "update", "--init", "--recursive")
