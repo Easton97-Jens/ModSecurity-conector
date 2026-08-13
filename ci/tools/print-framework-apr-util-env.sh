@@ -39,8 +39,12 @@ ci_validate_https_runtime_url_config
 # revalidates it before use.  Emit assignments only; callers must never eval
 # this output.
 shell_quote() {
+    if [ "$#" -ne 1 ]; then
+        return 64
+    fi
+    shell_quote_value=$1
     printf "'"
-    printf '%s' "$1" | /usr/bin/sed "s/'/'\"'\"'/g"
+    printf '%s' "$shell_quote_value" | /usr/bin/sed "s/'/'\"'\"'/g"
     printf "'"
 }
 

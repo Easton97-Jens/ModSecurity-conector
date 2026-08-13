@@ -152,7 +152,7 @@ FRAMEWORK_APR_UTIL_ENV_KEYS = (
     "APR_UTIL_SHA256",
     "APR_UTIL_SHA256_URL",
 )
-APR_UTIL_VERSION_RE = re.compile(r"[0-9]+(?:\.[0-9]+)+")
+APR_UTIL_VERSION_RE = re.compile(r"\d+(?:\.\d+)+", re.ASCII)
 APR_UTIL_SHA256_RE = re.compile(r"[0-9a-f]{64}")
 SHELL_QUOTED_ENV_RE = re.compile(r"([A-Z_][A-Z0-9_]*)='([^']*)'")
 GIT_STATUS_SHORT_ARGS = (
@@ -226,6 +226,85 @@ def run_env(
     return proc
 
 
+def _framework_guard_environment(
+    base_env: dict[str, str],
+    connector_root: Path,
+    framework_root: Path,
+) -> dict[str, str]:
+    """Build the fixed, non-login environment for Framework guard commands."""
+    env = dict(base_env)
+    for key in ("ENV", "BASH_ENV", "SHELLOPTS"):
+        env.pop(key, None)
+    env["PATH"] = _TRUSTED_FRAMEWORK_GUARD_PATH
+    env["CONNECTOR_ROOT"] = str(connector_root)
+    env["FRAMEWORK_ROOT"] = str(framework_root)
+    return env
+
+
+def _run_framework_guard(
+    command: list[str],
+    connector_root: Path,
+    env: dict[str, str],
+) -> tuple[bytes | None, str | None]:
+    """Run one fixed-shell Framework guard and map failures to existing statuses."""
+    try:
+        proc = subprocess.run(
+            command,
+            cwd=str(connector_root),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=False,
+            timeout=60,
+        )
+    except FileNotFoundError as exc:
+        return None, f"failed:{exc}"
+    except RuntimeError as exc:
+        return None, f"failed:{exc}"
+    except subprocess.TimeoutExpired as exc:
+        output = (exc.stdout or b"").decode("utf-8", errors="replace").strip()
+        return None, f"failed:timeout loading common.sh {output}"
+    if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf-8", errors="replace").strip()
+        return None, f"failed:{stderr or proc.returncode}"
+    return proc.stdout, None
+
+
+def _guarded_apr_util_tuple(output: bytes) -> tuple[dict[str, str] | None, str | None]:
+    """Strictly parse and structurally validate the bridge's four assignments."""
+    guarded_apr_util: dict[str, str] = {}
+    try:
+        lines = output.decode("utf-8", errors="strict").splitlines()
+    except UnicodeDecodeError:
+        return None, "failed:invalid_framework_apr_util_bridge_output"
+    for line in lines:
+        match = SHELL_QUOTED_ENV_RE.fullmatch(line)
+        if match is None or match.group(1) not in FRAMEWORK_APR_UTIL_ENV_KEYS:
+            return None, "failed:invalid_framework_apr_util_bridge_output"
+        key, value = match.groups()
+        if key in guarded_apr_util:
+            return None, "failed:duplicate_framework_apr_util_bridge_output"
+        guarded_apr_util[key] = value
+    try:
+        require_apr_util_pinned_provenance(guarded_apr_util)
+    except RuntimeError as exc:
+        return None, f"failed:{exc}"
+    if set(guarded_apr_util) != set(FRAMEWORK_APR_UTIL_ENV_KEYS):
+        return None, "failed:incomplete_framework_apr_util_bridge_output"
+    return guarded_apr_util, None
+
+
+def _null_delimited_environment(output: bytes) -> dict[str, str]:
+    """Decode the Framework common.sh environment without shell evaluation."""
+    loaded: dict[str, str] = {}
+    for chunk in output.split(b"\0"):
+        if not chunk or b"=" not in chunk:
+            continue
+        key, value = chunk.split(b"=", 1)
+        loaded[key.decode("utf-8", errors="replace")] = value.decode("utf-8", errors="replace")
+    return loaded
+
+
 def load_framework_environment(connector_root: Path, framework_root: Path, base_env: dict[str, str]) -> tuple[dict[str, str], str]:
     common_sh = framework_root / "ci/lib/common.sh"
     if not common_sh.is_file():
@@ -233,14 +312,6 @@ def load_framework_environment(connector_root: Path, framework_root: Path, base_
     inherited_apr_util = [key for key in FRAMEWORK_APR_UTIL_ENV_KEYS if key in base_env]
     if inherited_apr_util:
         return dict(base_env), f"failed:inherited_parent_apr_util_override:{','.join(inherited_apr_util)}"
-    env = dict(base_env)
-    # Do not let shell startup hooks or a caller-selected command path affect
-    # the fixed non-login Framework guard invocation.
-    for key in ("ENV", "BASH_ENV", "SHELLOPTS"):
-        env.pop(key, None)
-    env["PATH"] = _TRUSTED_FRAMEWORK_GUARD_PATH
-    env["CONNECTOR_ROOT"] = str(connector_root)
-    env["FRAMEWORK_ROOT"] = str(framework_root)
     try:
         trusted_shell = verified_host_guard_executable(
             _TRUSTED_FRAMEWORK_GUARD_SHELL,
@@ -250,76 +321,39 @@ def load_framework_environment(connector_root: Path, framework_root: Path, base_
             _TRUSTED_FRAMEWORK_GUARD_GIT,
             "framework_apr_util_guard_git",
         )
-        proc = subprocess.run(
-            [
-                str(trusted_shell),
-                str(connector_root / "ci/tools/print-framework-apr-util-env.sh"),
-                str(framework_root),
-                str(connector_root),
-            ],
-            cwd=str(connector_root),
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=False,
-            timeout=60,
-        )
-    except FileNotFoundError as exc:
-        return dict(base_env), f"failed:{exc}"
     except RuntimeError as exc:
         return dict(base_env), f"failed:{exc}"
-    except subprocess.TimeoutExpired as exc:
-        output = (exc.stdout or b"").decode("utf-8", errors="replace").strip()
-        return dict(base_env), f"failed:timeout loading common.sh {output}"
-    if proc.returncode != 0:
-        stderr = proc.stderr.decode("utf-8", errors="replace").strip()
-        return dict(base_env), f"failed:{stderr or proc.returncode}"
-    guarded_apr_util: dict[str, str] = {}
-    for line in proc.stdout.decode("utf-8", errors="strict").splitlines():
-        match = SHELL_QUOTED_ENV_RE.fullmatch(line)
-        if match is None or match.group(1) not in FRAMEWORK_APR_UTIL_ENV_KEYS:
-            return dict(base_env), "failed:invalid_framework_apr_util_bridge_output"
-        key, value = match.groups()
-        if key in guarded_apr_util:
-            return dict(base_env), "failed:duplicate_framework_apr_util_bridge_output"
-        guarded_apr_util[key] = value
-    try:
-        require_apr_util_pinned_provenance(guarded_apr_util)
-    except RuntimeError as exc:
-        return dict(base_env), f"failed:{exc}"
-    if set(guarded_apr_util) != set(FRAMEWORK_APR_UTIL_ENV_KEYS):
-        return dict(base_env), "failed:incomplete_framework_apr_util_bridge_output"
-    try:
-        proc = subprocess.run(
-            [
-                str(trusted_shell),
-                "-eu",
-                "-c",
-                'set -a; . "$1"; ci_require_apr_util_pinned_provenance; ci_validate_https_runtime_url_config; env -0',
-                "framework-common-environment",
-                str(common_sh),
-            ],
-            cwd=str(connector_root),
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=False,
-            timeout=60,
-        )
-    except FileNotFoundError as exc:
-        return dict(base_env), f"failed:{exc}"
-    except subprocess.TimeoutExpired as exc:
-        output = (exc.stdout or b"").decode("utf-8", errors="replace").strip()
-        return dict(base_env), f"failed:timeout loading common.sh {output}"
-    if proc.returncode != 0:
-        stderr = proc.stderr.decode("utf-8", errors="replace").strip()
-        return dict(base_env), f"failed:{stderr or proc.returncode}"
-    loaded: dict[str, str] = {}
-    for chunk in proc.stdout.split(b"\0"):
-        if not chunk or b"=" not in chunk:
-            continue
-        key, value = chunk.split(b"=", 1)
-        loaded[key.decode("utf-8", errors="replace")] = value.decode("utf-8", errors="replace")
+    env = _framework_guard_environment(base_env, connector_root, framework_root)
+    bridge_output, bridge_error = _run_framework_guard(
+        [
+            str(trusted_shell),
+            str(connector_root / "ci/tools/print-framework-apr-util-env.sh"),
+            str(framework_root),
+            str(connector_root),
+        ],
+        connector_root,
+        env,
+    )
+    if bridge_error is not None or bridge_output is None:
+        return dict(base_env), bridge_error or "failed:framework_apr_util_bridge_output_missing"
+    guarded_apr_util, tuple_error = _guarded_apr_util_tuple(bridge_output)
+    if tuple_error is not None or guarded_apr_util is None:
+        return dict(base_env), tuple_error or "failed:framework_apr_util_bridge_output_missing"
+    common_output, common_error = _run_framework_guard(
+        [
+            str(trusted_shell),
+            "-eu",
+            "-c",
+            'set -a; . "$1"; ci_require_apr_util_pinned_provenance; ci_validate_https_runtime_url_config; env -0',
+            "framework-common-environment",
+            str(common_sh),
+        ],
+        connector_root,
+        env,
+    )
+    if common_error is not None or common_output is None:
+        return dict(base_env), common_error or "failed:framework_common_environment_missing"
+    loaded = _null_delimited_environment(common_output)
     if any(loaded.get(key) != value for key, value in guarded_apr_util.items()):
         return dict(base_env), "failed:framework_apr_util_guarded_tuple_mismatch"
     loaded.update(guarded_apr_util)

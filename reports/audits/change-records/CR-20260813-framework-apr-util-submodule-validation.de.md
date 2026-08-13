@@ -254,3 +254,35 @@ beobachtete S8707-Ergebnis gehört zum früheren Head
 `3fbba306ddedf86acd3d01929a077cee33f66ed7`; frische Hosted-Sonar-Analyse ist
 weiterhin für den späteren Follow-up-Head erforderlich. Kein Review, Merge
 oder Parent-Gitlink-Update wird behauptet.
+
+## Lokales SonarCloud-New-Issues-Follow-up
+
+Dieses Follow-up behebt sechs SonarCloud New Issues in den lokalen
+Parent-Änderungen. Es aktualisiert nur die folgenden Implementierungs- und
+fokussierten Testpfade:
+
+- `ci/provisioning/components/prepare-runtime-components.py`: Der relevante
+  reguläre Ausdruck verwendet mit `re.ASCII` explizit ASCII, und die
+  Loader-Helper wurden ohne Änderung ihres Fail-closed-Verhaltens refaktoriert.
+- `ci/tools/print-framework-apr-util-env.sh`: Ein Shell-Quote-Arity-Guard weist
+  ein ungültiges Quoting-Ergebnis vor dessen Ausgabe ab.
+- `ci/tools/validate-submodule-candidate-state.py`: Die Hook-Inventory-Logik
+  wurde in einen Helper aufgeteilt, und der `.gitmodules`-Pfad wird durch eine
+  Konstante dargestellt.
+- `tests/test_framework_apr_util_provenance.py` und
+  `tests/test_validate_submodule_candidate_state.py`: Fokussierte Coverage
+  wurde für diese Änderungen hinzugefügt oder aktualisiert.
+
+Für dieses Follow-up wurde folgende lokale Validierung beobachtet:
+
+- die ausgewählten Validator-Tests bestanden: 11 Tests;
+- die ausgewählten APR-util/Cache-Tests bestanden: 13 Tests;
+- `rtk make check-ci-security-contract` bestand: 78 Tests mit drei erwarteten
+  Skips;
+- `sh -n ci/tools/print-framework-apr-util-env.sh` bestand; und
+- ein versiegelter lokaler Security-Diff-Scan fand 0 berichtspflichtige
+  Findings über die fünf geänderten Code-/Testpfade.
+
+Dies sind ausschließlich lokale Ergebnisse. Für den Follow-up-Head wurde noch
+kein frisches Hosted-SonarCloud-Ergebnis beobachtet; die Hosted-Analyse bleibt
+bis nach Commit und Push des Follow-ups ausstehend.

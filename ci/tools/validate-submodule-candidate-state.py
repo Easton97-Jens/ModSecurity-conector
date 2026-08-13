@@ -21,6 +21,7 @@ from typing import Sequence
 
 FULL_SHA1 = re.compile(r"[0-9a-f]{40}\Z")
 FULL_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+GITMODULES_FILENAME = ".gitmodules"
 
 
 class ValidationError(RuntimeError):
@@ -73,6 +74,13 @@ def _repository_root(root: Path, code: str) -> None:
 
 
 def _hooks_digest(root: Path) -> str:
+    inventory: list[tuple[str, int, str]] = []
+    _inventory_hook_directory(_hooks_directory(root), ".", inventory)
+    canonical = "".join(f"{name}\0{mode:o}\0{digest}\n" for name, mode, digest in inventory)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _hooks_directory(root: Path) -> Path:
     hooks = Path(_git(root, "rev-parse", "--git-path", "hooks").strip())
     if not hooks.is_absolute():
         hooks = root / hooks
@@ -82,27 +90,29 @@ def _hooks_digest(root: Path) -> str:
         _fail("PARENT_HOOKS_MISSING")
     if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
         _fail("PARENT_HOOKS_UNSAFE")
-    inventory: list[tuple[str, int, str]] = []
+    return hooks
 
-    def visit(directory: Path, relative: str) -> None:
-        directory_metadata = os.lstat(directory)
-        if not stat.S_ISDIR(directory_metadata.st_mode) or stat.S_ISLNK(directory_metadata.st_mode):
-            _fail("PARENT_HOOKS_UNSAFE")
-        inventory.append((relative, stat.S_IMODE(directory_metadata.st_mode), "directory"))
-        for entry in sorted(os.scandir(directory), key=lambda candidate: candidate.name):
-            path = Path(entry.path)
-            child_relative = entry.name if relative == "." else f"{relative}/{entry.name}"
-            metadata = os.lstat(path)
-            if stat.S_ISDIR(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode):
-                visit(path, child_relative)
-            elif stat.S_ISREG(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode):
-                inventory.append((child_relative, stat.S_IMODE(metadata.st_mode), hashlib.sha256(path.read_bytes()).hexdigest()))
-            else:
-                _fail("PARENT_HOOKS_UNSAFE")
 
-    visit(hooks, ".")
-    canonical = "".join(f"{name}\0{mode:o}\0{digest}\n" for name, mode, digest in inventory)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+def _inventory_hook_directory(
+    directory: Path, relative: str, inventory: list[tuple[str, int, str]]
+) -> None:
+    metadata = os.lstat(directory)
+    if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+        _fail("PARENT_HOOKS_UNSAFE")
+    inventory.append((relative, stat.S_IMODE(metadata.st_mode), "directory"))
+    for entry in sorted(os.scandir(directory), key=lambda candidate: candidate.name):
+        child_relative = entry.name if relative == "." else f"{relative}/{entry.name}"
+        _inventory_hook_entry(Path(entry.path), child_relative, inventory)
+
+
+def _inventory_hook_entry(path: Path, relative: str, inventory: list[tuple[str, int, str]]) -> None:
+    metadata = os.lstat(path)
+    if stat.S_ISDIR(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode):
+        _inventory_hook_directory(path, relative, inventory)
+    elif stat.S_ISREG(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode):
+        inventory.append((relative, stat.S_IMODE(metadata.st_mode), hashlib.sha256(path.read_bytes()).hexdigest()))
+    else:
+        _fail("PARENT_HOOKS_UNSAFE")
 
 
 def _head_gitlink(root: Path, submodule_path: str) -> str:
@@ -269,12 +279,12 @@ def _require_clean(
 
 
 def _validate_gitmodules(root: Path, submodule_path: str) -> None:
-    if not (root / ".gitmodules").is_file():
-        _fail("PARENT_GITMODULES_MISSING", path=".gitmodules")
-    paths = _git(root, "config", "-f", ".gitmodules", "--get-regexp", r"^submodule\..*\.path$")
+    if not (root / GITMODULES_FILENAME).is_file():
+        _fail("PARENT_GITMODULES_MISSING", path=GITMODULES_FILENAME)
+    paths = _git(root, "config", "-f", GITMODULES_FILENAME, "--get-regexp", r"^submodule\..*\.path$")
     configured = [line.split(None, 1)[1] for line in paths.splitlines() if " " in line]
     if configured.count(submodule_path) != 1:
-        _fail("PARENT_GITMODULES_INVALID", path=".gitmodules", expected_path=submodule_path)
+        _fail("PARENT_GITMODULES_INVALID", path=GITMODULES_FILENAME, expected_path=submodule_path)
 
 
 def _validate_parent(arguments: argparse.Namespace) -> Path:
@@ -325,10 +335,10 @@ def _validate_parent(arguments: argparse.Namespace) -> Path:
 
 
 def _submodule_paths(root: Path) -> list[str]:
-    gitmodules = root / ".gitmodules"
+    gitmodules = root / GITMODULES_FILENAME
     if not gitmodules.is_file():
         return []
-    result = _git(root, "config", "-f", ".gitmodules", "--get-regexp", r"^submodule\..*\.path$")
+    result = _git(root, "config", "-f", GITMODULES_FILENAME, "--get-regexp", r"^submodule\..*\.path$")
     paths = []
     for line in result.splitlines():
         key, separator, value = line.partition(" ")

@@ -207,6 +207,35 @@ class ValidateSubmoduleCandidateStateTests(unittest.TestCase):
                 self.capture_result(parent, environment, runner_temp=Path("/")), "GITHUB_ENV_INVALID"
             )
 
+    def test_capture_rejects_missing_and_unsafe_hook_inventory_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            temporary = Path(raw)
+            parent, _framework, _current, _head = self.make_layout(temporary)
+            hooks = Path(self.git(parent, "rev-parse", "--git-path", "hooks"))
+            if not hooks.is_absolute():
+                hooks = parent / hooks
+
+            def capture_error(name: str, code: str) -> None:
+                environment = temporary / f"github-env-{name}"
+                environment.touch()
+                self.assert_code(self.capture_result(parent, environment), code)
+
+            backup = hooks.with_name("hooks-backup")
+            hooks.rename(backup)
+            capture_error("missing", "PARENT_HOOKS_MISSING")
+            hooks.write_text("not a directory\n", encoding="utf-8")
+            capture_error("file", "PARENT_HOOKS_UNSAFE")
+            hooks.unlink()
+            hooks.symlink_to(backup, target_is_directory=True)
+            capture_error("symlink", "PARENT_HOOKS_UNSAFE")
+            hooks.unlink()
+            hooks.mkdir()
+            (hooks / "symlink-entry").symlink_to(backup, target_is_directory=True)
+            capture_error("entry-symlink", "PARENT_HOOKS_UNSAFE")
+            (hooks / "symlink-entry").unlink()
+            os.mkfifo(hooks / "special-entry")
+            capture_error("entry-special", "PARENT_HOOKS_UNSAFE")
+
     def test_submodule_path_escape_arguments_are_rejected_before_path_construction(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             parent, _framework, current, _head = self.make_layout(Path(raw))

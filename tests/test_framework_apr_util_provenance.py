@@ -5,7 +5,9 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,9 +93,54 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
 
     def test_python_loader_rejects_parent_overrides_without_running_the_bridge(self) -> None:
         env = {"APR_UTIL_VERSION": "9.9.9"}
-        loaded, status = components.load_framework_environment(ROOT, FRAMEWORK_ROOT, env)
+        with tempfile.TemporaryDirectory(prefix="framework-apr-util-override-") as temporary:
+            framework_root = Path(temporary) / "framework"
+            common_sh = framework_root / "ci" / "lib" / "common.sh"
+            common_sh.parent.mkdir(parents=True)
+            common_sh.write_text("#!/bin/sh\n", encoding="utf-8")
+            with mock.patch.object(components, "_run_framework_guard") as run_guard:
+                loaded, status = components.load_framework_environment(ROOT, framework_root, env)
         self.assertEqual(loaded, env)
         self.assertEqual(status, "failed:inherited_parent_apr_util_override:APR_UTIL_VERSION")
+        run_guard.assert_not_called()
+
+    def test_framework_guard_runtime_error_keeps_the_fail_closed_status(self) -> None:
+        with mock.patch.object(components.subprocess, "run", side_effect=RuntimeError("guard failure")):
+            output, status = components._run_framework_guard(["/bin/sh"], ROOT, {})
+        self.assertIsNone(output)
+        self.assertEqual(status, "failed:guard failure")
+
+    def test_python_loader_uses_fixed_guard_environment_and_parses_both_outputs(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="framework-apr-util-loader-") as temporary:
+            framework_root = Path(temporary) / "framework"
+            common_sh = framework_root / "ci" / "lib" / "common.sh"
+            common_sh.parent.mkdir(parents=True)
+            tuple_values = self.fixture_tuple("7.8.9", "a" * 64)
+            common_sh.write_text(
+                "\n".join(
+                    [
+                        "#!/bin/sh",
+                        *(f'{key}="{value}"' for key, value in tuple_values.items()),
+                        "COMMON_CONTROL=passed",
+                        "ci_require_apr_util_pinned_provenance() { :; }",
+                        "ci_validate_https_runtime_url_config() { :; }",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            environment = os.environ.copy()
+            for key in (*components.FRAMEWORK_APR_UTIL_ENV_KEYS, "ENV", "BASH_ENV", "SHELLOPTS"):
+                environment.pop(key, None)
+            environment.update({"ENV": "untrusted-hook", "BASH_ENV": "untrusted-hook", "SHELLOPTS": "nounset"})
+            loaded, status = components.load_framework_environment(ROOT, framework_root, environment)
+
+        self.assertEqual(status, "loaded")
+        self.assertEqual({key: loaded[key] for key in tuple_values}, tuple_values)
+        self.assertEqual(loaded["COMMON_CONTROL"], "passed")
+        self.assertNotIn("ENV", loaded)
+        self.assertNotIn("BASH_ENV", loaded)
+        self.assertNotIn("SHELLOPTS", loaded)
 
     def test_framework_child_sourcing_preserves_the_canonical_tuple(self) -> None:
         environment = os.environ.copy()
@@ -134,6 +181,13 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
                 candidate[key] = value
                 with self.assertRaises(RuntimeError):
                     components.require_apr_util_pinned_provenance(candidate)
+
+    def test_apr_util_version_rejects_unicode_digits(self) -> None:
+        unicode_version = "١.٢.٣"
+        candidate = self.fixture_tuple(unicode_version, "a" * 64)
+        self.assertIsNone(components.APR_UTIL_VERSION_RE.fullmatch(unicode_version))
+        with self.assertRaises(RuntimeError):
+            components.require_apr_util_pinned_provenance(candidate)
 
     def test_apr_util_cache_identity_changes_for_version_and_sha(self) -> None:
         first = self.fixture_tuple("7.8.9", "a" * 64)

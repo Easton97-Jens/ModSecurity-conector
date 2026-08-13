@@ -243,3 +243,34 @@ after this follow-up record commit. The observed S8707 result belongs to prior
 head `3fbba306ddedf86acd3d01929a077cee33f66ed7`; fresh hosted Sonar analysis
 is still required for the later follow-up head. No review, merge, or Parent
 Gitlink update is asserted.
+
+## Local SonarCloud New-Issues follow-up
+
+This follow-up resolves six SonarCloud New Issues in the local Parent changes.
+It updates only the following implementation and focused-test paths:
+
+- `ci/provisioning/components/prepare-runtime-components.py`: the relevant
+  regular expression is explicitly ASCII with `re.ASCII`, and the loader
+  helpers were refactored without changing their fail-closed behavior.
+- `ci/tools/print-framework-apr-util-env.sh`: a shell-quote arity guard rejects
+  an invalid quoting result before it is emitted.
+- `ci/tools/validate-submodule-candidate-state.py`: the hook inventory logic
+  was split into a helper and the `.gitmodules` path is represented by a
+  constant.
+- `tests/test_framework_apr_util_provenance.py` and
+  `tests/test_validate_submodule_candidate_state.py`: focused coverage was
+  added or updated for those changes.
+
+Local validation observed for this follow-up:
+
+- the selected validator tests passed: 11 tests;
+- the selected APR-util/cache tests passed: 13 tests;
+- `rtk make check-ci-security-contract` passed: 78 tests with three expected
+  skips;
+- `sh -n ci/tools/print-framework-apr-util-env.sh` passed; and
+- a sealed local security-diff scan found 0 reportable findings across the
+  five changed code/test paths.
+
+These are local results only. No fresh hosted SonarCloud result has been
+observed for the follow-up head; hosted analysis remains pending until after
+the follow-up is committed and pushed.
