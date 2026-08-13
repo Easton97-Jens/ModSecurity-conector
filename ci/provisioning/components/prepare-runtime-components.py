@@ -146,6 +146,15 @@ TRUSTED_NGINX_BROKER_PROVENANCE_SCHEMA_VERSION = 1
 _TRUSTED_FRAMEWORK_GUARD_SHELL = Path("/bin/sh")
 _TRUSTED_FRAMEWORK_GUARD_GIT = Path("/usr/bin/git")
 _TRUSTED_FRAMEWORK_GUARD_PATH = "/usr/bin:/bin"
+FRAMEWORK_APR_UTIL_ENV_KEYS = (
+    "APR_UTIL_VERSION",
+    "APR_UTIL_SOURCE_URL",
+    "APR_UTIL_SHA256",
+    "APR_UTIL_SHA256_URL",
+)
+APR_UTIL_VERSION_RE = re.compile(r"[0-9]+(?:\.[0-9]+)+")
+APR_UTIL_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+SHELL_QUOTED_ENV_RE = re.compile(r"([A-Z_][A-Z0-9_]*)='([^']*)'")
 GIT_STATUS_SHORT_ARGS = (
     "status",
     "--porcelain",
@@ -221,12 +230,75 @@ def load_framework_environment(connector_root: Path, framework_root: Path, base_
     common_sh = framework_root / "ci/lib/common.sh"
     if not common_sh.is_file():
         return dict(base_env), f"missing:{common_sh}"
+    inherited_apr_util = [key for key in FRAMEWORK_APR_UTIL_ENV_KEYS if key in base_env]
+    if inherited_apr_util:
+        return dict(base_env), f"failed:inherited_parent_apr_util_override:{','.join(inherited_apr_util)}"
     env = dict(base_env)
+    # Do not let shell startup hooks or a caller-selected command path affect
+    # the fixed non-login Framework guard invocation.
+    for key in ("ENV", "BASH_ENV", "SHELLOPTS"):
+        env.pop(key, None)
+    env["PATH"] = _TRUSTED_FRAMEWORK_GUARD_PATH
     env["CONNECTOR_ROOT"] = str(connector_root)
     env["FRAMEWORK_ROOT"] = str(framework_root)
     try:
+        trusted_shell = verified_host_guard_executable(
+            _TRUSTED_FRAMEWORK_GUARD_SHELL,
+            "framework_apr_util_guard_shell",
+        )
+        verified_host_guard_executable(
+            _TRUSTED_FRAMEWORK_GUARD_GIT,
+            "framework_apr_util_guard_git",
+        )
         proc = subprocess.run(
-            ["bash", "-lc", 'set -a; . "$FRAMEWORK_ROOT/ci/lib/common.sh"; env -0'],
+            [
+                str(trusted_shell),
+                str(connector_root / "ci/tools/print-framework-apr-util-env.sh"),
+                str(framework_root),
+                str(connector_root),
+            ],
+            cwd=str(connector_root),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=False,
+            timeout=60,
+        )
+    except FileNotFoundError as exc:
+        return dict(base_env), f"failed:{exc}"
+    except RuntimeError as exc:
+        return dict(base_env), f"failed:{exc}"
+    except subprocess.TimeoutExpired as exc:
+        output = (exc.stdout or b"").decode("utf-8", errors="replace").strip()
+        return dict(base_env), f"failed:timeout loading common.sh {output}"
+    if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf-8", errors="replace").strip()
+        return dict(base_env), f"failed:{stderr or proc.returncode}"
+    guarded_apr_util: dict[str, str] = {}
+    for line in proc.stdout.decode("utf-8", errors="strict").splitlines():
+        match = SHELL_QUOTED_ENV_RE.fullmatch(line)
+        if match is None or match.group(1) not in FRAMEWORK_APR_UTIL_ENV_KEYS:
+            return dict(base_env), "failed:invalid_framework_apr_util_bridge_output"
+        key, value = match.groups()
+        if key in guarded_apr_util:
+            return dict(base_env), "failed:duplicate_framework_apr_util_bridge_output"
+        guarded_apr_util[key] = value
+    try:
+        require_apr_util_pinned_provenance(guarded_apr_util)
+    except RuntimeError as exc:
+        return dict(base_env), f"failed:{exc}"
+    if set(guarded_apr_util) != set(FRAMEWORK_APR_UTIL_ENV_KEYS):
+        return dict(base_env), "failed:incomplete_framework_apr_util_bridge_output"
+    try:
+        proc = subprocess.run(
+            [
+                str(trusted_shell),
+                "-eu",
+                "-c",
+                'set -a; . "$1"; ci_require_apr_util_pinned_provenance; ci_validate_https_runtime_url_config; env -0',
+                "framework-common-environment",
+                str(common_sh),
+            ],
             cwd=str(connector_root),
             env=env,
             stdout=subprocess.PIPE,
@@ -248,6 +320,9 @@ def load_framework_environment(connector_root: Path, framework_root: Path, base_
             continue
         key, value = chunk.split(b"=", 1)
         loaded[key.decode("utf-8", errors="replace")] = value.decode("utf-8", errors="replace")
+    if any(loaded.get(key) != value for key, value in guarded_apr_util.items()):
+        return dict(base_env), "failed:framework_apr_util_guarded_tuple_mismatch"
+    loaded.update(guarded_apr_util)
     return loaded, "loaded"
 
 
@@ -280,6 +355,28 @@ def require_https_url(url: str, label: str) -> str:
     if not raw.startswith("https://"):
         raise RuntimeError(f"{label} must use https:// only: {url}")
     return raw
+
+
+def require_apr_util_pinned_provenance(env: dict[str, str]) -> dict[str, str]:
+    """Fail closed unless the guarded Framework APR-util archive tuple is exact."""
+    values = {key: require_env_value(env, key) for key in FRAMEWORK_APR_UTIL_ENV_KEYS}
+    version = values["APR_UTIL_VERSION"]
+    if not APR_UTIL_VERSION_RE.fullmatch(version):
+        raise RuntimeError("APR_UTIL_VERSION must be a dotted numeric version")
+    source_url = values["APR_UTIL_SOURCE_URL"]
+    expected_source_url = f"https://downloads.apache.org/apr/apr-util-{version}.tar.bz2"
+    if source_url != expected_source_url:
+        raise RuntimeError("APR_UTIL_SOURCE_URL must be the exact Apache APR-util archive for APR_UTIL_VERSION")
+    sha_url = values["APR_UTIL_SHA256_URL"]
+    if sha_url != f"{source_url}.sha256":
+        raise RuntimeError("APR_UTIL_SHA256_URL must derive from APR_UTIL_SOURCE_URL")
+    expected_sha = values["APR_UTIL_SHA256"].lower()
+    if not APR_UTIL_SHA256_RE.fullmatch(expected_sha):
+        raise RuntimeError("APR_UTIL_SHA256 must contain exactly 64 hexadecimal characters")
+    values["APR_UTIL_SHA256"] = expected_sha
+    require_https_url(source_url, "APR_UTIL_SOURCE_URL")
+    require_https_url(sha_url, "APR_UTIL_SHA256_URL")
+    return values
 
 
 def require_https_github_repo_url(url: str) -> str:
@@ -1401,6 +1498,22 @@ def archive_cache_identity(name: str, url: str, expected_sha: str, sha_url: str)
         "sha256_url": sha_url,
     }
     identity["cache_key"] = stable_hash(identity)
+    return identity
+
+
+def apr_util_archive_cache_identity(env: dict[str, str]) -> dict[str, Any]:
+    values = require_apr_util_pinned_provenance(env)
+    identity = archive_cache_identity(
+        "apr-util",
+        values["APR_UTIL_SOURCE_URL"],
+        values["APR_UTIL_SHA256"],
+        values["APR_UTIL_SHA256_URL"],
+    )
+    identity.update(
+        apr_util_version=values["APR_UTIL_VERSION"],
+        archive_name=f"apr-util-{values['APR_UTIL_VERSION']}.tar.bz2",
+    )
+    identity["cache_key"] = stable_hash({key: value for key, value in identity.items() if key != "cache_key"})
     return identity
 
 
@@ -5359,6 +5472,7 @@ def connector_build_flags(
             "APR_UTIL_VERSION",
             "APR_UTIL_SOURCE_URL",
             "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
             "PCRE2_VERSION",
             "PCRE2_SOURCE_URL",
             "PCRE2_SHA256",
@@ -9369,14 +9483,17 @@ def parse_runtime_component_args() -> argparse.Namespace:
 
 def required_runtime_component_sources(env: dict[str, str], strict: bool) -> dict[str, Any]:
     validate_https_url_config(env)
-    values: dict[str, Any] = {
+    # Validate the guarded Framework tuple before any managed cache root,
+    # archive path, extraction, or download is reached.
+    values = {"apr_util_provenance": require_apr_util_pinned_provenance(env)}
+    values.update({
         "go_ftw_source_url": require_env_value(env, "GO_FTW_SOURCE_URL"),
         "go_ftw_expected_latest": require_env_value(env, "GO_FTW_PROMPT_EXPECTED_LATEST"),
         "albedo_source_url": require_env_value(env, "ALBEDO_SOURCE_URL"),
         "albedo_expected_latest": require_env_value(env, "ALBEDO_PROMPT_EXPECTED_LATEST"),
         "expat_source_url": require_env_value(env, "EXPAT_SOURCE_URL"),
         "expat_git_ref": require_env_value(env, "EXPAT_GIT_REF"),
-    }
+    })
     if strict:
         values["expat_git_ref"] = require_full_immutable_git_commit(values["expat_git_ref"], "EXPAT_GIT_REF")
     # NGINX no longer has a mutable fallback: validate its complete reviewed
@@ -9611,10 +9728,21 @@ def prepare_runtime_git_components(
 
 def apache_archive_records(env: dict[str, str], archives_root: Path, cache_root: Path) -> list[dict[str, Any]]:
     apache_root = archives_root / "apache"
+    apr_util_identity = apr_util_archive_cache_identity(env)
     return [
         prepare_archive("httpd", env.get("HTTPD_SOURCE_URL", ""), env.get("HTTPD_SHA256", ""), env.get("HTTPD_SHA256_URL", ""), apache_root, cache_root),
         prepare_archive("apr", env.get("APR_SOURCE_URL", ""), env.get("APR_SHA256", ""), env.get("APR_SHA256_URL", ""), apache_root, cache_root),
-        prepare_archive("apr-util", env.get("APR_UTIL_SOURCE_URL", ""), env.get("APR_UTIL_SHA256", ""), env.get("APR_UTIL_SHA256_URL", ""), apache_root, cache_root),
+        prepare_archive(
+            "apr-util",
+            env.get("APR_UTIL_SOURCE_URL", ""),
+            env.get("APR_UTIL_SHA256", ""),
+            env.get("APR_UTIL_SHA256_URL", ""),
+            apache_root,
+            cache_root,
+            required_literal_sha256=True,
+            cache_identity=apr_util_identity,
+            verify_digest_before_archive_list=True,
+        ),
         prepare_archive(
             "pcre2",
             env.get("PCRE2_SOURCE_URL", ""),

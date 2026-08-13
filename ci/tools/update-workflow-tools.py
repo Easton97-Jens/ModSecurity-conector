@@ -216,9 +216,12 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         "ci/tools/fetch_security_tool.py",
         "ci/tools/prepare-readonly-submodule-validation-sandbox.py",
         "ci/tools/run-readonly-submodule-validation-namespace.py",
+        "ci/tools/validate-submodule-candidate-state.py",
         "tests/test_ci_security_workflows.py",
         "tests/test_prepare_readonly_submodule_validation_sandbox.py",
         "tests/test_run_readonly_submodule_validation_namespace.py",
+        "tests/test_update_submodules_local_git.py",
+        "tests/test_validate_submodule_candidate_state.py",
     }
 )
 

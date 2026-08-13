@@ -78,6 +78,27 @@ READONLY_SUBMODULE_NAMESPACE_COMPLETE = "READONLY_SUBMODULE_VALIDATION_NAMESPACE
 READONLY_SUBMODULE_VERIFY_GATE = (
     "if: ${{ always() && steps.prepare-readonly-candidate-sandbox.outcome == 'success' }}"
 )
+SUBMODULE_CANDIDATE_STATE_HELPER = "ci/tools/validate-submodule-candidate-state.py"
+SUBMODULE_CANDIDATE_BASELINE_CALL = " ".join(
+    (
+        f"python3 {SUBMODULE_CANDIDATE_STATE_HELPER}",
+        "capture-parent-baseline",
+        '--parent-root "$GITHUB_WORKSPACE"',
+        '--github-env "$GITHUB_ENV"',
+    )
+)
+SUBMODULE_CANDIDATE_STATE_CALL = " ".join(
+    (
+        f"sudo -n python3 {SUBMODULE_CANDIDATE_STATE_HELPER}",
+        "validate",
+        '--parent-root "$GITHUB_WORKSPACE"',
+        '--submodule-path "$SUBMODULE_PATH"',
+        '--current-gitlink-sha "$CURRENT_GITLINK_SHA"',
+        '--candidate-sha "$CANDIDATE_SHA"',
+        '--expected-parent-head "$EXPECTED_PARENT_HEAD"',
+        '--expected-parent-hooks-sha256 "$EXPECTED_PARENT_HOOKS_SHA256"',
+    )
+)
 SUBMODULE_VALIDATE_ONLY_INPUT = """\
   workflow_dispatch:
     inputs:
@@ -135,6 +156,10 @@ SUBMODULE_PUBLISHER_GATE = (
     "needs.resolve-submodule-update.outputs.changed == 'true' && "
     "needs.resolve-submodule-update.outputs.validation_only == 'false' && "
     "needs.validate-submodule-update.result == 'success'"
+)
+SUBMODULE_LOCAL_GIT_CONTRACT_TESTS = (
+    "tests.test_validate_submodule_candidate_state",
+    "tests.test_update_submodules_local_git",
 )
 
 WRITE_PERMISSION_KEYS = {
@@ -198,6 +223,8 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         "Verify candidate source inventory and external outputs",
         READONLY_SUBMODULE_VERIFY_GATE,
         "--verify",
+        SUBMODULE_CANDIDATE_BASELINE_CALL,
+        SUBMODULE_CANDIDATE_STATE_CALL,
         "VALIDATOR SOURCE MUTATION BLOCKED",
         "VALIDATOR WRITE-ROOT CONTRACT BLOCKED",
         "Enforce isolated candidate result after verification",
@@ -224,6 +251,11 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         "bash --noprofile --norc -ceu",
         'make PYTHON="$PYTHON" BUILD_ROOT=',
         "rm -rf",
+        "git status --porcelain --untracked-files=all",
+        "grep -v",
+        "git reset --hard",
+        "git clean",
+        "|| true",
     )
     for term in forbidden:
         if term in validator:
@@ -240,6 +272,10 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         errors.append("validator job must not receive credentials")
     if "--namespace-parent /tmp" in validator or "--namespace-parent /var/tmp" in validator:
         errors.append("namespace helper must not use a public namespace parent")
+    if normalized.count(SUBMODULE_CANDIDATE_BASELINE_CALL) != 1:
+        errors.append("candidate validation must capture exactly one immutable Parent baseline")
+    if normalized.count(SUBMODULE_CANDIDATE_STATE_CALL) != 2:
+        errors.append("candidate validation must run exactly before and after the namespace")
 
     verification_step = validator.partition(
         "- name: Verify candidate source inventory and external outputs"
@@ -255,6 +291,14 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         setup_index < namespace_index < verification_index < result_index
     ):
         errors.append("root preparation, namespace candidate, physical verification, and result gate must be ordered")
+    baseline_index = normalized.find(SUBMODULE_CANDIDATE_BASELINE_CALL)
+    checkout_index = normalized.find("checkout --detach")
+    first_state_index = normalized.find(SUBMODULE_CANDIDATE_STATE_CALL)
+    second_state_index = normalized.find(SUBMODULE_CANDIDATE_STATE_CALL, first_state_index + 1)
+    if min(baseline_index, checkout_index, first_state_index, second_state_index) < 0 or not (
+        baseline_index < checkout_index < first_state_index < setup_index < second_state_index < result_index
+    ):
+        errors.append("candidate-state validation must bracket the isolated namespace")
     return errors
 
 
@@ -1517,6 +1561,18 @@ jobs:
             self.assertEqual(checkout_step_blocks(job), [], workflow_name)
             self.assertNotIn("run:", job, workflow_name)
 
+    def test_ci_security_contracts_run_the_local_submodule_git_regressions(self) -> None:
+        workflow = self.workflow("ci-security-workflow-lint.yml")
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        contract_target = makefile.partition("check-ci-security-contract:")[2].partition(
+            "\n\n"
+        )[0]
+        for module in SUBMODULE_LOCAL_GIT_CONTRACT_TESTS:
+            with self.subTest(module=module):
+                self.assertIn(module, workflow)
+                self.assertIn(module, contract_target)
+        self.assertTrue((ROOT / SUBMODULE_CANDIDATE_STATE_HELPER).is_file())
+
     def test_update_submodules_separates_validation_from_publishing(self) -> None:
         workflow = self.workflow("update-submodules.yml")
         jobs = job_blocks(workflow)
@@ -1574,7 +1630,14 @@ jobs:
         self.assertIn("merge-base --is-ancestor", validator)
         self.assertIn("checkout --detach", validator)
         self.assertIn("submodule update --init --recursive", validator)
-        self.assertIn("status --porcelain", validator)
+        self.assertIn(SUBMODULE_CANDIDATE_BASELINE_CALL, normalize_shell_script(validator))
+        self.assertEqual(normalize_shell_script(validator).count(SUBMODULE_CANDIDATE_STATE_CALL), 2)
+        self.assertNotIn("status --porcelain", validator)
+        self.assertNotIn("grep -v", validator)
+        self.assertNotIn("git reset --hard", validator)
+        self.assertNotIn("git clean", validator)
+        self.assertNotIn("|| true", validator)
+        self.assertTrue((ROOT / SUBMODULE_CANDIDATE_STATE_HELPER).is_file())
         dependency_lock = (
             ROOT / "ci" / "requirements" / "update-submodules-validation-linux-x86_64.txt"
         ).read_text(encoding="utf-8")
@@ -1588,6 +1651,26 @@ jobs:
         self.assertNotIn("GH_TOKEN", validator)
         self.assertNotIn("secrets.", validator)
         self.assertEqual(readonly_submodule_validator_errors(validator), [])
+
+        candidate_state_mutations = {
+            "missing immutable Parent baseline": (
+                "capture-parent-baseline",
+                "capture-parent-baseline-bypassed",
+            ),
+            "candidate state validated only once": (
+                "validate \\\n            --parent-root",
+                "validate-bypassed \\\n            --parent-root",
+            ),
+            "broad Parent status check restored": (
+                "sudo -n git -c core.hooksPath=/dev/null diff --check",
+                "git status --porcelain --untracked-files=all\n          sudo -n git -c core.hooksPath=/dev/null diff --check",
+            ),
+        }
+        for name, (original, replacement) in candidate_state_mutations.items():
+            with self.subTest(candidate_state_mutation=name):
+                self.assertIn(original, validator)
+                mutated = validator.replace(original, replacement, 1)
+                self.assertNotEqual(readonly_submodule_validator_errors(mutated), [])
 
         """Run the exact workflow prelude with a test-local sudo implementation."""
         workflow_payload = yaml.safe_load(self.workflow("update-submodules.yml"))

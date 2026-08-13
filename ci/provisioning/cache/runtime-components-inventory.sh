@@ -7,7 +7,12 @@ CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplev
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}"
 REPO_ROOT="$CONNECTOR_ROOT"
 
+# Inventory must report the same Framework-owned tuple as provisioning and
+# must not accidentally bless a caller-provided Parent override.
+/bin/sh "$CONNECTOR_ROOT/ci/tools/print-framework-apr-util-env.sh" "$FRAMEWORK_ROOT" "$CONNECTOR_ROOT" >/dev/null
+# shellcheck disable=SC1091
 . "$FRAMEWORK_ROOT/ci/lib/common.sh"
+ci_require_apr_util_pinned_provenance || exit 77
 ci_validate_https_runtime_url_config || exit 77
 
 sha_status() {

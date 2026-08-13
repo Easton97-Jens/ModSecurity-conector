@@ -1380,11 +1380,13 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         )
         self.assertEqual(explicit_empty, {name: "" for name in names})
 
+        fixture_version = "9.8.7"
+        fixture_url = f"https://fixture.invalid/apr-util-{fixture_version}.tar.bz2"
         reviewed = {
-            "APR_UTIL_VERSION": "1.6.4",
-            "APR_UTIL_SOURCE_URL": "https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2",
-            "APR_UTIL_SHA256": "3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b",
-            "APR_UTIL_SHA256_URL": "https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2.sha256",
+            "APR_UTIL_VERSION": fixture_version,
+            "APR_UTIL_SOURCE_URL": fixture_url,
+            "APR_UTIL_SHA256": "a" * 64,
+            "APR_UTIL_SHA256_URL": f"{fixture_url}.sha256",
         }
         self.assertEqual(
             self.make_provenance_environment(names, make_target, reviewed), reviewed

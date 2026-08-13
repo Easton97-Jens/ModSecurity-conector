@@ -234,6 +234,10 @@ endif
 ifneq ($(origin APR_UTIL_SHA256_URL),undefined)
 export APR_UTIL_SHA256_URL
 endif
+
+.PHONY: framework-apr-util-env
+framework-apr-util-env:
+	@/bin/sh "$(CURDIR)/ci/tools/print-framework-apr-util-env.sh" "$(FRAMEWORK_ROOT)" "$(CURDIR)"
 export PCRE2_VERSION
 export PCRE2_SOURCE_URL
 export PCRE2_SHA256_URL
@@ -355,7 +359,7 @@ check-bilingual-docs:
 	$(PYTHON) ci/checks/documentation/check-bilingual-docs.py
 
 check-ci-security-contract:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_ci_security_workflows tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_ci_security_workflows tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool actionlint --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool zizmor --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool gitleaks --validate-only

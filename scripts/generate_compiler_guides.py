@@ -88,8 +88,8 @@ CONNECTORS: tuple[dict[str, str], ...] = (
         "start": "start-smoke-apache",
         "runtime": "runtime-smoke-apache",
         "prepare": "prepare-runtime-components",
-        "source": "The Framework-owned Apache, APR, PCRE2 and libmodsecurity provenance is selected at preparation time. Its effective version, URL and checksum are recorded by the Cache-v2 inventory; do not copy a version from an old guide.",
-        "source_de": "Die Framework-gesteuerte Provenienz für Apache, APR, PCRE2 und libmodsecurity wird bei der Vorbereitung ausgewählt. Effektive Version, URL und Prüfsumme stehen im Cache-v2-Inventar; keine Version aus einer alten Anleitung übernehmen.",
+        "source": "The guarded Framework tuple resolves Apache, APR, APR-util, PCRE2 and libmodsecurity provenance at preparation time. Parent neither duplicates nor overrides APR-util provenance; use the Cache-v2 inventory for the effective version, URL and checksum rather than copying a value from an old guide.",
+        "source_de": "Das geschützte Framework-Tupel löst bei der Vorbereitung die Provenienz für Apache, APR, APR-util, PCRE2 und libmodsecurity auf. Parent dupliziert oder überschreibt die APR-util-Provenienz nicht; für effektive Version, URL und Prüfsumme statt eines Werts aus einer alten Anleitung das Cache-v2-Inventar verwenden.",
         "variables": "`BUILD_HTTPD_FROM_SOURCE`, `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, and the Framework-forwarded Apache source/checksum variables.",
         "variables_de": "`BUILD_HTTPD_FROM_SOURCE`, `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN` sowie die vom Framework weitergereichten Apache-Quell- und Prüfsummenvariablen.",
         "toolchain": "A trusted C compiler, Autotools/APXS and matching Apache development headers are required when the host is built or checked locally. The repository's C17 adoption check may report `77` when headers are unavailable.",
@@ -261,8 +261,8 @@ DETAILS: dict[str, dict[str, object]] = {
             "Git, ein beschreibbarer externer Stamm, C/C++-Buildtools und das Framework-Submodule. Der Vorbereitungsweg staged Eingaben für Apache, APR, APR-util, PCRE2 und libmodsecurity.",
         ),
         "source_prerequisites": (
-            "APXS, httpd headers, and the executed httpd binary must come from one selected Apache build. The supported Framework preparer owns the exact upstream configure command and its external staging.",
-            "APXS, httpd-Header und das ausgeführte httpd-Binary müssen aus einem ausgewählten Apache-Build stammen. Der unterstützte Framework-Vorbereiter besitzt den exakten Upstream-Configure-Befehl und sein externes Staging.",
+            "APXS, httpd headers, and the executed httpd binary must come from one selected Apache build. The guarded Framework tuple owns Apache, APR, APR-util, PCRE2 and libmodsecurity provenance, including the exact upstream configure command and external staging; direct Parent overrides are rejected.",
+            "APXS, httpd-Header und das ausgeführte httpd-Binary müssen aus einem ausgewählten Apache-Build stammen. Das geschützte Framework-Tupel besitzt die Provenienz für Apache, APR, APR-util, PCRE2 und libmodsecurity einschließlich des exakten Upstream-Configure-Befehls und externen Stagings; direkte Parent-Overrides werden abgewiesen.",
         ),
         "source_commands": (
             "BUILD_HTTPD_FROM_SOURCE=1 MAKE_JOBS=\"$jobs\" make build-apache",
@@ -280,7 +280,6 @@ DETAILS: dict[str, dict[str, object]] = {
         "pins": (
             (APACHE_HTTP_SERVER, "2.4.68 (`HTTPD_VERSION`)", "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2", "SHA256 `68c74d4df38c26bed4dfbdb8f3baf1eb532f3872357becc1bba5d136f6b63c06`"),
             ("APR", "1.7.6 (`APR_VERSION`)", "https://downloads.apache.org/apr/apr-1.7.6.tar.bz2", "SHA256 `49030d92d2575da735791b496dc322f3ce5cff9494779ba8cc28c7f46c5deb32`"),
-            ("APR-util", "1.6.3 (`APR_UTIL_VERSION`)", "https://downloads.apache.org/apr/apr-util-1.6.3.tar.bz2", "SHA256 `a41076e3710746326c3945042994ad9a4fcac0ce0277dd8fea076fec3c9772b5`"),
             ("PCRE2", "10.47 (`PCRE2_VERSION`)", "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.47/pcre2-10.47.tar.bz2", "effective source identity is recorded by preparation"),
             ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
@@ -2618,8 +2617,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
             (
                 "Optional: build Apache completely from source",
                 "Optional: Apache vollständig aus Source bauen",
-                "APR and APR-util are Apache portability libraries. Use matching system development packages, or place verified APR and APR-util source trees below srclib before configuring Apache.",
-                "APR und APR-util sind Apache-Portable-Bibliotheken. Passende System-Entwicklungspakete verwenden oder verifizierte APR- und APR-util-Source-Bäume vor dem Configure unter srclib ablegen.",
+                "APR and APR-util are Apache portability libraries. For the repository-supported preparation route, the guarded Framework tuple resolves APR-util provenance and Parent does not duplicate or override it. For a separate manual host build, use matching system development packages, or place verified APR and APR-util source trees below srclib before configuring Apache.",
+                "APR und APR-util sind Apache-Portable-Bibliotheken. Für den repository-unterstützten Vorbereitungsweg löst das geschützte Framework-Tupel die APR-util-Provenienz auf; Parent dupliziert oder überschreibt sie nicht. Für einen getrennten manuellen Host-Build passende System-Entwicklungspakete verwenden oder verifizierte APR- und APR-util-Source-Bäume vor dem Configure unter srclib ablegen.",
                 (
                     'WORKDIR="$HOME/connector-build/apache"',
                     'VERSION="2.4.68"',
