@@ -38,6 +38,7 @@ CANDIDATE_VERIFIER_COMMAND = (
 )
 UPDATE_PYTHON_VERSION_WORKFLOW = "update-python-version.yml"
 UPDATE_GO_VERSION_WORKFLOW = "update-go-version.yml"
+CI_SECURITY_WORKFLOW_LINT_WORKFLOW = "ci-security-workflow-lint.yml"
 PROTECTED_NGINX_BROKER_CALLER_WORKFLOW = "run-protected-nginx-root-broker.yml"
 PROTECTED_NGINX_BROKER_REUSABLE_WORKFLOW = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
@@ -72,9 +73,9 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("check-actions-versions.yml", "check-actions-versions"),
         JobIdentity("ci-security-secrets.yml", "advisory-full-history"),
         JobIdentity("ci-security-secrets.yml", "pull-request-range"),
-        JobIdentity("ci-security-workflow-lint.yml", "actionlint"),
-        JobIdentity("ci-security-workflow-lint.yml", "apr-util-provenance"),
-        JobIdentity("ci-security-workflow-lint.yml", "zizmor"),
+        JobIdentity(CI_SECURITY_WORKFLOW_LINT_WORKFLOW, "actionlint"),
+        JobIdentity(CI_SECURITY_WORKFLOW_LINT_WORKFLOW, "apr-util-provenance"),
+        JobIdentity(CI_SECURITY_WORKFLOW_LINT_WORKFLOW, "zizmor"),
         JobIdentity("lint.yml", "scaffold-lint"),
         JobIdentity("nginx-root-broker.yml", "trusted-root-smoke"),
         JobIdentity("open-connectors-smoke.yml", "open-connectors-smoke"),
