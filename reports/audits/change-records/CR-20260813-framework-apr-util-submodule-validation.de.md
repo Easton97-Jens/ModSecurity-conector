@@ -9,7 +9,7 @@
 | Change-ID | CR-20260813-framework-apr-util-submodule-validation |
 | Datum (UTC) | 2026-08-13 |
 | Basis-Revision | `33973d094b3f0aeb47605f08ced16a4043f643a0` |
-| Delivery-Status | Draft-Parent-PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) ist gegen `master` offen. Lokale Validierung ist unten aufgezeichnet; Hosted-Exact-Head-Checks, Review, Merge und Cross-Repository-Delivery werden nicht behauptet. |
+| Delivery-Status | Draft-Parent-PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) ist gegen `master` offen. Das task-eigene SonarCloud-S8707-Ergebnis wurde auf Head `3fbba306ddedf86acd3d01929a077cee33f66ed7` beobachtet; die abgeschlossene lokale `GITHUB_ENV`-Containment-Härtung und ihre lokale Validierung sind unten dokumentiert. Dieser Follow-up-Record wird einen späteren PR-Head erzeugen, für den frische Hosted-Sonar-Analyse weiterhin aussteht. Review, Merge und Cross-Repository-Delivery werden nicht behauptet. |
 
 ## Motivation und Problemstellung
 
@@ -71,6 +71,22 @@ diesen Helper um den bestehenden isolierten Validator auf, sodass die erwartete
 Candidate-Worktree-/Gitlink-Differenz keine False Mutation mehr ist, während
 alle anderen Mutationen fail-closed bleiben.
 
+Die abgeschlossene lokale `GITHUB_ENV`-Containment-Härtung im
+Remediation-Commit `646eec7edf3165c1bc8b82273c1fd5490738fc11` behandelt den Pfad
+vom Workflow-Argument `--github-env "$GITHUB_ENV"` über
+`capture_parent_baseline`, `_open_github_environment_file` und den finalen
+Baseline-Write mit `os.fdopen(..., "a")`. Bevor der Sink geöffnet wird,
+verlangt der Helper ein normalisiertes absolutes Ziel strikt unterhalb von
+`RUNNER_TEMP`, durchläuft jedes Verzeichnis über mit `O_NOFOLLOW` geöffnete
+Deskriptoren und verlangt für jedes Verzeichnis Eigentum des effektiven Users
+und keine Gruppen- oder Weltbeschreibbarkeit. Das finale Ziel muss eine
+reguläre Datei mit einem Link, Eigentum des effektiven Users und ohne Gruppen-
+oder Weltbeschreibbarkeit sein und wird relativ zum verifizierten
+Verzeichnisdeskriptor mit `O_NOFOLLOW | O_NONBLOCK` zum Anhängen geöffnet.
+`O_NONBLOCK` verhindert, dass ein FIFO den Schreibpfad blockiert, während die
+Regular-File-Prüfung ihn abweist. Bei jeder verletzten Invariante gibt der
+Helper vor dem Baseline-Write `GITHUB_ENV_INVALID` zurück.
+
 ## Security-Auswirkung
 
 Die Änderung stärkt zwei sicherheitsrelevante Grenzen. APR-util-Provenance wird
@@ -85,6 +101,13 @@ Metadatenpfade vor ihrer Nutzung ab und meldet begrenzte JSON-escaped
 Diagnostik nur im Fehlerfall. Sie erweitert weder Publisher-Berechtigungen,
 Gitlink-Staging-Scope, Source-Write-Autorität noch die bestehende isolierte
 Validator-Grenze.
+
+Auf PR-#280-Head `3fbba306ddedf86acd3d01929a077cee33f66ed7` meldete das
+task-eigene SonarCloud-Ergebnis S8707 für diesen `GITHUB_ENV`-Schreibpfad.
+Dieser Record klassifiziert das Ergebnis weder als False Positive noch
+beansprucht er eine Suppression. Die Containment-Implementierung ist lokal
+abgeschlossen; frische Hosted-Sonar-Analyse steht erst nach dem Follow-up-
+Commit für dessen neuen PR-Head aus.
 
 ## Geänderte Dateien
 
@@ -127,6 +150,9 @@ Runtime-Report, Secret oder Cache-Artefakt ist enthalten.
 - `rtk make check-ci-security-contract` — bestanden: 74 Tests und drei
   erwartete Capability-Skips; das Target validierte außerdem gepinnte
   Security-Tool-Lock-Records.
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git` — bestanden: 13 Tests nach der abgeschlossenen lokalen Containment-Härtung.
+- `rtk make check-ci-security-contract` — bestanden: 77 Tests und drei
+  erwartete Skips nach der abgeschlossenen lokalen Containment-Härtung.
 - Der initiale Hosted-Security-Workflow-Lint-Run
   [31710687331](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31710687331)
   auf PR-Head `905555264c46da1742d27110cef05b908c910c4f` scheiterte in drei
@@ -152,6 +178,24 @@ Runtime-Report, Secret oder Cache-Artefakt ist enthalten.
 Dies sind lokale Source-, Contract-, Lint- und Fixture-Ergebnisse. Sie sind
 keine Runtime-Evidence.
 
+### SonarCloud-Follow-up
+
+- Der Task-Owner beobachtete ein S8707-Ergebnis für den `GITHUB_ENV`-
+  Schreibpfad auf PR #280 mit Head `3fbba306ddedf86acd3d01929a077cee33f66ed7`.
+  Die Deskriptor-Containment-Implementierung ist lokal abgeschlossen und die
+  zwei oben genannten lokalen Befehle bestanden danach. Für den späteren
+  PR-Head, den dieser Follow-up-Commit erzeugt, wurde keine frische
+  Hosted-Sonar-Analyse ausgeführt oder beobachtet. Dieser Record erhebt daher
+  keinen Resolved-, Clean-, False-Positive- oder Suppression-Claim.
+- Lokale Regressionsabdeckung für die Containment-Invariante liegt in
+  `ValidateSubmoduleCandidateStateTests.test_capture_rejects_github_env_outside_runner_temp_or_via_symlink` und
+  `ValidateSubmoduleCandidateStateTests.test_capture_rejects_missing_runner_temp_and_accepts_runner_file`.
+  Die Fälle weisen ein Ziel außerhalb, lexikalisches Traversal, ein Symlink-
+  Ziel, einen Hard Link, ein Symlink-Verzeichnis sowie fehlendes oder unsicheres
+  `RUNNER_TEMP` ab und akzeptieren eine reguläre runner-eigene Datei. Der
+  abgeschlossene Pfad öffnet außerdem mit `O_NONBLOCK`, wodurch FIFO-Blocking
+  verhindert wird, während die Regular-File-Invariante FIFO-Ziele abweist.
+
 ## Runtime-Evidence
 
 Es wurde keine Runtime-Evidence erhoben oder beansprucht. Kein Component-Build,
@@ -162,9 +206,13 @@ Ausführung wurden als Nachweis für diese Änderung verwendet.
 
 - Frische GitHub-hosted-Updater-Validierung und PR-Checks für den späteren
   exakten PR-Head stehen nach der Local-Git-Fixture-Identity-Reparatur aus.
-- SonarQube Cloud, Review, Merge, resulting-`master`-Validierung und
-  Workspace-Restoration werden nicht behauptet; der Benutzer hat nur einen
-  Draft-PR autorisiert.
+- S8707 wurde auf `3fbba306ddedf86acd3d01929a077cee33f66ed7` beobachtet.
+  Frische SonarCloud-Analyse steht nach diesem Follow-up-Commit für einen
+  späteren PR-Head aus. Bis diese Analyse beobachtet wurde, wird kein
+  Hosted-Resolved-, Hosted-Clean-, False-Positive- oder Suppression-Claim
+  erhoben.
+- Review, Merge, resulting-`master`-Validierung und Workspace-Restoration
+  werden nicht behauptet; der Benutzer hat nur einen Draft-PR autorisiert.
 - Vollständige Component-Builds und Connector-Runtime-Matrizen wurden nicht
   ausgeführt, weil ihre Downloads und Runtime-Umgebungen weiter reichen als die
   hier geänderten Provenance- und Workflow-Contracts.
@@ -181,19 +229,28 @@ ausgechecktes Framework-`common.sh`; dieses Framework bleibt extern owned und
 unverändert. Direkte Parent-`APR_UTIL_*`-Overrides schlagen jetzt absichtlich
 früh fehl, statt ein Framework-owned-Provenance-Tupel zu verändern.
 
+Die `GITHUB_ENV`-Containment-Härtung ist lokal abgeschlossen und hat lokale
+Regressionsabdeckung, benötigt aber weiterhin frische Hosted-Sonar-Analyse
+nach dem Follow-up-Commit, um den Hosted-Status von S8707 für dessen späteren
+PR-Head festzustellen.
+
 ## Verbleibende Risiken
 
 Der finale exakte PR-Head benötigt weiterhin seine anwendbaren Hosted-Checks,
 Review- und Protected-Branch-Policy-Auswertung. Korrekte APR-util-Werte bleiben
 vom ausgecheckten Framework-Guard abhängig, was das beabsichtigte Ownership-
-Modell ist. Dieser Record behauptet absichtlich keinen Security-Scan-, Hosted-,
-Merge- oder Cross-Repository-Erfolg.
+Modell ist. Der ausstehende Hosted-S8707-Status für den späteren PR-Head ist
+ein zusätzliches Delivery-Risiko. Dieser Record behauptet absichtlich keinen
+Security-Scan-, Hosted-, Merge- oder Cross-Repository-Erfolg.
 
 ## Finaler Diff- und Review-Status
 
 Die eingeschränkte Parent-Implementierung, fokussierte lokale Tests,
 Security-Review und Whitespace-Prüfungen wurden vor Delivery beobachtet. Der
 Draft-Parent-PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280)
-ist gegen `master` offen; sein aktueller exakter Head und Hosted-Check-Status
-müssen nach diesem Follow-up-Record-Commit erneut abgefragt werden. Kein
-Review, Merge oder Parent-Gitlink-Update wird behauptet.
+ist gegen `master` offen; sein exakter neuer Head und Hosted-Check-Status
+müssen nach diesem Follow-up-Record-Commit erneut abgefragt werden. Das
+beobachtete S8707-Ergebnis gehört zum früheren Head
+`3fbba306ddedf86acd3d01929a077cee33f66ed7`; frische Hosted-Sonar-Analyse ist
+weiterhin für den späteren Follow-up-Head erforderlich. Kein Review, Merge
+oder Parent-Gitlink-Update wird behauptet.

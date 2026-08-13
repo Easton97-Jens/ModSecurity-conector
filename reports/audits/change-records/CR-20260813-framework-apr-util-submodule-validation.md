@@ -9,7 +9,7 @@
 | Change ID | CR-20260813-framework-apr-util-submodule-validation |
 | Date (UTC) | 2026-08-13 |
 | Base revision | `33973d094b3f0aeb47605f08ced16a4043f643a0` |
-| Delivery status | Draft Parent PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) is open against `master`. Local validation is recorded below; hosted exact-head checks, review, merge, and cross-repository delivery are not asserted. |
+| Delivery status | Draft Parent PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) is open against `master`. The task-owned SonarCloud S8707 result was observed on head `3fbba306ddedf86acd3d01929a077cee33f66ed7`; completed local `GITHUB_ENV` containment hardening and its local validation are documented below. This follow-up record will create a later PR head, for which fresh hosted Sonar analysis remains pending. Review, merge, and cross-repository delivery are not asserted. |
 
 ## Motivation and problem statement
 
@@ -65,6 +65,21 @@ operations. The workflow calls this helper around the existing isolated
 validator so the expected candidate worktree/Gitlink difference is no longer a
 false mutation while all other mutations remain fail-closed.
 
+The completed local `GITHUB_ENV` containment hardening in remediation commit
+`646eec7edf3165c1bc8b82273c1fd5490738fc11` addresses the path from
+the workflow's `--github-env "$GITHUB_ENV"` argument through
+`capture_parent_baseline`, `_open_github_environment_file`, and the final
+`os.fdopen(..., "a")` baseline write. Before that sink is opened, the helper
+requires a normalized absolute target strictly below `RUNNER_TEMP`, traverses
+every directory through descriptors opened with `O_NOFOLLOW`, and requires
+each directory to be owned by the effective user and not group- or
+world-writable. The final target must be a one-link regular file owned by the
+effective user, not group- or world-writable, and is opened for append with
+`O_NOFOLLOW | O_NONBLOCK` relative to the verified directory descriptor.
+`O_NONBLOCK` prevents a FIFO from blocking the write path, while the regular-
+file check rejects it. Every failed invariant returns `GITHUB_ENV_INVALID`
+before the baseline is written.
+
 ## Security impact
 
 The change strengthens two security-relevant boundaries. APR-util provenance is
@@ -78,6 +93,13 @@ It requires full SHA values, rejects unsafe metadata paths before use, and
 reports bounded JSON-escaped diagnostics only on failure. It does not broaden
 publisher permissions, Gitlink staging scope, source-write authority, or the
 existing isolated validator boundary.
+
+At PR #280 head `3fbba306ddedf86acd3d01929a077cee33f66ed7`, the task-owned
+SonarCloud result reported S8707 for this `GITHUB_ENV` write path. This record
+does not classify that result as a false positive and does not claim a
+suppression. The containment implementation is complete locally; fresh hosted
+Sonar analysis is pending only after the follow-up commit creates its new PR
+head.
 
 ## Changed files
 
@@ -120,6 +142,9 @@ or cache artifact is included.
 - `rtk make check-ci-security-contract` — passed: 74 tests and three expected
   capability skips; the target also validated pinned security-tool lock
   records.
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git` — passed: 13 tests after the completed local containment hardening.
+- `rtk make check-ci-security-contract` — passed: 77 tests and three expected
+  skips after the completed local containment hardening.
 - The initial hosted Security workflow lint run
   [31710687331](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31710687331)
   at PR head `905555264c46da1742d27110cef05b908c910c4f` failed three local-Git
@@ -144,6 +169,23 @@ or cache artifact is included.
 These are local source, contract, lint, and fixture results. They are not
 runtime evidence.
 
+### SonarCloud follow-up
+
+- The task owner observed an S8707 result for the `GITHUB_ENV` write path on
+  PR #280 at head `3fbba306ddedf86acd3d01929a077cee33f66ed7`. The descriptor-
+  containment implementation is complete locally and the two local commands
+  above passed after it. No fresh hosted Sonar analysis was run or observed for
+  the later PR head that this follow-up commit will create, so this record
+  makes no resolved, clean, false-positive, or suppression claim.
+- Local regression coverage for the containment invariant is in
+  `ValidateSubmoduleCandidateStateTests.test_capture_rejects_github_env_outside_runner_temp_or_via_symlink` and
+  `ValidateSubmoduleCandidateStateTests.test_capture_rejects_missing_runner_temp_and_accepts_runner_file`.
+  The cases reject an outside target, lexical traversal, a symlink target, a
+  hard link, a symlinked directory, a missing or unsafe `RUNNER_TEMP`, and
+  accept a regular runner-owned file. The completed path also opens with
+  `O_NONBLOCK`, preventing FIFO blocking while the regular-file invariant
+  rejects FIFO targets.
+
 ## Runtime evidence
 
 No runtime evidence was collected or claimed. No component build, cache
@@ -154,8 +196,12 @@ for this change.
 
 - Fresh GitHub-hosted updater validation and PR checks for the eventual exact
   PR head are pending after the local-Git fixture identity repair.
-- SonarQube Cloud, review, merge, resulting-`master` validation, and workspace
-  restoration are not claimed; the user authorized a Draft PR only.
+- S8707 was observed on `3fbba306ddedf86acd3d01929a077cee33f66ed7`. Fresh
+  SonarCloud analysis is pending after this follow-up commit creates a later
+  PR head. Until that analysis is observed, no hosted-resolved, hosted-clean,
+  false-positive, or suppression claim is made.
+- Review, merge, resulting-`master` validation, and workspace restoration are
+  not claimed; the user authorized a Draft PR only.
 - Full component builds and connector runtime matrices were not run because
   their downloads and runtime environments are broader than the provenance and
   workflow contracts changed here.
@@ -172,12 +218,19 @@ Framework `common.sh`; that Framework remains externally owned and unchanged.
 Direct Parent `APR_UTIL_*` overrides now fail early by design, rather than
 altering a Framework-owned provenance tuple.
 
+The `GITHUB_ENV` containment hardening is complete locally and has local
+regression coverage, but still requires fresh hosted Sonar analysis after the
+follow-up commit to establish the hosted disposition of S8707 for its later PR
+head.
+
 ## Remaining risks
 
 The final exact PR head still requires its applicable hosted checks, review,
 and protected-branch policy evaluation. Correct APR-util values remain
 dependent on the checked-out Framework guard, which is the intended ownership
-model. This record deliberately makes no security-scan, hosted, merge, or
+model. The pending hosted S8707 disposition for the later PR head is an
+additional delivery risk.
+This record deliberately makes no security-scan, hosted, merge, or
 cross-repository success claim.
 
 ## Final diff and review status
@@ -185,6 +238,8 @@ cross-repository success claim.
 The scoped Parent implementation, focused local tests, security review, and
 whitespace checks were observed before delivery. Draft Parent PR
 [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) is open
-against `master`; its current exact head and hosted-check state must be queried
-after this follow-up record commit. No review, merge, or Parent Gitlink update
-is asserted.
+against `master`; its exact new head and hosted-check state must be queried
+after this follow-up record commit. The observed S8707 result belongs to prior
+head `3fbba306ddedf86acd3d01929a077cee33f66ed7`; fresh hosted Sonar analysis
+is still required for the later follow-up head. No review, merge, or Parent
+Gitlink update is asserted.
