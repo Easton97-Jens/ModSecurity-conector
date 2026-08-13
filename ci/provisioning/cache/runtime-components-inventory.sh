@@ -8,7 +8,7 @@ FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Frame
 REPO_ROOT="$CONNECTOR_ROOT"
 
 # Inventory must report the same Framework-owned tuple as provisioning and
-# must not accidentally bless a caller-provided Parent override.
+# independently rejects any inherited tuple that is not the canonical one.
 /bin/sh "$CONNECTOR_ROOT/ci/tools/print-framework-apr-util-env.sh" "$FRAMEWORK_ROOT" "$CONNECTOR_ROOT" >/dev/null
 # shellcheck disable=SC1091
 . "$FRAMEWORK_ROOT/ci/lib/common.sh"

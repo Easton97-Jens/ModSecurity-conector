@@ -233,7 +233,7 @@ def _framework_guard_environment(
 ) -> dict[str, str]:
     """Build the fixed, non-login environment for Framework guard commands."""
     env = dict(base_env)
-    for key in ("ENV", "BASH_ENV", "SHELLOPTS"):
+    for key in (*FRAMEWORK_APR_UTIL_ENV_KEYS, "ENV", "BASH_ENV", "SHELLOPTS"):
         env.pop(key, None)
     env["PATH"] = _TRUSTED_FRAMEWORK_GUARD_PATH
     env["CONNECTOR_ROOT"] = str(connector_root)
@@ -294,6 +294,32 @@ def _guarded_apr_util_tuple(output: bytes) -> tuple[dict[str, str] | None, str |
     return guarded_apr_util, None
 
 
+def _incoming_apr_util_tuple(base_env: dict[str, str]) -> dict[str, str]:
+    """Snapshot only explicitly inherited APR-util fields, including empty ones."""
+    return {
+        key: base_env[key]
+        for key in FRAMEWORK_APR_UTIL_ENV_KEYS
+        if key in base_env
+    }
+
+
+def _validate_inherited_apr_util_tuple(
+    inherited: dict[str, str],
+    canonical: dict[str, str],
+) -> str | None:
+    """Accept only absent or full byte-identical Framework provenance state."""
+    if not inherited:
+        return None
+    empty_keys = [key for key, value in inherited.items() if not value]
+    if empty_keys:
+        return f"failed:inherited_parent_apr_util_empty:{','.join(empty_keys)}"
+    if set(inherited) != set(FRAMEWORK_APR_UTIL_ENV_KEYS):
+        return f"failed:inherited_parent_apr_util_partial:{','.join(sorted(inherited))}"
+    if inherited != canonical:
+        return "failed:inherited_parent_apr_util_mismatch"
+    return None
+
+
 def _null_delimited_environment(output: bytes) -> dict[str, str]:
     """Decode the Framework common.sh environment without shell evaluation."""
     loaded: dict[str, str] = {}
@@ -309,9 +335,7 @@ def load_framework_environment(connector_root: Path, framework_root: Path, base_
     common_sh = framework_root / "ci/lib/common.sh"
     if not common_sh.is_file():
         return dict(base_env), f"missing:{common_sh}"
-    inherited_apr_util = [key for key in FRAMEWORK_APR_UTIL_ENV_KEYS if key in base_env]
-    if inherited_apr_util:
-        return dict(base_env), f"failed:inherited_parent_apr_util_override:{','.join(inherited_apr_util)}"
+    inherited_apr_util = _incoming_apr_util_tuple(base_env)
     try:
         trusted_shell = verified_host_guard_executable(
             _TRUSTED_FRAMEWORK_GUARD_SHELL,
@@ -339,6 +363,9 @@ def load_framework_environment(connector_root: Path, framework_root: Path, base_
     guarded_apr_util, tuple_error = _guarded_apr_util_tuple(bridge_output)
     if tuple_error is not None or guarded_apr_util is None:
         return dict(base_env), tuple_error or "failed:framework_apr_util_bridge_output_missing"
+    inherited_error = _validate_inherited_apr_util_tuple(inherited_apr_util, guarded_apr_util)
+    if inherited_error is not None:
+        return dict(base_env), inherited_error
     common_output, common_error = _run_framework_guard(
         [
             str(trusted_shell),

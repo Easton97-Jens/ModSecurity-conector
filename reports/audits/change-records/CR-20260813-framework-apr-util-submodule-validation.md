@@ -28,9 +28,11 @@ baseline could distinguish the expected transition from an actual mutation.
 
 ## Acceptance criteria
 
-- Productive Parent APR-util configuration uses the checked-out Framework's
-  guarded provenance tuple, rejects direct `APR_UTIL_*` overrides, and validates
-  the selected archive, checksum URL, and SHA-256 before cache or build use.
+- Productive Parent APR-util configuration rejects direct `APR_UTIL_*`
+  overrides. A full canonical tuple may propagate only internally between
+  Parent and Child after an independent comparison with the checked-out
+  Framework; partial, empty, mismatched, or alternate tuples fail closed
+  before cache or build use. Parent owns no APR-util version or SHA-256.
 - Cache identities include the authoritative APR-util provenance inputs.
 - The updater accepts an unchanged candidate as a no-op and a valid forward
   descendant, while rejecting malformed, wrong-ref, non-descendant, or
@@ -45,14 +47,18 @@ baseline could distinguish the expected transition from an actual mutation.
 ## Implementation decision and rationale
 
 `ci/tools/print-framework-apr-util-env.sh` is a fixed `/bin/sh` bridge. It
-rejects every inherited `APR_UTIL_*` value, sources the checked-out Framework
-`ci/lib/common.sh`, runs the Framework provenance guards, and emits only the
-four shell-quoted APR-util assignments. The Parent Python loader invokes that
-fixed bridge through trusted host executables, scrubs shell hooks and `PATH`,
-strictly parses the selected tuple, and verifies its canonical HTTPS download
-shape and 64-character SHA-256. Runtime component preparation, inventory, and
-cache wrapping run the same guard before cache roots or build work. The Parent
-does not restore a static fallback pin.
+records and clears inherited `APR_UTIL_*` state, sources the checked-out
+Framework `ci/lib/common.sh`, runs the Framework provenance guards, and emits
+only the four shell-quoted APR-util assignments. The Parent Python loader
+invokes that fixed bridge through trusted host executables, scrubs shell hooks
+and `PATH`, strictly parses a full canonical tuple, and independently compares
+the captured input with the checked-out Framework result. Only an absent input
+or a matching non-empty full tuple may propagate internally between Parent and
+Child; partial, empty, mismatched, or alternate tuples fail closed. The
+canonical HTTPS download shape and 64-character SHA-256 are revalidated before
+use. Runtime component preparation, inventory, and cache wrapping run the
+same guard before cache roots or build work. The Parent owns no APR-util
+version or SHA-256 and does not restore a static fallback pin.
 
 `ci/tools/validate-submodule-candidate-state.py` captures a deterministic
 Parent baseline before candidate checkout, then validates the exact candidate
@@ -85,8 +91,10 @@ before the baseline is written.
 The change strengthens two security-relevant boundaries. APR-util provenance is
 now taken from the authoritative Framework guard instead of duplicated Parent
 pins, and hostile inherited shell state cannot silently override the selected
-tuple. Strict archive and digest validation binds cache identity to the guarded
-provenance.
+tuple. A full canonical tuple may cross the internal Parent/Child boundary
+only after independent Framework comparison; partial, empty, mismatched, and
+alternate tuples fail closed. Strict archive and digest validation binds cache
+identity to the guarded provenance.
 
 Candidate validation continues to treat the Framework candidate as untrusted.
 It requires full SHA values, rejects unsafe metadata paths before use, and
@@ -215,8 +223,10 @@ for this change.
 The local Git fixtures exercise resolver and candidate-state behavior but do
 not prove GitHub-hosted runner behavior. The bridge requires a checked-out
 Framework `common.sh`; that Framework remains externally owned and unchanged.
-Direct Parent `APR_UTIL_*` overrides now fail early by design, rather than
-altering a Framework-owned provenance tuple.
+Direct Parent `APR_UTIL_*` overrides fail early by design, rather than altering
+a Framework-owned provenance tuple. Parent owns no APR-util version or
+SHA-256; the internally propagated tuple remains valid only after its
+independent comparison with the checked-out Framework.
 
 The `GITHUB_ENV` containment hardening is complete locally and has local
 regression coverage, but still requires fresh hosted Sonar analysis after the

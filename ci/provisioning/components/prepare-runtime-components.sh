@@ -24,8 +24,8 @@ fi
 export CONNECTOR_ROOT FRAMEWORK_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT MRTS_NATIVE_ROOT CACHE_ROOT VERIFIED_COMPONENT_CACHE CONNECTOR_COMPONENT_CACHE RUNTIME_REPORT_OUTPUT_ROOT
 
 REPO_ROOT="$CONNECTOR_ROOT"
-# Reject any inherited Parent APR-util tuple before common.sh can supply the
-# Framework-owned values used by the Python provisioning path.
+# Resolve the Framework tuple before sourcing it locally.  The bridge accepts
+# an inherited tuple only after an independent byte-for-byte Framework match.
 /bin/sh "$CONNECTOR_ROOT/ci/tools/print-framework-apr-util-env.sh" "$FRAMEWORK_ROOT" "$CONNECTOR_ROOT" >/dev/null
 . "$FRAMEWORK_ROOT/ci/lib/common.sh"
 ci_require_apr_util_pinned_provenance || exit 77

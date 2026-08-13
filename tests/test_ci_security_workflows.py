@@ -1335,6 +1335,41 @@ jobs:
             for checkout_step in checkout_steps:
                 self.assertIn("persist-credentials: false", checkout_step, path.name)
 
+    def test_pr_apr_util_provenance_job_is_unconditional_and_read_only(self) -> None:
+        workflow = self.workflow("ci-security-workflow-lint.yml")
+        jobs = self.jobs("ci-security-workflow-lint.yml")
+        job = jobs["apr-util-provenance"]
+
+        self.assertIn("  pull_request:\n", workflow)
+        self.assertNotIn("    branches:", workflow.partition("  pull_request:\n")[2].partition("  push:")[0])
+        self.assertNotIn("if:", job)
+        self.assertEqual(job_permissions(job), {"contents": "read"})
+        self.assertNotIn("secrets.", job)
+        self.assertNotIn("github.token", job)
+        checkout_steps = checkout_step_blocks(job)
+        self.assertEqual(len(checkout_steps), 1)
+        self.assertIn("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7", checkout_steps[0])
+        self.assertIn("submodules: recursive", checkout_steps[0])
+        self.assertIn("persist-credentials: false", checkout_steps[0])
+        self.assertIn(
+            "python3 -m unittest -v tests.test_framework_apr_util_provenance tests.test_apr_util_static_contract",
+            job,
+        )
+        self.assertIn(
+            "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0",
+            job,
+        )
+        self.assertIn("id: setup-python", job)
+        self.assertIn("python-version-file: .python-version", job)
+        self.assertIn("check-latest: false", job)
+        self.assertIn(
+            'python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"',
+            job,
+        )
+        self.assertNotIn("pip ", job)
+        self.assertNotIn("curl ", job)
+        self.assertNotIn("wget ", job)
+
     def test_trusted_nginx_root_broker_has_no_pr_code_at_root_boundary(self) -> None:
         text = self.workflow("nginx-root-broker.yml")
         self.assertIn("workflow_call:", text)

@@ -11,15 +11,40 @@ CONNECTOR_ROOT=$2
 PATH=/usr/bin:/bin
 export PATH
 
-# Parent callers must not supply even a matching APR-util tuple.  The
-# Framework owns these values; accepting inherited values would make that
-# ownership unverifiable.
-for ci_apr_util_key in APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL; do
-    if printenv "$ci_apr_util_key" >/dev/null 2>&1; then
-        printf '%s\n' "APR-util inherited Parent override is not permitted: $ci_apr_util_key" >&2
-        exit 77
-    fi
-done
+# Record the complete incoming state before clearing it.  A caller may carry a
+# Framework-approved tuple across a Parent/Child boundary, but it is accepted
+# only after this process independently resolves the checked-out Framework
+# tuple below and compares all four values byte-for-byte.
+if [ "${APR_UTIL_VERSION+x}" = x ]; then
+    ci_apr_util_input_version_set=1
+    ci_apr_util_input_version=$APR_UTIL_VERSION
+else
+    ci_apr_util_input_version_set=0
+    ci_apr_util_input_version=
+fi
+if [ "${APR_UTIL_SOURCE_URL+x}" = x ]; then
+    ci_apr_util_input_source_url_set=1
+    ci_apr_util_input_source_url=$APR_UTIL_SOURCE_URL
+else
+    ci_apr_util_input_source_url_set=0
+    ci_apr_util_input_source_url=
+fi
+if [ "${APR_UTIL_SHA256+x}" = x ]; then
+    ci_apr_util_input_sha256_set=1
+    ci_apr_util_input_sha256=$APR_UTIL_SHA256
+else
+    ci_apr_util_input_sha256_set=0
+    ci_apr_util_input_sha256=
+fi
+if [ "${APR_UTIL_SHA256_URL+x}" = x ]; then
+    ci_apr_util_input_sha256_url_set=1
+    ci_apr_util_input_sha256_url=$APR_UTIL_SHA256_URL
+else
+    ci_apr_util_input_sha256_url_set=0
+    ci_apr_util_input_sha256_url=
+fi
+
+unset APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL
 
 export FRAMEWORK_ROOT CONNECTOR_ROOT
 
@@ -32,8 +57,30 @@ fi
 # inputs before Parent can use any archive or cache path.
 # shellcheck disable=SC1091
 . "$FRAMEWORK_ROOT/ci/lib/common.sh"
-ci_require_apr_util_pinned_provenance
-ci_validate_https_runtime_url_config
+ci_require_apr_util_pinned_provenance || exit 77
+ci_validate_https_runtime_url_config || exit 77
+
+case "$ci_apr_util_input_version_set:$ci_apr_util_input_source_url_set:$ci_apr_util_input_sha256_set:$ci_apr_util_input_sha256_url_set" in
+    0:0:0:0)
+        ;;
+    1:1:1:1)
+        if [ -z "$ci_apr_util_input_version" ] \
+            || [ -z "$ci_apr_util_input_source_url" ] \
+            || [ -z "$ci_apr_util_input_sha256" ] \
+            || [ -z "$ci_apr_util_input_sha256_url" ] \
+            || [ "$ci_apr_util_input_version" != "$APR_UTIL_VERSION" ] \
+            || [ "$ci_apr_util_input_source_url" != "$APR_UTIL_SOURCE_URL" ] \
+            || [ "$ci_apr_util_input_sha256" != "$APR_UTIL_SHA256" ] \
+            || [ "$ci_apr_util_input_sha256_url" != "$APR_UTIL_SHA256_URL" ]; then
+            printf '%s\n' 'APR-util inherited tuple is not the canonical Framework tuple' >&2
+            exit 77
+        fi
+        ;;
+    *)
+        printf '%s\n' 'APR-util inherited tuple must set all four canonical fields or none' >&2
+        exit 77
+        ;;
+esac
 
 # Each value is structurally constrained by the Framework guard and Parent
 # revalidates it before use.  Emit assignments only; callers must never eval
@@ -42,9 +89,9 @@ shell_quote() {
     if [ "$#" -ne 1 ]; then
         return 64
     fi
-    shell_quote_value=$1
+    ci_apr_util_shell_quote_value=$1
     printf "'"
-    printf '%s' "$shell_quote_value" | /usr/bin/sed "s/'/'\"'\"'/g"
+    printf '%s' "$ci_apr_util_shell_quote_value" | /usr/bin/sed "s/'/'\"'\"'/g"
     printf "'"
 }
 

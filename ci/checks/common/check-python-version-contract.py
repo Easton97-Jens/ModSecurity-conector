@@ -73,6 +73,7 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("ci-security-secrets.yml", "advisory-full-history"),
         JobIdentity("ci-security-secrets.yml", "pull-request-range"),
         JobIdentity("ci-security-workflow-lint.yml", "actionlint"),
+        JobIdentity("ci-security-workflow-lint.yml", "apr-util-provenance"),
         JobIdentity("ci-security-workflow-lint.yml", "zizmor"),
         JobIdentity("lint.yml", "scaffold-lint"),
         JobIdentity("nginx-root-broker.yml", "trusted-root-smoke"),

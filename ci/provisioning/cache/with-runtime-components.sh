@@ -23,8 +23,8 @@ requested_component_target=$RUNTIME_COMPONENT_TARGET
     exit 77
 }
 REPO_ROOT=$CONNECTOR_ROOT
-# Reject Parent APR-util configuration before this wrapper reserves a snapshot
-# or resolves any cache state. The Framework remains the only tuple source.
+# Confirm any inherited tuple against Framework provenance before this wrapper
+# reserves a snapshot or resolves cache state.  Framework remains the source.
 /bin/sh "$CONNECTOR_ROOT/ci/tools/print-framework-apr-util-env.sh" "$FRAMEWORK_ROOT" "$CONNECTOR_ROOT" >/dev/null
 # shellcheck disable=SC1090
 . "$FRAMEWORK_ROOT/ci/lib/common.sh"

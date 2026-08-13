@@ -15,19 +15,31 @@ ALLOWLIST_PATH = ROOT / "tests" / "fixtures" / "apr-util-static-allowlist.txt"
 STATIC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "APR_UTIL_VERSION pin",
-        re.compile(r"\bAPR_UTIL_VERSION\b\s*(?::=|\?=|\+=|=)\s*['\"]?\d+(?:\.\d+)+", re.IGNORECASE),
+        re.compile(
+            r"(?:['\"]?APR_UTIL_VERSION['\"]?)\s*(?::=|\?=|\+=|=|:)\s*['\"]?\d+(?:\.\d+)+",
+            re.IGNORECASE,
+        ),
     ),
     (
         "APR_UTIL_SHA256 pin",
-        re.compile(r"\bAPR_UTIL_SHA256\b\s*(?::=|\?=|\+=|=)\s*['\"]?[0-9a-f]{64}\b", re.IGNORECASE),
+        re.compile(
+            r"(?:['\"]?APR_UTIL_SHA256['\"]?)\s*(?::=|\?=|\+=|=|:)\s*['\"]?[0-9a-f]{64}\b",
+            re.IGNORECASE,
+        ),
     ),
     (
         "APR_UTIL_SOURCE_URL pin",
-        re.compile(r"\bAPR_UTIL_SOURCE_URL\b\s*(?::=|\?=|\+=|=)\s*['\"]?https?://", re.IGNORECASE),
+        re.compile(
+            r"(?:['\"]?APR_UTIL_SOURCE_URL['\"]?)\s*(?::=|\?=|\+=|=|:)\s*['\"]?https?://",
+            re.IGNORECASE,
+        ),
     ),
     (
         "APR_UTIL_SHA256_URL pin",
-        re.compile(r"\bAPR_UTIL_SHA256_URL\b\s*(?::=|\?=|\+=|=)\s*['\"]?https?://", re.IGNORECASE),
+        re.compile(
+            r"(?:['\"]?APR_UTIL_SHA256_URL['\"]?)\s*(?::=|\?=|\+=|=|:)\s*['\"]?https?://",
+            re.IGNORECASE,
+        ),
     ),
     (
         "versioned APR-util archive",
@@ -36,7 +48,7 @@ STATIC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "legacy APR-util pin alias",
         re.compile(
-            r"\bAPR_UTIL_PINNED_(?:VERSION|URL|SHA256|SHA256_URL)\b",
+            r"\bAPR_UTIL_PINNED_(?:VERSION|SOURCE_URL|SHA256|SHA256_URL|URL)\b",
             re.IGNORECASE,
         ),
     ),
@@ -105,14 +117,19 @@ class AprUtilStaticContractTests(unittest.TestCase):
     def test_scanner_recognizes_each_prohibited_static_form(self) -> None:
         version = "9.8.7"
         digest = "a" * 64
+        version_key = "APR_UTIL_" + "VERSION"
+        sha256_key = "APR_UTIL_" + "SHA256"
+        source_url_key = "APR_UTIL_" + "SOURCE_URL"
+        sha256_url_key = "APR_UTIL_" + "SHA256_URL"
+        pinned_version_key = "APR_UTIL_" + "PINNED_" + "VERSION"
         sample = "\n".join(
             (
-                "APR_UTIL_VERSION = '" + version + "'",
-                "APR_UTIL_SHA256 = '" + digest + "'",
-                "APR_UTIL_SOURCE_URL = '" + "https://fixture.invalid/apr-util-" + version + ".tar.bz2'",
-                "APR_UTIL_SHA256_URL = '" + "https://fixture.invalid/apr-util-" + version + ".tar.bz2.sha256'",
+                version_key + " = '" + version + "'",
+                sha256_key + " = '" + digest + "'",
+                source_url_key + " = '" + "https://fixture.invalid/apr-util-" + version + ".tar.bz2'",
+                sha256_url_key + " = '" + "https://fixture.invalid/apr-util-" + version + ".tar.bz2.sha256'",
                 "https://fixture.invalid/apr-util-" + version + ".tar.bz2.sha256",
-                "APR_UTIL_PINNED_" + "VERSION",
+                pinned_version_key,
             )
         )
         self.assertEqual(
@@ -130,14 +147,18 @@ class AprUtilStaticContractTests(unittest.TestCase):
     def test_scanner_recognizes_makefile_assignment_variants(self) -> None:
         digest = "b" * 64
         version = "9.8" + ".7"
+        version_key = "APR_UTIL_" + "VERSION"
+        sha256_key = "APR_UTIL_" + "SHA256"
+        source_url_key = "APR_UTIL_" + "SOURCE_URL"
+        sha256_url_key = "APR_UTIL_" + "SHA256_URL"
         for operator in ("=", ":=", "?=", "+="):
             with self.subTest(operator=operator):
                 sample = "\n".join(
                     (
-                        f"APR_UTIL_VERSION {operator} {version}",
-                        f"APR_UTIL_SHA256 {operator} {digest}",
-                        f"APR_UTIL_SOURCE_URL {operator} https://fixture.invalid/apr-util-{version}.tar.bz2",
-                        f"APR_UTIL_SHA256_URL {operator} https://fixture.invalid/apr-util-{version}.tar.bz2.sha256",
+                        f"{version_key} {operator} {version}",
+                        f"{sha256_key} {operator} {digest}",
+                        f"{source_url_key} {operator} https://fixture.invalid/apr-util-{version}.tar.bz2",
+                        f"{sha256_url_key} {operator} https://fixture.invalid/apr-util-{version}.tar.bz2.sha256",
                     )
                 )
                 self.assertEqual(
@@ -150,6 +171,63 @@ class AprUtilStaticContractTests(unittest.TestCase):
                         "versioned APR-util archive",
                     ],
                 )
+
+    def test_scanner_recognizes_yaml_json_and_python_mapping_forms(self) -> None:
+        version = "9.8.7"
+        digest = "c" * 64
+        version_key = "APR_UTIL_" + "VERSION"
+        sha256_key = "APR_UTIL_" + "SHA256"
+        source_url_key = "APR_UTIL_" + "SOURCE_URL"
+        sha256_url_key = "APR_UTIL_" + "SHA256_URL"
+        pinned_keys = tuple(
+            "APR_UTIL_" + "PINNED_" + suffix
+            for suffix in ("VERSION", "SOURCE_URL", "SHA256", "SHA256_URL")
+        )
+        source_url = f"https://fixture.invalid/apr-util-{version}.tar.bz2"
+        sha256_url = source_url + ".sha256"
+        forms = (
+            "\n".join(
+                (
+                    f"{version_key}: {version}",
+                    f"{sha256_key}: {digest}",
+                    f"{source_url_key}: {source_url}",
+                    f"{sha256_url_key}: {sha256_url}",
+                    *(f"{key}: retained" for key in pinned_keys),
+                )
+            ),
+            "{" + ", ".join(
+                (
+                    f'\"{version_key}\": \"{version}\"',
+                    f'\"{sha256_key}\": \"{digest}\"',
+                    f'\"{source_url_key}\": \"{source_url}\"',
+                    f'\"{sha256_url_key}\": \"{sha256_url}\"',
+                    *(f'\"{key}\": \"retained\"' for key in pinned_keys),
+                )
+            ) + "}",
+            "{" + ", ".join(
+                (
+                    f"'{version_key}': '{version}'",
+                    f"'{sha256_key}': '{digest}'",
+                    f"'{source_url_key}': '{source_url}'",
+                    f"'{sha256_url_key}': '{sha256_url}'",
+                    *(f"'{key}': 'retained'" for key in pinned_keys),
+                )
+            ) + "}",
+        )
+        expected = [
+            "APR_UTIL_VERSION pin",
+            "APR_UTIL_SHA256 pin",
+            "APR_UTIL_SOURCE_URL pin",
+            "APR_UTIL_SHA256_URL pin",
+            "versioned APR-util archive",
+            "legacy APR-util pin alias",
+        ]
+        for form in forms:
+            with self.subTest(form=form):
+                self.assertEqual(static_hits(form), expected)
+
+    def test_scanner_regression_fixture_does_not_detect_itself(self) -> None:
+        self.assertEqual(static_hits(Path(__file__).read_text(encoding="utf-8")), [])
 
     def test_allowlist_is_exact_existing_historical_evidence(self) -> None:
         for relative_path, rationale in approved_paths().items():

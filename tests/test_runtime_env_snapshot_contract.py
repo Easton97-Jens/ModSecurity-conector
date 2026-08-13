@@ -12,6 +12,12 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
+FRAMEWORK_ROOT = Path(
+    os.environ.get(
+        "PARENT_TEST_FRAMEWORK_ROOT",
+        ROOT / "modules" / "ModSecurity-test-Framework",
+    )
+)
 PREPARE_PATH = ROOT / "ci" / "provisioning" / "components" / "prepare-runtime-components.py"
 RESERVE_PATH = ROOT / "ci" / "runtime" / "lifecycle" / "reserve-runtime-env-snapshot.sh"
 NATIVE_COMPARISON_PATH = ROOT / "ci" / "runtime" / "lifecycle" / "run-native-case-comparison.py"
@@ -54,7 +60,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             ):
                 summary = native_comparison.write_summary_report(
                     ROOT,
-                    ROOT / "modules" / "ModSecurity-test-Framework",
+                    FRAMEWORK_ROOT,
                     root / "verified-runs",
                     (),
                     [],
@@ -410,7 +416,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 env={
                     **os.environ,
                     "CONNECTOR_ROOT": str(ROOT),
-                    "FRAMEWORK_ROOT": str(ROOT / "modules" / "ModSecurity-test-Framework"),
+                    "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
                     "VERIFIED_RUN_ROOT": str(root),
                     "VERIFIED_BUILD_ROOT": str(build_root),
                     "BUILD_ROOT": str(build_root),
@@ -610,7 +616,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             environment = {
                 **os.environ,
                 "CONNECTOR_ROOT": str(ROOT),
-                "FRAMEWORK_ROOT": str(ROOT / "modules" / "ModSecurity-test-Framework"),
+                "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
                 "REPO_ROOT": str(ROOT),
                 "VERIFIED_RUN_ROOT": str(verified_root),
                 "VERIFIED_SOURCE_ROOT": str(verified_root / "src"),
@@ -635,7 +641,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                     "-c",
                     command,
                     "sh",
-                    str(ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "lib" / "common.sh"),
+                    str(FRAMEWORK_ROOT / "ci" / "lib" / "common.sh"),
                     str(helper),
                 ],
                 cwd=ROOT,
@@ -661,7 +667,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                     "-c",
                     '. "$1"; . "$2"',
                     "sh",
-                    str(ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "lib" / "common.sh"),
+                    str(FRAMEWORK_ROOT / "ci" / "lib" / "common.sh"),
                     str(helper),
                 ],
                 cwd=ROOT,
@@ -685,7 +691,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             environment = {
                 **os.environ,
                 "CONNECTOR_ROOT": str(ROOT),
-                "FRAMEWORK_ROOT": str(ROOT / "modules" / "ModSecurity-test-Framework"),
+                "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
                 "REPO_ROOT": str(ROOT),
                 "VERIFIED_RUN_ROOT": str(component_cache),
                 "VERIFIED_SOURCE_ROOT": str(component_cache / "src"),
@@ -704,7 +710,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                     "-c",
                     '. "$1"; . "$2"',
                     "sh",
-                    str(ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "lib" / "common.sh"),
+                    str(FRAMEWORK_ROOT / "ci" / "lib" / "common.sh"),
                     str(helper),
                 ],
                 cwd=ROOT,
@@ -721,13 +727,14 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
 
     def test_make_does_not_materialize_an_empty_nginx_github_repo_alias(self) -> None:
         environment = os.environ.copy()
+        environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
         environment.pop("NGINX_GITHUB_REPO", None)
         result = subprocess.run(
             [
                 "make",
                 "--no-print-directory",
                 "--silent",
-                "--eval=assert-nginx-github-repo-is-unset: ; @printenv NGINX_GITHUB_REPO >/dev/null; test $$? -eq 1; FRAMEWORK_ROOT=$(CURDIR)/modules/ModSecurity-test-Framework NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx sh -eu -c '. \"$$FRAMEWORK_ROOT/ci/lib/common.sh\"; test \"$$NGINX_GITHUB_REPO\" = \"$$NGINX_SOURCE_REPO_URL\"'",
+                "--eval=assert-nginx-github-repo-is-unset: ; @printenv NGINX_GITHUB_REPO >/dev/null; test $$? -eq 1; FRAMEWORK_ROOT=\"$$FRAMEWORK_ROOT\" NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx sh -eu -c '. \"$$FRAMEWORK_ROOT/ci/lib/common.sh\"; test \"$$NGINX_GITHUB_REPO\" = \"$$NGINX_SOURCE_REPO_URL\"'",
                 "assert-nginx-github-repo-is-unset",
             ],
             cwd=ROOT,
@@ -740,6 +747,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
 
     def test_make_prints_the_guarded_framework_apr_util_tuple_without_parent_overrides(self) -> None:
         environment = os.environ.copy()
+        environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
         for variable in (
             "APR_UTIL_VERSION",
             "APR_UTIL_SOURCE_URL",
@@ -771,6 +779,39 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         unquoted = {key: value[1:-1] for key, value in values.items()}
         self.assertEqual(values["APR_UTIL_SOURCE_URL"], f"'{components.require_apr_util_pinned_provenance(unquoted)['APR_UTIL_SOURCE_URL']}'")
 
+    def test_make_accepts_a_complete_canonical_apr_util_tuple(self) -> None:
+        environment = os.environ.copy()
+        environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
+        for variable in components.FRAMEWORK_APR_UTIL_ENV_KEYS:
+            environment.pop(variable, None)
+        initial = subprocess.run(
+            ["make", "--no-print-directory", "--silent", "framework-apr-util-env"],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(initial.returncode, 0, initial.stderr)
+        canonical = {
+            key: value[1:-1]
+            for key, value in (
+                line.split("=", 1) for line in initial.stdout.splitlines() if line
+            )
+        }
+        inherited = dict(environment)
+        inherited.update(canonical)
+        repeated = subprocess.run(
+            ["make", "--no-print-directory", "--silent", "framework-apr-util-env"],
+            cwd=ROOT,
+            env=inherited,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(repeated.returncode, 0, repeated.stderr)
+        self.assertEqual(repeated.stdout, initial.stdout)
+
     def test_make_forwards_an_explicit_empty_apr_util_override_to_the_guard(self) -> None:
         for variable in (
             "APR_UTIL_VERSION",
@@ -780,6 +821,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         ):
             with self.subTest(variable=variable):
                 environment = os.environ.copy()
+                environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
                 environment[variable] = ""
                 result = subprocess.run(
                     [
@@ -795,7 +837,11 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                     check=False,
                 )
                 self.assertNotEqual(result.returncode, 0, result.stderr)
-                self.assertIn(f"APR-util inherited Parent override is not permitted: {variable}", result.stderr)
+                self.assertIn(
+                    "APR-util inherited tuple must set all four canonical fields or none",
+                    result.stderr,
+                )
+                self.assertIn("Error 77", result.stderr)
 
     def test_make_forwards_a_mismatched_apr_util_override_to_the_guard(self) -> None:
         for variable in (
@@ -806,6 +852,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         ):
             with self.subTest(variable=variable):
                 environment = os.environ.copy()
+                environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
                 environment[variable] = "untrusted-value"
                 result = subprocess.run(
                     [
@@ -821,7 +868,11 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                     check=False,
                 )
                 self.assertNotEqual(result.returncode, 0, result.stderr)
-                self.assertIn(f"APR-util inherited Parent override is not permitted: {variable}", result.stderr)
+                self.assertIn(
+                    "APR-util inherited tuple must set all four canonical fields or none",
+                    result.stderr,
+                )
+                self.assertIn("Error 77", result.stderr)
 
     def test_full_smoke_cleanup_is_opt_in_and_skipping_it_keeps_the_matrix_eligible(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "test-full-smoke-sequential.yml").read_text(

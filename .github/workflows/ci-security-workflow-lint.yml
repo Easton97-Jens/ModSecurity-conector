@@ -2,7 +2,6 @@ name: Security workflow lint
 
 on:
   pull_request:
-    branches: [master]
   push:
     branches: [master]
   workflow_dispatch:
@@ -11,6 +10,28 @@ permissions:
   contents: read
 
 jobs:
+  apr-util-provenance:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Set up toolchain
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Run APR-util provenance contracts
+        run: python3 -m unittest -v tests.test_framework_apr_util_provenance tests.test_apr_util_static_contract
+
   actionlint:
     runs-on: ubuntu-latest
     steps:

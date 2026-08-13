@@ -30,10 +30,12 @@ tatsächlichen Mutation unterscheiden konnte.
 
 ## Akzeptanzkriterien
 
-- Produktive Parent-APR-util-Konfiguration verwendet das geschützte
-  Provenance-Tupel des ausgecheckten Frameworks, weist direkte
-  `APR_UTIL_*`-Overrides ab und validiert ausgewähltes Archiv, Checksum-URL und
-  SHA-256 vor Cache- oder Build-Nutzung.
+- Produktive Parent-APR-util-Konfiguration weist direkte `APR_UTIL_*`-Overrides
+  ab. Ein vollständiges kanonisches Tupel darf nur intern zwischen Parent und
+  Child nach einem unabhängigen Vergleich mit dem ausgecheckten Framework
+  weitergegeben werden; partielle, leere, abweichende oder alternative Tupel
+  schlagen vor Cache- oder Build-Nutzung fehlgeschlossen fehl. Parent besitzt
+  keine APR-util-Version oder SHA-256.
 - Cache-Identitäten enthalten die autoritativen APR-util-Provenance-Eingaben.
 - Der Updater akzeptiert einen unveränderten Candidate als No-op und einen
   gültigen vorwärts gerichteten Descendant, weist aber fehlerhafte,
@@ -49,15 +51,20 @@ tatsächlichen Mutation unterscheiden konnte.
 ## Implementierungsentscheidung und Begründung
 
 `ci/tools/print-framework-apr-util-env.sh` ist eine feste `/bin/sh`-Bridge. Sie
-weist jeden geerbten `APR_UTIL_*`-Wert ab, sourct das ausgecheckte Framework
-`ci/lib/common.sh`, ruft die Framework-Provenance-Guards auf und gibt nur die
-vier shell-quotierten APR-util-Assignments aus. Der Parent-Python-Loader ruft
-diese feste Bridge über vertrauenswürdige Host-Executables auf, bereinigt
-Shell-Hooks und `PATH`, parst das ausgewählte Tupel strikt und prüft seine
-kanonische HTTPS-Downloadform und 64-stellige SHA-256. Runtime-Component-
-Preparation, Inventory und Cache-Wrapper führen denselben Guard vor Cache-
-Roots oder Build-Arbeit aus. Parent stellt keinen statischen Fallback-Pin
-wieder her.
+erfasst und entfernt geerbten `APR_UTIL_*`-Zustand, sourct das ausgecheckte
+Framework `ci/lib/common.sh`, ruft die Framework-Provenance-Guards auf und gibt
+nur die vier shell-quotierten APR-util-Assignments aus. Der Parent-Python-Loader
+ruft diese feste Bridge über vertrauenswürdige Host-Executables auf, bereinigt
+Shell-Hooks und `PATH`, parst ein vollständiges kanonisches Tupel strikt und
+vergleicht die erfasste Eingabe unabhängig mit dem Ergebnis des ausgecheckten
+Frameworks. Nur eine fehlende Eingabe oder ein passendes nichtleeres
+vollständiges Tupel darf intern zwischen Parent und Child weitergegeben werden;
+partielle, leere, abweichende oder alternative Tupel schlagen fehlgeschlossen
+fehl. Die kanonische HTTPS-Downloadform und 64-stellige SHA-256 werden vor der
+Nutzung erneut validiert. Runtime-Component-Preparation, Inventory und
+Cache-Wrapper führen denselben Guard vor Cache-Roots oder Build-Arbeit aus.
+Parent besitzt keine APR-util-Version oder SHA-256 und stellt keinen statischen
+Fallback-Pin wieder her.
 
 `ci/tools/validate-submodule-candidate-state.py` erfasst eine deterministische
 Parent-Baseline vor Candidate-Checkout und validiert anschließend den exakten
@@ -92,8 +99,11 @@ Helper vor dem Baseline-Write `GITHUB_ENV_INVALID` zurück.
 Die Änderung stärkt zwei sicherheitsrelevante Grenzen. APR-util-Provenance wird
 jetzt vom autoritativen Framework-Guard statt von duplizierten Parent-Pins
 bezogen, und feindlicher geerbter Shell-Zustand kann das ausgewählte Tupel nicht
-still überschreiben. Strikte Archiv- und Digest-Validierung bindet die Cache-
-Identität an die geschützte Provenance.
+still überschreiben. Ein vollständiges kanonisches Tupel darf die interne
+Parent-/Child-Grenze nur nach einem unabhängigen Framework-Vergleich passieren;
+partielle, leere, abweichende und alternative Tupel schlagen fehlgeschlossen
+fehl. Strikte Archiv- und Digest-Validierung bindet die Cache-Identität an die
+geschützte Provenance.
 
 Candidate-Validierung behandelt den Framework-Candidate weiterhin als nicht
 vertrauenswürdig. Sie verlangt vollständige SHA-Werte, weist unsichere
@@ -226,8 +236,10 @@ Ausführung wurden als Nachweis für diese Änderung verwendet.
 Die lokalen Git-Fixtures prüfen Resolver- und Candidate-State-Verhalten,
 beweisen aber kein GitHub-hosted-Runner-Verhalten. Die Bridge benötigt ein
 ausgechecktes Framework-`common.sh`; dieses Framework bleibt extern owned und
-unverändert. Direkte Parent-`APR_UTIL_*`-Overrides schlagen jetzt absichtlich
-früh fehl, statt ein Framework-owned-Provenance-Tupel zu verändern.
+unverändert. Direkte Parent-`APR_UTIL_*`-Overrides schlagen absichtlich früh
+fehl, statt ein Framework-owned-Provenance-Tupel zu verändern. Parent besitzt
+keine APR-util-Version oder SHA-256; das intern weitergegebene Tupel bleibt nur
+nach seinem unabhängigen Vergleich mit dem ausgecheckten Framework gültig.
 
 Die `GITHUB_ENV`-Containment-Härtung ist lokal abgeschlossen und hat lokale
 Regressionsabdeckung, benötigt aber weiterhin frische Hosted-Sonar-Analyse
