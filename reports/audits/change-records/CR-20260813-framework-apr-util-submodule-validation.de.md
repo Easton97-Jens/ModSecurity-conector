@@ -286,3 +286,20 @@ Für dieses Follow-up wurde folgende lokale Validierung beobachtet:
 Dies sind ausschließlich lokale Ergebnisse. Für den Follow-up-Head wurde noch
 kein frisches Hosted-SonarCloud-Ergebnis beobachtet; die Hosted-Analyse bleibt
 bis nach Commit und Push des Follow-ups ausstehend.
+
+## Hosted-Delivery-Ergebnis (vor diesem reinen Dokumentations-Follow-up-Commit beobachtet)
+
+Dieser Abschnitt korrigiert den früheren Status einer ausstehenden
+Hosted-Analyse. Der Source-Remediation-Commit
+`2a962b43615b8ff078a00828b1fb3338ce441abd` ist der exakte von SonarCloud am
+`2026-08-13T15:51:30+0000` analysierte PR-Head: Das Quality Gate meldete `OK`,
+`codeSmells` war `0`, und die API-Abfrage meldete insgesamt `0` offene New
+Issues. Die GitHub-Checksuite für diesen exakten Head war terminal, ohne
+ausstehende oder erfolglose Checks. Draft-Parent-PR
+[#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) bleibt
+gegen `master` offen.
+
+Diese Fakten gehen diesem reinen Dokumentations-Follow-up-Commit voraus, der
+keine selbstreferenzielle finale SHA beansprucht. Es erfolgten und werden
+weder Merge noch Auto-Merge, Parent-Gitlink-Update oder Framework/MRTS-Delivery
+behauptet.

@@ -274,3 +274,17 @@ Local validation observed for this follow-up:
 These are local results only. No fresh hosted SonarCloud result has been
 observed for the follow-up head; hosted analysis remains pending until after
 the follow-up is committed and pushed.
+
+## Hosted delivery result (observed before this documentation-only follow-up commit)
+
+This section corrects the earlier pending-hosted-analysis status. Source
+remediation commit `2a962b43615b8ff078a00828b1fb3338ce441abd` is the exact PR
+head analyzed by SonarCloud at `2026-08-13T15:51:30+0000`: the Quality Gate
+reported `OK`, `codeSmells` was `0`, and the API query reported `0` total open
+New Issues. The exact-head GitHub check suite was terminal, with no pending or
+unsuccessful checks. Draft Parent PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280)
+remains open against `master`.
+
+These facts precede this documentation-only follow-up commit, which does not
+claim a self-referential final SHA. No merge, auto-merge, Parent Gitlink
+update, or Framework/MRTS delivery occurred or is asserted.
