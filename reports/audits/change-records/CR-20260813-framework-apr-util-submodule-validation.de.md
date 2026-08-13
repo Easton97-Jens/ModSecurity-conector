@@ -9,7 +9,7 @@
 | Change-ID | CR-20260813-framework-apr-util-submodule-validation |
 | Datum (UTC) | 2026-08-13 |
 | Basis-Revision | `33973d094b3f0aeb47605f08ced16a4043f643a0` |
-| Delivery-Status | Lokal validierte Parent-Änderung. Der Benutzer hat einen Draft-PR autorisiert; dieser Record behauptet keine Hosted-Ausführung, kein PR-Ergebnis, kein Review, keinen Merge und keine Cross-Repository-Delivery. |
+| Delivery-Status | Draft-Parent-PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) ist gegen `master` offen. Lokale Validierung ist unten aufgezeichnet; Hosted-Exact-Head-Checks, Review, Merge und Cross-Repository-Delivery werden nicht behauptet. |
 
 ## Motivation und Problemstellung
 
@@ -183,7 +183,8 @@ Merge- oder Cross-Repository-Erfolg.
 ## Finaler Diff- und Review-Status
 
 Die eingeschränkte Parent-Implementierung, fokussierte lokale Tests,
-Security-Review und Whitespace-Prüfungen wurden vor Delivery beobachtet.
-Dieser Record behauptet absichtlich keine offene PR-Nummer, kein Exact-Head-
-Hosted-Ergebnis, kein Review, keinen Merge oder Parent-Gitlink-Update; diese
-Fakten müssen unabhängig beobachtet werden.
+Security-Review und Whitespace-Prüfungen wurden vor Delivery beobachtet. Der
+Draft-Parent-PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280)
+ist gegen `master` offen; sein aktueller exakter Head und Hosted-Check-Status
+müssen nach diesem Follow-up-Record-Commit erneut abgefragt werden. Kein
+Review, Merge oder Parent-Gitlink-Update wird behauptet.
