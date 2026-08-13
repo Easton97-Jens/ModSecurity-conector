@@ -63,19 +63,37 @@ class ValidateSubmoduleCandidateStateTests(unittest.TestCase):
         parent_head = self.git(parent, "rev-parse", "HEAD")
         return parent, parent / "framework", framework_a, parent_head
 
-    def run_capture(self, parent: Path, environment: Path) -> dict[str, str]:
-        result = subprocess.run(
+    def capture_result(
+        self, parent: Path, environment: Path, *, runner_temp: Path | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        command_environment = os.environ.copy()
+        command_environment["RUNNER_TEMP"] = str(runner_temp or environment.parent)
+        return subprocess.run(
             [sys.executable, str(VALIDATOR), "capture-parent-baseline", "--parent-root", str(parent), "--github-env", str(environment)],
             check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            env=command_environment,
+            timeout=10,
         )
+
+    def run_capture(self, parent: Path, environment: Path) -> dict[str, str]:
+        environment.touch()
+        result = self.capture_result(parent, environment)
         self.assertEqual(result.returncode, 0, result.stderr)
         return dict(line.split("=", 1) for line in environment.read_text(encoding="utf-8").splitlines())
 
-    def run_validate(self, parent: Path, baseline: dict[str, str], current: str, candidate: str) -> subprocess.CompletedProcess[str]:
+    def run_validate(
+        self,
+        parent: Path,
+        baseline: dict[str, str],
+        current: str,
+        candidate: str,
+        *,
+        submodule_path: str = "framework",
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
                 sys.executable, str(VALIDATOR), "validate", "--parent-root", str(parent),
-                "--submodule-path", "framework", "--current-gitlink-sha", current,
+                "--submodule-path", submodule_path, "--current-gitlink-sha", current,
                 "--candidate-sha", candidate, "--expected-parent-head", baseline["EXPECTED_PARENT_HEAD"],
                 "--expected-parent-hooks-sha256", baseline["EXPECTED_PARENT_HOOKS_SHA256"],
             ], check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -126,6 +144,79 @@ class ValidateSubmoduleCandidateStateTests(unittest.TestCase):
             parent, _framework, current, _head = self.make_layout(Path(raw))
             baseline = self.run_capture(parent, Path(raw) / "github-env")
             self.assert_code(self.run_validate(parent, baseline, current, "short"), "CANDIDATE_SHA_INVALID")
+
+    def test_capture_rejects_github_env_outside_runner_temp_or_via_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            temporary = Path(raw)
+            parent, _framework, _current, _head = self.make_layout(temporary)
+            runner_temp = temporary / "runner-temp"
+            runner_temp.mkdir()
+            outside = temporary / "outside-env"
+            outside.touch()
+            self.assert_code(
+                self.capture_result(parent, outside, runner_temp=runner_temp), "GITHUB_ENV_INVALID"
+            )
+            traversal = runner_temp / ".." / "outside-env"
+            self.assert_code(
+                self.capture_result(parent, traversal, runner_temp=runner_temp), "GITHUB_ENV_INVALID"
+            )
+            symlink = runner_temp / "symlink-env"
+            symlink.symlink_to(outside)
+            self.assert_code(
+                self.capture_result(parent, symlink, runner_temp=runner_temp), "GITHUB_ENV_INVALID"
+            )
+            hardlink = runner_temp / "hardlink-env"
+            os.link(outside, hardlink)
+            self.assert_code(
+                self.capture_result(parent, hardlink, runner_temp=runner_temp), "GITHUB_ENV_INVALID"
+            )
+            fifo = runner_temp / "fifo-env"
+            os.mkfifo(fifo)
+            self.assert_code(
+                self.capture_result(parent, fifo, runner_temp=runner_temp), "GITHUB_ENV_INVALID"
+            )
+            linked_directory = runner_temp / "linked-directory"
+            linked_directory.symlink_to(temporary)
+            self.assert_code(
+                self.capture_result(
+                    parent, linked_directory / "outside-env", runner_temp=runner_temp
+                ),
+                "GITHUB_ENV_INVALID",
+            )
+            self.assertEqual(outside.read_text(encoding="utf-8"), "")
+
+    def test_capture_rejects_missing_runner_temp_and_accepts_runner_file(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            temporary = Path(raw)
+            parent, _framework, _current, _head = self.make_layout(temporary)
+            runner_temp = temporary / "runner-temp"
+            runner_temp.mkdir()
+            environment = runner_temp / "github-env"
+            environment.touch()
+            success = self.capture_result(parent, environment, runner_temp=runner_temp)
+            self.assertEqual(success.returncode, 0, success.stderr)
+            missing_root = temporary / "missing-runner-temp"
+            self.assert_code(
+                self.capture_result(parent, environment, runner_temp=missing_root), "GITHUB_ENV_INVALID"
+            )
+            os.chmod(runner_temp, 0o777)
+            self.assert_code(
+                self.capture_result(parent, environment, runner_temp=runner_temp), "GITHUB_ENV_INVALID"
+            )
+            self.assert_code(
+                self.capture_result(parent, environment, runner_temp=Path("/")), "GITHUB_ENV_INVALID"
+            )
+
+    def test_submodule_path_escape_arguments_are_rejected_before_path_construction(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            parent, _framework, current, _head = self.make_layout(Path(raw))
+            baseline = self.run_capture(parent, Path(raw) / "github-env")
+            for malicious_path in ("../framework", "framework/../README", "/tmp/framework", ":(top)framework"):
+                with self.subTest(malicious_path=malicious_path):
+                    result = self.run_validate(
+                        parent, baseline, current, current, submodule_path=malicious_path
+                    )
+                    self.assert_code(result, "SUBMODULE_PATH_INVALID")
 
     def test_framework_and_recursive_nested_dirty_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

@@ -130,6 +130,96 @@ def _relative_path(value: str, code: str) -> str:
     return value
 
 
+def _open_directory_without_symlinks(path: Path, code: str) -> int:
+    if not path.is_absolute() or os.path.normpath(os.fspath(path)) != os.fspath(path):
+        _fail(code)
+    current = Path(path.anchor)
+    try:
+        descriptor = os.open(current, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        for component in path.parts[1:]:
+            next_descriptor = os.open(
+                component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                dir_fd=descriptor,
+            )
+            os.close(descriptor)
+            descriptor = next_descriptor
+    except OSError:
+        try:
+            os.close(descriptor)
+        except UnboundLocalError:
+            pass
+        _fail(code)
+    return descriptor
+
+
+def _trusted_runner_directory(descriptor: int, code: str) -> None:
+    metadata = os.fstat(descriptor)
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_mode & 0o022
+    ):
+        _fail(code)
+
+
+def _open_github_environment_file(value: str) -> int:
+    runner_temp = Path(os.environ.get("RUNNER_TEMP", ""))
+    if runner_temp == Path("/"):
+        _fail("GITHUB_ENV_INVALID")
+    runner_descriptor = _open_directory_without_symlinks(runner_temp, "GITHUB_ENV_INVALID")
+    directory_descriptor = -1
+    environment_descriptor = -1
+    try:
+        _trusted_runner_directory(runner_descriptor, "GITHUB_ENV_INVALID")
+
+        environment = Path(value)
+        if not environment.is_absolute() or os.path.normpath(value) != value:
+            _fail("GITHUB_ENV_INVALID")
+        try:
+            relative = environment.relative_to(runner_temp)
+        except ValueError:
+            _fail("GITHUB_ENV_INVALID")
+        if not relative.parts:
+            _fail("GITHUB_ENV_INVALID")
+        directory_descriptor = runner_descriptor
+        runner_descriptor = -1
+        for component in relative.parts[:-1]:
+            next_descriptor = os.open(
+                component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                dir_fd=directory_descriptor,
+            )
+            os.close(directory_descriptor)
+            directory_descriptor = next_descriptor
+            _trusted_runner_directory(directory_descriptor, "GITHUB_ENV_INVALID")
+        environment_descriptor = os.open(
+            relative.parts[-1],
+            os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+            dir_fd=directory_descriptor,
+        )
+        os.close(directory_descriptor)
+        directory_descriptor = -1
+        metadata = os.fstat(environment_descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.geteuid()
+            or metadata.st_mode & 0o022
+            or metadata.st_nlink != 1
+        ):
+            _fail("GITHUB_ENV_INVALID")
+        result = environment_descriptor
+        environment_descriptor = -1
+        return result
+    except OSError:
+        _fail("GITHUB_ENV_INVALID")
+    finally:
+        if runner_descriptor >= 0:
+            os.close(runner_descriptor)
+        if directory_descriptor >= 0:
+            os.close(directory_descriptor)
+        if environment_descriptor >= 0:
+            os.close(environment_descriptor)
+
+
 def _require_full_revision(value: str, code: str) -> str:
     if not FULL_SHA1.fullmatch(value):
         _fail(code)
@@ -302,13 +392,11 @@ def _validate_framework(parent: Path, arguments: argparse.Namespace) -> None:
 def capture_parent_baseline(arguments: argparse.Namespace) -> None:
     parent = Path(arguments.parent_root).resolve(strict=False)
     _repository_root(parent, "PARENT_ROOT_INVALID")
-    environment = Path(arguments.github_env)
-    if not environment.parent.is_dir() or environment.is_symlink():
-        _fail("GITHUB_ENV_INVALID")
     head = _git(parent, "rev-parse", "HEAD").strip()
     digest = _hooks_digest(parent)
+    environment_descriptor = _open_github_environment_file(arguments.github_env)
     try:
-        with environment.open("a", encoding="utf-8", newline="\n") as stream:
+        with os.fdopen(environment_descriptor, "a", encoding="utf-8", newline="\n") as stream:
             stream.write(f"EXPECTED_PARENT_HEAD={head}\n")
             stream.write(f"EXPECTED_PARENT_HOOKS_SHA256={digest}\n")
     except OSError:

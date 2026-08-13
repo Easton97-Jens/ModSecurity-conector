@@ -146,6 +146,7 @@ class UpdateSubmodulesLocalGitTests(unittest.TestCase):
         )
 
     def capture_baseline(self, parent: Path, environment_file: Path) -> dict[str, str]:
+        environment_file.touch()
         result = subprocess.run(
             [
                 sys.executable,
@@ -160,6 +161,7 @@ class UpdateSubmodulesLocalGitTests(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
+            env={**os.environ, "RUNNER_TEMP": str(environment_file.parent)},
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         return self.outputs(environment_file)
