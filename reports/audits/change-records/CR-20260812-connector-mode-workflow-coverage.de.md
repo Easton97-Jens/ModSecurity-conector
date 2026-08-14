@@ -9,7 +9,7 @@
 | Change-ID | CR-20260812-connector-mode-workflow-coverage |
 | Datum (UTC) | 2026-08-12, reconciled 2026-08-14 |
 | Basis-Revision | `ea3b48abab7940de49997a371f9117b409c05a2a` |
-| Delivery-Status | Draft-PR [#279](https://github.com/Easton97-Jens/ModSecurity-conector/pull/279) bleibt auf dem Remote-Head `63ad4f5ed359ba2be9abe955cb1c82e7dfcb3846`. Der lokale Task-Branch hat den aktuellen Master normal in `4e224b23c5973c34be3ef4f336b7772a0b13c094` gemergt und enthält darüber die lokal validierte Parent-CRS-Akquisitionsreparatur. Es wurde noch kein korrigierter Head gepusht und keine Ready-for-Review-Umstellung vorgenommen; die verbleibenden Clean-Worktree-Runtime-Controls und jede Exact-Head-Hosted-Evidence stehen noch aus. |
+| Delivery-Status | Draft-PR [#279](https://github.com/Easton97-Jens/ModSecurity-conector/pull/279) bleibt auf dem Remote-Head `63ad4f5ed359ba2be9abe955cb1c82e7dfcb3846`. Der lokale Task-Branch hat den aktuellen Master normal in `338985e5329076d42bb23cdeac8260f72b68b71d` gemergt und enthält darüber die lokal validierte Parent-CRS-Akquisitionsreparatur und Workflow-Korrekturen. Es wurde noch kein korrigierter Head gepusht und keine Ready-for-Review-Umstellung vorgenommen; Exact-Head-Hosted-Evidence steht weiterhin aus. |
 
 ## Motivation und Problemstellung
 
@@ -93,7 +93,11 @@ dieser Lockdatei gegen die aufgezeichneten immutable SHAs verifiziert. Dies
 vermeidet das zuvor identifizierte, in `FND-PARENT-0052` verfolgte
 Mutable-Pip-Muster, ohne einen Dependency-Lock oder Framework-Source zu ändern.
 
-Der fokussierte No-CRS/With-MRTS-HAProxy-Zweig setzt vor seinem nativen
+With-MRTS-Runtime-Cells verwenden den bestehenden nativen Control
+`action_allow_phase1_pass` und weisen ausdrücklich auf DetectionOnly-Semantik
+hin; sie behaupten keine Enforcement-Wirkung. Die separaten No-MRTS-Runtime-
+Cells behalten `action_deny_phase1`/HTTP `403` als Enforcement-Nachweis. Der
+fokussierte No-CRS/With-MRTS-HAProxy-Zweig setzt vor seinem nativen
 Case-Target den vorhandenen literalen Selektor
 `RUNTIME_COMPONENT_TARGET=haproxy`. Dieser Zweig benötigt kein CRS und kann
 deshalb das nicht zugehörige Apache-Archiv vermeiden, ohne seinen realen
@@ -198,11 +202,15 @@ benötigen, bleiben rekursiv. Dies ist die lokale Reparatur für
 
 Die fokussierten `action_deny_phase1`-Controls für Apache und HAProxy mit
 `with-crs/no-mrts` bestanden jeweils mit HTTP `403` unter der reparierten
-Source-Topologie. Ein erster kanonischer Apache-No-CRS-Lauf führte beide
-legitimen Fälle aus, aber sein Evidence-Finalizer verweigerte korrekt `PASS`,
-weil der Source-Worktree dirty war. Er ist nur diagnostisch; die vollständige
-frische Acht-Mode-Serie im sauberen Worktree bleibt vor der Veröffentlichung
-erforderlich.
+Source-Topologie. Danach vervollständigte die Runtime-Evidence im sauberen
+Worktree alle acht Apache/HAProxy-Mode-Cells: Die vier No-MRTS-Enforcement-
+Controls lieferten HTTP `403`, während die vier With-MRTS-DetectionOnly-
+Controls `action_allow_phase1_pass` ausführten und HTTP `200` mit ausgeführtem
+nativen Control, aber ohne Enforcement-Claim lieferten. Die HAProxy-Workflows
+legen `BUILD_ROOT` nun unter `$cell_root/verified/build` und erfüllen damit
+den bestehenden Verified-Root-Guard; ein `XDG_STATE_HOME`-Workaround wurde
+nicht hinzugefügt. Diese lokale Acht-Mode-Evidence ist für den Task erhalten,
+ersetzt aber keine Exact-Head-Hosted-Runs.
 
 ### Diagnose der alten Hosted-Runs
 
@@ -232,11 +240,11 @@ Interpreter-Äquivalenz.
 
 ## Verbleibende Risiken
 
-`FND-PARENT-0128` ist lokal behoben, bleibt aber ein Release-/Integration-
-Blocker, bis die Acht-Mode-Runtime-Serie im sauberen Worktree und alle
-Exact-Head-Hosted-Cells bestehen. Framework/MRTS-Source und der fail-closed
-Provenance-Guard bleiben unverändert. actionlint/zizmor, Required Checks,
-Sonar-Disposition und die gesamte Hosted-Matrix-Evidence sind weiterhin
+`FND-PARENT-0128` ist lokal behoben; die verbundene With-MRTS-Semantik- und
+HAProxy-Root-Korrektur ist lokal ausgeführt, aber Release/Integration bleibt
+blockiert, bis Exact-Head-Hosted-Cells bestehen. Framework/MRTS-Source und der
+fail-closed Provenance-Guard bleiben unverändert. actionlint/zizmor, Required
+Checks, Sonar-Disposition und die gesamte Hosted-Matrix-Evidence sind weiterhin
 unverifiziert. Envoy-, Traefik- und lighttpd-MRTS-Cells bleiben ausdrücklich
 unsupported, bis eine unabhängig autorisierte Capability- und Evidence-
 Änderung existiert. Kein Fehler darf durch Abschwächung negativer,
@@ -248,23 +256,22 @@ statischer-Contract-, Cleanup- oder Security-Guards verdeckt werden.
   gepinnten Binaries fehlen; Tool-Fetch liegt außerhalb der lokalen
   Validierungsautorität dieses Tasks. Stattdessen sind Exact-Head-Hosted-Checks
   erforderlich.
-- Vollständige Acht-Mode-Lokalserie im sauberen Worktree und Exact-Head-
-  Hosted-Connector-Matrix: Beide stehen bis zum fokussierten lokalen Commit
-  aus, den der native No-CRS-Evidence-Finalizer benötigt, bevor er einen
-  sauberen Checkout attestieren kann.
+- Exact-Head-Hosted-Connector-Matrix: Sie steht bis zu einem gepushten
+  korrigierten Head aus; die vollständige Acht-Mode-Lokalserie im sauberen
+  Worktree ist abgeschlossen, beweist aber kein Hosted-Runner-Verhalten.
 - Corrected-Head-PR-Checks, SonarQube-Cloud-Anwendbarkeit und Ready-for-Review-
   Disposition: Es wurde kein korrigierter Commit gepusht; Merge und Auto-Merge
   bleiben ausdrücklich außerhalb des Scopes.
 
 ## Finaler Diff- und Review-Status
 
-Dies ist ein laufender lokaler Remediation-Record. Der normale Master-Merge
-behielt den aktuellen Framework-Gitlink bei; es gibt keinen task-eigenen
-Gitlink-Diff. Die Parent-CRS-Reparatur, ihre fokussierten Regressionen, die
-aktuelle APR-util-Provenance und die ersten reparierten fokussierten Controls
-bestanden lokal. Eine spätere finale Prüfung muss die Runtime-Serie im sauberen
-Worktree, einen veröffentlichten exakten Commit-Head, Remote-Branch, PR-Head,
-vier Workflow-Runs, alle 20 Cells, actionlint, ShellCheck, zizmor, Required
-Checks und die Sonar-Anwendbarkeit prüfen, bevor PR #279 auf Ready for Review
-gesetzt wird. Kein Push, keine Ready-Umstellung, kein Merge und kein
+Dies bleibt ein lokaler Remediation-Record. Der normale Master-Merge behielt
+den aktuellen Framework-Gitlink bei; es gibt keinen task-eigenen Gitlink-Diff.
+Die Parent-CRS-Reparatur, ihre fokussierten Regressionen, die aktuelle
+APR-util-Provenance, die HAProxy-Verified-Root-Korrektur und die vollständigen
+sauberen Acht-Mode-Runtime-Controls bestanden lokal. Die finale Prüfung muss
+weiterhin einen veröffentlichten exakten Commit-Head, Remote-Branch, PR-Head,
+vier Hosted-Workflow-Runs, alle 20 Cells, actionlint, ShellCheck, zizmor,
+Required Checks und die Sonar-Anwendbarkeit prüfen, bevor PR #279 auf Ready for
+Review gesetzt wird. Kein Push, keine Ready-Umstellung, kein Merge und kein
 Auto-Merge sind hier verzeichnet.

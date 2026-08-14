@@ -2962,27 +2962,43 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
                 self.assertNotIn("if: false", text)
                 self.assertNotIn("exit 0", text)
 
+        no_mrts_filename = "test-connectors-with-crs-no-mrts.yml"
+        _workflow, no_mrts_text = self.load_workflow(no_mrts_filename)
+        self.assertIn(
+            'make verified-apache-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"',
+            no_mrts_text,
+        )
+        self.assertIn(
+            'SOURCE_ROOT="$haproxy_source_root" make verified-haproxy-case '
+            'CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"',
+            no_mrts_text,
+        )
+        self.assertNotIn("RUNTIME_COMPONENT_TARGET=haproxy", no_mrts_text)
+        self.assertNotIn("make fetch-crs", no_mrts_text)
+
         for filename in (
-            "test-connectors-with-crs-no-mrts.yml",
             "test-connectors-no-crs-with-mrts.yml",
             "test-connectors-with-crs-with-mrts.yml",
         ):
             with self.subTest(filename=filename):
                 _workflow, text = self.load_workflow(filename)
                 self.assertIn(
-                    'make verified-apache-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"',
+                    "DetectionOnly expected; no enforcement claim", text
+                )
+                self.assertIn(
+                    'make verified-apache-case CASE=action_allow_phase1_pass '
+                    'CRS="$CRS" MRTS="$MRTS"',
                     text,
                 )
                 self.assertIn(
-                    'haproxy_source_root="$CACHE_ROOT/shared/sources"', text
-                )
-                self.assertIn(
-                    'case "$haproxy_source_root" in "$CACHE_ROOT"/*) ;; *) '
-                    'echo "FAIL: unsafe HAProxy source root" >&2; exit 2 ;; esac',
+                    'CASE=action_allow_phase1_pass CRS="$CRS" MRTS="$MRTS"',
                     text,
+                )
+                self.assertNotIn(
+                    'CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"', text
                 )
                 haproxy_case = (
-                    'make verified-haproxy-case CASE=action_deny_phase1 '
+                    'make verified-haproxy-case CASE=action_allow_phase1_pass '
                     'CRS="$CRS" MRTS="$MRTS"'
                 )
                 if filename == "test-connectors-no-crs-with-mrts.yml":
@@ -2997,6 +3013,30 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
                     )
                     self.assertNotIn("RUNTIME_COMPONENT_TARGET=haproxy", text)
                     self.assertNotIn("make fetch-crs", text)
+
+        for filename in (
+            "test-connectors-with-crs-no-mrts.yml",
+            "test-connectors-no-crs-with-mrts.yml",
+            "test-connectors-with-crs-with-mrts.yml",
+        ):
+            with self.subTest(filename=filename):
+                _workflow, text = self.load_workflow(filename)
+                self.assertIn(
+                    'haproxy_source_root="$CACHE_ROOT/shared/sources"', text
+                )
+                self.assertIn(
+                    'case "$haproxy_source_root" in "$CACHE_ROOT"/*) ;; *) '
+                    'echo "FAIL: unsafe HAProxy source root" >&2; exit 2 ;; esac',
+                    text,
+                )
+                self.assertIn(
+                    'echo "VERIFIED_RUN_ROOT=$cell_root/verified"', text
+                )
+                self.assertIn(
+                    'echo "BUILD_ROOT=$cell_root/verified/build"', text
+                )
+                self.assertNotIn('echo "BUILD_ROOT=$cell_root/build"', text)
+                self.assertNotIn("XDG_STATE_HOME=", text)
                 self.assertIn("Verify focused runtime cleanup", text)
 
     def test_full_matrix_allowlist_and_recorded_gitlinks_remain_fixed(self) -> None:

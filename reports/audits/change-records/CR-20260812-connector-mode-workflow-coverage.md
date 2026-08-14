@@ -9,7 +9,7 @@
 | Change ID | CR-20260812-connector-mode-workflow-coverage |
 | Date (UTC) | 2026-08-12, reconciled 2026-08-14 |
 | Base revision | `ea3b48abab7940de49997a371f9117b409c05a2a` |
-| Delivery status | Draft PR [#279](https://github.com/Easton97-Jens/ModSecurity-conector/pull/279) remains at remote head `63ad4f5ed359ba2be9abe955cb1c82e7dfcb3846`. The local task branch normally merged current master in `4e224b23c5973c34be3ef4f336b7772a0b13c094` and contains the locally validated Parent CRS-acquisition repair above it. No corrected head has been pushed, no Ready-for-Review transition occurred, and the remaining clean-worktree runtime controls plus all exact-head hosted evidence are pending. |
+| Delivery status | Draft PR [#279](https://github.com/Easton97-Jens/ModSecurity-conector/pull/279) remains at remote head `63ad4f5ed359ba2be9abe955cb1c82e7dfcb3846`. The local task branch normally merged current master in `338985e5329076d42bb23cdeac8260f72b68b71d` and contains the locally validated Parent CRS-acquisition repair plus workflow corrections above it. No corrected head has been pushed, no Ready-for-Review transition occurred, and exact-head hosted evidence remains pending. |
 
 ## Motivation and problem statement
 
@@ -87,7 +87,11 @@ that lockfile is read. This avoids the previously identified mutable-Pip
 pattern tracked by `FND-PARENT-0052` without changing a dependency lock or
 Framework source.
 
-The focused no-CRS/with-MRTS HAProxy branch sets the existing literal
+With-MRTS runtime cells use the existing native `action_allow_phase1_pass`
+control and explicitly report DetectionOnly semantics; they do not claim
+enforcement. The separate no-MRTS runtime cells retain
+`action_deny_phase1`/HTTP `403` as the enforcement proof. The focused
+no-CRS/with-MRTS HAProxy branch sets the existing literal
 `RUNTIME_COMPONENT_TARGET=haproxy` selector before its native case target.
 That branch does not need CRS and can therefore avoid the unrelated Apache
 archive without changing its real HAProxy runtime path. The two with-CRS
@@ -183,11 +187,15 @@ creates no `.git/modules`, and is accepted by the unchanged Framework
 local repair for `FND-PARENT-0128`, not a guard bypass.
 
 Apache and HAProxy `with-crs/no-mrts` focused `action_deny_phase1` controls
-each passed with HTTP `403` under the repaired source topology. An initial
-canonical Apache no-CRS run executed both legitimate cases but its evidence
-finalizer correctly refused `PASS` because the source worktree was dirty. It
-is diagnostic-only; the full eight-mode fresh clean-worktree series remains
-required before publication.
+each passed with HTTP `403` under the repaired source topology. The clean
+worktree runtime evidence then completed all eight Apache/HAProxy mode cells:
+the four no-MRTS enforcement controls returned HTTP `403`, while the four
+with-MRTS DetectionOnly controls ran `action_allow_phase1_pass` and returned
+HTTP `200` with the live native control executed and no enforcement claim.
+The HAProxy workflows now place `BUILD_ROOT` below
+`$cell_root/verified/build`, satisfying the existing verified-root guard; no
+`XDG_STATE_HOME` workaround was added. This local eight-mode evidence is
+retained for the task, but does not substitute for exact-head hosted runs.
 
 ### Old hosted diagnostics
 
@@ -215,35 +223,36 @@ change and modifying an existing updater workflow/tool.
 
 ## Remaining risks
 
-`FND-PARENT-0128` is locally fixed but remains a release/integration blocker
-until the clean-worktree eight-mode runtime series and all exact-head hosted
-cells pass. Framework/MRTS source and the fail-closed provenance guard remain
-unchanged. Actionlint/zizmor, required checks, Sonar disposition, and all
-hosted matrix evidence are still unverified. Envoy, Traefik, and lighttpd MRTS
-cells remain explicitly unsupported until an independently authorized
-capability and evidence change exists. No failure may be hidden by weakening
-negative, static-contract, cleanup, or security guards.
+`FND-PARENT-0128` is locally fixed, and the related with-MRTS semantic and
+HAProxy root corrections are locally exercised, but release/integration remains
+blocked until exact-head hosted cells pass. Framework/MRTS source and the
+fail-closed provenance guard remain unchanged. Actionlint/zizmor, required
+checks, Sonar disposition, and all hosted matrix evidence are still
+unverified. Envoy, Traefik, and lighttpd MRTS cells remain explicitly
+unsupported until an independently authorized capability and evidence change
+exists. No failure may be hidden by weakening negative, static-contract,
+cleanup, or security guards.
 
 ## Checks not run and rationale
 
 - Local actionlint, actionlint-mediated ShellCheck, and zizmor scans: their
   pinned binaries are absent and fetching tools is outside this task's local
   validation authority. Exact-head hosted checks are required instead.
-- Full clean-worktree eight-mode local runtime series and exact-head hosted
-  connector matrix: both are pending the focused local commit that the native
-  no-CRS evidence finalizer requires before it can attest a clean checkout.
+- Exact-head hosted connector matrix: pending a pushed corrected head; the
+  clean-worktree eight-mode local runtime series is complete, but local
+  evidence does not attest hosted runner behavior.
 - Corrected-head PR checks, SonarQube Cloud applicability, and Ready-for-Review
   disposition: no corrected commit was pushed, so no exact new PR head exists;
   merge and auto-merge remain explicitly out of scope.
 
 ## Final diff and review status
 
-This is an in-progress local-remediation record. The normal master merge
-retained the current recorded Framework Gitlink and no task-owned Gitlink diff
-exists. The Parent CRS repair, its focused regressions, the current APR-util
-provenance, and the initial repaired focused controls passed locally. A later
-final review must verify the clean-worktree runtime series, a published exact
-committed head, remote branch, PR head, four workflow runs, all 20 cells,
-actionlint, ShellCheck, zizmor, required checks, and Sonar applicability
-before PR #279 is marked Ready for Review. No push, Ready transition, merge,
-or auto-merge is recorded here.
+This remains a local-remediation record. The normal master merge retained the
+current recorded Framework Gitlink and no task-owned Gitlink diff exists. The
+Parent CRS repair, its focused regressions, current APR-util provenance, the
+HAProxy verified-root correction, and the complete clean-worktree eight-mode
+runtime controls passed locally. Final review must still verify a published
+exact committed head, remote branch, PR head, four hosted workflow runs, all
+20 cells, actionlint, ShellCheck, zizmor, required checks, and Sonar
+applicability before PR #279 is marked Ready for Review. No push, Ready
+transition, merge, or auto-merge is recorded here.

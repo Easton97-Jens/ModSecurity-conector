@@ -155,7 +155,7 @@ jobs:
           mkdir -p "$cell_root"
           {
             echo "VERIFIED_RUN_ROOT=$cell_root/verified"
-            echo "BUILD_ROOT=$cell_root/build"
+            echo "BUILD_ROOT=$cell_root/verified/build"
             echo "SOURCE_ROOT=$cell_root/src"
             echo "TMP_ROOT=$cell_root/tmp"
             echo "LOG_ROOT=$cell_root/logs"

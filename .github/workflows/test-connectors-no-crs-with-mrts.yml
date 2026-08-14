@@ -121,7 +121,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$COVERAGE_KIND" in
-            runtime) claim="existing focused host runtime control" ;;
+            runtime) claim="native with-MRTS runtime control; DetectionOnly expected; no enforcement claim" ;;
             expected_unsupported) claim="real full-matrix parser rejection before runtime" ;;
             *) echo "FAIL: unsupported coverage kind: $COVERAGE_KIND" >&2; exit 2 ;;
           esac
@@ -148,7 +148,7 @@ jobs:
           {
             echo "CELL_ROOT=$cell_root"
             echo "VERIFIED_RUN_ROOT=$cell_root/verified"
-            echo "BUILD_ROOT=$cell_root/build"
+            echo "BUILD_ROOT=$cell_root/verified/build"
             echo "SOURCE_ROOT=$cell_root/src"
             echo "TMP_ROOT=$cell_root/tmp"
             echo "LOG_ROOT=$cell_root/logs"
@@ -174,12 +174,12 @@ jobs:
           set -euo pipefail
           case "$CONNECTOR" in
             apache)
-              make verified-apache-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"
+              make verified-apache-case CASE=action_allow_phase1_pass CRS="$CRS" MRTS="$MRTS"
               ;;
             haproxy)
               haproxy_source_root="$CACHE_ROOT/shared/sources"
               case "$haproxy_source_root" in "$CACHE_ROOT"/*) ;; *) echo "FAIL: unsafe HAProxy source root" >&2; exit 2 ;; esac
-              SOURCE_ROOT="$haproxy_source_root" RUNTIME_COMPONENT_TARGET=haproxy make verified-haproxy-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"
+              SOURCE_ROOT="$haproxy_source_root" RUNTIME_COMPONENT_TARGET=haproxy make verified-haproxy-case CASE=action_allow_phase1_pass CRS="$CRS" MRTS="$MRTS"
               ;;
             *) echo "FAIL: runtime path is not permitted for $CONNECTOR" >&2; exit 2 ;;
           esac
