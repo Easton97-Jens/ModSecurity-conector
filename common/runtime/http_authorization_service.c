@@ -110,6 +110,22 @@ typedef struct authorization_worker {
     struct authorization_worker *next;
 } authorization_worker;
 
+typedef struct authorization_response_state {
+    int status;
+    int success;
+    const char *decision_name;
+    const char *transaction_id;
+    char copied_transaction_id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH];
+} authorization_response_state;
+
+typedef enum authorization_listener_iteration {
+    AUTHORIZATION_LISTENER_READY,
+    AUTHORIZATION_LISTENER_RETRY,
+    AUTHORIZATION_LISTENER_HANDLED,
+    AUTHORIZATION_LISTENER_STOP,
+    AUTHORIZATION_LISTENER_ERROR,
+} authorization_listener_iteration;
+
 static volatile sig_atomic_t authorization_stop = 0;
 
 static void stop_service(int signal_number) {
@@ -805,21 +821,86 @@ static int error_status_from_message(const char *message) {
     return 400;
 }
 
+static void authorization_response_set_runtime_error(
+    authorization_service *service,
+    const msconnector_error *common_error,
+    authorization_response_state *response) {
+    response->status = msconnector_runtime_error_http_status(
+        service->runtime,
+        common_error->code == MSCONNECTOR_ERROR_NONE
+            ? MSCONNECTOR_ERROR_INTERNAL : common_error->code);
+    response->decision_name = "runtime_error";
+    response->success = 0;
+}
+
+static void authorization_response_set_decision(
+    msconnector_runtime_transaction *transaction,
+    const msconnector_decision *decision,
+    authorization_response_state *response) {
+    const msconnector_decision_action action =
+        msconnector_decision_action_from_decision(decision);
+    const char *runtime_transaction_id =
+        msconnector_runtime_transaction_id(transaction);
+    response->decision_name = msconnector_decision_action_name(action);
+    response->transaction_id = NULL;
+    if (runtime_transaction_id != NULL) {
+        const int copied = snprintf(response->copied_transaction_id,
+            sizeof(response->copied_transaction_id), "%s", runtime_transaction_id);
+        if (copied >= 0 && (size_t)copied < sizeof(response->copied_transaction_id)) {
+            response->transaction_id = response->copied_transaction_id;
+        }
+    }
+    if (action == MSCONNECTOR_DECISION_ACTION_ALLOW ||
+        action == MSCONNECTOR_DECISION_ACTION_LOG_ONLY) {
+        response->status = 200;
+    } else {
+        response->status = msconnector_decision_http_status(decision);
+        if (!msconnector_http_status_is_valid(response->status)) {
+            response->status = action == MSCONNECTOR_DECISION_ACTION_ERROR ? 500 : 403;
+        }
+    }
+    response->success = 1;
+}
+
+static void authorization_process_runtime_request(
+    authorization_service *service,
+    const msconnector_generic_request_source *source,
+    char *error,
+    size_t error_len,
+    authorization_response_state *response) {
+    msconnector_request request;
+    msconnector_runtime_transaction *transaction = NULL;
+    msconnector_decision decision;
+    msconnector_error common_error;
+    memset(&request, 0, sizeof(request));
+    msconnector_error_init(&common_error);
+    msconnector_decision_set_allow(&decision);
+    response->transaction_id = NULL;
+    if (!service->profile->map_request(source, &service->request_limits.mapper_contract,
+            &request, error, error_len)) {
+        response->status = 400;
+        response->decision_name = "mapping_error";
+        response->success = 0;
+    } else if (!msconnector_runtime_transaction_begin(service->runtime, &request, NULL,
+            &transaction, &decision, &common_error)) {
+        authorization_response_set_runtime_error(service, &common_error, response);
+    } else {
+        authorization_response_set_decision(transaction, &decision, response);
+    }
+    if (transaction != NULL &&
+        !msconnector_runtime_transaction_finish(transaction, &common_error)) {
+        authorization_response_set_runtime_error(service, &common_error, response);
+    }
+    msconnector_runtime_transaction_destroy(&transaction);
+}
+
 static int handle_authorization_request(
     const authorization_connection *connection,
     authorization_service *service) {
     parsed_http_request parsed;
     msconnector_generic_request_source source;
-    msconnector_request request;
-    msconnector_runtime_transaction *transaction = NULL;
-    msconnector_decision decision;
-    msconnector_error common_error;
+    authorization_response_state response;
     char error[AUTH_ERROR_SIZE];
-    char transaction_id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH];
-    int status = 500;
-    int success = 0;
-    const char *response_transaction_id = NULL;
-    const char *decision_name = "runtime_error";
 
     if (connection == NULL || service == NULL || service->runtime == NULL ||
         service->profile == NULL) {
@@ -827,14 +908,10 @@ static int handle_authorization_request(
     }
     memset(&parsed, 0, sizeof(parsed));
     memset(&source, 0, sizeof(source));
-    memset(&request, 0, sizeof(request));
-    transaction_id[0] = '\0';
     error[0] = '\0';
-    msconnector_error_init(&common_error);
-    msconnector_decision_set_allow(&decision);
     if (!read_http_request(connection, &service->request_limits,
             &parsed, error, sizeof(error))) {
-        status = error_status_from_message(error);
+        const int status = error_status_from_message(error);
         (void)send_response(
             connection->socket_fd, status, NULL, "invalid_request",
             service->connection_timeout_ms);
@@ -859,62 +936,19 @@ static int handle_authorization_request(
         parsed_request_destroy(&parsed);
         return 0;
     }
-    if (!service->profile->map_request(&source, &service->request_limits.mapper_contract,
-            &request, error, sizeof(error))) {
-        status = 400;
-        decision_name = "mapping_error";
-    } else if (!msconnector_runtime_transaction_begin(service->runtime, &request, NULL,
-            &transaction, &decision, &common_error)) {
-        status = common_error.code == MSCONNECTOR_ERROR_NONE
-            ? msconnector_runtime_error_http_status(
-                service->runtime, MSCONNECTOR_ERROR_INTERNAL)
-            : msconnector_runtime_error_http_status(service->runtime, common_error.code);
-        decision_name = "runtime_error";
-    } else {
-        msconnector_decision_action action =
-            msconnector_decision_action_from_decision(&decision);
-        const char *runtime_transaction_id =
-            msconnector_runtime_transaction_id(transaction);
-        decision_name = msconnector_decision_action_name(action);
-        if (runtime_transaction_id != NULL) {
-            const int copied = snprintf(transaction_id, sizeof(transaction_id), "%s",
-                runtime_transaction_id);
-            if (copied >= 0 && (size_t)copied < sizeof(transaction_id)) {
-                response_transaction_id = transaction_id;
-            }
-        }
-        if (action == MSCONNECTOR_DECISION_ACTION_ALLOW ||
-            action == MSCONNECTOR_DECISION_ACTION_LOG_ONLY) {
-            status = 200;
-        } else {
-            status = msconnector_decision_http_status(&decision);
-            if (!msconnector_http_status_is_valid(status)) {
-                status = action == MSCONNECTOR_DECISION_ACTION_ERROR ? 500 : 403;
-            }
-        }
-        success = 1;
-    }
-    if (transaction != NULL &&
-        !msconnector_runtime_transaction_finish(transaction, &common_error)) {
-        status = msconnector_runtime_error_http_status(
-            service->runtime,
-            common_error.code == MSCONNECTOR_ERROR_NONE
-                ? MSCONNECTOR_ERROR_INTERNAL : common_error.code);
-        decision_name = "runtime_error";
-        success = 0;
-    }
-    msconnector_runtime_transaction_destroy(&transaction);
+    authorization_process_runtime_request(service, &source, error, sizeof(error), &response);
     if (pthread_mutex_unlock(&service->runtime_lock) != 0) {
         parsed_request_destroy(&parsed);
         return 0;
     }
     if (!send_response(
-            connection->socket_fd, status, response_transaction_id, decision_name,
+            connection->socket_fd, response.status, response.transaction_id,
+            response.decision_name,
             service->connection_timeout_ms)) {
-        success = 0;
+        response.success = 0;
     }
     parsed_request_destroy(&parsed);
-    return success;
+    return response.success;
 }
 
 static int create_listener(
@@ -1135,6 +1169,95 @@ static int authorization_wait_for_workers(authorization_service *service) {
     return result == 0;
 }
 
+static authorization_listener_iteration authorization_wait_for_listener(
+    int listener,
+    const char *connector_name) {
+    struct pollfd listener_descriptor;
+    int listener_ready;
+    memset(&listener_descriptor, 0, sizeof(listener_descriptor));
+    listener_descriptor.fd = listener;
+    listener_descriptor.events = POLLIN;
+    do {
+        listener_ready = poll(&listener_descriptor, 1U,
+            AUTH_LISTENER_POLL_TIMEOUT_MS);
+    } while (listener_ready < 0 && errno == EINTR && !authorization_stop);
+    if (listener_ready == 0) {
+        return AUTHORIZATION_LISTENER_RETRY;
+    }
+    if (authorization_stop) {
+        return AUTHORIZATION_LISTENER_STOP;
+    }
+    if (listener_ready < 0 || (listener_descriptor.revents & POLLIN) == 0) {
+        (void)fprintf(stderr, "%s listener poll failed: %s\n",
+            connector_name,
+            listener_ready < 0 ? strerror(errno) : "unexpected listener state");
+        return AUTHORIZATION_LISTENER_ERROR;
+    }
+    return AUTHORIZATION_LISTENER_READY;
+}
+
+static authorization_listener_iteration authorization_serve_next_connection(
+    authorization_service *service,
+    int listener,
+    const struct sockaddr_in *local) {
+    struct sockaddr_in peer = {0};
+    socklen_t peer_size = sizeof(peer);
+    connection_deadline read_deadline;
+    authorization_listener_iteration listener_state =
+        authorization_wait_for_listener(listener, service->profile->connector_name);
+    int client_fd;
+    if (listener_state != AUTHORIZATION_LISTENER_READY) {
+        return listener_state;
+    }
+    do {
+        client_fd = accept(listener, (struct sockaddr *)&peer, &peer_size);
+    } while (client_fd < 0 && errno == EINTR && !authorization_stop);
+    if (client_fd < 0) {
+        if (authorization_stop) {
+            return AUTHORIZATION_LISTENER_STOP;
+        }
+        (void)fprintf(stderr, "%s accept failed: %s\n",
+            service->profile->connector_name, strerror(errno));
+        return AUTHORIZATION_LISTENER_ERROR;
+    }
+    if (!connection_deadline_init(
+            &read_deadline, service->connection_timeout_ms) ||
+        !configure_client_socket(client_fd)) {
+        (void)fprintf(stderr, "%s client socket deadline setup failed: %s\n",
+            service->profile->connector_name, strerror(errno));
+        (void)close(client_fd);
+        return AUTHORIZATION_LISTENER_HANDLED;
+    }
+    if (authorization_start_worker(
+            service, client_fd, &peer, local, &read_deadline) < 0) {
+        (void)fprintf(stderr, "%s worker start failed\n",
+            service->profile->connector_name);
+    }
+    return AUTHORIZATION_LISTENER_HANDLED;
+}
+
+static int authorization_serve_requests(
+    authorization_service *service,
+    int listener,
+    const struct sockaddr_in *local,
+    unsigned long max_requests) {
+    unsigned long handled = 0UL;
+    while (!authorization_stop && (max_requests == 0UL || handled < max_requests)) {
+        const authorization_listener_iteration listener_state =
+            authorization_serve_next_connection(service, listener, local);
+        if (listener_state == AUTHORIZATION_LISTENER_ERROR) {
+            return 1;
+        }
+        if (listener_state == AUTHORIZATION_LISTENER_STOP) {
+            return 0;
+        }
+        if (listener_state == AUTHORIZATION_LISTENER_HANDLED) {
+            ++handled;
+        }
+    }
+    return 0;
+}
+
 static int serve_authorization(
     const authorization_cli *cli,
     const msconnector_http_authorization_profile *profile) {
@@ -1144,7 +1267,6 @@ static int serve_authorization(
     int listener = -1;
     int service_status = 0;
     char error[AUTH_ERROR_SIZE];
-    unsigned long handled = 0UL;
     struct sigaction action;
 
     error[0] = '\0';
@@ -1176,63 +1298,8 @@ static int serve_authorization(
     (void)printf("connector=%s integration_mode=%s listen=%s status=ready\n",
         profile->connector_name, profile->integration_mode, cli->listen_spec);
     (void)fflush(stdout);
-    while (!authorization_stop &&
-        (cli->max_requests == 0UL || handled < cli->max_requests)) {
-        struct sockaddr_in peer = {0};
-        struct pollfd listener_descriptor;
-        socklen_t peer_size = sizeof(peer);
-        int client_fd;
-        int listener_ready;
-        connection_deadline read_deadline;
-        memset(&listener_descriptor, 0, sizeof(listener_descriptor));
-        listener_descriptor.fd = listener;
-        listener_descriptor.events = POLLIN;
-        do {
-            listener_ready = poll(&listener_descriptor, 1U,
-                AUTH_LISTENER_POLL_TIMEOUT_MS);
-        } while (listener_ready < 0 && errno == EINTR && !authorization_stop);
-        if (listener_ready == 0 || authorization_stop) {
-            continue;
-        }
-        if (listener_ready < 0 ||
-            (listener_descriptor.revents & POLLIN) == 0) {
-            (void)fprintf(stderr, "%s listener poll failed: %s\n",
-                profile->connector_name,
-                listener_ready < 0 ? strerror(errno) : "unexpected listener state");
-            service_status = 1;
-            break;
-        }
-        do {
-            client_fd = accept(listener, (struct sockaddr *)&peer, &peer_size);
-        } while (client_fd < 0 && errno == EINTR && !authorization_stop);
-        if (client_fd < 0) {
-            if (authorization_stop) {
-                break;
-            }
-            (void)fprintf(stderr, "%s accept failed: %s\n",
-                profile->connector_name, strerror(errno));
-            service_status = 1;
-            break;
-        }
-        if (!connection_deadline_init(
-                &read_deadline, cli->connection_timeout_ms) ||
-            !configure_client_socket(client_fd)) {
-            (void)fprintf(stderr, "%s client socket deadline setup failed: %s\n",
-                profile->connector_name, strerror(errno));
-            (void)close(client_fd);
-            ++handled;
-            continue;
-        }
-        {
-            const int worker_result = authorization_start_worker(
-                &service, client_fd, &peer, &local, &read_deadline);
-            if (worker_result < 0) {
-                (void)fprintf(stderr, "%s worker start failed\n",
-                    profile->connector_name);
-            }
-        }
-        ++handled;
-    }
+    service_status = authorization_serve_requests(
+        &service, listener, &local, cli->max_requests);
     if (listener >= 0) {
         (void)close(listener);
     }

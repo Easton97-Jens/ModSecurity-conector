@@ -12,7 +12,7 @@
 | Related finding | F-GS-006 (<code>partially_fixed</code>) |
 | HTTP sub-status | <code>hardening_applied_locally_verified</code> |
 | Repository boundary | Parent only; Framework and MRTS unchanged |
-| Delivery authority | Scoped commit, push, and Draft PR only; no merge or ready-for-review action |
+| Delivery authority | Scoped follow-up commit, push, and conditional ready-for-review action; no merge |
 
 ## Motivation and problem statement
 
@@ -113,6 +113,25 @@ toolchain file, Framework, MRTS, Gitlink, dependency, or workflow is changed.
 Local task plans, external build output, and cleanup metadata are not versioned
 product artifacts.
 
+## PR #286 SonarQube Cloud follow-up
+
+The current pre-follow-up PR head
+<code>f9323539c8229205763f00442358e22dd1b596e0</code> had a passed Quality Gate and
+zero Security Hotspots, but the public SonarQube Cloud issue API identified five
+open code smells on newly added PR lines: <code>c:S859</code> in the focused smoke,
+<code>c:S1854</code> in the HTTP handler, two <code>c:S3776</code> findings for
+cognitive complexity, and <code>c:S924</code> for nested loop breaks. They are
+task-owned maintainability findings, not evidence of a new security vulnerability.
+
+The focused follow-up removes the const-dropping smoke-test cast and extracts
+the already-reviewed Runtime response and listener-loop steps into narrow helper
+functions. It does not add a suppression, <code>NOSONAR</code>, Quality-Gate change,
+coverage change, public API, Event/Rule patch, or Traefik-UDS patch. The helper
+boundaries preserve Runtime locking, transaction-ID copying before destruction,
+worker/FD ownership, and the accepted-connection accounting contract. SonarQube
+Cloud must analyze the new PR head before this record claims the five issues are
+zero.
+
 ## Commands executed
 
 The portable <code>&lt;external-task-build-root&gt;</code> placeholder denotes the external,
@@ -124,7 +143,7 @@ relative.
 ~~~text
 rtk proxy env CC=gcc 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror' BUILD_ROOT=<external-task-build-root>/gcc-c17 make check-http-authorization-service-timeout
 rtk proxy env CC=clang 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror' BUILD_ROOT=<external-task-build-root>/clang-c17 make check-http-authorization-service-timeout
-rtk proxy env CC=clang ASAN_OPTIONS=detect_leaks=1:halt_on_error 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror -fsanitize=address -fno-omit-frame-pointer' BUILD_ROOT=<external-task-build-root>/asan make check-http-authorization-service-timeout
+rtk proxy env CC=clang ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror -fsanitize=address -fno-omit-frame-pointer' BUILD_ROOT=<external-task-build-root>/asan make check-http-authorization-service-timeout
 rtk proxy env CC=clang UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror -fsanitize=undefined -fno-omit-frame-pointer' BUILD_ROOT=<external-task-build-root>/ubsan make check-http-authorization-service-timeout
 rtk proxy env CC=clang TSAN_OPTIONS=halt_on_error=1:second_deadlock_stack=1 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror -fsanitize=thread -fno-omit-frame-pointer' BUILD_ROOT=<external-task-build-root>/tsan make check-http-authorization-service-timeout
 rtk proxy env PYTHONDONTWRITEBYTECODE=1 BUILD_ROOT=<external-task-build-root>/parent-checks make check-common-sdk-contract check-common-security-contract check-common-helpers check-common-flow-integrity check-adapter-contracts check-remaining-connectors-common-adoption check-remaining-connectors-build-wiring check-remaining-connectors-c-standard-wiring
@@ -261,7 +280,12 @@ UDS evidence record and has no source patch here.
 The scoped patch contains only the HTTP authorization admission hardening, its
 tests, direct build wiring, paired operations documentation, and paired Change
 Record/index. F-GS-006 remains an intentionally partial remediation; no
-whole-finding completion is claimed. A narrow commit, push, and Draft PR are
-authorized after final staged-diff review; the exact commit, PR, and one-time
-hosted-check snapshot are recorded in delivery metadata rather than creating a
-self-referential commit loop in this record.
+whole-finding completion is claimed. At the pre-follow-up head, all relevant
+GitHub Actions were terminal <code>pass</code> or workflow-justified
+<code>skipping</code>, and there were no review or inline-review threads. The five
+SonarQube Cloud code smells remediated here still require analysis on the next
+head before a zero-issue result is asserted. A narrow commit, normal push, and
+conditional ready-for-review action are authorized after final staged-diff
+review; the exact commit, PR, and hosted-check snapshot are recorded in
+delivery metadata rather than creating a self-referential commit loop in this
+record.

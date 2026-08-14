@@ -12,7 +12,7 @@
 | Zugehöriges Finding | F-GS-006 (<code>partially_fixed</code>) |
 | HTTP-Teilstatus | <code>hardening_applied_locally_verified</code> |
 | Repository-Grenze | Nur Parent; Framework und MRTS unverändert |
-| Delivery-Autorität | Nur begrenzter Commit, Push und Draft-PR; kein Merge und kein Ready-for-review |
+| Delivery-Autorität | Begrenzter Follow-up-Commit, Push und bedingte Ready-for-review-Aktion; kein Merge |
 
 ## Motivation und Problemstellung
 
@@ -119,6 +119,26 @@ Client-Quelle, keine Go-Modul- oder Toolchain-Datei, kein Framework, MRTS,
 Gitlink, Dependency oder Workflow geändert. Lokale Task-Pläne, externe
 Build-Ausgabe und Cleanup-Metadaten sind keine versionierten Produktartefakte.
 
+## PR-#286-SonarQube-Cloud-Follow-up
+
+Der aktuelle Pre-Follow-up-PR-Head
+<code>f9323539c8229205763f00442358e22dd1b596e0</code> besaß ein bestandenes Quality
+Gate und null Security Hotspots. Die öffentliche SonarQube-Cloud-Issue-API
+identifizierte jedoch fünf offene Code Smells auf neu hinzugefügten PR-Zeilen:
+<code>c:S859</code> im fokussierten Smoke, <code>c:S1854</code> im HTTP-Handler, zwei
+<code>c:S3776</code>-Findings für kognitive Komplexität und <code>c:S924</code> für
+verschachtelte Schleifen-<code>break</code>s. Es sind task-eigene Maintainability-
+Findings, keine Evidenz für eine neue Sicherheitslücke.
+
+Das begrenzte Follow-up entfernt den Const-verwerfenden Smoke-Test-Cast und
+extrahiert die bereits geprüften Runtime-Response- und Listener-Loop-Schritte
+in enge Helper-Funktionen. Es ergänzt keine Suppression, kein <code>NOSONAR</code>,
+keine Quality-Gate- oder Coverage-Änderung, keine öffentliche API, keinen
+Event/Rule-Patch und keinen Traefik-UDS-Patch. Die Helper-Grenzen bewahren
+Runtime-Locking, Transaction-ID-Kopie vor Destroy, Worker-/FD-Ownership und den
+Accepted-Connection-Accounting-Vertrag. SonarQube Cloud muss den neuen PR-Head
+analysieren, bevor dieser Record behauptet, dass die fünf Issues null sind.
+
 ## Ausgeführte Befehle
 
 Der portable Platzhalter <code>&lt;external-task-build-root&gt;</code> bezeichnet die für die
@@ -130,7 +150,7 @@ Repository-Pfade bleiben relativ.
 ~~~text
 rtk proxy env CC=gcc 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror' BUILD_ROOT=<external-task-build-root>/gcc-c17 make check-http-authorization-service-timeout
 rtk proxy env CC=clang 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror' BUILD_ROOT=<external-task-build-root>/clang-c17 make check-http-authorization-service-timeout
-rtk proxy env CC=clang ASAN_OPTIONS=detect_leaks=1:halt_on_error 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror -fsanitize=address -fno-omit-frame-pointer' BUILD_ROOT=<external-task-build-root>/asan make check-http-authorization-service-timeout
+rtk proxy env CC=clang ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror -fsanitize=address -fno-omit-frame-pointer' BUILD_ROOT=<external-task-build-root>/asan make check-http-authorization-service-timeout
 rtk proxy env CC=clang UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror -fsanitize=undefined -fno-omit-frame-pointer' BUILD_ROOT=<external-task-build-root>/ubsan make check-http-authorization-service-timeout
 rtk proxy env CC=clang TSAN_OPTIONS=halt_on_error=1:second_deadlock_stack=1 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror -fsanitize=thread -fno-omit-frame-pointer' BUILD_ROOT=<external-task-build-root>/tsan make check-http-authorization-service-timeout
 rtk proxy env PYTHONDONTWRITEBYTECODE=1 BUILD_ROOT=<external-task-build-root>/parent-checks make check-common-sdk-contract check-common-security-contract check-common-helpers check-common-flow-integrity check-adapter-contracts check-remaining-connectors-common-adoption check-remaining-connectors-build-wiring check-remaining-connectors-c-standard-wiring
@@ -275,8 +295,13 @@ getrennt vom internen UDS-Evidence-Record und besitzt hier keinen Source-Patch.
 Der begrenzte Patch enthält nur HTTP-Autorisierungs-Admission-Hardening, seine
 Tests, direktes Build-Wiring, gepaarte Operations-Dokumentation und gepaarten
 Change-Record/Index. F-GS-006 bleibt eine bewusst partielle Remediation; es
-wird keine Completion des Gesamtfindings behauptet. Ein enger Commit, Push und
-Draft-PR sind nach finalem Staged-Diff-Review autorisiert; der exakte Commit,
-PR und einmalige Hosted-Check-Snapshot werden in Delivery-Metadaten
+wird keine Completion des Gesamtfindings behauptet. Auf dem Pre-Follow-up-Head
+waren alle relevanten GitHub Actions terminal <code>pass</code> oder
+workflow-begründet <code>skipping</code>, und es gab keine Review- oder
+Inline-Review-Threads. Die hier behobenen fünf SonarQube-Cloud-Code-Smells
+benötigen noch die Analyse des nächsten Heads, bevor ein Null-Issue-Ergebnis
+behauptet wird. Ein enger Commit, normaler Push und bedingte
+Ready-for-review-Aktion sind nach finalem Staged-Diff-Review autorisiert; der
+exakte Commit, PR und Hosted-Check-Snapshot werden in Delivery-Metadaten
 aufgezeichnet, statt in diesem Record eine selbstreferenzielle Commit-Schleife
 zu erzeugen.

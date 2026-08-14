@@ -1072,15 +1072,22 @@ static int rejects_missing_option_values(void) {
 }
 
 static int max_connections_option_has_result(const char *value, int expected_result) {
+    char value_argument[64];
     char *argv[] = {
         "timeout-smoke-service",
         "--check-config",
         "--config",
         "timeout-smoke.conf",
         "--max-connections",
-        (char *)value,
+        value_argument,
         NULL,
     };
+    const int written = value == NULL
+        ? -1
+        : snprintf(value_argument, sizeof(value_argument), "%s", value);
+    if (written < 0 || (size_t)written >= sizeof(value_argument)) {
+        return 0;
+    }
     return msconnector_http_authorization_service_main(6, argv, &smoke_profile) ==
         expected_result;
 }
