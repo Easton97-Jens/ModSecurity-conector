@@ -22,6 +22,12 @@ angelegt werden.
   Record für die Parent-Änderung. Er weist nur beobachtete lokale Validierung
   aus; Hosted-Ausführung, PR-Checks und Cross-Repository-Delivery werden nicht
   behauptet.
+- [CR-20260814-f-gs-002-lighttpd-autogen-bootstrap](CR-20260814-f-gs-002-lighttpd-autogen-bootstrap.de.md) —
+  der aktuelle Benutzer hat den Abschluss und die geschützte Auslieferung des
+  F-GS-002-Parent-Build-Fix ausdrücklich autorisiert. Dieser gepaarte Record
+  bewahrt die beobachtete offizielle Quelle sowie Fresh-/Core-/Host-/Reuse-,
+  Quellenerhaltungs- und Pre-Merge-Evidenz; das Ergebnis des geschützten Merge
+  wird nicht vorab behauptet.
 - [CR-20260814-f-gs-006-http-authorization-admission](CR-20260814-f-gs-006-http-authorization-admission.de.md) —
   der aktuelle Benutzer hat diesen gepaarten Parent-Security-Hardening-Record
   und einen Draft-PR autorisiert. Er weist nur beobachtete lokale Validierung

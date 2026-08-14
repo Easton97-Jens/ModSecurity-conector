@@ -855,6 +855,11 @@ class CompilerGuideGenerationTest(unittest.TestCase):
             self.assertNotIn("src/modsecurity-connectors", cleanup)
             self.assertIn("$HOME/", cleanup)
         self.assertIn('test ! -e "$LIGHTTPD_PATCHED_SRC"', guide("lighttpd"))
+        for german in (False, True):
+            lighttpd = guide("lighttpd", german=german)
+            self.assertIn("test -x ./configure", lighttpd)
+            self.assertIn("autogen.log", lighttpd)
+            self.assertNotIn("test -x ./autogen.sh && ./autogen.sh", lighttpd)
         self.assertIn('htx-overlay-$(date -u +%Y%m%dT%H%M%SZ)', guide("haproxy"))
 
     def test_guides_use_safe_defaults_and_state_required_boundaries(self) -> None:

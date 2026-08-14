@@ -21,6 +21,12 @@ reports without an explicit repository-policy decision or user decision.
   policies require this paired record for that Parent change. It records only
   observed local validation; hosted execution, PR checks, and cross-repository
   delivery are not asserted.
+- [CR-20260814-f-gs-002-lighttpd-autogen-bootstrap](CR-20260814-f-gs-002-lighttpd-autogen-bootstrap.md)
+  | [Deutsch](CR-20260814-f-gs-002-lighttpd-autogen-bootstrap.de.md) — the
+  current user explicitly authorized completion and protected delivery of the
+  F-GS-002 Parent build fix. This paired record retains the observed official
+  source, Fresh/Core/Host/Reuse, source-preservation, and pre-merge evidence;
+  the protected merge outcome is not asserted in advance.
 - [CR-20260814-f-gs-006-http-authorization-admission](CR-20260814-f-gs-006-http-authorization-admission.md)
   | [Deutsch](CR-20260814-f-gs-006-http-authorization-admission.de.md) — the
   current user authorized this paired Parent security-hardening record and a
