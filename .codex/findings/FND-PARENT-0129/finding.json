@@ -1,26 +1,26 @@
 {
   "schema_version": 1,
   "id": "FND-PARENT-0129",
-  "title": "Patched Lighttpd core build requires manual Autotools bootstrap when the verified 1.4.84 release lacks configure",
-  "title_de": "Gepatchter Lighttpd-Core-Build verlangt manuellen Autotools-Bootstrap, wenn dem verifizierten 1.4.84-Release configure fehlt",
+  "title": "Patched Lighttpd core build requires automatic Autotools bootstrap when the verified 1.4.84 release lacks configure",
+  "title_de": "Gepatchter Lighttpd-Core-Build benötigt automatischen Autotools-Bootstrap, wenn dem verifizierten 1.4.84-Release configure fehlt",
   "category": "build_defect",
   "repository": "parent",
   "ownership": "parent",
   "priority": "P1",
   "severity": "not_applicable",
-  "confidence": "validated",
-  "status": "in_progress",
-  "feasibility_status": "blocked_external_dependency",
+  "confidence": "confirmed",
+  "status": "fixed",
+  "feasibility_status": "feasible_now",
   "release_blocker": true,
   "candidate_integration_blocker": false,
   "security_relevant": true,
-  "security_assessment": "The source/bootstrap boundary is security-relevant because it executes an upstream-maintained script from caller-provided Lighttpd source. The remediation preserves the verified-source/patch boundary: only the disposable patched copy may be bootstrapped, the original source is not modified, an unsupported non-executable script is rejected, and configure must be executable before build. No exploit, secret exposure, privilege escalation, integrity bypass, package installation, or network behavior is claimed.",
-  "security_assessment_de": "Die Source-/Bootstrap-Grenze ist sicherheitsrelevant, weil sie ein Upstream-gepflegtes Skript aus der vom Aufrufer bereitgestellten Lighttpd-Quelle ausführt. Die Remediation bewahrt die Verified-Source-/Patch-Grenze: Nur die disponierbare gepatchte Kopie darf gebootstrapped werden, die Originalquelle wird nicht verändert, ein nicht unterstütztes nicht ausführbares Skript wird zurückgewiesen und configure muss vor dem Build ausführbar sein. Es werden kein Exploit, keine Secret-Offenlegung, Privilege Escalation, Integrity-Bypass, Paketinstallation oder Netzverhalten behauptet.",
-  "security_invariant": "After existing source validation and patch application, bootstrap may run only inside the disposable patched Lighttpd tree; it must preserve the original source, run no installer or network action, surface failures, and produce an executable configure before the core build directory is created.",
-  "security_invariant_de": "Nach bestehender Source-Validierung und Patch-Anwendung darf Bootstrap nur innerhalb des disponierbaren gepatchten Lighttpd-Trees laufen; er muss die Originalquelle bewahren, darf keinen Installer oder Netzwerkschritt ausführen, muss Fehler sichtbar machen und vor Erzeugung des Core-Build-Verzeichnisses ein ausführbares configure erzeugen.",
+  "security_assessment": "The source/bootstrap boundary is security-relevant because it executes an upstream-maintained script from caller-provided Lighttpd source. The repair preserves the verified-source/patch boundary: only the disposable patched copy is bootstrapped, the original source remains unchanged, unsupported non-executable scripts are rejected, and configure must be executable before the core build begins. No exploit, secret exposure, privilege escalation, integrity bypass, package installation, or expanded network behavior is claimed.",
+  "security_assessment_de": "Die Source-/Bootstrap-Grenze ist sicherheitsrelevant, weil sie ein Upstream-gepflegtes Skript aus der vom Aufrufer bereitgestellten Lighttpd-Quelle ausführt. Die Korrektur bewahrt die Verified-Source-/Patch-Grenze: Nur die disponierbare gepatchte Kopie wird gebootstrapped, die Originalquelle bleibt unverändert, nicht unterstützte nicht ausführbare Skripte werden zurückgewiesen und configure muss vor dem Core-Build ausführbar sein. Es werden kein Exploit, keine Secret-Offenlegung, keine Privilege Escalation, kein Integrity-Bypass, keine Paketinstallation und kein erweitertes Netzverhalten behauptet.",
+  "security_invariant": "After verified source acquisition and patch application, bootstrap may run only inside the disposable patched Lighttpd tree; it must preserve the original source, surface failures, and produce an executable configure before the core build directory is created.",
+  "security_invariant_de": "Nach verifizierter Source-Beschaffung und Patch-Anwendung darf Bootstrap nur innerhalb des disponierbaren gepatchten Lighttpd-Trees laufen; er muss die Originalquelle bewahren, Fehler sichtbar machen und vor Erzeugung des Core-Build-Verzeichnisses ein ausführbares configure erzeugen.",
   "connector": "lighttpd",
   "protocol": "Lighttpd 1.4.84 patched-core Autotools bootstrap",
-  "profile": "Parent worktree ea3b48abab7940de49997a371f9117b409c05a2a with focused synthetic source controls; continuation validation reran the focused and documentation controls, but LIGHTTPD_SOURCE_DIR remains unset and no caller-provided verified 1.4.84 source is locally available",
+  "profile": "Clean task-owned Parent worktree at PR #285 head 521173b12c13bd1bb575c0bcfcb685ec06a5eb6f; official Lighttpd 1.4.84 archive verified and extracted under the user-selected external source root; Fresh and Reuse targets repeated inside a no-network namespace.",
   "affected_files": [
     "connectors/lighttpd/build/build_patched_core.sh",
     "connectors/lighttpd/tests/test_patched_host_contract.py",
@@ -32,26 +32,29 @@
   "affected_symbols": [
     "run_autogen",
     "ensure_configure",
+    "verify_core",
     "build-lighttpd-patched-core",
+    "build-lighttpd-patched-host",
+    "check-lighttpd-patched-host",
     "host_build_steps"
   ],
-  "summary": "The verified upstream Lighttpd 1.4.84 release used by the patched-core route can lack generated configure. The previous builder immediately required executable configure after patch application, while the retained analysis demonstrated that task-local sh autogen.sh followed by the actual core and host build succeeded. The source repair now performs that upstream bootstrap decision automatically and narrowly in the patched disposable copy, with six real-script contract scenarios. The current continuation reran the focused, EN/DE, documentation, JSON, and diff controls successfully, but the promised absolute LIGHTTPD_SOURCE_DIR is unset and no verified 1.4.84 source/archive is locally available for the mandatory real fresh/core/host/reuse proof.",
-  "summary_de": "Dem verifizierten Upstream-Lighttpd-1.4.84-Release des gepatchten Core-Pfads kann ein generiertes configure fehlen. Der bisherige Builder verlangte nach Patch-Anwendung sofort ein ausführbares configure, während die aufbewahrte Analyse zeigte, dass ein task-lokales sh autogen.sh mit anschließendem tatsächlichen Core- und Host-Build erfolgreich war. Die Source-Korrektur trifft diese Upstream-Bootstrap-Entscheidung nun automatisch und eng begrenzt in der gepatchten disponierbaren Kopie, mit sechs Real-Skript-Contract-Szenarien. Die aktuelle Fortsetzungsvalidierung wiederholte die fokussierten, EN/DE-, Dokumentations-, JSON- und Diff-Controls erfolgreich, aber das versprochene absolute LIGHTTPD_SOURCE_DIR ist nicht gesetzt und es gibt lokal keine verifizierte 1.4.84-Source/kein Archiv für den verpflichtenden realen Fresh-/Core-/Host-/Reuse-Nachweis.",
-  "observed_behavior": "The analysis-only general-state run records a verified Lighttpd 1.4.84 source/archive whose fresh patched copy lacked executable configure. build_patched_core.sh blocked before configure, and the same source succeeded only after a task-local sh autogen.sh. The current builder formerly retained no automatic bootstrap branch.",
-  "observed_behavior_de": "Der analysis-only-General-State-Run zeichnet eine verifizierte Lighttpd-1.4.84-Source/ein Archiv auf, deren frische gepatchte Kopie kein ausführbares configure enthielt. build_patched_core.sh blockierte vor configure, und dieselbe Quelle war erst nach einem task-lokalen sh autogen.sh erfolgreich. Der aktuelle Builder enthielt zuvor keinen automatischen Bootstrap-Zweig.",
-  "expected_behavior": "After the existing copy-and-patch verification, the builder reuses an executable configure when present; otherwise it requires autogen.sh in the patched source tree, runs it there, and then requires an executable generated configure. An executable autogen.sh runs directly. A non-executable script is run through sh only when its first line is exactly #!/bin/sh or #!/usr/bin/env sh. Missing script, unsupported interpreter, bootstrap failure, or a non-executable generated configure must stop with a precise exit-77 diagnostic before the core build begins.",
-  "expected_behavior_de": "Nach bestehender Copy-/Patch-Verifikation verwendet der Builder ein vorhandenes ausführbares configure weiter; andernfalls verlangt er autogen.sh im gepatchten Source-Tree, führt es dort aus und verlangt anschließend ein ausführbares generiertes configure. Ein ausführbares autogen.sh läuft direkt. Ein nicht ausführbares Skript läuft nur dann durch sh, wenn seine erste Zeile exakt #!/bin/sh oder #!/usr/bin/env sh ist. Fehlendes Skript, nicht unterstützter Interpreter, Bootstrap-Fehler oder nicht ausführbares generiertes configure müssen mit präziser Exit-77-Diagnose vor Beginn des Core-Builds stoppen.",
-  "impact": "A clean patched Lighttpd core/host build is not reproducible from the pinned verified release without manual intervention. This is a P1 release-build boundary; it is not a demonstrated security exploit. The implemented local repair has focused proof, but the fresh real source/build control is still required before verified or closed status.",
-  "impact_de": "Ein sauberer gepatchter Lighttpd-Core-/Host-Build ist aus dem gepinnten verifizierten Release ohne manuellen Eingriff nicht reproduzierbar. Dies ist eine P1-Release-Build-Grenze und kein nachgewiesener Security-Exploit. Die implementierte lokale Korrektur besitzt fokussierten Nachweis, aber der frische reale Source-/Build-Control ist vor Status verified oder closed weiterhin erforderlich.",
+  "summary": "The official Lighttpd 1.4.84 release archive was verified at the pinned SHA-256 and extracted into the required absolute source root. Its original tree had no executable configure. The patched-core route automatically bootstrapped only the disposable patched copy, generated executable configure, built the patched core and host, and passed the host contract. A repeat in the same build root used the core-manifest fast path, retained the exact autogen.log marker, and did not rerun autogen.sh. The original source before/after manifests are byte-identical.",
+  "summary_de": "Das offizielle Lighttpd-1.4.84-Release-Archiv wurde mit dem gepinnten SHA-256 verifiziert und in den geforderten absoluten Source-Root entpackt. Sein Originaltree enthielt kein ausführbares configure. Der Patched-Core-Pfad bootstrapte automatisch nur die disponierbare gepatchte Kopie, erzeugte ausführbares configure, baute gepatchten Core und Host und bestand den Host-Contract. Eine Wiederholung im selben Build-Root verwendete den Core-Manifest-Fast-Path, behielt den exakten autogen.log-Marker bei und führte autogen.sh nicht erneut aus. Die Vorher-/Nachher-Manifeste der Originalquelle sind byteidentisch.",
+  "observed_behavior": "The original analysis recorded that a fresh patched copy of verified Lighttpd 1.4.84 lacked executable configure, so the former builder blocked before configure. The current real validation reproduced the absent-configure source state and confirmed that the repaired builder handles it automatically in the patched copy.",
+  "observed_behavior_de": "Die ursprüngliche Analyse zeichnete auf, dass einer frischen gepatchten Kopie von verifiziertem Lighttpd 1.4.84 ein ausführbares configure fehlte und der frühere Builder deshalb vor configure blockierte. Die aktuelle reale Validierung reproduzierte den Source-Zustand ohne configure und bestätigte, dass der reparierte Builder ihn automatisch in der gepatchten Kopie behandelt.",
+  "expected_behavior": "After copy-and-patch verification, the builder reuses executable configure; otherwise it requires autogen.sh in the patched source tree, runs it there, and then requires an executable generated configure. Missing script, unsupported interpreter, bootstrap failure, or a non-executable generated configure stops with a precise exit-77 diagnostic before core build output exists.",
+  "expected_behavior_de": "Nach Copy-/Patch-Verifikation verwendet der Builder ausführbares configure weiter; andernfalls verlangt er autogen.sh im gepatchten Source-Tree, führt es dort aus und verlangt danach ausführbares generiertes configure. Fehlendes Skript, nicht unterstützter Interpreter, Bootstrap-Fehler oder nicht ausführbares generiertes configure stoppen mit präziser Exit-77-Diagnose, bevor Core-Build-Output existiert.",
+  "impact": "The prior manual-bootstrap build-reproducibility blocker is remedied with real Fresh/Core/Host/Reuse proof. This remains a P1 release-build finding until normal post-delivery verification records the exact merged master state; it is not a demonstrated security exploit.",
+  "impact_de": "Der vorherige Build-Reproduzierbarkeitsblocker mit manuellem Bootstrap ist mit realem Fresh-/Core-/Host-/Reuse-Nachweis behoben. Bis die normale Post-Delivery-Verifikation den exakten gemergten Master-Zustand aufzeichnet, bleibt es ein P1-Release-Build-Finding; es ist kein nachgewiesener Security-Exploit.",
   "preconditions": [
-    "The caller supplies an absolute external LIGHTTPD_SOURCE_DIR containing verified Lighttpd 1.4.84 source.",
-    "The existing patch application has copied the source into the managed external patched root.",
-    "The upstream source either includes executable configure or includes an autogen.sh that can bootstrap it with the available upstream-declared tooling."
+    "Use only the verified official Lighttpd 1.4.84 archive with SHA-256 076dd43bec8f2ba9ce6db7e7ca7e8ad72271cd529805ead2400b56efaa026f70.",
+    "Use an absolute external LIGHTTPD_SOURCE_DIR containing configure.ac, autogen.sh, Makefile.am, and src/.",
+    "Use external patched/build roots and the upstream-declared Autotools tooling."
   ],
   "reproduction": [
-    "Use the pinned verified Lighttpd 1.4.84 source whose fresh extracted tree lacks executable configure.",
-    "Run make -C connectors/lighttpd check-lighttpd-patched-host with a private external BUILD_ROOT and absolute LIGHTTPD_SOURCE_DIR.",
-    "Before this repair, observe the configure gate block; after the repair, observe autogen in the patched copy, clean core build, host build, and legitimate reuse on a repeat invocation."
+    "Verify and extract the official Lighttpd 1.4.84 XZ archive; confirm the original has no executable configure.",
+    "Run make -C connectors/lighttpd check-lighttpd-patched-host with the absolute source root, private external BUILD_ROOT, and explicit ModSecurity include/library directories.",
+    "Run the same target again with the same BUILD_ROOT and confirm mode=reused plus an unchanged autogen.log marker."
   ],
   "evidence": [
     {
@@ -69,77 +72,59 @@
     {
       "run_id": "20260814T115110Z-f-gs-002-autogen-bootstrap",
       "artifact_path": ".codex/runs/20260814T115110Z-f-gs-002-autogen-bootstrap/evidence/validation.md",
-      "artifact_type": "local_remediation_and_focused_validation_receipt",
-      "sha256": "e4e16d93f787ef22e954abf33051ca72e60446662d8aa5d0f4751726fe796cbc",
-      "command": "Run the real builder against six isolated source-tree scenarios, generated-guide tests, documentation checks, shell syntax, and ShellCheck",
-      "working_directory": "/root/git/ModSecurity-conector",
+      "artifact_type": "official_archive_real_fresh_host_reuse_and_source_integrity_receipt",
+      "sha256": "ca61cb598a53f864cc284e8d902a34eeab4a86008d5f5191741ad2b6664ebc1c",
+      "command": "Verify and safely extract the official XZ archive, then run check-lighttpd-patched-host Fresh and Reuse with explicit external paths inside a no-network namespace",
+      "working_directory": "/var/tmp/codex/f-gs-002-lighttpd-1.4.84/worktree",
       "exit_code": 0,
-      "observed_at": "2026-08-14T11:58:05Z",
-      "retention_status": "retained_local_control_plane_evidence",
-      "result": "Focused builder, four Lighttpd guide controls, full 21-test compiler-guide suite, bilingual docs, doc links, shell syntax, ShellCheck, JSON parsing, and diff checks passed in the continuation. The actual real-source fresh/core/host/reuse proof remains blocked because LIGHTTPD_SOURCE_DIR is unset."
+      "observed_at": "2026-08-14T14:23:16Z",
+      "retention_status": "retained_versioned_receipt_with_external_bounded_logs",
+      "result": "Pinned archive hash and size passed; source identity and before/after manifests passed; Fresh core/host/contract and Reuse core/host/contract passed; autogen.log was unchanged on Reuse."
     },
     {
       "run_id": "20260814T115110Z-f-gs-002-autogen-bootstrap",
-      "artifact_path": ".codex/runs/20260814T115110Z-f-gs-002-autogen-bootstrap/evidence/validation.md",
-      "artifact_type": "actual_target_missing_source_preflight",
-      "sha256": "e4e16d93f787ef22e954abf33051ca72e60446662d8aa5d0f4751726fe796cbc",
-      "command": "rtk proxy env TMPDIR=<private-run>/tmp BUILD_ROOT=<private-run>/build LIGHTTPD_MAKE_JOBS=2 make -C connectors/lighttpd check-lighttpd-patched-host",
-      "working_directory": "/root/git/ModSecurity-conector",
-      "exit_code": 2,
-      "observed_at": "2026-08-14T11:58:05Z",
-      "retention_status": "retained_local_control_plane_evidence",
-      "result": "Prior retained target evidence: Make invoked the actual patched-core prerequisite, whose deliberate exit 77 stated LIGHTTPD_SOURCE_DIR is required; the host phase did not run. It is not a real-source E2E result."
-    },
-    {
-      "run_id": "20260814T115110Z-f-gs-002-autogen-bootstrap",
-      "artifact_path": ".codex/runs/20260814T115110Z-f-gs-002-autogen-bootstrap/evidence/validation.md",
-      "artifact_type": "continuation_validation_missing_supplied_source",
-      "sha256": "e4e16d93f787ef22e954abf33051ca72e60446662d8aa5d0f4751726fe796cbc",
-      "command": "rtk proxy printenv LIGHTTPD_SOURCE_DIR",
-      "working_directory": "/root/git/ModSecurity-conector",
-      "exit_code": 1,
-      "observed_at": "2026-08-14T12:48:43Z",
-      "retention_status": "retained_local_control_plane_evidence",
-      "result": "The required environment variable was unset. Targeted local searches found no supplied Lighttpd 1.4.84 source tree or archive; no network substitute was used."
+      "artifact_path": "external:/var/tmp/codex/f-gs-002-lighttpd-1.4.84/evidence/source-before.tsv",
+      "artifact_type": "external_original_source_manifest",
+      "sha256": "65da21d0e8e18198fd84f7deb6d014bd6c4cb582869318d0e9e13fc7144566fb",
+      "command": "No-follow raw-byte sorted lstat manifest over the original extracted source before and after all builds",
+      "working_directory": "/var/tmp/codex/f-gs-002-lighttpd-1.4.84",
+      "exit_code": 0,
+      "observed_at": "2026-08-14T14:23:16Z",
+      "retention_status": "retained_external_task_evidence",
+      "result": "source-before.tsv, source-after.tsv, and source-after-final.tsv have the same SHA-256; both cmp comparisons returned exit 0."
     }
   ],
-  "root_cause": "The Parent builder assumed an executable configure in its patched source copy even though the pinned verified release archive can omit generated Autotools output. Its earlier fail-closed gate contained no narrow bootstrap path between verified patch application and configure invocation.",
-  "root_cause_de": "Der Parent-Builder setzte in seiner gepatchten Source-Kopie ein ausführbares configure voraus, obwohl das gepinnte verifizierte Release-Archiv generierte Autotools-Ausgabe auslassen kann. Seine frühere Fail-Closed-Sperre enthielt keinen engen Bootstrap-Pfad zwischen verifizierter Patch-Anwendung und Configure-Aufruf.",
-  "proposed_remediation": "Keep the existing source/patch/hash controls. In build_patched_core.sh, reuse executable configure; otherwise invoke autogen.sh only in the patched copy and only under the direct or exact-POSIX-shebang rules, write bounded autogen.log output, and require executable configure before making the build directory. Keep the six scenario regression controls and generated English/German guide instructions. Do not add package installation, a network download, a generic guessed Autotools command list, chmod, ignored failures, or a weaker source-integrity control.",
-  "proposed_remediation_de": "Bestehende Source-/Patch-/Hash-Controls beibehalten. In build_patched_core.sh ausführbares configure weiterverwenden; andernfalls autogen.sh nur in der gepatchten Kopie und nur nach Direkt- oder exakten-POSIX-Shebang-Regeln aufrufen, begrenzte autogen.log-Ausgabe schreiben und ausführbares configure vor Erzeugung des Build-Verzeichnisses verlangen. Die sechs Szenario-Regression-Controls und die generierten englischen/deutschen Guide-Anweisungen beibehalten. Keine Paketinstallation, keinen Netz-Download, keine generische geratene Autotools-Befehlsliste, kein chmod, keine ignorierten Fehler und keinen schwächeren Source-Integrity-Control hinzufügen.",
+  "root_cause": "The Parent builder assumed an executable configure in its patched source copy even though the pinned verified release archive can omit generated Autotools output. Its earlier fail-closed gate had no narrow bootstrap path between patch application and configure invocation.",
+  "root_cause_de": "Der Parent-Builder setzte in seiner gepatchten Source-Kopie ein ausführbares configure voraus, obwohl das gepinnte verifizierte Release-Archiv generierte Autotools-Ausgabe auslassen kann. Seine frühere Fail-Closed-Sperre hatte keinen engen Bootstrap-Pfad zwischen Patch-Anwendung und Configure-Aufruf.",
+  "proposed_remediation": "Retain existing source/patch/hash controls. Reuse executable configure; otherwise invoke autogen.sh only in the patched copy under the direct or exact-POSIX-shebang rules, retain bounded autogen.log output, and require executable configure before the core build. Do not add package installation, network acquisition, chmod, guessed Autotools subcommands, or error suppression.",
+  "proposed_remediation_de": "Bestehende Source-/Patch-/Hash-Controls beibehalten. Ausführbares configure weiterverwenden; andernfalls autogen.sh nur in der gepatchten Kopie nach Direkt- oder exakten-POSIX-Shebang-Regeln aufrufen, begrenzte autogen.log-Ausgabe aufbewahren und ausführbares configure vor dem Core-Build verlangen. Keine Paketinstallation, keine Netzbeschaffung, kein chmod, keine geratenen Autotools-Subcommands und keine Fehlerunterdrückung hinzufügen.",
   "acceptance_criteria": [
-    "A present executable configure is reused without invoking autogen.sh.",
-    "A missing configure is bootstrapped in the patched copy, including an exact-POSIX-shebang non-executable autogen.sh, and then builds successfully from a supplied verified 1.4.84 source.",
-    "Missing autogen.sh, failed bootstrap, unsupported non-executable interpreter, and a missing/non-executable generated configure fail closed with precise diagnostics before core build output exists.",
-    "The original verified source remains untouched; no package installation, network action, hash weakening, chmod, or error suppression is introduced.",
-    "The generated English and German Lighttpd guides describe the identical bootstrap decision and a current guide regression enforces it.",
-    "A fresh real core and host build plus a repeated legitimate reuse run pass with the supplied verified source."
+    "An executable configure is reused without invoking autogen.sh.",
+    "A missing configure is bootstrapped only in the patched copy and produces executable configure before Core build.",
+    "Fresh patched Core, Host, and host-contract checks pass from verified Lighttpd 1.4.84 source.",
+    "Reuse passes without a second autogen.sh invocation.",
+    "The original verified source remains byte-identical and no package installation, extra download, hash weakening, chmod, or error suppression is introduced.",
+    "Focused contract, guide, syntax, JSON, and relevant documentation controls pass."
   ],
   "validation_plan": [
-    "Provide or retain a verified external Lighttpd 1.4.84 source tree that reproduces the absent-configure condition without network acquisition.",
-    "Run a clean build-lighttpd-patched-core and check-lighttpd-patched-host under a new private BUILD_ROOT; retain raw stdout, stderr, exit code, patch manifest, autogen.log, and staged binary/host manifest evidence.",
-    "Run the same target again to prove manifest/configure reuse does not rerun autogen.sh.",
-    "Rerun the focused real-script bootstrap suite, compiler-guide target, bilingual documentation check, documentation links, shell syntax, and ShellCheck."
+    "After delivery, confirm the exact PR merge result and current origin/master SHA.",
+    "Monitor the required master workflows for that resulting SHA.",
+    "Rerun the original reproduction evidence or strongest equivalent on the merged master state before moving from fixed to verified.",
+    "Do not change the immutable analysis-only F-GS-002 record."
   ],
   "regression_tests": [
-    "connectors/lighttpd/tests/test_patched_host_contract.py: existing configure, missing configure with non-executable POSIX autogen, non-executable configure, both files missing, autogen failure, no generated configure, unsupported interpreter, and repeat reuse",
-    "tests/test_compiler_guides.py: generated Lighttpd English/German bootstrap wording and command regression",
+    "connectors/lighttpd/tests/test_patched_host_contract.py: 26 scenarios including existing configure, missing configure, bootstrap failure, unsupported interpreter, no generated configure, and Reuse",
+    "Four selected CompilerGuideGenerationTest Lighttpd idempotence, EN/DE parity, shell-syntax, and generated-file checks",
     "make check-compiler-guides"
   ],
   "legitimate_control_tests": [
-    "An existing executable configure skips the bootstrap script.",
+    "Existing executable configure skips bootstrap.",
     "A non-executable autogen.sh with exact POSIX shebang executes through sh without chmod.",
-    "A repeat build reuses the verified core manifest and does not run autogen.sh a second time.",
-    "A real fresh source build preserves patch identity, staged binary version, and required hook symbols."
+    "A real Fresh source build preserves patch identity, binary version, hook symbols, host construction, and original-source integrity.",
+    "A real Reuse build emits mode=reused and leaves autogen.log unchanged."
   ],
-  "dependencies": [
-    "A caller-provided verified Lighttpd 1.4.84 source tree or separately approved verified archive extraction.",
-    "Only the Autotools commands declared by that upstream tree's autogen.sh and the environment it reports as required."
-  ],
-  "blocked_by": [
-    "The promised absolute LIGHTTPD_SOURCE_DIR is unset; targeted local searches found no supplied lighttpd-1.4.84 source tree or archive, and the current user forbids adding a network acquisition step.",
-    "The final clean core/host build therefore cannot yet prove that the original real failure no longer reproduces."
-  ],
+  "dependencies": [],
+  "blocked_by": [],
   "duplicates": [],
   "related_findings": [],
   "source_input_ids": [
@@ -150,29 +135,29 @@
     "20260814T083829Z-ea3b48a",
     "20260814T115110Z-f-gs-002-autogen-bootstrap"
   ],
-  "residual_risk": "The local remediation is intentionally not marked fixed, verified, or closed while the real clean Lighttpd core and host path lacks a supplied verified input. A future validation must preserve the source-integrity and patch controls and must not replace the required source with an unverified download or generic bootstrap command sequence.",
-  "residual_risk_de": "Die lokale Remediation wird absichtlich nicht als fixed, verified oder closed markiert, solange dem realen sauberen Lighttpd-Core-/Host-Pfad ein bereitgestellter verifizierter Input fehlt. Eine zukünftige Validierung muss die Source-Integrity- und Patch-Controls bewahren und darf die erforderliche Source nicht durch einen unverifizierten Download oder eine generische Bootstrap-Befehlsfolge ersetzen.",
+  "residual_risk": "The defect is fixed but not yet verified or closed; those statuses require the authorized delivery and post-merge master evidence. The generic documentation targets in the clean PR worktree are environmentally blocked by its deliberately uninitialized Framework gitlink, while the Lighttpd-specific guide/link controls and the same generic targets in the existing checkout with the Framework present passed. No Traefik or Framework file was changed.",
+  "residual_risk_de": "Der Defekt ist fixed, aber noch nicht verified oder closed; diese Status erfordern die autorisierte Delivery und Post-Merge-Master-Evidence. Die generischen Dokumentations-Targets im sauberen PR-Worktree sind durch dessen bewusst nicht initialisierten Framework-Gitlink umgebungsbedingt blockiert, während die Lighttpd-spezifischen Guide-/Link-Controls und dieselben generischen Targets im bestehenden Checkout mit vorhandenem Framework bestanden. Keine Traefik- oder Framework-Datei wurde geändert.",
   "created_at": "2026-08-14T11:58:05Z",
-  "updated_at": "2026-08-14T12:48:43Z",
+  "updated_at": "2026-08-14T14:23:16Z",
   "final_disposition": null,
   "history": [
     {
       "at": "2026-08-14T11:58:05Z",
       "event": "local_autogen_bootstrap_remediation_implemented_pending_real_source_validation",
-      "detail": "Implemented the narrow patched-copy bootstrap decision, six real-script regression scenarios, generated bilingual guide updates, and focused static/documentation validation. The actual host target was invoked but stopped at the intentional missing-LIGHTTPD_SOURCE_DIR prerequisite; no source download or unsafe workaround was used.",
-      "detail_de": "Die enge Bootstrap-Entscheidung in der gepatchten Kopie, sechs Real-Skript-Regression-Szenarien, generierte bilinguale Guide-Updates und fokussierte statische/Dokumentations-Validierung wurden implementiert. Das tatsächliche Host-Target wurde aufgerufen, stoppte aber an der beabsichtigten Voraussetzung fehlendes LIGHTTPD_SOURCE_DIR; kein Source-Download und kein unsicherer Workaround wurden verwendet."
+      "detail": "Implemented the narrow patched-copy bootstrap decision, six real-script regression scenarios, generated bilingual guide updates, and focused static/documentation validation. The actual host target initially stopped at the missing-LIGHTTPD_SOURCE_DIR prerequisite; no unsafe workaround was used.",
+      "detail_de": "Die enge Bootstrap-Entscheidung in der gepatchten Kopie, sechs Real-Skript-Regression-Szenarien, generierte bilinguale Guide-Updates und fokussierte statische/Dokumentations-Validierung wurden implementiert. Das tatsächliche Host-Target stoppte zunächst an der Voraussetzung fehlendes LIGHTTPD_SOURCE_DIR; kein unsicherer Workaround wurde verwendet."
     },
     {
       "at": "2026-08-14T12:15:11Z",
       "event": "explicit_non_executable_configure_and_interpreter_controls_passed",
-      "detail": "The final focused builder rerun added explicit non-executable-configure and unsupported-interpreter controls to the six required scenarios. All 26 contract tests, shell syntax, and ShellCheck passed; the real-source core/host acceptance remains blocked only by missing approved verified source input.",
-      "detail_de": "Der finale fokussierte Builder-Rerun ergänzte explizite Controls für nicht ausführbares configure und einen nicht unterstützten Interpreter zu den sechs erforderlichen Szenarien. Alle 26 Contract-Tests, Shell-Syntax und ShellCheck bestanden; die reale Source-Core-/Host-Akzeptanz bleibt ausschließlich wegen fehlendem zugelassenem verifiziertem Source-Input blockiert."
+      "detail": "Added explicit non-executable-configure and unsupported-interpreter controls. All 26 contract tests, shell syntax, and ShellCheck passed.",
+      "detail_de": "Explizite Controls für nicht ausführbares configure und einen nicht unterstützten Interpreter wurden ergänzt. Alle 26 Contract-Tests, Shell-Syntax und ShellCheck bestanden."
     },
     {
-      "at": "2026-08-14T12:48:43Z",
-      "event": "continuation_validation_reran_focused_controls_without_supplied_source",
-      "detail": "The continuation reran 26 patched-host contract tests, four Lighttpd-specific guide controls, the full 21-test compiler-guide target, bilingual docs, doc links, shell syntax, ShellCheck, JSON parsing, and diff checks successfully. LIGHTTPD_SOURCE_DIR was unset and targeted local discovery found no verified 1.4.84 source/archive, so no fresh/core/host/reuse E2E run, source fingerprint, or fixed disposition is claimed.",
-      "detail_de": "Die Fortsetzungsvalidierung wiederholte 26 Patched-Host-Contract-Tests, vier Lighttpd-spezifische Guide-Controls, das vollständige 21-Test-Compiler-Guide-Target, bilinguale Dokumentation, Doc-Links, Shell-Syntax, ShellCheck, JSON-Parsing und Diff-Checks erfolgreich. LIGHTTPD_SOURCE_DIR war nicht gesetzt und die gezielte lokale Suche fand keine verifizierte 1.4.84-Source/kein Archiv; daher werden kein Fresh-/Core-/Host-/Reuse-E2E-Lauf, kein Source-Fingerprint und keine fixed-Disposition behauptet."
+      "at": "2026-08-14T14:23:16Z",
+      "event": "official_archive_real_fresh_host_reuse_validation_fixed",
+      "detail": "Verified the official Lighttpd 1.4.84 XZ archive at its pinned digest and size; safely extracted it; recorded byte-identical original-source manifests; and passed Fresh Core/Host/host-contract plus a same-root Reuse run inside a no-network namespace. Reuse emitted mode=reused and left autogen.log unchanged.",
+      "detail_de": "Das offizielle Lighttpd-1.4.84-XZ-Archiv wurde mit seinem gepinnten Digest und seiner Größe verifiziert, sicher entpackt, mit byteidentischen Originalsource-Manifests aufgezeichnet und Fresh Core/Host/Host-Contract sowie ein Same-Root-Reuse im netzlosen Namespace bestanden. Reuse gab mode=reused aus und ließ autogen.log unverändert."
     }
   ]
 }
