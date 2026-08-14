@@ -208,7 +208,9 @@ is remounted read-only after setup. It exposes only the read-only runtime
 directories `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, and only the exact
 `actions/setup-python` runtime below
 `/opt/hostedtoolcache/Python/<version>/<architecture>`, plus the minimal
-required read-only `/etc` material. It mounts a fresh read-only `proc`
+required read-only `/etc` material. That runtime must not be world-writable or
+group-writable by the validator, and is bind-mounted read-only. It mounts a
+fresh read-only `proc`
 filesystem at jailed `/proc` with `nosuid,nodev,noexec` and constructs a
 private `/dev` containing only `null` and `urandom`.
 

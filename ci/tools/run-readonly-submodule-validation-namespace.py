@@ -351,7 +351,18 @@ def _runtime_python_is_exposed(python: Path) -> bool:
     )
 
 
-def _hosted_python_runtime_root(python: Path) -> Path | None:
+def _trusted_hosted_python_runtime(path: Path, validator_gid: int) -> None:
+    """Accept a runner-managed toolcache tree inaccessible to the validator UID."""
+    metadata = os.stat(path)
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_mode & stat.S_IWOTH
+        or (metadata.st_mode & stat.S_IWGRP and metadata.st_gid == validator_gid)
+    ):
+        raise RuntimeError(f"unsafe hosted Python runtime for jailed candidate: {path}")
+
+
+def _hosted_python_runtime_root(python: Path, validator_gid: int) -> Path | None:
     """Return one exact setup-python runtime tree, never a broad host /opt mount."""
     if _runtime_python_is_exposed(python):
         return None
@@ -362,13 +373,15 @@ def _hosted_python_runtime_root(python: Path) -> Path | None:
     if len(relative.parts) < 4 or relative.parts[2] != "bin":
         raise RuntimeError(f"python is outside a hosted setup-python runtime: {python}")
     runtime_root = JAIL_HOSTED_PYTHON_ROOT.joinpath(*relative.parts[:2])
-    _trusted_runtime_source(runtime_root, directory=True)
+    _trusted_hosted_python_runtime(runtime_root, validator_gid)
     return runtime_root
 
 
-def _build_jail_layout(mount_root: Path, source: Path, external: Path, python: Path) -> JailLayout:
+def _build_jail_layout(
+    mount_root: Path, source: Path, external: Path, python: Path, validator_gid: int
+) -> JailLayout:
     """Build a private, allowlisted filesystem tree before candidate code exists."""
-    hosted_python_root = _hosted_python_runtime_root(python)
+    hosted_python_root = _hosted_python_runtime_root(python, validator_gid)
     _mount("tmpfs", mount_root, MS_NOSUID | MS_NODEV | MS_NOEXEC, "tmpfs")
     _secure_directory(mount_root, 0o755)
     source_view = _jail_target(mount_root, JAIL_SOURCE)
@@ -603,7 +616,7 @@ def _namespace_child(
 ) -> int:
     _unshare()
     _mount(None, Path("/"), MS_REC | MS_PRIVATE)
-    layout = _build_jail_layout(mount_root, source, external, python)
+    layout = _build_jail_layout(mount_root, source, external, python, gid)
     framework_relative = framework.relative_to(source)
     proc_ready_read, proc_ready_write = os.pipe()
     child = os.fork()

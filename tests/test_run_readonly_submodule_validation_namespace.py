@@ -39,17 +39,30 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
     def test_python_runtime_allowlist_binds_only_the_exact_hosted_toolcache_tree(self) -> None:
         hosted_python = Path("/opt/hostedtoolcache/Python/3.14.6/x64/bin/python")
         hosted_root = Path("/opt/hostedtoolcache/Python/3.14.6/x64")
-        with mock.patch.object(HELPER, "_trusted_runtime_source") as trusted:
-            self.assertEqual(HELPER._hosted_python_runtime_root(hosted_python), hosted_root)
-        trusted.assert_called_once_with(hosted_root, directory=True)
-        self.assertIsNone(HELPER._hosted_python_runtime_root(Path("/usr/bin/python3")))
+        with mock.patch.object(HELPER, "_trusted_hosted_python_runtime") as trusted:
+            self.assertEqual(HELPER._hosted_python_runtime_root(hosted_python, 4242), hosted_root)
+        trusted.assert_called_once_with(hosted_root, 4242)
+        self.assertIsNone(HELPER._hosted_python_runtime_root(Path("/usr/bin/python3"), 4242))
         for invalid in (
             Path("/opt/hostedtoolcache/Python/3.14.6/bin/python"),
             Path("/opt/hostedtoolcache/pip/bin/python"),
             Path("/home/runner/python"),
         ):
             with self.subTest(invalid=invalid), self.assertRaisesRegex(RuntimeError, "python is outside"):
-                HELPER._hosted_python_runtime_root(invalid)
+                HELPER._hosted_python_runtime_root(invalid, 4242)
+
+    def test_hosted_python_runtime_rejects_world_or_validator_group_writability(self) -> None:
+        runtime = Path("/opt/hostedtoolcache/Python/3.14.6/x64")
+        directory = stat.S_IFDIR
+        accepted = SimpleNamespace(st_mode=directory | 0o775, st_gid=1001)
+        validator_group_writable = SimpleNamespace(st_mode=directory | 0o775, st_gid=4242)
+        world_writable = SimpleNamespace(st_mode=directory | 0o777, st_gid=1001)
+        with mock.patch.object(HELPER.os, "stat", return_value=accepted):
+            HELPER._trusted_hosted_python_runtime(runtime, 4242)
+        for metadata in (validator_group_writable, world_writable):
+            with self.subTest(metadata=metadata), mock.patch.object(HELPER.os, "stat", return_value=metadata):
+                with self.assertRaisesRegex(RuntimeError, "unsafe hosted Python runtime"):
+                    HELPER._trusted_hosted_python_runtime(runtime, 4242)
 
     def test_jail_binds_an_exact_hosted_runtime_not_the_host_opt_directory(self) -> None:
         mount_root = Path("/jail")
@@ -69,6 +82,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                 Path("/trusted/source"),
                 Path("/trusted/external"),
                 hosted_root / "bin/python",
+                4242,
             )
         self.assertIn(hosted_target, layout.mounts)
         self.assertIn(mock.call(hosted_root, hosted_target), bind_readonly.call_args_list)
