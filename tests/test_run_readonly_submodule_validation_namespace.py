@@ -484,11 +484,50 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             "validator retained an inherited descriptor", 'test -e "$descriptor" || continue', "test -c /dev/null", "validator sees an unexpected device",
             "python_runtime_bin=$(dirname \"$PYTHON\")", "runtime-write-probe", "runtime-directory-probe",
             "runtime-rename-probe",
+            "cap_eff=\"\"; no_new_privs=\"\"", "while IFS=$'\\t ' read -r label value",
+            "done < /proc/self/status",
         ):
             self.assertIn(required, program)
         self.assertIn('exec make PYTHON="$PYTHON" quick-check', program)
         self.assertNotIn('exec make PYTHON="$PYTHON" BUILD_ROOT=', program)
         self.assertNotIn("eval ", program)
+        self.assertNotIn("awk ", program)
+        syntax = subprocess.run(
+            ["/bin/bash", "--noprofile", "--norc", "-n", "-c", program],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(syntax.returncode, 0, syntax.stderr)
+
+    def test_candidate_proc_status_parser_preserves_capability_and_no_new_privs_checks(self) -> None:
+        program = HELPER._candidate_script()
+        parser_start = program.index('cap_eff=""; no_new_privs=""')
+        parser_end = program.index('for target in /tmp /var /home /root /run /sys /dev/shm')
+        parser = program[parser_start:parser_end]
+        cases = {
+            "valid": ("0000000000000000", "1", 0),
+            "capabilities retained": ("0000000000000001", "1", 1),
+            "no new privs disabled": ("0000000000000000", "0", 1),
+        }
+        for name, (cap_eff, no_new_privs, expected) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as raw:
+                status = Path(raw) / "status"
+                status.write_text(
+                    f"Name:\tvalidator\nCapEff:\t{cap_eff}\nNoNewPrivs:\t{no_new_privs}\n",
+                    encoding="utf-8",
+                )
+                result = subprocess.run(
+                    [
+                        "/bin/bash", "--noprofile", "--norc", "-eu", "-c",
+                        parser.replace("/proc/self/status", str(status)),
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    env={"PATH": ""},
+                )
+                self.assertEqual(result.returncode, expected, result.stderr)
 
     def test_jail_path_and_runtime_allowlist_are_fixed(self) -> None:
         root = Path("/mount-root")

@@ -372,7 +372,8 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         "if _mountinfo_for(mount_root) != before:",
         "os.rmdir(path)",
         'test "$PWD" = "$GITHUB_WORKSPACE"',
-        "/proc/self/status)",
+        'cap_eff=""; no_new_privs=""',
+        "done < /proc/self/status",
         "0000000000000000",
         "NoNewPrivs:",
         "for component in JAIL_FORBIDDEN_PATH_COMPONENTS",
@@ -426,6 +427,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         "shell=True",
         "os.system",
         "secrets.token_hex",
+        "awk ",
     ):
         if term in runner:
             errors.append(f"namespace runner must not use {term}")
