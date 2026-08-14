@@ -21,3 +21,8 @@ reports without an explicit repository-policy decision or user decision.
   policies require this paired record for that Parent change. It records only
   observed local validation; hosted execution, PR checks, and cross-repository
   delivery are not asserted.
+- [CR-20260814-f-gs-006-http-authorization-admission](CR-20260814-f-gs-006-http-authorization-admission.md)
+  | [Deutsch](CR-20260814-f-gs-006-http-authorization-admission.de.md) — the
+  current user authorized this paired Parent security-hardening record and a
+  Draft PR. It records only observed local validation; host runtime, hosted
+  execution, and delivery checks are not asserted.

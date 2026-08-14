@@ -22,3 +22,8 @@ angelegt werden.
   Record für die Parent-Änderung. Er weist nur beobachtete lokale Validierung
   aus; Hosted-Ausführung, PR-Checks und Cross-Repository-Delivery werden nicht
   behauptet.
+- [CR-20260814-f-gs-006-http-authorization-admission](CR-20260814-f-gs-006-http-authorization-admission.de.md) —
+  der aktuelle Benutzer hat diesen gepaarten Parent-Security-Hardening-Record
+  und einen Draft-PR autorisiert. Er weist nur beobachtete lokale Validierung
+  aus; Host-Runtime, Hosted-Ausführung und Delivery-Checks werden nicht
+  behauptet.

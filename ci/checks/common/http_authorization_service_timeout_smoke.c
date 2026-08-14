@@ -23,9 +23,15 @@
 #include <unistd.h>
 
 #define TEST_CONNECTION_TIMEOUT_MS 250UL
+#define TEST_DEFAULT_SLOT_TIMEOUT_MS 1000UL
 #define TEST_START_TIMEOUT_MS 2000L
 #define TEST_RESPONSE_TIMEOUT_MS 1500L
-#define TEST_CHILD_TIMEOUT_MS 3000L
+#define TEST_CHILD_TIMEOUT_MS 5000L
+#define TEST_STALLED_PEER_SETTLE_MS 25L
+#define TEST_PARALLEL_RESPONSE_MAX_MS 200L
+#define TEST_DEFAULT_CONNECTION_COUNT 8U
+#define TEST_SEQUENTIAL_REQUEST_COUNT 64U
+#define TEST_PARALLEL_REQUEST_COUNT 4U
 
 struct msconnector_runtime {
     unsigned int active_transactions;
@@ -320,29 +326,54 @@ static int read_response(int socket_fd, char *response, size_t response_size) {
     return used > 0U;
 }
 
-static pid_t start_service(unsigned short port) {
+static pid_t start_service_with_options(
+    unsigned short port,
+    unsigned long max_requests,
+    unsigned long timeout_ms,
+    unsigned long max_connections) {
     char listen[64];
     char timeout[32];
-    char *argv[] = {
-        "timeout-smoke-service",
-        "--serve",
-        "--config",
-        "timeout-smoke.conf",
-        "--listen",
-        listen,
-        "--max-requests",
-        "2",
-        "--connection-timeout-ms",
-        timeout,
-        NULL,
-    };
+    char max_requests_value[32];
+    char max_connections_value[32];
+    char *argv[13];
+    int argc = 0;
     const pid_t child = fork();
     if (child != 0) {
         return child;
     }
     (void)snprintf(listen, sizeof(listen), "127.0.0.1:%u", (unsigned int)port);
-    (void)snprintf(timeout, sizeof(timeout), "%lu", TEST_CONNECTION_TIMEOUT_MS);
-    _exit(msconnector_http_authorization_service_main(10, argv, &smoke_profile));
+    (void)snprintf(timeout, sizeof(timeout), "%lu", timeout_ms);
+    (void)snprintf(max_requests_value, sizeof(max_requests_value), "%lu", max_requests);
+    argv[argc++] = "timeout-smoke-service";
+    argv[argc++] = "--serve";
+    argv[argc++] = "--config";
+    argv[argc++] = "timeout-smoke.conf";
+    argv[argc++] = "--listen";
+    argv[argc++] = listen;
+    argv[argc++] = "--max-requests";
+    argv[argc++] = max_requests_value;
+    if (max_connections != 0UL) {
+        (void)snprintf(max_connections_value, sizeof(max_connections_value), "%lu",
+            max_connections);
+        argv[argc++] = "--max-connections";
+        argv[argc++] = max_connections_value;
+    }
+    argv[argc++] = "--connection-timeout-ms";
+    argv[argc++] = timeout;
+    argv[argc] = NULL;
+    _exit(msconnector_http_authorization_service_main(argc, argv, &smoke_profile));
+}
+
+static pid_t start_service_with_capacity(
+    unsigned short port,
+    unsigned long max_requests,
+    unsigned long max_connections) {
+    return start_service_with_options(port, max_requests,
+        TEST_CONNECTION_TIMEOUT_MS, max_connections);
+}
+
+static pid_t start_service(unsigned short port) {
+    return start_service_with_capacity(port, 2UL, 2UL);
 }
 
 static int wait_for_service(pid_t child) {
@@ -438,6 +469,431 @@ done:
     }
     if (valid_fd >= 0) {
         (void)close(valid_fd);
+    }
+    if (service > 0) {
+        int status = 0;
+        (void)kill(service, SIGTERM);
+        (void)waitpid(service, &status, 0);
+    }
+    return result;
+}
+
+static int valid_request_is_served(unsigned short port) {
+    const char valid_request[] = "GET /ok HTTP/1.1\r\nHost: valid.example\r\n\r\n";
+    char response[1024];
+    int socket_fd = connect_loopback(port, TEST_RESPONSE_TIMEOUT_MS);
+    int result = 0;
+    if (socket_fd >= 0 && send_all(socket_fd, valid_request) &&
+        read_response(socket_fd, response, sizeof(response)) &&
+        response_has_status(response, "HTTP/1.1 200")) {
+        result = 1;
+    }
+    if (socket_fd >= 0) {
+        (void)close(socket_fd);
+    }
+    return result;
+}
+
+static int peer_is_rejected_promptly(int socket_fd) {
+    struct timeval timeout;
+    char byte;
+    ssize_t received;
+    timeout.tv_sec = TEST_PARALLEL_RESPONSE_MAX_MS / 1000L;
+    timeout.tv_usec = (suseconds_t)(
+        (TEST_PARALLEL_RESPONSE_MAX_MS % 1000L) * 1000L);
+    if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO,
+            &timeout, sizeof(timeout)) != 0) {
+        return 0;
+    }
+    do {
+        received = recv(socket_fd, &byte, sizeof(byte), 0);
+    } while (received < 0 && errno == EINTR);
+    return received == 0 || (received < 0 &&
+        (errno == ECONNRESET || errno == ENOTCONN));
+}
+
+static int run_parallel_request_case(void) {
+    const char stall_request[] = "GET /stall HTTP/1.1\r\nHost: slow.example\r\n";
+    const char valid_request[] = "GET /ok HTTP/1.1\r\nHost: valid.example\r\n\r\n";
+    char stalled_response[1024];
+    char valid_response[1024];
+    unsigned short port;
+    int stalled_fd = -1;
+    int valid_fd = -1;
+    int result = 0;
+    long valid_started;
+    long valid_finished;
+    pid_t service = -1;
+
+    if (!reserve_loopback_port(&port)) {
+        (void)fprintf(stderr, "parallel_request: could not reserve loopback port\n");
+        return 0;
+    }
+    service = start_service(port);
+    if (service < 0) {
+        (void)fprintf(stderr, "parallel_request: could not fork service\n");
+        return 0;
+    }
+    stalled_fd = connect_loopback(port, TEST_START_TIMEOUT_MS);
+    if (stalled_fd < 0 || !send_all(stalled_fd, stall_request) ||
+        !sleep_milliseconds(TEST_STALLED_PEER_SETTLE_MS)) {
+        (void)fprintf(stderr, "parallel_request: could not establish stalled peer\n");
+        goto done;
+    }
+    valid_started = monotonic_milliseconds();
+    valid_fd = connect_loopback(port, TEST_RESPONSE_TIMEOUT_MS);
+    if (valid_fd < 0 || !send_all(valid_fd, valid_request) ||
+        !read_response(valid_fd, valid_response, sizeof(valid_response))) {
+        (void)fprintf(stderr, "parallel_request: valid peer was not served\n");
+        goto done;
+    }
+    valid_finished = monotonic_milliseconds();
+    if (!response_has_status(valid_response, "HTTP/1.1 200") ||
+        valid_started < 0L || valid_finished < valid_started ||
+        valid_finished - valid_started > TEST_PARALLEL_RESPONSE_MAX_MS) {
+        (void)fprintf(stderr,
+            "parallel_request: valid peer waited for the stalled peer deadline\n");
+        goto done;
+    }
+    if (!read_response(stalled_fd, stalled_response, sizeof(stalled_response)) ||
+        !response_has_status(stalled_response, "HTTP/1.1 408")) {
+        (void)fprintf(stderr, "parallel_request: stalled peer did not receive a bounded 408\n");
+        goto done;
+    }
+    if (!wait_for_service(service)) {
+        (void)fprintf(stderr, "parallel_request: service did not exit cleanly\n");
+        service = -1;
+        goto done;
+    }
+    service = -1;
+    result = 1;
+
+done:
+    if (stalled_fd >= 0) {
+        (void)close(stalled_fd);
+    }
+    if (valid_fd >= 0) {
+        (void)close(valid_fd);
+    }
+    if (service > 0) {
+        int status = 0;
+        (void)kill(service, SIGTERM);
+        (void)waitpid(service, &status, 0);
+    }
+    return result;
+}
+
+static int run_overload_recovery_case(void) {
+    const char stall_request[] = "GET /stall HTTP/1.1\r\nHost: slow.example\r\n";
+    char stalled_response[1024];
+    unsigned short port;
+    int stalled_fd = -1;
+    int rejected_fd = -1;
+    int result = 0;
+    long rejection_started;
+    long rejection_finished;
+    pid_t service = -1;
+
+    if (!reserve_loopback_port(&port)) {
+        (void)fprintf(stderr, "overload_recovery: could not reserve loopback port\n");
+        return 0;
+    }
+    service = start_service_with_capacity(port, 3UL, 1UL);
+    if (service < 0) {
+        (void)fprintf(stderr, "overload_recovery: could not fork service\n");
+        return 0;
+    }
+    stalled_fd = connect_loopback(port, TEST_START_TIMEOUT_MS);
+    if (stalled_fd < 0 || !send_all(stalled_fd, stall_request) ||
+        !sleep_milliseconds(TEST_STALLED_PEER_SETTLE_MS)) {
+        (void)fprintf(stderr, "overload_recovery: could not establish stalled peer\n");
+        goto done;
+    }
+    rejection_started = monotonic_milliseconds();
+    rejected_fd = connect_loopback(port, TEST_RESPONSE_TIMEOUT_MS);
+    if (rejected_fd < 0 || !peer_is_rejected_promptly(rejected_fd)) {
+        (void)fprintf(stderr, "overload_recovery: excess peer was not rejected promptly\n");
+        goto done;
+    }
+    rejection_finished = monotonic_milliseconds();
+    if (rejection_started < 0L || rejection_finished < rejection_started ||
+        rejection_finished - rejection_started > TEST_PARALLEL_RESPONSE_MAX_MS) {
+        (void)fprintf(stderr, "overload_recovery: excess peer rejection exceeded bound\n");
+        goto done;
+    }
+    if (!read_response(stalled_fd, stalled_response, sizeof(stalled_response)) ||
+        !response_has_status(stalled_response, "HTTP/1.1 408") ||
+        !valid_request_is_served(port)) {
+        (void)fprintf(stderr, "overload_recovery: capacity did not recover\n");
+        goto done;
+    }
+    if (!wait_for_service(service)) {
+        (void)fprintf(stderr, "overload_recovery: service did not exit cleanly\n");
+        service = -1;
+        goto done;
+    }
+    service = -1;
+    result = 1;
+
+done:
+    if (stalled_fd >= 0) {
+        (void)close(stalled_fd);
+    }
+    if (rejected_fd >= 0) {
+        (void)close(rejected_fd);
+    }
+    if (service > 0) {
+        int status = 0;
+        (void)kill(service, SIGTERM);
+        (void)waitpid(service, &status, 0);
+    }
+    return result;
+}
+
+static int run_default_capacity_recovery_case(void) {
+    const char stall_request[] = "GET /stall HTTP/1.1\r\nHost: slow.example\r\n";
+    char stalled_response[1024];
+    unsigned short port;
+    int stalled_fds[TEST_DEFAULT_CONNECTION_COUNT];
+    int rejected_fd = -1;
+    int result = 0;
+    pid_t service = -1;
+
+    for (size_t index = 0U; index < TEST_DEFAULT_CONNECTION_COUNT; ++index) {
+        stalled_fds[index] = -1;
+    }
+    if (!reserve_loopback_port(&port)) {
+        (void)fprintf(stderr, "default_capacity: could not reserve loopback port\n");
+        return 0;
+    }
+    service = start_service_with_options(port,
+        (unsigned long)TEST_DEFAULT_CONNECTION_COUNT + 2UL,
+        TEST_DEFAULT_SLOT_TIMEOUT_MS, 0UL);
+    if (service < 0) {
+        (void)fprintf(stderr, "default_capacity: could not fork service\n");
+        return 0;
+    }
+    for (size_t index = 0U; index < TEST_DEFAULT_CONNECTION_COUNT; ++index) {
+        stalled_fds[index] = connect_loopback(port, TEST_START_TIMEOUT_MS);
+        if (stalled_fds[index] < 0 || !send_all(stalled_fds[index], stall_request) ||
+            !sleep_milliseconds(TEST_STALLED_PEER_SETTLE_MS)) {
+            (void)fprintf(stderr, "default_capacity: could not establish stalled peer\n");
+            goto done;
+        }
+    }
+    rejected_fd = connect_loopback(port, TEST_RESPONSE_TIMEOUT_MS);
+    if (rejected_fd < 0 || !peer_is_rejected_promptly(rejected_fd)) {
+        (void)fprintf(stderr, "default_capacity: ninth peer was not rejected promptly\n");
+        goto done;
+    }
+    for (size_t index = 0U; index < TEST_DEFAULT_CONNECTION_COUNT; ++index) {
+        if (!read_response(stalled_fds[index], stalled_response,
+                sizeof(stalled_response)) ||
+            !response_has_status(stalled_response, "HTTP/1.1 408")) {
+            (void)fprintf(stderr, "default_capacity: stalled peer did not receive 408\n");
+            goto done;
+        }
+    }
+    if (!valid_request_is_served(port)) {
+        (void)fprintf(stderr, "default_capacity: capacity did not recover\n");
+        goto done;
+    }
+    if (!wait_for_service(service)) {
+        (void)fprintf(stderr, "default_capacity: service did not exit cleanly\n");
+        service = -1;
+        goto done;
+    }
+    service = -1;
+    result = 1;
+
+done:
+    for (size_t index = 0U; index < TEST_DEFAULT_CONNECTION_COUNT; ++index) {
+        if (stalled_fds[index] >= 0) {
+            (void)close(stalled_fds[index]);
+        }
+    }
+    if (rejected_fd >= 0) {
+        (void)close(rejected_fd);
+    }
+    if (service > 0) {
+        int status = 0;
+        (void)kill(service, SIGTERM);
+        (void)waitpid(service, &status, 0);
+    }
+    return result;
+}
+
+static int run_sequential_request_case(void) {
+    unsigned short port;
+    pid_t service = -1;
+    int result = 0;
+
+    if (!reserve_loopback_port(&port)) {
+        (void)fprintf(stderr, "sequential_requests: could not reserve loopback port\n");
+        return 0;
+    }
+    service = start_service_with_capacity(port, TEST_SEQUENTIAL_REQUEST_COUNT, 1UL);
+    if (service < 0) {
+        (void)fprintf(stderr, "sequential_requests: could not fork service\n");
+        return 0;
+    }
+    for (size_t index = 0U; index < TEST_SEQUENTIAL_REQUEST_COUNT; ++index) {
+        if (!valid_request_is_served(port)) {
+            (void)fprintf(stderr, "sequential_requests: valid request was not served\n");
+            goto done;
+        }
+    }
+    if (!wait_for_service(service)) {
+        (void)fprintf(stderr, "sequential_requests: service did not exit cleanly\n");
+        service = -1;
+        goto done;
+    }
+    service = -1;
+    result = 1;
+
+done:
+    if (service > 0) {
+        int status = 0;
+        (void)kill(service, SIGTERM);
+        (void)waitpid(service, &status, 0);
+    }
+    return result;
+}
+
+static int run_parallel_complete_request_case(void) {
+    const char valid_request[] = "GET /ok HTTP/1.1\r\nHost: valid.example\r\n\r\n";
+    char response[1024];
+    unsigned short port;
+    int sockets[TEST_PARALLEL_REQUEST_COUNT];
+    pid_t service = -1;
+    int result = 0;
+
+    for (size_t index = 0U; index < TEST_PARALLEL_REQUEST_COUNT; ++index) {
+        sockets[index] = -1;
+    }
+    if (!reserve_loopback_port(&port)) {
+        (void)fprintf(stderr, "parallel_complete: could not reserve loopback port\n");
+        return 0;
+    }
+    service = start_service_with_capacity(port,
+        TEST_PARALLEL_REQUEST_COUNT, TEST_PARALLEL_REQUEST_COUNT);
+    if (service < 0) {
+        (void)fprintf(stderr, "parallel_complete: could not fork service\n");
+        return 0;
+    }
+    for (size_t index = 0U; index < TEST_PARALLEL_REQUEST_COUNT; ++index) {
+        sockets[index] = connect_loopback(port, TEST_RESPONSE_TIMEOUT_MS);
+        if (sockets[index] < 0 || !send_all(sockets[index], valid_request)) {
+            (void)fprintf(stderr, "parallel_complete: could not send valid request\n");
+            goto done;
+        }
+    }
+    for (size_t index = 0U; index < TEST_PARALLEL_REQUEST_COUNT; ++index) {
+        if (!read_response(sockets[index], response, sizeof(response)) ||
+            !response_has_status(response, "HTTP/1.1 200")) {
+            (void)fprintf(stderr, "parallel_complete: valid request was not served\n");
+            goto done;
+        }
+    }
+    if (!wait_for_service(service)) {
+        (void)fprintf(stderr, "parallel_complete: service did not exit cleanly\n");
+        service = -1;
+        goto done;
+    }
+    service = -1;
+    result = 1;
+
+done:
+    for (size_t index = 0U; index < TEST_PARALLEL_REQUEST_COUNT; ++index) {
+        if (sockets[index] >= 0) {
+            (void)close(sockets[index]);
+        }
+    }
+    if (service > 0) {
+        int status = 0;
+        (void)kill(service, SIGTERM);
+        (void)waitpid(service, &status, 0);
+    }
+    return result;
+}
+
+static int run_abrupt_disconnect_case(void) {
+    const char partial_request[] = "GET /stall HTTP/1.1\r\nHost: slow.example\r\n";
+    unsigned short port;
+    int disconnected_fd = -1;
+    pid_t service = -1;
+    int result = 0;
+
+    if (!reserve_loopback_port(&port)) {
+        (void)fprintf(stderr, "abrupt_disconnect: could not reserve loopback port\n");
+        return 0;
+    }
+    service = start_service_with_capacity(port, 2UL, 2UL);
+    if (service < 0) {
+        (void)fprintf(stderr, "abrupt_disconnect: could not fork service\n");
+        return 0;
+    }
+    disconnected_fd = connect_loopback(port, TEST_START_TIMEOUT_MS);
+    if (disconnected_fd < 0 || !send_all(disconnected_fd, partial_request)) {
+        (void)fprintf(stderr, "abrupt_disconnect: could not establish peer\n");
+        goto done;
+    }
+    (void)close(disconnected_fd);
+    disconnected_fd = -1;
+    if (!sleep_milliseconds(TEST_STALLED_PEER_SETTLE_MS) ||
+        !valid_request_is_served(port)) {
+        (void)fprintf(stderr, "abrupt_disconnect: capacity did not recover\n");
+        goto done;
+    }
+    if (!wait_for_service(service)) {
+        (void)fprintf(stderr, "abrupt_disconnect: service did not exit cleanly\n");
+        service = -1;
+        goto done;
+    }
+    service = -1;
+    result = 1;
+
+done:
+    if (disconnected_fd >= 0) {
+        (void)close(disconnected_fd);
+    }
+    if (service > 0) {
+        int status = 0;
+        (void)kill(service, SIGTERM);
+        (void)waitpid(service, &status, 0);
+    }
+    return result;
+}
+
+static int run_stalled_shutdown_case(void) {
+    const char stall_request[] = "GET /stall HTTP/1.1\r\nHost: slow.example\r\n";
+    unsigned short port;
+    int stalled_fd = -1;
+    int result = 0;
+    pid_t service = -1;
+
+    if (!reserve_loopback_port(&port)) {
+        (void)fprintf(stderr, "stalled_shutdown: could not reserve loopback port\n");
+        return 0;
+    }
+    service = start_service_with_capacity(port, 0UL, 1UL);
+    if (service < 0) {
+        (void)fprintf(stderr, "stalled_shutdown: could not fork service\n");
+        return 0;
+    }
+    stalled_fd = connect_loopback(port, TEST_START_TIMEOUT_MS);
+    if (stalled_fd < 0 || !send_all(stalled_fd, stall_request) ||
+        !sleep_milliseconds(TEST_STALLED_PEER_SETTLE_MS) ||
+        kill(service, SIGTERM) != 0 || !wait_for_service(service)) {
+        (void)fprintf(stderr, "stalled_shutdown: service did not stop cleanly\n");
+        goto done;
+    }
+    service = -1;
+    result = 1;
+
+done:
+    if (stalled_fd >= 0) {
+        (void)close(stalled_fd);
     }
     if (service > 0) {
         int status = 0;
@@ -592,6 +1048,16 @@ static int rejects_missing_option_values(void) {
         "--connection-timeout-ms",
         NULL,
     };
+    char *missing_max_connections[] = {
+        "timeout-smoke-service",
+        "--serve",
+        "--config",
+        "timeout-smoke.conf",
+        "--listen",
+        "127.0.0.1:18000",
+        "--max-connections",
+        NULL,
+    };
 
     return msconnector_http_authorization_service_main(3, missing_config,
                &smoke_profile) == 2 &&
@@ -600,7 +1066,28 @@ static int rejects_missing_option_values(void) {
         msconnector_http_authorization_service_main(7, missing_max_requests,
                &smoke_profile) == 2 &&
         msconnector_http_authorization_service_main(7, missing_timeout,
+               &smoke_profile) == 2 &&
+        msconnector_http_authorization_service_main(7, missing_max_connections,
                &smoke_profile) == 2;
+}
+
+static int max_connections_option_has_result(const char *value, int expected_result) {
+    char *argv[] = {
+        "timeout-smoke-service",
+        "--check-config",
+        "--config",
+        "timeout-smoke.conf",
+        "--max-connections",
+        (char *)value,
+        NULL,
+    };
+    return msconnector_http_authorization_service_main(6, argv, &smoke_profile) ==
+        expected_result;
+}
+
+static int accepts_max_connection_boundaries(void) {
+    return max_connections_option_has_result("1", 0) &&
+        max_connections_option_has_result("64", 0);
 }
 
 static int rejects_unknown_or_invalid_option_values(void) {
@@ -625,11 +1112,40 @@ static int rejects_unknown_or_invalid_option_values(void) {
         "not-a-number",
         NULL,
     };
-
+    char *invalid_max_connections[] = {
+        "timeout-smoke-service",
+        "--serve",
+        "--config",
+        "timeout-smoke.conf",
+        "--listen",
+        "127.0.0.1:18000",
+        "--max-connections",
+        "0",
+        NULL,
+    };
+    char *excessive_max_connections[] = {
+        "timeout-smoke-service",
+        "--serve",
+        "--config",
+        "timeout-smoke.conf",
+        "--listen",
+        "127.0.0.1:18000",
+        "--max-connections",
+        "65",
+        NULL,
+    };
     return msconnector_http_authorization_service_main(7, unknown_option,
                &smoke_profile) == 2 &&
         msconnector_http_authorization_service_main(8, invalid_max_requests,
-               &smoke_profile) == 2;
+               &smoke_profile) == 2 &&
+        msconnector_http_authorization_service_main(8, invalid_max_connections,
+               &smoke_profile) == 2 &&
+        msconnector_http_authorization_service_main(8, excessive_max_connections,
+               &smoke_profile) == 2 &&
+        max_connections_option_has_result("-1", 2) &&
+        max_connections_option_has_result("184467440737095516160000000000", 2) &&
+        max_connections_option_has_result("1x", 2) &&
+        max_connections_option_has_result("", 2);
 }
 
 int main(void) {
@@ -651,7 +1167,18 @@ int main(void) {
         (void)fprintf(stderr, "invalid option was unexpectedly accepted\n");
         return 1;
     }
-    if (!run_stalled_request_case("incomplete_headers", incomplete_headers) ||
+    if (!accepts_max_connection_boundaries()) {
+        (void)fprintf(stderr, "valid max-connections boundary was unexpectedly rejected\n");
+        return 1;
+    }
+    if (!run_parallel_request_case() ||
+        !run_overload_recovery_case() ||
+        !run_default_capacity_recovery_case() ||
+        !run_sequential_request_case() ||
+        !run_parallel_complete_request_case() ||
+        !run_abrupt_disconnect_case() ||
+        !run_stalled_shutdown_case() ||
+        !run_stalled_request_case("incomplete_headers", incomplete_headers) ||
         !run_stalled_request_case("incomplete_body", incomplete_body) ||
         !run_dripping_header_case()) {
         return 1;

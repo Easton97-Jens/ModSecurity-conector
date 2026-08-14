@@ -50,6 +50,27 @@ erfordert.
 Exakte Parser-Defaults und Hostkontexte stehen in den vollständigen
 Connector-Konfigurationsreferenzen, nicht in diesem Betriebsüberblick.
 
+### Zulassung des HTTP-Autorisierungsdiensts
+
+Der gemeinsame HTTP-Autorisierungsdienst verlangt einen expliziten Wert für
+`--listen`. Er akzeptiert `127.0.0.1`, `localhost` (auf Loopback normalisiert)
+oder eine ausdrücklich verlangte Bindung an `0.0.0.0`. Der Standardwert von
+`--max-connections` ist `8`; ein Aufrufer kann einen Wert von `1` bis `64`
+wählen. Jeder zugelassene Socket behält die bestehenden absoluten Read- und
+Response-Deadlines. Sind alle Zulassungsslots belegt, schließt der Dienst eine
+neu angenommene Verbindung sofort, statt eine unbegrenzte Queue oder
+Worker-Menge anzulegen. Nach Freigabe eines Slots wird eine spätere Verbindung
+wieder zugelassen.
+
+Der Dienst serialisiert Common-Runtime-Transaktionen, weil die Runtime geteilten
+Engine- und Event-Zustand besitzt; nur Socket-Reads und -Writes überlappen. Das
+begrenzt die Belegung durch langsame Clients, behauptet aber keine
+Durchsatz- oder Cancellation-Garantie für eine langsame Engine-Transaktion.
+`0.0.0.0` ist kein Sicherheitsmodus für einen öffentlichen Dienst: Es fügt kein
+TLS, keine Client-Authentisierung und keine Netzwerk-Policy hinzu. Es darf nur
+hinter einer authentisierten, netzwerkseitig eingeschränkten Host-Integration
+eingesetzt werden; Repository-Smoke-Pfade verwenden Loopback.
+
 ## Updates, Origin und Dependency-Behandlung
 
 Quellattribution, Lizenzen, Origin-Metadaten, festgelegte Komponenteninputs und
