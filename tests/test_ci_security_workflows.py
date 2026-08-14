@@ -237,13 +237,18 @@ CONNECTOR_MODE_CONNECTORS = frozenset(
 CONNECTOR_MODE_COVERAGE_KINDS = frozenset(
     {"runtime", "contract", "expected_unsupported"}
 )
-CONNECTOR_MODE_FRAMEWORK_SHA = "209389022c942d83113f6be88bf31d25637352f0"
+CONNECTOR_MODE_FRAMEWORK_SHA = "a65eb889dc663d9940215bc4f18f52e56587d8a6"
 CONNECTOR_MODE_MRTS_SHA = "615b13bacbd008562c17408246c41ab27dca3104"
 CONNECTOR_MODE_TRIGGER_PATHS = frozenset(
     {
         "tests/test_ci_security_workflows.py",
         "tests/test_python_version_contract.py",
         "ci/checks/common/check-python-version-contract.py",
+        "ci/checks/common/check-python-interpreter-contract.py",
+        "ci/provisioning/**",
+        "ci/tools/print-framework-apr-util-env.sh",
+        "ci/lib/**",
+        "ci/evidence/reports/update-runtime-reports.py",
         "ci/runtime/**",
         "connectors/apache/**",
         "connectors/envoy/**",
@@ -253,6 +258,7 @@ CONNECTOR_MODE_TRIGGER_PATHS = frozenset(
         "config/**",
         "Makefile",
         ".python-version",
+        ".gitmodules",
         "modules/ModSecurity-test-Framework",
     }
 )
@@ -2967,16 +2973,28 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
                     'make verified-apache-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"',
                     text,
                 )
+                self.assertIn(
+                    'haproxy_source_root="$CACHE_ROOT/shared/sources"', text
+                )
+                self.assertIn(
+                    'case "$haproxy_source_root" in "$CACHE_ROOT"/*) ;; *) '
+                    'echo "FAIL: unsafe HAProxy source root" >&2; exit 2 ;; esac',
+                    text,
+                )
                 haproxy_case = (
                     'make verified-haproxy-case CASE=action_deny_phase1 '
                     'CRS="$CRS" MRTS="$MRTS"'
                 )
                 if filename == "test-connectors-no-crs-with-mrts.yml":
                     self.assertIn(
-                        f"RUNTIME_COMPONENT_TARGET=haproxy {haproxy_case}", text
+                        'SOURCE_ROOT="$haproxy_source_root" '
+                        f"RUNTIME_COMPONENT_TARGET=haproxy {haproxy_case}",
+                        text,
                     )
                 else:
-                    self.assertIn(haproxy_case, text)
+                    self.assertIn(
+                        f'SOURCE_ROOT="$haproxy_source_root" {haproxy_case}', text
+                    )
                     self.assertNotIn("RUNTIME_COMPONENT_TARGET=haproxy", text)
                     self.assertNotIn("make fetch-crs", text)
                 self.assertIn("Verify focused runtime cleanup", text)

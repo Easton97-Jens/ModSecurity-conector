@@ -8,6 +8,11 @@ on:
       - tests/test_ci_security_workflows.py
       - tests/test_python_version_contract.py
       - ci/checks/common/check-python-version-contract.py
+      - ci/checks/common/check-python-interpreter-contract.py
+      - ci/provisioning/**
+      - ci/tools/print-framework-apr-util-env.sh
+      - ci/lib/**
+      - ci/evidence/reports/update-runtime-reports.py
       - ci/runtime/**
       - connectors/apache/**
       - connectors/envoy/**
@@ -17,6 +22,7 @@ on:
       - config/**
       - Makefile
       - .python-version
+      - .gitmodules
       - modules/ModSecurity-test-Framework
   workflow_dispatch:
 
@@ -59,7 +65,7 @@ jobs:
     env:
       ALLOW_RUNTIME_BUILDS: "1"
       ALLOW_RUNTIME_DOWNLOADS: "1"
-      EXPECTED_FRAMEWORK_SHA: 209389022c942d83113f6be88bf31d25637352f0
+      EXPECTED_FRAMEWORK_SHA: a65eb889dc663d9940215bc4f18f52e56587d8a6
       EXPECTED_MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
       EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       CRS: ${{ matrix.crs }}
@@ -171,7 +177,9 @@ jobs:
               make verified-apache-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"
               ;;
             haproxy)
-              RUNTIME_COMPONENT_TARGET=haproxy make verified-haproxy-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"
+              haproxy_source_root="$CACHE_ROOT/shared/sources"
+              case "$haproxy_source_root" in "$CACHE_ROOT"/*) ;; *) echo "FAIL: unsafe HAProxy source root" >&2; exit 2 ;; esac
+              SOURCE_ROOT="$haproxy_source_root" RUNTIME_COMPONENT_TARGET=haproxy make verified-haproxy-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"
               ;;
             *) echo "FAIL: runtime path is not permitted for $CONNECTOR" >&2; exit 2 ;;
           esac
