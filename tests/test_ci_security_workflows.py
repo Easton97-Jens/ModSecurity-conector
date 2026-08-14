@@ -189,6 +189,36 @@ def normalize_shell_script(script: str) -> str:
     return " ".join(without_continuations.split())
 
 
+def assert_hash_locked_ci_test_dependency_installation(
+    testcase: unittest.TestCase,
+    validator: str,
+    *,
+    interpreter_contract_step: str,
+    first_test_step: str,
+) -> None:
+    """Require the locked CI dependency before an import-sensitive workflow test."""
+
+    normalized = normalize_shell_script(validator)
+    install_step = "Install hash-locked CI test dependency"
+    install_command = (
+        "python3 -m pip install --disable-pip-version-check --no-input "
+        "--only-binary=:all: --require-hashes -r requirements-ci.lock"
+    )
+    workflow_test = "tests.test_ci_security_workflows"
+
+    testcase.assertIn(install_step, validator)
+    testcase.assertIn(install_command, normalized)
+    testcase.assertIn("python3 -m pip check", normalized)
+    testcase.assertLess(
+        validator.index(interpreter_contract_step),
+        validator.index(install_step),
+    )
+    testcase.assertLess(validator.index(install_step), validator.index(first_test_step))
+    testcase.assertLess(normalized.index(install_command), normalized.index("python3 -m pip check"))
+    testcase.assertLess(normalized.index(install_command), normalized.index(workflow_test))
+    testcase.assertLess(normalized.index("python3 -m pip check"), normalized.index(workflow_test))
+
+
 def has_exact_framework_gitlink_staging(script: str) -> bool:
     """Recognize only the narrowly scoped Framework gitlink index update."""
 
@@ -2438,6 +2468,12 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("kein automatischer Merge", publisher)
 
         candidate = jobs["validate-python-patch"]
+        assert_hash_locked_ci_test_dependency_installation(
+            self,
+            candidate,
+            interpreter_contract_step="Verify Python candidate interpreter contract",
+            first_test_step="Run focused Python version contracts",
+        )
         self.assertIn("python-version: ${{ needs.resolve-python-patch.outputs.version }}", candidate)
         self.assertIn("check-latest: false", candidate)
         self.assertIn("python3 -m compileall -q ci scripts tests", candidate)
@@ -2481,6 +2517,12 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn('scripts/update-go-version.py --check --json', resolver)
 
         candidate = jobs["validate-go-patch"]
+        assert_hash_locked_ci_test_dependency_installation(
+            self,
+            candidate,
+            interpreter_contract_step="Verify Python interpreter contract",
+            first_test_step="Run Go version and workflow contracts",
+        )
         self.assertIn("go-version: ${{ needs.resolve-go-patch.outputs.version }}", candidate)
         self.assertIn("GOTOOLCHAIN: local", candidate)
         self.assertEqual(candidate.count("go test -mod=readonly ./..."), 2)

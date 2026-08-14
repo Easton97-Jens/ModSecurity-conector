@@ -33,3 +33,8 @@ angelegt werden.
   und einen Draft-PR autorisiert. Er weist nur beobachtete lokale Validierung
   aus; Host-Runtime, Hosted-Ausführung und Delivery-Checks werden nicht
   behauptet.
+- [CR-20260814-locked-ci-test-dependencies](CR-20260814-locked-ci-test-dependencies.de.md) —
+  der aktuelle Benutzer hat die verpflichtende Dokumentation bedingt
+  autorisiert, und die Traceability-Policy verlangt dieses Paar für den
+  Parent-CI-Bugfix. Es weist nur beobachtete lokale Validierung aus; weder ein
+  Hosted-Rerun noch Delivery werden behauptet.
