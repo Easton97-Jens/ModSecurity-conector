@@ -66,7 +66,6 @@ JAIL_RUNTIME_ETC_FILES = (
     Path("/etc/hosts"),
     Path("/etc/ld.so.cache"),
     Path("/etc/ca-certificates.conf"),
-    Path("/etc/localtime"),
 )
 JAIL_FORBIDDEN_PATH_COMPONENTS = ("tmp", "var", "home", "root", "run", "sys")
 CandidateEntry = Callable[[Path, Path, Path, Path, Path, int, int], None]

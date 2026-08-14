@@ -101,6 +101,10 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
     def test_jail_file_creation_never_widens_permissions_after_open(self) -> None:
         self.assertNotIn("fchmod", inspect.getsource(HELPER._create_jail_file))
 
+    def test_jail_etc_allowlist_excludes_optional_zoneinfo_symlinks(self) -> None:
+        self.assertNotIn(Path("/etc/localtime"), HELPER.JAIL_RUNTIME_ETC_FILES)
+        self.assertIn(Path("/etc/passwd"), HELPER.JAIL_RUNTIME_ETC_FILES)
+
     def test_readonly_bind_remounts_the_exact_runtime_with_security_flags(self) -> None:
         source = Path("/opt/hostedtoolcache/Python/3.14.6/x64")
         target = Path("/jail/opt/hostedtoolcache/Python/3.14.6/x64")
