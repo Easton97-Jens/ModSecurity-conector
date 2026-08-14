@@ -11,6 +11,7 @@ CORE_BUILD_DIR=${LIGHTTPD_PATCHED_BUILD_DIR:-$PATCHED_ROOT/build-1.4.84}
 STAGE_ROOT=${LIGHTTPD_PATCHED_STAGE_DIR:-$PATCHED_ROOT/stage}
 CORE_BIN=$STAGE_ROOT/bin/lighttpd
 CORE_MANIFEST=$PATCHED_ROOT/patched-core-build-info.txt
+AUTOGEN_LOG=$PATCHED_ROOT/autogen.log
 CC_BIN=${CC:-cc}
 MAKE_BIN=${MAKE:-make}
 NM_BIN=${NM:-nm}
@@ -45,6 +46,61 @@ require_absolute_outside_checkout() {
             ;;
         *) ;;
     esac
+}
+
+run_autogen() {
+    autogen_mode=$1
+    case "$autogen_mode" in
+        direct)
+            (cd "$PATCHED_SOURCE_DIR" && ./autogen.sh)
+            ;;
+        posix_sh)
+            (cd "$PATCHED_SOURCE_DIR" && sh ./autogen.sh)
+            ;;
+        *)
+            blocked "internal bootstrap mode is invalid: $autogen_mode"
+            ;;
+    esac
+}
+
+ensure_configure() {
+    configure_script=$PATCHED_SOURCE_DIR/configure
+    autogen_script=$PATCHED_SOURCE_DIR/autogen.sh
+
+    [ -x "$configure_script" ] && return 0
+    [ -f "$autogen_script" ] || blocked \
+        "patched source configure script is missing or not executable: $configure_script; bootstrap script is missing: $autogen_script"
+
+    if [ -x "$autogen_script" ]; then
+        autogen_mode=direct
+    else
+        autogen_shebang=$(sed -n '1p' "$autogen_script")
+        case "$autogen_shebang" in
+            '#!/bin/sh'|'#!/usr/bin/env sh') autogen_mode=posix_sh ;;
+            *)
+                blocked "patched source autogen.sh is not executable and does not declare a supported POSIX shell: $autogen_script"
+                ;;
+        esac
+    fi
+
+    if : > "$AUTOGEN_LOG"; then
+        :
+    else
+        blocked "could not create autogen bootstrap log: $AUTOGEN_LOG"
+    fi
+
+    if run_autogen "$autogen_mode" >"$AUTOGEN_LOG" 2>&1; then
+        :
+    else
+        autogen_status=$?
+        printf 'lighttpd_patched_core_build: autogen.sh output follows: %s\n' \
+            "$AUTOGEN_LOG" >&2
+        sed -n '1,160p' "$AUTOGEN_LOG" >&2
+        blocked "autogen.sh bootstrap failed in $PATCHED_SOURCE_DIR with exit status $autogen_status; inspect $AUTOGEN_LOG for the missing bootstrap tool or upstream error"
+    fi
+
+    [ -x "$configure_script" ] || blocked \
+        "autogen.sh completed in $PATCHED_SOURCE_DIR without an executable configure script: $configure_script"
 }
 
 verify_core() {
@@ -126,7 +182,7 @@ if [ -e "$CORE_BUILD_DIR" ] || [ -e "$STAGE_ROOT" ]; then
     blocked "incomplete patched build exists; inspect or remove managed directory: $PATCHED_ROOT"
 fi
 
-[ -x "$PATCHED_SOURCE_DIR/configure" ] || blocked "patched source configure script is missing or not executable"
+ensure_configure
 mkdir -p "$CORE_BUILD_DIR"
 if [ -n "${LIGHTTPD_PATCHED_CFLAGS:-}" ]; then
     (cd "$CORE_BUILD_DIR" && \

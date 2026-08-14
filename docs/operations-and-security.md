@@ -47,6 +47,25 @@ artifact provenance required by the applicable validator.
 The exact parser defaults and host contexts belong in the complete connector
 configuration references, not in this operational overview.
 
+### HTTP authorization-service admission
+
+The shared HTTP authorization service requires an explicit `--listen` value.
+It accepts `127.0.0.1`, `localhost` (normalized to loopback), or an explicitly
+requested `0.0.0.0` binding. The default `--max-connections` value is `8`; a
+caller can select a value from `1` through `64`. Each admitted socket keeps the
+existing absolute read and response deadlines. When every admission slot is in
+use, the service closes a newly accepted connection immediately instead of
+creating an unbounded queue or worker set. A later connection is admitted after
+a slot is released.
+
+The service serializes Common Runtime transactions because the Runtime owns
+shared engine and event state; only socket reads and writes overlap. This bounds
+slow-client occupancy without asserting a throughput or cancellation guarantee
+for a slow engine transaction. `0.0.0.0` is not a public-service security mode:
+it adds no TLS, client authentication, or network policy. Use it only behind an
+authenticated, network-restricted host integration; repository smoke paths use
+loopback.
+
 ## Updates, origin, and dependency handling
 
 Keep source attribution, licenses, origin metadata, pinned component inputs,
