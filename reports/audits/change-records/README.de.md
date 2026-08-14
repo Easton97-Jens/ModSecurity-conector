@@ -9,7 +9,7 @@ Commits und Pull Requests nachvollziehbar. Neue Einzelberichte dürfen nur nach
 einer ausdrücklichen Repository-Policy-Entscheidung oder Benutzerentscheidung
 angelegt werden.
 
-## Ausdrücklich benutzerautorisierte Ausnahme
+## Ausdrücklich autorisierte Records
 
 - [CR-20260811-enforce-readonly-submodule-validator](CR-20260811-enforce-readonly-submodule-validator.de.md) —
   dieses Paar ist für die Änderung am schreibgeschützten
@@ -20,3 +20,9 @@ angelegt werden.
   dieses Paar ist für die vier statischen Connector-Mode-Workflows ausdrücklich
   autorisiert. Es unterscheidet lokale statische Evidence von ausstehender
   Exact-Head-Hosted-Runtime- und PR-Evidence.
+- [CR-20260813-framework-apr-util-submodule-validation](CR-20260813-framework-apr-util-submodule-validation.de.md) —
+  der Benutzer hat einen Draft-PR autorisiert; Delivery- und
+  Nachvollziehbarkeitsrichtlinien des Repositorys verlangen diesen gepaarten
+  Record für die Parent-Änderung. Er weist nur beobachtete lokale Validierung
+  aus; Hosted-Ausführung, PR-Checks und Cross-Repository-Delivery werden nicht
+  behauptet.

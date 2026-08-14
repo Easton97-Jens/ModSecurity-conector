@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+from dataclasses import dataclass
 import errno
 import grp
 import os
@@ -42,8 +43,47 @@ LIBC.prctl.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ul
 LIBC.prctl.restype = ctypes.c_int
 SAFE_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 PROCFS_TARGET = Path("/proc")
+JAIL_ROOT = Path("/")
+JAIL_SOURCE = Path("/source")
+JAIL_EXTERNAL = Path("/external")
+JAIL_GUARD = Path("/guard")
+JAIL_DEV = Path("/dev")
+JAIL_RUNTIME_DIRECTORIES = (
+    Path("/usr"),
+    Path("/bin"),
+    Path("/sbin"),
+    Path("/lib"),
+    Path("/lib64"),
+)
+JAIL_HOSTED_PYTHON_ROOT = Path("/opt/hostedtoolcache/Python")
+JAIL_HOSTED_PYTHON_ARCHITECTURE = "x64"
+JAIL_COMPILER_ROOT = Path("/usr")
+JAIL_C_COMPILER = Path("/usr/bin/gcc")
+JAIL_CXX_COMPILER = Path("/usr/bin/g++")
+JAIL_RUNTIME_ETC_DIRECTORIES = (Path("/etc/ssl"),)
+JAIL_RUNTIME_ETC_FILES = (
+    Path("/etc/passwd"),
+    Path("/etc/group"),
+    Path("/etc/nsswitch.conf"),
+    Path("/etc/resolv.conf"),
+    Path("/etc/hosts"),
+    Path("/etc/ld.so.cache"),
+    Path("/etc/ca-certificates.conf"),
+)
+JAIL_FORBIDDEN_PATH_COMPONENTS = ("tmp", "var", "home", "root", "run", "sys")
 CandidateEntry = Callable[[Path, Path, Path, Path, Path, int, int], None]
 CandidateArguments = tuple[Path, Path, Path, Path, Path, int, int]
+
+
+@dataclass(frozen=True)
+class JailLayout:
+    """Physical mount targets that form the candidate's chroot."""
+
+    root: Path
+    source: Path
+    external: Path
+    proc: Path
+    mounts: tuple[Path, ...]
 
 
 class NamespaceUnavailable(RuntimeError):
@@ -197,19 +237,24 @@ def _create_mount_layout(namespace_parent: Path, validator_gid: int) -> Path:
     return mount_root
 
 
-def _verify_mount(target: Path, *, readonly: bool) -> None:
+def _verify_mount(
+    target: Path, *, readonly: bool, require_nodev: bool = True, require_noexec: bool = False
+) -> None:
     rows = _mountinfo_for(target)
     if len(rows) != 1:
         raise RuntimeError(f"expected exactly one private bind mount for {target}")
     options = rows[0].split(" - ", 1)[0].split()[5].split(",")
-    if ("ro" in options) != readonly or "nosuid" not in options or "nodev" not in options:
+    if (
+        ("ro" in options) != readonly
+        or "nosuid" not in options
+        or (require_nodev and "nodev" not in options)
+        or (require_noexec and "noexec" not in options)
+    ):
         raise RuntimeError(f"unsafe mount flags for {target}: {','.join(options)}")
 
 
 def _verify_procfs(target: Path) -> None:
-    """Require one fresh, hardened procfs layer over the literal proc target."""
-    if target != PROCFS_TARGET:
-        raise RuntimeError("procfs must be mounted at literal /proc")
+    """Require one fresh, hardened procfs layer over the supplied jail target."""
     hardened_rows = []
     for row in _mountinfo_for(target):
         before_separator, separator, after_separator = row.partition(" - ")
@@ -219,7 +264,268 @@ def _verify_procfs(target: Path) -> None:
         if filesystem == "proc" and {"ro", "nosuid", "nodev", "noexec"}.issubset(options):
             hardened_rows.append(row)
     if len(hardened_rows) != 1:
-        raise RuntimeError("expected exactly one hardened procfs mount at /proc")
+        raise RuntimeError(f"expected exactly one hardened procfs mount at {target}")
+
+
+def _jail_target(jail_root: Path, candidate_path: Path) -> Path:
+    """Map one fixed absolute path inside the jail to its physical mount target."""
+    if not candidate_path.is_absolute() or candidate_path == JAIL_ROOT:
+        raise RuntimeError(f"invalid jail target: {candidate_path}")
+    return jail_root / candidate_path.relative_to(JAIL_ROOT)
+
+
+def _secure_directory(path: Path, mode: int) -> None:
+    """Set and verify an existing directory with descriptor-only ownership changes."""
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise RuntimeError(f"unsafe jail directory: {path}")
+        os.fchown(descriptor, 0, 0)
+        os.fchmod(descriptor, mode)
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISDIR(metadata.st_mode)
+            or metadata.st_uid != 0
+            or metadata.st_gid != 0
+            or stat.S_IMODE(metadata.st_mode) != mode
+        ):
+            raise RuntimeError(f"unsafe jail directory: {path}")
+    finally:
+        os.close(descriptor)
+
+
+def _create_jail_directory(path: Path, mode: int = 0o755) -> None:
+    os.mkdir(path, mode=0o700)
+    _secure_directory(path, mode)
+
+
+def _create_jail_file(path: Path) -> None:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != 0
+            or metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+        ):
+            raise RuntimeError(f"unsafe jail file: {path}")
+    finally:
+        os.close(descriptor)
+
+
+def _create_jail_device(path: Path, major: int, minor: int, mode: int) -> None:
+    os.mknod(path, stat.S_IFCHR | mode, os.makedev(major, minor))
+    descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISCHR(metadata.st_mode):
+            raise RuntimeError(f"unsafe jail device: {path}")
+        os.fchown(descriptor, 0, 0)
+        os.fchmod(descriptor, mode)
+    finally:
+        os.close(descriptor)
+
+
+def _trusted_runtime_source(path: Path, *, directory: bool) -> None:
+    """Accept only a host runtime input that is not writable by non-root users."""
+    metadata = os.stat(path)
+    expected = stat.S_ISDIR if directory else stat.S_ISREG
+    if (
+        not expected(metadata.st_mode)
+        or metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+    ):
+        raise RuntimeError(f"unsafe host runtime path for jailed candidate: {path}")
+
+
+def _bind_readonly(source: Path, target: Path, *, noexec: bool = False) -> None:
+    _mount(str(source), target, MS_BIND)
+    flags = MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV
+    if noexec:
+        flags |= MS_NOEXEC
+    _mount(None, target, flags)
+    _verify_mount(target, readonly=True, require_noexec=noexec)
+
+
+def _runtime_path_is_exposed(path: Path) -> bool:
+    return any(
+        path == directory or directory in path.parents
+        for directory in JAIL_RUNTIME_DIRECTORIES
+    )
+
+
+def _fixed_runtime_executable(path: Path, label: str) -> Path:
+    """Resolve one fixed compiler only when the jailed runtime exposes it read-only."""
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as error:
+        raise RuntimeError(f"unsafe {label} for jailed candidate: {path}") from error
+    metadata = os.stat(resolved)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != 0
+        or metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH | stat.S_ISUID | stat.S_ISGID)
+        or not metadata.st_mode & stat.S_IXOTH
+        or not _runtime_path_is_exposed(resolved)
+        or not (resolved == JAIL_COMPILER_ROOT or JAIL_COMPILER_ROOT in resolved.parents)
+    ):
+        raise RuntimeError(f"unsafe {label} for jailed candidate: {path}")
+    return resolved
+
+
+def _validate_hosted_python_runtime(path: Path) -> None:
+    """Accept exactly one real toolcache runtime before its private RO bind.
+
+    GitHub-hosted images may make the setup-python toolcache runner-writable.
+    That is not accepted as general host-runtime trust: this helper limits the
+    candidate view to the resolved ``<version>/x64`` subtree, and
+    ``_bind_readonly`` verifies its independent read-only mount before the
+    candidate exists.
+    """
+    try:
+        relative = path.relative_to(JAIL_HOSTED_PYTHON_ROOT)
+    except ValueError as error:
+        raise RuntimeError(
+            f"unsafe hosted Python runtime for jailed candidate: {path}"
+        ) from error
+    if len(relative.parts) != 2 or relative.parts[1] != JAIL_HOSTED_PYTHON_ARCHITECTURE:
+        raise RuntimeError(f"unsafe hosted Python runtime for jailed candidate: {path}")
+    current = JAIL_ROOT
+    for part in path.parts[1:]:
+        current /= part
+        metadata = os.lstat(current)
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+            raise RuntimeError(f"unsafe hosted Python runtime for jailed candidate: {path}")
+
+
+def _hosted_python_runtime_root(python: Path) -> Path | None:
+    """Return one exact setup-python runtime tree, never a broad host /opt mount."""
+    if _runtime_path_is_exposed(python):
+        return None
+    try:
+        relative = python.relative_to(JAIL_HOSTED_PYTHON_ROOT)
+    except ValueError as error:
+        raise RuntimeError(f"python is outside the jailed runtime allowlist: {python}") from error
+    if (
+        len(relative.parts) != 4
+        or relative.parts[1] != JAIL_HOSTED_PYTHON_ARCHITECTURE
+        or relative.parts[2] != "bin"
+    ):
+        raise RuntimeError(f"python is outside a hosted setup-python runtime: {python}")
+    runtime_root = JAIL_HOSTED_PYTHON_ROOT.joinpath(*relative.parts[:2])
+    _validate_hosted_python_runtime(runtime_root)
+    return runtime_root
+
+
+def _build_jail_layout(mount_root: Path, source: Path, external: Path, python: Path) -> JailLayout:
+    """Build a private, allowlisted filesystem tree before candidate code exists."""
+    hosted_python_root = _hosted_python_runtime_root(python)
+    _mount("tmpfs", mount_root, MS_NOSUID | MS_NODEV | MS_NOEXEC, "tmpfs")
+    _secure_directory(mount_root, 0o755)
+    source_view = _jail_target(mount_root, JAIL_SOURCE)
+    external_view = _jail_target(mount_root, JAIL_EXTERNAL)
+    proc_view = _jail_target(mount_root, PROCFS_TARGET)
+    guard_view = _jail_target(mount_root, JAIL_GUARD)
+    dev_view = _jail_target(mount_root, JAIL_DEV)
+    for target in (source_view, external_view, proc_view, guard_view, dev_view):
+        _create_jail_directory(target)
+    _mount("tmpfs", dev_view, MS_NOSUID | MS_NOEXEC, "tmpfs")
+    _secure_directory(dev_view, 0o755)
+    _create_jail_device(dev_view / "null", 1, 3, 0o666)
+    _create_jail_device(dev_view / "urandom", 1, 9, 0o444)
+    _verify_mount(dev_view, readonly=False, require_nodev=False, require_noexec=True)
+    for candidate_directory in JAIL_RUNTIME_DIRECTORIES:
+        host_directory = candidate_directory
+        _trusted_runtime_source(host_directory, directory=True)
+        target = _jail_target(mount_root, candidate_directory)
+        _create_jail_directory(target)
+        _bind_readonly(host_directory, target)
+    hosted_python_target: Path | None = None
+    if hosted_python_root is not None:
+        hosted_parts = hosted_python_root.relative_to(JAIL_ROOT).parts
+        for depth in range(1, len(hosted_parts) + 1):
+            _create_jail_directory(mount_root.joinpath(*hosted_parts[:depth]))
+        hosted_python_target = _jail_target(mount_root, hosted_python_root)
+        _bind_readonly(hosted_python_root, hosted_python_target)
+    etc_root = _jail_target(mount_root, Path("/etc"))
+    _create_jail_directory(etc_root)
+    for candidate_directory in JAIL_RUNTIME_ETC_DIRECTORIES:
+        _trusted_runtime_source(candidate_directory, directory=True)
+        target = _jail_target(mount_root, candidate_directory)
+        _create_jail_directory(target)
+        _bind_readonly(candidate_directory, target, noexec=True)
+    for candidate_file in JAIL_RUNTIME_ETC_FILES:
+        _trusted_runtime_source(candidate_file, directory=False)
+        target = _jail_target(mount_root, candidate_file)
+        _create_jail_file(target)
+        _bind_readonly(candidate_file, target, noexec=True)
+    _mount(str(source), source_view, MS_BIND)
+    _mount(None, source_view, MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV)
+    _verify_mount(source_view, readonly=True)
+    _mount(str(external), external_view, MS_BIND)
+    _mount(None, external_view, MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV)
+    _verify_mount(external_view, readonly=False)
+    _mount(None, mount_root, MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC)
+    _verify_mount(mount_root, readonly=True, require_noexec=True)
+    runtime_mounts = [*(_jail_target(mount_root, path) for path in JAIL_RUNTIME_DIRECTORIES)]
+    if hosted_python_target is not None:
+        runtime_mounts.append(hosted_python_target)
+    mounts = (
+        mount_root,
+        source_view,
+        external_view,
+        dev_view,
+        *runtime_mounts,
+        *(_jail_target(mount_root, path) for path in JAIL_RUNTIME_ETC_DIRECTORIES),
+        *(_jail_target(mount_root, path) for path in JAIL_RUNTIME_ETC_FILES),
+        proc_view,
+    )
+    return JailLayout(mount_root, source_view, external_view, proc_view, mounts)
+
+
+def _teardown_jail_layout(layout: JailLayout) -> None:
+    """Synchronously remove every exact private mount in reverse creation order."""
+    for target in reversed(layout.mounts):
+        _umount(target)
+
+
+def _close_unapproved_descriptors(allowed: set[int]) -> None:
+    """Remove inherited files, directories, sockets, and pipes before UID drop."""
+    with os.scandir("/proc/self/fd") as entries:
+        descriptors = [int(entry.name) for entry in entries if entry.name.isdecimal()]
+    for descriptor in descriptors:
+        if descriptor > 2 and descriptor not in allowed:
+            try:
+                os.close(descriptor)
+            except OSError as error:
+                if error.errno != errno.EBADF:
+                    raise
+
+
+def _replace_standard_input() -> None:
+    """Give the candidate a closed anonymous input, never an inherited host fd."""
+    read_end, write_end = os.pipe()
+    try:
+        os.close(write_end)
+        os.dup2(read_end, 0, inheritable=True)
+    finally:
+        if read_end != 0:
+            os.close(read_end)
+
+
+def _enter_jail(jail_root: Path) -> None:
+    # Anchor the current directory inside the private tree before chrooting so
+    # no pre-jail cwd can provide a relative-path escape after the UID drop.
+    os.chdir(jail_root)
+    os.chroot(".")
+    os.chdir(JAIL_ROOT)
+    _verify_procfs(PROCFS_TARGET)
+    for component in JAIL_FORBIDDEN_PATH_COMPONENTS:
+        forbidden = JAIL_ROOT / component
+        if forbidden.exists():
+            raise RuntimeError(f"unexpected host path remains reachable in jail: {forbidden}")
+    if sorted(path.name for path in JAIL_DEV.iterdir()) != ["null", "urandom"]:
+        raise RuntimeError("jail exposes unexpected device entries")
 
 
 def _unshare() -> None:
@@ -237,10 +543,18 @@ def _set_no_new_privs() -> None:
         raise OSError(error, f"cannot set no_new_privs: {os.strerror(error)}")
 
 
-def _candidate_environment(source: Path, framework_relative: Path, external: Path, guard: Path, python: Path) -> dict[str, str]:
+def _candidate_environment(
+    source: Path,
+    framework_relative: Path,
+    external: Path,
+    guard: Path,
+    python: Path,
+    compiler: Path,
+    cxx_compiler: Path,
+) -> dict[str, str]:
     root = external
     return {
-        "PATH": SAFE_PATH, "PYTHON": str(python), "HOME": str(root / "home"),
+        "PATH": SAFE_PATH, "PYTHON": str(python), "CC": str(compiler), "CXX": str(cxx_compiler), "HOME": str(root / "home"),
         "TMPDIR": str(root / "tmp"), "TMP": str(root / "tmp"), "TEMP": str(root / "tmp"),
         "XDG_CACHE_HOME": str(root / "xdg-cache"), "XDG_CONFIG_HOME": str(root / "xdg-config"),
         "XDG_DATA_HOME": str(root / "xdg-data"), "XDG_STATE_HOME": str(root / "xdg-state"),
@@ -269,18 +583,32 @@ def _candidate_script() -> str:
         'umask 077\n'
         'test "$(id -un)" = "modsecurity-validator"\n'
         'test "$PWD" = "$GITHUB_WORKSPACE"\n'
-        'test "$(awk \'/^CapEff:/ {print $2}\' /proc/self/status)" = 0000000000000000\n'
-        'test "$(awk \'/^NoNewPrivs:/ {print $2}\' /proc/self/status)" = 1\n'
+        'cap_eff=""; no_new_privs=""\n'
+        'while IFS=$\'\\t \' read -r label value; do\n'
+        '  case "$label" in CapEff:) cap_eff="$value" ;; NoNewPrivs:) no_new_privs="$value" ;; esac\n'
+        'done < /proc/self/status\n'
+        'test "$cap_eff" = 0000000000000000\n'
+        'test "$no_new_privs" = 1\n'
+        'for target in /tmp /var /home /root /run /sys /dev/shm; do test ! -e "$target"; done\n'
+        'test -x "$CC"; test -x "$CXX"\n'
+        'test -c /dev/null; test -c /dev/urandom; test ! -w /dev\n'
+        'for device in /dev/*; do case "${device##*/}" in null|urandom) ;; *) echo "validator sees an unexpected device: $device" >&2; exit 1 ;; esac; done\n'
+        'for descriptor in /proc/self/fd/*; do test -e "$descriptor" || continue; case "${descriptor##*/}" in 0|1|2) ;; *) echo "validator retained an inherited descriptor: $descriptor" >&2; exit 1 ;; esac; done\n'
         'test ! -w "$VALIDATION_WRITE_ROOT"; test ! -w "$GITHUB_WORKSPACE"; test ! -w "$GITHUB_WORKSPACE/.git"\n'
         'test ! -w "$GITHUB_WORKSPACE/.git/modules"; test ! -w "$FRAMEWORK_ROOT"; test ! -w "$FRAMEWORK_ROOT/.git"\n'
         'expect_blocked() { if "$@"; then echo "validator changed a protected path: $*" >&2; exit 1; fi; }\n'
-        'for target in "$GITHUB_WORKSPACE/.readonly-validator-write-probe" "$FRAMEWORK_ROOT/.readonly-validator-write-probe" "$GITHUB_WORKSPACE/.git/index.lock" "$FRAMEWORK_ROOT/.git/index.lock" "$VALIDATION_WRITE_ROOT/.readonly-validator-guard-probe"; do expect_blocked touch "$target"; done\n'
+        'for target in "$GITHUB_WORKSPACE/.readonly-validator-write-probe" "$FRAMEWORK_ROOT/.readonly-validator-write-probe" "$GITHUB_WORKSPACE/.git/index.lock" "$FRAMEWORK_ROOT/.git/index.lock" "$VALIDATION_WRITE_ROOT/.readonly-validator-guard-probe" "/dev/.readonly-validator-device-probe" "/dev/shm/.readonly-validator-device-probe"; do expect_blocked touch "$target"; done\n'
         'for target in "$GITHUB_WORKSPACE/Makefile" "$FRAMEWORK_ROOT/Makefile" "$GITHUB_WORKSPACE/.git" "$FRAMEWORK_ROOT/.git"; do expect_blocked chmod 600 "$target"; done\n'
         'expect_blocked mv "$GITHUB_WORKSPACE/Makefile" "$GITHUB_WORKSPACE/.readonly-validator-rename-probe"\n'
         'expect_blocked mv "$FRAMEWORK_ROOT/Makefile" "$FRAMEWORK_ROOT/.readonly-validator-rename-probe"\n'
         'expect_blocked mv "$GITHUB_WORKSPACE/.git" "$GITHUB_WORKSPACE/.readonly-validator-git-rename-probe"\n'
         'expect_blocked mv "$FRAMEWORK_ROOT/.git" "$FRAMEWORK_ROOT/.readonly-validator-git-rename-probe"\n'
         'for target in "$GITHUB_WORKSPACE/Makefile" "$FRAMEWORK_ROOT/Makefile"; do expect_blocked rm "$target"; done\n'
+        'python_runtime_bin=$(dirname "$PYTHON")\n'
+        'expect_blocked touch "$python_runtime_bin/.readonly-validator-runtime-write-probe"\n'
+        'expect_blocked mkdir "$python_runtime_bin/.readonly-validator-runtime-directory-probe"\n'
+        'expect_blocked chmod 600 "$PYTHON"\n'
+        'expect_blocked mv "$PYTHON" "$python_runtime_bin/.readonly-validator-runtime-rename-probe"\n'
         'if sudo -n true >/dev/null 2>&1 || /usr/bin/sudo -n true >/dev/null 2>&1; then echo "validator obtained sudo" >&2; exit 1; fi\n'
         'if /usr/bin/mount -o remount,rw "$GITHUB_WORKSPACE" >/dev/null 2>&1; then echo "validator remounted source" >&2; exit 1; fi\n'
         'mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" '
@@ -300,7 +628,9 @@ def _candidate_script() -> str:
 
 
 def _candidate_pid1(source: Path, framework_relative: Path, external: Path, guard: Path, python: Path, uid: int, gid: int) -> None:
-    env = _candidate_environment(source, framework_relative, external, guard, python)
+    compiler = _fixed_runtime_executable(JAIL_C_COMPILER, "C compiler")
+    cxx_compiler = _fixed_runtime_executable(JAIL_CXX_COMPILER, "C++ compiler")
+    env = _candidate_environment(source, framework_relative, external, guard, python, compiler, cxx_compiler)
     os.setgroups([]); os.setgid(gid); os.setuid(uid); os.chdir(source)
     os.execve("/bin/bash", ["bash", "--noprofile", "--norc", "-ceu", _candidate_script()], env)
 
@@ -309,30 +639,22 @@ def _run_pid1_candidate(
     candidate_arguments: CandidateArguments,
     candidate_entry: CandidateEntry,
     proc_ready: tuple[int, int],
-    before_proc: list[str],
+    layout: JailLayout,
 ) -> None:
     proc_ready_read, proc_ready_write = proc_ready
     os.close(proc_ready_read)
-    proc_mounted = False
-    ready_acknowledged = False
     try:
-        _mount("proc", PROCFS_TARGET, MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC, "proc")
-        proc_mounted = True
-        _verify_procfs(PROCFS_TARGET)
+        _mount("proc", layout.proc, MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC, "proc")
+        _verify_procfs(layout.proc)
+        _enter_jail(layout.root)
+        _replace_standard_input()
+        _close_unapproved_descriptors({0, 1, 2, proc_ready_write})
         os.write(proc_ready_write, b"1")
-        ready_acknowledged = True
         os.close(proc_ready_write)
         _set_no_new_privs()
         candidate_entry(*candidate_arguments)
     except Exception as error:
         print(f"readonly namespace candidate setup failed: {error}", file=sys.stderr)
-        if proc_mounted and not ready_acknowledged:
-            try:
-                _umount(PROCFS_TARGET)
-                if _mountinfo_for(PROCFS_TARGET) != before_proc:
-                    print("readonly namespace candidate procfs restoration failed", file=sys.stderr)
-            except Exception as cleanup_error:
-                print(f"readonly namespace candidate procfs cleanup failed: {cleanup_error}", file=sys.stderr)
         try:
             os.close(proc_ready_write)
         except OSError:
@@ -349,40 +671,29 @@ def _namespace_child(
     uid: int,
     gid: int,
     candidate_entry: CandidateEntry = _candidate_pid1,
-    close_parent_fds: Sequence[int] = (),
 ) -> int:
     _unshare()
     _mount(None, Path("/"), MS_REC | MS_PRIVATE)
-    source_view, external_view = mount_root / "source", mount_root / "external"
-    _mount(str(source), source_view, MS_BIND)
-    _mount(None, source_view, MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV)
-    _mount(str(external), external_view, MS_BIND)
-    _mount(None, external_view, MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV)
-    _verify_mount(source_view, readonly=True); _verify_mount(external_view, readonly=False)
+    layout = _build_jail_layout(mount_root, source, external, python)
     framework_relative = framework.relative_to(source)
-    before_proc = _mountinfo_for(PROCFS_TARGET)
     proc_ready_read, proc_ready_write = os.pipe()
     child = os.fork()
     if child == 0:
         _run_pid1_candidate(
-            (source_view, framework_relative, external_view, mount_root, python, uid, gid),
+            (JAIL_SOURCE, framework_relative, JAIL_EXTERNAL, JAIL_GUARD, python, uid, gid),
             candidate_entry,
             (proc_ready_read, proc_ready_write),
-            before_proc,
-        )
+            layout,
+    )
     os.close(proc_ready_write)
-    for descriptor in close_parent_fds:
-        os.close(descriptor)
-    proc_mounted = os.read(proc_ready_read, 1) == b"1"
+    proc_ready = os.read(proc_ready_read, 1) == b"1"
     os.close(proc_ready_read)
     try:
         _pid, status = os.waitpid(child, 0)
     finally:
-        if proc_mounted:
-            _umount(PROCFS_TARGET)
-            if _mountinfo_for(PROCFS_TARGET) != before_proc:
-                raise RuntimeError("namespace runner did not restore inherited procfs")
-        _umount(external_view); _umount(source_view)
+        _teardown_jail_layout(layout)
+    if not proc_ready and os.waitstatus_to_exitcode(status) == 0:
+        raise RuntimeError("namespace candidate exited before jailed procfs readiness")
     return os.waitstatus_to_exitcode(status)
 
 
@@ -396,9 +707,12 @@ def _validated_configuration(arguments: argparse.Namespace) -> tuple[Path, Path,
     if external != write_root / "external":
         raise ValueError("external root must be exactly the write root external child")
     namespace_parent = _absolute_existing_directory(arguments.namespace_parent, "namespace parent")
-    python = Path(arguments.python)
-    if not python.is_absolute() or not python.is_file() or not os.access(python, os.X_OK):
+    requested_python = Path(arguments.python)
+    if not requested_python.is_absolute() or not requested_python.is_file() or not os.access(requested_python, os.X_OK):
         raise ValueError("python must be an executable absolute path")
+    python = requested_python.resolve(strict=True)
+    if not python.is_file() or not os.access(python, os.X_OK):
+        raise ValueError("python must resolve to an executable regular file")
     uid, gid = _identity(arguments.validator_user, arguments.validator_group)
     _validate_namespace_parent(namespace_parent, gid)
     write_metadata = os.stat(write_root, follow_symlinks=False)

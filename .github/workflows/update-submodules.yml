@@ -169,6 +169,14 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
+      - name: Capture immutable Parent validation baseline
+        run: |
+          set -euo pipefail
+          python3 ci/tools/validate-submodule-candidate-state.py \
+            capture-parent-baseline \
+            --parent-root "$GITHUB_WORKSPACE" \
+            --github-env "$GITHUB_ENV"
+
       - name: Check out the resolved descendant revision
         run: |
           set -euo pipefail
@@ -193,14 +201,18 @@ jobs:
           fi
           git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"
           git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" submodule update --init --recursive
-          if [ -n "$(git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" status --porcelain)" ]; then
-            echo "Candidate Framework checkout is not clean." >&2
-            exit 1
-          fi
-          if git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" submodule status --recursive | grep -Eq '^[+-]'; then
-            echo "Candidate Framework recursive submodules are not fully initialized." >&2
-            exit 1
-          fi
+
+      - name: Validate exact candidate Git state
+        run: |
+          set -euo pipefail
+          sudo -n python3 ci/tools/validate-submodule-candidate-state.py \
+            validate \
+            --parent-root "$GITHUB_WORKSPACE" \
+            --submodule-path "$SUBMODULE_PATH" \
+            --current-gitlink-sha "$CURRENT_GITLINK_SHA" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --expected-parent-head "$EXPECTED_PARENT_HEAD" \
+            --expected-parent-hooks-sha256 "$EXPECTED_PARENT_HOOKS_SHA256"
 
       - name: Prepare dedicated read-only candidate sandbox
         id: prepare-readonly-candidate-sandbox
@@ -291,16 +303,16 @@ jobs:
                 *) echo "VALIDATOR WRITE-ROOT CONTRACT BLOCKED" >&2 ;;
               esac
               exit 1
-            }
+          }
           printf '%s\n' "$verification_output"
-          if [ -n "$(sudo -n git -c core.hooksPath=/dev/null status --porcelain --untracked-files=all)" ]; then
-            echo "VALIDATOR SOURCE MUTATION BLOCKED" >&2
-            exit 1
-          fi
-          if [ -n "$(sudo -n git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" status --porcelain --untracked-files=all)" ]; then
-            echo "VALIDATOR SOURCE MUTATION BLOCKED" >&2
-            exit 1
-          fi
+          sudo -n python3 ci/tools/validate-submodule-candidate-state.py \
+            validate \
+            --parent-root "$GITHUB_WORKSPACE" \
+            --submodule-path "$SUBMODULE_PATH" \
+            --current-gitlink-sha "$CURRENT_GITLINK_SHA" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --expected-parent-head "$EXPECTED_PARENT_HEAD" \
+            --expected-parent-hooks-sha256 "$EXPECTED_PARENT_HOOKS_SHA256"
           sudo -n git -c core.hooksPath=/dev/null diff --check
           sudo -n git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check
 
@@ -422,7 +434,10 @@ jobs:
             pr_draft="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.draft')"
             pr_title="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.title')"
             pr_author="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.user.login')"
-            pr_auto_merge="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.auto_merge')"
+            # gh's --jq output renders JSON null as an empty shell value. Keep
+            # a non-empty sentinel only for a present, JSON-null field; every
+            # enabled, malformed, or missing state stays fail-closed.
+            pr_auto_merge="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq 'if (has("auto_merge") and (.auto_merge == null)) then "null" else "auto-merge-present" end')"
             pr_base_repo="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.base.repo.full_name')"
             pr_head_repo="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.head.repo.full_name')"
             pr_body="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.body // ""')"
