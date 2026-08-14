@@ -116,6 +116,17 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
+      - name: Install hash-locked CI test dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install \
+            --disable-pip-version-check \
+            --no-input \
+            --only-binary=:all: \
+            --require-hashes \
+            -r requirements-ci.lock
+          python3 -m pip check
+
       - name: Set up candidate Go
         id: setup-go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
