@@ -137,7 +137,12 @@ keine Quality-Gate- oder Coverage-Änderung, keine öffentliche API, keinen
 Event/Rule-Patch und keinen Traefik-UDS-Patch. Die Helper-Grenzen bewahren
 Runtime-Locking, Transaction-ID-Kopie vor Destroy, Worker-/FD-Ownership und den
 Accepted-Connection-Accounting-Vertrag. SonarQube Cloud muss den neuen PR-Head
-analysieren, bevor dieser Record behauptet, dass die fünf Issues null sind.
+analysierte diesen Head, entfernte die fünf Funde und meldete danach zwei
+task-eigene <code>c:S995</code>-Findings: zwei nur lesende Helper-Parameter sollen
+Pointer-zu-const sein. Das zweite minimale Follow-up setzt genau diese
+const-korrekten Signaturen; Scope und Invarianten bleiben identisch. SonarQube
+Cloud muss den nächsten PR-Head analysieren, bevor dieser Record ein
+Null-Issue-Ergebnis behauptet.
 
 ## Ausgeführte Befehle
 

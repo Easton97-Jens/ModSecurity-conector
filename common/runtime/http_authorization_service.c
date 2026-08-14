@@ -822,7 +822,7 @@ static int error_status_from_message(const char *message) {
 }
 
 static void authorization_response_set_runtime_error(
-    authorization_service *service,
+    const authorization_service *service,
     const msconnector_error *common_error,
     authorization_response_state *response) {
     response->status = msconnector_runtime_error_http_status(
@@ -834,7 +834,7 @@ static void authorization_response_set_runtime_error(
 }
 
 static void authorization_response_set_decision(
-    msconnector_runtime_transaction *transaction,
+    const msconnector_runtime_transaction *transaction,
     const msconnector_decision *decision,
     authorization_response_state *response) {
     const msconnector_decision_action action =

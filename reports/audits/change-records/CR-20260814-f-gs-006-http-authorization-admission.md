@@ -129,8 +129,12 @@ functions. It does not add a suppression, <code>NOSONAR</code>, Quality-Gate cha
 coverage change, public API, Event/Rule patch, or Traefik-UDS patch. The helper
 boundaries preserve Runtime locking, transaction-ID copying before destruction,
 worker/FD ownership, and the accepted-connection accounting contract. SonarQube
-Cloud must analyze the new PR head before this record claims the five issues are
-zero.
+Cloud cleared those five on the first follow-up head but then reported two
+task-owned <code>c:S995</code> findings: two read-only helper parameters should be
+pointer-to-const. The second minimal follow-up applies precisely those
+const-correct signatures; it retains the same scope and invariants. SonarQube
+Cloud must analyze that next PR head before this record claims a zero-issue
+result.
 
 ## Commands executed
 
