@@ -9,7 +9,7 @@
 | Change ID | CR-20260813-framework-apr-util-submodule-validation |
 | Date (UTC) | 2026-08-13 |
 | Base revision | `33973d094b3f0aeb47605f08ced16a4043f643a0` |
-| Delivery status | Parent PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) merged to `master` at `7e057a27b5ea068cae073b48f0fc8de6b33083b5`. Protected-master `validate_only` run [31777704809](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31777704809) succeeded with candidate `a65eb889dc663d9940215bc4f18f52e56587d8a6` and skipped publishing. Normal updater run [31777868704](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31777868704) created unchanged Draft PR [#281](https://github.com/Easton97-Jens/ModSecurity-conector/pull/281) at `9dd5d6a0ea5bedce7318eca941227b32d5aefe76` and then failed closed because the GitHub CLI rendered JSON `null` from `.auto_merge` as an empty shell value. PR #281 was subsequently merged externally at `2026-08-14T07:14:48Z`, with merge/master `8d416239ea8920c45f07ce2c39daab5f4e44fe5e`; all PR checks, including SonarCloud, and the listed master-push workflows passed. The separate local correction remains without observed hosted validation or merge. |
+| Delivery status | Parent PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) merged to `master` at `7e057a27b5ea068cae073b48f0fc8de6b33083b5`. Protected-master `validate_only` run [31777704809](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31777704809) succeeded with candidate `a65eb889dc663d9940215bc4f18f52e56587d8a6` and skipped publishing. Normal updater run [31777868704](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31777868704) created unchanged Draft PR [#281](https://github.com/Easton97-Jens/ModSecurity-conector/pull/281) at `9dd5d6a0ea5bedce7318eca941227b32d5aefe76` and then failed closed because the GitHub CLI rendered JSON `null` from `.auto_merge` as an empty shell value. PR #281 was subsequently merged externally at `2026-08-14T07:14:48Z`, with merge/master `8d416239ea8920c45f07ce2c39daab5f4e44fe5e`. Correction PR [#282](https://github.com/Easton97-Jens/ModSecurity-conector/pull/282) then squash-merged at `2026-08-14T07:41:07Z` from head `634a1dc1e3636bc628400952da2f73d602c7c813` into `master` `790eac0a875a9ed0148e78d656cfdd30c3104ca6`; its required checks passed, including SonarCloud PR API `total:0`, after one transient Traefik fuzz timeout rerun. All observed master-push workflows passed. Final updater run `31781092484` on `790eac0a875a9ed0148e78d656cfdd30c3104ca6` succeeded with `changed=false`, validator/publisher skipped, and no branch, commit, or PR mutation; the open updater PR list was empty and the existing chore branch remained at `9dd5d6a0ea5bedce7318eca941227b32d5aefe76`. |
 
 ## Motivation and problem statement
 
@@ -385,8 +385,8 @@ disabled-auto-merge check fail. PR #281 was subsequently merged externally at
 `2026-08-14T07:14:48Z`, with head
 `9dd5d6a0ea5bedce7318eca941227b32d5aefe76` and merge/master
 `8d416239ea8920c45f07ce2c39daab5f4e44fe5e`. All PR checks, including
-SonarCloud, and the listed master-push workflows passed. The separate local
-correction remains without observed hosted validation or merge.
+SonarCloud, and the listed master-push workflows passed. The correction's
+subsequent hosted delivery is documented below.
 
 The local correction normalizes the `.auto_merge` query in all three updater
 identity checks: `update-submodules.yml`, `update-python-version.yml`, and
@@ -398,10 +398,25 @@ CI-security tests and `make check-ci-security-contract` (90 passed, 4 expected
 capability skips). `/usr/bin/jq` vectors produced `null` once and
 `auto-merge-present` four times for the rejected cases; the real PR #281 query
 with the final expression produced `null`.
-The final scoped `git diff --check` passed. No hosted checks or merge for the
-correction have been observed.
+The correction was delivered through PR [#282](https://github.com/Easton97-Jens/ModSecurity-conector/pull/282),
+which squash-merged at `2026-08-14T07:41:07Z` from head
+`634a1dc1e3636bc628400952da2f73d602c7c813` into master
+`790eac0a875a9ed0148e78d656cfdd30c3104ca6`. Its required checks passed,
+including SonarCloud PR API `total:0`; one transient Traefik fuzz timeout was
+resolved by a successful rerun. All observed master-push workflows, including
+Security workflow lint and CodeQL, passed.
 
-`FND-PARENT-0122` remains open in this record. The five master-wide
-`cpp:S5945` issues in `common/scripts/modsecurity_targeted_eval.cc` predate
-PR #280 and are unrelated to this change; this record does not claim to fix
-them or to make the master-wide Sonar issue count zero.
+Final normal updater run `31781092484` on
+`790eac0a875a9ed0148e78d656cfdd30c3104ca6` succeeded with candidate/current
+`a65eb889dc663d9940215bc4f18f52e56587d8a6`, `changed=false`, and validator and
+publisher skipped. It made no branch, commit, or PR mutation; the open updater
+PR list was empty and the existing chore branch remained at
+`9dd5d6a0ea5bedce7318eca941227b32d5aefe76`. The final scoped
+`git diff --check` passed.
+
+`FND-PARENT-0122` is now closed on its retained exact-head and resulting-master
+evidence: PR #280, hosted runs `31776302498` and `31777704809`, local
+security/namespace regressions, and final no-op `31781092484`. The five
+master-wide `cpp:S5945` issues in `common/scripts/modsecurity_targeted_eval.cc`
+predate PR #280 and are unrelated to this change; this record does not claim
+to fix them or to make the master-wide Sonar issue count zero.

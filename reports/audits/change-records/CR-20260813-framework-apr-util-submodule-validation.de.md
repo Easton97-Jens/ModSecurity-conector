@@ -9,7 +9,7 @@
 | Change-ID | CR-20260813-framework-apr-util-submodule-validation |
 | Datum (UTC) | 2026-08-13 |
 | Basis-Revision | `33973d094b3f0aeb47605f08ced16a4043f643a0` |
-| Delivery-Status | Parent-PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) wurde in `master` unter SHA `7e057a27b5ea068cae073b48f0fc8de6b33083b5` gemergt. Der geschützte `master`-`validate_only`-Run [31777704809](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31777704809) bestand mit Candidate `a65eb889dc663d9940215bc4f18f52e56587d8a6`; das Publizieren wurde übersprungen. Der normale Updater-Run [31777868704](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31777868704) erzeugte den unveränderten Draft-PR [#281](https://github.com/Easton97-Jens/ModSecurity-conector/pull/281) auf `9dd5d6a0ea5bedce7318eca941227b32d5aefe76` und schlug danach fail-closed fehl, weil die GitHub CLI JSON-`null` aus `.auto_merge` als leeren Shell-Wert ausgab. PR #281 wurde anschließend extern am `2026-08-14T07:14:48Z` mit Merge/Master-SHA `8d416239ea8920c45f07ce2c39daab5f4e44fe5e` gemergt; alle PR-Checks einschließlich SonarCloud sowie die aufgeführten Master-Push-Workflows bestanden. Die separate lokale Korrektur hat weiterhin keine beobachtete Hosted-Validierung oder keinen Merge. |
+| Delivery-Status | Parent-PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) wurde in `master` unter SHA `7e057a27b5ea068cae073b48f0fc8de6b33083b5` gemergt. Der geschützte `master`-`validate_only`-Run [31777704809](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31777704809) bestand mit Candidate `a65eb889dc663d9940215bc4f18f52e56587d8a6`; das Publizieren wurde übersprungen. Der normale Updater-Run [31777868704](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31777868704) erzeugte den unveränderten Draft-PR [#281](https://github.com/Easton97-Jens/ModSecurity-conector/pull/281) auf `9dd5d6a0ea5bedce7318eca941227b32d5aefe76` und schlug danach fail-closed fehl, weil die GitHub CLI JSON-`null` aus `.auto_merge` als leeren Shell-Wert ausgab. PR #281 wurde anschließend extern am `2026-08-14T07:14:48Z` mit Merge/Master-SHA `8d416239ea8920c45f07ce2c39daab5f4e44fe5e` gemergt. Korrektur-PR [#282](https://github.com/Easton97-Jens/ModSecurity-conector/pull/282) wurde danach am `2026-08-14T07:41:07Z` von Head `634a1dc1e3636bc628400952da2f73d602c7c813` in `master` `790eac0a875a9ed0148e78d656cfdd30c3104ca6` squash-gemergt; seine erforderlichen Checks einschließlich SonarCloud-PR-API `total:0` bestanden nach einem erfolgreichen Wiederholungslauf eines transienten Traefik-Fuzz-Timeouts. Alle beobachteten Master-Push-Workflows bestanden. Der finale Updater-Run `31781092484` auf `790eac0a875a9ed0148e78d656cfdd30c3104ca6` bestand mit `changed=false`; Validator und Publisher wurden übersprungen, ohne Branch-, Commit- oder PR-Mutation. Die offene Updater-PR-Liste war leer; der bestehende Chore-Branch blieb auf `9dd5d6a0ea5bedce7318eca941227b32d5aefe76`. |
 
 ## Motivation und Problemstellung
 
@@ -425,11 +425,28 @@ bestand mit 28 fokussierten CI-Security-Tests sowie
 Capability-Skips). `/usr/bin/jq`-Vektoren ergaben einmal `null` und viermal
 `auto-merge-present` für die abgelehnten Fälle; die reale PR-#281-Abfrage mit
 dem finalen Ausdruck ergab `null`. Das abschließende eingeschränkte
-`git diff --check` bestand. Für die Korrektur wurden keine Hosted-Checks oder
-kein Merge beobachtet.
+`git diff --check` bestand.
 
-`FND-PARENT-0122` bleibt in diesem Record offen. Die fünf masterweiten
-`cpp:S5945`-Issues in `common/scripts/modsecurity_targeted_eval.cc` stammen
-aus der Zeit vor PR #280 und sind von dieser Änderung unabhängig; dieser
-Record behauptet weder ihre Behebung noch eine Reduktion der masterweiten
-Sonar-Issue-Anzahl auf null.
+Die Korrektur wurde über PR [#282](https://github.com/Easton97-Jens/ModSecurity-conector/pull/282)
+ausgeliefert, der am `2026-08-14T07:41:07Z` von Head
+`634a1dc1e3636bc628400952da2f73d602c7c813` in Master
+`790eac0a875a9ed0148e78d656cfdd30c3104ca6` squash-gemergt wurde. Seine
+erforderlichen Checks einschließlich SonarCloud-PR-API `total:0` bestanden;
+ein transienter Traefik-Fuzz-Timeout wurde durch einen erfolgreichen
+Wiederholungslauf behoben. Alle beobachteten Master-Push-Workflows,
+einschließlich Security-Workflow-Lint und CodeQL, bestanden.
+
+Der finale normale Updater-Run `31781092484` auf
+`790eac0a875a9ed0148e78d656cfdd30c3104ca6` bestand mit Candidate/Current
+`a65eb889dc663d9940215bc4f18f52e56587d8a6`, `changed=false`; Validator und
+Publisher wurden übersprungen. Es erfolgte keine Branch-, Commit- oder
+PR-Mutation; die offene Updater-PR-Liste war leer und der bestehende
+Chore-Branch blieb auf `9dd5d6a0ea5bedce7318eca941227b32d5aefe76`.
+
+`FND-PARENT-0122` ist nun anhand seiner retained Exact-Head- und
+Resulting-Master-Evidence geschlossen: PR #280, Hosted-Runs `31776302498` und
+`31777704809`, lokale Security-/Namespace-Regressionen und finaler No-op
+`31781092484`. Die fünf masterweiten `cpp:S5945`-Issues in
+`common/scripts/modsecurity_targeted_eval.cc` stammen aus der Zeit vor PR
+#280 und sind von dieser Änderung unabhängig; dieser Record behauptet weder
+ihre Behebung noch eine Reduktion der masterweiten Sonar-Issue-Anzahl auf null.
