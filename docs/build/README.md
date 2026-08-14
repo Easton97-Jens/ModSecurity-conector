@@ -205,8 +205,10 @@ non-recursively and read-only at `/source`, and binds only the exact validator
 output child at `/external`; the latter is the only validator-writable
 location. `/guard` is a root-owned, non-writable logical guard. The jail root
 is remounted read-only after setup. It exposes only the read-only runtime
-directories `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, and `/opt`, plus the
-minimal required read-only `/etc` material. It mounts a fresh read-only `proc`
+directories `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, and only the exact
+`actions/setup-python` runtime below
+`/opt/hostedtoolcache/Python/<version>/<architecture>`, plus the minimal
+required read-only `/etc` material. It mounts a fresh read-only `proc`
 filesystem at jailed `/proc` with `nosuid,nodev,noexec` and constructs a
 private `/dev` containing only `null` and `urandom`.
 

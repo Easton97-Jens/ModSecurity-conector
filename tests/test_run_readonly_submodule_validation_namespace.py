@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import os
 from pathlib import Path
 import pwd
@@ -34,6 +35,47 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
 
     def test_procfs_target_is_the_exported_literal_target(self) -> None:
         self.assertEqual(HELPER.PROCFS_TARGET, Path("/proc"))
+
+    def test_python_runtime_allowlist_binds_only_the_exact_hosted_toolcache_tree(self) -> None:
+        hosted_python = Path("/opt/hostedtoolcache/Python/3.14.6/x64/bin/python")
+        hosted_root = Path("/opt/hostedtoolcache/Python/3.14.6/x64")
+        with mock.patch.object(HELPER, "_trusted_runtime_source") as trusted:
+            self.assertEqual(HELPER._hosted_python_runtime_root(hosted_python), hosted_root)
+        trusted.assert_called_once_with(hosted_root, directory=True)
+        self.assertIsNone(HELPER._hosted_python_runtime_root(Path("/usr/bin/python3")))
+        for invalid in (
+            Path("/opt/hostedtoolcache/Python/3.14.6/bin/python"),
+            Path("/opt/hostedtoolcache/pip/bin/python"),
+            Path("/home/runner/python"),
+        ):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(RuntimeError, "python is outside"):
+                HELPER._hosted_python_runtime_root(invalid)
+
+    def test_jail_binds_an_exact_hosted_runtime_not_the_host_opt_directory(self) -> None:
+        mount_root = Path("/jail")
+        hosted_root = Path("/opt/hostedtoolcache/Python/3.14.6/x64")
+        hosted_target = mount_root / "opt/hostedtoolcache/Python/3.14.6/x64"
+        with mock.patch.object(HELPER, "_hosted_python_runtime_root", return_value=hosted_root), mock.patch.object(
+            HELPER, "_mount"
+        ), mock.patch.object(HELPER, "_secure_directory"), mock.patch.object(
+            HELPER, "_create_jail_directory"
+        ), mock.patch.object(HELPER, "_create_jail_file"), mock.patch.object(
+            HELPER, "_create_jail_device"
+        ), mock.patch.object(HELPER, "_verify_mount"), mock.patch.object(
+            HELPER, "_trusted_runtime_source"
+        ), mock.patch.object(HELPER, "_bind_readonly") as bind_readonly:
+            layout = HELPER._build_jail_layout(
+                mount_root,
+                Path("/trusted/source"),
+                Path("/trusted/external"),
+                hosted_root / "bin/python",
+            )
+        self.assertIn(hosted_target, layout.mounts)
+        self.assertIn(mock.call(hosted_root, hosted_target), bind_readonly.call_args_list)
+        self.assertNotIn(mock.call(Path("/opt"), mount_root / "opt"), bind_readonly.call_args_list)
+
+    def test_jail_file_creation_never_widens_permissions_after_open(self) -> None:
+        self.assertNotIn("fchmod", inspect.getsource(HELPER._create_jail_file))
 
     def test_identity_rejects_privileged_or_missing_account_topologies(self) -> None:
         account = SimpleNamespace(pw_uid=1001, pw_gid=1001)
@@ -414,7 +456,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(RuntimeError):
                 HELPER._jail_target(root, invalid)
         self.assertTrue(HELPER._runtime_python_is_exposed(Path("/usr/bin/python3")))
-        self.assertTrue(HELPER._runtime_python_is_exposed(Path("/opt/hostedtoolcache/python/bin/python")))
+        self.assertFalse(HELPER._runtime_python_is_exposed(Path("/opt/hostedtoolcache/python/bin/python")))
         self.assertFalse(HELPER._runtime_python_is_exposed(Path("/tmp/python")))
 
     def test_unapproved_inherited_descriptors_are_closed(self) -> None:

@@ -112,7 +112,9 @@ entering a private mount and PID namespace, trusted setup constructs a private
 `tmpfs` jail and uses `chroot` before candidate execution. The jail allowlists
 read-only `/source`, a validator-writable `/external`, non-writable `/guard`,
 read-only runtime directories `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, and
-`/opt`, and minimal read-only `/etc` material. Its root is remounted read-only;
+only the exact `actions/setup-python` runtime below
+`/opt/hostedtoolcache/Python/<version>/<architecture>`, and minimal read-only
+`/etc` material. Its root is remounted read-only;
 a fresh hardened read-only `proc` is mounted at `/proc`, and private `/dev`
 contains only `null` and `urandom`. Before dropping to
 `modsecurity-validator`, the launcher closes inherited descriptors other than

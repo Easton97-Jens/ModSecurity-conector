@@ -218,7 +218,9 @@ und bind-mountet nur das exakte Validator-Output-Child bei `/external`; dieses
 ist der einzige für den Validator beschreibbare Ort. `/guard` ist ein
 root-owned, nicht beschreibbarer logischer Guard. Der Jail-Root wird nach dem
 Setup read-only remountet. Es stellt nur die read-only-Runtime-Verzeichnisse
-`/usr`, `/bin`, `/sbin`, `/lib`, `/lib64` und `/opt` sowie das minimal
+`/usr`, `/bin`, `/sbin`, `/lib`, `/lib64` sowie nur die exakte
+`actions/setup-python`-Runtime unter
+`/opt/hostedtoolcache/Python/<version>/<architecture>` und das minimal
 erforderliche read-only-`/etc`-Material bereit. Es mountet ein frisches
 read-only-`proc`-Dateisystem bei jailed `/proc` mit `nosuid,nodev,noexec` und
 erstellt ein privates `/dev`, das nur `null` und `urandom` enthält.

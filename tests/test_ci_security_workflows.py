@@ -318,7 +318,9 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         'JAIL_GUARD = Path("/guard")',
         'JAIL_DEV = Path("/dev")',
         "JAIL_RUNTIME_DIRECTORIES =",
+        'JAIL_HOSTED_PYTHON_ROOT = Path("/opt/hostedtoolcache/Python")',
         "JAIL_RUNTIME_ETC_FILES =",
+        'JAIL_FORBIDDEN_PATH_COMPONENTS = ("tmp", "var", "home", "root", "run", "sys")',
         "CLONE_NEWNS | CLONE_NEWPID",
         "MS_NOEXEC = 8",
         'parser.add_argument("--namespace-parent", required=True)',
@@ -353,6 +355,9 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         "_verify_mount(external_view, readonly=False)",
         "_mount(None, mount_root, MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC)",
         "_verify_mount(mount_root, readonly=True, require_noexec=True)",
+        "_hosted_python_runtime_root(python)",
+        "hosted_python_root.relative_to(JAIL_ROOT).parts",
+        "_bind_readonly(hosted_python_root, hosted_python_target)",
         "os.chdir(jail_root)",
         'os.chroot(".")',
         "_close_unapproved_descriptors({0, 1, 2, proc_ready_write})",
@@ -367,6 +372,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         "/proc/self/status)",
         "0000000000000000",
         "NoNewPrivs:",
+        "for component in JAIL_FORBIDDEN_PATH_COMPONENTS",
         "for target in /tmp /var /home /root /run /sys /dev/shm",
         "test -c /dev/null; test -c /dev/urandom; test ! -w /dev",
         "validator sees an unexpected device",
@@ -403,6 +409,8 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
             errors.append(f"namespace runner must not use {term!r}")
     if 'exec make PYTHON="$PYTHON" BUILD_ROOT=' in runner:
         errors.append("namespace runner must pass BUILD_ROOT through the environment")
+    if 'Path("/opt"),' in runner:
+        errors.append("namespace runner must never expose the broad host /opt tree")
     for term in (
         "MS_REC | MS_BIND",
         "MNT_DETACH",

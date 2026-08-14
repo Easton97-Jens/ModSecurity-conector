@@ -123,9 +123,11 @@ Eintritt in einen privaten Mount- und PID-Namespace erstellt vertrauenswürdiges
 Setup ein privates `tmpfs`-Jail und verwendet `chroot` vor der Candidate-
 Ausführung. Die Jail-Allowlist enthält read-only `/source`, ein für den
 Validator beschreibbares `/external`, nicht beschreibbares `/guard`, die
-read-only-Runtime-Verzeichnisse `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64` und
-`/opt` sowie minimales read-only-`/etc`-Material. Sein Root wird read-only
-remountet; ein frisches gehärtetes read-only-`proc` wird bei `/proc` gemountet,
+read-only-Runtime-Verzeichnisse `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64` sowie
+nur die exakte `actions/setup-python`-Runtime unter
+`/opt/hostedtoolcache/Python/<version>/<architecture>` und minimales
+read-only-`/etc`-Material. Sein Root wird read-only remountet; ein frisches
+gehärtetes read-only-`proc` wird bei `/proc` gemountet,
 und privates `/dev` enthält nur `null` und `urandom`. Vor dem Drop auf
 `modsecurity-validator` schließt der Launcher geerbte Deskriptoren außer
 Standard-Input, -Output und -Error. Das verhindert Hostpfad-Aliasse und

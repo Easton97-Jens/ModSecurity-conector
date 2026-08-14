@@ -54,8 +54,8 @@ JAIL_RUNTIME_DIRECTORIES = (
     Path("/sbin"),
     Path("/lib"),
     Path("/lib64"),
-    Path("/opt"),
 )
+JAIL_HOSTED_PYTHON_ROOT = Path("/opt/hostedtoolcache/Python")
 JAIL_RUNTIME_ETC_DIRECTORIES = (Path("/etc/ssl"),)
 JAIL_RUNTIME_ETC_FILES = (
     Path("/etc/passwd"),
@@ -67,6 +67,7 @@ JAIL_RUNTIME_ETC_FILES = (
     Path("/etc/ca-certificates.conf"),
     Path("/etc/localtime"),
 )
+JAIL_FORBIDDEN_PATH_COMPONENTS = ("tmp", "var", "home", "root", "run", "sys")
 CandidateEntry = Callable[[Path, Path, Path, Path, Path, int, int], None]
 CandidateArguments = tuple[Path, Path, Path, Path, Path, int, int]
 
@@ -300,10 +301,12 @@ def _create_jail_file(path: Path) -> None:
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     try:
         metadata = os.fstat(descriptor)
-        if not stat.S_ISREG(metadata.st_mode):
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != 0
+            or metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+        ):
             raise RuntimeError(f"unsafe jail file: {path}")
-        os.fchown(descriptor, 0, 0)
-        os.fchmod(descriptor, 0o644)
     finally:
         os.close(descriptor)
 
@@ -348,10 +351,24 @@ def _runtime_python_is_exposed(python: Path) -> bool:
     )
 
 
+def _hosted_python_runtime_root(python: Path) -> Path | None:
+    """Return one exact setup-python runtime tree, never a broad host /opt mount."""
+    if _runtime_python_is_exposed(python):
+        return None
+    try:
+        relative = python.relative_to(JAIL_HOSTED_PYTHON_ROOT)
+    except ValueError as error:
+        raise RuntimeError(f"python is outside the jailed runtime allowlist: {python}") from error
+    if len(relative.parts) < 4 or relative.parts[2] != "bin":
+        raise RuntimeError(f"python is outside a hosted setup-python runtime: {python}")
+    runtime_root = JAIL_HOSTED_PYTHON_ROOT.joinpath(*relative.parts[:2])
+    _trusted_runtime_source(runtime_root, directory=True)
+    return runtime_root
+
+
 def _build_jail_layout(mount_root: Path, source: Path, external: Path, python: Path) -> JailLayout:
     """Build a private, allowlisted filesystem tree before candidate code exists."""
-    if not _runtime_python_is_exposed(python):
-        raise RuntimeError(f"python is outside the jailed runtime allowlist: {python}")
+    hosted_python_root = _hosted_python_runtime_root(python)
     _mount("tmpfs", mount_root, MS_NOSUID | MS_NODEV | MS_NOEXEC, "tmpfs")
     _secure_directory(mount_root, 0o755)
     source_view = _jail_target(mount_root, JAIL_SOURCE)
@@ -372,6 +389,13 @@ def _build_jail_layout(mount_root: Path, source: Path, external: Path, python: P
         target = _jail_target(mount_root, candidate_directory)
         _create_jail_directory(target)
         _bind_readonly(host_directory, target)
+    hosted_python_target: Path | None = None
+    if hosted_python_root is not None:
+        hosted_parts = hosted_python_root.relative_to(JAIL_ROOT).parts
+        for depth in range(1, len(hosted_parts) + 1):
+            _create_jail_directory(mount_root.joinpath(*hosted_parts[:depth]))
+        hosted_python_target = _jail_target(mount_root, hosted_python_root)
+        _bind_readonly(hosted_python_root, hosted_python_target)
     etc_root = _jail_target(mount_root, Path("/etc"))
     _create_jail_directory(etc_root)
     for candidate_directory in JAIL_RUNTIME_ETC_DIRECTORIES:
@@ -392,12 +416,15 @@ def _build_jail_layout(mount_root: Path, source: Path, external: Path, python: P
     _verify_mount(external_view, readonly=False)
     _mount(None, mount_root, MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC)
     _verify_mount(mount_root, readonly=True, require_noexec=True)
+    runtime_mounts = [*(_jail_target(mount_root, path) for path in JAIL_RUNTIME_DIRECTORIES)]
+    if hosted_python_target is not None:
+        runtime_mounts.append(hosted_python_target)
     mounts = (
         mount_root,
         source_view,
         external_view,
         dev_view,
-        *(_jail_target(mount_root, path) for path in JAIL_RUNTIME_DIRECTORIES),
+        *runtime_mounts,
         *(_jail_target(mount_root, path) for path in JAIL_RUNTIME_ETC_DIRECTORIES),
         *(_jail_target(mount_root, path) for path in JAIL_RUNTIME_ETC_FILES),
         proc_view,
@@ -442,7 +469,8 @@ def _enter_jail(jail_root: Path) -> None:
     os.chroot(".")
     os.chdir(JAIL_ROOT)
     _verify_procfs(PROCFS_TARGET)
-    for forbidden in (Path("/tmp"), Path("/var"), Path("/home"), Path("/root"), Path("/run"), Path("/sys")):
+    for component in JAIL_FORBIDDEN_PATH_COMPONENTS:
+        forbidden = JAIL_ROOT / component
         if forbidden.exists():
             raise RuntimeError(f"unexpected host path remains reachable in jail: {forbidden}")
     if sorted(path.name for path in JAIL_DEV.iterdir()) != ["null", "urandom"]:
@@ -608,9 +636,12 @@ def _validated_configuration(arguments: argparse.Namespace) -> tuple[Path, Path,
     if external != write_root / "external":
         raise ValueError("external root must be exactly the write root external child")
     namespace_parent = _absolute_existing_directory(arguments.namespace_parent, "namespace parent")
-    python = Path(arguments.python)
-    if not python.is_absolute() or not python.is_file() or not os.access(python, os.X_OK):
+    requested_python = Path(arguments.python)
+    if not requested_python.is_absolute() or not requested_python.is_file() or not os.access(requested_python, os.X_OK):
         raise ValueError("python must be an executable absolute path")
+    python = requested_python.resolve(strict=True)
+    if not python.is_file() or not os.access(python, os.X_OK):
+        raise ValueError("python must resolve to an executable regular file")
     uid, gid = _identity(arguments.validator_user, arguments.validator_group)
     _validate_namespace_parent(namespace_parent, gid)
     write_metadata = os.stat(write_root, follow_symlinks=False)
