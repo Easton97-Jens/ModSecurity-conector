@@ -30,7 +30,8 @@ promotion evidence.
 
 The framework can prepare a local HAProxy binary without global installation
 through `modules/ModSecurity-test-Framework/ci/provisioning/prepare-haproxy-runtime.sh`.
-HAProxy `3.2.19` is pinned only in framework `ci/lib/common.sh`; its official
+The generic SPOA/SPOP compatibility harness uses HAProxy `3.2.22`, pinned only
+in framework `ci/lib/common.sh`; its official
 checksum file and source Makefile were verified before adding the pin. The
 prepared binary path is:
 

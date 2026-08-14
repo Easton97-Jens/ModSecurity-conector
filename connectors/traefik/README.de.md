@@ -364,7 +364,7 @@ make smoke-open-connectors-crs
 make smoke-open-connectors-crs-secondary
 ```
 
-Traefik-Quellmetadaten sind in `common.sh` zentralisiert: `TRAEFIK_VERSION=3.7.5`,
+Traefik-Quellmetadaten sind in `common.sh` zentralisiert: `TRAEFIK_VERSION=3.7.10`,
 die offizielle GitHub-Release-URL, die Installationsdokument-URL, das Linux amd64
 Download-URL, `TRAEFIK_SHA256_URL`, und der angeheftete SHA256. Die
 maschinenlesbarer Spiegel ist

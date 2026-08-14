@@ -357,7 +357,7 @@ make smoke-open-connectors-crs
 make smoke-open-connectors-crs-secondary
 ```
 
-Traefik source metadata is centralized in `common.sh`: `TRAEFIK_VERSION=3.7.5`,
+Traefik source metadata is centralized in `common.sh`: `TRAEFIK_VERSION=3.7.10`,
 the official GitHub release URL, the install docs URL, the Linux amd64
 download URL, `TRAEFIK_SHA256_URL`, and the pinned SHA256. The
 machine-readable mirror is

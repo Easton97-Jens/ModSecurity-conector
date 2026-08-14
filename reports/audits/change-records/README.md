@@ -10,6 +10,12 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260814-f-gs-004-hostruntime-p0](CR-20260814-f-gs-004-hostruntime-p0.md)
+  | [Deutsch](CR-20260814-f-gs-004-hostruntime-p0.de.md) — the user
+  authorized the dependent Draft PR and the delivery/traceability policies
+  require this paired Parent record. It reports only observed local validation;
+  hosted execution, PR checks, and Framework merge remain pending.
+
 - [CR-20260811-enforce-readonly-submodule-validator](CR-20260811-enforce-readonly-submodule-validator.md)
   | [Deutsch](CR-20260811-enforce-readonly-submodule-validator.de.md) — this
   paired record is explicitly authorized for the read-only
