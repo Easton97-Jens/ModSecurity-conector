@@ -117,10 +117,23 @@ patch -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-1.4.84-ms
 
 #### Build the patched host
 
-This builds only the patched lighttpd host. The connector module is deliberately deferred to Section 7.
+This builds only the patched lighttpd host. The connector module is deliberately deferred to Section 7. The repository's `build_patched_core.sh` makes the same decision automatically after applying its patch to a disposable external source copy: it reuses an executable `configure`, otherwise it runs `autogen.sh` only in that patched source tree and requires an executable result. The pinned verified 1.4.84 release can lack generated `configure`. `autogen.sh` remains the upstream authority for its exact Autotools commands; the builder neither installs a package nor adds a network step. On failure it prints the bounded `autogen.log` output and reports the bootstrap phase and exit status, so a missing tool is named by the command that needs it. The validated environment had `autoconf`, `automake`, and `libtool` available, but that does not turn them into an unconditionally assumed list. A non-executable `autogen.sh` is used only when it declares `#!/bin/sh` or `#!/usr/bin/env sh`; no mode is changed.
 
 ```sh
-test -x ./autogen.sh && ./autogen.sh
+if [ -x ./configure ]; then
+    :
+elif [ -x ./autogen.sh ]; then
+    ./autogen.sh
+elif [ -f ./autogen.sh ]; then
+    case "$(sed -n '1p' ./autogen.sh)" in
+        '#!/bin/sh'|'#!/usr/bin/env sh') sh ./autogen.sh ;;
+        *) printf '%s\n' 'lighttpd bootstrap requires an executable configure or a usable POSIX autogen.sh' >&2; exit 77 ;;
+    esac
+else
+    printf '%s\n' 'lighttpd bootstrap requires an executable configure or autogen.sh' >&2
+    exit 77
+fi
+test -x ./configure
 ./configure --prefix="$INSTALL_DIR"
 make -j2
 make install
@@ -128,11 +141,24 @@ make install
 
 #### Optional: use an out-of-tree host build
 
-Keep this advanced alternative for comparison or reproducible build layouts; it still builds only the patched host.
+Keep this advanced alternative for comparison or reproducible build layouts; it still builds only the patched host and uses the same explicit configure/bootstrap gate.
 
 ```sh
 cd "$WORKDIR/lighttpd-$VERSION-patched"
-./autogen.sh
+if [ -x ./configure ]; then
+    :
+elif [ -x ./autogen.sh ]; then
+    ./autogen.sh
+elif [ -f ./autogen.sh ]; then
+    case "$(sed -n '1p' ./autogen.sh)" in
+        '#!/bin/sh'|'#!/usr/bin/env sh') sh ./autogen.sh ;;
+        *) printf '%s\n' 'lighttpd bootstrap requires an executable configure or a usable POSIX autogen.sh' >&2; exit 77 ;;
+    esac
+else
+    printf '%s\n' 'lighttpd bootstrap requires an executable configure or autogen.sh' >&2
+    exit 77
+fi
+test -x ./configure
 export LIGHTTPD_BUILD_DIR="$WORKDIR/build-$VERSION"
 mkdir -p "$LIGHTTPD_BUILD_DIR"
 cd "$LIGHTTPD_BUILD_DIR"

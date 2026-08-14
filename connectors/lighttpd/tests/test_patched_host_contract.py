@@ -13,6 +13,263 @@ CONNECTOR = REPO_ROOT / "connectors" / "lighttpd"
 PATCH = CONNECTOR / "patches" / "0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"
 
 
+class PatchedCoreBootstrapTest(unittest.TestCase):
+    CORE_BUILDER = CONNECTOR / "build" / "build_patched_core.sh"
+
+    @staticmethod
+    def _configure_script() -> str:
+        return (
+            "#!/bin/sh\n"
+            "set -eu\n"
+            "printf '%s\\n' '#define LIGHTTPD_TEST_CONFIG 1' > config.h\n"
+        )
+
+    @staticmethod
+    def _write_script(path: Path, content: str, *, executable: bool = True) -> None:
+        path.write_text(content, encoding="utf-8")
+        path.chmod(0o755 if executable else 0o644)
+
+    def _fixture(
+        self,
+        root: Path,
+        *,
+        configure: bool,
+        autogen: str,
+        non_executable_configure: bool = False,
+    ) -> dict[str, object]:
+        source = root / "verified lighttpd source"
+        patched_root = root / "patched lighttpd build"
+        patched_source = patched_root / "lighttpd-1.4.84"
+        core_build = patched_root / "build-1.4.84"
+        stage_root = patched_root / "stage"
+        tools = root / "test tools"
+        trace = root / "autogen trace.txt"
+
+        (source / "src").mkdir(parents=True)
+        (source / "src" / "plugin.h").write_text(
+            "#define LIGHTTPD_TEST_SOURCE 1\n", encoding="utf-8"
+        )
+        (source / "configure.ac").write_text(
+            "AC_INIT([lighttpd],[1.4.84])\n", encoding="utf-8"
+        )
+        tools.mkdir()
+
+        self._write_script(tools / "cc", "#!/bin/sh\nexit 0\n")
+        self._write_script(
+            tools / "patch",
+            "#!/bin/sh\n"
+            "set -eu\n"
+            "target=\n"
+            "while [ \"$#\" -gt 0 ]; do\n"
+            "    case \"$1\" in\n"
+            "        -d) target=$2; shift 2 ;;\n"
+            "        *) shift ;;\n"
+            "    esac\n"
+            "done\n"
+            "[ -n \"$target\" ]\n"
+            "printf '%s\\n' '#define LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION 1' > \"$target/src/plugin.h\"\n",
+        )
+        self._write_script(
+            tools / "make",
+            "#!/bin/sh\n"
+            "set -eu\n"
+            "install_mode=0\n"
+            "for argument in \"$@\"; do\n"
+            "    [ \"$argument\" = install ] && install_mode=1\n"
+            "done\n"
+            "[ \"$install_mode\" -eq 1 ] || exit 0\n"
+            "stage=${LIGHTTPD_TEST_STAGE_ROOT:?}\n"
+            "mkdir -p \"$stage/bin\"\n"
+            "cat > \"$stage/bin/lighttpd\" <<'EOF'\n"
+            "#!/bin/sh\n"
+            "if [ \"${1:-}\" = -v ]; then\n"
+            "    printf '%s\\n' 'lighttpd/1.4.84'\n"
+            "fi\n"
+            "EOF\n"
+            "chmod +x \"$stage/bin/lighttpd\"\n",
+        )
+        self._write_script(
+            tools / "nm",
+            "#!/bin/sh\n"
+            "printf '%s\\n' '00000000 T plugins_call_handle_request_body'\n"
+            "printf '%s\\n' '00000000 T plugins_call_handle_response_body'\n",
+        )
+
+        if configure:
+            self._write_script(
+                source / "configure",
+                self._configure_script(),
+                executable=not non_executable_configure,
+            )
+
+        if autogen != "missing":
+            autogen_shebang = (
+                "#!/usr/bin/env bash\n"
+                if autogen == "unsupported_non_executable"
+                else "#!/bin/sh\n"
+            )
+            autogen_script = f"{autogen_shebang}set -eu\n"
+            autogen_script += 'printf "%s\\n" "$PWD" >> "$AUTOGEN_TRACE"\n'
+            if autogen == "fails":
+                autogen_script += "printf '%s\\n' 'missing bootstrap tool: test-autoreconf' >&2\nexit 41\n"
+            elif autogen == "no_configure":
+                autogen_script += "exit 0\n"
+            elif autogen == "unsupported_non_executable":
+                autogen_script += "exit 0\n"
+            elif autogen in ("succeeds", "succeeds_non_executable"):
+                autogen_script += (
+                    "cat > configure <<'EOF'\n"
+                    f"{self._configure_script()}"
+                    "EOF\n"
+                    "chmod +x configure\n"
+                )
+            elif autogen == "must_not_run":
+                autogen_script += "printf '%s\\n' 'autogen should not have run' >&2\nexit 97\n"
+            else:
+                raise ValueError(f"unsupported autogen fixture: {autogen}")
+            self._write_script(
+                source / "autogen.sh",
+                autogen_script,
+                executable=autogen
+                not in ("succeeds_non_executable", "unsupported_non_executable"),
+            )
+
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "BUILD_ROOT": str(root / "build root"),
+                "LIGHTTPD_PATCHED_ROOT": str(patched_root),
+                "LIGHTTPD_SOURCE_DIR": str(source),
+                "LIGHTTPD_TEST_STAGE_ROOT": str(stage_root),
+                "LIGHTTPD_MAKE_JOBS": "1",
+                "AUTOGEN_TRACE": str(trace),
+                "CC": "cc",
+                "MAKE": "make",
+                "NM": "nm",
+                "PATH": f"{tools}{os.pathsep}{environment['PATH']}",
+            }
+        )
+        return {
+            "environment": environment,
+            "patched_source": patched_source,
+            "core_build": core_build,
+            "trace": trace,
+        }
+
+    def _run_builder(self, environment: dict[str, str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["sh", str(self.CORE_BUILDER)],
+            cwd=REPO_ROOT,
+            env=environment,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+    def test_existing_executable_configure_skips_autogen(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="lighttpd-bootstrap-") as temporary:
+            fixture = self._fixture(
+                Path(temporary) / "path with spaces", configure=True, autogen="must_not_run"
+            )
+            result = self._run_builder(fixture["environment"])
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("mode=build", result.stdout)
+            self.assertFalse(fixture["trace"].exists())
+
+    def test_missing_configure_bootstraps_with_posix_non_executable_autogen(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="lighttpd-bootstrap-") as temporary:
+            fixture = self._fixture(
+                Path(temporary) / "path with spaces",
+                configure=False,
+                autogen="succeeds_non_executable",
+            )
+            result = self._run_builder(fixture["environment"])
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                fixture["trace"].read_text(encoding="utf-8").splitlines(),
+                [str(fixture["patched_source"])],
+            )
+            self.assertTrue((fixture["patched_source"] / "configure").stat().st_mode & 0o111)
+
+    def test_non_executable_configure_bootstraps_in_the_patched_copy(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="lighttpd-bootstrap-") as temporary:
+            fixture = self._fixture(
+                Path(temporary) / "path with spaces",
+                configure=True,
+                autogen="succeeds",
+                non_executable_configure=True,
+            )
+            result = self._run_builder(fixture["environment"])
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                fixture["trace"].read_text(encoding="utf-8").splitlines(),
+                [str(fixture["patched_source"])],
+            )
+            self.assertTrue((fixture["patched_source"] / "configure").stat().st_mode & 0o111)
+
+    def test_missing_configure_and_autogen_blocks_before_build_directory(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="lighttpd-bootstrap-") as temporary:
+            fixture = self._fixture(
+                Path(temporary) / "path with spaces", configure=False, autogen="missing"
+            )
+            result = self._run_builder(fixture["environment"])
+            self.assertEqual(result.returncode, 77)
+            self.assertIn("bootstrap script is missing", result.stderr)
+            self.assertIn(str(fixture["patched_source"] / "autogen.sh"), result.stderr)
+            self.assertFalse(fixture["core_build"].exists())
+
+    def test_failing_autogen_reports_exit_status_and_stops(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="lighttpd-bootstrap-") as temporary:
+            fixture = self._fixture(
+                Path(temporary) / "path with spaces", configure=False, autogen="fails"
+            )
+            result = self._run_builder(fixture["environment"])
+            self.assertEqual(result.returncode, 77)
+            self.assertIn("exit status 41", result.stderr)
+            self.assertIn("missing bootstrap tool: test-autoreconf", result.stderr)
+            self.assertFalse(fixture["core_build"].exists())
+
+    def test_successful_autogen_without_executable_configure_blocks(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="lighttpd-bootstrap-") as temporary:
+            fixture = self._fixture(
+                Path(temporary) / "path with spaces",
+                configure=False,
+                autogen="no_configure",
+            )
+            result = self._run_builder(fixture["environment"])
+            self.assertEqual(result.returncode, 77)
+            self.assertIn("without an executable configure script", result.stderr)
+            self.assertFalse(fixture["core_build"].exists())
+
+    def test_non_executable_autogen_with_unsupported_interpreter_blocks(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="lighttpd-bootstrap-") as temporary:
+            fixture = self._fixture(
+                Path(temporary) / "path with spaces",
+                configure=False,
+                autogen="unsupported_non_executable",
+            )
+            result = self._run_builder(fixture["environment"])
+            self.assertEqual(result.returncode, 77)
+            self.assertIn("does not declare a supported POSIX shell", result.stderr)
+            self.assertFalse(fixture["core_build"].exists())
+
+    def test_repeat_build_reuses_configure_without_second_autogen(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="lighttpd-bootstrap-") as temporary:
+            fixture = self._fixture(
+                Path(temporary) / "path with spaces", configure=False, autogen="succeeds"
+            )
+            first = self._run_builder(fixture["environment"])
+            second = self._run_builder(fixture["environment"])
+            self.assertEqual(first.returncode, 0, first.stderr)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertIn("mode=reused", second.stdout)
+            self.assertEqual(
+                fixture["trace"].read_text(encoding="utf-8").splitlines(),
+                [str(fixture["patched_source"])],
+            )
+
+
 class PatchedHostContractTest(unittest.TestCase):
     def test_patch_uses_a_file_scope_compile_time_size_check(self) -> None:
         patch = PATCH.read_text(encoding="utf-8")
