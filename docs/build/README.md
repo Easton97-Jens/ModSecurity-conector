@@ -217,6 +217,13 @@ fresh read-only `proc`
 filesystem at jailed `/proc` with `nosuid,nodev,noexec` and constructs a
 private `/dev` containing only `null` and `urandom`.
 
+Inside the already read-only `/usr` mount, the launcher resolves the fixed
+`/usr/bin/gcc` and `/usr/bin/g++` paths and accepts their final targets only as
+executable regular files still under that mount. It passes the resolved paths
+to the candidate through the explicit `CC` and `CXX` environment variables.
+`/etc/alternatives` is intentionally not exposed, so the candidate cannot
+select a compiler through the host alternatives mechanism.
+
 The trusted launcher enters that jail with `chroot` before executing candidate
 code. It closes inherited descriptors other than standard input, output, and
 error before dropping to `modsecurity-validator`, so pre-opened host directory

@@ -139,6 +139,14 @@ Standard-Input, -Output und -Error. Das verhindert Hostpfad-Aliasse und
 Escapes über vorgeöffnete Deskriptoren zu `/tmp`, `/var`, `/home`, `/root`,
 `/run`, `/sys` oder `/dev/shm`.
 
+Der Launcher löst seine festen Pfade `/usr/bin/gcc` und `/usr/bin/g++` erst
+auf, nachdem `/usr` im Jail bereits read-only bereitgestellt ist. Er akzeptiert
+ihre finalen Targets nur als ausführbare reguläre Dateien, die weiterhin unter
+`/usr` aufgelöst werden, und übergibt die aufgelösten Pfade über die expliziten
+Umgebungsvariablen `CC` und `CXX`. `/etc/alternatives` fehlt absichtlich im
+Jail, sodass der Candidate keinen Compiler über den Host-Alternatives-
+Mechanismus auswählen kann.
+
 Netzwerkzugriff bleibt absichtlich verfügbar, weil hash-pinned `pip`-
 Installation für das Funktionieren des Validators erforderlich ist. Diese
 Remediation behauptet keine Egress-Isolation. Hosted-`validate_only`-Evidence

@@ -57,6 +57,9 @@ JAIL_RUNTIME_DIRECTORIES = (
 )
 JAIL_HOSTED_PYTHON_ROOT = Path("/opt/hostedtoolcache/Python")
 JAIL_HOSTED_PYTHON_ARCHITECTURE = "x64"
+JAIL_COMPILER_ROOT = Path("/usr")
+JAIL_C_COMPILER = Path("/usr/bin/gcc")
+JAIL_CXX_COMPILER = Path("/usr/bin/g++")
 JAIL_RUNTIME_ETC_DIRECTORIES = (Path("/etc/ssl"),)
 JAIL_RUNTIME_ETC_FILES = (
     Path("/etc/passwd"),
@@ -344,11 +347,30 @@ def _bind_readonly(source: Path, target: Path, *, noexec: bool = False) -> None:
     _verify_mount(target, readonly=True, require_noexec=noexec)
 
 
-def _runtime_python_is_exposed(python: Path) -> bool:
+def _runtime_path_is_exposed(path: Path) -> bool:
     return any(
-        python == directory or directory in python.parents
+        path == directory or directory in path.parents
         for directory in JAIL_RUNTIME_DIRECTORIES
     )
+
+
+def _fixed_runtime_executable(path: Path, label: str) -> Path:
+    """Resolve one fixed compiler only when the jailed runtime exposes it read-only."""
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as error:
+        raise RuntimeError(f"unsafe {label} for jailed candidate: {path}") from error
+    metadata = os.stat(resolved)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != 0
+        or metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH | stat.S_ISUID | stat.S_ISGID)
+        or not metadata.st_mode & stat.S_IXOTH
+        or not _runtime_path_is_exposed(resolved)
+        or not (resolved == JAIL_COMPILER_ROOT or JAIL_COMPILER_ROOT in resolved.parents)
+    ):
+        raise RuntimeError(f"unsafe {label} for jailed candidate: {path}")
+    return resolved
 
 
 def _validate_hosted_python_runtime(path: Path) -> None:
@@ -378,7 +400,7 @@ def _validate_hosted_python_runtime(path: Path) -> None:
 
 def _hosted_python_runtime_root(python: Path) -> Path | None:
     """Return one exact setup-python runtime tree, never a broad host /opt mount."""
-    if _runtime_python_is_exposed(python):
+    if _runtime_path_is_exposed(python):
         return None
     try:
         relative = python.relative_to(JAIL_HOSTED_PYTHON_ROOT)
@@ -521,10 +543,18 @@ def _set_no_new_privs() -> None:
         raise OSError(error, f"cannot set no_new_privs: {os.strerror(error)}")
 
 
-def _candidate_environment(source: Path, framework_relative: Path, external: Path, guard: Path, python: Path) -> dict[str, str]:
+def _candidate_environment(
+    source: Path,
+    framework_relative: Path,
+    external: Path,
+    guard: Path,
+    python: Path,
+    compiler: Path,
+    cxx_compiler: Path,
+) -> dict[str, str]:
     root = external
     return {
-        "PATH": SAFE_PATH, "PYTHON": str(python), "HOME": str(root / "home"),
+        "PATH": SAFE_PATH, "PYTHON": str(python), "CC": str(compiler), "CXX": str(cxx_compiler), "HOME": str(root / "home"),
         "TMPDIR": str(root / "tmp"), "TMP": str(root / "tmp"), "TEMP": str(root / "tmp"),
         "XDG_CACHE_HOME": str(root / "xdg-cache"), "XDG_CONFIG_HOME": str(root / "xdg-config"),
         "XDG_DATA_HOME": str(root / "xdg-data"), "XDG_STATE_HOME": str(root / "xdg-state"),
@@ -560,6 +590,7 @@ def _candidate_script() -> str:
         'test "$cap_eff" = 0000000000000000\n'
         'test "$no_new_privs" = 1\n'
         'for target in /tmp /var /home /root /run /sys /dev/shm; do test ! -e "$target"; done\n'
+        'test -x "$CC"; test -x "$CXX"\n'
         'test -c /dev/null; test -c /dev/urandom; test ! -w /dev\n'
         'for device in /dev/*; do case "${device##*/}" in null|urandom) ;; *) echo "validator sees an unexpected device: $device" >&2; exit 1 ;; esac; done\n'
         'for descriptor in /proc/self/fd/*; do test -e "$descriptor" || continue; case "${descriptor##*/}" in 0|1|2) ;; *) echo "validator retained an inherited descriptor: $descriptor" >&2; exit 1 ;; esac; done\n'
@@ -597,7 +628,9 @@ def _candidate_script() -> str:
 
 
 def _candidate_pid1(source: Path, framework_relative: Path, external: Path, guard: Path, python: Path, uid: int, gid: int) -> None:
-    env = _candidate_environment(source, framework_relative, external, guard, python)
+    compiler = _fixed_runtime_executable(JAIL_C_COMPILER, "C compiler")
+    cxx_compiler = _fixed_runtime_executable(JAIL_CXX_COMPILER, "C++ compiler")
+    env = _candidate_environment(source, framework_relative, external, guard, python, compiler, cxx_compiler)
     os.setgroups([]); os.setgid(gid); os.setuid(uid); os.chdir(source)
     os.execve("/bin/bash", ["bash", "--noprofile", "--norc", "-ceu", _candidate_script()], env)
 

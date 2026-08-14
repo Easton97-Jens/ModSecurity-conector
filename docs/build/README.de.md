@@ -230,6 +230,14 @@ mountet ein frisches
 read-only-`proc`-Dateisystem bei jailed `/proc` mit `nosuid,nodev,noexec` und
 erstellt ein privates `/dev`, das nur `null` und `urandom` enthält.
 
+Innerhalb des bereits read-only gemounteten `/usr` löst der Launcher die festen
+Pfade `/usr/bin/gcc` und `/usr/bin/g++` auf und akzeptiert ihre finalen Targets
+nur als ausführbare reguläre Dateien, die weiterhin unter diesem Mount liegen.
+Er übergibt die aufgelösten Pfade über die expliziten Umgebungsvariablen `CC`
+und `CXX` an den Candidate. `/etc/alternatives` wird absichtlich nicht
+bereitgestellt; der Candidate kann einen Compiler daher nicht über den Host-
+Alternatives-Mechanismus auswählen.
+
 Der vertrauenswürdige Launcher betritt dieses Jail mit `chroot`, bevor
 Candidate-Code ausgeführt wird. Er schließt geerbte Deskriptoren außer Standard-
 Input, -Output und -Error vor dem Drop auf `modsecurity-validator`, sodass

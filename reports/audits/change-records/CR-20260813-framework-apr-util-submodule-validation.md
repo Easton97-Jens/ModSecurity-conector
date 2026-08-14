@@ -126,6 +126,13 @@ standard input, output, and error. This prevents host path aliases and
 pre-opened descriptor escapes to `/tmp`, `/var`, `/home`, `/root`, `/run`,
 `/sys`, or `/dev/shm`.
 
+The launcher resolves its fixed `/usr/bin/gcc` and `/usr/bin/g++` paths only
+after `/usr` is already exposed read-only inside the jail. It accepts their
+final targets only as executable regular files that still resolve below `/usr`,
+then passes the resolved paths through the explicit `CC` and `CXX` environment
+variables. `/etc/alternatives` is intentionally absent from the jail, so the
+candidate cannot select a compiler through the host alternatives mechanism.
+
 Network access remains intentionally available because hash-pinned `pip`
 installation is required for the validator to function. This remediation makes
 no egress-isolation claim. Hosted `validate_only` evidence for the exact

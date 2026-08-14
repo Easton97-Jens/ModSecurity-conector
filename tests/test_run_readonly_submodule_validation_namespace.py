@@ -105,6 +105,28 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         self.assertNotIn(Path("/etc/localtime"), HELPER.JAIL_RUNTIME_ETC_FILES)
         self.assertIn(Path("/etc/passwd"), HELPER.JAIL_RUNTIME_ETC_FILES)
 
+    def test_fixed_compilers_resolve_only_within_the_readonly_runtime(self) -> None:
+        executable = SimpleNamespace(st_mode=stat.S_IFREG | 0o755, st_uid=0)
+        with mock.patch.object(HELPER.Path, "resolve", return_value=Path("/usr/bin/gcc-15")), mock.patch.object(
+            HELPER.os, "stat", return_value=executable
+        ):
+            self.assertEqual(
+                HELPER._fixed_runtime_executable(HELPER.JAIL_C_COMPILER, "C compiler"),
+                Path("/usr/bin/gcc-15"),
+            )
+        for resolved, metadata in (
+            (Path("/tmp/gcc"), executable),
+            (Path("/bin/gcc-15"), executable),
+            (Path("/usr/bin/gcc-15"), SimpleNamespace(st_mode=stat.S_IFREG | 0o644, st_uid=0)),
+            (Path("/usr/bin/gcc-15"), SimpleNamespace(st_mode=stat.S_IFREG | 0o775, st_uid=0)),
+            (Path("/usr/bin/gcc-15"), SimpleNamespace(st_mode=stat.S_IFREG | 0o755, st_uid=1001)),
+        ):
+            with self.subTest(resolved=resolved), mock.patch.object(
+                HELPER.Path, "resolve", return_value=resolved
+            ), mock.patch.object(HELPER.os, "stat", return_value=metadata):
+                with self.assertRaisesRegex(RuntimeError, "unsafe C compiler"):
+                    HELPER._fixed_runtime_executable(HELPER.JAIL_C_COMPILER, "C compiler")
+
     def test_readonly_bind_remounts_the_exact_runtime_with_security_flags(self) -> None:
         source = Path("/opt/hostedtoolcache/Python/3.14.6/x64")
         target = Path("/jail/opt/hostedtoolcache/Python/3.14.6/x64")
@@ -242,13 +264,16 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         source = Path("/tmp/task/source")
         external = Path("/tmp/task/external")
         environment = HELPER._candidate_environment(
-            source, Path("modules/ModSecurity-test-Framework"), external, Path("/tmp/task"), Path("/usr/bin/python3")
+            source, Path("modules/ModSecurity-test-Framework"), external, Path("/tmp/task"),
+            Path("/usr/bin/python3"), Path("/usr/bin/gcc-15"), Path("/usr/bin/g++-15"),
         )
         self.assertEqual(environment["GITHUB_WORKSPACE"], str(source))
         self.assertEqual(
             environment["FRAMEWORK_ROOT"], "/tmp/task/source/modules/ModSecurity-test-Framework"
         )
         self.assertEqual(environment["PATH"], HELPER.SAFE_PATH)
+        self.assertEqual(environment["CC"], "/usr/bin/gcc-15")
+        self.assertEqual(environment["CXX"], "/usr/bin/g++-15")
         self.assertEqual(environment["GITHUB_ACTIONS"], "true")
         self.assertEqual(environment["BUILD_ROOT"], "/tmp/task/external/build")
         self.assertEqual(environment["VALIDATION_WRITE_ROOT"], "/tmp/task")
@@ -256,7 +281,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         self.assertEqual(
             set(environment),
             {
-                "PATH", "PYTHON", "HOME", "TMPDIR", "TMP", "TEMP", "XDG_CACHE_HOME",
+                "PATH", "PYTHON", "CC", "CXX", "HOME", "TMPDIR", "TMP", "TEMP", "XDG_CACHE_HOME",
                 "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "PIP_CACHE_DIR",
                 "PYTHONPYCACHEPREFIX", "PYTHONUSERBASE", "PYTHONPATH", "PYTHONNOUSERSITE",
                 "PYTHONDONTWRITEBYTECODE", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM",
@@ -271,7 +296,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         )
         for key, value in environment.items():
             if key not in {
-                "PATH", "PYTHON", "GITHUB_ACTIONS", "GITHUB_WORKSPACE", "FRAMEWORK_ROOT", "PYTHONNOUSERSITE",
+                "PATH", "PYTHON", "CC", "CXX", "GITHUB_ACTIONS", "GITHUB_WORKSPACE", "FRAMEWORK_ROOT", "PYTHONNOUSERSITE",
                 "PYTHONDONTWRITEBYTECODE", "GIT_CONFIG_NOSYSTEM", "GIT_OPTIONAL_LOCKS", "VALIDATION_WRITE_ROOT",
             }:
                 self.assertTrue(value.startswith(str(external)), key)
@@ -536,9 +561,9 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         for invalid in (Path("source"), Path("/")):
             with self.subTest(invalid=invalid), self.assertRaises(RuntimeError):
                 HELPER._jail_target(root, invalid)
-        self.assertTrue(HELPER._runtime_python_is_exposed(Path("/usr/bin/python3")))
-        self.assertFalse(HELPER._runtime_python_is_exposed(Path("/opt/hostedtoolcache/python/bin/python")))
-        self.assertFalse(HELPER._runtime_python_is_exposed(Path("/tmp/python")))
+        self.assertTrue(HELPER._runtime_path_is_exposed(Path("/usr/bin/python3")))
+        self.assertFalse(HELPER._runtime_path_is_exposed(Path("/opt/hostedtoolcache/python/bin/python")))
+        self.assertFalse(HELPER._runtime_path_is_exposed(Path("/tmp/python")))
 
     def test_unapproved_inherited_descriptors_are_closed(self) -> None:
         read_end, write_end = os.pipe()
