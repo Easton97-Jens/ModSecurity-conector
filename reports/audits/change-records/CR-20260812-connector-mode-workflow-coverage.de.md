@@ -7,9 +7,9 @@
 | Feld | Wert |
 | --- | --- |
 | Change-ID | CR-20260812-connector-mode-workflow-coverage |
-| Datum (UTC) | 2026-08-12 |
-| Basis-Revision | `33973d094b3f0aeb47605f08ced16a4043f643a0` |
-| Delivery-Status | Draft-PR [#279](https://github.com/Easton97-Jens/ModSecurity-conector/pull/279) existiert auf seinem ursprünglichen Head; lokal validierte Korrektur-Commits warten auf genehmigte Veröffentlichung. Ready for Review bleibt durch die unten beschriebene Apache-Runtime-Abhängigkeit blockiert. |
+| Datum (UTC) | 2026-08-12, reconciled 2026-08-14 |
+| Basis-Revision | `ea3b48abab7940de49997a371f9117b409c05a2a` |
+| Delivery-Status | Draft-PR [#279](https://github.com/Easton97-Jens/ModSecurity-conector/pull/279) bleibt auf dem Remote-Head `63ad4f5ed359ba2be9abe955cb1c82e7dfcb3846`. Der lokale Task-Branch hat den aktuellen Master normal in `4e224b23c5973c34be3ef4f336b7772a0b13c094` gemergt und enthält darüber die lokal validierte Parent-CRS-Akquisitionsreparatur. Es wurde noch kein korrigierter Head gepusht und keine Ready-for-Review-Umstellung vorgenommen; die verbleibenden Clean-Worktree-Runtime-Controls und jede Exact-Head-Hosted-Evidence stehen noch aus. |
 
 ## Motivation und Problemstellung
 
@@ -47,7 +47,7 @@ Trust-Grenze hat.
   Revision die unveränderliche Event-Head-SHA; `github.sha` ist nur der
   Fallback für manuellen Dispatch.
 - Parent- und Framework/MRTS-Gitlinks bleiben bei
-  `209389022c942d83113f6be88bf31d25637352f0` beziehungsweise
+  `1260aaae411ecf88cf50dc480b80e2e20ac47901` beziehungsweise
   `615b13bacbd008562c17408246c41ab27dca3104` fest.
 
 ## Implementierungsentscheidung und Begründung
@@ -71,6 +71,18 @@ All-Workflow-Inventurregression scheitert bereits im sauberen Basisstand an
 einem action-freien lokalen Reusable-Caller; dieser Task schwächt oder ändert
 dieses Testorakel nicht.
 
+Alle vier Pfadfilter enthalten jetzt ihre direkten Interpreter-, Provisioning-,
+Provenance-, Report-Helper- und `.gitmodules`-Abhängigkeiten. Der fokussierte
+Contract verlangt in jedem Workflow dasselbe geschlossene Trigger-Set; NGINX
+bleibt ausgeschlossen.
+
+Die drei Workflows, die `verified-haproxy-case` direkt aufrufen, leiten
+`haproxy_source_root="$CACHE_ROOT/shared/sources"` ab, weisen einen Root
+außerhalb von `$CACHE_ROOT` zurück und übergeben ihn nur an dieses Make-Target.
+Damit entspricht der Aufrufer dem `SOURCE_ROOT`- und `CRS_SOURCE_DIR`-Pfad des
+Component-Snapshots; der separate No-CRS/No-MRTS-HAProxy-Pfad und der
+Framework-Containment-Guard bleiben unverändert.
+
 Die elf Runtime-Cells und die drei statischen Framework-Contract-Cells
 installieren ihre erforderliche Python-Dependency aus der hash-gesperrten
 Framework-`requirements-ci.lock`. Jede verwendet `--require-hashes`,
@@ -92,10 +104,23 @@ frischer CRS-Fetch würde nicht Teil des zielgerichteten Snapshots. Apache
 bleibt bewusst auf seinem regulären nativen Pfad, der weiterhin sein geprüftes
 APR-util-Tupel benötigt.
 
+Der Parent-Component-Preparer zeichnet jetzt auf, ob eine Git-Quelle rekursiv
+akquiriert wurde. Nur `coreruleset` wählt `--no-recurse-submodules`; alle
+generischen Git-Komponenten behalten ihren bestehenden rekursiven Clone- und
+Submodule-Update-Pfad. Die CRS-Cache-Identität enthält den nichtrekursiven
+Mode, sodass ein alter rekursiver CRS-Checkout nicht wiederverwendet werden
+kann. Frische und wiederverwendete nichtrekursive CRS-Checkouts schlagen
+fail-closed fehl, wenn nullterminierte lokale `submodule.*`-Metadaten oder eine
+`.git/modules`-Registry vorliegen. Das verhindert den Zustand an der Quelle;
+es löscht keine Konfiguration nach der Akquisition und ändert nicht den
+Framework-Provenance-Guard.
+
 ## Geänderte Dateien
 
 - Vier `test-connectors-*.yml`-Workflows.
-- Fokussierte Workflow- und Python-Version-Contract-Tests/-Checker.
+- `ci/provisioning/components/prepare-runtime-components.py` sowie
+  fokussierte Workflow-/Python-/Cache-Contract-Tests einschließlich
+  `tests/test_runtime_component_cache_contract.py`.
 - Dieses englische/deutsche Change-Record-Paar und seine Archiv-Indizes.
 
 Kein Connector-Source, Capability-Manifest, Lifecycle-Runner, Framework/MRTS-
@@ -104,22 +129,27 @@ Source, Gitlink, Dependency-Lock, Ruleset oder NGINX-Workflow ist Teil dieser
 
 ## Ausgeführte Befehle
 
-- Der gepinnte statische Framework-Five-Connector-CRS-Contract und die CRS-
-  Provenance-Regression bestanden beide.
-- `tests.test_ci_security_workflows`, `tests.test_python_version_contract`,
-  `tests.test_runtime_component_cache_contract` und
-  `tests.test_runtime_env_snapshot_contract` bestanden: 120 Tests. Der
-  fokussierte Connector-Mode-Contract weist eine Rückkehr zu `make setup-dev`,
-  `bootstrap-python.sh`, `requirements-dev.txt` oder einem ungepinnten Pip-
-  Upgrade zurück.
+- `ConnectorModeWorkflowContractTest` plus `PythonVersionContractTest`
+  bestanden: `31` Tests. Sie prüfen die geschlossene 20-Cell-Topologie, die
+  aktuellen Gitlinks, den hash-gesperrten Installationspfad, die direkten
+  Trigger und den HAProxy-Snapshot-Source-Root-Guard.
+- APR-util-/Provenance-/Static-/Snapshot-Controls bestanden: `43` Tests.
+- `RuntimeComponentCacheContractTest` bestand: `47` Tests. Die fokussierte
+  Preparation-Suite bestand: `41` Tests. Sie decken die nur-für-CRS geltende
+  nichtrekursive Akquisition, die nullsichere lokale Config-Prüfung, die exakt
+  gepinnte Revision, Wiederholung/Wiederverwendung, den Rebuild eines
+  kontaminierten Legacy-Caches, fehlgeschlagenes Staging-Cleanup und ein echt
+  rekursives Generic-Component-Control ab.
 - `make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python
-  check-ci-security-contract` bestand: 70 Tests, drei erwartete Environment-
-  Capability-Skips und validate-only actionlint/zizmor/gitleaks-Lock-Checks.
-- PyYAML lud alle vier Workflows, und ShellCheck bestand für jedes extrahierte
-  GitHub-hosted-Bash-`run:`-Skript mit Warning-Severity.
-- Der direkte Python-Workflow-Contract-Checker meldet dieselben 24 bereits
-  vorhandenen Inventur-/Setup-Diagnosen im sauberen Basis- und Task-Worktree.
-  Er meldet keine durch diese vier Workflows verursachte Diagnose.
+  check-ci-security-contract` bestand: `97` Tests und `4` erwartete
+  Environment-Capability-Skips; die Tool-Lock-Prüfung ist validate-only.
+- Python-Kompilierung und `git diff --check` bestanden.
+- PyYAML parste alle vier Workflows. ShellCheck erhielt alle `42` literalen
+  Bash-`run:`-Blöcke über stdin; jeder endete mit `0`. Blöcke mit
+  GitHub-Ausdrücken bleiben ausschließlich unter Hosted-actionlint autoritativ.
+- Eine frische private virtuelle Umgebung installierte die Framework-
+  `requirements-ci.lock` mit `--require-hashes` und `--only-binary=:all:`, lud
+  PyYAML `6.0.3` und bestand `python -m pip check`.
 
 ## Security-Auswirkung
 
@@ -141,18 +171,47 @@ Workflow-Route ruft den veränderlichen Development-Bootstrap auf.
 
 Vor der Implementierung wiesen alle 18 ausgewählten/`unknown`/`_template`
 negativen Runner-Versuche für die sechs unsupported Cells mit Exit `2` ab und
-erzeugten keinen Build-Root. Die Framework-Contract- und Provenance-Tests sind
-nur statische Evidence. Kein lokaler Connector-Build oder Host-Runtime wurde
-ausgeführt; die vier neuen Hosted-Workflows müssen ihre eigene Exact-Head-
-Runtime-Evidence liefern.
+erzeugten keinen Build-Root. Der Framework-Contract bleibt statische Evidence.
 
-Die ursprünglichen Hosted-Runs belegten einen aktuellen externen Blocker, noch
-bevor ein fokussierter Apache- oder HAProxy-Case ausgeführt wurde: Die gepinnte
-Framework-APR-util-1.6.4-Archiv-URL lieferte während der All-Components-
-Vorbereitung HTTP 404. Der eingegrenzte No-CRS/With-MRTS-HAProxy-Selektor
-entfernt dieses nicht zugehörige Archiv aus diesem einen HAProxy-Pfad. Apache
-und die With-CRS-HAProxy-Pfade bleiben fail-closed, bis das Framework sein
-geprüftes Provenance-Tupel unabhängig aktualisiert.
+Die frische All-Target-Component-Vorbereitung wurde in einem neuen privaten
+Build-/Source-/Cache-Root ausgeführt. Framework
+`1260aaae411ecf88cf50dc480b80e2e20ac47901` wählte APR-util `1.6.5`; der
+frische Archiv-SHA-256 lautet
+`96de1dd6f6a0476d2d2e7964926d8c1ddc3bb0e210e1b1812d3ba5a454a392e2`.
+Apache/No-CRS/No-MRTS `action_deny_phase1` bestand anschließend mit HTTP
+`403`. Der alte APR-util-`1.6.4`-HTTP-`404`-Fehler des PR-Heads ist damit durch
+aktuelle Master-Evidence überholt; `FND-FRAMEWORK-0067` wird durch diesen
+Parent-Task nicht verändert.
+
+Die vorhergehende rekursive CRS-Akquisition wurde gegen die freigegebene
+Revision `55b09f5acfd16413e7b31041100711ceb7adc89c` reproduziert: Sie erzeugte
+lokal `submodule.active .`, und der unveränderte Framework-Guard wies den
+Checkout korrekt mit Exit `77` ab. Der neue nur-für-CRS geltende
+nichtrekursive Pfad erreicht denselben freigegebenen Commit, liefert
+`recursive_submodules=false`, lässt
+`git config --local --null --get-regexp '^submodule\\.'` leer (Git-Exit `1`),
+erzeugt keine `.git/modules` und wird vom unveränderten Framework-
+`prepare-crs.sh`-Guard akzeptiert. Die absichtlich kontaminierte negative
+Fixture liefert weiterhin Exit `77`; generische Komponenten, die Submodules
+benötigen, bleiben rekursiv. Dies ist die lokale Reparatur für
+`FND-PARENT-0128`, kein Guard-Bypass.
+
+Die fokussierten `action_deny_phase1`-Controls für Apache und HAProxy mit
+`with-crs/no-mrts` bestanden jeweils mit HTTP `403` unter der reparierten
+Source-Topologie. Ein erster kanonischer Apache-No-CRS-Lauf führte beide
+legitimen Fälle aus, aber sein Evidence-Finalizer verweigerte korrekt `PASS`,
+weil der Source-Worktree dirty war. Er ist nur diagnostisch; die vollständige
+frische Acht-Mode-Serie im sauberen Worktree bleibt vor der Veröffentlichung
+erforderlich.
+
+### Diagnose der alten Hosted-Runs
+
+| Alter Run | Jobs / erster kausaler Schritt | Einordnung auf aktuellem Master |
+| --- | --- | --- |
+| `31616687887` | Apache `94181133426`, Provision host component: APR-util `1.6.4` HTTP `404` | durch aktuelle Framework-APR-util-`1.6.5`-Vorbereitung und Apache-Runtime-Nachweis überholt |
+| `31616687903` | Apache/HAProxy: APR-util `1.6.4` HTTP `404`; Envoy/Traefik/lighttpd: `ModuleNotFoundError: No module named 'yaml'` | APR-Fehler überholt; YAML-Pfad lokal durch hash-gesperrte `requirements-ci.lock` behoben |
+| `31616687995` | Apache/HAProxy: APR-util `1.6.4` HTTP `404` | überholt; der reparierte lokale CRS-Pfad ermöglicht einen erforderlichen frischen Exact-Head-Rerun |
+| `31616688052` | Apache/HAProxy: APR-util `1.6.4` HTTP `404` | überholt; der reparierte lokale CRS-Pfad ermöglicht einen erforderlichen frischen Exact-Head-Rerun |
 
 ## Bekannte Einschränkungen
 
@@ -167,17 +226,21 @@ autorisierten Pfadliste: Ihre Korrektur würde eine nicht zusammenhängende
 Testorakel-Änderung und Änderungen an einem bestehenden Updater-Workflow/-Tool
 erfordern.
 
+Die frischen lokalen Controls verwendeten CPython `3.14.4`; die Hosted-
+Workflows erwarten `3.14.6`. Daher behauptet dieser Record keine exakte
+Interpreter-Äquivalenz.
+
 ## Verbleibende Risiken
 
-Apache-Runtime-Cells und die beiden With-CRS-HAProxy-Cells sind derzeit durch
-das fehlende geprüfte APR-util-1.6.4-Provider-Asset im gepinnten Framework
-blockiert; erforderlich sind ein Framework-eigenes Provenance-Update und
-danach ein unabhängig autorisiertes Parent-Gitlink-Update. Die No-CRS-
-HAProxy-Pfade und die offenen Connectoren hängen weiterhin von ihren Hosted-
-Runner-Voraussetzungen ab. Envoy-, Traefik- und lighttpd-MRTS-Cells bleiben
-ausdrücklich unsupported, bis eine unabhängig autorisierte Capability- und
-Evidence-Änderung existiert. Kein Fehler darf durch eine Abschwächung der
-negativen, statischen Contract-, Cleanup- oder Security-Guards verdeckt werden.
+`FND-PARENT-0128` ist lokal behoben, bleibt aber ein Release-/Integration-
+Blocker, bis die Acht-Mode-Runtime-Serie im sauberen Worktree und alle
+Exact-Head-Hosted-Cells bestehen. Framework/MRTS-Source und der fail-closed
+Provenance-Guard bleiben unverändert. actionlint/zizmor, Required Checks,
+Sonar-Disposition und die gesamte Hosted-Matrix-Evidence sind weiterhin
+unverifiziert. Envoy-, Traefik- und lighttpd-MRTS-Cells bleiben ausdrücklich
+unsupported, bis eine unabhängig autorisierte Capability- und Evidence-
+Änderung existiert. Kein Fehler darf durch Abschwächung negativer,
+statischer-Contract-, Cleanup- oder Security-Guards verdeckt werden.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -185,20 +248,23 @@ negativen, statischen Contract-, Cleanup- oder Security-Guards verdeckt werden.
   gepinnten Binaries fehlen; Tool-Fetch liegt außerhalb der lokalen
   Validierungsautorität dieses Tasks. Stattdessen sind Exact-Head-Hosted-Checks
   erforderlich.
-- Lokale Connector-Runtime-/Build-Matrix: Der Task ist workflow-/test-only und
-  die Hosted-Workflows sind der angeforderte Runtime-Evidence-Pfad.
+- Vollständige Acht-Mode-Lokalserie im sauberen Worktree und Exact-Head-
+  Hosted-Connector-Matrix: Beide stehen bis zum fokussierten lokalen Commit
+  aus, den der native No-CRS-Evidence-Finalizer benötigt, bevor er einen
+  sauberen Checkout attestieren kann.
 - Corrected-Head-PR-Checks, SonarQube-Cloud-Anwendbarkeit und Ready-for-Review-
-  Disposition: Die Veröffentlichung des lokalen Korrektur-Heads ist nicht
-  genehmigt, und der Apache-Runtime-Nachweis kann bis zur separaten Framework-
-  Provenance-Remediation nicht bestehen. Ein Merge ist ausdrücklich außerhalb
-  des Scopes.
+  Disposition: Es wurde kein korrigierter Commit gepusht; Merge und Auto-Merge
+  bleiben ausdrücklich außerhalb des Scopes.
 
 ## Finaler Diff- und Review-Status
 
-Dies ist ein Partial-Delivery-Record. Lokale eingeschränkte Contracts bestehen
-mit Ausnahme der separat reproduzierten bereits vorhandenen globalen Python-
-Inventurdiagnosen. Die finale Prüfung muss einen veröffentlichten exakten
-Commit-Head, Remote-Branch, PR-Head, vier Workflow-Runs,
-actionlint/ShellCheck/zizmor, Required Checks und die Sonar-Anwendbarkeit
-verifizieren, bevor der PR auf Ready for Review gesetzt wird; der aktuelle
-Apache-Blocker verhindert diese Disposition innerhalb dieses Parent-only-Tasks.
+Dies ist ein laufender lokaler Remediation-Record. Der normale Master-Merge
+behielt den aktuellen Framework-Gitlink bei; es gibt keinen task-eigenen
+Gitlink-Diff. Die Parent-CRS-Reparatur, ihre fokussierten Regressionen, die
+aktuelle APR-util-Provenance und die ersten reparierten fokussierten Controls
+bestanden lokal. Eine spätere finale Prüfung muss die Runtime-Serie im sauberen
+Worktree, einen veröffentlichten exakten Commit-Head, Remote-Branch, PR-Head,
+vier Workflow-Runs, alle 20 Cells, actionlint, ShellCheck, zizmor, Required
+Checks und die Sonar-Anwendbarkeit prüfen, bevor PR #279 auf Ready for Review
+gesetzt wird. Kein Push, keine Ready-Umstellung, kein Merge und kein
+Auto-Merge sind hier verzeichnet.

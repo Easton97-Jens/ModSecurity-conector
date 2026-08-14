@@ -7,9 +7,9 @@
 | Field | Value |
 | --- | --- |
 | Change ID | CR-20260812-connector-mode-workflow-coverage |
-| Date (UTC) | 2026-08-12 |
-| Base revision | `33973d094b3f0aeb47605f08ced16a4043f643a0` |
-| Delivery status | Draft PR [#279](https://github.com/Easton97-Jens/ModSecurity-conector/pull/279) exists at its original head; locally validated corrective commits await approved publication. Ready-for-Review remains blocked by the Apache runtime dependency described below. |
+| Date (UTC) | 2026-08-12, reconciled 2026-08-14 |
+| Base revision | `ea3b48abab7940de49997a371f9117b409c05a2a` |
+| Delivery status | Draft PR [#279](https://github.com/Easton97-Jens/ModSecurity-conector/pull/279) remains at remote head `63ad4f5ed359ba2be9abe955cb1c82e7dfcb3846`. The local task branch normally merged current master in `4e224b23c5973c34be3ef4f336b7772a0b13c094` and contains the locally validated Parent CRS-acquisition repair above it. No corrected head has been pushed, no Ready-for-Review transition occurred, and the remaining clean-worktree runtime controls plus all exact-head hosted evidence are pending. |
 
 ## Motivation and problem statement
 
@@ -42,8 +42,8 @@ separate trust boundary.
   `requirements-dev.txt`, or an unpinned Pip upgrade.
 - On a pull request, checkout and the recorded Parent revision use the event's
   immutable head SHA; `github.sha` is only the manual-dispatch fallback.
-- Parent and Framework/MRTS Gitlinks stay fixed at
-  `209389022c942d83113f6be88bf31d25637352f0` and
+- Parent and Framework/MRTS Gitlinks stay fixed at the current master-recorded
+  `1260aaae411ecf88cf50dc480b80e2e20ac47901` and
   `615b13bacbd008562c17408246c41ab27dca3104` respectively.
 
 ## Implementation decision and rationale
@@ -66,6 +66,17 @@ all-workflow inventory regression already fails for an action-free local
 reusable caller on the clean base; this task does not weaken or alter that
 test oracle.
 
+All four path filters now include their direct interpreter, provisioning,
+provenance, report-helper, and `.gitmodules` dependencies. The focused contract
+requires the same closed trigger set in every workflow; NGINX remains excluded.
+
+The three workflows that directly call `verified-haproxy-case` derive
+`haproxy_source_root="$CACHE_ROOT/shared/sources"`, reject a root outside
+`$CACHE_ROOT`, and pass it only to that Make target. This aligns the caller with
+the component snapshot's `SOURCE_ROOT` and `CRS_SOURCE_DIR`; it does not change
+the separate no-CRS/no-MRTS five-connector HAProxy path or weaken the Framework
+containment guard.
+
 The eleven runtime cells and the three static Framework-contract cells install
 their required Python dependency from the Framework's hash-locked
 `requirements-ci.lock`. Each uses `--require-hashes`, `--only-binary=:all:`,
@@ -86,11 +97,23 @@ and a separate fresh CRS fetch would not become part of the target-scoped
 snapshot. Apache intentionally remains on its ordinary native path, which
 still requires its reviewed APR-util tuple.
 
+The Parent component preparer now records whether a Git source was acquired
+recursively. Only `coreruleset` selects `--no-recurse-submodules`; all generic
+Git components retain their existing recursive clone and submodule-update
+path. The CRS cache identity includes the non-recursive mode, so a legacy
+recursive CRS checkout cannot be reused. Fresh and reused non-recursive CRS
+checkouts fail closed when null-delimited local `submodule.*` metadata or a
+`.git/modules` registry is present. This prevents the condition at the source;
+it does not delete configuration after acquisition or alter the Framework
+provenance guard.
+
 ## Changed files
 
 - Four `test-connectors-*.yml` workflows.
-- Focused workflow and Python-version contract tests/checker.
-- This English/German Change Record pair and its archive indexes.
+- `ci/provisioning/components/prepare-runtime-components.py` and focused
+  workflow/Python/cache-contract tests, including
+  `tests/test_runtime_component_cache_contract.py`.
+- This English/German Change Record pair and its existing archive indexes.
 
 No connector source, capability manifest, lifecycle runner, Framework/MRTS
 source, Gitlink, dependency lock, ruleset, or NGINX workflow changes are part
@@ -98,21 +121,26 @@ of this change.
 
 ## Commands executed
 
-- The pinned Framework static five-connector CRS contract and CRS-provenance
-  regression both passed.
-- `tests.test_ci_security_workflows`, `tests.test_python_version_contract`,
-  `tests.test_runtime_component_cache_contract`, and
-  `tests.test_runtime_env_snapshot_contract` passed: 120 tests. The focused
-  connector-mode contract rejects a return to `make setup-dev`,
-  `bootstrap-python.sh`, `requirements-dev.txt`, or an unpinned Pip upgrade.
+- `ConnectorModeWorkflowContractTest` plus `PythonVersionContractTest` passed:
+  `31` tests. They assert the closed 20-cell topology, current Gitlinks,
+  hash-locked install, direct trigger set, static negative routes, and the
+  HAProxy snapshot source-root guard.
+- APR-util/provenance/static/snapshot controls passed: `43` tests.
+- `RuntimeComponentCacheContractTest` passed: `47` tests. The focused
+  preparation suite passed: `41` tests. They cover the CRS-only
+  non-recursive acquisition, null-safe local-config check, exact pinned
+  revision, repeat/reuse, tainted legacy-cache rebuild, failed staging cleanup,
+  and a genuinely recursive generic-component control.
 - `make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python
-  check-ci-security-contract` passed: 70 tests, three expected environment
-  capability skips, and validate-only actionlint/zizmor/gitleaks lock checks.
-- PyYAML loaded all four workflows, and ShellCheck passed every extracted
-  GitHub-hosted Bash `run:` script at warning severity.
-- The direct Python workflow-contract checker reports the same 24 pre-existing
-  inventory/setup diagnostics in the clean base and task worktrees. It reports
-  no diagnostic caused by these four workflows.
+  check-ci-security-contract` passed: `97` tests and `4` expected
+  environment-capability skips; its tool lock validation is validate-only.
+- Focused Python compilation and `git diff --check` passed.
+- PyYAML parsed all four workflows. ShellCheck received all `42` literal Bash
+  `run:` blocks through stdin and returned `0` for each. GitHub-expression
+  blocks remain authoritative only under hosted actionlint.
+- A fresh private virtual environment installed Framework
+  `requirements-ci.lock` with `--require-hashes` and `--only-binary=:all:`,
+  loaded PyYAML `6.0.3`, and passed `python -m pip check`.
 
 ## Security impact
 
@@ -132,16 +160,43 @@ verified. No new workflow route invokes the mutable development bootstrap.
 
 Before implementation, all 18 selected/`unknown`/`_template` negative runner
 attempts for the six unsupported cells rejected with exit `2` and created no
-build root. The Framework contract and provenance tests are static evidence
-only. No local connector build or host runtime was run; the four new hosted
-workflows must supply their own exact-head runtime evidence.
+build root. The Framework static contract remains static evidence only.
 
-The original hosted runs established a current external blocker before either
-focused Apache or HAProxy case executed: the pinned Framework APR-util 1.6.4
-archive URL returned HTTP 404 during all-components preparation. The narrowed
-no-CRS/with-MRTS HAProxy selector removes that unrelated archive from that one
-HAProxy path. Apache and the with-CRS HAProxy paths remain fail-closed until
-the Framework independently updates its reviewed provenance tuple.
+Fresh current-master all-target component preparation was run in a new private
+build/source/cache root. Framework
+`1260aaae411ecf88cf50dc480b80e2e20ac47901` selected APR-util `1.6.5`; its
+fresh archive SHA-256 was
+`96de1dd6f6a0476d2d2e7964926d8c1ddc3bb0e210e1b1812d3ba5a454a392e2`.
+Apache/no-CRS/no-MRTS `action_deny_phase1` then passed with HTTP `403`. The old
+PR-head APR-util `1.6.4` HTTP `404` is therefore superseded by current-master
+evidence; `FND-FRAMEWORK-0067` is not changed by this Parent task.
+
+The preceding recursive CRS acquisition was reproduced against the approved
+`55b09f5acfd16413e7b31041100711ceb7adc89c` revision: it created local
+`submodule.active .`, and the unchanged Framework guard correctly rejected the
+checkout with exit `77`. The new CRS-only non-recursive path reaches the same
+approved commit, returns `recursive_submodules=false`, leaves
+`git config --local --null --get-regexp '^submodule\\.'` empty (Git exit `1`),
+creates no `.git/modules`, and is accepted by the unchanged Framework
+`prepare-crs.sh` guard. The deliberately tainted negative fixture still exits
+`77`; generic components that require submodules remain recursive. This is the
+local repair for `FND-PARENT-0128`, not a guard bypass.
+
+Apache and HAProxy `with-crs/no-mrts` focused `action_deny_phase1` controls
+each passed with HTTP `403` under the repaired source topology. An initial
+canonical Apache no-CRS run executed both legitimate cases but its evidence
+finalizer correctly refused `PASS` because the source worktree was dirty. It
+is diagnostic-only; the full eight-mode fresh clean-worktree series remains
+required before publication.
+
+### Old hosted diagnostics
+
+| Old run | Jobs / first causal step | Classification on current master |
+| --- | --- | --- |
+| `31616687887` | Apache `94181133426`, Provision host component: APR-util `1.6.4` HTTP `404` | superseded by current Framework APR-util `1.6.5` preparation and Apache runtime proof |
+| `31616687903` | Apache/HAProxy runtime jobs: APR-util `1.6.4` HTTP `404`; Envoy/Traefik/lighttpd contract jobs: `ModuleNotFoundError: No module named 'yaml'` | APR failure superseded; YAML dependency path locally fixed with hash-locked `requirements-ci.lock` |
+| `31616687995` | Apache/HAProxy runtime jobs: APR-util `1.6.4` HTTP `404` | superseded; the repaired local CRS path supports a required fresh exact-head rerun |
+| `31616688052` | Apache/HAProxy runtime jobs: APR-util `1.6.4` HTTP `404` | superseded; the repaired local CRS path supports a required fresh exact-head rerun |
 
 ## Known limitations
 
@@ -151,38 +206,44 @@ actionlint's workflow/YAML analysis. A local static result does not prove
 GitHub-hosted runner behavior, connector runtime success, or exact PR-head
 security enforcement.
 
+The local CPython used for fresh controls was `3.14.4`; hosted workflows expect
+`3.14.6`, so this record does not claim exact interpreter equivalence.
+
 The pre-existing updater exact-inventory regression remains outside the
 authorized path list: correcting it would require an unrelated test-oracle
 change and modifying an existing updater workflow/tool.
 
 ## Remaining risks
 
-Apache runtime cells and the two with-CRS HAProxy cells are currently blocked
-by the missing reviewed APR-util 1.6.4 provider asset in the pinned Framework;
-a Framework-owned provenance update followed by an independently authorized
-Parent Gitlink update is required. The no-CRS HAProxy paths and the open
-connectors still depend on their hosted runner prerequisites. Envoy, Traefik,
-and lighttpd MRTS cells remain explicitly unsupported until an independently
-authorized capability and evidence change exists. No failure may be hidden by
-weakening the negative, static-contract, cleanup, or security guards.
+`FND-PARENT-0128` is locally fixed but remains a release/integration blocker
+until the clean-worktree eight-mode runtime series and all exact-head hosted
+cells pass. Framework/MRTS source and the fail-closed provenance guard remain
+unchanged. Actionlint/zizmor, required checks, Sonar disposition, and all
+hosted matrix evidence are still unverified. Envoy, Traefik, and lighttpd MRTS
+cells remain explicitly unsupported until an independently authorized
+capability and evidence change exists. No failure may be hidden by weakening
+negative, static-contract, cleanup, or security guards.
 
 ## Checks not run and rationale
 
 - Local actionlint, actionlint-mediated ShellCheck, and zizmor scans: their
   pinned binaries are absent and fetching tools is outside this task's local
   validation authority. Exact-head hosted checks are required instead.
-- Local connector runtime/build matrix: the task is workflow/test-only and
-  hosted workflows are the requested runtime evidence path.
+- Full clean-worktree eight-mode local runtime series and exact-head hosted
+  connector matrix: both are pending the focused local commit that the native
+  no-CRS evidence finalizer requires before it can attest a clean checkout.
 - Corrected-head PR checks, SonarQube Cloud applicability, and Ready-for-Review
-  disposition: the local corrective head has not been approved for external
-  publication, and Apache runtime proof cannot pass until the separate
-  Framework provenance remediation exists. Merge is explicitly out of scope.
+  disposition: no corrected commit was pushed, so no exact new PR head exists;
+  merge and auto-merge remain explicitly out of scope.
 
 ## Final diff and review status
 
-This is a partial-delivery record. Local scoped contracts pass except for the
-separately reproduced pre-existing global Python inventory diagnostics. The
-final review must verify a published exact committed head, remote branch, PR
-head, four workflow runs, actionlint/ShellCheck/zizmor, required checks, and
-Sonar applicability before the PR is marked Ready for Review; the current
-Apache blocker prevents that disposition within this Parent-only task.
+This is an in-progress local-remediation record. The normal master merge
+retained the current recorded Framework Gitlink and no task-owned Gitlink diff
+exists. The Parent CRS repair, its focused regressions, the current APR-util
+provenance, and the initial repaired focused controls passed locally. A later
+final review must verify the clean-worktree runtime series, a published exact
+committed head, remote branch, PR head, four workflow runs, all 20 cells,
+actionlint, ShellCheck, zizmor, required checks, and Sonar applicability
+before PR #279 is marked Ready for Review. No push, Ready transition, merge,
+or auto-merge is recorded here.

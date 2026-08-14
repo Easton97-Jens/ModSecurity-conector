@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -2145,9 +2146,13 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
         check: bool,
         raise_on_clone_failure: bool,
     ) -> subprocess.CompletedProcess[str] | None:
-        if command[:3] == ["git", "clone", "--recursive"]:
+        if (
+            len(command) >= 3
+            and command[:2] == ["git", "clone"]
+            and command[2] in {"--recursive", "--no-recurse-submodules"}
+        ):
             clone = subprocess.run(
-                ["git", "clone", "--recursive", str(upstream), command[-1]],
+                ["git", "clone", command[2], str(upstream), command[-1]],
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -2166,6 +2171,51 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
         if len(command) >= 5 and command[:2] == ["git", "-C"] and command[3:5] == ["fetch", "--tags"]:
             return subprocess.CompletedProcess(command, 0, "", "")
         return None
+
+    @staticmethod
+    def _local_submodule_config(checkout: Path) -> tuple[tuple[str, str], ...]:
+        """Parse local submodule config without treating values as text lines."""
+        result = subprocess.run(
+            ["git", "-C", str(checkout), "config", "--local", "--null", "--get-regexp", r"^submodule\."],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        if result.returncode == 1:
+            return ()
+        if result.returncode != 0:
+            raise AssertionError(result.stderr.decode("utf-8", errors="replace"))
+        entries: list[tuple[str, str]] = []
+        for raw_entry in result.stdout.split(b"\0"):
+            if not raw_entry:
+                continue
+            key, separator, value = raw_entry.partition(b"\n")
+            if not separator:
+                raise AssertionError(f"malformed NUL-delimited git config entry: {raw_entry!r}")
+            entries.append((key.decode("utf-8"), value.decode("utf-8")))
+        return tuple(entries)
+
+    def _init_local_submodule_upstream(self, root: Path) -> tuple[Path, str, str, Path]:
+        root.mkdir()
+        nested_root = root / "nested"
+        nested_root.mkdir()
+        nested, _, _ = self._init_local_upstream(nested_root, content="required\n")
+        upstream = root / "upstream-with-submodule"
+        upstream.mkdir()
+        self.git(["git", "init"], upstream)
+        self.git(["git", "config", "user.email", "cache-test@example.invalid"], upstream)
+        self.git(["git", "config", "user.name", "Cache Test"], upstream)
+        (upstream / "tracked.txt").write_text("parent\n", encoding="utf-8")
+        self.git(["git", "add", "tracked.txt"], upstream)
+        self.git(["git", "commit", "-m", "initial"], upstream)
+        self.git(
+            ["git", "-c", "protocol.file.allow=always", "submodule", "add", str(nested), "required"],
+            upstream,
+        )
+        self.git(["git", "commit", "-am", "add required submodule"], upstream)
+        commit = self.git(["git", "rev-parse", "HEAD"], upstream).stdout.strip()
+        branch = self.git(["git", "branch", "--show-current"], upstream).stdout.strip()
+        return upstream, commit, branch, nested
 
     def test_clean_managed_git_checkout_is_reused_across_target_preparations(self) -> None:
         """The second target reuses a published ModSecurity source checkout.
@@ -2247,6 +2297,232 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     actual_head=commit,
                 )
             )
+
+    def test_crs_nonrecursive_checkout_has_no_local_submodule_state_and_reuses_without_reclone(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            upstream, commit, branch = self._init_local_upstream(root)
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            checkout = cache_root / "sources" / "coreruleset"
+            expected_url = "https://github.com/coreruleset/coreruleset.git"
+            clone_modes: list[str] = []
+            original_run = components.run
+
+            def local_crs_run(
+                command: list[str], cwd: Path | None = None, check: bool = False
+            ) -> subprocess.CompletedProcess[str]:
+                if command[:2] == ["git", "ls-remote"]:
+                    return subprocess.CompletedProcess(command, 0, f"{commit}\trefs/heads/{branch}\n", "")
+                if len(command) >= 3 and command[:2] == ["git", "clone"]:
+                    clone_modes.append(command[2])
+                local_result = self._local_clone_or_fetch(
+                    command,
+                    upstream=upstream,
+                    expected_url=expected_url,
+                    check=check,
+                    raise_on_clone_failure=True,
+                )
+                if local_result is not None:
+                    return local_result
+                return original_run(command, cwd=cwd, check=check)
+
+            with mock.patch.object(components, "run", side_effect=local_crs_run):
+                first = components.prepare_git_component(
+                    "coreruleset",
+                    expected_url,
+                    commit,
+                    checkout,
+                    {},
+                    strict=True,
+                    cache_root=cache_root,
+                    recursive_submodules=False,
+                )
+                second = components.prepare_git_component(
+                    "coreruleset",
+                    expected_url,
+                    commit,
+                    checkout,
+                    {"coreruleset": first},
+                    strict=True,
+                    cache_root=cache_root,
+                    recursive_submodules=False,
+                )
+
+            self.assertEqual(first["status"], "present")
+            self.assertEqual(second["status"], "present")
+            self.assertEqual(first["actual_head"], commit)
+            self.assertEqual(second["actual_head"], commit)
+            self.assertEqual(first["cache_identity"], second["cache_identity"])
+            self.assertEqual(first["cache_identity"]["recursive_submodules"], False)
+            self.assertEqual(clone_modes, ["--no-recurse-submodules"])
+            self.assertEqual(self._local_submodule_config(checkout), ())
+            self.assertFalse((checkout / ".git/modules").exists())
+            self.assertTrue(
+                components.cache_entry_complete(
+                    checkout,
+                    cache_root,
+                    component="source:coreruleset",
+                    cache_key=first["cache_key"],
+                    cache_identity=first["cache_identity"],
+                )
+            )
+
+    def test_crs_tainted_legacy_cache_is_rebuilt_without_persisting_submodule_state(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            upstream, commit, branch = self._init_local_upstream(root)
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            checkout = cache_root / "sources" / "coreruleset"
+            expected_url = "https://github.com/coreruleset/coreruleset.git"
+            clone_count = 0
+            original_run = components.run
+
+            def local_crs_run(
+                command: list[str], cwd: Path | None = None, check: bool = False
+            ) -> subprocess.CompletedProcess[str]:
+                nonlocal clone_count
+                if command[:2] == ["git", "ls-remote"]:
+                    return subprocess.CompletedProcess(command, 0, f"{commit}\trefs/heads/{branch}\n", "")
+                if len(command) >= 3 and command[:2] == ["git", "clone"]:
+                    clone_count += 1
+                local_result = self._local_clone_or_fetch(
+                    command,
+                    upstream=upstream,
+                    expected_url=expected_url,
+                    check=check,
+                    raise_on_clone_failure=True,
+                )
+                if local_result is not None:
+                    return local_result
+                return original_run(command, cwd=cwd, check=check)
+
+            with mock.patch.object(components, "run", side_effect=local_crs_run):
+                first = components.prepare_git_component(
+                    "coreruleset",
+                    expected_url,
+                    commit,
+                    checkout,
+                    {},
+                    strict=True,
+                    cache_root=cache_root,
+                    recursive_submodules=False,
+                )
+                self.git(["git", "config", "submodule.active", "."], checkout)
+                (checkout / ".git/modules").mkdir()
+                rebuilt = components.prepare_git_component(
+                    "coreruleset",
+                    expected_url,
+                    commit,
+                    checkout,
+                    {"coreruleset": first},
+                    strict=True,
+                    cache_root=cache_root,
+                    recursive_submodules=False,
+                )
+
+            self.assertEqual(first["status"], "present")
+            self.assertEqual(rebuilt["status"], "present")
+            self.assertEqual(clone_count, 2)
+            self.assertTrue(rebuilt["rebuild_required"])
+            self.assertEqual(self._local_submodule_config(checkout), ())
+            self.assertFalse((checkout / ".git/modules").exists())
+            self.assertEqual(self.git(["git", "rev-parse", "HEAD"], checkout).stdout.strip(), commit)
+
+    def test_crs_failed_staging_clone_leaves_no_published_or_temporary_entry(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            upstream, commit, branch = self._init_local_upstream(root)
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            checkout = cache_root / "sources" / "coreruleset"
+            expected_url = "https://github.com/coreruleset/coreruleset.git"
+            original_run = components.run
+
+            def failing_fetch_run(
+                command: list[str], cwd: Path | None = None, check: bool = False
+            ) -> subprocess.CompletedProcess[str]:
+                if command[:2] == ["git", "ls-remote"]:
+                    return subprocess.CompletedProcess(command, 0, f"{commit}\trefs/heads/{branch}\n", "")
+                if len(command) >= 5 and command[0:2] == ["git", "-C"] and command[3:5] == ["fetch", "--tags"]:
+                    return subprocess.CompletedProcess(command, 1, "", "forced fetch failure")
+                local_result = self._local_clone_or_fetch(
+                    command,
+                    upstream=upstream,
+                    expected_url=expected_url,
+                    check=check,
+                    raise_on_clone_failure=True,
+                )
+                if local_result is not None:
+                    return local_result
+                return original_run(command, cwd=cwd, check=check)
+
+            with mock.patch.object(components, "run", side_effect=failing_fetch_run):
+                record = components.prepare_git_component(
+                    "coreruleset",
+                    expected_url,
+                    commit,
+                    checkout,
+                    {},
+                    strict=True,
+                    cache_root=cache_root,
+                    recursive_submodules=False,
+                )
+
+            self.assertEqual(record["status"], "blocked")
+            self.assertEqual(record["blocker_reason"], "git_fetch_failed")
+            self.assertFalse(checkout.exists())
+            self.assertFalse((checkout / "manifest.json").exists())
+            self.assertFalse(any(path.name.startswith(".coreruleset.tmp-") for path in checkout.parent.iterdir()))
+
+    def test_generic_recursive_checkout_initializes_a_real_required_submodule(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            upstream, commit, branch, nested = self._init_local_submodule_upstream(root / "fixture")
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            checkout = cache_root / "sources" / "component"
+            expected_url = "https://github.com/example/component"
+            clone_modes: list[str] = []
+            original_run = components.run
+
+            def local_recursive_run(
+                command: list[str], cwd: Path | None = None, check: bool = False
+            ) -> subprocess.CompletedProcess[str]:
+                if command[:2] == ["git", "ls-remote"]:
+                    return subprocess.CompletedProcess(command, 0, f"{commit}\trefs/heads/{branch}\n", "")
+                if len(command) >= 3 and command[:2] == ["git", "clone"]:
+                    clone_modes.append(command[2])
+                local_result = self._local_clone_or_fetch(
+                    command,
+                    upstream=upstream,
+                    expected_url=expected_url,
+                    check=check,
+                    raise_on_clone_failure=True,
+                )
+                if local_result is not None:
+                    return local_result
+                return original_run(command, cwd=cwd, check=check)
+
+            with mock.patch.dict(os.environ, {"GIT_ALLOW_PROTOCOL": "file"}):
+                with mock.patch.object(components, "run", side_effect=local_recursive_run):
+                    record = components.prepare_git_component(
+                        "component",
+                        expected_url,
+                        commit,
+                        checkout,
+                        {},
+                        strict=True,
+                        cache_root=cache_root,
+                    )
+
+            self.assertEqual(record["status"], "present")
+            self.assertEqual(record["actual_head"], commit)
+            self.assertEqual(clone_modes, ["--recursive"])
+            self.assertEqual((checkout / "required" / "tracked.txt").read_text(encoding="utf-8"), "required\n")
+            self.assertTrue((checkout / ".git/modules/required").exists())
+            self.assertEqual(
+                self.git(["git", "rev-parse", "HEAD"], nested).stdout.strip(),
+                self.git(["git", "rev-parse", "HEAD"], checkout / "required").stdout.strip(),
+            )
+            self.assertNotEqual(self._local_submodule_config(checkout), ())
 
     def test_initialize_git_submodules_fails_closed_on_a_silent_failure(self) -> None:
         silent_failure = subprocess.CompletedProcess([], 1, "", "")

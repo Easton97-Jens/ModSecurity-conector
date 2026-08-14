@@ -1530,8 +1530,10 @@ def source_cache_identity(
     url: str,
     expected_ref: str,
     resolved_commit: str | None = None,
+    *,
+    recursive_submodules: bool = True,
 ) -> dict[str, Any]:
-    """Identity for a Git source, including the immutable resolved commit."""
+    """Identity for a Git source, including its immutable checkout mode."""
     if resolved_commit is None:
         # Preserve deterministic identities for callers already pinning a
         # full commit, while leaving moving refs unresolved until Git has
@@ -1545,6 +1547,11 @@ def source_cache_identity(
         "expected_ref": expected_ref,
         "resolved_commit": resolved_commit,
     }
+    # Preserve existing identities for recursive components while ensuring a
+    # legacy recursive checkout can never satisfy the CRS non-recursive cache
+    # contract.
+    if not recursive_submodules:
+        identity["recursive_submodules"] = False
     identity["cache_key"] = stable_hash(identity)
     return identity
 
@@ -1609,6 +1616,7 @@ def git_checkout_is_reusable(
     cache_identity: dict[str, Any],
     expected_url: str,
     actual_head: str,
+    recursive_submodules: bool = True,
 ) -> bool:
     """Read-only validation for a published source checkout cache hit."""
     cache_key = str(cache_identity["cache_key"])
@@ -1624,6 +1632,10 @@ def git_checkout_is_reusable(
         )
     ):
         return False
+    if not recursive_submodules:
+        no_submodule_metadata, _ = nonrecursive_git_checkout_is_clean(checkout_path)
+        if not no_submodule_metadata:
+            return False
     remote = git_output(checkout_path, "config", "--get", "remote.origin.url")
     if remote != expected_url or git_revision(checkout_path) != actual_head:
         return False
@@ -1646,6 +1658,7 @@ def reusable_git_source_record(
     expected_url: str,
     expected_ref: str,
     previous: dict[str, Any],
+    recursive_submodules: bool = True,
 ) -> dict[str, Any] | None:
     """Return current provenance for a clean, complete published checkout.
 
@@ -1665,12 +1678,19 @@ def reusable_git_source_record(
         and isinstance(actual_head, str)
         and actual_head
         and previous.get("git_fsck") == "PASS"
+        and previous.get("recursive_submodules") is recursive_submodules
     ):
         return None
     remote_head = resolved_remote_git_ref(expected_url, expected_ref)
     if not remote_head or remote_head.lower() != actual_head.lower():
         return None
-    identity = source_cache_identity(name, expected_url, expected_ref, actual_head)
+    identity = source_cache_identity(
+        name,
+        expected_url,
+        expected_ref,
+        actual_head,
+        recursive_submodules=recursive_submodules,
+    )
     component = f"source:{name}"
     if not git_checkout_is_reusable(
         checkout_path,
@@ -1679,6 +1699,7 @@ def reusable_git_source_record(
         cache_identity=identity,
         expected_url=expected_url,
         actual_head=actual_head,
+        recursive_submodules=recursive_submodules,
     ):
         return None
     submodules = git_output(checkout_path, *GIT_SUBMODULE_STATUS_RECURSIVE_ARGS)
@@ -1691,6 +1712,7 @@ def reusable_git_source_record(
         "submodule_status": submodules,
         "submodule_count": len([line for line in submodules.splitlines() if line.strip()]),
         "submodule_status_clean": True,
+        "recursive_submodules": recursive_submodules,
         "git_fsck": "PASS",
         "tree": tree_manifest(checkout_path),
         "cache_schema_version": CACHE_SCHEMA_VERSION,
@@ -1699,13 +1721,20 @@ def reusable_git_source_record(
     }
 
 
-def git_component_record(name: str, url: str, expected_ref: str, checkout_path: Path) -> dict[str, Any]:
+def git_component_record(
+    name: str,
+    url: str,
+    expected_ref: str,
+    checkout_path: Path,
+    *,
+    recursive_submodules: bool = True,
+) -> dict[str, Any]:
     return {
         "name": name,
         "url": url,
         "expected_ref": expected_ref,
         "path": str(checkout_path),
-        "recursive_submodules": True,
+        "recursive_submodules": recursive_submodules,
         "submodule_count": 0,
         "submodule_status_clean": False,
         "git_fsck": "SKIPPED",
@@ -1751,8 +1780,16 @@ def prepare_git_component_with_lock(
     strict: bool,
     managed_root: Path,
     recovery_attempt: bool,
+    recursive_submodules: bool,
 ) -> dict[str, Any]:
-    ref_lock_key = str(source_cache_identity(name, url, expected_ref)["cache_key"])
+    ref_lock_key = str(
+        source_cache_identity(
+            name,
+            url,
+            expected_ref,
+            recursive_submodules=recursive_submodules,
+        )["cache_key"]
+    )
     try:
         with BuildLock(cache_entry_lock_path(managed_root, f"source-{name}", ref_lock_key)):
             return prepare_git_component(
@@ -1765,6 +1802,7 @@ def prepare_git_component_with_lock(
                 cache_root=managed_root,
                 _recovery_attempt=recovery_attempt,
                 _lock_held=True,
+                recursive_submodules=recursive_submodules,
             )
     except TimeoutError as exc:
         record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc))
@@ -1779,6 +1817,7 @@ def reuse_git_component_record(
     url: str,
     expected_ref: str,
     previous_records: dict[str, dict[str, Any]],
+    recursive_submodules: bool,
 ) -> bool:
     previous = previous_records.get(name, {})
     if not isinstance(previous, dict):
@@ -1790,6 +1829,7 @@ def reuse_git_component_record(
         expected_url=url,
         expected_ref=expected_ref,
         previous=previous,
+        recursive_submodules=recursive_submodules,
     )
     if reusable is None:
         return False
@@ -1811,6 +1851,7 @@ def git_working_path_for_preparation(
     expected_ref: str,
     previous_records: dict[str, dict[str, Any]],
     ref_lock_key: str,
+    recursive_submodules: bool,
 ) -> tuple[Path | None, Path | None]:
     if managed_root is None:
         if checkout_path.exists():
@@ -1826,6 +1867,7 @@ def git_working_path_for_preparation(
         url,
         expected_ref,
         previous_records,
+        recursive_submodules,
     ):
         return None, None
     staging_path = temporary_cache_dir(
@@ -1837,8 +1879,14 @@ def git_working_path_for_preparation(
     return staging_path, staging_path
 
 
-def clone_git_checkout(url: str, working_path: Path) -> str:
-    run(["git", "clone", "--recursive", url, str(working_path)], check=True)
+def clone_git_checkout(
+    url: str,
+    working_path: Path,
+    *,
+    recursive_submodules: bool = True,
+) -> str:
+    clone_mode = "--recursive" if recursive_submodules else "--no-recurse-submodules"
+    run(["git", "clone", clone_mode, url, str(working_path)], check=True)
     remote_url = git_output(working_path, "config", "--get", "remote.origin.url")
     if remote_url and remote_url != url:
         return f"unexpected_origin:{remote_url}"
@@ -1880,18 +1928,54 @@ def initialize_git_submodules(working_path: Path) -> tuple[bool, str]:
     return True, ""
 
 
+def nonrecursive_git_checkout_is_clean(working_path: Path) -> tuple[bool, str]:
+    """Reject local submodule metadata from a non-recursive CRS checkout."""
+    local_config = run(
+        [
+            "git",
+            "-C",
+            str(working_path),
+            "config",
+            "--local",
+            "--null",
+            "--get-regexp",
+            r"^submodule\.",
+        ]
+    )
+    if local_config.returncode == 0:
+        return False, "local_submodule_config_present"
+    if local_config.returncode != 1:
+        return False, "local_submodule_config_check_failed"
+    if (working_path / ".git" / "modules").exists():
+        return False, "local_submodule_registry_present"
+    return True, ""
+
+
 def record_fresh_git_checkout(
     record: dict[str, Any],
     working_path: Path,
     name: str,
     url: str,
     expected_ref: str,
+    *,
+    recursive_submodules: bool = True,
 ) -> bool:
+    if not recursive_submodules:
+        no_submodule_metadata, blocker = nonrecursive_git_checkout_is_clean(working_path)
+        if not no_submodule_metadata:
+            record.update(status="blocked", blocker_reason=blocker)
+            return False
     actual_head = git_output(working_path, "rev-parse", "HEAD")
     if not actual_head:
         record.update(status="blocked", blocker_reason="git_resolved_commit_missing")
         return False
-    source_identity = source_cache_identity(name, url, expected_ref, actual_head)
+    source_identity = source_cache_identity(
+        name,
+        url,
+        expected_ref,
+        actual_head,
+        recursive_submodules=recursive_submodules,
+    )
     status_short = git_output(working_path, *GIT_STATUS_SHORT_ARGS)
     submodules = git_output(working_path, *GIT_SUBMODULE_STATUS_RECURSIVE_ARGS)
     clean, reason = submodule_status_clean(submodules)
@@ -1930,8 +2014,14 @@ def prepare_fresh_git_checkout(
     name: str,
     url: str,
     expected_ref: str,
+    *,
+    recursive_submodules: bool = True,
 ) -> bool:
-    clone_blocker = clone_git_checkout(url, working_path)
+    clone_blocker = clone_git_checkout(
+        url,
+        working_path,
+        recursive_submodules=recursive_submodules,
+    )
     if clone_blocker:
         record.update(status="blocked", blocker_reason=clone_blocker)
         return False
@@ -1940,11 +2030,19 @@ def prepare_fresh_git_checkout(
         record.update(status="blocked", blocker_reason=checkout_blocker, details=details)
         return False
     record["checkout_ref"] = checkout_ref
-    submodules_ready, submodule_details = initialize_git_submodules(working_path)
-    if not submodules_ready:
-        record.update(status="blocked", blocker_reason="submodule_update_failed", details=submodule_details)
-        return False
-    return record_fresh_git_checkout(record, working_path, name, url, expected_ref)
+    if recursive_submodules:
+        submodules_ready, submodule_details = initialize_git_submodules(working_path)
+        if not submodules_ready:
+            record.update(status="blocked", blocker_reason="submodule_update_failed", details=submodule_details)
+            return False
+    return record_fresh_git_checkout(
+        record,
+        working_path,
+        name,
+        url,
+        expected_ref,
+        recursive_submodules=recursive_submodules,
+    )
 
 
 def git_checkout_removal_blocker(checkout_path: Path, managed_root: Path, component: str) -> str:
@@ -1991,6 +2089,8 @@ def publish_fresh_git_checkout(
     managed_root: Path,
     name: str,
     url: str,
+    *,
+    recursive_submodules: bool,
 ) -> dict[str, Any]:
     component = f"source:{name}"
     source_identity = record["cache_identity"]
@@ -2003,6 +2103,7 @@ def publish_fresh_git_checkout(
         cache_identity=source_identity,
         expected_url=url,
         actual_head=actual_head,
+        recursive_submodules=recursive_submodules,
     ):
         record.update(
             path=str(checkout_path),
@@ -2045,8 +2146,16 @@ def prepare_git_component_unlocked(
     checkout_path: Path,
     previous_records: dict[str, dict[str, Any]],
     managed_root: Path | None,
+    recursive_submodules: bool,
 ) -> dict[str, Any]:
-    ref_lock_key = str(source_cache_identity(name, url, expected_ref)["cache_key"])
+    ref_lock_key = str(
+        source_cache_identity(
+            name,
+            url,
+            expected_ref,
+            recursive_submodules=recursive_submodules,
+        )["cache_key"]
+    )
     staging_path: Path | None = None
     try:
         working_path, staging_path = git_working_path_for_preparation(
@@ -2058,10 +2167,18 @@ def prepare_git_component_unlocked(
             expected_ref,
             previous_records,
             ref_lock_key,
+            recursive_submodules,
         )
         if working_path is None:
             return record
-        if not prepare_fresh_git_checkout(record, working_path, name, url, expected_ref):
+        if not prepare_fresh_git_checkout(
+            record,
+            working_path,
+            name,
+            url,
+            expected_ref,
+            recursive_submodules=recursive_submodules,
+        ):
             return record
         if managed_root is not None:
             return publish_fresh_git_checkout(
@@ -2071,6 +2188,7 @@ def prepare_git_component_unlocked(
                 managed_root,
                 name,
                 url,
+                recursive_submodules=recursive_submodules,
             )
         record.update(path=str(checkout_path), status="present")
         return record
@@ -2095,9 +2213,16 @@ def prepare_git_component(
     cache_root: Path | None = None,
     _recovery_attempt: bool = False,
     _lock_held: bool = False,
+    recursive_submodules: bool = True,
 ) -> dict[str, Any]:
     checkout_path = Path(path)
-    record = git_component_record(name, url, expected_ref, checkout_path)
+    record = git_component_record(
+        name,
+        url,
+        expected_ref,
+        checkout_path,
+        recursive_submodules=recursive_submodules,
+    )
     blocker = git_component_request_blocker(url, expected_ref)
     if blocker:
         record.update(status="blocked", blocker_reason=blocker)
@@ -2118,6 +2243,7 @@ def prepare_git_component(
             strict,
             managed_root,
             _recovery_attempt,
+            recursive_submodules,
         )
     return prepare_git_component_unlocked(
         record,
@@ -2127,6 +2253,7 @@ def prepare_git_component(
         checkout_path,
         previous_records,
         managed_root,
+        recursive_submodules,
     )
 
 
@@ -9751,6 +9878,7 @@ def prepare_runtime_git_components(
                     previous_git,
                     context["strict"],
                     cache_root=cache_root,
+                    recursive_submodules=False,
                 ),
                 prepare_release_git_component(
                     "go-ftw",
