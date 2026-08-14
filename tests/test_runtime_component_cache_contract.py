@@ -2353,7 +2353,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             self.assertEqual(first["actual_head"], commit)
             self.assertEqual(second["actual_head"], commit)
             self.assertEqual(first["cache_identity"], second["cache_identity"])
-            self.assertEqual(first["cache_identity"]["recursive_submodules"], False)
+            self.assertFalse(first["cache_identity"]["recursive_submodules"])
             self.assertEqual(clone_modes, ["--no-recurse-submodules"])
             self.assertEqual(self._local_submodule_config(checkout), ())
             self.assertFalse((checkout / ".git/modules").exists())
