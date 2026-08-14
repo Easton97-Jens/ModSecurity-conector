@@ -141,8 +141,10 @@ analysierte diesen Head, entfernte die fünf Funde und meldete danach zwei
 task-eigene <code>c:S995</code>-Findings: zwei nur lesende Helper-Parameter sollen
 Pointer-zu-const sein. Das zweite minimale Follow-up setzt genau diese
 const-korrekten Signaturen; Scope und Invarianten bleiben identisch. SonarQube
-Cloud muss den nächsten PR-Head analysieren, bevor dieser Record ein
-Null-Issue-Ergebnis behauptet.
+Cloud analysierte anschließend <code>246055a2d52191a4d637170b39bf35edbc133127</code>:
+Das Quality Gate bestand mit null New Issues, null Accepted Issues und null
+Security Hotspots. Dieses historische Ergebnis gilt ausschließlich für diesen
+Head; es behauptet kein Ergebnis für einen späteren Master-Merge-Head vorab.
 
 ## Ausgeführte Befehle
 
@@ -205,6 +207,35 @@ Der Traefik-Befehl ist <code>UNKNOWN (blocked_environment)</code> mit dem exakte
 The installed Go toolchain is 1.26.0 while the module requires Go 1.26.5. With
 <code>GOTOOLCHAIN=local</code>, validation cannot proceed; enabling automatic toolchain
 download is prohibited for this task.
+
+### Lokale Revalidierung nach Master-Merge
+
+Der normale Merge-Commit <code>cfac815b1d510177ab15d40af0329fb9f019c6da</code> besitzt
+die Parents <code>246055a2d52191a4d637170b39bf35edbc133127</code> und
+<code>b9c56b2f8325aea69cba8c9694dc28d49eafb273</code>. Die folgenden Ergebnisse
+sind neue lokale Evidence für diesen Merge-Commit und von der historischen
+Validierung oben getrennt:
+
+~~~text
+rtk proxy env CC=gcc 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror' BUILD_ROOT=<external-task-build-root>/gcc-c17 make check-http-authorization-service-timeout
+rtk proxy env CC=clang 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror' BUILD_ROOT=<external-task-build-root>/clang-c17 make check-http-authorization-service-timeout
+rtk proxy env CC=clang ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror -fsanitize=address -fno-omit-frame-pointer' BUILD_ROOT=<external-task-build-root>/asan make check-http-authorization-service-timeout
+rtk proxy env CC=clang UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror -fsanitize=undefined -fno-omit-frame-pointer' BUILD_ROOT=<external-task-build-root>/ubsan make check-http-authorization-service-timeout
+rtk proxy env CC=clang TSAN_OPTIONS=halt_on_error=1:second_deadlock_stack=1 'MSCONNECTOR_CFLAGS=-std=c17 -Wall -Wextra -Werror -fsanitize=thread -fno-omit-frame-pointer' BUILD_ROOT=<external-task-build-root>/tsan make check-http-authorization-service-timeout
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 BUILD_ROOT=<external-task-build-root>/build-wiring make check-remaining-connectors-build-wiring check-remaining-connectors-c-standard-wiring
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 BUILD_ROOT=<external-task-build-root>/c17-wiring make check-remaining-connectors-c17-lint check-remaining-connectors-c17
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 BUILD_ROOT=<external-task-build-root>/docs-guides make check-connector-guides
+rtk proxy jq -e 'type == "object"' connectors/envoy/SOURCE_MAP.json
+rtk proxy jq -e 'type == "object"' connectors/traefik/SOURCE_MAP.json
+rtk proxy git diff origin/master...HEAD --check
+~~~
+
+Alle aufgelisteten Befehle bestanden; jeder Sanitizer-Smoke lief ohne Diagnose.
+Der fokussierte Change-Record-Paar-Check bestand ebenfalls. Das generische
+Ergebnis von <code>make check-bilingual-docs</code> bleibt <code>UNKNOWN</code>: Es
+meldet nur fehlende lokale Ziele unter dem nicht initialisierten Framework-
+Gitlink und kein F-GS-006-Dokument. Dieser Abschnitt behauptet kein Hosted-
+Ergebnis für einen späteren PR-Head.
 
 ## Security-Auswirkung
 
@@ -300,13 +331,11 @@ getrennt vom internen UDS-Evidence-Record und besitzt hier keinen Source-Patch.
 Der begrenzte Patch enthält nur HTTP-Autorisierungs-Admission-Hardening, seine
 Tests, direktes Build-Wiring, gepaarte Operations-Dokumentation und gepaarten
 Change-Record/Index. F-GS-006 bleibt eine bewusst partielle Remediation; es
-wird keine Completion des Gesamtfindings behauptet. Auf dem Pre-Follow-up-Head
-waren alle relevanten GitHub Actions terminal <code>pass</code> oder
-workflow-begründet <code>skipping</code>, und es gab keine Review- oder
-Inline-Review-Threads. Die hier behobenen fünf SonarQube-Cloud-Code-Smells
-benötigen noch die Analyse des nächsten Heads, bevor ein Null-Issue-Ergebnis
-behauptet wird. Ein enger Commit, normaler Push und bedingte
-Ready-for-review-Aktion sind nach finalem Staged-Diff-Review autorisiert; der
-exakte Commit, PR und Hosted-Check-Snapshot werden in Delivery-Metadaten
-aufgezeichnet, statt in diesem Record eine selbstreferenzielle Commit-Schleife
-zu erzeugen.
+wird keine Completion des Gesamtfindings behauptet. Auf dem historischen Head
+<code>246055a2d52191a4d637170b39bf35edbc133127</code> waren alle relevanten
+GitHub Actions terminal <code>pass</code> oder workflow-begründet
+<code>skipping</code>, es gab keine Review- oder Inline-Review-Threads, und
+SonarQube Cloud bestand mit null New Issues. Das lokale Ergebnis des
+Merge-Commits ist getrennt oben festgehalten. Der exakte spätere PR-Head und
+sein Hosted-Check-Snapshot gehören in Delivery-Metadaten, statt in diesem
+Record eine selbstreferenzielle Commit-Schleife zu erzeugen.
