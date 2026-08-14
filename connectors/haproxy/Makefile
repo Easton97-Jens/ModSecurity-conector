@@ -2,6 +2,7 @@ CC ?= cc
 CXX ?= c++
 BUILD_ROOT ?= /src/ModSecurity-conector-build
 REPO_ROOT ?= ../..
+FRAMEWORK_ROOT ?= $(REPO_ROOT)/modules/ModSecurity-test-Framework
 HAPROXY_BUILD_DIR ?= $(BUILD_ROOT)/haproxy-build-starter
 HAPROXY_SPOA_RUNTIME_DIR ?= $(BUILD_ROOT)/haproxy-spoa-runtime
 HAPROXY_MODSECURITY_BINDING_DIR ?= $(BUILD_ROOT)/haproxy-modsecurity-binding
@@ -10,7 +11,7 @@ HAPROXY_HTX_BUILD_DIR ?= $(HAPROXY_HTX_RUNTIME_ROOT)/overlay-build
 HAPROXY_HTX_BIN ?= $(HAPROXY_HTX_BUILD_DIR)/worktree/haproxy
 HAPROXY_HTX_EVENT_LOG_PATH ?= $(HAPROXY_HTX_RUNTIME_ROOT)/events.jsonl
 HAPROXY_HTX_HOST_EVIDENCE_LOG_PATH ?= $(HAPROXY_HTX_RUNTIME_ROOT)/host-runtime-evidence.jsonl
-HAPROXY_HTX_CANONICAL_RULES_FILE ?= $(REPO_ROOT)/modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf
+HAPROXY_HTX_CANONICAL_RULES_FILE ?= $(FRAMEWORK_ROOT)/tests/rules/no-crs-baseline.conf
 COMMON_INCLUDE := $(REPO_ROOT)/common/include
 COMMON_SRC := $(REPO_ROOT)/common/src
 COMMON_CPPFLAGS := -I$(COMMON_INCLUDE)
@@ -21,8 +22,30 @@ MODSECURITY_BINDING_BIN := $(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy-modsecurit
 MODSECURITY_BINDING_LIFECYCLE_RULES := $(abspath harness/fixtures/modsecurity-binding-lifecycle.conf)
 MODSECURITY_INCLUDE_CANDIDATES ?= $(MODSECURITY_INCLUDE_DIR) $(MODSECURITY_SHARED_PREFIX)/include $(BUILD_ROOT)/nginx-build/output/modsecurity/include $(BUILD_ROOT)/apache-build/output/modsecurity/include /src/ModSecurity_V3/headers
 MODSECURITY_LIB_CANDIDATES ?= $(MODSECURITY_LIB_DIR) $(MODSECURITY_SHARED_PREFIX)/lib $(BUILD_ROOT)/nginx-build/output/modsecurity/lib $(BUILD_ROOT)/apache-build/output/modsecurity/lib $(BUILD_ROOT)/nginx-build/ModSecurity_V3/src/.libs $(BUILD_ROOT)/apache-build/ModSecurity_V3/src/.libs
+MODSECURITY_RESOLUTION_FILE ?= $(BUILD_ROOT)/haproxy-modsecurity-binding/modsecurity-resolution.env
 
-.PHONY: build-metadata build-starter build-spoa-starter build-spoa-runtime build-modsecurity-binding build-htx-overlay check-htx-overlay test-htx-overlay runtime-smoke-haproxy-htx self-test self-test-spoa self-test-spoa-runtime self-test-modsecurity-binding self-test-modsecurity-binding-crs clean FORCE
+# Shared read-only host-runtime gate; caller values are frozen before the
+# recursive make to prevent external text becoming Make syntax.
+HAPROXY_HOSTRUNTIME_PROFILE ?= haproxy-htx
+HAPROXY_HOSTRUNTIME_LOCK ?= $(FRAMEWORK_ROOT)/ci/provisioning/runtime-component-lock.json
+HAPROXY_HOSTRUNTIME_EXPECTED_VERSION ?=
+HAPROXY_HOSTRUNTIME_BINARY ?=
+HAPROXY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR ?= $(BUILD_ROOT)/hostruntime-evidence/haproxy
+
+.PHONY: build-metadata build-starter build-spoa-starter build-spoa-runtime build-modsecurity-binding build-htx-overlay check-htx-overlay test-htx-overlay runtime-smoke-haproxy-htx hostruntime-preflight-haproxy hostruntime-preflight-haproxy-htx hostruntime-preflight-haproxy-spoe-spop self-test self-test-spoa self-test-spoa-runtime self-test-modsecurity-binding self-test-modsecurity-binding-crs clean FORCE
+
+hostruntime-preflight-haproxy:
+	$(MAKE) -C "$(REPO_ROOT)" hostruntime-preflight \
+		HOSTRUNTIME_CONNECTOR=haproxy HOSTRUNTIME_PROFILE="$(HAPROXY_HOSTRUNTIME_PROFILE)" \
+		HOSTRUNTIME_EXPECTED_VERSION="$(HAPROXY_HOSTRUNTIME_EXPECTED_VERSION)" HOSTRUNTIME_BINARY="$(HAPROXY_HOSTRUNTIME_BINARY)" \
+		HOSTRUNTIME_LOCK="$(HAPROXY_HOSTRUNTIME_LOCK)" HOSTRUNTIME_LOCK_PROFILE="$(HAPROXY_HOSTRUNTIME_PROFILE)" \
+		HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR="$(HAPROXY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR)"
+
+hostruntime-preflight-haproxy-htx:
+	$(MAKE) HAPROXY_HOSTRUNTIME_PROFILE=haproxy-htx hostruntime-preflight-haproxy
+
+hostruntime-preflight-haproxy-spoe-spop:
+	$(MAKE) HAPROXY_HOSTRUNTIME_PROFILE=haproxy-spoe-spop hostruntime-preflight-haproxy
 
 build-metadata: $(HAPROXY_BUILD_DIR)/metadata.o
 	@echo "HAProxy build-starter: metadata object built at $(HAPROXY_BUILD_DIR)/metadata.o"
@@ -86,6 +109,7 @@ runtime-smoke-haproxy-htx: test-htx-overlay build-htx-overlay
 	RUNTIME_ROOT="$(HAPROXY_HTX_RUNTIME_ROOT)" \
 	EVENT_LOG_PATH="$(HAPROXY_HTX_EVENT_LOG_PATH)" \
 	HAPROXY_HTX_HOST_EVIDENCE_LOG_PATH="$(HAPROXY_HTX_HOST_EVIDENCE_LOG_PATH)" \
+	FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" \
 	HAPROXY_HTX_CANONICAL_RULES_FILE="$(abspath $(HAPROXY_HTX_CANONICAL_RULES_FILE))" \
 	PYTHON="$(PYTHON)" sh harness/run_haproxy_htx_runtime.sh
 
@@ -157,41 +181,24 @@ $(SPOA_RUNTIME_BIN): FORCE src/haproxy_spop_diagnostic_runtime.c src/haproxy_mod
 $(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_modsecurity_binding.h src/haproxy_modsecurity_mapper.c src/haproxy_modsecurity_mapper.h src/haproxy_modsecurity_binding_self_test.c $(MODSECURITY_BINDING_LIFECYCLE_RULES) $(COMMON_SDK_SRCS)
 	@set -eu; \
 	mkdir -p "$(HAPROXY_MODSECURITY_BINDING_DIR)"; \
-	include_dir=; \
-	for candidate in $(MODSECURITY_INCLUDE_CANDIDATES); do \
-		if [ -f "$$candidate/modsecurity/modsecurity.h" ] && \
-				[ -f "$$candidate/modsecurity/rules_set.h" ] && \
-				[ -f "$$candidate/modsecurity/transaction.h" ]; then \
-			include_dir=$$candidate; \
-			break; \
-		fi; \
-	done; \
-	if [ -z "$$include_dir" ]; then \
-		echo "BLOCKED: libmodsecurity headers missing under /src or BUILD_ROOT" >&2; \
-		exit 77; \
+	resolver_include="$${MODSECURITY_INCLUDE_DIR:-}"; \
+	if [ -z "$$resolver_include" ]; then \
+		for candidate in $(MODSECURITY_INCLUDE_CANDIDATES); do \
+			if [ -f "$$candidate/modsecurity/modsecurity.h" ]; then resolver_include="$$candidate"; break; fi; \
+		done; \
 	fi; \
-	lib_dir=; \
-	for candidate in $(MODSECURITY_LIB_CANDIDATES); do \
-		if [ -f "$$candidate/libmodsecurity.so" ] || [ -f "$$candidate/libmodsecurity.a" ]; then \
-			lib_dir=$$candidate; \
-			break; \
-		fi; \
-	done; \
-	if [ -z "$$lib_dir" ]; then \
-		echo "BLOCKED: libmodsecurity library missing under BUILD_ROOT" >&2; \
-		exit 77; \
+	resolver_lib="$${MODSECURITY_LIB_DIR:-}"; \
+	if [ -z "$$resolver_lib" ]; then \
+		for candidate in $(MODSECURITY_LIB_CANDIDATES); do \
+			if [ -f "$$candidate/libmodsecurity.so" ] || [ -f "$$candidate/libmodsecurity.a" ] || ls "$$candidate"/libmodsecurity.so.* >/dev/null 2>&1; then resolver_lib="$$candidate"; break; fi; \
+		done; \
 	fi; \
-	modsecurity_library=; \
-	for candidate in "$$lib_dir"/libmodsecurity.so "$$lib_dir"/libmodsecurity.a "$$lib_dir"/libmodsecurity.so.*; do \
-		if [ -f "$$candidate" ]; then \
-			modsecurity_library=$$candidate; \
-			break; \
-		fi; \
-	done; \
-	if [ -z "$$modsecurity_library" ]; then \
-		echo "BLOCKED: libmodsecurity library is not linkable under $$lib_dir" >&2; \
-		exit 77; \
-	fi; \
+	MODSECURITY_INCLUDE_DIR="$$resolver_include" MODSECURITY_LIB_DIR="$$resolver_lib" \
+		sh "$(abspath htx-overlay/resolve-modsecurity.sh)" "$(MODSECURITY_RESOLUTION_FILE)"; \
+	. "$(MODSECURITY_RESOLUTION_FILE)"; \
+	include_dir="$$MODSECURITY_INCLUDE_DIR"; \
+	lib_dir="$$MODSECURITY_LIB_DIR"; \
+	modsecurity_library="$$MODSECURITY_LIBRARY"; \
 	baseline_probe="$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_baseline_api.c"; \
 	baseline_object="$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_baseline_api.o"; \
 	baseline_binary="$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_baseline_api"; \
