@@ -114,9 +114,12 @@ read-only `/source`, a validator-writable `/external`, non-writable `/guard`,
 read-only runtime directories `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, and
 only the exact `actions/setup-python` runtime below
 `/opt/hostedtoolcache/Python/<version>/<architecture>`, and minimal read-only
-`/etc` material. That runtime must not be world-writable or group-writable by
-the validator, and is bind-mounted read-only. Its root is remounted read-only;
-a fresh hardened read-only `proc` is mounted at `/proc`, and private `/dev`
+`/etc` material. The launcher accepts only the resolved non-symlink
+`<version>/x64` subtree and bind-mounts that exact subtree read-only before
+candidate code starts. The hosted runner may manage its source directory with
+permissive host permissions, but neither host `/opt` nor another host alias is
+present inside the jail. Its root is remounted read-only; a fresh hardened
+read-only `proc` is mounted at `/proc`, and private `/dev`
 contains only `null` and `urandom`. Before dropping to
 `modsecurity-validator`, the launcher closes inherited descriptors other than
 standard input, output, and error. This prevents host path aliases and

@@ -56,6 +56,7 @@ JAIL_RUNTIME_DIRECTORIES = (
     Path("/lib64"),
 )
 JAIL_HOSTED_PYTHON_ROOT = Path("/opt/hostedtoolcache/Python")
+JAIL_HOSTED_PYTHON_ARCHITECTURE = "x64"
 JAIL_RUNTIME_ETC_DIRECTORIES = (Path("/etc/ssl"),)
 JAIL_RUNTIME_ETC_FILES = (
     Path("/etc/passwd"),
@@ -351,22 +352,32 @@ def _runtime_python_is_exposed(python: Path) -> bool:
     )
 
 
-def _trusted_hosted_python_runtime(path: Path, validator_gid: int) -> None:
-    """Accept a runner-managed toolcache tree inaccessible to the validator UID."""
-    metadata = os.stat(path)
-    if (
-        not stat.S_ISDIR(metadata.st_mode)
-        or metadata.st_mode & stat.S_IWOTH
-        or (metadata.st_mode & stat.S_IWGRP and metadata.st_gid == validator_gid)
-    ):
+def _validate_hosted_python_runtime(path: Path) -> None:
+    """Accept exactly one real toolcache runtime before its private RO bind.
+
+    GitHub-hosted images may make the setup-python toolcache runner-writable.
+    That is not accepted as general host-runtime trust: this helper limits the
+    candidate view to the resolved ``<version>/x64`` subtree, and
+    ``_bind_readonly`` verifies its independent read-only mount before the
+    candidate exists.
+    """
+    try:
+        relative = path.relative_to(JAIL_HOSTED_PYTHON_ROOT)
+    except ValueError as error:
         raise RuntimeError(
-            "unsafe hosted Python runtime for jailed candidate: "
-            f"{path} uid={metadata.st_uid} gid={metadata.st_gid} "
-            f"mode={stat.S_IMODE(metadata.st_mode):04o} validator_gid={validator_gid}"
-        )
+            f"unsafe hosted Python runtime for jailed candidate: {path}"
+        ) from error
+    if len(relative.parts) != 2 or relative.parts[1] != JAIL_HOSTED_PYTHON_ARCHITECTURE:
+        raise RuntimeError(f"unsafe hosted Python runtime for jailed candidate: {path}")
+    current = JAIL_ROOT
+    for part in path.parts[1:]:
+        current /= part
+        metadata = os.lstat(current)
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+            raise RuntimeError(f"unsafe hosted Python runtime for jailed candidate: {path}")
 
 
-def _hosted_python_runtime_root(python: Path, validator_gid: int) -> Path | None:
+def _hosted_python_runtime_root(python: Path) -> Path | None:
     """Return one exact setup-python runtime tree, never a broad host /opt mount."""
     if _runtime_python_is_exposed(python):
         return None
@@ -374,18 +385,20 @@ def _hosted_python_runtime_root(python: Path, validator_gid: int) -> Path | None
         relative = python.relative_to(JAIL_HOSTED_PYTHON_ROOT)
     except ValueError as error:
         raise RuntimeError(f"python is outside the jailed runtime allowlist: {python}") from error
-    if len(relative.parts) < 4 or relative.parts[2] != "bin":
+    if (
+        len(relative.parts) != 4
+        or relative.parts[1] != JAIL_HOSTED_PYTHON_ARCHITECTURE
+        or relative.parts[2] != "bin"
+    ):
         raise RuntimeError(f"python is outside a hosted setup-python runtime: {python}")
     runtime_root = JAIL_HOSTED_PYTHON_ROOT.joinpath(*relative.parts[:2])
-    _trusted_hosted_python_runtime(runtime_root, validator_gid)
+    _validate_hosted_python_runtime(runtime_root)
     return runtime_root
 
 
-def _build_jail_layout(
-    mount_root: Path, source: Path, external: Path, python: Path, validator_gid: int
-) -> JailLayout:
+def _build_jail_layout(mount_root: Path, source: Path, external: Path, python: Path) -> JailLayout:
     """Build a private, allowlisted filesystem tree before candidate code exists."""
-    hosted_python_root = _hosted_python_runtime_root(python, validator_gid)
+    hosted_python_root = _hosted_python_runtime_root(python)
     _mount("tmpfs", mount_root, MS_NOSUID | MS_NODEV | MS_NOEXEC, "tmpfs")
     _secure_directory(mount_root, 0o755)
     source_view = _jail_target(mount_root, JAIL_SOURCE)
@@ -557,6 +570,11 @@ def _candidate_script() -> str:
         'expect_blocked mv "$GITHUB_WORKSPACE/.git" "$GITHUB_WORKSPACE/.readonly-validator-git-rename-probe"\n'
         'expect_blocked mv "$FRAMEWORK_ROOT/.git" "$FRAMEWORK_ROOT/.readonly-validator-git-rename-probe"\n'
         'for target in "$GITHUB_WORKSPACE/Makefile" "$FRAMEWORK_ROOT/Makefile"; do expect_blocked rm "$target"; done\n'
+        'python_runtime_bin=$(dirname "$PYTHON")\n'
+        'expect_blocked touch "$python_runtime_bin/.readonly-validator-runtime-write-probe"\n'
+        'expect_blocked mkdir "$python_runtime_bin/.readonly-validator-runtime-directory-probe"\n'
+        'expect_blocked chmod 600 "$PYTHON"\n'
+        'expect_blocked mv "$PYTHON" "$python_runtime_bin/.readonly-validator-runtime-rename-probe"\n'
         'if sudo -n true >/dev/null 2>&1 || /usr/bin/sudo -n true >/dev/null 2>&1; then echo "validator obtained sudo" >&2; exit 1; fi\n'
         'if /usr/bin/mount -o remount,rw "$GITHUB_WORKSPACE" >/dev/null 2>&1; then echo "validator remounted source" >&2; exit 1; fi\n'
         'mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" '
@@ -620,7 +638,7 @@ def _namespace_child(
 ) -> int:
     _unshare()
     _mount(None, Path("/"), MS_REC | MS_PRIVATE)
-    layout = _build_jail_layout(mount_root, source, external, python, gid)
+    layout = _build_jail_layout(mount_root, source, external, python)
     framework_relative = framework.relative_to(source)
     proc_ready_read, proc_ready_write = os.pipe()
     child = os.fork()

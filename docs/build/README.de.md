@@ -221,9 +221,12 @@ Setup read-only remountet. Es stellt nur die read-only-Runtime-Verzeichnisse
 `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64` sowie nur die exakte
 `actions/setup-python`-Runtime unter
 `/opt/hostedtoolcache/Python/<version>/<architecture>` und das minimal
-erforderliche read-only-`/etc`-Material bereit. Diese Runtime darf weder
-weltweit noch für die Validator-Gruppe schreibbar sein und wird read-only
-bind-gemountet. Es mountet ein frisches
+erforderliche read-only-`/etc`-Material bereit. Der Launcher akzeptiert nur
+den aufgelösten nicht-symlinkten `<version>/x64`-Unterbaum und bind-mountet
+genau diesen Unterbaum vor dem Start von Candidate-Code read-only. Das
+Hosted-Runner-Quellverzeichnis darf permissive Host-Rechte haben, doch weder
+der Host-`/opt`-Baum noch ein anderer Host-Alias sind im Jail verfügbar. Es
+mountet ein frisches
 read-only-`proc`-Dateisystem bei jailed `/proc` mit `nosuid,nodev,noexec` und
 erstellt ein privates `/dev`, das nur `null` und `urandom` enthält.
 

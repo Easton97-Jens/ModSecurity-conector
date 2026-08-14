@@ -126,9 +126,12 @@ Validator beschreibbares `/external`, nicht beschreibbares `/guard`, die
 read-only-Runtime-Verzeichnisse `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64` sowie
 nur die exakte `actions/setup-python`-Runtime unter
 `/opt/hostedtoolcache/Python/<version>/<architecture>` und minimales
-read-only-`/etc`-Material. Diese Runtime darf weder weltweit noch für die
-Validator-Gruppe schreibbar sein und wird read-only bind-gemountet. Sein Root
-wird read-only remountet; ein frisches
+read-only-`/etc`-Material. Der Launcher akzeptiert nur den aufgelösten
+nicht-symlinkten `<version>/x64`-Unterbaum und bind-mountet genau diesen
+Unterbaum vor dem Start von Candidate-Code read-only. Das Hosted-Runner-
+Quellverzeichnis darf permissive Host-Rechte haben, doch weder Host-`/opt`
+noch ein anderer Host-Alias sind im Jail vorhanden. Sein Root wird read-only
+remountet; ein frisches
 gehärtetes read-only-`proc` wird bei `/proc` gemountet,
 und privates `/dev` enthält nur `null` und `urandom`. Vor dem Drop auf
 `modsecurity-validator` schließt der Launcher geerbte Deskriptoren außer

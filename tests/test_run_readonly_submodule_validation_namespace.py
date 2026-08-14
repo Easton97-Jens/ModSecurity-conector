@@ -39,30 +39,41 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
     def test_python_runtime_allowlist_binds_only_the_exact_hosted_toolcache_tree(self) -> None:
         hosted_python = Path("/opt/hostedtoolcache/Python/3.14.6/x64/bin/python")
         hosted_root = Path("/opt/hostedtoolcache/Python/3.14.6/x64")
-        with mock.patch.object(HELPER, "_trusted_hosted_python_runtime") as trusted:
-            self.assertEqual(HELPER._hosted_python_runtime_root(hosted_python, 4242), hosted_root)
-        trusted.assert_called_once_with(hosted_root, 4242)
-        self.assertIsNone(HELPER._hosted_python_runtime_root(Path("/usr/bin/python3"), 4242))
+        with mock.patch.object(HELPER, "_validate_hosted_python_runtime") as validated:
+            self.assertEqual(HELPER._hosted_python_runtime_root(hosted_python), hosted_root)
+        validated.assert_called_once_with(hosted_root)
+        self.assertIsNone(HELPER._hosted_python_runtime_root(Path("/usr/bin/python3")))
         for invalid in (
             Path("/opt/hostedtoolcache/Python/3.14.6/bin/python"),
+            Path("/opt/hostedtoolcache/Python/3.14.6/arm64/bin/python"),
             Path("/opt/hostedtoolcache/pip/bin/python"),
             Path("/home/runner/python"),
         ):
             with self.subTest(invalid=invalid), self.assertRaisesRegex(RuntimeError, "python is outside"):
-                HELPER._hosted_python_runtime_root(invalid, 4242)
+                HELPER._hosted_python_runtime_root(invalid)
 
-    def test_hosted_python_runtime_rejects_world_or_validator_group_writability(self) -> None:
+    def test_hosted_python_runtime_must_be_a_real_nonsymlink_directory(self) -> None:
         runtime = Path("/opt/hostedtoolcache/Python/3.14.6/x64")
         directory = stat.S_IFDIR
-        accepted = SimpleNamespace(st_mode=directory | 0o775, st_uid=1001, st_gid=1001)
-        validator_group_writable = SimpleNamespace(st_mode=directory | 0o775, st_uid=1001, st_gid=4242)
-        world_writable = SimpleNamespace(st_mode=directory | 0o777, st_uid=1001, st_gid=1001)
-        with mock.patch.object(HELPER.os, "stat", return_value=accepted):
-            HELPER._trusted_hosted_python_runtime(runtime, 4242)
-        for metadata in (validator_group_writable, world_writable):
-            with self.subTest(metadata=metadata), mock.patch.object(HELPER.os, "stat", return_value=metadata):
+        with mock.patch.object(HELPER.os, "lstat", return_value=SimpleNamespace(st_mode=directory | 0o777)):
+            HELPER._validate_hosted_python_runtime(runtime)
+        for metadata in (
+            SimpleNamespace(st_mode=stat.S_IFREG | 0o755),
+            SimpleNamespace(st_mode=stat.S_IFLNK | 0o777),
+        ):
+            with self.subTest(metadata=metadata), mock.patch.object(HELPER.os, "lstat", return_value=metadata):
                 with self.assertRaisesRegex(RuntimeError, "unsafe hosted Python runtime"):
-                    HELPER._trusted_hosted_python_runtime(runtime, 4242)
+                    HELPER._validate_hosted_python_runtime(runtime)
+        chain = [
+            SimpleNamespace(st_mode=directory | 0o755),
+            SimpleNamespace(st_mode=directory | 0o755),
+            SimpleNamespace(st_mode=directory | 0o755),
+            SimpleNamespace(st_mode=directory | 0o755),
+            SimpleNamespace(st_mode=stat.S_IFLNK | 0o777),
+        ]
+        with mock.patch.object(HELPER.os, "lstat", side_effect=chain):
+            with self.assertRaisesRegex(RuntimeError, "unsafe hosted Python runtime"):
+                HELPER._validate_hosted_python_runtime(runtime)
 
     def test_jail_binds_an_exact_hosted_runtime_not_the_host_opt_directory(self) -> None:
         mount_root = Path("/jail")
@@ -82,7 +93,6 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                 Path("/trusted/source"),
                 Path("/trusted/external"),
                 hosted_root / "bin/python",
-                4242,
             )
         self.assertIn(hosted_target, layout.mounts)
         self.assertIn(mock.call(hosted_root, hosted_target), bind_readonly.call_args_list)
@@ -90,6 +100,18 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
 
     def test_jail_file_creation_never_widens_permissions_after_open(self) -> None:
         self.assertNotIn("fchmod", inspect.getsource(HELPER._create_jail_file))
+
+    def test_readonly_bind_remounts_the_exact_runtime_with_security_flags(self) -> None:
+        source = Path("/opt/hostedtoolcache/Python/3.14.6/x64")
+        target = Path("/jail/opt/hostedtoolcache/Python/3.14.6/x64")
+        flags = HELPER.MS_BIND | HELPER.MS_REMOUNT | HELPER.MS_RDONLY | HELPER.MS_NOSUID | HELPER.MS_NODEV
+        with mock.patch.object(HELPER, "_mount") as mount, mock.patch.object(HELPER, "_verify_mount") as verify:
+            HELPER._bind_readonly(source, target)
+        self.assertEqual(
+            mount.call_args_list,
+            [mock.call(str(source), target, HELPER.MS_BIND), mock.call(None, target, flags)],
+        )
+        verify.assert_called_once_with(target, readonly=True, require_noexec=False)
 
     def test_identity_rejects_privileged_or_missing_account_topologies(self) -> None:
         account = SimpleNamespace(pw_uid=1001, pw_gid=1001)
@@ -456,6 +478,8 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             "-m pip install", "exec make", "safe.directory", "expect_blocked mv",
             "expect_blocked rm", "expect_blocked chmod", "for target in /tmp /var /home /root /run /sys /dev/shm",
             "validator retained an inherited descriptor", 'test -e "$descriptor" || continue', "test -c /dev/null", "validator sees an unexpected device",
+            "python_runtime_bin=$(dirname \"$PYTHON\")", "runtime-write-probe", "runtime-directory-probe",
+            "runtime-rename-probe",
         ):
             self.assertIn(required, program)
         self.assertIn('exec make PYTHON="$PYTHON" quick-check', program)
@@ -566,6 +590,50 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                 self.skipTest("mount/PID namespace capability is unavailable")
             self.assertEqual(code, 0)
 
+    def test_privileged_world_writable_runtime_is_readonly_after_bind(self) -> None:
+        """A 0777 hosted runtime source cannot stay writable through its RO bind."""
+        if os.geteuid() != 0 or sys.platform != "linux":
+            self.skipTest("mount/PID namespace capability is unavailable")
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw); runtime = root / "runtime"; target = root / "target"
+            previous_umask = os.umask(0)
+            try:
+                runtime.mkdir(mode=stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+            finally:
+                os.umask(previous_umask)
+            target.mkdir()
+            executable = runtime / "python"; executable.write_text("runtime", encoding="utf-8")
+            child = os.fork()
+            if child == 0:
+                try:
+                    HELPER._unshare()
+                    HELPER._mount(None, Path("/"), HELPER.MS_REC | HELPER.MS_PRIVATE)
+                    HELPER._bind_readonly(runtime, target)
+                    if (target / "python").read_text(encoding="utf-8") != "runtime":
+                        os._exit(1)
+                    for operation in (
+                        lambda: (target / "write-probe").touch(),
+                        lambda: (target / "directory-probe").mkdir(),
+                        lambda: os.rename(target / "python", target / "renamed"),
+                        lambda: os.unlink(target / "python"),
+                    ):
+                        try:
+                            operation()
+                        except OSError:
+                            continue
+                        os._exit(1)
+                    os._exit(0)
+                except HELPER.NamespaceUnavailable:
+                    os._exit(125)
+                except BaseException:
+                    os._exit(1)
+            _pid, status = os.waitpid(child, 0)
+            code = os.waitstatus_to_exitcode(status)
+            if code == 125:
+                self.skipTest("mount/PID namespace capability is unavailable")
+            self.assertEqual(code, 0)
+            self.assertEqual(executable.read_text(encoding="utf-8"), "runtime")
+
     def test_privileged_candidate_cannot_escape_the_chroot_or_outlive_pid1(self) -> None:
         """Exercise the real allowlist jail when mount/PID namespaces are available."""
         if os.geteuid() != 0 or sys.platform != "linux":
@@ -608,6 +676,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                     os._exit(1)
                 os.setgroups([]); os.setgid(gid); os.setuid(uid); os.chdir(source_view)
                 framework_view = source_view / framework_relative
+                python_view = Path(_python)
                 if source_view != HELPER.JAIL_SOURCE or external_view != HELPER.JAIL_EXTERNAL:
                     os._exit(1)
                 for denied in (Path("/tmp"), Path("/var/tmp"), Path("/dev/shm"), Path("/home"), Path("/root"), Path("/run"), Path("/sys"), source, framework):
@@ -639,6 +708,18 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                 blocked(lambda: os.rename(framework_view / ".git", framework_view / "renamed-git"))
                 blocked(lambda: os.unlink(source_view / "Makefile"))
                 blocked(lambda: os.unlink(framework_view / "Makefile"))
+                blocked(lambda: (python_view.parent / "runtime-write-probe").touch())
+                blocked(lambda: (python_view.parent / "runtime-directory-probe").mkdir())
+                blocked(lambda: os.chmod(python_view, 0o600))
+                blocked(lambda: os.rename(python_view, python_view.parent / "runtime-renamed"))
+                if pwd.getpwuid(uid).pw_name != account.pw_name:
+                    os._exit(1)
+                identity = subprocess.run(["/usr/bin/id", "-un"], check=False, capture_output=True, text=True)
+                if identity.returncode != 0 or identity.stdout.strip() != account.pw_name:
+                    os._exit(1)
+                interpreter = subprocess.run([str(python_view), "-c", "import sys; assert sys.executable"], check=False)
+                if interpreter.returncode != 0:
+                    os._exit(1)
                 (external_view / "candidate-output").write_text("allowed", encoding="utf-8")
                 background = os.fork()
                 if background == 0:
