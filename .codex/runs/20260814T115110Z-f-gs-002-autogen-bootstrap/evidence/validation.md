@@ -92,11 +92,33 @@ Retained bounded raw logs and manifests are external and text-only:
 | `make check-doc-links` in clean PR worktree | `2` | same independent missing-Framework-gitlink environment |
 | `make check-bilingual-docs` in existing checkout with Framework present | `0` | `bilingual docs ok` |
 | `make check-doc-links` in existing checkout with Framework present | `0` | `repository path references: PASS`; `doc links ok` |
+| `make check-bilingual-docs` in clean PR worktree after adding the Change Record | `2` | the Change Record itself satisfied its strict heading checks; only the same absent Framework-gitlink targets failed |
+| `make check-doc-links` in clean PR worktree after adding the Change Record | `2` | the same independent missing-Framework-gitlink targets failed |
+| `make check-bilingual-docs` in a task-owned temporary overlay containing a local Framework test copy | `0` | `bilingual docs ok` |
+| `make check-doc-links` in that task-owned temporary overlay | `0` | `repository path references: PASS`; `doc links ok` |
+| `make check-bilingual-docs` in a freshly recreated task-owned overlay after the receipt/Change-Record clarification | `0` | `bilingual docs ok` |
+| `make check-doc-links` in that freshly recreated task-owned overlay after the receipt/Change-Record clarification | `0` | `repository path references: PASS`; `doc links ok` |
 | Generator/guide-test syntax compilation; Lighttpd source-map/finding JSON parse | `0` | passed |
 | `git diff --check` before tracking updates | `0` | passed |
+| `python3 -m json.tool .codex/findings/FND-PARENT-0129/finding.json` after the evidence clarification | `0` | passed |
+| `git diff --check` after the evidence clarification | `0` | passed |
 
 The generic Backlog and Roadmap JSON corpus is ignored and absent from the PR baseline (about 497 KB and 434 KB in the unrelated shared control plane). It is intentionally not force-added or rewritten: importing it would add unrelated findings. The tracked FND and this receipt are the scoped F-GS-002 closure evidence.
 
+Each temporary overlay was created only below the registered external task
+root, used a local copy of the existing Framework solely to satisfy repository
+link resolution, and was removed after exact-path verification. It changed
+neither the Parent worktree nor the original Framework or MRTS repository.
+
 ## GitHub state
 
-PR #285 is `https://github.com/Easton97-Jens/ModSecurity-conector/pull/285`. Its old head was open, Draft, cleanly mergeable, and `521173b12c13bd1bb575c0bcfcb685ec06a5eb6f`. Ready state, current checks/reviews, final PR head, and merge result must be reread after the closure commit; none is claimed by this local receipt.
+PR #285 is `https://github.com/Easton97-Jens/ModSecurity-conector/pull/285`.
+At the pre-clarification delivery review it was open, Ready, cleanly mergeable,
+and targeted `master` at head `7549c5ca7650d05eb0a1fcef4b90e842b27ea44d`.
+Required checks `actions`, `bounded-c-cpp`, `envoy-go`, `traefik-go`,
+`actionlint`, and `zizmor` passed; Lighttpd contract, CodeQL, and SonarCloud
+also passed. There were zero reviews and zero review threads; the only PR
+comment was the SonarCloud Quality Gate passed report with zero new issues and
+zero Security Hotspots. This receipt clarification creates a subsequent
+candidate head, so current checks/reviews, final PR head, and merge result must
+be reread after it. No merge is claimed by this local receipt.

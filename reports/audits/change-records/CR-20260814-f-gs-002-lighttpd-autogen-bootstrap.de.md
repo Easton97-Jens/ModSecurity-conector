@@ -30,9 +30,10 @@ F-GS-002 / FND-PARENT-0129 verfolgt diesen reproduzierbaren Build-Blocker.
   und der offiziellen Prüfsummenzeile verifizieren.
 - Fresh-Core-, gepatchten Host- und Same-Root-Reuse-Build ohne Netzwerkzugriff
   nachweisen und belegen, dass Reuse `autogen.sh` nicht erneut ausführt.
-- Nachweisen, dass der originale verifizierte Quellbaum vor, während und nach
-  den Builds unverändert bleibt; FND-PARENT-0129 erst nach diesen Gates auf
-  `fixed` setzen.
+- Nachweisen, dass der originale verifizierte Quellbaum über den gesamten
+  Buildprozess durch byteweise Vorher-/Nachher-/Final-no-follow-
+  Manifestvergleiche unverändert bleibt; FND-PARENT-0129 erst nach diesen
+  Gates auf `fixed` setzen.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -142,7 +143,9 @@ offizielle Prüfsummenzeile bleiben die Pflichtverifikation. Im sauberen
 Task-Worktree endeten `make check-bilingual-docs` und `make check-doc-links`
 nur mit Exit 2, weil sein absichtlich nicht initialisierter Framework-Gitlink
 fehlte. Dieselben Ziele bestanden read-only im bestehenden Parent-Checkout mit
-diesem Gitlink. Es wurde keine Framework-Aktion ausgeführt.
+diesem Gitlink und in einem task-eigenen temporären Overlay nach Hinzufügen des
+Change Records. Das Overlay wurde nach den Checks entfernt; es wurde keine
+Framework-Aktion ausgeführt.
 
 ## Bekannte Einschränkungen
 

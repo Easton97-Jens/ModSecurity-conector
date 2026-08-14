@@ -73,7 +73,7 @@
       "run_id": "20260814T115110Z-f-gs-002-autogen-bootstrap",
       "artifact_path": ".codex/runs/20260814T115110Z-f-gs-002-autogen-bootstrap/evidence/validation.md",
       "artifact_type": "official_archive_real_fresh_host_reuse_and_source_integrity_receipt",
-      "sha256": "ca61cb598a53f864cc284e8d902a34eeab4a86008d5f5191741ad2b6664ebc1c",
+      "sha256": "3a4be6168549048f4de1a53fa2ed38193a7b96315b0dbb5ad40646a7deba3231",
       "command": "Verify and safely extract the official XZ archive, then run check-lighttpd-patched-host Fresh and Reuse with explicit external paths inside a no-network namespace",
       "working_directory": "/var/tmp/codex/f-gs-002-lighttpd-1.4.84/worktree",
       "exit_code": 0,
@@ -138,7 +138,7 @@
   "residual_risk": "The defect is fixed but not yet verified or closed; those statuses require the authorized delivery and post-merge master evidence. The generic documentation targets in the clean PR worktree are environmentally blocked by its deliberately uninitialized Framework gitlink, while the Lighttpd-specific guide/link controls and the same generic targets in the existing checkout with the Framework present passed. No Traefik or Framework file was changed.",
   "residual_risk_de": "Der Defekt ist fixed, aber noch nicht verified oder closed; diese Status erfordern die autorisierte Delivery und Post-Merge-Master-Evidence. Die generischen Dokumentations-Targets im sauberen PR-Worktree sind durch dessen bewusst nicht initialisierten Framework-Gitlink umgebungsbedingt blockiert, während die Lighttpd-spezifischen Guide-/Link-Controls und dieselben generischen Targets im bestehenden Checkout mit vorhandenem Framework bestanden. Keine Traefik- oder Framework-Datei wurde geändert.",
   "created_at": "2026-08-14T11:58:05Z",
-  "updated_at": "2026-08-14T14:23:16Z",
+  "updated_at": "2026-08-14T15:17:30Z",
   "final_disposition": null,
   "history": [
     {
@@ -158,6 +158,18 @@
       "event": "official_archive_real_fresh_host_reuse_validation_fixed",
       "detail": "Verified the official Lighttpd 1.4.84 XZ archive at its pinned digest and size; safely extracted it; recorded byte-identical original-source manifests; and passed Fresh Core/Host/host-contract plus a same-root Reuse run inside a no-network namespace. Reuse emitted mode=reused and left autogen.log unchanged.",
       "detail_de": "Das offizielle Lighttpd-1.4.84-XZ-Archiv wurde mit seinem gepinnten Digest und seiner Größe verifiziert, sicher entpackt, mit byteidentischen Originalsource-Manifests aufgezeichnet und Fresh Core/Host/Host-Contract sowie ein Same-Root-Reuse im netzlosen Namespace bestanden. Reuse gab mode=reused aus und ließ autogen.log unverändert."
+    },
+    {
+      "at": "2026-08-14T15:08:19Z",
+      "event": "traceability_change_record_and_documentation_evidence_reconciled",
+      "detail": "Added the required paired Change Record and archive index entries. The receipt now records the strict Change-Record documentation checks: the clean task worktree was blocked only by its absent Framework gitlink, while a task-owned temporary overlay passed both standard documentation targets and was removed without changing Parent, Framework, or MRTS source.",
+      "detail_de": "Das erforderliche gepaarte Change Record und die Archivindex-Einträge wurden ergänzt. Das Receipt zeichnet nun die strikten Change-Record-Dokumentationschecks auf: Der saubere Task-Worktree war nur durch seinen fehlenden Framework-Gitlink blockiert, während ein task-eigenes temporäres Overlay beide Standard-Dokumentationsziele bestand und ohne Änderung von Parent-, Framework- oder MRTS-Source entfernt wurde."
+    },
+    {
+      "at": "2026-08-14T15:17:30Z",
+      "event": "documentation_evidence_clarification_revalidated",
+      "detail": "Narrowed the Change-Record wording to the actual before/after/final manifest evidence and repeated both standard documentation targets in a freshly recreated task-owned overlay. Both passed; the overlay was removed without Parent, Framework, or MRTS source changes.",
+      "detail_de": "Die Change-Record-Formulierung wurde auf die tatsächliche Vorher-/Nachher-/Final-Manifest-Evidence eingegrenzt und beide Standard-Dokumentationsziele in einem frisch erzeugten task-eigenen Overlay wiederholt. Beide bestanden; das Overlay wurde ohne Parent-, Framework- oder MRTS-Source-Änderungen entfernt."
     }
   ]
 }

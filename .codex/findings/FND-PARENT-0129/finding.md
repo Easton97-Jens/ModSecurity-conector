@@ -136,3 +136,11 @@ or MRTS file was changed.
 - `2026-08-14T14:23:16Z`: verified official archive/source identity,
   original-source integrity, real Fresh Core/Host/contract, and same-root
   no-network Reuse without a second bootstrap; status changed to `fixed`.
+- `2026-08-14T15:08:19Z`: added the required paired Change Record and archive
+  index entries; the receipt now records strict Change-Record documentation
+  checks, including the temporary-overlay passes without Parent, Framework, or
+  MRTS source changes.
+- `2026-08-14T15:17:30Z`: narrowed the Change-Record wording to the actual
+  before/after/final manifest evidence and repeated both standard documentation
+  targets in a freshly recreated task-owned overlay; both passed and the copy
+  was removed without source changes.

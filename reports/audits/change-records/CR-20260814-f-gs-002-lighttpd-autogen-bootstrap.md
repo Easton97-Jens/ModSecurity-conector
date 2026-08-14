@@ -29,9 +29,9 @@ that reproducible build blocker.
   and the official checksum line before use.
 - Demonstrate Fresh Core, patched Host, and same-root Reuse builds without
   network access; prove that Reuse does not run `autogen.sh` again.
-- Prove that the original verified source tree is unchanged before, during,
-  and after the builds; update FND-PARENT-0129 to `fixed` only after those
-  gates pass.
+- Prove that the original verified source tree is unchanged throughout the
+  build process through bytewise before/after/final no-follow manifest
+  comparisons; update FND-PARENT-0129 to `fixed` only after those gates pass.
 
 ## Implementation decision and rationale
 
@@ -138,7 +138,8 @@ remain the mandatory verification. In the clean task worktree,
 `make check-bilingual-docs` and `make check-doc-links` stopped with exit 2
 only because its deliberately uninitialized Framework gitlink was absent. The
 same targets passed read-only in the existing Parent checkout with that gitlink
-present. No Framework action was taken.
+present and in a task-owned temporary overlay after the Change Record was
+added. The overlay was removed after the checks; no Framework action was taken.
 
 ## Known limitations
 

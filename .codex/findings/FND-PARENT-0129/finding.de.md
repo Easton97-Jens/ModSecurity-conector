@@ -139,3 +139,12 @@ wurde. Keine Traefik-, Framework- oder MRTS-Datei wurde geändert.
   Originalsource-Integrität, realer Fresh Core/Host/Contract und Same-Root-
   No-Network-Reuse ohne zweiten Bootstrap wurden verifiziert; Status auf
   `fixed` gesetzt.
+- `2026-08-14T15:08:19Z`: Das erforderliche gepaarte Change Record und die
+  Archivindex-Einträge wurden ergänzt; das Receipt zeichnet nun die strikten
+  Change-Record-Dokumentationschecks einschließlich der temporären Overlay-
+  Pässe ohne Parent-, Framework- oder MRTS-Source-Änderungen auf.
+- `2026-08-14T15:17:30Z`: Die Change-Record-Formulierung wurde auf die
+  tatsächliche Vorher-/Nachher-/Final-Manifest-Evidence eingegrenzt und beide
+  Standard-Dokumentationsziele in einem frisch erzeugten task-eigenen Overlay
+  wiederholt; beide bestanden, danach wurde die Kopie ohne Source-Änderungen
+  entfernt.
