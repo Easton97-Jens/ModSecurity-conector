@@ -135,8 +135,11 @@ candidate cannot select a compiler through the host alternatives mechanism.
 
 Network access remains intentionally available because hash-pinned `pip`
 installation is required for the validator to function. This remediation makes
-no egress-isolation claim. Hosted `validate_only` evidence for the exact
-remediation head and closure of `FND-PARENT-0122` remain pending.
+no egress-isolation claim. The bounded hosted `validate_only` evidence below
+does not establish SonarQube, a PR merge, or closure of `FND-PARENT-0122`,
+which remains open. After that proof, the temporary validation admission was
+removed: the permanent policy permits only the repair branch and protected
+`master`.
 
 At PR #280 head `3fbba306ddedf86acd3d01929a077cee33f66ed7`, the task-owned
 SonarCloud result reported S8707 for this `GITHUB_ENV` write path. This record
@@ -235,16 +238,25 @@ runtime evidence.
 
 ## Runtime evidence
 
-No runtime evidence was collected or claimed. No component build, cache
-population, connector runtime, or hosted updater execution was used as proof
-for this change.
+No component build, cache population, connector runtime, or hosted updater
+execution was used as proof for this change. The bounded hosted validator
+evidence below is not a claim of any of those broader runtime outcomes.
+
+### Hosted `validate_only` evidence
+
+GitHub-hosted `workflow_dispatch` `validate_only` run
+[`31776302498`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31776302498)
+ran at exact head `c7bbc70bcf729d148a7d87f45ca352ae7247416b`. Validator
+`make quick-check`, postverification, and enforcement succeeded. The publisher
+was skipped and created no output pull request, commit, or branch. This is
+limited functional evidence for that run and head; it does not establish a
+SonarQube result, PR merge, or closure of `FND-PARENT-0122`.
 
 ## Checks not run and rationale
 
-- Hosted `validate_only` validation of the exact `FND-PARENT-0122` remediation
-  head is pending. The finding remains open until that run and its legitimate
-  control cases are observed; this record does not claim a local final test
-  count for the remediation.
+- `FND-PARENT-0122` remains open. Run `31776302498` supplies the bounded
+  exact-head validator evidence described above, but no finding closure is
+  claimed.
 - Fresh GitHub-hosted updater validation and PR checks for the eventual exact
   PR head are pending after the local-Git fixture identity repair.
 - S8707 was observed on `3fbba306ddedf86acd3d01929a077cee33f66ed7`. Fresh
@@ -279,7 +291,8 @@ head.
 The `FND-PARENT-0122` jail constrains the candidate filesystem and inherited
 descriptor surface, not network egress or complete host/kernel isolation.
 Network access is retained only for hash-pinned `pip` installation. Hosted
-exact-head validation and finding closure remain pending.
+exact-head validator validation was observed in run `31776302498`; finding
+closure remains pending.
 
 ## Remaining risks
 
@@ -288,8 +301,8 @@ and protected-branch policy evaluation. Correct APR-util values remain
 dependent on the checked-out Framework guard, which is the intended ownership
 model. The pending hosted S8707 disposition for the later PR head is an
 additional delivery risk.
-This record deliberately makes no security-scan, hosted, merge, or
-cross-repository success claim.
+This record claims only the bounded hosted validator evidence stated above; it
+makes no SonarQube, merge, or cross-repository success claim.
 
 ## Final diff and review status
 

@@ -149,9 +149,11 @@ Mechanismus auswählen kann.
 
 Netzwerkzugriff bleibt absichtlich verfügbar, weil hash-pinned `pip`-
 Installation für das Funktionieren des Validators erforderlich ist. Diese
-Remediation behauptet keine Egress-Isolation. Hosted-`validate_only`-Evidence
-für den exakten Remediation-Head und der Abschluss von `FND-PARENT-0122`
-bleiben ausstehend.
+Remediation behauptet keine Egress-Isolation. Die unten genannte begrenzte
+Hosted-`validate_only`-Evidence belegt weder SonarQube noch einen PR-Merge oder
+den Abschluss von `FND-PARENT-0122`; das Finding bleibt offen. Nach diesem
+Nachweis wurde die temporäre Validation-Admission entfernt: Die permanente
+Policy erlaubt nur den Reparatur-Branch und geschütztes `master`.
 
 Auf PR-#280-Head `3fbba306ddedf86acd3d01929a077cee33f66ed7` meldete das
 task-eigene SonarCloud-Ergebnis S8707 für diesen `GITHUB_ENV`-Schreibpfad.
@@ -252,16 +254,27 @@ keine Runtime-Evidence.
 
 ## Runtime-Evidence
 
-Es wurde keine Runtime-Evidence erhoben oder beansprucht. Kein Component-Build,
-keine Cache-Population, keine Connector-Runtime und keine Hosted-Updater-
-Ausführung wurden als Nachweis für diese Änderung verwendet.
+Kein Component-Build, keine Cache-Population, keine Connector-Runtime und keine
+Hosted-Updater-Ausführung wurden als Nachweis für diese Änderung verwendet. Die
+unten genannte begrenzte Hosted-Validator-Evidence beansprucht keines dieser
+weitergehenden Runtime-Ergebnisse.
+
+### Hosted-`validate_only`-Evidence
+
+Der GitHub-hosted-`workflow_dispatch`-`validate_only`-Run
+[`31776302498`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31776302498)
+lief auf dem exakten Head `c7bbc70bcf729d148a7d87f45ca352ae7247416b`.
+Validator-`make quick-check`, Postverification und Enforcement waren
+erfolgreich. Der Publisher wurde übersprungen und erzeugte keinen Output-Pull-
+Request, Commit oder Branch. Dies ist begrenzte funktionale Evidence für diesen
+Run und Head; sie belegt kein SonarQube-Ergebnis, keinen PR-Merge und keinen
+Abschluss von `FND-PARENT-0122`.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- Hosted-`validate_only`-Validierung des exakten `FND-PARENT-0122`-
-  Remediation-Heads steht aus. Das Finding bleibt offen, bis dieser Run und
-  seine legitimen Kontrollfälle beobachtet wurden; dieser Record behauptet
-  keine lokale finale Testzahl für die Remediation.
+- `FND-PARENT-0122` bleibt offen. Run `31776302498` liefert die oben
+  beschriebene begrenzte Exact-Head-Validator-Evidence; ein Finding-Abschluss
+  wird nicht behauptet.
 - Frische GitHub-hosted-Updater-Validierung und PR-Checks für den späteren
   exakten PR-Head stehen nach der Local-Git-Fixture-Identity-Reparatur aus.
 - S8707 wurde auf `3fbba306ddedf86acd3d01929a077cee33f66ed7` beobachtet.
@@ -297,8 +310,8 @@ PR-Head festzustellen.
 Das `FND-PARENT-0122`-Jail begrenzt Dateisystem- und geerbte Deskriptor-
 Oberfläche des Candidate, nicht Netzwerk-Egress oder vollständige Host-/Kernel-
 Isolation. Netzwerkzugriff bleibt nur für hash-pinned `pip`-Installation
-erhalten. Hosted-Exact-Head-Validierung und Finding-Abschluss bleiben
-ausstehend.
+erhalten. Hosted-Exact-Head-Validator-Validierung wurde in Run `31776302498`
+beobachtet; der Finding-Abschluss bleibt ausstehend.
 
 ## Verbleibende Risiken
 
@@ -307,7 +320,8 @@ Review- und Protected-Branch-Policy-Auswertung. Korrekte APR-util-Werte bleiben
 vom ausgecheckten Framework-Guard abhängig, was das beabsichtigte Ownership-
 Modell ist. Der ausstehende Hosted-S8707-Status für den späteren PR-Head ist
 ein zusätzliches Delivery-Risiko. Dieser Record behauptet absichtlich keinen
-Security-Scan-, Hosted-, Merge- oder Cross-Repository-Erfolg.
+SonarQube-, Merge- oder Cross-Repository-Erfolg; er behauptet nur die oben
+genannte begrenzte Hosted-Validator-Evidence.
 
 ## Finaler Diff- und Review-Status
 

@@ -270,24 +270,28 @@ Failure-Evidence: Auf `5d7d7bbbbb968aa9755d3c0c67a09d8acd651c77` waren Resolver
 und Sandbox-Setup erfolgreich, aber der isolierte Quick Check scheiterte mit
 fünf No-CRS-Normalisierungsfehlern an einer Runtime-Verzeichnis-
 Traversierungsverweigerung. Der Publisher wurde übersprungen. Hier wird kein
-erfolgreicher Rerun, Current-Head-Scan oder Delivery-Ergebnis behauptet.
+erfolgreicher Rerun, Current-Head-Scan oder Delivery-Ergebnis für diese
+historischen Failures behauptet.
 
 Lokale Regressions- und Static-Contract-Evidence für diese Remediation wird
 mit der Delivery-Arbeit aufgezeichnet; dieser Guide weist ihr keine finale Zahl
 zu. Sie ist kein privilegierter Hosted-Mount- oder Validator-Identitäts-
-Runtime-Nachweis. Hosted-`validate_only`-Validierung auf dem exakten
-Remediation-Head und der Abschluss von `FND-PARENT-0122` bleiben ausstehend;
-diese Dokumentation behauptet keinen Current-Head-Security-Scan, kein
-PR-Ergebnis, kein SonarQube-Ergebnis, keinen Merge und keine Delivery.
+Runtime-Nachweis. Ein begrenzter GitHub-hosted-`workflow_dispatch`
+`validate_only`-Nachweis wurde in Run
+[`31776302498`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31776302498)
+auf dem exakten Head `c7bbc70bcf729d148a7d87f45ca352ae7247416b` beobachtet:
+Validator-`make quick-check`, Postverification und Enforcement waren
+erfolgreich. Der Publisher wurde übersprungen und erzeugte keinen Output-Pull-
+Request, Commit oder Branch. Dies belegt kein SonarQube-Ergebnis, keinen
+PR-Merge und keinen Abschluss von `FND-PARENT-0122`; das Finding bleibt offen.
 
 Der manuelle `workflow_dispatch`-Input `validate_only: true` ist ein nicht
-veröffentlichender Exact-Ref-Nachweis-/Revalidierungspfad mit genau drei
+veröffentlichender Exact-Ref-Nachweis-/Revalidierungspfad mit genau zwei
 vertrauenswürdigen Refs im kanonischen Non-fork-Parent-Repository
-`Easton97-Jens/ModSecurity-conector`: den reviewten Task-Branches
-`fix/ci-enforce-readonly-submodule-validation` und
-`agent/framework-apr-util-submodule-validation` vor dem Merge für ihren
-Exact-Head-Nachweis sowie geschütztem Parent-`master` nach dem Merge der
-Remediation für die Sandbox-Revalidierung des resultierenden `master`; letzterer
+`Easton97-Jens/ModSecurity-conector`: dem reviewten Reparatur-Branch
+`fix/ci-enforce-readonly-submodule-validation` vor dem Merge für seinen
+Exact-Head-Nachweis sowie geschütztem Parent-`master` nach dem Merge dieser
+Reparatur für die Sandbox-Revalidierung des resultierenden `master`; letzterer
 erfordert zusätzlich GitHub `github.ref_protected == true`. Er ist keine
 allgemeine Einrichtung zum Ausführen beliebiger nicht vertrauenswürdiger
 Parent-Refs oder Pull Requests. Jeder erlaubte Pfad checkt
@@ -301,10 +305,11 @@ Request erstellen oder aktualisieren.
 Dies ist keine Sandbox für nicht vertrauenswürdige Parent-Pull-Requests/-Refs:
 An beiden erlaubten Refs sind Parent-Workflow- und Helper-SHA vor dem
 Root-seitigen Setup vertrauenswürdig, während der Framework-Candidate nicht
-vertrauenswürdiger, durch die Sandbox regierter Code bleibt. Ein Hosted-Erfolg
-wäre funktionale Evidence nur für den jeweiligen reviewten Reparatur-SHA oder
-resultierenden geschützten Master-SHA. Die Zwei-Ref-Allowlist ist eine
-Guardrail; der Master-Pfad muss zusätzlich `github.ref_protected == true`
+vertrauenswürdiger, durch die Sandbox regierter Code bleibt. Run `31776302498`
+ist begrenzte funktionale Evidence nur für
+`c7bbc70bcf729d148a7d87f45ca352ae7247416b`; er ist keine Evidence für
+SonarQube, einen PR-Merge oder Finding-Abschluss. Die Zwei-Ref-Allowlist ist
+eine Guardrail; der Master-Pfad muss zusätzlich `github.ref_protected == true`
 erfüllen. Keine der Bedingungen schützt gegen einen feindlichen Writer im
 selben Repository ohne Branch Protection oder Environment Approval.
 
@@ -347,11 +352,11 @@ Targets, lexikalische Escapes zu Source-, Guard- oder anderen Pfaden, Special
 Objects und Hard Links in den Source-Tree ab.
 
 Diese enge Output-Regel modelliert nur die enthaltene relative Form im
-Zusammenhang mit `checks/common.pem` im Hosted-Run `31496603345`; ein frischer
-Hosted-Run auf dem exakten Head muss nachweisen, dass das tatsächliche
-Link-Target der Regel entspricht. Sie dokumentiert nur den Verifier-Vertrag;
-sie ist kein erfolgreicher Hosted-Run, Current-Head-Scan, SonarQube-Ergebnis,
-PR-Ergebnis, Merge, Delivery oder Beweis vollständiger Host-Isolation.
+Zusammenhang mit `checks/common.pem` im Hosted-Run `31496603345`. Der
+Hosted-`validate_only`-Run `31776302498` auf dem exakten Head schloss
+Validator-Quick-Check, Postverification und Enforcement erfolgreich ab, bleibt
+aber auf diesen Run und Head begrenzt. Er ist kein SonarQube-Ergebnis,
+PR-Merge, Delivery oder Beweis vollständiger Host-Isolation.
 `FND-PARENT-0122` bleibt offen.
 
 Dies beschreibt den implementierten Workflow-Vertrag und seine begrenzte lokale

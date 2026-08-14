@@ -258,38 +258,43 @@ precheck. Hosted run `31488072111` is also failure-only historical evidence: on
 `5d7d7bbbbb968aa9755d3c0c67a09d8acd651c77`, resolver and sandbox preparation
 succeeded, but the isolated quick check failed with five no-CRS normalization
 errors at a runtime-directory traversal denial. The publisher was skipped. No
-successful rerun, current-head scan, or delivery result is claimed here.
+successful rerun, current-head scan, or delivery result is claimed for those
+historical failures.
 
 Local regression and static-contract evidence for this remediation is recorded
 with the delivery work; this guide does not assign it a final count. It is not
-a privileged hosted-mount or validator-identity runtime proof. Hosted
-`validate_only` validation on the exact remediation head and closure of
-`FND-PARENT-0122` remain pending; this documentation does not claim a
-current-head security scan, PR result, SonarQube result, merge, or delivery.
+a privileged hosted-mount or validator-identity runtime proof. A bounded
+GitHub-hosted `workflow_dispatch` `validate_only` proof was observed in run
+[`31776302498`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31776302498)
+at exact head `c7bbc70bcf729d148a7d87f45ca352ae7247416b`: the validator
+`make quick-check`, postverification, and enforcement succeeded. The publisher
+was skipped and created no output pull request, commit, or branch. This does
+not establish a SonarQube result, PR merge, or closure of `FND-PARENT-0122`,
+which remains open.
 
 The manual `workflow_dispatch` input `validate_only: true` is a
-non-publishing exact-ref proof/revalidation path with exactly three trusted
+non-publishing exact-ref proof/revalidation path with exactly two trusted
 refs in the canonical non-fork Parent repository
-`Easton97-Jens/ModSecurity-conector`: the reviewed task branches
-`fix/ci-enforce-readonly-submodule-validation` and
-`agent/framework-apr-util-submodule-validation` before merge for their
-exact-head proof, and protected Parent `master` after the remediation is
-merged for resulting-master sandbox revalidation; the latter additionally
-requires GitHub `github.ref_protected == true`. It is not a general facility
-to execute arbitrary untrusted Parent refs or pull requests. Each allowed path
-checks out its dispatch event's `github.sha` for resolution and validation,
+`Easton97-Jens/ModSecurity-conector`: the reviewed repair branch
+`fix/ci-enforce-readonly-submodule-validation` before merge for its exact-head
+proof, and protected Parent `master` after that repair is merged for
+resulting-master sandbox revalidation; the latter additionally requires GitHub
+`github.ref_protected == true`. It is not a general facility to execute
+arbitrary untrusted Parent refs or pull requests. Each allowed path checks out
+its dispatch event's `github.sha` for resolution and validation,
 forces the validator to run even when the resolved Framework candidate already
 equals the dispatched Parent gitlink, and makes the publisher ineligible. It
 cannot create or update a gitlink branch or pull request.
 
 This is not an untrusted Parent pull-request/ref sandbox: at both allowed refs,
 the Parent workflow and helper SHA are trusted before root-side setup, while
-the Framework candidate remains untrusted code governed by the sandbox. A
-hosted success would be functional evidence only for the individual reviewed
-repair SHA or resulting protected-master SHA. The two-ref allowlist is a
-guardrail; the master path must also satisfy `github.ref_protected == true`.
-Neither condition protects against a hostile same-repository writer absent
-branch protection or environment approval.
+the Framework candidate remains untrusted code governed by the sandbox. Run
+`31776302498` is bounded functional evidence only for
+`c7bbc70bcf729d148a7d87f45ca352ae7247416b`; it is not evidence of SonarQube,
+a PR merge, or finding closure. The two-ref allowlist is a guardrail; the
+master path must also satisfy `github.ref_protected == true`. Neither condition
+protects against a hostile same-repository writer absent branch protection or
+environment approval.
 
 The protected-master validation-only revalidation is not the authorized
 post-merge Parent updater dispatch. That separate dispatch runs on `master`
@@ -326,11 +331,11 @@ including in-root absolute targets, lexical escapes to source, guard, or other
 paths, special objects, and source-tree hard links.
 
 This narrow output rule models only the contained-relative shape associated
-with `checks/common.pem` in hosted run `31496603345`; a fresh exact-head hosted
-run must prove that the actual link target conforms. It records the verifier
-contract only; it is not a successful hosted run, current-head scan, SonarQube
-result, PR result, merge, delivery, or proof of full host isolation.
-`FND-PARENT-0122` remains open.
+with `checks/common.pem` in hosted run `31496603345`. The exact-head hosted
+`validate_only` run `31776302498` completed the validator quick-check,
+postverification, and enforcement successfully, but remains limited to that
+run and head. It is not a SonarQube result, PR merge, delivery, or proof of
+full host isolation. `FND-PARENT-0122` remains open.
 
 This describes the implemented workflow contract and its bounded local evidence,
 not evidence of a hosted run, current-head security scan, published update, or
