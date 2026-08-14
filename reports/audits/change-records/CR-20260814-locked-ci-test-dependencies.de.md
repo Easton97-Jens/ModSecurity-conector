@@ -9,7 +9,7 @@
 | Change-ID | CR-20260814-locked-ci-test-dependencies |
 | Datum (UTC) | 2026-08-14 |
 | Basis-Revision | `5e77de897841b62fd9e982f70cad3036fce570ef` |
-| Delivery-Status | Die Auslieferung genau dieser Änderung über einen Draft-PR ist autorisiert. Weder Merge noch `master`-Integration sind autorisiert. Bei Erstellung dieses Records lag kein Hosted-Check-Ergebnis für einen exakten Head vor. |
+| Delivery-Status | Der aktuelle Benutzer hat die kontrollierte `master`-Integration von PR #288 autorisiert. Exakter Head, Checks, Reviews, Merge, resultierender `master` und Workspace-Fakten werden erst nach ihrer Beobachtung im PR und im Task-Abschlussrecord festgehalten. |
 
 ## Motivation und Problemstellung
 
@@ -78,15 +78,15 @@ Die verfügbare Evidenz ist lokale statische Workflow-Validierung und die Ausfü
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Bei Erstellung dieses Change Records lag kein GitHub-Actions-Ergebnis für einen exakten Head vor. Der nachfolgende Draft-PR muss ausschließlich gegen seine exakte Head-SHA bewertet werden. Weder Merge noch Verifikation von resultierendem `master` sind autorisiert.
+Bei der ursprünglichen Erstellung dieses Change Records lag kein GitHub-Actions-Ergebnis für einen exakten Head vor. Der kontrollierte Delivery-Lebenszyklus prüft den exakten aktuellen PR-Head erneut und hält Hosted- sowie resultierende-`master`-Ergebnisse erst nach ihrem Eintritt fest; dieser Record behauptet sie nicht vorab.
 
 ## Bekannte Einschränkungen
 
-Die lokalen Prüfungen belegen die deklarierte Workflow-Struktur und Testreihenfolge. Sie können aber nicht das exakte Runner-Image, die Netzwerkverfügbarkeit oder den Cache-Zustand einer zukünftigen Hosted-Ausführung beweisen. Dieser Nachweis erfordert einen ausdrücklich autorisierten Lauf der ausgelieferten Revision.
+Die lokalen Prüfungen belegen die deklarierte Workflow-Struktur und Testreihenfolge. Sie können allein kein bestimmtes GitHub-Hosted-Runner-Image, keine Netzwerkbedingung und keinen Cache-Zustand beweisen; geschützte Hosted-Checks für die exakte SHA sind die separate Delivery-Evidenz.
 
 ## Verbleibende Risiken
 
-Der zukünftige Hosted-Lauf bleibt die abschließende Bestätigung, dass der Runner das bereits gesperrte Binär-Wheel wie erwartet auflöst. Der kontrollierte Fehlermodus ist beabsichtigt: Ein fehlendes Wheel, Hash-Mismatch, defekter Abhängigkeitssatz oder fehlgeschlagener pip check stoppt den Validator vor seinem importsensitiven Test.
+Die runnerspezifische Wheel-Auflösung ist bewusst fehlgeschlossen: Ein fehlendes Wheel, Hash-Mismatch, defekter Abhängigkeitssatz oder fehlgeschlagener `pip check` stoppt den Validator vor seinem importsensitiven Test. Exakte Hosted- und resultierende-`master`-Ergebnisse werden nach ihrer Beobachtung separat festgehalten.
 
 ## Finaler Diff- und Review-Status
 

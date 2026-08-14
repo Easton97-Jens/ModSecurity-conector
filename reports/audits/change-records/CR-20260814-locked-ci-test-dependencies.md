@@ -9,7 +9,7 @@
 | Change ID | CR-20260814-locked-ci-test-dependencies |
 | Date (UTC) | 2026-08-14 |
 | Base revision | `5e77de897841b62fd9e982f70cad3036fce570ef` |
-| Delivery status | Delivery of this exact change through a Draft PR is authorized. No merge or `master` integration is authorized. At creation of this record, no exact-head hosted-check result existed. |
+| Delivery status | The current user has authorized controlled `master` integration of PR #288. Exact head, check, review, merge, resulting-`master`, and workspace facts are retained only after observation in the PR and task-completion record. |
 
 ## Motivation and problem statement
 
@@ -78,15 +78,15 @@ The available evidence is local static workflow validation and Python contract e
 
 ## Checks not run and rationale
 
-No exact-head GitHub Actions result existed when this Change Record was written. The subsequent Draft PR must be evaluated only against its exact head SHA. No merge or resulting-`master` verification is authorized.
+No exact-head GitHub Actions result existed when this Change Record was initially written. The controlled delivery lifecycle revalidates the exact current PR head and records hosted and resulting-`master` outcomes only after they occur; this record does not prestate them.
 
 ## Known limitations
 
-The local checks establish the declared workflow structure and test ordering. They cannot prove the exact runner image, network availability, or cache state of a future hosted execution. That proof requires an explicitly authorized run of the delivered revision.
+The local checks establish the declared workflow structure and test ordering. They cannot by themselves prove a particular GitHub-hosted runner image, network condition, or cache state; protected exact-SHA hosted checks are the separate delivery evidence.
 
 ## Remaining risks
 
-The future hosted run remains the final confirmation that the runner resolves the already locked binary wheel as expected. The controlled failure mode is intentional: a missing wheel, hash mismatch, broken dependency set, or failed pip check stops the validator before its import-sensitive test.
+The runner-specific wheel-resolution condition is intentionally fail-closed: a missing wheel, hash mismatch, broken dependency set, or failed `pip check` stops the validator before its import-sensitive test. The exact hosted and resulting-`master` outcomes are retained separately once observed.
 
 ## Final diff and review status
 
