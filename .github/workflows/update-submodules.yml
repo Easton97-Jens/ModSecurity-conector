@@ -434,7 +434,10 @@ jobs:
             pr_draft="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.draft')"
             pr_title="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.title')"
             pr_author="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.user.login')"
-            pr_auto_merge="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.auto_merge')"
+            # gh's --jq output renders JSON null as an empty shell value. Keep
+            # a non-empty sentinel only for a present, JSON-null field; every
+            # enabled, malformed, or missing state stays fail-closed.
+            pr_auto_merge="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq 'if (has("auto_merge") and (.auto_merge == null)) then "null" else "auto-merge-present" end')"
             pr_base_repo="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.base.repo.full_name')"
             pr_head_repo="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.head.repo.full_name')"
             pr_body="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.body // ""')"

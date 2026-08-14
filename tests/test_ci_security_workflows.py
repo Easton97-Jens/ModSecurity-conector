@@ -44,7 +44,11 @@ PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
         "github.event.repository.default_branch == 'master'",
     }
 )
-SUBMODULE_PUBLISHER_SHA256 = "c1e70a1d4481faafea81e4d33159388beb4471f709fe583fe8f8744be0977508"
+SUBMODULE_PUBLISHER_SHA256 = "03aa1859bb3e9efd8c512158a94c63b87f7eb2a937a6370f0da17c912c1c9bbb"
+AUTO_MERGE_DISABLED_QUERY = (
+    "--jq 'if (has(\"auto_merge\") and (.auto_merge == null)) then \"null\" "
+    "else \"auto-merge-present\" end'"
+)
 READONLY_SUBMODULE_SANDBOX_CALL = " ".join(
     (
         "python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py",
@@ -2180,6 +2184,32 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("PR_MARKER", publisher)
         self.assertIn("--draft", publisher)
         self.assertIn(".auto_merge", publisher)
+        self.assertIn(
+            "pr_auto_merge=\"$(gh api --method GET "
+            "\"repos/$GITHUB_REPOSITORY/pulls/$pr_number\" "
+            "--jq 'if (has(\"auto_merge\") and (.auto_merge == null)) then \"null\" "
+            "else \"auto-merge-present\" end')\"",
+            publisher,
+        )
+        self.assertIn(AUTO_MERGE_DISABLED_QUERY, publisher)
+        self.assertNotIn(".auto_merge //", publisher)
+        self.assertIn('has("auto_merge")', publisher)
+        self.assertIn('else "auto-merge-present" end', publisher)
+        for state_name, payload, expected in (
+            ("present JSON null", {"auto_merge": None}, "null"),
+            ("boolean false", {"auto_merge": False}, "auto-merge-present"),
+            ("string null", {"auto_merge": "null"}, "auto-merge-present"),
+            ("enabled object", {"auto_merge": {}}, "auto-merge-present"),
+            ("missing field", {}, "auto-merge-present"),
+        ):
+            with self.subTest(auto_merge_state=state_name):
+                normalized = (
+                    "null"
+                    if "auto_merge" in payload and payload["auto_merge"] is None
+                    else "auto-merge-present"
+                )
+                self.assertEqual(normalized, expected)
+        self.assertIn('[ "$pr_auto_merge" = "null" ] && auto_merge_present=false', publisher)
         self.assertIn("marker_count", publisher)
         self.assertIn("verify_open_pr_identity", publisher)
         self.assertIn("verify_open_draft_pr", publisher)
@@ -2396,7 +2426,7 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("scripts/select-python-update-pr.py", publisher)
         self.assertNotIn("--input", publisher)
         self.assertNotIn("gh pr list --head", publisher)
-        self.assertIn('gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$existing_pr" --jq \'.auto_merge\'', publisher)
+        self.assertIn(AUTO_MERGE_DISABLED_QUERY, publisher)
         self.assertIn('if [ "$auto_merge" != "null" ]; then', publisher)
         self.assertIn("git fetch --no-tags origin \"$UPDATE_BRANCH\"", publisher)
         self.assertIn("git read-tree \"origin/$UPDATE_BRANCH\"", publisher)
@@ -2481,6 +2511,8 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("--draft", publisher)
         self.assertIn("gh pr edit \"$existing_pr\"", publisher)
         self.assertIn("scripts/select-python-update-pr.py", publisher)
+        self.assertIn(AUTO_MERGE_DISABLED_QUERY, publisher)
+        self.assertIn('if [ "$auto_merge" != "null" ]; then', publisher)
         self.assertIn("## English", publisher)
         self.assertIn("## Deutsch", publisher)
         self.assertIn("Module directives: unchanged", publisher)

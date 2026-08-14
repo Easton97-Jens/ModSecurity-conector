@@ -287,7 +287,7 @@ jobs:
               echo "Open update pull request lacks its expected branch $UPDATE_BRANCH." >&2
               exit 1
             fi
-            auto_merge="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$existing_pr" --jq '.auto_merge')"
+            auto_merge="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$existing_pr" --jq 'if (has("auto_merge") and (.auto_merge == null)) then "null" else "auto-merge-present" end')"
             if [ "$auto_merge" != "null" ]; then
               echo "Existing update pull request has automatic merge enabled or an unverifiable merge state." >&2
               exit 1

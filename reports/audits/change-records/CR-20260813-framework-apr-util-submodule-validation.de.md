@@ -9,7 +9,7 @@
 | Change-ID | CR-20260813-framework-apr-util-submodule-validation |
 | Datum (UTC) | 2026-08-13 |
 | Basis-Revision | `33973d094b3f0aeb47605f08ced16a4043f643a0` |
-| Delivery-Status | Draft-Parent-PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) ist gegen `master` offen. Das task-eigene SonarCloud-S8707-Ergebnis wurde auf Head `3fbba306ddedf86acd3d01929a077cee33f66ed7` beobachtet; die abgeschlossene lokale `GITHUB_ENV`-Containment-Härtung und ihre lokale Validierung sind unten dokumentiert. Dieser Follow-up-Record wird einen späteren PR-Head erzeugen, für den frische Hosted-Sonar-Analyse weiterhin aussteht. Review, Merge und Cross-Repository-Delivery werden nicht behauptet. |
+| Delivery-Status | Parent-PR [#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) wurde in `master` unter SHA `7e057a27b5ea068cae073b48f0fc8de6b33083b5` gemergt. Der geschützte `master`-`validate_only`-Run [31777704809](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31777704809) bestand mit Candidate `a65eb889dc663d9940215bc4f18f52e56587d8a6`; das Publizieren wurde übersprungen. Der normale Updater-Run [31777868704](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31777868704) erzeugte den unveränderten Draft-PR [#281](https://github.com/Easton97-Jens/ModSecurity-conector/pull/281) auf `9dd5d6a0ea5bedce7318eca941227b32d5aefe76` und schlug danach fail-closed fehl, weil die GitHub CLI JSON-`null` aus `.auto_merge` als leeren Shell-Wert ausgab. PR #281 wurde anschließend extern am `2026-08-14T07:14:48Z` mit Merge/Master-SHA `8d416239ea8920c45f07ce2c39daab5f4e44fe5e` gemergt; alle PR-Checks einschließlich SonarCloud sowie die aufgeführten Master-Push-Workflows bestanden. Die separate lokale Korrektur hat weiterhin keine beobachtete Hosted-Validierung oder keinen Merge. |
 
 ## Motivation und Problemstellung
 
@@ -282,8 +282,10 @@ Abschluss von `FND-PARENT-0122`.
   späteren PR-Head aus. Bis diese Analyse beobachtet wurde, wird kein
   Hosted-Resolved-, Hosted-Clean-, False-Positive- oder Suppression-Claim
   erhoben.
-- Review, Merge, resulting-`master`-Validierung und Workspace-Restoration
-  werden nicht behauptet; der Benutzer hat nur einen Draft-PR autorisiert.
+- Zum historischen Zeitpunkt des früheren Follow-ups wurden Review, Merge,
+  resulting-`master`-Validierung und Workspace-Restoration nicht behauptet;
+  der Benutzer hatte nur einen Draft-PR autorisiert. Der spätere Merge und
+  die Validierung sind unten im aktuellen Delivery-Update dokumentiert.
 - Vollständige Component-Builds und Connector-Runtime-Matrizen wurden nicht
   ausgeführt, weil ihre Downloads und Runtime-Umgebungen weiter reichen als die
   hier geänderten Provenance- und Workflow-Contracts.
@@ -376,10 +378,58 @@ Hosted-Analyse. Der Source-Remediation-Commit
 `codeSmells` war `0`, und die API-Abfrage meldete insgesamt `0` offene New
 Issues. Die GitHub-Checksuite für diesen exakten Head war terminal, ohne
 ausstehende oder erfolglose Checks. Draft-Parent-PR
-[#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) bleibt
-gegen `master` offen.
+[#280](https://github.com/Easton97-Jens/ModSecurity-conector/pull/280) war zu
+diesem historischen Zeitpunkt gegen `master` offen; sein späterer Merge ist
+unten dokumentiert.
 
 Diese Fakten gehen diesem reinen Dokumentations-Follow-up-Commit voraus, der
-keine selbstreferenzielle finale SHA beansprucht. Es erfolgten und werden
-weder Merge noch Auto-Merge, Parent-Gitlink-Update oder Framework/MRTS-Delivery
-behauptet.
+keine selbstreferenzielle finale SHA beansprucht. Zu diesem historischen
+Zeitpunkt waren weder Merge noch Auto-Merge, Parent-Gitlink-Update oder
+Framework/MRTS-Delivery erfolgt oder behauptet.
+
+## Aktueller Delivery-Update nach #280
+
+Die vorstehenden Delivery-Angaben sind historisch, soweit sie PR #280 als
+offen beschreiben. PR #280 wurde in den geschützten `master` unter
+`7e057a27b5ea068cae073b48f0fc8de6b33083b5` gemergt. Die resultierenden
+Master-Checks liefen erfolgreich durch. Der geschützte `master`-
+`validate_only`-Run
+[`31777704809`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31777704809)
+bestand ebenfalls: Der Validator wählte Candidate
+`a65eb889dc663d9940215bc4f18f52e56587d8a6`, während das Publizieren
+übersprungen wurde.
+
+Der anschließende normale Updater-Run
+[`31777868704`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31777868704)
+löste denselben Candidate auf und validierte ihn. Sein Publisher erzeugte
+sicher den unveränderten Draft-PR [#281](https://github.com/Easton97-Jens/ModSecurity-conector/pull/281)
+mit Head `9dd5d6a0ea5bedce7318eca941227b32d5aefe76` und schlug anschließend
+bei der Identitätsprüfung fail-closed fehl. Ursache war, dass
+`gh api --jq '.auto_merge'` JSON-`null` als leeren Shell-Wert ausgab und die
+Prüfung auf deaktiviertes Auto-Merge dadurch fälschlich fehlschlug. PR #281
+wurde anschließend extern am `2026-08-14T07:14:48Z` mit Head
+`9dd5d6a0ea5bedce7318eca941227b32d5aefe76` und Merge/Master-SHA
+`8d416239ea8920c45f07ce2c39daab5f4e44fe5e` gemergt. Alle PR-Checks
+einschließlich SonarCloud sowie die aufgeführten Master-Push-Workflows
+bestanden.
+
+Die lokale Korrektur normalisiert die `.auto_merge`-Abfrage in allen drei
+Updater-Identitätsprüfungen: `update-submodules.yml`,
+`update-python-version.yml` und `update-go-version.yml`. Die finale Abfrage
+akzeptiert ausschließlich vorhandenes JSON-`null`:
+`if (has("auto_merge") and (.auto_merge == null)) then "null" else
+"auto-merge-present" end`. Ein fehlendes Feld, `false`, der String `"null"`,
+ein Objekt oder jeder andere Wert wird abgelehnt. Die lokale Validierung
+bestand mit 28 fokussierten CI-Security-Tests sowie
+`make check-ci-security-contract` (90 bestanden, 4 erwartete
+Capability-Skips). `/usr/bin/jq`-Vektoren ergaben einmal `null` und viermal
+`auto-merge-present` für die abgelehnten Fälle; die reale PR-#281-Abfrage mit
+dem finalen Ausdruck ergab `null`. Das abschließende eingeschränkte
+`git diff --check` bestand. Für die Korrektur wurden keine Hosted-Checks oder
+kein Merge beobachtet.
+
+`FND-PARENT-0122` bleibt in diesem Record offen. Die fünf masterweiten
+`cpp:S5945`-Issues in `common/scripts/modsecurity_targeted_eval.cc` stammen
+aus der Zeit vor PR #280 und sind von dieser Änderung unabhängig; dieser
+Record behauptet weder ihre Behebung noch eine Reduktion der masterweiten
+Sonar-Issue-Anzahl auf null.
