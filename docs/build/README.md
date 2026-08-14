@@ -199,31 +199,43 @@ passing it through the required `--namespace-parent` argument. The trusted
 launcher rejects any other topology: the supplied parent must be an empty,
 non-symlink direct child of root-owned sticky `/tmp` with that exact ownership
 and mode. Trusted root-side setup then enters a private mount and PID
-namespace. It first makes mount propagation `rprivate`, exposes the Parent and
-Framework source trees (including `.git`) only through non-recursive read-only,
-`nosuid,nodev` mounts, and exposes only the physical validator `external`
-directory, the exact child of the physical `--write-root`, through a writable
-`nosuid,nodev` mount. The fixed logical mount root and its `source` and
-`external` placeholders are each `root:modsecurity-validator` mode `0750`;
-they contain only namespace-view names. The physical write root remains
-`root:root` mode `0711`, and its exact physical `external` child remains
-validator-owned mode `0700`. Parent, Framework, and supported output are
-presented to the candidate through those logical namespace views; unrelated
-ambient host paths are not claimed to be absent. It is PID 1 of that namespace
-and its completion is handled before the namespace lifecycle ends, guaranteeing
-no candidate stragglers. Teardown uses neither lazy unmount nor `rmtree`: the
-helper removes only its exact empty `mount-root`, `source`, and `external`
-placeholders with non-recursive `rmdir`, and the workflow `EXIT` trap likewise
-uses non-recursive `rmdir` for the trusted namespace parent. Root-side host
-verification follows outside the candidate namespace.
-The locally implemented narrow repair mounts a fresh private `proc` filesystem at `/proc`
-inside PID 1 after the mount namespace is already `rprivate`, with
-`readonly,nosuid,nodev,noexec`. Root performs that mount before setting
-`PR_SET_NO_NEW_PRIVS` and dropping the validator identity, then unmounts it and
-restores the prior `/proc` arrangement before the namespace exits. Its sole
-purpose is to make the PID-local `/proc` lookup used by LeakSanitizer (LSan)
-available; it is not a claim of full host or kernel isolation. Hosted
-validation remains pending, as does finding closure.
+namespace. It makes mount propagation `rprivate` and creates a fresh private
+`tmpfs` jail. It binds the Parent and Framework source tree (including `.git`)
+non-recursively and read-only at `/source`, and binds only the exact validator
+output child at `/external`; the latter is the only validator-writable
+location. `/guard` is a root-owned, non-writable logical guard. The jail root
+is remounted read-only after setup. It exposes only the read-only runtime
+directories `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, and only the exact
+`actions/setup-python` runtime below
+`/opt/hostedtoolcache/Python/<version>/<architecture>`, plus the minimal
+required read-only `/etc` material. The launcher accepts only the resolved
+non-symlink `<version>/x64` subtree and bind-mounts that exact subtree
+read-only before candidate code starts. The hosted runner may manage the
+source directory with permissive host permissions, but neither the host `/opt`
+tree nor another host alias is exposed inside the jail. It mounts a
+fresh read-only `proc`
+filesystem at jailed `/proc` with `nosuid,nodev,noexec` and constructs a
+private `/dev` containing only `null` and `urandom`.
+
+Inside the already read-only `/usr` mount, the launcher resolves the fixed
+`/usr/bin/gcc` and `/usr/bin/g++` paths and accepts their final targets only as
+executable regular files still under that mount. It passes the resolved paths
+to the candidate through the explicit `CC` and `CXX` environment variables.
+`/etc/alternatives` is intentionally not exposed, so the candidate cannot
+select a compiler through the host alternatives mechanism.
+
+The trusted launcher enters that jail with `chroot` before executing candidate
+code. It closes inherited descriptors other than standard input, output, and
+error before dropping to `modsecurity-validator`, so pre-opened host directory
+or file descriptors cannot bypass the path allowlist. Consequently the
+candidate has no host-path alias for `/tmp`, `/var`, `/home`, `/root`, `/run`,
+`/sys`, or `/dev/shm`; source and output are available only through `/source`
+and `/external`. It is PID 1 of that namespace and its completion is handled
+before the namespace lifecycle ends, guaranteeing no candidate stragglers.
+Teardown uses neither lazy unmount nor `rmtree`: the helper removes only its
+exact empty placeholders with non-recursive `rmdir`, and the workflow `EXIT`
+trap likewise uses non-recursive `rmdir` for the trusted namespace parent.
+Root-side host verification follows outside the candidate namespace.
 The root workflow invokes the trusted launcher through `sudo -n python3`; the
 launcher fail-closed sets `PR_SET_NO_NEW_PRIVS`, clears supplementary groups,
 drops to the `modsecurity-validator` GID and UID, and uses `execve` with an
@@ -236,50 +248,53 @@ host-level traversal or read grant merely to reach `RUNNER_TEMP`. Parent,
 Framework, and supported output are presented only through those namespace
 views; root-side source inventory and root-side output verification constrain
 legitimate output to the exact physical `--write-root`/`external` containment.
-Ambient unrelated host paths remain outside this scoped contract. It is not
-full host or kernel security isolation and does not prove that malicious
-candidate code cannot use unrelated globally writable host facilities.
+The validator intentionally retains network access because hash-pinned `pip`
+installation is a functional requirement; this is not a claim of network or
+egress isolation. The jail is a filesystem and inherited-descriptor boundary,
+not a claim of complete host or kernel isolation.
 
 Hosted run `31484727901` is historical failure evidence for the earlier ACL
 precheck. Hosted run `31488072111` is also failure-only historical evidence: on
 `5d7d7bbbbb968aa9755d3c0c67a09d8acd651c77`, resolver and sandbox preparation
 succeeded, but the isolated quick check failed with five no-CRS normalization
 errors at a runtime-directory traversal denial. The publisher was skipped. No
-successful rerun, current-head scan, or delivery result is claimed here.
+successful rerun, current-head scan, or delivery result is claimed for those
+historical failures.
 
-Final local evidence for this uncommitted repair is bounded: the focused
-`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v` namespace/workflow suites
-passed 55 tests with three expected capability skips, and
-`PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` passed the same
-55/3 suite result plus its `validate_only` actionlint, zizmor, and gitleaks-lock
-checks. `make check-bilingual-docs`, no-bytecode `py_compile`, and `git diff
---check` also passed locally. The capability skips mean this evidence is not a
-privileged mount or validator-identity runtime proof. It does not establish a
-current-head security scan, hosted validation, PR result, SonarQube result,
-merge, or delivery.
+Local regression and static-contract evidence for this remediation is recorded
+with the delivery work; this guide does not assign it a final count. It is not
+a privileged hosted-mount or validator-identity runtime proof. A bounded
+GitHub-hosted `workflow_dispatch` `validate_only` proof was observed in run
+[`31776302498`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31776302498)
+at exact head `c7bbc70bcf729d148a7d87f45ca352ae7247416b`: the validator
+`make quick-check`, postverification, and enforcement succeeded. The publisher
+was skipped and created no output pull request, commit, or branch. This does
+not establish a SonarQube result, PR merge, or closure of `FND-PARENT-0122`,
+which remains open.
 
 The manual `workflow_dispatch` input `validate_only: true` is a
-non-publishing exact-ref proof/revalidation path with exactly two trusted refs
-in the canonical non-fork Parent repository
-`Easton97-Jens/ModSecurity-conector`: the task-owned/reviewed
-`fix/ci-enforce-readonly-submodule-validation` branch before merge for its
-exact-head proof, and protected Parent `master` only after that repair is
-merged for resulting-master sandbox revalidation; the latter additionally
-requires GitHub `github.ref_protected == true`. It is not a general facility to
-execute arbitrary untrusted Parent refs or pull requests. Each allowed path
-checks out its dispatch event's `github.sha` for resolution and validation,
+non-publishing exact-ref proof/revalidation path with exactly two trusted
+refs in the canonical non-fork Parent repository
+`Easton97-Jens/ModSecurity-conector`: the reviewed repair branch
+`fix/ci-enforce-readonly-submodule-validation` before merge for its exact-head
+proof, and protected Parent `master` after that repair is merged for
+resulting-master sandbox revalidation; the latter additionally requires GitHub
+`github.ref_protected == true`. It is not a general facility to execute
+arbitrary untrusted Parent refs or pull requests. Each allowed path checks out
+its dispatch event's `github.sha` for resolution and validation,
 forces the validator to run even when the resolved Framework candidate already
 equals the dispatched Parent gitlink, and makes the publisher ineligible. It
 cannot create or update a gitlink branch or pull request.
 
 This is not an untrusted Parent pull-request/ref sandbox: at both allowed refs,
 the Parent workflow and helper SHA are trusted before root-side setup, while
-the Framework candidate remains untrusted code governed by the sandbox. A
-hosted success would be functional evidence only for the individual reviewed
-repair SHA or resulting protected-master SHA. The two-ref allowlist is a
-guardrail; the master path must also satisfy `github.ref_protected == true`.
-Neither condition protects against a hostile same-repository writer absent
-branch protection or environment approval.
+the Framework candidate remains untrusted code governed by the sandbox. Run
+`31776302498` is bounded functional evidence only for
+`c7bbc70bcf729d148a7d87f45ca352ae7247416b`; it is not evidence of SonarQube,
+a PR merge, or finding closure. The two-ref allowlist is a guardrail; the
+master path must also satisfy `github.ref_protected == true`. Neither condition
+protects against a hostile same-repository writer absent branch protection or
+environment approval.
 
 The protected-master validation-only revalidation is not the authorized
 post-merge Parent updater dispatch. That separate dispatch runs on `master`
@@ -316,11 +331,11 @@ including in-root absolute targets, lexical escapes to source, guard, or other
 paths, special objects, and source-tree hard links.
 
 This narrow output rule models only the contained-relative shape associated
-with `checks/common.pem` in hosted run `31496603345`; a fresh exact-head hosted
-run must prove that the actual link target conforms. It records the verifier
-contract only; it is not a successful hosted run, current-head scan, SonarQube
-result, PR result, merge, delivery, or proof of full host isolation.
-`FND-PARENT-0122` remains open.
+with `checks/common.pem` in hosted run `31496603345`. The exact-head hosted
+`validate_only` run `31776302498` completed the validator quick-check,
+postverification, and enforcement successfully, but remains limited to that
+run and head. It is not a SonarQube result, PR merge, delivery, or proof of
+full host isolation. `FND-PARENT-0122` remains open.
 
 This describes the implemented workflow contract and its bounded local evidence,
 not evidence of a hosted run, current-head security scan, published update, or

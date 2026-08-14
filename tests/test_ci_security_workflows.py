@@ -78,6 +78,27 @@ READONLY_SUBMODULE_NAMESPACE_COMPLETE = "READONLY_SUBMODULE_VALIDATION_NAMESPACE
 READONLY_SUBMODULE_VERIFY_GATE = (
     "if: ${{ always() && steps.prepare-readonly-candidate-sandbox.outcome == 'success' }}"
 )
+SUBMODULE_CANDIDATE_STATE_HELPER = "ci/tools/validate-submodule-candidate-state.py"
+SUBMODULE_CANDIDATE_BASELINE_CALL = " ".join(
+    (
+        f"python3 {SUBMODULE_CANDIDATE_STATE_HELPER}",
+        "capture-parent-baseline",
+        '--parent-root "$GITHUB_WORKSPACE"',
+        '--github-env "$GITHUB_ENV"',
+    )
+)
+SUBMODULE_CANDIDATE_STATE_CALL = " ".join(
+    (
+        f"sudo -n python3 {SUBMODULE_CANDIDATE_STATE_HELPER}",
+        "validate",
+        '--parent-root "$GITHUB_WORKSPACE"',
+        '--submodule-path "$SUBMODULE_PATH"',
+        '--current-gitlink-sha "$CURRENT_GITLINK_SHA"',
+        '--candidate-sha "$CANDIDATE_SHA"',
+        '--expected-parent-head "$EXPECTED_PARENT_HEAD"',
+        '--expected-parent-hooks-sha256 "$EXPECTED_PARENT_HOOKS_SHA256"',
+    )
+)
 SUBMODULE_VALIDATE_ONLY_INPUT = """\
   workflow_dispatch:
     inputs:
@@ -94,6 +115,9 @@ SUBMODULE_VALIDATE_ONLY_EVENT = (
 SUBMODULE_VALIDATE_ONLY_REPOSITORY = "github.repository == 'Easton97-Jens/ModSecurity-conector'"
 SUBMODULE_VALIDATE_ONLY_BRANCH = (
     "github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation'"
+)
+SUBMODULE_VALIDATE_ONLY_RETIRED_PR280_BRANCH = (
+    "github.ref == 'refs/heads/agent/framework-apr-util-submodule-validation'"
 )
 SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG = "github.ref_protected == true"
 SUBMODULE_VALIDATE_ONLY_PROTECTED_MASTER = (
@@ -135,6 +159,10 @@ SUBMODULE_PUBLISHER_GATE = (
     "needs.resolve-submodule-update.outputs.changed == 'true' && "
     "needs.resolve-submodule-update.outputs.validation_only == 'false' && "
     "needs.validate-submodule-update.result == 'success'"
+)
+SUBMODULE_LOCAL_GIT_CONTRACT_TESTS = (
+    "tests.test_validate_submodule_candidate_state",
+    "tests.test_update_submodules_local_git",
 )
 
 WRITE_PERMISSION_KEYS = {
@@ -198,6 +226,8 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         "Verify candidate source inventory and external outputs",
         READONLY_SUBMODULE_VERIFY_GATE,
         "--verify",
+        SUBMODULE_CANDIDATE_BASELINE_CALL,
+        SUBMODULE_CANDIDATE_STATE_CALL,
         "VALIDATOR SOURCE MUTATION BLOCKED",
         "VALIDATOR WRITE-ROOT CONTRACT BLOCKED",
         "Enforce isolated candidate result after verification",
@@ -224,6 +254,11 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         "bash --noprofile --norc -ceu",
         'make PYTHON="$PYTHON" BUILD_ROOT=',
         "rm -rf",
+        "git status --porcelain --untracked-files=all",
+        "grep -v",
+        "git reset --hard",
+        "git clean",
+        "|| true",
     )
     for term in forbidden:
         if term in validator:
@@ -240,6 +275,10 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         errors.append("validator job must not receive credentials")
     if "--namespace-parent /tmp" in validator or "--namespace-parent /var/tmp" in validator:
         errors.append("namespace helper must not use a public namespace parent")
+    if normalized.count(SUBMODULE_CANDIDATE_BASELINE_CALL) != 1:
+        errors.append("candidate validation must capture exactly one immutable Parent baseline")
+    if normalized.count(SUBMODULE_CANDIDATE_STATE_CALL) != 2:
+        errors.append("candidate validation must run exactly before and after the namespace")
 
     verification_step = validator.partition(
         "- name: Verify candidate source inventory and external outputs"
@@ -255,15 +294,35 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         setup_index < namespace_index < verification_index < result_index
     ):
         errors.append("root preparation, namespace candidate, physical verification, and result gate must be ordered")
+    baseline_index = normalized.find(SUBMODULE_CANDIDATE_BASELINE_CALL)
+    checkout_index = normalized.find("checkout --detach")
+    first_state_index = normalized.find(SUBMODULE_CANDIDATE_STATE_CALL)
+    second_state_index = normalized.find(SUBMODULE_CANDIDATE_STATE_CALL, first_state_index + 1)
+    if min(baseline_index, checkout_index, first_state_index, second_state_index) < 0 or not (
+        baseline_index < checkout_index < first_state_index < setup_index < second_state_index < result_index
+    ):
+        errors.append("candidate-state validation must bracket the isolated namespace")
     return errors
 
 
 def readonly_namespace_runner_errors(runner: str) -> list[str]:
-    """Return violations of the trusted private namespace launcher contract."""
+    """Return violations of the trusted private mount/PID/chroot launcher contract."""
 
     errors: list[str] = []
     required = (
         'PROCFS_TARGET = Path("/proc")',
+        'JAIL_SOURCE = Path("/source")',
+        'JAIL_EXTERNAL = Path("/external")',
+        'JAIL_GUARD = Path("/guard")',
+        'JAIL_DEV = Path("/dev")',
+        "JAIL_RUNTIME_DIRECTORIES =",
+        'JAIL_HOSTED_PYTHON_ROOT = Path("/opt/hostedtoolcache/Python")',
+        'JAIL_HOSTED_PYTHON_ARCHITECTURE = "x64"',
+        'JAIL_COMPILER_ROOT = Path("/usr")',
+        'JAIL_C_COMPILER = Path("/usr/bin/gcc")',
+        'JAIL_CXX_COMPILER = Path("/usr/bin/g++")',
+        "JAIL_RUNTIME_ETC_FILES =",
+        'JAIL_FORBIDDEN_PATH_COMPONENTS = ("tmp", "var", "home", "root", "run", "sys")',
         "CLONE_NEWNS | CLONE_NEWPID",
         "MS_NOEXEC = 8",
         'parser.add_argument("--namespace-parent", required=True)',
@@ -286,22 +345,48 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         "if LIBC.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:",
         "_set_no_new_privs()",
         '_mount(None, Path("/"), MS_REC | MS_PRIVATE)',
+        '_mount("tmpfs", mount_root, MS_NOSUID | MS_NODEV | MS_NOEXEC, "tmpfs")',
+        '_mount("tmpfs", dev_view, MS_NOSUID | MS_NOEXEC, "tmpfs")',
+        "_create_jail_device(dev_view / \"null\", 1, 3, 0o666)",
+        "_create_jail_device(dev_view / \"urandom\", 1, 9, 0o444)",
         "_mount(str(source), source_view, MS_BIND)",
         "MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV",
         "_mount(str(external), external_view, MS_BIND)",
         "MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV",
         "_verify_mount(source_view, readonly=True)",
         "_verify_mount(external_view, readonly=False)",
-        "_verify_procfs(PROCFS_TARGET)",
+        "_mount(None, mount_root, MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC)",
+        "_verify_mount(mount_root, readonly=True, require_noexec=True)",
+        "_hosted_python_runtime_root(python)",
+        "_validate_hosted_python_runtime(runtime_root)",
+        '_fixed_runtime_executable(JAIL_C_COMPILER, "C compiler")',
+        '_fixed_runtime_executable(JAIL_CXX_COMPILER, "C++ compiler")',
+        "metadata.st_uid != 0",
+        "stat.S_IWGRP | stat.S_IWOTH | stat.S_ISUID | stat.S_ISGID",
+        "relative.parts[1] != JAIL_HOSTED_PYTHON_ARCHITECTURE",
+        "hosted_python_root.relative_to(JAIL_ROOT).parts",
+        "_bind_readonly(hosted_python_root, hosted_python_target)",
+        "os.chdir(jail_root)",
+        'os.chroot(".")',
+        "_close_unapproved_descriptors({0, 1, 2, proc_ready_write})",
+        "_replace_standard_input()",
+        "_enter_jail(layout.root)",
         "os.setgroups([]); os.setgid(gid); os.setuid(uid); os.chdir(source)",
         "os.execve(\"/bin/bash\"",
         "READONLY_SUBMODULE_VALIDATION_NAMESPACE_COMPLETE",
         "if _mountinfo_for(mount_root) != before:",
         "os.rmdir(path)",
         'test "$PWD" = "$GITHUB_WORKSPACE"',
-        "/proc/self/status)",
+        'cap_eff=""; no_new_privs=""',
+        "done < /proc/self/status",
         "0000000000000000",
         "NoNewPrivs:",
+        "for component in JAIL_FORBIDDEN_PATH_COMPONENTS",
+        "for target in /tmp /var /home /root /run /sys /dev/shm",
+        "test -c /dev/null; test -c /dev/urandom; test ! -w /dev",
+        "validator sees an unexpected device",
+        'test -e "$descriptor" || continue',
+        "validator retained an inherited descriptor",
         'if /usr/bin/mount -o remount,rw "$GITHUB_WORKSPACE"',
         '"HOME": str(root / "home")',
         '"TMPDIR": str(root / "tmp")',
@@ -310,6 +395,8 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         '"PYTHONPYCACHEPREFIX": str(root / "pycache")',
         '"PYTHONUSERBASE": str(root / "python-user-base")',
         '"PYTHONPATH": str(root / "python-packages")',
+        '"CC": str(compiler)',
+        '"CXX": str(cxx_compiler)',
         '"GIT_CONFIG_GLOBAL": str(root / "gitconfig")',
         '"GITHUB_ACTIONS": "true"',
         '"BUILD_ROOT": str(root / "build")',
@@ -320,6 +407,10 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         '"SOURCE_ROOT": str(root / "source")',
         '"MATRIX_ROOT": str(root / "matrix")',
         ".readonly-validator-write-probe",
+        ".readonly-validator-runtime-write-probe",
+        ".readonly-validator-runtime-directory-probe",
+        ".readonly-validator-runtime-rename-probe",
+        "/dev/.readonly-validator-device-probe",
         "validator obtained sudo",
         'exec make PYTHON="$PYTHON" quick-check',
         '--target "$PYTHONPATH" --requirement "$GITHUB_WORKSPACE/ci/requirements/update-submodules-validation-linux-x86_64.txt"',
@@ -327,12 +418,14 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
     for term in required:
         if term not in runner:
             errors.append(f"missing {term}")
-    for term in ("tempfile", "os.chmod(", 'Path("/tmp")', "os.umask(", "BaseException"):
+    for term in ("tempfile", "os.chmod(", "os.umask(", "BaseException"):
         if term in runner:
             errors.append(f"namespace runner must not use {term!r}")
     if 'exec make PYTHON="$PYTHON" BUILD_ROOT=' in runner:
         errors.append("namespace runner must pass BUILD_ROOT through the environment")
-    forbidden = (
+    if 'Path("/opt"),' in runner:
+        errors.append("namespace runner must never expose the broad host /opt tree")
+    for term in (
         "MS_REC | MS_BIND",
         "MNT_DETACH",
         "shutil.",
@@ -341,21 +434,18 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         "shell=True",
         "os.system",
         "secrets.token_hex",
-    )
-    for term in forbidden:
+        "awk ",
+    ):
         if term in runner:
             errors.append(f"namespace runner must not use {term}")
     if runner.count("_mount(str(source), source_view, MS_BIND)") != 1:
         errors.append("namespace runner must create exactly one non-recursive source bind")
     if runner.count("_mount(str(external), external_view, MS_BIND)") != 1:
         errors.append("namespace runner must create exactly one non-recursive output bind")
-    if runner.count("_umount(external_view); _umount(source_view)") != 1:
-        errors.append("namespace runner must synchronously unmount both exact views")
-
-    if runner.count('PROCFS_TARGET = Path("/proc")') != 1 or runner.count(
-        'Path("/proc")'
-    ) != 1:
-        errors.append("namespace runner must export one immutable literal procfs target")
+    if runner.count("_teardown_jail_layout(layout)") != 1:
+        errors.append("namespace runner must synchronously unmount the complete private jail")
+    if runner.count('PROCFS_TARGET = Path("/proc")') != 1:
+        errors.append("namespace runner must export one immutable literal candidate procfs target")
 
     try:
         syntax_tree = ast.parse(runner)
@@ -370,84 +460,72 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
     }
     pid1_candidate = functions.get("_run_pid1_candidate", "")
     namespace_child = functions.get("_namespace_child", "")
+    jail_builder = functions.get("_build_jail_layout", "")
+    descriptor_closer = functions.get("_close_unapproved_descriptors", "")
     if not pid1_candidate:
         errors.append("namespace runner must retain the PID-one candidate helper")
     if not namespace_child:
         errors.append("namespace runner must retain the namespace child launcher")
         return errors
-    if pid1_candidate.count("ready_acknowledged = False") != 1 or pid1_candidate.count(
-        "ready_acknowledged = True"
-    ) != 1:
-        errors.append("namespace runner must transfer procfs cleanup ownership exactly once")
+    if not jail_builder or "_mount(\"tmpfs\", mount_root" not in jail_builder:
+        errors.append("namespace runner must construct a private tmpfs jail before candidate execution")
+    if (
+        "_mount(None, source_view, MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV)"
+        not in jail_builder
+    ):
+        errors.append("namespace runner must remount the source view read-only inside the jail")
+    if (
+        "_mount(None, external_view, MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV)"
+        not in jail_builder
+    ):
+        errors.append("namespace runner must retain nodev on the sole writable external view")
+    if not descriptor_closer or "os.scandir(\"/proc/self/fd\")" not in descriptor_closer:
+        errors.append("namespace runner must close unapproved inherited descriptors through fresh procfs")
 
     proc_mount = re.compile(
-        r'''_mount\(\s*["']proc["']\s*,\s*PROCFS_TARGET\s*,\s*'''
+        r'''_mount\(\s*["']proc["']\s*,\s*layout\.proc\s*,\s*'''
         r"MS_RDONLY\s*\|\s*MS_NOSUID\s*\|\s*MS_NODEV\s*\|\s*MS_NOEXEC"
         r'''\s*,\s*["']proc["']\s*\)'''
     )
     proc_match = proc_mount.search(pid1_candidate)
     if proc_match is None:
-        errors.append("namespace runner must mount a fresh readonly nosuid nodev noexec procfs at /proc")
+        errors.append("namespace runner must mount a fresh readonly nosuid nodev noexec procfs inside the jail")
         return errors
 
     fork_index = namespace_child.find("child = os.fork()")
+    layout_index = namespace_child.find("layout = _build_jail_layout(")
     helper_call_index = namespace_child.find("_run_pid1_candidate(", fork_index)
-    verifier_index = pid1_candidate.find("_verify_procfs(PROCFS_TARGET)")
+    proc_verify_index = pid1_candidate.find("_verify_procfs(layout.proc)")
+    jail_index = pid1_candidate.find("_enter_jail(layout.root)")
+    stdin_index = pid1_candidate.find("_replace_standard_input()")
+    descriptor_index = pid1_candidate.find("_close_unapproved_descriptors({0, 1, 2, proc_ready_write})")
     readiness_write_index = pid1_candidate.find('os.write(proc_ready_write, b"1")')
-    readiness_transfer_index = pid1_candidate.find("ready_acknowledged = True")
     no_new_privs_index = pid1_candidate.find("_set_no_new_privs()")
     candidate_entry_index = pid1_candidate.find("candidate_entry(*candidate_arguments)")
     if min(
         fork_index,
+        layout_index,
         helper_call_index,
-        verifier_index,
+        proc_verify_index,
+        jail_index,
+        stdin_index,
+        descriptor_index,
         readiness_write_index,
-        readiness_transfer_index,
         no_new_privs_index,
         candidate_entry_index,
     ) < 0 or not (
-        fork_index < helper_call_index
-        and proc_match.start()
-        < verifier_index
-        < readiness_write_index
-        < readiness_transfer_index
-        < no_new_privs_index
-        < candidate_entry_index
+        layout_index < fork_index < helper_call_index
+        and proc_match.start() < proc_verify_index < jail_index < stdin_index < descriptor_index
+        < readiness_write_index < no_new_privs_index < candidate_entry_index
     ):
-        errors.append("private procfs readiness ownership must transfer before no_new_privs and candidate identity drop")
-    if pid1_candidate.count("_umount(PROCFS_TARGET)") != 1 or namespace_child.count(
-        "_umount(PROCFS_TARGET)"
-    ) != 1:
-        errors.append("namespace runner must retain guarded child cleanup and parent procfs restoration")
-    child_proc_cleanup = re.search(
-        r'''if proc_mounted and not ready_acknowledged:\s+try:\s+_umount\(PROCFS_TARGET\)\s+'''
-        r'''if _mountinfo_for\(PROCFS_TARGET\) != before_proc:''',
-        pid1_candidate,
-    )
-    parent_proc_restoration = re.search(
-        r'''finally:\s+if proc_mounted:\s+_umount\(PROCFS_TARGET\)\s+'''
-        r'''if _mountinfo_for\(PROCFS_TARGET\) != before_proc:''',
-        namespace_child,
-    )
-    if child_proc_cleanup is None:
-        errors.append("namespace runner must synchronously clean up procfs if PID-one setup fails")
-    if parent_proc_restoration is None:
-        errors.append("namespace runner must synchronously restore procfs after the PID child exits")
+        errors.append("jail, descriptor closure, readiness, no_new_privs, and candidate order is unsafe")
     wait_index = namespace_child.find("os.waitpid(child, 0)")
-    readiness_read_index = namespace_child.find(
-        'proc_mounted = os.read(proc_ready_read, 1) == b"1"'
-    )
-    if parent_proc_restoration is not None and (
-        readiness_read_index < 0
-        or wait_index < 0
-        or not readiness_read_index < wait_index < parent_proc_restoration.start()
+    teardown_index = namespace_child.find("_teardown_jail_layout(layout)")
+    readiness_read_index = namespace_child.find('proc_ready = os.read(proc_ready_read, 1) == b"1"')
+    if min(readiness_read_index, wait_index, teardown_index) < 0 or not (
+        readiness_read_index < wait_index < teardown_index
     ):
-        errors.append("namespace runner must acknowledge readiness and restore /proc only after the PID child exits")
-    if "before_proc = _mountinfo_for(PROCFS_TARGET)" not in namespace_child or (
-        "if _mountinfo_for(PROCFS_TARGET) != before_proc:" not in namespace_child
-        or "if _mountinfo_for(PROCFS_TARGET) != before_proc:" not in pid1_candidate
-    ):
-        errors.append("namespace runner must verify /proc mount restoration after synchronous cleanup")
+        errors.append("namespace runner must wait for PID one before tearing down the private jail")
     return errors
 
 
@@ -590,6 +668,10 @@ def update_submodule_validate_only_errors(text: str) -> list[str]:
         errors.append("validate_only must be one exact optional-false boolean input")
     if text.count(SUBMODULE_VALIDATE_ONLY_PROTECTED_FLAG) != 4:
         errors.append("protected-master validation must have four exact ref-protection checks")
+    if text.count(SUBMODULE_VALIDATE_ONLY_BRANCH) != 4:
+        errors.append("repair-branch validation admission must have four exact branch checks")
+    if SUBMODULE_VALIDATE_ONLY_RETIRED_PR280_BRANCH in text:
+        errors.append("retired PR #280 validation-only branch must not be admitted")
 
     jobs = job_blocks(text)
     required_jobs = {
@@ -1291,6 +1373,41 @@ jobs:
             for checkout_step in checkout_steps:
                 self.assertIn("persist-credentials: false", checkout_step, path.name)
 
+    def test_pr_apr_util_provenance_job_is_unconditional_and_read_only(self) -> None:
+        workflow = self.workflow("ci-security-workflow-lint.yml")
+        jobs = self.jobs("ci-security-workflow-lint.yml")
+        job = jobs["apr-util-provenance"]
+
+        self.assertIn("  pull_request:\n", workflow)
+        self.assertNotIn("    branches:", workflow.partition("  pull_request:\n")[2].partition("  push:")[0])
+        self.assertNotIn("if:", job)
+        self.assertEqual(job_permissions(job), {"contents": "read"})
+        self.assertNotIn("secrets.", job)
+        self.assertNotIn("github.token", job)
+        checkout_steps = checkout_step_blocks(job)
+        self.assertEqual(len(checkout_steps), 1)
+        self.assertIn("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7", checkout_steps[0])
+        self.assertIn("submodules: recursive", checkout_steps[0])
+        self.assertIn("persist-credentials: false", checkout_steps[0])
+        self.assertIn(
+            "python3 -m unittest -v tests.test_framework_apr_util_provenance tests.test_apr_util_static_contract",
+            job,
+        )
+        self.assertIn(
+            "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0",
+            job,
+        )
+        self.assertIn("id: setup-python", job)
+        self.assertIn("python-version-file: .python-version", job)
+        self.assertIn("check-latest: false", job)
+        self.assertIn(
+            'python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"',
+            job,
+        )
+        self.assertNotIn("pip ", job)
+        self.assertNotIn("curl ", job)
+        self.assertNotIn("wget ", job)
+
     def test_trusted_nginx_root_broker_has_no_pr_code_at_root_boundary(self) -> None:
         text = self.workflow("nginx-root-broker.yml")
         self.assertIn("workflow_call:", text)
@@ -1517,6 +1634,18 @@ jobs:
             self.assertEqual(checkout_step_blocks(job), [], workflow_name)
             self.assertNotIn("run:", job, workflow_name)
 
+    def test_ci_security_contracts_run_the_local_submodule_git_regressions(self) -> None:
+        workflow = self.workflow("ci-security-workflow-lint.yml")
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        contract_target = makefile.partition("check-ci-security-contract:")[2].partition(
+            "\n\n"
+        )[0]
+        for module in SUBMODULE_LOCAL_GIT_CONTRACT_TESTS:
+            with self.subTest(module=module):
+                self.assertIn(module, workflow)
+                self.assertIn(module, contract_target)
+        self.assertTrue((ROOT / SUBMODULE_CANDIDATE_STATE_HELPER).is_file())
+
     def test_update_submodules_separates_validation_from_publishing(self) -> None:
         workflow = self.workflow("update-submodules.yml")
         jobs = job_blocks(workflow)
@@ -1574,7 +1703,14 @@ jobs:
         self.assertIn("merge-base --is-ancestor", validator)
         self.assertIn("checkout --detach", validator)
         self.assertIn("submodule update --init --recursive", validator)
-        self.assertIn("status --porcelain", validator)
+        self.assertIn(SUBMODULE_CANDIDATE_BASELINE_CALL, normalize_shell_script(validator))
+        self.assertEqual(normalize_shell_script(validator).count(SUBMODULE_CANDIDATE_STATE_CALL), 2)
+        self.assertNotIn("status --porcelain", validator)
+        self.assertNotIn("grep -v", validator)
+        self.assertNotIn("git reset --hard", validator)
+        self.assertNotIn("git clean", validator)
+        self.assertNotIn("|| true", validator)
+        self.assertTrue((ROOT / SUBMODULE_CANDIDATE_STATE_HELPER).is_file())
         dependency_lock = (
             ROOT / "ci" / "requirements" / "update-submodules-validation-linux-x86_64.txt"
         ).read_text(encoding="utf-8")
@@ -1588,6 +1724,26 @@ jobs:
         self.assertNotIn("GH_TOKEN", validator)
         self.assertNotIn("secrets.", validator)
         self.assertEqual(readonly_submodule_validator_errors(validator), [])
+
+        candidate_state_mutations = {
+            "missing immutable Parent baseline": (
+                "capture-parent-baseline",
+                "capture-parent-baseline-bypassed",
+            ),
+            "candidate state validated only once": (
+                "validate \\\n            --parent-root",
+                "validate-bypassed \\\n            --parent-root",
+            ),
+            "broad Parent status check restored": (
+                "sudo -n git -c core.hooksPath=/dev/null diff --check",
+                "git status --porcelain --untracked-files=all\n          sudo -n git -c core.hooksPath=/dev/null diff --check",
+            ),
+        }
+        for name, (original, replacement) in candidate_state_mutations.items():
+            with self.subTest(candidate_state_mutation=name):
+                self.assertIn(original, validator)
+                mutated = validator.replace(original, replacement, 1)
+                self.assertNotEqual(readonly_submodule_validator_errors(mutated), [])
 
         """Run the exact workflow prelude with a test-local sudo implementation."""
         workflow_payload = yaml.safe_load(self.workflow("update-submodules.yml"))
@@ -1711,12 +1867,12 @@ sudo -n chmod 0750 "$namespace_parent"
                 "_mount(str(source), source_view, MS_REC | MS_BIND)",
             ),
             "source loses read-only remount": (
-                "MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV",
-                "MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV",
+                "_mount(None, source_view, MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV)",
+                "_mount(None, source_view, MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV)",
             ),
             "output loses device restriction": (
-                "MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV",
-                "MS_BIND | MS_REMOUNT | MS_NOSUID",
+                "_mount(None, external_view, MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV)",
+                "_mount(None, external_view, MS_BIND | MS_REMOUNT | MS_NOSUID)",
             ),
             "candidate retains root identity": (
                 "os.setgroups([]); os.setgid(gid); os.setuid(uid); os.chdir(source)",
@@ -1762,7 +1918,7 @@ sudo -n chmod 0750 "$namespace_parent"
                 self.assertNotEqual(readonly_namespace_runner_errors(mutated_runner), [])
 
         proc_match = re.search(
-            r'''_mount\(\s*["']proc["']\s*,\s*PROCFS_TARGET\s*,\s*'''
+            r'''_mount\(\s*["']proc["']\s*,\s*layout\.proc\s*,\s*'''
             r"MS_RDONLY\s*\|\s*MS_NOSUID\s*\|\s*MS_NODEV\s*\|\s*MS_NOEXEC"
             r'''\s*,\s*["']proc["']\s*\)''',
             namespace_runner,
@@ -1770,104 +1926,32 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIsNotNone(proc_match)
         assert proc_match is not None
         proc_mount = proc_match.group(0)
-        proc_mutations = {
+        jail_mutations = {
             "private procfs constant is mutable to another target": (
                 'PROCFS_TARGET = Path("/proc")',
                 'PROCFS_TARGET = Path("/proc-unsafe")',
             ),
-            "private procfs is missing": proc_mount.replace('"proc"', '"none"', 1),
-            "private procfs has executable flags": proc_mount.replace("| MS_NOEXEC", "", 1),
-            "private procfs has the wrong mount target": proc_mount.replace(
-                "PROCFS_TARGET", 'Path("/proc")', 1
+            "private procfs is missing": (proc_mount, proc_mount.replace('"proc"', '"none"', 1)),
+            "private procfs has executable flags": (proc_mount, proc_mount.replace("| MS_NOEXEC", "", 1)),
+            "private jail root is missing": (
+                '_mount("tmpfs", mount_root, MS_NOSUID | MS_NODEV | MS_NOEXEC, "tmpfs")',
+                "pass",
             ),
-            "private procfs mounts before the PID child fork": "",
-            "private procfs verifier is missing": "",
-            "private procfs verifier runs after no-new-privileges": "",
-            "private procfs readiness ownership transfer is missing": "",
-            "private procfs readiness ownership transfers after no-new-privileges": "",
-            "private procfs child cleanup remains active after readiness": "",
-            "private procfs guarded child cleanup is missing": "",
-            "private procfs parent ignores readiness acknowledgement": "",
-            "private procfs parent restoration is missing": "",
-            "private procfs restoration proof is missing": "before_proc = []",
+            "candidate skips chroot": ('os.chroot(".")', "pass"),
+            "candidate keeps inherited descriptors": (
+                "_close_unapproved_descriptors({0, 1, 2, proc_ready_write})",
+                "pass",
+            ),
+            "candidate can retain host temp paths": (
+                "for target in /tmp /var /home /root /run /sys /dev/shm",
+                "for target in /source",
+            ),
+            "parent skips jail teardown": ("_teardown_jail_layout(layout)", "pass"),
         }
-        for name, replacement in proc_mutations.items():
+        for name, (original, replacement) in jail_mutations.items():
             with self.subTest(name=name):
-                if name == "private procfs constant is mutable to another target":
-                    original, mutated = replacement
-                    self.assertIn(original, namespace_runner)
-                    mutated_runner = namespace_runner.replace(original, mutated, 1)
-                elif name == "private procfs mounts before the PID child fork":
-                    helper_invocation_match = re.search(
-                        r"^        _run_pid1_candidate\(\n(?:^            .*\n)+^        \)$",
-                        namespace_runner,
-                        re.MULTILINE,
-                    )
-                    self.assertIsNotNone(helper_invocation_match)
-                    assert helper_invocation_match is not None
-                    helper_invocation = helper_invocation_match.group(0)
-                    relocated_invocation = "\n".join(
-                        line[4:] for line in helper_invocation.splitlines()
-                    )
-                    mutated_runner = namespace_runner.replace(helper_invocation, "", 1).replace(
-                        "    child = os.fork()",
-                        f"{relocated_invocation}\n    child = os.fork()",
-                        1,
-                    )
-                elif name == "private procfs verifier is missing":
-                    mutated_runner = namespace_runner.replace(
-                        "_verify_procfs(PROCFS_TARGET)", "", 1
-                    )
-                elif name == "private procfs verifier runs after no-new-privileges":
-                    mutated_runner = namespace_runner.replace(
-                        "_verify_procfs(PROCFS_TARGET)", "", 1
-                    ).replace(
-                        "_set_no_new_privs()",
-                        "_set_no_new_privs()\n        _verify_procfs(PROCFS_TARGET)",
-                        1,
-                    )
-                elif name == "private procfs readiness ownership transfer is missing":
-                    mutated_runner = namespace_runner.replace(
-                        "ready_acknowledged = True", "", 1
-                    )
-                elif name == "private procfs readiness ownership transfers after no-new-privileges":
-                    mutated_runner = namespace_runner.replace(
-                        "ready_acknowledged = True", "", 1
-                    ).replace(
-                        "_set_no_new_privs()",
-                        "_set_no_new_privs()\n        ready_acknowledged = True",
-                        1,
-                    )
-                elif name == "private procfs child cleanup remains active after readiness":
-                    mutated_runner = namespace_runner.replace(
-                        "if proc_mounted and not ready_acknowledged:",
-                        "if proc_mounted:",
-                        1,
-                    )
-                elif name == "private procfs guarded child cleanup is missing":
-                    mutated_runner = namespace_runner.replace(
-                        "if proc_mounted and not ready_acknowledged:\n            try:\n                _umount(PROCFS_TARGET)",
-                        "if False:\n            try:\n                _umount(PROCFS_TARGET)",
-                        1,
-                    )
-                elif name == "private procfs parent ignores readiness acknowledgement":
-                    mutated_runner = namespace_runner.replace(
-                        'proc_mounted = os.read(proc_ready_read, 1) == b"1"',
-                        "proc_mounted = True",
-                        1,
-                    )
-                elif name == "private procfs parent restoration is missing":
-                    mutated_runner = namespace_runner.replace(
-                        "finally:\n        if proc_mounted:\n            _umount(PROCFS_TARGET)",
-                        "finally:\n        if False:\n            _umount(PROCFS_TARGET)",
-                        1,
-                    )
-                elif name == "private procfs restoration proof is missing":
-                    mutated_runner = namespace_runner.replace(
-                        "before_proc = _mountinfo_for(PROCFS_TARGET)", replacement, 1
-                    )
-                else:
-                    mutated_runner = namespace_runner.replace(proc_mount, replacement, 1)
+                self.assertIn(original, namespace_runner)
+                mutated_runner = namespace_runner.replace(original, replacement, 1)
                 self.assertNotEqual(readonly_namespace_runner_errors(mutated_runner), [])
         self.assertLess(
             validator.index("Prepare dedicated read-only candidate sandbox"),

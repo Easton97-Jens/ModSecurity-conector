@@ -117,7 +117,7 @@ HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"
 
 #### Optional: build Apache completely from source
 
-APR and APR-util are Apache portability libraries. Use matching system development packages, or place verified APR and APR-util source trees below srclib before configuring Apache.
+APR and APR-util are Apache portability libraries. For the repository-supported preparation route, the guarded Framework tuple resolves APR-util provenance and Parent does not duplicate or override it. For a separate manual host build, use matching system development packages, or place verified APR and APR-util source trees below srclib before configuring Apache.
 
 ```sh
 WORKDIR="$HOME/connector-build/apache"
