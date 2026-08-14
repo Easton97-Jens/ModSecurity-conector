@@ -28,3 +28,8 @@ angelegt werden.
   bewahrt die beobachtete offizielle Quelle sowie Fresh-/Core-/Host-/Reuse-,
   Quellenerhaltungs- und Pre-Merge-Evidenz; das Ergebnis des geschützten Merge
   wird nicht vorab behauptet.
+- [CR-20260814-f-gs-006-http-authorization-admission](CR-20260814-f-gs-006-http-authorization-admission.de.md) —
+  der aktuelle Benutzer hat diesen gepaarten Parent-Security-Hardening-Record
+  und einen Draft-PR autorisiert. Er weist nur beobachtete lokale Validierung
+  aus; Host-Runtime, Hosted-Ausführung und Delivery-Checks werden nicht
+  behauptet.

@@ -34,7 +34,7 @@ command -v "$CC_BIN" >/dev/null 2>&1 || {
 }
 
 mkdir -p "$OUT_DIR"
-"$CC_BIN" $MSCONNECTOR_CFLAGS \
+"$CC_BIN" $MSCONNECTOR_CFLAGS -pthread \
     -I "$REPO_ROOT" \
     -I "$REPO_ROOT/common/include" \
     -I "$REPO_ROOT/common/runtime" \
