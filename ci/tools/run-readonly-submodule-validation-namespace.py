@@ -359,7 +359,11 @@ def _trusted_hosted_python_runtime(path: Path, validator_gid: int) -> None:
         or metadata.st_mode & stat.S_IWOTH
         or (metadata.st_mode & stat.S_IWGRP and metadata.st_gid == validator_gid)
     ):
-        raise RuntimeError(f"unsafe hosted Python runtime for jailed candidate: {path}")
+        raise RuntimeError(
+            "unsafe hosted Python runtime for jailed candidate: "
+            f"{path} uid={metadata.st_uid} gid={metadata.st_gid} "
+            f"mode={stat.S_IMODE(metadata.st_mode):04o} validator_gid={validator_gid}"
+        )
 
 
 def _hosted_python_runtime_root(python: Path, validator_gid: int) -> Path | None:

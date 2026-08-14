@@ -54,9 +54,9 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
     def test_hosted_python_runtime_rejects_world_or_validator_group_writability(self) -> None:
         runtime = Path("/opt/hostedtoolcache/Python/3.14.6/x64")
         directory = stat.S_IFDIR
-        accepted = SimpleNamespace(st_mode=directory | 0o775, st_gid=1001)
-        validator_group_writable = SimpleNamespace(st_mode=directory | 0o775, st_gid=4242)
-        world_writable = SimpleNamespace(st_mode=directory | 0o777, st_gid=1001)
+        accepted = SimpleNamespace(st_mode=directory | 0o775, st_uid=1001, st_gid=1001)
+        validator_group_writable = SimpleNamespace(st_mode=directory | 0o775, st_uid=1001, st_gid=4242)
+        world_writable = SimpleNamespace(st_mode=directory | 0o777, st_uid=1001, st_gid=1001)
         with mock.patch.object(HELPER.os, "stat", return_value=accepted):
             HELPER._trusted_hosted_python_runtime(runtime, 4242)
         for metadata in (validator_group_writable, world_writable):
