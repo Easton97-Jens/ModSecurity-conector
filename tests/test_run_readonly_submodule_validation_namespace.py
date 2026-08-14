@@ -8,6 +8,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -24,6 +25,13 @@ SPEC.loader.exec_module(HELPER)
 
 
 class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
+    @staticmethod
+    def _jail_layout(root: Path = Path("/mount-root")) -> object:
+        source = root / "source"
+        external = root / "external"
+        proc = root / "proc"
+        return HELPER.JailLayout(root, source, external, proc, (root, source, external, proc))
+
     def test_procfs_target_is_the_exported_literal_target(self) -> None:
         self.assertEqual(HELPER.PROCFS_TARGET, Path("/proc"))
 
@@ -212,7 +220,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "unsafe mount flags"):
                 HELPER._verify_mount(target, readonly=True)
 
-    def test_procfs_verifier_requires_one_hardened_proc_mount_at_literal_target(self) -> None:
+    def test_procfs_verifier_requires_one_hardened_proc_mount_at_the_jail_target(self) -> None:
         hardened = "99 1 0:42 / /proc ro,nosuid,nodev,noexec - proc proc rw"
         inherited = "98 1 0:42 / /proc rw,nosuid,nodev,noexec - proc proc rw"
         with mock.patch.object(HELPER, "_mountinfo_for", return_value=[inherited, hardened]):
@@ -226,10 +234,10 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             with self.subTest(rows=rows), mock.patch.object(HELPER, "_mountinfo_for", return_value=rows):
                 with self.assertRaisesRegex(RuntimeError, "hardened procfs"):
                     HELPER._verify_procfs(HELPER.PROCFS_TARGET)
-        with self.assertRaisesRegex(RuntimeError, "literal /proc"):
+        with self.assertRaisesRegex(RuntimeError, "hardened procfs"):
             HELPER._verify_procfs(Path("/untrusted-proc"))
 
-    def test_procfs_verification_failure_never_runs_candidate_and_restores_proc(self) -> None:
+    def test_procfs_verification_failure_never_runs_candidate(self) -> None:
         class ChildExit(BaseException):
             pass
 
@@ -237,30 +245,31 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         framework = source / "modules/framework"
         external = Path("/external")
         mount_root = Path("/mount-root")
+        layout = self._jail_layout(mount_root)
         candidate = mock.Mock()
         with mock.patch.object(HELPER, "_unshare"), mock.patch.object(
-            HELPER, "_mount"
-        ) as mount, mock.patch.object(HELPER, "_verify_mount"), mock.patch.object(
-            HELPER, "_mountinfo_for", return_value=[]
-        ), mock.patch.object(HELPER.os, "pipe", return_value=(30, 31)), mock.patch.object(
+            HELPER, "_build_jail_layout", return_value=layout
+        ), mock.patch.object(HELPER, "_mount") as mount, mock.patch.object(
+            HELPER.os, "pipe", return_value=(30, 31)
+        ), mock.patch.object(
             HELPER.os, "fork", return_value=0
         ), mock.patch.object(HELPER.os, "close"), mock.patch.object(
             HELPER.os, "_exit", side_effect=ChildExit
         ), mock.patch.object(HELPER, "_verify_procfs", side_effect=RuntimeError("proc verification failed")), mock.patch.object(
-            HELPER, "_umount"
-        ) as umount, mock.patch.object(HELPER, "_set_no_new_privs") as no_new_privs:
+            HELPER, "_set_no_new_privs"
+        ) as no_new_privs:
             with self.assertRaises(ChildExit):
                 HELPER._namespace_child(source, framework, external, mount_root, Path("/python"), 1000, 1000, candidate)
         candidate.assert_not_called()
         no_new_privs.assert_not_called()
-        mount.assert_any_call("proc", HELPER.PROCFS_TARGET, HELPER.MS_RDONLY | HELPER.MS_NOSUID | HELPER.MS_NODEV | HELPER.MS_NOEXEC, "proc")
-        umount.assert_called_once_with(HELPER.PROCFS_TARGET)
+        mount.assert_any_call("proc", layout.proc, HELPER.MS_RDONLY | HELPER.MS_NOSUID | HELPER.MS_NODEV | HELPER.MS_NOEXEC, "proc")
 
-    def test_parent_restores_procfs_only_after_waiting_for_pid_one(self) -> None:
+    def test_parent_tears_down_the_complete_jail_only_after_waiting_for_pid_one(self) -> None:
         source = Path("/source")
         framework = source / "modules/framework"
         external = Path("/external")
         mount_root = Path("/mount-root")
+        layout = self._jail_layout(mount_root)
         events: list[tuple[str, object]] = []
 
         def waitpid(pid: int, options: int) -> tuple[int, int]:
@@ -268,23 +277,15 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             self.assertEqual(options, 0)
             return pid, 0
 
-        def umount(target: Path) -> None:
-            events.append(("umount", target))
-
-        mountinfo = mock.Mock(side_effect=[
-            ["inherited-proc"],
-            ["inherited-proc"],
-        ])
         with mock.patch.object(HELPER, "_unshare"), mock.patch.object(
             HELPER, "_mount"
-        ), mock.patch.object(HELPER, "_verify_mount"), mock.patch.object(
-            HELPER, "_mountinfo_for", mountinfo
+        ), mock.patch.object(HELPER, "_build_jail_layout", return_value=layout
         ), mock.patch.object(HELPER.os, "pipe", return_value=(30, 31)), mock.patch.object(
             HELPER.os, "fork", return_value=4321
         ), mock.patch.object(HELPER.os, "close"), mock.patch.object(
             HELPER.os, "read", return_value=b"1"
         ), mock.patch.object(HELPER.os, "waitpid", side_effect=waitpid), mock.patch.object(
-            HELPER, "_umount", side_effect=umount
+            HELPER, "_teardown_jail_layout", side_effect=lambda observed: events.append(("teardown", observed))
         ):
             result = HELPER._namespace_child(
                 source, framework, external, mount_root, Path("/python"), 1000, 1000
@@ -295,15 +296,11 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             events,
             [
                 ("waitpid", 4321),
-                ("umount", HELPER.PROCFS_TARGET),
-                ("umount", mount_root / "external"),
-                ("umount", mount_root / "source"),
+                ("teardown", layout),
             ],
         )
-        self.assertEqual(mountinfo.call_args_list[0], mock.call(HELPER.PROCFS_TARGET))
-        self.assertEqual(mountinfo.call_args_list[1], mock.call(HELPER.PROCFS_TARGET))
 
-    def test_post_ready_child_failure_transfers_procfs_cleanup_to_parent(self) -> None:
+    def test_post_ready_child_failure_transfers_jail_cleanup_to_parent(self) -> None:
         class ChildExit(BaseException):
             pass
 
@@ -311,11 +308,12 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             Path("/source"),
             Path("modules/framework"),
             Path("/external"),
-            Path("/mount-root"),
-            Path("/python"),
+            Path("/guard"),
+            Path("/usr/bin/python3"),
             1000,
             1000,
         )
+        layout = self._jail_layout()
         readiness = bytearray()
         candidate = mock.Mock()
 
@@ -323,58 +321,48 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             readiness.extend(value)
             return len(value)
 
-        child_umount = mock.Mock()
-        with mock.patch.object(HELPER, "_mount"), mock.patch.object(
+        with mock.patch.object(HELPER, "_mount") as mount, mock.patch.object(
             HELPER, "_verify_procfs"
-        ), mock.patch.object(HELPER.os, "write", side_effect=write) as child_write, mock.patch.object(
-            HELPER.os, "close"
-        ), mock.patch.object(
+        ), mock.patch.object(HELPER, "_enter_jail"), mock.patch.object(
+            HELPER, "_replace_standard_input"
+        ), mock.patch.object(HELPER, "_close_unapproved_descriptors"), mock.patch.object(
+            HELPER.os, "write", side_effect=write
+        ) as child_write, mock.patch.object(HELPER.os, "close"), mock.patch.object(
             HELPER, "_set_no_new_privs", side_effect=RuntimeError("no_new_privs failed")
-        ), mock.patch.object(HELPER, "_umount", child_umount), mock.patch.object(
-            HELPER.os, "_exit", side_effect=ChildExit
-        ):
+        ), mock.patch.object(HELPER.os, "_exit", side_effect=ChildExit):
             with self.assertRaises(ChildExit):
-                HELPER._run_pid1_candidate(
-                    candidate_arguments,
-                    candidate,
-                    (30, 31),
-                    ["inherited-proc"],
-                )
+                HELPER._run_pid1_candidate(candidate_arguments, candidate, (30, 31), layout)
 
         child_write.assert_called_once_with(31, b"1")
         self.assertEqual(bytes(readiness), b"1")
         candidate.assert_not_called()
-        child_umount.assert_not_called()
+        mount.assert_any_call("proc", layout.proc, HELPER.MS_RDONLY | HELPER.MS_NOSUID | HELPER.MS_NODEV | HELPER.MS_NOEXEC, "proc")
 
-        parent_umount = mock.Mock()
+        parent_teardown = mock.Mock()
         parent_read = mock.Mock(return_value=bytes(readiness))
         with mock.patch.object(HELPER, "_unshare"), mock.patch.object(
             HELPER, "_mount"
-        ), mock.patch.object(HELPER, "_verify_mount"), mock.patch.object(
-            HELPER, "_mountinfo_for", side_effect=[["inherited-proc"], ["inherited-proc"]]
+        ), mock.patch.object(HELPER, "_build_jail_layout", return_value=layout
         ), mock.patch.object(HELPER.os, "pipe", return_value=(30, 31)), mock.patch.object(
             HELPER.os, "fork", return_value=4321
         ), mock.patch.object(HELPER.os, "close"), mock.patch.object(
             HELPER.os, "read", parent_read
         ), mock.patch.object(HELPER.os, "waitpid", return_value=(4321, 127 << 8)), mock.patch.object(
-            HELPER, "_umount", parent_umount
+            HELPER, "_teardown_jail_layout", parent_teardown
         ):
             result = HELPER._namespace_child(
                 Path("/source"),
                 Path("/source/modules/framework"),
                 Path("/external"),
                 Path("/mount-root"),
-                Path("/python"),
+                Path("/usr/bin/python3"),
                 1000,
                 1000,
             )
 
         self.assertEqual(result, 127)
         parent_read.assert_called_once_with(30, 1)
-        self.assertEqual(
-            [call for call in parent_umount.call_args_list if call == mock.call(HELPER.PROCFS_TARGET)],
-            [mock.call(HELPER.PROCFS_TARGET)],
-        )
+        parent_teardown.assert_called_once_with(layout)
 
     def test_mount_layout_forces_traversable_root_validator_modes_despite_umask(self) -> None:
         if os.geteuid() != 0:
@@ -407,15 +395,44 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         program = HELPER._candidate_script()
         for required in (
             "umask 077", "CapEff", "NoNewPrivs", "GITHUB_WORKSPACE/.git", "FRAMEWORK_ROOT/.git",
-            "VALIDATION_WRITE_ROOT/.readonly-validator-guard-probe", "/usr/bin/sudo",
+            "VALIDATION_WRITE_ROOT/.readonly-validator-guard-probe", "/dev/.readonly-validator-device-probe", "/usr/bin/sudo",
             "/usr/bin/mount -o remount,rw", "VALIDATOR_EXTERNAL_ROOT/write-probe",
             "-m pip install", "exec make", "safe.directory", "expect_blocked mv",
-            "expect_blocked rm", "expect_blocked chmod",
+            "expect_blocked rm", "expect_blocked chmod", "for target in /tmp /var /home /root /run /sys /dev/shm",
+            "validator retained an inherited descriptor", 'test -e "$descriptor" || continue', "test -c /dev/null", "validator sees an unexpected device",
         ):
             self.assertIn(required, program)
         self.assertIn('exec make PYTHON="$PYTHON" quick-check', program)
         self.assertNotIn('exec make PYTHON="$PYTHON" BUILD_ROOT=', program)
         self.assertNotIn("eval ", program)
+
+    def test_jail_path_and_runtime_allowlist_are_fixed(self) -> None:
+        root = Path("/mount-root")
+        self.assertEqual(HELPER._jail_target(root, HELPER.JAIL_SOURCE), root / "source")
+        self.assertEqual(HELPER._jail_target(root, HELPER.PROCFS_TARGET), root / "proc")
+        for invalid in (Path("source"), Path("/")):
+            with self.subTest(invalid=invalid), self.assertRaises(RuntimeError):
+                HELPER._jail_target(root, invalid)
+        self.assertTrue(HELPER._runtime_python_is_exposed(Path("/usr/bin/python3")))
+        self.assertTrue(HELPER._runtime_python_is_exposed(Path("/opt/hostedtoolcache/python/bin/python")))
+        self.assertFalse(HELPER._runtime_python_is_exposed(Path("/tmp/python")))
+
+    def test_unapproved_inherited_descriptors_are_closed(self) -> None:
+        read_end, write_end = os.pipe()
+        child = os.fork()
+        if child == 0:
+            try:
+                HELPER._close_unapproved_descriptors({0, 1, 2})
+                try:
+                    os.fstat(read_end)
+                except OSError:
+                    os._exit(0)
+                os._exit(1)
+            except BaseException:
+                os._exit(1)
+        os.close(read_end); os.close(write_end)
+        _pid, status = os.waitpid(child, 0)
+        self.assertEqual(os.waitstatus_to_exitcode(status), 0)
 
     def test_environment_build_root_does_not_override_nested_make_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -493,8 +510,8 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                 self.skipTest("mount/PID namespace capability is unavailable")
             self.assertEqual(code, 0)
 
-    def test_privileged_candidate_cannot_mutate_mounts_or_outlive_pid1(self) -> None:
-        """Exercise drop, read-only views, external output, and PID-namespace reaping."""
+    def test_privileged_candidate_cannot_escape_the_chroot_or_outlive_pid1(self) -> None:
+        """Exercise the real allowlist jail when mount/PID namespaces are available."""
         if os.geteuid() != 0 or sys.platform != "linux":
             self.skipTest("mount/PID namespace capability is unavailable")
         try:
@@ -512,9 +529,8 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
 
         if not mapped(account.pw_uid, "uid_map") or not mapped(group.gr_gid, "gid_map"):
             self.skipTest("dedicated unprivileged identity capability is unavailable")
-        host_proc_before = HELPER._mountinfo_for(Path("/proc"))
-        # The validator must traverse every fixture ancestor after its UID drop.
-        # The task-local TMPDIR may be root-only, so use the host's sticky /tmp.
+        # The fixture is intentionally below the host's sticky /tmp.  A jail
+        # that merely bind-mounts /source would still leave this path visible.
         with tempfile.TemporaryDirectory(dir="/tmp", prefix="readonly-namespace-") as raw:
             root = Path(raw); os.chmod(root, 0o755)
             source = root / "source"; framework = source / "modules" / "framework"
@@ -524,9 +540,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             external = root / "external"; external.mkdir(); os.chown(external, account.pw_uid, group.gr_gid); os.chmod(external, 0o700)
             mount_root = root / "mount-root"; mount_root.mkdir(mode=0o755)
             (mount_root / "source").mkdir(mode=0o755); (mount_root / "external").mkdir(mode=0o755)
-            ready_read, ready_write = os.pipe()
-            control_read, control_write = os.pipe()
-            release_read, release_write = os.pipe()
+            inherited_source_fd = os.open(source, os.O_RDONLY | os.O_DIRECTORY)
 
             def candidate(source_view: Path, framework_relative: Path, external_view: Path, _guard: Path, _python: Path, uid: int, gid: int) -> None:
                 if "NoNewPrivs:\t1" not in Path("/proc/self/status").read_text(encoding="utf-8"):
@@ -538,6 +552,18 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                     os._exit(1)
                 os.setgroups([]); os.setgid(gid); os.setuid(uid); os.chdir(source_view)
                 framework_view = source_view / framework_relative
+                if source_view != HELPER.JAIL_SOURCE or external_view != HELPER.JAIL_EXTERNAL:
+                    os._exit(1)
+                for denied in (Path("/tmp"), Path("/var/tmp"), Path("/dev/shm"), Path("/home"), Path("/root"), Path("/run"), Path("/sys"), source, framework):
+                    if denied.exists():
+                        os._exit(1)
+                with self.assertRaises(OSError):
+                    os.fstat(inherited_source_fd)
+                if not os.access(external_view, os.W_OK) or any(
+                    os.access(path, os.W_OK)
+                    for path in (Path("/"), Path("/dev"), source_view, framework_view, Path("/guard"))
+                ):
+                    os._exit(1)
                 def blocked(operation: object) -> None:
                     with self.assertRaises(OSError):
                         operation()  # type: ignore[operator]
@@ -545,6 +571,8 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                 blocked(lambda: (framework_view / "create").touch())
                 blocked(lambda: (source_view / ".git" / "index.lock").touch())
                 blocked(lambda: (framework_view / ".git" / "index.lock").touch())
+                blocked(lambda: (Path("/dev") / "create").touch())
+                blocked(lambda: (Path("/dev/shm") / "create").touch())
                 blocked(lambda: os.chmod(source_view / "Makefile", 0o600))
                 blocked(lambda: os.chmod(framework_view / "Makefile", 0o600))
                 blocked(lambda: os.chmod(source_view / ".git", 0o600))
@@ -558,51 +586,34 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                 (external_view / "candidate-output").write_text("allowed", encoding="utf-8")
                 background = os.fork()
                 if background == 0:
-                    os.close(release_read)
-                    os.write(ready_write, b"ready")
-                    os.read(control_read, 1)
+                    time.sleep(0.2)
                     (external_view / "background-after-pid1").touch()
                     os._exit(0)
-                os.close(control_read)
-                os.close(ready_write)
-                os.read(release_read, 1)
-                os.close(release_read)
                 os._exit(0)
 
             child = os.fork()
             if child == 0:
-                os.close(ready_read); os.close(control_write); os.close(release_write)
                 try:
                     os._exit(HELPER._namespace_child(
                         source, framework, external, mount_root, Path(sys.executable), account.pw_uid,
-                        group.gr_gid, candidate, (ready_write, control_read, release_read),
+                        group.gr_gid, candidate,
                     ))
                 except HELPER.NamespaceUnavailable:
                     os._exit(125)
                 except BaseException:
                     os._exit(1)
-            os.close(ready_write); os.close(control_read); os.close(release_read)
-            ready = os.read(ready_read, 8); os.close(ready_read)
-            if ready == b"ready":
-                os.write(release_write, b"exit")
-            os.close(release_write)
+            os.close(inherited_source_fd)
             _pid, status = os.waitpid(child, 0)
             code = os.waitstatus_to_exitcode(status)
             if code == 125:
-                os.close(control_write)
                 self.skipTest("mount/PID namespace capability is unavailable")
             self.assertEqual(code, 0)
             self.assertEqual((external / "candidate-output").read_text(encoding="utf-8"), "allowed")
             self.assertEqual((source / "Makefile").read_text(encoding="utf-8"), "parent")
-            self.assertFalse((source / "background-write").exists())
             self.assertFalse(HELPER._mountinfo_for(mount_root))
-            self.assertEqual(ready, b"ready")
-            with self.assertRaises(BrokenPipeError):
-                os.write(control_write, b"continue")
-            os.close(control_write)
+            time.sleep(0.3)
             self.assertFalse((external / "background-after-pid1").exists())
             os.rmdir(mount_root / "source"); os.rmdir(mount_root / "external"); os.rmdir(mount_root)
-        self.assertEqual(HELPER._mountinfo_for(Path("/proc")), host_proc_before)
 
 
 if __name__ == "__main__":

@@ -47,6 +47,7 @@ jobs:
             github.event.inputs.validate_only == 'true' &&
             (
               github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation' ||
+              github.ref == 'refs/heads/agent/framework-apr-util-submodule-validation' ||
               (github.ref == 'refs/heads/master' && github.event.repository.default_branch == 'master' && github.ref_protected == true)
             )
           )
@@ -65,7 +66,7 @@ jobs:
       - name: Checkout Parent metadata
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.validate_only == 'true' && github.repository == 'Easton97-Jens/ModSecurity-conector' && github.event.repository.fork == false && (github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation' || (github.ref == 'refs/heads/master' && github.event.repository.default_branch == 'master' && github.ref_protected == true)) && github.sha || github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.validate_only == 'true' && github.repository == 'Easton97-Jens/ModSecurity-conector' && github.event.repository.fork == false && (github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation' || github.ref == 'refs/heads/agent/framework-apr-util-submodule-validation' || (github.ref == 'refs/heads/master' && github.event.repository.default_branch == 'master' && github.ref_protected == true)) && github.sha || github.event.repository.default_branch }}
           submodules: false
           fetch-depth: 0
           persist-credentials: false
@@ -111,7 +112,7 @@ jobs:
           fi
 
           validation_only=false
-          if [ "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.validate_only == 'true' && github.repository == 'Easton97-Jens/ModSecurity-conector' && github.event.repository.fork == false && (github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation' || (github.ref == 'refs/heads/master' && github.event.repository.default_branch == 'master' && github.ref_protected == true)) }}" = true ]; then
+          if [ "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.validate_only == 'true' && github.repository == 'Easton97-Jens/ModSecurity-conector' && github.event.repository.fork == false && (github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation' || github.ref == 'refs/heads/agent/framework-apr-util-submodule-validation' || (github.ref == 'refs/heads/master' && github.event.repository.default_branch == 'master' && github.ref_protected == true)) }}" = true ]; then
             validation_only=true
           fi
 
@@ -152,7 +153,7 @@ jobs:
       - name: Checkout candidate for read-only validation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.validate_only == 'true' && github.repository == 'Easton97-Jens/ModSecurity-conector' && github.event.repository.fork == false && (github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation' || (github.ref == 'refs/heads/master' && github.event.repository.default_branch == 'master' && github.ref_protected == true)) && github.sha || github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.validate_only == 'true' && github.repository == 'Easton97-Jens/ModSecurity-conector' && github.event.repository.fork == false && (github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation' || github.ref == 'refs/heads/agent/framework-apr-util-submodule-validation' || (github.ref == 'refs/heads/master' && github.event.repository.default_branch == 'master' && github.ref_protected == true)) && github.sha || github.event.repository.default_branch }}
           submodules: recursive
           fetch-depth: 0
           persist-credentials: false

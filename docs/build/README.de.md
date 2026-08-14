@@ -211,52 +211,43 @@ Der vertrauenswürdige Launcher weist jede andere Topologie zurück: Das
 übergebene Parent muss ein leeres, nicht-symlinktes direktes Child des
 root-owned sticky `/tmp` mit genau diesem Owner und Modus sein.
 Vertrauenswürdiges Root-seitiges Setup tritt danach in einen privaten Mount- und
-PID-Namespace ein. Es setzt zunächst die Mount-Propagation auf `rprivate`,
-stellt Parent- und Framework-Source-Trees einschließlich `.git` nur über
-nicht-rekursive read-only-`nosuid,nodev`-Mounts bereit und stellt nur das
-physische Validator-Verzeichnis `external`, das exakte Child des physischen
-`--write-root`, über einen schreibbaren `nosuid,nodev`-Mount bereit. Der feste
-logische Mount-Root und seine Platzhalter `source` und `external` sind jeweils
-`root:modsecurity-validator` mit Modus `0750`; sie enthalten nur Namespace-
-View-Namen. Der physische Write-Root bleibt `root:root` mit Modus `0711`, und
-sein exaktes physisches Child `external` bleibt validator-owned mit Modus
-`0700`. Der Candidate erhält Parent, Framework und unterstützte Ausgaben über
-diese logischen Namespace-Views; nicht zusammenhängende ambient Host-Pfade
-werden nicht als abwesend behauptet. Er ist PID 1 dieses Namespace, und seine
-Beendigung wird verarbeitet, bevor der Namespace-Lebenszyklus endet; dadurch
-bleiben keine Candidate-Nachzügler zurück. Teardown verwendet weder Lazy-
-Unmount noch `rmtree`: Der Helper entfernt nur seine exakten leeren Platzhalter
-`mount-root`, `source` und `external` mit nicht-rekursivem `rmdir`, und der
+PID-Namespace ein, setzt die Mount-Propagation auf `rprivate` und erstellt ein
+frisches privates `tmpfs`-Jail. Es bind-mountet den Parent- und Framework-
+Source-Tree einschließlich `.git` nicht-rekursiv und read-only bei `/source`
+und bind-mountet nur das exakte Validator-Output-Child bei `/external`; dieses
+ist der einzige für den Validator beschreibbare Ort. `/guard` ist ein
+root-owned, nicht beschreibbarer logischer Guard. Der Jail-Root wird nach dem
+Setup read-only remountet. Es stellt nur die read-only-Runtime-Verzeichnisse
+`/usr`, `/bin`, `/sbin`, `/lib`, `/lib64` und `/opt` sowie das minimal
+erforderliche read-only-`/etc`-Material bereit. Es mountet ein frisches
+read-only-`proc`-Dateisystem bei jailed `/proc` mit `nosuid,nodev,noexec` und
+erstellt ein privates `/dev`, das nur `null` und `urandom` enthält.
+
+Der vertrauenswürdige Launcher betritt dieses Jail mit `chroot`, bevor
+Candidate-Code ausgeführt wird. Er schließt geerbte Deskriptoren außer Standard-
+Input, -Output und -Error vor dem Drop auf `modsecurity-validator`, sodass
+vorgeöffnete Host-Verzeichnis- oder Dateideskriptoren die Pfad-Allowlist nicht
+umgehen können. Der Candidate besitzt folglich keinen Hostpfad-Alias für
+`/tmp`, `/var`, `/home`, `/root`, `/run`, `/sys` oder `/dev/shm`; Source und
+Output sind nur über `/source` und `/external` verfügbar. Er ist PID 1 dieses
+Namespace, und seine Beendigung wird verarbeitet, bevor der Namespace-
+Lebenszyklus endet; dadurch bleiben keine Candidate-Nachzügler zurück.
+Teardown verwendet weder Lazy-Unmount noch `rmtree`: Der Helper entfernt nur
+seine exakten leeren Platzhalter mit nicht-rekursivem `rmdir`, und der
 `EXIT`-Trap des Workflows verwendet für das vertrauenswürdige Namespace-Parent
 ebenfalls nicht-rekursives `rmdir`; die Root-seitige Host-Verifikation folgt
-außerhalb des Candidate-Namespace. Die lokal implementierte enge Reparatur mountet ein
-frisches privates `proc`-Dateisystem bei `/proc` innerhalb von PID 1, nachdem
-der Mount-Namespace bereits `rprivate` ist, mit
-`readonly,nosuid,nodev,noexec`. Root führt diesen Mount vor dem Setzen von
-`PR_SET_NO_NEW_PRIVS` und dem Drop der Validator-Identität durch und unmountet
-ihn sowie stellt das vorherige `/proc`-Arrangement wieder her, bevor der
-Namespace endet. Sein einziger Zweck ist, den PID-lokalen `/proc`-Lookup von
-LeakSanitizer (LSan) bereitzustellen; dies ist keine Behauptung vollständiger
-Host- oder Kernel-Isolation. Hosted-Validierung und Finding-Abschluss bleiben
-ausstehend. Innerhalb dieses Namespace wendet der Candidate vor
-Ausgaben `umask 077` an. Der Root-Workflow ruft den vertrauenswürdigen Launcher
-über `sudo -n python3` auf; der Launcher setzt `PR_SET_NO_NEW_PRIVS` fail-closed,
-entfernt zusätzliche Gruppen, fällt auf GID und UID von
-`modsecurity-validator` zurück und verwendet `execve` mit einer expliziten
-festen Umgebung statt einer geerbten Runner-Umgebung. Anschließend führt der
-Candidate `make quick-check` unverändert als diese dedizierte Non-login- und
-Non-sudo-Identität aus.
+außerhalb des Candidate-Namespace.
 
 Dies ersetzt Host-Ahnen-ACL-Handling: Der Candidate erhält keinen Host-seitigen
 Traverse- oder Lese-Grant nur, um `RUNNER_TEMP` zu erreichen. Parent, Framework
 und unterstützte Ausgaben werden nur über diese Namespace-Views bereitgestellt;
 Root-seitiges Source-Inventar und Root-seitige Output-Verifikation beschränken
 legitime Ausgaben auf das exakte physische
-`--write-root`/`external`-Containment. Nicht zusammenhängende Host-Pfade
-außerhalb dieses Contracts bleiben ambient erreichbar. Dies ist keine
-vollständige Host- oder Kernel-Sicherheitsisolation und beweist nicht, dass
-bösartiger Candidate-Code nicht nicht zusammenhängende, global beschreibbare
-Host-Einrichtungen verwenden kann.
+`--write-root`/`external`-Containment. Der Validator behält absichtlich
+Netzwerkzugriff, weil hash-pinned `pip`-Installation eine funktionale
+Anforderung ist; dies ist keine Behauptung von Netzwerk- oder Egress-Isolation.
+Das Jail ist eine Grenze für Dateisystem und geerbte Deskriptoren und keine
+Behauptung vollständiger Host- oder Kernel-Isolation.
 
 Der Hosted-Run `31484727901` ist historische Failure-Evidence für den früheren
 ACL-Precheck. Der Hosted-Run `31488072111` ist ebenfalls nur historische
@@ -266,27 +257,24 @@ fünf No-CRS-Normalisierungsfehlern an einer Runtime-Verzeichnis-
 Traversierungsverweigerung. Der Publisher wurde übersprungen. Hier wird kein
 erfolgreicher Rerun, Current-Head-Scan oder Delivery-Ergebnis behauptet.
 
-Die finale lokale Evidence für diese uncommittete Reparatur ist begrenzt: Die
-fokussierten `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v`-Namespace- und
-Workflow-Suites bestanden mit 55 Tests und drei erwarteten Capability-Skips,
-und `PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` bestand mit
-demselben 55/3-Suite-Ergebnis sowie seinen `validate_only`-actionlint-,
-zizmor- und gitleaks-lock-Prüfungen. `make check-bilingual-docs`, no-bytecode
-`py_compile` und `git diff --check` bestanden ebenfalls lokal. Die
-Capability-Skips bedeuten, dass diese Evidence kein privilegierter Runtime-
-Nachweis für Mounts oder die Validator-Identität ist. Sie belegt keinen
-Current-Head-Security-Scan, keine Hosted-Validierung, kein PR-Ergebnis, kein
-SonarQube-Ergebnis, keinen Merge und keine Delivery.
+Lokale Regressions- und Static-Contract-Evidence für diese Remediation wird
+mit der Delivery-Arbeit aufgezeichnet; dieser Guide weist ihr keine finale Zahl
+zu. Sie ist kein privilegierter Hosted-Mount- oder Validator-Identitäts-
+Runtime-Nachweis. Hosted-`validate_only`-Validierung auf dem exakten
+Remediation-Head und der Abschluss von `FND-PARENT-0122` bleiben ausstehend;
+diese Dokumentation behauptet keinen Current-Head-Security-Scan, kein
+PR-Ergebnis, kein SonarQube-Ergebnis, keinen Merge und keine Delivery.
 
 Der manuelle `workflow_dispatch`-Input `validate_only: true` ist ein nicht
-veröffentlichender Exact-Ref-Nachweis-/Revalidierungspfad mit genau zwei
+veröffentlichender Exact-Ref-Nachweis-/Revalidierungspfad mit genau drei
 vertrauenswürdigen Refs im kanonischen Non-fork-Parent-Repository
-`Easton97-Jens/ModSecurity-conector`: dem task-eigenen/reviewten
-`fix/ci-enforce-readonly-submodule-validation`-Branch vor dem Merge für seinen
-Exact-Head-Nachweis und dem geschützten Parent-`master` erst nach dem Merge
-dieser Reparatur für die Sandbox-Revalidierung des resultierenden `master`; der
-letztere erfordert zusätzlich GitHub `github.ref_protected == true`. Er ist
-keine allgemeine Einrichtung zum Ausführen beliebiger nicht vertrauenswürdiger
+`Easton97-Jens/ModSecurity-conector`: den reviewten Task-Branches
+`fix/ci-enforce-readonly-submodule-validation` und
+`agent/framework-apr-util-submodule-validation` vor dem Merge für ihren
+Exact-Head-Nachweis sowie geschütztem Parent-`master` nach dem Merge der
+Remediation für die Sandbox-Revalidierung des resultierenden `master`; letzterer
+erfordert zusätzlich GitHub `github.ref_protected == true`. Er ist keine
+allgemeine Einrichtung zum Ausführen beliebiger nicht vertrauenswürdiger
 Parent-Refs oder Pull Requests. Jeder erlaubte Pfad checkt
 für Auflösung und Validierung den jeweiligen `github.sha` des Dispatch-Events
 aus,

@@ -44,6 +44,12 @@ tatsächlichen Mutation unterscheiden konnte.
 - Candidate-State-Validierung erlaubt nur den erwarteten Framework-Candidate-
   Checkout-Übergang und scheitert fail-closed bei Parent-, Framework- oder
   initialisierten Nested-Submodule-Mutationen und bei unsicheren Metadatenpfaden.
+- Der Candidate-Validator läuft in einer privaten `tmpfs`-`chroot`-Allowlist:
+  `/source` ist read-only, `/external` ist der einzige für den Validator
+  beschreibbare Pfad, `/guard` ist nicht beschreibbar, der Jail-Root ist
+  read-only, und geerbte nicht-standardmäßige Deskriptoren werden vor dem
+  Identitäts-Drop geschlossen. Die Host-Aliasse `/tmp`, `/var`, `/home`,
+  `/root`, `/run`, `/sys` und `/dev/shm` sind nicht vorhanden.
 - Englische und deutsche Reader-Dokumentation sowie Change Records beschreiben
   dasselbe Verhalten. Framework- und MRTS-Source, der Parent-Gitlink und jeder
   Merge bleiben außerhalb des Scopes.
@@ -112,6 +118,26 @@ Diagnostik nur im Fehlerfall. Sie erweitert weder Publisher-Berechtigungen,
 Gitlink-Staging-Scope, Source-Write-Autorität noch die bestehende isolierte
 Validator-Grenze.
 
+`FND-PARENT-0122` behebt die frühere Exposition geerbter Host-Mounts. Nach dem
+Eintritt in einen privaten Mount- und PID-Namespace erstellt vertrauenswürdiges
+Setup ein privates `tmpfs`-Jail und verwendet `chroot` vor der Candidate-
+Ausführung. Die Jail-Allowlist enthält read-only `/source`, ein für den
+Validator beschreibbares `/external`, nicht beschreibbares `/guard`, die
+read-only-Runtime-Verzeichnisse `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64` und
+`/opt` sowie minimales read-only-`/etc`-Material. Sein Root wird read-only
+remountet; ein frisches gehärtetes read-only-`proc` wird bei `/proc` gemountet,
+und privates `/dev` enthält nur `null` und `urandom`. Vor dem Drop auf
+`modsecurity-validator` schließt der Launcher geerbte Deskriptoren außer
+Standard-Input, -Output und -Error. Das verhindert Hostpfad-Aliasse und
+Escapes über vorgeöffnete Deskriptoren zu `/tmp`, `/var`, `/home`, `/root`,
+`/run`, `/sys` oder `/dev/shm`.
+
+Netzwerkzugriff bleibt absichtlich verfügbar, weil hash-pinned `pip`-
+Installation für das Funktionieren des Validators erforderlich ist. Diese
+Remediation behauptet keine Egress-Isolation. Hosted-`validate_only`-Evidence
+für den exakten Remediation-Head und der Abschluss von `FND-PARENT-0122`
+bleiben ausstehend.
+
 Auf PR-#280-Head `3fbba306ddedf86acd3d01929a077cee33f66ed7` meldete das
 task-eigene SonarCloud-Ergebnis S8707 für diesen `GITHUB_ENV`-Schreibpfad.
 Dieser Record klassifiziert das Ergebnis weder als False Positive noch
@@ -132,11 +158,13 @@ Die Parent-Änderungen sind:
   `ci/provisioning/components/prepare-runtime-components.sh`,
   `ci/provisioning/cache/runtime-components-inventory.sh` und
   `ci/provisioning/cache/with-runtime-components.sh`;
-- Submodule-Candidate-Validierung:
-  `ci/tools/validate-submodule-candidate-state.py`;
+- Submodule-Candidate-Validierung und ihre Dateisystemgrenze:
+  `ci/tools/validate-submodule-candidate-state.py` und
+  `ci/tools/run-readonly-submodule-validation-namespace.py`;
 - erzeugte Source- und Reader-Dokumentation:
   `scripts/generate_compiler_guides.py`, `docs/build/compilers/apache.md`,
-  `docs/build/compilers/apache.de.md`, `docs/reference/variables.md` und
+  `docs/build/compilers/apache.de.md`, `docs/build/README.md`,
+  `docs/build/README.de.md`, `docs/reference/variables.md` und
   `docs/reference/variables.de.md`;
 - Tests und Fixtures: `tests/test_ci_security_workflows.py`,
   `tests/test_collect_no_crs_source.py`,
@@ -144,7 +172,8 @@ Die Parent-Änderungen sind:
   `tests/test_apr_util_static_contract.py`,
   `tests/test_framework_apr_util_provenance.py`,
   `tests/test_update_submodules_local_git.py`,
-  `tests/test_validate_submodule_candidate_state.py` und
+  `tests/test_validate_submodule_candidate_state.py`,
+  `tests/test_run_readonly_submodule_validation_namespace.py` und
   `tests/fixtures/apr-util-static-allowlist.txt`; sowie
 - dieses Change-Record-Paar und seine zweisprachigen Archive-Index-Einträge.
 
@@ -214,6 +243,10 @@ Ausführung wurden als Nachweis für diese Änderung verwendet.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
+- Hosted-`validate_only`-Validierung des exakten `FND-PARENT-0122`-
+  Remediation-Heads steht aus. Das Finding bleibt offen, bis dieser Run und
+  seine legitimen Kontrollfälle beobachtet wurden; dieser Record behauptet
+  keine lokale finale Testzahl für die Remediation.
 - Frische GitHub-hosted-Updater-Validierung und PR-Checks für den späteren
   exakten PR-Head stehen nach der Local-Git-Fixture-Identity-Reparatur aus.
 - S8707 wurde auf `3fbba306ddedf86acd3d01929a077cee33f66ed7` beobachtet.
@@ -245,6 +278,12 @@ Die `GITHUB_ENV`-Containment-Härtung ist lokal abgeschlossen und hat lokale
 Regressionsabdeckung, benötigt aber weiterhin frische Hosted-Sonar-Analyse
 nach dem Follow-up-Commit, um den Hosted-Status von S8707 für dessen späteren
 PR-Head festzustellen.
+
+Das `FND-PARENT-0122`-Jail begrenzt Dateisystem- und geerbte Deskriptor-
+Oberfläche des Candidate, nicht Netzwerk-Egress oder vollständige Host-/Kernel-
+Isolation. Netzwerkzugriff bleibt nur für hash-pinned `pip`-Installation
+erhalten. Hosted-Exact-Head-Validierung und Finding-Abschluss bleiben
+ausstehend.
 
 ## Verbleibende Risiken
 
