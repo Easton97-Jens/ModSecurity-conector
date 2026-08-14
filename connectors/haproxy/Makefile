@@ -24,22 +24,62 @@ MODSECURITY_INCLUDE_CANDIDATES ?= $(MODSECURITY_INCLUDE_DIR) $(MODSECURITY_SHARE
 MODSECURITY_LIB_CANDIDATES ?= $(MODSECURITY_LIB_DIR) $(MODSECURITY_SHARED_PREFIX)/lib $(BUILD_ROOT)/nginx-build/output/modsecurity/lib $(BUILD_ROOT)/apache-build/output/modsecurity/lib $(BUILD_ROOT)/nginx-build/ModSecurity_V3/src/.libs $(BUILD_ROOT)/apache-build/ModSecurity_V3/src/.libs
 MODSECURITY_RESOLUTION_FILE ?= $(BUILD_ROOT)/haproxy-modsecurity-binding/modsecurity-resolution.env
 
-# Shared read-only host-runtime gate; caller values are frozen before the
-# recursive make to prevent external text becoming Make syntax.
-HAPROXY_HOSTRUNTIME_PROFILE ?= haproxy-htx
-HAPROXY_HOSTRUNTIME_LOCK ?= $(FRAMEWORK_ROOT)/ci/provisioning/runtime-component-lock.json
-HAPROXY_HOSTRUNTIME_EXPECTED_VERSION ?=
-HAPROXY_HOSTRUNTIME_BINARY ?=
-HAPROXY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR ?= $(BUILD_ROOT)/hostruntime-evidence/haproxy
+# Shared read-only host-runtime gate. These snapshots are exported to the
+# recursive root make; the recipe itself contains no caller-controlled shell
+# interpolation.
+ifeq ($(origin HAPROXY_HOSTRUNTIME_PROFILE), undefined)
+HAPROXY_HOSTRUNTIME_PROFILE := haproxy-htx
+endif
+# Do not inspect the caller-provided profile in Make conditionals. The root
+# checker validates the raw profile after safe argument transport; callers may
+# select narrower runtime and binary roots explicitly when needed.
+override HAPROXY_HOSTRUNTIME_DEFAULT_ROOT := $(abspath $(BUILD_ROOT)/hostruntime/haproxy)
+ifeq ($(origin HAPROXY_HOSTRUNTIME_LOCK), undefined)
+HAPROXY_HOSTRUNTIME_LOCK := $(abspath $(FRAMEWORK_ROOT)/ci/provisioning/runtime-component-lock.json)
+endif
+ifeq ($(origin HAPROXY_HOSTRUNTIME_RUNTIME_ROOT), undefined)
+HAPROXY_HOSTRUNTIME_RUNTIME_ROOT := $(abspath $(HAPROXY_HOSTRUNTIME_DEFAULT_ROOT))
+endif
+ifeq ($(origin HAPROXY_HOSTRUNTIME_BINARY_ROOT), undefined)
+HAPROXY_HOSTRUNTIME_BINARY_ROOT := $(abspath $(HAPROXY_HOSTRUNTIME_DEFAULT_ROOT))
+endif
+ifeq ($(origin HAPROXY_HOSTRUNTIME_EXPECTED_VERSION), undefined)
+HAPROXY_HOSTRUNTIME_EXPECTED_VERSION :=
+endif
+ifeq ($(origin HAPROXY_HOSTRUNTIME_BINARY), undefined)
+HAPROXY_HOSTRUNTIME_BINARY :=
+endif
+ifeq ($(origin HAPROXY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR), undefined)
+HAPROXY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR := $(abspath $(HAPROXY_HOSTRUNTIME_DEFAULT_ROOT)/preflight)
+endif
+# Command-line hostruntime values are transported explicitly by the wrapper.
+# Prevent GNU Make from expanding and auto-exporting their raw text first.
+unexport HAPROXY_HOSTRUNTIME_PROFILE HAPROXY_HOSTRUNTIME_LOCK \
+	HAPROXY_HOSTRUNTIME_EXPECTED_VERSION HAPROXY_HOSTRUNTIME_BINARY \
+	HAPROXY_HOSTRUNTIME_LOCK_ROOT HAPROXY_HOSTRUNTIME_RUNTIME_ROOT \
+	HAPROXY_HOSTRUNTIME_BINARY_ROOT HAPROXY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR
 
 .PHONY: build-metadata build-starter build-spoa-starter build-spoa-runtime build-modsecurity-binding build-htx-overlay check-htx-overlay test-htx-overlay runtime-smoke-haproxy-htx hostruntime-preflight-haproxy hostruntime-preflight-haproxy-htx hostruntime-preflight-haproxy-spoe-spop self-test self-test-spoa self-test-spoa-runtime self-test-modsecurity-binding self-test-modsecurity-binding-crs clean FORCE
 
+# Take variable names, not their values: this preserves caller text as data,
+# doubles Make metacharacters for the child Make process, and shell-quotes the
+# resulting environment assignments as one argument each.
+hostruntime_wrapper_escape_dollars = $(subst $$,$$$$,$(value $(1)))
+hostruntime_wrapper_safe_quote = '$(subst ','"'"',$(call hostruntime_wrapper_escape_dollars,$(1)))'
 hostruntime-preflight-haproxy:
-	$(MAKE) -C "$(REPO_ROOT)" hostruntime-preflight \
-		HOSTRUNTIME_CONNECTOR=haproxy HOSTRUNTIME_PROFILE="$(HAPROXY_HOSTRUNTIME_PROFILE)" \
-		HOSTRUNTIME_EXPECTED_VERSION="$(HAPROXY_HOSTRUNTIME_EXPECTED_VERSION)" HOSTRUNTIME_BINARY="$(HAPROXY_HOSTRUNTIME_BINARY)" \
-		HOSTRUNTIME_LOCK="$(HAPROXY_HOSTRUNTIME_LOCK)" HOSTRUNTIME_LOCK_PROFILE="$(HAPROXY_HOSTRUNTIME_PROFILE)" \
-		HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR="$(HAPROXY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR)"
+	env \
+		MAKEFLAGS=$(call hostruntime_wrapper_safe_quote,MFLAGS) \
+		MAKEOVERRIDES='' \
+		HOSTRUNTIME_CONNECTOR='haproxy' \
+		HOSTRUNTIME_PROFILE=$(call hostruntime_wrapper_safe_quote,HAPROXY_HOSTRUNTIME_PROFILE) \
+		HOSTRUNTIME_EXPECTED_VERSION=$(call hostruntime_wrapper_safe_quote,HAPROXY_HOSTRUNTIME_EXPECTED_VERSION) \
+		HOSTRUNTIME_BINARY=$(call hostruntime_wrapper_safe_quote,HAPROXY_HOSTRUNTIME_BINARY) \
+		HOSTRUNTIME_BINARY_ROOT=$(call hostruntime_wrapper_safe_quote,HAPROXY_HOSTRUNTIME_BINARY_ROOT) \
+		HOSTRUNTIME_LOCK=$(call hostruntime_wrapper_safe_quote,HAPROXY_HOSTRUNTIME_LOCK) \
+		HOSTRUNTIME_LOCK_PROFILE=$(call hostruntime_wrapper_safe_quote,HAPROXY_HOSTRUNTIME_PROFILE) \
+		HOSTRUNTIME_RUNTIME_ROOT=$(call hostruntime_wrapper_safe_quote,HAPROXY_HOSTRUNTIME_RUNTIME_ROOT) \
+		HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR=$(call hostruntime_wrapper_safe_quote,HAPROXY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR) \
+		$(MAKE) -C ../.. hostruntime-preflight
 
 hostruntime-preflight-haproxy-htx:
 	$(MAKE) HAPROXY_HOSTRUNTIME_PROFILE=haproxy-htx hostruntime-preflight-haproxy

@@ -14,8 +14,20 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
-import tempfile
+import sys
 from typing import Any
+
+
+_CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import (
+    prepare_verified_runtime_artifact_root,
+    read_runtime_artifact_text,
+    runtime_artifact_path,
+    write_runtime_artifact_text_atomic,
+)
 
 
 STATUS_VALUES = {"PASS", "FAIL", "BLOCKED", "NOT_RUN", "NOT_APPLICABLE"}
@@ -38,10 +50,9 @@ def optional_token(value: object) -> str | None:
     return normalized if SAFE_TOKEN.fullmatch(normalized) else None
 
 
-def load_result(path: Path) -> dict[str, Any]:
-    if not path.is_absolute() or path.is_symlink() or not path.is_file():
-        raise ValueError("result must be an existing regular file")
-    value = json.loads(path.read_text(encoding="utf-8"))
+def load_result(runtime_root: Path, path: Path) -> dict[str, Any]:
+    target = runtime_artifact_path(runtime_root, path, "result", must_exist=True)
+    value = json.loads(read_runtime_artifact_text(runtime_root, target, "result"))
     if not isinstance(value, dict):
         raise ValueError("result must be a JSON object")
     return value
@@ -93,7 +104,7 @@ def evidence_status(result: dict[str, Any]) -> tuple[dict[str, str], str | None]
 
 
 def project(args: argparse.Namespace) -> dict[str, Any]:
-    result = load_result(Path(args.result))
+    result = load_result(args.runtime_root, Path(args.result))
     # The finalizer's result may contain established, payload-free metadata
     # such as ``request_body_verified`` or ``body_payload_absent_from_events``.
     # Project only the allowlisted fields below; never reject the whole source
@@ -137,25 +148,12 @@ def project(args: argparse.Namespace) -> dict[str, Any]:
     return record
 
 
-def atomic_write(path: Path, text: str) -> None:
-    if not path.is_absolute() or path.is_symlink():
-        raise ValueError("output must be an absolute non-symlink path")
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    try:
-        with open(descriptor, "w", encoding="utf-8", closefd=True) as handle:
-            handle.write(text)
-        Path(temporary).chmod(0o600)
-        Path(temporary).replace(path)
-    finally:
-        Path(temporary).unlink(missing_ok=True)
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--result", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--summary")
+    parser.add_argument("--runtime-root", required=True)
     parser.add_argument("--connector", required=True)
     parser.add_argument("--profile", required=True)
     parser.add_argument("--runtime-lock-id")
@@ -164,14 +162,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timestamp")
     args = parser.parse_args(argv)
     try:
+        runtime_root = prepare_verified_runtime_artifact_root(args.runtime_root)
+        args.runtime_root = runtime_root
         record = project(args)
         serialized = json.dumps(record, indent=2, sort_keys=True) + "\n"
-        atomic_write(Path(args.output), serialized)
+        write_runtime_artifact_text_atomic(
+            runtime_root, Path(args.output), serialized, "output"
+        )
         if args.summary:
             summary = (f"status={record['status']}\nconnector={record['connector']}\n"
                        f"profile={record['profile']}\nreason={record['reason']}\n")
-            atomic_write(Path(args.summary), summary)
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+            write_runtime_artifact_text_atomic(
+                runtime_root, Path(args.summary), summary, "summary"
+            )
+    except (OSError, ValueError) as exc:
         parser.error(str(exc))
     return 0
 

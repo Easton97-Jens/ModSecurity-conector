@@ -22,9 +22,10 @@ class HostRuntimeRecordTest(unittest.TestCase):
         path.write_text(json.dumps(payload), encoding="utf-8")
         return path
 
-    def invoke(self, result: Path, output: Path, summary: Path) -> dict[str, object]:
+    def invoke(self, root: Path, result: Path, output: Path, summary: Path) -> dict[str, object]:
         self.assertEqual(writer.main([
             "--result", str(result), "--output", str(output), "--summary", str(summary),
+            "--runtime-root", str(root),
             "--connector", "haproxy", "--profile", "native-htx",
             "--runtime-lock-id", "haproxy-htx-3.2.21",
             "--expected-version", "3.2.21", "--actual-version", "3.2.21",
@@ -48,16 +49,50 @@ class HostRuntimeRecordTest(unittest.TestCase):
     def test_complete_record_is_pass(self) -> None:
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
-            record = self.invoke(self.write_result(root, self.complete()), root / "record.json", root / "summary.md")
+            record = self.invoke(root, self.write_result(root, self.complete()), root / "record.json", root / "summary.md")
             self.assertEqual(record["status"], "PASS")
             self.assertEqual(record["evidence"]["interaction"], "PASS")
+
+    def test_result_outside_runtime_root_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            parent = Path(name)
+            root = parent / "runtime"
+            outside = parent / "outside"
+            root.mkdir()
+            outside.mkdir()
+            source = self.write_result(outside, self.complete())
+            with self.assertRaises(SystemExit) as raised:
+                writer.main([
+                    "--result", str(source), "--output", str(root / "record.json"),
+                    "--summary", str(root / "summary.md"), "--runtime-root", str(root),
+                    "--connector", "haproxy", "--profile", "native-htx",
+                ])
+            self.assertEqual(raised.exception.code, 2)
+
+    def test_symlink_escape_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            parent = Path(name)
+            root = parent / "runtime"
+            outside = parent / "outside"
+            root.mkdir()
+            outside.mkdir()
+            source = self.write_result(outside, self.complete())
+            (root / "escape").symlink_to(outside, target_is_directory=True)
+            with self.assertRaises(SystemExit) as raised:
+                writer.main([
+                    "--result", str(root / "escape" / source.name),
+                    "--output", str(root / "record.json"),
+                    "--summary", str(root / "summary.md"), "--runtime-root", str(root),
+                    "--connector", "haproxy", "--profile", "native-htx",
+                ])
+            self.assertEqual(raised.exception.code, 2)
 
     def test_incomplete_record_cannot_pass(self) -> None:
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             result = self.complete()
             del result["hostruntime_evidence"]["cleanup_verified"]
-            record = self.invoke(self.write_result(root, result), root / "record.json", root / "summary.md")
+            record = self.invoke(root, self.write_result(root, result), root / "record.json", root / "summary.md")
             self.assertEqual(record["status"], "BLOCKED")
             self.assertIn("cleanup", record["reason"])
 
@@ -66,7 +101,7 @@ class HostRuntimeRecordTest(unittest.TestCase):
             root = Path(name)
             result = self.complete()
             result["hostruntime_evidence"]["readiness_verified"] = "BLOCKED"
-            record = self.invoke(self.write_result(root, result), root / "record.json", root / "summary.md")
+            record = self.invoke(root, self.write_result(root, result), root / "record.json", root / "summary.md")
             self.assertEqual(record["status"], "BLOCKED")
 
     def test_body_safe_existing_result_fields_are_not_copied(self) -> None:
@@ -76,7 +111,7 @@ class HostRuntimeRecordTest(unittest.TestCase):
             result["request_body_verified"] = True
             result["body_payload_absent_from_events"] = True
             result["response_body"] = "sensitive-payload"
-            record = self.invoke(self.write_result(root, result), root / "record.json", root / "summary.md")
+            record = self.invoke(root, self.write_result(root, result), root / "record.json", root / "summary.md")
             self.assertEqual(record["status"], "PASS")
             serialized = json.dumps(record)
             self.assertNotIn("sensitive-payload", serialized)
@@ -91,6 +126,7 @@ class HostRuntimeRecordTest(unittest.TestCase):
             output = root / "record.json"
             self.assertEqual(writer.main([
                 "--result", str(source), "--output", str(output),
+                "--runtime-root", str(root),
                 "--connector", "haproxy", "--profile", "native-htx",
                 "--expected-version", "HAProxy /usr/local/bin/haproxy",
                 "--actual-version", "HAProxy /tmp/host runtime",
@@ -106,7 +142,7 @@ class HostRuntimeRecordTest(unittest.TestCase):
             result = self.complete()
             result["status"] = "FAIL"
             del result["hostruntime_evidence"]["cleanup_verified"]
-            record = self.invoke(self.write_result(root, result), root / "record.json", root / "summary.md")
+            record = self.invoke(root, self.write_result(root, result), root / "record.json", root / "summary.md")
             self.assertEqual(record["status"], "BLOCKED")
             self.assertIn("incomplete_hostruntime_evidence", record["reason"])
 
@@ -115,13 +151,13 @@ class HostRuntimeRecordTest(unittest.TestCase):
             root = Path(name)
             result = self.complete()
             result["status"] = "FAIL"
-            record = self.invoke(self.write_result(root, result), root / "record.json", root / "summary.md")
+            record = self.invoke(root, self.write_result(root, result), root / "record.json", root / "summary.md")
             self.assertEqual(record["status"], "FAIL")
 
     def test_status_schema_is_bounded(self) -> None:
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
-            record = self.invoke(self.write_result(root, self.complete()), root / "record.json", root / "summary.md")
+            record = self.invoke(root, self.write_result(root, self.complete()), root / "record.json", root / "summary.md")
             self.assertIn(record["status"], writer.STATUS_VALUES)
             self.assertNotIn("response_body", json.dumps(record))
             self.assertNotIn("/tmp", json.dumps(record))

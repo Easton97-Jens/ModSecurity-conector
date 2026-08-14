@@ -68,7 +68,7 @@ jobs:
           mkdir -p "$preflight_dir"
           binary_path="$(command -v nginx 2>/dev/null || true)"
           if [ -z "$binary_path" ]; then
-            binary_path="$RUNNER_TEMP/hostruntime-missing-nginx"
+            binary_path="$evidence_dir/hostruntime-missing-nginx"
           fi
           preflight_exit_codes=""
           run_preflight() {
@@ -79,6 +79,7 @@ jobs:
             python3 ci/runtime/common/hostruntime-preflight.py \
               --connector "$CONNECTOR" \
               --profile "$lock_profile" \
+              --runtime-root "$evidence_dir" \
               --runtime-lock "$RUNTIME_LOCK" \
               --lock-profile "$lock_profile" \
               --binary "$binary_path" \

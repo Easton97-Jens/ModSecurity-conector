@@ -1340,7 +1340,10 @@ HOSTRUNTIME_PROFILE ?= default
 HOSTRUNTIME_EXPECTED_VERSION ?=
 HOSTRUNTIME_BINARY ?=
 HOSTRUNTIME_LOCK ?=
+HOSTRUNTIME_LOCK_ROOT ?=
 HOSTRUNTIME_LOCK_PROFILE ?=
+HOSTRUNTIME_BINARY_ROOT ?=
+HOSTRUNTIME_RUNTIME_ROOT ?= $(BUILD_ROOT)/hostruntime-evidence
 HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR ?= $(BUILD_ROOT)/hostruntime-evidence/$(HOSTRUNTIME_CONNECTOR)
 HOSTRUNTIME_HEADER ?=
 HOSTRUNTIME_SOURCE ?=
@@ -1352,24 +1355,33 @@ HOSTRUNTIME_MIN_FREE_BYTES ?=
 HOSTRUNTIME_CONFIG ?=
 HOSTRUNTIME_FIXTURE ?=
 
+# Quote every caller-provided preflight value as one POSIX-shell argument.
+# The nested connector targets pass these variables through a recipe, so
+# double-quoting alone would allow a quote in a Make override to escape the
+# intended argument boundary before the Python validation is reached.
+hostruntime_shell_quote = '$(subst ','"'"',$(value 1))'
+
 hostruntime-preflight:
 	$(PYTHON) ci/runtime/common/hostruntime_preflight.py \
-		--connector "$(HOSTRUNTIME_CONNECTOR)" \
-		--profile "$(HOSTRUNTIME_PROFILE)" \
-		--output-dir "$(HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR)" \
-		--expected-version "$(HOSTRUNTIME_EXPECTED_VERSION)" \
-		$(if $(HOSTRUNTIME_BINARY),--binary "$(HOSTRUNTIME_BINARY)",) \
-		$(if $(HOSTRUNTIME_LOCK),--runtime-lock "$(HOSTRUNTIME_LOCK)",) \
-		$(if $(HOSTRUNTIME_LOCK_PROFILE),--lock-profile "$(HOSTRUNTIME_LOCK_PROFILE)",) \
-		$(if $(HOSTRUNTIME_HEADER),--header "$(HOSTRUNTIME_HEADER)",) \
-		$(if $(HOSTRUNTIME_SOURCE),--source "$(HOSTRUNTIME_SOURCE)",) \
-		$(if $(HOSTRUNTIME_TOOL),--tool "$(HOSTRUNTIME_TOOL)",) \
-		$(if $(HOSTRUNTIME_PORT),--port "$(HOSTRUNTIME_PORT)",) \
-		$(if $(HOSTRUNTIME_WRITE_DIR),--write-dir "$(HOSTRUNTIME_WRITE_DIR)",) \
-		$(if $(HOSTRUNTIME_DISK_PATH),--disk-path "$(HOSTRUNTIME_DISK_PATH)",) \
-		$(if $(HOSTRUNTIME_MIN_FREE_BYTES),--min-free-bytes "$(HOSTRUNTIME_MIN_FREE_BYTES)",) \
-		$(if $(HOSTRUNTIME_CONFIG),--config "$(HOSTRUNTIME_CONFIG)",) \
-		$(if $(HOSTRUNTIME_FIXTURE),--fixture "$(HOSTRUNTIME_FIXTURE)",)
+		--connector $(call hostruntime_shell_quote,$(value HOSTRUNTIME_CONNECTOR)) \
+		--profile $(call hostruntime_shell_quote,$(value HOSTRUNTIME_PROFILE)) \
+		--runtime-root $(call hostruntime_shell_quote,$(value HOSTRUNTIME_RUNTIME_ROOT)) \
+		--output-dir $(call hostruntime_shell_quote,$(value HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR)) \
+		--expected-version $(call hostruntime_shell_quote,$(value HOSTRUNTIME_EXPECTED_VERSION)) \
+		$(if $(value HOSTRUNTIME_BINARY),--binary $(call hostruntime_shell_quote,$(value HOSTRUNTIME_BINARY)),) \
+		$(if $(value HOSTRUNTIME_BINARY_ROOT),--binary-root $(call hostruntime_shell_quote,$(value HOSTRUNTIME_BINARY_ROOT)),) \
+		$(if $(value HOSTRUNTIME_LOCK),--runtime-lock $(call hostruntime_shell_quote,$(value HOSTRUNTIME_LOCK)),) \
+		$(if $(value HOSTRUNTIME_LOCK_ROOT),--runtime-lock-root $(call hostruntime_shell_quote,$(value HOSTRUNTIME_LOCK_ROOT)),) \
+		$(if $(value HOSTRUNTIME_LOCK_PROFILE),--lock-profile $(call hostruntime_shell_quote,$(value HOSTRUNTIME_LOCK_PROFILE)),) \
+		$(if $(value HOSTRUNTIME_HEADER),--header $(call hostruntime_shell_quote,$(value HOSTRUNTIME_HEADER)),) \
+		$(if $(value HOSTRUNTIME_SOURCE),--source $(call hostruntime_shell_quote,$(value HOSTRUNTIME_SOURCE)),) \
+		$(if $(value HOSTRUNTIME_TOOL),--tool $(call hostruntime_shell_quote,$(value HOSTRUNTIME_TOOL)),) \
+		$(if $(value HOSTRUNTIME_PORT),--port $(call hostruntime_shell_quote,$(value HOSTRUNTIME_PORT)),) \
+		$(if $(value HOSTRUNTIME_WRITE_DIR),--write-dir $(call hostruntime_shell_quote,$(value HOSTRUNTIME_WRITE_DIR)),) \
+		$(if $(value HOSTRUNTIME_DISK_PATH),--disk-path $(call hostruntime_shell_quote,$(value HOSTRUNTIME_DISK_PATH)),) \
+		$(if $(value HOSTRUNTIME_MIN_FREE_BYTES),--min-free-bytes $(call hostruntime_shell_quote,$(value HOSTRUNTIME_MIN_FREE_BYTES)),) \
+		$(if $(value HOSTRUNTIME_CONFIG),--config $(call hostruntime_shell_quote,$(value HOSTRUNTIME_CONFIG)),) \
+		$(if $(value HOSTRUNTIME_FIXTURE),--fixture $(call hostruntime_shell_quote,$(value HOSTRUNTIME_FIXTURE)),)
 
 test-hostruntime-preflight:
 	$(PYTHON) -m unittest -v tests.test_hostruntime_preflight

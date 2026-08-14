@@ -1133,6 +1133,7 @@ if [ -f "$FINAL_RESULT" ]; then
         --result "$FINAL_RESULT" \
         --output "$HOSTRUNTIME_RECORD" \
         --summary "$HOSTRUNTIME_SUMMARY" \
+        --runtime-root "$CANONICAL_VERIFIED_RUN_ROOT" \
         --connector "$connector" \
         --profile "${FULL_LIFECYCLE_HOST_PROFILE:-$NO_CRS_ARTIFACT_PROFILE}" \
         --runtime-lock-id "${HOSTRUNTIME_LOCK_ID:-}" \

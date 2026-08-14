@@ -28,6 +28,7 @@ class HostRuntimeWorkflowEvidenceContractTest(unittest.TestCase):
             with self.subTest(connector=connector):
                 workflow = path.read_text(encoding="utf-8")
                 self.assertIn("hostruntime-preflight.py", workflow)
+                self.assertIn('--runtime-root "$evidence_dir"', workflow)
                 self.assertIn("--runtime-lock \"$RUNTIME_LOCK\"", workflow)
                 self.assertIn("--lock-profile \"$lock_profile\"", workflow)
                 self.assertIn(
