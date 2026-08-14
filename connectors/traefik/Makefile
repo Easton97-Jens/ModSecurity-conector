@@ -15,8 +15,31 @@ TRAEFIK_NATIVE_RUNTIME_ROOT := $(value BUILD_ROOT)/traefik-native-middleware/run
 else
 override TRAEFIK_NATIVE_RUNTIME_ROOT := $(value TRAEFIK_NATIVE_RUNTIME_ROOT)
 endif
+REPO_ROOT ?= ../..
+FRAMEWORK_ROOT ?= $(REPO_ROOT)/modules/ModSecurity-test-Framework
 
-.PHONY: build-connector build-traefik-connector build-forwardauth-service check-config check-traefik-config start-smoke start-smoke-traefik runtime-smoke runtime-smoke-traefik runtime-smoke-traefik-native no-crs-baseline-traefik build-starter build-decision-service build-forwardauth-starter self-test self-test-decision-service self-test-forwardauth build-native-middleware build-traefik-native-middleware test-native-middleware test-traefik-native-middleware check-native-middleware build-engine-service test-engine-service clean
+# Shared read-only host-runtime gate; caller values are frozen before the
+# recursive make to prevent external text becoming Make syntax.
+TRAEFIK_HOSTRUNTIME_PROFILE ?= traefik-forwardauth
+TRAEFIK_HOSTRUNTIME_LOCK ?= $(FRAMEWORK_ROOT)/ci/provisioning/runtime-component-lock.json
+TRAEFIK_HOSTRUNTIME_EXPECTED_VERSION ?=
+TRAEFIK_HOSTRUNTIME_BINARY ?=
+TRAEFIK_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR ?= $(BUILD_ROOT)/hostruntime-evidence/traefik
+
+.PHONY: build-connector build-traefik-connector build-forwardauth-service check-config check-traefik-config start-smoke start-smoke-traefik runtime-smoke runtime-smoke-traefik runtime-smoke-traefik-native hostruntime-preflight-traefik hostruntime-preflight-traefik-forwardauth hostruntime-preflight-traefik-native no-crs-baseline-traefik build-starter build-decision-service build-forwardauth-starter self-test self-test-decision-service self-test-forwardauth build-native-middleware build-traefik-native-middleware test-native-middleware test-traefik-native-middleware check-native-middleware build-engine-service test-engine-service clean
+
+hostruntime-preflight-traefik:
+	$(MAKE) -C "$(REPO_ROOT)" hostruntime-preflight \
+		HOSTRUNTIME_CONNECTOR=traefik HOSTRUNTIME_PROFILE="$(TRAEFIK_HOSTRUNTIME_PROFILE)" \
+		HOSTRUNTIME_EXPECTED_VERSION="$(TRAEFIK_HOSTRUNTIME_EXPECTED_VERSION)" HOSTRUNTIME_BINARY="$(TRAEFIK_HOSTRUNTIME_BINARY)" \
+		HOSTRUNTIME_LOCK="$(TRAEFIK_HOSTRUNTIME_LOCK)" HOSTRUNTIME_LOCK_PROFILE="$(TRAEFIK_HOSTRUNTIME_PROFILE)" \
+		HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR="$(TRAEFIK_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR)"
+
+hostruntime-preflight-traefik-forwardauth:
+	$(MAKE) TRAEFIK_HOSTRUNTIME_PROFILE=traefik-forwardauth hostruntime-preflight-traefik
+
+hostruntime-preflight-traefik-native:
+	$(MAKE) TRAEFIK_HOSTRUNTIME_PROFILE=traefik-native hostruntime-preflight-traefik
 
 build-connector:
 	build/build-connector.sh

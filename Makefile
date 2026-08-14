@@ -1333,7 +1333,49 @@ check-python-version-contract:
 check-go-version-contract:
 	$(PYTHON) ci/checks/common/check-go-version-contract.py
 
+# Read-only host-runtime gate. Connector workflows set the reviewed runtime
+# identity and any profile-specific prerequisite arguments.
+HOSTRUNTIME_CONNECTOR ?= generic
+HOSTRUNTIME_PROFILE ?= default
+HOSTRUNTIME_EXPECTED_VERSION ?=
+HOSTRUNTIME_BINARY ?=
+HOSTRUNTIME_LOCK ?=
+HOSTRUNTIME_LOCK_PROFILE ?=
+HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR ?= $(BUILD_ROOT)/hostruntime-evidence/$(HOSTRUNTIME_CONNECTOR)
+HOSTRUNTIME_HEADER ?=
+HOSTRUNTIME_SOURCE ?=
+HOSTRUNTIME_TOOL ?=
+HOSTRUNTIME_PORT ?=
+HOSTRUNTIME_WRITE_DIR ?=
+HOSTRUNTIME_DISK_PATH ?=
+HOSTRUNTIME_MIN_FREE_BYTES ?=
+HOSTRUNTIME_CONFIG ?=
+HOSTRUNTIME_FIXTURE ?=
+
+hostruntime-preflight:
+	$(PYTHON) ci/runtime/common/hostruntime_preflight.py \
+		--connector "$(HOSTRUNTIME_CONNECTOR)" \
+		--profile "$(HOSTRUNTIME_PROFILE)" \
+		--output-dir "$(HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR)" \
+		--expected-version "$(HOSTRUNTIME_EXPECTED_VERSION)" \
+		$(if $(HOSTRUNTIME_BINARY),--binary "$(HOSTRUNTIME_BINARY)",) \
+		$(if $(HOSTRUNTIME_LOCK),--runtime-lock "$(HOSTRUNTIME_LOCK)",) \
+		$(if $(HOSTRUNTIME_LOCK_PROFILE),--lock-profile "$(HOSTRUNTIME_LOCK_PROFILE)",) \
+		$(if $(HOSTRUNTIME_HEADER),--header "$(HOSTRUNTIME_HEADER)",) \
+		$(if $(HOSTRUNTIME_SOURCE),--source "$(HOSTRUNTIME_SOURCE)",) \
+		$(if $(HOSTRUNTIME_TOOL),--tool "$(HOSTRUNTIME_TOOL)",) \
+		$(if $(HOSTRUNTIME_PORT),--port "$(HOSTRUNTIME_PORT)",) \
+		$(if $(HOSTRUNTIME_WRITE_DIR),--write-dir "$(HOSTRUNTIME_WRITE_DIR)",) \
+		$(if $(HOSTRUNTIME_DISK_PATH),--disk-path "$(HOSTRUNTIME_DISK_PATH)",) \
+		$(if $(HOSTRUNTIME_MIN_FREE_BYTES),--min-free-bytes "$(HOSTRUNTIME_MIN_FREE_BYTES)",) \
+		$(if $(HOSTRUNTIME_CONFIG),--config "$(HOSTRUNTIME_CONFIG)",) \
+		$(if $(HOSTRUNTIME_FIXTURE),--fixture "$(HOSTRUNTIME_FIXTURE)",)
+
+test-hostruntime-preflight:
+	$(PYTHON) -m unittest -v tests.test_hostruntime_preflight
+
 lint: check-framework
+	$(MAKE) test-hostruntime-preflight
 	find ci -type f -name '*.sh' -print0 | xargs -0 -r sh -n
 	find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -exec sh -n {} +
 	if command -v bash >/dev/null 2>&1; then find ci -type f -name '*.sh' -print0 | xargs -0 -r bash -n; find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -exec bash -n {} +; else echo "bash unavailable"; fi

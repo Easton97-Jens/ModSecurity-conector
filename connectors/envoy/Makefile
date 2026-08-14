@@ -21,6 +21,16 @@ ENVOY_RUNTIME_ROOT ?= $(if $(RUNNER_TEMP),$(RUNNER_TEMP),$(if $(TMPDIR),$(TMPDIR
 RUNTIME_EVENT_LOG_PATH ?= $(ENVOY_RUNTIME_ROOT)/events.jsonl
 LISTEN_ADDRESS ?= 127.0.0.1
 LISTEN_PORT ?= 18082
+REPO_ROOT ?= ../..
+FRAMEWORK_ROOT ?= $(REPO_ROOT)/modules/ModSecurity-test-Framework
+
+# Shared read-only host-runtime gate; caller values are frozen before the
+# recursive make to prevent external text becoming Make syntax.
+ENVOY_HOSTRUNTIME_PROFILE ?= envoy-ext-authz
+ENVOY_HOSTRUNTIME_LOCK ?= $(FRAMEWORK_ROOT)/ci/provisioning/runtime-component-lock.json
+ENVOY_HOSTRUNTIME_EXPECTED_VERSION ?=
+ENVOY_HOSTRUNTIME_BINARY ?=
+ENVOY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR ?= $(BUILD_ROOT)/hostruntime-evidence/envoy
 
 .PHONY: build-starter self-test self-test-envoy-bridge build-envoy-connector \
 	build-envoy-ext-proc test-envoy-ext-proc check-envoy-ext-proc-config \
@@ -29,7 +39,20 @@ LISTEN_PORT ?= 18082
 	serve-envoy-connector runtime-smoke-envoy no-crs-baseline-envoy \
 	serve-envoy-ext-proc runtime-smoke-envoy-ext-proc \
 	transport-cancel-smoke-envoy-ext-proc \
-	self-test-modsecurity clean
+	self-test-modsecurity hostruntime-preflight-envoy hostruntime-preflight-envoy-ext-authz hostruntime-preflight-envoy-ext-proc clean
+
+hostruntime-preflight-envoy:
+	$(MAKE) -C "$(REPO_ROOT)" hostruntime-preflight \
+		HOSTRUNTIME_CONNECTOR=envoy HOSTRUNTIME_PROFILE="$(ENVOY_HOSTRUNTIME_PROFILE)" \
+		HOSTRUNTIME_EXPECTED_VERSION="$(ENVOY_HOSTRUNTIME_EXPECTED_VERSION)" HOSTRUNTIME_BINARY="$(ENVOY_HOSTRUNTIME_BINARY)" \
+		HOSTRUNTIME_LOCK="$(ENVOY_HOSTRUNTIME_LOCK)" HOSTRUNTIME_LOCK_PROFILE="$(ENVOY_HOSTRUNTIME_PROFILE)" \
+		HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR="$(ENVOY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR)"
+
+hostruntime-preflight-envoy-ext-authz:
+	$(MAKE) ENVOY_HOSTRUNTIME_PROFILE=envoy-ext-authz hostruntime-preflight-envoy
+
+hostruntime-preflight-envoy-ext-proc:
+	$(MAKE) ENVOY_HOSTRUNTIME_PROFILE=envoy-ext-proc hostruntime-preflight-envoy
 
 build-starter:
 	BUILD_ROOT="$(BUILD_ROOT)" sh build/build_metadata.sh
