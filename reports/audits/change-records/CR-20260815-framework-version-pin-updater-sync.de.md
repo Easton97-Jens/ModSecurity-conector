@@ -9,7 +9,7 @@
 | Change-ID | CR-20260815-framework-version-pin-updater-sync |
 | Datum (UTC) | 2026-08-15 |
 | Basis-Revision | `29a2a8bcab57e936c5274f8fe64a15c6fee879bd` |
-| Delivery-Status | Nur lokale Task-Vorbereitung. Beim Schreiben dieses Records war kein Commit, Push, Pull Request, Hosted-Check oder Merge-Ergebnis beobachtet. Eine `master`-Integration wird durch diesen Record nicht autorisiert. |
+| Delivery-Status | Draft-[PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) zielt auf `master`. Sein initialer Head `f804ed598d2515fc972b8f8308678d95a5584fb7` zeigte einen task-eigenen `actionlint`-Fehler: ShellCheck `SC2006` wies Legacy-Backticks in Kommentaren in `.github/workflows/update-submodules.yml` zurück. Dieses Follow-up ersetzt die Kommentare durch Klartext und aktualisiert den geschützten Publisher-Block-Hash; frische Hosted-Validierung des aktuellen Heads steht noch aus. Eine `master`-Integration wird durch diesen Record nicht autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -116,6 +116,7 @@ deutsche Fassung beschreiben dieselbe Abdeckung.
 | Fokussierte Unittest-Suite für Updater/Workflow/Compiler/Lifecycle/HAProxy/Submodul | bestanden; 87 Tests |
 | Lighttpd-Patched-Host-Contract-Tests | bestanden; 26 Tests |
 | NGINX-Root-/Protected-Broker-Tests | bestanden; 64 Tests |
+| Workflow-/Submodul-/Updater-Unittest-Suite nach `actionlint`-Remediation | bestanden; 52 Tests |
 | Connector-, Shell-Syntax-, Variablen-Dokumentations-, No-CRS-Dokumentations- und Evidence-Output-Security-Prüfungen | bestanden |
 | `python3 -m py_compile` für geänderte relevante Python-Dateien | bestanden |
 | `git diff --check 29a2a8bcab57e936c5274f8fe64a15c6fee879bd` | bestanden |
@@ -137,8 +138,9 @@ durchgeführt oder behauptet.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- GitHub Actions, SonarQube Cloud und Hosted-Review-Checks wurden für keinen
-  gepushten PR-Head beobachtet.
+- Frische GitHub Actions, SonarQube Cloud und Hosted-Review-Checks wurden für
+  keinen Remediation-Head nach dem initialen PR-Head-`actionlint`-Fehler
+  beobachtet.
 - `actionlint` wurde nicht ausgeführt, weil es in der Umgebung nicht
   installiert ist.
 - Eine vollständige Framework-abhängige Integration-/Runtime-Validierung wurde

@@ -843,7 +843,7 @@ jobs:
           )"
           require_only_allowed_update_paths "$changed_paths"
 
-          # `git diff --raw` abbreviates object IDs by default. The updater compares
+          # git diff --raw abbreviates object IDs by default. The updater compares
           # exact SHA-40 values, so require unabbreviated IDs and exactly one gitlink
           # modification record.
           staged_update_diff="$(
@@ -932,7 +932,7 @@ jobs:
           - Previous Framework gitlink: $MASTER_OLD_SHA
           - Proposed Framework gitlink: $CANDIDATE_SHA
           - Validation: the isolated read-only quick check passed.
-          - Component pins: synchronized from the candidate's statically parsed `ci/lib/common.sh` and rechecked before staging.
+          - Component pins: synchronized from the candidate's statically parsed ci/lib/common.sh and rechecked before staging.
           - Changed paths: Framework gitlink plus the registered Parent component-pin contracts only.
           - Merge: no automatic merge.
           EOF

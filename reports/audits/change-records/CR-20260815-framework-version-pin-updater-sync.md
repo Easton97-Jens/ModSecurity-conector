@@ -9,7 +9,7 @@
 | Change ID | CR-20260815-framework-version-pin-updater-sync |
 | Date (UTC) | 2026-08-15 |
 | Base revision | `29a2a8bcab57e936c5274f8fe64a15c6fee879bd` |
-| Delivery status | Local task preparation only. No commit, push, pull request, hosted check, or merge result had been observed when this record was written. `master` integration is not authorized by this record. |
+| Delivery status | Draft [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) targets `master`. Its initial head `f804ed598d2515fc972b8f8308678d95a5584fb7` exposed one task-owned `actionlint` failure: ShellCheck `SC2006` rejected legacy backticks in comments in `.github/workflows/update-submodules.yml`. This follow-up replaces the comments with plain text and updates the protected publisher-block hash; fresh current-head hosted validation remains pending. `master` integration is not authorized by this record. |
 
 ## Motivation and problem statement
 
@@ -112,6 +112,7 @@ describe the same coverage.
 | Focused updater/workflow/compiler/lifecycle/HAProxy/submodule unittest suite | passed; 87 tests |
 | Lighttpd patched-host contract tests | passed; 26 tests |
 | NGINX root/protected broker tests | passed; 64 tests |
+| Post-`actionlint` remediation workflow/submodule/updater unittest suite | passed; 52 tests |
 | Connector, shell-syntax, variable-documentation, no-CRS documentation, and evidence-output security checks | passed |
 | `python3 -m py_compile` on changed relevant Python files | passed |
 | `git diff --check 29a2a8bcab57e936c5274f8fe64a15c6fee879bd` | passed |
@@ -130,8 +131,9 @@ runtime, or GitHub-hosted runner was executed or claimed.
 
 ## Checks not run and rationale
 
-- GitHub Actions, SonarQube Cloud, and hosted review checks were not observed
-  for a pushed PR head.
+- Fresh GitHub Actions, SonarQube Cloud, and hosted review checks were not
+  observed for the remediation head after the initial PR-head `actionlint`
+  failure.
 - `actionlint` was not run because it is not installed in the environment.
 - Full Framework-dependent integration/runtime validation was not run because
   the exact Framework submodule checkout is intentionally absent from the task

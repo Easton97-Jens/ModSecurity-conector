@@ -44,7 +44,7 @@ PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
         "github.event.repository.default_branch == 'master'",
     }
 )
-SUBMODULE_PUBLISHER_SHA256 = "a79ad814cb7bed941cf5f64d9d9e65cd0f923dcde2c00ca778553755740855aa"
+SUBMODULE_PUBLISHER_SHA256 = "42b8ac3108df2ce0179a6af793dcaf3e2b53989346325d361ed4fa1465a1e093"
 AUTO_MERGE_DISABLED_QUERY = (
     "--jq 'if (has(\"auto_merge\") and (.auto_merge == null)) then \"null\" "
     "else \"auto-merge-present\" end'"
