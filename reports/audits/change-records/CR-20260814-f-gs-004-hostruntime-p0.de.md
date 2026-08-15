@@ -258,8 +258,9 @@ Dieses aktualisierte englische/deutsche Change-Record-Paar erhielt einen
 direkten Paritätsreview; ein Hosted-Exact-Head-Dokumentationscheck bleibt
 erforderlich.
 
-Dieses Update behauptet weder einen Korrektur-Pull-Request noch SonarQube-
-Cloud-Reanalyse, Hosted-Exact-Head-Check oder Resulting-Master-Rerun. Die
-Aufgabe muss vor einer späteren Master-Integration den normalen geschützten
-Parent-Delivery-Pfad verwenden; eine neue Master-Autorisierung wird hier nicht
-behauptet.
+Der Draft-Korrektur-PR #290 ist von
+`agent/fix-run-31866612619-hostruntime-fixture` gegen `master` geöffnet.
+Dieses Update behauptet keine SonarQube-Cloud-Reanalyse, keinen Hosted-
+Exact-Head-Check und keinen Resulting-Master-Rerun. Die Aufgabe muss vor einer
+späteren Master-Integration den normalen geschützten Parent-Delivery-Pfad
+verwenden; eine neue Master-Autorisierung wird hier nicht behauptet.

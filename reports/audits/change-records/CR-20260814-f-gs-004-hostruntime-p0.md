@@ -238,7 +238,9 @@ update was performed. This updated English/German Change Record pair received
 a direct parity review; a hosted exact-head documentation check remains
 required.
 
-No corrective pull request, SonarQube Cloud reanalysis, hosted exact-head
-check, or resulting-master rerun is claimed by this update. The task must use
-the normal protected Parent delivery path before any later master integration;
-no new master authorization is asserted here.
+Draft corrective PR #290 is opened from
+`agent/fix-run-31866612619-hostruntime-fixture` against `master`. No SonarQube
+Cloud reanalysis, hosted exact-head check, or resulting-master rerun is claimed
+by this update. The task must use the normal protected Parent delivery path
+before any later master integration; no new master authorization is asserted
+here.
