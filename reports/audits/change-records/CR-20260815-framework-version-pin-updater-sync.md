@@ -9,7 +9,7 @@
 | Change ID | CR-20260815-framework-version-pin-updater-sync |
 | Date (UTC) | 2026-08-15 |
 | Base revision | `29a2a8bcab57e936c5274f8fe64a15c6fee879bd` |
-| Delivery status | Draft [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) targets `master`. Its initial head `f804ed598d2515fc972b8f8308678d95a5584fb7` exposed ShellCheck `SC2006`, fixed in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`. That head then exposed a hosted nested-submodule fixture identity defect and 18 task-owned SonarQube Cloud New Issues. The pending follow-up applies source-native root, symlink, argument, complexity, and contract fixes; fresh hosted validation is required. `master` integration is not authorized by this record. |
+| Delivery status | Draft [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) targets `master`. Its initial head `f804ed598d2515fc972b8f8308678d95a5584fb7` exposed ShellCheck `SC2006`, fixed in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`. That head then exposed a hosted nested-submodule fixture identity defect and 18 task-owned SonarQube Cloud New Issues. The follow-up applies source-native root, symlink, argument, complexity, and contract fixes. Its first hosted `actionlint` recheck showed that the updater test fixture created its temporary files under `/tmp` instead of GitHub's `RUNNER_TEMP`; the final fixture update now follows that runner root. Fresh hosted validation is required. `master` integration is not authorized by this record. |
 
 ## Motivation and problem statement
 
@@ -69,6 +69,9 @@ runner-controlled temporary root, validates every Git subprocess root and
 argument vector, and confines the HAProxy contract reader to its fixed overlay
 root with no-follow regular-file access. The nested-submodule regression
 fixture configures its local commit identity explicitly for hosted runners.
+The updater regression fixture now also creates its temporary repository below
+`RUNNER_TEMP` when that GitHub runner root is supplied, so its test data follows
+the same root contract as the production invocation.
 
 ## Changed files
 
@@ -119,7 +122,7 @@ describe the same coverage.
 | Lighttpd patched-host contract tests | passed; 26 tests |
 | NGINX root/protected broker tests | passed; 64 tests |
 | Post-`actionlint` remediation workflow/submodule/updater unittest suite | passed; 52 tests |
-| Current Sonar/actionlint remediation aggregate | passed; 140 tests with 4 expected capability skips |
+| Current Sonar/actionlint remediation aggregate | passed; 140 tests with 4 expected capability skips under a task-owned writable `RUNNER_TEMP` simulation |
 | Connector, shell-syntax, variable-documentation, no-CRS documentation, and evidence-output security checks | passed |
 | `python3 -m py_compile` on changed relevant Python files | passed |
 | `git diff --check 29a2a8bcab57e936c5274f8fe64a15c6fee879bd` | passed |

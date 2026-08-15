@@ -9,7 +9,7 @@
 | Change-ID | CR-20260815-framework-version-pin-updater-sync |
 | Datum (UTC) | 2026-08-15 |
 | Basis-Revision | `29a2a8bcab57e936c5274f8fe64a15c6fee879bd` |
-| Delivery-Status | Draft-[PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) zielt auf `master`. Sein initialer Head `f804ed598d2515fc972b8f8308678d95a5584fb7` zeigte ShellCheck `SC2006`, behoben in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`. Dieser Head zeigte danach einen Hosted-Defekt der verschachtelten-Submodule-Fixture-Identität und 18 task-eigene SonarQube-Cloud-New-Issues. Das ausstehende Follow-up enthält quellnative Root-, Symlink-, Argument-, Komplexitäts- und Contract-Bereinigungen; frische Hosted-Validierung ist erforderlich. Eine `master`-Integration wird durch diesen Record nicht autorisiert. |
+| Delivery-Status | Draft-[PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) zielt auf `master`. Sein initialer Head `f804ed598d2515fc972b8f8308678d95a5584fb7` zeigte ShellCheck `SC2006`, behoben in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`. Dieser Head zeigte danach einen Hosted-Defekt der verschachtelten-Submodule-Fixture-Identität und 18 task-eigene SonarQube-Cloud-New-Issues. Das Follow-up enthält quellnative Root-, Symlink-, Argument-, Komplexitäts- und Contract-Bereinigungen. Sein erster Hosted-`actionlint`-Recheck zeigte, dass die Updater-Testfixture temporäre Dateien unter `/tmp` statt unter GitHubs `RUNNER_TEMP` anlegte; das finale Fixture-Update folgt nun diesem Runner-Root. Frische Hosted-Validierung ist erforderlich. Eine `master`-Integration wird durch diesen Record nicht autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -72,7 +72,10 @@ Runner-kontrollierten temporären Root, validiert jeden Git-Subprozess-Root und
 Argumentvektor und begrenzt den HAProxy-Contract-Reader mit No-Follow-Regular-
 File-Zugriff auf seinen festen Overlay-Root. Die Nested-Submodule-
 Regression-Fixture konfiguriert ihre lokale Commit-Identität explizit für
-Hosted Runner.
+Hosted Runner. Die Updater-Regression-Fixture erzeugt ihr temporäres
+Repository außerdem unterhalb von `RUNNER_TEMP`, wenn dieser GitHub-Runner-Root
+bereitgestellt wird, sodass ihre Testdaten demselben Root-Contract wie der
+Produktionsaufruf folgen.
 
 ## Geänderte Dateien
 
@@ -124,7 +127,7 @@ deutsche Fassung beschreiben dieselbe Abdeckung.
 | Lighttpd-Patched-Host-Contract-Tests | bestanden; 26 Tests |
 | NGINX-Root-/Protected-Broker-Tests | bestanden; 64 Tests |
 | Workflow-/Submodul-/Updater-Unittest-Suite nach `actionlint`-Remediation | bestanden; 52 Tests |
-| Aktuelles Sonar-/actionlint-Remediation-Aggregat | bestanden; 140 Tests mit 4 erwarteten Capability-Skips |
+| Aktuelles Sonar-/actionlint-Remediation-Aggregat | bestanden; 140 Tests mit 4 erwarteten Capability-Skips unter einer task-eigenen schreibbaren `RUNNER_TEMP`-Simulation |
 | Connector-, Shell-Syntax-, Variablen-Dokumentations-, No-CRS-Dokumentations- und Evidence-Output-Security-Prüfungen | bestanden |
 | `python3 -m py_compile` für geänderte relevante Python-Dateien | bestanden |
 | `git diff --check 29a2a8bcab57e936c5274f8fe64a15c6fee879bd` | bestanden |

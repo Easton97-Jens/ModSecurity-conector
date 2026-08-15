@@ -52,7 +52,9 @@ CRS_RELEASE_TAG="v4.29.0"
 
 class SyncFrameworkVersionsTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temp = tempfile.TemporaryDirectory()
+        runner_temp = os.environ.get("RUNNER_TEMP")
+        temporary_root = runner_temp if runner_temp and Path(runner_temp).is_dir() else None
+        self.temp = tempfile.TemporaryDirectory(dir=temporary_root)
         self.root = Path(self.temp.name) / "repo"
         shutil.copytree(ROOT, self.root)
         self.common = Path(self.temp.name) / "framework/ci/lib/common.sh"
