@@ -9,7 +9,7 @@
 | Change ID | CR-20260814-f-gs-004-hostruntime-p0 |
 | Date (UTC) | 2026-08-14 |
 | Base revision | ea3b48abab7940de49997a371f9117b409c05a2a |
-| Delivery status | Local implementation, validation, and scoped security review complete; Parent Draft PR pending creation. Framework Draft PR #79 is a required dependency. |
+| Delivery status | Follow-up remediation is prepared for open Parent Draft [PR #287](https://github.com/Easton97-Jens/ModSecurity-conector/pull/287). This record's initial follow-up evidence is from head `4204a23cd1abc36469d63222a3e0edc1004fb815`; a normal push and fresh exact-head hosted validation remain pending. |
 
 ## Motivation and problem statement
 
@@ -69,6 +69,34 @@ the generated environment-file input are validated fail-closed.
 
 No Parent Gitlink, Framework source, MRTS source, cache, build output, secret,
 or runtime log is included in the Parent change.
+
+## PR #287 SonarQube Cloud and submodule follow-up
+
+The public SonarQube Cloud PR endpoint reported three task-owned open New
+Issues at the initial follow-up head:
+
+- `python:S1192` in `ci/runtime/common/hostruntime_preflight.py`: the
+  `"runtime lock"` diagnostic literal was repeated three times. The module now
+  uses the single `RUNTIME_LOCK_LABEL` constant without changing diagnostics.
+- `python:S1481` in the same preflight module: an unused `summary` local was
+  removed; the existing output path expression remains unchanged.
+- `python:S9073` in `tests/test_hostruntime_record.py`: the import bootstrap
+  now uses an explicit `SPEC`/loader guard, preserving fail-fast behavior even
+  when Python assertions are optimized out.
+
+The reported recursive-submodule failure was reproduced only in the registered
+isolated Parent worktree, never in the authoritative checkout. At the declared
+Parent Gitlink `1260aaae411ecf88cf50dc480b80e2e20ac47901`, both
+`git submodule sync --recursive` and `git submodule update --init --recursive`
+exited zero and materialized the recorded Framework and MRTS revisions. The
+original error text was unavailable and no failure reproduced, so no Gitlink,
+Framework/MRTS source, or submodule-update-path change is justified.
+
+The local follow-up validation passed `git diff --check`, external-cache Python
+compilation, the combined preflight/record suite (38 tests), the record suite
+under `python -O` (11 tests), and `make test-hostruntime-preflight` (27 tests).
+Fresh exact-head hosted checks, the SonarQube Cloud Quality Gate, the zero-open
+issue query, review, and merge remain pending until this follow-up is pushed.
 
 ## Commands executed
 

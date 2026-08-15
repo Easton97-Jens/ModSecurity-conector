@@ -50,6 +50,7 @@ SAFE_BINARY_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$")
 SAFE_LOCK_PROVENANCE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 NO_ACTION_REQUIRED = "No action required."
 RUNTIME_LOCK_INVALID = "runtime_lock_invalid"
+RUNTIME_LOCK_LABEL = "runtime lock"
 SAFE_COMMAND_ENV = {"LANG": "C", "LC_ALL": "C", "PATH": "/usr/bin:/bin"}
 SYSTEM_BINARY_ROOTS = tuple(
     Path(path).resolve(strict=False) for path in ("/usr/bin", "/usr/sbin", "/bin", "/sbin")
@@ -167,7 +168,7 @@ def _lock_document(path: Path, artifact_root: Path | None) -> dict[str, Any] | N
         if artifact_root is None:
             text = path.read_text(encoding="utf-8")
         else:
-            text = read_runtime_artifact_text(artifact_root, path, "runtime lock")
+            text = read_runtime_artifact_text(artifact_root, path, RUNTIME_LOCK_LABEL)
         document = json.loads(text)
     except (OSError, ValueError):
         return None
@@ -279,7 +280,6 @@ def _write_result(runtime_root: Path, output_dir: Path, target: Path, result: di
         json.dumps(result, indent=2, sort_keys=True) + "\n",
         "preflight status output",
     )
-    summary = output_dir / "summary.md"
     lines = [
         "# Host-runtime preflight",
         "",
@@ -343,8 +343,8 @@ def _parse_args(argv: list[str] | None) -> tuple[argparse.ArgumentParser, argpar
 def _approved_lock_path(args: argparse.Namespace, runtime_root: Path) -> tuple[Path, Path | None]:
     if args.runtime_lock_root is not None:
         lock_root = verified_runtime_artifact_root(args.runtime_lock_root)
-        return runtime_artifact_path(lock_root, args.runtime_lock, "runtime lock"), lock_root
-    lock_path = runtime_or_source_artifact_path(runtime_root, args.runtime_lock, "runtime lock")
+        return runtime_artifact_path(lock_root, args.runtime_lock, RUNTIME_LOCK_LABEL), lock_root
+    lock_path = runtime_or_source_artifact_path(runtime_root, args.runtime_lock, RUNTIME_LOCK_LABEL)
     artifact_root = None if is_read_only_source_path(lock_path) else runtime_root
     return lock_path, artifact_root
 

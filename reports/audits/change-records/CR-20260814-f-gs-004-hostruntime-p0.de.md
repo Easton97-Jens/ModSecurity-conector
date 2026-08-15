@@ -9,7 +9,7 @@
 | Change-ID | CR-20260814-f-gs-004-hostruntime-p0 |
 | Datum (UTC) | 2026-08-14 |
 | Basis-Revision | ea3b48abab7940de49997a371f9117b409c05a2a |
-| Delivery-Status | Lokale Implementierung, Validierung und Scoped Security Review abgeschlossen; Erstellung des Parent-Draft-PR steht aus. Framework-Draft-PR #79 ist eine erforderliche Abhängigkeit. |
+| Delivery-Status | Follow-up-Bereinigung für den offenen Parent-Draft-[PR #287](https://github.com/Easton97-Jens/ModSecurity-conector/pull/287) vorbereitet. Die initiale Follow-up-Evidence dieses Records stammt vom Head `4204a23cd1abc36469d63222a3e0edc1004fb815`; normaler Push und frische Exact-Head-Hosted-Validierung stehen noch aus. |
 
 ## Motivation und Problemstellung
 
@@ -73,6 +73,38 @@ fail-closed validiert.
 
 Kein Parent-Gitlink, Framework-Quellcode, MRTS-Quellcode, Cache, Build-Output,
 Secret oder Runtime-Log ist Teil der Parent-Änderung.
+
+## PR-#287-SonarQube-Cloud- und Submodule-Follow-up
+
+Der öffentliche SonarQube-Cloud-PR-Endpunkt meldete am initialen Follow-up-Head
+drei task-eigene offene New Issues:
+
+- `python:S1192` in `ci/runtime/common/hostruntime_preflight.py`: Das
+  Diagnostikliteral `"runtime lock"` war dreimal wiederholt. Das Modul verwendet
+  nun die einzelne Konstante `RUNTIME_LOCK_LABEL`, ohne Diagnostik zu ändern.
+- `python:S1481` im selben Preflight-Modul: Eine unbenutzte lokale Variable
+  `summary` wurde entfernt; der bestehende Ausgabe-Pfadausdruck bleibt
+  unverändert.
+- `python:S9073` in `tests/test_hostruntime_record.py`: Der Import-Bootstrap
+  verwendet nun einen expliziten `SPEC`-/Loader-Guard und bewahrt damit
+  Fail-fast-Verhalten auch dann, wenn Python-Assertions optimiert werden.
+
+Der gemeldete rekursive-Submodule-Fehler wurde ausschließlich im registrierten
+isolierten Parent-Worktree reproduziert, nie im autoritativen Checkout. Am
+deklarierten Parent-Gitlink `1260aaae411ecf88cf50dc480b80e2e20ac47901` endeten
+sowohl `git submodule sync --recursive` als auch
+`git submodule update --init --recursive` mit Exit null und materialisierten
+die aufgezeichneten Framework- und MRTS-Revisionen. Der ursprüngliche
+Fehlertext lag nicht vor und kein Fehler reproduzierte sich; deshalb ist keine
+Änderung an Gitlink, Framework-/MRTS-Quellcode oder Submodule-Update-Pfad
+gerechtfertigt.
+
+Die lokale Follow-up-Validierung bestand `git diff --check`, Python-Kompilation
+mit externem Cache, die kombinierte Preflight-/Record-Suite (38 Tests), die
+Record-Suite unter `python -O` (11 Tests) sowie
+`make test-hostruntime-preflight` (27 Tests). Frische Exact-Head-Hosted-Checks,
+das SonarQube-Cloud-Quality-Gate, die Null-offene-Issue-Abfrage, Review und
+Merge bleiben ausstehend, bis dieses Follow-up gepusht ist.
 
 ## Ausgeführte Befehle
 

@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
     "write_hostruntime_record", ROOT / "ci/runtime/lifecycle/write-hostruntime-record.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError("could not load hostruntime record writer")
 writer = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(writer)
 
