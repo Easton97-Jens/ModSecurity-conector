@@ -9,7 +9,7 @@
 | Change ID | CR-20260815-framework-version-pin-updater-sync |
 | Date (UTC) | 2026-08-15 |
 | Base revision | `29a2a8bcab57e936c5274f8fe64a15c6fee879bd` |
-| Delivery status | Draft [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) targets `master`. Its initial head `f804ed598d2515fc972b8f8308678d95a5584fb7` exposed ShellCheck `SC2006`, fixed in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`. That head then exposed a hosted nested-submodule fixture identity defect and 18 task-owned SonarQube Cloud New Issues. The follow-up applies source-native root, symlink, argument, complexity, and contract fixes. Its first hosted `actionlint` recheck showed that the updater test fixture created its temporary files under `/tmp` instead of GitHub's `RUNNER_TEMP`; the final fixture update now follows that runner root. A further updater-only follow-up replaces an ambiguously backtracking assignment matcher with bounded linear parsing, declares the value-rendering callback contract, and canonicalizes the validated path immediately at the read boundary while retaining no-follow checks. Fresh hosted validation is required. `master` integration is not authorized by this record. |
+| Delivery status | [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) targets `master` and is ready for review. Its initial head `f804ed598d2515fc972b8f8308678d95a5584fb7` exposed ShellCheck `SC2006`, fixed in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`; follow-ups then resolved the hosted nested-submodule fixture identity defect and 18 task-owned SonarQube Cloud New Issues with source-native root, symlink, argument, complexity, and contract fixes. The verified delivery round at `788c1a79f4ff36816141253515f1b9e5469e64ab` observed all applicable GitHub checks passing and SonarQube Cloud Quality Gate `OK` with 0 New Issues, 0 Accepted Issues, and 0 Security Hotspots. The branch was updated with one non-overlapping current-`master` commit before that round. No `master` integration was performed or is authorized by this record. |
 
 ## Motivation and problem statement
 
@@ -131,6 +131,8 @@ describe the same coverage.
 | `python3 -m py_compile` on changed relevant Python files | passed |
 | `git diff --check 29a2a8bcab57e936c5274f8fe64a15c6fee879bd` | passed |
 | Finalized security-diff scan | passed; 0 reportable findings |
+| GitHub Actions delivery round | passed; all applicable current-head status checks, including `actionlint`, CodeQL-backed jobs, and connector contracts |
+| SonarQube Cloud delivery round | passed; Quality Gate `OK`, 0 New Issues, 0 Accepted Issues, 0 Security Hotspots |
 
 The exact Framework input was the retained `ci/lib/common.sh` object for
 gitlink `1260aaae411ecf88cf50dc480b80e2e20ac47901`. The security scan report
@@ -139,15 +141,17 @@ is retained at the task-owned external evidence path under
 
 ## Runtime evidence
 
-The evidence is local static validation, contract tests, parser tests, and
-upstream patch compatibility checks. No complete runtime matrix, production
-runtime, or GitHub-hosted runner was executed or claimed.
+The evidence is local static validation, contract tests, parser tests, upstream
+patch compatibility checks, and observed GitHub-hosted PR check rounds. No
+complete runtime matrix, production runtime, or true hosted Framework-update
+publisher run was executed or claimed.
 
 ## Checks not run and rationale
 
-- Fresh GitHub Actions, SonarQube Cloud, and hosted review checks have not yet
-  been observed for the pending Sonar/actionlint remediation head.
-- `actionlint` was not run because it is not installed in the environment.
+- `actionlint` was not run locally because it is not installed in the
+  environment; its hosted PR check passed in the verified delivery round.
+- The scheduled/manual Framework-update publisher was not run: it is not
+  PR-triggered and would require a separately authorized Framework update.
 - Full Framework-dependent integration/runtime validation was not run because
   the exact Framework submodule checkout is intentionally absent from the task
   worktree.
@@ -161,21 +165,22 @@ The exact Framework submodule checkout was unavailable in the task worktree,
 so the full Framework integration and the Framework archive-to-source
 extraction path could not be rerun. The independent security review recorded
 this as partial coverage of a pre-existing integration evidence gap, not as a
-new reportable finding. The local checks cannot prove a hosted runner image,
-network condition, cache state, or current remote PR result.
+new reportable finding. The local checks cannot independently prove a hosted
+runner image, network condition, or cache state; the PR's hosted results were
+directly observed in the verified delivery round.
 
 ## Remaining risks
 
 The updater is deliberately fail closed if Framework declarations or mapped
 Parent targets do not satisfy the bounded contract. The remaining risk is the
-unobserved Framework-side archive extraction proof and the need to observe the
-exact pushed PR head in GitHub before delivery can be considered verified.
+unobserved Framework-side archive extraction proof; no task-owned PR delivery
+blocker remains from the observed GitHub and SonarQube results.
 
 ## Final diff and review status
 
 The local final diff review found task-owned Parent changes only, with the
 Framework source, MRTS, and Parent gitlink unchanged. The required local
-validation and security-diff review passed as recorded above. PR #291 is
-already open and Draft; this record does not assert passing hosted checks,
-SonarQube result, ready-for-review status, or a merge before direct
-observation.
+validation and security-diff review passed as recorded above. PR #291 is open,
+clean, mergeable, and ready for review; its verified delivery round passed the
+applicable GitHub checks and SonarQube Cloud Quality Gate. No `master` merge
+was performed.

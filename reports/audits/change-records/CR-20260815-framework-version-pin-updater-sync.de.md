@@ -9,7 +9,7 @@
 | Change-ID | CR-20260815-framework-version-pin-updater-sync |
 | Datum (UTC) | 2026-08-15 |
 | Basis-Revision | `29a2a8bcab57e936c5274f8fe64a15c6fee879bd` |
-| Delivery-Status | Draft-[PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) zielt auf `master`. Sein initialer Head `f804ed598d2515fc972b8f8308678d95a5584fb7` zeigte ShellCheck `SC2006`, behoben in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`. Dieser Head zeigte danach einen Hosted-Defekt der verschachtelten-Submodule-Fixture-Identität und 18 task-eigene SonarQube-Cloud-New-Issues. Das Follow-up enthält quellnative Root-, Symlink-, Argument-, Komplexitäts- und Contract-Bereinigungen. Sein erster Hosted-`actionlint`-Recheck zeigte, dass die Updater-Testfixture temporäre Dateien unter `/tmp` statt unter GitHubs `RUNNER_TEMP` anlegte; das finale Fixture-Update folgt nun diesem Runner-Root. Ein weiteres reines Updater-Follow-up ersetzt einen mehrdeutig backtrackenden Assignment-Matcher durch begrenztes lineares Parsing, deklariert den Value-Rendering-Callback-Contract und kanonisiert den validierten Pfad direkt an der Lesegrenze bei beibehaltenen No-Follow-Prüfungen. Frische Hosted-Validierung ist erforderlich. Eine `master`-Integration wird durch diesen Record nicht autorisiert. |
+| Delivery-Status | [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) zielt auf `master` und ist bereit zur Prüfung. Sein initialer Head `f804ed598d2515fc972b8f8308678d95a5584fb7` zeigte ShellCheck `SC2006`, behoben in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`; Follow-ups bereinigten danach den Hosted-Defekt der verschachtelten-Submodule-Fixture-Identität und 18 task-eigene SonarQube-Cloud-New-Issues mit quellen-nativen Root-, Symlink-, Argument-, Komplexitäts- und Contract-Korrekturen. Die verifizierte Delivery-Runde bei `788c1a79f4ff36816141253515f1b9e5469e64ab` beobachtete bestandene anwendbare GitHub-Checks und SonarQube Cloud Quality Gate `OK` mit 0 New Issues, 0 Accepted Issues und 0 Security Hotspots. Der Branch wurde vor dieser Runde mit einem nicht überlappenden aktuellen-`master`-Commit aktualisiert. Es wurde keine `master`-Integration durchgeführt oder durch diesen Record autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -136,6 +136,8 @@ deutsche Fassung beschreiben dieselbe Abdeckung.
 | `python3 -m py_compile` für geänderte relevante Python-Dateien | bestanden |
 | `git diff --check 29a2a8bcab57e936c5274f8fe64a15c6fee879bd` | bestanden |
 | Finalisierter Security-Diff-Scan | bestanden; 0 meldungswürdige Findings |
+| GitHub-Actions-Delivery-Runde | bestanden; alle anwendbaren Statuschecks des aktuellen Heads, einschließlich `actionlint`, CodeQL-gestützter Jobs und Connector-Contracts |
+| SonarQube-Cloud-Delivery-Runde | bestanden; Quality Gate `OK`, 0 New Issues, 0 Accepted Issues, 0 Security Hotspots |
 
 Die exakte Framework-Eingabe war das beibehaltene
 `ci/lib/common.sh`-Objekt für den Gitlink
@@ -147,16 +149,19 @@ aufbewahrt.
 ## Runtime-Evidence
 
 Die Evidenz besteht aus lokaler statischer Validierung, Contract-Tests,
-Parser-Tests und Upstream-Patch-Kompatibilitätsprüfungen. Keine vollständige
-Runtime-Matrix, Produktions-Runtime oder GitHub-Hosted-Runner-Ausführung wurde
-durchgeführt oder behauptet.
+Parser-Tests, Upstream-Patch-Kompatibilitätsprüfungen und beobachteten
+GitHub-Hosted-PR-Check-Runden. Keine vollständige Runtime-Matrix,
+Produktions-Runtime oder echte Hosted-Ausführung des Framework-Update-Publishers
+wurde durchgeführt oder behauptet.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- Frische GitHub Actions, SonarQube Cloud und Hosted-Review-Checks wurden für
-  den ausstehenden Sonar-/actionlint-Remediation-Head noch nicht beobachtet.
-- `actionlint` wurde nicht ausgeführt, weil es in der Umgebung nicht
-  installiert ist.
+- `actionlint` wurde lokal nicht ausgeführt, weil es in der Umgebung nicht
+  installiert ist; sein Hosted-PR-Check bestand in der verifizierten
+  Delivery-Runde.
+- Der geplante/manuelle Framework-Update-Publisher wurde nicht ausgeführt: Er
+  wird nicht durch PRs ausgelöst und würde ein separat autorisiertes
+  Framework-Update erfordern.
 - Eine vollständige Framework-abhängige Integration-/Runtime-Validierung wurde
   nicht ausgeführt, weil der exakte Framework-Submodule-Checkout im
   Task-Worktree absichtlich fehlt.
@@ -171,24 +176,24 @@ deshalb konnten die vollständige Framework-Integration und der
 Framework-Archiv-zu-Quelle-Extraktionspfad nicht erneut ausgeführt werden. Die
 unabhängige Security-Prüfung erfasste dies als partielle Abdeckung einer
 bereits bestehenden Integrations-Evidenzlücke, nicht als neues meldungswürdiges
-Finding. Die lokalen Prüfungen können kein Hosted-Runner-Image, keine
-Netzwerkbedingung, keinen Cache-Zustand und kein aktuelles Remote-PR-Ergebnis
-beweisen.
+Finding. Die lokalen Prüfungen können ein Hosted-Runner-Image,
+Netzwerkbedingungen oder einen Cache-Zustand nicht unabhängig beweisen; die
+Hosted-Ergebnisse des PR wurden in der verifizierten Delivery-Runde direkt
+beobachtet.
 
 ## Verbleibende Risiken
 
 Der Updater bricht bewusst fehlgeschlossen ab, wenn Framework-Deklarationen oder
 zugeordnete Parent-Ziele den begrenzten Contract nicht erfüllen. Das
 verbleibende Risiko ist der unbeobachtete Framework-seitige Nachweis der
-Archivextraktion sowie die noch erforderliche Beobachtung des exakt
-gepushten PR-Heads in GitHub, bevor die Auslieferung als verifiziert gelten
-kann.
+Archivextraktion; aus den beobachteten GitHub- und SonarQube-Ergebnissen bleibt
+kein task-eigener PR-Delivery-Blocker.
 
 ## Finaler Diff- und Review-Status
 
 Die lokale finale Diff-Prüfung fand nur task-eigene Parent-Änderungen; die
 Framework-Quelle, MRTS und der Parent-Gitlink blieben unverändert. Die
 erforderliche lokale Validierung und der Security-Diff-Review bestanden wie
-oben aufgeführt. PR #291 ist bereits offen und Draft; dieser Record behauptet
-keine bestandenen Hosted-Checks, kein SonarQube-Ergebnis, keinen
-Ready-for-Review-Status und keinen Merge vor direkter Beobachtung.
+oben aufgeführt. PR #291 ist offen, clean, mergebar und bereit zur Prüfung;
+seine verifizierte Delivery-Runde bestand die anwendbaren GitHub-Checks und das
+SonarQube-Cloud-Quality-Gate. Es wurde kein `master`-Merge durchgeführt.
