@@ -21,6 +21,7 @@ from typing import Sequence
 
 FULL_SHA1 = re.compile(r"[0-9a-f]{40}\Z")
 FULL_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+SAFE_GIT_ARGUMENT = re.compile(r"[A-Za-z0-9_./:@=*?$()\\,+\-^ ]+\Z")
 GITMODULES_FILENAME = ".gitmodules"
 
 
@@ -37,9 +38,43 @@ def _fail(code: str, **details: object) -> None:
     raise ValidationError(code, details)
 
 
+def _validated_git_root(root: Path) -> Path:
+    """Return an absolute, existing directory before invoking Git."""
+
+    value = os.fspath(root)
+    if not root.is_absolute() or os.path.normpath(value) != value:
+        _fail("GIT_ROOT_INVALID")
+    try:
+        resolved = root.resolve(strict=True)
+    except OSError:
+        _fail("GIT_ROOT_INVALID")
+    if not resolved.is_dir():
+        _fail("GIT_ROOT_INVALID")
+    return resolved
+
+
+def _validated_git_arguments(arguments: Sequence[str]) -> tuple[str, ...]:
+    """Reject shell-control bytes and malformed arguments at the command boundary."""
+
+    # Git receives an argv vector (never a shell string); retain Git's
+    # pathspec and regexp syntax while rejecting control and shell syntax that
+    # could be repurposed by a future command-boundary regression.
+    forbidden = frozenset("\x00\n\r;&|`<>")
+    if any(
+        not argument
+        or SAFE_GIT_ARGUMENT.fullmatch(argument) is None
+        or any(char in forbidden for char in argument)
+        for argument in arguments
+    ):
+        _fail("GIT_ARGUMENT_INVALID")
+    return tuple(arguments)
+
+
 def _git(root: Path, *arguments: str) -> str:
+    safe_root = _validated_git_root(root)
+    safe_arguments = _validated_git_arguments(arguments)
     completed = subprocess.run(
-        ["git", "-C", os.fspath(root), *arguments],
+        ["git", "-C", os.fspath(safe_root), *safe_arguments],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
@@ -52,8 +87,10 @@ def _git(root: Path, *arguments: str) -> str:
 
 
 def _git_status(root: Path, *arguments: str) -> int:
+    safe_root = _validated_git_root(root)
+    safe_arguments = _validated_git_arguments(arguments)
     completed = subprocess.run(
-        ["git", "-C", os.fspath(root), *arguments],
+        ["git", "-C", os.fspath(safe_root), *safe_arguments],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -348,6 +385,26 @@ def _submodule_paths(root: Path) -> list[str]:
     return paths
 
 
+def _tree_entry_metadata(entry: str) -> tuple[str, str | None, str | None]:
+    header, separator, path = entry.partition("\t")
+    fields = header.split()
+    if not separator or len(fields) != 3 or not path:
+        _fail("FRAMEWORK_SUBMODULE_METADATA_INVALID")
+    mode, object_type, object_id = fields
+    safe_path = _relative_path(path, "FRAMEWORK_SUBMODULE_METADATA_INVALID")
+    gitlink: str | None = None
+    gitmodules: str | None = None
+    if mode == "160000":
+        if object_type != "commit" or not FULL_SHA1.fullmatch(object_id):
+            _fail("FRAMEWORK_SUBMODULE_METADATA_INVALID")
+        gitlink = object_id
+    if safe_path == GITMODULES_FILENAME or safe_path.endswith(f"/{GITMODULES_FILENAME}"):
+        if object_type != "blob" or not FULL_SHA1.fullmatch(object_id):
+            _fail("FRAMEWORK_SUBMODULE_METADATA_INVALID")
+        gitmodules = object_id
+    return safe_path, gitlink, gitmodules
+
+
 def _tree_metadata(root: Path, revision: str) -> tuple[dict[str, str], dict[str, str]]:
     """Return the reviewed tree's gitlinks and ``.gitmodules`` blobs.
 
@@ -361,20 +418,11 @@ def _tree_metadata(root: Path, revision: str) -> tuple[dict[str, str], dict[str,
     for entry in output.split("\0"):
         if not entry:
             continue
-        header, separator, path = entry.partition("\t")
-        fields = header.split()
-        if not separator or len(fields) != 3 or not path:
-            _fail("FRAMEWORK_SUBMODULE_METADATA_INVALID")
-        mode, object_type, object_id = fields
-        safe_path = _relative_path(path, "FRAMEWORK_SUBMODULE_METADATA_INVALID")
-        if mode == "160000":
-            if object_type != "commit" or not FULL_SHA1.fullmatch(object_id):
-                _fail("FRAMEWORK_SUBMODULE_METADATA_INVALID")
-            gitlinks[safe_path] = object_id
-        if safe_path == GITMODULES_FILENAME or safe_path.endswith(f"/{GITMODULES_FILENAME}"):
-            if object_type != "blob" or not FULL_SHA1.fullmatch(object_id):
-                _fail("FRAMEWORK_SUBMODULE_METADATA_INVALID")
-            gitmodules[safe_path] = object_id
+        safe_path, gitlink, gitmodule = _tree_entry_metadata(entry)
+        if gitlink is not None:
+            gitlinks[safe_path] = gitlink
+        if gitmodule is not None:
+            gitmodules[safe_path] = gitmodule
     return gitlinks, gitmodules
 
 

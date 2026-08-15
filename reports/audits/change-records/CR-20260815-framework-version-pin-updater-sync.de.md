@@ -9,7 +9,7 @@
 | Change-ID | CR-20260815-framework-version-pin-updater-sync |
 | Datum (UTC) | 2026-08-15 |
 | Basis-Revision | `29a2a8bcab57e936c5274f8fe64a15c6fee879bd` |
-| Delivery-Status | Draft-[PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) zielt auf `master`. Sein initialer Head `f804ed598d2515fc972b8f8308678d95a5584fb7` zeigte einen task-eigenen `actionlint`-Fehler: ShellCheck `SC2006` wies Legacy-Backticks in Kommentaren in `.github/workflows/update-submodules.yml` zurück. Dieses Follow-up ersetzt die Kommentare durch Klartext und aktualisiert den geschützten Publisher-Block-Hash; frische Hosted-Validierung des aktuellen Heads steht noch aus. Eine `master`-Integration wird durch diesen Record nicht autorisiert. |
+| Delivery-Status | Draft-[PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) zielt auf `master`. Sein initialer Head `f804ed598d2515fc972b8f8308678d95a5584fb7` zeigte ShellCheck `SC2006`, behoben in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`. Dieser Head zeigte danach einen Hosted-Defekt der verschachtelten-Submodule-Fixture-Identität und 18 task-eigene SonarQube-Cloud-New-Issues. Das ausstehende Follow-up enthält quellnative Root-, Symlink-, Argument-, Komplexitäts- und Contract-Bereinigungen; frische Hosted-Validierung ist erforderlich. Eine `master`-Integration wird durch diesen Record nicht autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -67,6 +67,13 @@ initialisiert keine vom Kandidaten kontrollierten verschachtelten Submodule
 mehr rekursiv. Es wurden keine Berechtigungen, Scanner, Tests oder
 Quality-Gates abgeschwächt.
 
+Das Follow-up begrenzt zusätzlich extrahierte Framework-Daten auf den
+Runner-kontrollierten temporären Root, validiert jeden Git-Subprozess-Root und
+Argumentvektor und begrenzt den HAProxy-Contract-Reader mit No-Follow-Regular-
+File-Zugriff auf seinen festen Overlay-Root. Die Nested-Submodule-
+Regression-Fixture konfiguriert ihre lokale Commit-Identität explizit für
+Hosted Runner.
+
 ## Geänderte Dateien
 
 Der task-eigene Parent-Diff ist nachfolgend gruppiert; die englische und die
@@ -117,6 +124,7 @@ deutsche Fassung beschreiben dieselbe Abdeckung.
 | Lighttpd-Patched-Host-Contract-Tests | bestanden; 26 Tests |
 | NGINX-Root-/Protected-Broker-Tests | bestanden; 64 Tests |
 | Workflow-/Submodul-/Updater-Unittest-Suite nach `actionlint`-Remediation | bestanden; 52 Tests |
+| Aktuelles Sonar-/actionlint-Remediation-Aggregat | bestanden; 140 Tests mit 4 erwarteten Capability-Skips |
 | Connector-, Shell-Syntax-, Variablen-Dokumentations-, No-CRS-Dokumentations- und Evidence-Output-Security-Prüfungen | bestanden |
 | `python3 -m py_compile` für geänderte relevante Python-Dateien | bestanden |
 | `git diff --check 29a2a8bcab57e936c5274f8fe64a15c6fee879bd` | bestanden |
@@ -139,8 +147,7 @@ durchgeführt oder behauptet.
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 - Frische GitHub Actions, SonarQube Cloud und Hosted-Review-Checks wurden für
-  keinen Remediation-Head nach dem initialen PR-Head-`actionlint`-Fehler
-  beobachtet.
+  den ausstehenden Sonar-/actionlint-Remediation-Head noch nicht beobachtet.
 - `actionlint` wurde nicht ausgeführt, weil es in der Umgebung nicht
   installiert ist.
 - Eine vollständige Framework-abhängige Integration-/Runtime-Validierung wurde
@@ -175,6 +182,6 @@ kann.
 Die lokale finale Diff-Prüfung fand nur task-eigene Parent-Änderungen; die
 Framework-Quelle, MRTS und der Parent-Gitlink blieben unverändert. Die
 erforderliche lokale Validierung und der Security-Diff-Review bestanden wie
-oben aufgeführt. Dieser Record behauptet keinen Commit, Push, keine
-PR-Erstellung, keine Hosted-Checks, kein SonarQube-Ergebnis und keinen Merge;
-solche Fakten dürfen erst nach direkter Beobachtung dokumentiert werden.
+oben aufgeführt. PR #291 ist bereits offen und Draft; dieser Record behauptet
+keine bestandenen Hosted-Checks, kein SonarQube-Ergebnis, keinen
+Ready-for-Review-Status und keinen Merge vor direkter Beobachtung.

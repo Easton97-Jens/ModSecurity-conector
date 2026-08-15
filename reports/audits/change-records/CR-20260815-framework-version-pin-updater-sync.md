@@ -9,7 +9,7 @@
 | Change ID | CR-20260815-framework-version-pin-updater-sync |
 | Date (UTC) | 2026-08-15 |
 | Base revision | `29a2a8bcab57e936c5274f8fe64a15c6fee879bd` |
-| Delivery status | Draft [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) targets `master`. Its initial head `f804ed598d2515fc972b8f8308678d95a5584fb7` exposed one task-owned `actionlint` failure: ShellCheck `SC2006` rejected legacy backticks in comments in `.github/workflows/update-submodules.yml`. This follow-up replaces the comments with plain text and updates the protected publisher-block hash; fresh current-head hosted validation remains pending. `master` integration is not authorized by this record. |
+| Delivery status | Draft [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) targets `master`. Its initial head `f804ed598d2515fc972b8f8308678d95a5584fb7` exposed ShellCheck `SC2006`, fixed in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`. That head then exposed a hosted nested-submodule fixture identity defect and 18 task-owned SonarQube Cloud New Issues. The pending follow-up applies source-native root, symlink, argument, complexity, and contract fixes; fresh hosted validation is required. `master` integration is not authorized by this record. |
 
 ## Motivation and problem statement
 
@@ -64,6 +64,12 @@ rollback behavior. The workflow no longer recursively initializes
 candidate-controlled nested submodules. No permission, scanner, test, or
 quality-gate weakening was introduced.
 
+The follow-up additionally confines extracted Framework data to the
+runner-controlled temporary root, validates every Git subprocess root and
+argument vector, and confines the HAProxy contract reader to its fixed overlay
+root with no-follow regular-file access. The nested-submodule regression
+fixture configures its local commit identity explicitly for hosted runners.
+
 ## Changed files
 
 The task-owned Parent diff is grouped below; the English and German records
@@ -113,6 +119,7 @@ describe the same coverage.
 | Lighttpd patched-host contract tests | passed; 26 tests |
 | NGINX root/protected broker tests | passed; 64 tests |
 | Post-`actionlint` remediation workflow/submodule/updater unittest suite | passed; 52 tests |
+| Current Sonar/actionlint remediation aggregate | passed; 140 tests with 4 expected capability skips |
 | Connector, shell-syntax, variable-documentation, no-CRS documentation, and evidence-output security checks | passed |
 | `python3 -m py_compile` on changed relevant Python files | passed |
 | `git diff --check 29a2a8bcab57e936c5274f8fe64a15c6fee879bd` | passed |
@@ -131,9 +138,8 @@ runtime, or GitHub-hosted runner was executed or claimed.
 
 ## Checks not run and rationale
 
-- Fresh GitHub Actions, SonarQube Cloud, and hosted review checks were not
-  observed for the remediation head after the initial PR-head `actionlint`
-  failure.
+- Fresh GitHub Actions, SonarQube Cloud, and hosted review checks have not yet
+  been observed for the pending Sonar/actionlint remediation head.
 - `actionlint` was not run because it is not installed in the environment.
 - Full Framework-dependent integration/runtime validation was not run because
   the exact Framework submodule checkout is intentionally absent from the task
@@ -162,6 +168,7 @@ exact pushed PR head in GitHub before delivery can be considered verified.
 
 The local final diff review found task-owned Parent changes only, with the
 Framework source, MRTS, and Parent gitlink unchanged. The required local
-validation and security-diff review passed as recorded above. This record does
-not assert a commit, push, PR creation, hosted checks, SonarQube result, or
-merge; those facts must be recorded only after direct observation.
+validation and security-diff review passed as recorded above. PR #291 is
+already open and Draft; this record does not assert passing hosted checks,
+SonarQube result, ready-for-review status, or a merge before direct
+observation.

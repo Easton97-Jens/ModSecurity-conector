@@ -18,7 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
     "sync_framework", ROOT / "ci/tools/sync-framework-component-versions.py"
 )
-assert SPEC and SPEC.loader
+assert SPEC is not None
+assert SPEC.loader is not None
 SYNC = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = SYNC
 SPEC.loader.exec_module(SYNC)
@@ -162,6 +163,9 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.common.write_text(COMMON + "ENVOY_VERSION=1.41.0\n", encoding="utf-8")
         with self.assertRaises(SYNC.SyncError):
             SYNC.parse_common(self.common)
+        self.common.write_text(COMMON.replace("1.40.0", "١.40.0"), encoding="utf-8")
+        with self.assertRaises(SYNC.SyncError):
+            SYNC.parse_common(self.common)
 
     def test_missing_target_is_rejected_atomically(self) -> None:
         target = self.root / "ci/runtime/broker/nginx_root_broker.py"
@@ -195,6 +199,21 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         for path, contents in before.items():
             if path != target:
                 self.assertEqual(path.read_bytes(), contents)
+
+    def test_candidate_outside_explicit_allowed_root_is_rejected(self) -> None:
+        outside = Path(self.temp.name) / "outside-common.sh"
+        outside.write_text(COMMON, encoding="utf-8")
+        with self.assertRaises(SYNC.SyncError):
+            SYNC._read_regular(
+                outside,
+                "candidate common.sh",
+                allowed_root=self.root,
+            )
+
+    def test_framework_candidate_must_be_below_runner_temp_root(self) -> None:
+        with mock.patch.dict(os.environ, {"RUNNER_TEMP": str(self.root)}):
+            with self.assertRaises(SYNC.SyncError):
+                SYNC.parse_common(self.common)
 
     def test_special_target_and_symlinked_parent_are_rejected(self) -> None:
         target = self.root / "connectors/envoy/config/envoy-ext-proc-versions.env"

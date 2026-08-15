@@ -21,12 +21,13 @@ import tempfile
 MAX_COMMON_BYTES = 256 * 1024
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 HEX40 = re.compile(r"^[0-9a-fA-F]{40}$")
-VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+VERSION = re.compile(r"^\d+\.\d+\.\d+$", flags=re.ASCII)
 SAFE_PATCH = re.compile(r"^[A-Za-z0-9._-]+\.patch$")
+LIGHTTPD_SOURCE_URL = "https://download.lighttpd.net/lighttpd/releases-1.4.x/"
 # ``#`` can be part of a safe nested parameter expansion such as
 # ``${NGINX_RELEASE_TAG#release-}``; inline shell comments are deliberately
 # unsupported rather than ambiguously stripped.
-ASSIGNMENT = re.compile(r"^\s*([A-Z][A-Z0-9_]*)\s*=\s*(.*?)\s*$")
+ASSIGNMENT = re.compile(r"^[ \t]*([A-Z][A-Z0-9_]*)[ \t]*=[ \t]*([^\r\n]*)$")
 
 REQUIRED = (
     "ENVOY_VERSION",
@@ -224,10 +225,38 @@ def _require_directory(path: Path, label: str) -> Path:
     return absolute
 
 
-def _read_regular(path: Path, label: str, *, maximum: int | None = None) -> tuple[bytes, int]:
-    """Read a checked regular file without following its final path element."""
+def _allowed_path(path: Path, allowed_root: Path, label: str) -> Path:
+    """Return a path proven to stay below an explicit, non-symlink root."""
 
     absolute = _absolute(path)
+    root = _require_directory(allowed_root, f"{label} allowed root")
+    try:
+        absolute.relative_to(root)
+    except ValueError as exc:
+        raise SyncError(f"{label} is outside its allowed root: {absolute}") from exc
+    return absolute
+
+
+def _framework_common_root() -> Path:
+    """Select the runner-controlled temporary root for extracted Framework data."""
+
+    configured = os.environ.get("RUNNER_TEMP")
+    root = Path(configured) if configured else Path(tempfile.gettempdir())
+    if not root.is_absolute():
+        raise SyncError("Framework common temporary root must be absolute")
+    return root
+
+
+def _read_regular(
+    path: Path,
+    label: str,
+    *,
+    allowed_root: Path,
+    maximum: int | None = None,
+) -> tuple[bytes, int]:
+    """Read a checked regular file without following its final path element."""
+
+    absolute = _allowed_path(path, allowed_root, label)
     metadata = _walk_no_symlinks(absolute, label)
     if not stat.S_ISREG(metadata.st_mode):
         raise SyncError(f"{label} must be a regular file")
@@ -300,7 +329,7 @@ def _resolve_nginx_source_ref(rhs: str, release_tag: str) -> str:
 
 def _resolve_lighttpd_download_url(rhs: str, source_url: str, version: str) -> str:
     value = _unquote(rhs, "LIGHTTPD_DOWNLOAD_URL")
-    expected = "${LIGHTTPD_DOWNLOAD_URL:-https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$LIGHTTPD_VERSION.tar.xz}"
+    expected = f"${{LIGHTTPD_DOWNLOAD_URL:-{LIGHTTPD_SOURCE_URL}lighttpd-$LIGHTTPD_VERSION.tar.xz}}"
     if value == expected:
         return f"{source_url}lighttpd-{version}.tar.xz"
     return _literal(rhs, "LIGHTTPD_DOWNLOAD_URL")
@@ -342,7 +371,12 @@ def _resolve_nginx_asset_name(rhs: str, release_tag: str) -> str:
 
 
 def parse_common(path: Path) -> dict[str, str]:
-    contents, _mode = _read_regular(path, "Framework common.sh", maximum=MAX_COMMON_BYTES)
+    contents, _mode = _read_regular(
+        path,
+        "Framework common.sh",
+        allowed_root=_framework_common_root(),
+        maximum=MAX_COMMON_BYTES,
+    )
     try:
         text = contents.decode("utf-8")
     except UnicodeDecodeError as exc:
@@ -388,33 +422,49 @@ def parse_common(path: Path) -> dict[str, str]:
 
 
 def _validate(values: dict[str, str]) -> None:
+    _validate_versions(values)
+    _validate_lighttpd(values)
+    _validate_haproxy(values)
+    _validate_nginx(values)
+    _validate_crs(values)
+
+
+def _validate_versions(values: dict[str, str]) -> None:
     for key in ("ENVOY_VERSION", "LIGHTTPD_VERSION", "HAPROXY_VERSION", "NGINX_QUIC_TLS_VERSION"):
         if not VERSION.fullmatch(values[key]):
             raise SyncError(f"{key} is not a semantic version")
-    if values["LIGHTTPD_SOURCE_URL"] != "https://download.lighttpd.net/lighttpd/releases-1.4.x/":
+
+
+def _validate_lighttpd(values: dict[str, str]) -> None:
+    if values["LIGHTTPD_SOURCE_URL"] != LIGHTTPD_SOURCE_URL:
         raise SyncError("unsupported LIGHTTPD_SOURCE_URL")
-    if values["LIGHTTPD_DOWNLOAD_URL"] != f"{values['LIGHTTPD_SOURCE_URL']}lighttpd-{values['LIGHTTPD_VERSION']}.tar.xz":
+    expected = f"{LIGHTTPD_SOURCE_URL}lighttpd-{values['LIGHTTPD_VERSION']}.tar.xz"
+    if values["LIGHTTPD_DOWNLOAD_URL"] != expected:
         raise SyncError("LIGHTTPD_DOWNLOAD_URL does not match LIGHTTPD_VERSION")
     if not HEX64.fullmatch(values["LIGHTTPD_SHA256"]):
         raise SyncError("LIGHTTPD_SHA256 is not a SHA-256 digest")
-    haproxy_series = ".".join(values["HAPROXY_VERSION"].split(".")[:2])
-    expected_haproxy_url = f"https://www.haproxy.org/download/{haproxy_series}/src/haproxy-{values['HAPROXY_VERSION']}.tar.gz"
-    if values["HAPROXY_SOURCE_URL"] != expected_haproxy_url:
+
+
+def _validate_haproxy(values: dict[str, str]) -> None:
+    series = ".".join(values["HAPROXY_VERSION"].split(".")[:2])
+    expected = f"https://www.haproxy.org/download/{series}/src/haproxy-{values['HAPROXY_VERSION']}.tar.gz"
+    if values["HAPROXY_SOURCE_URL"] != expected:
         raise SyncError("HAPROXY_SOURCE_URL does not match HAPROXY_VERSION")
     if not HEX64.fullmatch(values["HAPROXY_SHA256"]):
         raise SyncError("HAPROXY_SHA256 is not a SHA-256 digest")
+
+
+def _validate_nginx(values: dict[str, str]) -> None:
     if values["NGINX_QUIC_TLS_LIBRARY"] != "openssl":
         raise SyncError("unsupported NGINX_QUIC_TLS_LIBRARY")
     tls = values["NGINX_QUIC_TLS_VERSION"]
-    expected_tls_url = f"https://github.com/openssl/openssl/releases/download/openssl-{tls}/openssl-{tls}.tar.gz"
-    if values["NGINX_QUIC_TLS_SOURCE_URL"] != expected_tls_url:
+    expected_tls = f"https://github.com/openssl/openssl/releases/download/openssl-{tls}/openssl-{tls}.tar.gz"
+    if values["NGINX_QUIC_TLS_SOURCE_URL"] != expected_tls:
         raise SyncError("NGINX_QUIC_TLS_SOURCE_URL does not match its version")
     if not HEX64.fullmatch(values["NGINX_QUIC_TLS_SOURCE_SHA256"]):
         raise SyncError("NGINX_QUIC_TLS_SOURCE_SHA256 is not a SHA-256 digest")
-    if values["NGINX_SOURCE_MODE"] != "github-release":
-        raise SyncError("unsupported NGINX_SOURCE_MODE")
-    if values["NGINX_SOURCE_REPO_URL"] != "https://github.com/nginx/nginx":
-        raise SyncError("unsupported NGINX_SOURCE_REPO_URL")
+    if values["NGINX_SOURCE_MODE"] != "github-release" or values["NGINX_SOURCE_REPO_URL"] != "https://github.com/nginx/nginx":
+        raise SyncError("unsupported NGINX source contract")
     tag = values["NGINX_RELEASE_TAG"]
     if not re.fullmatch(r"release-\d+\.\d+\.\d+", tag):
         raise SyncError("NGINX_RELEASE_TAG must be a release-x.y.z tag")
@@ -424,6 +474,9 @@ def _validate(values: dict[str, str]) -> None:
         raise SyncError("NGINX_RELEASE_ASSET_NAME does not match NGINX_RELEASE_TAG")
     if not HEX64.fullmatch(values["NGINX_SHA256"]):
         raise SyncError("NGINX_SHA256 is not a SHA-256 digest")
+
+
+def _validate_crs(values: dict[str, str]) -> None:
     if values["CRS_APPROVED_REPO_URL"] != "https://github.com/coreruleset/coreruleset.git":
         raise SyncError("unsupported CRS repository")
     if not HEX40.fullmatch(values["CRS_APPROVED_COMMIT"]):
@@ -484,7 +537,7 @@ def _lighttpd_contract(text: str, fields: tuple[tuple[str, str], ...], values: d
     if (
         set(seen) != expected_keys
         or not VERSION.fullmatch(seen["LIGHTTPD_VERSION"])
-        or seen["LIGHTTPD_SOURCE_URL"] != "https://download.lighttpd.net/lighttpd/releases-1.4.x/"
+        or seen["LIGHTTPD_SOURCE_URL"] != LIGHTTPD_SOURCE_URL
         or seen["LIGHTTPD_DOWNLOAD_URL"] != f"{seen['LIGHTTPD_SOURCE_URL']}lighttpd-{seen['LIGHTTPD_VERSION']}.tar.xz"
         or not HEX64.fullmatch(seen["LIGHTTPD_SHA256"])
         or not SAFE_PATCH.fullmatch(seen["LIGHTTPD_PATCH_FILENAME"])
@@ -541,7 +594,7 @@ def _lighttpd_source_map(text: str, fields: tuple[tuple[str, str], ...], values:
     version = upstream["version"]
     if (
         not VERSION.fullmatch(version)
-        or upstream["repository"] != "https://download.lighttpd.net/lighttpd/releases-1.4.x/"
+        or upstream["repository"] != LIGHTTPD_SOURCE_URL
         or upstream["download_url"] != f"{upstream['repository']}lighttpd-{version}.tar.xz"
     ):
         raise SyncError(f"invalid Lighttpd source map upstream tuple: {path}")
@@ -565,33 +618,51 @@ def _render_targets(root: Path, values: dict[str, str]) -> list[RenderedTarget]:
 
     for spec in TARGET_REGISTRY:
         path = _target_path(root, spec.relative_path)
-        original, mode = _read_regular(path, f"registered target {spec.relative_path}")
+        original, mode = _read_regular(
+            path,
+            f"registered target {spec.relative_path}",
+            allowed_root=root,
+        )
         try:
             text = original.decode("utf-8")
         except UnicodeDecodeError as exc:
             raise SyncError(f"registered target is not UTF-8 text: {path}") from exc
-        if spec.syntax == "shell":
-            replacement = text
-            for target_name, source_name in spec.fields:
-                replacement = _shell_assignment(replacement, target_name, source_value(source_name), path)
-        elif spec.syntax == "yaml":
-            replacement = text
-            for target_name, source_name in spec.fields:
-                replacement = _yaml_assignment(replacement, target_name, source_value(source_name), path)
-        elif spec.syntax == "python":
-            replacement = text
-            for target_name, source_name in spec.fields:
-                replacement = _python_assignment(replacement, target_name, source_value(source_name), path)
-        elif spec.syntax == "lighttpd-contract":
-            replacement = _lighttpd_contract(text, spec.fields, values, path)
-        elif spec.syntax == "lighttpd-source-map":
-            replacement = _lighttpd_source_map(text, spec.fields, values, path)
-        elif spec.syntax == "haproxy-contract":
-            replacement = _haproxy_contract(text, spec.fields, values, path)
-        else:
-            raise SyncError(f"unsupported registered target syntax: {spec.syntax}")
+        replacement = _render_target(spec, text, values, path, source_value)
         rendered.append(RenderedTarget(path, original, replacement.encode("utf-8"), mode))
     return rendered
+
+
+def _render_target(
+    spec: TargetSpec,
+    text: str,
+    values: dict[str, str],
+    path: Path,
+    source_value: object,
+) -> str:
+    if spec.syntax in {"shell", "yaml", "python"}:
+        return _render_assignments(spec, text, path, source_value)
+    renderers = {
+        "lighttpd-contract": _lighttpd_contract,
+        "lighttpd-source-map": _lighttpd_source_map,
+        "haproxy-contract": _haproxy_contract,
+    }
+    renderer = renderers.get(spec.syntax)
+    if renderer is None:
+        raise SyncError(f"unsupported registered target syntax: {spec.syntax}")
+    return renderer(text, spec.fields, values, path)
+
+
+def _render_assignments(spec: TargetSpec, text: str, path: Path, source_value: object) -> str:
+    replacement = text
+    assignment_renderers = {
+        "shell": _shell_assignment,
+        "yaml": _yaml_assignment,
+        "python": _python_assignment,
+    }
+    renderer = assignment_renderers[spec.syntax]
+    for target_name, source_name in spec.fields:
+        replacement = renderer(replacement, target_name, source_value(source_name), path)  # type: ignore[operator]
+    return replacement
 
 
 def _fsync_directory(path: Path) -> None:
@@ -626,9 +697,12 @@ def synchronize(root: Path, framework_common: Path, sync: bool) -> list[str]:
     values = parse_common(framework_common)
     rendered = _render_targets(repository_root, values)
     changed = [str(item.path.relative_to(repository_root)) for item in rendered if item.replacement != item.original]
-    if not sync or not changed:
-        return changed
+    if sync and changed:
+        _commit_rendered(rendered)
+    return changed
 
+
+def _commit_rendered(rendered: list[RenderedTarget]) -> None:
     committed: list[RenderedTarget] = []
     try:
         for item in rendered:
@@ -645,7 +719,6 @@ def synchronize(root: Path, framework_common: Path, sync: bool) -> list[str]:
                 rollback_errors.append(str(rollback_exc))
         detail = "; rollback failed: " + "; ".join(rollback_errors) if rollback_errors else ""
         raise SyncError(f"synchronization failed; completed changes were rolled back: {exc}{detail}") from exc
-    return changed
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -662,7 +735,12 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, SyncError) as exc:
         print(f"sync-framework-component-versions: error: {exc}")
         return 2
-    selected_mode = "sync" if args.sync else "check" if args.check else "validate"
+    if args.sync:
+        selected_mode = "sync"
+    elif args.check:
+        selected_mode = "check"
+    else:
+        selected_mode = "validate"
     print(json.dumps({"changed": changed, "mode": selected_mode}, sort_keys=True))
     return 1 if args.check and changed else 0
 

@@ -18,7 +18,10 @@ HAPROXY_MODSECURITY_BINDING_CPPFLAGS=${HAPROXY_MODSECURITY_BINDING_CPPFLAGS:-}
 MAKE_JOBS=${MAKE_JOBS:-2}
 CONTRACT_FILE="$SCRIPT_DIR/version-contract.json"
 CONTRACT_PARSER="$SCRIPT_DIR/version_contract.py"
-contract_field() { python3 "$CONTRACT_PARSER" --contract "$CONTRACT_FILE" --field "$1"; }
+contract_field() {
+    field_name=$1
+    python3 "$CONTRACT_PARSER" --contract "$CONTRACT_FILE" --field "$field_name"
+}
 HAPROXY_VERSION=$(contract_field version)
 MAKEFILE_PATCH=$(contract_field makefile_patch)
 

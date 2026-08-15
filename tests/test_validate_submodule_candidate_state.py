@@ -61,6 +61,10 @@ class ValidateSubmoduleCandidateStateTests(unittest.TestCase):
         self.git(parent, "commit", "-m", "add framework")
         if nested:
             self.git(parent, "-c", "protocol.file.allow=always", "submodule", "update", "--init", "--recursive")
+            # Recursive clones do not inherit the source repository's local
+            # identity; configure the nested worktree for hosted runners.
+            self.git(parent / "framework" / "nested", "config", "user.email", "test@example.invalid")
+            self.git(parent / "framework" / "nested", "config", "user.name", "Validator Test")
         parent_head = self.git(parent, "rev-parse", "HEAD")
         return parent, parent / "framework", framework_a, parent_head
 
