@@ -65,7 +65,7 @@ jobs:
     env:
       ALLOW_RUNTIME_BUILDS: "1"
       ALLOW_RUNTIME_DOWNLOADS: "1"
-      EXPECTED_FRAMEWORK_SHA: 1260aaae411ecf88cf50dc480b80e2e20ac47901
+      EXPECTED_FRAMEWORK_SHA: 01952978772995c054ba6a4cba86adc5d0cd1e7d
       EXPECTED_MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
       EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       CRS: ${{ matrix.crs }}
