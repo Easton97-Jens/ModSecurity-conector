@@ -267,15 +267,53 @@ class ValidateSubmoduleCandidateStateTests(unittest.TestCase):
             (framework / "nested" / "untracked").write_text("x", encoding="utf-8")
             self.assert_code(self.run_validate(parent, baseline, current, current), "FRAMEWORK_SUBMODULE_DIRTY")
 
-    def test_uninitialised_nested_submodule_is_accepted_without_source_mutation(self) -> None:
+    def test_absent_or_empty_nested_submodule_is_accepted_without_source_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             parent, framework, current, _head = self.make_layout(Path(raw), nested=True)
             baseline = self.run_capture(parent, Path(raw) / "github-env")
             nested = framework / "nested"
             shutil.rmtree(nested)
-            result = self.run_validate(parent, baseline, current, current)
-            self.assertEqual(result.returncode, 0, result.stderr)
+            absent = self.run_validate(parent, baseline, current, current)
+            self.assertEqual(absent.returncode, 0, absent.stderr)
             self.assertFalse(nested.exists(), "validator must not initialise nested submodules")
+            nested.mkdir()
+            empty = self.run_validate(parent, baseline, current, current)
+            self.assertEqual(empty.returncode, 0, empty.stderr)
+            self.assertEqual(list(nested.iterdir()), [], "validator must not initialise nested submodules")
+
+    def test_uninitialised_nested_submodule_rejects_nonempty_or_unsafe_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            temporary = Path(raw)
+            parent, framework, current, _head = self.make_layout(temporary, nested=True)
+            baseline = self.run_capture(parent, temporary / "github-env")
+            nested = framework / "nested"
+            shutil.rmtree(nested)
+
+            alternate = temporary / "alternate"
+            alternate.mkdir()
+            nested.symlink_to(alternate, target_is_directory=True)
+            self.assert_code(
+                self.run_validate(parent, baseline, current, current), "FRAMEWORK_SUBMODULE_INVALID"
+            )
+            nested.unlink()
+
+            nested.mkdir()
+            (nested / "unexpected").write_text("x\n", encoding="utf-8")
+            self.assert_code(
+                self.run_validate(parent, baseline, current, current), "FRAMEWORK_SUBMODULE_INVALID"
+            )
+            shutil.rmtree(nested)
+
+            nested.write_text("unexpected\n", encoding="utf-8")
+            self.assert_code(
+                self.run_validate(parent, baseline, current, current), "FRAMEWORK_SUBMODULE_INVALID"
+            )
+            nested.unlink()
+
+            os.mkfifo(nested)
+            self.assert_code(
+                self.run_validate(parent, baseline, current, current), "FRAMEWORK_SUBMODULE_INVALID"
+            )
 
     def test_nested_submodule_topology_and_gitlink_changes_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

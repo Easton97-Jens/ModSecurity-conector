@@ -467,11 +467,22 @@ def _validate_nested(root: Path) -> None:
         path = root / relative
         # A candidate's nested submodule must not be fetched merely to prove
         # that the candidate is safe.  Its topology and gitlink were compared
-        # against the reviewed commit above; an absent worktree is therefore
-        # an accepted, intentionally uninitialised state.
-        if not path.exists():
+        # against the reviewed commit above; an absent worktree or the empty
+        # directory Git leaves for an uninitialised nested submodule is an
+        # accepted state.  Do not use Path.is_dir() here: it follows symlinks.
+        try:
+            metadata = os.lstat(path)
+        except FileNotFoundError:
             continue
-        if not path.is_dir():
+        except OSError:
+            _fail("FRAMEWORK_SUBMODULE_INVALID")
+        if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+            _fail("FRAMEWORK_SUBMODULE_INVALID")
+        try:
+            with os.scandir(path) as entries:
+                if next(entries, None) is None:
+                    continue
+        except OSError:
             _fail("FRAMEWORK_SUBMODULE_INVALID")
         _repository_root(path, "FRAMEWORK_SUBMODULE_INVALID")
         expected_gitlink = _head_gitlink(root, relative)
