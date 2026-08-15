@@ -6,6 +6,7 @@
 #include "msconnector/decision_action.h"
 #include "msconnector/headers.h"
 #include "msconnector/http_status.h"
+#include "msconnector/limits.h"
 #include "msconnector/request_helpers.h"
 
 #include <arpa/inet.h>
@@ -14,6 +15,7 @@
 #include <limits.h>
 #include <netinet/in.h>
 #include <poll.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -34,6 +36,9 @@
 #define AUTH_REQUEST_LINE_OVERHEAD 16384U
 #define AUTH_CONNECTION_TIMEOUT_DEFAULT_MS 5000UL
 #define AUTH_CONNECTION_TIMEOUT_MAX_MS 600000UL
+#define AUTH_MAX_CONNECTIONS_DEFAULT 8UL
+#define AUTH_MAX_CONNECTIONS_MAX 64UL
+#define AUTH_LISTENER_POLL_TIMEOUT_MS 100
 
 typedef struct authorization_cli {
     const char *config_path;
@@ -42,6 +47,7 @@ typedef struct authorization_cli {
     int serve;
     unsigned long max_requests;
     unsigned long connection_timeout_ms;
+    unsigned long max_connections;
 } authorization_cli;
 
 typedef struct parsed_http_request {
@@ -73,6 +79,53 @@ typedef struct authorization_connection {
     const connection_deadline *read_deadline;
 } authorization_connection;
 
+typedef struct authorization_request_limits {
+    size_t body_limit;
+    size_t total_header_limit;
+    size_t header_count_limit;
+    msconnector_request_mapper_contract mapper_contract;
+} authorization_request_limits;
+
+struct authorization_worker;
+
+typedef struct authorization_service {
+    msconnector_runtime *runtime;
+    const msconnector_http_authorization_profile *profile;
+    authorization_request_limits request_limits;
+    unsigned long connection_timeout_ms;
+    unsigned long max_connections;
+    unsigned long active_workers;
+    struct authorization_worker *workers;
+    pthread_mutex_t runtime_lock;
+    pthread_mutex_t worker_lock;
+    pthread_cond_t workers_idle;
+} authorization_service;
+
+typedef struct authorization_worker {
+    authorization_service *service;
+    int socket_fd;
+    struct sockaddr_in peer;
+    struct sockaddr_in local;
+    connection_deadline read_deadline;
+    struct authorization_worker *next;
+} authorization_worker;
+
+typedef struct authorization_response_state {
+    int status;
+    int success;
+    const char *decision_name;
+    const char *transaction_id;
+    char copied_transaction_id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH];
+} authorization_response_state;
+
+typedef enum authorization_listener_iteration {
+    AUTHORIZATION_LISTENER_READY,
+    AUTHORIZATION_LISTENER_RETRY,
+    AUTHORIZATION_LISTENER_HANDLED,
+    AUTHORIZATION_LISTENER_STOP,
+    AUTHORIZATION_LISTENER_ERROR,
+} authorization_listener_iteration;
+
 static volatile sig_atomic_t authorization_stop = 0;
 
 static void stop_service(int signal_number) {
@@ -84,7 +137,7 @@ static void print_usage(const char *program) {
     (void)fprintf(stderr,
         "usage: %s --check-config --config PATH\n"
         "       %s --serve --config PATH --listen HOST:PORT [--max-requests N] "
-        "[--connection-timeout-ms N]\n",
+        "[--connection-timeout-ms N] [--max-connections N]\n",
         program, program);
 }
 
@@ -123,6 +176,11 @@ static int parse_cli_value_option(
             cli->connection_timeout_ms != 0UL &&
             cli->connection_timeout_ms <= AUTH_CONNECTION_TIMEOUT_MAX_MS;
     }
+    if (strcmp(argument, "--max-connections") == 0) {
+        return parse_unsigned_long(value, &cli->max_connections) &&
+            cli->max_connections != 0UL &&
+            cli->max_connections <= AUTH_MAX_CONNECTIONS_MAX;
+    }
     return 0;
 }
 
@@ -130,6 +188,7 @@ static int parse_cli(int argc, char **argv, authorization_cli *cli) {
     int skip_option_value = 0;
     memset(cli, 0, sizeof(*cli));
     cli->connection_timeout_ms = AUTH_CONNECTION_TIMEOUT_DEFAULT_MS;
+    cli->max_connections = AUTH_MAX_CONNECTIONS_DEFAULT;
     for (int index = 1; index < argc; ++index) {
         if (skip_option_value) {
             skip_option_value = 0;
@@ -561,17 +620,22 @@ static int read_request_body(
 
 static int read_http_request(
     const authorization_connection *connection,
-    const msconnector_runtime *runtime,
+    const authorization_request_limits *limits,
     parsed_http_request *request,
     char *error,
     size_t error_len) {
-    size_t header_limit = msconnector_runtime_total_header_limit(runtime);
+    size_t header_limit;
     size_t header_capacity;
     size_t used = 0U;
     const char *header_end;
     char *first_line_end;
     const char *body_start;
     size_t buffered_body_size;
+    if (limits == NULL) {
+        (void)snprintf(error, error_len, "%s", "request limits are unavailable");
+        return 0;
+    }
+    header_limit = limits->total_header_limit;
     if (header_limit > SIZE_MAX - AUTH_REQUEST_LINE_OVERHEAD - 1U) {
         (void)snprintf(error, error_len, "%s", "configured header limit is too large");
         return 0;
@@ -609,13 +673,13 @@ static int read_http_request(
     *first_line_end = '\0';
     if (!parse_request_line(request, request->header_buffer, error, error_len) ||
         !parse_header_lines(request, first_line_end, header_end,
-            msconnector_runtime_header_count_limit(runtime), error, error_len)) {
+            limits->header_count_limit, error, error_len)) {
         return 0;
     }
     body_start = header_end + 4;
     buffered_body_size = used - (size_t)(body_start - request->header_buffer);
     if (!read_request_body(connection, request, body_start, buffered_body_size,
-            msconnector_runtime_request_body_limit(runtime),
+            limits->body_limit,
             error, error_len)) {
         return 0;
     }
@@ -757,38 +821,105 @@ static int error_status_from_message(const char *message) {
     return 400;
 }
 
-static int handle_authorization_request(
-    const authorization_connection *connection,
-    msconnector_runtime *runtime,
-    const msconnector_http_authorization_profile *profile,
-    unsigned long timeout_ms) {
-    parsed_http_request parsed;
-    msconnector_generic_request_source source;
-    msconnector_request_mapper_contract contract;
+static void authorization_response_set_runtime_error(
+    const authorization_service *service,
+    const msconnector_error *common_error,
+    authorization_response_state *response) {
+    response->status = msconnector_runtime_error_http_status(
+        service->runtime,
+        common_error->code == MSCONNECTOR_ERROR_NONE
+            ? MSCONNECTOR_ERROR_INTERNAL : common_error->code);
+    response->decision_name = "runtime_error";
+    response->success = 0;
+}
+
+static void authorization_response_set_decision(
+    const msconnector_runtime_transaction *transaction,
+    const msconnector_decision *decision,
+    authorization_response_state *response) {
+    const msconnector_decision_action action =
+        msconnector_decision_action_from_decision(decision);
+    const char *runtime_transaction_id =
+        msconnector_runtime_transaction_id(transaction);
+    response->decision_name = msconnector_decision_action_name(action);
+    response->transaction_id = NULL;
+    if (runtime_transaction_id != NULL) {
+        const int copied = snprintf(response->copied_transaction_id,
+            sizeof(response->copied_transaction_id), "%s", runtime_transaction_id);
+        if (copied >= 0 && (size_t)copied < sizeof(response->copied_transaction_id)) {
+            response->transaction_id = response->copied_transaction_id;
+        }
+    }
+    if (action == MSCONNECTOR_DECISION_ACTION_ALLOW ||
+        action == MSCONNECTOR_DECISION_ACTION_LOG_ONLY) {
+        response->status = 200;
+    } else {
+        response->status = msconnector_decision_http_status(decision);
+        if (!msconnector_http_status_is_valid(response->status)) {
+            response->status = action == MSCONNECTOR_DECISION_ACTION_ERROR ? 500 : 403;
+        }
+    }
+    response->success = 1;
+}
+
+static void authorization_process_runtime_request(
+    authorization_service *service,
+    const msconnector_generic_request_source *source,
+    char *error,
+    size_t error_len,
+    authorization_response_state *response) {
     msconnector_request request;
     msconnector_runtime_transaction *transaction = NULL;
     msconnector_decision decision;
     msconnector_error common_error;
-    char error[AUTH_ERROR_SIZE];
-    int status = 500;
-    int success = 0;
-    const char *transaction_id = NULL;
-    const char *decision_name;
+    memset(&request, 0, sizeof(request));
+    msconnector_error_init(&common_error);
+    msconnector_decision_set_allow(&decision);
+    response->transaction_id = NULL;
+    if (!service->profile->map_request(source, &service->request_limits.mapper_contract,
+            &request, error, error_len)) {
+        response->status = 400;
+        response->decision_name = "mapping_error";
+        response->success = 0;
+    } else if (!msconnector_runtime_transaction_begin(service->runtime, &request, NULL,
+            &transaction, &decision, &common_error)) {
+        authorization_response_set_runtime_error(service, &common_error, response);
+    } else {
+        authorization_response_set_decision(transaction, &decision, response);
+    }
+    if (transaction != NULL &&
+        !msconnector_runtime_transaction_finish(transaction, &common_error)) {
+        authorization_response_set_runtime_error(service, &common_error, response);
+    }
+    msconnector_runtime_transaction_destroy(&transaction);
+}
 
+static int handle_authorization_request(
+    const authorization_connection *connection,
+    authorization_service *service) {
+    parsed_http_request parsed;
+    msconnector_generic_request_source source;
+    authorization_response_state response;
+    char error[AUTH_ERROR_SIZE];
+
+    if (connection == NULL || service == NULL || service->runtime == NULL ||
+        service->profile == NULL) {
+        return 0;
+    }
     memset(&parsed, 0, sizeof(parsed));
     memset(&source, 0, sizeof(source));
     error[0] = '\0';
-    msconnector_error_init(&common_error);
-    msconnector_decision_set_allow(&decision);
-    if (!read_http_request(connection, runtime, &parsed, error, sizeof(error))) {
-        status = error_status_from_message(error);
+    if (!read_http_request(connection, &service->request_limits,
+            &parsed, error, sizeof(error))) {
+        const int status = error_status_from_message(error);
         (void)send_response(
-            connection->socket_fd, status, NULL, "invalid_request", timeout_ms);
+            connection->socket_fd, status, NULL, "invalid_request",
+            service->connection_timeout_ms);
         parsed_request_destroy(&parsed);
         return 0;
     }
     source.method = parsed.method;
-    source.uri = request_uri(&parsed, profile);
+    source.uri = request_uri(&parsed, service->profile);
     source.http_version = parsed.http_version;
     source.hostname = request_hostname(&parsed);
     source.client.address = parsed.client_address;
@@ -799,48 +930,25 @@ static int handle_authorization_request(
     source.header_count = parsed.header_count;
     source.body.data = parsed.body;
     source.body.size = parsed.body_size;
-    msconnector_runtime_request_contract(runtime, &contract);
-    if (!profile->map_request(&source, &contract, &request, error, sizeof(error))) {
-        status = 400;
-        decision_name = "mapping_error";
-    } else if (!msconnector_runtime_transaction_begin(runtime, &request, NULL,
-            &transaction, &decision, &common_error)) {
-        status = common_error.code == MSCONNECTOR_ERROR_NONE
-            ? msconnector_runtime_error_http_status(runtime, MSCONNECTOR_ERROR_INTERNAL)
-            : msconnector_runtime_error_http_status(runtime, common_error.code);
-        decision_name = "runtime_error";
-    } else {
-        msconnector_decision_action action =
-            msconnector_decision_action_from_decision(&decision);
-        transaction_id = msconnector_runtime_transaction_id(transaction);
-        decision_name = msconnector_decision_action_name(action);
-        if (action == MSCONNECTOR_DECISION_ACTION_ALLOW ||
-            action == MSCONNECTOR_DECISION_ACTION_LOG_ONLY) {
-            status = 200;
-        } else {
-            status = msconnector_decision_http_status(&decision);
-            if (!msconnector_http_status_is_valid(status)) {
-                status = action == MSCONNECTOR_DECISION_ACTION_ERROR ? 500 : 403;
-            }
-        }
-        success = 1;
+    if (pthread_mutex_lock(&service->runtime_lock) != 0) {
+        (void)send_response(connection->socket_fd, 500, NULL, "runtime_error",
+            service->connection_timeout_ms);
+        parsed_request_destroy(&parsed);
+        return 0;
     }
-    if (transaction != NULL &&
-        !msconnector_runtime_transaction_finish(transaction, &common_error)) {
-        status = msconnector_runtime_error_http_status(
-            runtime,
-            common_error.code == MSCONNECTOR_ERROR_NONE
-                ? MSCONNECTOR_ERROR_INTERNAL : common_error.code);
-        decision_name = "runtime_error";
-        success = 0;
+    authorization_process_runtime_request(service, &source, error, sizeof(error), &response);
+    if (pthread_mutex_unlock(&service->runtime_lock) != 0) {
+        parsed_request_destroy(&parsed);
+        return 0;
     }
     if (!send_response(
-            connection->socket_fd, status, transaction_id, decision_name, timeout_ms)) {
-        success = 0;
+            connection->socket_fd, response.status, response.transaction_id,
+            response.decision_name,
+            service->connection_timeout_ms)) {
+        response.success = 0;
     }
-    msconnector_runtime_transaction_destroy(&transaction);
     parsed_request_destroy(&parsed);
-    return success;
+    return response.success;
 }
 
 static int create_listener(
@@ -889,14 +997,276 @@ static int configure_client_socket(int socket_fd) {
     return flags >= 0 && fcntl(socket_fd, F_SETFL, flags | O_NONBLOCK) == 0;
 }
 
+static int authorization_service_init(
+    authorization_service *service,
+    msconnector_runtime *runtime,
+    const msconnector_http_authorization_profile *profile,
+    const authorization_cli *cli) {
+    if (service == NULL || runtime == NULL || profile == NULL || cli == NULL ||
+        cli->max_connections == 0UL ||
+        cli->max_connections > AUTH_MAX_CONNECTIONS_MAX) {
+        return 0;
+    }
+    memset(service, 0, sizeof(*service));
+    service->runtime = runtime;
+    service->profile = profile;
+    service->connection_timeout_ms = cli->connection_timeout_ms;
+    service->max_connections = cli->max_connections;
+    msconnector_runtime_request_contract(runtime, &service->request_limits.mapper_contract);
+    service->request_limits.body_limit =
+        msconnector_runtime_request_body_limit(runtime);
+    service->request_limits.total_header_limit =
+        msconnector_runtime_total_header_limit(runtime);
+    service->request_limits.header_count_limit =
+        msconnector_runtime_header_count_limit(runtime);
+    if (pthread_mutex_init(&service->runtime_lock, NULL) != 0) {
+        return 0;
+    }
+    if (pthread_mutex_init(&service->worker_lock, NULL) != 0) {
+        (void)pthread_mutex_destroy(&service->runtime_lock);
+        return 0;
+    }
+    if (pthread_cond_init(&service->workers_idle, NULL) != 0) {
+        (void)pthread_mutex_destroy(&service->worker_lock);
+        (void)pthread_mutex_destroy(&service->runtime_lock);
+        return 0;
+    }
+    return 1;
+}
+
+static void authorization_service_destroy(authorization_service *service) {
+    if (service == NULL) {
+        return;
+    }
+    (void)pthread_cond_destroy(&service->workers_idle);
+    (void)pthread_mutex_destroy(&service->worker_lock);
+    (void)pthread_mutex_destroy(&service->runtime_lock);
+    memset(service, 0, sizeof(*service));
+}
+
+static void authorization_worker_release(authorization_worker *worker) {
+    authorization_service *service;
+    if (worker == NULL) {
+        return;
+    }
+    service = worker->service;
+    if (service != NULL && pthread_mutex_lock(&service->worker_lock) == 0) {
+        authorization_worker **current = &service->workers;
+        while (*current != NULL && *current != worker) {
+            current = &(*current)->next;
+        }
+        if (*current == worker) {
+            *current = worker->next;
+            if (service->active_workers > 0UL) {
+                --service->active_workers;
+            }
+            (void)pthread_cond_broadcast(&service->workers_idle);
+        }
+        (void)pthread_mutex_unlock(&service->worker_lock);
+    }
+    if (worker->socket_fd >= 0) {
+        (void)close(worker->socket_fd);
+    }
+    free(worker);
+}
+
+static void *authorization_worker_main(void *argument) {
+    authorization_worker *worker = argument;
+    authorization_connection connection;
+    if (worker == NULL) {
+        return NULL;
+    }
+    connection.socket_fd = worker->socket_fd;
+    connection.peer = &worker->peer;
+    connection.local = &worker->local;
+    connection.read_deadline = &worker->read_deadline;
+    (void)handle_authorization_request(&connection, worker->service);
+    authorization_worker_release(worker);
+    return NULL;
+}
+
+static int authorization_start_worker(
+    authorization_service *service,
+    int socket_fd,
+    const struct sockaddr_in *peer,
+    const struct sockaddr_in *local,
+    const connection_deadline *read_deadline) {
+    authorization_worker *worker;
+    pthread_attr_t attributes;
+    pthread_t thread;
+    int result;
+    if (service == NULL || socket_fd < 0 || peer == NULL || local == NULL ||
+        read_deadline == NULL) {
+        if (socket_fd >= 0) {
+            (void)close(socket_fd);
+        }
+        return -1;
+    }
+    worker = calloc(1U, sizeof(*worker));
+    if (worker == NULL) {
+        (void)close(socket_fd);
+        return -1;
+    }
+    worker->service = service;
+    worker->socket_fd = socket_fd;
+    worker->peer = *peer;
+    worker->local = *local;
+    worker->read_deadline = *read_deadline;
+    if (pthread_mutex_lock(&service->worker_lock) != 0) {
+        (void)close(socket_fd);
+        free(worker);
+        return -1;
+    }
+    if (service->active_workers >= service->max_connections) {
+        (void)pthread_mutex_unlock(&service->worker_lock);
+        (void)close(socket_fd);
+        free(worker);
+        return 0;
+    }
+    worker->next = service->workers;
+    service->workers = worker;
+    ++service->active_workers;
+    (void)pthread_mutex_unlock(&service->worker_lock);
+    if (pthread_attr_init(&attributes) != 0) {
+        authorization_worker_release(worker);
+        return -1;
+    }
+    result = pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
+    if (result == 0) {
+        result = pthread_create(&thread, &attributes, authorization_worker_main, worker);
+    }
+    (void)pthread_attr_destroy(&attributes);
+    if (result != 0) {
+        authorization_worker_release(worker);
+        return -1;
+    }
+    return 1;
+}
+
+static void authorization_shutdown_workers(authorization_service *service) {
+    if (service == NULL || pthread_mutex_lock(&service->worker_lock) != 0) {
+        return;
+    }
+    for (authorization_worker *worker = service->workers;
+        worker != NULL; worker = worker->next) {
+        (void)shutdown(worker->socket_fd, SHUT_RDWR);
+    }
+    (void)pthread_mutex_unlock(&service->worker_lock);
+}
+
+static int authorization_wait_for_workers(authorization_service *service) {
+    int result;
+    if (service == NULL || pthread_mutex_lock(&service->worker_lock) != 0) {
+        return 0;
+    }
+    result = 0;
+    while (service->active_workers > 0UL && result == 0) {
+        result = pthread_cond_wait(&service->workers_idle, &service->worker_lock);
+    }
+    if (pthread_mutex_unlock(&service->worker_lock) != 0) {
+        return 0;
+    }
+    return result == 0;
+}
+
+static authorization_listener_iteration authorization_wait_for_listener(
+    int listener,
+    const char *connector_name) {
+    struct pollfd listener_descriptor;
+    int listener_ready;
+    memset(&listener_descriptor, 0, sizeof(listener_descriptor));
+    listener_descriptor.fd = listener;
+    listener_descriptor.events = POLLIN;
+    do {
+        listener_ready = poll(&listener_descriptor, 1U,
+            AUTH_LISTENER_POLL_TIMEOUT_MS);
+    } while (listener_ready < 0 && errno == EINTR && !authorization_stop);
+    if (listener_ready == 0) {
+        return AUTHORIZATION_LISTENER_RETRY;
+    }
+    if (authorization_stop) {
+        return AUTHORIZATION_LISTENER_STOP;
+    }
+    if (listener_ready < 0 || (listener_descriptor.revents & POLLIN) == 0) {
+        (void)fprintf(stderr, "%s listener poll failed: %s\n",
+            connector_name,
+            listener_ready < 0 ? strerror(errno) : "unexpected listener state");
+        return AUTHORIZATION_LISTENER_ERROR;
+    }
+    return AUTHORIZATION_LISTENER_READY;
+}
+
+static authorization_listener_iteration authorization_serve_next_connection(
+    authorization_service *service,
+    int listener,
+    const struct sockaddr_in *local) {
+    struct sockaddr_in peer = {0};
+    socklen_t peer_size = sizeof(peer);
+    connection_deadline read_deadline;
+    authorization_listener_iteration listener_state =
+        authorization_wait_for_listener(listener, service->profile->connector_name);
+    int client_fd;
+    if (listener_state != AUTHORIZATION_LISTENER_READY) {
+        return listener_state;
+    }
+    do {
+        client_fd = accept(listener, (struct sockaddr *)&peer, &peer_size);
+    } while (client_fd < 0 && errno == EINTR && !authorization_stop);
+    if (client_fd < 0) {
+        if (authorization_stop) {
+            return AUTHORIZATION_LISTENER_STOP;
+        }
+        (void)fprintf(stderr, "%s accept failed: %s\n",
+            service->profile->connector_name, strerror(errno));
+        return AUTHORIZATION_LISTENER_ERROR;
+    }
+    if (!connection_deadline_init(
+            &read_deadline, service->connection_timeout_ms) ||
+        !configure_client_socket(client_fd)) {
+        (void)fprintf(stderr, "%s client socket deadline setup failed: %s\n",
+            service->profile->connector_name, strerror(errno));
+        (void)close(client_fd);
+        return AUTHORIZATION_LISTENER_HANDLED;
+    }
+    if (authorization_start_worker(
+            service, client_fd, &peer, local, &read_deadline) < 0) {
+        (void)fprintf(stderr, "%s worker start failed\n",
+            service->profile->connector_name);
+    }
+    return AUTHORIZATION_LISTENER_HANDLED;
+}
+
+static int authorization_serve_requests(
+    authorization_service *service,
+    int listener,
+    const struct sockaddr_in *local,
+    unsigned long max_requests) {
+    unsigned long handled = 0UL;
+    while (!authorization_stop && (max_requests == 0UL || handled < max_requests)) {
+        const authorization_listener_iteration listener_state =
+            authorization_serve_next_connection(service, listener, local);
+        if (listener_state == AUTHORIZATION_LISTENER_ERROR) {
+            return 1;
+        }
+        if (listener_state == AUTHORIZATION_LISTENER_STOP) {
+            return 0;
+        }
+        if (listener_state == AUTHORIZATION_LISTENER_HANDLED) {
+            ++handled;
+        }
+    }
+    return 0;
+}
+
 static int serve_authorization(
     const authorization_cli *cli,
     const msconnector_http_authorization_profile *profile) {
     msconnector_runtime *runtime = NULL;
+    authorization_service service;
     struct sockaddr_in local = {0};
     int listener = -1;
+    int service_status = 0;
     char error[AUTH_ERROR_SIZE];
-    unsigned long handled = 0UL;
     struct sigaction action;
 
     error[0] = '\0';
@@ -906,9 +1276,16 @@ static int serve_authorization(
             profile->connector_name, error);
         return 1;
     }
+    if (!authorization_service_init(&service, runtime, profile, cli)) {
+        (void)fprintf(stderr, "%s service synchronization setup failed\n",
+            profile->connector_name);
+        msconnector_runtime_destroy(&runtime);
+        return 1;
+    }
     if (!create_listener(cli->listen_spec, &listener, &local, error, sizeof(error))) {
         (void)fprintf(stderr, "%s service start failed: %s\n",
             profile->connector_name, error);
+        authorization_service_destroy(&service);
         msconnector_runtime_destroy(&runtime);
         return 1;
     }
@@ -921,50 +1298,23 @@ static int serve_authorization(
     (void)printf("connector=%s integration_mode=%s listen=%s status=ready\n",
         profile->connector_name, profile->integration_mode, cli->listen_spec);
     (void)fflush(stdout);
-    while (!authorization_stop &&
-        (cli->max_requests == 0UL || handled < cli->max_requests)) {
-        struct sockaddr_in peer = {0};
-        socklen_t peer_size = sizeof(peer);
-        int client_fd;
-        connection_deadline read_deadline;
-        do {
-            client_fd = accept(listener, (struct sockaddr *)&peer, &peer_size);
-        } while (client_fd < 0 && errno == EINTR && !authorization_stop);
-        if (client_fd < 0) {
-            if (authorization_stop) {
-                break;
-            }
-            (void)fprintf(stderr, "%s accept failed: %s\n",
-                profile->connector_name, strerror(errno));
-            (void)close(listener);
-            msconnector_runtime_destroy(&runtime);
-            return 1;
-        }
-        if (!connection_deadline_init(
-                &read_deadline, cli->connection_timeout_ms) ||
-            !configure_client_socket(client_fd)) {
-            (void)fprintf(stderr, "%s client socket deadline setup failed: %s\n",
-                profile->connector_name, strerror(errno));
-            (void)close(client_fd);
-            ++handled;
-            continue;
-        }
-        {
-            const authorization_connection connection = {
-                .socket_fd = client_fd,
-                .peer = &peer,
-                .local = &local,
-                .read_deadline = &read_deadline,
-            };
-            (void)handle_authorization_request(
-                &connection, runtime, profile, cli->connection_timeout_ms);
-        }
-        (void)close(client_fd);
-        ++handled;
+    service_status = authorization_serve_requests(
+        &service, listener, &local, cli->max_requests);
+    if (listener >= 0) {
+        (void)close(listener);
     }
-    (void)close(listener);
+    if (authorization_stop || service_status != 0) {
+        authorization_shutdown_workers(&service);
+    }
+    if (!authorization_wait_for_workers(&service)) {
+        (void)fprintf(stderr, "%s worker shutdown failed\n",
+            profile->connector_name);
+        authorization_shutdown_workers(&service);
+        abort();
+    }
+    authorization_service_destroy(&service);
     msconnector_runtime_destroy(&runtime);
-    return 0;
+    return service_status;
 }
 
 int msconnector_http_authorization_service_main(

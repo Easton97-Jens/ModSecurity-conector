@@ -132,7 +132,7 @@ compile_source() {
     # TRAEFIK_CONNECTOR_CFLAGS is intentionally split into compiler arguments.
     # shellcheck disable=SC2086
     "$CC_BIN" \
-        -std=c17 -Wall -Wextra -Werror \
+        -std=c17 -Wall -Wextra -Werror -pthread \
         ${TRAEFIK_CONNECTOR_CFLAGS:-} \
         -I "$REPO_ROOT" \
         -I "$REPO_ROOT/common/include" \

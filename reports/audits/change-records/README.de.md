@@ -34,3 +34,13 @@ angelegt werden.
   bewahrt die beobachtete offizielle Quelle sowie Fresh-/Core-/Host-/Reuse-,
   Quellenerhaltungs- und Pre-Merge-Evidenz; das Ergebnis des geschützten Merge
   wird nicht vorab behauptet.
+- [CR-20260814-f-gs-006-http-authorization-admission](CR-20260814-f-gs-006-http-authorization-admission.de.md) —
+  der aktuelle Benutzer hat diesen gepaarten Parent-Security-Hardening-Record
+  und einen Draft-PR autorisiert. Er weist nur beobachtete lokale Validierung
+  aus; Host-Runtime, Hosted-Ausführung und Delivery-Checks werden nicht
+  behauptet.
+- [CR-20260814-locked-ci-test-dependencies](CR-20260814-locked-ci-test-dependencies.de.md) —
+  der aktuelle Benutzer hat die verpflichtende Dokumentation bedingt
+  autorisiert, und die Traceability-Policy verlangt dieses Paar für den
+  Parent-CI-Bugfix. Es weist nur beobachtete lokale Validierung aus; weder ein
+  Hosted-Rerun noch Delivery werden behauptet.

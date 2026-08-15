@@ -106,6 +106,17 @@ jobs:
           EXPECTED_VERSION: ${{ needs.resolve-python-patch.outputs.version }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --expected-version "$EXPECTED_VERSION" --expected-python "$EXPECTED_PYTHON"
 
+      - name: Install hash-locked CI test dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install \
+            --disable-pip-version-check \
+            --no-input \
+            --only-binary=:all: \
+            --require-hashes \
+            -r requirements-ci.lock
+          python3 -m pip check
+
       - name: Re-resolve and validate candidate metadata
         run: python3 scripts/update-python-version.py --check --expected-version "$CANDIDATE_VERSION" --json
 

@@ -33,3 +33,13 @@ reports without an explicit repository-policy decision or user decision.
   F-GS-002 Parent build fix. This paired record retains the observed official
   source, Fresh/Core/Host/Reuse, source-preservation, and pre-merge evidence;
   the protected merge outcome is not asserted in advance.
+- [CR-20260814-f-gs-006-http-authorization-admission](CR-20260814-f-gs-006-http-authorization-admission.md)
+  | [Deutsch](CR-20260814-f-gs-006-http-authorization-admission.de.md) — the
+  current user authorized this paired Parent security-hardening record and a
+  Draft PR. It records only observed local validation; host runtime, hosted
+  execution, and delivery checks are not asserted.
+- [CR-20260814-locked-ci-test-dependencies](CR-20260814-locked-ci-test-dependencies.md)
+  | [Deutsch](CR-20260814-locked-ci-test-dependencies.de.md) — the current
+  user conditionally authorized mandatory documentation, and the traceability
+  policy requires this paired record for the Parent CI bug fix. It records
+  observed local validation only; no hosted rerun or delivery is asserted.

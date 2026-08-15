@@ -86,7 +86,7 @@ compile_source() {
     object="$OBJ_DIR/$object_name.o"
     # CFLAGS is additive; required language and warning flags are applied last.
     # shellcheck disable=SC2086
-    "$CC_BIN" ${CFLAGS:-} -std=c17 -Wall -Wextra -Werror \
+    "$CC_BIN" ${CFLAGS:-} -std=c17 -Wall -Wextra -Werror -pthread \
         -I "$REPO_ROOT" \
         -I "$REPO_ROOT/common/include" \
         -I "$MODSECURITY_INCLUDE_DIR" \
@@ -108,11 +108,11 @@ done
 if [ -n "$MODSECURITY_LIB_FILE" ]; then
     # shellcheck disable=SC2086
     "$CC_BIN" ${LDFLAGS:-} $objects "$MODSECURITY_LIB_FILE" \
-        "-Wl,-rpath,$MODSECURITY_RUNTIME_LIB_DIR" ${LDLIBS:-} -o "$SERVICE_BIN"
+        "-Wl,-rpath,$MODSECURITY_RUNTIME_LIB_DIR" ${LDLIBS:-} -pthread -o "$SERVICE_BIN"
 else
     # shellcheck disable=SC2086
     "$CC_BIN" ${LDFLAGS:-} $objects -L "$MODSECURITY_RUNTIME_LIB_DIR" \
-        -lmodsecurity "-Wl,-rpath,$MODSECURITY_RUNTIME_LIB_DIR" ${LDLIBS:-} \
+        -lmodsecurity "-Wl,-rpath,$MODSECURITY_RUNTIME_LIB_DIR" ${LDLIBS:-} -pthread \
         -o "$SERVICE_BIN"
 fi
 
