@@ -342,3 +342,91 @@ before any master integration.
 The source refactor is locally committed, its focused test passes, and the
 normal master merge is present locally. Publication and exact-head verification
 remain pending; no Ready transition, merge, or auto-merge is authorized.
+
+## 2026-08-15 second follow-up: master-refresh Framework pin
+
+### Motivation
+
+The first refreshed head, `e0845a6e0f5ce37b713007640c7f68231b26c2fb`, achieved
+SonarQube Cloud Quality Gate `OK`, zero new duplicated lines, `0.0%`
+duplication, zero new issues, and zero new security hotspots. Its four
+connector-mode matrices and `actionlint` nevertheless failed before runtime:
+the normal master merge had changed the Parent Framework gitlink to
+`01952978772995c054ba6a4cba86adc5d0cd1e7d`, while the PR workflows and their
+contract still expected `1260aaae411ecf88cf50dc480b80e2e20ac47901`.
+
+### Acceptance criteria
+
+- Preserve the existing exact, fail-closed Parent-to-Framework and
+  Framework-to-MRTS revision checks.
+- Align every connector-mode workflow and its security contract with the
+  already-merged Parent gitlink only.
+- Re-run the local security contract and obtain new exact-head hosted evidence
+  after the correction; keep the PR Draft.
+
+### Technical decisions
+
+Commit `1855ed8bc9e6485d80ecdf373d33a6a0118b4646` changes only the four
+`EXPECTED_FRAMEWORK_SHA` values and
+`CONNECTOR_MODE_FRAMEWORK_SHA` to
+`01952978772995c054ba6a4cba86adc5d0cd1e7d`. The checked Framework commit has
+the unchanged nested MRTS gitlink `615b13bacbd008562c17408246c41ab27dca3104`,
+so `EXPECTED_MRTS_SHA` remains exact and unchanged. This is not a Framework,
+MRTS, or Parent Gitlink source change.
+
+### Security impact
+
+The correction restores, rather than bypasses, the immutable revision check.
+It leaves the PR trigger, read-only permissions, exact PR-head checkout,
+`persist-credentials: false`, SHA-pinned actions, and no-secret/no-write
+boundary unchanged.
+
+### Changed files
+
+- `.github/workflows/test-connectors-no-crs-no-mrts.yml`
+- `.github/workflows/test-connectors-no-crs-with-mrts.yml`
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `.github/workflows/test-connectors-with-crs-with-mrts.yml`
+- `tests/test_ci_security_workflows.py`
+- this English/German Change Record pair
+
+### Tests and actual results
+
+`/root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -q
+tests.test_ci_security_workflows` passed: 35 tests in 2.631s.
+`make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python
+check-ci-security-contract` passed: 110 tests in 34.308s, with four expected
+environment-capability skips. The cache contract also passed: 47 tests in
+34.140s. `git diff --check` passed before this documentation update.
+
+### Runtime evidence
+
+The failed first refreshed-head matrix jobs did not reach connector runtime;
+the later missing-evidence variables were cascade failures after the intended
+revision assertion stopped setup. The corrected head needs fresh hosted runtime
+evidence.
+
+### Checks not run
+
+The corrected exact-head GitHub Actions, SonarQube Cloud, actionlint/ShellCheck,
+and zizmor outcomes are pending the normal branch push. The first refreshed
+Sonar result is evidence for the duplication repair, not evidence that the
+corrected Framework pin has completed all hosted jobs.
+
+### Known limitations
+
+Sonar's `new_coverage` measure remains absent; its displayed `0.0%` coverage
+is not a runtime coverage claim. No local check can replace the corrected
+head's hosted matrix and scanner results.
+
+### Residual risks
+
+The selected Framework revision may reveal an independent runtime compatibility
+issue after revision verification succeeds. No such issue is assumed or hidden;
+PR #279 remains Draft while the user completes further work.
+
+### Final review status
+
+The failure has an exact, security-reviewed root cause and a narrow locally
+validated correction. Normal publication and new exact-head verification are
+the remaining steps; no Ready transition, merge, or auto-merge is authorized.

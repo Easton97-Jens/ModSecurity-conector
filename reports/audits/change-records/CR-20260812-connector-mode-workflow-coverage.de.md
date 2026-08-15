@@ -365,3 +365,94 @@ Der Source-Refactor ist lokal committet, sein fokussierter Test besteht und der
 normale Master-Merge ist lokal vorhanden. Veröffentlichung und Exact-Head-
 Verifikation stehen aus; keine Ready-Umstellung, kein Merge und kein Auto-Merge
 sind autorisiert.
+
+## Zweiter Nachtrag vom 2026-08-15: Framework-Pin beim Master-Refresh
+
+### Motivation
+
+Der erste aktualisierte Head, `e0845a6e0f5ce37b713007640c7f68231b26c2fb`,
+erreichte bei SonarQube Cloud Quality Gate `OK`, null neue duplizierte Zeilen,
+`0.0%` Duplizierung, null neue Issues und null neue Security Hotspots. Seine
+vier Connector-Mode-Matrizen und `actionlint` scheiterten dennoch vor der
+Runtime: Der normale Master-Merge änderte den Parent-Framework-Gitlink auf
+`01952978772995c054ba6a4cba86adc5d0cd1e7d`, während die PR-Workflows und ihr
+Contract weiter `1260aaae411ecf88cf50dc480b80e2e20ac47901` erwarteten.
+
+### Akzeptanzkriterien
+
+- Die bestehenden exakten, fail-closed Parent-zu-Framework- und Framework-zu-
+  MRTS-Revision-Checks bewahren.
+- Alle Connector-Mode-Workflows und ihren Security-Contract ausschließlich mit
+  dem bereits gemergten Parent-Gitlink abgleichen.
+- Den lokalen Security-Contract erneut ausführen und nach der Korrektur neue
+  Exact-Head-Hosted-Evidence erhalten; den PR als Draft belassen.
+
+### Technische Entscheidungen
+
+Commit `1855ed8bc9e6485d80ecdf373d33a6a0118b4646` ändert nur die vier
+`EXPECTED_FRAMEWORK_SHA`-Werte und `CONNECTOR_MODE_FRAMEWORK_SHA` auf
+`01952978772995c054ba6a4cba86adc5d0cd1e7d`. Der ausgecheckte Framework-Commit
+hat den unveränderten verschachtelten MRTS-Gitlink
+`615b13bacbd008562c17408246c41ab27dca3104`; daher bleibt
+`EXPECTED_MRTS_SHA` exakt und unverändert. Dies ist keine Framework-, MRTS-
+oder Parent-Gitlink-Source-Änderung.
+
+### Security-Auswirkung
+
+Die Korrektur stellt den immutablen Revision-Check wieder her, statt ihn zu
+umgehen. Sie lässt PR-Trigger, read-only Permissions, exakten PR-Head-Checkout,
+`persist-credentials: false`, SHA-gepinnte Actions und die No-Secret/No-Write-
+Boundary unverändert.
+
+### Geänderte Dateien
+
+- `.github/workflows/test-connectors-no-crs-no-mrts.yml`
+- `.github/workflows/test-connectors-no-crs-with-mrts.yml`
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `.github/workflows/test-connectors-with-crs-with-mrts.yml`
+- `tests/test_ci_security_workflows.py`
+- dieses englisch/deutsche Change-Record-Paar
+
+### Tests und tatsächliche Ergebnisse
+
+`/root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -q
+tests.test_ci_security_workflows` bestand: 35 Tests in 2.631s.
+`make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python
+check-ci-security-contract` bestand: 110 Tests in 34.308s mit vier erwarteten
+Environment-Capability-Skips. Der Cache-Contract bestand ebenfalls: 47 Tests
+in 34.140s. `git diff --check` bestand vor diesem Dokumentations-Update.
+
+### Runtime-Evidence
+
+Die fehlgeschlagenen ersten aktualisierten Matrix-Jobs erreichten keine
+Connector-Runtime; die späteren fehlenden Evidence-Variablen waren Cascade-
+Failures, nachdem die beabsichtigte Revision-Assertion das Setup stoppte. Der
+korrigierte Head benötigt frische Hosted-Runtime-Evidence.
+
+### Nicht ausgeführte Prüfungen
+
+Die korrigierten Exact-Head-GitHub-Actions-, SonarQube-Cloud-,
+actionlint/ShellCheck- und zizmor-Ergebnisse stehen bis zum normalen Branch-
+Push aus. Das erste aktualisierte Sonar-Ergebnis ist Evidence für die
+Duplication-Reparatur, nicht dafür, dass der korrigierte Framework-Pin alle
+Hosted-Jobs abgeschlossen hat.
+
+### Bekannte Einschränkungen
+
+Sonars `new_coverage`-Measure bleibt nicht vorhanden; die angezeigte `0.0%`
+Coverage ist kein Runtime-Coverage-Anspruch. Kein lokaler Check kann die
+Hosted-Matrix- und Scanner-Ergebnisse des korrigierten Heads ersetzen.
+
+### Restrisiken
+
+Die gewählte Framework-Revision kann ein unabhängiges Runtime-
+Kompatibilitätsproblem zeigen, nachdem die Revision-Verifikation besteht. Ein
+solches Problem wird weder angenommen noch verborgen; PR #279 bleibt Draft,
+während der Nutzer weitere Arbeit abschließt.
+
+### Finaler Review-Status
+
+Der Fehler hat eine exakte, security-reviewte Ursache und eine enge lokal
+validierte Korrektur. Normale Veröffentlichung und neue Exact-Head-
+Verifikation sind die verbleibenden Schritte; keine Ready-Umstellung, kein
+Merge und kein Auto-Merge sind autorisiert.
