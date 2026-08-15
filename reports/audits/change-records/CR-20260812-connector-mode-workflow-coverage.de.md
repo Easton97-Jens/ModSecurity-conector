@@ -275,3 +275,93 @@ vier Hosted-Workflow-Runs, alle 20 Cells, actionlint, ShellCheck, zizmor,
 Required Checks und die Sonar-Anwendbarkeit prüfen, bevor PR #279 auf Ready for
 Review gesetzt wird. Kein Push, keine Ready-Umstellung, kein Merge und kein
 Auto-Merge sind hier verzeichnet.
+
+## Nachtrag vom 2026-08-15: Sonar-Duplizierung und Beibehaltung als Draft
+
+### Motivation
+
+Der vorherige PR-#279-Head zeigte `1.6%` New-Code-Duplizierung neben `0 New
+issues`, `0 Security Hotspots` und `0.0% Coverage on New Code`. Der Nutzer
+verlangte literal null angezeigte Werte, eine Aktualisierung vom aktuellen
+`master` und die Beibehaltung als Draft, solange weitere Arbeit aussteht.
+
+### Akzeptanzkriterien
+
+- Nur die nachgewiesene task-eigene Duplizierung entfernen, ohne Sonar-
+  Konfiguration, Exclusion, Suppression, `NOSONAR`, Testabschwächung oder
+  Coverage-Abkürzung.
+- `origin/master` `55e45726a39bebd3f33aea87807419a882cd3ea8` normal in den
+  bestehenden Branch mergen, ohne Rebase, Force-Push, Default-Branch-Push,
+  Merge oder Auto-Merge.
+- PR #279 offen als Draft belassen und nach der Veröffentlichung ein neues
+  Exact-Head-Sonar-Ergebnis einholen; eine lokale Berechnung ist kein Sonar-
+  Ergebnis.
+
+### Technische Entscheidungen
+
+Sonar ordnete alle 32 duplizierten New-Code-Zeilen
+`tests/test_runtime_component_cache_contract.py` zu: zwei lokale Git-Command-
+Mocks waren äquivalent. Commit `f1f7bb615f89a8d17e0e1193d368ecae79d3a805`
+extrahiert sie in `_local_component_runner`; jeder Test übergibt weiterhin
+eigenen Upstream, gepinnten Commit, Branch, erwartete URL, ursprünglichen
+Command-Runner und `clone_modes`-Receipt. `--no-recurse-submodules` und
+`--recursive` werden daher weiterhin unabhängig geprüft.
+
+Der normale Refresh-Merge ist `c6045f289b1b92d062732d552968c170f1c23a0f` mit
+den Parents `dd92b27c4f5189abc4e0658df01ad1995a65209d` und
+`55e45726a39bebd3f33aea87807419a882cd3ea8`. PR #279 wurde zu Draft
+konvertiert. Framework- und MRTS-Source sowie Parent-Gitlinks bleiben außerhalb
+dieses Follow-ups.
+
+### Security-Auswirkung
+
+Dieser test-only Maintainability-Refactor bewahrt Provenance-, Runtime-Root-,
+Dependency-Lock-, CI-Permission-, Negative-Control- und Cache-Integrity-
+Assertions. Kein Security-Control, keine Workflow-Permission, Download-Regel
+oder Test-Erwartung wurde abgeschwächt.
+
+### Geänderte Dateien
+
+- `tests/test_runtime_component_cache_contract.py`
+- `reports/audits/change-records/CR-20260812-connector-mode-workflow-coverage.md`
+- `reports/audits/change-records/CR-20260812-connector-mode-workflow-coverage.de.md`
+
+### Tests und tatsächliche Ergebnisse
+
+`/root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -q
+tests.test_runtime_component_cache_contract` bestand: 47 Tests in 39.718s.
+`git diff --check` bestand vor den Dokumentationsänderungen. Sonars vorherige
+exakte Messung waren 32 neue duplizierte Zeilen, `1.6129032258064515%`; die
+nächste Hosted-Analyse muss `0.0%` für den neuen exakten PR-Head verifizieren.
+
+### Runtime-Evidence
+
+Für diesen test-only Refactor lief keine Connector-Runtime. Der Contract-Test
+validiert gemockte Checkout-Pfade, nicht Hosted-Runner- oder Connector-Runtime-
+Verhalten.
+
+### Nicht ausgeführte Prüfungen
+
+Neue Exact-Head-GitHub-Actions-, SonarQube-Cloud-, actionlint-,
+actionlint-vermittelte-ShellCheck- und zizmor-Ergebnisse existieren bei diesem
+Record-Update noch nicht und müssen nach dem normalen Branch-Push beobachtet
+werden. Kein Package- oder Tool-Download ersetzte Hosted-Checks.
+
+### Bekannte Einschränkungen
+
+Die vorhandene `0.0%`-Coverage-Anzeige beruht auf keinem importierten New-Code-
+Coverage-Report, nicht auf Runtime-Coverage. Nur die Exact-Head-Sonar-Analyse
+nach dem Push kann die Remote-Duplication-Berechnung verifizieren.
+
+### Restrisiken
+
+Sonar kann den aktualisierten Source anders klassifizieren. Unabhängig von
+bestandenen Checks bleibt PR #279 Draft, weil der Nutzer erklärt hat, dass vor
+jeder Master-Integration weitere Arbeit erforderlich ist.
+
+### Finaler Review-Status
+
+Der Source-Refactor ist lokal committet, sein fokussierter Test besteht und der
+normale Master-Merge ist lokal vorhanden. Veröffentlichung und Exact-Head-
+Verifikation stehen aus; keine Ready-Umstellung, kein Merge und kein Auto-Merge
+sind autorisiert.

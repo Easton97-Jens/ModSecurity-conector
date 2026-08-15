@@ -256,3 +256,89 @@ exact committed head, remote branch, PR head, four hosted workflow runs, all
 20 cells, actionlint, ShellCheck, zizmor, required checks, and Sonar
 applicability before PR #279 is marked Ready for Review. No push, Ready
 transition, merge, or auto-merge is recorded here.
+
+## 2026-08-15 follow-up: Sonar duplication and Draft retention
+
+### Motivation
+
+The previous PR #279 head displayed `1.6%` new-code duplication beside `0 New
+issues`, `0 Security Hotspots`, and `0.0% Coverage on New Code`. The user
+requested literal zero displayed values, a current-`master` refresh, and Draft
+retention while further work remains.
+
+### Acceptance criteria
+
+- Remove only the proven task-owned duplicate, without a Sonar configuration,
+  exclusion, suppression, `NOSONAR`, test weakening, or coverage shortcut.
+- Merge `origin/master` `55e45726a39bebd3f33aea87807419a882cd3ea8` normally
+  into the existing branch, without rebase, force-push, default-branch push,
+  merge, or auto-merge.
+- Keep PR #279 open as Draft and obtain a new exact-head Sonar result after
+  publication; a local calculation is not represented as a Sonar result.
+
+### Technical decisions
+
+Sonar located all 32 duplicate new-code lines in
+`tests/test_runtime_component_cache_contract.py`: two local Git-command mocks
+were equivalent. Commit `f1f7bb615f89a8d17e0e1193d368ecae79d3a805` extracts
+them into `_local_component_runner`; each test still supplies its own upstream,
+pinned commit, branch, expected URL, original command runner, and
+`clone_modes` receipt. `--no-recurse-submodules` and `--recursive` therefore
+remain independently asserted.
+
+The normal refresh merge is `c6045f289b1b92d062732d552968c170f1c23a0f`, with
+parents `dd92b27c4f5189abc4e0658df01ad1995a65209d` and
+`55e45726a39bebd3f33aea87807419a882cd3ea8`. PR #279 was converted to Draft.
+Framework and MRTS source and Parent Gitlinks remain outside this follow-up.
+
+### Security impact
+
+This test-only maintainability refactor preserves provenance, runtime-root,
+dependency-lock, CI-permission, negative-control, and cache-integrity
+assertions. No security control, workflow permission, download rule, or test
+expectation was relaxed.
+
+### Changed files
+
+- `tests/test_runtime_component_cache_contract.py`
+- `reports/audits/change-records/CR-20260812-connector-mode-workflow-coverage.md`
+- `reports/audits/change-records/CR-20260812-connector-mode-workflow-coverage.de.md`
+
+### Tests and actual results
+
+`/root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -q
+tests.test_runtime_component_cache_contract` passed: 47 tests in 39.718s.
+`git diff --check` passed before documentation edits. Sonar's prior exact
+measurement was 32 new duplicated lines, `1.6129032258064515%`; the next
+hosted analysis must verify `0.0%` for the new exact PR head.
+
+### Runtime evidence
+
+No connector runtime ran for this test-only refactor. The contract test
+validates mocked checkout paths, not hosted-runner or connector runtime
+behavior.
+
+### Checks not run
+
+New exact-head GitHub Actions, SonarQube Cloud, actionlint,
+actionlint-mediated ShellCheck, and zizmor results do not yet exist at this
+record update and must be observed after the normal branch push. No package or
+tool download substituted for hosted checks.
+
+### Known limitations
+
+The existing `0.0%` coverage display reflects no imported new-code coverage
+report, not runtime coverage. Only the post-push exact-head Sonar analysis can
+verify the remote duplication calculation.
+
+### Residual risks
+
+Sonar could classify the updated source differently. Regardless of passing
+checks, PR #279 remains Draft because the user states further work is required
+before any master integration.
+
+### Final review status
+
+The source refactor is locally committed, its focused test passes, and the
+normal master merge is present locally. Publication and exact-head verification
+remain pending; no Ready transition, merge, or auto-merge is authorized.
