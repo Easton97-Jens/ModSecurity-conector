@@ -9,7 +9,7 @@
 | Change-ID | CR-20260815-framework-version-pin-updater-sync |
 | Datum (UTC) | 2026-08-15 |
 | Basis-Revision | `29a2a8bcab57e936c5274f8fe64a15c6fee879bd` |
-| Delivery-Status | [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) wurde per Squash in `master` bei `29fdcd537dbbe16b773aafcf6038630c40c4e504` gemergt. Sein initialer Head `f804ed598d2515fc972b8f8308678d95a5584fb7` zeigte ShellCheck `SC2006`, behoben in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`; Follow-ups bereinigten danach den Hosted-Defekt der verschachtelten-Submodule-Fixture-Identität und 18 task-eigene SonarQube-Cloud-New-Issues mit quellen-nativen Root-, Symlink-, Argument-, Komplexitäts- und Contract-Korrekturen. Der task-eigene Korrektur-[PR #292](https://github.com/Easton97-Jens/ModSecurity-conector/pull/292) folgt auf einen Resulting-Master-Fehler; sein initialer Source-Head `8890f7b6a06ff423444ad306ad19476fb67e29bb` bestand alle Required Checks und SonarQube Cloud meldete 0 New Issues, 0 Accepted Issues und 0 Security Hotspots. Der aktuelle User autorisierte die geschützte `master`-Integration von #292; dieser Record erteilt selbst keine Merge-Autorität. |
+| Delivery-Status | [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) wurde per Squash in `master` bei `29fdcd537dbbe16b773aafcf6038630c40c4e504` gemergt. Sein initialer Head `f804ed598d2515fc972b8f8308678d95a5584fb7` zeigte ShellCheck `SC2006`, behoben in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`; Follow-ups bereinigten danach den Hosted-Defekt der verschachtelten-Submodule-Fixture-Identität und 18 task-eigene SonarQube-Cloud-New-Issues mit quellen-nativen Root-, Symlink-, Argument-, Komplexitäts- und Contract-Korrekturen. Der task-eigene Korrektur-[PR #292](https://github.com/Easton97-Jens/ModSecurity-conector/pull/292) wurde anschließend über seinen exakten geprüften Head `b52908d7c3771c6c1f2f33b8ab71d6b95f864dda` per Squash bei `d837d3923506bd8d3d6a899c4ed22d96f6860ea7` gemergt; seine PR-Checks und SonarQube Cloud meldeten 0 New Issues, 0 Accepted Issues und 0 Security Hotspots. Der Resulting-Master-Updater-Run `31890865141` erreichte danach vor dem Publishing den unabhängigen FND-PARENT-0155-Fixture-Blocker. Das Korrektur-Follow-up der Fixture bleibt ein separater nicht gemergter Draft-PR; dieser Record erteilt selbst keine Merge-Autorität. |
 
 ## Motivation und Problemstellung
 
@@ -192,10 +192,14 @@ kein task-eigener PR-Delivery-Blocker.
 ## Finaler Diff- und Review-Status
 
 Die lokale finale Diff-Prüfung fand nur task-eigene Parent-Änderungen; die
-Framework-Quelle, MRTS und der Parent-Gitlink blieben unverändert. Die
-erforderliche lokale Validierung und der Security-Diff-Review bestanden wie
-oben aufgeführt. PR #291 ist gemergt. Vor diesem Traceability-Update war PR
-#292 ein sauberer, mergebarer Draft am Source-Head `8890f7b6a06ff423444ad306ad19476fb67e29bb`; seine Required Checks und das SonarQube-Cloud-Quality-Gate bestanden. Dieses EN/DE-Update erfordert vor dem Bereitstellen und Mergen von #292 eine frische Exact-Head-Verifikationsrunde. Hier wird kein #292-`master`-Merge behauptet.
+Framework-Quelle, MRTS und der Parent-Gitlink blieben unverändert. PR #291 und
+der Candidate-State-Korrektur-PR #292 sind gemergt; der Resulting-Master-SHA
+von #292 ist `d837d3923506bd8d3d6a899c4ed22d96f6860ea7`. Seine exakten
+Master-Workflows bestanden bis auf den manuell gestarteten nicht
+publizierenden Updater-Run `31890865141`, der den unabhängigen
+FND-PARENT-0155-Parent-Fixture-Contract korrekt fail closed erreichte. Das
+vorliegende reine Fixture-Follow-up benötigt seine eigene frische
+Exact-Head-Validierung und bleibt ungemergt.
 
 ## Korrektur des Candidate-State (PR #292)
 
@@ -203,4 +207,23 @@ Der Resulting-Master-`validate_only`-Updater-Run [`31888504635`](https://github.
 
 `ci/tools/validate-submodule-candidate-state.py` akzeptiert jetzt nur einen fehlenden Nested-Worktree oder diese leere reale Verzeichnisrepräsentation. Es verwendet `lstat` und begrenztes `scandir`, sodass Symlinks, Dateien, FIFOs, andere Nicht-Verzeichnisse und nichtleere Nicht-Repositories fehlgeschlossen abgewiesen werden. Nichtleere Nested-Repositories benötigen weiterhin die bestehenden Topologie-, Gitlink-, Commit- und Clean-State-Prüfungen; kein Candidate-Submodule wird gefetcht oder initialisiert. Die Korrekturdateien sind `ci/tools/validate-submodule-candidate-state.py`, `tests/test_validate_submodule_candidate_state.py` und dieses EN/DE-Record-Paar.
 
-Die exakte lokale Pre-Fix-Reproduktion schlug mit dem Hosted-Fehler fehl; der gleiche Candidate-State-Befehl bestand nach der Korrektur. `python3 -m unittest -v tests.test_update_framework_versions tests.test_validate_submodule_candidate_state tests.test_ci_security_workflows` bestand 52 Tests. Die neuen fokussierten Controls decken fehlende/leere legitime Verzeichnisse ab und weisen einen Symlink, eine reguläre Datei, ein FIFO und ein nichtleeres Verzeichnis ab. Der unabhängige Security-Review fand kein meldungswürdiges oder Merge-blockierendes Problem. Ein frischer geschützter Master-`validate_only`-Run bleibt nach dem autorisierten Merge von #292 erforderlich; er darf nicht von einem beliebigen Draft-Branch gestartet werden, weil die sichere Checkout-Bedingung dann `master` statt ungemergtem Candidate-Code testen würde. FND-PARENT-0155 bleibt ein getrenntes nachgelagertes HAProxy-Fixture-Problem und wird durch diese Korrektur nicht geschlossen.
+Die exakte lokale Pre-Fix-Reproduktion schlug mit dem Hosted-Fehler fehl; der gleiche Candidate-State-Befehl bestand nach der Korrektur. `python3 -m unittest -v tests.test_update_framework_versions tests.test_validate_submodule_candidate_state tests.test_ci_security_workflows` bestand 52 Tests. Die neuen fokussierten Controls decken fehlende/leere legitime Verzeichnisse ab und weisen einen Symlink, eine reguläre Datei, ein FIFO und ein nichtleeres Verzeichnis ab. Der unabhängige Security-Review fand kein meldungswürdiges oder Merge-blockierendes Problem. Nach dem Merge von #292 bestand der geschützte Master-`validate_only`-Run `31890865141` diese Candidate-State-Grenze und die Sandbox-Verifikation, erreichte dann aber den getrennten FND-PARENT-0155-HAProxy-Fixture-Fehler; sein Publisher wurde übersprungen.
+
+## HAProxy-Fixture-Korrektur-Follow-up
+
+Die Parent-Cache-Reuse-Fixture verwendet jetzt das geprüfte Framework-
+`haproxy-spoe-spop`-Tupel: Version `3.2.22`, Source-URL
+`https://www.haproxy.org/download/3.2/src/haproxy-3.2.22.tar.gz` und SHA-256
+`afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da`.
+Dadurch erreichen die drei legitimen Cache-Reuse-Fälle und der unabhängige
+BUILD_ROOT-Containment-Control ihre beabsichtigten Assertions. Der frühere
+synthetische Future-Success-Fall ist als expliziter Exit-77-Negativcontrol
+umbenannt und prüft die Lock-Drift-Diagnose. Framework-Lock,
+Workflow-Berechtigungen, Publisher-Trennung, Framework-Quelle, MRTS und
+Parent-Gitlink bleiben unverändert.
+
+Gegen den exakten read-only-Kandidaten `01952978772995c054ba6a4cba86adc5d0cd1e7d`
+bestand die vollständige Modulmenge aus `tests.test_prepare_runtime_components`,
+`tests.test_update_framework_versions` und `tests.test_ci_security_workflows`
+mit 79 Tests. `make check-bilingual-docs` und `make check-doc-links` bestanden
+ebenfalls im task-eigenen Parent-Clone.
