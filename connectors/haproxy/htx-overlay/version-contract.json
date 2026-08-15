@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "component": "haproxy-htx-overlay",
+  "version": "3.2.22",
+  "source_url": "https://www.haproxy.org/download/3.2/src/haproxy-3.2.22.tar.gz",
+  "sha256": "afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da",
+  "source_version_file": "VERSION",
+  "makefile_patch": "haproxy-makefile.patch"
+}

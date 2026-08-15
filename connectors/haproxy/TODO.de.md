@@ -10,7 +10,7 @@ Kanonische Capability-Quelle: `connectors/haproxy/capabilities.json`.
 
 Der Standard-Kompatibilitätspfad bleibt HAProxy/SPOA/SPOP. Das separate
 Full-Lifecycle-Profil leitet `native-htx-filter` über
-`full-lifecycle-haproxy-htx` an einen gepatchten HAProxy-3.2.21-HTX-Filter
+`full-lifecycle-haproxy-htx` an einen gepatchten Framework-synchronisierten HAProxy-HTX-Filter
 weiter. Seine P1-/P3-Antworten, eine P2-Client-Antwort mit aufgezeichnetem
 Versand an null oder ein Backend und der P4-Safe-`log_only`-Record sind bewusst
 nicht hochgestuft und ändern weder die SPOP-Enforcement- noch die

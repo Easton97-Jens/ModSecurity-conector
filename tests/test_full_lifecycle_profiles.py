@@ -68,6 +68,12 @@ class FullLifecycleProfilesTest(unittest.TestCase):
             self.assertEqual(profile, result["full_lifecycle_profile"])
             self.assertNotEqual(result["integration_mode"], "compatibility-mode")
 
+    def test_patched_profile_metadata_reads_the_connector_version_contracts(self) -> None:
+        self.assertIn(profiles.HAPROXY_VERSION, profiles.PROFILE_METADATA["haproxy"]["host_name"])
+        self.assertIn(profiles.HAPROXY_VERSION, profiles.PROFILE_METADATA["haproxy"]["reason"])
+        self.assertIn(profiles.LIGHTTPD_VERSION, profiles.PROFILE_METADATA["lighttpd"]["host_name"])
+        self.assertIn(profiles.LIGHTTPD_VERSION, profiles.PROFILE_METADATA["lighttpd"]["reason"])
+
     def test_non_native_profiles_are_conservatively_downgraded(self) -> None:
         expected_phase4 = {
             "haproxy": "implemented_not_asserted",

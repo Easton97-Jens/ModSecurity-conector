@@ -1,8 +1,8 @@
 /*
- * HAProxy 3.2.21 HTX ModSecurity streaming filter.
+ * HAProxy HTX ModSecurity streaming filter selected by version-contract.json.
  *
  * This file is deliberately kept outside the upstream HAProxy tree.  The
- * companion build-overlay.sh copies it into a version-pinned 3.2.21 worktree
+ * companion build-overlay.sh copies it into a version-pinned worktree
  * and links it with the repository-owned ModSecurity binding.
  *
  * The filter is forward-first and does not own a request or response buffer:
@@ -17,7 +17,7 @@
  *
  * A Phase-4 intervention discovered after response commitment is resolved
  * through the Common late-intervention policy.  This overlay currently records
- * the requested and policy-resolved actions only: a reliable HAProxy 3.2.21
+ * the requested and policy-resolved actions only: a reliable HAProxy HTX
  * post-commit stream-abort integration still needs host-runtime verification.
  */
 
@@ -562,7 +562,7 @@ static int haproxy_modsecurity_htx_filter_init(struct proxy *px, struct flt_conf
         return -1;
     }
     memset(&engine_config, 0, sizeof(engine_config));
-    engine_config.connector_info = "HAProxy 3.2.21 native HTX streaming overlay";
+    engine_config.connector_info = "HAProxy native HTX streaming overlay";
     engine_config.common_config = config->common_config;
     engine_config.rules_file = config->rules_file;
     if (haproxy_modsecurity_engine_create(&engine_config, &config->engine, &decision) != 0) {

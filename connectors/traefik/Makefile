@@ -15,8 +15,72 @@ TRAEFIK_NATIVE_RUNTIME_ROOT := $(value BUILD_ROOT)/traefik-native-middleware/run
 else
 override TRAEFIK_NATIVE_RUNTIME_ROOT := $(value TRAEFIK_NATIVE_RUNTIME_ROOT)
 endif
+REPO_ROOT ?= ../..
+FRAMEWORK_ROOT ?= $(REPO_ROOT)/modules/ModSecurity-test-Framework
 
-.PHONY: build-connector build-traefik-connector build-forwardauth-service check-config check-traefik-config start-smoke start-smoke-traefik runtime-smoke runtime-smoke-traefik runtime-smoke-traefik-native no-crs-baseline-traefik build-starter build-decision-service build-forwardauth-starter self-test self-test-decision-service self-test-forwardauth build-native-middleware build-traefik-native-middleware test-native-middleware test-traefik-native-middleware check-native-middleware build-engine-service test-engine-service clean
+# Shared read-only host-runtime gate. These snapshots are exported to the
+# recursive root make; the recipe itself contains no caller-controlled shell
+# interpolation.
+ifeq ($(origin TRAEFIK_HOSTRUNTIME_PROFILE), undefined)
+TRAEFIK_HOSTRUNTIME_PROFILE := traefik-forwardauth
+endif
+# Do not inspect the caller-provided profile in Make conditionals. The root
+# checker validates the raw profile after safe argument transport; callers may
+# select narrower runtime and binary roots explicitly when needed.
+override TRAEFIK_HOSTRUNTIME_DEFAULT_ROOT := $(abspath $(BUILD_ROOT)/hostruntime/traefik)
+override TRAEFIK_HOSTRUNTIME_DEFAULT_BINARY_ROOT := $(abspath $(BUILD_ROOT)/hostruntime/traefik)
+ifeq ($(origin TRAEFIK_HOSTRUNTIME_LOCK), undefined)
+TRAEFIK_HOSTRUNTIME_LOCK := $(abspath $(FRAMEWORK_ROOT)/ci/provisioning/runtime-component-lock.json)
+endif
+ifeq ($(origin TRAEFIK_HOSTRUNTIME_RUNTIME_ROOT), undefined)
+TRAEFIK_HOSTRUNTIME_RUNTIME_ROOT := $(abspath $(TRAEFIK_HOSTRUNTIME_DEFAULT_ROOT))
+endif
+ifeq ($(origin TRAEFIK_HOSTRUNTIME_BINARY_ROOT), undefined)
+TRAEFIK_HOSTRUNTIME_BINARY_ROOT := $(abspath $(TRAEFIK_HOSTRUNTIME_DEFAULT_BINARY_ROOT))
+endif
+ifeq ($(origin TRAEFIK_HOSTRUNTIME_EXPECTED_VERSION), undefined)
+TRAEFIK_HOSTRUNTIME_EXPECTED_VERSION :=
+endif
+ifeq ($(origin TRAEFIK_HOSTRUNTIME_BINARY), undefined)
+TRAEFIK_HOSTRUNTIME_BINARY :=
+endif
+ifeq ($(origin TRAEFIK_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR), undefined)
+TRAEFIK_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR := $(abspath $(TRAEFIK_HOSTRUNTIME_DEFAULT_ROOT)/preflight)
+endif
+# Command-line hostruntime values are transported explicitly by the wrapper.
+# Prevent GNU Make from expanding and auto-exporting their raw text first.
+unexport TRAEFIK_HOSTRUNTIME_PROFILE TRAEFIK_HOSTRUNTIME_LOCK \
+	TRAEFIK_HOSTRUNTIME_EXPECTED_VERSION TRAEFIK_HOSTRUNTIME_BINARY \
+	TRAEFIK_HOSTRUNTIME_LOCK_ROOT TRAEFIK_HOSTRUNTIME_RUNTIME_ROOT \
+	TRAEFIK_HOSTRUNTIME_BINARY_ROOT TRAEFIK_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR
+
+.PHONY: build-connector build-traefik-connector build-forwardauth-service check-config check-traefik-config start-smoke start-smoke-traefik runtime-smoke runtime-smoke-traefik runtime-smoke-traefik-native hostruntime-preflight-traefik hostruntime-preflight-traefik-forwardauth hostruntime-preflight-traefik-native no-crs-baseline-traefik build-starter build-decision-service build-forwardauth-starter self-test self-test-decision-service self-test-forwardauth build-native-middleware build-traefik-native-middleware test-native-middleware test-traefik-native-middleware check-native-middleware build-engine-service test-engine-service clean
+
+# Take variable names, not their values: this preserves caller text as data,
+# doubles Make metacharacters for the child Make process, and shell-quotes the
+# resulting environment assignments as one argument each.
+hostruntime_wrapper_escape_dollars = $(subst $$,$$$$,$(value $(1)))
+hostruntime_wrapper_safe_quote = '$(subst ','"'"',$(call hostruntime_wrapper_escape_dollars,$(1)))'
+hostruntime-preflight-traefik:
+	env \
+		MAKEFLAGS=$(call hostruntime_wrapper_safe_quote,MFLAGS) \
+		MAKEOVERRIDES='' \
+		HOSTRUNTIME_CONNECTOR='traefik' \
+		HOSTRUNTIME_PROFILE=$(call hostruntime_wrapper_safe_quote,TRAEFIK_HOSTRUNTIME_PROFILE) \
+		HOSTRUNTIME_EXPECTED_VERSION=$(call hostruntime_wrapper_safe_quote,TRAEFIK_HOSTRUNTIME_EXPECTED_VERSION) \
+		HOSTRUNTIME_BINARY=$(call hostruntime_wrapper_safe_quote,TRAEFIK_HOSTRUNTIME_BINARY) \
+		HOSTRUNTIME_BINARY_ROOT=$(call hostruntime_wrapper_safe_quote,TRAEFIK_HOSTRUNTIME_BINARY_ROOT) \
+		HOSTRUNTIME_LOCK=$(call hostruntime_wrapper_safe_quote,TRAEFIK_HOSTRUNTIME_LOCK) \
+		HOSTRUNTIME_LOCK_PROFILE=$(call hostruntime_wrapper_safe_quote,TRAEFIK_HOSTRUNTIME_PROFILE) \
+		HOSTRUNTIME_RUNTIME_ROOT=$(call hostruntime_wrapper_safe_quote,TRAEFIK_HOSTRUNTIME_RUNTIME_ROOT) \
+		HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR=$(call hostruntime_wrapper_safe_quote,TRAEFIK_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR) \
+		$(MAKE) -C ../.. hostruntime-preflight
+
+hostruntime-preflight-traefik-forwardauth:
+	$(MAKE) TRAEFIK_HOSTRUNTIME_PROFILE=traefik-forwardauth hostruntime-preflight-traefik
+
+hostruntime-preflight-traefik-native:
+	$(MAKE) TRAEFIK_HOSTRUNTIME_PROFILE=traefik-native hostruntime-preflight-traefik
 
 build-connector:
 	build/build-connector.sh

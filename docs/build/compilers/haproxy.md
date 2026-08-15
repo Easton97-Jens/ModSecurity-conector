@@ -10,7 +10,7 @@ This guide describes the manual development and integration build for `native-ht
 
 ## 2. Build components
 
-libmodsecurity v3, HAProxy 3.2.21 source, the repository native HTX filter/overlay, the Common bridge, a local rule file, a loopback frontend, and a loopback upstream.
+libmodsecurity v3, HAProxy 3.2.22 source, the repository native HTX filter/overlay, the Common bridge, a local rule file, a loopback frontend, and a loopback upstream.
 
 ## Connector in this repository
 
@@ -32,7 +32,7 @@ Section 7 applies the repository-owned HTX overlay to the selected host source a
 - **Source and scope:** [HAProxy Documentation](https://docs.haproxy.org/)
   Configuration syntax and CLI documentation for `haproxy -c` and runtime operation. Version scope: Use documentation matching the selected major/minor series.
 - **Source and scope:** [HAProxy Releases](https://www.haproxy.org/download/)
-  Official source downloads and release series selection. Version scope: The repository overlay currently fixes its compatible source to 3.2.21.
+  Official source downloads and release series selection. Version scope: The repository overlay currently fixes its compatible source to 3.2.22.
 
 
 
@@ -75,7 +75,7 @@ Build the exact HAProxy release required by the native HTX overlay. This is an o
 
 ```sh
 WORKDIR="$HOME/connector-build/haproxy"
-VERSION="3.2.21"
+VERSION="3.2.22"
 JOBS=2
 ```
 
@@ -86,8 +86,8 @@ This downloads the selected official host source into an isolated workspace.
 ```sh
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
-curl -fLO "https://www.haproxy.org/download/3.2/src/haproxy-$VERSION.tar.gz"
-curl -fLO "https://www.haproxy.org/download/3.2/src/haproxy-$VERSION.tar.gz.sha256"
+curl -fLO "https://www.haproxy.org/download/3.2/src/haproxy-3.2.22.tar.gz"
+curl -fL "https://www.haproxy.org/download/3.2/src/haproxy-3.2.22.tar.gz.sha256" -o "haproxy-$VERSION.tar.gz.sha256"
 sha256sum -c "haproxy-$VERSION.tar.gz.sha256"
 tar -xzf "haproxy-$VERSION.tar.gz"
 ```
@@ -135,7 +135,7 @@ The host path is reintroduced here only so that the connector commands can consu
 
 ```sh
 export HOST_BUILD_BASE="$HOME/connector-build/haproxy"
-export HAPROXY_SRC="$HOST_BUILD_BASE/haproxy-3.2.21"
+export HAPROXY_SRC="$HOST_BUILD_BASE/haproxy-3.2.22"
 export HAPROXY_HTX_BUILD_DIR="$HOST_BUILD_BASE/htx-overlay"
 cd "$CONNECTOR_ROOT"
 export HAPROXY_HTX_SOURCE_DIR="$HAPROXY_SRC"
@@ -278,7 +278,7 @@ test ! -e "$HOME/modsecurity-connector-work" || find "$HOME/modsecurity-connecto
 
 Common: for missing headers or libraries, return to the shared guide's advanced section and check the deliberately selected prefix and pkg-config output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.
 
-The overlay refuses a version other than 3.2.21, an in-tree build directory, missing libmodsecurity headers, or a missing library. Treat that as a compatibility boundary, not as a reason to substitute a SPOA result.
+The overlay refuses a version other than 3.2.22, an in-tree build directory, missing libmodsecurity headers, or a missing library. Treat that as a compatibility boundary, not as a reason to substitute a SPOA result.
 
 ## 16. Variables and placeholders
 

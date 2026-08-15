@@ -75,6 +75,7 @@ LOG_SANITIZER=$CONNECTOR_ROOT/ci/runtime/lifecycle/sanitize-full-lifecycle-log.p
 ENGINE_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-engine-lifecycle-artifacts.py
 FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT='/./{p;q;}'
 TRANSPORT_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-transport-lifecycle-artifacts.py
+HOSTRUNTIME_RECORD_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-hostruntime-record.py
 TRAEFIK_ARTIFACT_STAGER=$CONNECTOR_ROOT/ci/runtime/lifecycle/stage-traefik-runtime-artifacts.py
 SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
 
@@ -116,6 +117,10 @@ fi
 }
 [ -f "$TRANSPORT_ARTIFACT_WRITER" ] || {
     echo "FAIL: transport lifecycle artifact writer is missing: $TRANSPORT_ARTIFACT_WRITER" >&2
+    exit 1
+}
+[ -f "$HOSTRUNTIME_RECORD_WRITER" ] || {
+    echo "FAIL: hostruntime record writer is missing: $HOSTRUNTIME_RECORD_WRITER" >&2
     exit 1
 }
 [ -f "$TRAEFIK_ARTIFACT_STAGER" ] || {
@@ -1119,6 +1124,26 @@ finalize_rc=$?
 set -e
 if [ "$finalize_rc" -ne 0 ]; then
     exit "$finalize_rc"
+fi
+FINAL_RESULT=$EVIDENCE_ROOT/$connector/$NO_CRS_RUN_ID/result.json
+HOSTRUNTIME_RECORD=$EVIDENCE_ROOT/$connector/$NO_CRS_RUN_ID/hostruntime-record.json
+HOSTRUNTIME_SUMMARY=$EVIDENCE_ROOT/$connector/$NO_CRS_RUN_ID/hostruntime-summary.md
+if [ -f "$FINAL_RESULT" ]; then
+    "$PYTHON" "$HOSTRUNTIME_RECORD_WRITER" \
+        --result "$FINAL_RESULT" \
+        --output "$HOSTRUNTIME_RECORD" \
+        --summary "$HOSTRUNTIME_SUMMARY" \
+        --runtime-root "$CANONICAL_VERIFIED_RUN_ROOT" \
+        --connector "$connector" \
+        --profile "${FULL_LIFECYCLE_HOST_PROFILE:-$NO_CRS_ARTIFACT_PROFILE}" \
+        --runtime-lock-id "${HOSTRUNTIME_LOCK_ID:-}" \
+        --expected-version "${HOSTRUNTIME_EXPECTED_VERSION:-}" \
+        --actual-version "$host_version" || {
+        echo "FAIL: unable to write hostruntime lifecycle record" >&2
+        exit 1
+    }
+else
+    echo "BLOCKED: finalized result is missing; no hostruntime record was promoted" >&2
 fi
 latest_file=$EVIDENCE_ROOT/$connector/latest-run-id
 reject_symlink_components "$latest_file"

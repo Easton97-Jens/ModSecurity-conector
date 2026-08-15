@@ -44,7 +44,7 @@ PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
         "github.event.repository.default_branch == 'master'",
     }
 )
-SUBMODULE_PUBLISHER_SHA256 = "03aa1859bb3e9efd8c512158a94c63b87f7eb2a937a6370f0da17c912c1c9bbb"
+SUBMODULE_PUBLISHER_SHA256 = "42b8ac3108df2ce0179a6af793dcaf3e2b53989346325d361ed4fa1465a1e093"
 AUTO_MERGE_DISABLED_QUERY = (
     "--jq 'if (has(\"auto_merge\") and (.auto_merge == null)) then \"null\" "
     "else \"auto-merge-present\" end'"
@@ -167,6 +167,7 @@ SUBMODULE_PUBLISHER_GATE = (
 SUBMODULE_LOCAL_GIT_CONTRACT_TESTS = (
     "tests.test_validate_submodule_candidate_state",
     "tests.test_update_submodules_local_git",
+    "tests.test_update_framework_versions",
 )
 
 WRITE_PERMISSION_KEYS = {
@@ -1813,12 +1814,21 @@ jobs:
             job_if_expression(validator),
             SUBMODULE_VALIDATOR_GATE,
         )
-        self.assertIn("submodules: recursive", validator)
+        self.assertIn("submodules: false", validator)
+        self.assertNotIn("submodules: recursive", validator)
         self.assertIn(READONLY_SUBMODULE_NAMESPACE_CALL, normalize_shell_script(validator))
         self.assertIn("remote get-url origin", validator)
         self.assertIn("merge-base --is-ancestor", validator)
         self.assertIn("checkout --detach", validator)
-        self.assertIn("submodule update --init --recursive", validator)
+        self.assertIn(
+            'git -c protocol.file.allow=never submodule update --init -- "$SUBMODULE_PATH"',
+            validator,
+        )
+        self.assertNotIn("submodule update --init --recursive", validator)
+        self.assertIn("Validate Framework component-pin data contract", validator)
+        self.assertIn("sync-framework-component-versions.py", validator)
+        self.assertIn("--validate", validator)
+        self.assertIn('"$CANDIDATE_SHA:ci/lib/common.sh"', validator)
         self.assertIn(SUBMODULE_CANDIDATE_BASELINE_CALL, normalize_shell_script(validator))
         self.assertEqual(normalize_shell_script(validator).count(SUBMODULE_CANDIDATE_STATE_CALL), 2)
         self.assertNotIn("status --porcelain", validator)
@@ -2287,7 +2297,8 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("GH_TOKEN: ${{ github.token }}", publisher)
         self.assertIn("git read-tree \"$MASTER_HEAD\"", publisher)
         self.assertIn('git diff --cached --name-only "$MASTER_HEAD"', normalized_publisher)
-        self.assertIn("require_only_submodule_path", publisher)
+        self.assertIn("require_only_allowed_update_paths", publisher)
+        self.assertIn("require_expected_update_raw", publisher)
         self.assertIn("git diff --cached --raw --no-abbrev --no-renames", normalized_publisher)
         self.assertIn("CANDIDATE_SHA", publisher)
         self.assertIn("CURRENT_GITLINK_SHA", publisher)
@@ -2354,14 +2365,25 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotIn("git checkout -B", publisher)
         self.assertNotIn("git push --force origin", publisher)
         self.assertNotIn("git push --force-with-lease origin", publisher)
-        self.assertNotIn("git add ", publisher)
+        self.assertIn("sync-framework-component-versions.py", publisher)
+        self.assertIn("--sync", publisher)
+        self.assertIn("--check", publisher)
+        self.assertIn("python3 scripts/generate_compiler_guides.py", publisher)
+        self.assertIn("docs/build/compilers/lighttpd.de.md", publisher)
+        self.assertIn('git -c core.hooksPath=/dev/null add --', publisher)
+        self.assertNotIn("git add .", publisher)
+        self.assertNotIn("git add -A", publisher)
         self.assertNotIn("|| true", publisher)
         self.assertNotIn("continue-on-error", publisher)
         self.assertNotIn("GH_PAT", publisher)
         self.assertNotIn("PERSONAL_ACCESS_TOKEN", publisher)
         self.assertNotIn("DEPLOY_KEY", publisher)
         self.assertNotIn("submodules: recursive", publisher)
-        self.assertNotIn("git submodule", publisher)
+        self.assertIn(
+            'git -c protocol.file.allow=never submodule update --init -- "$SUBMODULE_PATH"',
+            publisher,
+        )
+        self.assertNotIn("submodule update --init --recursive", publisher)
         self.assertNotIn("make quick-check", publisher)
 
         self.assertIn("RESOLVER_RESULT", outcome)

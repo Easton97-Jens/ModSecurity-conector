@@ -4,7 +4,9 @@ set -eu
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 CONNECTOR_DIR=$(CDPATH='' cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(CDPATH='' cd "$CONNECTOR_DIR/../.." && pwd)
-PATCH_FILE=$CONNECTOR_DIR/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch
+LIGHTTPD_VERSION=$(sh "$SCRIPT_DIR/read_version.sh")
+PATCH_FILENAME=$(sh "$SCRIPT_DIR/read_version.sh" LIGHTTPD_PATCH_FILENAME)
+PATCH_FILE=$CONNECTOR_DIR/patches/$PATCH_FILENAME
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 
 blocked() {
@@ -27,7 +29,7 @@ esac
 
 SOURCE_DIR=$(CDPATH='' cd "$LIGHTTPD_SOURCE_DIR" 2>/dev/null && pwd) || \
     blocked "LIGHTTPD_SOURCE_DIR is not accessible: $LIGHTTPD_SOURCE_DIR"
-PATCHED_SOURCE_DIR=${LIGHTTPD_PATCHED_SOURCE_DIR:-$BUILD_ROOT/lighttpd-core-patched/lighttpd-1.4.84}
+PATCHED_SOURCE_DIR=${LIGHTTPD_PATCHED_SOURCE_DIR:-$BUILD_ROOT/lighttpd-core-patched/lighttpd-$LIGHTTPD_VERSION}
 case "$PATCHED_SOURCE_DIR" in
     /*) ;;
     *) blocked "LIGHTTPD_PATCHED_SOURCE_DIR must be absolute: $PATCHED_SOURCE_DIR" ;;
@@ -42,8 +44,8 @@ esac
 [ -f "$PATCH_FILE" ] || blocked "missing versioned patch: $PATCH_FILE"
 [ -f "$SOURCE_DIR/src/plugin.h" ] || blocked "not a lighttpd source tree"
 [ -f "$SOURCE_DIR/configure.ac" ] || blocked "missing configure.ac"
-grep -Fq 'AC_INIT([lighttpd],[1.4.84]' "$SOURCE_DIR/configure.ac" || \
-    blocked "patch is pinned to lighttpd 1.4.84"
+grep -Fq "AC_INIT([lighttpd],[$LIGHTTPD_VERSION]" "$SOURCE_DIR/configure.ac" || \
+    blocked "patch is pinned to lighttpd $LIGHTTPD_VERSION"
 command -v patch >/dev/null 2>&1 || blocked "missing patch command"
 command -v sha256sum >/dev/null 2>&1 || blocked "missing sha256sum command"
 PATCH_SHA256=$(sha256sum "$PATCH_FILE" | awk '{print $1}')
@@ -56,7 +58,8 @@ PATCH_STAMP=.msconnector-lighttpd-patch.sha256
 case "$1" in
 --check)
     patch --dry-run --forward -p1 -d "$SOURCE_DIR" < "$PATCH_FILE"
-    printf 'lighttpd_core_patch: PASS mode=check version=1.4.84 patch_sha256=%s source=%s\n' \
+    printf 'lighttpd_core_patch: PASS mode=check version=%s patch_sha256=%s source=%s\n' \
+        "$LIGHTTPD_VERSION" \
         "$PATCH_SHA256" "$SOURCE_DIR"
     ;;
 --apply)
@@ -67,11 +70,12 @@ case "$1" in
            patch --dry-run --reverse --batch -p1 -d "$PATCHED_SOURCE_DIR" \
                < "$PATCH_FILE" >/dev/null 2>&1; then
             printf '%s\n' "$PATCH_SHA256" > "$PATCHED_SOURCE_DIR/$PATCH_STAMP"
-            printf 'lighttpd_core_patch: PASS mode=already-applied version=1.4.84 patch_sha256=%s patched_source=%s\n' \
+            printf 'lighttpd_core_patch: PASS mode=already-applied version=%s patch_sha256=%s patched_source=%s\n' \
+                "$LIGHTTPD_VERSION" \
                 "$PATCH_SHA256" "$PATCHED_SOURCE_DIR"
             exit 0
         fi
-        blocked "existing patched source does not match the current 1.4.84 patch: $PATCHED_SOURCE_DIR"
+        blocked "existing patched source does not match the current $LIGHTTPD_VERSION patch: $PATCHED_SOURCE_DIR"
     fi
     parent_dir=$(dirname "$PATCHED_SOURCE_DIR")
     mkdir -p "$parent_dir"
@@ -84,7 +88,8 @@ case "$1" in
     printf '%s\n' "$PATCH_SHA256" > "$temp_dir/$PATCH_STAMP"
     mv "$temp_dir" "$PATCHED_SOURCE_DIR"
     trap - EXIT HUP INT TERM
-    printf 'lighttpd_core_patch: PASS mode=apply version=1.4.84 patch_sha256=%s patched_source=%s\n' \
+    printf 'lighttpd_core_patch: PASS mode=apply version=%s patch_sha256=%s patched_source=%s\n' \
+        "$LIGHTTPD_VERSION" \
         "$PATCH_SHA256" "$PATCHED_SOURCE_DIR"
     ;;
 *)

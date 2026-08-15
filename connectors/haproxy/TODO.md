@@ -9,7 +9,7 @@ Canonical capability source: `connectors/haproxy/capabilities.json`.
 
 The standard compatibility path remains HAProxy/SPOA/SPOP. The separate
 full-lifecycle profile dispatches `native-htx-filter` through
-`full-lifecycle-haproxy-htx` into a patched HAProxy 3.2.21 HTX filter. Its
+`full-lifecycle-haproxy-htx` into a patched Framework-synchronized HAProxy HTX filter. Its
 P1/P3 replies, a P2 client reply with recorded zero-or-one backend dispatch,
 and P4 Safe `log_only` record
 are intentionally non-promoted and do not change the SPOP enforcement or

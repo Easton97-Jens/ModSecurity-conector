@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 import stat
 import sys
@@ -14,6 +15,7 @@ import unittest
 
 HELPER_PATH = Path(__file__).with_name("haproxy_htx_smoke_helper.py")
 RUNTIME_PATH = Path(__file__).with_name("run_haproxy_htx_runtime.sh")
+MAKEFILE_PATH = Path(__file__).parents[1] / "Makefile"
 SPEC = importlib.util.spec_from_file_location("haproxy_htx_smoke_helper", HELPER_PATH)
 assert SPEC is not None
 assert SPEC.loader is not None
@@ -26,9 +28,12 @@ assert COLLECTOR_SPEC.loader is not None
 COLLECTOR = importlib.util.module_from_spec(COLLECTOR_SPEC)
 COLLECTOR_SPEC.loader.exec_module(COLLECTOR)
 SYNCHRONIZED_UPSTREAM_PATH = (
-    HELPER.REPO_ROOT
-    / "modules/ModSecurity-test-Framework/tests/runners/synchronized_upstream.py"
+    Path(os.environ.get("FRAMEWORK_ROOT", str(HELPER.REPO_ROOT / "modules/ModSecurity-test-Framework")))
+    / "tests/runners/synchronized_upstream.py"
 )
+FRAMEWORK_ROOT_PATH = SYNCHRONIZED_UPSTREAM_PATH.parents[2]
+CANONICAL_RULES_PATH = FRAMEWORK_ROOT_PATH / "tests/rules/no-crs-baseline.conf"
+EVENT_SCHEMA_PATH = FRAMEWORK_ROOT_PATH / "tests/schemas/no-crs-baseline/event.schema.json"
 SYNCHRONIZED_UPSTREAM_SPEC = importlib.util.spec_from_file_location(
     "synchronized_upstream", SYNCHRONIZED_UPSTREAM_PATH,
 )
@@ -40,6 +45,54 @@ SYNCHRONIZED_UPSTREAM_SPEC.loader.exec_module(SYNCHRONIZED_UPSTREAM)
 
 
 class HAProxyHTXSmokeHelperTest(unittest.TestCase):
+    def test_runtime_uses_explicit_framework_root_and_preserves_default(self) -> None:
+        runtime = RUNTIME_PATH.read_text(encoding="utf-8")
+        self.assertIn(
+            "FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$REPO_ROOT/modules/ModSecurity-test-Framework}",
+            runtime,
+        )
+        self.assertIn('SYNCHRONIZED_UPSTREAM="$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py"', runtime)
+        self.assertIn(
+            'CANONICAL_RULES_FILE=${HAPROXY_HTX_CANONICAL_RULES_FILE:-$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf}',
+            runtime,
+        )
+        self.assertIn(
+            'helper write-rules --path "$rules_file" --canonical-rules "$CANONICAL_RULES_FOR_HELPER"',
+            runtime,
+        )
+
+        makefile = MAKEFILE_PATH.read_text(encoding="utf-8")
+        self.assertIn(
+            "FRAMEWORK_ROOT ?= $(REPO_ROOT)/modules/ModSecurity-test-Framework",
+            makefile,
+        )
+        self.assertIn('FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" \\', makefile)
+
+    def test_missing_framework_root_is_a_harness_blocker(self) -> None:
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime_root = root / "runtime"
+            fake_haproxy = root / "haproxy"
+            fake_haproxy.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            fake_haproxy.chmod(0o755)
+            completed = subprocess.run(
+                [str(RUNTIME_PATH)],
+                env={
+                    **os.environ,
+                    "FRAMEWORK_ROOT": str(root / "missing-framework"),
+                    "HAPROXY_BIN": str(fake_haproxy),
+                    "RUNTIME_ROOT": str(runtime_root),
+                    "BUILD_ROOT": str(root / "build"),
+                },
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 77)
+            self.assertIn("Framework root is not an existing directory", completed.stderr)
+
     def test_phase2_upstream_profile_is_isolated_from_ordinary_requests(self) -> None:
         self.assertEqual(
             HELPER.upstream_profile("/no-crs/request-body?trace=ignored"),
@@ -102,8 +155,10 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             rules = root / "rules.conf"
             config = root / "haproxy.cfg"
             certificate = root / "loopback-tls.pem"
+            canonical_rules = root / "canonical-rules.conf"
+            canonical_rules.write_text(CANONICAL_RULES_PATH.read_text(encoding="utf-8"), encoding="utf-8")
             certificate.write_text("private test certificate", encoding="utf-8")
-            self.assertEqual(HELPER.write_rules(str(root), str(rules)), 0)
+            self.assertEqual(HELPER.write_rules(str(root), str(rules), str(canonical_rules)), 0)
             self.assertEqual(
                 HELPER.write_config(
                     str(root), str(config), 18080, 18081, str(rules), str(certificate),
@@ -116,7 +171,10 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             for forbidden in ("filter spoe", "send-spoe", "http-buffer-request", "wait-for-body", "res.body"):
                 self.assertNotIn(forbidden, content)
             generated_rules = rules.read_text(encoding="utf-8")
-            self.assertEqual(generated_rules, HELPER.canonical_rules_content(root))
+            self.assertEqual(
+                generated_rules,
+                HELPER.canonical_rules_content(root, str(canonical_rules)),
+            )
             for rule_id in (1100001, 1100002, 1100101, 1100201, 1100301):
                 self.assertIn(f"id:{rule_id}", generated_rules)
             self.assertNotIn("91000", generated_rules)
@@ -217,8 +275,7 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             self.assertNotIn("requested_action", record)
             self.assertNotIn("actual_action", record)
             schema = json.loads((
-                HELPER.REPO_ROOT
-                / "modules/ModSecurity-test-Framework/tests/schemas/no-crs-baseline/event.schema.json"
+                EVENT_SCHEMA_PATH
             ).read_text(encoding="utf-8"))
             self.assertTrue(set(record).issubset(set(schema["properties"])))
             self.assertTrue(set(record).issubset(COLLECTOR.APPROVED_RAW_EVENT_KEYS))
@@ -387,8 +444,7 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             self.assertTrue(record["no_full_response_buffering"])
             self.assertNotIn("connector_owned_full_response_buffer", record)
             schema = json.loads((
-                HELPER.REPO_ROOT
-                / "modules/ModSecurity-test-Framework/tests/schemas/no-crs-baseline/event.schema.json"
+                EVENT_SCHEMA_PATH
             ).read_text(encoding="utf-8"))
             self.assertTrue(set(record).issubset(set(schema["properties"])))
             self.assertTrue(set(record).issubset(COLLECTOR.APPROVED_RAW_EVENT_KEYS))

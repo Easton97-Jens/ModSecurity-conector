@@ -61,16 +61,23 @@ NGINX_PINNED_TUPLE_FIELDS = (
     "source_version_readback",
     "binary_version_readback",
 )
+CANONICAL_NGINX_SOURCE_REPOSITORY = "https://github.com/nginx/nginx"
+CANONICAL_NGINX_SOURCE_MODE = "github-release"
+CANONICAL_NGINX_RELEASE_TAG = "release-1.31.3"
+CANONICAL_NGINX_SOURCE_REF = "release-1.31.3"
+CANONICAL_NGINX_RELEASE_ASSET_NAME = "nginx-1.31.3.tar.gz"
+CANONICAL_NGINX_ARCHIVE_SHA256 = "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525"
+CANONICAL_NGINX_VERSION_READBACK = "nginx/1.31.3"
 CANONICAL_NGINX_CONTRACT_VALUES = {
-    "source_repository": "https://github.com/nginx/nginx",
-    "source_mode": "github-release",
-    "release_tag": "release-1.31.3",
-    "source_ref": "release-1.31.3",
-    "release_asset_name": "nginx-1.31.3.tar.gz",
-    "expected_archive_sha256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
-    "actual_archive_sha256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
-    "source_version_readback": "nginx/1.31.3",
-    "binary_version_readback": "nginx/1.31.3",
+    "source_repository": CANONICAL_NGINX_SOURCE_REPOSITORY,
+    "source_mode": CANONICAL_NGINX_SOURCE_MODE,
+    "release_tag": CANONICAL_NGINX_RELEASE_TAG,
+    "source_ref": CANONICAL_NGINX_SOURCE_REF,
+    "release_asset_name": CANONICAL_NGINX_RELEASE_ASSET_NAME,
+    "expected_archive_sha256": CANONICAL_NGINX_ARCHIVE_SHA256,
+    "actual_archive_sha256": CANONICAL_NGINX_ARCHIVE_SHA256,
+    "source_version_readback": CANONICAL_NGINX_VERSION_READBACK,
+    "binary_version_readback": CANONICAL_NGINX_VERSION_READBACK,
 }
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 GIT_OBJECT_ID_PATTERN = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")

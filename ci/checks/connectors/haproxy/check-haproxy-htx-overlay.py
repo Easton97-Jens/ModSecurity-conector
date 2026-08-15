@@ -6,14 +6,16 @@ checks prevent an apparently incremental implementation from regressing back
 to a buffered SPOE sample or from evaluating Phase 4 before HTTP EOS.
 """
 
+import json
 from pathlib import Path
+import re
 import sys
 
 
 ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
 OVERLAY = ROOT / "connectors/haproxy/htx-overlay"
 SOURCE = OVERLAY / "haproxy_modsecurity_htx_filter.c"
-PATCH = OVERLAY / "haproxy-3.2.21-makefile.patch"
+CONTRACT = OVERLAY / "version-contract.json"
 BUILD = OVERLAY / "build-overlay.sh"
 BINDING = ROOT / "connectors/haproxy/src/haproxy_modsecurity_binding.c"
 BINDING_HEADER = ROOT / "connectors/haproxy/src/haproxy_modsecurity_binding.h"
@@ -50,6 +52,24 @@ def overlay_function_bodies(source: str) -> dict[str, str]:
     }
 
 
+def load_contract() -> tuple[str, Path]:
+    payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
+    version = payload.get("version") if isinstance(payload, dict) else None
+    patch_name = payload.get("makefile_patch") if isinstance(payload, dict) else None
+    source_url = payload.get("source_url") if isinstance(payload, dict) else None
+    sha256 = payload.get("sha256") if isinstance(payload, dict) else None
+    if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        raise ValueError("invalid HAProxy HTX version contract")
+    if not isinstance(patch_name, str) or not re.fullmatch(r"[A-Za-z0-9._-]+\.patch", patch_name):
+        raise ValueError("invalid HAProxy HTX patch contract")
+    series = ".".join(version.split(".")[:2])
+    if source_url != f"https://www.haproxy.org/download/{series}/src/haproxy-{version}.tar.gz":
+        raise ValueError("invalid HAProxy HTX source URL contract")
+    if not isinstance(sha256, str) or re.fullmatch(r"[0-9a-f]{64}", sha256) is None:
+        raise ValueError("invalid HAProxy HTX SHA-256 contract")
+    return version, OVERLAY / patch_name
+
+
 def runtime_selection_checks(source: str, helper: str, runtime: str, bodies: dict[str, str]) -> list[tuple[bool, str]]:
     precommit_deny = bodies["precommit_deny"]
     request_begin = bodies["request_begin"]
@@ -57,7 +77,7 @@ def runtime_selection_checks(source: str, helper: str, runtime: str, bodies: dic
     response_append = bodies["response_append"]
     response_payload = bodies["response_payload"]
     return [
-        ("haproxy_modsecurity_htx_filter_http_payload" in source and "haproxy_modsecurity_htx_filter_http_end" in source, "HAProxy 3.2.21 filter exposes http_payload and http_end hooks"),
+        ("haproxy_modsecurity_htx_filter_http_payload" in source and "haproxy_modsecurity_htx_filter_http_end" in source, "HAProxy HTX filter exposes http_payload and http_end hooks"),
         ("CANONICAL_RULES_PATH" in helper and all(f"id:{rule_id}" in helper for rule_id in (1100001, 1100002, 1100201)) and all(f"id:{rule_id}" not in helper and f"id:{rule_id}" not in runtime for rule_id in (910001, 910002, 910003, 910004)), "HTX runtime selects canonical No-CRS rule IDs instead of temporary 91000x probes"),
         ("HAPROXY_HTX_CANONICAL_RULES_FILE" in runtime and "phase1_403" in runtime and "phase1_429" in runtime and "phase3_403" in runtime and "enforced_reply" in runtime and "forwarded)" in runtime and "only the explicit allow control may be forwarded" in runtime and "capability_promotion=not_permitted" in runtime, "runtime permits forwarding only for the explicit allow control while keeping real P1/P3 host replies explicit"),
         ("phase2_client_deny" in runtime and "0-or-1" in runtime and "phase2_upstream_request_count=%s" in runtime and "phase2_request_dispatch_observed=%s" in runtime and "phase2_incremental_forwarding_claimed=false" in runtime and "phase2_host_action=enforced_reply" in runtime, "runtime records either observed P2 dispatch outcome without claiming incremental forwarding"),
@@ -93,9 +113,16 @@ def lifecycle_checks(source: str, binding: str, binding_header: str, bodies: dic
     ]
 
 
-def build_contract_checks(makefile_patch: str, build: str) -> list[tuple[bool, str]]:
+def build_contract_checks(makefile_patch: str, build: str, version: str) -> list[tuple[bool, str]]:
     return [
-        ("expected HAProxy 3.2.21" in build and "haproxy_modsecurity_htx_filter.c" in build and "haproxy-3.2.21-makefile.patch" in build and "USE_OPENSSL=1" in build, "build script is pinned to HAProxy 3.2.21, stages a separate worktree, and enables the harness TLS listener"),
+        (
+            '"$version" = "$HAPROXY_VERSION"' in build
+            and "HAPROXY_VERSION=$(contract_field version)" in build
+            and "haproxy_modsecurity_htx_filter.c" in build
+            and "version-contract.json" in build
+            and "USE_OPENSSL=1" in build,
+            f"build script follows the HAProxy HTX contract version {version}, stages a separate worktree, and enables the harness TLS listener",
+        ),
         ("canonical_path()" in build and "HAPROXY_HTX_BUILD_DIR must be outside the verified source tree" in build and '"$SOURCE_DIR"/*' in build and "patch --dry-run -p1" in build, "build script rejects source-tree output and validates the disposable patch"),
         ("common/src/header_validation_internal.h" in build and '"$WORKTREE/src/header_validation_internal.h"' in build, "build script stages the Common private header required by copied request/response helpers"),
         ("haproxy_modsecurity_htx_filter.o" in makefile_patch and "haproxy_modsecurity_binding.o" in makefile_patch, "source-linked Makefile patch includes the HTX filter and binding"),
@@ -104,7 +131,8 @@ def build_contract_checks(makefile_patch: str, build: str) -> list[tuple[bool, s
 
 def main() -> int:
     source = SOURCE.read_text(encoding="utf-8")
-    makefile_patch = PATCH.read_text(encoding="utf-8")
+    version, patch = load_contract()
+    makefile_patch = patch.read_text(encoding="utf-8")
     build = BUILD.read_text(encoding="utf-8")
     binding = BINDING.read_text(encoding="utf-8")
     binding_header = BINDING_HEADER.read_text(encoding="utf-8")
@@ -114,7 +142,7 @@ def main() -> int:
     checks = (
         runtime_selection_checks(source, helper, runtime, bodies)
         + lifecycle_checks(source, binding, binding_header, bodies)
-        + build_contract_checks(makefile_patch, build)
+        + build_contract_checks(makefile_patch, build, version)
     )
     ok = True
     for condition, message in checks:

@@ -36,9 +36,9 @@ Section 7 builds the repository-owned ext_proc service; the official Envoy docum
   The official ext_proc filter and bidirectional gRPC configuration contract. Version scope: Filter fields and semantics are release-dependent.
 - **Source and scope:** [Envoy admin interface](https://www.envoyproxy.io/docs/envoy/latest/operations/admin.html)
   Loopback-only admin endpoints and their local diagnostic purpose. Version scope: Do not expose the local example as a general management interface.
-- **Source and scope:** [Envoy v1.38.2 release](https://github.com/envoyproxy/envoy/releases/tag/v1.38.2)
-  Official selected release page, binary asset, and checksum material. Version scope: This guide pins the binary route to v1.38.2.
-- **Source and scope:** [Envoy source/Bazel guidance](https://github.com/envoyproxy/envoy/blob/v1.38.2/bazel/README.md)
+- **Source and scope:** [Envoy v1.39.0 release](https://github.com/envoyproxy/envoy/releases/tag/v1.39.0)
+  Official selected release page, binary asset, and checksum material. Version scope: This guide pins the binary route to v1.39.0.
+- **Source and scope:** [Envoy source/Bazel guidance](https://github.com/envoyproxy/envoy/blob/v1.39.0/bazel/README.md)
   Official optional source-build guidance; it is resource-intensive and not the default route. Version scope: Use only with the selected tag and sufficient CPU, memory, and storage.
 
 
@@ -91,13 +91,14 @@ WORKDIR="$HOME/connector-build/envoy"
 
 #### Download the release binary
 
-The official x86_64 asset is written to a local workspace and made executable.
+The official x86_64 asset is written to a local workspace and made executable. Before using it, obtain its selected checksum from the Framework-managed Cache-v2 inventory rather than copying a stale guide checksum.
 
 ```sh
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
-curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.38.2/envoy-1.38.2-linux-x86_64" -o envoy
-printf "%s  %s\n" "87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899" "envoy" | sha256sum -c -
+curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64" -o envoy
+: "${ENVOY_SHA256:?set ENVOY_SHA256 from the Framework-managed Cache-v2 inventory}"
+printf "%s  %s\n" "$ENVOY_SHA256" "envoy" | sha256sum -c -
 chmod 755 envoy
 ./envoy --version
 ```
@@ -266,6 +267,7 @@ An official Envoy binary is only the host. If validation fails, check the genera
 | HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
 | BUILD_ROOT | External build and runtime root for repository-owned connector components. |
 | ENVOY_BIN | Verified Envoy executable. |
+| ENVOY_SHA256 | Expected binary checksum for the selected release. |
 | EXT_PROC_BIN | Repository-built ext_proc service executable. |
 | ENVOY_CONFIG | Generated loopback Envoy configuration. |
 | EXT_PROC_CONFIG | Repository ext_proc service configuration validated with the generated runtime configuration. |

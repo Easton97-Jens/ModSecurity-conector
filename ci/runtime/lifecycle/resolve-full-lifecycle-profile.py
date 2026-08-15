@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import tempfile
 from copy import deepcopy
 from pathlib import Path
@@ -21,6 +22,7 @@ from typing import Any, Mapping, Sequence
 
 
 _CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+_REPOSITORY_ROOT = _CI_ROOT.parent
 if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 
@@ -29,6 +31,39 @@ from runtime_path_utils import (
     runtime_artifact_path,
     runtime_or_source_artifact_path,
 )
+
+
+def _read_lighttpd_version() -> str:
+    contract = _REPOSITORY_ROOT / "connectors/lighttpd/lighttpd-version.contract"
+    try:
+        lines = contract.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise RuntimeError(f"cannot read Lighttpd version contract: {contract}") from exc
+    values = [line.partition("=")[2] for line in lines if line.startswith("LIGHTTPD_VERSION=")]
+    if len(values) != 1 or re.fullmatch(r"\d+\.\d+\.\d+", values[0]) is None:
+        raise RuntimeError("invalid Lighttpd version contract")
+    return values[0]
+
+
+def _read_haproxy_version() -> str:
+    contract = _REPOSITORY_ROOT / "connectors/haproxy/htx-overlay/version-contract.json"
+    try:
+        payload = json.loads(contract.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"cannot read HAProxy version contract: {contract}") from exc
+    version = payload.get("version") if isinstance(payload, dict) else None
+    if (
+        not isinstance(version, str)
+        or re.fullmatch(r"\d+\.\d+\.\d+", version) is None
+        or payload.get("schema_version") != 1
+        or payload.get("component") != "haproxy-htx-overlay"
+    ):
+        raise RuntimeError("invalid HAProxy version contract")
+    return version
+
+
+LIGHTTPD_VERSION = _read_lighttpd_version()
+HAPROXY_VERSION = _read_haproxy_version()
 
 
 PROFILE_BY_CONNECTOR = {
@@ -53,10 +88,10 @@ PROFILE_METADATA: dict[str, dict[str, str]] = {
         "reason": "The selected full-lifecycle route is the native NGINX HTTP module.",
     },
     "haproxy": {
-        "host_name": "HAProxy 3.2.21 native HTX filter",
+        "host_name": f"HAProxy {HAPROXY_VERSION} native HTX filter",
         "integration_mode": "native-htx-filter",
         "reason": (
-            "The selected route is the patched HAProxy 3.2.21 HTX filter. "
+            f"The selected route is the patched HAProxy {HAPROXY_VERSION} HTX filter. "
             "It passes borrowed HTX body slices incrementally to a real "
             "libmodsecurity transaction and evaluates Phase 4 at HTX EOS; "
             "the response-body availability capability never authorizes a "
@@ -82,10 +117,10 @@ PROFILE_METADATA: dict[str, dict[str, str]] = {
         ),
     },
     "lighttpd": {
-        "host_name": "lighttpd 1.4.84 patched native host",
+        "host_name": f"lighttpd {LIGHTTPD_VERSION} patched native host",
         "integration_mode": "patched-native-lighttpd",
         "reason": (
-            "The selected route is the patched lighttpd 1.4.84 core and matching "
+            f"The selected route is the patched lighttpd {LIGHTTPD_VERSION} core and matching "
             "module. Its Entity-Body hook receives decoded HTTP/1 response entity "
             "ranges before transfer framing and finalizes Phase 4 exactly once at "
             "entity EOS."

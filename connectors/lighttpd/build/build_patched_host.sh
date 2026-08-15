@@ -2,10 +2,11 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
+LIGHTTPD_VERSION=$(sh "$SCRIPT_DIR/read_version.sh")
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 PATCHED_ROOT=${LIGHTTPD_PATCHED_ROOT:-$BUILD_ROOT/lighttpd-core-patched}
-PATCHED_SOURCE_DIR=${LIGHTTPD_PATCHED_SOURCE_DIR:-$PATCHED_ROOT/lighttpd-1.4.84}
-CORE_BUILD_DIR=${LIGHTTPD_PATCHED_BUILD_DIR:-$PATCHED_ROOT/build-1.4.84}
+PATCHED_SOURCE_DIR=${LIGHTTPD_PATCHED_SOURCE_DIR:-$PATCHED_ROOT/lighttpd-$LIGHTTPD_VERSION}
+CORE_BUILD_DIR=${LIGHTTPD_PATCHED_BUILD_DIR:-$PATCHED_ROOT/build-$LIGHTTPD_VERSION}
 STAGE_ROOT=${LIGHTTPD_PATCHED_STAGE_DIR:-$PATCHED_ROOT/stage}
 CORE_BIN=$STAGE_ROOT/bin/lighttpd
 MODULE_DIR=$STAGE_ROOT/modules
@@ -72,7 +73,7 @@ cp "$PROXY_MODULE_SOURCE" "$PROXY_MODULE_PATH"
 
 HOST_MANIFEST_TMP=$HOST_MANIFEST.tmp.$$
 {
-    printf 'lighttpd_version=1.4.84\n'
+    printf 'lighttpd_version=%s\n' "$LIGHTTPD_VERSION"
     sed -n 's/^patch_sha256=/patch_sha256=/p' "$CORE_MANIFEST"
     printf 'core_binary=%s\n' "$CORE_BIN"
     printf 'core_binary_sha256=%s\n' "$(sha256_file "$CORE_BIN")"

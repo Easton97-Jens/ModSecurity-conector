@@ -41,9 +41,9 @@ Abschnitt 7 baut die repository-eigene native Middleware und ihren Engine-Servic
   Dynamische Router, Middleware und Services des File Providers. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Recheck the selected version before using another release.)
 - **Quelle und Umfang:** [Traefik v3.7 health check](https://doc.traefik.io/traefik/v3.7/reference/install-configuration/observability/healthcheck/)
   Der Loopback-Ping-Endpunkt zur Bestätigung des lokalen Hoststarts. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Do not enable an insecure dashboard for this local check.)
-- **Quelle und Umfang:** [Traefik v3.7.5 release](https://github.com/traefik/traefik/releases/tag/v3.7.5)
-  Offizielles festes Releasematerial und Prüfsummenquelle. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (This guide selects v3.7.5 as the repository-compatible host input.)
-- **Quelle und Umfang:** [Traefik v3.7.5 source](https://github.com/traefik/traefik/tree/v3.7.5)
+- **Quelle und Umfang:** [Traefik v3.7.10 release](https://github.com/traefik/traefik/releases/tag/v3.7.10)
+  Offizielles festes Releasematerial und Prüfsummenquelle. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (This guide selects v3.7.10 as the repository-compatible host input.)
+- **Quelle und Umfang:** [Traefik v3.7.10 source](https://github.com/traefik/traefik/tree/v3.7.10)
   Offizieller ausgewählter Source-Baum; sein go.mod definiert die benötigte Go-Version des Hosts. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (The host's Go requirement is distinct from the repository middleware module's requirement.)
 
 
@@ -58,7 +58,7 @@ export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-Das repository-eigene native Middleware-Modul verlangt Go 1.26.5; dies unterscheidet sich von der optionalen Traefik-v3.7.5-Host-Source-Anforderung in Abschnitt 6.
+Das repository-eigene native Middleware-Modul verlangt Go 1.26.5; dies unterscheidet sich von der optionalen Traefik-v3.7.10-Host-Source-Anforderung in Abschnitt 6.
 
 ```sh
 go version
@@ -92,7 +92,7 @@ Das repository-kompatible offizielle Traefik-Releasebinary verwenden. Native Mid
 
 ```sh
 WORKDIR="$HOME/connector-build/traefik"
-VERSION="3.7.5"
+VERSION="3.7.10"
 ```
 
 #### Traefik herunterladen und entpacken
@@ -125,7 +125,7 @@ test -x "$WORKDIR/traefik"
 
 #### Optional: Traefik aus Source bauen
 
-Die ausgewählte Traefik-v3.7.5-Quelle deklariert Go 1.25.0 in go.mod; diese exakte Anforderung vor dem Klonen prüfen. Dieser Weg baut nur den Traefik-Host; Repository-Middleware und Engine bleiben Abschnitt 7.
+Die ausgewählte Traefik-v3.7.10-Quelle deklariert Go 1.25.0 in go.mod; diese exakte Anforderung vor dem Klonen prüfen. Dieser Weg baut nur den Traefik-Host; Repository-Middleware und Engine bleiben Abschnitt 7.
 
 ```sh
 go version

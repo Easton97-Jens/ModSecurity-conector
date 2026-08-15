@@ -9,14 +9,16 @@ HAPROXY_BIN=${HAPROXY_BIN:-$BUILD_ROOT/haproxy-htx-runtime-smoke/overlay-build/w
 RUNTIME_ROOT=${RUNTIME_ROOT:-$BUILD_ROOT/haproxy-htx-runtime-smoke}
 EVENT_LOG_PATH=${EVENT_LOG_PATH:-$RUNTIME_ROOT/events.jsonl}
 HOST_EVIDENCE_LOG_PATH=${HAPROXY_HTX_HOST_EVIDENCE_LOG_PATH:-$RUNTIME_ROOT/host-runtime-evidence.jsonl}
-readonly HAPROXY_HTX_CANONICAL_RULES_FILE="$REPO_ROOT/modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf"
-CANONICAL_RULES_FILE=$HAPROXY_HTX_CANONICAL_RULES_FILE
+FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$REPO_ROOT/modules/ModSecurity-test-Framework}
 PYTHON_BIN=${PYTHON:-python3}
 HELPER="$SCRIPT_DIR/haproxy_htx_smoke_helper.py"
-SYNCHRONIZED_UPSTREAM="$REPO_ROOT/modules/ModSecurity-test-Framework/tests/runners/synchronized_upstream.py"
+CONTRACT_PARSER="$CONNECTOR_DIR/htx-overlay/version_contract.py"
+CONTRACT_FILE="$CONNECTOR_DIR/htx-overlay/version-contract.json"
+HAPROXY_HTX_VERSION=$("$PYTHON_BIN" "$CONTRACT_PARSER" --contract "$CONTRACT_FILE" --field version)
 SUMMARY="$RUNTIME_ROOT/runtime-summary.txt"
 VERSION_FILE="$RUNTIME_ROOT/haproxy-version.txt"
 UPSTREAM_LOG="$RUNTIME_ROOT/upstream-requests.jsonl"
+CANONICAL_RULES_FOR_HELPER="$RUNTIME_ROOT/canonical-no-crs-baseline.conf"
 TLS_KEY_PATH="$RUNTIME_ROOT/loopback-tls.key"
 TLS_CERTIFICATE_PATH="$RUNTIME_ROOT/loopback-tls.pem"
 TLS_CA_CERTIFICATE_PATH="$RUNTIME_ROOT/loopback-tls.crt"
@@ -34,6 +36,13 @@ missing_dependency() {
     echo "haproxy_htx_runtime: BLOCKED - $reason" >&2
     exit 77
 }
+
+if [ ! -d "$FRAMEWORK_ROOT" ]; then
+    missing_dependency "Framework root is not an existing directory: $FRAMEWORK_ROOT"
+fi
+FRAMEWORK_ROOT=$(CDPATH='' cd -- "$FRAMEWORK_ROOT" && pwd)
+SYNCHRONIZED_UPSTREAM="$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py"
+CANONICAL_RULES_FILE=${HAPROXY_HTX_CANONICAL_RULES_FILE:-$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf}
 
 helper() {
     helper_command=$1
@@ -119,7 +128,7 @@ generate_loopback_tls_certificate() {
 
 [ -x "$HAPROXY_BIN" ] || missing_dependency "patched HAProxy binary is not executable: $HAPROXY_BIN"
 [ -f "$HELPER" ] || missing_dependency "HTX smoke helper is missing: $HELPER"
-[ -f "$SYNCHRONIZED_UPSTREAM" ] || missing_dependency "synchronized upstream helper is missing: $SYNCHRONIZED_UPSTREAM"
+[ -f "$SYNCHRONIZED_UPSTREAM" ] || missing_dependency "synchronized upstream helper is missing under FRAMEWORK_ROOT: $SYNCHRONIZED_UPSTREAM"
 [ -f "$BUILD_PROVENANCE" ] || missing_dependency "HTX overlay provenance is missing: $BUILD_PROVENANCE"
 [ -f "$CANONICAL_RULES_FILE" ] || missing_dependency "canonical No-CRS rules are missing: $CANONICAL_RULES_FILE"
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || missing_dependency "Python interpreter is missing: $PYTHON_BIN"
@@ -168,6 +177,7 @@ case "$RUN_ID" in
 esac
 helper prepare-runtime-root
 mkdir -p "$RUNTIME_ROOT/cases"
+cp "$CANONICAL_RULES_FILE" "$CANONICAL_RULES_FOR_HELPER"
 generate_loopback_tls_certificate
 [ ! -e "$FIRST_BYTE_EVIDENCE_PATH" ] || {
     echo "haproxy_htx_runtime: FAIL - first-byte evidence output must be fresh: $FIRST_BYTE_EVIDENCE_PATH" >&2
@@ -176,8 +186,8 @@ generate_loopback_tls_certificate
 rm -f "$EVENT_LOG_PATH" "$HOST_EVIDENCE_LOG_PATH" "$SUMMARY" "$UPSTREAM_LOG"
 
 "$HAPROXY_BIN" -vv >"$VERSION_FILE" 2>&1
-if ! grep -Fq 'HAProxy version 3.2.21' "$VERSION_FILE"; then
-    echo "haproxy_htx_runtime: FAIL - patched binary is not HAProxy 3.2.21" >&2
+if ! grep -Fq "HAProxy version $HAPROXY_HTX_VERSION" "$VERSION_FILE"; then
+    echo "haproxy_htx_runtime: FAIL - patched binary is not HAProxy $HAPROXY_HTX_VERSION" >&2
     sed -n '1,40p' "$VERSION_FILE" >&2 || true
     exit 1
 fi
@@ -207,7 +217,7 @@ run_case() {
     before_upstream=$(helper upstream-count --path "$UPSTREAM_LOG" --profile "$upstream_profile")
 
     mkdir -p "$case_root"
-    helper write-rules --path "$rules_file"
+    helper write-rules --path "$rules_file" --canonical-rules "$CANONICAL_RULES_FOR_HELPER"
     helper write-config --path "$config_file" \
         --listen-port "$listener_port" --upstream-port "$upstream_port" --rules-file "$rules_file" \
         --tls-certificate "$TLS_CERTIFICATE_PATH"
@@ -404,7 +414,7 @@ run_phase4_safe_barrier() {
     fi
     synchronized_upstream_port=$(helper synchronized-upstream-port --path "$ready_file")
 
-    helper write-rules --path "$rules_file"
+    helper write-rules --path "$rules_file" --canonical-rules "$CANONICAL_RULES_FOR_HELPER"
     helper write-config --path "$config_file" \
         --listen-port "$listener_port" --upstream-port "$synchronized_upstream_port" --rules-file "$rules_file" \
         --tls-certificate "$TLS_CERTIFICATE_PATH"

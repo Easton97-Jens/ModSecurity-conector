@@ -1,6 +1,6 @@
 # ModSecurity connector local lighttpd extension
 #
-# Target: lighttpd 1.4.84 source tree only.
+# Target: the lighttpd source version selected by lighttpd-version.contract.
 # ABI: LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION=1.
 #
 # This is deliberately incompatible with stock dynamic modules.  It adds
@@ -195,8 +195,8 @@
  
 +/*
 + * Local ABI extension for the ModSecurity connector patch set.  The source
-+ * patch is release-pinned (1.4.84), and its plugin ABI must not mix with a
-+ * stock 1.4.84 process or a stock dynamic module: the callback fields below
++ * patch is release-pinned by the Parent version contract, and its plugin ABI
++ * must not mix with a stock process or a stock dynamic module: the callback fields below
 + * change sizeof(struct plugin).  Keep the existing version comparison in
 + * plugin.c effective by deriving a distinct version id here, where both the
 + * patched core and every rebuilt module see it.

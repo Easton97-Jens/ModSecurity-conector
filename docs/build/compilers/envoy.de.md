@@ -36,9 +36,9 @@ Abschnitt 7 baut den repository-eigenen ext_proc-Service; die offizielle Envoy-D
   Der offizielle ext_proc-Filter und der Vertrag für bidirektionale gRPC-Konfiguration. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Filter fields and semantics are release-dependent.)
 - **Quelle und Umfang:** [Envoy admin interface](https://www.envoyproxy.io/docs/envoy/latest/operations/admin.html)
   Nur auf Loopback gebundene Admin-Endpunkte und ihren lokalen Diagnosezweck. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Do not expose the local example as a general management interface.)
-- **Quelle und Umfang:** [Envoy v1.38.2 release](https://github.com/envoyproxy/envoy/releases/tag/v1.38.2)
-  Offizielle Seite des ausgewählten Releases, Binary-Asset und Prüfsummenmaterial. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (This guide pins the binary route to v1.38.2.)
-- **Quelle und Umfang:** [Envoy source/Bazel guidance](https://github.com/envoyproxy/envoy/blob/v1.38.2/bazel/README.md)
+- **Quelle und Umfang:** [Envoy v1.39.0 release](https://github.com/envoyproxy/envoy/releases/tag/v1.39.0)
+  Offizielle Seite des ausgewählten Releases, Binary-Asset und Prüfsummenmaterial. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (This guide pins the binary route to v1.39.0.)
+- **Quelle und Umfang:** [Envoy source/Bazel guidance](https://github.com/envoyproxy/envoy/blob/v1.39.0/bazel/README.md)
   Offizielle optionale Source-Build-Anleitung; sie ist ressourcenintensiv und nicht der Standardweg. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Use only with the selected tag and sufficient CPU, memory, and storage.)
 
 
@@ -91,13 +91,14 @@ WORKDIR="$HOME/connector-build/envoy"
 
 #### Releasebinary herunterladen
 
-Das offizielle x86_64-Artefakt wird in ein lokales Arbeitsverzeichnis geschrieben und ausführbar gemacht.
+Das offizielle x86_64-Artefakt wird in ein lokales Arbeitsverzeichnis geschrieben und ausführbar gemacht. Vor der Verwendung die ausgewählte Prüfsumme aus dem Framework-gesteuerten Cache-v2-Inventar beziehen, statt eine veraltete Prüfsumme aus einer Anleitung zu kopieren.
 
 ```sh
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
-curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.38.2/envoy-1.38.2-linux-x86_64" -o envoy
-printf "%s  %s\n" "87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899" "envoy" | sha256sum -c -
+curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64" -o envoy
+: "${ENVOY_SHA256:?set ENVOY_SHA256 from the Framework-managed Cache-v2 inventory}"
+printf "%s  %s\n" "$ENVOY_SHA256" "envoy" | sha256sum -c -
 chmod 755 envoy
 ./envoy --version
 ```
@@ -266,6 +267,7 @@ Ein offizielles Envoy-Binary ist nur der Host. Schlägt die Validierung fehl, er
 | HOST_BUILD_BASE | Connector-spezifisches externes Verzeichnis für Quellen, Builds, Konfiguration und lokale Logs. |
 | BUILD_ROOT | Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten. |
 | ENVOY_BIN | Verifiziertes Envoy-Executable. |
+| ENVOY_SHA256 | Erwartete Binary-Prüfsumme des ausgewählten Releases. |
 | EXT_PROC_BIN | Repository-gebautes ext_proc-Service-Executable. |
 | ENVOY_CONFIG | Erzeugte Loopback-Envoy-Konfiguration. |
 | EXT_PROC_CONFIG | Repository-ext_proc-Servicekonfiguration, die zusammen mit der erzeugten Laufzeitkonfiguration validiert wird. |

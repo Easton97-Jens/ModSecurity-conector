@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-# Exercise the patched Lighttpd 1.4.84 native module through its HTTP/1.1
+# Exercise the Framework-version-synchronized patched Lighttpd native module through its HTTP/1.1
 # entity-body hook.  The P4 path is deliberately limited to identity entities
 # proxied by mod_proxy; no H2/H3, compression, file, or zero-copy route is
 # represented here.

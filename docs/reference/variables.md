@@ -210,27 +210,20 @@ table form a group. They have the following common properties:
 | Default | “Framework-forwarded” means the root Makefile exports the name but does not define a root value. The Framework/provider pin is authoritative |
 | Set by | Advanced local caller or CI provisioning configuration |
 | Scope | The relevant component-preparation invocation; cached output is identity-bound to effective input |
-| Example | <code>HAPROXY_VERSION=3.2.21</code>, <code>NGINX_SOURCE_MODE=release</code>, <code>CC=clang</code> |
+| Example | <code>HAPROXY_VERSION=&lt;framework-synchronized-version&gt;</code>, <code>NGINX_SOURCE_MODE=github-release</code>, <code>CC=clang</code> |
 | Effect | Can force a rebuild, alter a source origin, or select another executable; it never upgrades a capability state or evidence outcome |
 | Safety | Use HTTPS and verified checksums. Do not replace a pinned provenance value with a mutable or untrusted source in canonical CI |
 
 #### Full-smoke NGINX direct release-asset tuple
 
-The strict Parent full-smoke path sets all NGINX provenance inputs together:
+The strict Parent full-smoke path receives all NGINX provenance inputs as one
+Framework-synchronized tuple. `ci/tools/sync-framework-component-versions.py`
+updates the source mode, repository URL, release tag, source ref, asset name,
+and SHA-256 together from `ci/lib/common.sh`; consumers must not update an
+individual member manually.
 
-```sh
-BUILD_NGINX_FROM_SOURCE=1
-NGINX_SOURCE_MODE=github-release
-NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
-NGINX_RELEASE_TAG=release-1.31.3
-NGINX_SOURCE_GIT_REF=release-1.31.3
-NGINX_RELEASE_ASSET_NAME=nginx-1.31.3.tar.gz
-NGINX_SHA256=a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
-NGINX_REQUIRE_PINNED_PROVENANCE=1
-```
-
-It selects the direct asset
-`https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz`.
+The synchronized tuple selects a direct, immutable release asset rather than a
+mutable release selector.
 The full-smoke release resolver rejects `latest` and `/releases/latest` before
 cache access, network access, download, or extraction. Cache reuse is bound to
 the entire tuple: source mode, repository URL, tag, ref, asset name, and

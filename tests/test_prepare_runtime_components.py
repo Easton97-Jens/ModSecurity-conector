@@ -26,10 +26,14 @@ PINNED_NGINX_RELEASE_TUPLE = {
 PINNED_NGINX_RELEASE_ASSET_URL = (
     "https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz"
 )
-TEST_HAPROXY_BASELINE_VERSION = "3.2.9000"
-TEST_HAPROXY_TARGET_VERSION = "3.2.9001"
-TEST_HAPROXY_BASELINE_SHA256 = "a" * 64
-TEST_HAPROXY_TARGET_SHA256 = "b" * 64
+TEST_HAPROXY_LOCKED_VERSION = "3.2.22"
+TEST_HAPROXY_LOCKED_SOURCE_URL = "https://www.haproxy.org/download/3.2/src/haproxy-3.2.22.tar.gz"
+TEST_HAPROXY_LOCKED_SHA256 = "afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da"
+TEST_HAPROXY_UNAPPROVED_FUTURE_VERSION = "3.2.9001"
+TEST_HAPROXY_UNAPPROVED_FUTURE_SOURCE_URL = (
+    "https://www.haproxy.org/download/3.2/src/haproxy-3.2.9001.tar.gz"
+)
+TEST_HAPROXY_UNAPPROVED_FUTURE_SHA256 = "b" * 64
 _MISSING_MODULE = object()
 
 
@@ -1445,8 +1449,9 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         *,
         managed: bool,
         separate_build_root: bool = False,
-        haproxy_version: str = TEST_HAPROXY_BASELINE_VERSION,
-        haproxy_sha256: str = TEST_HAPROXY_BASELINE_SHA256,
+        haproxy_version: str = TEST_HAPROXY_LOCKED_VERSION,
+        haproxy_source_url: str = TEST_HAPROXY_LOCKED_SOURCE_URL,
+        haproxy_sha256: str = TEST_HAPROXY_LOCKED_SHA256,
     ) -> dict[str, str]:
         cache_root = root / "cache-v2" / "shared"
         cache_root.mkdir(parents=True)
@@ -1468,7 +1473,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         binary.parent.mkdir(parents=True)
         binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         binary.chmod(0o755)
-        haproxy_source_url = f"https://example.invalid/haproxy-{haproxy_version}.tar.gz"
         (runtime_dir / "haproxy.provenance").write_text(
             "\n".join(
                 (
@@ -1593,23 +1597,28 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("ready existing provenance-verified binary", result.stdout)
 
-    def test_haproxy_prepare_reuses_a_synthetic_future_provenance_tuple(self) -> None:
+    def test_haproxy_prepare_rejects_unapproved_future_provenance_tuple(self) -> None:
         with tempfile.TemporaryDirectory(prefix="haproxy-future-pin-") as temporary:
             env = self.managed_haproxy_cache_environment(
                 Path(temporary),
                 managed=True,
-                haproxy_version=TEST_HAPROXY_TARGET_VERSION,
-                haproxy_sha256=TEST_HAPROXY_TARGET_SHA256,
+                haproxy_version=TEST_HAPROXY_UNAPPROVED_FUTURE_VERSION,
+                haproxy_source_url=TEST_HAPROXY_UNAPPROVED_FUTURE_SOURCE_URL,
+                haproxy_sha256=TEST_HAPROXY_UNAPPROVED_FUTURE_SHA256,
             )
             result = self.run_haproxy_prepare_with_shared_cache(env)
-            self.assertEqual(env["HAPROXY_VERSION"], TEST_HAPROXY_TARGET_VERSION)
-            self.assertEqual(env["HAPROXY_SHA256"], TEST_HAPROXY_TARGET_SHA256)
+            self.assertEqual(env["HAPROXY_VERSION"], TEST_HAPROXY_UNAPPROVED_FUTURE_VERSION)
+            self.assertEqual(env["HAPROXY_SOURCE_URL"], TEST_HAPROXY_UNAPPROVED_FUTURE_SOURCE_URL)
+            self.assertEqual(env["HAPROXY_SHA256"], TEST_HAPROXY_UNAPPROVED_FUTURE_SHA256)
             self.assertEqual(
                 Path(env["HAPROXY_SOURCE_DIR"]).name,
-                f"haproxy-{TEST_HAPROXY_TARGET_VERSION}",
+                f"haproxy-{TEST_HAPROXY_UNAPPROVED_FUTURE_VERSION}",
             )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("ready existing provenance-verified binary", result.stdout)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+        self.assertIn(
+            "runtime-component-lock: BLOCKED: environment profile haproxy-spoe-spop HAPROXY_VERSION drift",
+            result.stdout + result.stderr,
+        )
 
     def test_haproxy_prepare_rejects_shared_cache_runtime_with_separate_build_root(self) -> None:
         framework_root = self.haproxy_prepare_framework_root()
