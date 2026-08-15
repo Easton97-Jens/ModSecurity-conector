@@ -371,9 +371,10 @@ jobs:
           PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}
           REUSED_MAINTENANCE_BRANCH: ${{ steps.prepare_branch.outputs.reused }}
           EXPECTED_REMOTE_TIP: ${{ steps.prepare_branch.outputs.expected_remote_tip }}
+          UPDATE_CHANGED: ${{ steps.update.outputs.changed }}
         run: |
           set -euo pipefail
-          if [ "${{ steps.update.outputs.changed }}" != true ]; then
+          if [ "$UPDATE_CHANGED" != true ]; then
             echo "::error::publisher update state is missing" >&2
             exit 1
           fi

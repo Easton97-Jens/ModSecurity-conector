@@ -68,10 +68,15 @@ Wartungs-Branch und einen verifizierten Draft-PR mit ausschließlich
 mergen, Auto-Merge aktivieren oder direkt nach `master` pushen.
 
 Die fokussierte unabhängige Prüfung fand keine validierte Secret-Exposition,
-Shell-Injection, Path-Traversal oder unautorisierte kanonische Schreiboperation.
-Sie bestätigte den maskierten Resolverdefekt als bestehendes Availability-
-Finding `FND-PARENT-0046` und identifizierte die nun adressierten Admission-,
-Lease-, Current-Base- und PR-Status-Kontrollen.
+Path-Traversal oder unautorisierte kanonische Schreiboperation. Der erste
+GitHub-hosted ZiZmor-Lauf auf dem Draft-PR-Head meldete direkte
+Template-Expansion des Publisher-Outputs `changed` in einer Shell-Prüfung. Die
+finale Revision übergibt diesen Output über eine Umgebungsvariable, akzeptiert
+nur den literalen Wert `true` und besitzt einen Regressionsvertrag; fokussiertes
+lokales ZiZmor meldete danach keine Befunde. Die Prüfung bestätigte außerdem
+den maskierten Resolverdefekt als bestehendes Availability-Finding
+`FND-PARENT-0046` und identifizierte die nun adressierten Admission-, Lease-,
+Current-Base- und PR-Status-Kontrollen.
 
 ## Geänderte Dateien
 
@@ -90,6 +95,7 @@ Lease-, Current-Base- und PR-Status-Kontrollen.
 | --- | --- |
 | Fokussierte Updater-/Interpreter-/Versions-/Workflow-Suite | bestanden; 85 Tests |
 | `make check-ci-security-contract` | bestanden; 103 Tests, 4 umgebungsbedingt übersprungen; gepinnte Tool-Eingaben validiert |
+| Offline-ZiZmor gegen `update-python-version.yml` | nach der Umgebungsvariablen-Remediation bestanden; keine Befunde (sechs Repository-Suppressions) |
 | `python -m compileall -q ci scripts tests` mit task-eigenem Pycache-Root | bestanden |
 | YAML-Parse des geänderten Updater-Workflows | bestanden |
 | `git diff --check` nach finalen Dokumentations-/Indexänderungen | bestanden |
@@ -99,18 +105,19 @@ Lease-, Current-Base- und PR-Status-Kontrollen.
 
 ## Runtime-Evidence
 
-Die Evidenz besteht nur aus lokaler statischer/Workflow-Contract-Validierung.
-Kein GitHub-Hosted-Candidate-Lauf, kein App-Token-Minting, kein Branch-Update,
-keine Draft-PR-Erstellung, kein Merge und keine Produktions-Runtime werden hier
-behauptet.
+Der Draft-PR liefert ein GitHub-hosted Workflow-Lint-Signal; sein erster
+ZiZmor-Lauf identifizierte die oben beschriebene direkte Shell-Template-
+Expansion. Kein GitHub-hosted Maintenance-Candidate-Lauf, kein App-Token-
+Minting, kein Maintenance-Branch-Update, kein Merge und keine Produktions-
+Runtime werden hier behauptet.
 
 ## Bekannte Einschränkungen
 
 Die lokale Evidence kann weder die Repository-GitHub-App-Konfiguration noch
-GitHub-Hosted-API-Verhalten oder ein Live-Candidate-Update nachweisen. Der
-Task-Worktree lässt außerdem das Framework-Submodule absichtlich
-nicht initialisiert, sodass Repository-weite Framework-Linkziele für
-Dokumentationsprüfungen nicht verfügbar sind.
+GitHub-hosted-API-Verhalten über das beobachtete Lint-Ergebnis hinaus oder ein
+Live-Candidate-Update nachweisen. Der Task-Worktree lässt außerdem das
+Framework-Submodule absichtlich nicht initialisiert, sodass Repository-weite
+Framework-Linkziele für Dokumentationsprüfungen nicht verfügbar sind.
 
 ## Verbleibende Risiken
 
@@ -137,8 +144,8 @@ erfasster Current-Base-Drift und keine übersprungenen Updater-Prüfungen.
 ## Finaler Diff- und Review-Status
 
 Die Implementierung ist auf den angeforderten Updater, seine direkten
-Contracts, gekoppelte Dokumentation und Nachvollziehbarkeit begrenzt. Vor der
-Delivery müssen finaler Scoped-Diff, alle erforderlichen lokalen Checks,
-exakter Feature-Branch-Head, Remote-Ziel und Draft-PR-Status beobachtet und
-separat festgehalten werden. Dieser Record behauptet kein Delivery-Ergebnis
-vorab.
+Contracts, gekoppelte Dokumentation und Nachvollziehbarkeit begrenzt. Der
+Draft-PR bleibt Draft-only; manuelle Prüfung und manueller Merge sind
+erforderlich. Finaler Scoped-Diff, exakter Feature-Branch-Head, Remote-Ziel und
+Hosted-Checks werden separat beobachtet und festgehalten. Dieser Record
+autorisiert weder Merge noch Auto-Merge.

@@ -64,11 +64,15 @@ App-token publisher; it can affect only the fixed maintenance branch and a
 verified Draft PR containing only `.python-version`. It cannot write workflow
 files, merge, enable auto-merge, or directly push `master`.
 
-Focused independent review found no validated secret exposure, shell injection,
-path traversal, or unauthorized canonical write. It confirmed the escaped
-resolver defect as the existing availability finding `FND-PARENT-0046` and
-identified the now-addressed admission, lease, current-base, and PR-state
-controls.
+Focused independent review found no validated secret exposure, path traversal,
+or unauthorized canonical write. The first GitHub-hosted ZiZmor run on the
+Draft-PR head reported direct template expansion of the publisher's `changed`
+output in a shell guard. The final revision bridges that output through an
+environment variable, accepts only literal `true`, and has a regression
+contract; focused local ZiZmor then reported no findings. The review also
+confirmed the escaped resolver defect as the existing availability finding
+`FND-PARENT-0046` and identified the now-addressed admission, lease,
+current-base, and PR-state controls.
 
 ## Changed files
 
@@ -87,6 +91,7 @@ controls.
 | --- | --- |
 | Focused updater/interpreter/version/workflow suite | passed; 85 tests |
 | `make check-ci-security-contract` | passed; 103 tests, 4 environment-limited skips; pinned tool inputs validated |
+| Offline ZiZmor against `update-python-version.yml` | passed after the environment-bridge remediation; no findings (six repository suppressions) |
 | `python -m compileall -q ci scripts tests` with task-owned pycache root | passed |
 | YAML parse of the edited updater workflow | passed |
 | `git diff --check` after final documentation/index changes | passed |
@@ -96,16 +101,18 @@ controls.
 
 ## Runtime evidence
 
-The evidence is local static/workflow-contract validation only. No GitHub-hosted
-candidate run, App-token mint, branch update, Draft PR creation, merge, or
-production runtime is claimed here.
+The Draft PR supplies a GitHub-hosted workflow-lint signal; its initial ZiZmor
+run identified the direct shell-template expansion described above. No
+GitHub-hosted maintenance candidate run, App-token mint, maintenance-branch
+update, merge, or production runtime is claimed here.
 
 ## Known limitations
 
 The local evidence cannot establish repository GitHub App configuration,
-GitHub-hosted API behavior, or a live candidate update. The task worktree also
-intentionally leaves the Framework submodule uninitialized, so repository-wide
-Framework link targets are unavailable to documentation checks.
+GitHub-hosted API behavior beyond the observed lint result, or a live candidate
+update. The task worktree also intentionally leaves the Framework submodule
+uninitialized, so repository-wide Framework link targets are unavailable to
+documentation checks.
 
 ## Remaining risks
 
@@ -129,7 +136,7 @@ tracked current-base drift and not skipped updater checks.
 ## Final diff and review status
 
 The implementation is limited to the requested updater, its direct contracts,
-paired documentation, and traceability. Before delivery, the final scoped diff,
-all required local checks, exact feature-branch head, remote destination, and
-Draft-PR state must be observed and recorded separately. This record does not
-prestate any delivery outcome.
+paired documentation, and traceability. The Draft PR remains Draft-only, with
+manual review and merge required; the final scoped diff, exact feature-branch
+head, remote destination, and hosted checks are observed and recorded
+separately. This record does not authorize a merge or auto-merge.

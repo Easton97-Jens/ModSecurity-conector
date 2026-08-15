@@ -78,6 +78,11 @@ It never requests `Workflows`, `Actions`, or `Issues` write permission; the
 broader `Workflows: write` grant above belongs only to the separate
 workflow/tool updater. The publisher has no `github.token` write path.
 
+The publisher bridges the `changed` step output into a named environment
+variable before shell execution and accepts only the literal `true` value. It
+does not interpolate GitHub Actions expressions directly into a shell command;
+that keeps the output guard fail-closed and avoids workflow-template injection.
+
 Before it writes, the publisher requires either no maintenance branch and no
 matching PR, or exactly one same-repository Draft PR with the fixed title and
 marker `<!-- modsecurity-conector-python-314-updater -->`, `master` base, and

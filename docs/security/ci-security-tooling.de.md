@@ -82,6 +82,12 @@ GitHub-App-Token und begrenzt dieses Token auf `Contents: write` und
 gehört nur zum getrennten Workflow-/Tool-Updater. Der Publisher besitzt keinen
 Schreibpfad über `github.token`.
 
+Der Publisher übergibt den Step-Output `changed` vor der Shell-Ausführung über
+eine benannte Umgebungsvariable und akzeptiert nur den literalen Wert `true`.
+Er interpoliert keine GitHub-Actions-Ausdrücke direkt in einen Shell-Befehl;
+dadurch bleibt die Output-Prüfung fehlgeschlossen und vermeidet
+Workflow-Template-Injection.
+
 Vor einem Schreibzugriff verlangt der Publisher entweder keinen Wartungs-Branch
 und keinen passenden PR oder genau einen Same-Repository-Draft-PR mit festem
 Titel und Marker `<!-- modsecurity-conector-python-314-updater -->`, Basis
