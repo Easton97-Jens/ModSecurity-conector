@@ -38,17 +38,11 @@ The full-smoke configuration uses a fixed direct official GitHub release asset:
 
 ```sh
 BUILD_NGINX_FROM_SOURCE=1
-NGINX_SOURCE_MODE=github-release
-NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
-NGINX_RELEASE_TAG=release-1.31.3
-NGINX_SOURCE_GIT_REF=release-1.31.3
-NGINX_RELEASE_ASSET_NAME=nginx-1.31.3.tar.gz
-NGINX_SHA256=a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
+# Framework-synchronized NGINX release tuple; do not duplicate it here.
 NGINX_REQUIRE_PINNED_PROVENANCE=1
 ```
 
-This selects
-`https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz`.
+This selects the Framework-synchronized direct GitHub release asset.
 The full-smoke release resolver rejects `latest` and `/releases/latest` before
 cache lookup or writes, network access, download, or extraction. The cache
 identity binds the whole tuple: source mode, repository URL, release tag, source

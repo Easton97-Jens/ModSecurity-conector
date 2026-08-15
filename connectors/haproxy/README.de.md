@@ -221,21 +221,21 @@ Berichte.
 
 ## Natives HTX-Precommit-Overlay für das vollständige Lebenszyklusprofil
 
-`htx-overlay/` enthält einen quellengebundenen HAProxy **3.2.21** nativen HTX-Filter für
+`htx-overlay/` enthält einen quellengebundenen Framework-synchronisierten HAProxy-nativen HTX-Filter für
 die nativen HTX-Rückrufe `http_payload` und `http_end`. Es ist in eine eingebaut
 Einweg-Upstream-Arbeitsbaum. `full-lifecycle-haproxy-htx` wählt es aus, während
 die SPOE/SPOP-Laufzeit bleibt der separate Kompatibilitätspfad:
 
 ```sh
 make -C connectors/haproxy check-htx-overlay
-HAPROXY_HTX_SOURCE_DIR=/path/to/haproxy-3.2.21 \
+HAPROXY_HTX_SOURCE_DIR=/path/to/framework-synchronized-haproxy-source \
 MODSECURITY_INCLUDE_DIR=/path/to/include \
 MODSECURITY_LIB_DIR=/path/to/lib \
 BUILD_ROOT=/srv/modsecurity-work/haproxy-htx-smoke \
 make -C connectors/haproxy runtime-smoke-haproxy-htx
 ```
 
-Der dedizierte Smoke-Test baut einen gepatchten Einweg-HAProxy 3.2.21-Arbeitsbaum auf.
+Der dedizierte Smoke-Test baut einen gepatchten Einweg-Framework-synchronisierten-HAProxy-Arbeitsbaum auf.
 Lädt die kanonischen No-CRS-Regeln des Frameworks und validiert die generierten
 `filter modsecurity-htx`-Konfiguration und sendet echten lokalen Socket-Verkehr.
 Es handelt sich um normale Upstream-200, kanonische P1-Verweigerungsantworten für die Regel `1100001`

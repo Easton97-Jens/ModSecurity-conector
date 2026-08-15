@@ -1,15 +1,15 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-19T20:10:07Z`
-> Verified run id: `2026-07-19T20-10-07Z-93c5f30c`
+> Generated at: `2026-08-15T08:38:29Z`
+> Verified run id: `2026-08-15T08-38-29Z-29a2a8bc`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/evidence/collectors/connector_capabilities.py`
 > Make target: `capabilities-all-connectors`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `93c5f30c181710f5c2cecf207fb92aaecb215035`
+> Connector SHA: `29a2a8bcab57e936c5274f8fe64a15c6fee879bd`
 > Framework SHA: `unknown`
-> Framework gitlink SHA: `cdc91a398d6c156eaff927d742b23018a3817fb6`
+> Framework gitlink SHA: `1260aaae411ecf88cf50dc480b80e2e20ac47901`
 > Framework checkout: `not_checked_out`
 > Framework gitlink status: `not_checked_out`
 > Input status: `complete`
@@ -215,7 +215,7 @@ Host-model constraints:
 | `late_intervention_log_only` | `implemented_not_asserted` | The safe post-commit policy is wired to record a log-only outcome, but no canonical event proves requested deny, actual log_only, late_intervention=true, and an unchanged visible status. |
 | `late_intervention_abort` | `implemented_not_asserted` | The strict post-commit policy has an abort path, but no canonical real-host event proves actual abort_connection and connection_aborted=true. |
 | `late_intervention_status_metadata` | `implemented_not_asserted` | The Phase-4 path can emit intervention metadata, but no canonical event yet proves separate requested WAF status, original host status, visible client status, requested action, and actual action. |
-| `content_type_scope` | `implemented_not_asserted` | The Phase-4 filter checks its configured response Content-Type scope before appending body bytes; real-host coverage is pending. |
+| `content_type_scope` | `implemented_not_asserted` | The Phase-4 filter checks its configured response Content-Type scope before appending body bytes; out-of-scope response bodies are not appended to libmodsecurity. Real-host coverage is pending. |
 | `header_limits` | `not_implemented` | No canonical NGINX connector path asserts the shared header-limit behavior in the full-lifecycle catalog. |
 | `request_body_limits` | `not_implemented` | The current request-body path is host-buffered and has no connector-level incremental limit outcome contract. |
 | `response_body_limits` | `implemented_not_asserted` | The response filter bounds bytes supplied to ModSecurity with the configured Phase-4 limit, but limit-mode evidence is pending. |
@@ -260,7 +260,7 @@ Host-model constraints:
 - Host: `haproxy`
 - Integration: `spoe-spop-agent`
 - Metadata: `connectors/haproxy/metadata.c`
-- Source contract: `connectors/haproxy/metadata.c`, `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`, `connectors/haproxy/src/haproxy_modsecurity_binding.c`, `connectors/haproxy/src/haproxy_modsecurity_mapper.c`, `connectors/haproxy/harness/run_haproxy_smoke.sh`, `connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c`, `connectors/haproxy/htx-overlay/haproxy-3.2.21-makefile.patch`, `connectors/haproxy/harness/run_haproxy_htx_runtime.sh`
+- Source contract: `connectors/haproxy/metadata.c`, `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`, `connectors/haproxy/src/haproxy_modsecurity_binding.c`, `connectors/haproxy/src/haproxy_modsecurity_mapper.c`, `connectors/haproxy/harness/run_haproxy_smoke.sh`, `connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c`, `connectors/haproxy/htx-overlay/haproxy-makefile.patch`, `connectors/haproxy/harness/run_haproxy_htx_runtime.sh`
 
 Host-model constraints:
 
@@ -268,7 +268,7 @@ Host-model constraints:
 - Response phases run only when the HAProxy configuration sends the corresponding response notification to the agent.
 - The selected SPOE/SPOP configuration sends response headers only; the prior wait-for-body response sample is deliberately disabled because it is not a low-latency response stream.
 - Starter and binding self-tests are not HAProxy host-runtime evidence.
-- The full-lifecycle profile separately selects native-htx-filter through full-lifecycle-haproxy-htx: a patched HAProxy 3.2.21 non-promoted path with real P1/P2/P3 response outcomes and P4 safe log_only evidence. Its one-block P2 probe returns 403 and records zero or one observed upstream requests without proving their ordering; that does not prove incremental request forwarding or a general host-buffering property. P4 Strict has no client-visible abort evidence and remains NOT EXECUTED.
+- The full-lifecycle profile separately selects native-htx-filter through full-lifecycle-haproxy-htx: a patched Framework-synchronized HAProxy non-promoted path with real P1/P2/P3 response outcomes and P4 safe log_only evidence. Its one-block P2 probe returns 403 and records zero or one observed upstream requests without proving their ordering; that does not prove incremental request forwarding or a general host-buffering property. P4 Strict has no client-visible abort evidence and remains NOT EXECUTED.
 
 | Capability | State | Canonical reason (from manifest) |
 |---|---|---|
@@ -493,11 +493,11 @@ Host-model constraints:
 - Host: `lighttpd`
 - Integration: `native-lighttpd-plugin`
 - Metadata: `connectors/lighttpd/metadata.c`
-- Source contract: `connectors/lighttpd/metadata.c`, `connectors/lighttpd/config/lighttpd-native.conf`, `connectors/lighttpd/module/mod_msconnector.c`, `connectors/lighttpd/src/lighttpd_modsecurity_mapper.c`, `connectors/lighttpd/harness/runtime_lighttpd_smoke.sh`, `connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch`, `connectors/lighttpd/build/build_patched_host.sh`, `connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh`
+- Source contract: `connectors/lighttpd/metadata.c`, `connectors/lighttpd/config/lighttpd-native.conf`, `connectors/lighttpd/module/mod_msconnector.c`, `connectors/lighttpd/src/lighttpd_modsecurity_mapper.c`, `connectors/lighttpd/harness/runtime_lighttpd_smoke.sh`, `connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch`, `connectors/lighttpd/build/build_patched_host.sh`, `connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh`
 
 Host-model constraints:
 
-- The stock native plugin requires both body modes to be none. The matched patched 1.4.84 core/module pair accepts streaming request ranges and HTTP/1.1 identity response-entity ranges before transfer framing; this source/build contract has no canonical runtime promotion.
+- The stock native plugin requires both body modes to be none. The matched patched Framework-synchronized core/module pair accepts streaming request ranges and HTTP/1.1 identity response-entity ranges before transfer framing; this source/build contract has no canonical runtime promotion.
 - The response-header mapper is called from handle_response_start, but source wiring alone is not Phase-3 behavioral verification.
 - The legacy bridge and starter self-tests are separate from native mod_msconnector.so host-runtime evidence.
 - The full-lifecycle profile separately selects patched-native through full-lifecycle-lighttpd-patched: its checked-in host smoke uses both body modes as none. Identity streaming configuration is available for contract checks, while gzip/br, HTTP/2, strict abort, first-byte, and no-full-buffer client evidence remain NOT EXECUTED.
@@ -508,11 +508,11 @@ Host-model constraints:
 | `transport_metadata` | `implemented_not_asserted` | The native mapper supplies host endpoint and response-status metadata, but a canonical transport run is pending. |
 | `request_headers` | `implemented_not_asserted` | The native URI-clean hook maps lighttpd request headers into Common Runtime; canonical header evidence is pending. |
 | `request_body_buffered` | `not_implemented` | The native module requires request_body_mode=none and supplies no request body to the mapper. |
-| `request_body_streaming` | `not_implemented` | The checked-in selected evidence profile has no promoted request-stream case. The patched 1.4.84 ABI has a borrowed request-range source contract, but it remains non-promoted until its host artifacts are selected and validated. |
-| `request_body_incremental_ingest` | `not_implemented` | The patched 1.4.84 request callback supplies monotonic borrowed ranges, but the selected capability profile remains unpromoted without a matching canonical host result. |
+| `request_body_streaming` | `not_implemented` | The checked-in selected evidence profile has no promoted request-stream case. The patched Framework-synchronized ABI has a borrowed request-range source contract, but it remains non-promoted until its host artifacts are selected and validated. |
+| `request_body_incremental_ingest` | `not_implemented` | The patched Framework-synchronized request callback supplies monotonic borrowed ranges, but the selected capability profile remains unpromoted without a matching canonical host result. |
 | `response_headers` | `implemented_not_asserted` | handle_response_start maps response headers into Common Runtime, but a real Phase-3 rule result has not yet been attached. |
 | `response_body_buffered` | `not_implemented` | The native module requires response_body_mode=none and supplies no response body to the mapper. |
-| `response_body_streaming` | `not_implemented` | The checked-in selected evidence profile has no promoted response-stream case. The patched 1.4.84 ABI has a borrowed HTTP/1.1 identity entity-body callback before transfer framing, but no canonical streaming host run validates it. |
+| `response_body_streaming` | `not_implemented` | The checked-in selected evidence profile has no promoted response-stream case. The patched Framework-synchronized ABI has a borrowed HTTP/1.1 identity entity-body callback before transfer framing, but no canonical streaming host run validates it. |
 | `response_body_incremental_ingest` | `not_implemented` | The patched HTTP/1.1 identity entity callback supplies borrowed ranges before transfer framing and marks EOS once; its source/build contract lacks a canonical streaming host result. |
 | `phase1` | `implemented_not_asserted` | The URI-clean hook starts the transaction and processes request headers; a fresh canonical Phase-1 result is pending. |
 | `phase2` | `not_implemented` | The stock module disables request bodies, and the selected capability profile has no promoted Phase-2 body result. The patched request-range source path is deliberately kept separate pending matching host evidence. |
@@ -542,7 +542,7 @@ Host-model constraints:
 | `http2_cleartext_h2c` | `not_implemented` | No patched lighttpd h2c integration profile is implemented. |
 | `http2_multiplexing` | `not_implemented` | The patched module has no H2 stream lifecycle or multiplexing contract. |
 | `http2_stream_reset` | `not_implemented` | No lighttpd HTTP/2 stream-reset hook is implemented. |
-| `http3_downstream` | `not_implemented` | The pinned lighttpd 1.4.84 host has no audited native HTTP/3 listener or codec path. |
+| `http3_downstream` | `not_implemented` | The Framework-synchronized lighttpd host has no audited native HTTP/3 listener or codec path. |
 | `http3_upstream` | `not_implemented` | No patched lighttpd upstream HTTP/3 profile is implemented. |
 | `http3_quic` | `not_implemented` | The pinned lighttpd host has no QUIC runtime path. |
 | `http3_alt_svc` | `not_implemented` | No native lighttpd HTTP/3 Alt-Svc profile is configured. |
@@ -569,12 +569,12 @@ Host-model constraints:
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `connectors/apache/capabilities.json` | `425d709d77eb545c980e4fd5a58aad1c8a7909edf92f392ff59682880da3ee01` | `2026-07-19T20-10-07Z-93c5f30c` | present |
-| Declared input | `connectors/nginx/capabilities.json` | `70fa6bb202c0ac3ea8292fa654a98586852b238e1885e43e7d5235e7daa0a982` | `2026-07-19T20-10-07Z-93c5f30c` | present |
-| Declared input | `connectors/haproxy/capabilities.json` | `b8e3ca621904e925580604d5b7af1c97cf0a4c01a4c7a42cc7c58fae4c9d599c` | `2026-07-19T20-10-07Z-93c5f30c` | present |
-| Declared input | `connectors/envoy/capabilities.json` | `b38f59423c0908064eeb9b253eafa83f3606e4d755ef78e0837ed39100e61216` | `2026-07-19T20-10-07Z-93c5f30c` | present |
-| Declared input | `connectors/traefik/capabilities.json` | `04dbf29b4ed7085f1db172619b0957e6dc740964b9741c736b70e158fe904adc` | `2026-07-19T20-10-07Z-93c5f30c` | present |
-| Declared input | `connectors/lighttpd/capabilities.json` | `4aac60435527d7a17ddc11deb14ae49f5a48e15c8a357c0ea45627fa4dc82995` | `2026-07-19T20-10-07Z-93c5f30c` | present |
+| Declared input | `connectors/apache/capabilities.json` | `425d709d77eb545c980e4fd5a58aad1c8a7909edf92f392ff59682880da3ee01` | `2026-08-15T08-38-29Z-29a2a8bc` | present |
+| Declared input | `connectors/nginx/capabilities.json` | `bbc5f0514f8de637de363ac801a7a448ed3e1ff89ae3ab98a804147a039c9216` | `2026-08-15T08-38-29Z-29a2a8bc` | present |
+| Declared input | `connectors/haproxy/capabilities.json` | `123ffa37f47226c398e1615a409bb3443c07310776e1041e2cc910d1e334c5b5` | `2026-08-15T08-38-29Z-29a2a8bc` | present |
+| Declared input | `connectors/envoy/capabilities.json` | `b38f59423c0908064eeb9b253eafa83f3606e4d755ef78e0837ed39100e61216` | `2026-08-15T08-38-29Z-29a2a8bc` | present |
+| Declared input | `connectors/traefik/capabilities.json` | `04dbf29b4ed7085f1db172619b0957e6dc740964b9741c736b70e158fe904adc` | `2026-08-15T08-38-29Z-29a2a8bc` | present |
+| Declared input | `connectors/lighttpd/capabilities.json` | `e7291e93d4851aaff768e0f024f0943bbdd3ac79281c726a246bfcd408765092` | `2026-08-15T08-38-29Z-29a2a8bc` | present |
 
 ## Data Availability / Missing Information
 

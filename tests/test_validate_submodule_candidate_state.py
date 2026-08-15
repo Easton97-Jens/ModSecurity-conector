@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -60,6 +61,10 @@ class ValidateSubmoduleCandidateStateTests(unittest.TestCase):
         self.git(parent, "commit", "-m", "add framework")
         if nested:
             self.git(parent, "-c", "protocol.file.allow=always", "submodule", "update", "--init", "--recursive")
+            # Recursive clones do not inherit the source repository's local
+            # identity; configure the nested worktree for hosted runners.
+            self.git(parent / "framework" / "nested", "config", "user.email", "test@example.invalid")
+            self.git(parent / "framework" / "nested", "config", "user.name", "Validator Test")
         parent_head = self.git(parent, "rev-parse", "HEAD")
         return parent, parent / "framework", framework_a, parent_head
 
@@ -261,6 +266,42 @@ class ValidateSubmoduleCandidateStateTests(unittest.TestCase):
             (framework / "untracked").unlink()
             (framework / "nested" / "untracked").write_text("x", encoding="utf-8")
             self.assert_code(self.run_validate(parent, baseline, current, current), "FRAMEWORK_SUBMODULE_DIRTY")
+
+    def test_uninitialised_nested_submodule_is_accepted_without_source_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            parent, framework, current, _head = self.make_layout(Path(raw), nested=True)
+            baseline = self.run_capture(parent, Path(raw) / "github-env")
+            nested = framework / "nested"
+            shutil.rmtree(nested)
+            result = self.run_validate(parent, baseline, current, current)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(nested.exists(), "validator must not initialise nested submodules")
+
+    def test_nested_submodule_topology_and_gitlink_changes_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            parent, framework, current, _head = self.make_layout(Path(raw), nested=True)
+            baseline = self.run_capture(parent, Path(raw) / "github-env")
+
+            gitmodules = framework / ".gitmodules"
+            gitmodules.write_text(
+                gitmodules.read_text(encoding="utf-8") + "\n# candidate topology mutation\n",
+                encoding="utf-8",
+            )
+            self.git(framework, "add", ".gitmodules")
+            self.git(framework, "commit", "-m", "mutate nested topology")
+            topology_candidate = self.git(framework, "rev-parse", "HEAD")
+            topology_result = self.run_validate(parent, baseline, current, topology_candidate)
+            self.assert_code(topology_result, "FRAMEWORK_SUBMODULE_METADATA_CHANGED")
+
+            self.git(framework, "checkout", current)
+            nested = framework / "nested"
+            nested_commit = self.commit_file(nested, "nested.txt", "changed\n", "nested B")
+            self.git(framework, "add", "nested")
+            self.git(framework, "commit", "-m", "mutate nested gitlink")
+            gitlink_candidate = self.git(framework, "rev-parse", "HEAD")
+            self.assertNotEqual(nested_commit, current)
+            gitlink_result = self.run_validate(parent, baseline, current, gitlink_candidate)
+            self.assert_code(gitlink_result, "FRAMEWORK_SUBMODULE_METADATA_CHANGED")
 
     def test_staged_parent_or_recursive_gitlink_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

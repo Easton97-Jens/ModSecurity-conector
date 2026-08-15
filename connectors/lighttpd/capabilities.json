@@ -10,12 +10,12 @@
     "connectors/lighttpd/module/mod_msconnector.c",
     "connectors/lighttpd/src/lighttpd_modsecurity_mapper.c",
     "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh",
-    "connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch",
+    "connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch",
     "connectors/lighttpd/build/build_patched_host.sh",
     "connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh"
   ],
   "host_model_constraints": [
-    "The stock native plugin requires both body modes to be none. The matched patched 1.4.84 core/module pair accepts streaming request ranges and HTTP/1.1 identity response-entity ranges before transfer framing; this source/build contract has no canonical runtime promotion.",
+    "The stock native plugin requires both body modes to be none. The matched patched Framework-synchronized core/module pair accepts streaming request ranges and HTTP/1.1 identity response-entity ranges before transfer framing; this source/build contract has no canonical runtime promotion.",
     "The response-header mapper is called from handle_response_start, but source wiring alone is not Phase-3 behavioral verification.",
     "The legacy bridge and starter self-tests are separate from native mod_msconnector.so host-runtime evidence.",
     "The full-lifecycle profile separately selects patched-native through full-lifecycle-lighttpd-patched: its checked-in host smoke uses both body modes as none. Identity streaming configuration is available for contract checks, while gzip/br, HTTP/2, strict abort, first-byte, and no-full-buffer client evidence remain NOT EXECUTED."
@@ -35,7 +35,7 @@
     },
     "request_body_streaming": {
       "state": "not_implemented",
-      "reason": "The checked-in selected evidence profile has no promoted request-stream case. The patched 1.4.84 ABI has a borrowed request-range source contract, but it remains non-promoted until its host artifacts are selected and validated."
+      "reason": "The checked-in selected evidence profile has no promoted request-stream case. The patched Framework-synchronized ABI has a borrowed request-range source contract, but it remains non-promoted until its host artifacts are selected and validated."
     },
     "response_headers": {
       "state": "implemented_not_asserted",
@@ -47,7 +47,7 @@
     },
     "response_body_streaming": {
       "state": "not_implemented",
-      "reason": "The checked-in selected evidence profile has no promoted response-stream case. The patched 1.4.84 ABI has a borrowed HTTP/1.1 identity entity-body callback before transfer framing, but no canonical streaming host run validates it."
+      "reason": "The checked-in selected evidence profile has no promoted response-stream case. The patched Framework-synchronized ABI has a borrowed HTTP/1.1 identity entity-body callback before transfer framing, but no canonical streaming host run validates it."
     },
     "phase1": {
       "state": "implemented_not_asserted",
@@ -135,7 +135,7 @@
     },
     "request_body_incremental_ingest": {
       "state": "not_implemented",
-      "reason": "The patched 1.4.84 request callback supplies monotonic borrowed ranges, but the selected capability profile remains unpromoted without a matching canonical host result."
+      "reason": "The patched Framework-synchronized request callback supplies monotonic borrowed ranges, but the selected capability profile remains unpromoted without a matching canonical host result."
     },
     "response_body_incremental_ingest": {
       "state": "not_implemented",
@@ -215,7 +215,7 @@
     },
     "http3_downstream": {
       "state": "not_implemented",
-      "reason": "The pinned lighttpd 1.4.84 host has no audited native HTTP/3 listener or codec path."
+      "reason": "The Framework-synchronized lighttpd host has no audited native HTTP/3 listener or codec path."
     },
     "http3_upstream": {
       "state": "not_implemented",

@@ -162,11 +162,11 @@ def connector_specific_checks(connector: str, base: Path, errors: list[str]) -> 
             "msconnector_runtime_transaction_finish",
         ):
             require(errors, token in module, f"lighttpd: native module missing {token}")
-        # The patched 1.4.84 core supplies borrowed HTTP/1.x entity ranges at
+        # The Framework-version-synchronized patched core supplies borrowed HTTP/1.x entity ranges at
         # http_chunk append time, before transfer framing or socket writes.
         # It is therefore a real incremental-ingest path, but Strict remains
         # non-promotable until a real client proves the post-commit abort.
-        core_patch = read(base / "patches" / "0001-lighttpd-1.4.84-msconnector-stream-hooks.patch")
+        core_patch = read(base / "patches" / "0001-lighttpd-msconnector-stream-hooks.patch")
         require(
             errors,
             "mod_msconnector_handle_response_body" in module,

@@ -950,7 +950,7 @@
         "Response phases run only when the HAProxy configuration sends the corresponding response notification to the agent.",
         "The selected SPOE/SPOP configuration sends response headers only; the prior wait-for-body response sample is deliberately disabled because it is not a low-latency response stream.",
         "Starter and binding self-tests are not HAProxy host-runtime evidence.",
-        "The full-lifecycle profile separately selects native-htx-filter through full-lifecycle-haproxy-htx: a patched HAProxy 3.2.21 non-promoted path with real P1/P2/P3 response outcomes and P4 safe log_only evidence. Its one-block P2 probe returns 403 and records zero or one observed upstream requests without proving their ordering; that does not prove incremental request forwarding or a general host-buffering property. P4 Strict has no client-visible abort evidence and remains NOT EXECUTED."
+        "The full-lifecycle profile separately selects native-htx-filter through full-lifecycle-haproxy-htx: a patched Framework-synchronized HAProxy non-promoted path with real P1/P2/P3 response outcomes and P4 safe log_only evidence. Its one-block P2 probe returns 403 and records zero or one observed upstream requests without proving their ordering; that does not prove incremental request forwarding or a general host-buffering property. P4 Strict has no client-visible abort evidence and remains NOT EXECUTED."
       ],
       "host_name": "haproxy",
       "integration_mode": "spoe-spop-agent",
@@ -962,7 +962,7 @@
         "connectors/haproxy/src/haproxy_modsecurity_mapper.c",
         "connectors/haproxy/harness/run_haproxy_smoke.sh",
         "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
-        "connectors/haproxy/htx-overlay/haproxy-3.2.21-makefile.patch",
+        "connectors/haproxy/htx-overlay/haproxy-makefile.patch",
         "connectors/haproxy/harness/run_haproxy_htx_runtime.sh"
       ]
     },
@@ -1057,7 +1057,7 @@
           "state": "not_implemented"
         },
         "http3_downstream": {
-          "reason": "The pinned lighttpd 1.4.84 host has no audited native HTTP/3 listener or codec path.",
+          "reason": "The Framework-synchronized lighttpd host has no audited native HTTP/3 listener or codec path.",
           "state": "not_implemented"
         },
         "http3_multiplexing": {
@@ -1157,7 +1157,7 @@
           "state": "not_implemented"
         },
         "request_body_incremental_ingest": {
-          "reason": "The patched 1.4.84 request callback supplies monotonic borrowed ranges, but the selected capability profile remains unpromoted without a matching canonical host result.",
+          "reason": "The patched Framework-synchronized request callback supplies monotonic borrowed ranges, but the selected capability profile remains unpromoted without a matching canonical host result.",
           "state": "not_implemented"
         },
         "request_body_limits": {
@@ -1165,7 +1165,7 @@
           "state": "not_implemented"
         },
         "request_body_streaming": {
-          "reason": "The checked-in selected evidence profile has no promoted request-stream case. The patched 1.4.84 ABI has a borrowed request-range source contract, but it remains non-promoted until its host artifacts are selected and validated.",
+          "reason": "The checked-in selected evidence profile has no promoted request-stream case. The patched Framework-synchronized ABI has a borrowed request-range source contract, but it remains non-promoted until its host artifacts are selected and validated.",
           "state": "not_implemented"
         },
         "request_headers": {
@@ -1189,7 +1189,7 @@
           "state": "not_implemented"
         },
         "response_body_streaming": {
-          "reason": "The checked-in selected evidence profile has no promoted response-stream case. The patched 1.4.84 ABI has a borrowed HTTP/1.1 identity entity-body callback before transfer framing, but no canonical streaming host run validates it.",
+          "reason": "The checked-in selected evidence profile has no promoted response-stream case. The patched Framework-synchronized ABI has a borrowed HTTP/1.1 identity entity-body callback before transfer framing, but no canonical streaming host run validates it.",
           "state": "not_implemented"
         },
         "response_headers": {
@@ -1249,7 +1249,7 @@
         }
       },
       "host_model_constraints": [
-        "The stock native plugin requires both body modes to be none. The matched patched 1.4.84 core/module pair accepts streaming request ranges and HTTP/1.1 identity response-entity ranges before transfer framing; this source/build contract has no canonical runtime promotion.",
+        "The stock native plugin requires both body modes to be none. The matched patched Framework-synchronized core/module pair accepts streaming request ranges and HTTP/1.1 identity response-entity ranges before transfer framing; this source/build contract has no canonical runtime promotion.",
         "The response-header mapper is called from handle_response_start, but source wiring alone is not Phase-3 behavioral verification.",
         "The legacy bridge and starter self-tests are separate from native mod_msconnector.so host-runtime evidence.",
         "The full-lifecycle profile separately selects patched-native through full-lifecycle-lighttpd-patched: its checked-in host smoke uses both body modes as none. Identity streaming configuration is available for contract checks, while gzip/br, HTTP/2, strict abort, first-byte, and no-full-buffer client evidence remain NOT EXECUTED."
@@ -1263,7 +1263,7 @@
         "connectors/lighttpd/module/mod_msconnector.c",
         "connectors/lighttpd/src/lighttpd_modsecurity_mapper.c",
         "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh",
-        "connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch",
+        "connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch",
         "connectors/lighttpd/build/build_patched_host.sh",
         "connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh"
       ]
@@ -1295,7 +1295,7 @@
           "state": "implemented_not_asserted"
         },
         "content_type_scope": {
-          "reason": "The Phase-4 filter checks its configured response Content-Type scope before appending body bytes; real-host coverage is pending.",
+          "reason": "The Phase-4 filter checks its configured response Content-Type scope before appending body bytes; out-of-scope response bodies are not appended to libmodsecurity. Real-host coverage is pending.",
           "state": "implemented_not_asserted"
         },
         "deny": {
@@ -1893,7 +1893,7 @@
     "crs_smoke",
     "extended_matrix"
   ],
-  "generated_at": "2026-07-19T20:10:07Z",
+  "generated_at": "2026-08-15T08:38:29Z",
   "generated_from": [
     "connectors/apache/capabilities.json",
     "connectors/nginx/capabilities.json",
@@ -1906,17 +1906,17 @@
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "93c5f30c181710f5c2cecf207fb92aaecb215035",
+    "connector_sha": "29a2a8bcab57e936c5274f8fe64a15c6fee879bd",
     "data_kind": "capability-catalog",
     "data_origin": "repository",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
     "framework_checkout_status": "not_checked_out",
-    "framework_gitlink_sha": "cdc91a398d6c156eaff927d742b23018a3817fb6",
+    "framework_gitlink_sha": "1260aaae411ecf88cf50dc480b80e2e20ac47901",
     "framework_gitlink_status": "not_checked_out",
     "framework_sha": "unknown",
     "framework_working_tree_dirty": "unknown",
-    "generated_at": "2026-07-19T20:10:07Z",
+    "generated_at": "2026-08-15T08:38:29Z",
     "generated_by": "ci/evidence/collectors/connector_capabilities.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -1931,15 +1931,15 @@
       {
         "notes": "input file available",
         "path": "connectors/nginx/capabilities.json",
-        "sha256": "70fa6bb202c0ac3ea8292fa654a98586852b238e1885e43e7d5235e7daa0a982",
-        "source_hash": "70fa6bb202c0ac3ea8292fa654a98586852b238e1885e43e7d5235e7daa0a982",
+        "sha256": "bbc5f0514f8de637de363ac801a7a448ed3e1ff89ae3ab98a804147a039c9216",
+        "source_hash": "bbc5f0514f8de637de363ac801a7a448ed3e1ff89ae3ab98a804147a039c9216",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/haproxy/capabilities.json",
-        "sha256": "b8e3ca621904e925580604d5b7af1c97cf0a4c01a4c7a42cc7c58fae4c9d599c",
-        "source_hash": "b8e3ca621904e925580604d5b7af1c97cf0a4c01a4c7a42cc7c58fae4c9d599c",
+        "sha256": "123ffa37f47226c398e1615a409bb3443c07310776e1041e2cc910d1e334c5b5",
+        "source_hash": "123ffa37f47226c398e1615a409bb3443c07310776e1041e2cc910d1e334c5b5",
         "status": "present"
       },
       {
@@ -1959,8 +1959,8 @@
       {
         "notes": "input file available",
         "path": "connectors/lighttpd/capabilities.json",
-        "sha256": "4aac60435527d7a17ddc11deb14ae49f5a48e15c8a357c0ea45627fa4dc82995",
-        "source_hash": "4aac60435527d7a17ddc11deb14ae49f5a48e15c8a357c0ea45627fa4dc82995",
+        "sha256": "e7291e93d4851aaff768e0f024f0943bbdd3ac79281c726a246bfcd408765092",
+        "source_hash": "e7291e93d4851aaff768e0f024f0943bbdd3ac79281c726a246bfcd408765092",
         "status": "present"
       }
     ],
@@ -1972,7 +1972,7 @@
     "schema_version": 1,
     "severity": "informational",
     "unknown_inputs": [],
-    "verified_run_id": "2026-07-19T20-10-07Z-93c5f30c",
+    "verified_run_id": "2026-08-15T08-38-29Z-29a2a8bc",
     "working_tree_dirty": "dirty"
   },
   "runtime_promotion": false,

@@ -247,6 +247,8 @@ EXPECTED_CALLER_JOB_NAMES = frozenset(
 CRS_APPROVED_REPOSITORY = "https://github.com/coreruleset/coreruleset.git"
 CRS_RELEASE_TAG = "v4.28.0"
 CRS_APPROVED_COMMIT = "55b09f5acfd16413e7b31041100711ceb7adc89c"
+NGINX_PINNED_VERSION = "1.31.3"
+NGINX_PINNED_RELEASE_TAG = "release-1.31.3"
 CRS_EXPECTED_RULE_ID = "949110"
 CRS_SMOKE_REQUEST_PATH = "/?id=1%20UNION%20SELECT%20password%20FROM%20users"
 CRS_ALLOW_REQUEST_PATH = "/"
@@ -1304,7 +1306,7 @@ def _validated_nginx_provenance_section(
         },
         "provenance nginx",
     )
-    if nginx.get("version") != "1.31.3" or nginx.get("release_tag") != "release-1.31.3":
+    if nginx.get("version") != NGINX_PINNED_VERSION or nginx.get("release_tag") != NGINX_PINNED_RELEASE_TAG:
         fail("trusted NGINX broker provenance does not describe the reviewed NGINX release")
     require_string(nginx.get("source_repository"), "provenance nginx source_repository", maximum=1024)
     require_sha256(nginx.get("source_sha256"), "provenance nginx source_sha256")
@@ -1842,8 +1844,8 @@ def validate_caller_bindings(arguments: argparse.Namespace, caller: dict[str, An
 
 
 def validated_worker(arguments: argparse.Namespace) -> pwd.struct_passwd:
-    if arguments.nginx_version != "1.31.3":
-        fail("broker supports only reviewed NGINX version 1.31.3")
+    if arguments.nginx_version != NGINX_PINNED_VERSION:
+        fail(f"broker supports only reviewed NGINX version {NGINX_PINNED_VERSION}")
     if arguments.loopback not in LOOPBACKS:
         fail("broker supports only loopback addresses")
     if not (1024 <= arguments.port <= 65535):
@@ -2808,7 +2810,7 @@ def validate_final_manifest_network(payload: dict[str, Any]) -> None:
         fail("trusted broker manifest network shape is invalid")
     if network["address"] not in LOOPBACKS or not isinstance(network["port"], int) or not (1024 <= network["port"] <= 65535):
         fail("trusted broker manifest network is not a loopback non-privileged listener")
-    if payload.get("nginx_version") != "1.31.3":
+    if payload.get("nginx_version") != NGINX_PINNED_VERSION:
         fail("trusted broker manifest NGINX version is not approved")
 
 
@@ -3228,7 +3230,7 @@ def load_candidate_for_admission(
         fail("schema v1 broker candidate is not a no-crs control")
     require_commit(candidate.get("parent_head_sha"), "candidate parent_head_sha")
     require_commit(candidate.get("framework_sha"), "candidate framework_sha")
-    if candidate.get("nginx_version") != "1.31.3":
+    if candidate.get("nginx_version") != NGINX_PINNED_VERSION:
         fail("broker candidate NGINX version is invalid")
     return candidate, broker_sha, run_id, candidate_paths
 

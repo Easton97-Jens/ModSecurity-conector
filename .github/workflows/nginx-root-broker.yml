@@ -337,7 +337,7 @@ jobs:
             --expected-framework-sha "$EXPECTED_FRAMEWORK_SHA" \
             --expected-run-id "$BROKER_RUN_ID" \
             --expected-matrix-variant "$BROKER_VARIANT" \
-            --nginx-version 1.31.3 \
+            --nginx-version "${NGINX_RELEASE_TAG#release-}" \
             --worker-user www-data \
             --loopback 127.0.0.1 \
             --port 18443 > "$RUNNER_TEMP/trusted-nginx-broker-candidate-path"

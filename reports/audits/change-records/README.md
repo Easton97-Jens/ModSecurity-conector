@@ -10,6 +10,12 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260815-framework-version-pin-updater-sync](CR-20260815-framework-version-pin-updater-sync.md)
+  | [Deutsch](CR-20260815-framework-version-pin-updater-sync.de.md) — the
+  current user authorized preparation of the Framework-central synchronization
+  change and its PR delivery. This record reports observed local validation
+  only; commit, push, PR, hosted checks, and merge are not asserted here.
+
 - [CR-20260814-f-gs-004-hostruntime-p0](CR-20260814-f-gs-004-hostruntime-p0.md)
   | [Deutsch](CR-20260814-f-gs-004-hostruntime-p0.de.md) — the user
   authorized the dependent Draft PR and the delivery/traceability policies

@@ -6,9 +6,9 @@
   "upstream": {
     "selected": true,
     "repository": "https://download.lighttpd.net/lighttpd/releases-1.4.x/",
-    "version": "1.4.84",
+    "version": "1.4.85",
     "commit": "release tarball",
-    "download_url": "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.84.tar.xz",
+    "download_url": "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.85.tar.xz",
     "imported_source_files": []
   },
   "repo_owned_files": [
@@ -34,19 +34,19 @@
     },
     {
       "path": "connectors/lighttpd/build/apply_core_patch.sh",
-      "role": "managed-copy application path with 1.4.84 and patch-SHA identity checks for the local core patch"
+      "role": "managed-copy application path with Framework-synchronized version and patch-SHA identity checks for the local core patch"
     },
     {
       "path": "connectors/lighttpd/build/build_patched_core.sh",
-      "role": "isolated configure/make/install/stage path for the patched lighttpd 1.4.84 core with ABI-symbol and artifact-manifest checks"
+      "role": "isolated configure/make/install/stage path for the patched Framework-synchronized lighttpd core with ABI-symbol and artifact-manifest checks"
     },
     {
       "path": "connectors/lighttpd/build/build_patched_host.sh",
       "role": "builds and stages mod_msconnector.so against the exact patched source/config.h and writes a matched-host manifest"
     },
     {
-      "path": "connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch",
-      "role": "versioned local ABI extension for borrowed HTTP/1.x request-body and bounded pre-write output/EOS callbacks"
+      "path": "connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch",
+      "role": "local ABI extension for borrowed HTTP/1.x request-body and bounded pre-write output/EOS callbacks"
     },
     {
       "path": "connectors/lighttpd/harness/prepare_native_smoke.sh",
@@ -108,12 +108,12 @@
   ],
   "verified_evidence": [
     "C17 PIC shared-module compile and link with warnings as errors",
-    "real pinned lighttpd 1.4.84 config and module load",
+    "real Framework-synchronized lighttpd config and module load",
     "real request-free lighttpd start and clean stop",
     "real lighttpd baseline OPTIONS-star HTTP 200",
     "real Phase-1 rule 1000001 HTTP 403 through the native module",
     "JSONL connector and rule metadata without body payload fields",
-    "isolated patched lighttpd 1.4.84 core/module load and the same narrow Phase-1 host route without capability promotion"
+    "isolated patched Framework-synchronized lighttpd core/module load and the same narrow Phase-1 host route without capability promotion"
   ],
   "unsupported_or_unverified": [
     "request body mapping and Phase 2",

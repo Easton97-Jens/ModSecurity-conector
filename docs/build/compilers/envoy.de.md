@@ -91,13 +91,14 @@ WORKDIR="$HOME/connector-build/envoy"
 
 #### Releasebinary herunterladen
 
-Das offizielle x86_64-Artefakt wird in ein lokales Arbeitsverzeichnis geschrieben und ausführbar gemacht.
+Das offizielle x86_64-Artefakt wird in ein lokales Arbeitsverzeichnis geschrieben und ausführbar gemacht. Vor der Verwendung die ausgewählte Prüfsumme aus dem Framework-gesteuerten Cache-v2-Inventar beziehen, statt eine veraltete Prüfsumme aus einer Anleitung zu kopieren.
 
 ```sh
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64" -o envoy
-printf "%s  %s\n" "4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218" "envoy" | sha256sum -c -
+: "${ENVOY_SHA256:?set ENVOY_SHA256 from the Framework-managed Cache-v2 inventory}"
+printf "%s  %s\n" "$ENVOY_SHA256" "envoy" | sha256sum -c -
 chmod 755 envoy
 ./envoy --version
 ```
@@ -266,6 +267,7 @@ Ein offizielles Envoy-Binary ist nur der Host. Schlägt die Validierung fehl, er
 | HOST_BUILD_BASE | Connector-spezifisches externes Verzeichnis für Quellen, Builds, Konfiguration und lokale Logs. |
 | BUILD_ROOT | Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten. |
 | ENVOY_BIN | Verifiziertes Envoy-Executable. |
+| ENVOY_SHA256 | Erwartete Binary-Prüfsumme des ausgewählten Releases. |
 | EXT_PROC_BIN | Repository-gebautes ext_proc-Service-Executable. |
 | ENVOY_CONFIG | Erzeugte Loopback-Envoy-Konfiguration. |
 | EXT_PROC_CONFIG | Repository-ext_proc-Servicekonfiguration, die zusammen mit der erzeugten Laufzeitkonfiguration validiert wird. |

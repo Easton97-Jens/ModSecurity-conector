@@ -3,15 +3,25 @@
 from __future__ import annotations
 
 import os
+import importlib.util
+import json
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
 RESOLVER = ROOT / "connectors" / "haproxy" / "htx-overlay" / "resolve-modsecurity.sh"
+CONTRACT = ROOT / "connectors" / "haproxy" / "htx-overlay" / "version-contract.json"
+CONTRACT_MODULE_PATH = ROOT / "connectors" / "haproxy" / "htx-overlay" / "version_contract.py"
+CONTRACT_SPEC = importlib.util.spec_from_file_location("haproxy_version_contract", CONTRACT_MODULE_PATH)
+if CONTRACT_SPEC is None or CONTRACT_SPEC.loader is None:
+    raise RuntimeError("cannot load HAProxy version-contract module")
+CONTRACT_MODULE = importlib.util.module_from_spec(CONTRACT_SPEC)
+CONTRACT_SPEC.loader.exec_module(CONTRACT_MODULE)
 
 
 class HAProxyModSecurityResolverTests(unittest.TestCase):
@@ -181,7 +191,46 @@ class HAProxyModSecurityResolverTests(unittest.TestCase):
         self.assertIn("resolve-modsecurity.sh", makefile)
         self.assertIn("/usr/include", resolver)
         self.assertIn("/usr/lib/x86_64-linux-gnu", resolver)
-        self.assertIn('version" = "3.2.21', overlay)
+        self.assertIn("version-contract.json", overlay)
+        self.assertIn("HAPROXY_VERSION=$(contract_field version)", overlay)
+
+    def test_version_contract_accepts_the_repository_contract(self) -> None:
+        contract = CONTRACT_MODULE.load_contract(CONTRACT)
+        version_parts = contract["version"].split(".")
+        self.assertEqual(version_parts[:2], ["3", "2"])
+        self.assertTrue(version_parts[2].isdigit())
+        self.assertTrue(contract["makefile_patch"].endswith(".patch"))
+
+    def test_version_contract_rejects_symlink_escape(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-contract-symlink-") as temporary:
+            root = Path(temporary)
+            outside = root / "outside.json"
+            outside.write_text(CONTRACT.read_text(encoding="utf-8"), encoding="utf-8")
+            allowed = root / "allowed"
+            allowed.mkdir()
+            escaped = allowed / "version-contract.json"
+            escaped.symlink_to(outside)
+            with mock.patch.object(CONTRACT_MODULE, "CONTRACT_ROOT", allowed.resolve()):
+                with self.assertRaisesRegex(ValueError, "symlink"):
+                    CONTRACT_MODULE.load_contract(escaped)
+
+    def test_version_contract_rejects_unsafe_patch_and_digest_values(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-contract-values-") as temporary:
+            root = Path(temporary)
+            payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
+            valid_patch = payload["makefile_patch"]
+            payload["makefile_patch"] = "../escape.patch"
+            candidate = root / "invalid-patch.json"
+            candidate.write_text(json.dumps(payload), encoding="utf-8")
+            with mock.patch.object(CONTRACT_MODULE, "CONTRACT_ROOT", root.resolve()):
+                with self.assertRaisesRegex(ValueError, "makefile_patch"):
+                    CONTRACT_MODULE.load_contract(candidate)
+            payload["makefile_patch"] = valid_patch
+            payload["sha256"] = "A" * 64
+            candidate.write_text(json.dumps(payload), encoding="utf-8")
+            with mock.patch.object(CONTRACT_MODULE, "CONTRACT_ROOT", root.resolve()):
+                with self.assertRaisesRegex(ValueError, "SHA-256"):
+                    CONTRACT_MODULE.load_contract(candidate)
 
 
 if __name__ == "__main__":

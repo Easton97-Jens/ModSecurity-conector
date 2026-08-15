@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build the repository-owned native HTX observer overlay into an isolated
-# HAProxy 3.2.21 worktree.  It never mutates the verified source tree.
+# version-contract-selected HAProxy worktree. It never mutates the source tree.
 set -eu
 
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
@@ -10,12 +10,20 @@ else
     CONNECTOR_ROOT=$(CDPATH='' cd "$SCRIPT_DIR/../../.." && pwd)
 fi
 
-SOURCE_DIR=${HAPROXY_HTX_SOURCE_DIR:?set HAPROXY_HTX_SOURCE_DIR to HAProxy 3.2.21 source}
+SOURCE_DIR=${HAPROXY_HTX_SOURCE_DIR:?set HAPROXY_HTX_SOURCE_DIR to a verified HAProxy source tree}
 BUILD_DIR=${HAPROXY_HTX_BUILD_DIR:?set HAPROXY_HTX_BUILD_DIR to an empty output directory}
 MODSECURITY_INCLUDE_DIR=${MODSECURITY_INCLUDE_DIR:?set MODSECURITY_INCLUDE_DIR}
 MODSECURITY_LIB_DIR=${MODSECURITY_LIB_DIR:?set MODSECURITY_LIB_DIR}
 HAPROXY_MODSECURITY_BINDING_CPPFLAGS=${HAPROXY_MODSECURITY_BINDING_CPPFLAGS:-}
 MAKE_JOBS=${MAKE_JOBS:-2}
+CONTRACT_FILE="$SCRIPT_DIR/version-contract.json"
+CONTRACT_PARSER="$SCRIPT_DIR/version_contract.py"
+contract_field() {
+    field_name=$1
+    python3 "$CONTRACT_PARSER" --contract "$CONTRACT_FILE" --field "$field_name"
+}
+HAPROXY_VERSION=$(contract_field version)
+MAKEFILE_PATCH=$(contract_field makefile_patch)
 
 die() {
     echo "haproxy-htx-overlay: $*" >&2
@@ -69,11 +77,11 @@ require_file "$SOURCE_DIR/VERSION" "HAProxy VERSION"
 require_dir "$MODSECURITY_INCLUDE_DIR/modsecurity" "libmodsecurity headers"
 require_dir "$MODSECURITY_LIB_DIR" "libmodsecurity library directory"
 require_file "$SCRIPT_DIR/haproxy_modsecurity_htx_filter.c" "HTX filter source"
-require_file "$SCRIPT_DIR/haproxy-3.2.21-makefile.patch" "HAProxy Makefile overlay"
+require_file "$SCRIPT_DIR/$MAKEFILE_PATCH" "HAProxy Makefile overlay"
 command -v sha256sum >/dev/null 2>&1 || die "sha256sum is required for overlay build provenance"
 
 version=$(tr -d '[:space:]' < "$SOURCE_DIR/VERSION")
-[ "$version" = "3.2.21" ] || die "expected HAProxy 3.2.21, found '$version'"
+[ "$version" = "$HAPROXY_VERSION" ] || die "expected HAProxy $HAPROXY_VERSION, found '$version'"
 
 if [ -e "$WORKTREE" ]; then
     die "refusing to reuse existing worktree: $WORKTREE (choose a new HAPROXY_HTX_BUILD_DIR)"
@@ -97,8 +105,8 @@ for source in $COMMON_SOURCES; do
     cp "$CONNECTOR_ROOT/common/src/$source" "$WORKTREE/src/msconnector_$source"
 done
 
-(cd "$WORKTREE" && patch --dry-run -p1 < "$SCRIPT_DIR/haproxy-3.2.21-makefile.patch")
-(cd "$WORKTREE" && patch -p1 < "$SCRIPT_DIR/haproxy-3.2.21-makefile.patch")
+(cd "$WORKTREE" && patch --dry-run -p1 < "$SCRIPT_DIR/$MAKEFILE_PATCH")
+(cd "$WORKTREE" && patch -p1 < "$SCRIPT_DIR/$MAKEFILE_PATCH")
 
 modsecurity_library=
 for candidate in "$MODSECURITY_LIB_DIR"/libmodsecurity.so \
@@ -123,7 +131,7 @@ make -C "$WORKTREE" TARGET=linux-glibc -j "$MAKE_JOBS" \
     printf 'source_dir=%s\n' "$SOURCE_DIR"
     printf 'source_makefile_sha256=%s\n' "$(sha256_of "$SOURCE_DIR/Makefile")"
     printf 'overlay_filter_sha256=%s\n' "$(sha256_of "$SCRIPT_DIR/haproxy_modsecurity_htx_filter.c")"
-    printf 'overlay_patch_sha256=%s\n' "$(sha256_of "$SCRIPT_DIR/haproxy-3.2.21-makefile.patch")"
+    printf 'overlay_patch_sha256=%s\n' "$(sha256_of "$SCRIPT_DIR/$MAKEFILE_PATCH")"
     printf 'binding_sha256=%s\n' "$(sha256_of "$CONNECTOR_ROOT/connectors/haproxy/src/haproxy_modsecurity_binding.c")"
     printf 'haproxy_binary=%s\n' "$WORKTREE/haproxy"
     printf 'haproxy_binary_sha256=%s\n' "$(sha256_of "$WORKTREE/haproxy")"

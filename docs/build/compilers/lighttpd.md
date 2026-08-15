@@ -10,7 +10,7 @@ This guide describes the manual development and integration build for `patched-n
 
 ## 2. Build components
 
-libmodsecurity v3, lighttpd 1.4.84 source, the repository Entity-Body patch, a patched host, a matching connector module, a local runtime configuration, and loopback HTTP/1.1 traffic.
+libmodsecurity v3, lighttpd 1.4.85 source, the repository Entity-Body patch, a patched host, a matching connector module, a local runtime configuration, and loopback HTTP/1.1 traffic.
 
 ## Connector in this repository
 
@@ -19,7 +19,7 @@ libmodsecurity v3, lighttpd 1.4.84 source, the repository Entity-Body patch, a p
 - [Productive lighttpd sources](../../../connectors/lighttpd/src/)
 - [Patched-host builder](../../../connectors/lighttpd/build/build_patched_host.sh)
 - [Connector module builder](../../../connectors/lighttpd/build/build_module.sh)
-- [Entity-Body patch](../../../connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch)
+- [Entity-Body patch](../../../connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch)
 - [Source mapping](../../../connectors/lighttpd/SOURCE_MAP.json)
 - [Native lighttpd configuration](../../../connectors/lighttpd/config/lighttpd-native.conf)
 
@@ -77,7 +77,7 @@ The selected path requires a patched lighttpd source host. The first steps downl
 
 ```sh
 WORKDIR="$HOME/connector-build/lighttpd"
-VERSION="1.4.84"
+VERSION="1.4.85"
 INSTALL_DIR="$HOME/.local/lighttpd-modsecurity"
 ```
 
@@ -88,10 +88,10 @@ This leaves the verified upstream source untouched so that the patch is applied 
 ```sh
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
-curl -fLO "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$VERSION.tar.xz"
+curl -fLO "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.85.tar.xz"
 curl -fL "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$VERSION.sha256sum" -o "lighttpd-$VERSION.sha256sum"
 awk -v archive="lighttpd-$VERSION.tar.xz" '$2 == archive { print }' "lighttpd-$VERSION.sha256sum" | sha256sum -c -
-printf "%s  %s\n" "076dd43bec8f2ba9ce6db7e7ca7e8ad72271cd529805ead2400b56efaa026f70" "lighttpd-$VERSION.tar.xz" | sha256sum -c -
+printf "%s  %s\n" "18de51b393bac4a6827879e1a7ff377c169e414bae92cd245091d80fc2601d13" "lighttpd-$VERSION.tar.xz" | sha256sum -c -
 tar -xJf "lighttpd-$VERSION.tar.xz"
 ```
 
@@ -111,13 +111,13 @@ export LIGHTTPD_PATCHED_SRC="$WORKDIR/lighttpd-$VERSION-patched"
 test ! -e "$LIGHTTPD_PATCHED_SRC"
 cp -a "lighttpd-$VERSION" "$LIGHTTPD_PATCHED_SRC"
 cd "$LIGHTTPD_PATCHED_SRC"
-patch --dry-run -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"
-patch -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"
+patch --dry-run -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch"
+patch -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch"
 ```
 
 #### Build the patched host
 
-This builds only the patched lighttpd host. The connector module is deliberately deferred to Section 7. The repository's `build_patched_core.sh` makes the same decision automatically after applying its patch to a disposable external source copy: it reuses an executable `configure`, otherwise it runs `autogen.sh` only in that patched source tree and requires an executable result. The pinned verified 1.4.84 release can lack generated `configure`. `autogen.sh` remains the upstream authority for its exact Autotools commands; the builder neither installs a package nor adds a network step. On failure it prints the bounded `autogen.log` output and reports the bootstrap phase and exit status, so a missing tool is named by the command that needs it. The validated environment had `autoconf`, `automake`, and `libtool` available, but that does not turn them into an unconditionally assumed list. A non-executable `autogen.sh` is used only when it declares `#!/bin/sh` or `#!/usr/bin/env sh`; no mode is changed.
+This builds only the patched lighttpd host. The connector module is deliberately deferred to Section 7. The repository's `build_patched_core.sh` makes the same decision automatically after applying its patch to a disposable external source copy: it reuses an executable `configure`, otherwise it runs `autogen.sh` only in that patched source tree and requires an executable result. The pinned verified 1.4.85 release can lack generated `configure`. `autogen.sh` remains the upstream authority for its exact Autotools commands; the builder neither installs a package nor adds a network step. On failure it prints the bounded `autogen.log` output and reports the bootstrap phase and exit status, so a missing tool is named by the command that needs it. The validated environment had `autoconf`, `automake`, and `libtool` available, but that does not turn them into an unconditionally assumed list. A non-executable `autogen.sh` is used only when it declares `#!/bin/sh` or `#!/usr/bin/env sh`; no mode is changed.
 
 ```sh
 if [ -x ./configure ]; then
@@ -170,7 +170,7 @@ make install
 
 ### Check the result
 
-The upstream 1.4.84 installation layout places lighttpd below sbin for this prefix.
+The upstream 1.4.85 installation layout places lighttpd below sbin for this prefix.
 
 ```sh
 "$INSTALL_DIR/sbin/lighttpd" -V
@@ -184,7 +184,7 @@ The host path is reintroduced here only so that the connector commands can consu
 
 ```sh
 export HOST_BUILD_BASE="$HOME/connector-build/lighttpd"
-export LIGHTTPD_PATCHED_SRC="$HOST_BUILD_BASE/lighttpd-1.4.84-patched"
+export LIGHTTPD_PATCHED_SRC="$HOST_BUILD_BASE/lighttpd-1.4.85-patched"
 export LIGHTTPD_BUILD_DIR="${LIGHTTPD_BUILD_DIR:-$LIGHTTPD_PATCHED_SRC}"
 export LIGHTTPD_PREFIX="$HOME/.local/lighttpd-modsecurity"
 cd "$CONNECTOR_ROOT"
@@ -330,7 +330,7 @@ test ! -e "$HOME/modsecurity-connector-work" || find "$HOME/modsecurity-connecto
 
 Common: for missing headers or libraries, return to the shared guide's advanced section and check the deliberately selected prefix and pkg-config output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.
 
-If patch dry-run fails, do not force it: verify the exact 1.4.84 source and patch checksum. If the module cannot load, rebuild the patched core and module from the same source/header/configuration set.
+If patch dry-run fails, do not force it: verify the exact 1.4.85 source and patch checksum. If the module cannot load, rebuild the patched core and module from the same source/header/configuration set.
 
 ## 16. Variables and placeholders
 

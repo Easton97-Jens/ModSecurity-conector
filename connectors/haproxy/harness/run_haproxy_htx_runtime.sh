@@ -12,6 +12,9 @@ HOST_EVIDENCE_LOG_PATH=${HAPROXY_HTX_HOST_EVIDENCE_LOG_PATH:-$RUNTIME_ROOT/host-
 FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$REPO_ROOT/modules/ModSecurity-test-Framework}
 PYTHON_BIN=${PYTHON:-python3}
 HELPER="$SCRIPT_DIR/haproxy_htx_smoke_helper.py"
+CONTRACT_PARSER="$CONNECTOR_DIR/htx-overlay/version_contract.py"
+CONTRACT_FILE="$CONNECTOR_DIR/htx-overlay/version-contract.json"
+HAPROXY_HTX_VERSION=$("$PYTHON_BIN" "$CONTRACT_PARSER" --contract "$CONTRACT_FILE" --field version)
 SUMMARY="$RUNTIME_ROOT/runtime-summary.txt"
 VERSION_FILE="$RUNTIME_ROOT/haproxy-version.txt"
 UPSTREAM_LOG="$RUNTIME_ROOT/upstream-requests.jsonl"
@@ -183,8 +186,8 @@ generate_loopback_tls_certificate
 rm -f "$EVENT_LOG_PATH" "$HOST_EVIDENCE_LOG_PATH" "$SUMMARY" "$UPSTREAM_LOG"
 
 "$HAPROXY_BIN" -vv >"$VERSION_FILE" 2>&1
-if ! grep -Fq 'HAProxy version 3.2.21' "$VERSION_FILE"; then
-    echo "haproxy_htx_runtime: FAIL - patched binary is not HAProxy 3.2.21" >&2
+if ! grep -Fq "HAProxy version $HAPROXY_HTX_VERSION" "$VERSION_FILE"; then
+    echo "haproxy_htx_runtime: FAIL - patched binary is not HAProxy $HAPROXY_HTX_VERSION" >&2
     sed -n '1,40p' "$VERSION_FILE" >&2 || true
     exit 1
 fi

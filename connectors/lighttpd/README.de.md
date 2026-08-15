@@ -10,7 +10,7 @@ Lädt die connector-neutrale Laufzeit von `common/runtime`, bildet echtes Lightt
 Anfrage- und Antwortheader in Common SDK-Modelle, wertet ModSecurity aus und
 bildet mit `http_status_set_err()` eine disruptive Phase-1-Entscheidung für lighttpd ab.
 
-Lokal überprüft gegen angeheftetes Lighttpd 1.4.84 und libmodsecurity:
+Lokal überprüft gegen die damals ausgewählte Framework-Lighttpd-Komponente und libmodsecurity:
 
 - C17-Kompilierung und Link von `mod_msconnector.so` mit Warnungen als Fehler;
 - Echte Lighttpd-Modullade- und Konfigurationsprüfung;
@@ -21,12 +21,12 @@ Lokal überprüft gegen angeheftetes Lighttpd 1.4.84 und libmodsecurity:
 
 Dies ist ein schmaler, teilweiser Laufzeitpfad. Im Standard-Stock-Build, Anfrage und
 Antworttexte werden nicht implementiert und niemals an die Laufzeit übergeben. Die
-Das separate gepatchte 1.4.84-Paar verfügt über einen Quell-/Build-Vertrag für geliehenes HTTP/1.1
+Das separate Framework-synchronisierte gepatchte Paar verfügt über einen Quell-/Build-Vertrag für geliehenes HTTP/1.1
 Anforderungsbereiche und Identitätsantwort-Entitätsbereiche, aber dieser Vertrag ist kein
 Antworttext-Laufzeitnachweis. CRS, Produktionshärtung, Sicherheitsüberprüfung,
 und Vollmatrixverifizierung werden nicht beansprucht.
 
-Das Full-Lifecycle-Profil wählt ein separates, versioniertes Lighttpd 1.4.84 aus
+Das Full-Lifecycle-Profil wählt ein separates Framework-synchronisiertes Lighttpd aus
 Patched-Host-Ziel, das kopiert, patcht, konfiguriert, erstellt, installiert und
 stellt einen passenden Kern und ein passendes Modul zusammen.
 `runtime-smoke-lighttpd-patched` führt einen isolierten Patch-Core-/Modul-Ladevorgang durch
@@ -45,7 +45,7 @@ Das native Modul befindet sich in `module/mod_msconnector.c`. Es bietet:
 - Lighttpd-Plugin-Initialisierung, Bereinigung und Konfigurationsregistrierung;
 - `handle_uri_clean` Request-Header-Verarbeitung;
 - `handle_response_start` Antwort-Header-Verarbeitung;
-- im gepatchten 1.4.84 ABI, synchrone geliehene Anfrage und Identität
+- im durch den Framework-Vertrag ausgewählten gepatchten ABI, synchrone geliehene Anfrage und Identität
   Entity-Response-Callbacks mit monotonen Offsets und einem Response-EOS;
 - eine gemeinsame Laufzeittransaktion pro Lighttpd-Anfrage;
 - Zuordnung des Block-/Fehlerstatus der Phase 1;
@@ -95,7 +95,7 @@ make -C connectors/lighttpd start-smoke-lighttpd
 make -C connectors/lighttpd runtime-smoke-lighttpd
 
 # Requires LIGHTTPD_SOURCE_DIR, MODSECURITY_INCLUDE_DIR and
-# MODSECURITY_LIB_DIR.  This builds a copied 1.4.84 core and its module
+# MODSECURITY_LIB_DIR.  This builds a copied Framework-synchronized core and its module
 # together below BUILD_ROOT/lighttpd-core-patched.
 make -C connectors/lighttpd build-lighttpd-patched-host
 make -C connectors/lighttpd check-lighttpd-patched-host

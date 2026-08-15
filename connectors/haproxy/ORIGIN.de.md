@@ -17,7 +17,7 @@ verwendet; er ist kein produktiver HAProxy-Runtime-Adapter.
 
 Das Repository vendort keinen HAProxy-Quellcode. `htx-overlay/` kopiert
 stattdessen einen repository-verfassten Filter, Binding-Quellen und einen
-schmalen Makefile-Patch in einen isolierten, versionsgeprüften HAProxy-3.2.21-
+schmalen Makefile-Patch in einen isolierten, versionsgeprüften Framework-synchronisierten HAProxy-
 Worktree. Das separate Profil `full-lifecycle-haproxy-htx` wählt diesen
 connector-lokalen Smoke. Es validiert `filter modsecurity-htx`, lädt
 kanonische No-CRS-Regeln und durchläuft P1–P4 durch echten HAProxy. Native
@@ -46,7 +46,7 @@ werden.
 | `connectors/haproxy/src/haproxy_modsecurity_binding.c` | repository-verfasstes ModSecurity-Binding | not selected | Verwendet lokal verifizierte libmodsecurity-C-API-Signaturen für materialisierte Regeln, URI, Header, Request-Body-Bytes und CRS-SQLi-Entscheidungen. |
 | `connectors/haproxy/src/haproxy_modsecurity_binding.h` | repository-verfasstes ModSecurity-Binding | not selected | Deklariert die vom Binding-Self-Test und der SPOP-Runtime verwendete Request-/Auswertungsform. |
 | `connectors/haproxy/src/haproxy_modsecurity_binding_self_test.c` | repository-verfasste ModSecurity-Binding-Self-Test-CLI | not selected | Unterstützt nur `--describe` und `--self-test`; Live-HAProxy-Runtime-Enforcement wird durch das Framework-Smoke-Harness behandelt. |
-| `connectors/haproxy/htx-overlay/` | repository-verfasster HAProxy-3.2.21-Overlay-Quellcode und Build-Patch | selected only by the non-promoted full-lifecycle profile | Wird in einen verifizierten, disponiblen HAProxy-Source-Worktree kopiert; native P1/P3-Deny-Antworten werden mit echtem Host-Traffic ausgeübt, während P2/P4 nur beobachtend bleiben. |
+| `connectors/haproxy/htx-overlay/` | repository-verfasster Framework-synchronisierter HAProxy-Overlay-Quellcode und Build-Patch | selected only by the non-promoted full-lifecycle profile | Wird in einen verifizierten, disponiblen HAProxy-Source-Worktree kopiert; native P1/P3-Deny-Antworten werden mit echtem Host-Traffic ausgeübt, während P2/P4 nur beobachtend bleiben. |
 | `connectors/haproxy/harness/run_haproxy_htx_runtime.sh` | repository-verfasster nativer HTX-Transport-Smoke | selected only by the non-promoted full-lifecycle profile | Baut/startet einen gepatchten HAProxy, lädt kanonische No-CRS-Regeln und zeichnet echte P1/P3-Statusantworten sowie payload-freie P2/P4-Beobachtungen ohne Capability-Promotion auf. |
 | `docs/connectors/haproxy.md` | repository-verfasste kanonische Dokumentation | not selected | Dokumentiert die ausgewählte Route, die historische Kompatibilitätsgrenze und Blocker. |
 | `connectors/haproxy/harness/README.md` | repository-verfasste Dokumentation | not selected | Nur Harness-Vertrag. |

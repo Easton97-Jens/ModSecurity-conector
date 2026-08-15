@@ -208,24 +208,24 @@ Source. Für Schema-v2-`owasp-crs` erzeugt er zusätzlich eine frische private
 CRS-Source-Root und verwendet den kanonischen Fresh-Source-Weg des exakten
 Framework-Gitlinks. Die Broker-Revision prüft dieses geprüfte Tupel unabhängig:
 
-| Feld | Fester Wert |
+| Feld | Framework-synchronisierter Wert |
 | --- | --- |
-| Repository | `https://github.com/coreruleset/coreruleset.git` |
-| Release-Tag | `v4.28.0` |
-| Commit | `55b09f5acfd16413e7b31041100711ceb7adc89c` |
+| Repository | `CRS_APPROVED_REPO_URL` |
+| Release-Tag | `CRS_RELEASE_TAG` |
+| Commit | `CRS_APPROVED_COMMIT` |
 | Erwartete CRS-Blockregel | `949110` |
 
 Der gepinnte CRS-Tree enthält genau ein absichtlich leeres Plugin-Leaf,
 `plugins/empty-after.conf`. Der Broker akzeptiert dieses Zero-Byte-Leaf nur,
 wenn das geschützte Gitobjekt unter
-`55b09f5acfd16413e7b31041100711ceb7adc89c:plugins/empty-after.conf` exakt der
-Gitblob `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` ist und die materialisierte
+`$CRS_APPROVED_COMMIT:plugins/empty-after.conf` exakt der Gitblob
+`e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` ist und die materialisierte
 reguläre Datei mit Modus `0644` den SHA-256
 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` besitzt.
 Jede andere leere CRS-Datei, eine nicht reguläre Datei, ein Symlink, ein
-geänderter Modus, ein geänderter Digest oder ein geändertes gepinntes
-Tag/Commit schlägt fail-closed fehl. Dies ist eine feste Provenance-Prüfung
-und keine allgemeine Erlaubnis für leere Dateien.
+geänderter Modus, ein geänderter Digest oder ein Framework-Tupel, das diesen
+Protected-Artifact-Vertrag nicht erfüllt, schlägt fail-closed fehl. Dies ist
+eine feste Provenance-Prüfung und keine allgemeine Erlaubnis für leere Dateien.
 
 Die Root-zu-Runner-Evidence-Limits bleiben exakt
 `MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024` und

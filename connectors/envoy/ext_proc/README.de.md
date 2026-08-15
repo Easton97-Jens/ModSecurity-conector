@@ -38,7 +38,7 @@ gesonderte Entscheidung zur Beweiswürdigung.
 
 Die angeheftete Abhängigkeit ist das offiziell generierte Envoy Go API-Modul in
 `go.mod`/`go.sum`. `../config/envoy-ext-proc-versions.env` zeichnet das beabsichtigte auf
-Envoy-Version (`1.39.0`) und `../config/envoy-ext-proc-streaming.yaml.in` werden verwendet
+Framework-synchronisierte Envoy-Version und `../config/envoy-ext-proc-streaming.yaml.in` werden verwendet
 nur `STREAMED` Körpermodi, niemals `BUFFERED`.
 
 ## Mindestversionen für die Abhängigkeitssicherheit

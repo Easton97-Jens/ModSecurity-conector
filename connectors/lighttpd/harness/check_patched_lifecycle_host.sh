@@ -2,6 +2,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
+LIGHTTPD_VERSION=$(sh "$SCRIPT_DIR/../build/read_version.sh")
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 PATCHED_ROOT=${LIGHTTPD_PATCHED_ROOT:-$BUILD_ROOT/lighttpd-core-patched}
 CORE_BIN=$PATCHED_ROOT/stage/bin/lighttpd
@@ -31,7 +32,7 @@ sha256_file() {
 [ -x "$CORE_BIN" ] || blocked "patched lighttpd binary is missing: $CORE_BIN"
 [ -f "$MODULE_PATH" ] || blocked "patched module is missing: $MODULE_PATH"
 [ -f "$PROXY_MODULE_PATH" ] || blocked "patched proxy module is missing: $PROXY_MODULE_PATH"
-[ "$(manifest_value lighttpd_version)" = 1.4.84 ] || blocked "patched host manifest has an unexpected version"
+[ "$(manifest_value lighttpd_version)" = "$LIGHTTPD_VERSION" ] || blocked "patched host manifest has an unexpected version"
 [ "$(manifest_value core_binary)" = "$CORE_BIN" ] || blocked "manifest core binary does not match staged patched binary"
 [ "$(manifest_value module)" = "$MODULE_PATH" ] || blocked "manifest module does not match staged patched module"
 [ "$(manifest_value proxy_module)" = "$PROXY_MODULE_PATH" ] || blocked "manifest proxy module does not match staged proxy module"
@@ -45,7 +46,7 @@ command -v sha256sum >/dev/null 2>&1 || blocked "missing sha256sum command"
 [ "$(manifest_value proxy_module_sha256)" = "$(sha256_file "$PROXY_MODULE_PATH")" ] || \
     blocked "staged proxy module does not match its host manifest"
 
-"$CORE_BIN" -v 2>&1 | grep -Fq 'lighttpd/1.4.84' || blocked "staged binary does not report lighttpd/1.4.84"
+"$CORE_BIN" -v 2>&1 | grep -Fq "lighttpd/$LIGHTTPD_VERSION" || blocked "staged binary does not report lighttpd/$LIGHTTPD_VERSION"
 for symbol in plugins_call_handle_request_body plugins_call_handle_response_body; do
     "$NM_BIN" -D "$CORE_BIN" | grep -Eq "[[:space:]][Tt][[:space:]]$symbol$" || \
         blocked "patched binary does not export required hook symbol: $symbol"

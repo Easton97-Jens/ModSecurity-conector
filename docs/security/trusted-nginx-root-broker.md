@@ -193,23 +193,24 @@ For schema-v2 `owasp-crs`, it also creates a fresh private CRS source root and
 uses the exact Framework gitlink's canonical fresh-source path. The broker
 revision independently cross-checks this reviewed tuple:
 
-| Field | Fixed value |
+| Field | Framework-synchronized value |
 | --- | --- |
-| Repository | `https://github.com/coreruleset/coreruleset.git` |
-| Release tag | `v4.28.0` |
-| Commit | `55b09f5acfd16413e7b31041100711ceb7adc89c` |
+| Repository | `CRS_APPROVED_REPO_URL` |
+| Release tag | `CRS_RELEASE_TAG` |
+| Commit | `CRS_APPROVED_COMMIT` |
 | Expected CRS block rule | `949110` |
 
 The pinned CRS tree contains one intentionally empty plugin leaf,
 `plugins/empty-after.conf`. The broker admits that zero-byte leaf only when
 the protected Git object at
-`55b09f5acfd16413e7b31041100711ceb7adc89c:plugins/empty-after.conf` is exactly
-the Git blob `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` and the materialized
+`$CRS_APPROVED_COMMIT:plugins/empty-after.conf` is exactly the Git blob
+`e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` and the materialized
 regular `0644` file has SHA-256
 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Any
 other empty CRS file, a non-regular file, a symlink, a changed mode, a changed
-digest, or a changed pinned tag/commit fails closed. This is a fixed
-provenance check, not a general empty-file allowance.
+digest, or a Framework tuple that does not meet this protected-artifact
+contract fails closed. This is a fixed provenance check, not a general
+empty-file allowance.
 
 The root-to-runner evidence limits remain exactly
 `MAX_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024` and

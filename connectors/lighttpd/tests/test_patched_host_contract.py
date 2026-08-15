@@ -10,7 +10,31 @@ import unittest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CONNECTOR = REPO_ROOT / "connectors" / "lighttpd"
-PATCH = CONNECTOR / "patches" / "0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"
+CONTRACT = CONNECTOR / "lighttpd-version.contract"
+
+
+def contract_value(key: str) -> str:
+    values: dict[str, str] = {}
+    for line in CONTRACT.read_text(encoding="utf-8").splitlines():
+        if not line or line.startswith("#"):
+            continue
+        name, separator, value = line.partition("=")
+        if not separator or name in values or not value:
+            raise ValueError("invalid lighttpd version contract")
+        values[name] = value
+    if set(values) != {
+        "LIGHTTPD_VERSION",
+        "LIGHTTPD_SOURCE_URL",
+        "LIGHTTPD_DOWNLOAD_URL",
+        "LIGHTTPD_SHA256",
+        "LIGHTTPD_PATCH_FILENAME",
+    }:
+        raise ValueError("invalid lighttpd version contract fields")
+    return values[key]
+
+
+LIGHTTPD_VERSION = contract_value("LIGHTTPD_VERSION")
+PATCH = CONNECTOR / "patches" / contract_value("LIGHTTPD_PATCH_FILENAME")
 
 
 class PatchedCoreBootstrapTest(unittest.TestCase):
@@ -39,8 +63,8 @@ class PatchedCoreBootstrapTest(unittest.TestCase):
     ) -> dict[str, object]:
         source = root / "verified lighttpd source"
         patched_root = root / "patched lighttpd build"
-        patched_source = patched_root / "lighttpd-1.4.84"
-        core_build = patched_root / "build-1.4.84"
+        patched_source = patched_root / f"lighttpd-{LIGHTTPD_VERSION}"
+        core_build = patched_root / f"build-{LIGHTTPD_VERSION}"
         stage_root = patched_root / "stage"
         tools = root / "test tools"
         trace = root / "autogen trace.txt"
@@ -50,7 +74,7 @@ class PatchedCoreBootstrapTest(unittest.TestCase):
             "#define LIGHTTPD_TEST_SOURCE 1\n", encoding="utf-8"
         )
         (source / "configure.ac").write_text(
-            "AC_INIT([lighttpd],[1.4.84])\n", encoding="utf-8"
+            f"AC_INIT([lighttpd],[{LIGHTTPD_VERSION}])\n", encoding="utf-8"
         )
         tools.mkdir()
 
@@ -83,7 +107,7 @@ class PatchedCoreBootstrapTest(unittest.TestCase):
             "cat > \"$stage/bin/lighttpd\" <<'EOF'\n"
             "#!/bin/sh\n"
             "if [ \"${1:-}\" = -v ]; then\n"
-            "    printf '%s\\n' 'lighttpd/1.4.84'\n"
+            f"    printf '%s\\n' 'lighttpd/{LIGHTTPD_VERSION}'\n"
             "fi\n"
             "EOF\n"
             "chmod +x \"$stage/bin/lighttpd\"\n",
@@ -297,7 +321,7 @@ class PatchedHostContractTest(unittest.TestCase):
         )
 
         for required in (
-            "AC_INIT([lighttpd],[1.4.84]",
+            "AC_INIT([lighttpd],[$LIGHTTPD_VERSION]",
             "configure",
             '"$MAKE_BIN" -C "$CORE_BUILD_DIR" -j "$MAKE_JOBS"',
             '"$MAKE_BIN" -C "$CORE_BUILD_DIR" install',
@@ -320,7 +344,7 @@ class PatchedHostContractTest(unittest.TestCase):
         preparer = CONNECTOR / "harness" / "prepare_patched_lifecycle_smoke.sh"
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            source = root / "lighttpd-core-patched" / "lighttpd-1.4.84" / "src"
+            source = root / "lighttpd-core-patched" / f"lighttpd-{LIGHTTPD_VERSION}" / "src"
             source.mkdir(parents=True)
             (source / "plugin.h").write_text(
                 "#define LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION 1\n",
@@ -354,7 +378,7 @@ class PatchedHostContractTest(unittest.TestCase):
         preparer = CONNECTOR / "harness" / "prepare_patched_lifecycle_smoke.sh"
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            source = root / "lighttpd-core-patched" / "lighttpd-1.4.84" / "src"
+            source = root / "lighttpd-core-patched" / f"lighttpd-{LIGHTTPD_VERSION}" / "src"
             source.mkdir(parents=True)
             (source / "plugin.h").write_text(
                 "#define LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION 1\n",
@@ -391,7 +415,7 @@ class PatchedHostContractTest(unittest.TestCase):
         preparer = CONNECTOR / "harness" / "prepare_patched_lifecycle_smoke.sh"
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            source = root / "lighttpd-core-patched" / "lighttpd-1.4.84" / "src"
+            source = root / "lighttpd-core-patched" / f"lighttpd-{LIGHTTPD_VERSION}" / "src"
             source.mkdir(parents=True)
             (source / "plugin.h").write_text(
                 "#define LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION 1\n",

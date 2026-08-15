@@ -127,7 +127,7 @@ build-htx-overlay: check-htx-overlay build-modsecurity-binding
 	@set -eu; \
 	source_dir="$(HAPROXY_HTX_SOURCE_DIR)"; \
 	build_dir="$(HAPROXY_HTX_BUILD_DIR)"; \
-	: "$${source_dir:?set HAPROXY_HTX_SOURCE_DIR to a verified HAProxy 3.2.21 source tree}"; \
+	: "$${source_dir:?set HAPROXY_HTX_SOURCE_DIR to a verified HAProxy source tree}"; \
 	: "$${build_dir:?set HAPROXY_HTX_BUILD_DIR to an empty path outside the checkout}"; \
 	. "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"; \
 	CONNECTOR_ROOT="$(abspath $(REPO_ROOT))" \

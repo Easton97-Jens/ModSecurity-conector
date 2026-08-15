@@ -153,7 +153,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.validate_only == 'true' && github.repository == 'Easton97-Jens/ModSecurity-conector' && github.event.repository.fork == false && (github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation' || (github.ref == 'refs/heads/master' && github.event.repository.default_branch == 'master' && github.ref_protected == true)) && github.sha || github.event.repository.default_branch }}
-          submodules: recursive
+          submodules: false
           fetch-depth: 0
           persist-credentials: false
 
@@ -186,6 +186,14 @@ jobs:
               exit 1
             fi
           done
+          declared_submodule_url="$(git config -f .gitmodules --get "submodule.$SUBMODULE_PATH.url")"
+          if [ "$declared_submodule_url" != "$SUBMODULE_URL" ]; then
+            echo "Parent submodule URL is not the official configured repository: $declared_submodule_url" >&2
+            exit 1
+          fi
+          # Only the reviewed Parent gitlink is initialized. Candidate nested
+          # submodule metadata is validated from Git objects and is never fetched.
+          git -c protocol.file.allow=never submodule update --init -- "$SUBMODULE_PATH"
           submodule_origin="$(git -C "$SUBMODULE_PATH" remote get-url origin)"
           if [ "$submodule_origin" != "$SUBMODULE_URL" ]; then
             echo "Submodule origin is not the official configured repository: $submodule_origin" >&2
@@ -200,7 +208,6 @@ jobs:
             exit 1
           fi
           git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"
-          git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" submodule update --init --recursive
 
       - name: Validate exact candidate Git state
         run: |
@@ -213,6 +220,22 @@ jobs:
             --candidate-sha "$CANDIDATE_SHA" \
             --expected-parent-head "$EXPECTED_PARENT_HEAD" \
             --expected-parent-hooks-sha256 "$EXPECTED_PARENT_HOOKS_SHA256"
+
+      - name: Validate Framework component-pin data contract
+        run: |
+          set -euo pipefail
+          framework_common="$(mktemp "$RUNNER_TEMP/framework-common.XXXXXX")"
+          cleanup_framework_common() {
+            rm -f -- "$framework_common"
+          }
+          trap cleanup_framework_common EXIT
+          git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" show \
+            "$CANDIDATE_SHA:ci/lib/common.sh" > "$framework_common"
+          test -s "$framework_common"
+          python3 ci/tools/sync-framework-component-versions.py \
+            --validate \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --framework-common "$framework_common"
 
       - name: Prepare dedicated read-only candidate sandbox
         id: prepare-readonly-candidate-sandbox
@@ -361,11 +384,113 @@ jobs:
         run: |
           set -euo pipefail
 
-          require_only_submodule_path() {
+          require_only_allowed_update_paths() {
             changed_paths="$1"
-            changed_path_count="$(printf '%s\n' "$changed_paths" | awk 'NF { count += 1 } END { print count + 0 }')"
-            if [ "$changed_path_count" != "1" ] || [ "$changed_paths" != "$SUBMODULE_PATH" ]; then
-              echo "Maintenance branch changes paths outside $SUBMODULE_PATH: $changed_paths" >&2
+            while IFS= read -r changed_path; do
+              [ -n "$changed_path" ] || continue
+              case "$changed_path" in
+                "$SUBMODULE_PATH"|\
+                connectors/envoy/config/envoy-ext-proc-versions.env|\
+                ci/provisioning/components/prepare-runtime-components.py|\
+                ci/runtime/broker/nginx_root_broker.py|\
+                ci/runtime/broker/protected_nginx_broker_caller.py|\
+                connectors/lighttpd/lighttpd-version.contract|\
+                connectors/lighttpd/SOURCE_MAP.json|\
+                connectors/haproxy/htx-overlay/version-contract.json|\
+                ci/checks/evidence/check-runtime-producer-readiness.py|\
+                .github/workflows/test-full-smoke-sequential.yml|\
+                .github/workflows/nginx-root-broker.yml|\
+                docs/build/compilers/README.md|\
+                docs/build/compilers/README.de.md|\
+                docs/build/compilers/overview.md|\
+                docs/build/compilers/overview.de.md|\
+                docs/build/compilers/libmodsecurity.md|\
+                docs/build/compilers/libmodsecurity.de.md|\
+                docs/build/compilers/apache.md|\
+                docs/build/compilers/apache.de.md|\
+                docs/build/compilers/nginx.md|\
+                docs/build/compilers/nginx.de.md|\
+                docs/build/compilers/haproxy.md|\
+                docs/build/compilers/haproxy.de.md|\
+                docs/build/compilers/envoy.md|\
+                docs/build/compilers/envoy.de.md|\
+                docs/build/compilers/traefik.md|\
+                docs/build/compilers/traefik.de.md|\
+                docs/build/compilers/lighttpd.md|\
+                docs/build/compilers/lighttpd.de.md)
+                  ;;
+                *)
+                  echo "Maintenance branch changes an unregistered path: $changed_path" >&2
+                  exit 1
+                  ;;
+              esac
+            done <<EOF
+          $changed_paths
+          EOF
+          }
+
+          require_expected_update_raw() {
+            raw_diff="$1"
+            if ! printf '%s\n' "$raw_diff" | awk \
+              -v submodule_path="$SUBMODULE_PATH" \
+              '
+                $6 == submodule_path {
+                  records += 1
+                  if ($1 == ":160000" && $2 == "160000" && $5 == "M") {
+                    gitlinks += 1
+                  } else {
+                    invalid = 1
+                  }
+                  next
+                }
+
+                $6 == "connectors/envoy/config/envoy-ext-proc-versions.env" ||
+                $6 == "ci/provisioning/components/prepare-runtime-components.py" ||
+                $6 == "ci/runtime/broker/nginx_root_broker.py" ||
+                $6 == "ci/runtime/broker/protected_nginx_broker_caller.py" ||
+                $6 == "connectors/lighttpd/lighttpd-version.contract" ||
+                $6 == "connectors/lighttpd/SOURCE_MAP.json" ||
+                $6 == "connectors/haproxy/htx-overlay/version-contract.json" ||
+                $6 == "ci/checks/evidence/check-runtime-producer-readiness.py" ||
+                $6 == ".github/workflows/test-full-smoke-sequential.yml" ||
+                $6 == ".github/workflows/nginx-root-broker.yml" ||
+                $6 == "docs/build/compilers/README.md" ||
+                $6 == "docs/build/compilers/README.de.md" ||
+                $6 == "docs/build/compilers/overview.md" ||
+                $6 == "docs/build/compilers/overview.de.md" ||
+                $6 == "docs/build/compilers/libmodsecurity.md" ||
+                $6 == "docs/build/compilers/libmodsecurity.de.md" ||
+                $6 == "docs/build/compilers/apache.md" ||
+                $6 == "docs/build/compilers/apache.de.md" ||
+                $6 == "docs/build/compilers/nginx.md" ||
+                $6 == "docs/build/compilers/nginx.de.md" ||
+                $6 == "docs/build/compilers/haproxy.md" ||
+                $6 == "docs/build/compilers/haproxy.de.md" ||
+                $6 == "docs/build/compilers/envoy.md" ||
+                $6 == "docs/build/compilers/envoy.de.md" ||
+                $6 == "docs/build/compilers/traefik.md" ||
+                $6 == "docs/build/compilers/traefik.de.md" ||
+                $6 == "docs/build/compilers/lighttpd.md" ||
+                $6 == "docs/build/compilers/lighttpd.de.md" {
+                  records += 1
+                  if ($1 !~ /^:100[0-7][0-7][0-7]$/ || $2 !~ /^100[0-7][0-7][0-7]$/ || $5 != "M") {
+                    invalid = 1
+                  }
+                  next
+                }
+
+                NF {
+                  records += 1
+                  invalid = 1
+                }
+
+                END {
+                  exit (records >= 1 && gitlinks == 1 && !invalid) ? 0 : 1
+                }
+              '
+            then
+              echo "Maintenance change is not the expected Framework gitlink plus registered component-pin update." >&2
+              printf '%s\n' "$raw_diff" >&2
               exit 1
             fi
           }
@@ -510,18 +635,9 @@ jobs:
               exit 1
             fi
             commit_paths="$(git diff-tree --no-commit-id --name-only -r "$commit")"
-            require_only_submodule_path "$commit_paths"
-            if ! git diff-tree \
-                  --no-commit-id \
-                  --raw \
-                  --no-abbrev \
-                  --no-renames \
-                  -r \
-                  "$commit" \
-                  -- "$SUBMODULE_PATH" | awk -v path="$SUBMODULE_PATH" '$1 == ":160000" && $2 == "160000" && $5 == "M" && $6 == path { count += 1 } END { exit count == 1 ? 0 : 1 }'; then
-              echo "Maintenance commit is not exactly one Framework gitlink update: $commit" >&2
-              exit 1
-            fi
+            require_only_allowed_update_paths "$commit_paths"
+            commit_raw="$(git diff-tree --no-commit-id --raw --no-abbrev --no-renames -r "$commit")"
+            require_expected_update_raw "$commit_raw"
           }
 
           verify_open_branch_history() {
@@ -539,7 +655,7 @@ jobs:
             fi
             require_single_updater_commit "$branch_commits"
             branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"
-            require_only_submodule_path "$branch_paths"
+            require_only_allowed_update_paths "$branch_paths"
           }
 
           read_matching_merged_pr() {
@@ -646,10 +762,78 @@ jobs:
               ;;
           esac
 
+          git checkout --detach "$MASTER_HEAD"
+          declared_submodule_url="$(git config -f .gitmodules --get "submodule.$SUBMODULE_PATH.url")"
+          if [ "$declared_submodule_url" != "$SUBMODULE_URL" ]; then
+            echo "Parent submodule URL is not the official configured repository: $declared_submodule_url" >&2
+            exit 1
+          fi
+          # Initialize just the trusted Parent gitlink. Candidate nested
+          # submodules are neither initialized nor fetched by this publisher.
+          git -c protocol.file.allow=never submodule update --init -- "$SUBMODULE_PATH"
+          submodule_origin="$(git -C "$SUBMODULE_PATH" remote get-url origin)"
+          if [ "$submodule_origin" != "$SUBMODULE_URL" ]; then
+            echo "Submodule origin is not the official configured repository: $submodule_origin" >&2
+            exit 1
+          fi
+          git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" fetch --no-tags origin "$CANDIDATE_SHA"
+          git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" cat-file -e "$MASTER_OLD_SHA^{commit}"
+          git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" cat-file -e "$CANDIDATE_SHA^{commit}"
+          if ! git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" merge-base --is-ancestor "$MASTER_OLD_SHA" "$CANDIDATE_SHA"; then
+            echo "Candidate is not a descendant of the current reviewed Framework gitlink." >&2
+            exit 1
+          fi
+          framework_common="$(mktemp "$RUNNER_TEMP/framework-common.XXXXXX")"
+          cleanup_framework_common() {
+            rm -f -- "$framework_common"
+          }
+          trap cleanup_framework_common EXIT
+          git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" show \
+            "$CANDIDATE_SHA:ci/lib/common.sh" > "$framework_common"
+          test -s "$framework_common"
+
           git read-tree "$MASTER_HEAD"
           git update-index \
             --add \
             --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"
+          python3 ci/tools/sync-framework-component-versions.py \
+            --sync \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --framework-common "$framework_common"
+          python3 ci/tools/sync-framework-component-versions.py \
+            --check \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --framework-common "$framework_common"
+          python3 scripts/generate_compiler_guides.py
+          git -c core.hooksPath=/dev/null add -- \
+            connectors/envoy/config/envoy-ext-proc-versions.env \
+            ci/provisioning/components/prepare-runtime-components.py \
+            ci/runtime/broker/nginx_root_broker.py \
+            ci/runtime/broker/protected_nginx_broker_caller.py \
+            connectors/lighttpd/lighttpd-version.contract \
+            connectors/lighttpd/SOURCE_MAP.json \
+            connectors/haproxy/htx-overlay/version-contract.json \
+            ci/checks/evidence/check-runtime-producer-readiness.py \
+            .github/workflows/test-full-smoke-sequential.yml \
+            .github/workflows/nginx-root-broker.yml \
+            docs/build/compilers/README.md \
+            docs/build/compilers/README.de.md \
+            docs/build/compilers/overview.md \
+            docs/build/compilers/overview.de.md \
+            docs/build/compilers/libmodsecurity.md \
+            docs/build/compilers/libmodsecurity.de.md \
+            docs/build/compilers/apache.md \
+            docs/build/compilers/apache.de.md \
+            docs/build/compilers/nginx.md \
+            docs/build/compilers/nginx.de.md \
+            docs/build/compilers/haproxy.md \
+            docs/build/compilers/haproxy.de.md \
+            docs/build/compilers/envoy.md \
+            docs/build/compilers/envoy.de.md \
+            docs/build/compilers/traefik.md \
+            docs/build/compilers/traefik.de.md \
+            docs/build/compilers/lighttpd.md \
+            docs/build/compilers/lighttpd.de.md
 
           changed_paths="$(
             git diff \
@@ -657,50 +841,28 @@ jobs:
               --name-only \
               "$MASTER_HEAD"
           )"
-          require_only_submodule_path "$changed_paths"
+          require_only_allowed_update_paths "$changed_paths"
 
-          # `git diff --raw` abbreviates object IDs by default. The updater compares
+          # git diff --raw abbreviates object IDs by default. The updater compares
           # exact SHA-40 values, so require unabbreviated IDs and exactly one gitlink
           # modification record.
-          staged_gitlink_diff="$(
+          staged_update_diff="$(
             git diff \
               --cached \
               --raw \
               --no-abbrev \
               --no-renames \
-              "$MASTER_HEAD" \
-              -- "$SUBMODULE_PATH"
+              "$MASTER_HEAD"
           )"
-
-          if ! printf '%s\n' "$staged_gitlink_diff" |
-            awk \
-              -v old="$MASTER_OLD_SHA" \
-              -v new="$CANDIDATE_SHA" \
-              -v path="$SUBMODULE_PATH" \
-              '
-                NF {
-                  records += 1
-                }
-
-                $1 == ":160000" &&
-                $2 == "160000" &&
-                $3 == old &&
-                $4 == new &&
-                $5 == "M" &&
-                $6 == path {
-                  matches += 1
-                }
-
-                END {
-                  exit (records == 1 && matches == 1) ? 0 : 1
-                }
-              '
+          require_expected_update_raw "$staged_update_diff"
+          if ! printf '%s\n' "$staged_update_diff" | awk \
+            -v old="$MASTER_OLD_SHA" \
+            -v new="$CANDIDATE_SHA" \
+            -v path="$SUBMODULE_PATH" \
+            '$1 == ":160000" && $2 == "160000" && $3 == old && $4 == new && $5 == "M" && $6 == path { count += 1 } END { exit count == 1 ? 0 : 1 }'
           then
-            echo "Staged change is not exactly the expected Framework gitlink transition." >&2
-            echo "Expected old gitlink: $MASTER_OLD_SHA" >&2
-            echo "Expected new gitlink: $CANDIDATE_SHA" >&2
-            echo "Observed staged raw diff:" >&2
-            printf '%s\n' "$staged_gitlink_diff" >&2
+            echo "Staged update does not contain the exact expected Framework gitlink transition." >&2
+            printf '%s\n' "$staged_update_diff" >&2
             exit 1
           fi
 
@@ -765,12 +927,13 @@ jobs:
           cat > "$pr_body" <<EOF
           $PR_MARKER
 
-          Automated recursive submodule update.
+          Automated Framework gitlink and component-pin update.
 
           - Previous Framework gitlink: $MASTER_OLD_SHA
           - Proposed Framework gitlink: $CANDIDATE_SHA
           - Validation: the isolated read-only quick check passed.
-          - Changed path: $SUBMODULE_PATH only.
+          - Component pins: synchronized from the candidate's statically parsed ci/lib/common.sh and rechecked before staging.
+          - Changed paths: Framework gitlink plus the registered Parent component-pin contracts only.
           - Merge: no automatic merge.
           EOF
 

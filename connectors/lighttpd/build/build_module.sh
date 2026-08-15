@@ -83,7 +83,7 @@ fi
 if [ "$LIGHTTPD_MSCONNECTOR_CORE_MODE" = patched ]; then
     grep -Fq LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION \
         "$LIGHTTPD_HEADER_DIR/plugin.h" || \
-        blocked "patched mode requires the lighttpd 1.4.84 streaming-hook patch"
+        blocked "patched mode requires the Lighttpd streaming-hook patch selected by its version contract"
 else
     if grep -Fq LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION \
         "$LIGHTTPD_HEADER_DIR/plugin.h"; then

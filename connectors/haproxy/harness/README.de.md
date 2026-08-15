@@ -18,7 +18,7 @@ beobachteter Status, schreibt pro Fall `result.json`, hängt an
 
 Der Full-Lifecycle-Dispatcher verwendet diesen SPOA/SPOP bewusst nicht wieder
 Kompatibilitäts-Einstiegspunkt. Es ruft `runtime-smoke-haproxy-htx` auf
-`full-lifecycle-haproxy-htx`, das einen Einweg-gepatchten HAProxy 3.2.21 erstellt
+`full-lifecycle-haproxy-htx`, das einen Einweg-gepatchten Framework-synchronisierten HAProxy erstellt
 Arbeitsbaum und wählt nur `filter modsecurity-htx` aus. Es lädt die Frameworks
 kanonische No-CRS-Regeln und verwendet echte Host-Socket-Anfragen: P1-Regel `1100001`
 gibt 403 zurück, die P1-Regel `1100002` gibt 429 zurück und die P3-Regel `1100201` gibt 403 zurück
@@ -30,8 +30,9 @@ Beförderungsnachweise.
 
 Das Framework kann eine lokale HAProxy-Binärdatei ohne globale Installation vorbereiten
 bis `modules/ModSecurity-test-Framework/ci/provisioning/prepare-haproxy-runtime.sh`.
-Der generische SPOA/SPOP-Kompatibilitätsharness verwendet HAProxy `3.2.22`, der nur
-im Framework `ci/lib/common.sh` angeheftet ist; Es ist offiziell
+Der generische SPOA/SPOP-Kompatibilitätsharness verwendet die
+Framework-synchronisierte HAProxy-Release, die nur im Framework
+`ci/lib/common.sh` angeheftet ist; Ihre offizielle
 Prüfsummendatei und Quell-Makefile wurden vor dem Hinzufügen der PIN überprüft. Die
 Der vorbereitete Binärpfad lautet:
 
