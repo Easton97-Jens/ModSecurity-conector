@@ -9,7 +9,7 @@
 | Change-ID | CR-20260814-f-gs-004-hostruntime-p0 |
 | Datum (UTC) | 2026-08-14 |
 | Basis-Revision | ea3b48abab7940de49997a371f9117b409c05a2a |
-| Delivery-Status | Follow-up-Bereinigung für den offenen Parent-Draft-[PR #287](https://github.com/Easton97-Jens/ModSecurity-conector/pull/287) vorbereitet. Die initiale Follow-up-Evidence dieses Records stammt vom Head `4204a23cd1abc36469d63222a3e0edc1004fb815`; normaler Push und frische Exact-Head-Hosted-Validierung stehen noch aus. |
+| Delivery-Status | Der aktuelle User hat die Integration des Parent-[PR #287](https://github.com/Easton97-Jens/ModSecurity-conector/pull/287) nach `master` ausdrücklich autorisiert. Das Code- und Sonar-Follow-up unmittelbar vor diesem Delivery-Record-Update ist Head `04f1fb81549360b22719344dee90ec0196d63f19`: alle aktuellen PR-Checks waren terminal und bestanden, SonarQube Cloud meldete Quality Gate `OK` mit null neuen/akzeptierten Issues und null Security Hotspots, und es gab weder Reviews noch Review-Threads. Dieses gepaarte Record-Update benötigt vor dem autorisierten Merge eine frische Exact-Head-Validierung; zum Zeitpunkt dieses Commits wurde kein Pull Request gemergt. |
 
 ## Motivation und Problemstellung
 
@@ -67,7 +67,8 @@ fail-closed validiert.
 - Connector-Makefile-Integration: `connectors/envoy/Makefile` und
   `connectors/traefik/Makefile`.
 - Versionierte Dokumentation/Konfiguration: Compiler-Guides, Envoy-, Traefik-
-  und HAProxy-Reader-Dokumentation sowie `scripts/generate_compiler_guides.py`.
+  und HAProxy-Reader-Dokumentation sowie `scripts/generate_compiler_guides.py`
+  und dieser gepaarte englische/deutsche Change Record.
 - Fokussierte Tests: Hostruntime-Preflight, Workflow-Evidence,
   Lifecycle-Record, HAProxy-Resolver und HTX-Harness-Abdeckung.
 
@@ -102,9 +103,14 @@ gerechtfertigt.
 Die lokale Follow-up-Validierung bestand `git diff --check`, Python-Kompilation
 mit externem Cache, die kombinierte Preflight-/Record-Suite (38 Tests), die
 Record-Suite unter `python -O` (11 Tests) sowie
-`make test-hostruntime-preflight` (27 Tests). Frische Exact-Head-Hosted-Checks,
-das SonarQube-Cloud-Quality-Gate, die Null-offene-Issue-Abfrage, Review und
-Merge bleiben ausstehend, bis dieses Follow-up gepusht ist.
+`make test-hostruntime-preflight` (27 Tests). Am exakten Source-Follow-up-Head
+`04f1fb81549360b22719344dee90ec0196d63f19` waren alle aktuellen Hosted-
+PR-Checks terminal und bestanden; SonarQube Cloud meldete Quality Gate `OK`,
+null neue/akzeptierte Issues und null Security Hotspots; kein Review oder
+Review-Thread war offen. Dieses gepaarte Delivery-Record-Update ändert den
+PR-Head, daher ist vor dem autorisierten Merge seine frische Exact-Head-
+Validierung erforderlich. Zum Zeitpunkt dieses Dokumentationscommits erfolgte
+kein Merge.
 
 ## Ausgeführte Befehle
 
@@ -158,19 +164,22 @@ Response-Body-/P4-Semantik.
 
 ## Bekannte Einschränkungen
 
-- Der Framework-Lock stammt aus dem ungemergten Framework-Draft-PR #79. Der
-  aktuelle Parent-Gitlink muss unverändert bleiben, bis der Framework-Lifecycle
-  durch seinen eigenen autorisierten Merge abgeschlossen ist.
-- Keine Hosted-Workflow-, exakte Parent-PR-Head-Check- oder Hosted-Artefakt-
-  Evidence wurde lokal beobachtet.
+- Framework-PR #79 ist als Framework-`master`
+  `01952978772995c054ba6a4cba86adc5d0cd1e7d` gemergt. Der Parent-Gitlink
+  bleibt absichtlich unverändert; kein Parent-Pointer-Update ist Teil dieser
+  Aufgabe.
+- Hosted-PR-Evidence am unmittelbar vorherigen exakten Source-Head ersetzt
+  nicht die frische Exact-Head-Validierung, die dieses gepaarte Delivery-
+  Record-Update erfordert.
 - Kein NGINX-, HAProxy-SPOE/SPOP-, Envoy- oder Traefik-Hostprozess wurde
   gestartet: Die erforderlichen Binary-/Quellvoraussetzungen fehlen.
 
 ## Verbleibende Risiken
 
-Der Parent-Draft-PR bleibt von Framework-PR #79 abhängig und benötigt frische
-Hosted-Checks für den exakten Head, nachdem beide PRs existieren.
-Plattformspezifische Paketlayouts außerhalb des getesteten Linux-
+Die autorisierte Parent-Integration bleibt nach diesem gepaarten Delivery-
+Record-Update durch frische Exact-Head-PR-Checks, Review-/Thread- und
+Protection-Evidence sowie anschließend durch die Resulting-`master`-Workflows
+abgesichert. Plattformspezifische Paketlayouts außerhalb des getesteten Linux-
 Distributionslayouts benötigen ihre normale CI-Abdeckung. Die Nicht-HTX-
 Komponenten bleiben umgebungsblockiert statt validierte Runtime-Passes.
 
@@ -181,16 +190,21 @@ Komponenten bleiben umgebungsblockiert statt validierte Runtime-Passes.
   jeder Preflight besitzt einen aufbewahrten `BLOCKED`-Record.
 - `actionlint` wurde nicht ausgeführt, weil es lokal nicht installiert ist;
   YAML-Parsing und Workflow-Contract-Tests bestanden.
-- Hosted-CI, PR-Checks, Review, Merge und ein Parent-Gitlink-Update werden
-  nicht behauptet, weil Delivery noch nicht erfolgt und ein Merge nicht
-  autorisiert ist.
+- Der aktuelle User hat den Parent-Merge autorisiert, aber zum Zeitpunkt dieses
+  Record-Commits werden weder Merge noch Resulting-`master`-Checks behauptet.
+  Die durch dieses Dokumentationsupdate erforderliche frische Exact-Head-
+  PR-Validierung muss zuvor enden. Ein Parent-Gitlink-Update bleibt außerhalb
+  des Scopes.
 
 ## Finaler Diff- und Review-Status
 
 Der finale begrenzte Parent-Diff-Check, die fokussierte 77-Test-Suite, der
 HTX-Overlay-Check, Shell-Syntax-/ShellCheck-Checks, der Compiler-Guide-Check
-und der versiegelte Scoped Security-Diff-Review bestanden. Getrennte Commits
-und der Parent-Draft-PR stehen noch aus. Framework und Parent bleiben getrennte
-Git-Grenzen; Framework-Draft-PR #79 muss zuerst mergen, und diese Parent-
-Änderung staged absichtlich kein Gitlink-Update. Kein Pull Request wurde
+und der versiegelte Scoped Security-Diff-Review bestanden. Das Sonar-Follow-up
+bei `04f1fb81549360b22719344dee90ec0196d63f19` bestand außerdem seine
+fokussierten lokalen und Hosted-Exact-Head-Checks. Framework und Parent bleiben
+getrennte Git-Grenzen; Framework-PR #79 ist gemergt, während diese Parent-
+Änderung absichtlich kein Gitlink-Update staged. Dieses gepaarte Record-Update
+benötigt vor dem autorisierten Parent-Merge eine frische Exact-Head-
+Validierung. Zum Zeitpunkt dieses Record-Commits wurde kein Pull Request
 gemergt.

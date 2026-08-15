@@ -9,7 +9,7 @@
 | Change ID | CR-20260814-f-gs-004-hostruntime-p0 |
 | Date (UTC) | 2026-08-14 |
 | Base revision | ea3b48abab7940de49997a371f9117b409c05a2a |
-| Delivery status | Follow-up remediation is prepared for open Parent Draft [PR #287](https://github.com/Easton97-Jens/ModSecurity-conector/pull/287). This record's initial follow-up evidence is from head `4204a23cd1abc36469d63222a3e0edc1004fb815`; a normal push and fresh exact-head hosted validation remain pending. |
+| Delivery status | The current user explicitly authorized integration of Parent [PR #287](https://github.com/Easton97-Jens/ModSecurity-conector/pull/287) into `master`. The code-and-Sonar follow-up immediately before this delivery-record update is head `04f1fb81549360b22719344dee90ec0196d63f19`: all current PR checks were terminal and passing, SonarQube Cloud reported Quality Gate `OK` with zero new/accepted issues and zero security hotspots, and there were no reviews or review threads. This paired record update requires a fresh exact-head verification before the authorized merge; no pull request has been merged as of this commit. |
 
 ## Motivation and problem statement
 
@@ -63,7 +63,8 @@ the generated environment-file input are validated fail-closed.
 - Connector Makefile integration: `connectors/envoy/Makefile` and
   `connectors/traefik/Makefile`.
 - Versioned documentation/configuration: compiler guides, Envoy, Traefik, and
-  HAProxy reader documentation plus `scripts/generate_compiler_guides.py`.
+  HAProxy reader documentation plus `scripts/generate_compiler_guides.py` and
+  this paired English/German Change Record.
 - Focused tests: hostruntime preflight, workflow-evidence, lifecycle-record,
   HAProxy resolver, and HTX harness coverage.
 
@@ -95,8 +96,12 @@ Framework/MRTS source, or submodule-update-path change is justified.
 The local follow-up validation passed `git diff --check`, external-cache Python
 compilation, the combined preflight/record suite (38 tests), the record suite
 under `python -O` (11 tests), and `make test-hostruntime-preflight` (27 tests).
-Fresh exact-head hosted checks, the SonarQube Cloud Quality Gate, the zero-open
-issue query, review, and merge remain pending until this follow-up is pushed.
+At exact source follow-up head `04f1fb81549360b22719344dee90ec0196d63f19`, all
+current hosted PR checks were terminal and passing; SonarQube Cloud reported
+Quality Gate `OK`, zero new/accepted issues, and zero security hotspots; no
+review or review thread remained. This paired delivery-record update changes
+the PR head, so its fresh exact-head validation is required before the
+authorized merge. No merge has occurred as of this documentation commit.
 
 ## Commands executed
 
@@ -148,21 +153,23 @@ response-body/P4 semantics.
 
 ## Known limitations
 
-- The Framework lock is supplied from unmerged Framework Draft PR #79. The
-  current Parent Gitlink must remain unchanged until the Framework lifecycle
-  completes through its own authorized merge process.
-- No hosted workflow, exact Parent PR-head check, or hosted artifact was
-  observed locally.
+- Framework PR #79 is merged as Framework `master`
+  `01952978772995c054ba6a4cba86adc5d0cd1e7d`. The Parent Gitlink remains
+  intentionally unchanged; no Parent pointer update is selected in this task.
+- Hosted PR evidence at the immediately prior exact source head does not
+  substitute for the fresh exact-head validation required by this paired
+  delivery-record update.
 - No NGINX, HAProxy SPOE/SPOP, Envoy, or Traefik host process was started:
   their required binary/source prerequisites are absent.
 
 ## Remaining risks
 
-The Parent Draft PR remains dependent on Framework PR #79 and will require
-fresh exact-head hosted checks after both PRs exist. Platform-specific package
-layouts beyond the exercised Linux distribution layout need their normal CI
-coverage. The non-HTX components remain environment-blocked rather than
-validated runtime passes.
+The authorized Parent integration remains gated by fresh exact-head PR checks,
+review/thread and protection evidence after this paired delivery-record update,
+then by resulting-`master` workflows. Platform-specific package layouts beyond
+the exercised Linux distribution layout need their normal CI coverage. The
+non-HTX components remain environment-blocked rather than validated runtime
+passes.
 
 ## Checks not run and rationale
 
@@ -171,14 +178,19 @@ validated runtime passes.
   each preflight has a retained `BLOCKED` record.
 - `actionlint` was not run because it is not installed locally; workflow YAML
   parsing and the workflow-contract tests passed.
-- Hosted CI, PR checks, review, merge, and a Parent Gitlink update are not
-  claimed because delivery has not occurred and merge is not authorized.
+- The current user has authorized the Parent merge, but no merge or
+  resulting-`master` check is claimed as of this record commit. The fresh
+  exact-head PR validation required by this documentation update must complete
+  first. A Parent Gitlink update remains out of scope.
 
 ## Final diff and review status
 
 The final scoped Parent diff check, 77-test focused suite, HTX overlay check,
 shell syntax/ShellCheck checks, compiler-guide check, and sealed scoped
-security-diff review passed. Separate commits and the Parent Draft PR remain
-pending. The Framework and Parent remain separate Git boundaries; Framework
-Draft PR #79 must merge first, and this Parent change deliberately does not
-stage a Gitlink update. No pull request has been merged.
+security-diff review passed. The Sonar follow-up at
+`04f1fb81549360b22719344dee90ec0196d63f19` also passed its focused local and
+hosted exact-head checks. The Framework and Parent remain separate Git
+boundaries; Framework PR #79 is merged, while this Parent change deliberately
+does not stage a Gitlink update. This paired record update requires one fresh
+exact-head verification before the authorized Parent merge. No pull request
+has been merged as of this record commit.
