@@ -9,7 +9,7 @@
 | Change ID | CR-20260815-framework-version-pin-updater-sync |
 | Date (UTC) | 2026-08-15 |
 | Base revision | `29a2a8bcab57e936c5274f8fe64a15c6fee879bd` |
-| Delivery status | [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) was squash-merged into `master` at `29fdcd537dbbe16b773aafcf6038630c40c4e504`. Its initial head `f804ed598d2515fc972b8f8308678d95a5584fb7` exposed ShellCheck `SC2006`, fixed in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`; follow-ups then resolved the hosted nested-submodule fixture identity defect and 18 task-owned SonarQube Cloud New Issues with source-native root, symlink, argument, complexity, and contract fixes. The task-owned corrective [PR #292](https://github.com/Easton97-Jens/ModSecurity-conector/pull/292) follows a resulting-master failure; its initial source head `8890f7b6a06ff423444ad306ad19476fb67e29bb` passed all required checks and SonarQube Cloud reported 0 New Issues, 0 Accepted Issues, and 0 Security Hotspots. The current user authorized #292's protected `master` integration; this record does not itself grant a merge. |
+| Delivery status | [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) was squash-merged into `master` at `29fdcd537dbbe16b773aafcf6038630c40c4e504`. Its initial head `f804ed598d2515fc972b8f8308678d95a5584fb7` exposed ShellCheck `SC2006`, fixed in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`; follow-ups then resolved the hosted nested-submodule fixture identity defect and 18 task-owned SonarQube Cloud New Issues with source-native root, symlink, argument, complexity, and contract fixes. The task-owned corrective [PR #292](https://github.com/Easton97-Jens/ModSecurity-conector/pull/292) was subsequently squash-merged at `d837d3923506bd8d3d6a899c4ed22d96f6860ea7` through its exact reviewed head `b52908d7c3771c6c1f2f33b8ab71d6b95f864dda`; its PR checks and SonarQube Cloud reported 0 New Issues, 0 Accepted Issues, and 0 Security Hotspots. Resulting-master updater run `31890865141` then reached the independent FND-PARENT-0155 fixture blocker before publishing. The corrective fixture follow-up remains a separate unmerged Draft PR; this record does not itself grant a merge. |
 
 ## Motivation and problem statement
 
@@ -179,13 +179,13 @@ blocker remains from the observed GitHub and SonarQube results.
 ## Final diff and review status
 
 The local final diff review found task-owned Parent changes only, with the
-Framework source, MRTS, and Parent gitlink unchanged. The required local
-validation and security-diff review passed as recorded above. PR #291 is
-merged. Before this traceability update, PR #292 was a clean, mergeable Draft
-at source head `8890f7b6a06ff423444ad306ad19476fb67e29bb`; its required
-checks and SonarQube Cloud Quality Gate passed. This EN/DE update requires a
-fresh exact-head verification round before #292 may be marked ready and
-merged. No #292 `master` merge is asserted here.
+Framework source, MRTS, and Parent gitlink unchanged. PR #291 and the
+candidate-state corrective PR #292 are merged; #292's resulting master SHA is
+`d837d3923506bd8d3d6a899c4ed22d96f6860ea7`. Its exact master workflows passed
+except for the manually dispatched non-publishing updater run `31890865141`,
+which correctly reached and failed closed on the independent FND-PARENT-0155
+Parent fixture contract. The present fixture-only follow-up requires its own
+fresh exact-head validation and remains unmerged.
 
 ## Corrective candidate-state follow-up (PR #292)
 
@@ -193,4 +193,23 @@ The resulting-master `validate_only` updater run [`31888504635`](https://github.
 
 `ci/tools/validate-submodule-candidate-state.py` now accepts only an absent nested worktree or that empty real-directory representation. It uses `lstat` and bounded `scandir`, so symlinks, files, FIFOs, other non-directories, and nonempty non-repositories fail closed. Nonempty nested repositories still require the existing topology, Gitlink, commit, and clean-state checks; no candidate submodule is fetched or initialized. The corrective files are `ci/tools/validate-submodule-candidate-state.py`, `tests/test_validate_submodule_candidate_state.py`, and this EN/DE record pair.
 
-The exact pre-fix local reproduction failed with the hosted error; the same candidate-state command passed after the correction. `python3 -m unittest -v tests.test_update_framework_versions tests.test_validate_submodule_candidate_state tests.test_ci_security_workflows` passed 52 tests. The focused new controls cover absent/empty legitimate directories and reject a symlink, regular file, FIFO, and nonempty directory. The independent security review found no reportable or merge-blocking issue. A fresh protected-master `validate_only` run remains required after #292's authorized merge; it must not be dispatched from an arbitrary Draft branch because the secure checkout condition would test `master` rather than unmerged candidate code. FND-PARENT-0155 remains a separate downstream HAProxy-fixture issue and is not closed by this correction.
+The exact pre-fix local reproduction failed with the hosted error; the same candidate-state command passed after the correction. `python3 -m unittest -v tests.test_update_framework_versions tests.test_validate_submodule_candidate_state tests.test_ci_security_workflows` passed 52 tests. The focused new controls cover absent/empty legitimate directories and reject a symlink, regular file, FIFO, and nonempty directory. The independent security review found no reportable or merge-blocking issue. After #292 was merged, protected-master `validate_only` run `31890865141` passed this candidate-state boundary and sandbox verification, then reached the separate FND-PARENT-0155 HAProxy-fixture failure with its publisher skipped.
+
+## HAProxy fixture corrective follow-up
+
+The Parent cache-reuse fixture now uses the reviewed Framework
+`haproxy-spoe-spop` tuple: version `3.2.22`, source URL
+`https://www.haproxy.org/download/3.2/src/haproxy-3.2.22.tar.gz`, and SHA-256
+`afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da`.
+This permits the three legitimate cache-reuse cases and the independent
+BUILD_ROOT containment control to reach their intended assertions. The former
+synthetic-future success case is renamed as an explicit exit-77 negative
+control and asserts the lock-drift diagnostic. The Framework lock, workflow
+permissions, publisher separation, Framework source, MRTS, and Parent gitlink
+remain unchanged.
+
+Against exact read-only candidate `01952978772995c054ba6a4cba86adc5d0cd1e7d`,
+the complete `tests.test_prepare_runtime_components`,
+`tests.test_update_framework_versions`, and `tests.test_ci_security_workflows`
+module set passed 79 tests. `make check-bilingual-docs` and `make
+check-doc-links` also passed in the task-owned Parent clone.
