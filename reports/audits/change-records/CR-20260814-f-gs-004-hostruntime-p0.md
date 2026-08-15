@@ -194,3 +194,53 @@ boundaries; Framework PR #79 is merged, while this Parent change deliberately
 does not stage a Gitlink update. This paired record update requires one fresh
 exact-head verification before the authorized Parent merge. No pull request
 has been merged as of this record commit.
+
+## Post-merge CI fixture-portability correction
+
+PR #287 was subsequently squash-merged as Parent master
+`29a2a8bcab57e936c5274f8fe64a15c6fee879bd`. The manually dispatched Parent
+`Update submodules` run `31866612619` then reached its isolated quick check:
+submodule resolution, candidate Git-state validation, sandbox preparation, and
+source/output verification passed, but the quick check failed in
+`test_valid_lock_drives_version_and_safe_artifact_metadata`. This confirms the
+previously recorded hostruntime test-portability defect, not a submodule,
+Gitlink, Framework, or MRTS failure.
+
+The corrective test no longer invokes host-managed `/bin/true`. It copies the
+selected test interpreter into a private temporary `trusted-binaries`
+directory, passes that regular executable through the existing
+`--binary-root` and `--binary` arguments, and writes the lock version from the
+same interpreter's `sys.version_info`. This keeps a real version probe and
+successful `ldd` check while eliminating runner-specific coreutils metadata.
+The production preflight, strict version comparison, trusted-root validation,
+negative controls, updater workflow, and Gitlink remain unchanged.
+
+Changed paths for this corrective follow-up are
+`tests/test_hostruntime_preflight.py` and this existing English/German Change
+Record pair. No Framework or MRTS source, submodule revision, workflow,
+runtime artifact, dependency, or generated report changed.
+
+Actual local validation with the selected Parent virtual-environment
+interpreter passed `python -m unittest -v tests.test_hostruntime_preflight`
+(27 tests) and `make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python
+test-hostruntime-preflight` (27 tests). The focused security-diff review found
+zero reportable findings: the copied interpreter is test-runner controlled,
+exists only under `TemporaryDirectory`, and remains subject to the preflight's
+existing trusted-root, sanitized-environment, version, and dynamic-library
+controls. Existing version-mismatch, untrusted-root, and group-writable-root
+controls passed in the same focused suite. `git diff --check` passed.
+
+The task-worktree `make check-bilingual-docs` result is not a usable local
+acceptance signal: the intentionally uninitialized pinned Framework submodule
+makes its repository-wide link pass report only missing Framework link targets.
+It was therefore not treated as passing and no Framework initialization or
+update was performed. This updated English/German Change Record pair received
+a direct parity review; a hosted exact-head documentation check remains
+required.
+
+Draft corrective PR #290 is opened from
+`agent/fix-run-31866612619-hostruntime-fixture` against `master`. No SonarQube
+Cloud reanalysis, hosted exact-head check, or resulting-master rerun is claimed
+by this update. The task must use the normal protected Parent delivery path
+before any later master integration; no new master authorization is asserted
+here.
