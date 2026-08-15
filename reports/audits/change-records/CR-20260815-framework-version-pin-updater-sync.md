@@ -9,7 +9,7 @@
 | Change ID | CR-20260815-framework-version-pin-updater-sync |
 | Date (UTC) | 2026-08-15 |
 | Base revision | `29a2a8bcab57e936c5274f8fe64a15c6fee879bd` |
-| Delivery status | [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) targets `master` and is ready for review. Its initial head `f804ed598d2515fc972b8f8308678d95a5584fb7` exposed ShellCheck `SC2006`, fixed in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`; follow-ups then resolved the hosted nested-submodule fixture identity defect and 18 task-owned SonarQube Cloud New Issues with source-native root, symlink, argument, complexity, and contract fixes. The verified delivery round at `788c1a79f4ff36816141253515f1b9e5469e64ab` observed all applicable GitHub checks passing and SonarQube Cloud Quality Gate `OK` with 0 New Issues, 0 Accepted Issues, and 0 Security Hotspots. The branch was updated with one non-overlapping current-`master` commit before that round. No `master` integration was performed or is authorized by this record. |
+| Delivery status | [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) was squash-merged into `master` at `29fdcd537dbbe16b773aafcf6038630c40c4e504`. Its initial head `f804ed598d2515fc972b8f8308678d95a5584fb7` exposed ShellCheck `SC2006`, fixed in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`; follow-ups then resolved the hosted nested-submodule fixture identity defect and 18 task-owned SonarQube Cloud New Issues with source-native root, symlink, argument, complexity, and contract fixes. The task-owned corrective [PR #292](https://github.com/Easton97-Jens/ModSecurity-conector/pull/292) follows a resulting-master failure; its initial source head `8890f7b6a06ff423444ad306ad19476fb67e29bb` passed all required checks and SonarQube Cloud reported 0 New Issues, 0 Accepted Issues, and 0 Security Hotspots. The current user authorized #292's protected `master` integration; this record does not itself grant a merge. |
 
 ## Motivation and problem statement
 
@@ -180,7 +180,17 @@ blocker remains from the observed GitHub and SonarQube results.
 
 The local final diff review found task-owned Parent changes only, with the
 Framework source, MRTS, and Parent gitlink unchanged. The required local
-validation and security-diff review passed as recorded above. PR #291 is open,
-clean, mergeable, and ready for review; its verified delivery round passed the
-applicable GitHub checks and SonarQube Cloud Quality Gate. No `master` merge
-was performed.
+validation and security-diff review passed as recorded above. PR #291 is
+merged. Before this traceability update, PR #292 was a clean, mergeable Draft
+at source head `8890f7b6a06ff423444ad306ad19476fb67e29bb`; its required
+checks and SonarQube Cloud Quality Gate passed. This EN/DE update requires a
+fresh exact-head verification round before #292 may be marked ready and
+merged. No #292 `master` merge is asserted here.
+
+## Corrective candidate-state follow-up (PR #292)
+
+The resulting-master `validate_only` updater run [`31888504635`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/31888504635) selected Framework candidate `01952978772995c054ba6a4cba86adc5d0cd1e7d` and failed in `Validate exact candidate Git state` with `ERROR:FRAMEWORK_SUBMODULE_INVALID`; its publisher was skipped. The workflow intentionally initializes only the top-level Framework, so Git leaves the reviewed nested `tools/MRTS` gitlink as an existing empty real directory.
+
+`ci/tools/validate-submodule-candidate-state.py` now accepts only an absent nested worktree or that empty real-directory representation. It uses `lstat` and bounded `scandir`, so symlinks, files, FIFOs, other non-directories, and nonempty non-repositories fail closed. Nonempty nested repositories still require the existing topology, Gitlink, commit, and clean-state checks; no candidate submodule is fetched or initialized. The corrective files are `ci/tools/validate-submodule-candidate-state.py`, `tests/test_validate_submodule_candidate_state.py`, and this EN/DE record pair.
+
+The exact pre-fix local reproduction failed with the hosted error; the same candidate-state command passed after the correction. `python3 -m unittest -v tests.test_update_framework_versions tests.test_validate_submodule_candidate_state tests.test_ci_security_workflows` passed 52 tests. The focused new controls cover absent/empty legitimate directories and reject a symlink, regular file, FIFO, and nonempty directory. The independent security review found no reportable or merge-blocking issue. A fresh protected-master `validate_only` run remains required after #292's authorized merge; it must not be dispatched from an arbitrary Draft branch because the secure checkout condition would test `master` rather than unmerged candidate code. FND-PARENT-0155 remains a separate downstream HAProxy-fixture issue and is not closed by this correction.
