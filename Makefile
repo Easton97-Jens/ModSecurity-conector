@@ -1333,7 +1333,61 @@ check-python-version-contract:
 check-go-version-contract:
 	$(PYTHON) ci/checks/common/check-go-version-contract.py
 
+# Read-only host-runtime gate. Connector workflows set the reviewed runtime
+# identity and any profile-specific prerequisite arguments.
+HOSTRUNTIME_CONNECTOR ?= generic
+HOSTRUNTIME_PROFILE ?= default
+HOSTRUNTIME_EXPECTED_VERSION ?=
+HOSTRUNTIME_BINARY ?=
+HOSTRUNTIME_LOCK ?=
+HOSTRUNTIME_LOCK_ROOT ?=
+HOSTRUNTIME_LOCK_PROFILE ?=
+HOSTRUNTIME_BINARY_ROOT ?=
+HOSTRUNTIME_RUNTIME_ROOT ?= $(BUILD_ROOT)/hostruntime-evidence
+HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR ?= $(BUILD_ROOT)/hostruntime-evidence/$(HOSTRUNTIME_CONNECTOR)
+HOSTRUNTIME_HEADER ?=
+HOSTRUNTIME_SOURCE ?=
+HOSTRUNTIME_TOOL ?=
+HOSTRUNTIME_PORT ?=
+HOSTRUNTIME_WRITE_DIR ?=
+HOSTRUNTIME_DISK_PATH ?=
+HOSTRUNTIME_MIN_FREE_BYTES ?=
+HOSTRUNTIME_CONFIG ?=
+HOSTRUNTIME_FIXTURE ?=
+
+# Quote every caller-provided preflight value as one POSIX-shell argument.
+# The nested connector targets pass these variables through a recipe, so
+# double-quoting alone would allow a quote in a Make override to escape the
+# intended argument boundary before the Python validation is reached.
+hostruntime_shell_quote = '$(subst ','"'"',$(value 1))'
+
+hostruntime-preflight:
+	$(PYTHON) ci/runtime/common/hostruntime_preflight.py \
+		--connector $(call hostruntime_shell_quote,$(value HOSTRUNTIME_CONNECTOR)) \
+		--profile $(call hostruntime_shell_quote,$(value HOSTRUNTIME_PROFILE)) \
+		--runtime-root $(call hostruntime_shell_quote,$(value HOSTRUNTIME_RUNTIME_ROOT)) \
+		--output-dir $(call hostruntime_shell_quote,$(value HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR)) \
+		--expected-version $(call hostruntime_shell_quote,$(value HOSTRUNTIME_EXPECTED_VERSION)) \
+		$(if $(value HOSTRUNTIME_BINARY),--binary $(call hostruntime_shell_quote,$(value HOSTRUNTIME_BINARY)),) \
+		$(if $(value HOSTRUNTIME_BINARY_ROOT),--binary-root $(call hostruntime_shell_quote,$(value HOSTRUNTIME_BINARY_ROOT)),) \
+		$(if $(value HOSTRUNTIME_LOCK),--runtime-lock $(call hostruntime_shell_quote,$(value HOSTRUNTIME_LOCK)),) \
+		$(if $(value HOSTRUNTIME_LOCK_ROOT),--runtime-lock-root $(call hostruntime_shell_quote,$(value HOSTRUNTIME_LOCK_ROOT)),) \
+		$(if $(value HOSTRUNTIME_LOCK_PROFILE),--lock-profile $(call hostruntime_shell_quote,$(value HOSTRUNTIME_LOCK_PROFILE)),) \
+		$(if $(value HOSTRUNTIME_HEADER),--header $(call hostruntime_shell_quote,$(value HOSTRUNTIME_HEADER)),) \
+		$(if $(value HOSTRUNTIME_SOURCE),--source $(call hostruntime_shell_quote,$(value HOSTRUNTIME_SOURCE)),) \
+		$(if $(value HOSTRUNTIME_TOOL),--tool $(call hostruntime_shell_quote,$(value HOSTRUNTIME_TOOL)),) \
+		$(if $(value HOSTRUNTIME_PORT),--port $(call hostruntime_shell_quote,$(value HOSTRUNTIME_PORT)),) \
+		$(if $(value HOSTRUNTIME_WRITE_DIR),--write-dir $(call hostruntime_shell_quote,$(value HOSTRUNTIME_WRITE_DIR)),) \
+		$(if $(value HOSTRUNTIME_DISK_PATH),--disk-path $(call hostruntime_shell_quote,$(value HOSTRUNTIME_DISK_PATH)),) \
+		$(if $(value HOSTRUNTIME_MIN_FREE_BYTES),--min-free-bytes $(call hostruntime_shell_quote,$(value HOSTRUNTIME_MIN_FREE_BYTES)),) \
+		$(if $(value HOSTRUNTIME_CONFIG),--config $(call hostruntime_shell_quote,$(value HOSTRUNTIME_CONFIG)),) \
+		$(if $(value HOSTRUNTIME_FIXTURE),--fixture $(call hostruntime_shell_quote,$(value HOSTRUNTIME_FIXTURE)),)
+
+test-hostruntime-preflight:
+	$(PYTHON) -m unittest -v tests.test_hostruntime_preflight
+
 lint: check-framework
+	$(MAKE) test-hostruntime-preflight
 	find ci -type f -name '*.sh' -print0 | xargs -0 -r sh -n
 	find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -exec sh -n {} +
 	if command -v bash >/dev/null 2>&1; then find ci -type f -name '*.sh' -print0 | xargs -0 -r bash -n; find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -exec bash -n {} +; else echo "bash unavailable"; fi

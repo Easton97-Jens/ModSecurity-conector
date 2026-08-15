@@ -36,9 +36,9 @@ Abschnitt 7 baut den repository-eigenen ext_proc-Service; die offizielle Envoy-D
   Der offizielle ext_proc-Filter und der Vertrag für bidirektionale gRPC-Konfiguration. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Filter fields and semantics are release-dependent.)
 - **Quelle und Umfang:** [Envoy admin interface](https://www.envoyproxy.io/docs/envoy/latest/operations/admin.html)
   Nur auf Loopback gebundene Admin-Endpunkte und ihren lokalen Diagnosezweck. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Do not expose the local example as a general management interface.)
-- **Quelle und Umfang:** [Envoy v1.38.2 release](https://github.com/envoyproxy/envoy/releases/tag/v1.38.2)
-  Offizielle Seite des ausgewählten Releases, Binary-Asset und Prüfsummenmaterial. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (This guide pins the binary route to v1.38.2.)
-- **Quelle und Umfang:** [Envoy source/Bazel guidance](https://github.com/envoyproxy/envoy/blob/v1.38.2/bazel/README.md)
+- **Quelle und Umfang:** [Envoy v1.39.0 release](https://github.com/envoyproxy/envoy/releases/tag/v1.39.0)
+  Offizielle Seite des ausgewählten Releases, Binary-Asset und Prüfsummenmaterial. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (This guide pins the binary route to v1.39.0.)
+- **Quelle und Umfang:** [Envoy source/Bazel guidance](https://github.com/envoyproxy/envoy/blob/v1.39.0/bazel/README.md)
   Offizielle optionale Source-Build-Anleitung; sie ist ressourcenintensiv und nicht der Standardweg. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Use only with the selected tag and sufficient CPU, memory, and storage.)
 
 
@@ -96,8 +96,8 @@ Das offizielle x86_64-Artefakt wird in ein lokales Arbeitsverzeichnis geschriebe
 ```sh
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
-curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.38.2/envoy-1.38.2-linux-x86_64" -o envoy
-printf "%s  %s\n" "87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899" "envoy" | sha256sum -c -
+curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64" -o envoy
+printf "%s  %s\n" "4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218" "envoy" | sha256sum -c -
 chmod 755 envoy
 ./envoy --version
 ```

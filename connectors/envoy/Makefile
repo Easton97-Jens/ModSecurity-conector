@@ -21,6 +21,44 @@ ENVOY_RUNTIME_ROOT ?= $(if $(RUNNER_TEMP),$(RUNNER_TEMP),$(if $(TMPDIR),$(TMPDIR
 RUNTIME_EVENT_LOG_PATH ?= $(ENVOY_RUNTIME_ROOT)/events.jsonl
 LISTEN_ADDRESS ?= 127.0.0.1
 LISTEN_PORT ?= 18082
+REPO_ROOT ?= ../..
+FRAMEWORK_ROOT ?= $(REPO_ROOT)/modules/ModSecurity-test-Framework
+
+# Shared read-only host-runtime gate. These snapshots are exported to the
+# recursive root make; the recipe itself contains no caller-controlled shell
+# interpolation.
+ifeq ($(origin ENVOY_HOSTRUNTIME_PROFILE), undefined)
+ENVOY_HOSTRUNTIME_PROFILE := envoy-ext-authz
+endif
+# Do not inspect the caller-provided profile in Make conditionals. The root
+# checker validates the raw profile after safe argument transport; callers may
+# select narrower runtime and binary roots explicitly when needed.
+override ENVOY_HOSTRUNTIME_DEFAULT_ROOT := $(abspath $(BUILD_ROOT)/hostruntime/envoy)
+override ENVOY_HOSTRUNTIME_DEFAULT_BINARY_ROOT := $(abspath $(BUILD_ROOT)/hostruntime/envoy)
+ifeq ($(origin ENVOY_HOSTRUNTIME_LOCK), undefined)
+ENVOY_HOSTRUNTIME_LOCK := $(abspath $(FRAMEWORK_ROOT)/ci/provisioning/runtime-component-lock.json)
+endif
+ifeq ($(origin ENVOY_HOSTRUNTIME_RUNTIME_ROOT), undefined)
+ENVOY_HOSTRUNTIME_RUNTIME_ROOT := $(abspath $(ENVOY_HOSTRUNTIME_DEFAULT_ROOT))
+endif
+ifeq ($(origin ENVOY_HOSTRUNTIME_BINARY_ROOT), undefined)
+ENVOY_HOSTRUNTIME_BINARY_ROOT := $(abspath $(ENVOY_HOSTRUNTIME_DEFAULT_BINARY_ROOT))
+endif
+ifeq ($(origin ENVOY_HOSTRUNTIME_EXPECTED_VERSION), undefined)
+ENVOY_HOSTRUNTIME_EXPECTED_VERSION :=
+endif
+ifeq ($(origin ENVOY_HOSTRUNTIME_BINARY), undefined)
+ENVOY_HOSTRUNTIME_BINARY :=
+endif
+ifeq ($(origin ENVOY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR), undefined)
+ENVOY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR := $(abspath $(ENVOY_HOSTRUNTIME_DEFAULT_ROOT)/preflight)
+endif
+# Command-line hostruntime values are transported explicitly by the wrapper.
+# Prevent GNU Make from expanding and auto-exporting their raw text first.
+unexport ENVOY_HOSTRUNTIME_PROFILE ENVOY_HOSTRUNTIME_LOCK \
+	ENVOY_HOSTRUNTIME_EXPECTED_VERSION ENVOY_HOSTRUNTIME_BINARY \
+	ENVOY_HOSTRUNTIME_LOCK_ROOT ENVOY_HOSTRUNTIME_RUNTIME_ROOT \
+	ENVOY_HOSTRUNTIME_BINARY_ROOT ENVOY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR
 
 .PHONY: build-starter self-test self-test-envoy-bridge build-envoy-connector \
 	build-envoy-ext-proc test-envoy-ext-proc check-envoy-ext-proc-config \
@@ -29,7 +67,33 @@ LISTEN_PORT ?= 18082
 	serve-envoy-connector runtime-smoke-envoy no-crs-baseline-envoy \
 	serve-envoy-ext-proc runtime-smoke-envoy-ext-proc \
 	transport-cancel-smoke-envoy-ext-proc \
-	self-test-modsecurity clean
+	self-test-modsecurity hostruntime-preflight-envoy hostruntime-preflight-envoy-ext-authz hostruntime-preflight-envoy-ext-proc clean
+
+# Take variable names, not their values: this preserves caller text as data,
+# doubles Make metacharacters for the child Make process, and shell-quotes the
+# resulting environment assignments as one argument each.
+hostruntime_wrapper_escape_dollars = $(subst $$,$$$$,$(value $(1)))
+hostruntime_wrapper_safe_quote = '$(subst ','"'"',$(call hostruntime_wrapper_escape_dollars,$(1)))'
+hostruntime-preflight-envoy:
+	env \
+		MAKEFLAGS=$(call hostruntime_wrapper_safe_quote,MFLAGS) \
+		MAKEOVERRIDES='' \
+		HOSTRUNTIME_CONNECTOR='envoy' \
+		HOSTRUNTIME_PROFILE=$(call hostruntime_wrapper_safe_quote,ENVOY_HOSTRUNTIME_PROFILE) \
+		HOSTRUNTIME_EXPECTED_VERSION=$(call hostruntime_wrapper_safe_quote,ENVOY_HOSTRUNTIME_EXPECTED_VERSION) \
+		HOSTRUNTIME_BINARY=$(call hostruntime_wrapper_safe_quote,ENVOY_HOSTRUNTIME_BINARY) \
+		HOSTRUNTIME_BINARY_ROOT=$(call hostruntime_wrapper_safe_quote,ENVOY_HOSTRUNTIME_BINARY_ROOT) \
+		HOSTRUNTIME_LOCK=$(call hostruntime_wrapper_safe_quote,ENVOY_HOSTRUNTIME_LOCK) \
+		HOSTRUNTIME_LOCK_PROFILE=$(call hostruntime_wrapper_safe_quote,ENVOY_HOSTRUNTIME_PROFILE) \
+		HOSTRUNTIME_RUNTIME_ROOT=$(call hostruntime_wrapper_safe_quote,ENVOY_HOSTRUNTIME_RUNTIME_ROOT) \
+		HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR=$(call hostruntime_wrapper_safe_quote,ENVOY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR) \
+		$(MAKE) -C ../.. hostruntime-preflight
+
+hostruntime-preflight-envoy-ext-authz:
+	$(MAKE) ENVOY_HOSTRUNTIME_PROFILE=envoy-ext-authz hostruntime-preflight-envoy
+
+hostruntime-preflight-envoy-ext-proc:
+	$(MAKE) ENVOY_HOSTRUNTIME_PROFILE=envoy-ext-proc hostruntime-preflight-envoy
 
 build-starter:
 	BUILD_ROOT="$(BUILD_ROOT)" sh build/build_metadata.sh

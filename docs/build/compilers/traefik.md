@@ -41,9 +41,9 @@ Section 7 builds the repository native middleware and its engine service; the of
   Dynamic File Provider routers, middleware, and services. Version scope: Recheck the selected version before using another release.
 - **Source and scope:** [Traefik v3.7 health check](https://doc.traefik.io/traefik/v3.7/reference/install-configuration/observability/healthcheck/)
   The loopback ping endpoint used to confirm local host startup. Version scope: Do not enable an insecure dashboard for this local check.
-- **Source and scope:** [Traefik v3.7.5 release](https://github.com/traefik/traefik/releases/tag/v3.7.5)
-  Official fixed release material and checksum source. Version scope: This guide selects v3.7.5 as the repository-compatible host input.
-- **Source and scope:** [Traefik v3.7.5 source](https://github.com/traefik/traefik/tree/v3.7.5)
+- **Source and scope:** [Traefik v3.7.10 release](https://github.com/traefik/traefik/releases/tag/v3.7.10)
+  Official fixed release material and checksum source. Version scope: This guide selects v3.7.10 as the repository-compatible host input.
+- **Source and scope:** [Traefik v3.7.10 source](https://github.com/traefik/traefik/tree/v3.7.10)
   Official selected source tree; its go.mod defines the required host Go version. Version scope: The host's Go requirement is distinct from the repository middleware module's requirement.
 
 
@@ -58,7 +58,7 @@ export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-The repository native middleware module requires Go 1.26.5; this differs from the optional Traefik-v3.7.5 host-source requirement in Section 6.
+The repository native middleware module requires Go 1.26.5; this differs from the optional Traefik-v3.7.10 host-source requirement in Section 6.
 
 ```sh
 go version
@@ -92,7 +92,7 @@ Use the repository-compatible official Traefik release binary. Native middleware
 
 ```sh
 WORKDIR="$HOME/connector-build/traefik"
-VERSION="3.7.5"
+VERSION="3.7.10"
 ```
 
 #### Download and unpack Traefik
@@ -125,7 +125,7 @@ test -x "$WORKDIR/traefik"
 
 #### Optional: build Traefik from source
 
-Traefik v3.7.5's selected source declares Go 1.25.0 in go.mod; check that exact requirement before cloning it. This path builds only the Traefik host; the repository middleware and engine still belong to Section 7.
+Traefik v3.7.10's selected source declares Go 1.25.0 in go.mod; check that exact requirement before cloning it. This path builds only the Traefik host; the repository middleware and engine still belong to Section 7.
 
 ```sh
 go version

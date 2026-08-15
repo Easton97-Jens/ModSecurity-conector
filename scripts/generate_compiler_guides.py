@@ -34,7 +34,7 @@ MODSECURITY_OFFICIAL_SOURCE = (
 )
 HOST_DISCOVERY_OR_PREPARATION = "host discovery or preparation"
 FRAMEWORK_DEFAULT = "Framework default"
-NGINX_RELEASE_TAG = "release-1.31.2"
+NGINX_RELEASE_TAG = "release-1.31.3"
 VERIFIED_BINARY_SERVICE_SOURCE = "verified binary; service source"
 VERIFIED_BINARY_MIDDLEWARE_SERVICE_SOURCE = "verified binary; middleware/service source"
 CURRENT_CHECKOUT_COMMIT = "current checkout commit"
@@ -331,7 +331,7 @@ DETAILS: dict[str, dict[str, object]] = {
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-nginx",
         ),
         "pins": (
-            ("NGINX", "release-1.31.2 (`NGINX_SOURCE_GIT_REF`)", "https://github.com/nginx/nginx", "release-tag provenance; no configured archive SHA256"),
+            ("NGINX", "release-1.31.3 (`NGINX_SOURCE_GIT_REF`)", "https://github.com/nginx/nginx", "release-tag provenance; no configured archive SHA256"),
             ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
         "abi": (
@@ -439,7 +439,7 @@ DETAILS: dict[str, dict[str, object]] = {
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-envoy",
         ),
         "pins": (
-            ("Envoy host binary", "1.38.2 (`ENVOY_VERSION`)", "https://github.com/envoyproxy/envoy/releases/download/v1.38.2/envoy-1.38.2-linux-x86_64", "SHA256 `87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899`"),
+            ("Envoy host binary", "1.39.0 (`ENVOY_VERSION`)", "https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64", "SHA256 `4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218`"),
             ("repository ext_proc service", CURRENT_CHECKOUT_COMMIT, "connectors/envoy", "Git commit plus external build provenance"),
             ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
@@ -497,7 +497,7 @@ DETAILS: dict[str, dict[str, object]] = {
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-traefik",
         ),
         "pins": (
-            ("Traefik host binary", "3.7.5 (`TRAEFIK_VERSION`)", "https://github.com/traefik/traefik/releases/download/v3.7.5/traefik_v3.7.5_linux_amd64.tar.gz", "SHA256 `9da81a928fde965c2c4678698bbc28bc3f600223b14c32b35bd480bf5ec863dc`"),
+            ("Traefik host binary", "3.7.10 (`TRAEFIK_VERSION`)", "https://github.com/traefik/traefik/releases/download/v3.7.10/traefik_v3.7.10_linux_amd64.tar.gz", "SHA256 `01811bb12d44f17280550f425f5e3128d6c325f2665c09e67a651ca535f490ce`"),
             ("native middleware and engine service", CURRENT_CHECKOUT_COMMIT, "connectors/traefik", "Git commit plus external build provenance"),
             ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
@@ -2033,8 +2033,8 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("Static configuration", "https://www.envoyproxy.io/docs/envoy/latest/start/quick-start/configuration-static", "Listener, HTTP connection manager, route, and cluster configuration used by the loopback example.", "Listener-, HTTP-Connection-Manager-, Route- und Clusterkonfiguration des Loopback-Beispiels.", "Verify field names against the selected release."),
             ("HTTP external processing filter", "https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter", "The official ext_proc filter and bidirectional gRPC configuration contract.", "Der offizielle ext_proc-Filter und der Vertrag für bidirektionale gRPC-Konfiguration.", "Filter fields and semantics are release-dependent."),
             ("Envoy admin interface", "https://www.envoyproxy.io/docs/envoy/latest/operations/admin.html", "Loopback-only admin endpoints and their local diagnostic purpose.", "Nur auf Loopback gebundene Admin-Endpunkte und ihren lokalen Diagnosezweck.", "Do not expose the local example as a general management interface."),
-            ("Envoy v1.38.2 release", "https://github.com/envoyproxy/envoy/releases/tag/v1.38.2", "Official selected release page, binary asset, and checksum material.", "Offizielle Seite des ausgewählten Releases, Binary-Asset und Prüfsummenmaterial.", "This guide pins the binary route to v1.38.2."),
-            ("Envoy source/Bazel guidance", "https://github.com/envoyproxy/envoy/blob/v1.38.2/bazel/README.md", "Official optional source-build guidance; it is resource-intensive and not the default route.", "Offizielle optionale Source-Build-Anleitung; sie ist ressourcenintensiv und nicht der Standardweg.", "Use only with the selected tag and sufficient CPU, memory, and storage."),
+            ("Envoy v1.39.0 release", "https://github.com/envoyproxy/envoy/releases/tag/v1.39.0", "Official selected release page, binary asset, and checksum material.", "Offizielle Seite des ausgewählten Releases, Binary-Asset und Prüfsummenmaterial.", "This guide pins the binary route to v1.39.0."),
+            ("Envoy source/Bazel guidance", "https://github.com/envoyproxy/envoy/blob/v1.39.0/bazel/README.md", "Official optional source-build guidance; it is resource-intensive and not the default route.", "Offizielle optionale Source-Build-Anleitung; sie ist ressourcenintensiv und nicht der Standardweg.", "Use only with the selected tag and sufficient CPU, memory, and storage."),
             MODSECURITY_OFFICIAL_SOURCE,
         ),
         "connector_intro": (
@@ -2183,8 +2183,8 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("Traefik v3.7 EntryPoints", "https://doc.traefik.io/traefik/v3.7/reference/install-configuration/entrypoints/", "Static loopback entry-point configuration.", "Statische Konfiguration der Loopback-EntryPoints.", "Field names are release-specific."),
             ("Traefik v3.7 File Provider", "https://doc.traefik.io/traefik/v3.7/reference/routing-configuration/other-providers/file/", "Dynamic File Provider routers, middleware, and services.", "Dynamische Router, Middleware und Services des File Providers.", "Recheck the selected version before using another release."),
             ("Traefik v3.7 health check", "https://doc.traefik.io/traefik/v3.7/reference/install-configuration/observability/healthcheck/", "The loopback ping endpoint used to confirm local host startup.", "Der Loopback-Ping-Endpunkt zur Bestätigung des lokalen Hoststarts.", "Do not enable an insecure dashboard for this local check."),
-            ("Traefik v3.7.5 release", "https://github.com/traefik/traefik/releases/tag/v3.7.5", "Official fixed release material and checksum source.", "Offizielles festes Releasematerial und Prüfsummenquelle.", "This guide selects v3.7.5 as the repository-compatible host input."),
-            ("Traefik v3.7.5 source", "https://github.com/traefik/traefik/tree/v3.7.5", "Official selected source tree; its go.mod defines the required host Go version.", "Offizieller ausgewählter Source-Baum; sein go.mod definiert die benötigte Go-Version des Hosts.", "The host's Go requirement is distinct from the repository middleware module's requirement."),
+            ("Traefik v3.7.10 release", "https://github.com/traefik/traefik/releases/tag/v3.7.10", "Official fixed release material and checksum source.", "Offizielles festes Releasematerial und Prüfsummenquelle.", "This guide selects v3.7.10 as the repository-compatible host input."),
+            ("Traefik v3.7.10 source", "https://github.com/traefik/traefik/tree/v3.7.10", "Official selected source tree; its go.mod defines the required host Go version.", "Offizieller ausgewählter Source-Baum; sein go.mod definiert die benötigte Go-Version des Hosts.", "The host's Go requirement is distinct from the repository middleware module's requirement."),
         ),
         "connector_intro": (
             "A standard Traefik binary does not include the native ModSecurity middleware or the persistent engine service. Section 7 compiles and tests the repository Go middleware package, then builds the C/C++ service outside this checkout; Section 8 stages the plugin source for the local run. The engine socket must be private to the local run and must not be reused as a shared system endpoint.",
@@ -2677,12 +2677,12 @@ HOST_SETUP: dict[str, dict[str, object]] = {
     },
     "nginx": {
         "host_simple_intro": (
-            "Download only the selected official NGINX host source. The repository source of truth currently pins `NGINX_RELEASE_TAG=release-1.31.2`, which corresponds to the official `1.31.2` archive below. This does not load a connector from another repository: the connector is already in this checkout under `connectors/nginx/`.",
-            "Nur die ausgewählte offizielle NGINX-Hostquelle herunterladen. Die Repository-Source-of-Truth pinnt derzeit `NGINX_RELEASE_TAG=release-1.31.2`; dies entspricht dem unten verwendeten offiziellen Archiv `1.31.2`. Dabei wird kein Connector aus einem anderen Repository geladen: Der Connector liegt bereits in diesem Checkout unter `connectors/nginx/`.",
+            "Download only the selected official NGINX host source. The repository source of truth currently pins `NGINX_RELEASE_TAG=release-1.31.3`, which corresponds to the official `1.31.3` archive below. This does not load a connector from another repository: the connector is already in this checkout under `connectors/nginx/`.",
+            "Nur die ausgewählte offizielle NGINX-Hostquelle herunterladen. Die Repository-Source-of-Truth pinnt derzeit `NGINX_RELEASE_TAG=release-1.31.3`; dies entspricht dem unten verwendeten offiziellen Archiv `1.31.3`. Dabei wird kein Connector aus einem anderen Repository geladen: Der Connector liegt bereits in diesem Checkout unter `connectors/nginx/`.",
         ),
         "host_simple_variables": (
             'WORKDIR="$HOME/nginx-modsecurity"',
-            'VERSION="1.31.2"',
+            'VERSION="1.31.3"',
         ),
         "host_download_steps": (
             (
@@ -2812,8 +2812,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                 (
                     CREATE_WORKDIR_COMMAND,
                     CHANGE_TO_WORKDIR_COMMAND,
-                    'curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.38.2/envoy-1.38.2-linux-x86_64" -o envoy',
-                    'printf "%s  %s\\n" "87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899" "envoy" | sha256sum -c -',
+                    'curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64" -o envoy',
+                    'printf "%s  %s\\n" "4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218" "envoy" | sha256sum -c -',
                     "chmod 755 envoy",
                     "./envoy --version",
                 ),
@@ -2849,7 +2849,7 @@ HOST_SETUP: dict[str, dict[str, object]] = {
         ),
         "host_simple_variables": (
             'WORKDIR="$HOME/connector-build/traefik"',
-            'VERSION="3.7.5"',
+            'VERSION="3.7.10"',
         ),
         "host_download_steps": (
             (
@@ -2881,8 +2881,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
             (
                 "Optional: build Traefik from source",
                 "Optional: Traefik aus Source bauen",
-                "Traefik v3.7.5's selected source declares Go 1.25.0 in go.mod; check that exact requirement before cloning it. This path builds only the Traefik host; the repository middleware and engine still belong to Section 7.",
-                "Die ausgewählte Traefik-v3.7.5-Quelle deklariert Go 1.25.0 in go.mod; diese exakte Anforderung vor dem Klonen prüfen. Dieser Weg baut nur den Traefik-Host; Repository-Middleware und Engine bleiben Abschnitt 7.",
+                "Traefik v3.7.10's selected source declares Go 1.25.0 in go.mod; check that exact requirement before cloning it. This path builds only the Traefik host; the repository middleware and engine still belong to Section 7.",
+                "Die ausgewählte Traefik-v3.7.10-Quelle deklariert Go 1.25.0 in go.mod; diese exakte Anforderung vor dem Klonen prüfen. Dieser Weg baut nur den Traefik-Host; Repository-Middleware und Engine bleiben Abschnitt 7.",
                 (
                     GO_VERSION_COMMAND,
                     'git clone https://github.com/traefik/traefik.git "$WORKDIR/traefik-source"',
@@ -3779,8 +3779,8 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
             (GO_VERSION_COMMAND, 'grep -Fx "go 1.26.5" "$CONNECTOR_ROOT/connectors/envoy/ext_proc/go.mod"'),
         ),
         "traefik": (
-            "The repository native middleware module requires Go 1.26.5; this differs from the optional Traefik-v3.7.5 host-source requirement in Section 6.",
-            "Das repository-eigene native Middleware-Modul verlangt Go 1.26.5; dies unterscheidet sich von der optionalen Traefik-v3.7.5-Host-Source-Anforderung in Abschnitt 6.",
+            "The repository native middleware module requires Go 1.26.5; this differs from the optional Traefik-v3.7.10 host-source requirement in Section 6.",
+            "Das repository-eigene native Middleware-Modul verlangt Go 1.26.5; dies unterscheidet sich von der optionalen Traefik-v3.7.10-Host-Source-Anforderung in Abschnitt 6.",
             (GO_VERSION_COMMAND, 'grep -Fx "go 1.26.5" "$CONNECTOR_ROOT/connectors/traefik/native_middleware/go.mod"'),
         ),
     }
