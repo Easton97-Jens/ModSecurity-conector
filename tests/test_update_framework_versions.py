@@ -168,6 +168,9 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.common.write_text(COMMON.replace("1.40.0", "١.40.0"), encoding="utf-8")
         with self.assertRaises(SYNC.SyncError):
             SYNC.parse_common(self.common)
+        self.common.write_text(COMMON.replace("1.40.0", "1..0"), encoding="utf-8")
+        with self.assertRaises(SYNC.SyncError):
+            SYNC.parse_common(self.common)
 
     def test_missing_target_is_rejected_atomically(self) -> None:
         target = self.root / "ci/runtime/broker/nginx_root_broker.py"

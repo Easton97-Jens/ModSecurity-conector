@@ -9,6 +9,7 @@ write only the explicit Parent target registry.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from dataclasses import dataclass
 import json
 import os
@@ -21,13 +22,8 @@ import tempfile
 MAX_COMMON_BYTES = 256 * 1024
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 HEX40 = re.compile(r"^[0-9a-fA-F]{40}$")
-VERSION = re.compile(r"^\d+\.\d+\.\d+$", flags=re.ASCII)
 SAFE_PATCH = re.compile(r"^[A-Za-z0-9._-]+\.patch$")
 LIGHTTPD_SOURCE_URL = "https://download.lighttpd.net/lighttpd/releases-1.4.x/"
-# ``#`` can be part of a safe nested parameter expansion such as
-# ``${NGINX_RELEASE_TAG#release-}``; inline shell comments are deliberately
-# unsupported rather than ambiguously stripped.
-ASSIGNMENT = re.compile(r"^[ \t]*([A-Z][A-Z0-9_]*)[ \t]*=[ \t]*([^\r\n]*)$")
 
 REQUIRED = (
     "ENVOY_VERSION",
@@ -56,6 +52,38 @@ REQUIRED = (
 
 class SyncError(ValueError):
     """The approved Framework data or a fixed Parent target is unsafe."""
+
+
+def _ascii_digits(value: str) -> bool:
+    return bool(value) and all("0" <= character <= "9" for character in value)
+
+
+def _semantic_version(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    parts = value.split(".")
+    return len(parts) == 3 and all(_ascii_digits(part) for part in parts)
+
+
+def _assignment_key(value: str) -> bool:
+    if not value or not ("A" <= value[0] <= "Z"):
+        return False
+    return all(
+        "A" <= character <= "Z" or "0" <= character <= "9" or character == "_"
+        for character in value[1:]
+    )
+
+
+def _assignment(line: str) -> tuple[str, str] | None:
+    """Parse one bounded shell-like assignment without ambiguous regex matching."""
+
+    lhs, separator, rhs = line.partition("=")
+    if not separator:
+        return None
+    key = lhs.strip(" \t")
+    if not _assignment_key(key):
+        return None
+    return key, rhs.lstrip(" \t")
 
 
 @dataclass(frozen=True)
@@ -231,10 +259,15 @@ def _allowed_path(path: Path, allowed_root: Path, label: str) -> Path:
     absolute = _absolute(path)
     root = _require_directory(allowed_root, f"{label} allowed root")
     try:
-        absolute.relative_to(root)
-    except ValueError as exc:
-        raise SyncError(f"{label} is outside its allowed root: {absolute}") from exc
-    return absolute
+        resolved = absolute.resolve(strict=True)
+        resolved_root = root.resolve(strict=True)
+    except OSError as exc:
+        raise SyncError(f"cannot resolve {label}: {absolute}") from exc
+    if resolved != absolute:
+        raise SyncError(f"{label} must not contain symlinks: {absolute}")
+    if not resolved.is_relative_to(resolved_root):
+        raise SyncError(f"{label} is outside its allowed root: {absolute}")
+    return resolved
 
 
 def _framework_common_root() -> Path:
@@ -383,10 +416,10 @@ def parse_common(path: Path) -> dict[str, str]:
         raise SyncError("Framework common.sh is not UTF-8 text") from exc
     raw: dict[str, str] = {}
     for line in text.splitlines():
-        match = ASSIGNMENT.match(line)
-        if match is None:
+        assignment = _assignment(line)
+        if assignment is None:
             continue
-        key, rhs = match.groups()
+        key, rhs = assignment
         if key not in REQUIRED:
             continue
         if key in raw:
@@ -431,7 +464,7 @@ def _validate(values: dict[str, str]) -> None:
 
 def _validate_versions(values: dict[str, str]) -> None:
     for key in ("ENVOY_VERSION", "LIGHTTPD_VERSION", "HAPROXY_VERSION", "NGINX_QUIC_TLS_VERSION"):
-        if not VERSION.fullmatch(values[key]):
+        if not _semantic_version(values[key]):
             raise SyncError(f"{key} is not a semantic version")
 
 
@@ -525,10 +558,10 @@ def _lighttpd_contract(text: str, fields: tuple[tuple[str, str], ...], values: d
     }
     seen: dict[str, str] = {}
     for line in text.splitlines():
-        match = ASSIGNMENT.match(line)
-        if match is None:
+        assignment = _assignment(line)
+        if assignment is None:
             continue
-        key, rhs = match.groups()
+        key, rhs = assignment
         if key not in expected_keys:
             continue
         if key in seen:
@@ -536,7 +569,7 @@ def _lighttpd_contract(text: str, fields: tuple[tuple[str, str], ...], values: d
         seen[key] = _literal(rhs, key)
     if (
         set(seen) != expected_keys
-        or not VERSION.fullmatch(seen["LIGHTTPD_VERSION"])
+        or not _semantic_version(seen["LIGHTTPD_VERSION"])
         or seen["LIGHTTPD_SOURCE_URL"] != LIGHTTPD_SOURCE_URL
         or seen["LIGHTTPD_DOWNLOAD_URL"] != f"{seen['LIGHTTPD_SOURCE_URL']}lighttpd-{seen['LIGHTTPD_VERSION']}.tar.xz"
         or not HEX64.fullmatch(seen["LIGHTTPD_SHA256"])
@@ -561,7 +594,7 @@ def _haproxy_contract(text: str, fields: tuple[tuple[str, str], ...], values: di
         or payload.get("component") != "haproxy-htx-overlay"
         or payload.get("source_version_file") != "VERSION"
         or not isinstance(payload.get("version"), str)
-        or not VERSION.fullmatch(payload["version"])
+        or not _semantic_version(payload["version"])
         or not isinstance(payload.get("source_url"), str)
         or not isinstance(payload.get("sha256"), str)
         or not isinstance(payload.get("makefile_patch"), str)
@@ -593,7 +626,7 @@ def _lighttpd_source_map(text: str, fields: tuple[tuple[str, str], ...], values:
         raise SyncError(f"invalid Lighttpd source map upstream fields: {path}")
     version = upstream["version"]
     if (
-        not VERSION.fullmatch(version)
+        not _semantic_version(version)
         or upstream["repository"] != LIGHTTPD_SOURCE_URL
         or upstream["download_url"] != f"{upstream['repository']}lighttpd-{version}.tar.xz"
     ):
@@ -637,7 +670,7 @@ def _render_target(
     text: str,
     values: dict[str, str],
     path: Path,
-    source_value: object,
+    source_value: Callable[[str], str],
 ) -> str:
     if spec.syntax in {"shell", "yaml", "python"}:
         return _render_assignments(spec, text, path, source_value)
@@ -652,7 +685,7 @@ def _render_target(
     return renderer(text, spec.fields, values, path)
 
 
-def _render_assignments(spec: TargetSpec, text: str, path: Path, source_value: object) -> str:
+def _render_assignments(spec: TargetSpec, text: str, path: Path, source_value: Callable[[str], str]) -> str:
     replacement = text
     assignment_renderers = {
         "shell": _shell_assignment,
@@ -661,7 +694,7 @@ def _render_assignments(spec: TargetSpec, text: str, path: Path, source_value: o
     }
     renderer = assignment_renderers[spec.syntax]
     for target_name, source_name in spec.fields:
-        replacement = renderer(replacement, target_name, source_value(source_name), path)  # type: ignore[operator]
+        replacement = renderer(replacement, target_name, source_value(source_name), path)
     return replacement
 
 

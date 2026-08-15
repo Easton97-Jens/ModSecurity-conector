@@ -9,7 +9,7 @@
 | Change-ID | CR-20260815-framework-version-pin-updater-sync |
 | Datum (UTC) | 2026-08-15 |
 | Basis-Revision | `29a2a8bcab57e936c5274f8fe64a15c6fee879bd` |
-| Delivery-Status | Draft-[PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) zielt auf `master`. Sein initialer Head `f804ed598d2515fc972b8f8308678d95a5584fb7` zeigte ShellCheck `SC2006`, behoben in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`. Dieser Head zeigte danach einen Hosted-Defekt der verschachtelten-Submodule-Fixture-Identität und 18 task-eigene SonarQube-Cloud-New-Issues. Das Follow-up enthält quellnative Root-, Symlink-, Argument-, Komplexitäts- und Contract-Bereinigungen. Sein erster Hosted-`actionlint`-Recheck zeigte, dass die Updater-Testfixture temporäre Dateien unter `/tmp` statt unter GitHubs `RUNNER_TEMP` anlegte; das finale Fixture-Update folgt nun diesem Runner-Root. Frische Hosted-Validierung ist erforderlich. Eine `master`-Integration wird durch diesen Record nicht autorisiert. |
+| Delivery-Status | Draft-[PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) zielt auf `master`. Sein initialer Head `f804ed598d2515fc972b8f8308678d95a5584fb7` zeigte ShellCheck `SC2006`, behoben in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`. Dieser Head zeigte danach einen Hosted-Defekt der verschachtelten-Submodule-Fixture-Identität und 18 task-eigene SonarQube-Cloud-New-Issues. Das Follow-up enthält quellnative Root-, Symlink-, Argument-, Komplexitäts- und Contract-Bereinigungen. Sein erster Hosted-`actionlint`-Recheck zeigte, dass die Updater-Testfixture temporäre Dateien unter `/tmp` statt unter GitHubs `RUNNER_TEMP` anlegte; das finale Fixture-Update folgt nun diesem Runner-Root. Ein weiteres reines Updater-Follow-up ersetzt einen mehrdeutig backtrackenden Assignment-Matcher durch begrenztes lineares Parsing, deklariert den Value-Rendering-Callback-Contract und kanonisiert den validierten Pfad direkt an der Lesegrenze bei beibehaltenen No-Follow-Prüfungen. Frische Hosted-Validierung ist erforderlich. Eine `master`-Integration wird durch diesen Record nicht autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -76,6 +76,10 @@ Hosted Runner. Die Updater-Regression-Fixture erzeugt ihr temporäres
 Repository außerdem unterhalb von `RUNNER_TEMP`, wenn dieser GitHub-Runner-Root
 bereitgestellt wird, sodass ihre Testdaten demselben Root-Contract wie der
 Produktionsaufruf folgen.
+Der Reader kanonisiert sowohl den geprüften Kandidaten als auch seinen
+freigegebenen Root an der Dateisystemgrenze, weist jede Symlink-Auflösung ab und
+behält anschließend Komponenten-Walk, No-Follow-Descriptor-Öffnung,
+Regular-File-Prüfung und Größenbegrenzung bei.
 
 ## Geänderte Dateien
 

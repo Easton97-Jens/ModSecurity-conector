@@ -9,7 +9,7 @@
 | Change ID | CR-20260815-framework-version-pin-updater-sync |
 | Date (UTC) | 2026-08-15 |
 | Base revision | `29a2a8bcab57e936c5274f8fe64a15c6fee879bd` |
-| Delivery status | Draft [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) targets `master`. Its initial head `f804ed598d2515fc972b8f8308678d95a5584fb7` exposed ShellCheck `SC2006`, fixed in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`. That head then exposed a hosted nested-submodule fixture identity defect and 18 task-owned SonarQube Cloud New Issues. The follow-up applies source-native root, symlink, argument, complexity, and contract fixes. Its first hosted `actionlint` recheck showed that the updater test fixture created its temporary files under `/tmp` instead of GitHub's `RUNNER_TEMP`; the final fixture update now follows that runner root. Fresh hosted validation is required. `master` integration is not authorized by this record. |
+| Delivery status | Draft [PR #291](https://github.com/Easton97-Jens/ModSecurity-conector/pull/291) targets `master`. Its initial head `f804ed598d2515fc972b8f8308678d95a5584fb7` exposed ShellCheck `SC2006`, fixed in `52c25c08ac309ecbe7edb72baeeabb0841ddba30`. That head then exposed a hosted nested-submodule fixture identity defect and 18 task-owned SonarQube Cloud New Issues. The follow-up applies source-native root, symlink, argument, complexity, and contract fixes. Its first hosted `actionlint` recheck showed that the updater test fixture created its temporary files under `/tmp` instead of GitHub's `RUNNER_TEMP`; the final fixture update now follows that runner root. A further updater-only follow-up replaces an ambiguously backtracking assignment matcher with bounded linear parsing, declares the value-rendering callback contract, and canonicalizes the validated path immediately at the read boundary while retaining no-follow checks. Fresh hosted validation is required. `master` integration is not authorized by this record. |
 
 ## Motivation and problem statement
 
@@ -72,6 +72,10 @@ fixture configures its local commit identity explicitly for hosted runners.
 The updater regression fixture now also creates its temporary repository below
 `RUNNER_TEMP` when that GitHub runner root is supplied, so its test data follows
 the same root contract as the production invocation.
+The reader canonicalizes both the checked candidate and its approved root at
+the filesystem boundary, rejects any symlink resolution, and then retains the
+component walk, no-follow descriptor opening, regular-file check, and size
+bound.
 
 ## Changed files
 
