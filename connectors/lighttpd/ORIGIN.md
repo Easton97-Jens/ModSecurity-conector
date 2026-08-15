@@ -8,7 +8,8 @@ non-promoted patched-host full-lifecycle probe
 No upstream connector implementation is imported into this directory. The
 module, mapper, build scripts, and native harness are repository-owned source.
 
-The host ABI is compiled against the pinned lighttpd 1.4.84 release source and
+The host ABI is compiled against the Framework-synchronized lighttpd release source named in
+`lighttpd-version.contract` and
 its generated `config.h`. The test framework downloads/builds that release in a
 managed component cache; the upstream source and generated headers are not
 committed into this connector tree. The module links against a locally managed
@@ -18,15 +19,15 @@ libmodsecurity installation.
 | --- | --- |
 | Connector source | repository-owned files under `connectors/lighttpd/` |
 | Upstream connector source imported | none |
-| Host source | lighttpd 1.4.84 release tarball |
-| Host source URL | `https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.84.tar.xz` |
+| Host source | Framework-synchronized lighttpd release tarball; see `lighttpd-version.contract` |
+| Host source URL | Framework-synchronized `LIGHTTPD_DOWNLOAD_URL` in `lighttpd-version.contract` |
 | Host commit | release tarball; no Git commit selected |
 | Generated host ABI input | lighttpd build-tree `config.h` |
 | Native output | `mod_msconnector.so` |
 | Runtime status | stock `minimal_runtime_smoke` plus a full-lifecycle-selected patched Phase-1 host probe |
 
 The full-lifecycle profile selects `patched-native` through
-`full-lifecycle-lighttpd-patched`. That target creates a copied 1.4.84 source
+`full-lifecycle-lighttpd-patched`. That target creates a copied Framework-synchronized source
 tree, out-of-source core build, staged binary and staged ABI-matched module
 below the managed build root. It records the local patch SHA-256 and
 binary/module hashes before a real `lighttpd -tt` load. This is still only a

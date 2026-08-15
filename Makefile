@@ -359,7 +359,7 @@ check-bilingual-docs:
 	$(PYTHON) ci/checks/documentation/check-bilingual-docs.py
 
 check-ci-security-contract:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_ci_security_workflows tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_ci_security_workflows tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_update_framework_versions tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool actionlint --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool zizmor --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool gitleaks --validate-only

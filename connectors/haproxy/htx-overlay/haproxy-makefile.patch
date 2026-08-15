@@ -4,7 +4,7 @@
          src/hpack-huff.o src/hpack-enc.o src/ebtree.o src/hash.o	\
          src/version.o src/ncbmbuf.o
  
-+# Repository-owned HAProxy 3.2.21 ModSecurity HTX observer overlay.  The
++# Repository-owned version-contract-selected HAProxy ModSecurity HTX observer overlay.  The
 +# build-overlay script places only generated worktree copies under src/.
 +OBJS += src/haproxy_modsecurity_htx_filter.o \
 +        src/haproxy_modsecurity_binding.o src/haproxy_modsecurity_mapper.o \

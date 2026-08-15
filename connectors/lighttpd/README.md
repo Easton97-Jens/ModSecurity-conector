@@ -9,7 +9,7 @@ loads the connector-neutral runtime from `common/runtime`, maps real lighttpd
 request and response headers into Common SDK models, evaluates ModSecurity, and
 maps a disruptive Phase-1 decision to lighttpd with `http_status_set_err()`.
 
-Verified locally against pinned lighttpd 1.4.84 and libmodsecurity:
+Verified locally against the then-selected Framework lighttpd component and libmodsecurity:
 
 - C17 compile and link of `mod_msconnector.so` with warnings as errors;
 - real lighttpd module load and configuration check;
@@ -20,12 +20,12 @@ Verified locally against pinned lighttpd 1.4.84 and libmodsecurity:
 
 This is a narrow, partial runtime path. In the default stock build, request and
 response bodies are not implemented and are never passed to the runtime. The
-separate patched 1.4.84 pair has a source/build contract for borrowed HTTP/1.1
+separate patched Framework-synchronized pair has a source/build contract for borrowed HTTP/1.1
 request ranges and identity response-entity ranges, but that contract is not a
 response-body runtime proof. CRS, production hardening, security verification,
 and full-matrix verification are not claimed.
 
-The full-lifecycle profile selects a separate, versioned lighttpd 1.4.84
+The full-lifecycle profile selects a separate Framework-synchronized lighttpd
 patched-host target that copies, patches, configures, builds, installs, and
 stages a matching core and module together.
 `runtime-smoke-lighttpd-patched` performs an isolated patched-core/module load
@@ -44,7 +44,7 @@ The native module is in `module/mod_msconnector.c`. It provides:
 - lighttpd plugin initialization, cleanup, and configuration registration;
 - `handle_uri_clean` request-header processing;
 - `handle_response_start` response-header processing;
-- in the patched 1.4.84 ABI, synchronous borrowed request and identity
+- in the patched ABI selected by the Framework contract, synchronous borrowed request and identity
   entity-response callbacks with monotonic offsets and one response EOS;
 - one Common runtime transaction per lighttpd request;
 - Phase-1 block/error status mapping;
@@ -94,7 +94,7 @@ make -C connectors/lighttpd start-smoke-lighttpd
 make -C connectors/lighttpd runtime-smoke-lighttpd
 
 # Requires LIGHTTPD_SOURCE_DIR, MODSECURITY_INCLUDE_DIR and
-# MODSECURITY_LIB_DIR.  This builds a copied 1.4.84 core and its module
+# MODSECURITY_LIB_DIR.  This builds a copied Framework-synchronized core and its module
 # together below BUILD_ROOT/lighttpd-core-patched.
 make -C connectors/lighttpd build-lighttpd-patched-host
 make -C connectors/lighttpd check-lighttpd-patched-host

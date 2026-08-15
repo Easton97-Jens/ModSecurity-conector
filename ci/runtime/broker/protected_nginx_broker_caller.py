@@ -86,6 +86,7 @@ MAX_LOG_BYTES = 8 * 1024 * 1024
 CRS_REPOSITORY = "https://github.com/coreruleset/coreruleset.git"
 CRS_RELEASE_TAG = "v4.28.0"
 CRS_COMMIT = "55b09f5acfd16413e7b31041100711ceb7adc89c"
+NGINX_PINNED_VERSION = "1.31.3"
 CRS_RULE_ID = "949110"
 CRS_ALLOW_PATH = "/"
 CRS_BLOCK_PATH = "/?id=1%20UNION%20SELECT%20password%20FROM%20users"
@@ -453,7 +454,7 @@ def require_bound_identity(
         "framework_sha": PROTECTED_FRAMEWORK_SHA,
         "protected_broker_sha": PROTECTED_BROKER_SHA,
         "policy_profile": profile,
-        "nginx_version": "1.31.3",
+        "nginx_version": NGINX_PINNED_VERSION,
     }
     for field, expected in bindings.items():
         if value.get(field) != expected:
@@ -553,7 +554,7 @@ def validate_runtime_evidence(
         "framework_sha": PROTECTED_FRAMEWORK_SHA,
         "protected_broker_sha": PROTECTED_BROKER_SHA,
         "policy_profile": profile,
-        "nginx_version": "1.31.3",
+        "nginx_version": NGINX_PINNED_VERSION,
         "root_broker_status": "PASS",
         "cleanup_state": CLEANUP_STATE,
         "scope": WITH_CRS_SCOPE if profile == OWASP_CRS_PROFILE else NO_CRS_SCOPE,

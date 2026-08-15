@@ -17,7 +17,7 @@ static const msconnector_lighttpd_adapter_metadata lighttpd_metadata = {
         "lighttpd",
         "minimal-runtime-smoke",
         "lighttpd",
-        "The stock native Phase-1 request-header path has a real-host smoke producer. Response-header Phase 3 is implemented but not asserted. A separately patched 1.4.84 core/module pair has non-promoted borrowed request and HTTP/1 identity entity-response source hooks; its Phase-4 runtime evidence remains unverified."
+        "The stock native Phase-1 request-header path has a real-host smoke producer. Response-header Phase 3 is implemented but not asserted. A separately patched Framework-version-synchronized core/module pair has non-promoted borrowed request and HTTP/1 identity entity-response source hooks; its Phase-4 runtime evidence remains unverified."
     },
     "lighttpd",
     "lighttpd",

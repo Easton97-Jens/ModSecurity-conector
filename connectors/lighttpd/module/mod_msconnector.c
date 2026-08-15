@@ -245,7 +245,7 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
             srv->errh,
             __FILE__,
             __LINE__,
-            "stock lighttpd module requires request_body_mode=none and response_body_mode=none; rebuild lighttpd with the 1.4.84 streaming-hook patch for request streaming");
+            "stock lighttpd module requires request_body_mode=none and response_body_mode=none; rebuild lighttpd with the version-contract-selected streaming-hook patch for request streaming");
         msconnector_runtime_destroy(&p->runtime);
         return HANDLER_ERROR;
     }
@@ -557,7 +557,7 @@ static plugin_body_hook_result mod_msconnector_finish_response_body(
         phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT);
 
     if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION) {
-        /* The 1.4.84 entity hook can identify the policy point, but this
+        /* The version-contract-selected entity hook can identify the policy point, but this
          * connector does not yet have a client-validated abort primitive.
          * Do not turn a local callback result into a claimed transport abort.
          * Strict remains NOT EXECUTED until the dedicated real-client harness
@@ -567,7 +567,7 @@ static plugin_body_hook_result mod_msconnector_finish_response_body(
             r->conf.errh,
             __FILE__,
             __LINE__,
-            "msconnector strict Phase-4 intervention is NOT EXECUTED: lighttpd 1.4.84 entity hook has no client-validated connection-abort evidence");
+            "msconnector strict Phase-4 intervention is NOT EXECUTED: the Lighttpd entity hook has no client-validated connection-abort evidence");
         return PLUGIN_BODY_HOOK_CONTINUE;
     }
 

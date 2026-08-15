@@ -91,13 +91,14 @@ WORKDIR="$HOME/connector-build/envoy"
 
 #### Download the release binary
 
-The official x86_64 asset is written to a local workspace and made executable.
+The official x86_64 asset is written to a local workspace and made executable. Before using it, obtain its selected checksum from the Framework-managed Cache-v2 inventory rather than copying a stale guide checksum.
 
 ```sh
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64" -o envoy
-printf "%s  %s\n" "4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218" "envoy" | sha256sum -c -
+: "${ENVOY_SHA256:?set ENVOY_SHA256 from the Framework-managed Cache-v2 inventory}"
+printf "%s  %s\n" "$ENVOY_SHA256" "envoy" | sha256sum -c -
 chmod 755 envoy
 ./envoy --version
 ```
@@ -266,6 +267,7 @@ An official Envoy binary is only the host. If validation fails, check the genera
 | HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
 | BUILD_ROOT | External build and runtime root for repository-owned connector components. |
 | ENVOY_BIN | Verified Envoy executable. |
+| ENVOY_SHA256 | Expected binary checksum for the selected release. |
 | EXT_PROC_BIN | Repository-built ext_proc service executable. |
 | ENVOY_CONFIG | Generated loopback Envoy configuration. |
 | EXT_PROC_CONFIG | Repository ext_proc service configuration validated with the generated runtime configuration. |

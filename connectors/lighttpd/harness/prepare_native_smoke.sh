@@ -47,7 +47,7 @@ case "$RESPONSE_BODY_MODE" in
     none) ;;
     streaming)
         [ "${LIGHTTPD_ENTITY_BODY_HOOK:-0}" = 1 ] || blocked \
-            "LIGHTTPD_RESPONSE_BODY_MODE=streaming requires the patched 1.4.84 entity-body hook"
+            "LIGHTTPD_RESPONSE_BODY_MODE=streaming requires the patched Lighttpd entity-body hook"
         ;;
     *) blocked "LIGHTTPD_RESPONSE_BODY_MODE must be none or streaming" ;;
 esac

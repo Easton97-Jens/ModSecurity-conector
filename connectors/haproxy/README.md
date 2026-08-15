@@ -216,21 +216,21 @@ reports.
 
 ## Native HTX precommit overlay for the full-lifecycle profile
 
-`htx-overlay/` contains a source-linked HAProxy **3.2.21** native HTX filter for
+`htx-overlay/` contains a source-linked Framework-synchronized HAProxy native HTX filter for
 the native HTX `http_payload` and `http_end` callbacks. It is built into a
 disposable upstream worktree. `full-lifecycle-haproxy-htx` selects it, while
 the SPOE/SPOP runtime remains the separate compatibility path:
 
 ```sh
 make -C connectors/haproxy check-htx-overlay
-HAPROXY_HTX_SOURCE_DIR=/path/to/haproxy-3.2.21 \
+HAPROXY_HTX_SOURCE_DIR=/path/to/framework-synchronized-haproxy-source \
 MODSECURITY_INCLUDE_DIR=/path/to/include \
 MODSECURITY_LIB_DIR=/path/to/lib \
 BUILD_ROOT=/srv/modsecurity-work/haproxy-htx-smoke \
 make -C connectors/haproxy runtime-smoke-haproxy-htx
 ```
 
-The dedicated smoke builds a patched disposable HAProxy 3.2.21 worktree,
+The dedicated smoke builds a patched disposable Framework-synchronized HAProxy worktree,
 loads the Framework's canonical No-CRS rules, validates generated
 `filter modsecurity-htx` configuration, and sends real local socket traffic.
 It proves a normal upstream 200, canonical P1 deny replies for rule `1100001`

@@ -38,7 +38,7 @@ separate evidence-review decision.
 
 The pinned dependency is the official generated Envoy Go API module in
 `go.mod`/`go.sum`. `../config/envoy-ext-proc-versions.env` records the intended
-Envoy release (`1.39.0`) and `../config/envoy-ext-proc-streaming.yaml.in` uses
+Framework-synchronized Envoy release and `../config/envoy-ext-proc-streaming.yaml.in` uses
 only `STREAMED` body modes, never `BUFFERED`.
 
 ## Dependency security floors

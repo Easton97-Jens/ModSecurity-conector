@@ -11,6 +11,12 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260815-framework-version-pin-updater-sync](CR-20260815-framework-version-pin-updater-sync.de.md) —
+  der aktuelle Benutzer hat die Vorbereitung der Framework-zentralen
+  Synchronisationsänderung und ihrer PR-Auslieferung autorisiert. Dieser
+  Record weist nur beobachtete lokale Validierung aus; Commit, Push, PR,
+  Hosted-Checks und Merge werden hier nicht behauptet.
+
 - [CR-20260814-f-gs-004-hostruntime-p0](CR-20260814-f-gs-004-hostruntime-p0.de.md) —
   der Benutzer hat den abhängigen Draft-PR autorisiert; Delivery- und
   Nachvollziehbarkeitsrichtlinien verlangen diesen gepaarten Parent-Record.

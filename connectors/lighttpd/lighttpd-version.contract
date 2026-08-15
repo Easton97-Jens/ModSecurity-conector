@@ -1,0 +1,7 @@
+# Machine-readable Lighttpd contract.  Consumers must parse this file as data.
+# The updater replaces the complete contract when the Framework pin changes.
+LIGHTTPD_VERSION=1.4.85
+LIGHTTPD_SOURCE_URL=https://download.lighttpd.net/lighttpd/releases-1.4.x/
+LIGHTTPD_DOWNLOAD_URL=https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.85.tar.xz
+LIGHTTPD_SHA256=18de51b393bac4a6827879e1a7ff377c169e414bae92cd245091d80fc2601d13
+LIGHTTPD_PATCH_FILENAME=0001-lighttpd-msconnector-stream-hooks.patch

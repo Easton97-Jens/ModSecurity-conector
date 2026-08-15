@@ -85,14 +85,9 @@ HTTPS_URL_KEYS = (
 
 NGINX_PROTOCOL_PROFILES = ("h1", "h1-h2", "h1-h2-h3-quic")
 DEFAULT_NGINX_QUIC_TLS_LIBRARY = "openssl"
-DEFAULT_NGINX_QUIC_TLS_VERSION = "3.5.1"
-DEFAULT_NGINX_QUIC_TLS_SOURCE_URL = (
-    "https://github.com/openssl/openssl/releases/download/openssl-3.5.1/openssl-3.5.1.tar.gz"
-)
-DEFAULT_NGINX_QUIC_TLS_SOURCE_SHA256 = (
-    "529043b15cffa5f36077a4d0af83f3de399807181d607441d734196d889b641f"
-)
-
+DEFAULT_NGINX_QUIC_TLS_VERSION = "4.0.1"
+DEFAULT_NGINX_QUIC_TLS_SOURCE_URL = "https://github.com/openssl/openssl/releases/download/openssl-4.0.1/openssl-4.0.1.tar.gz"
+DEFAULT_NGINX_QUIC_TLS_SOURCE_SHA256 = "2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5afa1e6f7f37dd09"
 PATH_POLICY_ENV = dict(os.environ)
 FULL_GIT_COMMIT_ID = re.compile(r"[0-9a-fA-F]{40,64}")
 SAFE_RUNTIME_BUILD_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
@@ -126,12 +121,11 @@ NGINX_REQUIRE_PINNED_PROVENANCE_ENV = "NGINX_REQUIRE_PINNED_PROVENANCE"
 NGINX_PINNED_SOURCE_MODE = "github-release"
 NGINX_PINNED_SOURCE_REPOSITORY = "https://github.com/nginx/nginx"
 NGINX_PINNED_RELEASE_TAG = "release-1.31.3"
-NGINX_PINNED_SOURCE_REF = NGINX_PINNED_RELEASE_TAG
+NGINX_PINNED_SOURCE_REF = "release-1.31.3"
 NGINX_PINNED_RELEASE_ASSET_NAME = "nginx-1.31.3.tar.gz"
-NGINX_PINNED_RELEASE_ASSET_SHA256 = (
-    "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525"
-)
+NGINX_PINNED_RELEASE_ASSET_SHA256 = "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525"
 NGINX_PINNED_VERSION_READBACK = "nginx/1.31.3"
+DEFAULT_HAPROXY_VERSION = "3.2.22"
 NGINX_PINNED_PROVENANCE_SCHEMA_VERSION = 1
 APACHE_APXS_RELATIVE_PATH = "bin/apxs"
 UNMANAGED_CACHE_ENTRY_MARKER_MISSING_PREFIX = "unmanaged_cache_entry_marker_missing: "
@@ -778,7 +772,7 @@ def protected_nginx_broker_runtime_environment(
     expected_module = plan_root / "nginx" / "modules" / NGINX_MODULE_FILENAME
     modsecurity_prefix = _protected_nginx_broker_modsecurity_prefix(context, modsecurity)
     parent_sha, framework_sha = _protected_nginx_broker_source_revisions(context)
-    nginx_version = "1.31.3"
+    nginx_version = NGINX_PINNED_VERSION_READBACK.removeprefix("nginx/")
     nginx_release_tag = NGINX_PINNED_RELEASE_TAG
     source_repository, source_sha256 = _protected_nginx_broker_release_provenance(
         nginx_plan, nginx_release_tag
@@ -920,7 +914,7 @@ def component_patchset_roots(connector_root: Path | None, component: str) -> lis
         connector_root / "patches" / component,
         connector_root / "common" / "patches" / component,
     ]
-    # The HAProxy 3.2.21 HTX overlay is copied into a disposable upstream
+    # The version-contract-selected HAProxy HTX overlay is copied into a disposable upstream
     # worktree during its optional source-linked build. Treat its source,
     # build script, and pinned Makefile overlay exactly like a patchset so a
     # change cannot reuse a binary built from older overlay inputs.
@@ -8813,7 +8807,7 @@ def haproxy_prepare_environment(
         HAPROXY_SOURCE_ROOT=str(sources_root / "haproxy"),
         HAPROXY_DOWNLOAD_DIR=str(archives_root / "haproxy"),
         HAPROXY_SOURCE_DIR=str(
-            sources_root / "haproxy" / f"haproxy-{env.get('HAPROXY_VERSION', '3.2.19')}"
+            sources_root / "haproxy" / f"haproxy-{env.get('HAPROXY_VERSION', DEFAULT_HAPROXY_VERSION)}"
         ),
         HAPROXY_RUNTIME_BUILD_DIR=str(context["haproxy_runtime_build_dir"]),
         HAPROXY_RUNTIME_BUILD_WORKTREE=str(context["haproxy_runtime_build_worktree"]),
@@ -10104,7 +10098,9 @@ def runtime_component_environment(
         "NGINX_DOWNLOAD_DIR": str(paths["archives_root"] / "nginx"),
         "HAPROXY_SOURCE_ROOT": str(paths["haproxy_source_root"]),
         "HAPROXY_DOWNLOAD_DIR": str(paths["archives_root"] / "haproxy"),
-        "HAPROXY_SOURCE_DIR": str(paths["haproxy_source_root"] / f"haproxy-{env.get('HAPROXY_VERSION', '3.2.19')}"),
+        "HAPROXY_SOURCE_DIR": str(
+            paths["haproxy_source_root"] / f"haproxy-{env.get('HAPROXY_VERSION', DEFAULT_HAPROXY_VERSION)}"
+        ),
     }
     add_modsecurity_runtime_environment(runtime_env, components["modsecurity"])
     add_expat_runtime_environment(runtime_env, components["expat"], env)

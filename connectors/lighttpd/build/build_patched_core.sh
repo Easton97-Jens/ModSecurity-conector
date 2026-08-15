@@ -4,10 +4,11 @@ set -eu
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 CONNECTOR_DIR=$(CDPATH='' cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(CDPATH='' cd "$CONNECTOR_DIR/../.." && pwd)
+LIGHTTPD_VERSION=$(sh "$SCRIPT_DIR/read_version.sh")
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 PATCHED_ROOT=${LIGHTTPD_PATCHED_ROOT:-$BUILD_ROOT/lighttpd-core-patched}
-PATCHED_SOURCE_DIR=${LIGHTTPD_PATCHED_SOURCE_DIR:-$PATCHED_ROOT/lighttpd-1.4.84}
-CORE_BUILD_DIR=${LIGHTTPD_PATCHED_BUILD_DIR:-$PATCHED_ROOT/build-1.4.84}
+PATCHED_SOURCE_DIR=${LIGHTTPD_PATCHED_SOURCE_DIR:-$PATCHED_ROOT/lighttpd-$LIGHTTPD_VERSION}
+CORE_BUILD_DIR=${LIGHTTPD_PATCHED_BUILD_DIR:-$PATCHED_ROOT/build-$LIGHTTPD_VERSION}
 STAGE_ROOT=${LIGHTTPD_PATCHED_STAGE_DIR:-$PATCHED_ROOT/stage}
 CORE_BIN=$STAGE_ROOT/bin/lighttpd
 CORE_MANIFEST=$PATCHED_ROOT/patched-core-build-info.txt
@@ -108,8 +109,8 @@ verify_core() {
     [ -f "$CORE_BUILD_DIR/config.h" ] || blocked "patched generated config.h is missing: $CORE_BUILD_DIR/config.h"
     grep -Fq LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION "$PATCHED_SOURCE_DIR/src/plugin.h" || \
         blocked "patched plugin ABI marker is missing from $PATCHED_SOURCE_DIR"
-    "$CORE_BIN" -v 2>&1 | grep -Fq 'lighttpd/1.4.84' || \
-        blocked "staged binary does not report lighttpd/1.4.84"
+    "$CORE_BIN" -v 2>&1 | grep -Fq "lighttpd/$LIGHTTPD_VERSION" || \
+        blocked "staged binary does not report lighttpd/$LIGHTTPD_VERSION"
     for symbol in plugins_call_handle_request_body plugins_call_handle_response_body; do
         "$NM_BIN" -D "$CORE_BIN" | grep -Eq "[[:space:]][Tt][[:space:]]$symbol$" || \
             blocked "patched binary does not export required hook symbol: $symbol"
@@ -149,8 +150,8 @@ esac
 SOURCE_DIR=$(CDPATH='' cd "$LIGHTTPD_SOURCE_DIR" 2>/dev/null && pwd) || \
     blocked "LIGHTTPD_SOURCE_DIR is not accessible: $LIGHTTPD_SOURCE_DIR"
 [ -f "$SOURCE_DIR/configure.ac" ] || blocked "LIGHTTPD_SOURCE_DIR is not a lighttpd source tree"
-grep -Fq 'AC_INIT([lighttpd],[1.4.84]' "$SOURCE_DIR/configure.ac" || \
-    blocked "patched core build is pinned to lighttpd 1.4.84"
+grep -Fq "AC_INIT([lighttpd],[$LIGHTTPD_VERSION]" "$SOURCE_DIR/configure.ac" || \
+    blocked "patched core build is pinned to lighttpd $LIGHTTPD_VERSION"
 
 BUILD_ROOT="$BUILD_ROOT" \
 LIGHTTPD_SOURCE_DIR="$SOURCE_DIR" \
@@ -166,7 +167,7 @@ case "$PATCH_SHA256" in
 esac
 
 if [ -f "$CORE_MANIFEST" ]; then
-    [ "$(manifest_value lighttpd_version)" = 1.4.84 ] || \
+    [ "$(manifest_value lighttpd_version)" = "$LIGHTTPD_VERSION" ] || \
         blocked "existing patched core manifest has an unexpected lighttpd version"
     [ "$(manifest_value patch_sha256)" = "$PATCH_SHA256" ] || \
         blocked "existing patched core was built with a different patch; clean $PATCHED_ROOT first"
@@ -205,7 +206,7 @@ fi
 verify_core
 MANIFEST_TMP=$CORE_MANIFEST.tmp.$$
 {
-    printf 'lighttpd_version=1.4.84\n'
+    printf 'lighttpd_version=%s\n' "$LIGHTTPD_VERSION"
     printf 'patch_sha256=%s\n' "$PATCH_SHA256"
     printf 'patched_source_dir=%s\n' "$PATCHED_SOURCE_DIR"
     printf 'core_build_dir=%s\n' "$CORE_BUILD_DIR"

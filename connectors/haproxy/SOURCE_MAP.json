@@ -51,11 +51,11 @@
     },
     {
       "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
-      "purpose": "repository-owned HAProxy 3.2.21 native HTX observer filter with borrowed chunk callbacks, selected only by full-lifecycle-haproxy-htx"
+      "purpose": "repository-owned Framework-synchronized HAProxy native HTX observer filter with borrowed chunk callbacks, selected only by full-lifecycle-haproxy-htx"
     },
     {
-      "path": "connectors/haproxy/htx-overlay/haproxy-3.2.21-makefile.patch",
-      "purpose": "repository-owned narrow Makefile overlay for the isolated HAProxy 3.2.21 worktree"
+      "path": "connectors/haproxy/htx-overlay/haproxy-makefile.patch",
+      "purpose": "repository-owned narrow Makefile overlay for the isolated Framework-synchronized HAProxy worktree"
     },
     {
       "path": "connectors/haproxy/htx-overlay/build-overlay.sh",

@@ -9,7 +9,7 @@ Integrationsmodus: natives lighttpd-Modul namens mod_msconnector. Die
 lässt beide Body-Modi auf none. Die
 [Safe-Referenz](safe/lighttpd-http1-identity.conf) und ihre passende
 [Runtime-Datei](safe/msconnector-runtime.conf) benötigen den passenden
-gepatchten lighttpd-1.4.84-Host und das passende Modul. Ihr Scope ist auf
+Framework-synchronisierten gepatchten lighttpd-Host und das passende Modul. Ihr Scope ist auf
 geproxyte HTTP/1.1-Identity-Entity-Daten begrenzt.
 
 Die Safe-Referenz konfiguriert die P1--P4-Form mit phase4_mode safe. P1 sind
@@ -100,8 +100,9 @@ P1--P4-Verhalten ableiten.
 
 ## P1--P4-Safe-Absicht
 
-Die Safe-Referenz ist auf den passenden gepatchten nativen lighttpd-1.4.84-
-Host und Identity-HTTP/1.1-Entity-Daten über mod_proxy begrenzt. Sie wählt
+Die Safe-Referenz ist auf den passenden gepatchten nativen
+Framework-synchronisierten lighttpd-Host und Identity-HTTP/1.1-Entity-Daten
+über mod_proxy begrenzt. Sie wählt
 gestreamte Body-Modi und phase4_mode safe. Sie aktiviert weder komprimierte
 Entities noch behauptet sie HTTP/2-, HTTP/3-, File- oder Zero-Copy-
 Response-Prüfung.

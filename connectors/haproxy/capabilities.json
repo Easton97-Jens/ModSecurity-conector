@@ -11,7 +11,7 @@
     "connectors/haproxy/src/haproxy_modsecurity_mapper.c",
     "connectors/haproxy/harness/run_haproxy_smoke.sh",
     "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
-    "connectors/haproxy/htx-overlay/haproxy-3.2.21-makefile.patch",
+    "connectors/haproxy/htx-overlay/haproxy-makefile.patch",
     "connectors/haproxy/harness/run_haproxy_htx_runtime.sh"
   ],
   "host_model_constraints": [
@@ -19,7 +19,7 @@
     "Response phases run only when the HAProxy configuration sends the corresponding response notification to the agent.",
     "The selected SPOE/SPOP configuration sends response headers only; the prior wait-for-body response sample is deliberately disabled because it is not a low-latency response stream.",
     "Starter and binding self-tests are not HAProxy host-runtime evidence.",
-    "The full-lifecycle profile separately selects native-htx-filter through full-lifecycle-haproxy-htx: a patched HAProxy 3.2.21 non-promoted path with real P1/P2/P3 response outcomes and P4 safe log_only evidence. Its one-block P2 probe returns 403 and records zero or one observed upstream requests without proving their ordering; that does not prove incremental request forwarding or a general host-buffering property. P4 Strict has no client-visible abort evidence and remains NOT EXECUTED."
+    "The full-lifecycle profile separately selects native-htx-filter through full-lifecycle-haproxy-htx: a patched Framework-synchronized HAProxy non-promoted path with real P1/P2/P3 response outcomes and P4 safe log_only evidence. Its one-block P2 probe returns 403 and records zero or one observed upstream requests without proving their ordering; that does not prove incremental request forwarding or a general host-buffering property. P4 Strict has no client-visible abort evidence and remains NOT EXECUTED."
   ],
   "capabilities": {
     "connection_metadata": {

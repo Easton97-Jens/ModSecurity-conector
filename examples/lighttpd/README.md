@@ -8,7 +8,7 @@ Integration mode: native lighttpd module named mod_msconnector. The
 [minimal reference](minimal/lighttpd.conf) is for the stock host/module shape
 and keeps both body modes none. The [Safe reference](safe/lighttpd-http1-identity.conf)
 and matching [runtime file](safe/msconnector-runtime.conf) require the matching
-patched lighttpd 1.4.84 host and module. They limit scope to proxied HTTP/1.1
+patched Framework-synchronized lighttpd host and matching module. They limit scope to proxied HTTP/1.1
 identity entity data.
 
 The Safe reference configures the P1--P4 shape with phase4_mode safe. P1 is
@@ -96,7 +96,7 @@ not infer P1--P4 behavior from a disabled profile.
 
 ## P1--P4 Safe intent
 
-The Safe reference is limited to the matching patched lighttpd 1.4.84 native
+The Safe reference is limited to the matching patched Framework-synchronized lighttpd native
 host and identity HTTP/1.1 entity data through mod_proxy. It selects streaming
 body modes and phase4_mode safe. It neither enables compressed entities nor
 claims HTTP/2, HTTP/3, file, or zero-copy response inspection.

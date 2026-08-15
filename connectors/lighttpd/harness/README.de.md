@@ -35,7 +35,7 @@ gemischt mit den Beweisen des nativen Moduls.
 Der Dispatcher für den gesamten Lebenszyklus verwendet den generischen No-CRS-Bestandsläufer nicht wieder.
 Es ruft `runtime-smoke-lighttpd-patched` auf
 `full-lifecycle-lighttpd-patched`, das nur einen passenden Patch erstellt und lädt
-lighttpd 1.4.84 Kern/Modul-Paar. Das isolierte Ziel sendet das gleiche schmale Signal
+Framework-synchronisiertes lighttpd-Kern/Modul-Paar. Das isolierte Ziel sendet das gleiche schmale Signal
 Phase-1-200/403-Anfragen mit deaktivierten beiden Körpermodi; es ist kein Anfragetext,
 Response-Body-, Phase-4- oder Capability-Promotion-Evidenz.
 

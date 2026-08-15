@@ -9,12 +9,108 @@ with an obsolete command.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "docs" / "build" / "compilers"
 MARKER = "<!-- Generated from scripts/generate_compiler_guides.py; do not edit directly. -->"
+
+
+def read_assignment_contract(path: Path, expected_keys: set[str]) -> dict[str, str]:
+    """Read a bounded literal key/value contract without evaluating it."""
+
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line or line.startswith("#"):
+            continue
+        match = re.fullmatch(r"([A-Z][A-Z0-9_]*)=([^\r\n]+)", line)
+        if match is None:
+            raise RuntimeError(f"invalid contract line in {path}: {line!r}")
+        key, value = match.groups()
+        if key not in expected_keys or key in values or not value:
+            raise RuntimeError(f"invalid contract key in {path}: {key}")
+        if not re.fullmatch(r"[A-Za-z0-9:/._-]+", value):
+            raise RuntimeError(f"unsafe contract value in {path}: {key}")
+        values[key] = value
+    if set(values) != expected_keys:
+        raise RuntimeError(f"incomplete contract: {path}")
+    return values
+
+
+def read_python_literals(path: Path, expected_names: set[str]) -> dict[str, str]:
+    """Read only exact double-quoted top-level assignments from a Python data file."""
+
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = re.fullmatch(r'([A-Z][A-Z0-9_]*) = "([^"\\]+)"', line)
+        if match is None:
+            continue
+        name, value = match.groups()
+        if name not in expected_names:
+            continue
+        if name in values or not re.fullmatch(r"[A-Za-z0-9:/._-]+", value):
+            raise RuntimeError(f"invalid managed Python literal in {path}: {name}")
+        values[name] = value
+    if set(values) != expected_names:
+        raise RuntimeError(f"incomplete managed Python literals: {path}")
+    return values
+
+
+LIGHTTPD_CONTRACT = read_assignment_contract(
+    ROOT / "connectors" / "lighttpd" / "lighttpd-version.contract",
+    {
+        "LIGHTTPD_VERSION",
+        "LIGHTTPD_SOURCE_URL",
+        "LIGHTTPD_DOWNLOAD_URL",
+        "LIGHTTPD_SHA256",
+        "LIGHTTPD_PATCH_FILENAME",
+    },
+)
+HAPROXY_CONTRACT = json.loads(
+    (ROOT / "connectors" / "haproxy" / "htx-overlay" / "version-contract.json").read_text(encoding="utf-8")
+)
+if (
+    not isinstance(HAPROXY_CONTRACT, dict)
+    or HAPROXY_CONTRACT.get("schema_version") != 1
+    or HAPROXY_CONTRACT.get("component") != "haproxy-htx-overlay"
+    or not all(isinstance(HAPROXY_CONTRACT.get(key), str) for key in ("version", "source_url", "sha256", "makefile_patch"))
+):
+    raise RuntimeError("invalid HAProxy version contract")
+ENVOY_CONTRACT = read_assignment_contract(
+    ROOT / "connectors" / "envoy" / "config" / "envoy-ext-proc-versions.env",
+    {"ENVOY_RELEASE", "ENVOY_IMAGE", "ENVOY_GO_PROTO_MODULE", "ENVOY_GO_PROTO_VERSION"},
+)
+NGINX_CONTRACT = read_python_literals(
+    ROOT / "ci" / "provisioning" / "components" / "prepare-runtime-components.py",
+    {
+        "NGINX_PINNED_SOURCE_REPOSITORY",
+        "NGINX_PINNED_RELEASE_TAG",
+        "NGINX_PINNED_SOURCE_REF",
+        "NGINX_PINNED_RELEASE_ASSET_NAME",
+        "NGINX_PINNED_RELEASE_ASSET_SHA256",
+        "NGINX_PINNED_VERSION_READBACK",
+    },
+)
+LIGHTTPD_VERSION = LIGHTTPD_CONTRACT["LIGHTTPD_VERSION"]
+LIGHTTPD_SOURCE_URL = LIGHTTPD_CONTRACT["LIGHTTPD_SOURCE_URL"]
+LIGHTTPD_DOWNLOAD_URL = LIGHTTPD_CONTRACT["LIGHTTPD_DOWNLOAD_URL"]
+LIGHTTPD_SHA256 = LIGHTTPD_CONTRACT["LIGHTTPD_SHA256"]
+LIGHTTPD_PATCH_FILENAME = LIGHTTPD_CONTRACT["LIGHTTPD_PATCH_FILENAME"]
+HAPROXY_VERSION = HAPROXY_CONTRACT["version"]
+HAPROXY_SOURCE_URL = HAPROXY_CONTRACT["source_url"]
+HAPROXY_SHA256 = HAPROXY_CONTRACT["sha256"]
+HAPROXY_MAKEFILE_PATCH = HAPROXY_CONTRACT["makefile_patch"]
+ENVOY_VERSION = ENVOY_CONTRACT["ENVOY_RELEASE"]
+ENVOY_RELEASE_TAG = f"v{ENVOY_VERSION}"
+ENVOY_DOWNLOAD_URL = (
+    f"https://github.com/envoyproxy/envoy/releases/download/{ENVOY_RELEASE_TAG}/"
+    f"envoy-{ENVOY_VERSION}-linux-x86_64"
+)
+NGINX_RELEASE_TAG = NGINX_CONTRACT["NGINX_PINNED_RELEASE_TAG"]
+NGINX_VERSION = NGINX_RELEASE_TAG.removeprefix("release-")
 
 APACHE_HTTP_SERVER = "Apache HTTP Server"
 MODSECURITY_GIT_REF_PIN = "configured `MODSECURITY_GIT_REF` (default `v3/master`)"
@@ -34,7 +130,6 @@ MODSECURITY_OFFICIAL_SOURCE = (
 )
 HOST_DISCOVERY_OR_PREPARATION = "host discovery or preparation"
 FRAMEWORK_DEFAULT = "Framework default"
-NGINX_RELEASE_TAG = "release-1.31.3"
 VERIFIED_BINARY_SERVICE_SOURCE = "verified binary; service source"
 VERIFIED_BINARY_MIDDLEWARE_SERVICE_SOURCE = "verified binary; middleware/service source"
 CURRENT_CHECKOUT_COMMIT = "current checkout commit"
@@ -331,7 +426,7 @@ DETAILS: dict[str, dict[str, object]] = {
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-nginx",
         ),
         "pins": (
-            ("NGINX", "release-1.31.3 (`NGINX_SOURCE_GIT_REF`)", "https://github.com/nginx/nginx", "release-tag provenance; no configured archive SHA256"),
+            ("NGINX", f"{NGINX_RELEASE_TAG} (`NGINX_SOURCE_GIT_REF`)", NGINX_CONTRACT["NGINX_PINNED_SOURCE_REPOSITORY"], "release-tag provenance; no configured archive SHA256"),
             ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
         "abi": (
@@ -384,7 +479,7 @@ DETAILS: dict[str, dict[str, object]] = {
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-haproxy",
         ),
         "pins": (
-            ("HAProxy", "3.2.21 (`HAPROXY_VERSION`)", "https://www.haproxy.org/download/3.2/src/haproxy-3.2.21.tar.gz", "SHA256 `0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339`"),
+            ("HAProxy", f"{HAPROXY_VERSION} (`HAPROXY_VERSION`)", HAPROXY_SOURCE_URL, f"SHA256 `{HAPROXY_SHA256}`"),
             ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
         "abi": (
@@ -403,7 +498,7 @@ DETAILS: dict[str, dict[str, object]] = {
         ),
         "cleanup": ("sudo apt remove haproxy", "sudo dnf remove haproxy"),
         "vars": (
-            ("HAPROXY_VERSION", "3.2.21", "3.2.21", "Pinned HAProxy source version for selected overlay.", "Gepinnte HAProxy-Source-Version für das ausgewählte Overlay."),
+            ("HAPROXY_VERSION", HAPROXY_VERSION, HAPROXY_VERSION, "Pinned HAProxy source version for selected overlay.", "Gepinnte HAProxy-Source-Version für das ausgewählte Overlay."),
             ("HAPROXY_SOURCE_URL", FRAMEWORK_DEFAULT, "official HAProxy source URL", "Source URL verified by preparation.", "Von der Vorbereitung verifizierte Source-URL."),
             ("HAPROXY_SHA256", FRAMEWORK_DEFAULT, "pinned SHA256", "Integrity input for selected HAProxy archive.", "Integritätseingabe für das ausgewählte HAProxy-Archiv."),
             ("HAPROXY_SOURCE_DIR", "generated external source directory", "external HAProxy source directory", "Provisioned source for native HTX overlay.", "Provisionierte Quelle für das native HTX-Overlay."),
@@ -439,7 +534,7 @@ DETAILS: dict[str, dict[str, object]] = {
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-envoy",
         ),
         "pins": (
-            ("Envoy host binary", "1.39.0 (`ENVOY_VERSION`)", "https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64", "SHA256 `4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218`"),
+            ("Envoy host binary", f"{ENVOY_VERSION} (`ENVOY_VERSION`)", ENVOY_DOWNLOAD_URL, "Framework-selected binary provenance; inspect Cache-v2 inventory"),
             ("repository ext_proc service", CURRENT_CHECKOUT_COMMIT, "connectors/envoy", "Git commit plus external build provenance"),
             ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
@@ -536,8 +631,8 @@ DETAILS: dict[str, dict[str, object]] = {
             "Git, ein beschreibbarer externer Stamm, C/C++-Buildtools, Patch-/Buildvoraussetzungen, libmodsecurity-Eingaben und das Framework-Submodule. Das explizite lighttpd-Vorbereitungstarget aktiviert den gepinnten Source-Build-Weg.",
         ),
         "source_prerequisites": (
-            "The selected route needs lighttpd-1.4.84 source, the repository patchset, a patched core, and a module built against matching headers. The root targets own patch check/application, configuration, staging, and real-host execution.",
-            "Der ausgewählte Weg benötigt lighttpd-1.4.84-Source, das Repository-Patchset, einen gepatchten Core und ein Modul gegen passende Header. Die Root-Targets besitzen Patchprüfung/-anwendung, Konfiguration, Staging und reale Hostausführung.",
+            f"The selected route needs lighttpd-{LIGHTTPD_VERSION} source, the repository patchset, a patched core, and a module built against matching headers. The root targets own patch check/application, configuration, staging, and real-host execution.",
+            f"Der ausgewählte Weg benötigt lighttpd-{LIGHTTPD_VERSION}-Source, das Repository-Patchset, einen gepatchten Core und ein Modul gegen passende Header. Die Root-Targets besitzen Patchprüfung/-anwendung, Konfiguration, Staging und reale Hostausführung.",
         ),
         "source_commands": (
             "LIGHTTPD_MAKE_JOBS=\"$jobs\" make -C connectors/lighttpd check-lighttpd-core-patch",
@@ -550,7 +645,7 @@ DETAILS: dict[str, dict[str, object]] = {
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-lighttpd",
         ),
         "pins": (
-            ("lighttpd host source", "1.4.84 (`LIGHTTPD_VERSION`)", "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.84.tar.xz", "SHA256 `076dd43bec8f2ba9ce6db7e7ca7e8ad72271cd529805ead2400b56efaa026f70`"),
+            ("lighttpd host source", f"{LIGHTTPD_VERSION} (`LIGHTTPD_VERSION`)", LIGHTTPD_DOWNLOAD_URL, f"SHA256 `{LIGHTTPD_SHA256}`"),
             ("repository patchset", CURRENT_CHECKOUT_COMMIT, "connectors/lighttpd/patches", "Git commit plus patch-check provenance"),
             ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
@@ -571,7 +666,7 @@ DETAILS: dict[str, dict[str, object]] = {
         "cleanup": ("sudo apt remove lighttpd", "sudo dnf remove lighttpd"),
         "vars": (
             ("LIGHTTPD_BIN", "generated external host binary", "external patched lighttpd binary", "Pinned host binary for selected patched route.", "Gepinntes Hostbinary für den ausgewählten gepatchten Weg."),
-            ("LIGHTTPD_SOURCE_DIR", "generated external source directory", "external lighttpd-1.4.84 source directory", "Staged source for patch and module steps.", "Gestagte Quelle für Patch- und Modulschritte."),
+            ("LIGHTTPD_SOURCE_DIR", "generated external source directory", f"external lighttpd-{LIGHTTPD_VERSION} source directory", "Staged source for patch and module steps.", "Gestagte Quelle für Patch- und Modulschritte."),
             ("LIGHTTPD_BUILD_ROOT", "derived external build directory", "external patched-core build directory", "Patched core build root outside checkout.", "Gepatchter Core-Build-Root außerhalb des Checkouts."),
             ("LIGHTTPD_INCLUDE_DIR", "derived from source", "external lighttpd source include directory", "Header directory that must match the patched host and connector module.", "Headerverzeichnis, das zu gepatchtem Host und Connectormodul passen muss."),
             ("LIGHTTPD_MODULE_DIR", "derived external module directory", "external module directory", "Module location for patched host ABI.", "Modulort für die gepatchte Host-ABI."),
@@ -1869,8 +1964,8 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
     },
     "haproxy": {
         "components": (
-            "libmodsecurity v3, HAProxy 3.2.21 source, the repository native HTX filter/overlay, the Common bridge, a local rule file, a loopback frontend, and a loopback upstream.",
-            "libmodsecurity v3, HAProxy-3.2.21-Source, der repository-eigene native HTX-Filter/Overlay, die Common-Bridge, eine lokale Regeldatei, ein Loopback-Frontend und ein Loopback-Upstream.",
+            f"libmodsecurity v3, HAProxy {HAPROXY_VERSION} source, the repository native HTX filter/overlay, the Common bridge, a local rule file, a loopback frontend, and a loopback upstream.",
+            f"libmodsecurity v3, HAProxy-{HAPROXY_VERSION}-Source, der repository-eigene native HTX-Filter/Overlay, die Common-Bridge, eine lokale Regeldatei, ein Loopback-Frontend und ein Loopback-Upstream.",
         ),
         "repository_connector_title": ("HAProxy connector", "HAProxy-Connector"),
         "repository_connector_path": "connectors/haproxy",
@@ -1917,7 +2012,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
         "official_sources": (
             ("HAProxy INSTALL", "https://github.com/haproxy/haproxy/blob/master/INSTALL", "Official target selection, build options, compilation, and installation guidance.", "Offizielle Anleitung zur Target-Auswahl, Buildoptionen, Kompilierung und Installation.", "Read the INSTALL file for the exact selected HAProxy release."),
             ("HAProxy Documentation", "https://docs.haproxy.org/", "Configuration syntax and CLI documentation for `haproxy -c` and runtime operation.", "Konfigurationssyntax und CLI-Dokumentation für `haproxy -c` und den Laufzeitbetrieb.", "Use documentation matching the selected major/minor series."),
-            ("HAProxy Releases", "https://www.haproxy.org/download/", "Official source downloads and release series selection.", "Offizielle Source-Downloads und Auswahl der Release-Serie.", "The repository overlay currently fixes its compatible source to 3.2.21."),
+            ("HAProxy Releases", "https://www.haproxy.org/download/", "Official source downloads and release series selection.", "Offizielle Source-Downloads und Auswahl der Release-Serie.", f"The repository overlay currently fixes its compatible source to {HAPROXY_VERSION}."),
             MODSECURITY_OFFICIAL_SOURCE,
         ),
         "connector_intro": (
@@ -1981,8 +2076,8 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("HAPROXY_CONFIG", "Local loopback HAProxy configuration.", "Lokale Loopback-HAProxy-Konfiguration."),
         ),
         "troubleshoot": (
-            "The overlay refuses a version other than 3.2.21, an in-tree build directory, missing libmodsecurity headers, or a missing library. Treat that as a compatibility boundary, not as a reason to substitute a SPOA result.",
-            "Der Overlay verweigert eine andere Version als 3.2.21, ein In-Tree-Buildverzeichnis, fehlende libmodsecurity-Header oder eine fehlende Bibliothek. Das als Kompatibilitätsgrenze behandeln, nicht als Grund, ein SPOA-Ergebnis einzusetzen.",
+            f"The overlay refuses a version other than {HAPROXY_VERSION}, an in-tree build directory, missing libmodsecurity headers, or a missing library. Treat that as a compatibility boundary, not as a reason to substitute a SPOA result.",
+            f"Der Overlay verweigert eine andere Version als {HAPROXY_VERSION}, ein In-Tree-Buildverzeichnis, fehlende libmodsecurity-Header oder eine fehlende Bibliothek. Das als Kompatibilitätsgrenze behandeln, nicht als Grund, ein SPOA-Ergebnis einzusetzen.",
         ),
     },
     "envoy": {
@@ -2033,8 +2128,8 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("Static configuration", "https://www.envoyproxy.io/docs/envoy/latest/start/quick-start/configuration-static", "Listener, HTTP connection manager, route, and cluster configuration used by the loopback example.", "Listener-, HTTP-Connection-Manager-, Route- und Clusterkonfiguration des Loopback-Beispiels.", "Verify field names against the selected release."),
             ("HTTP external processing filter", "https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter", "The official ext_proc filter and bidirectional gRPC configuration contract.", "Der offizielle ext_proc-Filter und der Vertrag für bidirektionale gRPC-Konfiguration.", "Filter fields and semantics are release-dependent."),
             ("Envoy admin interface", "https://www.envoyproxy.io/docs/envoy/latest/operations/admin.html", "Loopback-only admin endpoints and their local diagnostic purpose.", "Nur auf Loopback gebundene Admin-Endpunkte und ihren lokalen Diagnosezweck.", "Do not expose the local example as a general management interface."),
-            ("Envoy v1.39.0 release", "https://github.com/envoyproxy/envoy/releases/tag/v1.39.0", "Official selected release page, binary asset, and checksum material.", "Offizielle Seite des ausgewählten Releases, Binary-Asset und Prüfsummenmaterial.", "This guide pins the binary route to v1.39.0."),
-            ("Envoy source/Bazel guidance", "https://github.com/envoyproxy/envoy/blob/v1.39.0/bazel/README.md", "Official optional source-build guidance; it is resource-intensive and not the default route.", "Offizielle optionale Source-Build-Anleitung; sie ist ressourcenintensiv und nicht der Standardweg.", "Use only with the selected tag and sufficient CPU, memory, and storage."),
+            (f"Envoy {ENVOY_RELEASE_TAG} release", f"https://github.com/envoyproxy/envoy/releases/tag/{ENVOY_RELEASE_TAG}", "Official selected release page, binary asset, and checksum material.", "Offizielle Seite des ausgewählten Releases, Binary-Asset und Prüfsummenmaterial.", f"This guide pins the binary route to {ENVOY_RELEASE_TAG}."),
+            ("Envoy source/Bazel guidance", f"https://github.com/envoyproxy/envoy/blob/{ENVOY_RELEASE_TAG}/bazel/README.md", "Official optional source-build guidance; it is resource-intensive and not the default route.", "Offizielle optionale Source-Build-Anleitung; sie ist ressourcenintensiv und nicht der Standardweg.", "Use only with the selected tag and sufficient CPU, memory, and storage."),
             MODSECURITY_OFFICIAL_SOURCE,
         ),
         "connector_intro": (
@@ -2292,8 +2387,8 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
     },
     "lighttpd": {
         "components": (
-            "libmodsecurity v3, lighttpd 1.4.84 source, the repository Entity-Body patch, a patched host, a matching connector module, a local runtime configuration, and loopback HTTP/1.1 traffic.",
-            "libmodsecurity v3, lighttpd-1.4.84-Source, der repository-eigene Entity-Body-Patch, ein gepatchter Host, ein passendes Connectormodul, eine lokale Laufzeitkonfiguration und HTTP/1.1-Traffic auf Loopback.",
+            f"libmodsecurity v3, lighttpd {LIGHTTPD_VERSION} source, the repository Entity-Body patch, a patched host, a matching connector module, a local runtime configuration, and loopback HTTP/1.1 traffic.",
+            f"libmodsecurity v3, lighttpd-{LIGHTTPD_VERSION}-Source, der repository-eigene Entity-Body-Patch, ein gepatchter Host, ein passendes Connectormodul, eine lokale Laufzeitkonfiguration und HTTP/1.1-Traffic auf Loopback.",
         ),
         "repository_connector_title": ("lighttpd connector", "lighttpd-Connector"),
         "repository_connector_path": "connectors/lighttpd",
@@ -2327,7 +2422,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             (
                 "Entity-Body patch",
                 "Entity-Body-Patch",
-                "../../../connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch",
+                f"../../../connectors/lighttpd/patches/{LIGHTTPD_PATCH_FILENAME}",
             ),
             (
                 SOURCE_MAPPING_HEADING,
@@ -2421,8 +2516,8 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("LIGHTTPD_CONFIG", "Local lighttpd server configuration.", "Lokale lighttpd-Serverkonfiguration."),
         ),
         "troubleshoot": (
-            "If patch dry-run fails, do not force it: verify the exact 1.4.84 source and patch checksum. If the module cannot load, rebuild the patched core and module from the same source/header/configuration set.",
-            "Wenn der Patch-Dry-Run fehlschlägt, ihn nicht erzwingen: die exakte 1.4.84-Quelle und Patch-Prüfsumme prüfen. Kann das Modul nicht geladen werden, gepatchten Core und Modul aus demselben Source-/Header-/Konfigurationssatz neu bauen.",
+            f"If patch dry-run fails, do not force it: verify the exact {LIGHTTPD_VERSION} source and patch checksum. If the module cannot load, rebuild the patched core and module from the same source/header/configuration set.",
+            f"Wenn der Patch-Dry-Run fehlschlägt, ihn nicht erzwingen: die exakte {LIGHTTPD_VERSION}-Quelle und Patch-Prüfsumme prüfen. Kann das Modul nicht geladen werden, gepatchten Core und Modul aus demselben Source-/Header-/Konfigurationssatz neu bauen.",
         ),
     },
 }
@@ -2677,12 +2772,12 @@ HOST_SETUP: dict[str, dict[str, object]] = {
     },
     "nginx": {
         "host_simple_intro": (
-            "Download only the selected official NGINX host source. The repository source of truth currently pins `NGINX_RELEASE_TAG=release-1.31.3`, which corresponds to the official `1.31.3` archive below. This does not load a connector from another repository: the connector is already in this checkout under `connectors/nginx/`.",
-            "Nur die ausgewählte offizielle NGINX-Hostquelle herunterladen. Die Repository-Source-of-Truth pinnt derzeit `NGINX_RELEASE_TAG=release-1.31.3`; dies entspricht dem unten verwendeten offiziellen Archiv `1.31.3`. Dabei wird kein Connector aus einem anderen Repository geladen: Der Connector liegt bereits in diesem Checkout unter `connectors/nginx/`.",
+            f"Download only the selected official NGINX host source. The repository source of truth currently pins `NGINX_RELEASE_TAG={NGINX_RELEASE_TAG}`, which corresponds to the official `{NGINX_VERSION}` archive below. This does not load a connector from another repository: the connector is already in this checkout under `connectors/nginx/`.",
+            f"Nur die ausgewählte offizielle NGINX-Hostquelle herunterladen. Die Repository-Source-of-Truth pinnt derzeit `NGINX_RELEASE_TAG={NGINX_RELEASE_TAG}`; dies entspricht dem unten verwendeten offiziellen Archiv `{NGINX_VERSION}`. Dabei wird kein Connector aus einem anderen Repository geladen: Der Connector liegt bereits in diesem Checkout unter `connectors/nginx/`.",
         ),
         "host_simple_variables": (
             'WORKDIR="$HOME/nginx-modsecurity"',
-            'VERSION="1.31.3"',
+            f'VERSION="{NGINX_VERSION}"',
         ),
         "host_download_steps": (
             (
@@ -2729,7 +2824,7 @@ HOST_SETUP: dict[str, dict[str, object]] = {
         ),
         "host_simple_variables": (
             'WORKDIR="$HOME/connector-build/haproxy"',
-            'VERSION="3.2.21"',
+            f'VERSION="{HAPROXY_VERSION}"',
             "JOBS=2",
         ),
         "host_download_steps": (
@@ -2741,8 +2836,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                 (
                     CREATE_WORKDIR_COMMAND,
                     CHANGE_TO_WORKDIR_COMMAND,
-                    'curl -fLO "https://www.haproxy.org/download/3.2/src/haproxy-$VERSION.tar.gz"',
-                    'curl -fLO "https://www.haproxy.org/download/3.2/src/haproxy-$VERSION.tar.gz.sha256"',
+                    f'curl -fLO "{HAPROXY_SOURCE_URL}"',
+                    f'curl -fL "{HAPROXY_SOURCE_URL}.sha256" -o "haproxy-$VERSION.tar.gz.sha256"',
                     'sha256sum -c "haproxy-$VERSION.tar.gz.sha256"',
                     'tar -xzf "haproxy-$VERSION.tar.gz"',
                 ),
@@ -2807,13 +2902,14 @@ HOST_SETUP: dict[str, dict[str, object]] = {
             (
                 "Download the release binary",
                 "Releasebinary herunterladen",
-                "The official x86_64 asset is written to a local workspace and made executable.",
-                "Das offizielle x86_64-Artefakt wird in ein lokales Arbeitsverzeichnis geschrieben und ausführbar gemacht.",
+                "The official x86_64 asset is written to a local workspace and made executable. Before using it, obtain its selected checksum from the Framework-managed Cache-v2 inventory rather than copying a stale guide checksum.",
+                "Das offizielle x86_64-Artefakt wird in ein lokales Arbeitsverzeichnis geschrieben und ausführbar gemacht. Vor der Verwendung die ausgewählte Prüfsumme aus dem Framework-gesteuerten Cache-v2-Inventar beziehen, statt eine veraltete Prüfsumme aus einer Anleitung zu kopieren.",
                 (
                     CREATE_WORKDIR_COMMAND,
                     CHANGE_TO_WORKDIR_COMMAND,
-                    'curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64" -o envoy',
-                    'printf "%s  %s\\n" "4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218" "envoy" | sha256sum -c -',
+                    f'curl -fL "{ENVOY_DOWNLOAD_URL}" -o envoy',
+                    ': "${ENVOY_SHA256:?set ENVOY_SHA256 from the Framework-managed Cache-v2 inventory}"',
+                    'printf "%s  %s\\n" "$ENVOY_SHA256" "envoy" | sha256sum -c -',
                     "chmod 755 envoy",
                     "./envoy --version",
                 ),
@@ -2920,7 +3016,7 @@ HOST_SETUP: dict[str, dict[str, object]] = {
         ),
         "host_simple_variables": (
             'WORKDIR="$HOME/connector-build/lighttpd"',
-            'VERSION="1.4.84"',
+            f'VERSION="{LIGHTTPD_VERSION}"',
             'INSTALL_DIR="$HOME/.local/lighttpd-modsecurity"',
         ),
         "host_download_steps": (
@@ -2932,10 +3028,10 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                 (
                     CREATE_WORKDIR_COMMAND,
                     CHANGE_TO_WORKDIR_COMMAND,
-                    'curl -fLO "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$VERSION.tar.xz"',
-                    'curl -fL "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$VERSION.sha256sum" -o "lighttpd-$VERSION.sha256sum"',
+                    f'curl -fLO "{LIGHTTPD_DOWNLOAD_URL}"',
+                    f'curl -fL "{LIGHTTPD_SOURCE_URL}lighttpd-$VERSION.sha256sum" -o "lighttpd-$VERSION.sha256sum"',
                     "awk -v archive=\"lighttpd-$VERSION.tar.xz\" '$2 == archive { print }' \"lighttpd-$VERSION.sha256sum\" | sha256sum -c -",
-                    'printf "%s  %s\\n" "076dd43bec8f2ba9ce6db7e7ca7e8ad72271cd529805ead2400b56efaa026f70" "lighttpd-$VERSION.tar.xz" | sha256sum -c -',
+                    f'printf "%s  %s\\n" "{LIGHTTPD_SHA256}" "lighttpd-$VERSION.tar.xz" | sha256sum -c -',
                     'tar -xJf "lighttpd-$VERSION.tar.xz"',
                 ),
             ),
@@ -2952,15 +3048,15 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                     'test ! -e "$LIGHTTPD_PATCHED_SRC"',
                     'cp -a "lighttpd-$VERSION" "$LIGHTTPD_PATCHED_SRC"',
                     'cd "$LIGHTTPD_PATCHED_SRC"',
-                    'patch --dry-run -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"',
-                    'patch -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"',
+                    f'patch --dry-run -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/{LIGHTTPD_PATCH_FILENAME}"',
+                    f'patch -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/{LIGHTTPD_PATCH_FILENAME}"',
                 ),
             ),
             (
                 "Build the patched host",
                 "Gepatchten Host bauen",
-                "This builds only the patched lighttpd host. The connector module is deliberately deferred to Section 7. The repository's `build_patched_core.sh` makes the same decision automatically after applying its patch to a disposable external source copy: it reuses an executable `configure`, otherwise it runs `autogen.sh` only in that patched source tree and requires an executable result. The pinned verified 1.4.84 release can lack generated `configure`. `autogen.sh` remains the upstream authority for its exact Autotools commands; the builder neither installs a package nor adds a network step. On failure it prints the bounded `autogen.log` output and reports the bootstrap phase and exit status, so a missing tool is named by the command that needs it. The validated environment had `autoconf`, `automake`, and `libtool` available, but that does not turn them into an unconditionally assumed list. A non-executable `autogen.sh` is used only when it declares `#!/bin/sh` or `#!/usr/bin/env sh`; no mode is changed.",
-                "Dies baut nur den gepatchten lighttpd-Host. Das Connectormodul wird bewusst auf Abschnitt 7 verschoben. Das Repository-`build_patched_core.sh` trifft dieselbe Entscheidung nach dem Anwenden seines Patches auf eine disponierbare externe Quellkopie automatisch: Es verwendet ein ausführbares `configure` weiter, andernfalls führt es `autogen.sh` nur in diesem gepatchten Quellbaum aus und verlangt anschließend ein ausführbares Ergebnis. Der gepinnte verifizierte 1.4.84-Release kann ohne generiertes `configure` vorliegen. `autogen.sh` bleibt die Upstream-Autorität für seine exakten Autotools-Befehle; der Builder installiert weder ein Paket noch fügt er einen Netzwerkschritt hinzu. Bei einem Fehler gibt er die begrenzte Ausgabe aus `autogen.log` aus und meldet Bootstrap-Phase und Exit-Status, sodass der fehlende Werkzeugname durch den ihn benötigenden Befehl genannt wird. In der validierten Umgebung waren `autoconf`, `automake` und `libtool` verfügbar; daraus wird jedoch keine bedingungslos angenommene Liste. Ein nicht ausführbares `autogen.sh` wird nur bei `#!/bin/sh` oder `#!/usr/bin/env sh` verwendet; keine Dateirechte werden geändert.",
+                f"This builds only the patched lighttpd host. The connector module is deliberately deferred to Section 7. The repository's `build_patched_core.sh` makes the same decision automatically after applying its patch to a disposable external source copy: it reuses an executable `configure`, otherwise it runs `autogen.sh` only in that patched source tree and requires an executable result. The pinned verified {LIGHTTPD_VERSION} release can lack generated `configure`. `autogen.sh` remains the upstream authority for its exact Autotools commands; the builder neither installs a package nor adds a network step. On failure it prints the bounded `autogen.log` output and reports the bootstrap phase and exit status, so a missing tool is named by the command that needs it. The validated environment had `autoconf`, `automake`, and `libtool` available, but that does not turn them into an unconditionally assumed list. A non-executable `autogen.sh` is used only when it declares `#!/bin/sh` or `#!/usr/bin/env sh`; no mode is changed.",
+                f"Dies baut nur den gepatchten lighttpd-Host. Das Connectormodul wird bewusst auf Abschnitt 7 verschoben. Das Repository-`build_patched_core.sh` trifft dieselbe Entscheidung nach dem Anwenden seines Patches auf eine disponierbare externe Quellkopie automatisch: Es verwendet ein ausführbares `configure` weiter, andernfalls führt es `autogen.sh` nur in diesem gepatchten Quellbaum aus und verlangt anschließend ein ausführbares Ergebnis. Der gepinnte verifizierte {LIGHTTPD_VERSION}-Release kann ohne generiertes `configure` vorliegen. `autogen.sh` bleibt die Upstream-Autorität für seine exakten Autotools-Befehle; der Builder installiert weder ein Paket noch fügt er einen Netzwerkschritt hinzu. Bei einem Fehler gibt er die begrenzte Ausgabe aus `autogen.log` aus und meldet Bootstrap-Phase und Exit-Status, sodass der fehlende Werkzeugname durch den ihn benötigenden Befehl genannt wird. In der validierten Umgebung waren `autoconf`, `automake` und `libtool` verfügbar; daraus wird jedoch keine bedingungslos angenommene Liste. Ein nicht ausführbares `autogen.sh` wird nur bei `#!/bin/sh` oder `#!/usr/bin/env sh` verwendet; keine Dateirechte werden geändert.",
                 (
                     "if [ -x ./configure ]; then",
                     "    :",
@@ -2987,8 +3083,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
             "Der private Prefix enthält den gepatchten lighttpd-Host. Er enthält noch nicht das repository-eigene Connectormodul.",
         ),
         "host_success_check": (
-            "The upstream 1.4.84 installation layout places lighttpd below sbin for this prefix.",
-            "Das Upstream-Installationslayout von 1.4.84 legt lighttpd für diesen Prefix unter sbin ab.",
+            f"The upstream {LIGHTTPD_VERSION} installation layout places lighttpd below sbin for this prefix.",
+            f"Das Upstream-Installationslayout von {LIGHTTPD_VERSION} legt lighttpd für diesen Prefix unter sbin ab.",
             ('"$INSTALL_DIR/sbin/lighttpd" -V',),
         ),
         "host_source_alternative": (
@@ -3090,6 +3186,7 @@ ACTIVE_MANUAL_VARIABLES: dict[str, frozenset[str]] = {
     ),
     "envoy": frozenset(
         {
+            "ENVOY_SHA256",
             "ENVOY_BIN",
             "EXT_PROC_BIN",
             "ENVOY_CONFIG",
@@ -3485,7 +3582,7 @@ def connector_context(slug: str) -> tuple[str, ...]:
     contexts: dict[str, tuple[str, ...]] = {
         "haproxy": (
             'export HOST_BUILD_BASE="$HOME/connector-build/haproxy"',
-            'export HAPROXY_SRC="$HOST_BUILD_BASE/haproxy-3.2.21"',
+            f'export HAPROXY_SRC="$HOST_BUILD_BASE/haproxy-{HAPROXY_VERSION}"',
             'export HAPROXY_HTX_BUILD_DIR="$HOST_BUILD_BASE/htx-overlay"',
         ),
         "envoy": (
@@ -3498,7 +3595,7 @@ def connector_context(slug: str) -> tuple[str, ...]:
         ),
         "lighttpd": (
             'export HOST_BUILD_BASE="$HOME/connector-build/lighttpd"',
-            'export LIGHTTPD_PATCHED_SRC="$HOST_BUILD_BASE/lighttpd-1.4.84-patched"',
+            f'export LIGHTTPD_PATCHED_SRC="$HOST_BUILD_BASE/lighttpd-{LIGHTTPD_VERSION}-patched"',
             'export LIGHTTPD_BUILD_DIR="${LIGHTTPD_BUILD_DIR:-$LIGHTTPD_PATCHED_SRC}"',
             'export LIGHTTPD_PREFIX="$HOME/.local/lighttpd-modsecurity"',
         ),

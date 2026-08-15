@@ -9,7 +9,7 @@ In dieses Verzeichnis wurde keine Upstream-Connector-Implementierung
 importiert. Das Modul, der Mapper, die Build-Skripte und das native Harness
 sind repository-eigener Quellcode.
 
-Die Host-ABI wird gegen den gepinnten lighttpd-1.4.84-Release-Quellcode und
+Die Host-ABI wird gegen den im `lighttpd-version.contract` Framework-synchronisierten lighttpd-Release-Quellcode und
 sein generiertes `config.h` kompiliert. Das Test-Framework lädt und baut diesen
 Release in einem verwalteten Component-Cache; der Upstream-Quellcode und die
 generierten Header werden nicht in diesem Connector-Baum eingecheckt. Das
@@ -19,8 +19,8 @@ Modul verlinkt gegen eine lokal verwaltete libmodsecurity-Installation.
 | --- | --- |
 | Connector-Quellcode | repository-eigene Dateien unter `connectors/lighttpd/` |
 | Importierter Upstream-Connector-Quellcode | none |
-| Host-Quellcode | lighttpd-1.4.84-Release-Tarball |
-| Host-Quellcode-URL | `https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.84.tar.xz` |
+| Host-Quellcode | Framework-synchronisierter lighttpd-Release-Tarball; siehe `lighttpd-version.contract` |
+| Host-Quellcode-URL | Framework-synchronisierte `LIGHTTPD_DOWNLOAD_URL` in `lighttpd-version.contract` |
 | Host-Commit | release tarball; no Git commit selected |
 | Generierte Host-ABI-Eingabe | Datei `config.h` aus dem lighttpd-Build-Tree |
 | Native Ausgabe | `mod_msconnector.so` |
@@ -28,7 +28,7 @@ Modul verlinkt gegen eine lokal verwaltete libmodsecurity-Installation.
 
 Das Full-Lifecycle-Profil wählt `patched-native` über
 `full-lifecycle-lighttpd-patched`. Dieses Target erstellt einen kopierten
-1.4.84-Quellbaum, einen Out-of-Source-Core-Build, eine gestagte Binärdatei und
+Framework-synchronisierten Quellbaum, einen Out-of-Source-Core-Build, eine gestagte Binärdatei und
 ein gestagtes ABI-passendes Modul unter dem verwalteten Build-Root. Es zeichnet
 den lokalen Patch-SHA-256 sowie Binär-/Modul-Hashes vor einem echten
 `lighttpd -tt`-Load auf. Dies ist weiterhin nur ein schmaler

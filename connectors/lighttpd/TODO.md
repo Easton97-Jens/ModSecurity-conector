@@ -10,7 +10,7 @@ Canonical capability source: `connectors/lighttpd/capabilities.json`.
 
 The standard compatibility target remains the stock native module. The
 full-lifecycle profile dispatches `patched-native` through
-`full-lifecycle-lighttpd-patched`, which stages a matched lighttpd 1.4.84 core
+`full-lifecycle-lighttpd-patched`, which stages a matched Framework-synchronized lighttpd core
 and module for an isolated Phase-1 smoke. Its checked-in runtime uses both body
 modes as `none`, so it cannot promote body or Phase-4 capabilities even though
 the patched ABI now exposes borrowed HTTP/1.1 request ranges and identity
@@ -19,7 +19,7 @@ entity-response ranges before transfer framing.
 ## Completed
 
 - [x] Repository-owned origin and source map documented.
-- [x] Pinned lighttpd 1.4.84 source/binary provisioning available.
+- [x] Framework-synchronized lighttpd source/binary provisioning available.
 - [x] Native plugin init, config registration, defaults, cleanup implemented.
 - [x] Request metadata and length-delimited header mapping implemented.
 - [x] Response metadata and length-delimited header mapping implemented.
@@ -36,16 +36,16 @@ entity-response ranges before transfer framing.
 
 ## Required before broader runtime claims
 
-- [x] Versioned 1.4.84 source patch defines bounded borrowed HTTP/1.x
+- [x] Framework-synchronized source patch defines bounded borrowed HTTP/1.x
       request-body capture and has a compile-only check; no runtime capability
       is promoted.
 - [x] Dedicated patched-host target copies, patches, configures, builds,
-      installs, stages and ABI-loads a matched 1.4.84 core plus module. The
+      installs, stages and ABI-loads a matched Framework-synchronized core plus module. The
       full-lifecycle profile selects its isolated 200/403 Phase-1 host smoke;
       it remains non-promoted and does not establish body or Phase-4 evidence.
 - [ ] Preserve and test request-body truncation metadata.
 - [ ] Run and retain selected Phase-2 request-body artifacts for the patched path.
-- [x] Versioned 1.4.84 source patch defines a bounded HTTP/1.1 identity
+- [x] Framework-synchronized source patch defines a bounded HTTP/1.1 identity
       entity-body/EOS hook before transfer framing. It supplies borrowed ranges,
       monotonic offsets, and one EOS; socket short-write/EAGAIN retries occur
       later and cannot re-ingest a range.
@@ -72,7 +72,7 @@ matrix claims false.
 
 ## Canonical Phase-4 implementation boundary
 
-The stock module has no response-body hook. The patched 1.4.84 module has an
+The stock module has no response-body hook. The patched Framework-synchronized module has an
 identity entity-body source path, but no canonical streaming host result. The
 following facets therefore remain `not_implemented` for the selected evidence
 profile: `response_body_buffered`, `phase4`, `phase4_rule_evaluation`,

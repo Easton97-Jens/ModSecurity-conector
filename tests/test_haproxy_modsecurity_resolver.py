@@ -181,7 +181,8 @@ class HAProxyModSecurityResolverTests(unittest.TestCase):
         self.assertIn("resolve-modsecurity.sh", makefile)
         self.assertIn("/usr/include", resolver)
         self.assertIn("/usr/lib/x86_64-linux-gnu", resolver)
-        self.assertIn('version" = "3.2.21', overlay)
+        self.assertIn("version-contract.json", overlay)
+        self.assertIn("HAPROXY_VERSION=$(contract_field version)", overlay)
 
 
 if __name__ == "__main__":

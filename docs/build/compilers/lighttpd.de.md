@@ -10,7 +10,7 @@ Dieser Guide beschreibt den manuellen Entwicklungs- und Integrationsbuild für `
 
 ## 2. Komponenten des Builds
 
-libmodsecurity v3, lighttpd-1.4.84-Source, der repository-eigene Entity-Body-Patch, ein gepatchter Host, ein passendes Connectormodul, eine lokale Laufzeitkonfiguration und HTTP/1.1-Traffic auf Loopback.
+libmodsecurity v3, lighttpd-1.4.85-Source, der repository-eigene Entity-Body-Patch, ein gepatchter Host, ein passendes Connectormodul, eine lokale Laufzeitkonfiguration und HTTP/1.1-Traffic auf Loopback.
 
 ## Connector in diesem Repository
 
@@ -19,7 +19,7 @@ libmodsecurity v3, lighttpd-1.4.84-Source, der repository-eigene Entity-Body-Pat
 - [Produktive lighttpd-Quellen](../../../connectors/lighttpd/src/)
 - [Patched-Host-Builder](../../../connectors/lighttpd/build/build_patched_host.sh)
 - [Connectormodul-Builder](../../../connectors/lighttpd/build/build_module.sh)
-- [Entity-Body-Patch](../../../connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch)
+- [Entity-Body-Patch](../../../connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch)
 - [Source-Zuordnung](../../../connectors/lighttpd/SOURCE_MAP.json)
 - [Native-lighttpd-Konfiguration](../../../connectors/lighttpd/config/lighttpd-native.conf)
 
@@ -77,7 +77,7 @@ Der ausgewählte Weg benötigt einen gepatchten lighttpd-Source-Host. Die ersten
 
 ```sh
 WORKDIR="$HOME/connector-build/lighttpd"
-VERSION="1.4.84"
+VERSION="1.4.85"
 INSTALL_DIR="$HOME/.local/lighttpd-modsecurity"
 ```
 
@@ -88,10 +88,10 @@ Dadurch bleibt die verifizierte Upstream-Quelle unverändert; der Patch wird nur
 ```sh
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
-curl -fLO "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$VERSION.tar.xz"
+curl -fLO "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.85.tar.xz"
 curl -fL "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$VERSION.sha256sum" -o "lighttpd-$VERSION.sha256sum"
 awk -v archive="lighttpd-$VERSION.tar.xz" '$2 == archive { print }' "lighttpd-$VERSION.sha256sum" | sha256sum -c -
-printf "%s  %s\n" "076dd43bec8f2ba9ce6db7e7ca7e8ad72271cd529805ead2400b56efaa026f70" "lighttpd-$VERSION.tar.xz" | sha256sum -c -
+printf "%s  %s\n" "18de51b393bac4a6827879e1a7ff377c169e414bae92cd245091d80fc2601d13" "lighttpd-$VERSION.tar.xz" | sha256sum -c -
 tar -xJf "lighttpd-$VERSION.tar.xz"
 ```
 
@@ -111,13 +111,13 @@ export LIGHTTPD_PATCHED_SRC="$WORKDIR/lighttpd-$VERSION-patched"
 test ! -e "$LIGHTTPD_PATCHED_SRC"
 cp -a "lighttpd-$VERSION" "$LIGHTTPD_PATCHED_SRC"
 cd "$LIGHTTPD_PATCHED_SRC"
-patch --dry-run -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"
-patch -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"
+patch --dry-run -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch"
+patch -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch"
 ```
 
 #### Gepatchten Host bauen
 
-Dies baut nur den gepatchten lighttpd-Host. Das Connectormodul wird bewusst auf Abschnitt 7 verschoben. Das Repository-`build_patched_core.sh` trifft dieselbe Entscheidung nach dem Anwenden seines Patches auf eine disponierbare externe Quellkopie automatisch: Es verwendet ein ausführbares `configure` weiter, andernfalls führt es `autogen.sh` nur in diesem gepatchten Quellbaum aus und verlangt anschließend ein ausführbares Ergebnis. Der gepinnte verifizierte 1.4.84-Release kann ohne generiertes `configure` vorliegen. `autogen.sh` bleibt die Upstream-Autorität für seine exakten Autotools-Befehle; der Builder installiert weder ein Paket noch fügt er einen Netzwerkschritt hinzu. Bei einem Fehler gibt er die begrenzte Ausgabe aus `autogen.log` aus und meldet Bootstrap-Phase und Exit-Status, sodass der fehlende Werkzeugname durch den ihn benötigenden Befehl genannt wird. In der validierten Umgebung waren `autoconf`, `automake` und `libtool` verfügbar; daraus wird jedoch keine bedingungslos angenommene Liste. Ein nicht ausführbares `autogen.sh` wird nur bei `#!/bin/sh` oder `#!/usr/bin/env sh` verwendet; keine Dateirechte werden geändert.
+Dies baut nur den gepatchten lighttpd-Host. Das Connectormodul wird bewusst auf Abschnitt 7 verschoben. Das Repository-`build_patched_core.sh` trifft dieselbe Entscheidung nach dem Anwenden seines Patches auf eine disponierbare externe Quellkopie automatisch: Es verwendet ein ausführbares `configure` weiter, andernfalls führt es `autogen.sh` nur in diesem gepatchten Quellbaum aus und verlangt anschließend ein ausführbares Ergebnis. Der gepinnte verifizierte 1.4.85-Release kann ohne generiertes `configure` vorliegen. `autogen.sh` bleibt die Upstream-Autorität für seine exakten Autotools-Befehle; der Builder installiert weder ein Paket noch fügt er einen Netzwerkschritt hinzu. Bei einem Fehler gibt er die begrenzte Ausgabe aus `autogen.log` aus und meldet Bootstrap-Phase und Exit-Status, sodass der fehlende Werkzeugname durch den ihn benötigenden Befehl genannt wird. In der validierten Umgebung waren `autoconf`, `automake` und `libtool` verfügbar; daraus wird jedoch keine bedingungslos angenommene Liste. Ein nicht ausführbares `autogen.sh` wird nur bei `#!/bin/sh` oder `#!/usr/bin/env sh` verwendet; keine Dateirechte werden geändert.
 
 ```sh
 if [ -x ./configure ]; then
@@ -170,7 +170,7 @@ make install
 
 ### Erfolg prüfen
 
-Das Upstream-Installationslayout von 1.4.84 legt lighttpd für diesen Prefix unter sbin ab.
+Das Upstream-Installationslayout von 1.4.85 legt lighttpd für diesen Prefix unter sbin ab.
 
 ```sh
 "$INSTALL_DIR/sbin/lighttpd" -V
@@ -184,7 +184,7 @@ Der Hostpfad wird hier nur erneut gesetzt, damit die Connectorbefehle den Host a
 
 ```sh
 export HOST_BUILD_BASE="$HOME/connector-build/lighttpd"
-export LIGHTTPD_PATCHED_SRC="$HOST_BUILD_BASE/lighttpd-1.4.84-patched"
+export LIGHTTPD_PATCHED_SRC="$HOST_BUILD_BASE/lighttpd-1.4.85-patched"
 export LIGHTTPD_BUILD_DIR="${LIGHTTPD_BUILD_DIR:-$LIGHTTPD_PATCHED_SRC}"
 export LIGHTTPD_PREFIX="$HOME/.local/lighttpd-modsecurity"
 cd "$CONNECTOR_ROOT"
@@ -330,7 +330,7 @@ test ! -e "$HOME/modsecurity-connector-work" || find "$HOME/modsecurity-connecto
 
 Gemeinsam: Bei fehlenden Headern oder Libraries zum fortgeschrittenen Abschnitt der gemeinsamen Anleitung zurückkehren und den bewusst gewählten Prefix sowie die pkg-config-Ausgabe prüfen. Bei einem ABI-Fehler Host, Header und Connector aus demselben ausgewählten Quellensatz neu bauen.
 
-Wenn der Patch-Dry-Run fehlschlägt, ihn nicht erzwingen: die exakte 1.4.84-Quelle und Patch-Prüfsumme prüfen. Kann das Modul nicht geladen werden, gepatchten Core und Modul aus demselben Source-/Header-/Konfigurationssatz neu bauen.
+Wenn der Patch-Dry-Run fehlschlägt, ihn nicht erzwingen: die exakte 1.4.85-Quelle und Patch-Prüfsumme prüfen. Kann das Modul nicht geladen werden, gepatchten Core und Modul aus demselben Source-/Header-/Konfigurationssatz neu bauen.
 
 ## 16. Variablen und Platzhalter
 

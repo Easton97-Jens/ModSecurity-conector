@@ -219,28 +219,20 @@ Eigenschaften:
 | Default | „Framework-weitergereicht“ bedeutet, dass das Root-Makefile den Namen exportiert, aber keinen Root-Wert definiert. Der Framework-/Provider-Pin ist maßgeblich |
 | Gesetzt durch | Fortgeschrittener lokaler Aufrufer oder CI-Provisionierungs-Konfiguration |
 | Gültigkeitsbereich | Die relevante Component-Preparation-Invocation; Cache-Ausgabe ist an die effektive Eingabeidentität gebunden |
-| Beispiel | <code>HAPROXY_VERSION=3.2.21</code>, <code>NGINX_SOURCE_MODE=release</code>, <code>CC=clang</code> |
+| Beispiel | <code>HAPROXY_VERSION=&lt;framework-synchronisierte-Version&gt;</code>, <code>NGINX_SOURCE_MODE=github-release</code>, <code>CC=clang</code> |
 | Auswirkung | Kann einen Rebuild erzwingen, eine Source-Herkunft ändern oder ein anderes Executable wählen; upgraded niemals einen Capability-State oder ein Evidence-Ergebnis |
 | Sicherheit | HTTPS und verifizierte Checksums verwenden. Einen gepinnten Provenance-Wert in kanonischer CI nicht durch eine veränderliche oder nicht vertrauenswürdige Source ersetzen |
 
 #### Direktes NGINX-Release-Asset-Tupel für Full-Smoke
 
-Der strikte Parent-Full-Smoke-Pfad setzt alle NGINX-Provenance-Eingaben
-gemeinsam:
+Der strikte Parent-Full-Smoke-Pfad erhält alle NGINX-Provenance-Eingaben als
+ein gemeinsam Framework-synchronisiertes Tupel.
+`ci/tools/sync-framework-component-versions.py` aktualisiert Source-Modus,
+Repository-URL, Release-Tag, Source-Ref, Asset-Name und SHA-256 gemeinsam aus
+`ci/lib/common.sh`; Consumer dürfen kein einzelnes Mitglied manuell ändern.
 
-```sh
-BUILD_NGINX_FROM_SOURCE=1
-NGINX_SOURCE_MODE=github-release
-NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
-NGINX_RELEASE_TAG=release-1.31.3
-NGINX_SOURCE_GIT_REF=release-1.31.3
-NGINX_RELEASE_ASSET_NAME=nginx-1.31.3.tar.gz
-NGINX_SHA256=a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
-NGINX_REQUIRE_PINNED_PROVENANCE=1
-```
-
-Er wählt das direkte Asset
-`https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz`.
+Das synchronisierte Tupel wählt ein direktes, unveränderliches Release-Asset
+anstelle eines veränderlichen Release-Selectors.
 Der Full-Smoke-Release-Resolver weist `latest` und `/releases/latest` vor
 Cache-Zugriff, Netzwerkzugriff, Download oder Extraktion ab. Die
 Cache-Wiederverwendung ist an das gesamte Tupel gebunden: Source-Modus,

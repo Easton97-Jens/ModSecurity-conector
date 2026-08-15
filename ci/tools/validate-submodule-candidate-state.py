@@ -348,6 +348,66 @@ def _submodule_paths(root: Path) -> list[str]:
     return paths
 
 
+def _tree_metadata(root: Path, revision: str) -> tuple[dict[str, str], dict[str, str]]:
+    """Return the reviewed tree's gitlinks and ``.gitmodules`` blobs.
+
+    This deliberately reads Git's object database only.  It never asks Git to
+    initialise, fetch, or recurse into a candidate-controlled submodule.
+    """
+
+    output = _git(root, "ls-tree", "-r", "-z", "--full-tree", revision)
+    gitlinks: dict[str, str] = {}
+    gitmodules: dict[str, str] = {}
+    for entry in output.split("\0"):
+        if not entry:
+            continue
+        header, separator, path = entry.partition("\t")
+        fields = header.split()
+        if not separator or len(fields) != 3 or not path:
+            _fail("FRAMEWORK_SUBMODULE_METADATA_INVALID")
+        mode, object_type, object_id = fields
+        safe_path = _relative_path(path, "FRAMEWORK_SUBMODULE_METADATA_INVALID")
+        if mode == "160000":
+            if object_type != "commit" or not FULL_SHA1.fullmatch(object_id):
+                _fail("FRAMEWORK_SUBMODULE_METADATA_INVALID")
+            gitlinks[safe_path] = object_id
+        if safe_path == GITMODULES_FILENAME or safe_path.endswith(f"/{GITMODULES_FILENAME}"):
+            if object_type != "blob" or not FULL_SHA1.fullmatch(object_id):
+                _fail("FRAMEWORK_SUBMODULE_METADATA_INVALID")
+            gitmodules[safe_path] = object_id
+    return gitlinks, gitmodules
+
+
+def _validate_candidate_submodule_metadata(
+    root: Path, current_revision: str, candidate_revision: str
+) -> None:
+    """Reject candidate changes to nested-submodule topology or gitlinks."""
+
+    current_gitlinks, current_gitmodules = _tree_metadata(root, current_revision)
+    candidate_gitlinks, candidate_gitmodules = _tree_metadata(root, candidate_revision)
+    if current_gitlinks != candidate_gitlinks or current_gitmodules != candidate_gitmodules:
+        changed_paths = sorted(
+            {
+                *set(current_gitlinks) ^ set(candidate_gitlinks),
+                *set(current_gitmodules) ^ set(candidate_gitmodules),
+                *{
+                    path
+                    for path in set(current_gitlinks) & set(candidate_gitlinks)
+                    if current_gitlinks[path] != candidate_gitlinks[path]
+                },
+                *{
+                    path
+                    for path in set(current_gitmodules) & set(candidate_gitmodules)
+                    if current_gitmodules[path] != candidate_gitmodules[path]
+                },
+            }
+        )[:20]
+        _fail(
+            "FRAMEWORK_SUBMODULE_METADATA_CHANGED",
+            paths=changed_paths,
+        )
+
+
 def _validate_nested(root: Path) -> None:
     paths = _submodule_paths(root)
     _require_clean(
@@ -357,8 +417,14 @@ def _validate_nested(root: Path) -> None:
     )
     for relative in paths:
         path = root / relative
+        # A candidate's nested submodule must not be fetched merely to prove
+        # that the candidate is safe.  Its topology and gitlink were compared
+        # against the reviewed commit above; an absent worktree is therefore
+        # an accepted, intentionally uninitialised state.
+        if not path.exists():
+            continue
         if not path.is_dir():
-            _fail("FRAMEWORK_SUBMODULE_UNINITIALIZED")
+            _fail("FRAMEWORK_SUBMODULE_INVALID")
         _repository_root(path, "FRAMEWORK_SUBMODULE_INVALID")
         expected_gitlink = _head_gitlink(root, relative)
         actual_head = _git(path, "rev-parse", "HEAD").strip()
@@ -389,6 +455,9 @@ def _validate_framework(parent: Path, arguments: argparse.Namespace) -> None:
             expected_candidate=arguments.candidate_sha,
             actual_head=actual_candidate_head,
         )
+    _validate_candidate_submodule_metadata(
+        framework, arguments.current_gitlink_sha, arguments.candidate_sha
+    )
     paths = _submodule_paths(framework)
     _require_clean(
         framework, "FRAMEWORK_DIRTY",
