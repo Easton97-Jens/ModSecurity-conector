@@ -208,3 +208,58 @@ getrennte Git-Grenzen; Framework-PR #79 ist gemergt, während diese Parent-
 benötigt vor dem autorisierten Parent-Merge eine frische Exact-Head-
 Validierung. Zum Zeitpunkt dieses Record-Commits wurde kein Pull Request
 gemergt.
+
+## Post-Merge-CI-Fixture-Portabilitätskorrektur
+
+PR #287 wurde anschließend als Parent-Master
+`29a2a8bcab57e936c5274f8fe64a15c6fee879bd` squash-gemergt. Der manuell
+ausgelöste Parent-`Update submodules`-Run `31866612619` erreichte danach den
+isolierten Quick-Check: Submodule-Auflösung, Candidate-Git-State-Validierung,
+Sandbox-Vorbereitung und Source-/Output-Verifikation bestanden, aber der
+Quick-Check scheiterte in
+`test_valid_lock_drives_version_and_safe_artifact_metadata`. Damit ist der
+zuvor aufgezeichnete Hostruntime-Test-Portabilitätsdefekt bestätigt, nicht
+etwa ein Submodule-, Gitlink-, Framework- oder MRTS-Fehler.
+
+Der korrigierte Test ruft nicht länger hostverwaltetes `/bin/true` auf. Er
+kopiert den ausgewählten Testinterpreter in ein privates temporäres
+`trusted-binaries`-Verzeichnis, übergibt dieses reguläre Executable durch die
+vorhandenen Argumente `--binary-root` und `--binary` und schreibt die
+Lock-Version aus `sys.version_info` desselben Interpreters. Damit bleiben eine
+echte Versionsprobe und ein erfolgreicher `ldd`-Check erhalten, während
+runnerspezifische Coreutils-Metadaten entfallen. Produktions-Preflight,
+strikter Versionsvergleich, Trusted-Root-Validierung, negative Controls,
+Updater-Workflow und Gitlink bleiben unverändert.
+
+Die geänderten Pfade dieses korrigierenden Follow-ups sind
+`tests/test_hostruntime_preflight.py` und dieses bestehende englische/deutsche
+Change-Record-Paar. Es änderten sich weder Framework- oder MRTS-Quellcode,
+Submodule-Revision, Workflow, Runtime-Artefakt, Abhängigkeit noch erzeugter
+Report.
+
+Die tatsächliche lokale Validierung mit dem ausgewählten Parent-Virtual-
+Environment-Interpreter bestand `python -m unittest -v
+tests.test_hostruntime_preflight` (27 Tests) und
+`make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python
+test-hostruntime-preflight` (27 Tests). Der fokussierte Security-Diff-Review
+ergab null reportable Findings: Der kopierte Interpreter wird vom Test-Runner
+kontrolliert, existiert nur unter `TemporaryDirectory` und bleibt den
+bestehenden Preflight-Controls für Trusted-Root, bereinigte Umgebung, Version
+und dynamische Libraries unterworfen. Die bestehenden Controls für
+Versionsmismatch, untrusted Roots und gruppenschreibbare Roots bestanden in
+derselben fokussierten Suite. `git diff --check` bestand.
+
+Das Ergebnis von `make check-bilingual-docs` im Task-Worktree ist kein
+verwendbares lokales Akzeptanzsignal: Das absichtlich nicht initialisierte
+gepinnte Framework-Submodul lässt dessen repository-weiten Link-Pass nur
+fehlende Framework-Link-Ziele melden. Es wurde deshalb nicht als bestanden
+gewertet; keine Framework-Initialisierung oder -Aktualisierung erfolgte.
+Dieses aktualisierte englische/deutsche Change-Record-Paar erhielt einen
+direkten Paritätsreview; ein Hosted-Exact-Head-Dokumentationscheck bleibt
+erforderlich.
+
+Dieses Update behauptet weder einen Korrektur-Pull-Request noch SonarQube-
+Cloud-Reanalyse, Hosted-Exact-Head-Check oder Resulting-Master-Rerun. Die
+Aufgabe muss vor einer späteren Master-Integration den normalen geschützten
+Parent-Delivery-Pfad verwenden; eine neue Master-Autorisierung wird hier nicht
+behauptet.

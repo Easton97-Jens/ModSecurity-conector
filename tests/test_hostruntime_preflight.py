@@ -131,13 +131,26 @@ class HostruntimePreflightTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             tmp_path = Path(temporary)
             lock = self.runtime_root(tmp_path) / "runtime-component-lock.json"
-            self.write_lock(lock)
-            completed, result = self.run_preflight(tmp_path, "--runtime-lock", str(lock), "--binary", "/bin/true")
+            binary_root = tmp_path / "trusted-binaries"
+            binary_root.mkdir()
+            binary = binary_root / "unit-runtime"
+            shutil.copy2(sys.executable, binary)
+            fixture_version = ".".join(str(component) for component in sys.version_info[:3])
+            self.write_lock(lock, version=fixture_version)
+            completed, result = self.run_preflight(
+                tmp_path,
+                "--runtime-lock",
+                str(lock),
+                "--binary-root",
+                str(binary_root),
+                "--binary",
+                str(binary),
+            )
             self.assertEqual(completed.returncode, 0)
             self.assertEqual(result["status"], "PASS")
             self.assertEqual(result["runtime_lock"]["lock_profile"], "unit")
-            self.assertEqual(result["runtime_lock"]["expected_version"], "9.7")
-            self.assertEqual(result["runtime_lock"]["actual_version"], "9.7")
+            self.assertEqual(result["runtime_lock"]["expected_version"], fixture_version)
+            self.assertEqual(result["runtime_lock"]["actual_version"], fixture_version)
             self.assertEqual(result["evidence_kind"], "preflight")
             self.assertEqual(result["runtime_status"], "NOT_RUN")
             self.assertEqual(result["reason_code"], "preflight_pass")
