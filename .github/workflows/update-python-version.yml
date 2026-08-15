@@ -5,25 +5,36 @@ on:
     - cron: '17 6 * * 1'
   workflow_dispatch:
 
+concurrency:
+  group: modsecurity-conector-python-version-maintenance-${{ github.repository }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
 jobs:
   resolve-python-patch:
-    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: >-
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      github.event.repository.fork == false &&
+      github.event.repository.default_branch == 'master' &&
+      github.ref == 'refs/heads/master' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     permissions:
       contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
+      status: ${{ steps.resolve.outputs.status }}
       current_version: ${{ steps.resolve.outputs.current_version }}
-      version: ${{ steps.resolve.outputs.version }}
+      latest_version: ${{ steps.resolve.outputs.latest_version }}
       update_available: ${{ steps.resolve.outputs.update_available }}
     steps:
-      - name: Check out trusted default branch
+      - name: Check out the exact trusted event revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.sha }}
+          fetch-depth: 1
           submodules: false
           persist-credentials: false
 
@@ -50,46 +61,55 @@ jobs:
           REPORT="$report" python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           import os
-          import re
 
           data = json.loads(os.environ["REPORT"])
-          current = data.get("current_version")
-          latest = data.get("latest_version")
-          available = data.get("update_available")
-          status = data.get("status")
-          pattern = re.compile(r"^3\\.14\\.(?:0|[1-9][0-9]*)$")
-          if not isinstance(current, str) or not pattern.fullmatch(current):
-              raise SystemExit("resolver returned an invalid current_version")
-          if not isinstance(latest, str) or not pattern.fullmatch(latest):
-              raise SystemExit("resolver returned an invalid latest_version")
-          if not isinstance(available, bool):
-              raise SystemExit("resolver returned a non-boolean update_available")
+          required = {"status", "current_version", "latest_version", "update_available"}
+          if set(data) != required:
+              raise SystemExit("resolver returned an unexpected JSON record shape")
+          status = data["status"]
+          current = data["current_version"]
+          latest = data["latest_version"]
+          available = data["update_available"]
           if status not in {"current", "update_available"}:
               raise SystemExit("resolver returned an invalid status")
+          if not isinstance(current, str) or not isinstance(latest, str):
+              raise SystemExit("resolver returned a non-string version")
+          if "\n" in current or "\r" in current or "\n" in latest or "\r" in latest:
+              raise SystemExit("resolver returned a multiline version")
+          if not isinstance(available, bool):
+              raise SystemExit("resolver returned a non-boolean update_available")
           if available != (latest != current):
               raise SystemExit("resolver returned inconsistent update availability")
           if status != ("update_available" if available else "current"):
               raise SystemExit("resolver returned an inconsistent status")
+          print(f"status={status}")
           print(f"current_version={current}")
-          print(f"version={latest}")
+          print(f"latest_version={latest}")
           print(f"update_available={str(available).lower()}")
           PY
 
   validate-python-patch:
-    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.resolve-python-patch.outputs.update_available == 'true' }}
     needs: resolve-python-patch
+    if: >-
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      github.event.repository.fork == false &&
+      github.event.repository.default_branch == 'master' &&
+      github.ref == 'refs/heads/master' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      needs.resolve-python-patch.outputs.update_available == 'true'
     permissions:
       contents: read
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
-      CANDIDATE_VERSION: ${{ needs.resolve-python-patch.outputs.version }}
+      CANDIDATE_VERSION: ${{ needs.resolve-python-patch.outputs.latest_version }}
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
-      - name: Check out trusted default branch
+      - name: Check out the exact trusted event revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.sha }}
+          fetch-depth: 1
           submodules: false
           persist-credentials: false
 
@@ -97,13 +117,13 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: ${{ needs.resolve-python-patch.outputs.version }}
+          python-version: ${{ needs.resolve-python-patch.outputs.latest_version }}
           check-latest: false
 
       - name: Verify Python candidate interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-          EXPECTED_VERSION: ${{ needs.resolve-python-patch.outputs.version }}
+          EXPECTED_VERSION: ${{ needs.resolve-python-patch.outputs.latest_version }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --expected-version "$EXPECTED_VERSION" --expected-python "$EXPECTED_PYTHON"
 
       - name: Install hash-locked CI test dependency
@@ -132,33 +152,42 @@ jobs:
             tests.test_python_interpreter_contract \
             tests.test_python_version_contract \
             tests.test_ci_security_workflows
+          make check-ci-security-contract
           git diff --check
 
-  create-python-update-pr:
-    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.resolve-python-patch.outputs.update_available == 'true' && needs.validate-python-patch.result == 'success' }}
+  publish-python-update:
     needs:
       - resolve-python-patch
       - validate-python-patch
+    if: >-
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      github.event.repository.fork == false &&
+      github.event.repository.default_branch == 'master' &&
+      github.ref == 'refs/heads/master' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      needs.resolve-python-patch.outputs.update_available == 'true' &&
+      needs.validate-python-patch.result == 'success'
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
-      CANDIDATE_VERSION: ${{ needs.resolve-python-patch.outputs.version }}
+      CANDIDATE_VERSION: ${{ needs.resolve-python-patch.outputs.latest_version }}
       CURRENT_VERSION: ${{ needs.resolve-python-patch.outputs.current_version }}
-      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      DEFAULT_BRANCH: master
       UPDATE_BRANCH: automation/update-python-314
       PR_TITLE: "chore(ci): propose Python 3.14 patch update"
+      PR_MARKER: "<!-- modsecurity-conector-python-314-updater -->"
+      FRAMEWORK_REFERENCE_SHA: 3cb33609626ff689c54b6dc0f31fb7e9401fe75e
       WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
-      - name: Check out trusted default branch without submodules
+      - name: Check out the exact trusted event revision without submodules
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.sha }}
           submodules: false
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Set up canonical Python
@@ -173,148 +202,442 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
+      - name: Verify publisher GitHub App configuration
+        env:
+          WORKFLOW_UPDATER_APP_CLIENT_ID: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
+          WORKFLOW_UPDATER_APP_PRIVATE_KEY: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$WORKFLOW_UPDATER_APP_CLIENT_ID" ]; then
+            echo "::error::WORKFLOW_UPDATER_APP_CLIENT_ID repository variable is missing or empty" >&2
+            exit 1
+          fi
+          if [ -z "$WORKFLOW_UPDATER_APP_PRIVATE_KEY" ]; then
+            echo "::error::WORKFLOW_UPDATER_APP_PRIVATE_KEY repository secret is missing" >&2
+            exit 1
+          fi
+
+      - name: Mint repository-limited Python updater App token
+        id: publisher_app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Inspect maintenance branch and matching Draft pull request
+        id: maintenance_pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          UPDATE_BRANCH: ${{ env.UPDATE_BRANCH }}
+          DEFAULT_BRANCH: ${{ env.DEFAULT_BRANCH }}
+          PR_TITLE: ${{ env.PR_TITLE }}
+          PR_MARKER: ${{ env.PR_MARKER }}
+        with:
+          github-token: ${{ steps.publisher_app_token.outputs.token }}
+          script: |
+            const branch = process.env.UPDATE_BRANCH;
+            const defaultBranch = process.env.DEFAULT_BRANCH;
+            const title = process.env.PR_TITLE;
+            const marker = process.env.PR_MARKER;
+            const { owner, repo } = context.repo;
+            const repository = `${owner}/${repo}`;
+            const references = await github.rest.git.listMatchingRefs({
+              owner,
+              repo,
+              ref: `heads/${branch}`,
+            });
+            const pullRequests = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              head: `${owner}:${branch}`,
+              state: "open",
+              per_page: 100,
+            });
+            if (references.data.length === 0) {
+              if (pullRequests.length !== 0) {
+                throw new Error("a maintenance pull request exists without its expected branch");
+              }
+              core.setOutput("existing", "false");
+              return;
+            }
+            if (
+              references.data.length !== 1 ||
+              references.data[0].ref !== `refs/heads/${branch}` ||
+              pullRequests.length !== 1
+            ) {
+              throw new Error("expected exactly one matching maintenance branch and open pull request");
+            }
+            const pullRequest = (await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: pullRequests[0].number,
+            })).data;
+            if (
+              pullRequest.head.ref !== branch ||
+              pullRequest.head.repo?.full_name !== repository ||
+              pullRequest.base.ref !== defaultBranch ||
+              pullRequest.base.repo?.full_name !== repository ||
+              !pullRequest.draft ||
+              pullRequest.title !== title ||
+              !pullRequest.body?.includes(marker) ||
+              pullRequest.auto_merge !== null
+            ) {
+              throw new Error("the existing maintenance pull request is not the matching Draft updater PR with auto-merge disabled");
+            }
+            core.setOutput("existing", "true");
+            core.setOutput("number", String(pullRequest.number));
+
+      - name: Prepare constrained maintenance branch from current trusted master
+        id: prepare_branch
+        env:
+          MAINTENANCE_PR_EXISTS: ${{ steps.maintenance_pr.outputs.existing }}
+          PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}
+        run: |
+          set -euo pipefail
+          git check-ref-format --branch "$DEFAULT_BRANCH" >/dev/null
+          git check-ref-format --branch "$UPDATE_BRANCH" >/dev/null
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISH_TOKEN\"; }; f"
+          trap 'git config --local --unset-all credential.helper' EXIT
+          git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          git rev-parse --verify "origin/$DEFAULT_BRANCH^{commit}" >/dev/null
+          case "$MAINTENANCE_PR_EXISTS" in
+            true)
+              git fetch --no-tags origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
+              EXPECTED_REMOTE_TIP="$(git rev-parse --verify "origin/$UPDATE_BRANCH^{commit}")"
+              merge_base="$(git merge-base "origin/$DEFAULT_BRANCH" "origin/$UPDATE_BRANCH")"
+              if [ -z "$merge_base" ]; then
+                echo "::error::maintenance branch has no trusted master merge base" >&2
+                exit 1
+              fi
+              branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"
+              if [ "$branch_paths" != ".python-version" ]; then
+                echo "::error::existing maintenance branch changes paths outside .python-version" >&2
+                exit 1
+              fi
+              git diff --check "$merge_base" "origin/$UPDATE_BRANCH"
+              git switch -C "$UPDATE_BRANCH" "origin/$DEFAULT_BRANCH"
+              git reset --hard "origin/$DEFAULT_BRANCH"
+              printf '%s\n' "reused=true" "expected_remote_tip=$EXPECTED_REMOTE_TIP" >> "$GITHUB_OUTPUT"
+              ;;
+            false)
+              git switch -c "$UPDATE_BRANCH" "origin/$DEFAULT_BRANCH"
+              git reset --hard "origin/$DEFAULT_BRANCH"
+              printf '%s\n' "reused=false" "expected_remote_tip=" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::maintenance branch state is invalid" >&2
+              exit 1
+              ;;
+          esac
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::trusted master restoration did not produce a clean worktree" >&2
+            exit 1
+          fi
+
+      - name: Revalidate current master before modifying it
+        run: |
+          set -euo pipefail
+          python3 scripts/update-python-version.py --check --expected-version "$CANDIDATE_VERSION" --json
+          make check-ci-security-contract
+          git diff --quiet "origin/$DEFAULT_BRANCH" --
+
       - name: Re-resolve and update only the canonical version file
         id: update
         run: |
           set -euo pipefail
-          if ! printf '%s\n' "$CANDIDATE_VERSION" | grep -Eq '^3\.14\.(0|[1-9][0-9]*)$'; then
-            echo "Candidate version is not an exact stable Python 3.14 patch." >&2
-            exit 1
-          fi
-          if ! printf '%s\n' "$CURRENT_VERSION" | grep -Eq '^3\.14\.(0|[1-9][0-9]*)$'; then
-            echo "Current version is not an exact stable Python 3.14 patch." >&2
-            exit 1
-          fi
-          if [ "$CANDIDATE_VERSION" = "$CURRENT_VERSION" ]; then
-            echo "Resolver reported an update without a version change." >&2
-            exit 1
-          fi
+          python3 scripts/update-python-version.py --check --expected-version "$CANDIDATE_VERSION" --json
           python3 scripts/update-python-version.py --update --expected-version "$CANDIDATE_VERSION" --json
           if git diff --quiet -- .python-version; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          changed_paths="$(git diff --name-only)"
-          if [ "$changed_paths" != ".python-version" ]; then
-            echo "Updater changed a path outside .python-version: $changed_paths" >&2
+            echo "::error::candidate update produced no .python-version change" >&2
             exit 1
           fi
-          git diff --check
+          changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH" --)"
+          if [ "$changed_paths" != ".python-version" ]; then
+            echo "::error::updater changed a path outside .python-version" >&2
+            exit 1
+          fi
+          git diff --check "origin/$DEFAULT_BRANCH" --
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Create or update a draft pull request without force push
-        if: steps.update.outputs.changed == 'true'
+      - name: Commit and push only the approved maintenance path
+        id: commit
         env:
-          GH_TOKEN: ${{ github.token }}
+          PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}
+          REUSED_MAINTENANCE_BRANCH: ${{ steps.prepare_branch.outputs.reused }}
+          EXPECTED_REMOTE_TIP: ${{ steps.prepare_branch.outputs.expected_remote_tip }}
         run: |
           set -euo pipefail
-          set -o pipefail
-          existing_pr="$(
-            gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
-              -f state=open \
-              -f base="$DEFAULT_BRANCH" \
-              -f head="${GITHUB_REPOSITORY_OWNER}:$UPDATE_BRANCH" \
-              -f per_page=100 | \
-              python3 scripts/select-python-update-pr.py \
-                --repository "$GITHUB_REPOSITORY" \
-                --owner "$GITHUB_REPOSITORY_OWNER" \
-                --base "$DEFAULT_BRANCH" \
-                --branch "$UPDATE_BRANCH"
-          )"
-
-          remote_branch=false
-          if git ls-remote --exit-code --heads origin "$UPDATE_BRANCH" >/dev/null 2>&1; then
-            remote_branch=true
-          fi
-          gh auth setup-git
-          pr_body="$RUNNER_TEMP/python-update-pr-body.md"
-          cat > "$pr_body" <<EOF
-          ## English
-
-          - Previous version: $CURRENT_VERSION
-          - Proposed version: $CANDIDATE_VERSION
-          - Official release identity: Python $CANDIDATE_VERSION
-          - Metadata source: https://www.python.org/api/v2/downloads/release/?is_published=true
-          - Validation workflow and run: validate-python-patch ($WORKFLOW_RUN_URL)
-          - Changed files: .python-version only
-          - Minor version: remains Python 3.14
-          - Merge: no automatic merge
-
-          ## Deutsch
-
-          - Vorherige Version: $CURRENT_VERSION
-          - Vorgeschlagene Version: $CANDIDATE_VERSION
-          - Offizielle Release-Identität: Python $CANDIDATE_VERSION
-          - Metadatenquelle: https://www.python.org/api/v2/downloads/release/?is_published=true
-          - Validierungsworkflow und Run: validate-python-patch ($WORKFLOW_RUN_URL)
-          - Geänderte Dateien: nur .python-version
-          - Minor-Version: bleibt Python 3.14
-          - Merge: kein automatischer Merge
-          EOF
-
-          if [ -n "$existing_pr" ]; then
-            if [ "$remote_branch" != true ]; then
-              echo "Open update pull request lacks its expected branch $UPDATE_BRANCH." >&2
-              exit 1
-            fi
-            auto_merge="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$existing_pr" --jq 'if (has("auto_merge") and (.auto_merge == null)) then "null" else "auto-merge-present" end')"
-            if [ "$auto_merge" != "null" ]; then
-              echo "Existing update pull request has automatic merge enabled or an unverifiable merge state." >&2
-              exit 1
-            fi
-            git fetch --no-tags origin "$UPDATE_BRANCH"
-            merge_base="$(git merge-base "origin/$DEFAULT_BRANCH" "origin/$UPDATE_BRANCH")"
-            if [ -z "$merge_base" ]; then
-              echo "Update branch has no trusted default-branch merge base." >&2
-              exit 1
-            fi
-            branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"
-            if [ "$branch_paths" != ".python-version" ]; then
-              echo "Existing update branch changes paths outside .python-version: $branch_paths" >&2
-              exit 1
-            fi
-            candidate_blob="$(git hash-object -w .python-version)"
-            if ! printf '%s\n' "$candidate_blob" | grep -Eq '^[0-9a-f]{40}$'; then
-              echo "Candidate version-file blob is malformed." >&2
-              exit 1
-            fi
-            git read-tree "origin/$UPDATE_BRANCH"
-            git update-index --add --cacheinfo 100644 "$candidate_blob" .python-version
-            if git diff-index --quiet "origin/$UPDATE_BRANCH" --; then
-              echo "The existing update pull request already contains $CANDIDATE_VERSION."
-              exit 0
-            fi
-            changed_paths="$(git diff-index --name-only "origin/$UPDATE_BRANCH" --)"
-            if [ "$changed_paths" != ".python-version" ]; then
-              echo "Existing update branch would change paths outside .python-version: $changed_paths" >&2
-              exit 1
-            fi
-            git diff-index --check "origin/$UPDATE_BRANCH" --
-            tree="$(git write-tree)"
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            commit="$(git commit-tree "$tree" -p "origin/$UPDATE_BRANCH" -m "$PR_TITLE")"
-            git update-ref "refs/heads/$UPDATE_BRANCH" "$commit" "origin/$UPDATE_BRANCH"
-            git push origin "$UPDATE_BRANCH"
-            gh pr edit "$existing_pr" \
-              --title "$PR_TITLE" \
-              --body-file "$pr_body"
-            exit 0
-          fi
-
-          if [ "$remote_branch" = true ]; then
-            echo "Refusing to overwrite the existing remote branch $UPDATE_BRANCH without an open update pull request." >&2
+          if [ "${{ steps.update.outputs.changed }}" != true ]; then
+            echo "::error::publisher update state is missing" >&2
             exit 1
           fi
-          git switch -c "$UPDATE_BRANCH"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .python-version
+          git add -- .python-version
+          staged_paths="$(git diff --cached --name-only)"
+          if [ "$staged_paths" != ".python-version" ]; then
+            echo "::error::staging contains a path outside .python-version" >&2
+            exit 1
+          fi
+          git diff --cached --check
           git commit -m "chore(ci): update Python to $CANDIDATE_VERSION"
-          git push origin "$UPDATE_BRANCH"
-          gh pr create \
-            --draft \
-            --base "$DEFAULT_BRANCH" \
-            --head "$UPDATE_BRANCH" \
-            --title "$PR_TITLE" \
-            --body-file "$pr_body"
+          git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISH_TOKEN\"; }; f"
+          trap 'git config --local --unset-all credential.helper' EXIT
+          case "$REUSED_MAINTENANCE_BRANCH" in
+            true)
+              if [ -z "$EXPECTED_REMOTE_TIP" ]; then
+                echo "::error::existing maintenance branch is missing its expected remote tip" >&2
+                exit 1
+              fi
+              git push \
+                "--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP" \
+                origin "HEAD:refs/heads/$UPDATE_BRANCH"
+              ;;
+            false)
+              git push origin "HEAD:refs/heads/$UPDATE_BRANCH"
+              ;;
+            *)
+              echo "::error::maintenance branch reuse state is invalid" >&2
+              exit 1
+              ;;
+          esac
+          printf '%s\n' "changed=true" "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create the matching Draft maintenance pull request
+        if: steps.maintenance_pr.outputs.existing == 'false' && steps.commit.outputs.changed == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          CURRENT_VERSION: ${{ env.CURRENT_VERSION }}
+          CANDIDATE_VERSION: ${{ env.CANDIDATE_VERSION }}
+          UPDATE_BRANCH: ${{ env.UPDATE_BRANCH }}
+          DEFAULT_BRANCH: ${{ env.DEFAULT_BRANCH }}
+          PR_TITLE: ${{ env.PR_TITLE }}
+          PR_MARKER: ${{ env.PR_MARKER }}
+          FRAMEWORK_REFERENCE_SHA: ${{ env.FRAMEWORK_REFERENCE_SHA }}
+          WORKFLOW_RUN_URL: ${{ env.WORKFLOW_RUN_URL }}
+        with:
+          github-token: ${{ steps.publisher_app_token.outputs.token }}
+          script: |
+            const body = [
+              process.env.PR_MARKER,
+              "## English",
+              "",
+              `- Previous version: ${process.env.CURRENT_VERSION}`,
+              `- Proposed version: ${process.env.CANDIDATE_VERSION}`,
+              "- Metadata source: https://www.python.org/api/v2/downloads/release/?is_published=true",
+              `- Validation workflow and run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
+              `- Framework architecture reference: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
+              `- Maintenance branch: ${process.env.UPDATE_BRANCH}; base: ${process.env.DEFAULT_BRANCH}; same-repository Draft PR only`,
+              "- Changed files: .python-version only; Python minor remains 3.14.",
+              "- Manual review and manual merge are required. Automatic merge remains disabled.",
+              "",
+              "## Deutsch",
+              "",
+              `- Vorherige Version: ${process.env.CURRENT_VERSION}`,
+              `- Vorgeschlagene Version: ${process.env.CANDIDATE_VERSION}`,
+              "- Metadatenquelle: https://www.python.org/api/v2/downloads/release/?is_published=true",
+              `- Validierungsworkflow und Run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
+              `- Framework-Architekturreferenz: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
+              `- Wartungs-Branch: ${process.env.UPDATE_BRANCH}; Basis: ${process.env.DEFAULT_BRANCH}; nur ein Draft-PR aus demselben Repository`,
+              "- Geänderte Dateien: nur .python-version; die Python-Minor-Version bleibt 3.14.",
+              "- Manuelle Prüfung und manueller Merge sind erforderlich. Automatischer Merge bleibt deaktiviert.",
+            ].join("\n");
+            await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: process.env.PR_TITLE,
+              head: process.env.UPDATE_BRANCH,
+              base: process.env.DEFAULT_BRANCH,
+              body,
+              draft: true,
+            });
+
+      - name: Update the verified Draft maintenance pull request
+        if: steps.maintenance_pr.outputs.existing == 'true' && steps.commit.outputs.changed == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ steps.maintenance_pr.outputs.number }}
+          CURRENT_VERSION: ${{ env.CURRENT_VERSION }}
+          CANDIDATE_VERSION: ${{ env.CANDIDATE_VERSION }}
+          UPDATE_BRANCH: ${{ env.UPDATE_BRANCH }}
+          DEFAULT_BRANCH: ${{ env.DEFAULT_BRANCH }}
+          PR_TITLE: ${{ env.PR_TITLE }}
+          PR_MARKER: ${{ env.PR_MARKER }}
+          FRAMEWORK_REFERENCE_SHA: ${{ env.FRAMEWORK_REFERENCE_SHA }}
+          WORKFLOW_RUN_URL: ${{ env.WORKFLOW_RUN_URL }}
+        with:
+          github-token: ${{ steps.publisher_app_token.outputs.token }}
+          script: |
+            const pullNumber = Number(process.env.PR_NUMBER);
+            if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0) {
+              throw new Error("existing maintenance pull request number is invalid");
+            }
+            const repository = `${context.repo.owner}/${context.repo.repo}`;
+            const current = (await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullNumber,
+            })).data;
+            if (
+              !current.draft ||
+              current.auto_merge !== null ||
+              current.head.ref !== process.env.UPDATE_BRANCH ||
+              current.head.repo?.full_name !== repository ||
+              current.base.ref !== process.env.DEFAULT_BRANCH ||
+              current.base.repo?.full_name !== repository ||
+              current.title !== process.env.PR_TITLE ||
+              !current.body?.includes(process.env.PR_MARKER)
+            ) {
+              throw new Error("existing maintenance pull request state changed before update");
+            }
+            const body = [
+              process.env.PR_MARKER,
+              "## English",
+              "",
+              `- Previous version: ${process.env.CURRENT_VERSION}`,
+              `- Proposed version: ${process.env.CANDIDATE_VERSION}`,
+              "- Metadata source: https://www.python.org/api/v2/downloads/release/?is_published=true",
+              `- Validation workflow and run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
+              `- Framework architecture reference: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
+              `- Maintenance branch: ${process.env.UPDATE_BRANCH}; base: ${process.env.DEFAULT_BRANCH}; same-repository Draft PR only`,
+              "- Changed files: .python-version only; Python minor remains 3.14.",
+              "- Manual review and manual merge are required. Automatic merge remains disabled.",
+              "",
+              "## Deutsch",
+              "",
+              `- Vorherige Version: ${process.env.CURRENT_VERSION}`,
+              `- Vorgeschlagene Version: ${process.env.CANDIDATE_VERSION}`,
+              "- Metadatenquelle: https://www.python.org/api/v2/downloads/release/?is_published=true",
+              `- Validierungsworkflow und Run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
+              `- Framework-Architekturreferenz: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
+              `- Wartungs-Branch: ${process.env.UPDATE_BRANCH}; Basis: ${process.env.DEFAULT_BRANCH}; nur ein Draft-PR aus demselben Repository`,
+              "- Geänderte Dateien: nur .python-version; die Python-Minor-Version bleibt 3.14.",
+              "- Manuelle Prüfung und manueller Merge sind erforderlich. Automatischer Merge bleibt deaktiviert.",
+            ].join("\n");
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullNumber,
+              title: process.env.PR_TITLE,
+              body,
+            });
+
+      - name: Recheck the matching Draft pull request after publication
+        if: steps.commit.outputs.changed == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          UPDATE_BRANCH: ${{ env.UPDATE_BRANCH }}
+          DEFAULT_BRANCH: ${{ env.DEFAULT_BRANCH }}
+          PR_TITLE: ${{ env.PR_TITLE }}
+          PR_MARKER: ${{ env.PR_MARKER }}
+          EXPECTED_HEAD_SHA: ${{ steps.commit.outputs.commit_sha }}
+        with:
+          github-token: ${{ steps.publisher_app_token.outputs.token }}
+          script: |
+            const { owner, repo } = context.repo;
+            const repository = `${owner}/${repo}`;
+            const branch = process.env.UPDATE_BRANCH;
+            const pullRequests = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              head: `${owner}:${branch}`,
+              state: "open",
+              per_page: 100,
+            });
+            if (pullRequests.length !== 1) {
+              throw new Error("expected exactly one maintenance pull request after publication");
+            }
+            const pullRequest = (await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: pullRequests[0].number,
+            })).data;
+            if (
+              !pullRequest.draft ||
+              pullRequest.auto_merge !== null ||
+              pullRequest.head.ref !== branch ||
+              pullRequest.head.repo?.full_name !== repository ||
+              pullRequest.head.sha !== process.env.EXPECTED_HEAD_SHA ||
+              pullRequest.base.ref !== process.env.DEFAULT_BRANCH ||
+              pullRequest.base.repo?.full_name !== repository ||
+              pullRequest.title !== process.env.PR_TITLE ||
+              !pullRequest.body?.includes(process.env.PR_MARKER)
+            ) {
+              throw new Error("published maintenance pull request is not an exact same-repository Draft with auto-merge disabled");
+            }
+
+  report-python-update-outcome:
+    needs:
+      - resolve-python-patch
+      - validate-python-patch
+      - publish-python-update
+    if: ${{ always() }}
+    permissions: {}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      RESOLVER_RESULT: ${{ needs.resolve-python-patch.result }}
+      VALIDATOR_RESULT: ${{ needs.validate-python-patch.result }}
+      PUBLISHER_RESULT: ${{ needs.publish-python-update.result }}
+      RESOLVER_STATUS: ${{ needs.resolve-python-patch.outputs.status }}
+      CURRENT_VERSION: ${{ needs.resolve-python-patch.outputs.current_version }}
+      LATEST_VERSION: ${{ needs.resolve-python-patch.outputs.latest_version }}
+      UPDATE_AVAILABLE: ${{ needs.resolve-python-patch.outputs.update_available }}
+    steps:
+      - name: Report explicit Python maintenance outcome
+        run: |
+          set -euo pipefail
+          if [ "$RESOLVER_RESULT" != success ]; then
+            echo "::error::Python resolver did not complete successfully" >&2
+            exit 1
+          fi
+          if [ -z "$CURRENT_VERSION" ] || [ -z "$LATEST_VERSION" ]; then
+            echo "::error::Python resolver omitted a required version output" >&2
+            exit 1
+          fi
+          case "$UPDATE_AVAILABLE" in
+            false)
+              if [ "$RESOLVER_STATUS" != current ] || [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+                echo "::error::Python resolver no-update outputs are inconsistent" >&2
+                exit 1
+              fi
+              if [ "$VALIDATOR_RESULT" != skipped ] || [ "$PUBLISHER_RESULT" != skipped ]; then
+                echo "::error::Python no-update outcome unexpectedly ran validation or publication" >&2
+                exit 1
+              fi
+              printf '%s\n' \
+                '## Python updater outcome' \
+                '' \
+                'No Python 3.14 patch update is available. Validation and publication were skipped; no maintenance branch, commit, or pull request was created or changed.' \
+                '' \
+                'Kein Python-3.14-Patch-Update ist verfügbar. Validierung und Veröffentlichung wurden übersprungen; es wurde kein Wartungs-Branch, Commit oder Pull Request erstellt oder geändert.' \
+                >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            true)
+              if [ "$RESOLVER_STATUS" != update_available ] || [ "$CURRENT_VERSION" = "$LATEST_VERSION" ]; then
+                echo "::error::Python resolver update outputs are inconsistent" >&2
+                exit 1
+              fi
+              if [ "$VALIDATOR_RESULT" != success ] || [ "$PUBLISHER_RESULT" != success ]; then
+                echo "::error::Python candidate was not both validated and published" >&2
+                exit 1
+              fi
+              printf '%s\n' \
+                '## Python updater outcome' \
+                '' \
+                "Python 3.14 update $CURRENT_VERSION → $LATEST_VERSION was independently validated and published through the constrained maintenance branch automation/update-python-314 and its matching Draft pull request." \
+                'Manual review and manual merge remain required; automatic merge is disabled.' \
+                '' \
+                "Python-3.14-Update $CURRENT_VERSION → $LATEST_VERSION wurde unabhängig validiert und über den eingeschränkten Wartungs-Branch automation/update-python-314 sowie den passenden Draft Pull Request veröffentlicht." \
+                'Manuelle Prüfung und manueller Merge bleiben erforderlich; automatischer Merge ist deaktiviert.' \
+                >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "::error::Python resolver update_available output is missing or unexpected" >&2
+              exit 1
+              ;;
+          esac

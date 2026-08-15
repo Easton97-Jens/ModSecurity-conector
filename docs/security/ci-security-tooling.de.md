@@ -54,6 +54,54 @@ Für die gehostete Ausführung konfigurieren Sie die Repository-Variable
 Repository. Die GitHub App muss auf dieses Repository begrenzt sein und darf
 nur `Contents: write`, `Pull requests: write` und `Workflows: write` erhalten.
 
+## Eingeschränkter Python-3.14-Patch-Updater
+
+`.github/workflows/update-python-version.yml` hat genau vier Jobs:
+`resolve-python-patch`, `validate-python-patch`, `publish-python-update` und
+`report-python-update-outcome`. Er wird ausschließlich durch den Montags-
+Zeitplan `17 6 * * 1` oder `workflow_dispatch` ausgelöst, serialisiert pro
+Repository über
+`modsecurity-conector-python-version-maintenance-${{ github.repository }}`
+ohne einen laufenden Wartungsversuch abzubrechen und lässt Arbeit nur für die
+kanonische Nicht-Fork-Ref `master` von `Easton97-Jens/ModSecurity-conector` zu.
+
+Der Resolver verwendet den exakten vertrauenswürdigen Event-SHA, die kanonische
+`.python-version` und `scripts/update-python-version.py --check --json`, um
+die typisierten Outputs `status`, `current_version`, `latest_version` und
+`update_available` auszugeben. Der Validator installiert und prüft den
+Candidate-Patch unabhängig, löst ihn mit `--expected-version` erneut auf,
+nutzt hash-gesperrte CI-Abhängigkeiten und führt vor der Veröffentlichung die
+Python-/Versions- und CI-Sicherheitsverträge aus. Beide Jobs besitzen nur
+`contents: read`.
+
+Das normale `GITHUB_TOKEN` bleibt im Publisher bei `contents: read`. Nur dieser
+Job liest die App-Konfiguration, erstellt das vorhandene SHA-gepinnte
+GitHub-App-Token und begrenzt dieses Token auf `Contents: write` und
+`Pull requests: write`. Er fordert nie Schreibrechte für `Workflows`,
+`Actions` oder `Issues`; das weitergehende oben genannte `Workflows: write`
+gehört nur zum getrennten Workflow-/Tool-Updater. Der Publisher besitzt keinen
+Schreibpfad über `github.token`.
+
+Vor einem Schreibzugriff verlangt der Publisher entweder keinen Wartungs-Branch
+und keinen passenden PR oder genau einen Same-Repository-Draft-PR mit festem
+Titel und Marker `<!-- modsecurity-conector-python-314-updater -->`, Basis
+`master` und deaktiviertem automatischen Merge. Er prüft bei einem bestehenden
+Branch dessen historischen Scope, baut danach von aktuellem vertrauenswürdigem
+`origin/master` neu auf, ändert nur `.python-version`, staged nur diese Datei
+und verwendet beim sicheren Ersetzen des verifizierten Wartungs-Branch nur die
+exakte Form
+`--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP`. Ein
+unbedingter Force-Push, ein Default-Branch-Update, Merge oder Auto-Merge ist
+nicht erlaubt.
+
+Der resultierende Same-Repository-Draft-PR dokumentiert vorherige/vorgeschlagene
+Version, Python.org-Metadaten-URL, Validierungs-Run-URL, Framework-Referenz-SHA
+und die Pflicht zu manueller Prüfung/manuellem Merge auf Englisch und Deutsch.
+Der `report-python-update-outcome`-Job mit leeren Berechtigungen läuft immer
+und weist inkonsistente Resolver-, Validator- oder Publisher-Zustände zurück;
+bei einem aktuellen Resultat berichtet er, dass kein Branch, Commit oder PR
+geändert wurde.
+
 ## Workflow-Linting
 
 `ci-security-workflow-lint.yml` führt checksum-verifiziertes `actionlint` aus

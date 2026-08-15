@@ -132,57 +132,51 @@ workflow filenames.
 ### Safe stable-patch updater contract
 
 The updater is separate from the 22 baseline jobs. The checked-in
-`.github/workflows/update-python-version.yml` has exactly three jobs:
+`.github/workflows/update-python-version.yml` has exactly four jobs:
 
 | Job | Interpreter and trust boundary | Required behavior |
 | --- | --- | --- |
-| `resolve-python-patch` | Runs the current canonical `.python-version`; read-only | Calls only the fixed official structured Python release API `https://www.python.org/api/v2/downloads/release/?is_published=true` through HTTPS with exact host `www.python.org`, no redirects, `application/json`, bounded response handling, and schema validation. `--check` strictly parses published, non-prerelease stable `3.14.N` values, reports a candidate only when it is a higher patch, and cannot downgrade or cross a minor series. |
-| `validate-python-patch` | Sets up the independently resolved candidate patch; read-only | Repeats the compatibility validation with the candidate interpreter before publication. It is independent of the resolver’s current-version interpreter and performs no source or branch mutation. |
-| `create-python-update-pr` | Runs the current canonical `.python-version`; default-branch-gated publisher | Re-resolves the candidate with `--expected-version` before `--update`; only this job receives `contents: write` and `pull-requests: write`, and only to create a proposed update pull request. |
+| `resolve-python-patch` | Exact trusted event SHA and current canonical `.python-version`; `contents: read` | Calls only the fixed official structured Python release API `https://www.python.org/api/v2/downloads/release/?is_published=true` through HTTPS with exact host `www.python.org`, no redirects, `application/json`, bounded response handling, and schema validation. Its tested `--check --json` interface emits `status`, `current_version`, `latest_version`, and `update_available`; it proposes only a higher stable `3.14.N` patch. |
+| `validate-python-patch` | Exact trusted event SHA and independently installed candidate; `contents: read` | Re-resolves the candidate with `--expected-version`, verifies the exact candidate interpreter, installs hash-locked CI dependencies, runs `pip check`, compile/contracts/focused tests, and `make check-ci-security-contract`; it performs no source or branch mutation. |
+| `publish-python-update` | Canonical non-fork `master` event, current trusted `origin/master`; normal `GITHUB_TOKEN` has `contents: read` | The sole App-secret consumer mints the existing pinned GitHub App token with only `Contents: write` and `Pull requests: write`, rebuilds the maintenance branch from current master, and may create or update only the matching same-repository Draft PR. |
+| `report-python-update-outcome` | Always runs; `permissions: {}` | Fails closed on inconsistent resolver/validator/publisher results and writes an English/German summary for either the current or independently validated/published result. |
 
 The only triggers are the scheduled Monday run and a manual
-`workflow_dispatch`; there is no push or pull-request trigger. Every job is
-gated to the repository default-branch ref and checks out that trusted default
-branch without submodules or persisted checkout credentials. The validation
-job sets up the independently resolved candidate version, re-resolves it, runs
-the fail-closed static contract, compiles the checked-in Python paths, and runs
-the focused Parent-native contract tests before the publisher can start.
+`workflow_dispatch`; there is no push or pull-request trigger. The concurrency
+group is `modsecurity-conector-python-version-maintenance-${{ github.repository }}`
+with `cancel-in-progress: false`. Resolver, validator, and publisher each
+require the exact canonical repository, non-fork event, literal `master`
+default branch/ref, and schedule-or-manual event before checking out
+`${{ github.sha }}` without submodules or persisted credentials.
 
 `--check` resolves and validates a candidate without changing files. `--update`
 is reserved for the publisher after the independent validation and expected-
-version re-resolution succeed. The publisher is not an updater for arbitrary
-Python versions: it accepts only the strict stable <code>3.14.N</code> format,
-never a lower patch, prerelease, alternate minor series, or unstructured/HTML
-release data.
+version re-resolution succeed. Version syntax is owned by the tested updater,
+not duplicated as workflow regexes. The publisher is not an updater for
+arbitrary Python versions: it accepts only a resolver-validated stable
+<code>3.14.N</code> patch, never a lower patch, prerelease, alternate minor
+series, or unstructured/HTML release data.
 
 The publisher uses the constant branch
 `automation/update-python-314` and the stable title
-`chore(ci): propose Python 3.14 patch update`. It creates a Draft pull request
-when that branch does not exist, or updates an existing repository-owned Draft
-update pull request only after verifying its head repository, default base,
-and disabled automatic merge, then restricting its merge-base diff to
-`.python-version`; it refuses to overwrite a branch without that exact pull
-request. It therefore does not create duplicate update pull requests and never
-force-pushes. Its English/German pull-request body records the prior and
-proposed versions, official release identity, metadata source, validation
-workflow/run URL, `.python-version` as the only changed file, retained Python
-3.14 minor version, and absence of automatic merge.
+`chore(ci): propose Python 3.14 patch update`, marker
+`<!-- modsecurity-conector-python-314-updater -->`, and only the fixed
+`.python-version` path. It creates a Draft PR only when neither matching branch
+nor PR exists. It reuses a branch only with exactly one matching same-
+repository Draft PR whose title, marker, head/base, and disabled auto-merge
+state all verify. After checking its historical scope, it rebuilds from current
+`origin/master`, stages only `.python-version`, and uses the exact
+`--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP` form for a
+verified replacement branch. It never does an unconditional force push,
+default-branch push, merge, or auto-merge.
 
-The publisher streams the bounded REST pull-list response directly from
-`gh api` into its strict duplicate-key JSON selector. The selector has no
-caller-controlled response-file path, so the publisher does not cross a
-response-file or symlink/TOCTOU boundary while reusing an existing Draft PR.
-
-The updater must not auto-merge, write the default branch, force-push, consume
-repository or user-provided `secrets.*`, initialize submodules, or execute an
-arbitrary project workload. The publisher may use only GitHub’s automatically
-provided job token, limited by its two job-scoped write permissions, to create
-the Draft pull request or update the existing open update pull request; its
-repository execution is limited to the
-fixed interpreter verification and updater paths. The resolver and validator
-remain read-only. The publisher’s limited write permissions, default-branch
-gate, revalidation at the write boundary, and PR-only output prevent metadata
-from directly mutating the default branch.
+Only the publisher reads `WORKFLOW_UPDATER_APP_CLIENT_ID` and
+`WORKFLOW_UPDATER_APP_PRIVATE_KEY`; its normal job token remains read-only and
+the App token never requests `Workflows`, `Actions`, or `Issues` write access.
+The English/German PR body records the previous/proposed version, Python.org
+metadata URL, validation run URL, Framework source SHA, `.python-version` as
+the only changed file, retained Python 3.14 minor version, and manual review/
+manual merge requirement.
 
 The independent validation stage is the evidence boundary for a proposed
 patch; it is not a claim that a scheduled run, candidate, pull request, or
