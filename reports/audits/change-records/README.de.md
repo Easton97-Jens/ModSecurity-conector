@@ -28,6 +28,10 @@ angelegt werden.
   Framework-Submodule-Validator ausdrücklich autorisiert. Es weist nur
   beobachtete Validierung aus; Hosted-Ausführungs- und Security-Scan-Evidence
   werden nicht behauptet.
+- [CR-20260812-connector-mode-workflow-coverage](CR-20260812-connector-mode-workflow-coverage.de.md) —
+  dieses Paar ist für die vier statischen Connector-Mode-Workflows ausdrücklich
+  autorisiert. Es unterscheidet lokale statische Evidence von ausstehender
+  Exact-Head-Hosted-Runtime- und PR-Evidence.
 - [CR-20260813-framework-apr-util-submodule-validation](CR-20260813-framework-apr-util-submodule-validation.de.md) —
   der Benutzer hat einen Draft-PR autorisiert; Delivery- und
   Nachvollziehbarkeitsrichtlinien des Repositorys verlangen diesen gepaarten

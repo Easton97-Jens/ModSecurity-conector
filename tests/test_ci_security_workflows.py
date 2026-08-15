@@ -182,6 +182,88 @@ WRITE_PERMISSION_KEYS = {
     "attestations",
 }
 
+CONNECTOR_MODE_WORKFLOWS = {
+    "test-connectors-no-crs-no-mrts.yml": {
+        "name": "connector-tests-no-crs-no-mrts",
+        "crs": "no-crs",
+        "mrts": "no-mrts",
+        "cells": {
+            "apache": "runtime",
+            "envoy": "runtime",
+            "haproxy": "runtime",
+            "lighttpd": "runtime",
+            "traefik": "runtime",
+        },
+    },
+    "test-connectors-with-crs-no-mrts.yml": {
+        "name": "connector-tests-with-crs-no-mrts",
+        "crs": "with-crs",
+        "mrts": "no-mrts",
+        "cells": {
+            "apache": "runtime",
+            "envoy": "contract",
+            "haproxy": "runtime",
+            "lighttpd": "contract",
+            "traefik": "contract",
+        },
+    },
+    "test-connectors-no-crs-with-mrts.yml": {
+        "name": "connector-tests-no-crs-with-mrts",
+        "crs": "no-crs",
+        "mrts": "with-mrts",
+        "cells": {
+            "apache": "runtime",
+            "envoy": "expected_unsupported",
+            "haproxy": "runtime",
+            "lighttpd": "expected_unsupported",
+            "traefik": "expected_unsupported",
+        },
+    },
+    "test-connectors-with-crs-with-mrts.yml": {
+        "name": "connector-tests-with-crs-with-mrts",
+        "crs": "with-crs",
+        "mrts": "with-mrts",
+        "cells": {
+            "apache": "runtime",
+            "envoy": "expected_unsupported",
+            "haproxy": "runtime",
+            "lighttpd": "expected_unsupported",
+            "traefik": "expected_unsupported",
+        },
+    },
+}
+CONNECTOR_MODE_CONNECTORS = frozenset(
+    {"apache", "envoy", "haproxy", "lighttpd", "traefik"}
+)
+CONNECTOR_MODE_COVERAGE_KINDS = frozenset(
+    {"runtime", "contract", "expected_unsupported"}
+)
+CONNECTOR_MODE_FRAMEWORK_SHA = "01952978772995c054ba6a4cba86adc5d0cd1e7d"
+CONNECTOR_MODE_MRTS_SHA = "615b13bacbd008562c17408246c41ab27dca3104"
+CONNECTOR_MODE_TRIGGER_PATHS = frozenset(
+    {
+        "tests/test_ci_security_workflows.py",
+        "tests/test_python_version_contract.py",
+        "ci/checks/common/check-python-version-contract.py",
+        "ci/checks/common/check-python-interpreter-contract.py",
+        "ci/provisioning/**",
+        "ci/tools/print-framework-apr-util-env.sh",
+        "ci/lib/**",
+        "ci/evidence/reports/update-runtime-reports.py",
+        "ci/runtime/**",
+        "connectors/apache/**",
+        "connectors/envoy/**",
+        "connectors/haproxy/**",
+        "connectors/lighttpd/**",
+        "connectors/traefik/**",
+        "config/**",
+        "Makefile",
+        ".python-version",
+        ".gitmodules",
+        "modules/ModSecurity-test-Framework",
+    }
+)
+
 
 def normalize_shell_script(script: str) -> str:
     """Normalize layout for static shell contracts without executing shell."""
@@ -2622,6 +2704,450 @@ sudo -n chmod 0750 "$namespace_parent"
                 "privileged_submodule_execution",
             },
         )
+
+
+class ConnectorModeWorkflowContractTest(unittest.TestCase):
+    """Keep the static 20-cell connector-mode workflow family fail-closed."""
+
+    @staticmethod
+    def workflow_path(filename: str) -> Path:
+        return WORKFLOWS / filename
+
+    def load_workflow(self, filename: str) -> tuple[dict[str, object], str]:
+        text = self.workflow_path(filename).read_text(encoding="utf-8")
+        parsed = yaml.load(text, Loader=yaml.BaseLoader)
+        self.assertIsInstance(parsed, dict, filename)
+        return parsed, text
+
+    def test_exact_static_topology_and_twenty_cells(self) -> None:
+        actual_files = {
+            path.name for path in WORKFLOWS.glob("test-connectors-*.yml")
+        }
+        self.assertEqual(actual_files, set(CONNECTOR_MODE_WORKFLOWS))
+
+        observed_cells: dict[tuple[str, str, str], str] = {}
+        for filename, expected in CONNECTOR_MODE_WORKFLOWS.items():
+            with self.subTest(filename=filename):
+                workflow, _text = self.load_workflow(filename)
+                self.assertEqual(
+                    set(workflow),
+                    {"name", "on", "permissions", "concurrency", "jobs"},
+                )
+                self.assertEqual(workflow["name"], expected["name"])
+                self.assertEqual(workflow["permissions"], {"contents": "read"})
+                self.assertEqual(
+                    workflow["concurrency"],
+                    {"group": expected["name"], "cancel-in-progress": "false"},
+                )
+                self.assertEqual(set(workflow["jobs"]), {"connector-mode"})
+                job = workflow["jobs"]["connector-mode"]
+                self.assertNotIn("if", job)
+                self.assertEqual(job["runs-on"], "ubuntu-latest")
+                self.assertIn("${{ matrix.connector }}", job["name"])
+                self.assertIn("${{ matrix.coverage_kind }}", job["name"])
+                self.assertEqual(job["strategy"]["fail-fast"], "false")
+                self.assertEqual(set(job["strategy"]["matrix"]), {"include"})
+                rows = job["strategy"]["matrix"]["include"]
+                self.assertEqual(len(rows), 5)
+                self.assertEqual(
+                    {row["connector"] for row in rows}, CONNECTOR_MODE_CONNECTORS
+                )
+                self.assertEqual(
+                    {row["coverage_kind"] for row in rows}.difference(
+                        CONNECTOR_MODE_COVERAGE_KINDS
+                    ),
+                    set(),
+                )
+                actual = {
+                    row["connector"]: row["coverage_kind"]
+                    for row in rows
+                }
+                self.assertEqual(actual, expected["cells"])
+                self.assertEqual({row["crs"] for row in rows}, {expected["crs"]})
+                self.assertEqual({row["mrts"] for row in rows}, {expected["mrts"]})
+                self.assertEqual(len(actual), 5)
+                for connector, coverage_kind in actual.items():
+                    key = (connector, expected["crs"], expected["mrts"])
+                    self.assertNotIn(key, observed_cells)
+                    observed_cells[key] = coverage_kind
+
+        expected_cells = {
+            (connector, expected["crs"], expected["mrts"]): coverage_kind
+            for expected in CONNECTOR_MODE_WORKFLOWS.values()
+            for connector, coverage_kind in expected["cells"].items()
+        }
+        self.assertEqual(observed_cells, expected_cells)
+        self.assertEqual(len(observed_cells), 20)
+        self.assertNotIn("nginx", {key[0] for key in observed_cells})
+        self.assertNotIn("_template", {key[0] for key in observed_cells})
+
+    def test_no_crs_metadata_stays_equal_to_closed_profile(self) -> None:
+        workflow, _text = self.load_workflow("test-connectors-no-crs-no-mrts.yml")
+        rows = workflow["jobs"]["connector-mode"]["strategy"]["matrix"]["include"]
+        expected_metadata = {
+            "apache": (
+                "full-lifecycle-low-latency",
+                "native-httpd-module",
+                "http1",
+                "safe",
+                "source-wiring-and-baseline-only",
+            ),
+            "envoy": (
+                "request-only-compatibility",
+                "http-ext-authz-service",
+                "http1",
+                "not_applicable",
+                "no-response-host-path",
+            ),
+            "haproxy": (
+                "header-compatibility",
+                "spoe-spop-agent",
+                "http1",
+                "not_applicable",
+                "no-response-body-host-path",
+            ),
+            "lighttpd": (
+                "header-compatibility",
+                "native-lighttpd-plugin",
+                "http1",
+                "not_applicable",
+                "no-native-body-host-path",
+            ),
+            "traefik": (
+                "request-only-compatibility",
+                "http-forwardauth-service",
+                "http1",
+                "not_applicable",
+                "no-response-host-path",
+            ),
+        }
+        actual_metadata = {
+            row["connector"]: (
+                row["connector_profile"],
+                row["integration_mode"],
+                row["protocol"],
+                row["phase4_mode"],
+                row["evidence_scope"],
+            )
+            for row in rows
+        }
+        self.assertEqual(actual_metadata, expected_metadata)
+
+    def test_triggers_are_pr_scoped_and_cover_shared_test_paths(self) -> None:
+        for filename, expected in CONNECTOR_MODE_WORKFLOWS.items():
+            with self.subTest(filename=filename):
+                workflow, _text = self.load_workflow(filename)
+                events = workflow["on"]
+                self.assertEqual(set(events), {"pull_request", "workflow_dispatch"})
+                pull_request = events["pull_request"]
+                self.assertEqual(set(pull_request), {"branches", "paths"})
+                self.assertEqual(pull_request["branches"], ["master"])
+                paths = set(pull_request["paths"])
+                self.assertIn(f".github/workflows/{filename}", paths)
+                self.assertTrue(CONNECTOR_MODE_TRIGGER_PATHS.issubset(paths))
+                self.assertNotIn("connectors/nginx/**", paths)
+
+    def test_workflows_keep_the_pr_security_boundary_closed(self) -> None:
+        for filename in CONNECTOR_MODE_WORKFLOWS:
+            with self.subTest(filename=filename):
+                workflow, text = self.load_workflow(filename)
+                lowered = text.lower()
+                self.assertEqual(workflow["permissions"], {"contents": "read"})
+                for fragment in (
+                    "pull_request_target:",
+                    "workflow_run:",
+                    "repository_dispatch:",
+                    "github.event.inputs",
+                    "inputs.",
+                    "secrets.",
+                    "github.token",
+                    "$github_token",
+                    "continue-on-error",
+                    "|| true",
+                    "sudo",
+                    "actions/cache",
+                    "restore-keys",
+                    "upload-artifact@",
+                ):
+                    self.assertNotIn(fragment, lowered, fragment)
+                self.assertNotIn("connector: nginx", lowered)
+                self.assertNotIn("connectors/nginx", lowered)
+                self.assertNotIn("nginx-root-broker", lowered)
+                self.assertNotIn("fromJSON", text)
+                self.assertNotIn("needs.", text)
+                exact_head = "${{ github.event.pull_request.head.sha || github.sha }}"
+                self.assertEqual(text.count(exact_head), 2)
+                self.assertIn(f"ref: {exact_head}", text)
+                self.assertIn(f"EXPECTED_PARENT_SHA: {exact_head}", text)
+                self.assertEqual(
+                    re.findall(r"\$\{\{\s*github\.event[^}]*\}\}", text),
+                    [exact_head, exact_head],
+                )
+                self.assertEqual(len(checkout_step_blocks(text)), 1)
+                self.assertIn("submodules: recursive", text)
+                self.assertIn("persist-credentials: false", text)
+                uses = re.findall(r"^\s*uses:\s+([^\s#]+)", text, re.MULTILINE)
+                self.assertGreaterEqual(len(uses), 2)
+                for action in uses:
+                    self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
+
+    def test_runtime_dependencies_use_exact_hash_locked_framework_ci_install(
+        self,
+    ) -> None:
+        """Keep runtime rows off Framework's mutable development bootstrap."""
+
+        locked_install = (
+            "set -euo pipefail "
+            "python3 -m pip install --disable-pip-version-check --no-input "
+            "--only-binary=:all: --require-hashes -r "
+            "modules/ModSecurity-test-Framework/requirements-ci.lock "
+            "python3 -m pip check"
+        )
+        expected_conditions = {
+            "test-connectors-no-crs-no-mrts.yml": [None],
+            "test-connectors-with-crs-no-mrts.yml": [
+                "matrix.coverage_kind == 'contract'",
+                "matrix.coverage_kind == 'runtime'",
+            ],
+            "test-connectors-no-crs-with-mrts.yml": [
+                "matrix.coverage_kind == 'runtime'"
+            ],
+            "test-connectors-with-crs-with-mrts.yml": [
+                "matrix.coverage_kind == 'runtime'"
+            ],
+        }
+
+        for filename, expected_ifs in expected_conditions.items():
+            with self.subTest(filename=filename):
+                workflow, text = self.load_workflow(filename)
+                steps = workflow["jobs"]["connector-mode"]["steps"]
+                revision_step = next(
+                    step
+                    for step in steps
+                    if step["name"]
+                    == "Verify recorded Framework and MRTS revisions"
+                )
+                locked_steps = [
+                    step
+                    for step in steps
+                    if normalize_shell_script(step.get("run", "")) == locked_install
+                ]
+                self.assertEqual(
+                    [step.get("if") for step in locked_steps], expected_ifs
+                )
+                for step in locked_steps:
+                    self.assertLess(steps.index(revision_step), steps.index(step))
+
+                for forbidden in (
+                    "make setup-dev",
+                    "bootstrap-python.sh",
+                    "requirements-dev.txt",
+                    "pip install --upgrade pip",
+                ):
+                    self.assertNotIn(forbidden, text)
+
+    def test_runtime_contract_and_negative_paths_have_honest_claims(self) -> None:
+        no_crs, no_crs_text = self.load_workflow(
+            "test-connectors-no-crs-no-mrts.yml"
+        )
+        self.assertIn("FIVE_CONNECTOR_PROFILE: no-crs", no_crs_text)
+        self.assertIn("--verify-row", no_crs_text)
+        self.assertIn('make "runtime-smoke-$CONNECTOR"', no_crs_text)
+        self.assertIn('make "evidence-check-$CONNECTOR"', no_crs_text)
+        self.assertIn("Check process cleanup", no_crs_text)
+        self.assertNotIn("expected_unsupported", no_crs_text)
+        self.assertEqual(
+            no_crs["jobs"]["connector-mode"]["strategy"]["fail-fast"], "false"
+        )
+
+        contract, contract_text = self.load_workflow(
+            "test-connectors-with-crs-no-mrts.yml"
+        )
+        self.assertIn("test-five-connectors-with-crs-no-mrts-contract", contract_text)
+        self.assertIn("test-crs-provenance-contract", contract_text)
+        self.assertIn("Install hash-locked Framework CI dependency", contract_text)
+        self.assertIn(
+            "--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock",
+            contract_text,
+        )
+        self.assertIn("python3 -m pip check", contract_text)
+        dependency_step = next(
+            step
+            for step in contract["jobs"]["connector-mode"]["steps"]
+            if step["name"] == "Install hash-locked Framework CI dependency"
+        )
+        framework_revision_step = next(
+            step
+            for step in contract["jobs"]["connector-mode"]["steps"]
+            if step["name"] == "Verify recorded Framework and MRTS revisions"
+        )
+        steps = contract["jobs"]["connector-mode"]["steps"]
+        self.assertLess(
+            steps.index(framework_revision_step), steps.index(dependency_step)
+        )
+        self.assertEqual(dependency_step["if"], "matrix.coverage_kind == 'contract'")
+        self.assertEqual(
+            dependency_step["run"].splitlines(),
+            [
+                "set -euo pipefail",
+                "python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \\",
+                "  --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock",
+                "python3 -m pip check",
+            ],
+        )
+        self.assertIn("CONTRACT_VALIDATED", contract_text)
+        self.assertIn("host_runtime_status=UNATTESTED", contract_text)
+        for target in (
+            "check-config-envoy",
+            "check-config-lighttpd",
+            "check-config-traefik",
+        ):
+            self.assertIn(f"make -n {target}", contract_text)
+        self.assertNotIn("five-connectors-with-crs-no-mrts-validate", contract_text)
+        self.assertNotIn("five-connectors-with-crs-no-mrts-aggregate", contract_text)
+        self.assertNotIn("run-full-matrix-job.py", contract_text)
+        self.assertEqual(
+            contract["jobs"]["connector-mode"]["strategy"]["fail-fast"], "false"
+        )
+
+        for filename in (
+            "test-connectors-no-crs-with-mrts.yml",
+            "test-connectors-with-crs-with-mrts.yml",
+        ):
+            with self.subTest(filename=filename):
+                _workflow, text = self.load_workflow(filename)
+                self.assertIn("Prove current safe full-matrix rejection", text)
+                self.assertIn('for candidate in "$CONNECTOR" unknown _template; do', text)
+                self.assertIn('if python3 ci/runtime/lifecycle/run-full-matrix-job.py', text)
+                self.assertIn('rejection_log="$CELL_ROOT/rejected-$candidate.stderr"', text)
+                self.assertIn('if [ "$rc" -ne 2 ]; then', text)
+                self.assertIn('"argument --connector: invalid choice:"', text)
+                self.assertIn('test ! -e "$rejected_build_root"', text)
+                self.assertNotIn("if: false", text)
+                self.assertNotIn("exit 0", text)
+
+        no_mrts_filename = "test-connectors-with-crs-no-mrts.yml"
+        _workflow, no_mrts_text = self.load_workflow(no_mrts_filename)
+        self.assertIn(
+            'make verified-apache-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"',
+            no_mrts_text,
+        )
+        self.assertIn(
+            'SOURCE_ROOT="$haproxy_source_root" make verified-haproxy-case '
+            'CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"',
+            no_mrts_text,
+        )
+        self.assertNotIn("RUNTIME_COMPONENT_TARGET=haproxy", no_mrts_text)
+        self.assertNotIn("make fetch-crs", no_mrts_text)
+
+        for filename in (
+            "test-connectors-no-crs-with-mrts.yml",
+            "test-connectors-with-crs-with-mrts.yml",
+        ):
+            with self.subTest(filename=filename):
+                _workflow, text = self.load_workflow(filename)
+                self.assertIn(
+                    "DetectionOnly expected; no enforcement claim", text
+                )
+                self.assertIn(
+                    'make verified-apache-case CASE=action_allow_phase1_pass '
+                    'CRS="$CRS" MRTS="$MRTS"',
+                    text,
+                )
+                self.assertIn(
+                    'CASE=action_allow_phase1_pass CRS="$CRS" MRTS="$MRTS"',
+                    text,
+                )
+                self.assertNotIn(
+                    'CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"', text
+                )
+                haproxy_case = (
+                    'make verified-haproxy-case CASE=action_allow_phase1_pass '
+                    'CRS="$CRS" MRTS="$MRTS"'
+                )
+                if filename == "test-connectors-no-crs-with-mrts.yml":
+                    self.assertIn(
+                        'SOURCE_ROOT="$haproxy_source_root" '
+                        f"RUNTIME_COMPONENT_TARGET=haproxy {haproxy_case}",
+                        text,
+                    )
+                else:
+                    self.assertIn(
+                        f'SOURCE_ROOT="$haproxy_source_root" {haproxy_case}', text
+                    )
+                    self.assertNotIn("RUNTIME_COMPONENT_TARGET=haproxy", text)
+                    self.assertNotIn("make fetch-crs", text)
+
+        for filename in (
+            "test-connectors-with-crs-no-mrts.yml",
+            "test-connectors-no-crs-with-mrts.yml",
+            "test-connectors-with-crs-with-mrts.yml",
+        ):
+            with self.subTest(filename=filename):
+                _workflow, text = self.load_workflow(filename)
+                self.assertIn(
+                    'haproxy_source_root="$CACHE_ROOT/shared/sources"', text
+                )
+                self.assertIn(
+                    'case "$haproxy_source_root" in "$CACHE_ROOT"/*) ;; *) '
+                    'echo "FAIL: unsafe HAProxy source root" >&2; exit 2 ;; esac',
+                    text,
+                )
+                self.assertIn(
+                    'echo "VERIFIED_RUN_ROOT=$cell_root/verified"', text
+                )
+                self.assertIn(
+                    'echo "BUILD_ROOT=$cell_root/verified/build"', text
+                )
+                self.assertNotIn('echo "BUILD_ROOT=$cell_root/build"', text)
+                self.assertNotIn("XDG_STATE_HOME=", text)
+                self.assertIn("Verify focused runtime cleanup", text)
+
+    def test_full_matrix_allowlist_and_recorded_gitlinks_remain_fixed(self) -> None:
+        source = ROOT / "ci" / "runtime" / "lifecycle" / "run-full-matrix-job.py"
+        tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+        connectors = None
+        for statement in tree.body:
+            if not isinstance(statement, ast.Assign):
+                continue
+            if any(
+                isinstance(target, ast.Name) and target.id == "CONNECTORS"
+                for target in statement.targets
+            ):
+                connectors = ast.literal_eval(statement.value)
+                break
+        self.assertEqual(connectors, {"apache", "haproxy", "nginx"})
+
+        gitlink = subprocess.run(
+            ["git", "ls-files", "-s", "--", "modules/ModSecurity-test-Framework"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            encoding="utf-8",
+        ).stdout.strip()
+        self.assertRegex(
+            gitlink,
+            rf"^160000 {CONNECTOR_MODE_FRAMEWORK_SHA} 0\tmodules/ModSecurity-test-Framework$",
+        )
+        for filename in CONNECTOR_MODE_WORKFLOWS:
+            with self.subTest(filename=filename):
+                _workflow, text = self.load_workflow(filename)
+                self.assertIn(
+                    f"EXPECTED_FRAMEWORK_SHA: {CONNECTOR_MODE_FRAMEWORK_SHA}", text
+                )
+                self.assertIn(f"EXPECTED_MRTS_SHA: {CONNECTOR_MODE_MRTS_SHA}", text)
+                self.assertIn(
+                    'mrts_commit=$(git -C modules/ModSecurity-test-Framework/tools/MRTS rev-parse HEAD)',
+                    text,
+                )
+                self.assertIn('test "$mrts_commit" = "$EXPECTED_MRTS_SHA"', text)
+
+        legacy_caller = (WORKFLOWS / "all-connectors-no-crs.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("workflow_dispatch:", legacy_caller)
+        self.assertIn("schedule:", legacy_caller)
+        self.assertNotIn("pull_request:", legacy_caller)
 
 
 if __name__ == "__main__":
