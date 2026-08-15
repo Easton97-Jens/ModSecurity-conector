@@ -2172,6 +2172,36 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             return subprocess.CompletedProcess(command, 0, "", "")
         return None
 
+    def _local_component_runner(
+        self,
+        *,
+        upstream: Path,
+        commit: str,
+        branch: str,
+        expected_url: str,
+        clone_modes: list[str],
+        original_run: Callable[..., subprocess.CompletedProcess[str]],
+    ) -> Callable[..., subprocess.CompletedProcess[str]]:
+        def local_component_run(
+            command: list[str], cwd: Path | None = None, check: bool = False
+        ) -> subprocess.CompletedProcess[str]:
+            if command[:2] == ["git", "ls-remote"]:
+                return subprocess.CompletedProcess(command, 0, f"{commit}\trefs/heads/{branch}\n", "")
+            if len(command) >= 3 and command[:2] == ["git", "clone"]:
+                clone_modes.append(command[2])
+            local_result = self._local_clone_or_fetch(
+                command,
+                upstream=upstream,
+                expected_url=expected_url,
+                check=check,
+                raise_on_clone_failure=True,
+            )
+            if local_result is not None:
+                return local_result
+            return original_run(command, cwd=cwd, check=check)
+
+        return local_component_run
+
     @staticmethod
     def _local_submodule_config(checkout: Path) -> tuple[tuple[str, str], ...]:
         """Parse local submodule config without treating values as text lines."""
@@ -2307,24 +2337,14 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             expected_url = "https://github.com/coreruleset/coreruleset.git"
             clone_modes: list[str] = []
             original_run = components.run
-
-            def local_crs_run(
-                command: list[str], cwd: Path | None = None, check: bool = False
-            ) -> subprocess.CompletedProcess[str]:
-                if command[:2] == ["git", "ls-remote"]:
-                    return subprocess.CompletedProcess(command, 0, f"{commit}\trefs/heads/{branch}\n", "")
-                if len(command) >= 3 and command[:2] == ["git", "clone"]:
-                    clone_modes.append(command[2])
-                local_result = self._local_clone_or_fetch(
-                    command,
-                    upstream=upstream,
-                    expected_url=expected_url,
-                    check=check,
-                    raise_on_clone_failure=True,
-                )
-                if local_result is not None:
-                    return local_result
-                return original_run(command, cwd=cwd, check=check)
+            local_crs_run = self._local_component_runner(
+                upstream=upstream,
+                commit=commit,
+                branch=branch,
+                expected_url=expected_url,
+                clone_modes=clone_modes,
+                original_run=original_run,
+            )
 
             with mock.patch.object(components, "run", side_effect=local_crs_run):
                 first = components.prepare_git_component(
@@ -2482,24 +2502,14 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             expected_url = "https://github.com/example/component"
             clone_modes: list[str] = []
             original_run = components.run
-
-            def local_recursive_run(
-                command: list[str], cwd: Path | None = None, check: bool = False
-            ) -> subprocess.CompletedProcess[str]:
-                if command[:2] == ["git", "ls-remote"]:
-                    return subprocess.CompletedProcess(command, 0, f"{commit}\trefs/heads/{branch}\n", "")
-                if len(command) >= 3 and command[:2] == ["git", "clone"]:
-                    clone_modes.append(command[2])
-                local_result = self._local_clone_or_fetch(
-                    command,
-                    upstream=upstream,
-                    expected_url=expected_url,
-                    check=check,
-                    raise_on_clone_failure=True,
-                )
-                if local_result is not None:
-                    return local_result
-                return original_run(command, cwd=cwd, check=check)
+            local_recursive_run = self._local_component_runner(
+                upstream=upstream,
+                commit=commit,
+                branch=branch,
+                expected_url=expected_url,
+                clone_modes=clone_modes,
+                original_run=original_run,
+            )
 
             with mock.patch.dict(os.environ, {"GIT_ALLOW_PROTOCOL": "file"}):
                 with mock.patch.object(components, "run", side_effect=local_recursive_run):
