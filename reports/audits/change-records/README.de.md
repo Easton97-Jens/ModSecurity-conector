@@ -11,6 +11,12 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260815-python-updater-framework-port](CR-20260815-python-updater-framework-port.de.md) —
+  der aktuelle Benutzer hat den eingeschränkten Parent-Python-Updater-Port und
+  die Draft-PR-Auslieferung autorisiert. Dieser gekoppelte Record weist nur
+  beobachtete lokale Validierung aus; Hosted-Ausführung, Delivery-Checks und
+  Merge werden nicht behauptet.
+
 - [CR-20260815-framework-version-pin-updater-sync](CR-20260815-framework-version-pin-updater-sync.de.md) —
   der aktuelle Benutzer hat die Vorbereitung der Framework-zentralen
   Synchronisationsänderung und ihrer PR-Auslieferung autorisiert. Dieser

@@ -27,7 +27,7 @@ VERIFIER_NAME = "Verify Python interpreter contract"
 CANDIDATE_VERIFIER_NAME = "Verify Python candidate interpreter contract"
 VERIFIER_PATH = "ci/checks/common/check-python-interpreter-contract.py"
 SETUP_PYTHON_OUTPUT = "${{ steps.setup-python.outputs.python-path }}"
-CANDIDATE_VERSION_OUTPUT = "${{ needs.resolve-python-patch.outputs.version }}"
+CANDIDATE_VERSION_OUTPUT = "${{ needs.resolve-python-patch.outputs.latest_version }}"
 NORMAL_VERIFIER_COMMAND = (
     f'python3 {VERIFIER_PATH} --version-file .python-version '
     '--expected-python "$EXPECTED_PYTHON"'
@@ -92,7 +92,7 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("test-nginx.yml", "nginx-structure"),
         JobIdentity("test-traefik.yml", "traefik-contract"),
         JobIdentity("update-actions-versions.yml", "update-actions-versions"),
-        JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "create-python-update-pr"),
+        JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "publish-python-update"),
         JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "resolve-python-patch"),
         JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "create-go-update-pr"),
         JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "resolve-go-patch"),
@@ -1661,7 +1661,7 @@ def candidate_setup_violations(job: Job, setup: Step) -> list[str]:
     if with_values.get("python-version") != CANDIDATE_VERSION_OUTPUT:
         errors.append(
             "candidate setup-python must use exactly "
-            "python-version: ${{ needs.resolve-python-patch.outputs.version }}"
+            "python-version: ${{ needs.resolve-python-patch.outputs.latest_version }}"
         )
     if "python-version-file" in with_values:
         errors.append("candidate setup-python must not use python-version-file")
@@ -1684,7 +1684,7 @@ def candidate_verifier_violations(verifier: Step) -> list[str]:
     if env.get("EXPECTED_VERSION") != CANDIDATE_VERSION_OUTPUT:
         errors.append(
             "candidate verifier EXPECTED_VERSION must be exactly "
-            "${{ needs.resolve-python-patch.outputs.version }}"
+            "${{ needs.resolve-python-patch.outputs.latest_version }}"
         )
     if env.get("EXPECTED_PYTHON") != SETUP_PYTHON_OUTPUT:
         errors.append(

@@ -53,6 +53,53 @@ For hosted execution, configure the repository variable
 repository. The GitHub App must be limited to this repository and grant only
 `Contents: write`, `Pull requests: write`, and `Workflows: write`.
 
+## Constrained Python 3.14 patch updater
+
+`.github/workflows/update-python-version.yml` has exactly four jobs:
+`resolve-python-patch`, `validate-python-patch`, `publish-python-update`, and
+`report-python-update-outcome`. It is triggered only by Monday's `17 6 * * 1`
+schedule or `workflow_dispatch`, serializes per repository through
+`modsecurity-conector-python-version-maintenance-${{ github.repository }}`
+without cancelling a running maintenance attempt, and admits work only for the
+canonical non-fork `Easton97-Jens/ModSecurity-conector` `master` ref.
+
+The resolver uses the exact trusted event SHA, the canonical `.python-version`,
+and `scripts/update-python-version.py --check --json` to emit the typed
+`status`, `current_version`, `latest_version`, and `update_available` outputs.
+The validator independently installs and verifies the candidate patch,
+re-resolves it with `--expected-version`, uses hash-locked CI dependencies,
+and runs the Python/version and CI-security contracts before publication.
+Both jobs have only `contents: read`.
+
+The normal `GITHUB_TOKEN` remains `contents: read` in the publisher. Only that
+job reads the App configuration, mints the existing SHA-pinned GitHub App
+token, and limits that token to `Contents: write` and `Pull requests: write`.
+It never requests `Workflows`, `Actions`, or `Issues` write permission; the
+broader `Workflows: write` grant above belongs only to the separate
+workflow/tool updater. The publisher has no `github.token` write path.
+
+The publisher bridges the `changed` step output into a named environment
+variable before shell execution and accepts only the literal `true` value. It
+does not interpolate GitHub Actions expressions directly into a shell command;
+that keeps the output guard fail-closed and avoids workflow-template injection.
+
+Before it writes, the publisher requires either no maintenance branch and no
+matching PR, or exactly one same-repository Draft PR with the fixed title and
+marker `<!-- modsecurity-conector-python-314-updater -->`, `master` base, and
+automatic merge disabled. It verifies an existing branch's historical scope,
+then rebuilds from current trusted `origin/master`, applies only
+`.python-version`, stages only that file, and uses the exact
+`--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP` form only
+when safely replacing the verified maintenance branch. An unconditional force
+push, a default-branch update, merge, or auto-merge is not permitted.
+
+The resulting same-repository Draft PR records the prior/proposed version,
+Python.org metadata URL, validation-run URL, Framework reference SHA, and the
+manual-review/manual-merge requirement in English and German. The zero-
+permission `report-python-update-outcome` job always runs and rejects
+inconsistent resolver, validator, or publisher states; for a current result it
+reports that no branch, commit, or PR changed.
+
 ## Workflow linting
 
 `ci-security-workflow-lint.yml` runs checksum-verified `actionlint` and passes

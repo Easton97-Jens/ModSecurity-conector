@@ -111,11 +111,11 @@ class PythonVersionContractTest(unittest.TestCase):
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: ${{ needs.resolve-python-patch.outputs.version }}
+          python-version: ${{ needs.resolve-python-patch.outputs.latest_version }}
           check-latest: false
       - name: Verify Python candidate interpreter contract
         env:
-          EXPECTED_VERSION: ${{ needs.resolve-python-patch.outputs.version }}
+          EXPECTED_VERSION: ${{ needs.resolve-python-patch.outputs.latest_version }}
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --expected-version "$EXPECTED_VERSION" --expected-python "$EXPECTED_PYTHON"
       - name: Validate candidate
@@ -525,7 +525,7 @@ printf '%s\\n' 'make quick-check'
 
     def test_special_candidate_job_is_strict_about_expected_outputs(self) -> None:
         malformed = self.candidate_job_block().replace(
-            "${{ needs.resolve-python-patch.outputs.version }}",
+            "${{ needs.resolve-python-patch.outputs.latest_version }}",
             "${{ needs.untrusted.outputs.version }}",
             1,
         )

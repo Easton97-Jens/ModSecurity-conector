@@ -10,6 +10,12 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260815-python-updater-framework-port](CR-20260815-python-updater-framework-port.md)
+  | [Deutsch](CR-20260815-python-updater-framework-port.de.md) — the current
+  user authorized the constrained Parent Python-updater port and Draft-PR
+  delivery. This paired record reports observed local validation only; hosted
+  execution, delivery checks, and merge are not asserted.
+
 - [CR-20260815-framework-version-pin-updater-sync](CR-20260815-framework-version-pin-updater-sync.md)
   | [Deutsch](CR-20260815-framework-version-pin-updater-sync.de.md) — the
   current user authorized preparation of the Framework-central synchronization

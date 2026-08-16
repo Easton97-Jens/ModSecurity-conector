@@ -576,10 +576,6 @@ EXPECTED_WRITE_PERMISSIONS = {
         "contents": "write",
         "pull-requests": "write",
     },
-    ("update-python-version.yml", "create-python-update-pr"): {
-        "contents": "write",
-        "pull-requests": "write",
-    },
     ("update-go-version.yml", "create-go-update-pr"): {
         "contents": "write",
         "pull-requests": "write",
@@ -2430,64 +2426,147 @@ sudo -n chmod 0750 "$namespace_parent"
 
     def test_python_patch_updater_separates_trusted_stages_and_writer_scope(self) -> None:
         workflow_name = "update-python-version.yml"
+        workflow = self.workflow(workflow_name)
         jobs = self.jobs(workflow_name)
         self.assertEqual(
             set(jobs),
             {
                 "resolve-python-patch",
                 "validate-python-patch",
-                "create-python-update-pr",
+                "publish-python-update",
+                "report-python-update-outcome",
             },
         )
-        trusted_default_ref = "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
-        for job_name in ("resolve-python-patch", "validate-python-patch", "create-python-update-pr"):
-            self.assertIn(trusted_default_ref, jobs[job_name], job_name)
+        self.assertEqual(top_level_permissions(workflow), {"contents": "read"})
+        self.assertIn(
+            "group: modsecurity-conector-python-version-maintenance-${{ github.repository }}",
+            workflow,
+        )
+        self.assertIn("cancel-in-progress: false", workflow)
+        for disallowed_trigger in (
+            "push:",
+            "pull_request:",
+            "pull_request_target:",
+            "workflow_run:",
+            "repository_dispatch:",
+        ):
+            self.assertNotIn(f"  {disallowed_trigger}", workflow)
+        self.assertIn("- cron: '17 6 * * 1'", workflow)
+        self.assertIn("  workflow_dispatch:", workflow)
+
+        canonical_gate_terms = {
+            "github.repository == 'Easton97-Jens/ModSecurity-conector'",
+            "github.event.repository.fork == false",
+            "github.event.repository.default_branch == 'master'",
+            "github.ref == 'refs/heads/master'",
+            "github.event_name == 'schedule'",
+            "github.event_name == 'workflow_dispatch'",
+        }
+        for job_name in (
+            "resolve-python-patch",
+            "validate-python-patch",
+            "publish-python-update",
+        ):
+            expression = job_if_expression(jobs[job_name])
+            self.assertIsNotNone(expression, job_name)
+            for term in canonical_gate_terms:
+                self.assertIn(term, expression, job_name)
             checkouts = checkout_step_blocks(jobs[job_name])
             self.assertEqual(len(checkouts), 1, job_name)
-            self.assertIn("ref: ${{ github.event.repository.default_branch }}", checkouts[0], job_name)
+            self.assertIn("ref: ${{ github.sha }}", checkouts[0], job_name)
+            self.assertIn("fetch-depth: 1", checkouts[0], job_name)
             self.assertIn("submodules: false", checkouts[0], job_name)
             self.assertIn("persist-credentials: false", checkouts[0], job_name)
-            self.assertNotIn("secrets.", jobs[job_name], job_name)
+
+        self.assertNotIn("secrets.", jobs["resolve-python-patch"])
+        self.assertNotIn("secrets.", jobs["validate-python-patch"])
 
         self.assertEqual(job_permissions(jobs["resolve-python-patch"]), {"contents": "read"})
         self.assertEqual(job_permissions(jobs["validate-python-patch"]), {"contents": "read"})
-        publisher = jobs["create-python-update-pr"]
-        self.assertEqual(
-            job_permissions(publisher),
-            {"contents": "write", "pull-requests": "write"},
+        publisher = jobs["publish-python-update"]
+        self.assertEqual(job_permissions(publisher), {"contents": "read"})
+        self.assertIn("needs.resolve-python-patch.outputs.update_available == 'true'", publisher)
+        self.assertIn("needs.validate-python-patch.result == 'success'", publisher)
+        self.assertIn("WORKFLOW_UPDATER_APP_CLIENT_ID", publisher)
+        self.assertIn("WORKFLOW_UPDATER_APP_PRIVATE_KEY", publisher)
+        self.assertIn("::error::WORKFLOW_UPDATER_APP_CLIENT_ID", publisher)
+        self.assertIn("::error::WORKFLOW_UPDATER_APP_PRIVATE_KEY", publisher)
+        self.assertIn(
+            "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0",
+            publisher,
         )
-        self.assertNotIn("actions: write", publisher)
+        self.assertIn("permission-contents: write", publisher)
+        self.assertIn("permission-pull-requests: write", publisher)
+        self.assertNotIn("permission-workflows:", publisher)
+        self.assertNotIn("permission-actions:", publisher)
+        self.assertNotIn("permission-issues:", publisher)
+        self.assertNotIn("github.token", publisher)
+        self.assertNotIn("GH_TOKEN:", publisher)
+        for job_name, job in jobs.items():
+            if job_name != "publish-python-update":
+                self.assertNotIn("WORKFLOW_UPDATER_APP_CLIENT_ID", job, job_name)
+                self.assertNotIn("WORKFLOW_UPDATER_APP_PRIVATE_KEY", job, job_name)
+
         self.assertNotIn("submodules: recursive", publisher)
         self.assertNotIn("git submodule", publisher)
-        self.assertNotIn("make ", publisher)
-        self.assertNotIn("--force", publisher)
-        self.assertNotIn("--force-with-lease", publisher)
-        self.assertIn('python3 scripts/update-python-version.py --update --expected-version "$CANDIDATE_VERSION" --json', publisher)
+        self.assertNotIn("gh ", publisher)
+        self.assertNotIn("scripts/select-python-update-pr.py", publisher)
+        self.assertNotIn("grep -Eq", publisher)
+        self.assertNotIn("re.compile", publisher)
+        self.assertIn(
+            'python3 scripts/update-python-version.py --check --expected-version "$CANDIDATE_VERSION" --json',
+            publisher,
+        )
+        self.assertIn(
+            'python3 scripts/update-python-version.py --update --expected-version "$CANDIDATE_VERSION" --json',
+            publisher,
+        )
         self.assertIn("UPDATE_BRANCH: automation/update-python-314", publisher)
         self.assertIn('PR_TITLE: "chore(ci): propose Python 3.14 patch update"', publisher)
-        self.assertIn('changed_paths="$(git diff --name-only)"', publisher)
+        self.assertIn('PR_MARKER: "<!-- modsecurity-conector-python-314-updater -->"', publisher)
+        self.assertIn("FRAMEWORK_REFERENCE_SHA: 3cb33609626ff689c54b6dc0f31fb7e9401fe75e", publisher)
+        self.assertIn('git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"', publisher)
+        self.assertIn('git reset --hard "origin/$DEFAULT_BRANCH"', publisher)
+        self.assertIn('branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"', publisher)
+        self.assertIn('if [ "$branch_paths" != ".python-version" ]; then', publisher)
+        self.assertIn('"--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP"', publisher)
+        self.assertNotRegex(publisher, r"git push\s+--force(?:\s|$)")
+        self.assertNotRegex(publisher, r"git push\s+--force-with-lease(?:\s|$)")
+        self.assertNotIn('origin "HEAD:refs/heads/master"', publisher)
+        self.assertNotIn("pulls.merge", publisher)
+        self.assertNotIn("gh pr merge", publisher)
+        self.assertIn("github.rest.git.listMatchingRefs", publisher)
+        self.assertIn("github.paginate(github.rest.pulls.list", publisher)
+        self.assertIn("pullRequest.head.repo?.full_name !== repository", publisher)
+        self.assertIn("pullRequest.base.repo?.full_name !== repository", publisher)
+        self.assertIn("pullRequest.auto_merge !== null", publisher)
+        self.assertIn("draft: true", publisher)
+        self.assertIn("Recheck the matching Draft pull request after publication", publisher)
+        self.assertIn("pullRequest.head.sha !== process.env.EXPECTED_HEAD_SHA", publisher)
+        self.assertIn('changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH" --)"', publisher)
         self.assertIn("if [ \"$changed_paths\" != \".python-version\" ]; then", publisher)
-        self.assertIn("git diff --check", publisher)
-        self.assertIn("git push origin \"$UPDATE_BRANCH\"", publisher)
-        self.assertIn("--draft", publisher)
-        self.assertIn("gh pr edit \"$existing_pr\"", publisher)
-        self.assertIn('gh api --method GET "repos/$GITHUB_REPOSITORY/pulls"', publisher)
-        self.assertIn('-f base="$DEFAULT_BRANCH"', publisher)
-        self.assertIn('-f head="${GITHUB_REPOSITORY_OWNER}:$UPDATE_BRANCH"', publisher)
-        self.assertIn("set -o pipefail", publisher)
-        self.assertIn("scripts/select-python-update-pr.py", publisher)
-        self.assertNotIn("--input", publisher)
-        self.assertNotIn("gh pr list --head", publisher)
-        self.assertIn(AUTO_MERGE_DISABLED_QUERY, publisher)
-        self.assertIn('if [ "$auto_merge" != "null" ]; then', publisher)
-        self.assertIn("git fetch --no-tags origin \"$UPDATE_BRANCH\"", publisher)
-        self.assertIn("git read-tree \"origin/$UPDATE_BRANCH\"", publisher)
-        self.assertIn("git update-index --add --cacheinfo 100644 \"$candidate_blob\" .python-version", publisher)
-        self.assertIn("git commit-tree \"$tree\" -p \"origin/$UPDATE_BRANCH\"", publisher)
+        self.assertIn('git add -- .python-version', publisher)
+        self.assertIn('staged_paths="$(git diff --cached --name-only)"', publisher)
+        self.assertIn('if [ "$staged_paths" != ".python-version" ]; then', publisher)
+        self.assertIn("git diff --cached --check", publisher)
+        self.assertNotIn("git add -A", publisher)
+        self.assertNotIn("git add .", publisher)
+        self.assertIn("UPDATE_CHANGED: ${{ steps.update.outputs.changed }}", publisher)
+        self.assertIn('if [ "$UPDATE_CHANGED" != true ]; then', publisher)
+        self.assertNotIn('if [ "${{ steps.update.outputs.changed }}" != true ]; then', publisher)
         self.assertIn("## English", publisher)
         self.assertIn("## Deutsch", publisher)
-        self.assertIn("no automatic merge", publisher)
-        self.assertIn("kein automatischer Merge", publisher)
+        self.assertIn("Automatic merge remains disabled.", publisher)
+        self.assertIn("Automatischer Merge bleibt deaktiviert.", publisher)
+
+        resolver = jobs["resolve-python-patch"]
+        self.assertIn("status: ${{ steps.resolve.outputs.status }}", resolver)
+        self.assertIn("current_version: ${{ steps.resolve.outputs.current_version }}", resolver)
+        self.assertIn("latest_version: ${{ steps.resolve.outputs.latest_version }}", resolver)
+        self.assertIn("update_available: ${{ steps.resolve.outputs.update_available }}", resolver)
+        self.assertIn('scripts/update-python-version.py --check --json', resolver)
+        self.assertNotIn("re.compile", resolver)
+        self.assertNotIn("grep -Eq", resolver)
 
         candidate = jobs["validate-python-patch"]
         assert_hash_locked_ci_test_dependency_installation(
@@ -2496,9 +2575,10 @@ sudo -n chmod 0750 "$namespace_parent"
             interpreter_contract_step="Verify Python candidate interpreter contract",
             first_test_step="Run focused Python version contracts",
         )
-        self.assertIn("python-version: ${{ needs.resolve-python-patch.outputs.version }}", candidate)
+        self.assertIn("python-version: ${{ needs.resolve-python-patch.outputs.latest_version }}", candidate)
         self.assertIn("check-latest: false", candidate)
         self.assertIn("python3 -m compileall -q ci scripts tests", candidate)
+        self.assertIn("make check-ci-security-contract", candidate)
         self.assertIn(
             'check-python-interpreter-contract.py --expected-version "$EXPECTED_VERSION" --expected-python "$EXPECTED_PYTHON"',
             candidate,
@@ -2507,6 +2587,15 @@ sudo -n chmod 0750 "$namespace_parent"
             'scripts/update-python-version.py --check --expected-version "$CANDIDATE_VERSION" --json',
             candidate,
         )
+
+        outcome = jobs["report-python-update-outcome"]
+        self.assertEqual(job_permissions(outcome), {})
+        self.assertEqual(job_if_expression(outcome), "always()")
+        self.assertNotIn("secrets.", outcome)
+        self.assertNotIn("publisher_app_token", outcome)
+        self.assertIn("case \"$UPDATE_AVAILABLE\" in", outcome)
+        self.assertIn("No Python 3.14 patch update is available.", outcome)
+        self.assertIn("Kein Python-3.14-Patch-Update ist verfügbar.", outcome)
 
     def test_go_patch_updater_separates_trusted_stages_and_writer_scope(self) -> None:
         workflow_name = "update-go-version.yml"

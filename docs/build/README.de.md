@@ -137,62 +137,56 @@ Validator deckt die Workflow-Dateinamen `.yml` und `.yaml` ab.
 ### Vertrag für den sicheren Stable-Patch-Updater
 
 Der Updater ist von den 22 Baseline-Jobs getrennt. Der eingecheckte Workflow
-`.github/workflows/update-python-version.yml` hat genau drei Jobs:
+`.github/workflows/update-python-version.yml` hat genau vier Jobs:
 
 | Job | Interpreter und Trust-Grenze | Erforderliches Verhalten |
 | --- | --- | --- |
-| `resolve-python-patch` | Läuft mit der aktuellen kanonischen `.python-version`; schreibgeschützt | Ruft nur die feste offizielle strukturierte Python-Release-API `https://www.python.org/api/v2/downloads/release/?is_published=true` über HTTPS mit exaktem Host `www.python.org`, ohne Redirects, mit `application/json`, begrenzter Response-Verarbeitung und Schema-Validierung auf. `--check` parst veröffentlichte, nicht-prerelease stabile `3.14.N`-Werte strikt, meldet einen Candidate nur bei einem höheren Patch und kann weder downgraden noch eine Minor-Serie überqueren. |
-| `validate-python-patch` | Richtet den unabhängig aufgelösten Candidate-Patch ein; schreibgeschützt | Wiederholt die Kompatibilitätsvalidierung mit dem Candidate-Interpreter vor der Veröffentlichung. Sie ist unabhängig vom Current-Version-Interpreter des Resolvers und führt keine Source- oder Branch-Mutation aus. |
-| `create-python-update-pr` | Läuft mit der aktuellen kanonischen `.python-version`; Default-Branch-gated Publisher | Löst den Candidate mit `--expected-version` vor `--update` erneut auf; nur dieser Job erhält `contents: write` und `pull-requests: write` und nur, um einen vorgeschlagenen Update-Pull-Request zu erstellen. |
+| `resolve-python-patch` | Exakter vertrauenswürdiger Event-SHA und aktuelle kanonische `.python-version`; `contents: read` | Ruft nur die feste offizielle strukturierte Python-Release-API `https://www.python.org/api/v2/downloads/release/?is_published=true` über HTTPS mit exaktem Host `www.python.org`, ohne Redirects, mit `application/json`, begrenzter Response-Verarbeitung und Schema-Validierung auf. Seine getestete Schnittstelle `--check --json` gibt `status`, `current_version`, `latest_version` und `update_available` aus; sie schlägt nur einen höheren stabilen `3.14.N`-Patch vor. |
+| `validate-python-patch` | Exakter vertrauenswürdiger Event-SHA und unabhängig installierter Candidate; `contents: read` | Löst den Candidate mit `--expected-version` erneut auf, prüft den exakten Candidate-Interpreter, installiert hash-gesperrte CI-Abhängigkeiten, führt `pip check`, Compile/Contracts/fokussierte Tests und `make check-ci-security-contract` aus; keine Source- oder Branch-Mutation. |
+| `publish-python-update` | Kanonisches Nicht-Fork-Event auf `master`, aktuelles vertrauenswürdiges `origin/master`; normales `GITHUB_TOKEN` hat `contents: read` | Der einzige App-Secret-Consumer erstellt das vorhandene gepinnte GitHub-App-Token mit nur `Contents: write` und `Pull requests: write`, baut den Wartungs-Branch von aktuellem master neu auf und darf nur den passenden Same-Repository-Draft-PR erstellen oder aktualisieren. |
+| `report-python-update-outcome` | Läuft immer; `permissions: {}` | Schlägt bei inkonsistenten Resolver-/Validator-/Publisher-Resultaten fehl und schreibt für das aktuelle oder unabhängig validierte/veröffentlichte Resultat eine englische/deutsche Zusammenfassung. |
 
 Die einzigen Trigger sind der geplante Montagslauf und ein manueller
-`workflow_dispatch`; es gibt keinen Push- oder Pull-Request-Trigger. Jeder Job
-ist auf die Ref des Repository-Default-Branch gegatet und checkt diesen
-vertrauenswürdigen Default-Branch ohne Submodules oder persistierte Checkout-
-Credentials aus. Der Validierungsjob richtet die unabhängig aufgelöste
-Candidate-Version ein, löst sie erneut auf, führt den fail-closed statischen
-Vertrag aus, kompiliert die eingecheckten Python-Pfade und führt die fokussierten
-Parent-nativen Contract-Tests aus, bevor der Publisher starten kann.
+`workflow_dispatch`; es gibt keinen Push- oder Pull-Request-Trigger. Die
+Concurrency-Gruppe lautet
+`modsecurity-conector-python-version-maintenance-${{ github.repository }}`
+mit `cancel-in-progress: false`. Resolver, Validator und Publisher verlangen
+jeweils das exakte kanonische Repository, ein Nicht-Fork-Event, den literalen
+Default-Branch/Ref `master` sowie ein Zeitplan- oder manuelles Event, bevor sie
+`${{ github.sha }}` ohne Submodules oder persistierte Credentials auschecken.
 
 `--check` löst und validiert einen Candidate ohne Dateien zu ändern. `--update`
 ist dem Publisher vorbehalten, nachdem die unabhängige Validierung und die
-Expected-Version-Neuauflösung bestanden haben. Der Publisher ist kein Updater
-für beliebige Python-Versionen: Er akzeptiert nur das strikte stabile
-<code>3.14.N</code>-Format, niemals einen niedrigeren Patch, Prerelease,
-alternative Minor-Serie oder unstrukturierte/HTML-Release-Daten.
+Expected-Version-Neuauflösung bestanden haben. Versionssyntax gehört zum
+getesteten Updater und wird nicht als Workflow-Regex dupliziert. Der Publisher
+ist kein Updater für beliebige Python-Versionen: Er akzeptiert nur einen vom
+Resolver validierten stabilen <code>3.14.N</code>-Patch, niemals einen
+niedrigeren Patch, Prerelease, eine alternative Minor-Serie oder
+unstrukturierte/HTML-Release-Daten.
 
 Der Publisher verwendet den konstanten Branch
 `automation/update-python-314` und den stabilen Titel
-`chore(ci): propose Python 3.14 patch update`. Er erstellt einen Draft Pull
-Request, wenn dieser Branch nicht existiert, oder aktualisiert einen bestehenden
-repository-eigenen Draft-Update-Pull-Request erst nach Prüfung seines Head-
-Repository, Default-Base und deaktivierten automatischen Merge sowie der
-Beschränkung seines Merge-Base-Diffs auf `.python-version`; einen Branch ohne
-diesen exakten Pull Request überschreibt er nicht. Damit erstellt er keine
-doppelten Update-Pull-Requests und führt nie einen Force-Push aus. Sein englisch/deutscher Pull-
-Request-Body enthält vorherige und vorgeschlagene Version, offizielle Release-
-Identität, Metadatenquelle, Validierungsworkflow/-Run-URL,
-`.python-version` als einzige geänderte Datei, die beibehaltene Python-3.14-
-Minor-Version und das Fehlen eines automatischen Merge.
+`chore(ci): propose Python 3.14 patch update`, den Marker
+`<!-- modsecurity-conector-python-314-updater -->` und nur den festen Pfad
+`.python-version`. Er erstellt einen Draft-PR nur, wenn weder passender Branch
+noch PR existiert. Einen Branch verwendet er nur wieder, wenn genau ein
+passender Same-Repository-Draft-PR existiert, dessen Titel, Marker, Head/Base
+und deaktivierter Auto-Merge alle geprüft sind. Nach Prüfung seines historischen
+Scopes baut er von aktuellem `origin/master` neu auf, staged nur
+`.python-version` und verwendet für einen verifizierten Ersatz-Branch die
+exakte Form
+`--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP`. Er führt
+nie einen unbedingten Force-Push, Default-Branch-Push, Merge oder Auto-Merge
+aus.
 
-Der Publisher streamt die begrenzte REST-Pull-List-Antwort direkt von `gh api`
-in seinen strikten Duplicate-Key-JSON-Selector. Der Selector besitzt keinen
-aufrufergesteuerten Response-Dateipfad; beim Wiederverwenden eines bestehenden
-Draft Pull Request überschreitet der Publisher daher keine Response-Datei- oder
-Symlink/TOCTOU-Grenze.
-
-Der Updater darf nicht auto-mergen, den Default-Branch beschreiben, force-
-pushen, Repository- oder benutzerbereitgestellte `secrets.*` konsumieren,
-Submodules initialisieren oder eine beliebige Project-Workload ausführen. Der
-Publisher darf nur GitHubs automatisch bereitgestelltes Job-Token verwenden,
-das durch seine zwei job-begrenzten Schreibrechte eingeschränkt ist, um den
-Draft Pull Request zu erstellen oder den vorhandenen offenen Update-Pull-
-Request zu aktualisieren; seine Repository-
-Ausführung ist auf die festen Interpreter-Verifikations- und Updater-Pfade
-begrenzt. Resolver und Validator bleiben schreibgeschützt. Die begrenzten
-Schreibrechte des Publishers, das Default-Branch-Gate, die Neuvalidierung an
-der Schreibgrenze und die ausschließlich PR-basierte Ausgabe verhindern, dass
-Metadaten den Default-Branch direkt verändern.
+Nur der Publisher liest `WORKFLOW_UPDATER_APP_CLIENT_ID` und
+`WORKFLOW_UPDATER_APP_PRIVATE_KEY`; sein normales Job-Token bleibt read-only
+und das App-Token fordert nie `Workflows`-, `Actions`- oder `Issues`-
+Schreibrechte an. Der englische/deutsche PR-Body dokumentiert vorherige/
+vorgeschlagene Version, Python.org-Metadaten-URL, Validierungs-Run-URL,
+Framework-Quell-SHA, `.python-version` als einzige geänderte Datei, die
+beibehaltene Python-3.14-Minor-Version und die Pflicht zu manueller Prüfung/
+manuellem Merge.
 
 Die unabhängige Validierungs-Stage ist die Evidence-Grenze für einen
 vorgeschlagenen Patch; sie behauptet nicht, dass ein geplanter Lauf, Candidate,
