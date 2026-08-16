@@ -9,7 +9,7 @@
 | Change-ID | CR-20260816-python-workflow-contract-alignment |
 | Datum (UTC) | 2026-08-16 |
 | Basis-Revision | 4cd60d4fef492fcaa8522b902886bea6e0256f87 |
-| Delivery-Status | Ein fokussierter Parent-Draft-PR ist für den verlinkten Actions-Job autorisiert. Kein Merge, direkter Master-Write, Force-Aktion, Bypass oder Auto-Merge ist autorisiert. |
+| Delivery-Status | Der aktuelle Benutzer autorisierte ausdrücklich die Reparatur des task-eigenen PR #296 und die geschützte Integration in `master`. Der Merge bleibt von frischer Exact-Head-Review, Checks, SonarQube-Cloud-Evidence, Ruleset-Compliance und Resulting-Master-Verifikation abhängig; direkte Master-Writes, Force-Aktionen, Bypässe und Auto-Merge bleiben verboten. |
 
 ## Motivation und Problemstellung
 
@@ -21,6 +21,14 @@ Python-Jobs ohne kanonische Interpreter-Contract-Form und zwei aktuelle
 Shell-Formen außerhalb der stabilen statischen Scanner-Teilmenge. Der Fehler
 verhinderte, dass die angeforderte Updater-Validierung ihre fokussierten Tests
 erreichte.
+
+Die erste Exact-Head-Hosted-Analyse des Draft-PR meldete trotz bestandenem
+Quality Gate ein task-eigenes New Issue: `python:S1192` bei
+`ci/checks/common/check-python-version-contract.py:104` verlangt die
+Deduplizierung von `update-workflow-tools.yml` über seine bestehenden
+Inventareinträge publisher, resolver und validator. Der aktuelle Benutzer
+verlangte ausdrücklich, dieses Issue zu beheben und den korrigierten
+task-eigenen PR nach `master` zu bringen.
 
 ## Akzeptanzkriterien
 
@@ -34,7 +42,12 @@ erreichte.
 - Der reale Python-Contract-Checker, fokussierte Unit-/Security-Contracts,
   actionlint und Offline-ZiZmor-Checks bestehen ohne Parser-Suppression oder
   Control-Lockerung.
-- Ein task-eigener Parent-Draft-PR wird erstellt; es erfolgt kein Merge.
+- Der exakte PR-Head besitzt null offene task-eigene SonarQube-Cloud-New-Issues
+  ohne Suppression, Issue-Acceptance, `NOSONAR`, Exclusion oder Quality-Gate-
+  Lockerung.
+- Die vom Benutzer autorisierte PR-#296-Integration nutzt den
+  repository-genehmigten geschützten Workflow und erhält Resulting-Master-
+  Verifikation.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -51,6 +64,13 @@ ausgedrückt. Der Submodule-Publisher ersetzt einen dynamischen Case-Arm durch
 dieselbe Fixed-String-Whole-Line-Pfad-Allowlist. Diese Entscheidungen
 adressieren FND-PARENT-0062, FND-PARENT-0162 und FND-PARENT-0163 ohne breite
 Ausnahmen.
+
+Der Sonar-Follow-up ergänzt die geschlossene Konstante
+`UPDATE_WORKFLOW_TOOLS_WORKFLOW` und ersetzt nur die drei wiederholten
+Dateinamenliterale. Die `JobIdentity`-Werte, Inventarreihenfolge/-kardinalität,
+Parser, Setup-/Verifier-Checks und fail-closed-Ablehnungspfade bleiben
+unverändert. Damit wird das lokale Finding `FND-SONAR-0042` durch eine
+quellennative Reparatur statt durch eine Scanner-Abkürzung adressiert.
 
 ## Geänderte Dateien
 
@@ -77,6 +97,15 @@ Ausnahmen.
 | actionlint für alle .github/workflows-YAML-Dateien | bestanden |
 | Offline-ZiZmor für die fünf geänderten Workflow-Dateien | bestanden: keine Befunde, 24 Repository-Suppressions |
 | git diff --check vor diesem Record | bestanden |
+| Öffentliche SonarQube-Cloud-PR-#296-Issue-Query vor dem Follow-up | als statische Reproduktion bestanden: genau ein OPEN `python:S1192` bei `ci/checks/common/check-python-version-contract.py:104` |
+| Fokussiertes `tests.test_python_version_contract` nach dem reinen Konstanten-Follow-up | bestanden: 24 Tests einschließlich 38-Einträge-Inventar und fail-closed-Negativ-Controls |
+| Realer Checker nach dem reinen Konstanten-Follow-up | bestanden: Status valid, 42 erkannte Jobs, 0 Verletzungen |
+| make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-python-version-contract nach dem Follow-up | bestanden |
+| make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-ci-security-contract nach dem Follow-up | bestanden: 103 Tests, 4 umgebungsbedingt übersprungen, gepinnte Tool-Validierung bestanden |
+| python -m compileall -q ci/checks/common tests/test_python_version_contract mit externem Pycache | bestanden |
+| make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-bilingual-docs | blockiert: Exit 2 nur weil das absichtlich nicht initialisierte Framework-Submodule vorbestehende referenzierte Dateien fehlen lässt; kein geänderter Change-Record-Pfad wird gemeldet |
+| make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-doc-links | blockiert: Exit 2 wegen derselben vorbestehenden fehlenden Framework-Submodule-Targets; kein geänderter Change-Record-Pfad wird gemeldet |
+| git diff --check nach Source- und Documentation-Follow-up | bestanden |
 
 ## Security-Auswirkung
 
@@ -92,6 +121,11 @@ Es wird kein Exploit oder unautorisierter Write behauptet. FND-PARENT-0162 und
 FND-PARENT-0163 sind sicherheitsrelevante CI-Contract-Findings, weil ein breiter
 Workaround die bestehende Sicherheitsgrenze schwächen würde.
 
+`python:S1192` selbst ist ein Maintainability-Befund, keine Sicherheitslücke.
+Die Extraktion nur per Konstante ändert weder vertrauenswürdige Inputs,
+akzeptierte Jobs, Berechtigungen, Trigger, Tokens, Publisher-Verhalten noch
+eine Sicherheitsentscheidung.
+
 ## Runtime-Evidence
 
 Der ursprüngliche GitHub-hosted Fehler wird im verlinkten Run und im
@@ -101,11 +135,11 @@ Maintenance-Branch-Update, Merge oder Resulting-Master-Proof wird behauptet.
 
 ## Bekannte Einschränkungen
 
-GitHub-hosted Actions-Ausführung und Exact-PR-Head-Checks sind erst verfügbar,
-wenn der task-eigene Draft-PR gepusht ist. Die lokale
-check-ci-security-contract-Suite übersprang vier Namespace- oder
-Identitäts-Tests, weil dieser Umgebung deren erforderliche Fähigkeiten fehlen;
-die nicht übersprungenen Controls bestanden.
+Der erste Hosted-Check-Satz gehört zum Vorgänger-Exact-Head. Ein neuer Commit
+erfordert eine frische PR-Head-SonarQube-Cloud-Analyse und alle anwendbaren
+Hosted-Checks vor dem Merge. Die lokale check-ci-security-contract-Suite
+übersprang vier Namespace- oder Identitäts-Tests, weil dieser Umgebung deren
+erforderliche Fähigkeiten fehlen; die nicht übersprungenen Controls bestanden.
 
 ## Verbleibende Risiken
 
@@ -115,22 +149,28 @@ beschränkt, aber Hosted-Ausführung bleibt nötig, um GitHub-Actions-Syntax und
 Repository-Policy auf dem exakten PR-Head zu verifizieren. FND-PARENT-0062,
 FND-PARENT-0162 und FND-PARENT-0163 können ohne diese Evidence nicht über den
 lokalen Fixed-Status hinausgehen.
+Das exakte Issue `AaAJBpj4Kije7nS9rbMB` bleibt offen, bis die
+Successor-Head-Analyse die Reparatur nur per Konstante beweist.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Kein Live-Updater-Dispatch, App-Token-Mint, Merge oder Resulting-Master-Rerun
-wurde ausgeführt: Der Benutzer autorisierte einen neuen korrigierenden PR,
-nicht operative Veröffentlichung oder Integration. Vollständige Connector-
-Runtime-Matrizen sind für diese reinen Workflow-Contract-Änderungen nicht
-relevant. Die finalen Bilingual-/Documentation-Link-Checks, finale
-Diff-Prüfung, Commit, Push und Exact-Head-Hosted-Checks stehen noch aus und
-werden nur aus beobachteten Ergebnissen dokumentiert.
+Kein Live-Updater-Dispatch oder App-Token-Mint wurde ausgeführt; diese
+operativen Aktionen liegen außerhalb der statischen Inventarreparatur.
+Vollständige Connector-Runtime-Matrizen sind nicht relevant. Commit, Push, ein
+frischer Exact-Head-Hosted-Check-Satz, geschützter Merge,
+Resulting-Master-Workflows und Workspace-Restoration stehen noch aus und werden
+nur aus beobachteten Ergebnissen dokumentiert. Die vollständigen Bilingual- /
+Documentation-Link-Checks wurden ausgeführt, sind aber wegen der vorbestehenden
+referenzierten Pfade des absichtlich nicht initialisierten Framework-Submodules
+blockiert; diese Reparatur ändert weder Framework noch unterdrückt sie die
+Checks.
 
 ## Finaler Diff- und Review-Status
 
 Die eingegrenzte Source-Änderung beschränkt sich auf den verlinkten
-Actions-Fehler, seine direkte Workflow-Contract-Coverage und erforderliche
-zweisprachige Nachvollziehbarkeit. Lokale Source-, Security- und Contract-
-Checks bestehen. Die Aufgabe ist erst abgeschlossen, wenn der Draft-PR erstellt
-ist sowie sein exakter Remote-Head und anwendbare Hosted-Checks beobachtet
-sind; ein Merge ist weder autorisiert noch impliziert.
+Actions-Fehler, seine direkte Workflow-Contract-Coverage, den einen
+SonarQube-Cloud-Duplicate-Literal-Follow-up und erforderliche zweisprachige
+Nachvollziehbarkeit. Lokale Source-, Security-, Syntax- und Contract-Checks
+bestehen. Die Aufgabe ist erst abgeschlossen, wenn der Successor-Exact-
+Remote-/PR-Head, Hosted-Checks, Sonar-Disposition, geschützter Merge,
+Resulting-Master-Checks und sichere Parent-Restoration beobachtet sind.
