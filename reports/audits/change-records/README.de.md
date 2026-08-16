@@ -11,6 +11,13 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260816-python-updater-publisher-dependency](CR-20260816-python-updater-publisher-dependency.de.md) —
+  der aktuelle Benutzer hat die fokussierte Parent-CI-Fehlerbehebung und die
+  Draft-PR-Auslieferung autorisiert. Dieser gekoppelte Record weist nur
+  beobachtete lokale Validierung aus; gehostete Pull-Request-Checks und die
+  absichtlich an `master` gebundene Ende-zu-Ende-Ausführung des Publishers
+  stehen noch aus.
+
 - [CR-20260816-python-workflow-contract-alignment](CR-20260816-python-workflow-contract-alignment.de.md) —
   der aktuelle Benutzer hat die fokussierte Parent-Reparatur, den Sonar-
   Follow-up von PR #296 und die bedingte geschützte `master`-Integration für
