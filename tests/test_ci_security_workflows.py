@@ -2529,6 +2529,35 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotIn("scripts/select-python-update-pr.py", publisher)
         self.assertNotIn("grep -Eq", publisher)
         self.assertNotIn("re.compile", publisher)
+        publisher_normalized = normalize_shell_script(publisher)
+        publisher_install_step = "Install hash-locked CI test dependency"
+        publisher_install_command = (
+            "python3 -m pip install --disable-pip-version-check --no-input "
+            "--only-binary=:all: --require-hashes -r requirements-ci.lock"
+        )
+        self.assertIn(publisher_install_step, publisher)
+        self.assertIn(publisher_install_command, publisher_normalized)
+        self.assertIn("python3 -m pip check", publisher_normalized)
+        self.assertLess(
+            publisher.index("Verify Python interpreter contract"),
+            publisher.index(publisher_install_step),
+        )
+        self.assertLess(
+            publisher.index(publisher_install_step),
+            publisher.index("Mint repository-limited Python updater App token"),
+        )
+        self.assertLess(
+            publisher.index(publisher_install_step),
+            publisher.index("Revalidate current master before modifying it"),
+        )
+        self.assertLess(
+            publisher_normalized.index(publisher_install_command),
+            publisher_normalized.index("python3 -m pip check"),
+        )
+        self.assertLess(
+            publisher_normalized.index("python3 -m pip check"),
+            publisher_normalized.index("make check-ci-security-contract"),
+        )
         self.assertIn(
             'python3 scripts/update-python-version.py --check --expected-version "$CANDIDATE_VERSION" --json',
             publisher,

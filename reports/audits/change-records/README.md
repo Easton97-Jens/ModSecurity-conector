@@ -10,6 +10,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260816-python-updater-publisher-dependency](CR-20260816-python-updater-publisher-dependency.md)
+  | [Deutsch](CR-20260816-python-updater-publisher-dependency.de.md) — the
+  current user authorized the focused Parent CI-failure fix and Draft-PR
+  delivery. This paired record reports observed local validation only; hosted
+  pull-request checks and the deliberately master-gated end-to-end publisher
+  execution remain pending.
+
 - [CR-20260816-python-workflow-contract-alignment](CR-20260816-python-workflow-contract-alignment.md)
   | [Deutsch](CR-20260816-python-workflow-contract-alignment.de.md) — the
   current user authorized the focused Parent fix, PR #296 Sonar follow-up, and
