@@ -162,14 +162,32 @@ class PythonVersionContractTest(unittest.TestCase):
             )
         (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
 
-    def test_expected_inventory_has_33_normal_jobs_and_one_special_job(self) -> None:
-        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 33)
+    def test_expected_inventory_has_38_normal_jobs_and_one_special_job(self) -> None:
+        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 38)
         self.assertIn(
             CHECKER.JobIdentity("ci-security-workflow-lint.yml", "apr-util-provenance"),
             CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
         )
         self.assertIn(
             CHECKER.JobIdentity("nginx-root-broker.yml", "trusted-root-smoke"),
+            CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
+        )
+        for identity in (
+            CHECKER.JobIdentity("test-apache.yml", "apache-autotools-bootstrap"),
+            CHECKER.JobIdentity("test-haproxy.yml", "haproxy-structure"),
+            CHECKER.JobIdentity("update-submodules.yml", "create-submodule-update-pr"),
+            CHECKER.JobIdentity("update-workflow-tools.yml", "publisher"),
+            CHECKER.JobIdentity("update-workflow-tools.yml", "resolver"),
+            CHECKER.JobIdentity("update-workflow-tools.yml", "validator"),
+            CHECKER.JobIdentity("verified-report-governance.yml", "report-governance"),
+        ):
+            with self.subTest(identity=identity):
+                self.assertIn(identity, CHECKER.EXPECTED_NORMAL_PYTHON_JOBS)
+        self.assertNotIn(
+            CHECKER.JobIdentity(
+                "verified-report-governance.yml",
+                "verified-report-contract-preflight",
+            ),
             CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
         )
         self.assertEqual(
@@ -547,7 +565,7 @@ printf '%s\\n' 'make quick-check'
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(exit_code, 0)
         self.assertEqual(payload["status"], "valid")
-        self.assertEqual(len(payload["detected_python_jobs"]), 37)
+        self.assertEqual(len(payload["detected_python_jobs"]), 42)
 
 
 if __name__ == "__main__":

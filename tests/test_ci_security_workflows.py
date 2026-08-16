@@ -44,7 +44,7 @@ PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
         "github.event.repository.default_branch == 'master'",
     }
 )
-SUBMODULE_PUBLISHER_SHA256 = "42b8ac3108df2ce0179a6af793dcaf3e2b53989346325d361ed4fa1465a1e093"
+SUBMODULE_PUBLISHER_SHA256 = "eb6113334cf6ab75245f4f7add91538cb968d4a79d3618583ac96ccca2d8f44f"
 AUTO_MERGE_DISABLED_QUERY = (
     "--jq 'if (has(\"auto_merge\") and (.auto_merge == null)) then \"null\" "
     "else \"auto-merge-present\" end'"
@@ -1225,6 +1225,9 @@ jobs:
         )
         self.assertEqual(text.count("check-latest: false"), 2)
         self.assertNotIn("go-version-file: .go-version", text)
+        self.assertIn("printf '%s\\n' \"$version\" | awk", text)
+        self.assertIn("NR == 1", text)
+        self.assertNotIn('[[ ! "$version" =~', text)
         self.assertIn("connectors/envoy/ext_proc", text)
         self.assertIn("connectors/traefik/native_middleware", text)
         self.assertIn("Fuzz Traefik UDS frame parser", text)
@@ -2198,6 +2201,19 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("submodules: false", publisher)
         self.assertEqual(sha256(publisher.encode("utf-8")).hexdigest(), SUBMODULE_PUBLISHER_SHA256)
         self.assertIn("persist-credentials: false", publisher)
+        self.assertIn("id: setup-python", publisher)
+        self.assertIn(
+            "EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}",
+            publisher,
+        )
+        self.assertIn(
+            "python3 ci/checks/common/check-python-interpreter-contract.py "
+            "--version-file .python-version --expected-python \"$EXPECTED_PYTHON\"",
+            publisher,
+        )
+        self.assertIn("grep -Fqx", publisher)
+        self.assertIn('-e "$SUBMODULE_PATH"', publisher)
+        self.assertNotIn('case "$changed_path" in', publisher)
         self.assertEqual(
             job_if_expression(publisher),
             SUBMODULE_PUBLISHER_GATE,

@@ -11,6 +11,12 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260816-python-workflow-contract-alignment](CR-20260816-python-workflow-contract-alignment.de.md) —
+  der aktuelle Benutzer hat eine fokussierte Parent-Reparatur und Draft-PR-
+  Auslieferung für den verlinkten Actions-Contract-Fehler autorisiert. Der
+  gekoppelte Record unterscheidet beobachteten lokalen Nachweis von
+  ausstehenden Exact-Head-Hosted-Checks und behauptet keinen Merge.
+
 - [CR-20260815-python-updater-framework-port](CR-20260815-python-updater-framework-port.de.md) —
   der aktuelle Benutzer hat den eingeschränkten Parent-Python-Updater-Port und
   die Draft-PR-Auslieferung autorisiert. Dieser gekoppelte Record weist nur

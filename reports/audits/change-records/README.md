@@ -10,6 +10,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260816-python-workflow-contract-alignment](CR-20260816-python-workflow-contract-alignment.md)
+  | [Deutsch](CR-20260816-python-workflow-contract-alignment.de.md) — the
+  current user authorized a focused Parent fix and Draft-PR delivery for the
+  linked Actions contract failure. The paired record distinguishes observed
+  local proof from pending exact-head hosted checks and does not assert a
+  merge.
+
 - [CR-20260815-python-updater-framework-port](CR-20260815-python-updater-framework-port.md)
   | [Deutsch](CR-20260815-python-updater-framework-port.de.md) — the current
   user authorized the constrained Parent Python-updater port and Draft-PR
