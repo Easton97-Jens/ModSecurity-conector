@@ -30,7 +30,7 @@ jobs:
         run: |
           set -euo pipefail
           version="$(cat -- .go-version)"
-          if [[ ! "$version" =~ ^1\.26\.(0|[1-9][0-9]*)$ ]]; then
+          if ! printf '%s\n' "$version" | awk 'NR == 1 && $0 ~ /^1\.26\.(0|[1-9][0-9]*)$/ { valid = 1 } END { exit !(NR == 1 && valid) }'; then
             echo "invalid trusted-base Go version" >&2
             exit 1
           fi

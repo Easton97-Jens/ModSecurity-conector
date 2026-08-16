@@ -38,6 +38,7 @@ CANDIDATE_VERIFIER_COMMAND = (
 )
 UPDATE_PYTHON_VERSION_WORKFLOW = "update-python-version.yml"
 UPDATE_GO_VERSION_WORKFLOW = "update-go-version.yml"
+UPDATE_WORKFLOW_TOOLS_WORKFLOW = "update-workflow-tools.yml"
 CI_SECURITY_WORKFLOW_LINT_WORKFLOW = "ci-security-workflow-lint.yml"
 PROTECTED_NGINX_BROKER_CALLER_WORKFLOW = "run-protected-nginx-root-broker.yml"
 PROTECTED_NGINX_BROKER_REUSABLE_WORKFLOW = (
@@ -84,10 +85,12 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("quick-framework-check.yml", "quick-check"),
         JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "prepare-manifests"),
         JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "verify-evidence"),
+        JobIdentity("test-apache.yml", "apache-autotools-bootstrap"),
         JobIdentity("test-apache.yml", "apache-structure"),
         JobIdentity("test-common.yml", "common-structure"),
         JobIdentity("test-envoy.yml", "envoy-contract"),
         JobIdentity("test-full-smoke-sequential.yml", "manual-heavy-runtime-validation"),
+        JobIdentity("test-haproxy.yml", "haproxy-structure"),
         JobIdentity("test-lighttpd.yml", "lighttpd-contract"),
         JobIdentity("test-nginx.yml", "nginx-structure"),
         JobIdentity("test-traefik.yml", "traefik-contract"),
@@ -97,8 +100,11 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "create-go-update-pr"),
         JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "resolve-go-patch"),
         JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "validate-go-patch"),
+        JobIdentity("update-submodules.yml", "create-submodule-update-pr"),
         JobIdentity("update-submodules.yml", "validate-submodule-update"),
-        JobIdentity("verified-report-governance.yml", "verified-report-contract-preflight"),
+        JobIdentity(UPDATE_WORKFLOW_TOOLS_WORKFLOW, "publisher"),
+        JobIdentity(UPDATE_WORKFLOW_TOOLS_WORKFLOW, "resolver"),
+        JobIdentity(UPDATE_WORKFLOW_TOOLS_WORKFLOW, "validator"),
         JobIdentity("verified-report-governance.yml", "report-governance"),
     }
 )
