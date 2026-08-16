@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-08-15 |
 | Basis-Revision | `55e45726a39bebd3f33aea87807419a882cd3ea8` |
 | Framework-Referenz | `Easton97-Jens/ModSecurity-test-Framework@3cb33609626ff689c54b6dc0f31fb7e9401fe75e`, `.github/workflows/check-python-version.yml` |
-| Delivery-Status | Der Benutzer hat ausschließlich Feature-Branch-Commit, Push und Draft-PR autorisiert. Weder `master`-Push noch Merge, Ready-for-Review-Übergang oder Auto-Merge sind autorisiert oder werden von diesem Record behauptet. |
+| Delivery-Status | Am 2026-08-16 hat der aktuelle Benutzer die geschützte Integration von Parent-PR #295 in `master` ausdrücklich autorisiert. Die Pre-Integration-Evidence steht unten; weder direkter `master`-Push noch Force-Aktion, Bypass oder Auto-Merge sind autorisiert oder werden behauptet. |
 
 ## Motivation und Problemstellung
 
@@ -103,6 +103,34 @@ Current-Base- und PR-Status-Kontrollen.
 | `tests.ci_security.test_ci_security_contract` und `tests.security_regression.test_workflow_security_contract` | 16 bestanden, 2 fehlschlugen, weil das bestehende `all-connectors-no-crs.yml` in beiden Parent-Workflow-Allowlisten fehlt; der Updater änderte weder diesen Workflow noch die Allowlisten |
 | `make check-bilingual-docs` und `make check-doc-links` | in der frischen Task-Worktree blockiert, weil deren Framework-Submodule-Checkout absichtlich fehlt; alle Fehler betreffen bestehende Framework-Linkziele |
 
+## Pre-Integration-Delivery-Evidence
+
+- Aktuelle Benutzerautorisierung (2026-08-16): „bringe ihn in den master rein“.
+  Sie wählt ausschließlich den task-eigenen Parent-PR #295 und keine Framework-,
+  MRTS-, direkten `master`-Push-, Force-Aktions-, Administrator-Bypass- oder
+  Auto-Merge-Aktion aus.
+- PR: [#295](https://github.com/Easton97-Jens/ModSecurity-conector/pull/295),
+  `fix/port-framework-python-updater` nach `master`, gleiches Repository, mit
+  Initial-Implementierungscommit
+  `640a622c0a3ffc245f42cda60350f817555da08c` und Scanner-Remediation-Commit
+  `bbf906aa17d6e866d6e37557c279fe5d0c50dd13`.
+- Vor diesem Traceability-Follow-up stimmten lokale, `origin`- und PR-Metadaten
+  beim Source-Head `bbf906aa17d6e866d6e37557c279fe5d0c50dd13` überein; die
+  Basis war `55e45726a39bebd3f33aea87807419a882cd3ea8`, der PR war offen/Draft,
+  sauber mergebar und hatte `autoMergeRequest = null`.
+- Das aktive `Protect master`-Ruleset erlaubt einen PR mit null erforderlichen
+  Approving-Reviews, verlangt aber aufgelöste Review-Threads sowie aktuelle
+  Head-Checks `actions`, `bounded-c-cpp`, `envoy-go`, `traefik-go`,
+  `actionlint` und `zizmor`. Der Source-Head bestand jeden genannten Context;
+  außerdem bestanden SonarCloud, CodeQL, OSV, Secret-Scanning und die übrigen
+  anwendbaren PR-Checks. Es gab null eingereichte Reviews und null
+  Review-Threads; daher stand kein erforderliches Review oder Gespräch aus.
+- Dieser Follow-up ergänzt die erforderliche Delivery-/Change-Record-Verknüpfung.
+  Sein neuer PR-Head und neu ausgelöste Checks müssen vor dem exakten
+  geschützten Squash-Merge erneut aus dem autoritativen PR gelesen werden; der
+  finale Head und Merge-Fakten werden in PR- und Integration-Evidence gehalten,
+  statt hier erfunden zu werden.
+
 ## Runtime-Evidence
 
 Der Draft-PR liefert ein GitHub-hosted Workflow-Lint-Signal; sein erster
@@ -133,9 +161,9 @@ Updater-Änderung.
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 Es wurde kein GitHub-Hosted-Maintenance-Workflow dispatcht und kein GitHub-
-App-Token gemintet: Der Benutzer autorisierte Feature-Branch-Delivery und
-einen Draft-PR, nicht aber einen Live-Updater-Run oder eine Merge-bezogene
-Aktion. Repository-weite Dokumentationsprüfungen wurden ausgeführt, aber ihre
+App-Token gemintet: Der aktuelle Benutzer autorisiert jetzt ausschließlich die
+geschützte Integration von PR #295, nicht aber einen Live-Updater-Run.
+Repository-weite Dokumentationsprüfungen wurden ausgeführt, aber ihre
 Framework-eigenen Linkziele sind im absichtlich nicht initialisierten
 read-only-Submodule nicht verfügbar. Auch die breiteren Python-Inventar- und
 Workflow-Allowlist-Prüfungen wurden ausgeführt; ihre Fehler sind separat
@@ -144,8 +172,11 @@ erfasster Current-Base-Drift und keine übersprungenen Updater-Prüfungen.
 ## Finaler Diff- und Review-Status
 
 Die Implementierung ist auf den angeforderten Updater, seine direkten
-Contracts, gekoppelte Dokumentation und Nachvollziehbarkeit begrenzt. Der
-Draft-PR bleibt Draft-only; manuelle Prüfung und manueller Merge sind
-erforderlich. Finaler Scoped-Diff, exakter Feature-Branch-Head, Remote-Ziel und
-Hosted-Checks werden separat beobachtet und festgehalten. Dieser Record
-autorisiert weder Merge noch Auto-Merge.
+Contracts, gekoppelte Dokumentation und Nachvollziehbarkeit begrenzt. Bei
+diesem Traceability-Update bleibt der PR Draft, bis sein korrigierter Head eine
+frische Verifizierungsrunde bestanden hat. Der aktuelle Benutzer autorisiert
+nur den anschließenden geschützten Squash-Merge von PR #295 mit exaktem Head;
+dieser Record autorisiert weder direkten `master`-Push noch Auto-Merge.
+Finaler Scoped-Diff, exakter finaler PR-Head, Remote-Ziel, Checks, Merge-
+Ergebnis und Resulting-Master-Evidence müssen beobachtet sein, bevor sie
+berichtet werden.

@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-08-15 |
 | Base revision | `55e45726a39bebd3f33aea87807419a882cd3ea8` |
 | Framework reference | `Easton97-Jens/ModSecurity-test-Framework@3cb33609626ff689c54b6dc0f31fb7e9401fe75e`, `.github/workflows/check-python-version.yml` |
-| Delivery status | The user authorized a feature-branch commit, push, and Draft PR only. No `master` push, merge, ready-for-review transition, or auto-merge is authorized or asserted by this record. |
+| Delivery status | On 2026-08-16 the current user explicitly authorized protected integration of Parent PR #295 into `master`. The pre-integration evidence is recorded below; no direct `master` push, force action, bypass, or auto-merge is authorized or asserted. |
 
 ## Motivation and problem statement
 
@@ -99,6 +99,32 @@ current-base, and PR-state controls.
 | `tests.ci_security.test_ci_security_contract` and `tests.security_regression.test_workflow_security_contract` | 16 passed, 2 failed because the existing `all-connectors-no-crs.yml` is absent from both Parent workflow allowlists; no updater change touched that workflow or allowlist |
 | `make check-bilingual-docs` and `make check-doc-links` | blocked in the fresh task worktree because its Framework submodule checkout is intentionally absent; failures are all existing Framework link targets |
 
+## Pre-integration delivery evidence
+
+- Current user authorization (2026-08-16): “bringe ihn in den master rein”.
+  It selects only the task-owned Parent PR #295 and no Framework, MRTS, direct
+  `master` push, force action, administrator bypass, or auto-merge action.
+- PR: [#295](https://github.com/Easton97-Jens/ModSecurity-conector/pull/295),
+  `fix/port-framework-python-updater` to `master`, same repository, with
+  initial implementation commit `640a622c0a3ffc245f42cda60350f817555da08c`
+  and scanner-remediation commit
+  `bbf906aa17d6e866d6e37557c279fe5d0c50dd13`.
+- Before this traceability follow-up, local, `origin`, and PR metadata agreed
+  on source head `bbf906aa17d6e866d6e37557c279fe5d0c50dd13`; the base was
+  `55e45726a39bebd3f33aea87807419a882cd3ea8`, the PR was open/Draft, cleanly
+  mergeable, and had `autoMergeRequest = null`.
+- The active `Protect master` ruleset permits a PR with zero approving reviews
+  but requires resolved review threads and current-head `actions`,
+  `bounded-c-cpp`, `envoy-go`, `traefik-go`, `actionlint`, and `zizmor` checks.
+  The source head passed every listed context; it also passed SonarCloud,
+  CodeQL, OSV, secret scanning, and the remaining applicable PR checks. There
+  were zero submitted reviews and zero review threads, so no required review
+  or conversation was outstanding.
+- This follow-up adds the required Delivery/Change-Record linkage. Its new PR
+  head and newly triggered checks must be re-read from the authoritative PR
+  before the exact-head-protected squash merge; the final head and merge facts
+  are retained in PR and integration evidence rather than invented here.
+
 ## Runtime evidence
 
 The Draft PR supplies a GitHub-hosted workflow-lint signal; its initial ZiZmor
@@ -126,17 +152,20 @@ submodule documentation-check limitations remain outside this updater change.
 ## Checks not run and rationale
 
 No GitHub-hosted maintenance workflow was dispatched and no GitHub App token
-was minted: the user authorized feature-branch delivery and a Draft PR, not a
-live updater run or any merge-related action. Repository-wide documentation
-checks were run, but their Framework-owned link targets are unavailable in the
-intentionally uninitialized read-only submodule. The broader Python inventory
-and workflow-allowlist checks were also run; their failures are separately
-tracked current-base drift and not skipped updater checks.
+was minted: the current user now authorizes only the protected integration of
+PR #295, not a live updater run. Repository-wide documentation checks were
+run, but their Framework-owned link targets are unavailable in the intentionally
+uninitialized read-only submodule. The broader Python inventory and
+workflow-allowlist checks were also run; their failures are separately tracked
+current-base drift and not skipped updater checks.
 
 ## Final diff and review status
 
 The implementation is limited to the requested updater, its direct contracts,
-paired documentation, and traceability. The Draft PR remains Draft-only, with
-manual review and merge required; the final scoped diff, exact feature-branch
-head, remote destination, and hosted checks are observed and recorded
-separately. This record does not authorize a merge or auto-merge.
+paired documentation, and traceability. At this traceability update the PR
+remains Draft until its corrected head has passed a fresh verification round.
+The current user authorizes only the subsequent protected, exact-head squash
+merge of PR #295; this record neither authorizes a direct `master` push nor
+auto-merge. The final scoped diff, exact final PR head, remote destination,
+checks, merge result, and resulting-master evidence must be observed before
+they are reported.
