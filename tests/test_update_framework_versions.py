@@ -132,8 +132,8 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
     def test_current_candidate_grammar_fixture_resolves_as_data(self) -> None:
         values = SYNC.parse_common(self.common)
         self.assertEqual(
-            "bd69ee96e0e7082317d4afe1232bee625665eb9a",
             CANDIDATE_GRAMMAR_PROVENANCE,
+            "bd69ee96e0e7082317d4afe1232bee625665eb9a",
         )
         self.assertEqual(values["LIGHTTPD_SERIES"], "1.4")
         self.assertEqual(
@@ -245,7 +245,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             htx["sha256"],
             "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
         )
-        self.assertNotEqual("3.3.1", htx["version"])
+        self.assertNotEqual(htx["version"], "3.3.1")
         self.assertNotIn("$", contract)
         self.assertNotIn("$", json.dumps(source_map, sort_keys=True))
         self.assertNotIn("$", json.dumps(htx, sort_keys=True))
