@@ -1407,6 +1407,78 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.make_provenance_environment(names, make_target, reviewed), reviewed
         )
 
+    def test_make_preserves_framework_active_provenance_presence_semantics(self) -> None:
+        names = (
+            "CRS_REPO_URL",
+            "CRS_GIT_REF",
+            "NGINX_SOURCE_MODE",
+            "NGINX_SOURCE_REPO_URL",
+            "NGINX_SOURCE_GIT_REF",
+            "NGINX_GITHUB_REPO",
+            "NGINX_RELEASE_TAG",
+            "HAPROXY_VERSION",
+            "HAPROXY_SOURCE_URL",
+            "HAPROXY_SHA256_URL",
+            "HAPROXY_SHA256",
+            "HTTPD_VERSION",
+            "HTTPD_SOURCE_URL",
+            "HTTPD_SHA256",
+            "HTTPD_SHA256_URL",
+            "APR_VERSION",
+            "APR_SOURCE_URL",
+            "APR_SHA256",
+            "APR_SHA256_URL",
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+            "PCRE2_VERSION",
+            "PCRE2_SOURCE_URL",
+            "PCRE2_SHA256",
+            "PCRE2_SHA256_URL",
+        )
+        make_target = "print-framework-active-provenance-contract"
+        self.assertEqual(
+            self.make_provenance_environment(names, make_target, {name: None for name in names}),
+            {},
+        )
+        self.assertEqual(
+            self.make_provenance_environment(names, make_target, {name: "" for name in names}),
+            {name: "" for name in names},
+        )
+        specified = {
+            "CRS_REPO_URL": "https://github.com/coreruleset/coreruleset.git",
+            "CRS_GIT_REF": "v4.29.0",
+            "NGINX_SOURCE_MODE": "github-release",
+            "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
+            "NGINX_SOURCE_GIT_REF": "release-1.31.3",
+            "NGINX_GITHUB_REPO": "https://github.com/nginx/nginx",
+            "NGINX_RELEASE_TAG": "release-1.31.3",
+            "HAPROXY_VERSION": "3.2.0",
+            "HAPROXY_SOURCE_URL": "https://fixture.invalid/haproxy.tar.gz",
+            "HAPROXY_SHA256_URL": "https://fixture.invalid/haproxy.tar.gz.sha256",
+            "HAPROXY_SHA256": "a" * 64,
+            "HTTPD_VERSION": "2.4.0",
+            "HTTPD_SOURCE_URL": "https://fixture.invalid/httpd.tar.gz",
+            "HTTPD_SHA256": "b" * 64,
+            "HTTPD_SHA256_URL": "https://fixture.invalid/httpd.tar.gz.sha256",
+            "APR_VERSION": "1.7.0",
+            "APR_SOURCE_URL": "https://fixture.invalid/apr.tar.gz",
+            "APR_SHA256": "c" * 64,
+            "APR_SHA256_URL": "https://fixture.invalid/apr.tar.gz.sha256",
+            "APR_UTIL_VERSION": "1.6.0",
+            "APR_UTIL_SOURCE_URL": "https://fixture.invalid/apr-util.tar.gz",
+            "APR_UTIL_SHA256": "d" * 64,
+            "APR_UTIL_SHA256_URL": "https://fixture.invalid/apr-util.tar.gz.sha256",
+            "PCRE2_VERSION": "10.0",
+            "PCRE2_SOURCE_URL": "https://fixture.invalid/pcre2.tar.gz",
+            "PCRE2_SHA256": "e" * 64,
+            "PCRE2_SHA256_URL": "https://fixture.invalid/pcre2.tar.gz.sha256",
+        }
+        self.assertEqual(
+            self.make_provenance_environment(names, make_target, specified), specified
+        )
+
     def test_protocol_client_bundle_is_root_runner_scoped_and_forwarded(self) -> None:
         source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")

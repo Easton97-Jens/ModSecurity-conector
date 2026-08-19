@@ -169,36 +169,52 @@ export ALBEDO_BIN
 export ALBEDO_SOURCE_URL
 export ALBEDO_PROMPT_EXPECTED_LATEST
 export ALBEDO_GIT_REF
-export CRS_REPO_URL
-export CRS_GIT_REF
+# The Framework snapshots active provenance inputs before applying its reviewed
+# defaults.  Preserve the absence of optional Parent inputs; explicit empty and
+# altered values must remain visible so the Framework can reject them fail closed.
+define export_framework_optional_provenance
+ifneq ($(origin $(1)),undefined)
+export $(1)
+endif
+endef
+
+override FRAMEWORK_OPTIONAL_PROVENANCE_EXPORTS := \
+	CRS_REPO_URL \
+	CRS_GIT_REF \
+	NGINX_SOURCE_MODE \
+	NGINX_SOURCE_REPO_URL \
+	NGINX_SOURCE_GIT_REF \
+	NGINX_GITHUB_REPO \
+	NGINX_RELEASE_TAG \
+	HAPROXY_VERSION \
+	HAPROXY_SOURCE_URL \
+	HAPROXY_SHA256_URL \
+	HAPROXY_SHA256 \
+	HTTPD_VERSION \
+	HTTPD_SOURCE_URL \
+	HTTPD_SHA256 \
+	HTTPD_SHA256_URL \
+	APR_VERSION \
+	APR_SOURCE_URL \
+	APR_SHA256 \
+	APR_SHA256_URL \
+	APR_UTIL_VERSION \
+	APR_UTIL_SOURCE_URL \
+	APR_UTIL_SHA256 \
+	APR_UTIL_SHA256_URL \
+	PCRE2_VERSION \
+	PCRE2_SOURCE_URL \
+	PCRE2_SHA256 \
+	PCRE2_SHA256_URL
+
+$(foreach framework_optional_provenance,$(FRAMEWORK_OPTIONAL_PROVENANCE_EXPORTS),$(eval $(call export_framework_optional_provenance,$(framework_optional_provenance))))
+
 export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
 export BUILD_HTTPD_FROM_SOURCE
 export BUILD_PCRE2_FROM_SOURCE
 export BUILD_NGINX_FROM_SOURCE
-# The Framework deliberately distinguishes absent provenance inputs (its
-# reviewed defaults apply) from explicit empty inputs (fail closed).  Do not
-# turn an absent optional Make variable into an empty exported override.
-ifneq ($(origin NGINX_SOURCE_MODE),undefined)
-export NGINX_SOURCE_MODE
-endif
-ifneq ($(origin NGINX_SOURCE_REPO_URL),undefined)
-export NGINX_SOURCE_REPO_URL
-endif
-ifneq ($(origin NGINX_SOURCE_GIT_REF),undefined)
-export NGINX_SOURCE_GIT_REF
-endif
-ifneq ($(origin NGINX_GITHUB_REPO),undefined)
-export NGINX_GITHUB_REPO
-endif
-ifneq ($(origin NGINX_RELEASE_TAG),undefined)
-export NGINX_RELEASE_TAG
-endif
-export HAPROXY_VERSION
-export HAPROXY_SOURCE_URL
-export HAPROXY_SHA256_URL
-export HAPROXY_SHA256
 export HAPROXY_SOURCE_ROOT
 export HAPROXY_DOWNLOAD_DIR
 export HAPROXY_SOURCE_DIR
@@ -210,43 +226,10 @@ export EXPAT_SOURCE_URL
 export EXPAT_GIT_REF
 export EXPAT_GIT_URL
 export EXPAT_PROMPT_EXPECTED_LATEST
-export HTTPD_VERSION
-export HTTPD_SOURCE_URL
-export HTTPD_SHA256
-export HTTPD_SHA256_URL
-export APR_VERSION
-export APR_SOURCE_URL
-export APR_SHA256
-export APR_SHA256_URL
-# The pinned Framework's reviewed APR-util tuple deliberately distinguishes
-# absent inputs (use the reviewed tuple) from explicit empty or altered
-# overrides (fail closed). Do not turn an absent optional Make variable into
-# an empty exported override.
-ifneq ($(origin APR_UTIL_VERSION),undefined)
-export APR_UTIL_VERSION
-endif
-ifneq ($(origin APR_UTIL_SOURCE_URL),undefined)
-export APR_UTIL_SOURCE_URL
-endif
-ifneq ($(origin APR_UTIL_SHA256),undefined)
-export APR_UTIL_SHA256
-endif
-ifneq ($(origin APR_UTIL_SHA256_URL),undefined)
-export APR_UTIL_SHA256_URL
-endif
 
 .PHONY: framework-apr-util-env
 framework-apr-util-env:
 	@/bin/sh "$(CURDIR)/ci/tools/print-framework-apr-util-env.sh" "$(FRAMEWORK_ROOT)" "$(CURDIR)"
-export PCRE2_VERSION
-export PCRE2_SOURCE_URL
-export PCRE2_SHA256_URL
-# Framework's PCRE2 default deliberately distinguishes an absent digest from
-# an explicitly empty caller override.  GNU make would export an undefined
-# variable as empty, so only forward an actual caller-supplied override.
-ifneq ($(origin PCRE2_SHA256),undefined)
-export PCRE2_SHA256
-endif
 export APACHE_BIN
 export APACHECTL_BIN
 export APXS_BIN

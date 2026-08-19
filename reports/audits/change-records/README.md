@@ -10,6 +10,12 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260819-fnd-parent-0185-crs-provenance-exports](CR-20260819-fnd-parent-0185-crs-provenance-exports.md)
+  | [Deutsch](CR-20260819-fnd-parent-0185-crs-provenance-exports.de.md) — the
+  current user authorized this Parent-only repair and Draft PR while expressly
+  prohibiting Framework-module changes. It records local evidence only;
+  exact-head hosted checks and any merge remain pending.
+
 - [CR-20260819-readonly-submodule-sandbox-preservation](CR-20260819-readonly-submodule-sandbox-preservation.md)
   | [Deutsch](CR-20260819-readonly-submodule-sandbox-preservation.de.md) — the
   current user explicitly authorized this Parent-only sandbox source-
