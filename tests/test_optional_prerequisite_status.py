@@ -15,6 +15,8 @@ import tempfile
 import textwrap
 import unittest
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
 STATUS_RUNNER = ROOT / "ci" / "tools" / "run-check-status.py"
@@ -735,7 +737,18 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
             environment = os.environ.copy()
             environment.pop("APXS_BIN", None)
             environment["APXS"] = str(apxs_without_headers)
-            environment["FRAMEWORK_ROOT"] = str(ROOT / "modules" / "ModSecurity-test-Framework")
+            framework_root, error = trusted_framework_root(
+                ROOT,
+                Path(
+                    os.environ.get(
+                        "PARENT_TEST_FRAMEWORK_ROOT",
+                        ROOT / "modules" / "ModSecurity-test-Framework",
+                    )
+                ),
+            )
+            if framework_root is None:
+                self.skipTest(error)
+            environment["FRAMEWORK_ROOT"] = str(framework_root)
             environment["BUILD_ROOT"] = str(build_root)
             environment["CONNECTOR_COMPONENT_CACHE"] = str(temporary / "component-cache")
             environment["CI_APXS_BIN_CANDIDATES"] = "synthetic-no-apxs"

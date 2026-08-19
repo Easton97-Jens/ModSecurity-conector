@@ -242,6 +242,54 @@ Binary-/Modul-Overrides ab. Alle Werte müssen atomar aktualisiert und das
 gesamte Tupel überprüft werden; ein System- oder MRTS-NGINX-Binary ist keine
 Full-Smoke-Evidence.
 
+#### Statische Framework-Komponenten-Pin-Projektion
+
+`ci/tools/sync-framework-component-versions.py` liest das geprüfte Framework-
+`ci/lib/common.sh` als begrenzte UTF-8-Datendatei. Die Datei wird niemals
+gesourct, importiert, ausgeführt, per Shell gestartet oder ausgewertet. Der
+Parent akzeptiert nur die feste Quellen-Registry, die seine registrierten
+Projektionen benötigt. Die Registry kennzeichnet jeden Eintrag als direkten
+Parent-Consumer oder als Auflösungsabhängigkeit; nicht konsumierte reine
+Framework-Pins wie Go-FTW-, Albedo-, Python-, Action- und CI-Tool-Pins werden
+ignoriert und erzeugen keine zweite Parent-Autorität.
+
+Für ein registriertes Quellenfeld ist die akzeptierte Assignment-Grammatik
+absichtlich klein: ein direktes Literal, `$NAME`, `${NAME}`, zusammengesetzte
+sichere Literal- und allowlistete Referenzteile sowie die eine kanonische
+Präfixentfernung `${NGINX_RELEASE_TAG#release-}` für das NGINX-Release-Asset.
+Der einzige erhaltene Self-Default ist der statische
+`NGINX_QUIC_TLS_LIBRARY`-Fallback auf `openssl`; er liest nicht die
+Aufruferumgebung. Command-/Process-Substitution, Backticks, `eval`, Separatoren,
+Pipes, Redirections, CR/LF, arithmetische Expansion, nicht unterstützte
+Parameteroperatoren, unbekannte oder nicht allowlistete Referenzen, Duplikate,
+Zyklen, fehlende/leere Felder und fehlerhafte Tupel brechen fehlgeschlossen ab,
+bevor ein Ziel geschrieben wird.
+
+Lighttpd ist ein serienabgeleitetes Tupel: `LIGHTTPD_SERIES` ist ASCII `X.Y`,
+`LIGHTTPD_VERSION` ist ASCII `X.Y.Z`, und die offizielle Root
+`https://download.lighttpd.net/lighttpd` leitet Serienbasis, Source-URL,
+Archivname und Download-URL ab. Der Parser weist Authority-, Credential-,
+Query-, Fragment-, Doppelpfad-, Archiv-, Versions- oder SHA-256-Drift ab.
+`connectors/lighttpd/lighttpd-version.contract` und
+`connectors/lighttpd/SOURCE_MAP.json` sind generierte Parent-Ansichten und
+enthalten das explizite Provenance-Feld `LIGHTTPD_SERIES`. Der Shell-Vertrag
+besitzt kein `schema_version`-Feld; sein Reader akzeptiert den additiven Key,
+sodass keine separate Schema-Versionserhöhung erforderlich ist.
+
+Generisches `HAPROXY_*` und `HAPROXY_HTX_*` sind unabhängige validierte Tupel.
+Jedes bindet Serie, Version, Archivname, Source-URL und SHA-256 an die
+offizielle HAProxy-Root. Das generische Tupel bleibt die
+Runtime-Provisioning-Eingabe, während
+`connectors/haproxy/htx-overlay/version-contract.json` ausschließlich aus dem
+HTX-Tupel generiert wird; kein Tupel fällt auf das andere zurück. NGINX bindet
+weiterhin `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_ASSET_NAME`,
+`NGINX_QUIC_TLS_ARCHIVE_NAME` und `NGINX_QUIC_TLS_SOURCE_URL` atomar an das
+exakte Repository, Tag, die OpenSSL-Version, das Asset und die SHA-256-Werte.
+
+Das Parsen oder Projizieren dieser Werte ist keine Source-, Build-,
+Konfigurations-, Runtime-, CRS-, HTTP/2-, HTTP/3-, QUIC-, Produktions- oder
+Hosted-Workflow-Evidence.
+
 <code>CC</code>, <code>CXX</code>, <code>CPPFLAGS</code>, <code>CFLAGS</code>,
 <code>CXXFLAGS</code>, <code>LDFLAGS</code>, <code>LIBS</code>,
 <code>PKG_CONFIG_PATH</code>, <code>LD_LIBRARY_PATH</code> und

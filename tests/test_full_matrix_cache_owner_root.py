@@ -7,6 +7,8 @@ import subprocess
 import tempfile
 import unittest
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MATRIX_RUNNER = ROOT / "ci" / "runtime" / "lifecycle" / "run-full-matrix-parallel.sh"
@@ -15,6 +17,12 @@ FRAMEWORK_ROOT = ROOT / "modules" / "ModSecurity-test-Framework"
 
 
 class FullMatrixCacheOwnerRootTest(unittest.TestCase):
+    def setUp(self) -> None:
+        framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+        if framework_root is None:
+            self.skipTest(error)
+        self.framework_root = framework_root
+
     def write_fake_make(self, bin_dir: Path) -> None:
         fake_make = bin_dir / "make"
         fake_make.write_text(
@@ -75,7 +83,7 @@ printf '%s|%s|%s|%s|%s|%s\\n' \\
                 "PATH": f"{bin_dir}{os.pathsep}{environment['PATH']}",
                 "CAPTURE_FILE": str(capture_file),
                 "CONNECTOR_ROOT": str(ROOT),
-                "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
+                "FRAMEWORK_ROOT": str(self.framework_root),
                 "VERIFIED_RUN_ROOT": str(verified_root),
                 "VERIFIED_BUILD_ROOT": str(verified_root / "build"),
                 "BUILD_ROOT": str(verified_root / "build"),
@@ -270,7 +278,12 @@ printf '%s|%s|%s|%s|%s|%s\\n' \\
             )
 
             process = subprocess.run(
-                ["sh", str(WITH_RUNTIME_COMPONENTS), "sh", str(FRAMEWORK_ROOT / "ci/runtime/run-runtime-matrix.sh")],
+                [
+                    "sh",
+                    str(WITH_RUNTIME_COMPONENTS),
+                    "sh",
+                    str(self.framework_root / "ci/runtime/run-runtime-matrix.sh"),
+                ],
                 cwd=ROOT,
                 env=environment,
                 capture_output=True,

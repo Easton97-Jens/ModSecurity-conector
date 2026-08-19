@@ -3,14 +3,20 @@ from __future__ import annotations
 import importlib.util
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
+FRAMEWORK_ROOT = Path(
+    os.environ.get("PARENT_TEST_FRAMEWORK_ROOT", ROOT / "modules" / "ModSecurity-test-Framework")
+)
 SPEC = importlib.util.spec_from_file_location(
     "transport_lifecycle_artifacts", ROOT / "ci" / "runtime" / "lifecycle" / "write-transport-lifecycle-artifacts.py"
 )
@@ -101,8 +107,11 @@ class TransportLifecycleArtifactsTest(unittest.TestCase):
             event, "nginx", "native-nginx-http-module", "run-barrier"
         )
         self.assertIsNotNone(barrier)
-        framework_ci = ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "checks" / "catalog"
-        framework_runners = ROOT / "modules" / "ModSecurity-test-Framework" / "tests" / "runners"
+        framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+        if framework_root is None:
+            self.skipTest(error)
+        framework_ci = framework_root / "ci" / "checks" / "catalog"
+        framework_runners = framework_root / "tests" / "runners"
         probe = (
             "import json, sys; "
             "sys.path[:0] = [sys.argv[1], sys.argv[2]]; "

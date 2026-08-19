@@ -3,25 +3,22 @@ from __future__ import annotations
 import http.server
 import importlib.util
 import json
+import os
 import sys
 import tempfile
 import threading
 import unittest
 from pathlib import Path
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_SCRIPT = ROOT / "connectors" / "traefik" / "scripts" / "runtime_native_smoke.py"
 STANDALONE_RULES = ROOT / "connectors" / "traefik" / "config" / "traefik-native-engine-rules.conf"
-
-FRAMEWORK_SPEC = importlib.util.spec_from_file_location(
-    "framework_no_crs_baseline_for_traefik_transport",
-    ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "checks" / "catalog" / "no_crs_baseline.py",
+FRAMEWORK_ROOT = Path(
+    os.environ.get("PARENT_TEST_FRAMEWORK_ROOT", ROOT / "modules" / "ModSecurity-test-Framework")
 )
-assert FRAMEWORK_SPEC is not None
-assert FRAMEWORK_SPEC.loader is not None
-framework_baseline = importlib.util.module_from_spec(FRAMEWORK_SPEC)
-FRAMEWORK_SPEC.loader.exec_module(framework_baseline)
 
 
 def load_runtime_module() -> object:
@@ -30,6 +27,22 @@ def load_runtime_module() -> object:
     assert specification.loader is not None
     module = importlib.util.module_from_spec(specification)
     sys.modules[specification.name] = module
+    specification.loader.exec_module(module)
+    return module
+
+
+def load_trusted_framework_baseline(test_case: unittest.TestCase) -> object:
+    framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+    if framework_root is None:
+        test_case.skipTest(error)
+    assert framework_root is not None
+    specification = importlib.util.spec_from_file_location(
+        "framework_no_crs_baseline_for_traefik_transport",
+        framework_root / "ci" / "checks" / "catalog" / "no_crs_baseline.py",
+    )
+    assert specification is not None
+    assert specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
     specification.loader.exec_module(module)
     return module
 
@@ -177,7 +190,7 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
         self.assertNotIn("negotiated_protocol", allow_event)
         self.assertTrue(allow_event["headers_sent"])
         self.assertTrue(allow_event["response_committed"])
-        selected = framework_baseline.event_for_case(
+        selected = load_trusted_framework_baseline(self).event_for_case(
             events,
             None,
             {"phase": 1, "expected_status": 200},
@@ -269,7 +282,7 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
             "transport_case_id": "phase4-first-byte-traefik",
         }
         self.assertEqual(
-            framework_baseline.protocol_pass_errors(
+            load_trusted_framework_baseline(self).protocol_pass_errors(
                 record,
                 barrier_event,
                 expected_run_id="core-run-1",

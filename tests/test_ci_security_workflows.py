@@ -1742,10 +1742,28 @@ jobs:
             validator,
         )
         self.assertNotIn("submodule update --init --recursive", validator)
-        self.assertIn("Validate Framework component-pin data contract", validator)
+        self.assertEqual(validator.count("Validate Framework component-pin data contract"), 1)
         self.assertIn("sync-framework-component-versions.py", validator)
         self.assertIn("--validate", validator)
         self.assertIn('"$CANDIDATE_SHA:ci/lib/common.sh"', validator)
+        self.assertIn('git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" show', validator)
+        for forbidden in (
+            'source "$framework_common"',
+            '. "$framework_common"',
+            'bash "$framework_common"',
+            'sh "$framework_common"',
+            'eval "$framework_common"',
+            'python3 "$framework_common"',
+        ):
+            self.assertNotIn(forbidden, validator)
+        component_pin_validator = validator.partition(
+            "Prepare dedicated read-only candidate sandbox"
+        )[0]
+        self.assertNotIn("continue-on-error", component_pin_validator)
+        self.assertLess(
+            workflow.index("Validate Framework component-pin data contract"),
+            workflow.index("Prepare dedicated read-only candidate sandbox"),
+        )
         self.assertIn(SUBMODULE_CANDIDATE_BASELINE_CALL, normalize_shell_script(validator))
         self.assertEqual(normalize_shell_script(validator).count(SUBMODULE_CANDIDATE_STATE_CALL), 2)
         self.assertNotIn("status --porcelain", validator)

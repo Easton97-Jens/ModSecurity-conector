@@ -10,6 +10,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK_ROOT = Path(
@@ -50,6 +52,29 @@ MISMATCH_SPEC.loader.exec_module(runtime_mismatch)
 
 
 class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
+    def setUp(self) -> None:
+        framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+        if framework_root is None:
+            self.skipTest(error)
+        self.framework_root = framework_root
+
+    def trusted_framework_environment(self) -> dict[str, str]:
+        """Bind every Framework-executing child to the validated test root."""
+
+        environment = os.environ.copy()
+        environment["FRAMEWORK_ROOT"] = str(self.framework_root)
+        return environment
+
+    def test_child_environment_replaces_an_ambient_framework_root(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {"FRAMEWORK_ROOT": "/untrusted/framework-root"},
+            clear=False,
+        ):
+            environment = self.trusted_framework_environment()
+
+        self.assertEqual(environment["FRAMEWORK_ROOT"], str(self.framework_root))
+
     def test_native_summary_and_mismatch_helpers_keep_outputs_with_reduced_context_parameters(self) -> None:
         with tempfile.TemporaryDirectory(prefix="native-summary-signatures-") as temporary:
             root = Path(temporary)
@@ -726,8 +751,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             )
 
     def test_make_does_not_materialize_an_empty_nginx_github_repo_alias(self) -> None:
-        environment = os.environ.copy()
-        environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
+        environment = self.trusted_framework_environment()
         environment.pop("NGINX_GITHUB_REPO", None)
         result = subprocess.run(
             [
@@ -746,8 +770,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_make_prints_the_guarded_framework_apr_util_tuple_without_parent_overrides(self) -> None:
-        environment = os.environ.copy()
-        environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
+        environment = self.trusted_framework_environment()
         for variable in (
             "APR_UTIL_VERSION",
             "APR_UTIL_SOURCE_URL",
@@ -780,8 +803,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         self.assertEqual(values["APR_UTIL_SOURCE_URL"], f"'{components.require_apr_util_pinned_provenance(unquoted)['APR_UTIL_SOURCE_URL']}'")
 
     def test_make_accepts_a_complete_canonical_apr_util_tuple(self) -> None:
-        environment = os.environ.copy()
-        environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
+        environment = self.trusted_framework_environment()
         for variable in components.FRAMEWORK_APR_UTIL_ENV_KEYS:
             environment.pop(variable, None)
         initial = subprocess.run(
@@ -820,8 +842,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             "APR_UTIL_SHA256_URL",
         ):
             with self.subTest(variable=variable):
-                environment = os.environ.copy()
-                environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
+                environment = self.trusted_framework_environment()
                 environment[variable] = ""
                 result = subprocess.run(
                     [
@@ -851,8 +872,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             "APR_UTIL_SHA256_URL",
         ):
             with self.subTest(variable=variable):
-                environment = os.environ.copy()
-                environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
+                environment = self.trusted_framework_environment()
                 environment[variable] = "untrusted-value"
                 result = subprocess.run(
                     [

@@ -11,6 +11,14 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260818-framework-component-resolver](CR-20260818-framework-component-resolver.de.md) —
+  der aktuelle Benutzer hat diese Parent-only-Reparatur des statischen
+  Resolvers und die gepaarte Nachvollziehbarkeit sowie anschließend ausdrücklich
+  einen Parent-Draft-PR autorisiert. Der Record
+  weist nur beobachtete lokale Validierung aus; weder Framework-Änderung,
+  Gitlink-Update, Hosted-Rerun, finaler Delivery-Identifier noch Merge werden
+  behauptet.
+
 - [CR-20260816-python-updater-publisher-dependency](CR-20260816-python-updater-publisher-dependency.de.md) —
   der aktuelle Benutzer hat die fokussierte Parent-CI-Fehlerbehebung und die
   Draft-PR-Auslieferung autorisiert. Dieser gekoppelte Record weist nur

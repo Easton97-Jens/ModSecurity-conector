@@ -10,6 +10,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260818-framework-component-resolver](CR-20260818-framework-component-resolver.md)
+  | [Deutsch](CR-20260818-framework-component-resolver.de.md) — the current
+  user explicitly authorized this Parent-only static-resolver fix and paired
+  traceability and later explicitly authorized a Parent Draft PR. It records
+  observed local validation only; no Framework change, Gitlink update, hosted
+  rerun, final delivery identifier, or merge is asserted.
+
 - [CR-20260816-python-updater-publisher-dependency](CR-20260816-python-updater-publisher-dependency.md)
   | [Deutsch](CR-20260816-python-updater-publisher-dependency.de.md) — the
   current user authorized the focused Parent CI-failure fix and Draft-PR
