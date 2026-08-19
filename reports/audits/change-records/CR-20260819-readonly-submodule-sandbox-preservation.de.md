@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-08-19 |
 | Basis-Revision | `35c435483dcd637c7b9df0277bed34d6f94dc44d` |
 | Historischer Framework-Gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
-| Delivery-Status | Der aktuelle Benutzer autorisierte ausdrücklich die Veröffentlichung eines Draft-PR aus dem aktuellen Checkout und akzeptierte/deferierte die fehlende Evidence für gemappten Non-root-Namespace/Hosted sowie die fünf unabhängigen HAProxy-Cache-Fixture-Fehler ausschließlich für diesen Draft-PR. Dieser Record behauptet noch keinen gepushten Commit, keine PR-Nummer, kein Hosted-Ergebnis, keinen Ready-for-Review-Status und keinen Merge. |
+| Delivery-Status | Draft PR [#302](https://github.com/Easton97-Jens/ModSecurity-conector/pull/302) wurde aus `agent/readonly-submodule-sandbox-preservation` bei `c1b07a572321c31de1a0a9ae1fd554e2f9811b9f` erstellt; lokaler, Remote- und PR-Head-SHA stimmten bei der Erstellung überein. Er bleibt Draft mit ausstehenden Hosted-Checks. Der aktuelle Benutzer akzeptierte/deferierte die fehlende Evidence für gemappten Non-root-Namespace/Hosted sowie die fünf unabhängigen HAProxy-Cache-Fixture-Fehler ausschließlich für diesen Draft-PR; weder Ready-for-Review noch Merge sind autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -155,9 +155,9 @@ gemappter User-/Mount-/PID-Namespace-Probe endete mit Exit `1` und
   Risiko dokumentiert. Die angeforderte Default-Discovery wurde dennoch
   ausgeführt und oben festgehalten.
 - Hosted `validate_only`, Security-Scan, Pull-Request-Checks, SonarQube und
-  Review sind noch nicht ausgeführt. Die Veröffentlichung eines Draft-PR ist
-  jetzt mit der im Delivery-Status genannten begrenzten Risikoannahme
-  ausdrücklich autorisiert; weder Ready-for-Review noch Merge sind autorisiert.
+  Review stehen für Draft PR #302 aus. Die lokale gemappte Non-root-Namespace-
+  Integration bleibt nicht verfügbar. Weder Ready-for-Review noch Merge sind
+  autorisiert.
 
 ## Bekannte Einschränkungen
 
@@ -188,6 +188,6 @@ nicht `verified` oder closed, weil gemappte Non-root-Namespace- und Hosted-
 Exact-Head-Evidence weiterhin fehlen/noch nicht beobachtet wurden; der
 unabhängige HAProxy-Testblocker verhindert außerdem einen grünen breiten
 Lint-/Quick-check-Claim. Der aktuelle Benutzer akzeptierte/deferierte diese
-exakten Lücken ausschließlich, um die Veröffentlichung eines Draft-PR aus dem
-aktuellen Checkout zu erlauben. Dieser Record behauptet bewusst kein
-Hosted-CI-, PR-Nummer-, Ready-for-Review- oder Merge-Ergebnis.
+exakten Lücken ausschließlich, um Draft PR #302 aus dem aktuellen Checkout zu
+erlauben. Er behauptet bewusst keinen Hosted-CI-Erfolg, keinen Ready-for-
+Review-, verified-PR- oder Merge-Status.

@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-08-19 |
 | Base revision | `35c435483dcd637c7b9df0277bed34d6f94dc44d` |
 | Historical Framework Gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
-| Delivery status | The current user explicitly authorized Draft-PR publication from the current checkout and accepted/deferred the missing mapped non-root namespace/hosted evidence and the five independent HAProxy cache-fixture failures for that Draft PR only. This record does not yet assert a pushed commit, PR number, hosted result, ready-for-review state, or merge. |
+| Delivery status | Draft PR [#302](https://github.com/Easton97-Jens/ModSecurity-conector/pull/302) was created from `agent/readonly-submodule-sandbox-preservation` at `c1b07a572321c31de1a0a9ae1fd554e2f9811b9f`; local, remote, and PR-head SHA matched at creation. It remains Draft with hosted checks pending. The current user accepted/deferred the missing mapped non-root namespace/hosted evidence and the five independent HAProxy cache-fixture failures for this Draft PR only; no ready-for-review state or merge is authorized. |
 
 ## Motivation and problem statement
 
@@ -144,9 +144,9 @@ user/mount/PID-namespace probe exited `1` with `Operation not permitted`.
   risk. The requested default discovery was nevertheless run and recorded
   above.
 - Hosted `validate_only`, security scan, pull-request checks, SonarQube, and
-  review are not yet run. Draft-PR publication is now explicitly authorized
-  with the scoped risk acceptance stated in Delivery status; no ready-for-
-  review transition or merge is authorized.
+  review are pending for Draft PR #302. The local mapped non-root namespace
+  integration remains unavailable. No ready-for-review transition or merge is
+  authorized.
 
 ## Known limitations
 
@@ -174,5 +174,5 @@ The finding remains locally `fixed`, not `verified` or closed, because mapped
 non-root namespace and hosted exact-head evidence remain unavailable/not yet
 observed; the unrelated HAProxy test blocker also prevents a green broad
 lint/quick-check claim. The current user accepted/deferred those exact gaps
-only to permit Draft-PR publication from the current checkout. This record
-deliberately makes no hosted-CI, PR-number, ready-for-review, or merge claim.
+only to permit Draft PR #302 from the current checkout. It deliberately makes
+no hosted-CI success, ready-for-review, verified-PR, or merge claim.
