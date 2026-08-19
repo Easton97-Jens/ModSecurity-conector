@@ -202,6 +202,12 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "source root contains an unexpected active mount"):
                 HELPER._reject_nested_source_mounts(source)
 
+    def test_mountinfo_decoder_rejects_malformed_octal_escapes(self) -> None:
+        self.assertEqual(HELPER._decode_mountinfo_path(r"/workspace/source\040tree"), "/workspace/source tree")
+        for malformed in ("\\", r"\04", r"\0x0"):
+            with self.subTest(malformed=malformed), self.assertRaisesRegex(ValueError, "invalid escaped"):
+                HELPER._decode_mountinfo_path(malformed)
+
     def test_configuration_checks_nested_source_mounts_before_candidate_setup(self) -> None:
         source = Path("/workspace/source")
         framework = source / "modules/framework"

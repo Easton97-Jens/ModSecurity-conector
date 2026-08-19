@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-08-19 |
 | Base revision | `35c435483dcd637c7b9df0277bed34d6f94dc44d` |
 | Historical Framework Gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
-| Delivery status | Draft PR [#302](https://github.com/Easton97-Jens/ModSecurity-conector/pull/302) was created from `agent/readonly-submodule-sandbox-preservation` at `c1b07a572321c31de1a0a9ae1fd554e2f9811b9f`; local, remote, and PR-head SHA matched at creation. It remains Draft with hosted checks pending. The current user accepted/deferred the missing mapped non-root namespace/hosted evidence and the five independent HAProxy cache-fixture failures for this Draft PR only; no ready-for-review state or merge is authorized. |
+| Delivery status | Draft PR [#302](https://github.com/Easton97-Jens/ModSecurity-conector/pull/302) was created from `agent/readonly-submodule-sandbox-preservation` at `c1b07a572321c31de1a0a9ae1fd554e2f9811b9f`; the traceability follow-up made its current committed head `a0f46d4e22830f081b20096734caf7e4a059b5cd`. Required GitHub Actions passed on that exact head, but SonarCloud check run `96097393398` failed on `6.4% Duplication on New Code`. The current user authorized a narrow source/test remediation and conditional protected `master` integration only after a successor head reports zero duplication and all fresh gates pass. The successor is not yet committed or pushed; PR #302 remains Draft and no merge is claimed. |
 
 ## Motivation and problem statement
 
@@ -23,6 +23,14 @@ and merge commit `35c435483dcd637c7b9df0277bed34d6f94dc44d`; the Gitlink is
 historical context, not the root cause. A restore-based approach is unsafe
 because original ownership, groups, modes, ACLs, and local workspace policy
 cannot be reconstructed reliably.
+
+The exact Draft PR #302 head `a0f46d4e22830f081b20096734caf7e4a059b5cd`
+then failed the unchanged SonarCloud Quality Gate on `6.4% Duplication on New
+Code`. Its task-owned annotations identify a duplicate source literal,
+cognitive complexity `16` where `15` is allowed, and a test assertion with
+multiple potentially throwing calls. The follow-up must reduce duplication to
+zero through source-native changes, not scanner, Quality-Gate, exclusion,
+suppression, `NOSONAR`, or issue-dismissal changes.
 
 ## Acceptance criteria
 
@@ -42,6 +50,13 @@ cannot be reconstructed reliably.
   run through `sudo`.
 - Cleanup accepts only a checked direct private child of `RUNNER_TEMP` and
   cannot follow symlinks, traverse source, or delete an active mount.
+- A successor exact PR #302 head reports `new_duplicated_lines=0` and
+  `new_duplicated_lines_density=0.0` with the unchanged SonarCloud Quality
+  Gate and no task-owned new annotation.
+- The Sonar remediation preserves the same source-isolation, mount-topology,
+  fail-closed decoder, cleanup, and legitimate external-output controls.
+- Required GitHub Actions and SonarCloud results are observed on the same
+  successor head before any ready-for-review or protected merge action.
 
 ## Implementation decision and rationale
 
@@ -63,6 +78,14 @@ direct `RUNNER_TEMP` child with that prefix, disjoint Parent/Framework/Git
 paths, root-owned mode `0711`, and no active mount. It opens path components by
 descriptor with `O_NOFOLLOW` and removes only descriptor-relative entries.
 
+The Sonar follow-up deduplicates the preparer's `source root` literal, rewrites
+the mountinfo decoder into an equivalent split-and-validate form, extracts the
+existing exact placeholder cleanup from `run()`, and adds malformed-octal
+decoder coverage. Its test refactor shares only fixture construction and keeps
+the existing source-preservation, exception, and external-output assertions.
+No scanner setting, quality gate, exclusion, suppression, or sandbox control
+changes.
+
 ## Security impact
 
 This removes a high-impact trusted-root mutation of source and Git metadata
@@ -71,6 +94,13 @@ does not weaken candidate no-write probes, root-side inventory verification,
 external-output validation, no-new-privileges, capability checks, publisher
 separation, action pins, repository/default-branch guards, or read-only job
 permissions. It does not add network-egress or kernel-exploit isolation.
+
+The narrow refactor was security-diff reviewed against sealed patch SHA-256
+`79074648aa1f204bcaeddd98a2c50cb62f92d2b2d01e22b98d1cb6b0ce2d9378`.
+It produced zero reportable findings. The one cleanup-path candidate,
+`NSR-001`, was rejected because `_create_mount_layout()` is already inside
+`run()`'s `try/finally` and the injected partial-layout regression proves exact
+cleanup.
 
 ## Changed files
 
@@ -83,6 +113,11 @@ permissions. It does not add network-egress or kernel-exploit isolation.
 - `docs/build/README.md` and `docs/build/README.de.md`
 - this Change Record pair and the paired archive index
 - Parent local finding `FND-PARENT-0184` and task-local evidence/plan records
+
+The Sonar follow-up changes only the two Python helpers, the two focused test
+modules, and this paired Change Record. Reader-facing build documentation is
+unchanged because the sandbox's documented behavior and security contract do
+not change.
 
 No Framework or MRTS source, Gitlink, product source, commit, push, pull
 request, or merge is authorized by this record.
@@ -97,12 +132,12 @@ request, or merge is authorized by this record.
   metadata snapshots after prepare, injected namespace-setup and
   candidate-result failures, verify, and cleanup.
 - `python3 -m unittest tests.test_run_readonly_submodule_validation_namespace`
-  passed: 34 tests, 3 expected namespace-capability skips, including cleanup
+  passed: 35 tests, 3 expected namespace-capability skips, including cleanup
   after a partial mount-layout creation failure.
 - A dedicated virtual environment below the registered external task root
   installed hash-locked `PyYAML==6.0.3`; its
   `python -m unittest tests.test_ci_security_workflows` run passed: 28 tests.
-- `make check-ci-security-contract` passed: 121 tests, 5 expected skips, then
+- `make check-ci-security-contract` passed: 122 tests, 5 expected skips, then
   hash-locked actionlint/zizmor/gitleaks validation.
 - Exact pinned `actionlint .github/workflows/update-submodules.yml`,
   `make check-doc-links`, targeted paired-document structural/link checks, and
@@ -112,6 +147,12 @@ request, or merge is authorized by this record.
 - `make lint` and `make quick-check` each exited `2` at the same unrelated
   five HAProxy cache tests, all blocked by `CRS_REPO_URL override is not
   permitted`, before this sandbox's candidate execution path.
+- After byte-identical recovery of the Sonar patch, `PYTHONDONTWRITEBYTECODE=1
+  /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v
+  tests.test_prepare_readonly_submodule_validation_sandbox` passed: 25 tests,
+  2 expected skips; the equivalent namespace command passed: 35 tests, 3
+  expected skips. `make check-ci-security-contract` then passed: 122 tests, 5
+  expected skips. `git diff --check` passed.
 
 ## Runtime evidence
 
@@ -128,6 +169,13 @@ identity or create the required namespace.
 No successful hosted run is claimed for this change. A direct mapped
 user/mount/PID-namespace probe exited `1` with `Operation not permitted`.
 
+The sealed working-tree security-diff report is
+`/var/tmp/codex/ModSecurity-conector/20260819T145000Z-sonar-duplication-security-diff/report.md`
+(SHA-256 `761396a57c0182b0b2c4778fdcf4ba08f6514b9039d73d38f31d404f261445c4`).
+It covers all four changed paths and has zero reportable findings. The reviewed
+and restored patches have the identical SHA-256
+`79074648aa1f204bcaeddd98a2c50cb62f92d2b2d01e22b98d1cb6b0ce2d9378`.
+
 ## Checks not run and rationale
 
 - The real mapped non-root prepare/candidate/verify integration is blocked in
@@ -143,10 +191,12 @@ user/mount/PID-namespace probe exited `1` with `Operation not permitted`.
   checkout because `FND-PARENT-0182` records a separate checkout-preservation
   risk. The requested default discovery was nevertheless run and recorded
   above.
-- Hosted `validate_only`, security scan, pull-request checks, SonarQube, and
-  review are pending for Draft PR #302. The local mapped non-root namespace
-  integration remains unavailable. No ready-for-review transition or merge is
-  authorized.
+- The previous exact PR #302 head's required GitHub Actions passed, but its
+  SonarCloud check run `96097393398` failed on `6.4% Duplication on New Code`.
+  The source-native successor is not yet committed or pushed, so successor-head
+  SonarCloud, GitHub Actions, review, ready-for-review, and merge evidence are
+  not yet available. The local mapped non-root namespace integration remains
+  unavailable.
 
 ## Known limitations
 
@@ -165,14 +215,18 @@ not concurrently mount attacker-controlled content into the root-only guard.
 Future changes must retain the source-preservation, nested-mount, private-path,
 and no-restore static contracts.
 
+The shared checkout unexpectedly switched to `master` while the follow-up patch
+was uncommitted, then returned to the task branch. The patch was recovered
+byte-identically and no actor is attributed; `FND-PARENT-0182` retains this
+separate lifecycle defect. Branch, reflog, source scope, and patch identity
+must be rechecked before staging or pushing.
+
 ## Final diff and review status
 
-Final local review is complete: source locking is removed, the private guard
-cleanup handles partial namespace setup, focused regression/security contracts
-and documentation checks pass, and the final diff has no whitespace errors.
-The finding remains locally `fixed`, not `verified` or closed, because mapped
-non-root namespace and hosted exact-head evidence remain unavailable/not yet
-observed; the unrelated HAProxy test blocker also prevents a green broad
-lint/quick-check claim. The current user accepted/deferred those exact gaps
-only to permit Draft PR #302 from the current checkout. It deliberately makes
-no hosted-CI success, ready-for-review, verified-PR, or merge claim.
+The local Sonar remediation is complete and reviewed: it has no whitespace
+errors, focused security review found zero reportable findings, the focused
+modules passed after recovery, and `make check-ci-security-contract` passed.
+It is not yet `verified`: no successor commit/head or hosted SonarCloud result
+exists, the mapped non-root namespace proof remains unavailable, and the
+unrelated HAProxy blocker still prevents a green broad lint/quick-check claim.
+No ready-for-review, verified-PR, or merge result is claimed.

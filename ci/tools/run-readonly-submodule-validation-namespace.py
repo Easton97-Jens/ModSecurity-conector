@@ -187,19 +187,13 @@ def _mountinfo_for(path: Path) -> list[str]:
 
 def _decode_mountinfo_path(value: str) -> str:
     """Decode a mountinfo mountpoint and reject malformed octal escapes."""
-    decoded: list[str] = []
-    index = 0
-    while index < len(value):
-        character = value[index]
-        if character != "\\":
-            decoded.append(character)
-            index += 1
-            continue
-        escaped = value[index + 1 : index + 4]
+    fragments = value.split("\\")
+    decoded = [fragments[0]]
+    for fragment in fragments[1:]:
+        escaped = fragment[:3]
         if len(escaped) != 3 or any(digit not in "01234567" for digit in escaped):
             raise ValueError("mountinfo contains an invalid escaped mount path")
-        decoded.append(chr(int(escaped, 8)))
-        index += 4
+        decoded.extend((chr(int(escaped, 8)), fragment[3:]))
     return "".join(decoded)
 
 
@@ -767,6 +761,15 @@ def _validated_configuration(arguments: argparse.Namespace) -> tuple[Path, Path,
     return source, framework, write_root, external, namespace_parent, python, uid, gid
 
 
+def _cleanup_partial_mount_layout(mount_root: Path) -> None:
+    """Remove exact empty placeholders only after confirming no host mount remains."""
+    if _mountinfo_for(mount_root):
+        return
+    for path in (mount_root / "source", mount_root / "external", mount_root):
+        if path.exists():
+            os.rmdir(path)
+
+
 def run(arguments: argparse.Namespace) -> int:
     if os.name != "posix" or sys.platform != "linux" or os.geteuid() != 0:
         raise NamespaceUnavailable("readonly namespace runner requires Linux root")
@@ -796,10 +799,7 @@ def run(arguments: argparse.Namespace) -> int:
         # The bind mounts live only in the child mount namespace.  Do not use a
         # recursive cleanup: these are exact, trusted empty placeholders. This
         # also handles a partial _create_mount_layout() failure before fork.
-        if not _mountinfo_for(mount_root):
-            for path in (mount_root / "source", mount_root / "external", mount_root):
-                if path.exists():
-                    os.rmdir(path)
+        _cleanup_partial_mount_layout(mount_root)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

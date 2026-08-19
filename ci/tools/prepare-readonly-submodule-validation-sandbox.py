@@ -30,6 +30,7 @@ PRIVILEGED_GROUPS = frozenset({"admin", "sudo", "wheel"})
 EXTERNAL_DIRNAME = "external"
 INVENTORY_FILENAME = "source-inventory.json"
 GITFILE_MAX_BYTES = 4096
+SOURCE_ROOT_LABEL = "source root"
 WRITE_ROOT_PREFIX = "modsecurity-readonly-validation."
 
 
@@ -165,7 +166,7 @@ def _reject_mounts_within(root: Path, label: str, *, include_root: bool) -> None
 
 def _reject_nested_source_mounts(source: Path) -> None:
     """Reject non-recursive bind-mount bypasses before candidate execution."""
-    _reject_mounts_within(source, "source root", include_root=False)
+    _reject_mounts_within(source, SOURCE_ROOT_LABEL, include_root=False)
 
 
 def _walk_tree(root: Path) -> Iterator[tuple[Path, str, os.stat_result]]:
@@ -347,7 +348,7 @@ def resolve_validator_identity(user: str, group: str) -> ValidatorIdentity:
 def _validate_layout(
     *, source_root: str, framework_root: str, write_root: str, runner_temp: str, fresh: bool
 ) -> tuple[Path, Path, Path]:
-    source = _existing_directory_without_symlinks(source_root, "source root")
+    source = _existing_directory_without_symlinks(source_root, SOURCE_ROOT_LABEL)
     framework = _existing_directory_without_symlinks(framework_root, "framework root")
     write = _existing_directory_without_symlinks(write_root, "write root")
     temporary = _existing_directory_without_symlinks(runner_temp, "runner temp")
@@ -387,7 +388,7 @@ def validate_layout(
 
 def _validate_cleanup_layout(arguments: argparse.Namespace) -> tuple[Path, Path]:
     """Accept only one exact private guard root for descriptor-safe removal."""
-    source = _existing_directory_without_symlinks(arguments.source_root, "source root")
+    source = _existing_directory_without_symlinks(arguments.source_root, SOURCE_ROOT_LABEL)
     framework = _existing_directory_without_symlinks(arguments.framework_root, "framework root")
     write = _existing_directory_without_symlinks(arguments.write_root, "write root")
     temporary = _existing_directory_without_symlinks(arguments.runner_temp, "runner temp")

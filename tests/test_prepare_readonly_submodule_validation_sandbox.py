@@ -132,6 +132,23 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
     def current_identity() -> HELPER.ValidatorIdentity:
         return HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
 
+    def sandbox_with_source_file(
+        self,
+        temporary: Path,
+        *,
+        filename: str = "input.txt",
+        contents: str = "source",
+        mode: int | None = None,
+    ) -> tuple[Path, Path, Path, Path, Path, object, HELPER.ValidatorIdentity]:
+        """Create a sandbox fixture with one explicit source file."""
+        source, framework, runner_temp, write = self.make_layout(temporary)
+        source_file = source / filename
+        source_file.write_text(contents, encoding="utf-8")
+        if mode is not None:
+            source_file.chmod(mode)
+        arguments = self.sandbox_args(source, framework, runner_temp, write)
+        return source, framework, runner_temp, write, source_file, arguments, self.current_identity()
+
     def test_valid_control_preserves_complete_source_metadata_and_creates_only_external_root(self) -> None:
         if os.geteuid() != 0:
             self.skipTest("locking control requires root")
@@ -417,14 +434,14 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         if os.geteuid() != 0:
             self.skipTest("root-owned write-root control requires root")
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
-            source, framework, runner_temp, write = self.make_layout(Path(raw))
-            source_file = source / "group-writable.txt"
-            source_file.write_text("trusted", encoding="utf-8")
-            source_file.chmod(0o664)
+            source, framework, runner_temp, write, _source_file, arguments, identity = (
+                self.sandbox_with_source_file(
+                    Path(raw), filename="group-writable.txt", contents="trusted", mode=0o664
+                )
+            )
             before = self.source_snapshot(source)
-            arguments = self.sandbox_args(source, framework, runner_temp, write)
             with (
-                mock.patch.object(HELPER, "resolve_validator_identity", return_value=self.current_identity()),
+                mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity),
                 mock.patch.object(HELPER, "_write_exact_regular_file", side_effect=OSError("injected")),
             ):
                 with self.assertRaisesRegex(OSError, "injected"):
@@ -439,14 +456,14 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         if os.geteuid() != 0:
             self.skipTest("root-owned write-root control requires root")
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
-            source, framework, runner_temp, write = self.make_layout(Path(raw))
-            source_file = source / "group-writable.txt"
-            source_file.write_text("trusted", encoding="utf-8")
-            source_file.chmod(0o664)
+            source, framework, runner_temp, write, _source_file, arguments, identity = (
+                self.sandbox_with_source_file(
+                    Path(raw), filename="group-writable.txt", contents="trusted", mode=0o664
+                )
+            )
             before = self.source_snapshot(source)
-            arguments = self.sandbox_args(source, framework, runner_temp, write)
             with (
-                mock.patch.object(HELPER, "resolve_validator_identity", return_value=self.current_identity()),
+                mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity),
                 mock.patch.object(HELPER, "_make_external_root", side_effect=OSError("injected")),
             ):
                 with self.assertRaisesRegex(OSError, "injected"):
@@ -461,13 +478,12 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         if os.geteuid() != 0:
             self.skipTest("root-owned write-root control requires root")
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
-            source, framework, runner_temp, write = self.make_layout(Path(raw))
-            source_file = source / "group-writable.txt"
-            source_file.write_text("trusted", encoding="utf-8")
-            source_file.chmod(0o664)
+            source, framework, runner_temp, write, _source_file, arguments, identity = (
+                self.sandbox_with_source_file(
+                    Path(raw), filename="group-writable.txt", contents="trusted", mode=0o664
+                )
+            )
             before = self.source_snapshot(source)
-            arguments = self.sandbox_args(source, framework, runner_temp, write)
-            identity = self.current_identity()
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 unsafe_output = external / "group-writable-output"
@@ -483,14 +499,14 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         if os.geteuid() != 0:
             self.skipTest("root-owned write-root control requires root")
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
-            source, framework, runner_temp, write = self.make_layout(Path(raw))
-            source_file = source / "group-writable.txt"
-            source_file.write_text("trusted", encoding="utf-8")
-            source_file.chmod(0o664)
+            source, framework, runner_temp, write, _source_file, arguments, identity = (
+                self.sandbox_with_source_file(
+                    Path(raw), filename="group-writable.txt", contents="trusted", mode=0o664
+                )
+            )
             before = self.source_snapshot(source)
-            arguments = self.sandbox_args(source, framework, runner_temp, write)
             with (
-                mock.patch.object(HELPER, "resolve_validator_identity", return_value=self.current_identity()),
+                mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity),
                 mock.patch.object(
                     HELPER, "_mountinfo_mountpoints", return_value=iter([source / "foreign-mount"])
                 ),
@@ -540,8 +556,9 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             unrelated.mkdir(mode=0o711)
             os.chown(unrelated, 0, 0)
             os.chmod(unrelated, 0o711)
+            cleanup_arguments = self.cleanup_args(source, framework, runner_temp, unrelated)
             with self.assertRaisesRegex(ValueError, "private validation prefix"):
-                HELPER.cleanup_sandbox(self.cleanup_args(source, framework, runner_temp, unrelated))
+                HELPER.cleanup_sandbox(cleanup_arguments)
             self.assertTrue(unrelated.exists())
             self.assertEqual(self.source_snapshot(source), before)
 
@@ -617,10 +634,9 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         if os.geteuid() != 0:
             self.skipTest("external-output controls require root")
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
-            source, framework, runner_temp, write = self.make_layout(Path(raw))
-            (source / "input.txt").write_text("source", encoding="utf-8")
-            arguments = self.sandbox_args(source, framework, runner_temp, write)
-            identity = self.current_identity()
+            _source, _framework, _runner_temp, _write, _source_file, arguments, identity = (
+                self.sandbox_with_source_file(Path(raw))
+            )
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 shared = external / "shared"
@@ -635,10 +651,9 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         if os.geteuid() != 0:
             self.skipTest("external-output controls require root")
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
-            source, framework, runner_temp, write = self.make_layout(Path(raw))
-            (source / "input.txt").write_text("source", encoding="utf-8")
-            arguments = self.sandbox_args(source, framework, runner_temp, write)
-            identity = self.current_identity()
+            _source, _framework, _runner_temp, _write, _source_file, arguments, identity = (
+                self.sandbox_with_source_file(Path(raw))
+            )
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 (external / "absolute-in-root").symlink_to(external / "target")
@@ -649,11 +664,9 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         if os.geteuid() != 0:
             self.skipTest("external-output controls require root")
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
-            source, framework, runner_temp, write = self.make_layout(Path(raw))
-            source_file = source / "input.txt"
-            source_file.write_text("source", encoding="utf-8")
-            arguments = self.sandbox_args(source, framework, runner_temp, write)
-            identity = self.current_identity()
+            _source, _framework, _runner_temp, _write, _source_file, arguments, identity = (
+                self.sandbox_with_source_file(Path(raw))
+            )
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 (external / "source-escape").symlink_to("../../../source/input.txt")
@@ -668,10 +681,9 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         if os.geteuid() != 0:
             self.skipTest("external-output controls require root")
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
-            source, framework, runner_temp, write = self.make_layout(Path(raw))
-            (source / "input.txt").write_text("source", encoding="utf-8")
-            arguments = self.sandbox_args(source, framework, runner_temp, write)
-            identity = self.current_identity()
+            _source, _framework, _runner_temp, _write, _source_file, arguments, identity = (
+                self.sandbox_with_source_file(Path(raw))
+            )
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 links = external / "links"
@@ -685,10 +697,9 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         if os.geteuid() != 0:
             self.skipTest("external-output controls require root")
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
-            source, framework, runner_temp, write = self.make_layout(Path(raw))
-            (source / "input.txt").write_text("source", encoding="utf-8")
-            arguments = self.sandbox_args(source, framework, runner_temp, write)
-            identity = self.current_identity()
+            source, _framework, _runner_temp, _write, _source_file, arguments, identity = (
+                self.sandbox_with_source_file(Path(raw))
+            )
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 link = external / "foreign-link"
@@ -715,11 +726,9 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         if os.geteuid() != 0:
             self.skipTest("external-output controls require root")
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
-            source, framework, runner_temp, write = self.make_layout(Path(raw))
-            source_file = source / "input.txt"
-            source_file.write_text("source", encoding="utf-8")
-            arguments = self.sandbox_args(source, framework, runner_temp, write)
-            identity = self.current_identity()
+            source, _framework, _runner_temp, _write, source_file, arguments, identity = (
+                self.sandbox_with_source_file(Path(raw))
+            )
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
                 (external / "outside-link").symlink_to(source_file)
