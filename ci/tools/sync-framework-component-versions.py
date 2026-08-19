@@ -48,6 +48,7 @@ HAPROXY_HTX_RESOLUTION_DEPENDENCY = "HAProxy HTX resolution dependency"
 NGINX_PROJECTION = "NGINX projections"
 NGINX_TLS_PROJECTION = "NGINX TLS projection"
 NGINX_TLS_RESOLUTION_DEPENDENCY = "NGINX TLS resolution dependency"
+CRS_PROJECTION = "CRS Parent projections"
 
 
 class SyncError(ValueError):
@@ -209,7 +210,7 @@ SOURCE_REGISTRY = (
         lambda value: bool(HEX64.fullmatch(value)),
         HAPROXY_RUNTIME_TUPLE,
     ),
-    SourceField("HAPROXY_HTX_SERIES", True, LITERAL, _series, "HAProxy HTX tuple"),
+    SourceField("HAPROXY_HTX_SERIES", True, LITERAL, _series, HAPROXY_HTX_TUPLE),
     SourceField(
         "HAPROXY_HTX_SERIES_BASE_URL",
         True,
@@ -278,14 +279,14 @@ SOURCE_REGISTRY = (
         True,
         PREFIX_REFERENCE,
         _safe_ascii_value,
-        "NGINX projections",
+        NGINX_PROJECTION,
     ),
     SourceField(
         "NGINX_SHA256",
         True,
         LITERAL,
         lambda value: bool(HEX64.fullmatch(value)),
-        "NGINX projections",
+        NGINX_PROJECTION,
     ),
     SourceField(
         "NGINX_QUIC_TLS_LIBRARY",
@@ -327,21 +328,21 @@ SOURCE_REGISTRY = (
         True,
         LITERAL,
         _fixed_value(OFFICIAL_CRS_REPOSITORY),
-        "CRS Parent projections",
+        CRS_PROJECTION,
     ),
     SourceField(
         "CRS_APPROVED_COMMIT",
         True,
         LITERAL,
         lambda value: bool(HEX40.fullmatch(value)),
-        "CRS Parent projections",
+        CRS_PROJECTION,
     ),
     SourceField(
         "CRS_RELEASE_TAG",
         True,
         LITERAL,
         lambda value: bool(re.fullmatch(r"v(?a:\d+)\.(?a:\d+)\.(?a:\d+)", value)),
-        "CRS Parent projections",
+        CRS_PROJECTION,
     ),
 )
 SOURCE_FIELDS = {field.name: field for field in SOURCE_REGISTRY}
@@ -623,31 +624,35 @@ def _require_expression_type(field: SourceField, expression_type: str) -> None:
         )
 
 
+def _braced_source_variable_part(value: str, index: int, field: SourceField) -> tuple[tuple[str, str, str], int]:
+    closing = value.find("}", index + 2)
+    if closing == -1:
+        raise SyncError(f"unbalanced parameter expansion in {field.name}")
+    body = value[index + 2 : closing]
+    fallback = LEGACY_SELF_DEFAULTS.get(field.name)
+    if fallback is not None and body == f"{field.name}:-{fallback}":
+        _require_expression_type(field, "legacy_self_default")
+        return ("literal", fallback, ""), closing + 1
+    if _assignment_key(body):
+        _require_expression_type(field, "references")
+        if body not in SOURCE_FIELDS:
+            raise SyncError(f"unknown source variable reference in {field.name}: {body}")
+        return ("reference", body, ""), closing + 1
+    prefix = re.fullmatch(r"([A-Z][A-Z0-9_]*)#([A-Za-z0-9._-]+)", body)
+    if prefix is None:
+        raise SyncError(f"unsupported parameter expansion in {field.name}")
+    reference, removed_prefix = prefix.groups()
+    if field.name != "NGINX_RELEASE_ASSET_NAME" or reference != "NGINX_RELEASE_TAG" or removed_prefix != "release-":
+        raise SyncError(f"unsupported prefix removal in {field.name}")
+    _require_expression_type(field, "prefix_remove")
+    return ("prefix_remove", reference, removed_prefix), closing + 1
+
+
 def _source_variable_part(value: str, index: int, field: SourceField) -> tuple[tuple[str, str, str], int]:
     if index + 1 >= len(value):
         raise SyncError(f"invalid variable reference in {field.name}")
     if value[index + 1] == "{":
-        closing = value.find("}", index + 2)
-        if closing == -1:
-            raise SyncError(f"unbalanced parameter expansion in {field.name}")
-        body = value[index + 2 : closing]
-        fallback = LEGACY_SELF_DEFAULTS.get(field.name)
-        if fallback is not None and body == f"{field.name}:-{fallback}":
-            _require_expression_type(field, "legacy_self_default")
-            return ("literal", fallback, ""), closing + 1
-        if _assignment_key(body):
-            _require_expression_type(field, "references")
-            if body not in SOURCE_FIELDS:
-                raise SyncError(f"unknown source variable reference in {field.name}: {body}")
-            return ("reference", body, ""), closing + 1
-        prefix = re.fullmatch(r"([A-Z][A-Z0-9_]*)#([A-Za-z0-9._-]+)", body)
-        if prefix is None:
-            raise SyncError(f"unsupported parameter expansion in {field.name}")
-        reference, removed_prefix = prefix.groups()
-        if field.name != "NGINX_RELEASE_ASSET_NAME" or reference != "NGINX_RELEASE_TAG" or removed_prefix != "release-":
-            raise SyncError(f"unsupported prefix removal in {field.name}")
-        _require_expression_type(field, "prefix_remove")
-        return ("prefix_remove", reference, removed_prefix), closing + 1
+        return _braced_source_variable_part(value, index, field)
     match = re.match(r"\$([A-Z][A-Z0-9_]*)", value[index:])
     if match is None:
         raise SyncError(f"invalid variable reference in {field.name}")
@@ -695,26 +700,17 @@ def _source_expression_parts(rhs: str, field: SourceField) -> list[tuple[str, st
     return parts
 
 
-def _resolve_source_name(
+def _resolve_source_fragments(
     name: str,
     raw: dict[str, str],
     states: dict[str, str],
     resolved: dict[str, str],
     depth: int,
     resolved_total_bytes: list[int],
-) -> str:
-    if depth > MAX_RESOLUTION_DEPTH:
-        raise SyncError(f"source assignment resolution exceeds depth limit at {name}")
-    state = states.get(name)
-    if state == "active":
-        raise SyncError(f"cyclic source assignment reference at {name}")
-    if state == "complete":
-        return resolved[name]
-    field = SOURCE_FIELDS[name]
-    states[name] = "active"
+) -> tuple[str, int]:
     fragments: list[str] = []
     resolved_size_bytes = 0
-    for kind, value, detail in _source_expression_parts(raw[name], field):
+    for kind, value, detail in _source_expression_parts(raw[name], SOURCE_FIELDS[name]):
         if kind == "literal":
             fragment = value
         else:
@@ -732,9 +728,31 @@ def _resolve_source_name(
     resolved_value = "".join(fragments)
     if not resolved_value:
         raise SyncError(f"empty resolved assignment in {name}")
+    return resolved_value, resolved_size_bytes
+
+
+def _resolve_source_name(
+    name: str,
+    raw: dict[str, str],
+    states: dict[str, str],
+    resolved: dict[str, str],
+    depth: int,
+    resolved_total_bytes: list[int],
+) -> str:
+    if depth > MAX_RESOLUTION_DEPTH:
+        raise SyncError(f"source assignment resolution exceeds depth limit at {name}")
+    state = states.get(name)
+    if state == "active":
+        raise SyncError(f"cyclic source assignment reference at {name}")
+    if state == "complete":
+        return resolved[name]
+    states[name] = "active"
+    resolved_value, resolved_size_bytes = _resolve_source_fragments(
+        name, raw, states, resolved, depth, resolved_total_bytes
+    )
     if resolved_total_bytes[0] + resolved_size_bytes > MAX_RESOLVED_TOTAL_BYTES:
         raise SyncError("resolved source assignments exceed aggregate byte budget")
-    if not field.validator(resolved_value):
+    if not SOURCE_FIELDS[name].validator(resolved_value):
         raise SyncError(f"resolved value is invalid for {name}")
     resolved[name] = resolved_value
     resolved_total_bytes[0] += resolved_size_bytes
