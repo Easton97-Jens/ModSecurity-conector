@@ -11,7 +11,7 @@
 | Base revision | 274c9e01770ebd9ac932eacf5c2ba2e5e85026c2 |
 | Historical Actions run | 32163726555 |
 | Framework candidate | bd69ee96e0e7082317d4afe1232bee625665eb9a |
-| Delivery status | A Parent Draft PR was authorized on 2026-08-19. This record captures local content and evidence only; it asserts no final commit or PR identifier, hosted rerun, merge, Framework change, or Gitlink update. |
+| Delivery status | Parent PR #300 is open. This record captures the local source/test follow-up; successor-head hosted checks, review, and merge remain pending. No Framework change or Gitlink update is asserted. |
 
 ## Motivation and problem statement
 
@@ -80,10 +80,16 @@ metadata calls. Its Git executable is selected only from fixed absolute system
 paths, never inherited `PATH`. The current mismatched candidate is skipped
 before the sink; a unit control permits a clean exact-gitlink root.
 
+The follow-up binds every APR-util child environment in
+`tests/test_runtime_env_snapshot_contract.py` to that already validated root,
+rather than retaining an inherited `FRAMEWORK_ROOT` through `setdefault`.
+The regression control proves replacement of a conflicting ambient value.
+
 ## Changed files
 
 - `ci/tools/sync-framework-component-versions.py`
 - `tests/test_update_framework_versions.py` and `tests/test_ci_security_workflows.py`
+- `tests/test_runtime_env_snapshot_contract.py`
 - `connectors/lighttpd/lighttpd-version.contract`, `SOURCE_MAP.json`,
   `build/read_version.sh`, and `tests/test_patched_host_contract.py`
 - Parent test-root trust helper plus all audited Framework-executing Parent
@@ -108,12 +114,14 @@ before the sink; a unit control permits a clean exact-gitlink root.
 | Exact candidate Git-data `--validate` | passed: exit 0, no candidate-code execution |
 | Final focused resolver/contract/consumer suite | passed: 103 tests |
 | Parent test-root containment suite | passed: 184 tests, 62 expected mismatched-root skips before audited candidate execution sinks |
+| Conflicting-ambient `tests.test_runtime_env_snapshot_contract` control | passed: 22 tests; every APR-util child replaces the inherited `FRAMEWORK_ROOT` with the validated root |
+| Clean standalone-clone full Parent discovery with conflicting ambient `FRAMEWORK_ROOT` | passed: 1,216 tests, 4 expected skips; the exact-gitlink Framework root was selected and both the clone and shared checkout were preserved |
 | Focused post-security-remediation suite | passed: 290 tests, 62 expected mismatch skips; fake-PATH Git selection and resolver fan-out controls passed without candidate execution |
 | Draft-PR SonarQube Cloud exact-head issue inspection | Quality Gate passed, but 27 task-owned New-Issue code smells required focused remediation; a successor-head analysis remains required |
 | Bilingual-checker unit suite, targeted record pair, variable and Parent path checks | passed: 22 tests; targeted pair; 100 references; Parent paths PASS |
 | `git diff --check` | passed: exit 0 |
 | Literal `python -m unittest discover -q` | exit 5: zero tests discovered |
-| Effective `python -m unittest discover -s tests -q` | exit 1: 1,186 tests, 16 failures and 1 error; one new compiler-guide schema omission was fixed and the final focused suite passed |
+| Historical effective `python -m unittest discover -s tests -q` in a candidate checkout | exit 1: 1,186 tests, 16 failures and 1 error; retained as unsafe historical evidence, not current validation |
 
 ## Security impact
 
@@ -126,8 +134,11 @@ The initially scoped full discovery exposed a separate validated high-impact
 test-boundary finding: it could execute a mismatched candidate before a trust
 check. `FND-PARENT-0178` is locally fixed by the shared Parent test-root guard.
 The post-fix 12-module containment suite passed with all candidate-dependent
-paths skipping before their execution sinks; a real clean exact-head Framework
-integration root was not run.
+paths skipping before their execution sinks. A later authorized standalone
+clone supplied a clean exact-gitlink Framework root; the child-environment
+follow-up forces that root into each APR-util sink. Its focused conflicting-
+ambient control passed 22 tests, and full discovery passed 1,216 tests with 4
+expected skips while preserving the clone and the shared checkout.
 
 The delivery diff review also validated two independent controls in the new
 code: `FND-PARENT-0179` showed that an inherited-PATH `git` executable could
@@ -145,30 +156,29 @@ Quality-Gate modification was used.
 ## Runtime evidence
 
 The hosted failure is pre-fix evidence only. Post-fix evidence is local static,
-contract, regression, and candidate-test-root containment evidence; it makes
-no source, build, runtime, CRS, HTTP/2, HTTP/3, QUIC, production, publisher,
-or hosted-success claim.
+contract, regression, candidate-test-root containment, and clean standalone
+full-suite evidence; it makes no source, build, production, publisher, or
+hosted-success claim.
 
 ## Known limitations
 
 The resolver deliberately rejects future shell forms outside its documented
 grammar. Current Parent NGINX broker projections differ from the candidate, so
 local `--validate` reports potential changes without writing them; only the
-temporary Parent copy was synchronized for the no-drift control. The complete
-Parent discovery previously ran unsafely in the candidate checkout and exited
-1 with runtime-cache, APR-util, and scheduler failures outside this change; it
-was not rerun as a complete suite after containment. A real clean exact-gitlink
-Framework integration root was not available for the existing integration
-tests.
+temporary Parent copy was synchronized for the no-drift control. The prior
+candidate-checkout discovery remains unsafe historical evidence. The root
+cause of the shared-checkout mutation tracked as `FND-PARENT-0182` is still
+unlocalized; the passing standalone clone contains its PR-validation impact
+without claiming to explain that historical mutation.
 
 ## Remaining risks
 
-A separately authorized exact-head hosted update-submodules run is needed for
-verified delivery evidence. `FND-PARENT-0177` through `FND-PARENT-0180` are
-locally fixed, not host-verified; the test-root findings also lack real
-clean-root integration execution evidence. A successor-head SonarQube Cloud
-issue inspection is also required for `FND-PARENT-0181`; this record makes no
-hosted-success assertion for that follow-up.
+Fresh successor-head hosted checks, including SonarQube Cloud where configured,
+remain required for verified delivery evidence. `FND-PARENT-0177` through
+`FND-PARENT-0181` are locally fixed, not successor-head or resulting-master
+verified. `FND-PARENT-0182` remains an unlocalized lifecycle finding, but its
+PR-specific validation blocker is contained by the passing standalone clone;
+this record makes no hosted-success or merge assertion.
 
 ## Checks not run and rationale
 
@@ -178,18 +188,18 @@ The broad `check-bilingual-docs` scan was interrupted after repeated no-output
 polling; `make check-doc-links` was not run because it invokes a Framework
 script and would violate the candidate non-execution boundary.
 
-The full Parent suite was not rerun after containment: its prior run is an
-unsafe, failed observation retained in `FND-PARENT-0178`, and a clean
-exact-gitlink root was not authorized or available for the legitimate
-integration control.
+The full Parent suite was rerun after containment only in a task-owned
+standalone clone with a clean exact-gitlink Framework root and a short private
+AF_UNIX temporary root. It passed; that result does not localize the historical
+shared-checkout mutation in `FND-PARENT-0182`.
 
 ## Final diff and review status
 
 Focused source, contract, security, documentation, and static candidate checks
-passed. The post-security-remediation 290-test suite passed; the prior full
-Parent discovery was unsafe and failed for the limitations above, so this
-record makes no full-suite-success claim. Final `git diff --check` passed with
-exit 0 before delivery preparation; the Parent `HEAD` gitlink remains
+passed. The post-security-remediation 290-test suite, the 22-test
+conflicting-ambient child-environment control, and the 1,216-test standalone
+full suite passed. Final `git diff --check` passed with exit 0 before the
+successor commit; the Parent `HEAD` gitlink remains
 `3cb33609626ff689c54b6dc0f31fb7e9401fe75e` and no staged Gitlink change is
 present. Sanitized evidence is retained at
 `.codex/runs/20260818T180159Z-parent-framework-component-resolver/evidence/pre-fix-and-local-validation.md`
@@ -199,3 +209,7 @@ Containment evidence is retained at
 `.codex/runs/20260818T180159Z-parent-framework-component-resolver/evidence/post-fix-candidate-test-root-containment.md`
 with SHA-256
 `0b5fe7d8eca9cff654c9640d9dae61bde3b44265202c4373c3bb445150aafbc4`.
+The successful standalone full-suite receipt is retained at
+`.codex/runs/20260819T014107Z-parent-framework-component-resolver-delivery/evidence/pr300-clean-clone-full-suite-success.md`
+with SHA-256
+`e62096e99e323223dc5348f16ef6edaf62258d90ffa91bcaacc3bad073b8f56f`.

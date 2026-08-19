@@ -11,7 +11,7 @@
 | Basis-Revision | 274c9e01770ebd9ac932eacf5c2ba2e5e85026c2 |
 | Historischer Actions-Lauf | 32163726555 |
 | Framework-Kandidat | bd69ee96e0e7082317d4afe1232bee625665eb9a |
-| Auslieferungsstatus | Ein Parent-Draft-PR wurde am 2026-08-19 autorisiert. Dieser Record erfasst nur lokale Inhalte und Evidenz; er behauptet keinen finalen Commit oder PR-Identifier, Hosted-Rerun, Merge, Framework-Change oder Gitlink-Update. |
+| Auslieferungsstatus | Parent-PR #300 ist offen. Dieser Record erfasst das lokale Source-/Test-Follow-up; Hosted-Checks am Successor-Head, Review und Merge stehen noch aus. Es wird keine Framework-Änderung oder Gitlink-Aktualisierung behauptet. |
 
 ## Motivation und Problemstellung
 
@@ -83,10 +83,16 @@ ausschließlich aus festen absoluten Systempfaden und nie aus geerbtem `PATH`
 gewählt. Der aktuelle abweichende Kandidat wird vor dem Sink übersprungen; ein
 Unit-Control lässt einen sauberen Exact-Gitlink-Root zu.
 
+Das Follow-up bindet jede APR-util-Child-Umgebung in
+`tests/test_runtime_env_snapshot_contract.py` an diesen bereits validierten
+Root, statt ein geerbtes `FRAMEWORK_ROOT` über `setdefault` zu behalten. Der
+Regression-Control beweist die Ersetzung eines kollidierenden Umgebungswerts.
+
 ## Geänderte Dateien
 
 - `ci/tools/sync-framework-component-versions.py`
 - `tests/test_update_framework_versions.py` und `tests/test_ci_security_workflows.py`
+- `tests/test_runtime_env_snapshot_contract.py`
 - Lighttpd-Contract, Source-Map, Leser und Contract-Tests
 - Parent-Test-Root-Trust-Helper plus alle auditierten Framework-ausführenden
   Parent-Testpfade
@@ -110,12 +116,14 @@ Unit-Control lässt einen sauberen Exact-Gitlink-Root zu.
 | Exakte Kandidaten-Gitdaten `--validate` | bestanden: Exit 0, ohne Kandidatencodeausführung |
 | Finale fokussierte Resolver-/Contract-/Consumer-Suite | bestanden: 103 Tests |
 | Parent-Test-Root-Containment-Suite | bestanden: 184 Tests, 62 erwartete Abweichungs-Skips vor auditierten Kandidatenausführungssinks |
+| Control für kollidierende Umgebung in `tests.test_runtime_env_snapshot_contract` | bestanden: 22 Tests; jeder APR-util-Child ersetzt das geerbte `FRAMEWORK_ROOT` durch den validierten Root |
+| Vollständige Parent-Discovery im sauberen Standalone-Clone mit kollidierendem Umgebungs-`FRAMEWORK_ROOT` | bestanden: 1.216 Tests, 4 erwartete Skips; der Exact-Gitlink-Framework-Root wurde gewählt und Clone sowie gemeinsamer Checkout blieben erhalten |
 | Fokussierte Suite nach Security-Remediation | bestanden: 290 Tests, 62 erwartete Abweichungs-Skips; Fake-PATH-Git-Auswahl- und Resolver-Fan-out-Controls bestanden ohne Kandidatenausführung |
 | SonarQube-Cloud-Exact-Head-Issue-Inspektion des Draft-PR | Quality Gate bestanden, aber 27 aufgabeneigene New-Issue-Code-Smells erforderten fokussierte Remediation; eine Successor-Head-Analyse bleibt erforderlich |
 | Bilingual-Checker-Unit-Suite, gezieltes Record-Paar, Variablen- und Parent-Pfadprüfung | bestanden: 22 Tests; gezieltes Paar; 100 Referenzen; Parent-Pfade PASS |
 | `git diff --check` | bestanden: Exit 0 |
 | Wörtliches `python -m unittest discover -q` | Exit 5: null Tests gefunden |
-| Wirksames `python -m unittest discover -s tests -q` | Exit 1: 1.186 Tests, 16 Failures und 1 Error; eine neue Compiler-Guide-Schemaauslassung wurde behoben, die finale fokussierte Suite bestand |
+| Historische wirksame `python -m unittest discover -s tests -q` im Kandidaten-Checkout | Exit 1: 1.186 Tests, 16 Failures und 1 Error; als unsichere historische Evidenz erhalten, keine aktuelle Validierung |
 
 ## Security-Auswirkung
 
@@ -130,8 +138,12 @@ High-Impact-Testgrenzen-Finding auf: Sie konnte einen abweichenden Kandidaten
 vor einer Vertrauensprüfung ausführen. `FND-PARENT-0178` ist durch den
 gemeinsamen Parent-Test-Root-Guard lokal fixed. Die Post-Fix-Containment-Suite
 aus 12 Modulen bestand mit allen kandidatenabhängigen Pfaden, die vor ihren
-Ausführungssinks überspringen; ein realer sauberer Exact-Head-Framework-
-Integrationsroot wurde nicht ausgeführt.
+Ausführungssinks überspringen. Ein später autorisierter Standalone-Clone stellte
+einen sauberen Exact-Gitlink-Framework-Root bereit; das Child-Environment-
+Follow-up erzwingt diesen Root an jedem APR-util-Sink. Sein fokussierter
+Control mit kollidierender Umgebung bestand 22 Tests, und die Full-Discovery
+bestand mit 1.216 Tests und 4 erwarteten Skips bei Erhalt von Clone und
+gemeinsamem Checkout.
 
 Die Delivery-Diff-Review validierte außerdem zwei unabhängige Controls im neuen
 Code: `FND-PARENT-0179` zeigte, dass ein Git-Programm aus geerbtem PATH den
@@ -149,32 +161,31 @@ wurde keine SonarQube-Unterdrückung und keine Quality-Gate-Änderung verwendet.
 ## Runtime-Evidence
 
 Der Hosted-Fehler ist ausschließlich Vorab-Evidenz. Nach dem Fix liegen lokale
-statische, Contract-, Regression- und Kandidaten-Test-Root-Containment-Evidenz
-vor; sie behauptet keinen Source-, Build-, Runtime-, CRS-, HTTP/2-, HTTP/3-,
-QUIC-, Produktions-, Publisher- oder Hosted-Erfolg. Der Resolver verwirft
-absichtlich künftige Shellformen außerhalb seiner dokumentierten Grammatik.
+statische, Contract-, Regression-, Kandidaten-Test-Root-Containment- und saubere
+Standalone-Full-Suite-Evidenz vor; sie behauptet keinen Source-, Build-,
+Produktions-, Publisher- oder Hosted-Erfolg. Der Resolver verwirft absichtlich
+künftige Shellformen außerhalb seiner dokumentierten Grammatik.
 
 ## Bekannte Einschränkungen
 
 Aktuelle Parent-NGINX-Broker-Projektionen weichen vom
 Kandidaten ab; lokales `--validate` meldet daher mögliche Änderungen ohne zu
 schreiben. Nur die temporäre Parent-Kopie wurde für den No-Drift-Check
-synchronisiert. Die vollständige Parent-Discovery lief zuvor unsicher im
-Kandidaten-Checkout und endete mit Exit 1 bei Runtime-Cache-, APR-util- und
-Scheduler-Fehlern außerhalb dieser Änderung; sie wurde nach Containment nicht
-als vollständige Suite wiederholt. Ein realer sauberer Exact-Gitlink-
-Framework-Integrationsroot stand für die bestehenden Integrationstests nicht
-zur Verfügung.
+synchronisiert. Die frühere Discovery im Kandidaten-Checkout bleibt unsichere
+historische Evidenz. Die Ursache der gemeinsamen-Checkout-Mutation aus
+`FND-PARENT-0182` ist weiterhin nicht lokalisiert; der bestandene Standalone-
+Clone kapselt ihre PR-Validierungsauswirkung, ohne diese historische Mutation
+zu erklären.
 
 ## Verbleibende Risiken
 
-Für verifizierte Delivery-Evidenz ist ein separat autorisierter exact-head
-Hosted-Update-Submodules-Lauf nötig; `FND-PARENT-0177` bis
-`FND-PARENT-0180` sind lokal behoben, nicht hosted-verifiziert; den
-Test-Root-Findings fehlt außerdem reale Clean-Root-Integrationsevidenz. Für
-`FND-PARENT-0181` ist außerdem eine SonarQube-Cloud-Issue-Inspektion am
-Successor-Head nötig; dieser Record behauptet keinen Hosted-Erfolg dieses
-Follow-up.
+Frische Hosted-Checks am Successor-Head einschließlich SonarQube Cloud, wenn
+konfiguriert, bleiben für verifizierte Delivery-Evidenz erforderlich.
+`FND-PARENT-0177` bis `FND-PARENT-0181` sind lokal behoben, nicht am
+Successor-Head oder resultierenden master verifiziert. `FND-PARENT-0182`
+bleibt ein nicht lokalisierter Lifecycle-Befund, aber sein PR-spezifischer
+Validierungsblocker ist durch den bestandenen Standalone-Clone gekapselt;
+dieser Record behauptet keinen Hosted-Erfolg oder Merge.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -185,21 +196,20 @@ Polling ohne Ausgabe abgebrochen; `make check-doc-links` wurde nicht
 ausgeführt, weil es ein Framework-Skript aufruft und damit die
 Kandidaten-Nichtausführungsgrenze verletzen würde.
 
-Die vollständige Parent-Suite wurde nach Containment nicht wiederholt: Ihr
-voriger Lauf ist eine unsichere fehlgeschlagene Beobachtung, die in
-`FND-PARENT-0178` erhalten ist, und ein sauberer Exact-Gitlink-Root war für
-den legitimen Integrations-Control nicht autorisiert oder verfügbar.
+Die vollständige Parent-Suite wurde nach Containment nur in einem task-eigenen
+Standalone-Clone mit sauberem Exact-Gitlink-Framework-Root und kurzer privater
+AF_UNIX-Temporärwurzel wiederholt. Sie bestand; dieses Ergebnis lokalisiert die
+historische gemeinsame-Checkout-Mutation in `FND-PARENT-0182` nicht.
 
 ## Finaler Diff- und Review-Status
 
 Fokussierte Source-, Contract-, Security-, Dokumentations- und statische
 Kandidatenprüfungen bestanden. Die Suite nach der Security-Remediation mit
-290 Tests bestand; die vorherige vollständige Parent-Discovery war unsicher
-und scheiterte an den obigen Einschränkungen, daher behauptet dieser Record
-keinen Full-Suite-Erfolg. Die finale Prüfung `git diff --check` bestand vor der
-Delivery-Vorbereitung mit Exit 0; der Parent-`HEAD`-Gitlink bleibt
-`3cb33609626ff689c54b6dc0f31fb7e9401fe75e`, und es liegt keine im Index
-vorgemerkte Gitlink-Änderung vor.
+290 Tests, der 22-Test-Child-Environment-Control mit kollidierender Umgebung
+und die Standalone-Full-Suite mit 1.216 Tests bestanden. Die finale Prüfung
+`git diff --check` bestand vor dem Successor-Commit mit Exit 0; der
+Parent-`HEAD`-Gitlink bleibt `3cb33609626ff689c54b6dc0f31fb7e9401fe75e`, und
+es liegt keine im Index vorgemerkte Gitlink-Änderung vor.
 Bereinigte Evidenz liegt unter
 `.codex/runs/20260818T180159Z-parent-framework-component-resolver/evidence/pre-fix-and-local-validation.md`
 mit SHA-256
@@ -208,3 +218,7 @@ Containment-Evidenz liegt unter
 `.codex/runs/20260818T180159Z-parent-framework-component-resolver/evidence/post-fix-candidate-test-root-containment.md`
 mit SHA-256
 `0b5fe7d8eca9cff654c9640d9dae61bde3b44265202c4373c3bb445150aafbc4`.
+Der erfolgreiche Standalone-Full-Suite-Receipt liegt unter
+`.codex/runs/20260819T014107Z-parent-framework-component-resolver-delivery/evidence/pr300-clean-clone-full-suite-success.md`
+mit SHA-256
+`e62096e99e323223dc5348f16ef6edaf62258d90ffa91bcaacc3bad073b8f56f`.
