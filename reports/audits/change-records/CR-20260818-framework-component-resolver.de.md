@@ -61,6 +61,14 @@ Unbekannte Referenzen, nicht erlaubte Operatoren, CR/LF, Duplikate, Zyklen,
 fehlende Werte, ungültige Tupel, Ausgabe pro Wert über 64 KiB und aggregierte
 Ausgabe über 256 KiB schlagen vor jedem Schreibzugriff oder vor semantischer
 Validierung fehl.
+
+Die erste SonarQube-Cloud-Analyse des Draft-PR meldete aufgabeneigene
+Maintainability-Issues. Das fokussierte Follow-up bewahrt statische Grammatik
+und Byte-Budget-Controls, extrahiert aber Helper für Variable/Referenz und
+Namensauflösung, zentralisiert wiederholte Registry-Labels, bewahrt
+ASCII-only-Digit-Semantik und vereinheitlicht die betroffene Assertion-Order.
+Es führt keine Regelunterdrückung, kein `NOSONAR` und keine Quality-Gate-
+Änderung ein.
 Lighttpd-Projektionen enthalten jetzt `LIGHTTPD_SERIES`; der Shell-Contract
 hat keine Schemaversion, daher ist kein Versionssprung nötig. Das vorhandene
 HTX-Ziel verwendet ausschließlich `HAPROXY_HTX_*`; `TargetSpec` und Workflow
@@ -83,7 +91,7 @@ Unit-Control lässt einen sauberen Exact-Gitlink-Root zu.
 - Parent-Test-Root-Trust-Helper plus alle auditierten Framework-ausführenden
   Parent-Testpfade
 - gepaarte Variablendokumentation, `FND-PARENT-0177` bis
-  `FND-PARENT-0180`, Evidenz, Roadmap/Index sowie dieser gekoppelte Change Record
+  `FND-PARENT-0181`, Evidenz, Roadmap/Index sowie dieser gekoppelte Change Record
 
 ## Ausgeführte Befehle
 
@@ -103,6 +111,7 @@ Unit-Control lässt einen sauberen Exact-Gitlink-Root zu.
 | Finale fokussierte Resolver-/Contract-/Consumer-Suite | bestanden: 103 Tests |
 | Parent-Test-Root-Containment-Suite | bestanden: 184 Tests, 62 erwartete Abweichungs-Skips vor auditierten Kandidatenausführungssinks |
 | Fokussierte Suite nach Security-Remediation | bestanden: 290 Tests, 62 erwartete Abweichungs-Skips; Fake-PATH-Git-Auswahl- und Resolver-Fan-out-Controls bestanden ohne Kandidatenausführung |
+| SonarQube-Cloud-Exact-Head-Issue-Inspektion des Draft-PR | Quality Gate bestanden, aber 27 aufgabeneigene New-Issue-Code-Smells erforderten fokussierte Remediation; eine Successor-Head-Analyse bleibt erforderlich |
 | Bilingual-Checker-Unit-Suite, gezieltes Record-Paar, Variablen- und Parent-Pfadprüfung | bestanden: 22 Tests; gezieltes Paar; 100 Referenzen; Parent-Pfade PASS |
 | `git diff --check` | bestanden: Exit 0 |
 | Wörtliches `python -m unittest discover -q` | Exit 5: null Tests gefunden |
@@ -132,6 +141,11 @@ Beide sind lokal durch absolute Git-Pfadauswahl und explizite Budgets für
 aufgelöste Bytes behoben; die fokussierte Suite mit 290 Tests deckt bösartige
 und legitime Controls ohne Kandidatencode-Ausführung ab.
 
+`FND-PARENT-0181` ist ein validiertes aufgabeneigenes Maintainability-Finding,
+keine Security-Schwachstelle und kein Hotspot. Seine fokussierte Remediation
+bewahrt die statische, nicht ausführende Sicherheitsgrenze des Resolvers; es
+wurde keine SonarQube-Unterdrückung und keine Quality-Gate-Änderung verwendet.
+
 ## Runtime-Evidence
 
 Der Hosted-Fehler ist ausschließlich Vorab-Evidenz. Nach dem Fix liegen lokale
@@ -157,7 +171,10 @@ zur Verfügung.
 Für verifizierte Delivery-Evidenz ist ein separat autorisierter exact-head
 Hosted-Update-Submodules-Lauf nötig; `FND-PARENT-0177` bis
 `FND-PARENT-0180` sind lokal behoben, nicht hosted-verifiziert; den
-Test-Root-Findings fehlt außerdem reale Clean-Root-Integrationsevidenz.
+Test-Root-Findings fehlt außerdem reale Clean-Root-Integrationsevidenz. Für
+`FND-PARENT-0181` ist außerdem eine SonarQube-Cloud-Issue-Inspektion am
+Successor-Head nötig; dieser Record behauptet keinen Hosted-Erfolg dieses
+Follow-up.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 

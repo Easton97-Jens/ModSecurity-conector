@@ -60,6 +60,13 @@ duplicates, cycles, missing values, invalid tuples, per-value output above
 64 KiB, and aggregate output above 256 KiB fail before writes or semantic
 validation.
 
+The first Draft-PR SonarQube Cloud analysis reported task-owned maintainability
+issues. The focused follow-up retains the static grammar and byte-budget
+controls while extracting variable/reference and name-resolution helpers,
+centralizing repeated registry labels, retaining ASCII-only digit semantics,
+and making the affected assertion order consistent. It introduces no rule
+suppression, `NOSONAR`, or Quality-Gate change.
+
 Lighttpd views now carry `LIGHTTPD_SERIES`; their shell contract has no schema
 version, and its reader accepts the additive key, so no version bump is needed.
 The existing HTX target maps only `HAPROXY_HTX_*` values. No `TargetSpec` or
@@ -82,7 +89,7 @@ before the sink; a unit control permits a clean exact-gitlink root.
 - Parent test-root trust helper plus all audited Framework-executing Parent
   test paths
 - paired variables documentation, `FND-PARENT-0177` through
-  `FND-PARENT-0180`, evidence, roadmap/index, and this paired Change Record
+  `FND-PARENT-0181`, evidence, roadmap/index, and this paired Change Record
 
 ## Commands executed
 
@@ -102,6 +109,7 @@ before the sink; a unit control permits a clean exact-gitlink root.
 | Final focused resolver/contract/consumer suite | passed: 103 tests |
 | Parent test-root containment suite | passed: 184 tests, 62 expected mismatched-root skips before audited candidate execution sinks |
 | Focused post-security-remediation suite | passed: 290 tests, 62 expected mismatch skips; fake-PATH Git selection and resolver fan-out controls passed without candidate execution |
+| Draft-PR SonarQube Cloud exact-head issue inspection | Quality Gate passed, but 27 task-owned New-Issue code smells required focused remediation; a successor-head analysis remains required |
 | Bilingual-checker unit suite, targeted record pair, variable and Parent path checks | passed: 22 tests; targeted pair; 100 references; Parent paths PASS |
 | `git diff --check` | passed: exit 0 |
 | Literal `python -m unittest discover -q` | exit 5: zero tests discovered |
@@ -129,6 +137,11 @@ fixed by absolute Git-path selection and explicit resolved-byte budgets; the
 focused 290-test suite covers malicious and legitimate controls without
 candidate code execution.
 
+`FND-PARENT-0181` is a validated task-owned maintainability finding, not a
+security vulnerability or hotspot. Its focused remediation preserves the
+resolver's static, non-executing security boundary; no SonarQube suppression or
+Quality-Gate modification was used.
+
 ## Runtime evidence
 
 The hosted failure is pre-fix evidence only. Post-fix evidence is local static,
@@ -153,7 +166,9 @@ tests.
 A separately authorized exact-head hosted update-submodules run is needed for
 verified delivery evidence. `FND-PARENT-0177` through `FND-PARENT-0180` are
 locally fixed, not host-verified; the test-root findings also lack real
-clean-root integration execution evidence.
+clean-root integration execution evidence. A successor-head SonarQube Cloud
+issue inspection is also required for `FND-PARENT-0181`; this record makes no
+hosted-success assertion for that follow-up.
 
 ## Checks not run and rationale
 

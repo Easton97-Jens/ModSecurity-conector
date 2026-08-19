@@ -132,8 +132,8 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
     def test_current_candidate_grammar_fixture_resolves_as_data(self) -> None:
         values = SYNC.parse_common(self.common)
         self.assertEqual(
-            CANDIDATE_GRAMMAR_PROVENANCE,
             "bd69ee96e0e7082317d4afe1232bee625665eb9a",
+            CANDIDATE_GRAMMAR_PROVENANCE,
         )
         self.assertEqual(values["LIGHTTPD_SERIES"], "1.4")
         self.assertEqual(
