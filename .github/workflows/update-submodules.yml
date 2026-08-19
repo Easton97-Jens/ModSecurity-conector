@@ -212,7 +212,7 @@ jobs:
       - name: Validate exact candidate Git state
         run: |
           set -euo pipefail
-          sudo -n python3 ci/tools/validate-submodule-candidate-state.py \
+          python3 ci/tools/validate-submodule-candidate-state.py \
             validate \
             --parent-root "$GITHUB_WORKSPACE" \
             --submodule-path "$SUBMODULE_PATH" \
@@ -237,21 +237,29 @@ jobs:
             --repo-root "$GITHUB_WORKSPACE" \
             --framework-common "$framework_common"
 
+      - name: Create private read-only candidate guard
+        id: create-readonly-candidate-sandbox-guard
+        run: |
+          set -euo pipefail
+          umask 077
+          write_root="$(mktemp -d "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX")"
+          sudo -n chown root:root "$write_root"
+          sudo -n chmod 0711 "$write_root"
+          printf 'write_root=%s\n' "$write_root" >> "$GITHUB_OUTPUT"
+
       - name: Prepare dedicated read-only candidate sandbox
         id: prepare-readonly-candidate-sandbox
+        env:
+          VALIDATION_WRITE_ROOT: ${{ steps.create-readonly-candidate-sandbox-guard.outputs.write_root }}
         run: |
           set -euo pipefail
           sudo -n groupadd --system modsecurity-validator
           sudo -n useradd --system --no-create-home --shell /usr/sbin/nologin \
             --gid modsecurity-validator modsecurity-validator
-          umask 077
-          write_root="$(mktemp -d "$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX")"
-          sudo -n chown root:root "$write_root"
-          sudo -n chmod 0711 "$write_root"
           sandbox_prepare_output="$(sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py \
             --source-root "$GITHUB_WORKSPACE" \
             --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
-            --write-root "$write_root" \
+            --write-root "$VALIDATION_WRITE_ROOT" \
             --runner-temp "$RUNNER_TEMP" \
             --validator-user modsecurity-validator \
             --validator-group modsecurity-validator)"
@@ -263,13 +271,12 @@ jobs:
               exit 1
               ;;
           esac
-          printf 'write_root=%s\n' "$write_root" >> "$GITHUB_OUTPUT"
 
       - name: Run quick check in the private read-only namespace
         id: run-readonly-candidate-namespace
         continue-on-error: true
         env:
-          VALIDATION_WRITE_ROOT: ${{ steps.prepare-readonly-candidate-sandbox.outputs.write_root }}
+          VALIDATION_WRITE_ROOT: ${{ steps.create-readonly-candidate-sandbox-guard.outputs.write_root }}
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: |
           set -euo pipefail
@@ -309,7 +316,7 @@ jobs:
       - name: Verify candidate source inventory and external outputs
         if: ${{ always() && steps.prepare-readonly-candidate-sandbox.outcome == 'success' }}
         env:
-          VALIDATION_WRITE_ROOT: ${{ steps.prepare-readonly-candidate-sandbox.outputs.write_root }}
+          VALIDATION_WRITE_ROOT: ${{ steps.create-readonly-candidate-sandbox-guard.outputs.write_root }}
         run: |
           set -euo pipefail
           verification_output="$(sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py \
@@ -328,7 +335,7 @@ jobs:
               exit 1
           }
           printf '%s\n' "$verification_output"
-          sudo -n python3 ci/tools/validate-submodule-candidate-state.py \
+          python3 ci/tools/validate-submodule-candidate-state.py \
             validate \
             --parent-root "$GITHUB_WORKSPACE" \
             --submodule-path "$SUBMODULE_PATH" \
@@ -336,8 +343,8 @@ jobs:
             --candidate-sha "$CANDIDATE_SHA" \
             --expected-parent-head "$EXPECTED_PARENT_HEAD" \
             --expected-parent-hooks-sha256 "$EXPECTED_PARENT_HOOKS_SHA256"
-          sudo -n git -c core.hooksPath=/dev/null diff --check
-          sudo -n git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check
+          git -c core.hooksPath=/dev/null diff --check
+          git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check
 
       - name: Enforce isolated candidate result after verification
         if: ${{ always() }}
@@ -348,6 +355,27 @@ jobs:
           set -euo pipefail
           test "$SANDBOX_PREPARE_RESULT" = success
           test "$CANDIDATE_RESULT" = success
+
+      - name: Clean up private read-only candidate guard
+        if: ${{ always() && steps.create-readonly-candidate-sandbox-guard.outputs.write_root != '' }}
+        env:
+          VALIDATION_WRITE_ROOT: ${{ steps.create-readonly-candidate-sandbox-guard.outputs.write_root }}
+        run: |
+          set -euo pipefail
+          cleanup_output="$(sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py \
+            --cleanup \
+            --source-root "$GITHUB_WORKSPACE" \
+            --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            --write-root "$VALIDATION_WRITE_ROOT" \
+            --runner-temp "$RUNNER_TEMP")"
+          printf '%s\n' "$cleanup_output"
+          case "$cleanup_output" in
+            READONLY_SUBMODULE_VALIDATION_SANDBOX_CLEANED\ write_root=*) ;;
+            *)
+              echo "Read-only validation guard cleanup did not report CLEANED." >&2
+              exit 1
+              ;;
+          esac
 
   create-submodule-update-pr:
     name: Create submodule update pull request

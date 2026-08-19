@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Prepare and verify a read-only source boundary for CI validation.
+"""Prepare, verify, and clean a read-only source boundary for CI validation.
 
 The trusted root-side entry point accepts a fresh root-owned guard directory
-below ``RUNNER_TEMP``.  It validates the source topology without following
-links, locks Parent and Framework source/Git trees, records a complete
-post-lock inventory inside the root-only guard, and creates the sole
-validator-owned ``external`` output root.  After candidate execution the same
-entry point compares that inventory and validates every candidate-created
-output object fail-closed.
+below ``RUNNER_TEMP``. It validates the source topology without following
+links, records the original complete source/Git inventory inside the root-only
+guard, and creates the sole validator-owned ``external`` output root. The
+actual source tree is never ownership- or mode-mutated: the namespace runner
+provides its read-only mount boundary. After candidate execution this helper
+compares the inventory and validates every candidate-created output object
+fail-closed. Its cleanup mode removes only a fully verified private guard.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ PRIVILEGED_GROUPS = frozenset({"admin", "sudo", "wheel"})
 EXTERNAL_DIRNAME = "external"
 INVENTORY_FILENAME = "source-inventory.json"
 GITFILE_MAX_BYTES = 4096
+WRITE_ROOT_PREFIX = "modsecurity-readonly-validation."
 
 
 @dataclass(frozen=True)
@@ -43,20 +45,34 @@ class ValidatorIdentity:
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="prepare or verify a locked source tree and private validator output root"
+        description="prepare, verify, or clean a private read-only validation guard"
     )
-    parser.add_argument("--source-root", required=True)
-    parser.add_argument("--framework-root", required=True)
+    parser.add_argument("--source-root")
+    parser.add_argument("--framework-root")
     parser.add_argument("--write-root", required=True)
     parser.add_argument("--runner-temp", required=True)
-    parser.add_argument("--validator-user", required=True)
-    parser.add_argument("--validator-group", required=True)
+    parser.add_argument("--validator-user")
+    parser.add_argument("--validator-group")
     parser.add_argument(
         "--verify",
         action="store_true",
         help="compare the post-run source inventory and validate external outputs",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--cleanup",
+        action="store_true",
+        help="remove only the validated private write-root guard",
+    )
+    arguments = parser.parse_args(argv)
+    if arguments.verify and arguments.cleanup:
+        parser.error("--verify and --cleanup are mutually exclusive")
+    required = ("source_root", "framework_root")
+    if not arguments.cleanup:
+        required += ("validator_user", "validator_group")
+    for attribute in required:
+        if not getattr(arguments, attribute):
+            parser.error(f"--{attribute.replace('_', '-')} is required for this mode")
+    return arguments
 
 
 def _lexical_absolute_path(value: str, label: str) -> Path:
@@ -100,6 +116,56 @@ def _is_within(candidate: Path, parent: Path) -> bool:
 
 def _same_inode(first: os.stat_result, second: os.stat_result) -> bool:
     return first.st_dev == second.st_dev and first.st_ino == second.st_ino
+
+
+def _decode_mountinfo_path(value: str) -> str:
+    """Decode a mountinfo path while rejecting malformed escapes."""
+    decoded: list[str] = []
+    index = 0
+    while index < len(value):
+        character = value[index]
+        if character != "\\":
+            decoded.append(character)
+            index += 1
+            continue
+        escaped = value[index + 1 : index + 4]
+        if len(escaped) != 3 or any(digit not in "01234567" for digit in escaped):
+            raise ValueError("mountinfo contains an invalid escaped mount path")
+        decoded.append(chr(int(escaped, 8)))
+        index += 4
+    return "".join(decoded)
+
+
+def _mountinfo_mountpoints() -> Iterator[Path]:
+    """Yield canonical-looking mountpoints from the current mount namespace."""
+    try:
+        rows = Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        raise ValueError("cannot read mountinfo for source topology validation") from error
+    for row in rows:
+        before_separator, separator, _after_separator = row.partition(" - ")
+        fields = before_separator.split()
+        if not separator or len(fields) < 5:
+            raise ValueError("mountinfo contains an invalid mount record")
+        mountpoint = Path(_decode_mountinfo_path(fields[4]))
+        if not mountpoint.is_absolute() or os.path.normpath(os.fspath(mountpoint)) != os.fspath(
+            mountpoint
+        ):
+            raise ValueError("mountinfo contains an invalid mountpoint")
+        yield mountpoint
+
+
+def _reject_mounts_within(root: Path, label: str, *, include_root: bool) -> None:
+    """Fail closed when a host mount could invalidate a path boundary."""
+    for mountpoint in _mountinfo_mountpoints():
+        contained = _is_within(mountpoint, root) if include_root else _is_below(mountpoint, root)
+        if contained:
+            raise ValueError(f"{label} contains an unexpected active mount: {mountpoint}")
+
+
+def _reject_nested_source_mounts(source: Path) -> None:
+    """Reject non-recursive bind-mount bypasses before candidate execution."""
+    _reject_mounts_within(source, "source root", include_root=False)
 
 
 def _walk_tree(root: Path) -> Iterator[tuple[Path, str, os.stat_result]]:
@@ -171,7 +237,7 @@ def _digest_regular_file(path: Path, expected: os.stat_result) -> str:
 
 
 def _source_inventory(root: Path) -> list[dict[str, object]]:
-    """Return the complete deterministic source/Git inventory after lockdown."""
+    """Return the complete deterministic source/Git inventory without mutation."""
     entries: list[dict[str, object]] = []
     for path, relative, metadata in _walk_tree(root):
         mode = stat.S_IMODE(metadata.st_mode)
@@ -289,6 +355,8 @@ def _validate_layout(
         raise ValueError("framework root must be a strict child of source root")
     if write.parent != temporary:
         raise ValueError("write root must be a direct private child of runner temp")
+    if not write.name.startswith(WRITE_ROOT_PREFIX) or write.name == WRITE_ROOT_PREFIX:
+        raise ValueError("write root must use the private validation prefix")
     if any(
         write == tree or _is_below(write, tree) or _is_below(tree, write)
         for tree in (source, framework)
@@ -315,6 +383,112 @@ def validate_layout(
         runner_temp=runner_temp,
         fresh=True,
     )
+
+
+def _validate_cleanup_layout(arguments: argparse.Namespace) -> tuple[Path, Path]:
+    """Accept only one exact private guard root for descriptor-safe removal."""
+    source = _existing_directory_without_symlinks(arguments.source_root, "source root")
+    framework = _existing_directory_without_symlinks(arguments.framework_root, "framework root")
+    write = _existing_directory_without_symlinks(arguments.write_root, "write root")
+    temporary = _existing_directory_without_symlinks(arguments.runner_temp, "runner temp")
+    if not _is_below(framework, source):
+        raise ValueError("framework root must be a strict child of source root")
+    if write.parent != temporary:
+        raise ValueError("cleanup write root must be a direct child of runner temp")
+    if not write.name.startswith(WRITE_ROOT_PREFIX) or write.name == WRITE_ROOT_PREFIX:
+        raise ValueError("cleanup write root must use the private validation prefix")
+    if any(
+        _is_within(write, tree) or _is_within(tree, write)
+        for tree in (source, framework, source / ".git")
+    ):
+        raise ValueError("cleanup write root must not overlap source, framework, or Git metadata")
+    write_metadata = os.lstat(write)
+    if (
+        write_metadata.st_uid != 0
+        or write_metadata.st_gid != 0
+        or stat.S_IMODE(write_metadata.st_mode) != 0o711
+    ):
+        raise ValueError("cleanup write root must remain root-owned with mode 0711")
+    _reject_mounts_within(write, "cleanup write root", include_root=True)
+    return write, temporary
+
+
+def _open_child_directory(parent_descriptor: int, name: str) -> int:
+    return os.open(
+        name,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        dir_fd=parent_descriptor,
+    )
+
+
+def _open_existing_directory_path(path: Path) -> int:
+    """Open every directory component by descriptor without link traversal."""
+    descriptor = os.open(
+        path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    )
+    try:
+        for component in path.parts[1:]:
+            child_descriptor = _open_child_directory(descriptor, component)
+            os.close(descriptor)
+            descriptor = child_descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _remove_tree_contents(directory_descriptor: int) -> None:
+    """Unlink an already-validated private tree without following symlinks."""
+    with os.scandir(directory_descriptor) as entries:
+        names = sorted(entry.name for entry in entries)
+    for name in names:
+        metadata = os.stat(name, dir_fd=directory_descriptor, follow_symlinks=False)
+        if stat.S_ISDIR(metadata.st_mode):
+            child_descriptor = _open_child_directory(directory_descriptor, name)
+            try:
+                opened = os.fstat(child_descriptor)
+                if not _same_inode(metadata, opened):
+                    raise ValueError("cleanup directory changed while opening")
+                _remove_tree_contents(child_descriptor)
+            finally:
+                os.close(child_descriptor)
+            os.rmdir(name, dir_fd=directory_descriptor)
+            continue
+        # unlink() never follows a final symlink and cannot traverse a child.
+        os.unlink(name, dir_fd=directory_descriptor)
+
+
+def cleanup_sandbox(arguments: argparse.Namespace) -> Path:
+    """Remove only a checked direct child of runner temp without source access."""
+    if os.geteuid() != 0:
+        raise ValueError("readonly validation sandbox cleanup must run as root")
+    write, temporary = _validate_cleanup_layout(arguments)
+    temporary_descriptor = _open_existing_directory_path(temporary)
+    write_descriptor = -1
+    try:
+        expected = os.stat(write.name, dir_fd=temporary_descriptor, follow_symlinks=False)
+        write_descriptor = _open_child_directory(temporary_descriptor, write.name)
+        opened = os.fstat(write_descriptor)
+        if (
+            not _same_inode(expected, opened)
+            or not stat.S_ISDIR(opened.st_mode)
+            or opened.st_uid != 0
+            or opened.st_gid != 0
+            or stat.S_IMODE(opened.st_mode) != 0o711
+        ):
+            raise ValueError("cleanup write root changed while opening")
+        _remove_tree_contents(write_descriptor)
+        os.close(write_descriptor)
+        write_descriptor = -1
+        # A mount installed after the initial check must fail rather than be
+        # hidden by recursive deletion. The final rmdir is descriptor-relative.
+        _reject_mounts_within(write, "cleanup write root", include_root=True)
+        os.rmdir(write.name, dir_fd=temporary_descriptor)
+    finally:
+        if write_descriptor >= 0:
+            os.close(write_descriptor)
+        os.close(temporary_descriptor)
+    return write
 
 
 def _validate_parent_git_layout(source: Path) -> Path:
@@ -368,15 +542,6 @@ def _validate_source_links_and_git_metadata(source: Path) -> None:
         if stat.S_ISDIR(metadata.st_mode):
             continue
         _validate_gitfile(path, relative, metadata, source_git_root)
-
-
-def _lock_tree(root: Path) -> None:
-    """Make every source inode root-owned and not group/other writable."""
-    for path, _relative, metadata in _walk_tree(root):
-        os.chown(path, 0, 0, follow_symlinks=False)
-        if stat.S_ISLNK(metadata.st_mode):
-            continue
-        os.chmod(path, stat.S_IMODE(metadata.st_mode) & ~0o022)
 
 
 def _make_external_root(write_root: Path, identity: ValidatorIdentity) -> Path:
@@ -475,21 +640,18 @@ def _validate_external_tree(external: Path, source: Path, identity: ValidatorIde
 
 
 def prepare_sandbox(args: argparse.Namespace) -> tuple[Path, str]:
-    """Lock source, write its inventory into the root guard, and create output."""
+    """Inventory an unchanged source tree and create its private output root."""
     if os.geteuid() != 0:
         raise ValueError("readonly validation sandbox preparation must run as root")
-    source, framework, write = validate_layout(
+    source, _framework, write = validate_layout(
         source_root=args.source_root,
         framework_root=args.framework_root,
         write_root=args.write_root,
         runner_temp=args.runner_temp,
     )
-    identity = resolve_validator_identity(args.validator_user, args.validator_group)
+    _reject_nested_source_mounts(source)
     _validate_source_links_and_git_metadata(source)
-    _lock_tree(source)
-    # Keep the Framework invocation explicit in case a future Parent traversal
-    # rule excludes it from the Parent tree.
-    _lock_tree(framework)
+    identity = resolve_validator_identity(args.validator_user, args.validator_group)
     payload = _inventory_payload(_source_inventory(source))
     _write_exact_regular_file(write / INVENTORY_FILENAME, payload)
     external = _make_external_root(write, identity)
@@ -507,6 +669,7 @@ def verify_sandbox(args: argparse.Namespace) -> tuple[Path, str]:
         runner_temp=args.runner_temp,
         fresh=False,
     )
+    _reject_nested_source_mounts(source)
     identity = resolve_validator_identity(args.validator_user, args.validator_group)
     inventory_path, external = _prepared_control_paths(write, identity)
     expected, inventory_sha256 = _read_inventory(inventory_path)
@@ -520,6 +683,10 @@ def verify_sandbox(args: argparse.Namespace) -> tuple[Path, str]:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_args(sys.argv[1:] if argv is None else argv)
     try:
+        if arguments.cleanup:
+            write_root = cleanup_sandbox(arguments)
+            print(f"READONLY_SUBMODULE_VALIDATION_SANDBOX_CLEANED write_root={write_root}")
+            return 0
         if arguments.verify:
             external, inventory_sha256 = verify_sandbox(arguments)
             state = "VERIFIED"

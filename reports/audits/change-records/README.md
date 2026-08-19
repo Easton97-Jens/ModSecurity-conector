@@ -10,6 +10,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260819-readonly-submodule-sandbox-preservation](CR-20260819-readonly-submodule-sandbox-preservation.md)
+  | [Deutsch](CR-20260819-readonly-submodule-sandbox-preservation.de.md) — the
+  current user explicitly authorized this Parent-only sandbox source-
+  preservation repair, paired traceability, and a scoped Draft PR. It records
+  observed local evidence only; no Framework change, Gitlink update, hosted
+  rerun, actual PR result, ready-for-review state, or merge is asserted.
+
 - [CR-20260818-framework-component-resolver](CR-20260818-framework-component-resolver.md)
   | [Deutsch](CR-20260818-framework-component-resolver.de.md) — the current
   user explicitly authorized this Parent-only static-resolver fix and paired

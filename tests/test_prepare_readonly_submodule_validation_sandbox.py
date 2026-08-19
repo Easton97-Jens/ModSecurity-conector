@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import os
 from pathlib import Path
 import pwd
@@ -21,6 +22,16 @@ assert SPEC.loader is not None
 HELPER = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = HELPER
 SPEC.loader.exec_module(HELPER)
+
+NAMESPACE_HELPER_PATH = ROOT / "ci/tools/run-readonly-submodule-validation-namespace.py"
+NAMESPACE_SPEC = importlib.util.spec_from_file_location(
+    "readonly_namespace_runner_for_prepare_test", NAMESPACE_HELPER_PATH
+)
+assert NAMESPACE_SPEC is not None
+assert NAMESPACE_SPEC.loader is not None
+NAMESPACE_HELPER = importlib.util.module_from_spec(NAMESPACE_SPEC)
+sys.modules[NAMESPACE_SPEC.name] = NAMESPACE_HELPER
+NAMESPACE_SPEC.loader.exec_module(NAMESPACE_HELPER)
 
 
 class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
@@ -43,7 +54,7 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         source = temporary / "source"
         framework = source / "modules" / "framework"
         runner_temp = temporary / "runner-temp"
-        write = runner_temp / "readonly-validation"
+        write = runner_temp / f"{HELPER.WRITE_ROOT_PREFIX}fixture"
         framework.mkdir(parents=True)
         framework_git = framework / ".git"
         framework_git.write_text("gitdir: ../../.git/modules/framework\n", encoding="utf-8")
@@ -74,19 +85,74 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
         )
 
     @staticmethod
+    def cleanup_args(source: Path, framework: Path, runner_temp: Path, write: Path) -> object:
+        return HELPER.parse_args(
+            [
+                "--cleanup",
+                "--source-root", str(source),
+                "--framework-root", str(framework),
+                "--write-root", str(write),
+                "--runner-temp", str(runner_temp),
+            ]
+        )
+
+    @staticmethod
+    def source_snapshot(root: Path) -> tuple[tuple[object, ...], ...]:
+        """Independently record every user-visible source/Git property in scope."""
+        records: list[tuple[object, ...]] = []
+
+        def record(path: Path, relative: str) -> None:
+            metadata = os.lstat(path)
+            common: tuple[object, ...] = (
+                relative,
+                metadata.st_size,
+                metadata.st_uid,
+                metadata.st_gid,
+                stat.S_IMODE(metadata.st_mode),
+                metadata.st_nlink,
+            )
+            if stat.S_ISDIR(metadata.st_mode):
+                records.append(("directory", *common))
+                with os.scandir(path) as entries:
+                    children = sorted(entries, key=lambda entry: entry.name)
+                for entry in children:
+                    child_relative = entry.name if relative == "." else f"{relative}/{entry.name}"
+                    record(Path(entry.path), child_relative)
+            elif stat.S_ISREG(metadata.st_mode):
+                records.append(("regular", *common, hashlib.sha256(path.read_bytes()).hexdigest()))
+            elif stat.S_ISLNK(metadata.st_mode):
+                records.append(("symlink", *common, os.readlink(path)))
+            else:
+                records.append(("other", *common))
+
+        record(root, ".")
+        return tuple(records)
+
+    @staticmethod
     def current_identity() -> HELPER.ValidatorIdentity:
         return HELPER.ValidatorIdentity("validator", "validator", os.getuid(), os.getgid())
 
-    def test_valid_control_locks_sources_and_creates_only_external_root(self) -> None:
+    def test_valid_control_preserves_complete_source_metadata_and_creates_only_external_root(self) -> None:
         if os.geteuid() != 0:
             self.skipTest("locking control requires root")
         with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
             source, framework, runner_temp, write = self.make_layout(Path(raw))
             source_file = source / "input.txt"
             source_file.write_text("trusted", encoding="utf-8")
+            source_file.chmod(0o664)
             git_module_file = source / ".git" / "modules" / "framework" / "config"
             git_module_file.parent.mkdir(parents=True, exist_ok=True)
             git_module_file.write_text("[core]", encoding="utf-8")
+            git_module_file.chmod(0o660)
+            framework_file = framework / "framework-source.c"
+            framework_file.write_text("int framework_fixture;\n", encoding="utf-8")
+            framework_file.chmod(0o751)
+            restrictive_file = source / "restrictive.txt"
+            restrictive_file.write_text("private", encoding="utf-8")
+            restrictive_file.chmod(0o600)
+            source_link = source / "internal-link"
+            source_link.symlink_to("input.txt")
+            before = self.source_snapshot(source)
             arguments = self.sandbox_args(source, framework, runner_temp, write)
             identity = self.current_identity()
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
@@ -98,15 +164,21 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             self.assertEqual(external.stat().st_uid, identity.uid)
             inventory = write / HELPER.INVENTORY_FILENAME
             self.assertEqual(stat.S_IMODE(inventory.stat().st_mode), 0o600)
-            self.assertEqual(source.stat().st_uid, 0)
-            self.assertEqual(source_file.stat().st_uid, 0)
-            self.assertEqual(source_file.stat().st_mode & 0o022, 0)
-            self.assertEqual(git_module_file.stat().st_uid, 0)
-            self.assertEqual(git_module_file.stat().st_mode & 0o022, 0)
+            self.assertEqual(self.source_snapshot(source), before)
+            self.assertEqual(stat.S_IMODE(source_file.stat().st_mode), 0o664)
+            self.assertEqual(stat.S_IMODE(framework_file.stat().st_mode), 0o751)
+            self.assertEqual(stat.S_IMODE(restrictive_file.stat().st_mode), 0o600)
+            self.assertEqual(os.readlink(source_link), "input.txt")
             with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
                 verified_external, verified_sha256 = HELPER.verify_sandbox(arguments)
+                repeated_external, repeated_sha256 = HELPER.verify_sandbox(arguments)
             self.assertEqual(verified_external, external)
             self.assertEqual(verified_sha256, inventory_sha256)
+            self.assertEqual((repeated_external, repeated_sha256), (external, inventory_sha256))
+            self.assertEqual(self.source_snapshot(source), before)
+            self.assertEqual(HELPER.cleanup_sandbox(self.cleanup_args(source, framework, runner_temp, write)), write)
+            self.assertFalse(write.exists())
+            self.assertEqual(self.source_snapshot(source), before)
 
     def test_real_validator_can_write_only_external_root(self) -> None:
         if os.geteuid() != 0:
@@ -129,6 +201,7 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             source, framework, runner_temp, write = self.make_layout(temporary)
             os.chmod(runner_temp, 0o755)
             (source / "input.txt").write_text("trusted", encoding="utf-8")
+            before = self.source_snapshot(source)
             arguments = self.sandbox_args(
                 source, framework, runner_temp, write,
                 validator_user=identity.user, validator_group=identity.group,
@@ -163,6 +236,314 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             self.assertEqual(child_exit(can_write, external_file), 0)
             self.assertEqual(external_file.read_text(encoding="utf-8"), "allowed")
             self.assertEqual(HELPER.verify_sandbox(arguments)[0], external)
+            self.assertEqual(self.source_snapshot(source), before)
+            HELPER.cleanup_sandbox(self.cleanup_args(source, framework, runner_temp, write))
+            self.assertFalse(write.exists())
+            self.assertEqual(self.source_snapshot(source), before)
+
+    def test_prepare_candidate_verify_and_cleanup_preserve_source_metadata(self) -> None:
+        """Exercise the real mount boundary when root namespaces and nobody are available."""
+        if os.geteuid() != 0 or sys.platform != "linux":
+            self.skipTest("mount/PID namespace capability is unavailable")
+        try:
+            account = pwd.getpwnam("nobody")
+            group = HELPER.grp.getgrgid(account.pw_gid)
+            identity = HELPER.resolve_validator_identity(account.pw_name, group.gr_name)
+        except KeyError:
+            self.skipTest("the system has no unprivileged nobody identity")
+        if not self.identity_is_mapped_in_current_namespace(identity):
+            self.skipTest("the nobody identity is unavailable in this user namespace")
+        with tempfile.TemporaryDirectory(dir="/tmp", prefix="readonly-sandbox-") as raw:
+            temporary = Path(raw)
+            os.chmod(temporary, 0o755)
+            source, framework, runner_temp, write = self.make_layout(temporary)
+            os.chmod(runner_temp, 0o755)
+            source_file = source / "group-writable.txt"
+            source_file.write_text("trusted", encoding="utf-8")
+            source_file.chmod(0o664)
+            framework_file = framework / "framework-input.txt"
+            framework_file.write_text("framework", encoding="utf-8")
+            framework_file.chmod(0o660)
+            before = self.source_snapshot(source)
+            arguments = self.sandbox_args(
+                source,
+                framework,
+                runner_temp,
+                write,
+                validator_user=identity.user,
+                validator_group=identity.group,
+            )
+            external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
+            self.assertEqual(self.source_snapshot(source), before)
+            namespace_parent = temporary / "namespace-parent"
+            namespace_parent.mkdir(mode=0o750)
+            os.chown(namespace_parent, 0, identity.gid)
+            os.chmod(namespace_parent, 0o750)
+            mount_root = NAMESPACE_HELPER._create_mount_layout(namespace_parent, identity.gid)
+
+            def candidate(
+                source_view: Path,
+                framework_relative: Path,
+                external_view: Path,
+                _guard: Path,
+                _python: Path,
+                uid: int,
+                gid: int,
+            ) -> None:
+                os.setgroups([])
+                os.setgid(gid)
+                os.setuid(uid)
+                framework_view = source_view / framework_relative
+                for operation in (
+                    lambda: (source_view / "candidate-write").touch(),
+                    lambda: (framework_view / "candidate-write").touch(),
+                    lambda: (source_view / ".git" / "index.lock").touch(),
+                    lambda: os.chmod(source_view / "group-writable.txt", 0o600),
+                    lambda: os.chmod(framework_view / "framework-input.txt", 0o600),
+                ):
+                    try:
+                        operation()
+                    except OSError:
+                        continue
+                    os._exit(1)
+                (external_view / "candidate-output").write_text("allowed", encoding="utf-8")
+                os._exit(0)
+
+            try:
+                child = os.fork()
+                if child == 0:
+                    try:
+                        os._exit(
+                            NAMESPACE_HELPER._namespace_child(
+                                source,
+                                framework,
+                                external,
+                                mount_root,
+                                Path(sys.executable),
+                                identity.uid,
+                                identity.gid,
+                                candidate,
+                            )
+                        )
+                    except NAMESPACE_HELPER.NamespaceUnavailable:
+                        os._exit(125)
+                    except BaseException:
+                        os._exit(1)
+                _pid, status = os.waitpid(child, 0)
+                result = os.waitstatus_to_exitcode(status)
+                if result == 125:
+                    self.skipTest("mount/PID namespace capability is unavailable")
+                self.assertEqual(result, 0)
+                self.assertEqual((external / "candidate-output").read_text(encoding="utf-8"), "allowed")
+                self.assertEqual(self.source_snapshot(source), before)
+                self.assertEqual(HELPER.verify_sandbox(arguments)[0], external)
+                self.assertEqual(self.source_snapshot(source), before)
+                HELPER.cleanup_sandbox(self.cleanup_args(source, framework, runner_temp, write))
+                self.assertFalse(write.exists())
+                self.assertEqual(self.source_snapshot(source), before)
+            finally:
+                for path in (mount_root / "source", mount_root / "external", mount_root):
+                    if path.exists():
+                        os.rmdir(path)
+
+    def test_namespace_setup_and_candidate_failures_preserve_source_metadata(self) -> None:
+        """A namespace-stage failure must leave the prepared host tree untouched."""
+        if os.geteuid() != 0 or sys.platform != "linux":
+            self.skipTest("namespace failure controls require Linux root")
+        with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
+            temporary = Path(raw)
+            source, framework, runner_temp, write = self.make_layout(temporary)
+            source_file = source / "group-writable.txt"
+            source_file.write_text("trusted", encoding="utf-8")
+            source_file.chmod(0o664)
+            before = self.source_snapshot(source)
+            identity = self.current_identity()
+            sandbox_arguments = self.sandbox_args(source, framework, runner_temp, write)
+            with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
+                external, _inventory_sha256 = HELPER.prepare_sandbox(sandbox_arguments)
+            self.assertEqual(self.source_snapshot(source), before)
+
+            # Mock the namespace-parent topology check here: it has dedicated
+            # coverage in the namespace test module.  This keeps the failure
+            # proof independent of a writable host /tmp while exercising the
+            # real runner's setup, fork, and private-layout cleanup paths.
+            namespace_parent = temporary / "namespace-parent"
+            namespace_parent.mkdir(mode=0o750)
+            os.chown(namespace_parent, 0, identity.gid)
+            os.chmod(namespace_parent, 0o750)
+            namespace_arguments = NAMESPACE_HELPER.parse_args(
+                [
+                    "--source-root",
+                    str(source),
+                    "--framework-root",
+                    str(framework),
+                    "--write-root",
+                    str(write),
+                    "--external-root",
+                    str(external),
+                    "--validator-user",
+                    identity.user,
+                    "--validator-group",
+                    identity.group,
+                    "--python",
+                    sys.executable,
+                    "--namespace-parent",
+                    str(namespace_parent),
+                ]
+            )
+            for label, child_behavior, expected_status in (
+                ("setup", RuntimeError("injected namespace setup failure"), 126),
+                ("candidate", lambda *_arguments: 47, 47),
+            ):
+                with self.subTest(stage=label), mock.patch.object(
+                    NAMESPACE_HELPER, "_identity", return_value=(identity.uid, identity.gid)
+                ), mock.patch.object(
+                    NAMESPACE_HELPER, "_validate_namespace_parent"
+                ), mock.patch.object(
+                    NAMESPACE_HELPER, "_namespace_child", side_effect=child_behavior
+                ):
+                    self.assertEqual(NAMESPACE_HELPER.run(namespace_arguments), expected_status)
+                self.assertEqual(self.source_snapshot(source), before)
+                self.assertFalse((namespace_parent / "mount-root").exists())
+
+            with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
+                self.assertEqual(HELPER.verify_sandbox(sandbox_arguments)[0], external)
+            self.assertEqual(self.source_snapshot(source), before)
+            HELPER.cleanup_sandbox(self.cleanup_args(source, framework, runner_temp, write))
+            self.assertFalse(write.exists())
+            self.assertEqual(self.source_snapshot(source), before)
+
+    def test_inventory_write_failure_does_not_mutate_source_or_framework(self) -> None:
+        if os.geteuid() != 0:
+            self.skipTest("root-owned write-root control requires root")
+        with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
+            source, framework, runner_temp, write = self.make_layout(Path(raw))
+            source_file = source / "group-writable.txt"
+            source_file.write_text("trusted", encoding="utf-8")
+            source_file.chmod(0o664)
+            before = self.source_snapshot(source)
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            with (
+                mock.patch.object(HELPER, "resolve_validator_identity", return_value=self.current_identity()),
+                mock.patch.object(HELPER, "_write_exact_regular_file", side_effect=OSError("injected")),
+            ):
+                with self.assertRaisesRegex(OSError, "injected"):
+                    HELPER.prepare_sandbox(arguments)
+            self.assertEqual(self.source_snapshot(source), before)
+            self.assertFalse((write / HELPER.INVENTORY_FILENAME).exists())
+            self.assertFalse((write / HELPER.EXTERNAL_DIRNAME).exists())
+            HELPER.cleanup_sandbox(self.cleanup_args(source, framework, runner_temp, write))
+            self.assertEqual(self.source_snapshot(source), before)
+
+    def test_external_root_failure_does_not_mutate_source_or_framework(self) -> None:
+        if os.geteuid() != 0:
+            self.skipTest("root-owned write-root control requires root")
+        with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
+            source, framework, runner_temp, write = self.make_layout(Path(raw))
+            source_file = source / "group-writable.txt"
+            source_file.write_text("trusted", encoding="utf-8")
+            source_file.chmod(0o664)
+            before = self.source_snapshot(source)
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            with (
+                mock.patch.object(HELPER, "resolve_validator_identity", return_value=self.current_identity()),
+                mock.patch.object(HELPER, "_make_external_root", side_effect=OSError("injected")),
+            ):
+                with self.assertRaisesRegex(OSError, "injected"):
+                    HELPER.prepare_sandbox(arguments)
+            self.assertEqual(self.source_snapshot(source), before)
+            self.assertTrue((write / HELPER.INVENTORY_FILENAME).is_file())
+            self.assertFalse((write / HELPER.EXTERNAL_DIRNAME).exists())
+            HELPER.cleanup_sandbox(self.cleanup_args(source, framework, runner_temp, write))
+            self.assertEqual(self.source_snapshot(source), before)
+
+    def test_verify_output_failure_does_not_mutate_source_or_framework(self) -> None:
+        if os.geteuid() != 0:
+            self.skipTest("root-owned write-root control requires root")
+        with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
+            source, framework, runner_temp, write = self.make_layout(Path(raw))
+            source_file = source / "group-writable.txt"
+            source_file.write_text("trusted", encoding="utf-8")
+            source_file.chmod(0o664)
+            before = self.source_snapshot(source)
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            identity = self.current_identity()
+            with mock.patch.object(HELPER, "resolve_validator_identity", return_value=identity):
+                external, _inventory_sha256 = HELPER.prepare_sandbox(arguments)
+                unsafe_output = external / "group-writable-output"
+                unsafe_output.write_text("unsafe", encoding="utf-8")
+                unsafe_output.chmod(0o660)
+                with self.assertRaisesRegex(ValueError, "unsafe permissions"):
+                    HELPER.verify_sandbox(arguments)
+            self.assertEqual(self.source_snapshot(source), before)
+            HELPER.cleanup_sandbox(self.cleanup_args(source, framework, runner_temp, write))
+            self.assertEqual(self.source_snapshot(source), before)
+
+    def test_rejects_nested_source_mount_before_inventory_or_output_creation(self) -> None:
+        if os.geteuid() != 0:
+            self.skipTest("root-owned write-root control requires root")
+        with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
+            source, framework, runner_temp, write = self.make_layout(Path(raw))
+            source_file = source / "group-writable.txt"
+            source_file.write_text("trusted", encoding="utf-8")
+            source_file.chmod(0o664)
+            before = self.source_snapshot(source)
+            arguments = self.sandbox_args(source, framework, runner_temp, write)
+            with (
+                mock.patch.object(HELPER, "resolve_validator_identity", return_value=self.current_identity()),
+                mock.patch.object(
+                    HELPER, "_mountinfo_mountpoints", return_value=iter([source / "foreign-mount"])
+                ),
+            ):
+                with self.assertRaisesRegex(ValueError, "source root contains an unexpected active mount"):
+                    HELPER.prepare_sandbox(arguments)
+            self.assertEqual(self.source_snapshot(source), before)
+            self.assertFalse((write / HELPER.INVENTORY_FILENAME).exists())
+            self.assertFalse((write / HELPER.EXTERNAL_DIRNAME).exists())
+            HELPER.cleanup_sandbox(self.cleanup_args(source, framework, runner_temp, write))
+            self.assertEqual(self.source_snapshot(source), before)
+
+    def test_cleanup_is_descriptor_safe_and_rejects_active_mounts(self) -> None:
+        if os.geteuid() != 0:
+            self.skipTest("root-owned cleanup control requires root")
+        with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
+            temporary = Path(raw)
+            source, framework, runner_temp, write = self.make_layout(temporary)
+            source_file = source / "input.txt"
+            source_file.write_text("trusted", encoding="utf-8")
+            before = self.source_snapshot(source)
+            outside = temporary / "outside.txt"
+            outside.write_text("outside", encoding="utf-8")
+            (write / "link-to-outside").symlink_to(outside)
+            arguments = self.cleanup_args(source, framework, runner_temp, write)
+            with mock.patch.object(
+                HELPER, "_mountinfo_mountpoints", return_value=iter([write / "foreign-mount"])
+            ):
+                with self.assertRaisesRegex(ValueError, "cleanup write root contains an unexpected active mount"):
+                    HELPER.cleanup_sandbox(arguments)
+            self.assertTrue(write.exists())
+            self.assertEqual(outside.read_text(encoding="utf-8"), "outside")
+            self.assertEqual(self.source_snapshot(source), before)
+            HELPER.cleanup_sandbox(arguments)
+            self.assertFalse(write.exists())
+            self.assertEqual(outside.read_text(encoding="utf-8"), "outside")
+            self.assertEqual(self.source_snapshot(source), before)
+
+    def test_cleanup_rejects_nonprivate_write_root_without_deleting_it(self) -> None:
+        if os.geteuid() != 0:
+            self.skipTest("root-owned cleanup control requires root")
+        with tempfile.TemporaryDirectory(prefix="readonly-sandbox-") as raw:
+            temporary = Path(raw)
+            source, framework, runner_temp, _write = self.make_layout(temporary)
+            before = self.source_snapshot(source)
+            unrelated = runner_temp / "unrelated"
+            unrelated.mkdir(mode=0o711)
+            os.chown(unrelated, 0, 0)
+            os.chmod(unrelated, 0o711)
+            with self.assertRaisesRegex(ValueError, "private validation prefix"):
+                HELPER.cleanup_sandbox(self.cleanup_args(source, framework, runner_temp, unrelated))
+            self.assertTrue(unrelated.exists())
+            self.assertEqual(self.source_snapshot(source), before)
 
     def test_rejects_external_source_symlink_without_touching_its_target(self) -> None:
         if os.geteuid() != 0:
@@ -367,7 +748,7 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             runner_temp = temporary / "runner-temp"
             framework.mkdir(parents=True)
             runner_temp.mkdir()
-            missing_write = runner_temp / "missing"
+            missing_write = runner_temp / f"{HELPER.WRITE_ROOT_PREFIX}missing"
             with self.assertRaisesRegex(ValueError, "write root must be an existing directory"):
                 HELPER.validate_layout(
                     source_root=str(source), framework_root=str(framework),
@@ -407,7 +788,7 @@ class PrepareReadonlySubmoduleValidationSandboxTests(unittest.TestCase):
             source = temporary / "source"
             framework = source / "framework"
             runner_temp = source / "runner-temp"
-            write = runner_temp / "write"
+            write = runner_temp / f"{HELPER.WRITE_ROOT_PREFIX}inside-source"
             source.mkdir()
             framework.mkdir()
             runner_temp.mkdir()

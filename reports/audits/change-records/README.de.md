@@ -11,6 +11,14 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260819-readonly-submodule-sandbox-preservation](CR-20260819-readonly-submodule-sandbox-preservation.de.md) —
+  der aktuelle Benutzer hat diese Parent-only-Sandbox-Reparatur zur
+  Source-Preservation, die gepaarte Nachvollziehbarkeit und einen begrenzten
+  Draft-PR ausdrücklich autorisiert. Der Record weist nur beobachtete lokale
+  Evidence aus; weder Framework-Änderung, Gitlink-Update, Hosted-Rerun,
+  tatsächliches PR-Ergebnis, Ready-for-Review-Status noch Merge werden
+  behauptet.
+
 - [CR-20260818-framework-component-resolver](CR-20260818-framework-component-resolver.de.md) —
   der aktuelle Benutzer hat diese Parent-only-Reparatur des statischen
   Resolvers und die gepaarte Nachvollziehbarkeit sowie anschließend ausdrücklich

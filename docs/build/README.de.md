@@ -258,6 +258,66 @@ Anforderung ist; dies ist keine Behauptung von Netzwerk- oder Egress-Isolation.
 Das Jail ist eine Grenze für Dateisystem und geerbte Deskriptoren und keine
 Behauptung vollständiger Host- oder Kernel-Isolation.
 
+Der Host-Checkout ist kein Lock-Target. Die historische Mutation zu
+Root-eigenen Checkouts stammte aus den früheren rekursiven `_lock_tree`-Aufrufen
+im Root-seitigen Preparer, nicht aus dem Framework-Gitlink selbst; ihr
+historischer Kontext sind [PR #301](https://github.com/Easton97-Jens/ModSecurity-conector/pull/301)
+und Merge-Commit `35c435483dcd637c7b9df0277bed34d6f94dc44d`. Der Preparer
+validiert nun Pfadtopologie, Source-Links und Gitfiles, weist jeden aktiven
+Mount strikt unterhalb des Host-Source-Roots ab, validiert die dedizierte
+Identität und zeichnet das ursprüngliche Inventar auf, bevor er Candidate-
+Output erzeugt. Er ruft kein `chown` oder `chmod` für Parent, Framework, `.git`
+oder `.git/modules` auf; kein Owner, keine Group, kein Modus, Inhalt, Link oder
+Git-Metadatum wird wiederhergestellt, weil nichts geändert wird. Der Namespace-
+Runner wiederholt die Prüfung verschachtelter Source-Mounts unabhängig, bevor
+er den nicht-rekursiven Source-Bind erstellt, sodass ein schreibbarer Submount
+nicht unbemerkt unter dem Read-only-Bind sichtbar sein kann.
+
+Das Inventar bleibt der fail-closed Source-Preservation-Nachweis. Jeder Eintrag
+zeichnet relativen Pfad, Typ, Größe, UID, GID, Modus und Link-Anzahl auf;
+reguläre Dateien enthalten zusätzlich SHA-256 und symbolische Links ihren
+Link-Text. Das Inventar nach dem Candidate muss vor der Output-Validierung
+exakt übereinstimmen. Damit erkennt die Prüfung Inhalts-, Owner-, Group-,
+Rechte-, Link- und Link-Target-Änderungen, ohne selbst eine davon zu verursachen.
+Die External-Output-Prüfung weist weiterhin Source-Hardlinks, entweichende
+Links, Special Objects, fremde Owner und unsichere Modi ab.
+
+Vor jeder fehlbaren Prepare-Operation erzeugt der Workflow einen frischen
+`$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX`-Guard als direktes,
+nicht-symlinktes Child mit festem Prefix, ändert nur diesen neuen Guard zu
+`root:root` Modus `0711` und speichert seinen exakten Pfad im Step-Output. Der
+Helper erzeugt die root-eigene Inventory-Datei mit Modus `0600` und das dem
+Validator gehörende `external`-Child mit Modus `0700` innerhalb dieses Guards.
+`sudo` ist auf Identity-Erzeugung, Ownership/Modus des privaten Guards,
+Root-seitiges Inventory-Prepare/-Verify, Namespace-/Chroot-Setup und privaten
+Cleanup beschränkt; Candidate-State-Validierung und beide `git diff --check`
+Operationen laufen als normaler Runner-User.
+
+Ein `if: always()`-Cleanup-Step ruft den `--cleanup`-Modus des Helpers auch
+nach Candidate-, Inventory-, Namespace-, Parser- oder Contract-Fehlern auf.
+Vor dem Entfernen verlangt er das exakte absolute direkte Child von
+`RUNNER_TEMP`, das feste Prefix, keine Symlink-Komponenten, keine Überlappung
+mit Parent, Framework oder Git-Metadaten und keinen aktiven Mount unter dem
+Guard. Er öffnet den vertrauenswürdigen temporären Pfad Verzeichnis-Deskriptor
+für Verzeichnis-Deskriptor und entfernt Einträge nur relativ zu geprüften
+Deskriptoren ohne Symlinks zu folgen. Ein Cleanup-Fehler bleibt sichtbar und
+kann einen vorherigen Sicherheitsfehler nicht in Erfolg umwandeln.
+
+Diese Korrektur verhindert künftige Mutationen; sie repariert absichtlich
+keinen bereits root-eigenen lokalen oder self-hosted Checkout. Diagnostiziere
+zuerst einen konkreten Pfad read-only, zum Beispiel:
+
+~~~sh
+find /path/to/ModSecurity-conector -xdev \
+  \( -uid 0 -o -gid 0 \) -printf '%M %u:%g %p\n'
+~~~
+
+Bestätige den vorgesehenen Checkout, den erwarteten lokalen Owner/die Group,
+Mount-Topologie und Workspace-Policy, bevor ein Benutzer oder Administrator
+eine bewusste pfadspezifische manuelle Reparatur vornimmt. Verwende kein
+pauschales `chown -R`, `chmod -R`, ACL-Reset oder `git clean -fdx`; der
+Workflow führt diese Operationen niemals aus.
+
 Der Hosted-Run `31484727901` ist historische Failure-Evidence für den früheren
 ACL-Precheck. Der Hosted-Run `31488072111` ist ebenfalls nur historische
 Failure-Evidence: Auf `5d7d7bbbbb968aa9755d3c0c67a09d8acd651c77` waren Resolver
@@ -277,7 +337,9 @@ auf dem exakten Head `c7bbc70bcf729d148a7d87f45ca352ae7247416b` beobachtet:
 Validator-`make quick-check`, Postverification und Enforcement waren
 erfolgreich. Der Publisher wurde übersprungen und erzeugte keinen Output-Pull-
 Request, Commit oder Branch. Dies belegt kein SonarQube-Ergebnis, keinen
-PR-Merge und keinen Abschluss von `FND-PARENT-0122`; das Finding bleibt offen.
+PR-Merge und keinen Abschluss von `FND-PARENT-0122`; dieses wurde durch
+separat aufgezeichnete Exact-Head- und Protected-Master-Evidence geschlossen.
+Dies ist keine Evidence für diese neuere Source-Preservation-Korrektur.
 
 Der manuelle `workflow_dispatch`-Input `validate_only: true` ist ein nicht
 veröffentlichender Exact-Ref-Nachweis-/Revalidierungspfad mit genau zwei
@@ -351,7 +413,9 @@ Hosted-`validate_only`-Run `31776302498` auf dem exakten Head schloss
 Validator-Quick-Check, Postverification und Enforcement erfolgreich ab, bleibt
 aber auf diesen Run und Head begrenzt. Er ist kein SonarQube-Ergebnis,
 PR-Merge, Delivery oder Beweis vollständiger Host-Isolation.
-`FND-PARENT-0122` bleibt offen.
+`FND-PARENT-0122` ist ein geschlossenes historisches Finding; diese
+Dokumentation behauptet kein neues Hosted-Ergebnis für die
+Source-Preservation-Korrektur.
 
 Dies beschreibt den implementierten Workflow-Vertrag und seine begrenzte lokale
 Evidence, nicht Evidence für einen Hosted Run, einen Current-Head-Security-Scan,

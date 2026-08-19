@@ -54,7 +54,7 @@ READONLY_SUBMODULE_SANDBOX_CALL = " ".join(
         "python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py",
         '--source-root "$GITHUB_WORKSPACE"',
         '--framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"',
-        '--write-root "$write_root"',
+        '--write-root "$VALIDATION_WRITE_ROOT"',
         '--runner-temp "$RUNNER_TEMP"',
         "--validator-user modsecurity-validator",
         "--validator-group modsecurity-validator",
@@ -82,6 +82,19 @@ READONLY_SUBMODULE_NAMESPACE_COMPLETE = "READONLY_SUBMODULE_VALIDATION_NAMESPACE
 READONLY_SUBMODULE_VERIFY_GATE = (
     "if: ${{ always() && steps.prepare-readonly-candidate-sandbox.outcome == 'success' }}"
 )
+READONLY_SUBMODULE_CLEANUP_GATE = (
+    "if: ${{ always() && steps.create-readonly-candidate-sandbox-guard.outputs.write_root != '' }}"
+)
+READONLY_SUBMODULE_CLEANUP_CALL = " ".join(
+    (
+        "python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py",
+        "--cleanup",
+        '--source-root "$GITHUB_WORKSPACE"',
+        '--framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"',
+        '--write-root "$VALIDATION_WRITE_ROOT"',
+        '--runner-temp "$RUNNER_TEMP"',
+    )
+)
 SUBMODULE_CANDIDATE_STATE_HELPER = "ci/tools/validate-submodule-candidate-state.py"
 SUBMODULE_CANDIDATE_BASELINE_CALL = " ".join(
     (
@@ -93,7 +106,7 @@ SUBMODULE_CANDIDATE_BASELINE_CALL = " ".join(
 )
 SUBMODULE_CANDIDATE_STATE_CALL = " ".join(
     (
-        f"sudo -n python3 {SUBMODULE_CANDIDATE_STATE_HELPER}",
+        f"python3 {SUBMODULE_CANDIDATE_STATE_HELPER}",
         "validate",
         '--parent-root "$GITHUB_WORKSPACE"',
         '--submodule-path "$SUBMODULE_PATH"',
@@ -241,6 +254,8 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
     normalized = normalize_shell_script(validator)
     errors: list[str] = []
     required = (
+        "Create private read-only candidate guard",
+        "id: create-readonly-candidate-sandbox-guard",
         READONLY_SUBMODULE_SANDBOX_CALL,
         READONLY_SUBMODULE_NAMESPACE_CALL,
         "sudo -n groupadd --system modsecurity-validator",
@@ -270,9 +285,13 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         "CANDIDATE_RESULT: ${{ steps.run-readonly-candidate-namespace.outcome }}",
         'test "$SANDBOX_PREPARE_RESULT" = success',
         'test "$CANDIDATE_RESULT" = success',
-        "sudo -n git -c core.hooksPath=/dev/null diff --check",
-        'sudo -n git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check',
+        "git -c core.hooksPath=/dev/null diff --check",
+        'git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check',
         "printf 'write_root=%s\\n' \"$write_root\" >> \"$GITHUB_OUTPUT\"",
+        "Clean up private read-only candidate guard",
+        READONLY_SUBMODULE_CLEANUP_GATE,
+        READONLY_SUBMODULE_CLEANUP_CALL,
+        "READONLY_SUBMODULE_VALIDATION_SANDBOX_CLEANED",
     )
     for term in required:
         if term not in normalized:
@@ -294,6 +313,13 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         "git reset --hard",
         "git clean",
         "|| true",
+        "sudo -n python3 ci/tools/validate-submodule-candidate-state.py",
+        "sudo -n git -c core.hooksPath=/dev/null diff --check",
+        'sudo -n git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check',
+        "chown -R",
+        "chmod -R",
+        "$SUDO_USER",
+        "$USER",
     )
     for term in forbidden:
         if term in validator:
@@ -302,10 +328,10 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
     namespace_count = normalized.count(READONLY_SUBMODULE_NAMESPACE_CALL)
     if namespace_count != 1:
         errors.append("workflow must invoke the namespace helper exactly once")
-    if normalized.count("prepare-readonly-submodule-validation-sandbox.py") != 2:
-        errors.append("sandbox helper must prepare and physically verify exactly once each")
+    if normalized.count("prepare-readonly-submodule-validation-sandbox.py") != 3:
+        errors.append("sandbox helper must prepare, verify, and clean exactly once each")
     if normalized.count("umask 077") != 1:
-        errors.append("only root-side sandbox preparation may set the workflow umask")
+        errors.append("only private guard creation may set the workflow umask")
     if "GH_TOKEN" in validator or "secrets." in validator or "github.token" in validator:
         errors.append("validator job must not receive credentials")
     if "--namespace-parent /tmp" in validator or "--namespace-parent /var/tmp" in validator:
@@ -325,10 +351,11 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
     namespace_index = normalized.find(READONLY_SUBMODULE_NAMESPACE_CALL)
     verification_index = normalized.find("Verify candidate source inventory and external outputs")
     result_index = normalized.find("Enforce isolated candidate result after verification")
-    if min(setup_index, namespace_index, verification_index, result_index) < 0 or not (
-        setup_index < namespace_index < verification_index < result_index
+    cleanup_index = normalized.find("Clean up private read-only candidate guard")
+    if min(setup_index, namespace_index, verification_index, result_index, cleanup_index) < 0 or not (
+        setup_index < namespace_index < verification_index < result_index < cleanup_index
     ):
-        errors.append("root preparation, namespace candidate, physical verification, and result gate must be ordered")
+        errors.append("guard preparation, candidate, verification, result gate, and cleanup must be ordered")
     baseline_index = normalized.find(SUBMODULE_CANDIDATE_BASELINE_CALL)
     checkout_index = normalized.find("checkout --detach")
     first_state_index = normalized.find(SUBMODULE_CANDIDATE_STATE_CALL)
@@ -337,6 +364,86 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         baseline_index < checkout_index < first_state_index < setup_index < second_state_index < result_index
     ):
         errors.append("candidate-state validation must bracket the isolated namespace")
+    return errors
+
+
+def readonly_submodule_sandbox_helper_errors(helper: str) -> list[str]:
+    """Return violations of the source-preserving root-side sandbox boundary."""
+
+    errors: list[str] = []
+    required = (
+        'WRITE_ROOT_PREFIX = "modsecurity-readonly-validation."',
+        "def _reject_nested_source_mounts",
+        "def _mountinfo_mountpoints",
+        "def cleanup_sandbox",
+        "def _validate_cleanup_layout",
+        "def _open_existing_directory_path",
+        "os.O_NOFOLLOW",
+        "dir_fd=",
+        "source / \".git\"",
+        "_reject_mounts_within(write, \"cleanup write root\", include_root=True)",
+        "_source_regular_inodes",
+        "external output hardlinks a source file",
+        "READONLY_SUBMODULE_VALIDATION_SANDBOX_CLEANED",
+    )
+    for term in required:
+        if term not in helper:
+            errors.append(f"missing {term}")
+    for term in ("_lock_tree", "shutil.", "rmtree", "os.system", "shell=True"):
+        if term in helper:
+            errors.append(f"source-preserving helper must not use {term!r}")
+    try:
+        syntax_tree = ast.parse(helper)
+    except SyntaxError:
+        return [*errors, "source-preserving helper must remain valid Python"]
+    function_nodes = {
+        node.name: node
+        for node in syntax_tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    function_text = {
+        name: "\n".join(helper.splitlines()[node.lineno - 1 : node.end_lineno])
+        for name, node in function_nodes.items()
+        if node.end_lineno is not None
+    }
+    for name in ("prepare_sandbox", "verify_sandbox"):
+        body = function_text.get(name, "")
+        if not body:
+            errors.append(f"missing {name}")
+            continue
+        nested_mount_index = body.find("_reject_nested_source_mounts(source)")
+        inventory_index = body.find("_source_inventory(source)")
+        if min(nested_mount_index, inventory_index) < 0 or nested_mount_index > inventory_index:
+            errors.append(f"{name} must reject nested source mounts before inventory use")
+        for call in ast.walk(function_nodes[name]):
+            if (
+                isinstance(call, ast.Call)
+                and isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id == "os"
+                and call.func.attr in {"chown", "chmod", "fchown", "fchmod"}
+            ):
+                errors.append(f"{name} must not ownership- or mode-mutate the source tree")
+    prepare = function_text.get("prepare_sandbox", "")
+    if prepare.find("_source_inventory(source)") > prepare.find("_make_external_root(write, identity)"):
+        errors.append("prepare must inventory source before creating external output")
+    for name, node in function_nodes.items():
+        for call in ast.walk(node):
+            if not (
+                isinstance(call, ast.Call)
+                and isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id == "os"
+                and call.func.attr in {"chown", "chmod"}
+            ):
+                continue
+            if name != "_make_external_root":
+                errors.append(f"{call.func.attr} is only allowed for the private external root")
+    cleanup = function_text.get("cleanup_sandbox", "")
+    if not cleanup or "_open_existing_directory_path(temporary)" not in cleanup:
+        errors.append("cleanup must open the trusted temporary parent by descriptor")
+    if not cleanup or "_remove_tree_contents(write_descriptor)" not in cleanup:
+        errors.append("cleanup must unlink only descriptor-relative private contents")
     return errors
 
 
@@ -360,6 +467,10 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         'JAIL_FORBIDDEN_PATH_COMPONENTS = ("tmp", "var", "home", "root", "run", "sys")',
         "CLONE_NEWNS | CLONE_NEWPID",
         "MS_NOEXEC = 8",
+        "def _reject_nested_source_mounts",
+        "_reject_nested_source_mounts(source)",
+        "/proc/self/mountinfo",
+        "source root contains an unexpected active mount",
         'parser.add_argument("--namespace-parent", required=True)',
         "_validate_namespace_parent(namespace_parent, gid)",
         "namespace_ancestor = namespace_parent.parent",
@@ -495,6 +606,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
     }
     pid1_candidate = functions.get("_run_pid1_candidate", "")
     namespace_child = functions.get("_namespace_child", "")
+    configuration = functions.get("_validated_configuration", "")
     jail_builder = functions.get("_build_jail_layout", "")
     descriptor_closer = functions.get("_close_unapproved_descriptors", "")
     if not pid1_candidate:
@@ -502,6 +614,10 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
     if not namespace_child:
         errors.append("namespace runner must retain the namespace child launcher")
         return errors
+    nested_mount_index = configuration.find("_reject_nested_source_mounts(source)")
+    external_index = configuration.find("if external != write_root / \"external\":")
+    if not configuration or min(nested_mount_index, external_index) < 0 or nested_mount_index > external_index:
+        errors.append("namespace runner must reject nested source mounts before setup")
     if not jail_builder or "_mount(\"tmpfs\", mount_root" not in jail_builder:
         errors.append("namespace runner must construct a private tmpfs jail before candidate execution")
     if (
@@ -1785,6 +1901,33 @@ jobs:
         self.assertNotIn("GH_TOKEN", validator)
         self.assertNotIn("secrets.", validator)
         self.assertEqual(readonly_submodule_validator_errors(validator), [])
+        sandbox_helper = (
+            ROOT / "ci" / "tools" / "prepare-readonly-submodule-validation-sandbox.py"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(readonly_submodule_sandbox_helper_errors(sandbox_helper), [])
+        sandbox_helper_mutations = {
+            "source locking returns": (
+                "def _make_external_root",
+                "def _lock_tree(root: Path) -> None:\n"
+                "    for path, _relative, metadata in _walk_tree(root):\n"
+                "        os.chown(path, 0, 0, follow_symlinks=False)\n"
+                "        os.chmod(path, stat.S_IMODE(metadata.st_mode) & ~0o022)\n\n\n"
+                "def _make_external_root",
+            ),
+            "nested source mount rejection removed": (
+                "_reject_nested_source_mounts(source)",
+                "_nested_source_mounts_not_checked(source)",
+            ),
+            "cleanup loses descriptor traversal": (
+                "_open_existing_directory_path(temporary)",
+                "os.open(temporary, os.O_RDONLY | os.O_DIRECTORY)",
+            ),
+        }
+        for name, (original, replacement) in sandbox_helper_mutations.items():
+            with self.subTest(sandbox_helper_mutation=name):
+                self.assertIn(original, sandbox_helper)
+                mutated = sandbox_helper.replace(original, replacement, 1)
+                self.assertNotEqual(readonly_submodule_sandbox_helper_errors(mutated), [])
 
         candidate_state_mutations = {
             "missing immutable Parent baseline": (
@@ -1796,8 +1939,8 @@ jobs:
                 "validate-bypassed \\\n            --parent-root",
             ),
             "broad Parent status check restored": (
-                "sudo -n git -c core.hooksPath=/dev/null diff --check",
-                "git status --porcelain --untracked-files=all\n          sudo -n git -c core.hooksPath=/dev/null diff --check",
+                "git -c core.hooksPath=/dev/null diff --check",
+                "git status --porcelain --untracked-files=all\n          git -c core.hooksPath=/dev/null diff --check",
             ),
         }
         for name, (original, replacement) in candidate_state_mutations.items():
@@ -1927,6 +2070,10 @@ sudo -n chmod 0750 "$namespace_parent"
                 "_mount(str(source), source_view, MS_BIND)",
                 "_mount(str(source), source_view, MS_REC | MS_BIND)",
             ),
+            "nested source mounts are accepted": (
+                "_reject_nested_source_mounts(source)",
+                "_nested_source_mounts_not_checked(source)",
+            ),
             "source loses read-only remount": (
                 "_mount(None, source_view, MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV)",
                 "_mount(None, source_view, MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV)",
@@ -2015,6 +2162,10 @@ sudo -n chmod 0750 "$namespace_parent"
                 mutated_runner = namespace_runner.replace(original, replacement, 1)
                 self.assertNotEqual(readonly_namespace_runner_errors(mutated_runner), [])
         self.assertLess(
+            validator.index("Create private read-only candidate guard"),
+            validator.index("Prepare dedicated read-only candidate sandbox"),
+        )
+        self.assertLess(
             validator.index("Prepare dedicated read-only candidate sandbox"),
             validator.index("Run quick check in the private read-only namespace"),
         )
@@ -2026,12 +2177,18 @@ sudo -n chmod 0750 "$namespace_parent"
             validator.index("Check out the resolved descendant revision"),
             validator.index("Prepare dedicated read-only candidate sandbox"),
         )
+        self.assertLess(
+            validator.index("Enforce isolated candidate result after verification"),
+            validator.index("Clean up private read-only candidate guard"),
+        )
         self.assertIn(READONLY_SUBMODULE_SANDBOX_CALL, normalize_shell_script(validator))
         self.assertIn(READONLY_SUBMODULE_WRITE_ROOT, validator)
         self.assertIn(READONLY_SUBMODULE_EXTERNAL_ROOT, validator)
         self.assertNotIn("setfacl", validator)
         self.assertNotIn("getfacl", validator)
         self.assertNotIn("sudo -n -u modsecurity-validator", validator)
+        self.assertNotIn("sudo -n python3 ci/tools/validate-submodule-candidate-state.py", validator)
+        self.assertNotIn("sudo -n git -c core.hooksPath=/dev/null diff --check", validator)
 
         validator_mutations = {
             "namespace helper removed": (
@@ -2083,6 +2240,18 @@ sudo -n chmod 0750 "$namespace_parent"
             "candidate result is not enforced after verification": (
                 'test "$CANDIDATE_RESULT" = success',
                 "true",
+            ),
+            "private guard cleanup is no longer unconditional": (
+                READONLY_SUBMODULE_CLEANUP_GATE,
+                "if: ${{ success() }}",
+            ),
+            "private guard cleanup is removed": (
+                "Clean up private read-only candidate guard",
+                "Private guard cleanup removed",
+            ),
+            "private guard cleanup loses its fixed prefix contract": (
+                "--cleanup",
+                "--cleanup-disabled",
             ),
             "workflow regains ACL mutation": (
                 "printf 'write_root=%s\\n' \"$write_root\" >> \"$GITHUB_OUTPUT\"",

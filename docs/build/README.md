@@ -247,6 +247,63 @@ installation is a functional requirement; this is not a claim of network or
 egress isolation. The jail is a filesystem and inherited-descriptor boundary,
 not a claim of complete host or kernel isolation.
 
+The host checkout is not a lock target. The historical root-owned checkout
+mutation came from the former recursive `_lock_tree` calls in the root-side
+preparer, not from the Framework Gitlink itself; its historical context is
+[PR #301](https://github.com/Easton97-Jens/ModSecurity-conector/pull/301) and
+merge commit `35c435483dcd637c7b9df0277bed34d6f94dc44d`. The preparer now
+validates the path topology, source links, and Gitfiles, rejects every active
+mount strictly below the host source root, validates the dedicated identity,
+and records the original inventory before it creates any candidate output. It
+does not call `chown` or `chmod` on Parent, Framework, `.git`, or
+`.git/modules`; no ownership, group, mode, content, link, or Git metadata is
+restored because none is changed. The namespace runner independently repeats
+the nested-source-mount rejection before it creates the non-recursive source
+bind, so a writable submount cannot be silently visible below the read-only
+bind.
+
+The inventory remains the fail-closed source-preservation proof. Every entry
+records relative path, type, size, UID, GID, mode, and link count; regular
+files additionally record SHA-256 and symbolic links record their link text.
+The post-candidate inventory must match exactly before output validation. This
+detects content, ownership, group, permission, link, and link-target changes
+without causing any of them. The external-output check continues to reject
+source hard links, escaping links, special objects, foreign ownership, and
+unsafe modes.
+
+Before any fallible prepare operation, the workflow creates a fresh
+`$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX` guard as a direct,
+non-symlink child with the fixed prefix, changes only that new guard to
+`root:root` mode `0711`, and stores its exact path in step output. The helper
+creates the root-owned mode-`0600` inventory and the validator-owned
+mode-`0700` `external` child inside that guard. `sudo` is confined to identity
+creation, private guard ownership/mode, root-side inventory prepare/verify,
+namespace/chroot setup, and private cleanup; candidate-state validation and
+both `git diff --check` operations run as the normal runner user.
+
+An `if: always()` cleanup step invokes the helper's `--cleanup` mode even
+after a candidate, inventory, namespace, parser, or contract failure. Before
+removal it requires the exact absolute direct child of `RUNNER_TEMP`, the
+fixed prefix, no symlink components, no overlap with Parent, Framework, or
+Git metadata, and no active mount under the guard. It opens the trusted
+temporary path one directory descriptor at a time and removes entries only
+relative to checked descriptors without following symlinks. A cleanup failure
+is visible and cannot turn a prior security failure into success.
+
+This correction prevents future mutation; it deliberately does not repair an
+already root-owned local or self-hosted checkout. Diagnose a concrete path
+read-only first, for example:
+
+~~~sh
+find /path/to/ModSecurity-conector -xdev \
+  \( -uid 0 -o -gid 0 \) -printf '%M %u:%g %p\n'
+~~~
+
+Confirm the intended checkout, expected local owner/group, mount topology, and
+workspace policy before a user or administrator performs a deliberate,
+path-specific manual repair. Do not use a blanket `chown -R`, `chmod -R`, ACL
+reset, or `git clean -fdx`; the workflow never executes those operations.
+
 Hosted run `31484727901` is historical failure evidence for the earlier ACL
 precheck. Hosted run `31488072111` is also failure-only historical evidence: on
 `5d7d7bbbbb968aa9755d3c0c67a09d8acd651c77`, resolver and sandbox preparation
@@ -264,7 +321,8 @@ at exact head `c7bbc70bcf729d148a7d87f45ca352ae7247416b`: the validator
 `make quick-check`, postverification, and enforcement succeeded. The publisher
 was skipped and created no output pull request, commit, or branch. This does
 not establish a SonarQube result, PR merge, or closure of `FND-PARENT-0122`,
-which remains open.
+which was closed by separately recorded exact-head and protected-master
+evidence. It is not evidence for this newer source-preservation correction.
 
 The manual `workflow_dispatch` input `validate_only: true` is a
 non-publishing exact-ref proof/revalidation path with exactly two trusted
@@ -329,7 +387,9 @@ with `checks/common.pem` in hosted run `31496603345`. The exact-head hosted
 `validate_only` run `31776302498` completed the validator quick-check,
 postverification, and enforcement successfully, but remains limited to that
 run and head. It is not a SonarQube result, PR merge, delivery, or proof of
-full host isolation. `FND-PARENT-0122` remains open.
+full host isolation. `FND-PARENT-0122` is a closed historical finding and this
+documentation does not claim a new hosted result for the source-preservation
+correction.
 
 This describes the implemented workflow contract and its bounded local evidence,
 not evidence of a hosted run, current-head security scan, published update, or
