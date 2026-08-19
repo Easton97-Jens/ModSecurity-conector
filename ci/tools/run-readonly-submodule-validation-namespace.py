@@ -185,6 +185,42 @@ def _mountinfo_for(path: Path) -> list[str]:
     ]
 
 
+def _decode_mountinfo_path(value: str) -> str:
+    """Decode a mountinfo mountpoint and reject malformed octal escapes."""
+    fragments = value.split("\\")
+    decoded = [fragments[0]]
+    for fragment in fragments[1:]:
+        escaped = fragment[:3]
+        if len(escaped) != 3 or any(digit not in "01234567" for digit in escaped):
+            raise ValueError("mountinfo contains an invalid escaped mount path")
+        decoded.extend((chr(int(escaped, 8)), fragment[3:]))
+    return "".join(decoded)
+
+
+def _reject_nested_source_mounts(source: Path) -> None:
+    """Reject host submounts before a non-recursive source bind is created."""
+    try:
+        rows = Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        raise RuntimeError("cannot read mountinfo for source topology validation") from error
+    for row in rows:
+        before_separator, separator, _after_separator = row.partition(" - ")
+        fields = before_separator.split()
+        if not separator or len(fields) < 5:
+            raise RuntimeError("mountinfo contains an invalid mount record")
+        mountpoint = Path(_decode_mountinfo_path(fields[4]))
+        if not mountpoint.is_absolute() or os.path.normpath(os.fspath(mountpoint)) != os.fspath(
+            mountpoint
+        ):
+            raise RuntimeError("mountinfo contains an invalid mountpoint")
+        try:
+            mountpoint.relative_to(source)
+        except ValueError:
+            continue
+        if mountpoint != source:
+            raise RuntimeError(f"source root contains an unexpected active mount: {mountpoint}")
+
+
 def _validate_namespace_parent(namespace_parent: Path, validator_gid: int) -> None:
     """Accept only a root-created private child of a trusted sticky directory."""
     namespace_ancestor = namespace_parent.parent
@@ -704,6 +740,7 @@ def _validated_configuration(arguments: argparse.Namespace) -> tuple[Path, Path,
     external = _absolute_existing_directory(arguments.external_root, "external root")
     _strict_child(framework, source, "framework root")
     _disjoint(source, write_root, "source root", "write root")
+    _reject_nested_source_mounts(source)
     if external != write_root / "external":
         raise ValueError("external root must be exactly the write root external child")
     namespace_parent = _absolute_existing_directory(arguments.namespace_parent, "namespace parent")
@@ -724,13 +761,28 @@ def _validated_configuration(arguments: argparse.Namespace) -> tuple[Path, Path,
     return source, framework, write_root, external, namespace_parent, python, uid, gid
 
 
+def _cleanup_partial_mount_layout(mount_root: Path) -> None:
+    """Remove exact empty placeholders only after confirming no host mount remains."""
+    if _mountinfo_for(mount_root):
+        return
+    for path in (mount_root / "source", mount_root / "external", mount_root):
+        if path.exists():
+            os.rmdir(path)
+
+
 def run(arguments: argparse.Namespace) -> int:
     if os.name != "posix" or sys.platform != "linux" or os.geteuid() != 0:
         raise NamespaceUnavailable("readonly namespace runner requires Linux root")
     source, framework, _write_root, external, namespace_parent, python, uid, gid = _validated_configuration(arguments)
-    mount_root = _create_mount_layout(namespace_parent, gid)
-    before = _mountinfo_for(mount_root)
+    # The layout creator can fail after making one or two deterministic
+    # placeholders.  Keep the exact expected child available to finally so
+    # that no private namespace residue survives a setup failure.
+    mount_root = namespace_parent / "mount-root"
     try:
+        created_mount_root = _create_mount_layout(namespace_parent, gid)
+        if created_mount_root != mount_root:
+            raise RuntimeError("namespace layout returned an unexpected mount root")
+        before = _mountinfo_for(mount_root)
         child = os.fork()
         if child == 0:
             try: os._exit(_namespace_child(source, framework, external, mount_root, python, uid, gid))
@@ -745,11 +797,9 @@ def run(arguments: argparse.Namespace) -> int:
         return code
     finally:
         # The bind mounts live only in the child mount namespace.  Do not use a
-        # recursive cleanup: these are exact, trusted empty placeholders.
-        if not _mountinfo_for(mount_root):
-            for path in (mount_root / "source", mount_root / "external", mount_root):
-                if path.exists():
-                    os.rmdir(path)
+        # recursive cleanup: these are exact, trusted empty placeholders. This
+        # also handles a partial _create_mount_layout() failure before fork.
+        _cleanup_partial_mount_layout(mount_root)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

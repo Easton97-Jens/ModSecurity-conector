@@ -187,6 +187,60 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         self.assertEqual(arguments.namespace_parent, "/tmp/modsecurity-readonly-namespace.test")
         self.assertEqual(arguments.external_root, "/write/external")
 
+    def test_nested_source_mounts_are_rejected_before_namespace_setup(self) -> None:
+        source = Path("/workspace/source")
+        source_mount = "37 25 0:32 / /workspace/source rw,relatime - ext4 /dev/sda rw"
+        nested_mount = (
+            "38 37 0:33 / /workspace/source/modules/framework rw,relatime "
+            "- ext4 /dev/sdb rw"
+        )
+        with mock.patch.object(HELPER.Path, "read_text", return_value=source_mount):
+            HELPER._reject_nested_source_mounts(source)
+        with mock.patch.object(
+            HELPER.Path, "read_text", return_value=f"{source_mount}\n{nested_mount}\n"
+        ):
+            with self.assertRaisesRegex(RuntimeError, "source root contains an unexpected active mount"):
+                HELPER._reject_nested_source_mounts(source)
+
+    def test_mountinfo_decoder_rejects_malformed_octal_escapes(self) -> None:
+        self.assertEqual(HELPER._decode_mountinfo_path(r"/workspace/source\040tree"), "/workspace/source tree")
+        for malformed in ("\\", r"\04", r"\0x0"):
+            with self.subTest(malformed=malformed), self.assertRaisesRegex(ValueError, "invalid escaped"):
+                HELPER._decode_mountinfo_path(malformed)
+
+    def test_configuration_checks_nested_source_mounts_before_candidate_setup(self) -> None:
+        source = Path("/workspace/source")
+        framework = source / "modules/framework"
+        write_root = Path("/runner-temp/modsecurity-readonly-validation.fixture")
+        external = write_root / "external"
+        arguments = SimpleNamespace(
+            source_root=str(source),
+            framework_root=str(framework),
+            write_root=str(write_root),
+            external_root=str(external),
+            namespace_parent="/tmp/modsecurity-readonly-namespace.test",
+            python=sys.executable,
+            validator_user="validator",
+            validator_group="validator",
+        )
+        with (
+            mock.patch.object(
+                HELPER,
+                "_absolute_existing_directory",
+                side_effect=(source, framework, write_root, external),
+            ),
+            mock.patch.object(HELPER, "_strict_child"),
+            mock.patch.object(HELPER, "_disjoint"),
+            mock.patch.object(
+                HELPER,
+                "_reject_nested_source_mounts",
+                side_effect=RuntimeError("source root contains an unexpected active mount"),
+            ) as reject_mounts,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "unexpected active mount"):
+                HELPER._validated_configuration(arguments)
+        reject_mounts.assert_called_once_with(source)
+
     def test_namespace_parent_validation_rejects_untrusted_topologies(self) -> None:
         parent = Path("/tmp/modsecurity-readonly-namespace.test")
         directory = stat.S_IFDIR
@@ -259,6 +313,52 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                     with self.assertRaises(error_type):
                         HELPER.run(arguments)
                 self.assertFalse(mount_root.exists())
+
+    def test_run_removes_a_partial_mount_layout_when_creation_fails(self) -> None:
+        """A failed layout creator cannot strand private mount placeholders."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = root / "source"
+            framework = source / "modules" / "framework"
+            write_root = root / "write"
+            external = write_root / "external"
+            namespace_parent = root / "namespace-parent"
+            framework.mkdir(parents=True)
+            external.mkdir(parents=True)
+            namespace_parent.mkdir()
+            mount_root = namespace_parent / "mount-root"
+            (mount_root / "source").mkdir(parents=True)
+            arguments = SimpleNamespace(
+                source_root=str(source),
+                framework_root=str(framework),
+                write_root=str(write_root),
+                external_root=str(external),
+                namespace_parent=str(namespace_parent),
+                python=sys.executable,
+                validator_user="validator",
+                validator_group="validator",
+            )
+            with mock.patch.object(HELPER.os, "geteuid", return_value=0), mock.patch.object(
+                HELPER,
+                "_validated_configuration",
+                return_value=(
+                    source,
+                    framework,
+                    write_root,
+                    external,
+                    namespace_parent,
+                    Path(sys.executable),
+                    os.getuid(),
+                    os.getgid(),
+                ),
+            ), mock.patch.object(
+                HELPER,
+                "_create_mount_layout",
+                side_effect=OSError("injected partial layout failure"),
+            ), mock.patch.object(HELPER, "_mountinfo_for", return_value=[]):
+                with self.assertRaisesRegex(OSError, "injected partial layout failure"):
+                    HELPER.run(arguments)
+            self.assertFalse(mount_root.exists())
 
     def test_candidate_environment_uses_only_namespace_views_for_sources(self) -> None:
         source = Path("/tmp/task/source")
