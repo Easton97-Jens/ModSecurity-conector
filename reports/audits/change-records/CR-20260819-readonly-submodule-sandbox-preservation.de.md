@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-08-19 |
 | Basis-Revision | `35c435483dcd637c7b9df0277bed34d6f94dc44d` |
 | Historischer Framework-Gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
-| Delivery-Status | Draft PR [#302](https://github.com/Easton97-Jens/ModSecurity-conector/pull/302) wurde aus `agent/readonly-submodule-sandbox-preservation` bei `c1b07a572321c31de1a0a9ae1fd554e2f9811b9f` erstellt; der Traceability-Follow-up machte `a0f46d4e22830f081b20096734caf7e4a059b5cd` zu seinem aktuellen committed Head. Erforderliche GitHub Actions bestanden an diesem exakten Head, aber SonarCloud-Check-Run `96097393398` scheiterte an `6.4% Duplication on New Code`. Der aktuelle Benutzer autorisierte eine enge Source-/Test-Remediation und eine bedingte geschützte `master`-Integration nur, nachdem ein Successor-Head Null-Duplikation und alle frischen Gates bestanden hat. Der Successor ist noch nicht committed oder gepusht; PR #302 bleibt Draft und kein Merge wird behauptet. |
+| Delivery-Status | Task-eigener Draft PR [#302](https://github.com/Easton97-Jens/ModSecurity-conector/pull/302) wurde aus `agent/readonly-submodule-sandbox-preservation` bei `c1b07a572321c31de1a0a9ae1fd554e2f9811b9f` erstellt; Follow-ups machten `35244aae8b3c8676e52d85e3869f9d9b4279f70e` zum aktuellen Head vor dieser Record-Korrektur. An diesem exakten Head bestanden alle erforderlichen GitHub Actions, SonarQube-Cloud-Check `96135044055` bestand mit `new_duplicated_lines=0`, `new_duplicated_lines_density=0.0`, null neuen Violations und null Annotations, und der einmalige begrenzte `traefik-go`-Rerun bestand. Am `2026-08-19T17:32:07Z` autorisierte der aktuelle Benutzer die geschützte Integration von PR #302 und akzeptierte die beiden dokumentierten Restrisiken ausdrücklich für diesen einen Merge. Diese Record-Korrektur muss eigene frische Exact-Head-Checks erhalten, bevor Ready-for-review und der geschützte Squash-Merge stattfinden; kein Merge wird behauptet. |
 
 ## Motivation und Problemstellung
 
@@ -33,6 +33,12 @@ und eine Test-Assertion mit mehreren potenziell werfenden Aufrufen. Der
 Follow-up muss die Duplikation durch quellnative Änderungen auf Null reduzieren,
 nicht durch Änderungen an Scanner, Quality Gate, Exclusion, Suppression,
 `NOSONAR` oder Issue-Dismissal.
+
+Der quellnative Successor
+`35244aae8b3c8676e52d85e3869f9d9b4279f70e` erreichte dies ohne Änderungen an
+Scanner, Quality Gate, Exclusion, Suppression, `NOSONAR`, Dismissal oder
+Sandbox-Control. Er bestand SonarQube Cloud mit Null New-Code-Duplikation und
+das erforderliche GitHub-Actions-Bundle nach dem begrenzten `traefik-go`-Rerun.
 
 ## Akzeptanzkriterien
 
@@ -164,6 +170,13 @@ keinen Product-Source, Commit, Push, Pull Request oder Merge.
   25 Tests, 2 erwartete Skips; der äquivalente Namespace-Befehl bestand: 35
   Tests, 3 erwartete Skips. `make check-ci-security-contract` bestand danach:
   122 Tests, 5 erwartete Skips. `git diff --check` bestand.
+- Der exakte PR-#302-Head vor dieser Record-Korrektur
+  `35244aae8b3c8676e52d85e3869f9d9b4279f70e` bestand SonarQube-Cloud-Check
+  `96135044055` mit Null New-Code-Duplikation, Violations, Code Smells und
+  Annotations; `gh pr checks 302` endete mit `0`. Der eine initiale begrenzte
+  `traefik-go`-Fuzz-Timeout wurde untersucht und sein unveränderter Rerun
+  `96141428932` bestand. Diese reine Dokumentationskorrektur erfordert vor der
+  geschützten Integration einen frischen Successor-Head-Lauf.
 
 ## Runtime-Evidence
 
@@ -178,7 +191,9 @@ Integrationstest existiert und skippt fail-closed, wenn Kernel oder User-
 Namespace die dedizierte Identität nicht mappen oder das erforderliche
 Namespace nicht erstellen können.
 
-Für diese Änderung wird kein erfolgreicher Hosted Run behauptet. Ein direkter
+Der exakte PR-#302-Head vor dieser Record-Korrektur bestand die gehosteten
+GitHub Actions und SonarQube Cloud wie oben beschrieben. Es wird kein
+gehosteter `validate_only`-Source-Preservation-Lauf behauptet. Ein direkter
 gemappter User-/Mount-/PID-Namespace-Probe endete mit Exit `1` und
 `Operation not permitted`.
 
@@ -204,12 +219,13 @@ geprüfte und der wiederhergestellte Patch haben die identische SHA-256
   Checkout nicht, weil `FND-PARENT-0182` ein separates Checkout-Preservation-
   Risiko dokumentiert. Die angeforderte Default-Discovery wurde dennoch
   ausgeführt und oben festgehalten.
-- Die erforderlichen GitHub Actions des vorherigen exakten PR-#302-Heads
-  bestanden, aber sein SonarCloud-Check-Run `96097393398` scheiterte an
-  `6.4% Duplication on New Code`. Der quellnative Successor ist noch nicht
-  committed oder gepusht; daher sind SonarCloud, GitHub Actions, Review,
-  Ready-for-Review und Merge-Evidence am Successor-Head noch nicht verfügbar.
-  Die lokale gemappte Non-root-Namespace-Integration bleibt nicht verfügbar.
+- Der SonarCloud-Fehler des vorherigen exakten PR-#302-Heads wurde behoben:
+  Der Successor vor dieser Record-Korrektur
+  `35244aae8b3c8676e52d85e3869f9d9b4279f70e` besitzt erfolgreiche erforderliche
+  GitHub-Actions- und SonarQube-Cloud-Evidence. Diese Record-Korrektur ist ein
+  neuer Successor und muss alle Exact-Head-Checks, Review-, Ready-for-Review-,
+  Merge- und Resulting-Master-Evidence wiederholen. Die lokale gemappte
+  Non-root-Namespace-Integration bleibt nicht verfügbar.
 
 ## Bekannte Einschränkungen
 
@@ -235,15 +251,33 @@ Follow-up-Patch uncommitted war, und kehrte dann zum Task-Branch zurück. Der
 Patch wurde byteidentisch wiederhergestellt und kein Akteur wird zugeschrieben;
 `FND-PARENT-0182` hält diesen separaten Lifecycle-Defekt fest. Branch, Reflog,
 Source-Scope und Patch-Identität müssen vor Staging oder Push erneut geprüft
-werden.
+werden. Während des aktuellen Master-Integrations-Preflights trat der Wechsel
+erneut über eine fremde Branch nach `master` auf; der Main-Agent kehrte sauber
+ohne Verlust getrackter Task-Arbeit zurück und `FND-PARENT-0182` dokumentiert
+die neue Evidence.
+
+Am `2026-08-19T17:32:07Z` akzeptierte der aktuelle Benutzer ausdrücklich,
+ausschließlich für diese geschützte `master`-Integration von PR #302, das
+Fehlen von gemappter Non-root-Namespace-/gehosteter `validate_only`-
+Source-Preservation-Evidence sowie die fünf unabhängigen HAProxy-Cache-
+Fixture-Fehler, die breites `make lint` und `make quick-check` blockieren. Die
+Wortlaut-Freigabe war: „Ich akzeptiere beide Risiken für den Master-Merge von
+PR #302 und autorisiere Ready-for-review und den geschützten Merge nach maste“.
+Das letzte Wort wird wegen des eindeutigen ausgewählten PR und der Formulierung
+„Master-Merge“ als `master` interpretiert. Dies ist weder Finding-Closing noch
+eine Freigabe für spätere Arbeit.
 
 ## Finaler Diff- und Review-Status
 
-Die lokale Sonar-Remediation ist abgeschlossen und geprüft: Sie hat keine
-Whitespace-Fehler, der fokussierte Security-Review fand null reportable
-Findings, die fokussierten Module bestanden nach der Recovery und
-`make check-ci-security-contract` bestand. Sie ist noch nicht `verified`:
-Es gibt keinen Successor-Commit/-Head und kein Hosted-SonarCloud-Ergebnis, der
-gemappte Non-root-Namespace-Nachweis bleibt nicht verfügbar und der unabhängige
-HAProxy-Blocker verhindert weiterhin einen grünen breiten Lint-/Quick-check-
-Claim. Kein Ready-for-Review-, verified-PR- oder Merge-Ergebnis wird behauptet.
+Die Sonar-Remediation vor dieser Record-Korrektur ist abgeschlossen und geprüft:
+Sie hat keine Whitespace-Fehler, der fokussierte Security-Review fand null
+reportable Findings, die fokussierten Module bestanden nach der Recovery,
+`make check-ci-security-contract` bestand, und der exakte Head
+`35244aae8b3c8676e52d85e3869f9d9b4279f70e` bestand die erforderlichen Hosted-
+Checks und SonarQube Cloud. Die beiden unabhängigen Einschränkungen sind nur
+für diese eine geschützte PR-#302-Integration akzeptiert. Diese Record-
+Korrektur benötigt nun fokussierten Dokumentations-/Diff-Review, einen normalen
+Follow-up-Commit und Push sowie anschließend einen frischen Exact-Head-Check-,
+Review-, Ruleset-, Ready-for-review-, geschützten Squash-Merge- und Resulting-
+Master-Verifikationszyklus. Hier wird kein Ready-for-review- oder Merge-Ergebnis
+behauptet.

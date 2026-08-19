@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-08-19 |
 | Base revision | `35c435483dcd637c7b9df0277bed34d6f94dc44d` |
 | Historical Framework Gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
-| Delivery status | Draft PR [#302](https://github.com/Easton97-Jens/ModSecurity-conector/pull/302) was created from `agent/readonly-submodule-sandbox-preservation` at `c1b07a572321c31de1a0a9ae1fd554e2f9811b9f`; the traceability follow-up made its current committed head `a0f46d4e22830f081b20096734caf7e4a059b5cd`. Required GitHub Actions passed on that exact head, but SonarCloud check run `96097393398` failed on `6.4% Duplication on New Code`. The current user authorized a narrow source/test remediation and conditional protected `master` integration only after a successor head reports zero duplication and all fresh gates pass. The successor is not yet committed or pushed; PR #302 remains Draft and no merge is claimed. |
+| Delivery status | Task-owned Draft PR [#302](https://github.com/Easton97-Jens/ModSecurity-conector/pull/302) was created from `agent/readonly-submodule-sandbox-preservation` at `c1b07a572321c31de1a0a9ae1fd554e2f9811b9f`; follow-ups made `35244aae8b3c8676e52d85e3869f9d9b4279f70e` the pre-record current head. On that exact head, all required GitHub Actions passed, SonarQube Cloud check `96135044055` passed with `new_duplicated_lines=0`, `new_duplicated_lines_density=0.0`, zero new violations, and zero annotations, and the one bounded `traefik-go` rerun passed. At `2026-08-19T17:32:07Z`, the current user authorized protected integration of PR #302 and explicitly accepted the two documented residual risks for that one merge. This record correction must receive its own fresh exact-head checks before Ready-for-review and the protected squash merge; no merge is claimed. |
 
 ## Motivation and problem statement
 
@@ -31,6 +31,12 @@ cognitive complexity `16` where `15` is allowed, and a test assertion with
 multiple potentially throwing calls. The follow-up must reduce duplication to
 zero through source-native changes, not scanner, Quality-Gate, exclusion,
 suppression, `NOSONAR`, or issue-dismissal changes.
+
+The source-native successor
+`35244aae8b3c8676e52d85e3869f9d9b4279f70e` did so without changing a scanner,
+Quality Gate, exclusion, suppression, `NOSONAR`, dismissal, or sandbox
+control. It passed SonarQube Cloud with zero New-Code duplication and the
+required GitHub Actions bundle after the bounded `traefik-go` rerun.
 
 ## Acceptance criteria
 
@@ -153,6 +159,12 @@ request, or merge is authorized by this record.
   2 expected skips; the equivalent namespace command passed: 35 tests, 3
   expected skips. `make check-ci-security-contract` then passed: 122 tests, 5
   expected skips. `git diff --check` passed.
+- Exact pre-record PR #302 head `35244aae8b3c8676e52d85e3869f9d9b4279f70e`
+  passed SonarQube Cloud check `96135044055` with zero new-code duplication,
+  violations, code smells, and annotations; `gh pr checks 302` exited `0`.
+  The one initial bounded `traefik-go` fuzz timeout was investigated and its
+  unchanged rerun `96141428932` passed. This documentation-only correction
+  requires a fresh successor-head run before protected integration.
 
 ## Runtime evidence
 
@@ -166,8 +178,10 @@ UID 0. The new privileged prepare/candidate/verify integration test exists and
 skips fail-closed where the kernel or user namespace cannot map the dedicated
 identity or create the required namespace.
 
-No successful hosted run is claimed for this change. A direct mapped
-user/mount/PID-namespace probe exited `1` with `Operation not permitted`.
+The pre-record exact PR #302 head succeeded in hosted GitHub Actions and
+SonarQube Cloud as described above. No hosted `validate_only`
+source-preservation run is claimed. A direct mapped user/mount/PID-namespace
+probe exited `1` with `Operation not permitted`.
 
 The sealed working-tree security-diff report is
 `/var/tmp/codex/ModSecurity-conector/20260819T145000Z-sonar-duplication-security-diff/report.md`
@@ -191,12 +205,12 @@ and restored patches have the identical SHA-256
   checkout because `FND-PARENT-0182` records a separate checkout-preservation
   risk. The requested default discovery was nevertheless run and recorded
   above.
-- The previous exact PR #302 head's required GitHub Actions passed, but its
-  SonarCloud check run `96097393398` failed on `6.4% Duplication on New Code`.
-  The source-native successor is not yet committed or pushed, so successor-head
-  SonarCloud, GitHub Actions, review, ready-for-review, and merge evidence are
-  not yet available. The local mapped non-root namespace integration remains
-  unavailable.
+- The prior exact PR #302 head's SonarCloud failure was remediated: pre-record
+  successor `35244aae8b3c8676e52d85e3869f9d9b4279f70e` has successful required
+  GitHub Actions and SonarQube Cloud evidence. This record correction is a new
+  successor and must repeat all exact-head checks, review, Ready-for-review,
+  merge, and resulting-master evidence. The local mapped non-root namespace
+  integration remains unavailable.
 
 ## Known limitations
 
@@ -215,18 +229,34 @@ not concurrently mount attacker-controlled content into the root-only guard.
 Future changes must retain the source-preservation, nested-mount, private-path,
 and no-restore static contracts.
 
+At `2026-08-19T17:32:07Z`, the current user explicitly accepted, for this
+protected PR #302 `master` integration only, the absence of mapped non-root
+namespace/hosted `validate_only` source-preservation evidence and the five
+unrelated HAProxy cache-fixture failures that block broad `make lint` and
+`make quick-check`. The wording was: “Ich akzeptiere beide Risiken für den
+Master-Merge von PR #302 und autorisiere Ready-for-review und den geschützten
+Merge nach maste”. The final word is interpreted as `master` from the
+unambiguous selected PR and “Master-Merge” wording. This is neither a finding
+closure nor a waiver for later work.
+
 The shared checkout unexpectedly switched to `master` while the follow-up patch
 was uncommitted, then returned to the task branch. The patch was recovered
 byte-identically and no actor is attributed; `FND-PARENT-0182` retains this
 separate lifecycle defect. Branch, reflog, source scope, and patch identity
-must be rechecked before staging or pushing.
+must be rechecked before staging or pushing. During the current
+master-integration preflight, the checkout again moved through a foreign branch
+to `master`; the main agent returned cleanly without tracked task loss, and
+`FND-PARENT-0182` records the new evidence.
 
 ## Final diff and review status
 
-The local Sonar remediation is complete and reviewed: it has no whitespace
-errors, focused security review found zero reportable findings, the focused
-modules passed after recovery, and `make check-ci-security-contract` passed.
-It is not yet `verified`: no successor commit/head or hosted SonarCloud result
-exists, the mapped non-root namespace proof remains unavailable, and the
-unrelated HAProxy blocker still prevents a green broad lint/quick-check claim.
-No ready-for-review, verified-PR, or merge result is claimed.
+The pre-record Sonar remediation is complete and reviewed: it has no
+whitespace errors, the focused security review found zero reportable findings,
+the focused modules passed after recovery, `make check-ci-security-contract`
+passed, and exact head `35244aae8b3c8676e52d85e3869f9d9b4279f70e` passed the
+required hosted checks and SonarQube Cloud. The two independent limitations
+are accepted for this one protected PR #302 integration only. This record
+correction now requires a focused documentation/diff review, a normal follow-up
+commit and push, then a fresh exact-head check, review, ruleset, Ready-for-
+review, protected squash-merge, and resulting-master verification cycle. No
+ready-for-review or merge result is claimed here.
