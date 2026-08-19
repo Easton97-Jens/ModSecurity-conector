@@ -245,8 +245,8 @@ EXPECTED_CALLER_JOB_NAMES = frozenset(
 # building and the bundle builder cross-checks its literals again. They are
 # deliberately not caller inputs and never select a moving reference.
 CRS_APPROVED_REPOSITORY = "https://github.com/coreruleset/coreruleset.git"
-CRS_RELEASE_TAG = "v4.28.0"
-CRS_APPROVED_COMMIT = "55b09f5acfd16413e7b31041100711ceb7adc89c"
+CRS_RELEASE_TAG = "v4.29.0"
+CRS_APPROVED_COMMIT = "ab3ccd5fcd691424ba3f320d4040c61417270193"
 NGINX_PINNED_VERSION = "1.31.3"
 NGINX_PINNED_RELEASE_TAG = "release-1.31.3"
 CRS_EXPECTED_RULE_ID = "949110"
