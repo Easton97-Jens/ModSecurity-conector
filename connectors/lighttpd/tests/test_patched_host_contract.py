@@ -13,7 +13,7 @@ CONNECTOR = REPO_ROOT / "connectors" / "lighttpd"
 CONTRACT = CONNECTOR / "lighttpd-version.contract"
 
 
-def contract_value(key: str) -> str:
+def contract_values() -> dict[str, str]:
     values: dict[str, str] = {}
     for line in CONTRACT.read_text(encoding="utf-8").splitlines():
         if not line or line.startswith("#"):
@@ -23,6 +23,7 @@ def contract_value(key: str) -> str:
             raise ValueError("invalid lighttpd version contract")
         values[name] = value
     if set(values) != {
+        "LIGHTTPD_SERIES",
         "LIGHTTPD_VERSION",
         "LIGHTTPD_SOURCE_URL",
         "LIGHTTPD_DOWNLOAD_URL",
@@ -30,9 +31,15 @@ def contract_value(key: str) -> str:
         "LIGHTTPD_PATCH_FILENAME",
     }:
         raise ValueError("invalid lighttpd version contract fields")
+    return values
+
+
+def contract_value(key: str) -> str:
+    values = contract_values()
     return values[key]
 
 
+LIGHTTPD_SERIES = contract_value("LIGHTTPD_SERIES")
 LIGHTTPD_VERSION = contract_value("LIGHTTPD_VERSION")
 PATCH = CONNECTOR / "patches" / contract_value("LIGHTTPD_PATCH_FILENAME")
 
@@ -295,6 +302,45 @@ class PatchedCoreBootstrapTest(unittest.TestCase):
 
 
 class PatchedHostContractTest(unittest.TestCase):
+    def test_series_provenance_contract_and_reader_are_consistent(self) -> None:
+        values = contract_values()
+        self.assertRegex(LIGHTTPD_SERIES, r"^[0-9]+\.[0-9]+$")
+        self.assertRegex(LIGHTTPD_VERSION, r"^[0-9]+\.[0-9]+\.[0-9]+$")
+        self.assertEqual(".".join(LIGHTTPD_VERSION.split(".")[:2]), LIGHTTPD_SERIES)
+        expected_source = (
+            "https://download.lighttpd.net/lighttpd/"
+            f"releases-{LIGHTTPD_SERIES}.x/"
+        )
+        self.assertEqual(values["LIGHTTPD_SOURCE_URL"], expected_source)
+        self.assertEqual(
+            values["LIGHTTPD_DOWNLOAD_URL"],
+            f"{expected_source}lighttpd-{LIGHTTPD_VERSION}.tar.xz",
+        )
+        source_map = json.loads((CONNECTOR / "SOURCE_MAP.json").read_text(encoding="utf-8"))
+        self.assertEqual(source_map["upstream"]["series"], LIGHTTPD_SERIES)
+        self.assertEqual(source_map["upstream"]["version"], LIGHTTPD_VERSION)
+        self.assertEqual(source_map["upstream"]["repository"], expected_source)
+        self.assertEqual(source_map["upstream"]["download_url"], values["LIGHTTPD_DOWNLOAD_URL"])
+        reader = CONNECTOR / "build" / "read_version.sh"
+        for key in (
+            "LIGHTTPD_SERIES",
+            "LIGHTTPD_VERSION",
+            "LIGHTTPD_SOURCE_URL",
+            "LIGHTTPD_DOWNLOAD_URL",
+            "LIGHTTPD_SHA256",
+        ):
+            with self.subTest(key=key):
+                result = subprocess.run(
+                    ["sh", str(reader), key],
+                    cwd=REPO_ROOT,
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), values[key])
+
     def test_patch_uses_a_file_scope_compile_time_size_check(self) -> None:
         patch = PATCH.read_text(encoding="utf-8")
         self.assertNotIn("ck_static_assert", patch)

@@ -13,6 +13,8 @@ import tempfile
 import time
 import unittest
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MATRIX_RUNNER = ROOT / "ci" / "runtime" / "lifecycle" / "run-full-matrix-parallel.sh"
@@ -226,6 +228,15 @@ printf '%s|%s\\n' "$connector" "$PORT" >> "$CAPTURE_FILE"
         )
 
     def matrix_environment(self, root: Path, bin_dir: Path, capture_file: Path) -> dict[str, str]:
+        configured_root = Path(
+            os.environ.get(
+                "PARENT_TEST_FRAMEWORK_ROOT",
+                ROOT / "modules" / "ModSecurity-test-Framework",
+            )
+        )
+        framework_root, error = trusted_framework_root(ROOT, configured_root)
+        if framework_root is None:
+            self.skipTest(error)
         verified_root = root / "verified"
         component_cache = verified_root / "cache-v2" / "shared"
         owner_root = component_cache / "builds" / "connectors"
@@ -262,7 +273,7 @@ printf '%s|%s\\n' "$connector" "$PORT" >> "$CAPTURE_FILE"
                 "FAKE_PYTHON": sys.executable,
                 "FAKE_MAKE_SLEEP": "0.15",
                 "CONNECTOR_ROOT": str(ROOT),
-                "FRAMEWORK_ROOT": str(ROOT / "modules" / "ModSecurity-test-Framework"),
+                "FRAMEWORK_ROOT": str(framework_root),
                 "VERIFIED_RUN_ROOT": str(verified_root),
                 "VERIFIED_BUILD_ROOT": str(verified_root / "build"),
                 "BUILD_ROOT": str(verified_root / "build"),

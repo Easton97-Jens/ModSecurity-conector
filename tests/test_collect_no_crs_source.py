@@ -12,8 +12,13 @@ import sys
 import tempfile
 import unittest
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
+FRAMEWORK_ROOT = Path(
+    os.environ.get("PARENT_TEST_FRAMEWORK_ROOT", ROOT / "modules" / "ModSecurity-test-Framework")
+)
 SPEC = importlib.util.spec_from_file_location(
     "collect_no_crs_source", ROOT / "ci/runtime/lifecycle/collect-no-crs-source.py"
 )
@@ -22,15 +27,6 @@ assert SPEC.loader is not None
 collector = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(collector)
 
-FRAMEWORK_SPEC = importlib.util.spec_from_file_location(
-    "framework_no_crs_baseline",
-    ROOT / "modules/ModSecurity-test-Framework/ci/checks/catalog/no_crs_baseline.py",
-)
-assert FRAMEWORK_SPEC is not None
-assert FRAMEWORK_SPEC.loader is not None
-framework_baseline = importlib.util.module_from_spec(FRAMEWORK_SPEC)
-FRAMEWORK_SPEC.loader.exec_module(framework_baseline)
-
 TRAEFIK_SPEC = importlib.util.spec_from_file_location(
     "traefik_runtime_smoke", ROOT / "connectors/traefik/scripts/runtime_smoke.py"
 )
@@ -38,6 +34,22 @@ assert TRAEFIK_SPEC is not None
 assert TRAEFIK_SPEC.loader is not None
 traefik_smoke = importlib.util.module_from_spec(TRAEFIK_SPEC)
 TRAEFIK_SPEC.loader.exec_module(traefik_smoke)
+
+
+def load_trusted_framework_baseline(test_case: unittest.TestCase) -> object:
+    framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+    if framework_root is None:
+        test_case.skipTest(error)
+    assert framework_root is not None
+    spec = importlib.util.spec_from_file_location(
+        "framework_no_crs_baseline",
+        framework_root / "ci" / "checks" / "catalog" / "no_crs_baseline.py",
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class CollectNoCrsSourceTest(unittest.TestCase):
@@ -281,7 +293,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertEqual(canonical_event["integration_mode"], "native_htx_filter")
         self.assertEqual(canonical_event["status"], "not_attempted")
         self.assertEqual(
-            framework_baseline.canonical_event_errors(
+            load_trusted_framework_baseline(self).canonical_event_errors(
                 canonical_event,
                 connector="haproxy",
             ),
@@ -1265,7 +1277,10 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertNotIn("|| true", fallback)
 
     def test_synchronized_fallback_helper_requires_and_honors_control_root(self) -> None:
-        helper = ROOT / "modules" / "ModSecurity-test-Framework" / "tests" / "runners" / "synchronized_upstream.py"
+        framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+        if framework_root is None:
+            self.skipTest(error)
+        helper = framework_root / "tests" / "runners" / "synchronized_upstream.py"
         with tempfile.TemporaryDirectory(prefix="synchronized-fallback-") as temporary:
             control_root = Path(temporary)
             output = control_root / "first-byte-evidence.json"

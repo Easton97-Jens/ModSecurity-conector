@@ -10,6 +10,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK_ROOT = Path(
@@ -50,6 +52,12 @@ MISMATCH_SPEC.loader.exec_module(runtime_mismatch)
 
 
 class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
+    def setUp(self) -> None:
+        framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+        if framework_root is None:
+            self.skipTest(error)
+        self.framework_root = framework_root
+
     def test_native_summary_and_mismatch_helpers_keep_outputs_with_reduced_context_parameters(self) -> None:
         with tempfile.TemporaryDirectory(prefix="native-summary-signatures-") as temporary:
             root = Path(temporary)

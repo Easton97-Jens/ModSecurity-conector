@@ -1,24 +1,29 @@
 from __future__ import annotations
 
 import importlib
+import os
 from pathlib import Path
 import sys
 import tempfile
 import unittest
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNNERS = ROOT / "modules" / "ModSecurity-test-Framework" / "tests" / "runners"
+FRAMEWORK_ROOT = Path(
+    os.environ.get("PARENT_TEST_FRAMEWORK_ROOT", ROOT / "modules" / "ModSecurity-test-Framework")
+)
 _MISSING_MODULE = object()
 
 
-def load_framework_runner_core():
-    """Load the Framework runner without retaining its generic CI helper.
+def load_framework_runner_core(framework_root: Path) -> object:
+    """Load a pre-validated Framework runner without retaining shared helpers.
 
     Parent and Framework both provide ``generated_report_utils``.  Discovery
-    must bind the Framework implementation for this test, then restore the
-    surrounding interpreter state so later Parent tests resolve their own
-    helper.
+    must bind the Framework implementation only after its caller has verified
+    the Parent-pinned test root, then restore the surrounding interpreter state
+    so later Parent tests resolve their own helper.
     """
 
     previous_path = list(sys.path)
@@ -27,7 +32,7 @@ def load_framework_runner_core():
         "generated_report_utils", _MISSING_MODULE
     )
     try:
-        sys.path.insert(0, str(RUNNERS))
+        sys.path.insert(0, str(framework_root / "tests" / "runners"))
         module = importlib.import_module("runner_core")
     finally:
         sys.path[:] = previous_path
@@ -40,17 +45,17 @@ def load_framework_runner_core():
     return module
 
 
-runner_core = load_framework_runner_core()
-load_case = runner_core.load_case
-write_shell_env = runner_core.write_shell_env
-
-
-FIXTURES = ROOT / "modules" / "ModSecurity-test-Framework" / "tests" / "cases" / "connector-specific" / "nginx"
-
-
 class NginxPhase4RunnerWiringTest(unittest.TestCase):
+    def trusted_runner_context(self) -> tuple[object, Path]:
+        framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+        if framework_root is None:
+            self.skipTest(error)
+        return load_framework_runner_core(framework_root), framework_root
+
     def load_fixture(self, filename: str):
-        return load_case(FIXTURES / filename)
+        runner_core, framework_root = self.trusted_runner_context()
+        fixtures = framework_root / "tests" / "cases" / "connector-specific" / "nginx"
+        return runner_core.load_case(fixtures / filename)
 
     def test_safe_fixture_records_a_real_late_log_only_outcome(self) -> None:
         case = self.load_fixture("nginx_phase4_deny_after_commit_log_only.yaml")
@@ -92,9 +97,10 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
 
     def test_generic_case_environment_carries_only_the_reviewed_mode(self) -> None:
         case = self.load_fixture("nginx_phase4_deny_after_commit_log_only.yaml")
+        runner_core, _ = self.trusted_runner_context()
         with tempfile.TemporaryDirectory() as temporary:
             env_file = Path(temporary) / "case.env"
-            write_shell_env(case, env_file, output_root=temporary)
+            runner_core.write_shell_env(case, env_file, output_root=temporary)
             content = env_file.read_text(encoding="utf-8")
         self.assertIn("NGINX_PHASE4_MODE=safe", content)
         self.assertNotIn("actual_action", content)

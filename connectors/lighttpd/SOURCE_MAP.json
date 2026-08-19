@@ -6,6 +6,7 @@
   "upstream": {
     "selected": true,
     "repository": "https://download.lighttpd.net/lighttpd/releases-1.4.x/",
+    "series": "1.4",
     "version": "1.4.85",
     "commit": "release tarball",
     "download_url": "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.85.tar.xz",

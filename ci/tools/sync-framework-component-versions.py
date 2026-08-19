@@ -3,8 +3,8 @@
 
 ``common.sh`` is never sourced or executed. The protected update workflow
 proves the Framework Git object, extracts its ``ci/lib/common.sh`` as a data
-file, and this tool accepts only the bounded literal contract below. It can
-write only the explicit Parent target registry.
+file, and this tool accepts only a bounded registry-defined data grammar. It
+can write only the explicit Parent target registry.
 """
 from __future__ import annotations
 
@@ -17,37 +17,24 @@ from pathlib import Path
 import re
 import stat
 import tempfile
+from urllib.parse import urlsplit
 
 
 MAX_COMMON_BYTES = 256 * 1024
+MAX_RESOLUTION_DEPTH = 32
+MAX_RESOLVED_VALUE_BYTES = 64 * 1024
+MAX_RESOLVED_TOTAL_BYTES = 256 * 1024
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 HEX40 = re.compile(r"^[0-9a-fA-F]{40}$")
 SAFE_PATCH = re.compile(r"^[A-Za-z0-9._-]+\.patch$")
-LIGHTTPD_SOURCE_URL = "https://download.lighttpd.net/lighttpd/releases-1.4.x/"
-
-REQUIRED = (
-    "ENVOY_VERSION",
-    "LIGHTTPD_VERSION",
-    "LIGHTTPD_SOURCE_URL",
-    "LIGHTTPD_DOWNLOAD_URL",
-    "LIGHTTPD_SHA256",
-    "HAPROXY_VERSION",
-    "HAPROXY_SOURCE_URL",
-    "HAPROXY_SHA256",
-    "NGINX_QUIC_TLS_LIBRARY",
-    "NGINX_QUIC_TLS_VERSION",
-    "NGINX_QUIC_TLS_SOURCE_URL",
-    "NGINX_QUIC_TLS_SOURCE_SHA256",
-    "NGINX_SOURCE_MODE",
-    "NGINX_SOURCE_REPO_URL",
-    "NGINX_RELEASE_TAG",
-    "NGINX_SOURCE_GIT_REF",
-    "NGINX_RELEASE_ASSET_NAME",
-    "NGINX_SHA256",
-    "CRS_APPROVED_REPO_URL",
-    "CRS_APPROVED_COMMIT",
-    "CRS_RELEASE_TAG",
-)
+SERIES = re.compile(r"^[0-9]+\.[0-9]+$")
+OFFICIAL_LIGHTTPD_RELEASE_ROOT_URL = "https://download.lighttpd.net/lighttpd"
+OFFICIAL_HAPROXY_RELEASE_ROOT_URL = "https://www.haproxy.org/download"
+OFFICIAL_NGINX_SOURCE_REPOSITORY = "https://github.com/nginx/nginx"
+OFFICIAL_CRS_REPOSITORY = "https://github.com/coreruleset/coreruleset.git"
+# The one retained legacy syntax is a static fallback needed by the current
+# Framework data model. It never consults the process environment.
+LEGACY_SELF_DEFAULTS = {"NGINX_QUIC_TLS_LIBRARY": "openssl"}
 
 
 class SyncError(ValueError):
@@ -63,6 +50,26 @@ def _semantic_version(value: object) -> bool:
         return False
     parts = value.split(".")
     return len(parts) == 3 and all(_ascii_digits(part) for part in parts)
+
+
+def _series(value: object) -> bool:
+    return isinstance(value, str) and bool(SERIES.fullmatch(value))
+
+
+def _safe_ascii_value(value: str) -> bool:
+    """Accept only printable, non-shell-significant resolved data."""
+
+    if not value or not value.isascii():
+        return False
+    return all(
+        "!" <= character <= "~"
+        and character not in "$`;&|<>\\\"'#"
+        for character in value
+    )
+
+
+def _fixed_value(expected: str) -> Callable[[str], bool]:
+    return lambda value: value == expected
 
 
 def _assignment_key(value: str) -> bool:
@@ -84,6 +91,249 @@ def _assignment(line: str) -> tuple[str, str] | None:
     if not _assignment_key(key):
         return None
     return key, rhs.lstrip(" \t")
+
+
+@dataclass(frozen=True)
+class SourceField:
+    """One fixed Framework datum that the Parent may consume or resolve."""
+
+    name: str
+    required: bool
+    allowed_expression_types: tuple[str, ...]
+    validator: Callable[[str], bool]
+    parent_consumer: str
+
+
+LITERAL = ("literal",)
+REFERENCES = ("literal", "references")
+PREFIX_REFERENCE = ("literal", "references", "prefix_remove")
+LEGACY_SELF_DEFAULT = ("literal", "legacy_self_default")
+
+# This is a source/data allowlist, deliberately separate from TARGET_REGISTRY.
+# It records direct Parent consumers and the intermediate fields required to
+# resolve their tuples. Framework-only pins are intentionally not listed and
+# cannot influence Parent output.
+SOURCE_REGISTRY = (
+    SourceField("ENVOY_VERSION", True, LITERAL, _semantic_version, "Envoy projection"),
+    SourceField("LIGHTTPD_SERIES", True, LITERAL, _series, "Lighttpd provenance"),
+    SourceField(
+        "LIGHTTPD_RELEASE_ROOT_URL",
+        True,
+        LITERAL,
+        _safe_ascii_value,
+        "Lighttpd resolution dependency",
+    ),
+    SourceField(
+        "LIGHTTPD_SERIES_BASE_URL",
+        True,
+        REFERENCES,
+        _safe_ascii_value,
+        "Lighttpd resolution dependency",
+    ),
+    SourceField("LIGHTTPD_VERSION", True, LITERAL, _semantic_version, "Lighttpd projection"),
+    SourceField(
+        "LIGHTTPD_SOURCE_URL",
+        True,
+        REFERENCES,
+        _safe_ascii_value,
+        "Lighttpd projection",
+    ),
+    SourceField(
+        "LIGHTTPD_ARCHIVE_NAME",
+        True,
+        REFERENCES,
+        _safe_ascii_value,
+        "Lighttpd resolution dependency",
+    ),
+    SourceField(
+        "LIGHTTPD_DOWNLOAD_URL",
+        True,
+        REFERENCES,
+        _safe_ascii_value,
+        "Lighttpd projection",
+    ),
+    SourceField(
+        "LIGHTTPD_SHA256",
+        True,
+        LITERAL,
+        lambda value: bool(HEX64.fullmatch(value)),
+        "Lighttpd projection",
+    ),
+    SourceField("HAPROXY_SERIES", True, LITERAL, _series, "HAProxy runtime tuple"),
+    SourceField(
+        "HAPROXY_RELEASE_ROOT_URL",
+        True,
+        LITERAL,
+        _safe_ascii_value,
+        "HAProxy resolution dependency",
+    ),
+    SourceField(
+        "HAPROXY_SERIES_BASE_URL",
+        True,
+        REFERENCES,
+        _safe_ascii_value,
+        "HAProxy resolution dependency",
+    ),
+    SourceField("HAPROXY_VERSION", True, LITERAL, _semantic_version, "HAProxy runtime projection"),
+    SourceField(
+        "HAPROXY_ARCHIVE_NAME",
+        True,
+        REFERENCES,
+        _safe_ascii_value,
+        "HAProxy resolution dependency",
+    ),
+    SourceField(
+        "HAPROXY_SOURCE_URL",
+        True,
+        REFERENCES,
+        _safe_ascii_value,
+        "HAProxy runtime tuple",
+    ),
+    SourceField(
+        "HAPROXY_SHA256",
+        True,
+        LITERAL,
+        lambda value: bool(HEX64.fullmatch(value)),
+        "HAProxy runtime tuple",
+    ),
+    SourceField("HAPROXY_HTX_SERIES", True, LITERAL, _series, "HAProxy HTX tuple"),
+    SourceField(
+        "HAPROXY_HTX_SERIES_BASE_URL",
+        True,
+        REFERENCES,
+        _safe_ascii_value,
+        "HAProxy HTX resolution dependency",
+    ),
+    SourceField(
+        "HAPROXY_HTX_VERSION",
+        True,
+        LITERAL,
+        _semantic_version,
+        "HAProxy HTX projection",
+    ),
+    SourceField(
+        "HAPROXY_HTX_ARCHIVE_NAME",
+        True,
+        REFERENCES,
+        _safe_ascii_value,
+        "HAProxy HTX resolution dependency",
+    ),
+    SourceField(
+        "HAPROXY_HTX_SOURCE_URL",
+        True,
+        REFERENCES,
+        _safe_ascii_value,
+        "HAProxy HTX projection",
+    ),
+    SourceField(
+        "HAPROXY_HTX_SHA256",
+        True,
+        LITERAL,
+        lambda value: bool(HEX64.fullmatch(value)),
+        "HAProxy HTX projection",
+    ),
+    SourceField(
+        "NGINX_SOURCE_MODE",
+        True,
+        LITERAL,
+        _fixed_value("github-release"),
+        "NGINX projections",
+    ),
+    SourceField(
+        "NGINX_SOURCE_REPO_URL",
+        True,
+        LITERAL,
+        _safe_ascii_value,
+        "NGINX projections",
+    ),
+    SourceField(
+        "NGINX_RELEASE_TAG",
+        True,
+        LITERAL,
+        lambda value: bool(re.fullmatch(r"release-[0-9]+\.[0-9]+\.[0-9]+", value)),
+        "NGINX projections",
+    ),
+    SourceField(
+        "NGINX_SOURCE_GIT_REF",
+        True,
+        REFERENCES,
+        _safe_ascii_value,
+        "NGINX projections",
+    ),
+    SourceField(
+        "NGINX_RELEASE_ASSET_NAME",
+        True,
+        PREFIX_REFERENCE,
+        _safe_ascii_value,
+        "NGINX projections",
+    ),
+    SourceField(
+        "NGINX_SHA256",
+        True,
+        LITERAL,
+        lambda value: bool(HEX64.fullmatch(value)),
+        "NGINX projections",
+    ),
+    SourceField(
+        "NGINX_QUIC_TLS_LIBRARY",
+        True,
+        LEGACY_SELF_DEFAULT,
+        _fixed_value("openssl"),
+        "NGINX TLS projection",
+    ),
+    SourceField(
+        "NGINX_QUIC_TLS_VERSION",
+        True,
+        LITERAL,
+        _semantic_version,
+        "NGINX TLS projection",
+    ),
+    SourceField(
+        "NGINX_QUIC_TLS_ARCHIVE_NAME",
+        True,
+        REFERENCES,
+        _safe_ascii_value,
+        "NGINX TLS resolution dependency",
+    ),
+    SourceField(
+        "NGINX_QUIC_TLS_SOURCE_URL",
+        True,
+        REFERENCES,
+        _safe_ascii_value,
+        "NGINX TLS projection",
+    ),
+    SourceField(
+        "NGINX_QUIC_TLS_SOURCE_SHA256",
+        True,
+        LITERAL,
+        lambda value: bool(HEX64.fullmatch(value)),
+        "NGINX TLS projection",
+    ),
+    SourceField(
+        "CRS_APPROVED_REPO_URL",
+        True,
+        LITERAL,
+        _fixed_value(OFFICIAL_CRS_REPOSITORY),
+        "CRS Parent projections",
+    ),
+    SourceField(
+        "CRS_APPROVED_COMMIT",
+        True,
+        LITERAL,
+        lambda value: bool(HEX40.fullmatch(value)),
+        "CRS Parent projections",
+    ),
+    SourceField(
+        "CRS_RELEASE_TAG",
+        True,
+        LITERAL,
+        lambda value: bool(re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", value)),
+        "CRS Parent projections",
+    ),
+)
+SOURCE_FIELDS = {field.name: field for field in SOURCE_REGISTRY}
+if len(SOURCE_FIELDS) != len(SOURCE_REGISTRY):
+    raise RuntimeError("duplicate source field registry entry")
 
 
 @dataclass(frozen=True)
@@ -162,6 +412,7 @@ TARGET_REGISTRY = (
     TargetSpec(
         "connectors/lighttpd/lighttpd-version.contract",
         (
+            ("LIGHTTPD_SERIES", "LIGHTTPD_SERIES"),
             ("LIGHTTPD_VERSION", "LIGHTTPD_VERSION"),
             ("LIGHTTPD_SOURCE_URL", "LIGHTTPD_SOURCE_URL"),
             ("LIGHTTPD_DOWNLOAD_URL", "LIGHTTPD_DOWNLOAD_URL"),
@@ -173,6 +424,7 @@ TARGET_REGISTRY = (
         "connectors/lighttpd/SOURCE_MAP.json",
         (
             ("repository", "LIGHTTPD_SOURCE_URL"),
+            ("series", "LIGHTTPD_SERIES"),
             ("version", "LIGHTTPD_VERSION"),
             ("download_url", "LIGHTTPD_DOWNLOAD_URL"),
         ),
@@ -181,9 +433,9 @@ TARGET_REGISTRY = (
     TargetSpec(
         "connectors/haproxy/htx-overlay/version-contract.json",
         (
-            ("version", "HAPROXY_VERSION"),
-            ("source_url", "HAPROXY_SOURCE_URL"),
-            ("sha256", "HAPROXY_SHA256"),
+            ("version", "HAPROXY_HTX_VERSION"),
+            ("source_url", "HAPROXY_HTX_SOURCE_URL"),
+            ("sha256", "HAPROXY_HTX_SHA256"),
         ),
         "haproxy-contract",
     ),
@@ -329,7 +581,8 @@ def _target_path(root: Path, relative_path: str) -> Path:
 
 
 def _unquote(rhs: str, key: str) -> str:
-    value = rhs.strip()
+    # Preserve CR/LF so the source-expression gate can reject them explicitly.
+    value = rhs.strip(" \t")
     if not value:
         raise SyncError(f"empty assignment in {key}")
     if value[0] in "\"'":
@@ -342,65 +595,155 @@ def _unquote(rhs: str, key: str) -> str:
 
 
 def _literal(rhs: str, key: str) -> str:
+    """Read a literal from a generated Parent contract, never Framework data."""
+
     value = _unquote(rhs, key)
-    if any(token in value for token in ("$(`", "$(", "`", ";", "|", "\\", "\n", "\r")):
+    if not _safe_ascii_value(value):
         raise SyncError(f"unsafe shell syntax in {key}")
-    default = re.fullmatch(r"\$\{" + re.escape(key) + r"(?::?-)([^${}]*)\}", value)
-    if default:
-        value = default.group(1)
-    if "$" in value or not value:
-        raise SyncError(f"non-literal assignment in {key}")
     return value
 
 
-def _resolve_nginx_source_ref(rhs: str, release_tag: str) -> str:
-    value = _unquote(rhs, "NGINX_SOURCE_GIT_REF")
-    if value == "${NGINX_SOURCE_GIT_REF-$NGINX_RELEASE_TAG}":
-        return release_tag
-    return _literal(rhs, "NGINX_SOURCE_GIT_REF")
+def _require_expression_type(field: SourceField, expression_type: str) -> None:
+    if expression_type not in field.allowed_expression_types:
+        raise SyncError(
+            f"unsupported {expression_type} expression in {field.name}"
+        )
 
 
-def _resolve_lighttpd_download_url(rhs: str, source_url: str, version: str) -> str:
-    value = _unquote(rhs, "LIGHTTPD_DOWNLOAD_URL")
-    expected = f"${{LIGHTTPD_DOWNLOAD_URL:-{LIGHTTPD_SOURCE_URL}lighttpd-$LIGHTTPD_VERSION.tar.xz}}"
-    if value == expected:
-        return f"{source_url}lighttpd-{version}.tar.xz"
-    return _literal(rhs, "LIGHTTPD_DOWNLOAD_URL")
+def _source_expression_parts(rhs: str, field: SourceField) -> list[tuple[str, str, str]]:
+    """Tokenize one allowlisted non-executing assignment expression."""
+
+    stripped = rhs.strip(" \t")
+    if stripped.startswith("'"):
+        raise SyncError(f"single-quoted assignment is unsupported in {field.name}")
+    value = _unquote(rhs, field.name)
+    if any(character in value for character in ("`", ";", "|", "&", "<", ">", "\\", "\r", "\n", "\x00", "'", "\"", "(", ")")):
+        raise SyncError(f"unsafe shell syntax in {field.name}")
+    if re.search(r"(?:^|[^A-Za-z0-9_])eval(?:$|[^A-Za-z0-9_])", value):
+        raise SyncError(f"unsafe shell syntax in {field.name}")
+
+    parts: list[tuple[str, str, str]] = []
+    literal: list[str] = []
+    index = 0
+    while index < len(value):
+        character = value[index]
+        if character == "$":
+            if literal:
+                parts.append(("literal", "".join(literal), ""))
+                literal = []
+            if index + 1 >= len(value):
+                raise SyncError(f"invalid variable reference in {field.name}")
+            if value[index + 1] == "{":
+                closing = value.find("}", index + 2)
+                if closing == -1:
+                    raise SyncError(f"unbalanced parameter expansion in {field.name}")
+                body = value[index + 2 : closing]
+                fallback = LEGACY_SELF_DEFAULTS.get(field.name)
+                if (
+                    fallback is not None
+                    and body == f"{field.name}:-{fallback}"
+                    and "legacy_self_default" in field.allowed_expression_types
+                ):
+                    _require_expression_type(field, "legacy_self_default")
+                    parts.append(("literal", fallback, ""))
+                elif _assignment_key(body):
+                    _require_expression_type(field, "references")
+                    if body not in SOURCE_FIELDS:
+                        raise SyncError(f"unknown source variable reference in {field.name}: {body}")
+                    parts.append(("reference", body, ""))
+                else:
+                    prefix = re.fullmatch(r"([A-Z][A-Z0-9_]*)#([A-Za-z0-9._-]+)", body)
+                    if prefix is None:
+                        raise SyncError(f"unsupported parameter expansion in {field.name}")
+                    reference, removed_prefix = prefix.groups()
+                    if (
+                        field.name != "NGINX_RELEASE_ASSET_NAME"
+                        or reference != "NGINX_RELEASE_TAG"
+                        or removed_prefix != "release-"
+                    ):
+                        raise SyncError(f"unsupported prefix removal in {field.name}")
+                    _require_expression_type(field, "prefix_remove")
+                    parts.append(("prefix_remove", reference, removed_prefix))
+                index = closing + 1
+                continue
+            match = re.match(r"\$([A-Z][A-Z0-9_]*)", value[index:])
+            if match is None:
+                raise SyncError(f"invalid variable reference in {field.name}")
+            reference = match.group(1)
+            _require_expression_type(field, "references")
+            if reference not in SOURCE_FIELDS:
+                raise SyncError(f"unknown source variable reference in {field.name}: {reference}")
+            parts.append(("reference", reference, ""))
+            index += len(match.group(0))
+            continue
+        if character in "{}":
+            raise SyncError(f"unsupported shell syntax in {field.name}")
+        literal.append(character)
+        index += 1
+    if literal:
+        parts.append(("literal", "".join(literal), ""))
+    if not parts:
+        raise SyncError(f"empty assignment in {field.name}")
+    if all(kind == "literal" for kind, _value, _detail in parts):
+        _require_expression_type(field, "literal")
+    return parts
 
 
-def _resolve_haproxy_source_url(rhs: str, version: str) -> str:
-    value = _unquote(rhs, "HAPROXY_SOURCE_URL")
-    expected = "${HAPROXY_SOURCE_URL:-https://www.haproxy.org/download/3.2/src/haproxy-$HAPROXY_VERSION.tar.gz}"
-    if value == expected:
-        return f"https://www.haproxy.org/download/{'.'.join(version.split('.')[:2])}/src/haproxy-{version}.tar.gz"
-    return _literal(rhs, "HAPROXY_SOURCE_URL")
+def _resolve_source_values(raw: dict[str, str]) -> dict[str, str]:
+    """Resolve only fixed-registry references without a shell or environment."""
 
+    states: dict[str, str] = {}
+    resolved: dict[str, str] = {}
+    resolved_total_bytes = 0
 
-def _resolve_nginx_source_repository(rhs: str) -> str:
-    value = _unquote(rhs, "NGINX_SOURCE_REPO_URL")
-    expected = "${NGINX_SOURCE_REPO_URL-${NGINX_GITHUB_REPO-https://github.com/nginx/nginx}}"
-    if value == expected:
-        return "https://github.com/nginx/nginx"
-    return _literal(rhs, "NGINX_SOURCE_REPO_URL")
+    def resolve(name: str, depth: int) -> str:
+        nonlocal resolved_total_bytes
+        if depth > MAX_RESOLUTION_DEPTH:
+            raise SyncError(f"source assignment resolution exceeds depth limit at {name}")
+        state = states.get(name)
+        if state == "active":
+            raise SyncError(f"cyclic source assignment reference at {name}")
+        if state == "complete":
+            return resolved[name]
+        field = SOURCE_FIELDS[name]
+        states[name] = "active"
+        fragments: list[str] = []
+        resolved_size_bytes = 0
+        for kind, value, detail in _source_expression_parts(raw[name], field):
+            if kind == "literal":
+                fragment = value
+            elif kind == "reference":
+                fragment = resolve(value, depth + 1)
+            elif kind == "prefix_remove":
+                referenced = resolve(value, depth + 1)
+                if not referenced.startswith(detail):
+                    raise SyncError(
+                        f"{name} prefix removal does not match referenced value"
+                    )
+                fragment = referenced.removeprefix(detail)
+            else:
+                raise SyncError(f"unsupported expression token in {name}")
+            resolved_size_bytes += len(fragment.encode("utf-8"))
+            if resolved_size_bytes > MAX_RESOLVED_VALUE_BYTES:
+                raise SyncError(
+                    f"resolved assignment exceeds byte budget in {name}"
+                )
+            fragments.append(fragment)
+        resolved_value = "".join(fragments)
+        if not resolved_value:
+            raise SyncError(f"empty resolved assignment in {name}")
+        if resolved_total_bytes + resolved_size_bytes > MAX_RESOLVED_TOTAL_BYTES:
+            raise SyncError("resolved source assignments exceed aggregate byte budget")
+        if not field.validator(resolved_value):
+            raise SyncError(f"resolved value is invalid for {name}")
+        resolved[name] = resolved_value
+        resolved_total_bytes += resolved_size_bytes
+        states[name] = "complete"
+        return resolved_value
 
-
-def _resolve_nginx_quic_tls_url(rhs: str, version: str) -> str:
-    value = _unquote(rhs, "NGINX_QUIC_TLS_SOURCE_URL")
-    expected = (
-        "${NGINX_QUIC_TLS_SOURCE_URL:-https://github.com/openssl/openssl/releases/download/"
-        "openssl-$NGINX_QUIC_TLS_VERSION/openssl-$NGINX_QUIC_TLS_VERSION.tar.gz}"
-    )
-    if value == expected:
-        return f"https://github.com/openssl/openssl/releases/download/openssl-{version}/openssl-{version}.tar.gz"
-    return _literal(rhs, "NGINX_QUIC_TLS_SOURCE_URL")
-
-
-def _resolve_nginx_asset_name(rhs: str, release_tag: str) -> str:
-    value = _unquote(rhs, "NGINX_RELEASE_ASSET_NAME")
-    expected = "${NGINX_RELEASE_ASSET_NAME-nginx-${NGINX_RELEASE_TAG#release-}.tar.gz}"
-    if value == expected:
-        return f"nginx-{release_tag.removeprefix('release-')}.tar.gz"
-    return _literal(rhs, "NGINX_RELEASE_ASSET_NAME")
+    for field in SOURCE_REGISTRY:
+        resolve(field.name, 0)
+    return resolved
 
 
 def parse_common(path: Path) -> dict[str, str]:
@@ -415,43 +758,52 @@ def parse_common(path: Path) -> dict[str, str]:
     except UnicodeDecodeError as exc:
         raise SyncError("Framework common.sh is not UTF-8 text") from exc
     raw: dict[str, str] = {}
-    for line in text.splitlines():
+    for line_number, line in enumerate(text.split("\n"), start=1):
         assignment = _assignment(line)
         if assignment is None:
             continue
         key, rhs = assignment
-        if key not in REQUIRED:
+        if key not in SOURCE_FIELDS:
             continue
+        if line.startswith((" ", "\t")):
+            raise SyncError(f"known assignment must be top-level at line {line_number}: {key}")
         if key in raw:
             raise SyncError(f"duplicate required assignment: {key}")
         raw[key] = rhs
-    missing = [key for key in REQUIRED if key not in raw]
+    missing = [field.name for field in SOURCE_REGISTRY if field.required and field.name not in raw]
     if missing:
         raise SyncError("missing required Framework assignments: " + ", ".join(missing))
-
-    excluded = {
-        "LIGHTTPD_DOWNLOAD_URL",
-        "HAPROXY_SOURCE_URL",
-        "NGINX_QUIC_TLS_SOURCE_URL",
-        "NGINX_SOURCE_REPO_URL",
-        "NGINX_SOURCE_GIT_REF",
-        "NGINX_RELEASE_ASSET_NAME",
-    }
-    values = {key: _literal(raw[key], key) for key in REQUIRED if key not in excluded}
-    values["LIGHTTPD_DOWNLOAD_URL"] = _resolve_lighttpd_download_url(
-        raw["LIGHTTPD_DOWNLOAD_URL"], values["LIGHTTPD_SOURCE_URL"], values["LIGHTTPD_VERSION"]
-    )
-    values["HAPROXY_SOURCE_URL"] = _resolve_haproxy_source_url(
-        raw["HAPROXY_SOURCE_URL"], values["HAPROXY_VERSION"]
-    )
-    values["NGINX_QUIC_TLS_SOURCE_URL"] = _resolve_nginx_quic_tls_url(
-        raw["NGINX_QUIC_TLS_SOURCE_URL"], values["NGINX_QUIC_TLS_VERSION"]
-    )
-    values["NGINX_SOURCE_REPO_URL"] = _resolve_nginx_source_repository(raw["NGINX_SOURCE_REPO_URL"])
-    values["NGINX_SOURCE_GIT_REF"] = _resolve_nginx_source_ref(raw["NGINX_SOURCE_GIT_REF"], values["NGINX_RELEASE_TAG"])
-    values["NGINX_RELEASE_ASSET_NAME"] = _resolve_nginx_asset_name(raw["NGINX_RELEASE_ASSET_NAME"], values["NGINX_RELEASE_TAG"])
+    values = _resolve_source_values(raw)
     _validate(values)
     return values
+
+
+def _major_minor(version: str) -> str:
+    return ".".join(version.split(".")[:2])
+
+
+def _validate_exact_https_url(value: str, expected: str, label: str) -> None:
+    """Require one canonical HTTPS URL with no authority/path ambiguity."""
+
+    try:
+        parsed = urlsplit(value)
+        expected_parsed = urlsplit(expected)
+        port = parsed.port
+    except ValueError as exc:
+        raise SyncError(f"invalid {label} URL") from exc
+    if (
+        value != expected
+        or parsed.scheme != "https"
+        or parsed.netloc != expected_parsed.netloc
+        or parsed.hostname != expected_parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or port is not None
+        or parsed.query
+        or parsed.fragment
+        or "//" in parsed.path
+    ):
+        raise SyncError(f"unsupported {label} URL")
 
 
 def _validate(values: dict[str, str]) -> None:
@@ -463,43 +815,106 @@ def _validate(values: dict[str, str]) -> None:
 
 
 def _validate_versions(values: dict[str, str]) -> None:
-    for key in ("ENVOY_VERSION", "LIGHTTPD_VERSION", "HAPROXY_VERSION", "NGINX_QUIC_TLS_VERSION"):
+    for key in (
+        "ENVOY_VERSION",
+        "LIGHTTPD_VERSION",
+        "HAPROXY_VERSION",
+        "HAPROXY_HTX_VERSION",
+        "NGINX_QUIC_TLS_VERSION",
+    ):
         if not _semantic_version(values[key]):
             raise SyncError(f"{key} is not a semantic version")
 
 
 def _validate_lighttpd(values: dict[str, str]) -> None:
-    if values["LIGHTTPD_SOURCE_URL"] != LIGHTTPD_SOURCE_URL:
-        raise SyncError("unsupported LIGHTTPD_SOURCE_URL")
-    expected = f"{LIGHTTPD_SOURCE_URL}lighttpd-{values['LIGHTTPD_VERSION']}.tar.xz"
-    if values["LIGHTTPD_DOWNLOAD_URL"] != expected:
-        raise SyncError("LIGHTTPD_DOWNLOAD_URL does not match LIGHTTPD_VERSION")
+    series = values["LIGHTTPD_SERIES"]
+    version = values["LIGHTTPD_VERSION"]
+    root = values["LIGHTTPD_RELEASE_ROOT_URL"]
+    if not _series(series) or _major_minor(version) != series:
+        raise SyncError("LIGHTTPD_SERIES does not match LIGHTTPD_VERSION")
+    _validate_exact_https_url(
+        root,
+        OFFICIAL_LIGHTTPD_RELEASE_ROOT_URL,
+        "LIGHTTPD_RELEASE_ROOT_URL",
+    )
+    expected_base = f"{root}/releases-{series}.x"
+    if values["LIGHTTPD_SERIES_BASE_URL"] != expected_base:
+        raise SyncError("LIGHTTPD_SERIES_BASE_URL does not match its series")
+    expected_source = f"{expected_base}/"
+    _validate_exact_https_url(
+        values["LIGHTTPD_SOURCE_URL"], expected_source, "LIGHTTPD_SOURCE_URL"
+    )
+    expected_archive = f"lighttpd-{version}.tar.xz"
+    if values["LIGHTTPD_ARCHIVE_NAME"] != expected_archive:
+        raise SyncError("LIGHTTPD_ARCHIVE_NAME does not match LIGHTTPD_VERSION")
+    expected_download = f"{expected_source}{expected_archive}"
+    _validate_exact_https_url(
+        values["LIGHTTPD_DOWNLOAD_URL"],
+        expected_download,
+        "LIGHTTPD_DOWNLOAD_URL",
+    )
     if not HEX64.fullmatch(values["LIGHTTPD_SHA256"]):
         raise SyncError("LIGHTTPD_SHA256 is not a SHA-256 digest")
 
 
+def _validate_haproxy_tuple(values: dict[str, str], prefix: str) -> None:
+    series = values[f"{prefix}_SERIES"]
+    version = values[f"{prefix}_VERSION"]
+    base = values[f"{prefix}_SERIES_BASE_URL"]
+    archive = values[f"{prefix}_ARCHIVE_NAME"]
+    source = values[f"{prefix}_SOURCE_URL"]
+    digest = values[f"{prefix}_SHA256"]
+    if not _series(series) or _major_minor(version) != series:
+        raise SyncError(f"{prefix}_SERIES does not match {prefix}_VERSION")
+    expected_base = f"{OFFICIAL_HAPROXY_RELEASE_ROOT_URL}/{series}/src"
+    if base != expected_base:
+        raise SyncError(f"{prefix}_SERIES_BASE_URL does not match its series")
+    expected_archive = f"haproxy-{version}.tar.gz"
+    if archive != expected_archive:
+        raise SyncError(f"{prefix}_ARCHIVE_NAME does not match {prefix}_VERSION")
+    expected_source = f"{expected_base}/{expected_archive}"
+    _validate_exact_https_url(source, expected_source, f"{prefix}_SOURCE_URL")
+    if not HEX64.fullmatch(digest):
+        raise SyncError(f"{prefix}_SHA256 is not a SHA-256 digest")
+
+
 def _validate_haproxy(values: dict[str, str]) -> None:
-    series = ".".join(values["HAPROXY_VERSION"].split(".")[:2])
-    expected = f"https://www.haproxy.org/download/{series}/src/haproxy-{values['HAPROXY_VERSION']}.tar.gz"
-    if values["HAPROXY_SOURCE_URL"] != expected:
-        raise SyncError("HAPROXY_SOURCE_URL does not match HAPROXY_VERSION")
-    if not HEX64.fullmatch(values["HAPROXY_SHA256"]):
-        raise SyncError("HAPROXY_SHA256 is not a SHA-256 digest")
+    _validate_exact_https_url(
+        values["HAPROXY_RELEASE_ROOT_URL"],
+        OFFICIAL_HAPROXY_RELEASE_ROOT_URL,
+        "HAPROXY_RELEASE_ROOT_URL",
+    )
+    _validate_haproxy_tuple(values, "HAPROXY")
+    _validate_haproxy_tuple(values, "HAPROXY_HTX")
 
 
 def _validate_nginx(values: dict[str, str]) -> None:
     if values["NGINX_QUIC_TLS_LIBRARY"] != "openssl":
         raise SyncError("unsupported NGINX_QUIC_TLS_LIBRARY")
     tls = values["NGINX_QUIC_TLS_VERSION"]
-    expected_tls = f"https://github.com/openssl/openssl/releases/download/openssl-{tls}/openssl-{tls}.tar.gz"
-    if values["NGINX_QUIC_TLS_SOURCE_URL"] != expected_tls:
-        raise SyncError("NGINX_QUIC_TLS_SOURCE_URL does not match its version")
+    expected_tls_archive = f"openssl-{tls}.tar.gz"
+    if values["NGINX_QUIC_TLS_ARCHIVE_NAME"] != expected_tls_archive:
+        raise SyncError("NGINX_QUIC_TLS_ARCHIVE_NAME does not match its version")
+    expected_tls = (
+        "https://github.com/openssl/openssl/releases/download/"
+        f"openssl-{tls}/{expected_tls_archive}"
+    )
+    _validate_exact_https_url(
+        values["NGINX_QUIC_TLS_SOURCE_URL"],
+        expected_tls,
+        "NGINX_QUIC_TLS_SOURCE_URL",
+    )
     if not HEX64.fullmatch(values["NGINX_QUIC_TLS_SOURCE_SHA256"]):
         raise SyncError("NGINX_QUIC_TLS_SOURCE_SHA256 is not a SHA-256 digest")
-    if values["NGINX_SOURCE_MODE"] != "github-release" or values["NGINX_SOURCE_REPO_URL"] != "https://github.com/nginx/nginx":
-        raise SyncError("unsupported NGINX source contract")
+    if values["NGINX_SOURCE_MODE"] != "github-release":
+        raise SyncError("unsupported NGINX source mode")
+    _validate_exact_https_url(
+        values["NGINX_SOURCE_REPO_URL"],
+        OFFICIAL_NGINX_SOURCE_REPOSITORY,
+        "NGINX_SOURCE_REPO_URL",
+    )
     tag = values["NGINX_RELEASE_TAG"]
-    if not re.fullmatch(r"release-\d+\.\d+\.\d+", tag):
+    if not re.fullmatch(r"release-[0-9]+\.[0-9]+\.[0-9]+", tag):
         raise SyncError("NGINX_RELEASE_TAG must be a release-x.y.z tag")
     if values["NGINX_SOURCE_GIT_REF"] != tag:
         raise SyncError("NGINX_SOURCE_GIT_REF must match NGINX_RELEASE_TAG")
@@ -510,11 +925,11 @@ def _validate_nginx(values: dict[str, str]) -> None:
 
 
 def _validate_crs(values: dict[str, str]) -> None:
-    if values["CRS_APPROVED_REPO_URL"] != "https://github.com/coreruleset/coreruleset.git":
+    if values["CRS_APPROVED_REPO_URL"] != OFFICIAL_CRS_REPOSITORY:
         raise SyncError("unsupported CRS repository")
     if not HEX40.fullmatch(values["CRS_APPROVED_COMMIT"]):
         raise SyncError("CRS_APPROVED_COMMIT is not a full commit SHA")
-    if not re.fullmatch(r"v\d+\.\d+\.\d+", values["CRS_RELEASE_TAG"]):
+    if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", values["CRS_RELEASE_TAG"]):
         raise SyncError("CRS_RELEASE_TAG must be a release tag")
 
 
@@ -550,6 +965,7 @@ def _yaml_assignment(text: str, name: str, value: str, path: Path) -> str:
 
 def _lighttpd_contract(text: str, fields: tuple[tuple[str, str], ...], values: dict[str, str], path: Path) -> str:
     expected_keys = {
+        "LIGHTTPD_SERIES",
         "LIGHTTPD_VERSION",
         "LIGHTTPD_SOURCE_URL",
         "LIGHTTPD_DOWNLOAD_URL",
@@ -567,11 +983,16 @@ def _lighttpd_contract(text: str, fields: tuple[tuple[str, str], ...], values: d
         if key in seen:
             raise SyncError(f"duplicate Lighttpd contract assignment: {key}")
         seen[key] = _literal(rhs, key)
+    series = seen.get("LIGHTTPD_SERIES", "")
+    version = seen.get("LIGHTTPD_VERSION", "")
+    expected_source = f"{OFFICIAL_LIGHTTPD_RELEASE_ROOT_URL}/releases-{series}.x/"
     if (
         set(seen) != expected_keys
-        or not _semantic_version(seen["LIGHTTPD_VERSION"])
-        or seen["LIGHTTPD_SOURCE_URL"] != LIGHTTPD_SOURCE_URL
-        or seen["LIGHTTPD_DOWNLOAD_URL"] != f"{seen['LIGHTTPD_SOURCE_URL']}lighttpd-{seen['LIGHTTPD_VERSION']}.tar.xz"
+        or not _series(series)
+        or not _semantic_version(version)
+        or _major_minor(version) != series
+        or seen["LIGHTTPD_SOURCE_URL"] != expected_source
+        or seen["LIGHTTPD_DOWNLOAD_URL"] != f"{expected_source}lighttpd-{version}.tar.xz"
         or not HEX64.fullmatch(seen["LIGHTTPD_SHA256"])
         or not SAFE_PATCH.fullmatch(seen["LIGHTTPD_PATCH_FILENAME"])
     ):
@@ -621,14 +1042,18 @@ def _lighttpd_source_map(text: str, fields: tuple[tuple[str, str], ...], values:
     upstream = payload.get("upstream")
     if not isinstance(upstream, dict) or upstream.get("selected") is not True:
         raise SyncError(f"invalid Lighttpd source map upstream data: {path}")
-    required = ("repository", "version", "download_url")
+    required = ("repository", "series", "version", "download_url")
     if any(not isinstance(upstream.get(key), str) for key in required):
         raise SyncError(f"invalid Lighttpd source map upstream fields: {path}")
+    series = upstream["series"]
     version = upstream["version"]
+    expected_source = f"{OFFICIAL_LIGHTTPD_RELEASE_ROOT_URL}/releases-{series}.x/"
     if (
-        not _semantic_version(version)
-        or upstream["repository"] != LIGHTTPD_SOURCE_URL
-        or upstream["download_url"] != f"{upstream['repository']}lighttpd-{version}.tar.xz"
+        not _series(series)
+        or not _semantic_version(version)
+        or _major_minor(version) != series
+        or upstream["repository"] != expected_source
+        or upstream["download_url"] != f"{expected_source}lighttpd-{version}.tar.xz"
     ):
         raise SyncError(f"invalid Lighttpd source map upstream tuple: {path}")
     for target_name, source_name in fields:

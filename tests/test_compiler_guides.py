@@ -227,6 +227,12 @@ def is_allowed_official_url(url: str) -> bool:
 class CompilerGuideGenerationTest(unittest.TestCase):
     maxDiff = None
 
+    def test_lighttpd_contract_accepts_generated_series_provenance(self) -> None:
+        self.assertEqual(
+            GENERATOR.LIGHTTPD_CONTRACT["LIGHTTPD_SERIES"],
+            ".".join(GENERATOR.LIGHTTPD_VERSION.split(".")[:2]),
+        )
+
     def test_generator_model_contains_one_shared_engine_contract(self) -> None:
         common = GENERATOR.COMMON_MODSECURITY
         for key in (

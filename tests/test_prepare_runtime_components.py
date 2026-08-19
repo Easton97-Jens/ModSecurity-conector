@@ -11,6 +11,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
 LEGACY_FRAMEWORK_HAPROXY_CACHE_SHA = "784977615acfc55567e37b863309abc4a38ac877"
@@ -1406,13 +1408,16 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             if configured_root
             else ROOT / "modules" / "ModSecurity-test-Framework"
         )
-        script = framework_root / "ci" / "provisioning" / "prepare-haproxy-runtime.sh"
+        trusted_root, error = trusted_framework_root(ROOT, framework_root)
+        if trusted_root is None:
+            self.skipTest(error)
+        script = trusted_root / "ci" / "provisioning" / "prepare-haproxy-runtime.sh"
         if not script.is_file():
             self.fail(
                 "HAProxy prepare framework source is unavailable; initialize the checked-out "
                 "submodule or set MODSECURITY_FRAMEWORK_TEST_ROOT to a reviewed read-only source"
             )
-        return framework_root
+        return trusted_root
 
     def haproxy_prepare_enforces_split_build_root_containment(self, framework_root: Path) -> bool:
         script = framework_root / "ci" / "provisioning" / "prepare-haproxy-runtime.sh"

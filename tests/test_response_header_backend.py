@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import socket
 import subprocess
@@ -10,9 +11,13 @@ import time
 import unittest
 from urllib.request import urlopen
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
-FRAMEWORK_ROOT = ROOT / "modules" / "ModSecurity-test-Framework"
+FRAMEWORK_ROOT = Path(
+    os.environ.get("PARENT_TEST_FRAMEWORK_ROOT", ROOT / "modules" / "ModSecurity-test-Framework")
+)
 BACKEND = ROOT / "ci" / "runtime" / "common" / "response-header-test-backend.py"
 METADATA = ROOT / "ci" / "runtime" / "common" / "harness-case-metadata.py"
 
@@ -24,6 +29,12 @@ def free_port() -> int:
 
 
 class ResponseHeaderBackendTest(unittest.TestCase):
+    def trusted_framework_root(self) -> Path:
+        framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+        if framework_root is None:
+            self.skipTest(error)
+        return framework_root
+
     def metadata(self, *arguments: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, str(METADATA), *arguments],
@@ -35,6 +46,7 @@ class ResponseHeaderBackendTest(unittest.TestCase):
         )
 
     def test_phase3_cases_materialize_their_declared_upstream_markers(self) -> None:
+        framework_root = self.trusted_framework_root()
         fixtures = {
             "phase3_deny_before_commit.yaml": "block",
             "phase3_redirect_before_commit.yaml": "redirect",
@@ -42,7 +54,7 @@ class ResponseHeaderBackendTest(unittest.TestCase):
         for filename, marker in fixtures.items():
             with self.subTest(filename=filename), tempfile.TemporaryDirectory() as temporary:
                 case = (
-                    FRAMEWORK_ROOT
+                    framework_root
                     / "tests"
                     / "cases"
                     / "no-crs-baseline"
@@ -55,7 +67,7 @@ class ResponseHeaderBackendTest(unittest.TestCase):
                     "--case",
                     str(case),
                     "--framework-root",
-                    str(FRAMEWORK_ROOT),
+                    str(framework_root),
                     "--output",
                     str(output),
                 )
@@ -158,6 +170,7 @@ class ResponseHeaderBackendTest(unittest.TestCase):
         self.assertIn("invalid response header value", result.stderr)
 
     def test_apache_phase4_mode_is_case_metadata_and_is_validated(self) -> None:
+        framework_root = self.trusted_framework_root()
         with tempfile.TemporaryDirectory() as temporary:
             case = Path(temporary) / "apache-mode.yaml"
             case.write_text(
@@ -182,7 +195,7 @@ expect:
                 "--case",
                 str(case),
                 "--framework-root",
-                str(FRAMEWORK_ROOT),
+                str(framework_root),
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "strict\n")
@@ -193,7 +206,7 @@ expect:
                 "--case",
                 str(case),
                 "--framework-root",
-                str(FRAMEWORK_ROOT),
+                str(framework_root),
             )
         self.assertNotEqual(invalid.returncode, 0)
         self.assertIn("apache.phase4_mode", invalid.stderr)
