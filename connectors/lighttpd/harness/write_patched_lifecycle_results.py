@@ -16,6 +16,7 @@ import sys
 from typing import Any, Iterable
 
 from patched_event_validation import load_events, nonnegative, phase_is_four
+from namespace_fixture_directory import open_namespace_fixture_directory
 from safe_runtime_output import (
     read_runtime_input_text,
     safe_input_path,
@@ -225,8 +226,34 @@ def requested_cases(value: str) -> set[str]:
     return {item for item in value.split() if item}
 
 
-def load_fixture_result(root: Path, path: Path) -> tuple[int, int]:
-    value = json.loads(read_runtime_input_text(root, path, "entity fixture result"))
+def load_fixture_result(
+    root: Path,
+    path: Path | None = None,
+    *,
+    fixture_directory_name: str | None = None,
+    fixture_directory_identity: str | None = None,
+    fixture_runtime_root: Path | None = None,
+) -> tuple[int, int]:
+    """Load one actual fixture result through one selected safe transport."""
+
+    if path is not None:
+        raw = read_runtime_input_text(root, path, "entity fixture result")
+    else:
+        if (
+            fixture_directory_name is None
+            or fixture_directory_identity is None
+            or fixture_runtime_root is None
+        ):
+            raise ValueError("descriptor fixture result needs directory name and identity")
+        with open_namespace_fixture_directory(
+            fixture_runtime_root,
+            name=fixture_directory_name,
+            identity=fixture_directory_identity,
+        ) as directory:
+            raw = directory.read_text(
+                "result.json", "entity fixture result", maximum_bytes=64 * 1024
+            )
+    value = json.loads(raw)
     if not isinstance(value, dict):
         raise ValueError("entity fixture result must be an object")
     if value.get("evidence_type") != "lighttpd_http1_entity_fixture_result":
@@ -314,7 +341,10 @@ def main() -> int:
     parser.add_argument("--phase4-first-byte-evidence", required=True, type=Path)
     parser.add_argument("--content-length-events", required=True, type=Path)
     parser.add_argument("--chunked-events", required=True, type=Path)
-    parser.add_argument("--entity-fixture-result", required=True, type=Path)
+    parser.add_argument("--entity-fixture-result", type=Path)
+    parser.add_argument("--entity-fixture-directory-name")
+    parser.add_argument("--entity-fixture-directory-identity")
+    parser.add_argument("--entity-fixture-runtime-output-root", type=Path)
     parser.add_argument("--phase4-summary-output", required=True, type=Path)
     parser.add_argument("--runtime-output-root", required=True, type=Path)
     args = parser.parse_args()
@@ -339,14 +369,31 @@ def main() -> int:
     chunked_events_path = safe_input_path(
         output_root, args.chunked_events, "chunked events input"
     )
-    fixture_result_path = safe_input_path(
-        output_root, args.entity_fixture_result, "entity fixture result"
+    fixture_result_path: Path | None = None
+    fixture_path_mode = args.entity_fixture_result is not None
+    fixture_descriptor_mode = all(
+        value is not None
+        for value in (
+            args.entity_fixture_directory_name,
+            args.entity_fixture_directory_identity,
+            args.entity_fixture_runtime_output_root,
+        )
     )
+    if fixture_path_mode == fixture_descriptor_mode:
+        parser.error("select exactly one pathname or descriptor entity-fixture-result mode")
+    if fixture_path_mode:
+        fixture_result_path = safe_input_path(
+            output_root, args.entity_fixture_result, "entity fixture result"
+        )
 
     events = load_events(events_path, non_object_error=NON_OBJECT_ERROR)
     selected = requested_cases(args.selected_case_ids)
     content_length_bytes, chunked_bytes = load_fixture_result(
-        output_root, fixture_result_path
+        output_root,
+        fixture_result_path,
+        fixture_directory_name=args.entity_fixture_directory_name,
+        fixture_directory_identity=args.entity_fixture_directory_identity,
+        fixture_runtime_root=args.entity_fixture_runtime_output_root,
     )
     validate_entity_boundary(
         content_length_events_path,

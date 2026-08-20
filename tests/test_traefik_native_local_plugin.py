@@ -185,6 +185,309 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
                 ):
                     runner.assert_runtime_root(shared_root)
 
+    def make_staged_runtime_workspace(
+        self, temporary_root: Path
+    ) -> tuple[object, object, dict[str, Path]]:
+        """Create the owned temporary inputs plus retained runtime evidence."""
+
+        runtime_root = temporary_root / "runtime-root"
+        runtime_root.mkdir(mode=0o700)
+        socket_parent = temporary_root / "socket-parent"
+        socket_parent.mkdir(mode=0o700)
+        workspaces: dict[str, Path] = {}
+        for name in ("plugins-local", "effective-config", "engine-build"):
+            workspace = runtime_root / name
+            workspace.mkdir(mode=0o700)
+            (workspace / "owned-marker").write_text(name, encoding="utf-8")
+            workspaces[name] = workspace
+
+        logs_dir = runtime_root / "logs"
+        logs_dir.mkdir(mode=0o700)
+        event_path = logs_dir / "events.jsonl"
+        event_path.write_text('{"event":"host-runtime"}\n', encoding="utf-8")
+        result_path = runtime_root / "result.json"
+        result_path.write_text('{"status":"PASS"}\n', encoding="utf-8")
+        observations_path = runtime_root / "transport-observations.diagnostic.json"
+        observations_path.write_text('{"cleanup":"pending"}\n', encoding="utf-8")
+        retained = runtime_root / "retained-unrelated"
+        retained.mkdir(mode=0o700)
+        (retained / "marker").write_text("retain", encoding="utf-8")
+        nested = runtime_root / "nested"
+        nested.mkdir(mode=0o700)
+        nested_workspace = nested / "plugins-local"
+        nested_workspace.mkdir(mode=0o700)
+        (nested_workspace / "marker").write_text("not a direct child", encoding="utf-8")
+
+        effective_config = workspaces["effective-config"]
+        static_config = effective_config / "traefik-static.yaml"
+        dynamic_config = effective_config / "traefik-dynamic.yaml"
+        engine_config = effective_config / "engine.conf"
+        for config in (static_config, dynamic_config, engine_config):
+            config.write_text("generated\n", encoding="utf-8")
+        rules_file = temporary_root / "rules.conf"
+        rules_file.write_text("SecRuleEngine On\n", encoding="utf-8")
+        inputs = runner.NativeRuntimeInputs(
+            runtime_root=runtime_root,
+            engine_socket_parent=engine_socket_parent(socket_parent),
+            run_id=None,
+            first_byte_output=None,
+            binary=Path("/bin/true"),
+            include_dir=temporary_root,
+            library_dir=temporary_root,
+            rules_file=rules_file,
+            rule_ids={},
+            rules_profile="test",
+            module_name="test-plugin",
+        )
+        artifacts = runner.NativeRuntimeArtifacts(
+            logs_dir=logs_dir,
+            result_path=result_path,
+            transport_observations_path=observations_path,
+            static_config=static_config,
+            dynamic_config=dynamic_config,
+            engine_config=engine_config,
+            event_path=event_path,
+        )
+        return inputs, artifacts, {
+            **workspaces,
+            "event_path": event_path,
+            "nested_workspace": nested_workspace,
+            "observations_path": observations_path,
+            "result_path": result_path,
+            "retained": retained,
+        }
+
+    def test_staged_workspace_cleanup_removes_only_owned_directories_and_keeps_evidence(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-cleanup-") as temporary:
+            inputs, artifacts, paths = self.make_staged_runtime_workspace(Path(temporary))
+
+            self.assertTrue(runner.cleanup_staged_runtime_workspaces(inputs, artifacts))
+
+            for name in ("plugins-local", "effective-config", "engine-build"):
+                self.assertFalse(paths[name].exists(), name)
+            self.assertEqual(paths["event_path"].read_text(encoding="utf-8"), '{"event":"host-runtime"}\n')
+            self.assertEqual(paths["result_path"].read_text(encoding="utf-8"), '{"status":"PASS"}\n')
+            self.assertEqual(
+                paths["observations_path"].read_text(encoding="utf-8"),
+                '{"cleanup":"pending"}\n',
+            )
+            self.assertTrue(paths["retained"].is_dir())
+            self.assertTrue(paths["nested_workspace"].is_dir())
+
+    def test_staged_workspace_cleanup_refuses_symlinked_owned_directory(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-cleanup-") as temporary:
+            root = Path(temporary)
+            inputs, artifacts, paths = self.make_staged_runtime_workspace(root)
+            plugin_workspace = paths["plugins-local"]
+            (plugin_workspace / "owned-marker").unlink()
+            plugin_workspace.rmdir()
+            foreign = root / "foreign-workspace"
+            foreign.mkdir(mode=0o700)
+            sentinel = foreign / "must-not-delete"
+            sentinel.write_text("foreign", encoding="utf-8")
+            plugin_workspace.symlink_to(foreign, target_is_directory=True)
+
+            self.assertFalse(runner.cleanup_staged_runtime_workspaces(inputs, artifacts))
+
+            self.assertTrue(plugin_workspace.is_symlink())
+            self.assertTrue(sentinel.is_file())
+            self.assertTrue(paths["effective-config"].is_dir())
+            self.assertTrue(paths["engine-build"].is_dir())
+
+    def test_staged_workspace_cleanup_refuses_runtime_root_replaced_by_outside_symlink(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-cleanup-") as temporary:
+            root = Path(temporary)
+            inputs, artifacts, paths = self.make_staged_runtime_workspace(root)
+            original_runtime_root = root / "original-runtime-root"
+            inputs.runtime_root.rename(original_runtime_root)
+            outside = root / "outside-runtime-root"
+            outside.mkdir(mode=0o700)
+            outside_workspace = outside / "plugins-local"
+            outside_workspace.mkdir(mode=0o700)
+            sentinel = outside_workspace / "must-not-delete"
+            sentinel.write_text("foreign", encoding="utf-8")
+            inputs.runtime_root.symlink_to(outside, target_is_directory=True)
+
+            self.assertFalse(runner.cleanup_staged_runtime_workspaces(inputs, artifacts))
+
+            self.assertTrue(sentinel.is_file())
+            self.assertTrue((original_runtime_root / "plugins-local").is_dir())
+            self.assertTrue((original_runtime_root / "logs" / "events.jsonl").is_file())
+
+    def test_staged_workspace_cleanup_refuses_nonprivate_runtime_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-cleanup-") as temporary:
+            inputs, artifacts, paths = self.make_staged_runtime_workspace(Path(temporary))
+            inputs.runtime_root.chmod(0o755)
+
+            self.assertFalse(runner.cleanup_staged_runtime_workspaces(inputs, artifacts))
+
+            self.assertTrue(paths["plugins-local"].is_dir())
+            self.assertTrue(paths["effective-config"].is_dir())
+            self.assertTrue(paths["engine-build"].is_dir())
+
+    def test_write_json_refuses_result_symlink_without_touching_external_sentinel(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-json-") as temporary:
+            root = Path(temporary)
+            output_parent = root / "runtime"
+            output_parent.mkdir(mode=0o700)
+            sentinel = root / "external-sentinel.json"
+            sentinel.write_text('{"must":"remain"}\n', encoding="utf-8")
+            result_path = output_parent / "result.json"
+            result_path.symlink_to(sentinel)
+
+            with self.assertRaisesRegex(runner.MissingDependency, "artifact path is unsafe"):
+                runner.write_json(result_path, {"status": "PASS"})
+
+            self.assertTrue(result_path.is_symlink())
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), '{"must":"remain"}\n')
+
+    def test_write_json_atomically_replaces_regular_result_with_private_valid_json(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-json-") as temporary:
+            root = Path(temporary)
+            output_parent = root / "runtime"
+            output_parent.mkdir(mode=0o700)
+            result_path = output_parent / "result.json"
+            result_path.write_text('{"old":true}\n', encoding="utf-8")
+            result_path.chmod(0o644)
+            previous_inode = result_path.lstat().st_ino
+            payload = {"status": "PASS", "transaction": "traefik-json-unit"}
+
+            runner.write_json(result_path, payload)
+
+            result_stat = result_path.lstat()
+            self.assertTrue(stat.S_ISREG(result_stat.st_mode))
+            self.assertFalse(result_path.is_symlink())
+            self.assertNotEqual(result_stat.st_ino, previous_inode)
+            self.assertEqual(stat.S_IMODE(result_stat.st_mode), 0o600)
+            self.assertEqual(json.loads(result_path.read_text(encoding="utf-8")), payload)
+            self.assertEqual([entry.name for entry in output_parent.iterdir()], ["result.json"])
+
+    def test_write_json_refuses_symlinked_parent_without_touching_external_result(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-json-") as temporary:
+            root = Path(temporary)
+            external_parent = root / "external-runtime"
+            external_parent.mkdir(mode=0o700)
+            sentinel = external_parent / "result.json"
+            sentinel.write_text('{"must":"remain"}\n', encoding="utf-8")
+            output_parent = root / "runtime-alias"
+            output_parent.symlink_to(external_parent, target_is_directory=True)
+
+            with self.assertRaisesRegex(runner.MissingDependency, "contains a symlink"):
+                runner.write_json(output_parent / "result.json", {"status": "PASS"})
+
+            self.assertTrue(output_parent.is_symlink())
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), '{"must":"remain"}\n')
+
+    def collect_full_lifecycle_inputs(
+        self,
+        temporary_root: Path,
+        evidence_root: Path | None,
+        evidence_output: Path | None,
+    ) -> object:
+        """Collect inputs while leaving first-byte path validation unmocked."""
+
+        runtime_root = temporary_root / "traefik-runtime"
+        socket_parent = temporary_root / "socket-parent"
+        socket_parent.mkdir(mode=0o700)
+        environment = {
+            "MSCONNECTOR_CRS_RUNTIME": "0",
+            "NO_CRS_ARTIFACT_PROFILE": "full_lifecycle",
+            "TRAEFIK_BIN": "/bin/true",
+            "TRAEFIK_NATIVE_RUNTIME_ROOT": str(runtime_root),
+        }
+        if evidence_root is not None:
+            environment["TRAEFIK_FIRST_BYTE_EVIDENCE_ROOT"] = str(evidence_root)
+        if evidence_output is not None:
+            environment["FULL_LIFECYCLE_EVIDENCE_OUTPUT"] = str(evidence_output)
+        with mock.patch.dict(os.environ, environment, clear=True), mock.patch.object(
+            runner, "resolve_engine_socket_parent", return_value=engine_socket_parent(socket_parent)
+        ), mock.patch.object(
+            runner, "require_local_executable", return_value=Path("/bin/true")
+        ), mock.patch.object(
+            runner, "require_modsecurity_environment", return_value=(temporary_root, temporary_root)
+        ), mock.patch.object(
+            runner, "select_engine_rules", return_value=(temporary_root / "rules.conf", {}, "test")
+        ), mock.patch.object(runner, "require_engine_inputs"), mock.patch.object(
+            runner, "read_plugin_module", return_value="test-plugin"
+        ):
+            return runner.collect_native_runtime_inputs()
+
+    def test_full_lifecycle_first_byte_output_requires_a_declared_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-first-byte-") as temporary:
+            root = Path(temporary)
+            output = root / "first-byte-evidence.json"
+
+            with self.assertRaisesRegex(runner.MissingDependency, "TRAEFIK_FIRST_BYTE_EVIDENCE_ROOT"):
+                self.collect_full_lifecycle_inputs(root, None, output)
+
+    def test_full_lifecycle_first_byte_output_rejects_regular_file_outside_declared_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-first-byte-") as temporary:
+            root = Path(temporary)
+            evidence_root = root / "evidence-root"
+            evidence_root.mkdir(mode=0o700)
+            outside = root / "outside"
+            outside.mkdir(mode=0o700)
+            output = outside / "first-byte-evidence.json"
+            output.write_text('{"must":"remain"}\n', encoding="utf-8")
+
+            with self.assertRaises(runner.MissingDependency):
+                self.collect_full_lifecycle_inputs(root, evidence_root, output)
+
+            self.assertEqual(output.read_text(encoding="utf-8"), '{"must":"remain"}\n')
+
+    def test_full_lifecycle_first_byte_output_rejects_noncanonical_name(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-first-byte-") as temporary:
+            root = Path(temporary)
+            evidence_root = root / "evidence-root"
+            evidence_root.mkdir(mode=0o700)
+            output = evidence_root / "unexpected-evidence.json"
+            output.write_text('{"must":"remain"}\n', encoding="utf-8")
+
+            with self.assertRaises(runner.MissingDependency):
+                self.collect_full_lifecycle_inputs(root, evidence_root, output)
+
+            self.assertEqual(output.read_text(encoding="utf-8"), '{"must":"remain"}\n')
+
+    def test_full_lifecycle_first_byte_output_rejects_nested_fixed_name(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-first-byte-") as temporary:
+            root = Path(temporary)
+            evidence_root = root / "evidence-root"
+            evidence_root.mkdir(mode=0o700)
+            nested = evidence_root / "nested"
+            nested.mkdir(mode=0o700)
+
+            with self.assertRaises(runner.MissingDependency):
+                self.collect_full_lifecycle_inputs(
+                    root, evidence_root, nested / "first-byte-evidence.json"
+                )
+
+    def test_full_lifecycle_first_byte_output_rejects_symlink(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-first-byte-") as temporary:
+            root = Path(temporary)
+            evidence_root = root / "evidence-root"
+            evidence_root.mkdir(mode=0o700)
+            sentinel = root / "external-sentinel.json"
+            sentinel.write_text('{"must":"remain"}\n', encoding="utf-8")
+            output = evidence_root / "first-byte-evidence.json"
+            output.symlink_to(sentinel)
+
+            with self.assertRaises(runner.MissingDependency):
+                self.collect_full_lifecycle_inputs(root, evidence_root, output)
+
+            self.assertTrue(output.is_symlink())
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), '{"must":"remain"}\n')
+
+    def test_full_lifecycle_first_byte_output_accepts_only_fixed_direct_path(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-first-byte-") as temporary:
+            root = Path(temporary)
+            evidence_root = root / "evidence-root"
+            evidence_root.mkdir(mode=0o700)
+            output = evidence_root / "first-byte-evidence.json"
+
+            inputs = self.collect_full_lifecycle_inputs(root, evidence_root, output)
+
+            self.assertEqual(inputs.first_byte_output, output)
+
     def test_engine_socket_parent_ancestor_requires_no_cross_user_replacement(self) -> None:
         owned_child = SimpleNamespace(
             st_mode=stat.S_IFDIR | stat.S_IRWXU,
@@ -347,6 +650,8 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "injected setup failure"):
                     runner.run()
             self.assertEqual(list(parent_path.iterdir()), [])
+            for name in ("plugins-local", "effective-config", "engine-build"):
+                self.assertFalse((runtime_root / name).exists(), name)
 
     def test_missing_engine_socket_parent_fails_before_runtime_root_setup(self) -> None:
         with tempfile.TemporaryDirectory(prefix="msconnector-traefik-test-") as temporary:
@@ -418,6 +723,70 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         ]
         self.assertNotIn("(void)unlink(socket_path);", listener_source)
         self.assertNotIn("(void)unlink(socket_path);", serve_source)
+
+    def test_crs_requests_send_the_canonical_framework_run_id(self) -> None:
+        """The normalizer may only report a run ID that the host received."""
+
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-crs-") as temporary:
+            root = Path(temporary)
+            logs = root / "logs"
+            logs.mkdir()
+            inputs = SimpleNamespace(
+                rules_profile="framework-crs-v4.29.0",
+                runtime_root=root,
+                include_dir=root,
+                library_dir=root,
+                binary=root / "traefik",
+                run_id="traefik-crs-run-42",
+            )
+            artifacts = SimpleNamespace(
+                logs_dir=logs,
+                engine_config=root / "engine.conf",
+                event_path=logs / "events.jsonl",
+                static_config=root / "traefik.yaml",
+            )
+            setup = SimpleNamespace(engine_socket=root / "engine.sock", traefik_port=18443)
+            processes = runner.NativeProcesses()
+            live_process = SimpleNamespace(poll=lambda: None, returncode=None)
+            observed_headers: dict[str, dict[str, str] | None] = {}
+
+            def request(
+                _port: int,
+                _body: bytes,
+                request_id: str,
+                expected_status: int,
+                extra_headers: dict[str, str] | None = None,
+                **_kwargs: object,
+            ) -> tuple[int, int]:
+                observed_headers[request_id] = extra_headers
+                return expected_status, 1
+
+            with mock.patch.object(runner, "build_engine_service", return_value=root / "engine"), mock.patch.object(
+                runner, "wait_for_socket"
+            ), mock.patch.object(runner, "wait_for_port"), mock.patch.object(
+                runner.subprocess, "Popen", side_effect=(live_process, live_process)
+            ), mock.patch.object(runner, "request_through_traefik", side_effect=request):
+                results = runner.run_crs_requests(inputs, artifacts, setup, processes)
+
+            self.assertEqual(results.allow_status, 200)
+            self.assertEqual(results.block_status, 403)
+            self.assertEqual(results.bypass_status, 403)
+            for request_id in (
+                results.request_ids.allow,
+                results.request_ids.block,
+                results.request_ids.bypass,
+            ):
+                self.assertEqual(observed_headers[request_id]["X-Framework-Run-ID"], inputs.run_id)
+
+    def test_crs_transaction_ids_are_not_reused_across_run_ids(self) -> None:
+        first = runner.crs_request_ids("traefik-crs-run-one")
+        second = runner.crs_request_ids("traefik-crs-run-two")
+
+        self.assertEqual(len({first.allow, first.block, first.bypass}), 3)
+        self.assertEqual(len({second.allow, second.block, second.bypass}), 3)
+        self.assertFalse({first.allow, first.block, first.bypass} & {second.allow, second.block, second.bypass})
+        self.assertIn("traefik-crs-run-one", first.allow)
+        self.assertIn("traefik-crs-run-two", second.allow)
 
 
 if __name__ == "__main__":

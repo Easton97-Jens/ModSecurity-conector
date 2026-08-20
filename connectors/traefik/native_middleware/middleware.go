@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
 )
 
 const (
@@ -379,7 +380,7 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 	}
 	defer state.close(requestContext)
 
-	requestHeaders, err := boundedHeaders(request.Header, middleware.config)
+	requestHeaders, err := boundedRequestHeaders(request.Header, request.Host, middleware.config)
 	if err != nil {
 		http.Error(writer, "request headers exceed middleware limits", http.StatusRequestHeaderFieldsTooLarge)
 		return
@@ -1071,6 +1072,46 @@ func boundedHeaders(header http.Header, config Config) ([]Header, error) {
 		}
 	}
 	return values, nil
+}
+
+// boundedRequestHeaders includes the authority from net/http's separate Host
+// field when the incoming Header map does not contain an ordinary Host entry.
+// Server requests normally omit Host from Header, but ModSecurity evaluates
+// it as REQUEST_HEADERS:Host. The authority is copied only after validating
+// it as a bounded header value; an existing Host entry always wins and is
+// never duplicated.
+func boundedRequestHeaders(header http.Header, authority string, config Config) ([]Header, error) {
+	hostEntries := 0
+	for name, values := range header {
+		if !strings.EqualFold(name, "Host") {
+			continue
+		}
+		hostEntries += len(values)
+	}
+	if hostEntries > 1 {
+		return nil, errors.New("ambiguous Host header")
+	}
+	if hostEntries == 1 || authority == "" {
+		return boundedHeaders(header, config)
+	}
+	if invalidHostAuthority(authority) {
+		return nil, errors.New("invalid Host authority")
+	}
+	withHost := make(http.Header, len(header)+1)
+	for name, values := range header {
+		withHost[name] = append([]string(nil), values...)
+	}
+	withHost["Host"] = []string{authority}
+	return boundedHeaders(withHost, config)
+}
+
+func invalidHostAuthority(value string) bool {
+	if strings.TrimSpace(value) != value {
+		return true
+	}
+	return strings.IndexFunc(value, func(r rune) bool {
+		return r < 0x20 || r == 0x7f || unicode.IsSpace(r)
+	}) >= 0
 }
 
 var (

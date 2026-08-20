@@ -248,6 +248,7 @@ export LIGHTTPD_DECISION_BACKEND
 
 .PHONY: check-framework prepare-runtime-components prepare-envoy-runtime prepare-traefik-runtime prepare-lighttpd-runtime prepare-lighttpd-runtime-build prepare-open-connector-runtimes runtime-components-inventory runtime-components-sources check-framework-fixture-syntax check-runtime-producer-readiness check-runtime-path-policy check-bilingual-docs check-doc-links check-variable-documentation check-connector-config-reference generate-connector-config-reference refresh-connector-reports refresh-all-reports check-generated-report-layout report-governance verified-report-evidence-gate generate-system-environment-proof prove-generated-reports verified-runtime-producers verified-report-refresh verified-report-producers verified-report-consumers verified-report-checks verified-report-run verified-report-run-soft verified-report-run-smoke verified-full-matrix-job verified-case verified-native-case verified-apache-case verified-nginx-case verified-haproxy-case verified-full-matrix-resume full-matrix-single-job-runtime full-matrix-resume-runtime smoke-common smoke-apache smoke-nginx soak-nginx smoke-envoy smoke-envoy-modsecurity smoke-envoy-crs smoke-envoy-crs-secondary smoke-haproxy smoke-lighttpd smoke-lighttpd-modsecurity smoke-lighttpd-crs smoke-lighttpd-crs-secondary smoke-traefik smoke-traefik-modsecurity smoke-traefik-crs smoke-traefik-crs-secondary smoke-open-connectors-crs smoke-open-connectors-crs-secondary smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-all-runtime runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel full-matrix-parallel-runtime generate-full-runtime-matrix generate-full-matrix-job-completeness generate-nginx-mrts-http500-cluster-analysis generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-native-semantics-comparison generate-remaining-critical-batch-analysis generate-remaining-failure-analysis mrts-native-full-run mrts-native-full-run-runtime mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
 .PHONY: smoke-envoy-request-body smoke-traefik-request-body smoke-lighttpd-request-body smoke-open-connectors-request-body
+.PHONY: with-crs-no-mrts-runtime
 .PHONY: memcheck-nginx
 .PHONY: check-compiler-guides
 .PHONY: check-connector-guides
@@ -633,6 +634,18 @@ test-no-crs: check-framework prepare-runtime-components
 
 test-with-crs: check-framework prepare-runtime-components
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/lib/common.sh"; . "$(CURDIR)/ci/runtime/lifecycle/prepare-fresh-crs-source.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-smokes.sh"')
+
+# The dedicated Parent runner owns fresh provisioning and evidence validation.
+# Keep only the three newly promoted connectors in this narrow entrypoint.
+with-crs-no-mrts-runtime: check-framework
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required: envoy, traefik, or lighttpd" >&2; exit 2; }
+	@case "$(CONNECTOR)" in envoy|traefik|lighttpd) ;; *) echo "CONNECTOR is not allowlisted: $(CONNECTOR)" >&2; exit 2 ;; esac
+	@run_id="$${CRS_RUNTIME_RUN_ID:-$(FRESH_VERIFIED_RUN_ID)-$(CONNECTOR)}"; \
+	case "$$run_id" in [A-Za-z0-9]*) ;; *) echo "CRS_RUNTIME_RUN_ID must start with an ASCII alphanumeric character" >&2; exit 2 ;; esac; \
+	case "$$run_id" in *[!A-Za-z0-9._-]*) echo "CRS_RUNTIME_RUN_ID must be a bounded token" >&2; exit 2 ;; esac; \
+	[ "$${#run_id}" -le 48 ] || { echo "CRS_RUNTIME_RUN_ID must be at most 48 characters" >&2; exit 2; }; \
+	EVIDENCE_ROOT= CRS_RUNTIME_RUN_ID="$$run_id" CONNECTOR_ROOT="$(CURDIR)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" PYTHON="$(FRAMEWORK_PYTHON)" \
+		sh ci/runtime/lifecycle/run-with-crs-no-mrts.sh "$(CONNECTOR)" "$$run_id"
 
 mrts-generate: check-framework
 	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-generate

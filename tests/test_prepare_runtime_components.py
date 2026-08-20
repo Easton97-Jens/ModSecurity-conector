@@ -641,6 +641,48 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             self.assertNotIn("ENV", run_env.call_args.kwargs["env"])
             self.assertNotIn("BASH_ENV", run_env.call_args.kwargs["env"])
 
+    def test_framework_modsecurity_guard_keeps_only_original_pin_inputs(self) -> None:
+        """A re-sourced Framework guard must not inherit its own pin exports."""
+        with tempfile.TemporaryDirectory(prefix="modsecurity-provenance-guard-") as temporary:
+            root = Path(temporary)
+            framework_root = root / "framework"
+            common = framework_root / "ci/lib/common.sh"
+            common.parent.mkdir(parents=True)
+            common.write_text("# tested through a mocked subprocess\n", encoding="utf-8")
+            source = root / "source"
+            source.mkdir()
+            completed = subprocess.CompletedProcess([], 0, "", "")
+            loaded_framework_environment = {
+                "CONNECTOR_ROOT": str(root / "connector"),
+                "FRAMEWORK_ROOT": str(framework_root),
+                "VERIFIED_RUN_ROOT": str(root / "verified-run"),
+                "ENVOY_VERSION": "1.39.0",
+                "TRAEFIK_VERSION": "3.7.10",
+                "LIGHTTPD_VERSION": "1.4.85",
+                "CI_INHERITED_UPSTREAM_ENV": "ENVOY_VERSION=1.39.0",
+            }
+            with mock.patch.dict(
+                os.environ,
+                {"ENVOY_VERSION": "caller-override"},
+                clear=True,
+            ), mock.patch.object(components, "run_env", return_value=completed) as run_env:
+                result = components.verify_framework_approved_modsecurity_v3_checkout(
+                    loaded_framework_environment,
+                    framework_root,
+                    source,
+                )
+
+            self.assertEqual(result["status"], "passed")
+            guard_env = run_env.call_args.kwargs["env"]
+            self.assertEqual(guard_env["ENVOY_VERSION"], "caller-override")
+            self.assertNotIn("TRAEFIK_VERSION", guard_env)
+            self.assertNotIn("LIGHTTPD_VERSION", guard_env)
+            self.assertNotIn("CI_INHERITED_UPSTREAM_ENV", guard_env)
+            self.assertEqual(guard_env["CONNECTOR_ROOT"], str(root / "connector"))
+            self.assertEqual(guard_env["FRAMEWORK_ROOT"], str(framework_root))
+            self.assertEqual(guard_env["VERIFIED_RUN_ROOT"], str(root / "verified-run"))
+            self.assertEqual(guard_env["MODSECURITY_V3_SOURCE_DIR"], str(source))
+
     def test_framework_modsecurity_provisioning_bridge_passes_destination_as_positional_argument(self) -> None:
         with tempfile.TemporaryDirectory(prefix="modsecurity-provisioning-bridge-") as temporary:
             root = Path(temporary)

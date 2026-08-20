@@ -1,0 +1,197 @@
+name: Connector runtime with CRS and no MRTS
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/test-connectors-with-crs-no-mrts.yml
+      - tests/test_ci_security_workflows.py
+      - tests/test_with_crs_no_mrts_runtime.py
+      - ci/checks/common/check-python-interpreter-contract.py
+      - ci/provisioning/**
+      - ci/lib/**
+      - ci/runtime/**
+      - connectors/apache/**
+      - connectors/envoy/**
+      - connectors/haproxy/**
+      - connectors/lighttpd/**
+      - connectors/traefik/**
+      - config/**
+      - Makefile
+      - .python-version
+      - .gitmodules
+      - modules/ModSecurity-test-Framework
+      - modules/ModSecurity-test-Framework/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: connector-runtime-with-crs-no-mrts-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  connector-mode:
+    name: Runtime with CRS / no MRTS / ${{ matrix.connector }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - connector: apache
+            crs: with-crs
+            mrts: no-mrts
+          - connector: envoy
+            crs: with-crs
+            mrts: no-mrts
+          - connector: haproxy
+            crs: with-crs
+            mrts: no-mrts
+          - connector: lighttpd
+            crs: with-crs
+            mrts: no-mrts
+          - connector: traefik
+            crs: with-crs
+            mrts: no-mrts
+    env:
+      ALLOW_RUNTIME_BUILDS: "1"
+      ALLOW_RUNTIME_DOWNLOADS: "1"
+      CRS: ${{ matrix.crs }}
+      MRTS: ${{ matrix.mrts }}
+      CRS_RUNTIME_RUN_ID: crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.connector }}
+      EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      EXPECTED_FRAMEWORK_SHA: bd69ee96e0e7082317d4afe1232bee625665eb9a
+      EXPECTED_MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
+      EVIDENCE_ROOT: ""
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Checkout exact Parent head with pinned submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up locked Python toolchain
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Verify pinned Parent, Framework, and MRTS revisions
+        run: |
+          set -euo pipefail
+          parent_commit=$(git rev-parse HEAD)
+          framework_commit=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+          mrts_commit=$(git -C modules/ModSecurity-test-Framework/tools/MRTS rev-parse HEAD)
+          test "$parent_commit" = "$EXPECTED_PARENT_SHA"
+          test "$framework_commit" = "$EXPECTED_FRAMEWORK_SHA"
+          test "$mrts_commit" = "$EXPECTED_MRTS_SHA"
+
+      - name: Install hash-locked Framework CI dependency
+        env:
+          SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
+        run: |
+          set -euo pipefail
+          "$SETUP_PYTHON_PATH" -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock
+          "$SETUP_PYTHON_PATH" -m pip check
+
+      - name: Verify exact real-runtime cell
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          case "$CONNECTOR:$CRS:$MRTS" in
+            apache:with-crs:no-mrts|envoy:with-crs:no-mrts|haproxy:with-crs:no-mrts|lighttpd:with-crs:no-mrts|traefik:with-crs:no-mrts) ;;
+            *) echo "FAIL: connector is outside the fixed with-CRS/no-MRTS runtime set: $CONNECTOR" >&2; exit 2 ;;
+          esac
+
+      - name: Initialize private runtime roots
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+          SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
+        run: |
+          set -euo pipefail
+          case "$CONNECTOR" in apache|envoy|haproxy|lighttpd|traefik) ;; *) exit 2 ;; esac
+          case "$CRS_RUNTIME_RUN_ID" in [A-Za-z0-9]*) ;; *) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+          case "$CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+          test "${#CRS_RUNTIME_RUN_ID}" -le 48
+          case "$SETUP_PYTHON_PATH" in /*) ;; *) echo "FAIL: setup Python is not absolute" >&2; exit 2 ;; esac
+          case "$SETUP_PYTHON_PATH" in *[!A-Za-z0-9_./-]*) echo "FAIL: setup Python path is unsafe" >&2; exit 2 ;; esac
+          test -x "$SETUP_PYTHON_PATH"
+          parent_commit=$(git rev-parse HEAD)
+          case "$parent_commit" in *[!0-9a-f]*|"") echo "FAIL: invalid Parent revision" >&2; exit 2 ;; esac
+          test "${#parent_commit}" -eq 40
+          cell_parent="$RUNNER_TEMP/ModSecurity-conector-with-crs-no-mrts/$parent_commit"
+          cell_root="$cell_parent/$CRS_RUNTIME_RUN_ID"
+          verified_root="$cell_root/verified"
+          case "$cell_root" in "$RUNNER_TEMP"/*) ;; *) echo "FAIL: unsafe runner path" >&2; exit 2 ;; esac
+          umask 077
+          mkdir -p "$cell_parent"
+          test ! -e "$cell_root"
+          test ! -L "$cell_root"
+          mkdir "$cell_root"
+          chmod 700 "$cell_parent" "$cell_root"
+          {
+            printf '%s\n' "VERIFIED_RUN_ROOT=$verified_root"
+            printf '%s\n' "BUILD_ROOT=$verified_root/build"
+            printf '%s\n' "SOURCE_ROOT=$verified_root/src"
+            printf '%s\n' "TMP_ROOT=$verified_root/tmp"
+            printf '%s\n' "LOG_ROOT=$verified_root/logs"
+            printf '%s\n' "CACHE_ROOT=$verified_root/cache-v2"
+            printf '%s\n' "CONNECTOR_COMPONENT_CACHE=$verified_root/cache-v2/shared"
+            printf '%s\n' "FRAMEWORK_ROOT=$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"
+            printf '%s\n' "PYTHON=$SETUP_PYTHON_PATH"
+            printf '%s\n' "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+          } >> "$GITHUB_ENV"
+
+      - name: Run selected real with-CRS no-MRTS runtime
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          case "$CONNECTOR" in
+            apache|haproxy)
+              . "$FRAMEWORK_ROOT/ci/lib/common.sh"
+              . ci/runtime/lifecycle/prepare-fresh-crs-source.sh
+              sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"
+              ;;
+          esac
+          case "$CONNECTOR" in
+            apache)
+              EVIDENCE_ROOT= make verified-apache-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"
+              ;;
+            haproxy)
+              EVIDENCE_ROOT= make verified-haproxy-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"
+              ;;
+            envoy|lighttpd|traefik)
+              EVIDENCE_ROOT= make with-crs-no-mrts-runtime CONNECTOR="$CONNECTOR"
+              ;;
+            *)
+              echo "FAIL: runtime path is not permitted for $CONNECTOR" >&2
+              exit 2
+              ;;
+          esac
+
+      - name: Upload real runtime evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.VERIFIED_RUN_ROOT }}/evidence
+            ${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results
+            ${{ env.BUILD_ROOT }}/verified-haproxy-case/with-crs/no-mrts/results
+          if-no-files-found: error
+          retention-days: 10
+          overwrite: false

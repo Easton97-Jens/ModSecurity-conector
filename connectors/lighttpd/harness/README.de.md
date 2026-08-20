@@ -41,3 +41,52 @@ Response-Body-, Phase-4- oder Capability-Promotion-Evidenz.
 
 Nachweis des Anforderungs-/Antwortkörpers, CRS, Produktionshärtung, Sicherheit
 Eine Verifizierung und ein vollständiger Matrixbeweis werden von diesem Harness nicht bereitgestellt.
+
+## No-CRS-Fixture-Isolation und Cleanup
+
+Die No-CRS-Baseline verwendet den vertrauenswürdigen Namespace-Runner
+`run_no_crs_fixture_trusted_namespace.py`. Der Runner lehnt einen Aufrufer als
+Host-root oder mit gesetztem Set-ID-Bit ab und startet die vertrauenswürdige
+Setup-Kette über die root-eigenen Binaries `/usr/bin/unshare`, das feste
+`/usr/bin/dash` und `/usr/bin/mount` und danach `/usr/bin/bwrap`. Das
+Shell-Setup macht die Mount-Propagation privat und mountet vor dem Eintritt in
+bwrap ein privates `nosuid,nodev,noexec`-tmpfs auf `/tmp`. Bwrap stellt nur die
+minimalen schreibgeschützten System- und Runtime-Binds bereit, die der Harness
+benötigt, sowie den exakten Task-eigenen Smoke-Root als einzigen
+beschreibbaren Bind. Der Fixture-Root selbst hat den Modus 0700.
+
+Die Setup-Komponente ist die einzige Komponente, die Namespace- und
+Mount-Capabilities benötigen darf. Sie bestätigt den Capability-Zustand nach
+dem Setup; der Harness läuft nur weiter, wenn effektive, erlaubte,
+vererbbare, ambient und Bounding-Capabilities vollständig null sind und
+`no_new_privs` aktiviert ist. Der Testprozess behält keine Setup-Capabilities.
+Fehlende Namespace-Unterstützung, ein unerwarteter Capability-Zustand oder ein
+nicht verfügbares Execution-Isolation-Control führen zu einem fail-closed
+Abbruch; es gibt keinen Fallback zum früheren Cleanup aus Pfadprüfung und
+anschließendem `rmdir`.
+
+Die Fixture-Lebensdauer ist an den privaten Namespace gebunden. Reguläre
+Fertigstellung, Fehler bei der Fixture-Erstellung, Testfehler, Timeout,
+Signalbeendigung, Helper-Fehler und teilweise Initialisierung beenden die
+Kindprozessgruppe und den privaten Namespace. Der finale Namespace-State-
+Verifier prüft ausschließlich die Capability-Sets, `no_new_privs`, den
+Mount-Zustand und die Device/Inode-Identität (`dev:ino`) des festen
+Fixture-Roots. Der Descriptor-I/O-Cleanup-Befehl prüft separat das
+Allowlist-Inventar der Fixture-Blätter, behält jedes Blatt und löscht nichts
+beziehungsweise löst den Fixture-Pfad nicht erneut auf. Alle Blätter und das
+Verzeichnis verschwinden beim Abbau des privaten tmpfs-Namespace. Die
+Mount-Propagation ist explizit privat, daher werden Fixture-Mounts nicht in
+den Host-Mount-Namespace propagiert.
+
+Bedrohungsmodell: Ein Prozess mit derselben UID kann den früheren Fixture-Pfad
+während eines Laufs umbenennen, ersetzen oder neu anlegen. Die Sicherheitsgrenze
+stützt sich deshalb nicht auf eine Inode-Prüfung mit anschließender Löschung
+über einen Pfad. Die Fixture wird in einem privaten Mount-Namespace erstellt und
+verwendet, der beschreibbare Root wird vom Runner kontrolliert und die
+Namespace-Freigabe entfernt die privaten Mounts. Dadurch kann ein ersetzter
+Host-Pfad nicht zum Cleanup-Ziel werden.
+
+Der lokale verschachtelte Container besitzt nur eine einzeilige UID-/GID-Map
+und kann daher den vollständigen Produktionspfad für Nicht-root lokal nicht
+ausführen. Diese Einschränkung verhindert einen lokalen Produktions-
+Integrationsclaim; sie erlaubt keinen unsicheren Fallback.

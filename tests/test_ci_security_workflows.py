@@ -35,6 +35,8 @@ PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
     + PROTECTED_NGINX_BROKER_SHA
 )
+WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "bd69ee96e0e7082317d4afe1232bee625665eb9a"
+WITH_CRS_NO_MRTS_MRTS_SHA = "615b13bacbd008562c17408246c41ab27dca3104"
 PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
     {
         "github.event_name == 'workflow_dispatch'",
@@ -1522,6 +1524,148 @@ jobs:
             checkout_steps = checkout_step_blocks(path.read_text(encoding="utf-8"))
             for checkout_step in checkout_steps:
                 self.assertIn("persist-credentials: false", checkout_step, path.name)
+
+    def test_with_crs_no_mrts_workflow_is_five_real_fail_closed_runtime_jobs(self) -> None:
+        """Keep the narrow CRS workflow on real no-MRTS runtime paths only."""
+
+        workflow = self.workflow("test-connectors-with-crs-no-mrts.yml")
+        jobs = self.jobs("test-connectors-with-crs-no-mrts.yml")
+        self.assertEqual(set(jobs), {"connector-mode"})
+        job = jobs["connector-mode"]
+
+        self.assertIn("  pull_request:\n    branches: [master]\n", workflow)
+        self.assertIn("  workflow_dispatch:\n", workflow)
+        for forbidden in (
+            "pull_request_target:",
+            "workflow_run:",
+            "workflow_call:",
+            "repository_dispatch:",
+            "\n  push:",
+            "secrets.",
+            "github.token",
+            "GITHUB_TOKEN",
+            "GH_TOKEN",
+        ):
+            self.assertNotIn(forbidden, workflow)
+        self.assertEqual(top_level_permissions(workflow), {"contents": "read"})
+        self.assertEqual(job_permissions(job), {})
+        self.assertIsNone(job_if_expression(job))
+
+        expected_rows = [
+            ("apache", "with-crs", "no-mrts"),
+            ("envoy", "with-crs", "no-mrts"),
+            ("haproxy", "with-crs", "no-mrts"),
+            ("lighttpd", "with-crs", "no-mrts"),
+            ("traefik", "with-crs", "no-mrts"),
+        ]
+        matrix_rows = re.findall(
+            r"^          - connector: ([a-z]+)\n"
+            r"^            crs: ([a-z-]+)\n"
+            r"^            mrts: ([a-z-]+)$",
+            job,
+            re.MULTILINE,
+        )
+        self.assertEqual(matrix_rows, expected_rows)
+        self.assertNotIn("coverage_kind", job)
+        self.assertNotIn("verified-full-matrix-job", job)
+        self.assertNotIn("run-full-matrix-job.py", job)
+
+        checkout_steps = checkout_step_blocks(job)
+        self.assertEqual(len(checkout_steps), 1)
+        checkout = checkout_steps[0]
+        self.assertIn(
+            "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7",
+            checkout,
+        )
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", checkout)
+        self.assertIn("submodules: recursive", checkout)
+        self.assertIn("persist-credentials: false", checkout)
+        self.assertIn(
+            "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0",
+            job,
+        )
+        self.assertIn(
+            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+            job,
+        )
+
+        self.assertIn(
+            "EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+            job,
+        )
+        self.assertIn(f"EXPECTED_FRAMEWORK_SHA: {WITH_CRS_NO_MRTS_FRAMEWORK_SHA}", job)
+        self.assertIn(f"EXPECTED_MRTS_SHA: {WITH_CRS_NO_MRTS_MRTS_SHA}", job)
+        self.assertIn('test "$parent_commit" = "$EXPECTED_PARENT_SHA"', job)
+        self.assertIn('test "$framework_commit" = "$EXPECTED_FRAMEWORK_SHA"', job)
+        self.assertIn('test "$mrts_commit" = "$EXPECTED_MRTS_SHA"', job)
+        self.assertIn("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock", job)
+        self.assertIn('test "${#CRS_RUNTIME_RUN_ID}" -le 48', job)
+        self.assertIn("EVIDENCE_ROOT: \"\"", job)
+
+        self.assertIn(". ci/runtime/lifecycle/prepare-fresh-crs-source.sh", job)
+        self.assertIn('sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"', job)
+        self.assertLess(
+            job.index("prepare-fresh-crs-source.sh"),
+            job.index("make verified-apache-case CASE=crs_sqli_anomaly_block"),
+        )
+        self.assertLess(
+            job.index("prepare-fresh-crs-source.sh"),
+            job.index("make verified-haproxy-case CASE=crs_sqli_anomaly_block"),
+        )
+        self.assertIn(
+            'make verified-apache-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"',
+            job,
+        )
+        self.assertIn(
+            'make verified-haproxy-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"',
+            job,
+        )
+        self.assertEqual(
+            job.count('make with-crs-no-mrts-runtime CONNECTOR="$CONNECTOR"'),
+            1,
+        )
+        self.assertIn("envoy|lighttpd|traefik)", job)
+        self.assertIn("lighttpd:with-crs:no-mrts", job)
+        self.assertNotIn("runtime-with-crs-no-mrts-connector", job)
+        self.assertNotIn("action_deny_phase1", job)
+        self.assertNotIn("2101", job)
+
+        # The trusted Lighttpd namespace launcher remains inside the Parent
+        # runtime target.  The workflow neither skips this cell nor supplies a
+        # host-side fallback if that launcher rejects the runner environment.
+        for forbidden in (
+            "continue-on-error:",
+            "|| true",
+            "exit 0",
+            "unshare",
+            "run_no_crs_fixture_trusted_namespace.py",
+        ):
+            self.assertNotIn(forbidden, job)
+        self.assertIn("if-no-files-found: error", job)
+        self.assertIn("retention-days: 10", job)
+        runtime_runner = (ROOT / "ci/runtime/lifecycle/run-with-crs-no-mrts.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "TASK_ROOT=${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-crs-runtime}",
+            runtime_runner,
+        )
+        self.assertIn("EXPECTED_EVIDENCE_ROOT=$TASK_ROOT/evidence", runtime_runner)
+        # The explicit workflow root selects the first branch of the shell's
+        # ``:-`` expansion above, so the runner-owned evidence is rooted
+        # directly below it rather than below the fallback suffix.
+        self.assertIn(
+            "${{ env.VERIFIED_RUN_ROOT }}/evidence",
+            job,
+        )
+        self.assertIn(
+            "${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results",
+            job,
+        )
+        self.assertIn(
+            "${{ env.BUILD_ROOT }}/verified-haproxy-case/with-crs/no-mrts/results",
+            job,
+        )
 
     def test_pr_apr_util_provenance_job_is_unconditional_and_read_only(self) -> None:
         workflow = self.workflow("ci-security-workflow-lint.yml")

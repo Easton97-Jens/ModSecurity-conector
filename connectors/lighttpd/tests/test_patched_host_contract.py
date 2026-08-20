@@ -1,9 +1,13 @@
 from __future__ import annotations
 
-import os
+import importlib.util
 import json
+import os
 from pathlib import Path
+import re
+import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -42,6 +46,20 @@ def contract_value(key: str) -> str:
 LIGHTTPD_SERIES = contract_value("LIGHTTPD_SERIES")
 LIGHTTPD_VERSION = contract_value("LIGHTTPD_VERSION")
 PATCH = CONNECTOR / "patches" / contract_value("LIGHTTPD_PATCH_FILENAME")
+
+
+def _load_no_crs_namespace_tests():
+    """Load the namespace integration tests without importing test packages."""
+
+    path = CONNECTOR / "tests" / "test_no_crs_fixture_namespace.py"
+    specification = importlib.util.spec_from_file_location(
+        "lighttpd_no_crs_fixture_namespace_tests", path
+    )
+    if specification is None or specification.loader is None:
+        raise RuntimeError("cannot load No-CRS namespace integration tests")
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
 
 
 class PatchedCoreBootstrapTest(unittest.TestCase):
@@ -601,13 +619,387 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn('"lighttpd-%ld-%lu"', factory)
         self.assertNotIn('"lighttpd-%ld-%d-%u-%u"', factory)
 
+    def test_host_transaction_response_evidence_is_opt_in_and_not_client_reflected(self) -> None:
+        module = (CONNECTOR / "module" / "mod_msconnector.c").read_text(
+            encoding="utf-8"
+        )
+        emitter = module.split("static int mod_msconnector_emit_host_transaction_id", 1)[1].split(
+            "static plugin_body_hook_result mod_msconnector_finish_response_body", 1
+        )[0]
+        response_start = module.rsplit("REQUEST_FUNC(mod_msconnector_handle_response_start)", 1)[1].split(
+            "REQUEST_FUNC(mod_msconnector_handle_request_reset)", 1
+        )[0]
+
+        self.assertIn("int expose_host_transaction_id;", module)
+        self.assertIn('"msconnector.expose-host-transaction-id"', module)
+        self.assertIn("T_CONFIG_BOOL", module)
+        self.assertIn('CONST_STR_LEN("X-Msconnector-Host-Transaction-Id")', emitter)
+        self.assertIn("http_header_response_set", emitter)
+        self.assertNotIn("http_header_response_insert", emitter)
+        self.assertNotIn("http_header_request_get", emitter)
+        self.assertIn("!p->defaults.expose_host_transaction_id", emitter)
+        self.assertIn("mod_msconnector_response_headers_committed", emitter)
+        self.assertIn("if (ctx->request_intervened)", response_start)
+        self.assertIn("mod_msconnector_emit_host_transaction_id(r, p, ctx)", response_start)
+        self.assertLess(
+            response_start.index("msconnector_runtime_transaction_process_response_headers"),
+            response_start.rindex("mod_msconnector_emit_host_transaction_id(r, p, ctx)"),
+        )
+
+        preparer = CONNECTOR / "harness" / "prepare_native_smoke.sh"
+        with tempfile.TemporaryDirectory(prefix="lighttpd-host-id-header-") as temporary:
+            root = Path(temporary)
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "BUILD_ROOT": str(root / "build"),
+                    "LIGHTTPD_SMOKE_DIR": str(root / "smoke"),
+                    "LIGHTTPD_SMOKE_PORT": "18084",
+                    "MSCONNECTOR_RULES_FILE": str(
+                        REPO_ROOT / "common" / "rules" / "modsecurity_targeted_smoke.conf"
+                    ),
+                    "LIGHTTPD_EXPOSE_HOST_TRANSACTION_ID": "0",
+                    "LIGHTTPD_RESPONSE_HEADER_MARKER": "block",
+                }
+            )
+            disabled = subprocess.run(
+                ["sh", str(preparer)],
+                cwd=REPO_ROOT,
+                env=environment,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            self.assertEqual(disabled.returncode, 0, disabled.stderr)
+            disabled_config = Path(disabled.stdout.strip()).read_text(encoding="utf-8")
+            self.assertNotIn("msconnector.expose-host-transaction-id", disabled_config)
+            self.assertNotIn("untrusted-upstream-value", disabled_config)
+
+            environment["LIGHTTPD_EXPOSE_HOST_TRANSACTION_ID"] = "1"
+            enabled = subprocess.run(
+                ["sh", str(preparer)],
+                cwd=REPO_ROOT,
+                env=environment,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            self.assertEqual(enabled.returncode, 0, enabled.stderr)
+            enabled_config = Path(enabled.stdout.strip()).read_text(encoding="utf-8")
+            self.assertIn(
+                'msconnector.expose-host-transaction-id = "enable"', enabled_config
+            )
+            self.assertIn("untrusted-upstream-value", enabled_config)
+
+            environment["LIGHTTPD_EXPOSE_HOST_TRANSACTION_ID"] = "unexpected"
+            rejected = subprocess.run(
+                ["sh", str(preparer)],
+                cwd=REPO_ROOT,
+                env=environment,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            self.assertEqual(rejected.returncode, 77)
+            self.assertIn("must be 0 or 1", rejected.stderr)
+
+    def test_crs_harness_records_private_wire_correlation_without_a_client_transaction_id(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        crs_branch = runner.split("run_crs_runtime() {", 1)[1].split(
+            'if [ "$MSCONNECTOR_CRS_RUNTIME" = 1 ]; then', 1
+        )[0]
+
+        self.assertIn("CRS_EVIDENCE_DIR=$SMOKE_DIR/crs-request-evidence", runner)
+        self.assertIn("prepare_crs_request_evidence", runner)
+        self.assertIn("safe_output_path", runner)
+        self.assertIn("safe_input_path", crs_branch)
+        self.assertIn("os.fchmod(descriptor, 0o700)", runner)
+        self.assertIn("O_NOFOLLOW", runner)
+        self.assertIn("read_private_wire_artifact", crs_branch)
+        self.assertIn("stat.S_IMODE(details.st_mode) & 0o077", crs_branch)
+        self.assertIn("def parse_curl_request_lines(trace, case):", crs_branch)
+        self.assertIn("CURL_TRACE_DATA_ROW", crs_branch)
+        self.assertIn("span == visible_length + 2", crs_branch)
+        self.assertIn("non-contiguous outgoing-header offset", crs_branch)
+        self.assertIn("MAX_CRS_WIRE_EVIDENCE_BYTES = 65536", crs_branch)
+        self.assertIn("def parse_single_response_headers(headers, case, expected_status):", crs_branch)
+        self.assertIn("one complete response block", crs_branch)
+        self.assertIn("--trace-ascii", crs_branch)
+        self.assertIn("--dump-header", crs_branch)
+        self.assertIn("X-Framework-Request-ID", crs_branch)
+        self.assertNotIn('--header "X-Modsec-Transaction-Id:', crs_branch)
+        self.assertIn("CRS_RESPONSE_TRANSACTION_HEADER=X-Msconnector-Host-Transaction-Id", runner)
+        self.assertIn('"$CRS_RESPONSE_TRANSACTION_HEADER"', crs_branch)
+        self.assertIn("response_transaction_header_origin=server_generated_lighttpd_host", crs_branch)
+        self.assertIn("Common transaction id does not match", crs_branch)
+        self.assertIn("require_exactly_one_raw_crs_record", crs_branch)
+        self.assertIn("len(correlated_raw_lines) != 1", crs_branch)
+
+    def test_crs_wire_parsers_reconstruct_curl_folding_and_reject_multiple_responses(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        parser_source = "CURL_TRACE_SEND_HEADER =" + runner.split(
+            "CURL_TRACE_SEND_HEADER =", 1
+        )[1].split("def host_transaction_id", 1)[0]
+        namespace: dict[str, object] = {"re": re}
+        exec(parser_source, namespace)
+        parse_request = namespace["parse_curl_request_lines"]
+        parse_response = namespace["parse_single_response_headers"]
+
+        folded_trace = (
+            "=> Send header, 261 bytes (0x105)\n"
+            "0000: GET /?id=1%20uNiOn%20SeLeCt%20password%20FrOm%20users HTTP/1.1\n"
+            "0040: Host: crs-runtime.test\n"
+            "0058: User-Agent: curl/8.18.0\n"
+            "0071: Accept: */*\n"
+            "007e: X-Framework-Run-ID: lighttpd-host-id-crs-delivery3-20260820\n"
+            "00bb: X-Framework-Request-ID: lighttpd-host-id-crs-delivery3-20260820-\n"
+            "00fb: bypass\n"
+            "0103: \n"
+            "* Request completely sent off\n"
+        )
+        request_lines = parse_request(folded_trace, "bypass")
+        self.assertEqual(
+            request_lines[-2],
+            "X-Framework-Request-ID: lighttpd-host-id-crs-delivery3-20260820-bypass",
+        )
+        with self.assertRaises(SystemExit):
+            parse_request(folded_trace.replace("00bb:", "00bc:", 1), "bypass")
+
+        parsed = parse_response(
+            "HTTP/1.1 403 Forbidden\r\n"
+            "X-Msconnector-Host-Transaction-Id: lighttpd-60-3\r\n"
+            "Content-Length: 158\r\n\r\n",
+            "bypass",
+            "403",
+        )
+        self.assertIn(
+            ("X-Msconnector-Host-Transaction-Id", "lighttpd-60-3"), parsed
+        )
+        with self.assertRaises(SystemExit):
+            parse_response(
+                "HTTP/1.1 100 Continue\r\n\r\n"
+                "HTTP/1.1 403 Forbidden\r\n"
+                "X-Msconnector-Host-Transaction-Id: lighttpd-60-3\r\n\r\n",
+                "bypass",
+                "403",
+            )
+
+    def test_crs_raw_rule_correlation_requires_exactly_one_record(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        helper_source = "def require_exactly_one_raw_crs_record" + runner.split(
+            "def require_exactly_one_raw_crs_record", 1
+        )[1].split("def observed", 1)[0]
+        namespace: dict[str, object] = {}
+        exec(helper_source, namespace)
+        require_record = namespace["require_exactly_one_raw_crs_record"]
+
+        transaction_id = "lighttpd-60-2"
+        line = f'[id "942270"] [unique_id "{transaction_id}"]'
+        self.assertEqual(
+            require_record(line, transaction_id, "block"),
+            line,
+        )
+        with self.assertRaises(SystemExit):
+            require_record(f"{line}\n{line}", transaction_id, "block")
+
+    def test_crs_mode_never_materializes_the_no_crs_entity_fixture(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        setup = runner.split('mkdir -p "$SMOKE_DIR" "$FIRST_BYTE_DIR"', 1)[1].split(
+            "CRS_UPSTREAM_READY=", 1
+        )[0]
+
+        self.assertNotIn('mkdir -p "$SMOKE_DIR" "$FIRST_BYTE_DIR" "$FIXTURE_DIR"', runner)
+        self.assertNotIn("prepare_crs_fixture_directory", runner)
+        self.assertNotIn("cleanup_crs_fixture_directory", runner)
+        self.assertNotIn("CRS_FIXTURE_DIR_OWNED", runner)
+        self.assertIn('if [ "$MSCONNECTOR_CRS_RUNTIME" = 0 ]; then', setup)
+        self.assertIn("prepare_no_crs_fixture_directory", setup)
+        self.assertNotIn('mkdir -p "$FIXTURE_DIR"', setup)
+        self.assertNotIn('rm -f "$FIXTURE_DIR', setup)
+
+    @property
+    def _no_crs_fixture_io(self) -> Path:
+        return CONNECTOR / "harness" / "no_crs_fixture_descriptor_io.py"
+
+    def _run_no_crs_fixture_io(
+        self, *arguments: str
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-B", str(self._no_crs_fixture_io), *arguments],
+            cwd=REPO_ROOT,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+    def _create_no_crs_fixture(self, root: Path) -> tuple[str, str, Path]:
+        created = self._run_no_crs_fixture_io(
+            "create", "--runtime-output-root", str(root)
+        )
+        self.assertEqual(created.returncode, 0, created.stderr)
+        record = created.stdout.strip().split("\t")
+        self.assertEqual(len(record), 2, created.stdout)
+        name, identity = record
+        self.assertRegex(name, r"^\.entity-fixtures-[a-f0-9]{32}$")
+        self.assertRegex(identity, r"^[0-9]+:[0-9]+$")
+        fixture = root / name
+        self.assertEqual(fixture.stat().st_mode & 0o777, 0o700)
+        return name, identity, fixture
+
+    def _fixture_command(
+        self, command: str, root: Path, name: str, identity: str, *arguments: str
+    ) -> subprocess.CompletedProcess[str]:
+        return self._run_no_crs_fixture_io(
+            command,
+            "--runtime-output-root",
+            str(root),
+            "--fixture-name",
+            name,
+            "--fixture-identity",
+            identity,
+            *arguments,
+        )
+
+    def _load_bound_fixture_result(
+        self, root: Path, name: str, identity: str
+    ) -> subprocess.CompletedProcess[str]:
+        harness = CONNECTOR / "harness"
+        code = (
+            "from pathlib import Path\n"
+            "import sys\n"
+            f"sys.path.insert(0, {str(harness)!r})\n"
+            "from write_patched_lifecycle_results import load_fixture_result\n"
+            "result = load_fixture_result(\n"
+            "    Path(sys.argv[1]),\n"
+            "    fixture_directory_name=sys.argv[2],\n"
+            "    fixture_directory_identity=sys.argv[3],\n"
+            ")\n"
+            "print(f'{result[0]},{result[1]}')\n"
+        )
+        return subprocess.run(
+            [sys.executable, "-B", "-c", code, str(root), name, identity],
+            cwd=REPO_ROOT,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+    def _stop_owned_test_fixture(self, process: subprocess.Popen[str]) -> None:
+        if process.poll() is not None:
+            return
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
+    def _no_crs_fixture_test_parent(self) -> str:
+        parent = Path(
+            os.environ.get(
+                "LIGHTTPD_TEST_RUNTIME_PARENT", "/var/tmp/codex/ModSecurity-conector"
+            )
+        )
+        self.assertTrue(parent.is_dir(), f"private fixture test parent is missing: {parent}")
+        self.assertFalse(parent.is_symlink(), f"private fixture test parent is a symlink: {parent}")
+        details = parent.lstat()
+        self.assertTrue(stat.S_ISDIR(details.st_mode))
+        self.assertEqual(details.st_uid, os.geteuid())
+        self.assertEqual(details.st_mode & 0o077, 0)
+        return str(parent)
+
+    def _assert_migrated_namespace_test(self, method_name: str) -> None:
+        """Run the migrated fixture test through the trusted namespace gate.
+
+        These historical host-contract names retain their coverage role, but
+        their implementation now lives in the dedicated namespace suite. A
+        nested test case is intentional: it preserves the old contract suite's
+        lifecycle coverage while ensuring the real fixture and same-UID race
+        execute only inside the capability-checked private mount namespace.
+        """
+
+        namespace_tests = _load_no_crs_namespace_tests()
+        case = namespace_tests.NamespaceIntegrationTest(methodName=method_name)
+        result = unittest.TestResult()
+        case.run(result)
+        if result.skipped:
+            self.skipTest(result.skipped[0][1])
+        if result.errors or result.failures:
+            details = "\n".join(
+                detail for _test, detail in (*result.errors, *result.failures)
+            )
+            self.fail(details)
+        self.assertTrue(result.wasSuccessful())
+
+    def test_no_crs_fixture_lifecycle_is_private_identity_bound_and_fail_closed(self) -> None:
+        self._assert_migrated_namespace_test(
+            "test_descriptor_fixture_io_lifecycle_is_real_private_and_host_mount_disappears"
+        )
+
+    def test_no_crs_fixture_lifecycle_rejects_legacy_symlink_replacement_and_foreign_content(self) -> None:
+        self._assert_migrated_namespace_test(
+            "test_private_descriptor_rejections_and_same_uid_actual_fixture_race"
+        )
+
+    def test_opt_in_host_transaction_header_covers_p1_p2_and_p3_response_paths(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        preparer = (CONNECTOR / "harness" / "prepare_native_smoke.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("HOST_TRANSACTION_EVIDENCE_DIR=$SMOKE_DIR/host-transaction-evidence", runner)
+        self.assertIn("prepare_host_transaction_evidence", runner)
+        self.assertIn("verify_host_transaction_response_headers", runner)
+        self.assertIn('"$CRS_RESPONSE_TRANSACTION_HEADER" <<\'PY\'\nimport os', runner)
+        self.assertIn("p1-allow.response.headers", runner)
+        self.assertIn("p1-deny.response.headers", runner)
+        self.assertIn("p2-deny.response.headers", runner)
+        self.assertIn("p3-deny.response.headers", runner)
+        self.assertIn("client_label, \"untrusted-client-value\"", runner)
+        self.assertIn("untrusted-client-value", runner)
+        self.assertIn("ordinary No-CRS requests do", runner)
+        self.assertIn("untrusted-upstream-value", runner)
+        self.assertIn("setenv.add-response-header", preparer)
+        self.assertIn('"X-Msconnector-Host-Transaction-Id" => "untrusted-upstream-value"', preparer)
+
     def test_full_lifecycle_runner_uses_real_http1_entity_and_barrier_evidence(self) -> None:
         runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
             encoding="utf-8"
         )
+        fixture_io = (CONNECTOR / "harness" / "no_crs_fixture_descriptor_io.py").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("LIGHTTPD_PATCHED_RESPONSE_BODY_MODE=streaming", runner)
-        self.assertIn("lighttpd_http1_entity_fixture_upstream.py", runner)
-        self.assertIn('--runtime-output-root "$SMOKE_DIR"', runner)
+        self.assertIn("no_crs_fixture_descriptor_io.py", runner)
+        self.assertIn("fixture_no_crs_io serve", runner)
+        self.assertIn("fixture_no_crs_io curl-case", runner)
+        self.assertIn('--entity-fixture-directory-name "$FIXTURE_BASENAME"', runner)
+        self.assertIn('--entity-fixture-directory-identity "$FIXTURE_IDENTITY"', runner)
+        self.assertNotIn("$FIXTURE_DIR/", runner)
+        self.assertIn("lighttpd_http1_entity_fixture_upstream", fixture_io)
+        self.assertIn('"--dump-header",', fixture_io)
+        self.assertIn('"-",', fixture_io)
+        self.assertIn("MAX_CURL_OUTPUT_BYTES = MAX_HEADER_BYTES + 3", fixture_io)
+        self.assertIn("_bounded_curl_output", fixture_io)
+        self.assertIn("stdout=subprocess.PIPE", fixture_io)
+        self.assertIn("stderr=subprocess.DEVNULL", fixture_io)
+        self.assertNotIn("runtime-output-directory-fd", fixture_io)
+        self.assertNotIn("open_inherited_private_runtime_directory", fixture_io)
         self.assertIn("verify_runtime_output_paths", runner)
         self.assertIn("safe_output_path(root, Path(sys.argv[3])", runner)
         self.assertIn("--merge-evidence", runner)
@@ -679,8 +1071,15 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertLess(runner.index(diagnostic_declaration), runner.index(diagnostic_use))
         self.assertLess(runner.index(status_declaration), runner.index("blocked() {"))
         self.assertLess(runner.index(diagnostic_declaration), runner.index("blocked() {"))
-        self.assertEqual(runner.count(status_use), 8)
-        self.assertEqual(runner.count(diagnostic_use), 6)
+        self.assertEqual(runner.count(status_use), 4)
+        self.assertEqual(runner.count(diagnostic_use), 5)
+
+        fixture_io = (CONNECTOR / "harness" / "no_crs_fixture_descriptor_io.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"--write-out",', fixture_io)
+        self.assertIn('"%{http_code}",', fixture_io)
+        self.assertIn("fixture_no_crs_io diagnostics", runner)
 
         source_without_declarations = runner.replace(status_declaration, "").replace(
             diagnostic_declaration, ""
@@ -692,12 +1091,23 @@ class PatchedHostContractTest(unittest.TestCase):
 
         for control in (
             "set -eu",
-            "trap cleanup EXIT HUP INT TERM",
+            "trap cleanup EXIT",
+            "trap 'on_signal 129' HUP",
+            "trap 'on_signal 130' INT",
+            "trap 'on_signal 143' TERM",
             "trap - EXIT HUP INT TERM",
             'if ! wait "$FIRST_BYTE_CLIENT_PID"; then',
             'if grep -Fq \'"status": "FAIL"\' "$RESULTS_PATH"; then',
         ):
             self.assertIn(control, runner)
+
+        self.assertIn("CHILD_STOP_ATTEMPTS=50", runner)
+        self.assertIn('kill -KILL "$child_pid"', runner)
+        self.assertIn("owned_child_is_current", runner)
+        self.assertIn('if ! verify_crs_cleanup \\', runner)
+        self.assertIn('"$cleanup_server_pid" "$cleanup_server_token"', runner)
+        self.assertIn("require_exactly_one_raw_crs_record", runner)
+        self.assertIn("len(correlated_raw_lines) != 1", runner)
 
         success = "2" + "00"
         denied = "4" + "03"

@@ -118,6 +118,41 @@ build/smoke evidence; Git history retains the removed planning chronology.
 | Unexpected P4 result | Connector guide, phase event, commit/EOS metadata, and selected profile | A strict client action from a rule match alone |
 | Report/status mismatch | Run ID, effective configuration, normalized records, and validator output | That a generated summary is raw runtime proof |
 
+## Lighttpd No-CRS fixture boundary
+
+The Lighttpd No-CRS fixture lifecycle is isolated by a trusted namespace
+runner. Root-owned `/usr/bin/unshare`, fixed `/usr/bin/dash` and
+`/usr/bin/mount`, and then `/usr/bin/bwrap` establish a private user, mount,
+and PID boundary. The shell setup makes propagation private and mounts a
+private `nosuid,nodev,noexec` tmpfs at `/tmp`. Bwrap exposes only minimal
+read-only system and runtime binds plus the exact task-owned smoke root as the
+sole writable bind; the fixture root is mode 0700.
+
+Namespace setup is the narrowly scoped privileged component. It must attest
+empty effective, permitted, inheritable, ambient, and bounding capability sets
+and enabled `no_new_privs` before the harness proceeds. The harness retains no
+setup capability. Missing capabilities, namespace support, or an execution
+isolation prerequisite fails closed, with no path-check-then-`rmdir` fallback.
+
+The normal and exceptional lifecycles—success, fixture/setup error, test
+failure, timeout, signal, helper crash, and partial initialization—terminate
+the child group and release the private namespace. The final namespace-state
+verifier checks only capability sets, `no_new_privs`, mount state, and the fixed
+fixture-root device/inode (`dev:ino`) identity. The descriptor-I/O cleanup
+command separately verifies the allowlisted fixture-leaf inventory, retains
+every leaf, and neither unlinks nor re-resolves the fixture path. All leaves
+and the directory disappear when the private tmpfs namespace is torn down.
+
+Threat model: a same-UID process can rename, replace, or recreate the legacy
+fixture path between an inode check and pathname deletion. The private mount
+namespace and controlled writable root make namespace release the cleanup
+operation, so the host pathname race cannot select a foreign directory for
+deletion.
+
+The nested local validation container has only a one-entry UID/GID map and
+cannot run the complete non-root production entry path. This remains a local
+validation limitation and does not justify weakening the fail-closed gate.
+
 ## Hardening backlog and non-claims
 
 Transport hardening, cancellation behavior, strict late intervention,

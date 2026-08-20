@@ -46,9 +46,19 @@ FULL_LIFECYCLE_EVIDENCE_OUTPUT=${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}
 PHASE4_BARRIER_DIR="$RUNTIME_ROOT/phase4-first-byte-barrier"
 PHASE4_BARRIER_OBSERVATION="$RUNTIME_ROOT/phase4-first-byte-observation.json"
 PHASE4_BARRIER_TIMEOUT=${ENVOY_PHASE4_BARRIER_TIMEOUT_SECONDS:-10}
+CHILD_STOP_ATTEMPTS=${ENVOY_CHILD_STOP_ATTEMPTS:-20}
+CHILD_STOP_DELAY=${ENVOY_CHILD_STOP_DELAY_SECONDS:-0.1}
 PHASE4_BARRIER_TRANSACTION_ID=envoy-ext-proc-phase4-safe
 READINESS_TRANSACTION_ID=envoy-ext-proc-readiness-1
 ALLOW_TRANSACTION_ID=envoy-ext-proc-allow-1
+CRS_RUNTIME=${MSCONNECTOR_CRS_RUNTIME:-0}
+CRS_RUNTIME_RUN_ID=${CRS_RUNTIME_RUN_ID:-}
+CRS_ALLOW_TRANSACTION_ID=envoy-ext-proc-crs-allow-1
+CRS_BLOCK_TRANSACTION_ID=envoy-ext-proc-crs-block-1
+CRS_BYPASS_TRANSACTION_ID=envoy-ext-proc-crs-bypass-1
+CRS_ALLOW_PROBE_EVIDENCE="$RUNTIME_ROOT/crs-allow-probe.json"
+CRS_BLOCK_PROBE_EVIDENCE="$RUNTIME_ROOT/crs-block-probe.json"
+CRS_BYPASS_PROBE_EVIDENCE="$RUNTIME_ROOT/crs-bypass-probe.json"
 readonly ENVIRONMENT_LOG_LINES='1,160p'
 readonly NO_CRS_REQUEST_BODY_MARKER=no-crs-request-body-marker
 READINESS_PROBE_EVIDENCE="$RUNTIME_ROOT/readiness-probe.json"
@@ -58,6 +68,18 @@ TLS_PRIVATE_KEY="$RUNTIME_ROOT/envoy-loopback.key"
 envoy_pid=
 service_pid=
 upstream_pid=
+envoy_start_token=
+service_start_token=
+upstream_start_token=
+
+print_runtime_log() {
+    log_path=$1
+    if [ -f "$log_path" ] && [ ! -L "$log_path" ]; then
+        if ! sed -n "$ENVIRONMENT_LOG_LINES" "$log_path" >&2; then
+            echo "envoy_ext_proc_runtime: diagnostic log could not be read: $log_path" >&2
+        fi
+    fi
+}
 
 missing_dependency() {
     reason=$1
@@ -66,19 +88,317 @@ missing_dependency() {
 }
 
 cleanup() {
-    for pid in "$envoy_pid" "$service_pid" "$upstream_pid"; do
-        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-            kill "$pid" 2>/dev/null || true
-        fi
-    done
-    for pid in "$envoy_pid" "$service_pid" "$upstream_pid"; do
-        if [ -n "$pid" ]; then
-            set +e
-            wait "$pid" 2>/dev/null
-            set -e
+    cleanup_status=0
+    for process_spec in \
+        "envoy:$envoy_pid:$envoy_start_token" \
+        "ext_proc:$service_pid:$service_start_token" \
+        "upstream:$upstream_pid:$upstream_start_token"; do
+        process_label=${process_spec%%:*}
+        process_rest=${process_spec#*:}
+        process_pid=${process_rest%%:*}
+        process_token=${process_rest#*:}
+        if [ -n "$process_pid" ] && ! stop_owned_process "$process_pid" "$process_token" "$process_label"; then
+            cleanup_status=1
         fi
     done
     rm -f "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
+    return "$cleanup_status"
+}
+
+owned_process_start_token() {
+    owned_pid=$1
+    case "$owned_pid" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ -r "/proc/$owned_pid/stat" ] || return 1
+    owned_token=$(owned_process_stat_value "$owned_pid" starttime) || return 1
+    case "$owned_token" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    printf '%s\n' "$owned_token"
+}
+
+owned_process_stat_value() {
+    owned_pid=$1
+    owned_field=$2
+    "$PYTHON_BIN" - "$owned_pid" "$owned_field" <<'PY'
+import pathlib
+import sys
+
+pid, field = sys.argv[1:]
+if not pid.isdecimal() or field not in {"state", "starttime"}:
+    raise SystemExit(1)
+try:
+    line = pathlib.Path("/proc", pid, "stat").read_text(encoding="ascii")
+except (OSError, UnicodeError):
+    raise SystemExit(1)
+close = line.rfind(")")
+if close < 0:
+    raise SystemExit(1)
+post_comm = line[close + 1:].split()
+if len(post_comm) < 20 or len(post_comm[0]) != 1:
+    raise SystemExit(1)
+value = post_comm[0] if field == "state" else post_comm[19]
+if field == "starttime" and not value.isdecimal():
+    raise SystemExit(1)
+print(value)
+PY
+}
+
+owned_process_is_current() {
+    owned_pid=$1
+    expected_token=$2
+    current_token=$(owned_process_start_token "$owned_pid") || return 1
+    [ "$current_token" = "$expected_token" ]
+}
+
+owned_process_is_zombie() {
+    owned_pid=$1
+    [ -r "/proc/$owned_pid/stat" ] || return 1
+    owned_state=$(owned_process_stat_value "$owned_pid" state) || return 1
+    [ "$owned_state" = Z ]
+}
+
+wait_for_owned_process_stop() {
+    owned_pid=$1
+    expected_token=$2
+    process_label=$3
+    stop_attempt=0
+    while [ "$stop_attempt" -lt "$CHILD_STOP_ATTEMPTS" ]; do
+        if ! kill -0 "$owned_pid" 2>/dev/null || owned_process_is_zombie "$owned_pid"; then
+            return 0
+        fi
+        if ! owned_process_is_current "$owned_pid" "$expected_token"; then
+            echo "envoy_ext_proc_runtime: refusing to signal changed $process_label PID $owned_pid" >&2
+            return 1
+        fi
+        stop_attempt=$((stop_attempt + 1))
+        sleep "$CHILD_STOP_DELAY"
+    done
+    return 1
+}
+
+stop_owned_process() {
+    owned_pid=$1
+    expected_token=$2
+    process_label=$3
+    if [ -z "$expected_token" ] || ! owned_process_is_current "$owned_pid" "$expected_token"; then
+        if kill -0 "$owned_pid" 2>/dev/null; then
+            echo "envoy_ext_proc_runtime: refusing to signal unverified $process_label PID $owned_pid" >&2
+            return 1
+        fi
+    elif kill -0 "$owned_pid" 2>/dev/null; then
+        if ! kill -TERM "$owned_pid" 2>/dev/null && kill -0 "$owned_pid" 2>/dev/null; then
+            echo "envoy_ext_proc_runtime: could not send TERM to owned $process_label PID $owned_pid" >&2
+            return 1
+        fi
+        if ! wait_for_owned_process_stop "$owned_pid" "$expected_token" "$process_label"; then
+            if kill -0 "$owned_pid" 2>/dev/null; then
+                if ! owned_process_is_current "$owned_pid" "$expected_token"; then
+                    return 1
+                fi
+                if ! kill -KILL "$owned_pid" 2>/dev/null && kill -0 "$owned_pid" 2>/dev/null; then
+                    echo "envoy_ext_proc_runtime: could not send KILL to owned $process_label PID $owned_pid" >&2
+                    return 1
+                fi
+                if ! wait_for_owned_process_stop "$owned_pid" "$expected_token" "$process_label"; then
+                    echo "envoy_ext_proc_runtime: owned $process_label PID $owned_pid did not stop within bounded timeout" >&2
+                    return 1
+                fi
+            fi
+        fi
+    fi
+    set +e
+    wait "$owned_pid" 2>/dev/null
+    set -e
+    return 0
+}
+
+run_crs_runtime() {
+    if ! crs_allow_status=$("$PYTHON_BIN" "$HELPER" probe \
+        --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+        --url "https://127.0.0.1:$listen_port/?id=42" \
+        --method GET --data "" \
+        --header "X-Request-Id: $CRS_ALLOW_TRANSACTION_ID" \
+        --header "X-Framework-Run-ID: $CRS_RUNTIME_RUN_ID" \
+        --header "Content-Length: 0" \
+        --header "Host: crs-runtime.test" \
+        --evidence-path "$CRS_ALLOW_PROBE_EVIDENCE"); then
+        echo "envoy_ext_proc_runtime: FAIL - CRS allow probe could not be completed" >&2
+        return 1
+    fi
+    if [ "$crs_allow_status" != "200" ]; then
+        echo "envoy_ext_proc_runtime: FAIL - CRS allow request returned $crs_allow_status, expected 200" >&2
+        return 1
+    fi
+
+    if ! crs_block_status=$("$PYTHON_BIN" "$HELPER" probe \
+        --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+        --url "https://127.0.0.1:$listen_port/?id=1%20UNION%20SELECT%20password%20FROM%20users" \
+        --method GET --data "" \
+        --header "X-Request-Id: $CRS_BLOCK_TRANSACTION_ID" \
+        --header "X-Framework-Run-ID: $CRS_RUNTIME_RUN_ID" \
+        --header "Content-Length: 0" \
+        --header "Host: crs-runtime.test" \
+        --evidence-path "$CRS_BLOCK_PROBE_EVIDENCE"); then
+        echo "envoy_ext_proc_runtime: FAIL - CRS block probe could not be completed" >&2
+        return 1
+    fi
+    if [ "$crs_block_status" != "403" ]; then
+        echo "envoy_ext_proc_runtime: FAIL - CRS block request returned $crs_block_status, expected 403" >&2
+        return 1
+    fi
+
+    # Case variation exercises the case-insensitive CRS expression through the
+    # same real Envoy/ext_proc path.  It must not turn the fixture into a
+    # connector-local marker check.
+    if ! crs_bypass_status=$("$PYTHON_BIN" "$HELPER" probe \
+        --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+        --url "https://127.0.0.1:$listen_port/?id=1%20uNiOn%20sElEcT%20password%20fRoM%20users" \
+        --method GET --data "" \
+        --header "X-Request-Id: $CRS_BYPASS_TRANSACTION_ID" \
+        --header "X-Framework-Run-ID: $CRS_RUNTIME_RUN_ID" \
+        --header "Content-Length: 0" \
+        --header "Host: crs-runtime.test" \
+        --evidence-path "$CRS_BYPASS_PROBE_EVIDENCE"); then
+        echo "envoy_ext_proc_runtime: FAIL - CRS bypass-class probe could not be completed" >&2
+        return 1
+    fi
+    if [ "$crs_bypass_status" != "403" ]; then
+        echo "envoy_ext_proc_runtime: FAIL - CRS bypass-class request returned $crs_bypass_status, expected 403" >&2
+        return 1
+    fi
+
+    # The client probes and the Common event log are independently produced.
+    # Do not materialize any verdict from expected data: wait until the raw
+    # block records themselves establish the two disruptive decisions.
+    crs_evidence_ready=0
+    attempt=0
+    while [ "$attempt" -lt 20 ]; do
+        attempt=$((attempt + 1))
+        if "$PYTHON_BIN" - "$COMMON_EVENT_LOG_PATH" "$COMPLETION_LOG_PATH" \
+            "$CRS_ALLOW_PROBE_EVIDENCE" "$CRS_BLOCK_PROBE_EVIDENCE" \
+            "$CRS_BYPASS_PROBE_EVIDENCE" "$CRS_ALLOW_TRANSACTION_ID" \
+            "$CRS_BLOCK_TRANSACTION_ID" "$CRS_BYPASS_TRANSACTION_ID" \
+            "$SERVICE_STDERR" <<'PY'
+import json
+import pathlib
+import sys
+
+event_path = pathlib.Path(sys.argv[1])
+completion_path = pathlib.Path(sys.argv[2])
+probe_paths = [pathlib.Path(value) for value in sys.argv[3:6]]
+allow_id, block_id, bypass_id = sys.argv[6:9]
+raw_service_log = pathlib.Path(sys.argv[9])
+
+def jsonl(path):
+    if not path.is_file() or path.is_symlink():
+        raise ValueError(f"missing or unsafe runtime log: {path}")
+    records = []
+    for line in path.read_text(encoding="utf-8", errors="strict").splitlines():
+        if line:
+            value = json.loads(line)
+            if not isinstance(value, dict):
+                raise ValueError("runtime record is not an object")
+            records.append(value)
+    return records
+
+def probe(path, expected_status):
+    if not path.is_file() or path.is_symlink():
+        raise ValueError(f"missing or unsafe client probe: {path}")
+    value = json.loads(path.read_text(encoding="utf-8", errors="strict"))
+    if not isinstance(value, dict) or value.get("evidence_type") != "envoy_http_client_probe":
+        raise ValueError("invalid client probe evidence")
+    if value.get("http_status") != expected_status or value.get("body_payload_persisted") is not False:
+        raise ValueError("client probe did not observe the required status")
+
+def disruptive(records, transaction_id):
+    matches = [
+        record for record in records
+        if record.get("connector") == "envoy"
+        and record.get("integration_mode") == "ext_proc"
+        and record.get("transaction_id") == transaction_id
+        and record.get("requested_action") == "deny"
+        and record.get("actual_action") == "deny"
+        and record.get("visible_http_status") == 403
+    ]
+    if len(matches) != 1:
+        raise ValueError("missing uniquely correlated CRS deny event")
+
+def canonical_trigger(path, transaction_id):
+    if not path.is_file() or path.is_symlink():
+        raise ValueError(f"missing or unsafe ModSecurity log: {path}")
+    if path.stat().st_size > 2 * 1024 * 1024:
+        raise ValueError("ModSecurity log exceeds the bounded CRS-evidence limit")
+    marker = f'[unique_id "{transaction_id}"]'
+    matches = [
+        line for line in path.read_text(encoding="utf-8", errors="strict").splitlines()
+        if '[id "942270"]' in line
+        and "REQUEST-942-APPLICATION-ATTACK-SQLI.conf" in line
+        and marker in line
+    ]
+    if len(matches) != 1:
+        raise ValueError("missing uniquely correlated canonical CRS trigger")
+
+probes = [(probe_paths[0], 200), (probe_paths[1], 403), (probe_paths[2], 403)]
+for path, status in probes:
+    probe(path, status)
+events = jsonl(event_path)
+completions = jsonl(completion_path)
+disruptive(events, block_id)
+disruptive(events, bypass_id)
+canonical_trigger(raw_service_log, block_id)
+canonical_trigger(raw_service_log, bypass_id)
+allow_completions = [
+    record for record in completions
+    if record.get("transaction_id") == allow_id
+    and record.get("event") == "ext_proc_stream_complete"
+    and record.get("integration_mode") == "ext_proc"
+    and record.get("close_reason") == "response_end_of_stream"
+]
+if len(allow_completions) != 1:
+    raise ValueError("missing uniquely correlated CRS allow completion")
+PY
+        then
+            crs_evidence_ready=1
+            break
+        fi
+        sleep 1
+    done
+    if [ "$crs_evidence_ready" -ne 1 ]; then
+        echo "envoy_ext_proc_runtime: FAIL - missing raw CRS decision or correlation evidence" >&2
+        print_runtime_log "$COMMON_EVENT_LOG_PATH"
+        print_runtime_log "$COMPLETION_LOG_PATH"
+        return 1
+    fi
+
+    for process_pair in "envoy:$envoy_pid" "ext_proc:$service_pid" "upstream:$upstream_pid"; do
+        process_name=${process_pair%%:*}
+        process_id=${process_pair##*:}
+        if ! kill -0 "$process_id" 2>/dev/null; then
+            echo "envoy_ext_proc_runtime: FAIL - $process_name was not stable after CRS requests" >&2
+            return 1
+        fi
+    done
+
+    {
+        printf 'status=PASS\n'
+        printf 'connector=envoy\n'
+        printf 'integration_mode=ext_proc\n'
+        printf 'runtime_profile=with-crs-no-mrts\n'
+        printf 'run_id=%s\n' "$CRS_RUNTIME_RUN_ID"
+        printf 'allow_request_id=%s\n' "$CRS_ALLOW_TRANSACTION_ID"
+        printf 'allow_observed_status=%s\n' "$crs_allow_status"
+        printf 'block_request_id=%s\n' "$CRS_BLOCK_TRANSACTION_ID"
+        printf 'block_observed_status=%s\n' "$crs_block_status"
+        printf 'bypass_request_id=%s\n' "$CRS_BYPASS_TRANSACTION_ID"
+        printf 'bypass_observed_status=%s\n' "$crs_bypass_status"
+        printf 'canonical_trigger_rule_id=942270\n'
+        printf 'event_log=%s\n' "$COMMON_EVENT_LOG_PATH"
+        printf 'completion_log=%s\n' "$COMPLETION_LOG_PATH"
+        printf 'modsecurity_log=%s\n' "$SERVICE_STDERR"
+        printf 'rules_file=%s\n' "$resolved_rules_file"
+    } > "$SUMMARY"
 }
 
 [ -n "${ENVOY_BIN:-}" ] || missing_dependency "ENVOY_BIN is required"
@@ -92,6 +412,29 @@ cleanup() {
 [ -f "$HELPER" ] || missing_dependency "smoke helper is missing: $HELPER"
 [ -f "$TLS_RENDERER" ] || missing_dependency "TLS YAML renderer is missing: $TLS_RENDERER"
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || missing_dependency "Python interpreter is missing: $PYTHON_BIN"
+case "$CRS_RUNTIME" in
+    0|1) ;;
+    *) echo "envoy_ext_proc_runtime: FAIL - MSCONNECTOR_CRS_RUNTIME must be 0 or 1" >&2; exit 1 ;;
+esac
+if [ "$CRS_RUNTIME" = 1 ]; then
+    # The framework supplies a run-scoped identifier.  Keep it short enough
+    # that the derived wire IDs remain bounded, and derive every CRS request
+    # ID from it so independent matrix runs cannot collide in raw evidence.
+    case "$CRS_RUNTIME_RUN_ID" in
+        ''|*[!A-Za-z0-9._-]*)
+            echo "envoy_ext_proc_runtime: FAIL - CRS_RUNTIME_RUN_ID must be a bounded safe token" >&2
+            exit 1
+            ;;
+        *) ;;
+    esac
+    if [ "${#CRS_RUNTIME_RUN_ID}" -gt 48 ]; then
+        echo "envoy_ext_proc_runtime: FAIL - CRS_RUNTIME_RUN_ID exceeds 48 characters" >&2
+        exit 1
+    fi
+    CRS_ALLOW_TRANSACTION_ID="envoy-ext-proc-crs-${CRS_RUNTIME_RUN_ID}-allow"
+    CRS_BLOCK_TRANSACTION_ID="envoy-ext-proc-crs-${CRS_RUNTIME_RUN_ID}-block"
+    CRS_BYPASS_TRANSACTION_ID="envoy-ext-proc-crs-${CRS_RUNTIME_RUN_ID}-bypass"
+fi
 . "$TLS_RENDERER"
 [ -f "$RULES_FILE" ] || missing_dependency "canonical rules file is missing: $RULES_FILE"
 resolved_rules_file=$("$PYTHON_BIN" -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve(strict=True))' "$RULES_FILE") || {
@@ -138,6 +481,12 @@ case "$ALLOW_PROBE_EVIDENCE" in
     "$RUNTIME_ROOT"/*) ;;
     *) echo "envoy_ext_proc_runtime: FAIL - allow probe evidence must be under RUNTIME_ROOT" >&2; exit 1 ;;
 esac
+for crs_probe_evidence in "$CRS_ALLOW_PROBE_EVIDENCE" "$CRS_BLOCK_PROBE_EVIDENCE" "$CRS_BYPASS_PROBE_EVIDENCE"; do
+    case "$crs_probe_evidence" in
+        "$RUNTIME_ROOT"/*) ;;
+        *) echo "envoy_ext_proc_runtime: FAIL - CRS probe evidence must be under RUNTIME_ROOT" >&2; exit 1 ;;
+    esac
+done
 case "$TRANSPORT_CANCEL_PROBE" in
     0|1) ;;
     *) echo "envoy_ext_proc_runtime: FAIL - ENVOY_TRANSPORT_CANCEL_PROBE must be 0 or 1" >&2; exit 1 ;;
@@ -167,7 +516,8 @@ trap cleanup EXIT HUP INT TERM
 mkdir -p "$PHASE4_BARRIER_DIR"
 rm -f "$COMMON_EVENT_LOG_PATH" "$COMPLETION_LOG_PATH" "$SUMMARY" "$EXT_PROC_RUNTIME_CONFIG" \
     "$TRANSPORT_OBSERVATIONS" "$PHASE4_BARRIER_OBSERVATION" \
-    "$ALLOW_PROBE_EVIDENCE" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY" \
+    "$ALLOW_PROBE_EVIDENCE" "$CRS_ALLOW_PROBE_EVIDENCE" "$CRS_BLOCK_PROBE_EVIDENCE" \
+    "$CRS_BYPASS_PROBE_EVIDENCE" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY" \
     "$PHASE4_BARRIER_DIR/upstream-paused.json" "$PHASE4_BARRIER_DIR/release" \
     "$PHASE4_BARRIER_DIR/upstream-completed.json"
 
@@ -185,7 +535,7 @@ case "$envoy_version" in
     *"/$pinned_envoy_release/"*|*"version: $pinned_envoy_release"*) ;;
     *)
         echo "envoy_ext_proc_runtime: FAIL - Envoy does not match pinned $pinned_envoy_release" >&2
-        sed -n '1,20p' "$RUNTIME_ROOT/envoy-version.txt" >&2 || true
+        print_runtime_log "$RUNTIME_ROOT/envoy-version.txt"
         exit 1
         ;;
 esac
@@ -253,7 +603,7 @@ if ! "$ENVOY_BIN" --mode validate -c "$ENVOY_CONFIG" \
     --base-id "$base_id" --disable-hot-restart >"$RUNTIME_ROOT/envoy-validate.stdout.log" \
     2>"$RUNTIME_ROOT/envoy-validate.stderr.log"; then
     echo "envoy_ext_proc_runtime: FAIL - Envoy rejected generated config" >&2
-    sed -n "$ENVIRONMENT_LOG_LINES" "$RUNTIME_ROOT/envoy-validate.stderr.log" >&2 || true
+    print_runtime_log "$RUNTIME_ROOT/envoy-validate.stderr.log"
     exit 1
 fi
 
@@ -264,8 +614,12 @@ fi
     --client-cancel-delay "${ENVOY_CLIENT_CANCEL_DELAY_SECONDS:-5}" \
     --phase4-barrier-dir "$PHASE4_BARRIER_DIR" \
     --phase4-barrier-timeout "$PHASE4_BARRIER_TIMEOUT" \
-    >"$UPSTREAM_STDOUT" 2>"$UPSTREAM_STDERR" &
+        >"$UPSTREAM_STDOUT" 2>"$UPSTREAM_STDERR" &
 upstream_pid=$!
+upstream_start_token=$(owned_process_start_token "$upstream_pid") || {
+    echo "envoy_ext_proc_runtime: FAIL - could not capture upstream process identity" >&2
+    exit 1
+}
 
 EXT_PROC_BIN="$EXT_PROC_BIN" EXT_PROC_CONFIG="$EXT_PROC_CONFIG" \
     EXT_PROC_RUNTIME_CONFIG="$EXT_PROC_RUNTIME_CONFIG" \
@@ -273,10 +627,18 @@ EXT_PROC_BIN="$EXT_PROC_BIN" EXT_PROC_CONFIG="$EXT_PROC_CONFIG" \
     LISTEN_PORT="$ext_proc_port" sh "$SCRIPT_DIR/serve_envoy_ext_proc.sh" \
     >"$SERVICE_STDOUT" 2>"$SERVICE_STDERR" &
 service_pid=$!
+service_start_token=$(owned_process_start_token "$service_pid") || {
+    echo "envoy_ext_proc_runtime: FAIL - could not capture ext_proc process identity" >&2
+    exit 1
+}
 
 "$ENVOY_BIN" -c "$ENVOY_CONFIG" --base-id "$base_id" --disable-hot-restart \
     --log-level error >"$ENVOY_STDOUT" 2>"$ENVOY_STDERR" &
 envoy_pid=$!
+envoy_start_token=$(owned_process_start_token "$envoy_pid") || {
+    echo "envoy_ext_proc_runtime: FAIL - could not capture Envoy process identity" >&2
+    exit 1
+}
 
 readiness_status=
 attempt=0
@@ -287,8 +649,8 @@ while [ "$attempt" -lt 30 ]; do
         process_id=${process_pair##*:}
         if ! kill -0 "$process_id" 2>/dev/null; then
             echo "envoy_ext_proc_runtime: FAIL - $process_name process exited early" >&2
-            sed -n "$ENVIRONMENT_LOG_LINES" "$ENVOY_STDERR" >&2 || true
-            sed -n "$ENVIRONMENT_LOG_LINES" "$SERVICE_STDERR" >&2 || true
+            print_runtime_log "$ENVOY_STDERR"
+            print_runtime_log "$SERVICE_STDERR"
             exit 1
         fi
     done
@@ -309,6 +671,18 @@ done
 if [ "$readiness_status" != "200" ]; then
     echo "envoy_ext_proc_runtime: FAIL - readiness request returned ${readiness_status:-no status}, expected 200" >&2
     exit 1
+fi
+
+if [ "$CRS_RUNTIME" = 1 ]; then
+    run_crs_runtime
+    cleanup
+    envoy_pid=
+    service_pid=
+    upstream_pid=
+    trap - EXIT HUP INT TERM
+    printf 'processes_stopped=yes\n' >> "$SUMMARY"
+    printf 'envoy_ext_proc_runtime: pass (CRS runtime) summary=%s\n' "$SUMMARY"
+    exit 0
 fi
 
 if ! allowed_status=$("$PYTHON_BIN" "$HELPER" probe \
@@ -434,7 +808,7 @@ while [ "$attempt" -lt 20 ]; do
 done
 if [ "$event_ready" -ne 1 ]; then
     echo "envoy_ext_proc_runtime: FAIL - missing streamed ext_proc metadata evidence" >&2
-    sed -n '1,80p' "$COMPLETION_LOG_PATH" >&2 || true
+    print_runtime_log "$COMPLETION_LOG_PATH"
     exit 1
 fi
 if grep -Fq 'request-body-for-ext-proc' "$COMPLETION_LOG_PATH" || \
@@ -467,7 +841,7 @@ while [ "$attempt" -lt 20 ]; do
 done
 if [ "$raw_event_ready" -ne 1 ]; then
     echo "envoy_ext_proc_runtime: FAIL - missing Common/libmodsecurity raw decision evidence" >&2
-    sed -n "$ENVIRONMENT_LOG_LINES" "$COMMON_EVENT_LOG_PATH" >&2 || true
+    print_runtime_log "$COMMON_EVENT_LOG_PATH"
     exit 1
 fi
 if grep -Fq 'request-body-for-ext-proc' "$COMMON_EVENT_LOG_PATH" || \

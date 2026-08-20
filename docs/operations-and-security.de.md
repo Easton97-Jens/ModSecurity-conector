@@ -125,6 +125,46 @@ bewahrt die entfernte Planungschronologie.
 | Unerwartetes P4-Ergebnis | Connector-Guide, Phase-Event, Commit-/EOS-Metadaten und ausgewähltes Profil | Eine Strict-Client-Aktion allein aus einem Regelmatch |
 | Report-/Statusabweichung | Run-ID, effektive Konfiguration, normalisierte Records und Validator-Ausgabe | Dass eine generierte Zusammenfassung roher Laufzeitbeweis ist |
 
+## Lighttpd-No-CRS-Fixture-Grenze
+
+Der Lighttpd-No-CRS-Fixture-Lifecycle ist durch einen vertrauenswürdigen
+Namespace-Runner isoliert. Root-eigene `/usr/bin/unshare`, das feste
+`/usr/bin/dash` und `/usr/bin/mount` und danach `/usr/bin/bwrap` errichten eine
+private User-, Mount- und PID-Grenze. Das Shell-Setup macht die Propagation
+privat und mountet ein privates `nosuid,nodev,noexec`-tmpfs auf `/tmp`. Bwrap
+stellt nur minimale schreibgeschützte System- und Runtime-Binds sowie den
+exakten Task-eigenen Smoke-Root als einzigen beschreibbaren Bind bereit; der
+Fixture-Root besitzt den Modus 0700.
+
+Das Namespace-Setup ist die eng begrenzte privilegierte Komponente. Es muss
+leere effektive, erlaubte, vererbbare, ambient und Bounding-Capability-Sets
+sowie aktiviertes `no_new_privs` bestätigen, bevor der Harness fortfährt. Der
+Harness behält keine Setup-Capability. Fehlende Capabilities,
+Namespace-Unterstützung oder eine Voraussetzung für Execution-Isolation führen
+zu einem fail-closed Abbruch; es gibt keinen Fallback aus Pfadprüfung und
+anschließendem `rmdir`.
+
+Die regulären und fehlerbedingten Lifecycles – Erfolg, Fixture-/Setup-Fehler,
+Testfehler, Timeout, Signal, Helper-Absturz und teilweise Initialisierung –
+beenden die Kindprozessgruppe und geben den privaten Namespace frei. Der finale
+Namespace-State-Verifier prüft ausschließlich Capability-Sets, `no_new_privs`,
+den Mount-Zustand und die Device/Inode-Identität (`dev:ino`) des festen
+Fixture-Roots. Der Descriptor-I/O-Cleanup-Befehl prüft separat das
+Allowlist-Inventar der Fixture-Blätter, behält jedes Blatt und löscht nichts
+beziehungsweise löst den Fixture-Pfad nicht erneut auf. Alle Blätter und das
+Verzeichnis verschwinden beim Abbau des privaten tmpfs-Namespace.
+
+Bedrohungsmodell: Ein Prozess mit derselben UID kann den alten Fixture-Pfad
+zwischen Inode-Prüfung und Löschung über einen Pfad umbenennen, ersetzen oder
+neu anlegen. Der private Mount-Namespace und der kontrollierte beschreibbare
+Root machen die Namespace-Freigabe zur Cleanup-Operation, sodass das
+Host-Pfad-Race kein fremdes Verzeichnis zur Löschung auswählen kann.
+
+Der verschachtelte lokale Validierungscontainer besitzt nur eine einzeilige
+UID-/GID-Map und kann den vollständigen Produktionspfad für Nicht-root nicht
+ausführen. Das bleibt eine lokale Validierungsgrenze und rechtfertigt keine
+Abschwächung des fail-closed-Gates.
+
 ## Hardening-Backlog und Nicht-Claims
 
 Transport-Hardening, Cancellation-Verhalten, Strict Late Intervention,

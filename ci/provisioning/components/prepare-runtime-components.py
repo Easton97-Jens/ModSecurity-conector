@@ -146,6 +146,30 @@ FRAMEWORK_APR_UTIL_ENV_KEYS = (
     "APR_UTIL_SHA256",
     "APR_UTIL_SHA256_URL",
 )
+# A Framework provenance guard sources common.sh itself.  Carry only the
+# resolved runtime-root tuple from the previously loaded Framework environment
+# into that second source.  Passing common.sh's exported version/provenance
+# values back into another common.sh source creates duplicate inherited
+# environment entries on dash, which the Framework correctly rejects before
+# any source acquisition.  Original caller values remain in os.environ so a
+# genuine attempted pin override still reaches the fail-closed guard.
+FRAMEWORK_GUARD_RUNTIME_ROOT_ENV_KEYS = (
+    "CONNECTOR_ROOT",
+    "VERIFIED_RUN_ROOT",
+    "VERIFIED_STATE_ROOT",
+    "VERIFIED_BUILD_ROOT",
+    "VERIFIED_SOURCE_ROOT",
+    "VERIFIED_TMP_ROOT",
+    "VERIFIED_LOG_ROOT",
+    "CACHE_ROOT",
+    "VERIFIED_COMPONENT_CACHE",
+    "CONNECTOR_COMPONENT_CACHE",
+    "SOURCE_ROOT",
+    "BUILD_ROOT",
+    "TMP_ROOT",
+    "LOG_ROOT",
+    "MRTS_NATIVE_ROOT",
+)
 APR_UTIL_VERSION_RE = re.compile(r"\d+(?:\.\d+)+", re.ASCII)
 APR_UTIL_SHA256_RE = re.compile(r"[0-9a-f]{64}")
 SHELL_QUOTED_ENV_RE = re.compile(r"([A-Z_][A-Z0-9_]*)='([^']*)'")
@@ -4551,7 +4575,11 @@ def run_framework_modsecurity_v3_guard(
             "framework_common": str(common_sh),
         }
     guard_env = dict(os.environ)
-    guard_env.update(env)
+    for key in FRAMEWORK_GUARD_RUNTIME_ROOT_ENV_KEYS:
+        value = env.get(key)
+        if value:
+            guard_env[key] = value
+    guard_env["FRAMEWORK_ROOT"] = str(resolved_framework_root)
     try:
         trusted_shell = verified_host_guard_executable(_TRUSTED_FRAMEWORK_GUARD_SHELL, "framework_guard_shell")
         verified_host_guard_executable(_TRUSTED_FRAMEWORK_GUARD_GIT, "framework_guard_git")

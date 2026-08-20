@@ -112,6 +112,37 @@ func TestResponseHeaderDenyUsesImmediateResponseBeforeCommit(t *testing.T) {
 	}
 }
 
+func TestExplicitEmptyRequestDoesNotSynthesizeBody(t *testing.T) {
+	transaction := &recordingTransaction{}
+	service := newTestService(t, transaction, LateActionSafe)
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+		{request: requestHeadersWithExplicitEmptyBody()},
+		{request: responseHeaders(false)},
+	}}
+
+	if err := service.Process(stream); err != nil {
+		t.Fatalf("Process() error = %v", err)
+	}
+	if got, want := len(stream.sent), 2; got != want {
+		t.Fatalf("sent responses = %d, want %d", got, want)
+	}
+	if stream.sent[0].GetRequestHeaders() == nil {
+		t.Fatalf("request headers did not receive a continue response: %#v", stream.sent[0])
+	}
+	if stream.sent[1].GetResponseHeaders() == nil {
+		t.Fatalf("response headers unexpectedly became an immediate response: %#v", stream.sent[1])
+	}
+	if got := transaction.requestBodyLengths; len(got) != 0 {
+		t.Fatalf("explicitly empty request synthesized body chunks = %v", got)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != ClosePeerEOF {
+		t.Fatalf("unexpected cleanup after explicit empty request: %#v", transaction.closed)
+	}
+	if len(transaction.hostActions) != 0 {
+		t.Fatalf("explicitly empty request recorded host actions: %#v", transaction.hostActions)
+	}
+}
+
 func TestFailedImmediateResponseDoesNotRecordHostAction(t *testing.T) {
 	transaction := &recordingTransaction{
 		headerDecision: func(direction Direction) Decision {
@@ -446,6 +477,15 @@ func requestHeaders(eos bool) *extprocv3.ProcessingRequest {
 		}},
 		EndOfStream: eos,
 	}}}
+}
+
+func requestHeadersWithExplicitEmptyBody() *extprocv3.ProcessingRequest {
+	request := requestHeaders(false)
+	request.GetRequestHeaders().Headers.Headers = append(
+		request.GetRequestHeaders().Headers.Headers,
+		&corev3.HeaderValue{Key: "content-length", Value: "0"},
+	)
+	return request
 }
 
 func responseHeaders(eos bool) *extprocv3.ProcessingRequest {
