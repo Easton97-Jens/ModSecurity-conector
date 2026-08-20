@@ -290,6 +290,95 @@ def validate_mrts_load_file(
     return includes
 
 
+def reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            stop("sealed MRTS plan contains a duplicate JSON key")
+        value[key] = item
+    return value
+
+
+def validate_sealed_plan(
+    plan_path: Path,
+    runtime_root: Path,
+    framework_root: Path,
+    rules_root: Path,
+    load_file: Path,
+) -> None:
+    """Revalidate the private plan and exact no-CRS rule binding before a host starts."""
+    raw_paths = (plan_path, runtime_root, framework_root, rules_root, load_file)
+    if any(not path.is_absolute() or ".." in path.parts for path in raw_paths):
+        stop("sealed MRTS plan validation paths must be absolute and traversal-free")
+    if any(has_symlink_component(path) for path in raw_paths):
+        stop("sealed MRTS plan validation path contains a symlink component")
+    try:
+        plan_path = plan_path.resolve(strict=True)
+        runtime_root = runtime_root.resolve(strict=True)
+        framework_root = framework_root.resolve(strict=True)
+        rules_root = rules_root.resolve(strict=True)
+        load_file = load_file.resolve(strict=True)
+    except OSError as exc:
+        stop(f"sealed MRTS plan validation path is unavailable: {exc}")
+    if plan_path.is_symlink() or not plan_path.is_file():
+        stop("sealed MRTS plan is not a regular file")
+    runtime_mode = runtime_root.stat().st_mode & 0o777
+    if runtime_root.stat().st_uid != os.getuid() or runtime_mode != 0o700:
+        stop("sealed MRTS plan runtime root is not private")
+    try:
+        with plan_path.open(encoding="utf-8") as stream:
+            plan = json.load(stream, object_pairs_hook=reject_duplicate_json_keys)
+    except (OSError, ValueError) as exc:
+        stop(f"sealed MRTS plan is not valid JSON: {exc}")
+    if not isinstance(plan, dict) or plan.get("schema") != "no-crs-with-mrts-plan/v1":
+        stop("sealed MRTS plan schema is invalid")
+    if plan.get("profile") != PROFILE or plan.get("connector") not in CONNECTORS:
+        stop("sealed MRTS plan profile is not closed")
+    connector = plan["connector"]
+    expected_plan = runtime_root / "build" / "stages" / connector / "no_crs_with_mrts" / "runtime" / "mrts-runtime-plan.json"
+    expected_rules_root = runtime_root / "build" / "mrts" / "upstream-config-tests" / "rules"
+    expected_load_file = runtime_root / "build" / "mrts" / "upstream-config-tests" / "mrts.load"
+    if plan_path != expected_plan or rules_root != expected_rules_root or load_file != expected_load_file:
+        stop("sealed MRTS plan paths do not match the closed private layout")
+    mrts_root = framework_root / "tools" / "MRTS"
+    no_crs_rules = framework_root / "tests" / "rules" / "no-crs-baseline.conf"
+    included_rules = validate_mrts_load_file(load_file, rules_root, no_crs_rules, mrts_root, runtime_root)
+    validation = plan.get("no_crs_validation")
+    if not isinstance(validation, dict):
+        stop("sealed MRTS plan lacks no-CRS validation")
+    expected_validation = {
+        "generated_rules_root": str(rules_root),
+        "canonical_mrts_rules_root": str(mrts_root / "generated" / "rules"),
+        "included_rule_sha256": included_rules,
+    }
+    if validation != expected_validation:
+        stop("sealed MRTS plan no-CRS validation does not match loaded rules")
+    if plan.get("load_file") != str(load_file):
+        stop("sealed MRTS plan load-file path does not match")
+    if plan.get("load_file_sha256") != hashlib.sha256(load_file.read_bytes()).hexdigest():
+        stop("sealed MRTS plan load-file digest does not match")
+    if plan.get("no_crs_rules_file") != str(no_crs_rules.resolve(strict=True)):
+        stop("sealed MRTS plan no-CRS baseline identity does not match")
+
+
+def validate_sealed_plan_command(arguments: list[str]) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--plan", required=True)
+    parser.add_argument("--runtime-root", required=True)
+    parser.add_argument("--framework-root", required=True)
+    parser.add_argument("--rules-root", required=True)
+    parser.add_argument("--load-file", required=True)
+    args = parser.parse_args(arguments)
+    validate_sealed_plan(
+        Path(args.plan),
+        Path(args.runtime_root),
+        Path(args.framework_root),
+        Path(args.rules_root),
+        Path(args.load_file),
+    )
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector", required=True)
@@ -355,6 +444,7 @@ def main() -> int:
     if plan_path.exists():
         stop("runtime plan already exists; use a fresh private runtime root")
     atomic_json(plan_path, plan)
+    validate_sealed_plan(plan_path, root, framework, build / "mrts" / "upstream-config-tests" / "rules", load_file)
     env.update({"MSCONNECTOR_MRTS_RUNTIME": "1", "MRTS_RUNTIME_PLAN": str(plan_path), "MRTS_RUNTIME_RESULT": str(stage_runtime / "mrts-runtime-result.json"), "MRTS_RUNTIME_EXECUTOR": str(executor), "MRTS_RUNTIME_EXECUTOR_SHA256": executor_sha256, "MRTS_RUNTIME_RULES_ROOT": str(build / "mrts" / "upstream-config-tests" / "rules"), "NO_CRS_RULES_FILE": str(no_crs_rules), "MSCONNECTOR_RULES_FILE": str(no_crs_rules), "MRTS_LOAD_FILE": str(load_file), "MRTS_CASE_ROOT": str(case_root), "EVENT_LOG": str(stage_runtime / "events.jsonl")})
     subprocess.run(["sh", str(Path(__file__).with_name("run-connector-stage.sh")), args.connector, "no_crs_with_mrts"], cwd=parent, env=env, check=True)
     print(plan_path)
@@ -362,4 +452,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--validate-sealed-plan":
+        raise SystemExit(validate_sealed_plan_command(sys.argv[2:]))
+    raise SystemExit(main())

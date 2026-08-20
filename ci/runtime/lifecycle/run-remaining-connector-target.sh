@@ -110,8 +110,16 @@ if not isinstance(executor, dict) or executor.get("path") != sys.argv[2] or exec
     [ ! -L "$MRTS_LOAD_FILE" ] || { echo "FAIL: MRTS_LOAD_FILE must not be a symlink" >&2; exit 77; }
     [ -d "$MRTS_CASE_ROOT" ] || { echo "FAIL: MRTS_CASE_ROOT is not a directory: $MRTS_CASE_ROOT" >&2; exit 77; }
     [ ! -L "$MRTS_CASE_ROOT" ] || { echo "FAIL: MRTS_CASE_ROOT must not be a symlink" >&2; exit 77; }
-    if grep -Eiq 'crs|owasp[/-]?modsecurity[/-]?crs' "$MRTS_LOAD_FILE"; then
-        echo "FAIL: MRTS_LOAD_FILE contains a CRS reference" >&2
+    sealed_plan_validator=$CONNECTOR_ROOT/ci/runtime/lifecycle/run-no-crs-with-mrts-target.py
+    [ -f "$sealed_plan_validator" ] && [ ! -L "$sealed_plan_validator" ] || {
+        echo "FAIL: sealed MRTS plan validator is unavailable" >&2
+        exit 77
+    }
+    if ! "$MRTS_PYTHON_BIN" "$sealed_plan_validator" --validate-sealed-plan \
+        --plan "$MRTS_RUNTIME_PLAN" --runtime-root "$VERIFIED_RUN_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" --rules-root "$MRTS_RUNTIME_RULES_ROOT" \
+        --load-file "$MRTS_LOAD_FILE"; then
+        echo "FAIL: sealed MRTS plan no-CRS validation failed" >&2
         exit 77
     fi
     if [ "$connector" = traefik ]; then

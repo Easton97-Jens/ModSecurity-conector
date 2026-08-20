@@ -519,8 +519,16 @@ PY
     result_parent=$(dirname "$MRTS_RUNTIME_RESULT")
     [ -d "$result_parent" ] || { echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_RESULT parent is missing" >&2; exit 1; }
     [ ! -L "$result_parent" ] || { echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_RESULT parent must not be a symlink" >&2; exit 1; }
-    if grep -Eiq 'crs|owasp[/-]?modsecurity[/-]?crs' "$MRTS_LOAD_FILE"; then
-        echo "envoy_ext_proc_runtime: FAIL - MRTS_LOAD_FILE contains a CRS reference" >&2
+    sealed_plan_validator=$CONNECTOR_ROOT/ci/runtime/lifecycle/run-no-crs-with-mrts-target.py
+    [ -f "$sealed_plan_validator" ] && [ ! -L "$sealed_plan_validator" ] || {
+        echo "envoy_ext_proc_runtime: FAIL - sealed MRTS plan validator is unavailable" >&2
+        exit 1
+    }
+    if ! "$PYTHON_BIN" "$sealed_plan_validator" --validate-sealed-plan \
+        --plan "$MRTS_RUNTIME_PLAN" --runtime-root "$VERIFIED_RUN_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" --rules-root "$MRTS_RUNTIME_RULES_ROOT" \
+        --load-file "$MRTS_LOAD_FILE"; then
+        echo "envoy_ext_proc_runtime: FAIL - sealed MRTS plan no-CRS validation failed" >&2
         exit 1
     fi
     grep -Eq '^[[:space:]]*Include[[:space:]]+' "$MRTS_LOAD_FILE" || {

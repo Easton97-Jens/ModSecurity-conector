@@ -7,6 +7,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "ci" / "runtime" / "lifecycle" / "run-remaining-connector-target.sh"
+STAGE = ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh"
+ENVOY = ROOT / "connectors" / "envoy" / "harness" / "run_envoy_ext_proc_runtime.sh"
 
 
 class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
@@ -36,6 +38,12 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
         self.assertIn("readonly MRTS_CLOSED_RUNTIME_ENV", source)
         self.assertIn("MRTS_CLOSED_STAGE=$MSCONNECTOR_MRTS_STAGE", source)
         self.assertIn("MRTS_RUNTIME_EXECUTOR_SHA256=$MRTS_CLOSED_EXECUTOR_SHA256", source)
+
+    def test_all_mrts_dispatch_boundaries_revalidate_the_sealed_no_crs_plan(self) -> None:
+        for path in (STAGE, RUNNER, ENVOY):
+            source = path.read_text(encoding="utf-8")
+            self.assertIn("--validate-sealed-plan", source)
+            self.assertNotIn("grep -Eiq 'crs", source)
 
 
 if __name__ == "__main__":

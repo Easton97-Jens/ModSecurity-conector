@@ -126,6 +126,51 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 TARGET.validate_mrts_load_file(load, rules, baseline, canonical.parents[1], runtime)
 
+    def test_sealed_plan_revalidates_the_private_corpus_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = root / "runtime"
+            rules = runtime / "build" / "mrts" / "upstream-config-tests" / "rules"
+            rules.mkdir(parents=True)
+            generated = rules / "MRTS_002_ARGS_A-GET.conf"
+            generated.write_text('SecRule ARGS:foo "@streq attack" "id:100000,phase:1,pass"\n', encoding="utf-8")
+            load = runtime / "build" / "mrts" / "upstream-config-tests" / "mrts.load"
+            load.write_text(f'Include "{generated}"\n', encoding="utf-8")
+            framework = root / "framework"
+            canonical = framework / "tools" / "MRTS" / "generated" / "rules"
+            canonical.mkdir(parents=True)
+            (canonical / generated.name).write_bytes(generated.read_bytes())
+            baseline = framework / "tests" / "rules" / "no-crs-baseline.conf"
+            baseline.parent.mkdir(parents=True)
+            baseline.write_text("SecRuleEngine DetectionOnly\n", encoding="utf-8")
+            stage = runtime / "build" / "stages" / "envoy" / "no_crs_with_mrts" / "runtime"
+            stage.mkdir(parents=True)
+            plan_path = stage / "mrts-runtime-plan.json"
+            rules_hash = TARGET.hashlib.sha256(generated.read_bytes()).hexdigest()
+            plan_path.write_text(
+                json.dumps({
+                    "schema": "no-crs-with-mrts-plan/v1",
+                    "profile": "no-crs/with-mrts",
+                    "connector": "envoy",
+                    "load_file": str(load),
+                    "load_file_sha256": TARGET.hashlib.sha256(load.read_bytes()).hexdigest(),
+                    "no_crs_rules_file": str(baseline),
+                    "no_crs_validation": {
+                        "generated_rules_root": str(rules),
+                        "canonical_mrts_rules_root": str(canonical),
+                        "included_rule_sha256": {generated.name: rules_hash},
+                    },
+                }),
+                encoding="utf-8",
+            )
+            runtime.chmod(0o700)
+            TARGET.validate_sealed_plan(plan_path, runtime, framework, rules, load)
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            plan["load_file_sha256"] = "0" * 64
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                TARGET.validate_sealed_plan(plan_path, runtime, framework, rules, load)
+
 
 if __name__ == "__main__":
     unittest.main()
