@@ -1394,10 +1394,10 @@ jobs:
 
     def test_makefile_preserves_the_framework_pcre2_default_boundary(self) -> None:
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
-        self.assertIn(
-            "ifneq ($(origin PCRE2_SHA256),undefined)\nexport PCRE2_SHA256\nendif",
-            makefile,
-        )
+        self.assertIn("define export_framework_optional_provenance", makefile)
+        export_list = makefile.split("FRAMEWORK_OPTIONAL_PROVENANCE_EXPORTS :=", 1)[1]
+        export_list = export_list.split("$(foreach", 1)[0]
+        self.assertIn("PCRE2_SHA256", export_list)
         self.assertNotIn(
             "export PCRE2_VERSION\nexport PCRE2_SOURCE_URL\nexport PCRE2_SHA256\nexport PCRE2_SHA256_URL",
             makefile,

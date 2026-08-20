@@ -1478,12 +1478,14 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         binary.parent.mkdir(parents=True)
         binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         binary.chmod(0o755)
+        binary_sha256 = hashlib.sha256(binary.read_bytes()).hexdigest()
         (runtime_dir / "haproxy.provenance").write_text(
             "\n".join(
                 (
                     f"haproxy_version={haproxy_version}",
                     f"haproxy_source_url={haproxy_source_url}",
                     f"haproxy_sha256={haproxy_sha256}",
+                    f"haproxy_binary_sha256={binary_sha256}",
                     "",
                 )
             ),
@@ -1602,7 +1604,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("ready existing provenance-verified binary", result.stdout)
 
-    def test_haproxy_prepare_rejects_unapproved_future_provenance_tuple(self) -> None:
+    def test_haproxy_prepare_rejects_unapproved_future_provenance_before_runtime_lock(self) -> None:
         with tempfile.TemporaryDirectory(prefix="haproxy-future-pin-") as temporary:
             env = self.managed_haproxy_cache_environment(
                 Path(temporary),
@@ -1621,9 +1623,10 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             )
         self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn(
-            "runtime-component-lock: BLOCKED: environment profile haproxy-spoe-spop HAPROXY_VERSION drift",
+            "BLOCKED: HAPROXY_VERSION override is not permitted",
             result.stdout + result.stderr,
         )
+        self.assertNotIn("runtime-component-lock:", result.stdout + result.stderr)
 
     def test_haproxy_prepare_rejects_shared_cache_runtime_with_separate_build_root(self) -> None:
         framework_root = self.haproxy_prepare_framework_root()

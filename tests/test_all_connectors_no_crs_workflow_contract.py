@@ -188,6 +188,9 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
 
     def test_makefile_keeps_absent_apr_util_variables_absent(self) -> None:
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertIn("define export_framework_optional_provenance", makefile)
+        export_list = makefile.split("FRAMEWORK_OPTIONAL_PROVENANCE_EXPORTS :=", 1)[1]
+        export_list = export_list.split("$(foreach", 1)[0]
         for name in (
             "APR_UTIL_VERSION",
             "APR_UTIL_SOURCE_URL",
@@ -195,11 +198,7 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
             "APR_UTIL_SHA256_URL",
         ):
             with self.subTest(name=name):
-                self.assertIn(
-                    f"ifneq ($(origin {name}),undefined)\nexport {name}\nendif",
-                    makefile,
-                )
-                self.assertEqual(makefile.count(f"export {name}\n"), 1)
+                self.assertIn(name, export_list)
 
 
 if __name__ == "__main__":
