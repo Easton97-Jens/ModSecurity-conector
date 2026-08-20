@@ -64,6 +64,24 @@ Versionsvertragschecker entspricht dem aktuellen CodeQL-`awk`-Guard und
 bewahrt die exakte stabile `1.26.x`-Grammatik. Die lokale Go-Validierung
 verwendete `/usr/local/go/bin/go` `go1.26.6` mit `GOTOOLCHAIN=local`.
 
+Das Lifecycle-Follow-up erzeugt `NO_CRS_RUN_ID` im geschlossenen Target-Runner
+als `mrts-<32 lowercase hexadecimal characters>`. Es weist einen ambient
+gesetzten Wert zurück, reicht den erzeugten Wert durch die `env -i`-Grenze und
+setzt den readonly-Snapshot-Wert vor dem Start jedes nativen Hosts erneut. Der
+Workflow setzt daher keine von GitHub bereitgestellte Identität vor. Das stellt
+Traefik und lighttpd dieselbe begrenzte Lifecycle-Identität bereit, ohne einen
+vom Aufrufer kontrollierten Wert zu akzeptieren.
+
+Traefiks native Engine benötigt einen kurzen AF_UNIX-Socket-Parent, während
+der versiegelte Runtime-Root das Socket-Pfadlängenlimit der Plattform
+überschreiten kann. Nur für diesen Host reserviert der Target-Runner ein
+eindeutiges `/var/tmp/msct-*`-Child, prüft jede Pfadkomponente auf Symlinks,
+erzwingt den exakten Owner-Modus `0700` und begrenzt den vollständigen nativen
+Socket-Kandidaten auf 100 Byte. Der native Host muss zuerst sein eigenes Child
+entfernen; Parent entfernt nur den anschließend leeren exakten Parent und
+schlägt bei jedem unerwarteten Artefakt fail-closed fehl. Pläne, Logs,
+Ergebnisse und aufbewahrte Evidence bleiben unterhalb des privaten Run-Roots.
+
 ## Security-Auswirkung
 
 Die relevanten Grenzen sind nicht vertrauenswürdige Connector-/Case-Auswahl,
@@ -147,6 +165,17 @@ validieren nur die engen Source-Dispatch-Änderungen.
 Die fokussierte Target-Runner-Suite für die r11-Phasenreihenfolgenkorrektur
 bestand 28 Tests, und ihr Security-Review fand keinen konkreten Blocker. Dies
 bleibt reine Source-Level-Validierung.
+Das aktuelle Socket-Parent- und Run-Identity-Follow-up bestand Shell-Syntax,
+ShellCheck, `git diff --check`, 107 fokussierte Python-Contracts und die
+breitere Parent-Suite mit 160 Tests. Diese breitere Suite verwendete den kurzen
+AF_UNIX-fähigen `TMPDIR=/var/tmp`: Ein zuvor langer privater temporärer Pfad
+ließ den Testhelfer seinen eigenen Socket-Kandidaten zurückweisen, und der
+unveränderte Envoy-Phase-4-Barrier-Test lief unter Suite-Last einmal ab. Beide
+Tests bestanden danach isoliert und der vollständige Wiederholungslauf
+bestand; dies wird als Umgebungs-/Testpfadgrenze dokumentiert, nicht als
+Produkt-Erfolgsabkürzung. Ein fokussierter Security-Diff-Scan der sechs
+Follow-up-Dateien meldete keinen konkreten Befund. Er bleibt Source-Level-
+Review und ersetzt weder frische Host-Receipts noch Exact-Head-Hosted-Checks.
 Die drei echten Hostläufe, der gehostete
 Fünf-Connector-Workflow, Exact-Head-Required-Checks und die SonarQube-Cloud-
 Analyse sind aktuell `NOT EXECUTED`. Kein statisches Vertrags- oder

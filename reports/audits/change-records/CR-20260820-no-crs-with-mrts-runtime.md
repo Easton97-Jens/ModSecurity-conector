@@ -62,6 +62,23 @@ checker is aligned with the current CodeQL `awk` guard, preserving the exact
 stable `1.26.x` grammar. Local Go validation used `/usr/local/go/bin/go`
 `go1.26.6` with `GOTOOLCHAIN=local`.
 
+The lifecycle follow-up generates `NO_CRS_RUN_ID` inside the closed target
+runner as `mrts-<32 lowercase hexadecimal characters>`. It rejects an ambient
+value, forwards the generated value through the `env -i` boundary, and
+reasserts the readonly snapshot value before either native host starts. The
+workflow therefore does not pre-seed a GitHub-provided identity. This supplies
+the same bounded lifecycle identity to Traefik and lighttpd without accepting
+a caller-controlled value.
+
+Traefik's native engine needs a short AF_UNIX socket parent while the sealed
+runtime root can exceed the platform socket-path limit. Only for that host the
+target runner allocates one unique `/var/tmp/msct-*` child, checks every path
+component for symlinks, forces exact owner mode `0700`, and bounds the complete
+native socket candidate to 100 bytes. The native host must remove its own
+child first; the Parent removes only the now-empty exact parent and fails
+closed on any unexpected artifact. Plans, logs, results, and retained evidence
+remain below the private run root.
+
 ## Security impact
 
 The relevant boundaries are untrusted connector/case selection, generated
@@ -139,6 +156,16 @@ validate the narrow source dispatch changes only.
 The focused target-runner suite for the r11 phase-ordering correction passed
 28 tests, and its security review found no concrete blocker. This is still
 source-level validation only.
+The current socket-parent and run-identity follow-up passed shell syntax,
+ShellCheck, `git diff --check`, 107 focused Python contracts, and the broader
+160-test Parent suite. That broader suite used the short AF_UNIX-capable
+`TMPDIR=/var/tmp`: an earlier long private temporary path made the test helper
+reject its own socket candidate, and the unchanged Envoy phase-4 barrier test
+timed out once under suite contention. Both tests then passed in isolation and
+the complete rerun passed; this is recorded as an environment/test-path limit,
+not a product success shortcut. A focused security-diff scan of the six
+follow-up files reported no concrete finding. It is source-level review only
+and does not replace fresh host receipts or exact-head hosted checks.
 The three real host runs, the full five-connector hosted workflow, exact-head
 Required Checks, and SonarQube Cloud analysis are currently `NOT EXECUTED`.
 No static contract or inventory result is promoted to runtime `PASS`.

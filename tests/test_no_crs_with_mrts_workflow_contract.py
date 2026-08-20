@@ -30,6 +30,7 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
         self.assertIn('ALLOW_RUNTIME_BUILDS: "1"', self.source)
         self.assertNotIn("with-crs/with-mrts", self.source)
         self.assertNotIn("MODSECURITY_RULESET: crs", self.source)
+        self.assertNotIn("NO_CRS_RUN_ID:", self.source)
 
     def test_target_connectors_use_dedicated_runtime_runner(self) -> None:
         self.assertIn("ci/runtime/lifecycle/run-no-crs-with-mrts-target.py", self.source)

@@ -34,7 +34,6 @@ jobs:
       GOTOOLCHAIN: local
       MODSECURITY_TEST_VARIANT: no-crs
       MODSECURITY_MRTS_VARIANT: with-mrts
-      NO_CRS_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       PYTHONDONTWRITEBYTECODE: "1"
 
     steps:

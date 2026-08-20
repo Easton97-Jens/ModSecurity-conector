@@ -93,6 +93,31 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         self.assertEqual(TARGET.CONNECTORS, {"envoy", "traefik", "lighttpd"})
         self.assertEqual(TARGET.PROFILE, "no-crs/with-mrts")
 
+    def test_no_crs_run_id_is_generated_and_bounded(self):
+        run_id = TARGET.new_no_crs_run_id()
+        self.assertRegex(run_id, r"^mrts-[0-9a-f]{32}$")
+        self.assertEqual(TARGET.validate_no_crs_run_id(run_id), run_id)
+        self.assertNotEqual(run_id, TARGET.new_no_crs_run_id())
+
+    def test_no_crs_run_id_rejects_mutation_and_untrusted_values(self):
+        for value in (
+            "mrts-" + "a" * 31,
+            "mrts-" + "a" * 32 + "0",
+            "mrts-" + "A" * 32,
+            "caller-controlled",
+        ):
+            with self.subTest(value=value), self.assertRaises(SystemExit):
+                TARGET.validate_no_crs_run_id(value)
+
+    def test_no_crs_run_id_crosses_closed_shell_boundaries(self):
+        target = (ROOT / "ci/runtime/lifecycle/run-no-crs-with-mrts-target.py").read_text(encoding="utf-8")
+        remaining = (ROOT / "ci/runtime/lifecycle/run-remaining-connector-target.sh").read_text(encoding="utf-8")
+        stage = (ROOT / "ci/runtime/lifecycle/run-connector-stage.sh").read_text(encoding="utf-8")
+        self.assertIn('"NO_CRS_RUN_ID": no_crs_run_id', target)
+        self.assertIn("MRTS_CLOSED_NO_CRS_RUN_ID=$NO_CRS_RUN_ID", remaining)
+        self.assertIn("NO_CRS_RUN_ID=$MRTS_CLOSED_NO_CRS_RUN_ID", remaining)
+        self.assertIn('NO_CRS_RUN_ID="$NO_CRS_RUN_ID"', stage)
+
     def test_runtime_provisioning_requires_fixed_explicit_opt_ins(self):
         with mock.patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(SystemExit):
@@ -113,6 +138,96 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 TARGET.explicit_runtime_provisioning_environment("traefik"),
                 {"ALLOW_RUNTIME_DOWNLOADS": "1", "ALLOW_RUNTIME_BUILDS": "1"},
             )
+
+    def test_traefik_engine_socket_parent_is_unique_private_short_and_cleaned(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            base.chmod(0o700)
+            with mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PARENT_BASE", base), mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES", 512):
+                selected = TARGET.create_private_traefik_engine_socket_parent()
+                self.assertTrue(selected.is_dir())
+                self.assertEqual(selected.stat().st_uid, os.geteuid())
+                self.assertEqual(selected.stat().st_mode & 0o777, 0o700)
+                socket_candidate = (
+                    selected
+                    / f"{TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_PREFIX}{'f' * TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_RANDOM_HEX_LENGTH}"
+                    / TARGET.TRAEFIK_ENGINE_SOCKET_FILENAME
+                )
+                self.assertLessEqual(
+                    len(os.fsencode(str(socket_candidate))),
+                    TARGET.TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES,
+                )
+                TARGET.remove_private_traefik_engine_socket_parent(selected)
+                self.assertFalse(selected.exists())
+
+    def test_configured_traefik_socket_parent_base_fits_real_uds_limit(self):
+        base = TARGET.TRAEFIK_ENGINE_SOCKET_PARENT_BASE
+        self.assertEqual(base, Path("/var/tmp"))
+        self.assertTrue(base.is_dir())
+        self.assertEqual(base.stat().st_mode & 0o1002, 0o1002)
+        candidate = (
+            base
+            / f"{TARGET.TRAEFIK_ENGINE_SOCKET_PARENT_PREFIX}{'f' * 8}"
+            / f"{TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_PREFIX}{'f' * TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_RANDOM_HEX_LENGTH}"
+            / TARGET.TRAEFIK_ENGINE_SOCKET_FILENAME
+        )
+        self.assertLessEqual(
+            len(os.fsencode(str(candidate))),
+            TARGET.TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES,
+        )
+
+    def test_traefik_engine_socket_parent_accepts_owner_owned_sticky_shared_base(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            base.chmod(0o1777)
+            with mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PARENT_BASE", base), mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES", 512):
+                selected = TARGET.create_private_traefik_engine_socket_parent()
+                self.assertEqual(selected.stat().st_mode & 0o777, 0o700)
+                TARGET.remove_private_traefik_engine_socket_parent(selected)
+
+    def test_traefik_engine_socket_parent_rejects_symlink_and_nonprivate_base(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            real_base = root / "real"
+            real_base.mkdir(mode=0o700)
+            linked_base = root / "linked"
+            linked_base.symlink_to(real_base, target_is_directory=True)
+            with mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PARENT_BASE", linked_base):
+                with self.assertRaisesRegex(SystemExit, "symlink component"):
+                    TARGET.create_private_traefik_engine_socket_parent()
+            real_base.chmod(0o777)
+            with mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PARENT_BASE", real_base):
+                with self.assertRaisesRegex(SystemExit, "base is not private"):
+                    TARGET.create_private_traefik_engine_socket_parent()
+
+    def test_traefik_engine_socket_parent_cleanup_rejects_tampering(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            base.chmod(0o700)
+            with mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PARENT_BASE", base), mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES", 512):
+                selected = TARGET.create_private_traefik_engine_socket_parent()
+                selected.chmod(0o755)
+                with self.assertRaisesRegex(SystemExit, "changed before cleanup"):
+                    TARGET.remove_private_traefik_engine_socket_parent(selected)
+                selected.chmod(0o700)
+                TARGET.remove_private_traefik_engine_socket_parent(selected)
+
+    def test_traefik_engine_socket_parent_cleanup_removes_only_known_socket_child(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            base.chmod(0o700)
+            with mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PARENT_BASE", base), mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES", 512):
+                selected = TARGET.create_private_traefik_engine_socket_parent()
+                child = selected / f"{TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_PREFIX}{'a' * TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_RANDOM_HEX_LENGTH}"
+                child.mkdir(mode=0o700)
+                socket_path = child / TARGET.TRAEFIK_ENGINE_SOCKET_FILENAME
+                socket_path.touch()
+                with self.assertRaisesRegex(SystemExit, "contains artifacts"):
+                    TARGET.remove_private_traefik_engine_socket_parent(selected)
+                socket_path.unlink()
+                child.rmdir()
+                TARGET.remove_private_traefik_engine_socket_parent(selected)
+                self.assertFalse(selected.exists())
 
     def test_runtime_route_requires_explicit_checkout_roots_and_stage(self):
         source = (ROOT / "ci" / "runtime" / "lifecycle" / "run-no-crs-with-mrts-target.py").read_text(encoding="utf-8")

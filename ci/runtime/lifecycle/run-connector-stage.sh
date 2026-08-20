@@ -407,6 +407,7 @@ run_remaining_connector() {
             RUNTIME_COMPONENT_ENV_SNAPSHOT="${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}" \
             MSCONNECTOR_MRTS_STAGE=no_crs_with_mrts \
             MSCONNECTOR_MRTS_RUNTIME=1 \
+            NO_CRS_RUN_ID="$NO_CRS_RUN_ID" \
             NO_CRS_BASELINE=1 \
             MODSECURITY_TEST_VARIANT=no-crs \
             MODSECURITY_MRTS_VARIANT=with-mrts \

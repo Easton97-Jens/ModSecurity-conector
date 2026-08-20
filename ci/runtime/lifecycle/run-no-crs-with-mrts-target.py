@@ -11,6 +11,7 @@ import secrets
 import subprocess
 import sys
 import re
+import tempfile
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -23,10 +24,35 @@ SHA256_RE = set("0123456789abcdef")
 # rule as Common request-body evidence. Retain that observed value as a single
 # closed profile value rather than accepting either request phase.
 RULE_MATCH_EVENT_PHASE = "request_body"
+NO_CRS_RUN_ID_PREFIX = "mrts-"
+NO_CRS_RUN_ID_HEX_LENGTH = 32
+TRAEFIK_ENGINE_SOCKET_PARENT_BASE = Path("/var/tmp")
+TRAEFIK_ENGINE_SOCKET_PARENT_PREFIX = "msct-"
+TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES = 100
+TRAEFIK_ENGINE_SOCKET_CHILD_PREFIX = "msconnector-traefik-uds-"
+TRAEFIK_ENGINE_SOCKET_CHILD_RANDOM_HEX_LENGTH = 16
+TRAEFIK_ENGINE_SOCKET_FILENAME = "engine.sock"
 
 
 def stop(message: str) -> NoReturn:
     raise SystemExit(f"BLOCKED: {message}")
+
+
+def new_no_crs_run_id() -> str:
+    """Create the one invocation identity used across closed runtime hops."""
+
+    return f"{NO_CRS_RUN_ID_PREFIX}{secrets.token_hex(NO_CRS_RUN_ID_HEX_LENGTH // 2)}"
+
+
+def validate_no_crs_run_id(value: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != len(NO_CRS_RUN_ID_PREFIX) + NO_CRS_RUN_ID_HEX_LENGTH
+        or not value.startswith(NO_CRS_RUN_ID_PREFIX)
+        or any(character not in "0123456789abcdef" for character in value[len(NO_CRS_RUN_ID_PREFIX):])
+    ):
+        stop("NO_CRS_RUN_ID is not a canonical private run identity")
+    return value
 
 
 def private_root(value: str) -> Path:
@@ -44,6 +70,101 @@ def private_root(value: str) -> Path:
         stop("runtime root is not owner-controlled")
     os.chmod(root, 0o700)
     return root
+
+
+def _symlink_free_path(path: Path, label: str) -> None:
+    """Reject symlink components in a task-created external boundary."""
+
+    absolute = Path(os.path.abspath(path))
+    current = Path(absolute.anchor)
+    for component in absolute.parts[1:]:
+        current /= component
+        if current.is_symlink():
+            stop(f"{label} contains a symlink component")
+
+
+def create_private_traefik_engine_socket_parent() -> Path:
+    """Allocate one short-lived private UDS parent for one Traefik run.
+
+    The Traefik harness requires an existing parent because the actual socket
+    child is allocated by its native runtime.  The canonical run root is too
+    long for sockaddr_un on some hosts, so this intentionally uses a unique
+    task-owned child of the approved external temporary area.  It is never
+    shared with another connector or run and is removed by the caller.
+    """
+
+    base = TRAEFIK_ENGINE_SOCKET_PARENT_BASE
+    _symlink_free_path(base, "Traefik engine socket parent base")
+    try:
+        base_stat = base.stat()
+    except OSError as exc:
+        stop(f"Traefik engine socket parent base is unavailable: {exc}")
+    if not base.is_dir() or base.is_symlink():
+        stop("Traefik engine socket parent base is not a directory")
+    base_mode = base_stat.st_mode & 0o7777
+    # A sticky world-writable directory is safe for a uniquely allocated child
+    # regardless of the base owner's UID; otherwise require a private
+    # owner-controlled base with no group/world write permission.
+    if base_mode & 0o1000 and base_mode & 0o002:
+        pass
+    elif base_stat.st_uid != os.geteuid() or base_mode & (0o070 | 0o007):
+        stop("Traefik engine socket parent base is not private or sticky")
+    try:
+        path = Path(
+            tempfile.mkdtemp(
+                prefix=TRAEFIK_ENGINE_SOCKET_PARENT_PREFIX,
+                dir=str(base),
+            )
+        )
+    except OSError as exc:
+        stop(f"cannot allocate private Traefik engine socket parent: {exc}")
+    try:
+        _symlink_free_path(path, "Traefik engine socket parent")
+        os.chmod(path, 0o700)
+        selected = path.stat()
+        if (
+            selected.st_uid != os.geteuid()
+            or (selected.st_mode & 0o777) != 0o700
+            or not path.is_dir()
+        ):
+            stop("allocated Traefik engine socket parent is not private")
+        socket_candidate = (
+            path
+            / f"{TRAEFIK_ENGINE_SOCKET_CHILD_PREFIX}{'f' * TRAEFIK_ENGINE_SOCKET_CHILD_RANDOM_HEX_LENGTH}"
+            / TRAEFIK_ENGINE_SOCKET_FILENAME
+        )
+        if len(os.fsencode(str(socket_candidate))) > TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES:
+            stop("allocated Traefik engine socket path is too long")
+    except BaseException:
+        try:
+            path.rmdir()
+        except OSError:
+            pass
+        raise
+    return path
+
+
+def remove_private_traefik_engine_socket_parent(path: Path) -> None:
+    """Remove only the exact private parent allocated by this run."""
+
+    _symlink_free_path(path, "Traefik engine socket parent")
+    try:
+        selected = path.lstat()
+    except OSError as exc:
+        stop(f"Traefik engine socket parent disappeared before cleanup: {exc}")
+    if (
+        not path.is_dir()
+        or path.is_symlink()
+        or selected.st_uid != os.geteuid()
+        or (selected.st_mode & 0o777) != 0o700
+    ):
+        stop("Traefik engine socket parent changed before cleanup")
+    if any(path.iterdir()):
+        stop("Traefik engine socket parent contains artifacts after native cleanup")
+    try:
+        path.rmdir()
+    except OSError as exc:
+        stop(f"Traefik engine socket parent cleanup failed: {exc}")
 
 
 def git_sha(path: Path) -> str:
@@ -626,6 +747,9 @@ def main() -> int:
         stop("connector is outside the closed no-crs/with-mrts profile")
     if not args.execute_stage:
         stop("--execute-stage is mandatory; plan-only execution is not a runtime result")
+    if "NO_CRS_RUN_ID" in os.environ:
+        stop("NO_CRS_RUN_ID must be generated by the closed target runner")
+    no_crs_run_id = validate_no_crs_run_id(new_no_crs_run_id())
     provisioning_environment = explicit_runtime_provisioning_environment(args.connector)
     root = private_root(args.runtime_root)
     parent = checked_path(args.parent_root, "Parent root")
@@ -647,7 +771,7 @@ def main() -> int:
         stop("stage runtime root is not a private owner-controlled directory")
     os.chmod(stage_runtime, 0o700)
     env = {key: os.environ[key] for key in ("PATH", "HOME", "LANG", "LC_ALL") if key in os.environ}
-    env.update({"PYTHON": str(python_path), "PYTHON_BIN": str(python_path), "FRAMEWORK_ROOT": str(framework), "CONNECTOR_ROOT": str(parent), "VERIFIED_RUN_ROOT": str(root), "BUILD_ROOT": str(build), "MRTS_BUILD_ROOT": str(build / "mrts"), "TMP_ROOT": str(root / "tmp"), "LOG_ROOT": str(root / "logs"), "MODSECURITY_TEST_VARIANT": "no-crs", "MODSECURITY_MRTS_VARIANT": "with-mrts", "MODSECURITY_MRTS_PREPARED": "0", "MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO": "0", "GOTOOLCHAIN": "local"})
+    env.update({"PYTHON": str(python_path), "PYTHON_BIN": str(python_path), "FRAMEWORK_ROOT": str(framework), "CONNECTOR_ROOT": str(parent), "VERIFIED_RUN_ROOT": str(root), "BUILD_ROOT": str(build), "MRTS_BUILD_ROOT": str(build / "mrts"), "TMP_ROOT": str(root / "tmp"), "LOG_ROOT": str(root / "logs"), "MODSECURITY_TEST_VARIANT": "no-crs", "MODSECURITY_MRTS_VARIANT": "with-mrts", "MODSECURITY_MRTS_PREPARED": "0", "MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO": "0", "GOTOOLCHAIN": "local", "NO_CRS_RUN_ID": no_crs_run_id})
     env.update(provisioning_environment)
     prepare = '. "$FRAMEWORK_ROOT/ci/lib/common.sh"; . "$FRAMEWORK_ROOT/ci/lib/mrts-common.sh"; prepare_mrts_runtime_variant'
     subprocess.run(["sh", "-eu", "-c", prepare], env=env, cwd=parent, check=True)
@@ -680,7 +804,15 @@ def main() -> int:
     plan_sha256 = atomic_json(plan_path, plan)
     validate_sealed_plan(plan_path, root, framework, build / "mrts" / "upstream-config-tests" / "rules", load_file, plan_sha256)
     env.update({"MSCONNECTOR_MRTS_RUNTIME": "1", "MRTS_RUNTIME_PLAN": str(plan_path), "MRTS_RUNTIME_PLAN_SHA256": plan_sha256, "MRTS_RUNTIME_RESULT": str(stage_runtime / "mrts-runtime-result.json"), "MRTS_RUNTIME_EXECUTOR": str(executor), "MRTS_RUNTIME_EXECUTOR_SHA256": executor_sha256, "MRTS_RUNTIME_RULES_ROOT": str(build / "mrts" / "upstream-config-tests" / "rules"), "NO_CRS_RULES_FILE": str(no_crs_rules), "MSCONNECTOR_RULES_FILE": str(no_crs_rules), "MRTS_LOAD_FILE": str(load_file), "MRTS_CASE_ROOT": str(case_root), "EVENT_LOG": str(stage_runtime / "events.jsonl")})
-    subprocess.run(["sh", str(Path(__file__).with_name("run-connector-stage.sh")), args.connector, "no_crs_with_mrts"], cwd=parent, env=env, check=True)
+    traefik_socket_parent: Path | None = None
+    try:
+        if args.connector == "traefik":
+            traefik_socket_parent = create_private_traefik_engine_socket_parent()
+            env["TRAEFIK_ENGINE_SOCKET_PARENT"] = str(traefik_socket_parent)
+        subprocess.run(["sh", str(Path(__file__).with_name("run-connector-stage.sh")), args.connector, "no_crs_with_mrts"], cwd=parent, env=env, check=True)
+    finally:
+        if traefik_socket_parent is not None:
+            remove_private_traefik_engine_socket_parent(traefik_socket_parent)
     print(plan_path)
     return 0
 
