@@ -408,6 +408,7 @@ run_remaining_connector() {
             MSCONNECTOR_MRTS_STAGE=no_crs_with_mrts \
             MSCONNECTOR_MRTS_RUNTIME=1 \
             NO_CRS_RUN_ID="$NO_CRS_RUN_ID" \
+            TRAEFIK_ENGINE_SOCKET_PARENT="${TRAEFIK_ENGINE_SOCKET_PARENT:-}" \
             NO_CRS_BASELINE=1 \
             MODSECURITY_TEST_VARIANT=no-crs \
             MODSECURITY_MRTS_VARIANT=with-mrts \

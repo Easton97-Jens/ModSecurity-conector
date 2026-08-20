@@ -282,6 +282,12 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             'TRAEFIK_ENGINE_SOCKET_PARENT="${TRAEFIK_ENGINE_SOCKET_PARENT:-}"',
             stage,
         )
+        mrts_stage_start = stage.index('if [ "$stage" = no_crs_with_mrts ]; then')
+        mrts_stage_end = stage.index("\n    fi\n    exec env", mrts_stage_start)
+        self.assertIn(
+            'TRAEFIK_ENGINE_SOCKET_PARENT="${TRAEFIK_ENGINE_SOCKET_PARENT:-}"',
+            stage[mrts_stage_start:mrts_stage_end],
+        )
         native_makefile = (ROOT / "connectors/traefik/Makefile").read_text(encoding="utf-8")
         native_recipe = native_makefile.split("runtime-smoke-traefik-native:\n", 1)[1].split(
             "\n\nno-crs-baseline-traefik",

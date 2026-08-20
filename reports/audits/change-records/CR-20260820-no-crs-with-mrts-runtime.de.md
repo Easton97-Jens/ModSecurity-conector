@@ -81,6 +81,9 @@ Socket-Kandidaten auf 100 Byte. Der native Host muss zuerst sein eigenes Child
 entfernen; Parent entfernt nur den anschließend leeren exakten Parent und
 schlägt bei jedem unerwarteten Artefakt fail-closed fehl. Pläne, Logs,
 Ergebnisse und aufbewahrte Evidence bleiben unterhalb des privaten Run-Roots.
+Die versiegelte MRTS-`env -i`-Grenze reicht nur diesen berechneten Parent für
+Traefik weiter; ein fehlender Wert lässt den nativen Runner weiterhin
+fail-closed fehlschlagen.
 
 ## Security-Auswirkung
 

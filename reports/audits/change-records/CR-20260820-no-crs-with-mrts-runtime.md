@@ -77,7 +77,9 @@ component for symlinks, forces exact owner mode `0700`, and bounds the complete
 native socket candidate to 100 bytes. The native host must remove its own
 child first; the Parent removes only the now-empty exact parent and fails
 closed on any unexpected artifact. Plans, logs, results, and retained evidence
-remain below the private run root.
+remain below the private run root. The sealed MRTS `env -i` boundary forwards
+only this calculated parent for Traefik; a missing value still makes the native
+runner fail closed.
 
 ## Security impact
 
