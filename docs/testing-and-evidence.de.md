@@ -76,10 +76,24 @@ werden zurückgewiesen; die Shell-Dispatcher reichen vor MRTS-Materialisierung
 und Child-Prozess-Ausführung denselben genehmigten Interpreter durch ihre
 geschlossene Grenze weiter. Die Behebung behauptet keine Umschreibung des
 aufrufenden `PATH`; der Framework-Generator verwendet die explizite
-`PYTHON`-Auswahl. Damit wird der diagnostizierte Fehler `FND-PARENT-0194` bei
-System-Python während der Regelerzeugung die PyYAML-Abhängigkeit der venv
-verlor. Das Finding bleibt bis zur frischen Runtime-Validierung der Behebung
+`PYTHON`-Auswahl. Damit wird der diagnostizierte Fehler `FND-PARENT-0194`
+behoben, bei dem System-Python während der Regelerzeugung die PyYAML-
+Abhängigkeit der venv verlor. Das Finding bleibt bis zur frischen
+Runtime-Validierung der Behebung
 release-blockierend.
+
+Frisches Envoy `r10` erreichte gepinnte Provisionierung, echten Hoststart und
+Readiness, stoppte aber vor der MRTS-Case-Ausführung mit HTTP 500. Im
+versiegelten MRTS-Evidence-Modus verlangt Common ausschließlich den
+Korrelations-Header `x-mrts-transaction-id`; der Readiness-Probe sendete noch
+den Normalmodus-Header `X-Request-Id`. Dieser rein diagnostische Versuch
+erzeugte keinen MRTS-Receipt und ist kein Runtime-Nachweis. Die enge aktuelle
+Parent-Korrektur wählt das Literal `x-mrts-transaction-id` nur für MRTS-
+Readiness und bewahrt `x-request-id` für den normalen Envoy-Modus. Separat
+routet der Lighttpd-Dispatcher `MSCONNECTOR_MRTS_RUNTIME=1` nun ausschließlich
+zu seinem versiegelten Full-Lifecycle-Hostexecutor und erhält den Nicht-MRTS-
+Kompatibilitäts-Smoke-Pfad. Keine der beiden Quellkorrekturen begründet ein
+Host-Runtime-Ergebnis.
 
 Dieses Profil ist ausdrücklich no-CRS. Der Pfad weist CRS-Referenzen in der
 erzeugten MRTS-Load-Datei zurück und übergibt als aktive Nicht-CRS-Eingabe nur
@@ -120,6 +134,9 @@ ursprüngliche C/H-Baseline bei und ergänzte nur die neue typisierte Observer-
 `common/scripts/modsecurity_targeted_eval.cc` wurde nicht ausgenommen. Vier
 vorbestehende ShellCheck-SC1007-Warnungen verbleiben im Envoy-
 Konfigurationshelfer.
+Das anschließende fokussierte Envoy-/Lighttpd-Contract-Paar bestand 50 Tests,
+und `sh -n` bestand für die beiden geänderten Dispatch-Skripte. Dies sind nur
+lokale Contract-Prüfungen.
 
 Die echten Hostläufe für alle drei Connectoren, gehostete Actions, Required
 Checks, SonarQube-Cloud-Analyse und PR-Head-Gleichheit wurden durch diese

@@ -24,6 +24,7 @@ COMMON_EVENT_LOG_PATH=${COMMON_EVENT_LOG_PATH:-${EVENT_LOG_PATH:-$RUNTIME_ROOT/e
 COMPLETION_LOG_PATH=${COMPLETION_LOG_PATH:-$RUNTIME_ROOT/completion-events.jsonl}
 EXT_PROC_RUNTIME_CONFIG=${EXT_PROC_RUNTIME_CONFIG:-$RUNTIME_ROOT/envoy-ext-proc-runtime.conf}
 PROCESSOR_TRANSACTION_ID_HEADER=x-request-id
+READINESS_TRANSACTION_ID_HEADER=x-request-id
 # The canonical dispatcher exports MSCONNECTOR_RULES_FILE. Prefer it over an
 # incidental make/environment RULES_FILE so this real-host runner cannot fall
 # back to a connector-local smoke ruleset. Direct local invocation may still
@@ -35,6 +36,7 @@ if [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
     RULES_FILE=${MRTS_LOAD_FILE:-}
     RULES_SOURCE=MRTS_LOAD_FILE
     PROCESSOR_TRANSACTION_ID_HEADER=x-mrts-transaction-id
+    READINESS_TRANSACTION_ID_HEADER=x-mrts-transaction-id
 elif [ -n "${MSCONNECTOR_RULES_FILE:-}" ]; then
     RULES_FILE=$MSCONNECTOR_RULES_FILE
     RULES_SOURCE=MSCONNECTOR_RULES_FILE
@@ -864,7 +866,7 @@ while [ "$attempt" -lt 30 ]; do
     readiness_status=$("$PYTHON_BIN" "$HELPER" probe \
         --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
         --url "https://127.0.0.1:$listen_port/allowed" \
-        --header "X-Request-Id: $READINESS_TRANSACTION_ID" \
+        --header "$READINESS_TRANSACTION_ID_HEADER: $READINESS_TRANSACTION_ID" \
         --evidence-path "$READINESS_PROBE_EVIDENCE" 2>/dev/null)
     probe_rc=$?
     set -e

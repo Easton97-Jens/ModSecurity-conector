@@ -101,6 +101,7 @@ final diff review:
 - `connectors/traefik/scripts/runtime_native_smoke.py`
 - Traefik build scripts and MRTS input tests
 - `connectors/lighttpd/harness/run_patched_full_lifecycle.sh`
+- `connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh`
 - Lighttpd build/configuration and host-contract tests
 - `.github/workflows/test-connectors-no-crs-with-mrts.yml`
 - focused `tests/test_no_crs_with_mrts_*.py`, Envoy transport, and selected-runner contracts
@@ -130,6 +131,11 @@ ShellCheck SC1007 warnings remain in the Envoy configuration helper. The
 documentation contract checks passed: `rtk proxy make check-bilingual-docs`
 (`bilingual docs ok`), `rtk proxy make check-doc-links` (`repository path
 references: PASS`; `doc links ok`), and `rtk proxy git diff --check` (exit 0).
+After the diagnostic Envoy `r10` header mismatch, the focused Envoy/Lighttpd
+contract pair passed 50 tests and `sh -n` passed for
+`connectors/envoy/harness/run_envoy_ext_proc_runtime.sh` and
+`connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh`. These checks
+validate the narrow source dispatch changes only.
 The three real host runs, the full five-connector hosted workflow, exact-head
 Required Checks, and SonarQube Cloud analysis are currently `NOT EXECUTED`.
 No static contract or inventory result is promoted to runtime `PASS`.
@@ -142,6 +148,16 @@ plan/result/event paths, exact Parent/Framework/MRTS identities, case and
 request correlation, no-CRS result, evidence hashes, and cleanup status. Raw
 payloads, secrets, private keys, and local absolute paths must not be copied
 into this record.
+
+Envoy `r10` is retained only as diagnostic evidence: it reached real-host
+start and readiness, then failed with HTTP 500 before MRTS case execution
+because sealed evidence mode requires `x-mrts-transaction-id` while the
+readiness probe sent `X-Request-Id`. No case result, sealed MRTS receipt, or
+runtime success is claimed. The current local correction selects the closed
+MRTS readiness header only in MRTS mode and retains `x-request-id` in normal
+mode. Independently, the Lighttpd MRTS dispatcher now selects the sealed full
+lifecycle executor instead of falling through to legacy compatibility smoke.
+Both corrections still require fresh host validation.
 
 ## Checks not run and rationale
 
@@ -169,6 +185,9 @@ The final host adapters may reveal capability, readiness, or cleanup defects.
 `FND-PARENT-0194` is not closed by local interpreter-contract tests alone;
 fresh private-root host attempts must confirm that MRTS generation uses the
 approved venv and produces no false runtime receipt on dependency failure.
+Envoy needs a fresh post-header-fix run and an independent repetition; Lighttpd
+needs a fresh sealed-MRTS dispatcher run. Neither may use Envoy `r10` or a
+legacy Lighttpd smoke result as runtime evidence.
 The final workflow may expose environment or required-check failures. Until
 those exact results are observed, the three target cells remain
 `PENDING` for delivery classification.

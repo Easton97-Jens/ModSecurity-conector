@@ -68,10 +68,21 @@ without collapsing its final symlink. Symlinked parent directories are
 rejected, and the shell dispatchers pass the same approved interpreter through
 their closed boundary before MRTS materialization and child-process execution.
 The fix does not claim to rewrite the caller's `PATH`; the Framework generator
-uses its explicit `PYTHON` selection. This
-remediates diagnosed `FND-PARENT-0194`, where system Python lost the venv's
+uses its explicit `PYTHON` selection. This remediates diagnosed
+`FND-PARENT-0194`, where system Python lost the venv's
 PyYAML dependency during rule generation. The finding remains release-blocking
 until fresh runtime validation confirms the remediation.
+
+Fresh Envoy `r10` reached pinned provisioning, real host start, and readiness,
+but stopped before MRTS case execution with HTTP 500. In sealed MRTS evidence
+mode, Common requires the sole `x-mrts-transaction-id` correlation header;
+the readiness probe still sent normal-mode `X-Request-Id`. This diagnostic-only
+attempt created no MRTS receipt and is not runtime proof. The narrow current
+Parent correction selects the literal `x-mrts-transaction-id` only for MRTS
+readiness while preserving `x-request-id` for normal Envoy mode. Separately,
+the Lighttpd dispatcher now routes `MSCONNECTOR_MRTS_RUNTIME=1` only to its
+sealed full-lifecycle host executor, preserving the non-MRTS compatibility
+smoke path. Neither source correction establishes a host-runtime result.
 
 This profile is explicitly no-CRS. The route rejects CRS references in the
 generated MRTS load file and passes the repository-owned no-CRS rules only as
@@ -109,6 +120,9 @@ The broad C++ security scan was kept at its original C/H baseline plus the
 new typed observer `.cc` file; the pre-existing `common/scripts/
 modsecurity_targeted_eval.cc` was not exempted. Four pre-existing ShellCheck
 SC1007 warnings remain in the Envoy configuration helper.
+The subsequent focused Envoy/Lighttpd contract pair passed 50 tests, and
+`sh -n` passed for the two changed dispatch scripts. These are local contract
+checks only.
 
 The real three-connector host runs, hosted Actions, Required Checks,
 SonarQube Cloud analysis, and PR-head equality have not been observed by this

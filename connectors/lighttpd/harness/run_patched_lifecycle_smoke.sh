@@ -13,8 +13,12 @@ NO_CRS_NAMESPACE_RUNNER=$SCRIPT_DIR/run_no_crs_fixture_trusted_namespace.py
 # The canonical full-lifecycle route is intentionally separate from the
 # compatibility Phase-1 smoke below.  It runs P1/P2/P3 through the real
 # patched host and emits selected-case metadata; P4 remains unavailable
-# because the current output callback exposes HTTP/1 wire bytes.
-if [ "${NO_CRS_ARTIFACT_PROFILE:-}" = full_lifecycle ]; then
+# because the current output callback exposes HTTP/1 wire bytes.  The closed
+# no-CRS/with-MRTS dispatcher selects this same host route; it must stay inside
+# the existing private namespace launcher rather than falling through to the
+# compatibility smoke or bypassing the no-CRS fixture isolation.
+if [ "${NO_CRS_ARTIFACT_PROFILE:-}" = full_lifecycle ] ||
+    [ "${MSCONNECTOR_MRTS_RUNTIME:-0}" = 1 ]; then
     case "${MSCONNECTOR_CRS_RUNTIME:-0}" in
         0)
             [ -f "$NO_CRS_NAMESPACE_RUNNER" ] || {

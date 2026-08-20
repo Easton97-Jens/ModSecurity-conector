@@ -1055,6 +1055,21 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertNotIn("wire bytes", runner)
         self.assertIn(': "${NO_CRS_RUN_ID:?NO_CRS_RUN_ID is required}"', runner)
 
+    def test_mrts_dispatch_selects_full_lifecycle_host_executor(self) -> None:
+        dispatcher = (CONNECTOR / "harness" / "run_patched_lifecycle_smoke.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            '[ "${NO_CRS_ARTIFACT_PROFILE:-}" = full_lifecycle ] ||', dispatcher
+        )
+        self.assertIn(
+            '[ "${MSCONNECTOR_MRTS_RUNTIME:-0}" = 1 ]; then', dispatcher
+        )
+        self.assertIn('exec sh "$SCRIPT_DIR/run_patched_full_lifecycle.sh"', dispatcher)
+        self.assertNotIn(
+            'if [ "${MSCONNECTOR_MRTS_RUNTIME:-0}" = 0 ]; then', dispatcher
+        )
+
     def test_mrts_executor_uses_verified_top_level_root_not_smoke_root(self) -> None:
         runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
             encoding="utf-8"
