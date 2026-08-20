@@ -1345,6 +1345,39 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             if line.partition("=")[0] in names
         )
 
+    def framework_canonical_apr_util_provenance(
+        self, names: tuple[str, ...]
+    ) -> dict[str, str]:
+        """Read the canonical APR-util tuple without duplicating it in Parent."""
+
+        framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+        if framework_root is None:
+            self.skipTest(error)
+        completed = subprocess.run(
+            [
+                "/bin/sh",
+                "-c",
+                (
+                    "set -eu\n"
+                    '. "$1/ci/lib/common.sh"\n'
+                    "printf '%s\\0' \"$APR_UTIL_VERSION\" \"$APR_UTIL_SOURCE_URL\" "
+                    '\"$APR_UTIL_SHA256\" \"$APR_UTIL_SHA256_URL\"'
+                ),
+                "read-framework-apr-util-provenance",
+                str(framework_root),
+            ],
+            cwd=ROOT,
+            env={"LC_ALL": "C", "PATH": os.defpath, "TMPDIR": tempfile.gettempdir()},
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertTrue(completed.stdout.endswith("\0"), completed.stderr)
+        values = tuple(completed.stdout[:-1].split("\0"))
+        self.assertEqual(len(values), len(names), completed.stderr)
+        self.assertTrue(all(values), completed.stderr)
+        return dict(zip(names, values))
+
     def test_make_preserves_nginx_provenance_presence_semantics(self) -> None:
         names = (
             "NGINX_SOURCE_MODE",
@@ -1466,15 +1499,19 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             "APR_SOURCE_URL": "https://fixture.invalid/apr.tar.gz",
             "APR_SHA256": "c" * 64,
             "APR_SHA256_URL": "https://fixture.invalid/apr.tar.gz.sha256",
-            "APR_UTIL_VERSION": "1.6.0",
-            "APR_UTIL_SOURCE_URL": "https://fixture.invalid/apr-util.tar.gz",
-            "APR_UTIL_SHA256": "d" * 64,
-            "APR_UTIL_SHA256_URL": "https://fixture.invalid/apr-util.tar.gz.sha256",
             "PCRE2_VERSION": "10.0",
             "PCRE2_SOURCE_URL": "https://fixture.invalid/pcre2.tar.gz",
             "PCRE2_SHA256": "e" * 64,
             "PCRE2_SHA256_URL": "https://fixture.invalid/pcre2.tar.gz.sha256",
         }
+        apr_util_names = (
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        )
+        specified.update(self.framework_canonical_apr_util_provenance(apr_util_names))
+        self.assertEqual(set(specified), set(names))
         self.assertEqual(
             self.make_provenance_environment(names, make_target, specified), specified
         )
