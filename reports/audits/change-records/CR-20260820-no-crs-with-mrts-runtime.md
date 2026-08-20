@@ -69,8 +69,15 @@ MRTS configuration, subprocess and host lifecycle, HTTP request correlation,
 and private evidence files. Validation is fail-closed for path traversal,
 symlink components, mutable or mismatched gitlinks, CRS references, stale
 results, duplicate JSON keys, and unsupported connector names. This record
-does not claim a completed hosted security scan; any remaining security result
-is pending the implementation and validation run.
+also records diagnosed `FND-PARENT-0194`: the approved venv's final symlink
+must be preserved, symlinked parent directories must be rejected, and shell
+dispatch must carry the same approved interpreter through its closed boundary.
+The Framework generator uses explicit `PYTHON` selection; this record does not
+claim that the product rewrites the caller's `PATH`. The remediation is present
+in the current source and focused contracts, but the finding remains
+release-blocking until fresh runtime validation. This record does not claim a
+completed hosted security scan; any remaining security result is pending the
+implementation and validation run.
 
 ## Changed files
 
@@ -159,6 +166,9 @@ it does not establish `verified_pr`.
 ## Remaining risks
 
 The final host adapters may reveal capability, readiness, or cleanup defects.
+`FND-PARENT-0194` is not closed by local interpreter-contract tests alone;
+fresh private-root host attempts must confirm that MRTS generation uses the
+approved venv and produces no false runtime receipt on dependency failure.
 The final workflow may expose environment or required-check failures. Until
 those exact results are observed, the three target cells remain
 `PENDING` for delivery classification.

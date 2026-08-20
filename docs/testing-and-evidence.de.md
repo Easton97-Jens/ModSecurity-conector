@@ -70,6 +70,17 @@ liest keine Audit-Logs, Error-Logs, stderr- oder Request-/Response-Payloads.
 Native Integritäts- und Verkettungsprüfungen erfolgen, bevor das Ergebnis
 akzeptiert wird.
 
+Die Parent-Python-Grenze erhält den geprüften task-lokalen venv-Interpreter,
+ohne dessen letzten Symlink aufzulösen. Symlinkte übergeordnete Verzeichnisse
+werden zurückgewiesen; die Shell-Dispatcher reichen vor MRTS-Materialisierung
+und Child-Prozess-Ausführung denselben genehmigten Interpreter durch ihre
+geschlossene Grenze weiter. Die Behebung behauptet keine Umschreibung des
+aufrufenden `PATH`; der Framework-Generator verwendet die explizite
+`PYTHON`-Auswahl. Damit wird der diagnostizierte Fehler `FND-PARENT-0194` bei
+System-Python während der Regelerzeugung die PyYAML-Abhängigkeit der venv
+verlor. Das Finding bleibt bis zur frischen Runtime-Validierung der Behebung
+release-blockierend.
+
 Dieses Profil ist ausdrücklich no-CRS. Der Pfad weist CRS-Referenzen in der
 erzeugten MRTS-Load-Datei zurück und übergibt als aktive Nicht-CRS-Eingabe nur
 die repository-eigenen no-CRS-Regeln. OWASP CRS wird weder aktiviert noch

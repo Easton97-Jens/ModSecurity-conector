@@ -71,9 +71,18 @@ generierte MRTS-Konfiguration, Subprozess- und Host-Lifecycle, HTTP-
 Request-Korrelation und private Evidence-Dateien. Traversal,
 Symlink-Komponenten, nicht passende oder veränderliche Gitlinks,
 CRS-Referenzen, alte Resultate, doppelte JSON-Schlüssel und unbekannte
-Connectoren werden fail-closed validiert. Dieser Record behauptet keinen
-abgeschlossenen gehosteten Security-Scan; weitere Security-Ergebnisse sind bis
-zum Implementierungs- und Validierungslauf offen.
+Connectoren werden fail-closed validiert. Dieser Record dokumentiert außerdem
+den diagnostizierten Parent-Interpreterauflösungsfehler `FND-PARENT-0194`: Der
+letzte Symlink der genehmigten venv muss erhalten bleiben, symlinkte
+übergeordnete Verzeichnisse müssen zurückgewiesen werden, und der Shell-
+Dispatch muss denselben genehmigten Interpreter durch seine geschlossene
+Grenze weiterreichen. Der Framework-Generator verwendet die explizite
+`PYTHON`-Auswahl; dieser Record behauptet nicht, dass der Produktpfad den
+aufrufenden `PATH` umschreibt. Die Behebung ist in der aktuellen Quelle und
+den fokussierten Contracts enthalten; das Finding
+bleibt jedoch bis zur frischen Runtime-Validierung release-blockierend. Dieser
+Record behauptet keinen abgeschlossenen gehosteten Security-Scan; weitere
+Security-Ergebnisse sind bis zum Implementierungs- und Validierungslauf offen.
 
 ## Geänderte Dateien
 
@@ -166,7 +175,11 @@ nicht `verified_pr`.
 ## Verbleibende Risiken
 
 Die finalen Hostadapter können Capability-, Readiness- oder Cleanup-Fehler
-zeigen. Der finale Workflow kann Umgebungs- oder Required-Check-Fehler zeigen.
+zeigen. `FND-PARENT-0194` ist durch lokale Interpreter-Contract-Tests allein
+nicht geschlossen; frische Private-Root-Hostversuche müssen bestätigen, dass
+die MRTS-Erzeugung die genehmigte venv verwendet und bei fehlender Dependency
+kein falsches Runtime-Receipt erzeugt. Der finale Workflow kann Umgebungs- oder
+Required-Check-Fehler zeigen.
 Bis diese Exact-Head-Ergebnisse beobachtet wurden, bleiben die drei Zielzellen
 für die Lieferung `PENDING`.
 

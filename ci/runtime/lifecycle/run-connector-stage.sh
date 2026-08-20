@@ -24,6 +24,24 @@ FULL_LIFECYCLE_EXECUTED_TARGET=${FULL_LIFECYCLE_EXECUTED_TARGET:-}
 NO_CRS_SELECTED_CASES_MISSING_MESSAGE='FAIL: capability-selected No-CRS runner cases are missing'
 readonly NO_CRS_SELECTED_CASES_MISSING_MESSAGE
 
+require_mrts_python_invocation() {
+    candidate=$1
+    case "$candidate" in
+        /*) ;;
+        *) echo "FAIL: MRTS Python interpreter must be an absolute path" >&2; return 77 ;;
+    esac
+    case "$candidate" in
+        */../*|../*|*/..|..) echo "FAIL: MRTS Python interpreter contains traversal" >&2; return 77 ;;
+    esac
+    [ -f "$candidate" ] || { echo "FAIL: MRTS Python interpreter is not a regular file: $candidate" >&2; return 77; }
+    [ -x "$candidate" ] || { echo "FAIL: MRTS Python interpreter is not executable: $candidate" >&2; return 77; }
+    parent=${candidate%/*}
+    while [ -n "$parent" ] && [ "$parent" != / ]; do
+        [ ! -L "$parent" ] || { echo "FAIL: MRTS Python interpreter has a symlinked parent: $candidate" >&2; return 77; }
+        parent=${parent%/*}
+    done
+}
+
 case "$connector" in
     apache|nginx|haproxy|envoy|traefik|lighttpd) ;;
     *) echo "usage: $0 apache|nginx|haproxy|envoy|traefik|lighttpd build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline|no_crs_with_mrts" >&2; exit 2 ;;
@@ -56,17 +74,11 @@ validate_mrts_stage_inputs() {
     [ -n "${MRTS_CASE_ROOT:-}" ] || { echo "FAIL: MRTS_CASE_ROOT is required" >&2; exit 2; }
     MRTS_PYTHON_BIN=${PYTHON_BIN:-${PYTHON:-}}
     [ -n "$MRTS_PYTHON_BIN" ] || { echo "FAIL: no_crs_with_mrts requires an explicit PYTHON_BIN or PYTHON" >&2; exit 2; }
-    case "$MRTS_PYTHON_BIN" in
-        /*) ;;
-        *) echo "FAIL: MRTS Python interpreter must be an absolute path" >&2; exit 77 ;;
-    esac
     if [ -n "${PYTHON_BIN:-}" ] && [ -n "${PYTHON:-}" ] && [ "$PYTHON_BIN" != "$PYTHON" ]; then
         echo "FAIL: PYTHON_BIN and PYTHON disagree" >&2
         exit 77
     fi
-    [ -f "$MRTS_PYTHON_BIN" ] || { echo "FAIL: MRTS Python interpreter is not a regular file: $MRTS_PYTHON_BIN" >&2; exit 77; }
-    [ -x "$MRTS_PYTHON_BIN" ] || { echo "FAIL: MRTS Python interpreter is not executable: $MRTS_PYTHON_BIN" >&2; exit 77; }
-    [ ! -L "$MRTS_PYTHON_BIN" ] || { echo "FAIL: MRTS Python interpreter must not be a symlink" >&2; exit 77; }
+    require_mrts_python_invocation "$MRTS_PYTHON_BIN" || exit 77
     case "$MRTS_RUNTIME_PLAN:$MRTS_RUNTIME_RESULT:$MRTS_RUNTIME_EXECUTOR:$MRTS_RUNTIME_RULES_ROOT:$MRTS_LOAD_FILE:$MRTS_CASE_ROOT" in
         *[!A-Za-z0-9_./:-]*) echo "FAIL: MRTS runtime paths contain unsafe characters" >&2; exit 2 ;;
     esac

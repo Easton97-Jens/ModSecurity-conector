@@ -120,6 +120,31 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         self.assertIn('stop("--execute-stage is mandatory', source)
         self.assertIn('"no_crs_with_mrts"', source)
 
+    def test_active_python_executable_preserves_a_venv_style_final_symlink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(sys.executable).resolve(strict=True)
+            invocation = Path(directory) / "python"
+            invocation.symlink_to(target)
+            with mock.patch.object(TARGET.sys, "executable", str(invocation)):
+                self.assertEqual(TARGET.active_python_executable(), invocation)
+
+    def test_active_python_executable_rejects_a_relative_invocation(self):
+        with mock.patch.object(TARGET.sys, "executable", "python3"):
+            with self.assertRaises(SystemExit):
+                TARGET.active_python_executable()
+
+    def test_active_python_executable_rejects_a_symlinked_parent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(sys.executable).resolve(strict=True)
+            real_parent = Path(directory) / "real"
+            real_parent.mkdir()
+            (real_parent / "python").symlink_to(target)
+            linked_parent = Path(directory) / "linked"
+            linked_parent.symlink_to(real_parent, target_is_directory=True)
+            with mock.patch.object(TARGET.sys, "executable", str(linked_parent / "python")):
+                with self.assertRaises(SystemExit):
+                    TARGET.active_python_executable()
+
     def test_executor_binds_localhost_and_provenance(self):
         source = (ROOT / "ci" / "runtime" / "lifecycle" / "execute-no-crs-mrts-cases.py").read_text(encoding="utf-8")
         self.assertIn('if args.host != "127.0.0.1":', source)

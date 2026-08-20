@@ -114,6 +114,31 @@ def checked_path(value: str, label: str) -> Path:
         stop(f"{label} is unavailable: {exc}")
 
 
+def active_python_executable() -> Path:
+    """Return the invocation path so a venv keeps its site-package context."""
+
+    executable = Path(sys.executable)
+    if not executable.is_absolute() or ".." in executable.parts:
+        stop("trusted Python invocation must be absolute and traversal-free")
+    parent = executable.parent
+    while parent != parent.parent:
+        if parent.is_symlink():
+            stop("trusted Python invocation contains a symlinked parent")
+        parent = parent.parent
+    try:
+        resolved = executable.resolve(strict=True)
+    except OSError as exc:
+        stop(f"trusted Python interpreter is unavailable: {exc}")
+    if (
+        not executable.is_file()
+        or not os.access(executable, os.R_OK | os.X_OK)
+        or not resolved.is_file()
+        or not os.access(resolved, os.R_OK | os.X_OK)
+    ):
+        stop("trusted Python interpreter is unavailable")
+    return executable
+
+
 def duplicate_safe_json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
@@ -559,9 +584,7 @@ def main() -> int:
     if not mrts.is_dir() or mrts.is_symlink():
         stop("MRTS checkout is missing or symlinked")
     provenance = repository_provenance(parent, framework, mrts)
-    python_path = Path(sys.executable).resolve(strict=True)
-    if not python_path.is_file() or not os.access(python_path, os.R_OK | os.X_OK):
-        stop("trusted Python interpreter is unavailable")
+    python_path = active_python_executable()
     no_crs_rules = (framework / "tests" / "rules" / "no-crs-baseline.conf").resolve(strict=True)
     build = root / "build"
     build.mkdir(mode=0o700)

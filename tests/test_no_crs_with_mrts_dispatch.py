@@ -72,6 +72,16 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
         self.assertIn("MRTS_CLOSED_PLAN_SHA256=$MRTS_RUNTIME_PLAN_SHA256", runner_source)
         self.assertIn("MRTS_RUNTIME_PLAN_SHA256=$MRTS_CLOSED_PLAN_SHA256", runner_source)
 
+    def test_python_invocation_contract_allows_only_a_final_venv_symlink(self) -> None:
+        for source in (STAGE.read_text(encoding="utf-8"), RUNNER.read_text(encoding="utf-8")):
+            self.assertIn("require_mrts_python_invocation()", source)
+            self.assertIn('require_mrts_python_invocation "$MRTS_PYTHON_BIN" || exit 77', source)
+            self.assertIn('*/../*|../*|*/..|..)', source)
+            self.assertIn('symlinked parent: $candidate', source)
+            self.assertNotIn('MRTS Python interpreter must not be a symlink', source)
+        runner_source = RUNNER.read_text(encoding="utf-8")
+        self.assertIn('require_mrts_python_invocation "$PYTHON_BIN" || {', runner_source)
+
 
 if __name__ == "__main__":
     unittest.main()

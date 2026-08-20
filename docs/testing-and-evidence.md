@@ -63,6 +63,16 @@ transaction correlation; it does not scrape audit logs, error logs, stderr, or
 request/response payloads. Native integrity and contiguous-chain validation is
 performed before the result is accepted.
 
+The Parent Python boundary preserves the approved task-local venv interpreter
+without collapsing its final symlink. Symlinked parent directories are
+rejected, and the shell dispatchers pass the same approved interpreter through
+their closed boundary before MRTS materialization and child-process execution.
+The fix does not claim to rewrite the caller's `PATH`; the Framework generator
+uses its explicit `PYTHON` selection. This
+remediates diagnosed `FND-PARENT-0194`, where system Python lost the venv's
+PyYAML dependency during rule generation. The finding remains release-blocking
+until fresh runtime validation confirms the remediation.
+
 This profile is explicitly no-CRS. The route rejects CRS references in the
 generated MRTS load file and passes the repository-owned no-CRS rules only as
 the active non-CRS input. The route does not enable, acquire, cache, or reuse
