@@ -45,6 +45,7 @@ actions-update-report.md
 
 # Editor and operating-system files
 .vscode/
+.codex/
 .idea/
 .DS_Store
 Thumbs.db
