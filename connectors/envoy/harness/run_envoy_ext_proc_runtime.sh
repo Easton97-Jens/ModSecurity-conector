@@ -868,7 +868,7 @@ elif [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
     set +e
     "$PYTHON_BIN" "$MRTS_RUNTIME_EXECUTOR" \
         --connector envoy \
-        --runtime-root "$RUNTIME_ROOT" \
+        --runtime-root "$VERIFIED_RUN_ROOT" \
         --plan "$MRTS_RUNTIME_PLAN" \
         --result "$MRTS_RUNTIME_RESULT" \
         --load-file "$MRTS_LOAD_FILE" \

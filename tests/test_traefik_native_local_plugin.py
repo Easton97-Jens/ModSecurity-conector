@@ -622,15 +622,23 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
     def test_engine_socket_setup_failure_removes_the_allocated_child(self) -> None:
         with tempfile.TemporaryDirectory(prefix="msconnector-traefik-test-") as temporary:
             root = Path(temporary)
-            runtime_root = root / "runtime"
+            runtime_root = root / "build" / "stages" / "traefik" / "no_crs_with_mrts" / "runtime"
             parent_path = root / "socket-parent"
             parent_path.mkdir(mode=0o700)
             selected_parent = engine_socket_parent(parent_path)
             with mock.patch.dict(
                 os.environ,
-                {"TRAEFIK_NATIVE_RUNTIME_ROOT": str(runtime_root), "TRAEFIK_BIN": "/bin/true"},
+                {
+                    "TRAEFIK_NATIVE_RUNTIME_ROOT": str(runtime_root),
+                    "VERIFIED_RUN_ROOT": str(root),
+                    "TRAEFIK_BIN": "/bin/true",
+                },
                 clear=False,
-            ), mock.patch.object(runner, "assert_runtime_root", return_value=runtime_root), mock.patch.object(
+            ), mock.patch.object(
+                runner,
+                "assert_runtime_root",
+                side_effect=lambda path: runtime_root if path == runtime_root else root,
+            ), mock.patch.object(
                 runner, "require_local_executable", return_value=Path("/bin/true")
             ), mock.patch.object(
                 runner, "require_modsecurity_environment", return_value=(root, root)
@@ -656,13 +664,14 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
     def test_missing_engine_socket_parent_fails_before_runtime_root_setup(self) -> None:
         with tempfile.TemporaryDirectory(prefix="msconnector-traefik-test-") as temporary:
             temporary_root = Path(temporary)
-            runtime_root = temporary_root / "runtime"
+            runtime_root = temporary_root / "build" / "stages" / "traefik" / "no_crs_with_mrts" / "runtime"
             inherited_tmpdir = temporary_root / "valid-inherited-tmpdir"
             inherited_tmpdir.mkdir(mode=0o700)
             with mock.patch.dict(
                 os.environ,
                 {
                     "TRAEFIK_NATIVE_RUNTIME_ROOT": str(runtime_root),
+                    "VERIFIED_RUN_ROOT": str(temporary_root),
                     runner.ENGINE_SOCKET_PARENT_ENV: "",
                     "TMPDIR": str(inherited_tmpdir),
                 },

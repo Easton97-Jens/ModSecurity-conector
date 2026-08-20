@@ -1055,6 +1055,32 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertNotIn("wire bytes", runner)
         self.assertIn(': "${NO_CRS_RUN_ID:?NO_CRS_RUN_ID is required}"', runner)
 
+    def test_mrts_executor_uses_verified_top_level_root_not_smoke_root(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        executor = runner.split(
+            '"$PYTHON_BIN" "$MRTS_RUNTIME_EXECUTOR" \\\n', 1
+        )[1].split('fail "MRTS runtime executor failed"', 1)[0]
+        self.assertIn('--runtime-root "$VERIFIED_RUN_ROOT"', executor)
+        self.assertNotIn('--runtime-root "$SMOKE_DIR"', executor)
+        self.assertIn('"$MRTS_RUNTIME_PLAN"', runner)
+        self.assertIn('"$MRTS_RUNTIME_RESULT"', runner)
+        self.assertIn('"$EVENT_PATH"', runner)
+        self.assertIn('path.resolve(strict=False).relative_to(smoke_resolved)', runner)
+        self.assertIn('"build" / "stages" / "lighttpd"', runner)
+        self.assertIn('"no_crs_with_mrts" / "runtime"', runner)
+
+    def test_mrts_runtime_root_boundary_rejects_checkout_and_non_private_roots(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('VERIFIED_RUN_ROOT must be outside the repository checkout', runner)
+        self.assertIn('VERIFIED_RUN_ROOT must be owner-controlled with exact mode 0700', runner)
+        self.assertIn('contains a symbolic-link component', runner)
+        self.assertIn('VERIFIED_RUN_ROOT must be an existing directory', runner)
+        self.assertIn('SMOKE_DIR must be the canonical Lighttpd MRTS stage root', runner)
+
         serve_command = runner.split(
             '"$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve', 1
         )[1].split("BARRIER_PID=$!", 1)[0]

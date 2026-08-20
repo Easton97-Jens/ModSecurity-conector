@@ -757,6 +757,11 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertIn('X-Request-Id: $ALLOW_TRANSACTION_ID', source)
         self.assertIn('READINESS_PROBE_EVIDENCE="$RUNTIME_ROOT/readiness-probe.json"', source)
         self.assertIn('ALLOW_PROBE_EVIDENCE="$RUNTIME_ROOT/allow-probe.json"', source)
+        executor_start = source.index('\"$PYTHON_BIN\" \"$MRTS_RUNTIME_EXECUTOR\"')
+        executor_end = source.index("    mrts_executor_rc=$?", executor_start)
+        executor_source = source[executor_start:executor_end]
+        self.assertIn('--runtime-root \"$VERIFIED_RUN_ROOT\"', executor_source)
+        self.assertNotIn('--runtime-root \"$RUNTIME_ROOT\"', executor_source)
 
 
 if __name__ == "__main__":

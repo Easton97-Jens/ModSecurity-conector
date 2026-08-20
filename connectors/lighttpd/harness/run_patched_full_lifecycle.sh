@@ -16,6 +16,7 @@ MODULE_PATH=$PATCHED_ROOT/stage/modules/mod_msconnector.so
 PROXY_MODULE_PATH=$PATCHED_ROOT/stage/modules/mod_proxy.so
 HOST_MANIFEST=$PATCHED_ROOT/patched-host-build-info.txt
 SMOKE_DIR=${LIGHTTPD_PATCHED_SMOKE_DIR:-$PATCHED_ROOT/smoke}
+VERIFIED_RUN_ROOT=${VERIFIED_RUN_ROOT:-}
 SMOKE_PORT=${LIGHTTPD_SMOKE_PORT:-18084}
 AMBIENT_MSCONNECTOR_RULES_FILE=${MSCONNECTOR_RULES_FILE:-}
 AMBIENT_RULES_FILE=${RULES_FILE:-}
@@ -573,13 +574,17 @@ verify_mrts_runtime_inputs() {
         [ "$AMBIENT_RULES_FILE" = "$MRTS_LOAD_FILE" ] ||
         blocked "MRTS mode rejects an ambient RULES_FILE override"
 
-    "$PYTHON_BIN" - "$SMOKE_DIR" "$MRTS_LOAD_FILE" "$MRTS_RUNTIME_EXECUTOR" \
-        "$MRTS_RUNTIME_PLAN" "$MRTS_RUNTIME_RESULT" <<'PY'
+    "$PYTHON_BIN" - "$REPO_ROOT" "$VERIFIED_RUN_ROOT" "$SMOKE_DIR" \
+        "$MRTS_LOAD_FILE" "$MRTS_RUNTIME_EXECUTOR" "$MRTS_RUNTIME_PLAN" \
+        "$MRTS_RUNTIME_RESULT" "$EVENT_PATH" <<'PY'
 from pathlib import Path
 import os
+import stat
 import sys
 
-root, load_file, executor, plan, result = map(Path, sys.argv[1:])
+repo_root, verified_root, smoke_root, load_file, executor, plan, result, event = map(
+    Path, sys.argv[1:]
+)
 
 def reject_symlink_components(value: Path, label: str) -> Path:
     if not value.is_absolute():
@@ -591,19 +596,46 @@ def reject_symlink_components(value: Path, label: str) -> Path:
             raise SystemExit(f"{label} contains a symbolic-link component: {current}")
     return value
 
-root = reject_symlink_components(root, "runtime root")
+verified_root = reject_symlink_components(verified_root, "VERIFIED_RUN_ROOT")
+smoke_root = reject_symlink_components(smoke_root, "SMOKE_DIR")
 load_file = reject_symlink_components(load_file, "MRTS load file")
 executor = reject_symlink_components(executor, "MRTS runtime executor")
 plan = reject_symlink_components(plan, "MRTS runtime plan")
 result = reject_symlink_components(result, "MRTS runtime result")
+event = reject_symlink_components(event, "MRTS event log")
+
+if not verified_root.exists() or not verified_root.is_dir():
+    raise SystemExit(f"VERIFIED_RUN_ROOT must be an existing directory: {verified_root}")
+verified_resolved = verified_root.resolve(strict=True)
+repo_resolved = repo_root.resolve(strict=True)
+if verified_resolved == repo_resolved or repo_resolved in verified_resolved.parents:
+    raise SystemExit("VERIFIED_RUN_ROOT must be outside the repository checkout")
+details = verified_resolved.stat()
+if details.st_uid != os.getuid() or stat.S_IMODE(details.st_mode) != 0o700:
+    raise SystemExit("VERIFIED_RUN_ROOT must be owner-controlled with exact mode 0700")
+if not smoke_root.exists() or not smoke_root.is_dir():
+    raise SystemExit(f"SMOKE_DIR must be an existing directory: {smoke_root}")
+smoke_resolved = smoke_root.resolve(strict=True)
+expected_smoke = (
+    verified_resolved / "build" / "stages" / "lighttpd" /
+    "no_crs_with_mrts" / "runtime"
+)
+if smoke_resolved != expected_smoke:
+    raise SystemExit(
+        "SMOKE_DIR must be the canonical Lighttpd MRTS stage root: "
+        f"{expected_smoke}"
+    )
 
 for path, label in ((load_file, "MRTS load file"), (plan, "MRTS runtime plan")):
     if not path.is_file():
         raise SystemExit(f"{label} must be an existing regular file: {path}")
 if not executor.is_file() or not os.access(executor, os.R_OK):
     raise SystemExit(f"MRTS runtime executor must be a readable regular file: {executor}")
-if result == root or root not in result.parents:
-    raise SystemExit(f"MRTS runtime result must be below the smoke root: {result}")
+for path, label in ((plan, "MRTS runtime plan"), (result, "MRTS runtime result"), (event, "MRTS event log")):
+    try:
+        path.resolve(strict=False).relative_to(smoke_resolved)
+    except ValueError as exc:
+        raise SystemExit(f"{label} must remain below the smoke root: {path}") from exc
 if result.exists():
     raise SystemExit(f"MRTS runtime result must not already exist: {result}")
 
@@ -1042,7 +1074,7 @@ kill -0 "$SERVER_PID" 2>/dev/null || {
 if [ "$MRTS_RUNTIME_MODE" = 1 ]; then
     if ! "$PYTHON_BIN" "$MRTS_RUNTIME_EXECUTOR" \
         --connector lighttpd \
-        --runtime-root "$SMOKE_DIR" \
+        --runtime-root "$VERIFIED_RUN_ROOT" \
         --plan "$MRTS_RUNTIME_PLAN" \
         --load-file "$MRTS_LOAD_FILE" \
         --result "$MRTS_RUNTIME_RESULT" \

@@ -226,7 +226,7 @@ def main() -> int:
         fail("plan executor digest is invalid")
     if hashlib.sha256(executor_path.read_bytes()).hexdigest() != executor_sha:
         fail("executor digest mismatch")
-    build_root = root.parent.parent.parent.parent
+    build_root = root / "build"
     load_path = Path(str(plan.get("load_file", "")))
     load_path = confined(str(load_path), build_root, "MRTS load file")
     supplied_load_path = confined(args.load_file, build_root, "supplied MRTS load file")

@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -67,6 +68,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         self.assertIn("executor digest mismatch", source)
         self.assertIn("MRTS case digest mismatch", source)
         self.assertIn('parser.add_argument("--load-file", required=True)', source)
+        self.assertIn('build_root = root / "build"', source)
         self.assertIn("validate_sealed_no_crs_plan(plan_path, root, load_path, executor_path)", source)
         self.assertNotIn('if "crs" in load_path.read_text', source)
 
@@ -220,12 +222,18 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 encoding="utf-8",
             )
             plan_path = stage / "mrts-runtime-plan.json"
+            executor_path = ROOT / "ci" / "runtime" / "lifecycle" / "execute-no-crs-mrts-cases.py"
             plan_path.write_text(
                 json.dumps(
                     {
                         "schema": "no-crs-with-mrts-plan/v1",
                         "profile": "no-crs/with-mrts",
                         "connector": "envoy",
+                        "cases": [{"kind": "control", "source": "fixture.yaml"}],
+                        "executor": {
+                            "path": str(executor_path),
+                            "sha256": TARGET.hashlib.sha256(executor_path.read_bytes()).hexdigest(),
+                        },
                         "load_file": str(load),
                         "load_file_sha256": TARGET.hashlib.sha256(load.read_bytes()).hexdigest(),
                         "no_crs_rules_file": str(baseline.resolve()),
@@ -241,6 +249,31 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             runtime.chmod(0o700)
             executor_path = ROOT / "ci" / "runtime" / "lifecycle" / "execute-no-crs-mrts-cases.py"
             EXECUTOR.validate_sealed_no_crs_plan(plan_path, runtime, load, executor_path)
+            with mock.patch.object(
+                sys,
+                "argv",
+                [
+                    str(executor_path),
+                    "--connector",
+                    "envoy",
+                    "--runtime-root",
+                    str(stage),
+                    "--plan",
+                    str(plan_path),
+                    "--load-file",
+                    str(load),
+                    "--result",
+                    str(stage / "mrts-runtime-result.json"),
+                    "--event-log",
+                    str(stage / "events.jsonl"),
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    "18080",
+                ],
+            ):
+                with self.assertRaisesRegex(SystemExit, "MRTS load file escapes its private root"):
+                    EXECUTOR.main()
             first_rule = rules / next(iter(sorted(included)))
             first_rule.write_text('SecRule ARGS:foo "@streq attack" "id:949110,phase:1,pass"\\n', encoding="utf-8")
             with self.assertRaises(SystemExit):

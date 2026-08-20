@@ -27,6 +27,7 @@ class TraefikMRTSRuntimeInputsTest(unittest.TestCase):
     def mrts_inputs(self, root: Path, plan_file: Path) -> object:
         return self.runner.NativeRuntimeInputs(
             runtime_root=root,
+            verified_run_root=root.parent,
             engine_socket_parent=None,
             run_id=None,
             first_byte_output=None,
@@ -66,6 +67,52 @@ class TraefikMRTSRuntimeInputsTest(unittest.TestCase):
         self.assertIn('"--load-file"', source)
         self.assertIn("MSCONNECTOR_RULES_FILE must resolve exactly to MRTS_LOAD_FILE", source)
         self.assertIn("require_no_crs_mrts_load_file", source)
+
+    def test_mrts_executor_uses_top_level_verified_run_root(self) -> None:
+        source = RUNNER_PATH.read_text(encoding="utf-8")
+        self.assertIn("verified_run_root: Path", source)
+        self.assertIn("assert_private_verified_run_root", source)
+        self.assertIn('os.environ.get("VERIFIED_RUN_ROOT", "")', source)
+        self.assertIn('"--runtime-root",\n        str(inputs.verified_run_root)', source)
+        self.assertNotIn('"--runtime-root",\n        str(inputs.runtime_root)', source)
+
+    def test_stage_root_must_be_below_distinct_verified_run_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            verified = root / "verified"
+            stage = verified / "build" / "stages" / "traefik" / "no_crs_with_mrts" / "runtime"
+            verified.mkdir(mode=0o700)
+            stage.mkdir(mode=0o700, parents=True)
+            self.assertEqual(
+                self.runner.assert_stage_runtime_root(stage, verified), stage
+            )
+            with self.assertRaisesRegex(self.runner.MissingDependency, "canonical Traefik MRTS stage root"):
+                self.runner.assert_stage_runtime_root(root / "foreign-stage", verified)
+            with self.assertRaisesRegex(self.runner.MissingDependency, "canonical Traefik MRTS stage root"):
+                self.runner.assert_stage_runtime_root(verified, verified)
+            with self.assertRaisesRegex(self.runner.MissingDependency, "canonical Traefik MRTS stage root"):
+                self.runner.assert_stage_runtime_root(stage / "nested", verified)
+
+    def test_missing_or_symlinked_verified_run_root_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            verified = root / "verified"
+            verified.mkdir(mode=0o700)
+            alias = root / "verified-alias"
+            alias.symlink_to(verified, target_is_directory=True)
+            with self.assertRaisesRegex(self.runner.MissingDependency, "symlink"):
+                self.runner.assert_private_verified_run_root(alias)
+
+    def test_verified_run_root_requires_exact_private_mode_and_owner_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            verified = root / "verified"
+            verified.mkdir(mode=0o755)
+            verified.chmod(0o755)
+            with self.assertRaisesRegex(self.runner.MissingDependency, "exact-0700"):
+                self.runner.assert_private_verified_run_root(verified)
+            with self.assertRaisesRegex(self.runner.MissingDependency, "outside checkout"):
+                self.runner.assert_private_verified_run_root(self.runner.REPO_ROOT)
 
     def test_staging_allows_only_the_prevalidated_plan_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

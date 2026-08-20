@@ -202,6 +202,43 @@ def assert_runtime_root(path: Path) -> Path:
     return resolved
 
 
+def assert_private_verified_run_root(path: Path) -> Path:
+    """Validate the existing top-level run boundary before host setup."""
+
+    resolved = assert_runtime_root(path)
+    try:
+        root_stat = resolved.lstat()
+    except OSError as exc:
+        raise MissingDependency(
+            f"VERIFIED_RUN_ROOT must be an existing private directory: {resolved}"
+        ) from exc
+    if (
+        not stat.S_ISDIR(root_stat.st_mode)
+        or stat.S_ISLNK(root_stat.st_mode)
+        or root_stat.st_uid != os.geteuid()
+        or stat.S_IMODE(root_stat.st_mode) != 0o700
+    ):
+        raise MissingDependency(
+            "VERIFIED_RUN_ROOT must be an existing exact-0700 directory owned by the current user: "
+            f"{resolved}"
+        )
+    if not os.access(resolved, os.W_OK | os.X_OK):
+        raise MissingDependency(f"VERIFIED_RUN_ROOT is not writable by the current user: {resolved}")
+    return resolved
+
+
+def assert_stage_runtime_root(runtime_root: Path, verified_run_root: Path) -> Path:
+    """Bind the connector stage to the canonical private run layout."""
+
+    expected = verified_run_root / "build" / "stages" / "traefik" / "no_crs_with_mrts" / "runtime"
+    if runtime_root != expected:
+        raise MissingDependency(
+            "TRAEFIK_NATIVE_RUNTIME_ROOT must be the canonical Traefik MRTS stage root: "
+            f"{expected}"
+        )
+    return runtime_root
+
+
 def assert_private_engine_socket_parent(path: Path, label: str) -> Path:
     """Validate an explicitly selected private parent for a UDS child."""
 
@@ -1203,7 +1240,7 @@ def run_mrts_runtime_executor(
         "--connector",
         "traefik",
         "--runtime-root",
-        str(inputs.runtime_root),
+        str(inputs.verified_run_root),
         "--plan",
         str(inputs.mrts_plan),
         "--load-file",
@@ -1453,6 +1490,7 @@ class NativeRuntimeInputs:
     """Validated immutable inputs for one native Traefik host run."""
 
     runtime_root: Path
+    verified_run_root: Path
     engine_socket_parent: EngineSocketParent
     run_id: str | None
     first_byte_output: Path | None
@@ -1583,6 +1621,10 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
     """Resolve all environment-derived inputs before making runtime changes."""
 
     runtime_root = assert_runtime_root(Path(os.environ.get("TRAEFIK_NATIVE_RUNTIME_ROOT", "")))
+    verified_run_root = assert_private_verified_run_root(
+        Path(os.environ.get("VERIFIED_RUN_ROOT", ""))
+    )
+    assert_stage_runtime_root(runtime_root, verified_run_root)
     first_byte_output_text = os.environ.get("FULL_LIFECYCLE_EVIDENCE_OUTPUT", "").strip()
     first_byte_output = Path(first_byte_output_text) if first_byte_output_text else None
     if first_byte_output is not None:
@@ -1635,6 +1677,7 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
         )
     return NativeRuntimeInputs(
         runtime_root=runtime_root,
+        verified_run_root=verified_run_root,
         engine_socket_parent=engine_socket_parent,
         run_id=run_id,
         first_byte_output=first_byte_output,
