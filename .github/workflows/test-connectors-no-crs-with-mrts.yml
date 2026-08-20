@@ -26,6 +26,8 @@ jobs:
           - lighttpd
           - traefik
     env:
+      ALLOW_RUNTIME_BUILDS: "1"
+      ALLOW_RUNTIME_DOWNLOADS: "1"
       CONNECTOR: ${{ matrix.connector }}
       CRS_VARIANT: no-crs
       MRTS_VARIANT: with-mrts

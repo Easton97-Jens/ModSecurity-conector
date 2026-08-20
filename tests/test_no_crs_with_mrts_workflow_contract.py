@@ -26,6 +26,8 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
         )
         self.assertIn("CRS_VARIANT: no-crs", self.source)
         self.assertIn("MRTS_VARIANT: with-mrts", self.source)
+        self.assertIn('ALLOW_RUNTIME_DOWNLOADS: "1"', self.source)
+        self.assertIn('ALLOW_RUNTIME_BUILDS: "1"', self.source)
         self.assertNotIn("with-crs/with-mrts", self.source)
         self.assertNotIn("MODSECURITY_RULESET: crs", self.source)
 

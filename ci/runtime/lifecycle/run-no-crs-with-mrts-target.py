@@ -204,6 +204,20 @@ def select_cases(case_root: Path) -> tuple[list[dict[str, Any]], list[Path]]:
     return selected, sorted(set(sources))
 
 
+def explicit_runtime_provisioning_environment(connector: str) -> dict[str, str]:
+    """Allow only an explicit fixed opt-in for pinned runtime provisioning."""
+    if connector not in CONNECTORS:
+        stop("runtime provisioning connector is outside the closed profile")
+    missing = [
+        name
+        for name in ("ALLOW_RUNTIME_DOWNLOADS", "ALLOW_RUNTIME_BUILDS")
+        if os.environ.get(name) != "1"
+    ]
+    if missing:
+        stop(f"real host provisioning requires explicit {' and '.join(missing)}=1")
+    return {"ALLOW_RUNTIME_DOWNLOADS": "1", "ALLOW_RUNTIME_BUILDS": "1"}
+
+
 def has_symlink_component(path: Path) -> bool:
     if not path.is_absolute():
         return True
@@ -391,6 +405,7 @@ def main() -> int:
         stop("connector is outside the closed no-crs/with-mrts profile")
     if not args.execute_stage:
         stop("--execute-stage is mandatory; plan-only execution is not a runtime result")
+    provisioning_environment = explicit_runtime_provisioning_environment(args.connector)
     root = private_root(args.runtime_root)
     parent = checked_path(args.parent_root, "Parent root")
     framework = checked_path(args.framework_root, "Framework root")
@@ -414,6 +429,7 @@ def main() -> int:
     os.chmod(stage_runtime, 0o700)
     env = {key: os.environ[key] for key in ("PATH", "HOME", "LANG", "LC_ALL") if key in os.environ}
     env.update({"PYTHON": str(python_path), "PYTHON_BIN": str(python_path), "FRAMEWORK_ROOT": str(framework), "CONNECTOR_ROOT": str(parent), "VERIFIED_RUN_ROOT": str(root), "BUILD_ROOT": str(build), "MRTS_BUILD_ROOT": str(build / "mrts"), "TMP_ROOT": str(root / "tmp"), "LOG_ROOT": str(root / "logs"), "MODSECURITY_TEST_VARIANT": "no-crs", "MODSECURITY_MRTS_VARIANT": "with-mrts", "MODSECURITY_MRTS_PREPARED": "0", "MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO": "0", "GOTOOLCHAIN": "local"})
+    env.update(provisioning_environment)
     env["MRTS_FRAMEWORK_ROOT"] = str(framework)
     os.environ["MRTS_FRAMEWORK_ROOT"] = str(framework)
     prepare = '. "$FRAMEWORK_ROOT/ci/lib/common.sh"; . "$FRAMEWORK_ROOT/ci/lib/mrts-common.sh"; prepare_mrts_runtime_variant'

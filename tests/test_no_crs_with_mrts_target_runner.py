@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -27,6 +29,27 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
     def test_profile_is_closed_to_three_connectors(self):
         self.assertEqual(TARGET.CONNECTORS, {"envoy", "traefik", "lighttpd"})
         self.assertEqual(TARGET.PROFILE, "no-crs/with-mrts")
+
+    def test_runtime_provisioning_requires_fixed_explicit_opt_ins(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(SystemExit):
+                TARGET.explicit_runtime_provisioning_environment("envoy")
+        with mock.patch.dict(
+            os.environ,
+            {"ALLOW_RUNTIME_DOWNLOADS": "1", "ALLOW_RUNTIME_BUILDS": "not-allowed"},
+            clear=True,
+        ):
+            with self.assertRaises(SystemExit):
+                TARGET.explicit_runtime_provisioning_environment("lighttpd")
+        with mock.patch.dict(
+            os.environ,
+            {"ALLOW_RUNTIME_DOWNLOADS": "1", "ALLOW_RUNTIME_BUILDS": "1"},
+            clear=True,
+        ):
+            self.assertEqual(
+                TARGET.explicit_runtime_provisioning_environment("traefik"),
+                {"ALLOW_RUNTIME_DOWNLOADS": "1", "ALLOW_RUNTIME_BUILDS": "1"},
+            )
 
     def test_runtime_route_requires_explicit_checkout_roots_and_stage(self):
         source = (ROOT / "ci" / "runtime" / "lifecycle" / "run-no-crs-with-mrts-target.py").read_text(encoding="utf-8")
