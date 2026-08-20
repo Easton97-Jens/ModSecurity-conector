@@ -67,6 +67,8 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         self.assertIn("executor digest mismatch", source)
         self.assertIn("MRTS case digest mismatch", source)
         self.assertIn('parser.add_argument("--load-file", required=True)', source)
+        self.assertIn("validate_sealed_no_crs_plan(plan_path, root, load_path, executor_path)", source)
+        self.assertNotIn('if "crs" in load_path.read_text', source)
 
     def test_duplicate_json_keys_are_rejected(self):
         with self.assertRaises(SystemExit):
@@ -193,6 +195,56 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             plan_path.write_text(json.dumps(plan), encoding="utf-8")
             with self.assertRaises(SystemExit):
                 TARGET.validate_sealed_plan(plan_path, runtime, framework, rules, load)
+
+    def test_executor_reuses_exact_no_crs_validator_for_a_no_crs_runtime_path(self):
+        framework = ROOT / "modules" / "ModSecurity-test-Framework"
+        canonical = framework / "tools" / "MRTS" / "generated" / "rules"
+        baseline = framework / "tests" / "rules" / "no-crs-baseline.conf"
+        if not canonical.is_dir() or not baseline.is_file():
+            self.skipTest("exact Framework/MRTS gitlink is unavailable")
+        with tempfile.TemporaryDirectory(prefix="mrts-no-crs-executor-") as directory:
+            runtime = Path(directory) / "mrts-no-crs-runtime"
+            rules = runtime / "build" / "mrts" / "upstream-config-tests" / "rules"
+            stage = runtime / "build" / "stages" / "envoy" / "no_crs_with_mrts" / "runtime"
+            rules.mkdir(parents=True)
+            stage.mkdir(parents=True)
+            included: dict[str, str] = {}
+            for source in sorted(canonical.glob("MRTS_*.conf")):
+                destination = rules / source.name
+                destination.write_bytes(source.read_bytes())
+                included[source.name] = TARGET.hashlib.sha256(destination.read_bytes()).hexdigest()
+            self.assertTrue(included)
+            load = runtime / "build" / "mrts" / "upstream-config-tests" / "mrts.load"
+            load.write_text(
+                "".join(f'Include "{rules / name}"\n' for name in sorted(included)),
+                encoding="utf-8",
+            )
+            plan_path = stage / "mrts-runtime-plan.json"
+            plan_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "no-crs-with-mrts-plan/v1",
+                        "profile": "no-crs/with-mrts",
+                        "connector": "envoy",
+                        "load_file": str(load),
+                        "load_file_sha256": TARGET.hashlib.sha256(load.read_bytes()).hexdigest(),
+                        "no_crs_rules_file": str(baseline.resolve()),
+                        "no_crs_validation": {
+                            "generated_rules_root": str(rules),
+                            "canonical_mrts_rules_root": str(canonical.resolve()),
+                            "included_rule_sha256": included,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            runtime.chmod(0o700)
+            executor_path = ROOT / "ci" / "runtime" / "lifecycle" / "execute-no-crs-mrts-cases.py"
+            EXECUTOR.validate_sealed_no_crs_plan(plan_path, runtime, load, executor_path)
+            first_rule = rules / next(iter(sorted(included)))
+            first_rule.write_text('SecRule ARGS:foo "@streq attack" "id:949110,phase:1,pass"\\n', encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                EXECUTOR.validate_sealed_no_crs_plan(plan_path, runtime, load, executor_path)
 
 
 if __name__ == "__main__":

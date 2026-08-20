@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import secrets
@@ -70,6 +71,41 @@ def load_json(path: Path) -> Any:
         return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicates)
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         fail(f"invalid JSON {path}: {exc}")
+
+
+def validate_sealed_no_crs_plan(
+    plan_path: Path,
+    runtime_root: Path,
+    load_path: Path,
+    executor_path: Path,
+) -> None:
+    """Reuse the closed Parent validator instead of substring heuristics.
+
+    The load file necessarily contains an absolute task runtime path.  A
+    textual ``"crs"`` search therefore mistakes a legitimate ``no-crs``
+    path component for a Core Rule Set reference.  The sealed plan validator
+    binds the complete include set byte-for-byte to the pinned MRTS corpus and
+    rejects symlinks, foreign rules, altered CRS rule content, and layout
+    changes.  Load it only from the trusted sibling Parent source file.
+    """
+    validator_path = executor_path.with_name("run-no-crs-with-mrts-target.py")
+    if validator_path.is_symlink() or not validator_path.is_file():
+        fail("sealed MRTS plan validator is unavailable")
+    parent_root = executor_path.parents[3]
+    framework_root = parent_root / "modules" / "ModSecurity-test-Framework"
+    rules_root = runtime_root / "build" / "mrts" / "upstream-config-tests" / "rules"
+    try:
+        spec = importlib.util.spec_from_file_location("sealed_mrts_plan_validator", validator_path)
+        if spec is None or spec.loader is None:
+            fail("sealed MRTS plan validator could not be loaded")
+        validator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(validator)
+        validate = getattr(validator, "validate_sealed_plan")
+    except (ImportError, OSError, AttributeError) as exc:
+        fail(f"sealed MRTS plan validator could not be loaded: {exc}")
+    if not callable(validate):
+        fail("sealed MRTS plan validator has no validation entry point")
+    validate(plan_path, runtime_root, framework_root, rules_root, load_path)
 
 
 def atomic_json(path: Path, value: Any, root: Path) -> None:
@@ -199,8 +235,7 @@ def main() -> int:
     load_sha = plan.get("load_file_sha256")
     if not isinstance(load_sha, str) or hashlib.sha256(load_path.read_bytes()).hexdigest() != load_sha:
         fail("MRTS load file digest mismatch")
-    if "crs" in load_path.read_text(encoding="utf-8").lower():
-        fail("CRS reference found in MRTS load file")
+    validate_sealed_no_crs_plan(plan_path, root, load_path, executor_path)
     inventory_root = confined(str(plan.get("inventory_root", "")), build_root, "MRTS inventory root", regular=False)
     if inventory_root.is_symlink() or not inventory_root.is_dir():
         fail("MRTS inventory root is not a regular contained directory")
