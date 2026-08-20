@@ -84,6 +84,22 @@ the Lighttpd dispatcher now routes `MSCONNECTOR_MRTS_RUNTIME=1` only to its
 sealed full-lifecycle host executor, preserving the non-MRTS compatibility
 smoke path. Neither source correction establishes a host-runtime result.
 
+Commit `6e63fb52` contains those sealed MRTS readiness-header and Lighttpd
+dispatcher corrections. Fresh Envoy `r11` then reached real Envoy/ext-proc
+start and the corrected readiness path, but is diagnostic-only: it stopped
+before MRTS case receipts because valid unrelated readiness events were
+phase-checked before transaction/URI correlation. The valid unrelated
+transaction `envoy-ext-proc-readiness-1` contains `request_body`,
+`response_headers`, and `response_body` records; their presence is not a
+runtime success claim.
+
+The narrow executor correction keeps duplicate-safe parsing, exact schema,
+native hash, and global chain validation for every event line. It uses a finite
+native phase mapping, ignores only fully valid unrelated transaction/URI
+records after that validation, and keeps a relevant event with the wrong phase
+fail-closed. `FND-PARENT-0198` tracks this Parent-owned ordering defect. Fresh
+Envoy `r12` and independently repeated `r13` receipts remain required.
+
 This profile is explicitly no-CRS. The route rejects CRS references in the
 generated MRTS load file and passes the repository-owned no-CRS rules only as
 the active non-CRS input. The route does not enable, acquire, cache, or reuse
@@ -122,7 +138,9 @@ modsecurity_targeted_eval.cc` was not exempted. Four pre-existing ShellCheck
 SC1007 warnings remain in the Envoy configuration helper.
 The subsequent focused Envoy/Lighttpd contract pair passed 50 tests, and
 `sh -n` passed for the two changed dispatch scripts. These are local contract
-checks only.
+checks only. The focused target-runner suite for the r11 phase correction
+passed 28 tests; its security review found no concrete blocker. Neither result
+substitutes for fresh real-host evidence.
 
 The real three-connector host runs, hosted Actions, Required Checks,
 SonarQube Cloud analysis, and PR-head equality have not been observed by this

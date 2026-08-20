@@ -144,6 +144,9 @@ Envoy-/Lighttpd-Contract-Paar 50 Tests; `sh -n` bestand für
 `connectors/envoy/harness/run_envoy_ext_proc_runtime.sh` und
 `connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh`. Diese Checks
 validieren nur die engen Source-Dispatch-Änderungen.
+Die fokussierte Target-Runner-Suite für die r11-Phasenreihenfolgenkorrektur
+bestand 28 Tests, und ihr Security-Review fand keinen konkreten Blocker. Dies
+bleibt reine Source-Level-Validierung.
 Die drei echten Hostläufe, der gehostete
 Fünf-Connector-Workflow, Exact-Head-Required-Checks und die SonarQube-Cloud-
 Analyse sind aktuell `NOT EXECUTED`. Kein statisches Vertrags- oder
@@ -169,6 +172,20 @@ wählt den geschlossenen MRTS-Readiness-Header nur im MRTS-Modus und erhält
 Dispatcher nun den versiegelten Full-Lifecycle-Executor statt in den Legacy-
 Kompatibilitäts-Smoke zu fallen. Beide Korrekturen benötigen weiterhin frische
 Host-Validierung.
+
+Commit `6e63fb52` zeichnet die Korrekturen für Readiness-Header und Lighttpd-
+Dispatcher auf. Frisches Envoy `r11` erreichte echten Envoy-/ext-proc-Start und
+den korrigierten Readiness-Pfad, stoppte aber vor MRTS-Case-Receipts: Gültige
+unabhängige Readiness-Events wurden vor Transaktions-/URI-Korrelation auf ihre
+Phase geprüft. Die gültige Transaktion `envoy-ext-proc-readiness-1` enthält
+`request_body`, `response_headers` und `response_body`. Dies ist nur
+diagnostische Realhost-Evidence, kein Runtime-Ergebnis. `FND-PARENT-0198`
+verfolgt den Parent-Executor-Reihenfolgenfehler. Die enge Korrektur erhält
+Duplicate-safe-Parsing, exaktes Schema, native Hash- und globale Chain-
+Validierung für jede Event-Zeile; sie verwendet eine endliche native
+Phasenzuordnung, ignoriert nur vollständig gültige unabhängige Transaktions-/
+URI-Records nach der Validierung und behält eine relevante falsche Phase
+fail-closed.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -203,6 +220,9 @@ Envoy benötigt einen frischen Lauf nach dem Header-Fix und eine unabhängige
 Wiederholung; Lighttpd benötigt einen frischen Lauf durch den versiegelten
 MRTS-Dispatcher. Weder Envoy `r10` noch ein Legacy-Lighttpd-Smoke-Ergebnis
 dürfen als Runtime-Evidence dienen.
+Auch Envoy `r11` darf nicht befördert werden: Frische Host-Receipts `r12` und
+die unabhängige Wiederholung `r13` müssen nach der Phasenreihenfolgenkorrektur
+MRTS-Cases, No-CRS-Evidence und Cleanup belegen.
 Bis diese Exact-Head-Ergebnisse beobachtet wurden, bleiben die drei Zielzellen
 für die Lieferung `PENDING`.
 

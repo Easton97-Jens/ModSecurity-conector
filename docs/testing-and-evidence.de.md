@@ -95,6 +95,23 @@ zu seinem versiegelten Full-Lifecycle-Hostexecutor und erhält den Nicht-MRTS-
 Kompatibilitäts-Smoke-Pfad. Keine der beiden Quellkorrekturen begründet ein
 Host-Runtime-Ergebnis.
 
+Commit `6e63fb52` enthält diese Korrekturen für den versiegelten MRTS-
+Readiness-Header und den Lighttpd-Dispatcher. Frisches Envoy `r11` erreichte
+danach echten Envoy-/ext-proc-Start und den korrigierten Readiness-Pfad, ist
+aber nur diagnostisch: Der Lauf stoppte vor MRTS-Case-Receipts, weil gültige
+unabhängige Readiness-Events vor der Transaktions-/URI-Korrelation auf ihre
+Phase geprüft wurden. Die gültige unabhängige Transaktion
+`envoy-ext-proc-readiness-1` enthält `request_body`-, `response_headers`- und
+`response_body`-Records; ihre Existenz ist keine Runtime-Erfolgsbehauptung.
+
+Die enge Executor-Korrektur erhält Duplicate-safe-Parsing, exaktes Schema,
+native Hash- und globale Chain-Validierung für jede Event-Zeile. Sie verwendet
+eine endliche native Phasenzuordnung, ignoriert nur vollständig gültige
+unabhängige Transaktions-/URI-Records nach dieser Validierung und behält ein
+relevantes Event mit falscher Phase fail-closed. `FND-PARENT-0198` verfolgt
+diesen Parent-eigenen Reihenfolgenfehler. Frische Envoy-Receipts `r12` und die
+unabhängige Wiederholung `r13` bleiben erforderlich.
+
 Dieses Profil ist ausdrücklich no-CRS. Der Pfad weist CRS-Referenzen in der
 erzeugten MRTS-Load-Datei zurück und übergibt als aktive Nicht-CRS-Eingabe nur
 die repository-eigenen no-CRS-Regeln. OWASP CRS wird weder aktiviert noch
@@ -136,7 +153,9 @@ vorbestehende ShellCheck-SC1007-Warnungen verbleiben im Envoy-
 Konfigurationshelfer.
 Das anschließende fokussierte Envoy-/Lighttpd-Contract-Paar bestand 50 Tests,
 und `sh -n` bestand für die beiden geänderten Dispatch-Skripte. Dies sind nur
-lokale Contract-Prüfungen.
+lokale Contract-Prüfungen. Die fokussierte Target-Runner-Suite für die r11-
+Phasenkorrektur bestand 28 Tests; ihr Security-Review fand keinen konkreten
+Blocker. Keines der Ergebnisse ersetzt frische Realhost-Evidence.
 
 Die echten Hostläufe für alle drei Connectoren, gehostete Actions, Required
 Checks, SonarQube-Cloud-Analyse und PR-Head-Gleichheit wurden durch diese

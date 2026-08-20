@@ -52,7 +52,11 @@ RULE_MATCH_EMPTY_FIELDS = frozenset({
     "reason", "client_ip", "content_type",
 })
 RULE_MATCH_PHASE_VALUES = {
+    "request_headers": 2,
     "request_body": 3,
+    "response_headers": 4,
+    "response_body": 5,
+    "logging": 6,
 }
 
 
@@ -316,7 +320,7 @@ def validate_rule_match_event(
     item: dict[str, Any],
     connector: str,
     integration_mode: str,
-    expected_phase: str,
+    expected_phase: str | None = None,
 ) -> tuple[str, int]:
     """Validate one exact native rule-match record and return its identity."""
 
@@ -333,11 +337,14 @@ def validate_rule_match_event(
         "requested_action": "allow",
         "actual_action": "allow",
         "method": "GET",
-        "phase": expected_phase,
     }
     for key, expected in required.items():
         if item.get(key) != expected:
             fail(f"rule-match event has invalid {key}")
+    if item.get("phase") not in RULE_MATCH_PHASE_VALUES:
+        fail("rule-match event has invalid phase")
+    if expected_phase is not None and item.get("phase") != expected_phase:
+        fail("rule-match event has invalid phase")
     if not bounded_utc_timestamp(item.get("timestamp")):
         fail("rule-match event has invalid timestamp")
     for key in RULE_MATCH_EMPTY_FIELDS:
@@ -409,8 +416,13 @@ def event_ids(
             fail(f"event log is not duplicate-safe JSONL: {exc}")
         if not isinstance(item, dict):
             fail("event log entries must be JSON objects")
+        # Validate the complete native record and chain before correlating it.
+        # Phase is intentionally checked against the closed enum here, while
+        # the profile-specific expected phase is enforced only for a relevant
+        # transaction/URI below. Native adapters emit legitimate records for
+        # other phases and those records remain integrity-validated evidence.
         rule_id, event_hash = validate_rule_match_event(
-            item, connector, integration_mode, expected_phase
+            item, connector, integration_mode
         )
         if previous_event_hash is None:
             if item["previous_event_hash"] != 0:
@@ -424,6 +436,8 @@ def event_ids(
             or item.get("uri") != uri
         ):
             continue
+        if item["phase"] != expected_phase:
+            fail("relevant rule-match event has invalid phase")
         if rule_id in found:
             fail("relevant rule-match event duplicates a rule ID")
         found.add(rule_id)

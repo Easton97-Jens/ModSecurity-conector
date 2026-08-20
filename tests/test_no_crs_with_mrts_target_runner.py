@@ -36,6 +36,7 @@ def dedicated_rule_match_event(
     transaction_id: str = "run-0001",
     uri: str = "/?foo=attack",
     rule_id: str = "100000",
+    phase: str = "request_body",
     previous_event_hash: int = 0,
 ) -> dict[str, object]:
     event: dict[str, object] = {
@@ -47,7 +48,7 @@ def dedicated_rule_match_event(
         "connector": connector,
         "integration_mode": EXECUTOR.RULE_MATCH_INTEGRATION_MODES[connector],
         "transaction_id": transaction_id,
-        "phase": "request_body",
+        "phase": phase,
         "status": "ok",
         "action": "allow",
         "requested_action": "allow",
@@ -217,6 +218,49 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 ),
                 {"100000"},
             )
+
+    def test_event_ids_integrity_validates_and_ignores_unrelated_response_phase(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            unrelated = dedicated_rule_match_event(
+                transaction_id="other-run", uri="/?foo=other", phase="response_body"
+            )
+            relevant = dedicated_rule_match_event(
+                previous_event_hash=int(unrelated["event_hash"])
+            )
+            event_log.write_text(
+                json.dumps(unrelated) + "\n" + json.dumps(relevant) + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                EXECUTOR.event_ids(
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body"
+                ),
+                {"100000"},
+            )
+
+    def test_event_ids_rejects_relevant_wrong_phase_after_correlation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            event_log.write_text(
+                json.dumps(dedicated_rule_match_event(phase="response_body")) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(SystemExit, "relevant rule-match event has invalid phase"):
+                EXECUTOR.event_ids(
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body"
+                )
+
+    def test_event_ids_rejects_an_unknown_phase_value(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            event = dedicated_rule_match_event(phase="request_body")
+            event["phase"] = "untrusted_phase"
+            event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(SystemExit, "rule-match event has invalid phase"):
+                EXECUTOR.event_ids(
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body"
+                )
 
     def test_event_ids_rejects_forged_or_discontinuous_integrity_data(self):
         with tempfile.TemporaryDirectory() as directory:

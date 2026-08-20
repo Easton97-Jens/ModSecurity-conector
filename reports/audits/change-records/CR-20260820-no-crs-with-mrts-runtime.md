@@ -136,6 +136,9 @@ contract pair passed 50 tests and `sh -n` passed for
 `connectors/envoy/harness/run_envoy_ext_proc_runtime.sh` and
 `connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh`. These checks
 validate the narrow source dispatch changes only.
+The focused target-runner suite for the r11 phase-ordering correction passed
+28 tests, and its security review found no concrete blocker. This is still
+source-level validation only.
 The three real host runs, the full five-connector hosted workflow, exact-head
 Required Checks, and SonarQube Cloud analysis are currently `NOT EXECUTED`.
 No static contract or inventory result is promoted to runtime `PASS`.
@@ -158,6 +161,19 @@ MRTS readiness header only in MRTS mode and retains `x-request-id` in normal
 mode. Independently, the Lighttpd MRTS dispatcher now selects the sealed full
 lifecycle executor instead of falling through to legacy compatibility smoke.
 Both corrections still require fresh host validation.
+
+Commit `6e63fb52` records the readiness-header and Lighttpd dispatcher
+corrections. Fresh Envoy `r11` reached real Envoy/ext-proc start and corrected
+readiness but stopped before MRTS case receipts: valid unrelated readiness
+events were phase-checked before transaction/URI correlation. The valid
+transaction `envoy-ext-proc-readiness-1` includes `request_body`,
+`response_headers`, and `response_body`. This is diagnostic-only real-host
+evidence, not a runtime result. `FND-PARENT-0198` tracks the Parent executor
+ordering defect. The narrow correction retains duplicate-safe parsing, exact
+schema, native-hash, and global-chain validation for every event line; it uses
+a finite native phase mapping, ignores only fully valid unrelated
+transaction/URI records after validation, and keeps a relevant wrong phase
+fail-closed.
 
 ## Checks not run and rationale
 
@@ -188,6 +204,9 @@ approved venv and produces no false runtime receipt on dependency failure.
 Envoy needs a fresh post-header-fix run and an independent repetition; Lighttpd
 needs a fresh sealed-MRTS dispatcher run. Neither may use Envoy `r10` or a
 legacy Lighttpd smoke result as runtime evidence.
+Envoy `r11` also cannot be promoted: fresh `r12` and independent `r13` host
+receipts must prove MRTS cases, no-CRS evidence, and cleanup after the
+phase-ordering correction.
 The final workflow may expose environment or required-check failures. Until
 those exact results are observed, the three target cells remain
 `PENDING` for delivery classification.
