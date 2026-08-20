@@ -1552,20 +1552,25 @@ jobs:
         self.assertIsNone(job_if_expression(job))
 
         expected_rows = [
-            ("apache", "with-crs", "no-mrts"),
-            ("envoy", "with-crs", "no-mrts"),
-            ("haproxy", "with-crs", "no-mrts"),
-            ("lighttpd", "with-crs", "no-mrts"),
-            ("traefik", "with-crs", "no-mrts"),
+            ("apache", "with-crs", "no-mrts", "apache"),
+            ("envoy", "with-crs", "no-mrts", "shared"),
+            ("haproxy", "with-crs", "no-mrts", "haproxy"),
+            ("lighttpd", "with-crs", "no-mrts", "shared"),
+            ("traefik", "with-crs", "no-mrts", "shared"),
         ]
         matrix_rows = re.findall(
             r"^          - connector: ([a-z]+)\n"
             r"^            crs: ([a-z-]+)\n"
-            r"^            mrts: ([a-z-]+)$",
+            r"^            mrts: ([a-z-]+)\n"
+            r"^            runtime_component_target: ([a-z]+)$",
             job,
             re.MULTILINE,
         )
         self.assertEqual(matrix_rows, expected_rows)
+        self.assertIn(
+            "RUNTIME_COMPONENT_TARGET: ${{ matrix.runtime_component_target }}",
+            job,
+        )
         self.assertNotIn("coverage_kind", job)
         self.assertNotIn("verified-full-matrix-job", job)
         self.assertNotIn("run-full-matrix-job.py", job)

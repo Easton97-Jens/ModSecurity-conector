@@ -43,23 +43,29 @@ jobs:
           - connector: apache
             crs: with-crs
             mrts: no-mrts
+            runtime_component_target: apache
           - connector: envoy
             crs: with-crs
             mrts: no-mrts
+            runtime_component_target: shared
           - connector: haproxy
             crs: with-crs
             mrts: no-mrts
+            runtime_component_target: haproxy
           - connector: lighttpd
             crs: with-crs
             mrts: no-mrts
+            runtime_component_target: shared
           - connector: traefik
             crs: with-crs
             mrts: no-mrts
+            runtime_component_target: shared
     env:
       ALLOW_RUNTIME_BUILDS: "1"
       ALLOW_RUNTIME_DOWNLOADS: "1"
       CRS: ${{ matrix.crs }}
       MRTS: ${{ matrix.mrts }}
+      RUNTIME_COMPONENT_TARGET: ${{ matrix.runtime_component_target }}
       CRS_RUNTIME_RUN_ID: crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.connector }}
       EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       EXPECTED_FRAMEWORK_SHA: bd69ee96e0e7082317d4afe1232bee625665eb9a
@@ -169,13 +175,13 @@ jobs:
           esac
           case "$CONNECTOR" in
             apache)
-              EVIDENCE_ROOT= make verified-apache-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"
+              EVIDENCE_ROOT='' make verified-apache-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"
               ;;
             haproxy)
-              EVIDENCE_ROOT= make verified-haproxy-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"
+              EVIDENCE_ROOT='' make verified-haproxy-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"
               ;;
             envoy|lighttpd|traefik)
-              EVIDENCE_ROOT= make with-crs-no-mrts-runtime CONNECTOR="$CONNECTOR"
+              EVIDENCE_ROOT='' make with-crs-no-mrts-runtime CONNECTOR="$CONNECTOR"
               ;;
             *)
               echo "FAIL: runtime path is not permitted for $CONNECTOR" >&2

@@ -13,8 +13,9 @@ import secrets
 import stat
 
 
-PRIVATE_TMPFS_MOUNT = Path("/tmp")
+PRIVATE_TMPFS_MOUNT = Path(os.sep, "tmp")
 FIXTURE_ROOT = PRIVATE_TMPFS_MOUNT / "msconnector-lighttpd-no-crs-fixture"
+_FIXTURE_ROOT_LABEL = "namespace fixture root"
 PRIVATE_DIRECTORY_MODE = 0o700
 PRIVATE_FILE_MODE = 0o600
 MAX_LEAF_NAME_LENGTH = 128
@@ -114,9 +115,9 @@ def _fixture_root(value: Path) -> int:
 
     root = Path(os.path.abspath(value))
     if root != FIXTURE_ROOT:
-        raise ValueError("namespace fixture root is not the fixed private mount")
+        raise ValueError(f"{_FIXTURE_ROOT_LABEL} is not the fixed private mount")
     if os.environ.get("LIGHTTPD_NO_CRS_FIXTURE_NAMESPACE_ACTIVE") != "1":
-        raise ValueError("namespace fixture root requires an active private namespace")
+        raise ValueError(f"{_FIXTURE_ROOT_LABEL} requires an active private namespace")
     _require_post_capability_drop()
     expected_identity = _identity(
         os.environ.get("LIGHTTPD_NO_CRS_FIXTURE_ROOT_IDENTITY", "")
@@ -124,9 +125,9 @@ def _fixture_root(value: Path) -> int:
     descriptor = os.open(root, _directory_flags())
     try:
         details = os.fstat(descriptor)
-        _require_private_directory(details, "namespace fixture root")
+        _require_private_directory(details, _FIXTURE_ROOT_LABEL)
         if (details.st_dev, details.st_ino) != expected_identity:
-            raise ValueError("namespace fixture root identity changed")
+            raise ValueError(f"{_FIXTURE_ROOT_LABEL} identity changed")
         rows = Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines()
         matched: list[tuple[list[str], list[str]]] = []
         for row in rows:
@@ -135,7 +136,7 @@ def _fixture_root(value: Path) -> int:
             if separator and len(fields) >= 6 and fields[4] == str(PRIVATE_TMPFS_MOUNT):
                 matched.append((fields, after.split()))
         if len(matched) != 1:
-            raise ValueError("namespace fixture root has no unique private tmpfs mount")
+            raise ValueError(f"{_FIXTURE_ROOT_LABEL} has no unique private tmpfs mount")
         fields, after = matched[0]
         if (
             not after
@@ -143,13 +144,13 @@ def _fixture_root(value: Path) -> int:
             or not {"nosuid", "nodev", "noexec"}.issubset(set(fields[5].split(",")))
             or any(field.startswith(("shared:", "master:")) for field in fields[6:])
         ):
-            raise ValueError("namespace fixture root mount is unsafe")
+            raise ValueError(f"{_FIXTURE_ROOT_LABEL} mount is unsafe")
         # The descriptor, rather than ``root``, is the capability used by
         # create/open below.  Keep it open across the entire fixture lifetime.
         return descriptor
     except OSError as error:
         os.close(descriptor)
-        raise ValueError("namespace fixture root cannot inspect mountinfo") from error
+        raise ValueError(f"{_FIXTURE_ROOT_LABEL} cannot inspect mountinfo") from error
     except BaseException:
         os.close(descriptor)
         raise
@@ -193,7 +194,7 @@ class NamespaceFixtureDirectory:
         parent = _fixture_root(root)
         directory = -1
         try:
-            _require_private_directory(os.fstat(parent), "namespace fixture root")
+            _require_private_directory(os.fstat(parent), _FIXTURE_ROOT_LABEL)
             for rejected in rejected_names:
                 rejected = _leaf(rejected, "rejected legacy namespace fixture name")
                 try:
@@ -236,7 +237,7 @@ class NamespaceFixtureDirectory:
         parent = _fixture_root(root)
         directory = -1
         try:
-            _require_private_directory(os.fstat(parent), "namespace fixture root")
+            _require_private_directory(os.fstat(parent), _FIXTURE_ROOT_LABEL)
             directory = os.open(name, _directory_flags(), dir_fd=parent)
             details = os.fstat(directory)
             if (details.st_dev, details.st_ino) != expected:

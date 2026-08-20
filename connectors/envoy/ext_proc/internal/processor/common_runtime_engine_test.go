@@ -36,50 +36,64 @@ func TestCommonRuntimeEngineEvaluatesIncrementalLifecycle(t *testing.T) {
 }
 
 func TestRequestHeadersForCommonRestoresOnlyValidatedAuthority(t *testing.T) {
-	t.Run("authority becomes Host when absent", func(t *testing.T) {
-		headers, err := requestHeadersForCommon([]Header{
-			{Name: ":method", Value: []byte("GET")},
-			{Name: ":authority", Value: []byte("example.test:8443")},
-			{Name: "x-request-id", Value: []byte("authority-host")},
-		})
-		if err != nil {
-			t.Fatalf("requestHeadersForCommon() error = %v", err)
-		}
-		if got, want := len(headers), 4; got != want {
-			t.Fatalf("header count = %d, want %d", got, want)
-		}
-		last := headers[len(headers)-1]
-		if last.Name != "Host" || string(last.Value) != "example.test:8443" {
-			t.Fatalf("injected Host = %#v, want validated authority", last)
-		}
-	})
+	t.Run("authority becomes Host when absent", testRequestHeadersForCommonAddsValidatedHost)
+	t.Run("ordinary Host wins without duplicate", testRequestHeadersForCommonRetainsOrdinaryHost)
+	t.Run("missing authority is rejected", testRequestHeadersForCommonRejectsMissingAuthority)
+	t.Run("control characters in authority are rejected", testRequestHeadersForCommonRejectsInjectedAuthority)
+}
 
-	t.Run("ordinary Host wins without duplicate", func(t *testing.T) {
-		headers, err := requestHeadersForCommon([]Header{
-			{Name: ":authority", Value: []byte("authority.example")},
-			{Name: "Host", Value: []byte("header.example")},
-		})
-		if err != nil {
-			t.Fatalf("requestHeadersForCommon() error = %v", err)
-		}
-		hostCount := 0
-		for _, header := range headers {
-			if strings.EqualFold(header.Name, "host") {
-				hostCount++
-				if got, want := string(header.Value), "header.example"; got != want {
-					t.Fatalf("ordinary Host = %q, want %q", got, want)
-				}
+func testRequestHeadersForCommonAddsValidatedHost(t *testing.T) {
+	headers, err := requestHeadersForCommon([]Header{
+		{Name: ":method", Value: []byte("GET")},
+		{Name: ":authority", Value: []byte("example.test:8443")},
+		{Name: "x-request-id", Value: []byte("authority-host")},
+	})
+	if err != nil {
+		t.Fatalf("requestHeadersForCommon() error = %v", err)
+	}
+	if got, want := len(headers), 4; got != want {
+		t.Fatalf("header count = %d, want %d", got, want)
+	}
+	last := headers[len(headers)-1]
+	if last.Name != "Host" || string(last.Value) != "example.test:8443" {
+		t.Fatalf("injected Host = %#v, want validated authority", last)
+	}
+}
+
+func testRequestHeadersForCommonRetainsOrdinaryHost(t *testing.T) {
+	headers, err := requestHeadersForCommon([]Header{
+		{Name: ":authority", Value: []byte("authority.example")},
+		{Name: "Host", Value: []byte("header.example")},
+	})
+	if err != nil {
+		t.Fatalf("requestHeadersForCommon() error = %v", err)
+	}
+	hostCount := 0
+	for _, header := range headers {
+		if strings.EqualFold(header.Name, "host") {
+			hostCount++
+			if got, want := string(header.Value), "header.example"; got != want {
+				t.Fatalf("ordinary Host = %q, want %q", got, want)
 			}
 		}
-		if got, want := hostCount, 1; got != want {
-			t.Fatalf("Host header count = %d, want %d", got, want)
-		}
-	})
+	}
+	if got, want := hostCount, 1; got != want {
+		t.Fatalf("Host header count = %d, want %d", got, want)
+	}
+}
 
-	for _, authority := range [][]byte{nil, []byte("example.test\r\ninjected: true")} {
-		if _, err := requestHeadersForCommon([]Header{{Name: ":authority", Value: authority}}); err == nil {
-			t.Fatalf("requestHeadersForCommon() accepted invalid authority %q", authority)
-		}
+func testRequestHeadersForCommonRejectsMissingAuthority(t *testing.T) {
+	assertRequestHeadersForCommonRejectsAuthority(t, nil)
+}
+
+func testRequestHeadersForCommonRejectsInjectedAuthority(t *testing.T) {
+	assertRequestHeadersForCommonRejectsAuthority(t, []byte("example.test\r\ninjected: true"))
+}
+
+func assertRequestHeadersForCommonRejectsAuthority(t *testing.T, authority []byte) {
+	t.Helper()
+	if _, err := requestHeadersForCommon([]Header{{Name: ":authority", Value: authority}}); err == nil {
+		t.Fatalf("requestHeadersForCommon() accepted invalid authority %q", authority)
 	}
 }
 

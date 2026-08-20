@@ -161,13 +161,13 @@ class NamespaceContractTest(unittest.TestCase):
         fixture_directory = (
             REPO_ROOT / "connectors/lighttpd/harness/namespace_fixture_directory.py"
         ).read_text(encoding="utf-8")
-        self.assertIn('TRUSTED_UNSHARE = Path("/usr/bin/unshare")', source)
-        self.assertIn('TRUSTED_BWRAP = Path("/usr/bin/bwrap")', source)
-        self.assertIn('TRUSTED_DASH = Path("/usr/bin/dash")', source)
-        self.assertIn('TRUSTED_MOUNT = Path("/usr/bin/mount")', source)
+        self.assertIn('TRUSTED_UNSHARE = SYSTEM_BIN_ROOT / "unshare"', source)
+        self.assertIn('TRUSTED_BWRAP = SYSTEM_BIN_ROOT / "bwrap"', source)
+        self.assertIn('TRUSTED_DASH = SYSTEM_BIN_ROOT / "dash"', source)
+        self.assertIn('TRUSTED_MOUNT = SYSTEM_BIN_ROOT / "mount"', source)
         self.assertIn("PRIVATE_TMPFS_SETUP = (", source)
         self.assertIn(
-            "/usr/bin/mount -t tmpfs -o mode=0755,nosuid,nodev,noexec,size=64m tmpfs /tmp;",
+            'f"{TRUSTED_MOUNT} -t tmpfs -o mode=0755,nosuid,nodev,noexec,size=64m "',
             source,
         )
         self.assertIn('"--user"', source)
@@ -184,11 +184,15 @@ class NamespaceContractTest(unittest.TestCase):
         self.assertIn('"ALL"', source)
         self.assertIn("def _seal_inherited_descriptors", source)
         self.assertIn("_seal_inherited_descriptors({0, 1, 2, setup_write})", source)
+        self.assertIn("PR_SET_PDEATHSIG = 1", source)
+        self.assertIn("_arm_parent_death_signal()", source)
+        self.assertIn('"--kill-child=SIGKILL"', source)
+        self.assertIn('"--die-with-parent"', source)
         self.assertIn("FINAL_NAMESPACE_STATE_VERIFIER", source)
         self.assertIn("LIGHTTPD_NO_CRS_FIXTURE_ROOT_IDENTITY", source)
         self.assertNotIn('"--tmpfs"', source)
         self.assertIn("host-root caller", source)
-        self.assertIn("PRIVATE_TMPFS_MOUNT = Path(\"/tmp\")", source)
+        self.assertIn('PRIVATE_TMPFS_MOUNT = _ROOT / "tmp"', source)
         self.assertNotIn("os.rmdir(", source)
         self.assertNotIn("os.unlink(", source)
         self.assertNotIn("AT_EMPTY_PATH", source)
@@ -196,7 +200,7 @@ class NamespaceContractTest(unittest.TestCase):
         self.assertNotIn("os.rmdir(", fixture_directory)
         self.assertNotIn("os.unlink(", fixture_directory)
         self.assertIn("leaves-retained-for-namespace-lifecycle", fixture_io)
-        self.assertIn("namespace fixture root identity changed", fixture_directory)
+        self.assertIn('f"{_FIXTURE_ROOT_LABEL} identity changed"', fixture_directory)
         self.assertIn("verify_allowed_leaves", fixture_directory)
 
     def test_missing_trusted_binary_fails_closed(self) -> None:

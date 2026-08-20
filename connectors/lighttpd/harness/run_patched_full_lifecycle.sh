@@ -922,6 +922,7 @@ raw_log = read_artifact(raw_log_path, "raw ModSecurity log")
 
 CURL_TRACE_SEND_HEADER = re.compile(r"^=> Send header, ([0-9]+) bytes \(0x[0-9a-fA-F]+\)$")
 CURL_TRACE_DATA_ROW = re.compile(r"^([0-9a-fA-F]+): ?(.*)$")
+CURL_TRACE_INFO_LINE = re.compile(r"^(?:\* |== Info: ).+$")
 CURL_RESPONSE_STATUS = re.compile(r"^HTTP/1\.1 ([0-9]{3})(?: [ -~]*)?$")
 
 def parse_curl_request_lines(trace, case):
@@ -938,9 +939,16 @@ def parse_curl_request_lines(trace, case):
     rows = []
     completed = False
     for line in trace_lines[start_index + 1:]:
-        if line == "* Request completely sent off":
+        if line in {"* Request completely sent off", "== Info: Request completely sent off"}:
             completed = True
             break
+        # curl 8.18 may emit informational trace records with the ``== Info:``
+        # prefix (older builds use ``*``) while the outgoing header is being
+        # flushed.  They carry no request bytes and are accepted only as
+        # complete, non-empty trace-info records; all byte rows remain subject
+        # to the contiguous offset and declared-length checks below.
+        if CURL_TRACE_INFO_LINE.fullmatch(line):
+            continue
         row = CURL_TRACE_DATA_ROW.fullmatch(line)
         if row is None:
             raise SystemExit(f"{case} curl trace has an unexpected outgoing-header row")

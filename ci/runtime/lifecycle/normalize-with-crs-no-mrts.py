@@ -29,6 +29,27 @@ CONNECTORS = {
 PROFILE = "five-connectors-with-crs-no-mrts"
 RULE_FILE = "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
 RULE_ID = 942270
+SUMMARY_FILE = "runtime-summary.txt"
+RESULT_FILE = "result.json"
+EVENTS_FILE = "events.jsonl"
+COMPLETION_EVENTS_FILE = "completion-events.jsonl"
+NO_MRTS_FIELDS = (
+    "runner_invoked",
+    "case_inventory_loaded",
+    "process_started",
+    "socket_or_listener_created",
+    "artifact_used",
+)
+CLEANUP_COUNTERS = (
+    "processes_remaining",
+    "host_processes_remaining",
+    "helper_processes_remaining",
+    "listeners_remaining",
+    "sockets_remaining",
+    "pid_files_remaining",
+    "runtime_fixtures_remaining",
+    "temporary_paths_remaining",
+)
 MAX_FILE_BYTES = 2 * 1024 * 1024
 TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
@@ -36,6 +57,17 @@ LIGHTTPD_RESPONSE_TRANSACTION_HEADER = "X-Msconnector-Host-Transaction-Id"
 LIGHTTPD_HOST_TRANSACTION = re.compile(r"^lighttpd-[1-9][0-9]*-[1-9][0-9]*$")
 CURL_TRACE_SEND_HEADER = re.compile(r"^=> Send header, ([0-9]+) bytes \(0x[0-9a-fA-F]+\)$")
 CURL_TRACE_DATA_ROW = re.compile(r"^([0-9a-fA-F]+): ?(.*)$")
+CURL_TRACE_INFO_LINE = re.compile(r"^== Info: [ -~]{1,256}$")
+
+
+def file_identity(details: os.stat_result) -> tuple[int, int, int, int]:
+    """Return the stable identity and type/size checked across an open."""
+    return (
+        details.st_dev,
+        details.st_ino,
+        stat.S_IFMT(details.st_mode),
+        details.st_size,
+    )
 
 
 def fail(message: str) -> None:
@@ -82,27 +114,58 @@ def contained(path: Path, root: Path, label: str) -> Path:
     return candidate
 
 
-def read_bounded(path: Path, root: Path) -> bytes:
-    contained(path, root, "runtime evidence")
+def open_contained_regular(path: Path, root: Path) -> tuple[int, Path]:
+    """Open a regular evidence file by no-follow directory descriptors."""
+    candidate = contained(path, root, "runtime evidence")
+    base = Path(os.path.abspath(root))
+    relative = candidate.relative_to(base)
+    if not relative.parts:
+        fail("runtime evidence must name a file below its root")
+    pre_open = candidate.lstat()
+    if not stat.S_ISREG(pre_open.st_mode):
+        fail(f"evidence is not a regular file: {candidate}")
+    if pre_open.st_size > MAX_FILE_BYTES:
+        fail(f"evidence exceeds {MAX_FILE_BYTES} bytes: {candidate}")
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        fail("platform cannot open runtime evidence without following symlinks")
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | no_follow
+    directory_fd = os.open(base, directory_flags)
     try:
-        metadata = path.lstat()
+        for component in relative.parts[:-1]:
+            next_fd = os.open(component, directory_flags, dir_fd=directory_fd)
+            os.close(directory_fd)
+            directory_fd = next_fd
+        file_fd = os.open(relative.parts[-1], os.O_RDONLY | no_follow, dir_fd=directory_fd)
+    finally:
+        os.close(directory_fd)
+    try:
+        opened = os.fstat(file_fd)
+    except BaseException:
+        os.close(file_fd)
+        raise
+    if file_identity(opened) != file_identity(pre_open):
+        os.close(file_fd)
+        fail(f"evidence changed between validation and open: {candidate}")
+    return file_fd, candidate
+
+
+def read_bounded(path: Path, root: Path) -> bytes:
+    try:
+        fd, candidate = open_contained_regular(path, root)
     except FileNotFoundError:
         return b""
-    if not stat.S_ISREG(metadata.st_mode):
-        fail(f"evidence is not a private regular file: {path}")
-    if metadata.st_size > MAX_FILE_BYTES:
-        fail(f"evidence exceeds {MAX_FILE_BYTES} bytes: {path}")
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(path, flags)
     try:
         opened = os.fstat(fd)
-        if (opened.st_dev, opened.st_ino, opened.st_size) != (metadata.st_dev, metadata.st_ino, metadata.st_size):
-            fail(f"evidence changed during no-follow open: {path}")
+        if not stat.S_ISREG(opened.st_mode):
+            fail(f"evidence is not a regular file: {candidate}")
+        if opened.st_size > MAX_FILE_BYTES:
+            fail(f"evidence exceeds {MAX_FILE_BYTES} bytes: {candidate}")
         with os.fdopen(fd, "rb", closefd=False) as handle:
             data = handle.read(MAX_FILE_BYTES + 1)
         final = os.fstat(fd)
-        if (final.st_dev, final.st_ino, final.st_size) != (metadata.st_dev, metadata.st_ino, metadata.st_size):
-            fail(f"evidence changed while reading: {path}")
+        if (final.st_dev, final.st_ino, final.st_size) != (opened.st_dev, opened.st_ino, opened.st_size):
+            fail(f"evidence changed while reading: {candidate}")
     finally:
         os.close(fd)
     if len(data) > MAX_FILE_BYTES:
@@ -191,30 +254,35 @@ def private_wire_input(path_value: str, runtime_root: Path, label: str) -> tuple
     return path, read_bounded(path, runtime_root)
 
 
-def lighttpd_request_lines(trace: str, case: str) -> list[str]:
-    """Parse curl's real, offset-wrapped outbound HTTP/1.1 header block.
-
-    ``curl --trace-ascii`` wraps visible header bytes at 64 characters, while
-    its hex offsets retain the two omitted CRLF bytes at logical line ends.
-    Accept only that documented representation; a different trace shape is
-    not guessed or normalized into evidence.
-    """
+def curl_send_header(trace_lines: list[str], case: str) -> tuple[int, int]:
     send_headers: list[tuple[int, re.Match[str]]] = []
-    trace_lines = trace.splitlines()
     for index, line in enumerate(trace_lines):
         declaration = CURL_TRACE_SEND_HEADER.fullmatch(line)
         if declaration is not None:
             send_headers.append((index, declaration))
-    if len(send_headers) != 1 or trace.count("* Request completely sent off") != 1:
+    completed_lines = {
+        "* Request completely sent off",
+        "== Info: Request completely sent off",
+    }
+    if len(send_headers) != 1 or sum(line in completed_lines for line in trace_lines) != 1:
         fail(f"Lighttpd {case} trace does not contain exactly one request exchange")
     start_index, declaration = send_headers[0]
-    declared_length = int(declaration.group(1))
+    return start_index, int(declaration.group(1))
+
+
+def curl_header_rows(trace_lines: list[str], start_index: int, case: str) -> list[tuple[int, str]]:
     rows: list[tuple[int, str]] = []
-    completed = False
     for line in trace_lines[start_index + 1:]:
-        if line == "* Request completely sent off":
-            completed = True
-            break
+        if line in {"* Request completely sent off", "== Info: Request completely sent off"}:
+            if rows:
+                return rows
+            fail(f"Lighttpd {case} trace has no completed outgoing-header block")
+        # curl 8.18 can emit informational records with an ``== Info:``
+        # prefix while flushing the header (older builds use ``*``).  These
+        # records contain no request bytes; every byte row remains subject to
+        # the contiguous-offset and declared-length checks below.
+        if CURL_TRACE_INFO_LINE.fullmatch(line):
+            continue
         row = CURL_TRACE_DATA_ROW.fullmatch(line)
         if row is None:
             fail(f"Lighttpd {case} trace has an unexpected outgoing-header row")
@@ -223,8 +291,10 @@ def lighttpd_request_lines(trace: str, case: str) -> list[str]:
         if not fragment.isascii() or any(not 0x20 <= ord(character) <= 0x7E for character in fragment):
             fail(f"Lighttpd {case} trace has a non-ASCII outgoing-header fragment")
         rows.append((offset, fragment))
-    if not completed or not rows:
-        fail(f"Lighttpd {case} trace has no completed outgoing-header block")
+    fail(f"Lighttpd {case} trace has no completed outgoing-header block")
+
+
+def curl_logical_header_lines(rows: list[tuple[int, str]], declared_length: int, case: str) -> list[str]:
 
     logical_lines: list[str] = []
     current_line = ""
@@ -249,6 +319,14 @@ def lighttpd_request_lines(trace: str, case: str) -> list[str]:
     return logical_lines
 
 
+def lighttpd_request_lines(trace: str, case: str) -> list[str]:
+    """Parse curl's real, offset-wrapped outbound HTTP/1.1 header block."""
+    trace_lines = trace.splitlines()
+    start_index, declared_length = curl_send_header(trace_lines, case)
+    rows = curl_header_rows(trace_lines, start_index, case)
+    return curl_logical_header_lines(rows, declared_length, case)
+
+
 def require_single_lighttpd_request_header(lines: list[str], case: str, name: str, value: str) -> None:
     values = []
     for line in lines[1:-1]:
@@ -257,6 +335,58 @@ def require_single_lighttpd_request_header(lines: list[str], case: str, name: st
             values.append(header_value.strip())
     if values != [value]:
         fail(f"Lighttpd {case} trace has an invalid {name} request header")
+
+
+def decode_lighttpd_wire(trace_bytes: bytes, headers_bytes: bytes, case: str) -> tuple[str, str]:
+    try:
+        return trace_bytes.decode("ascii"), headers_bytes.decode("ascii")
+    except UnicodeDecodeError as exc:
+        fail(f"Lighttpd {case} wire evidence is not ASCII HTTP/curl output")
+        raise AssertionError from exc
+
+
+def validate_lighttpd_request(
+    trace: str, case: str, uri: str, run_id: str, request_id: str
+) -> None:
+    request_lines = lighttpd_request_lines(trace, case)
+    if request_lines[0] != f"GET {uri} HTTP/1.1":
+        fail(f"Lighttpd {case} trace has an unexpected request line")
+    require_single_lighttpd_request_header(request_lines, case, "Host", "crs-runtime.test")
+    require_single_lighttpd_request_header(request_lines, case, "X-Framework-Run-ID", run_id)
+    require_single_lighttpd_request_header(request_lines, case, "X-Framework-Request-ID", request_id)
+    transaction_headers = {
+        "x-modsec-transaction-id",
+        "x-msconnector-host-transaction-id",
+    }
+    if any(line.partition(":")[0].lower() in transaction_headers for line in request_lines[1:-1]):
+        fail(f"Lighttpd {case} trace supplied a client transaction id")
+    if trace.count("*   Trying 127.0.0.1:") != 1 or trace.count("* Established connection to 127.0.0.1") != 1:
+        fail(f"Lighttpd {case} trace does not prove one private loopback connection")
+
+
+def lighttpd_response_transaction_id(
+    headers: str, case: str, expected_status: int, header_name: str, request_id: str
+) -> str:
+    if not headers.endswith("\r\n\r\n") or headers.count("\r\n\r\n") != 1:
+        fail(f"Lighttpd {case} response does not contain one complete HTTP header block")
+    lines = headers[:-4].split("\r\n")
+    if len(lines) < 2 or any(not line or line[:1] in (" ", "\t") for line in lines):
+        fail(f"Lighttpd {case} response headers are malformed or folded")
+    status = re.fullmatch(r"HTTP/1\.1 ([0-9]{3}) [ -~]{1,64}", lines[0])
+    if status is None or int(status.group(1)) != expected_status:
+        fail(f"Lighttpd {case} response status does not match the observed request status")
+    values: list[str] = []
+    for line in lines[1:]:
+        name, separator, value = line.partition(":")
+        if not separator or not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name):
+            fail(f"Lighttpd {case} response header syntax is invalid")
+        if name.lower() == header_name.lower():
+            values.append(value.strip())
+    if len(values) != 1 or not LIGHTTPD_HOST_TRANSACTION.fullmatch(values[0]):
+        fail(f"Lighttpd {case} response lacks one safe server-generated transaction id")
+    if values[0] == request_id:
+        fail(f"Lighttpd {case} response transaction id reused its client request label")
+    return values[0]
 
 
 def lighttpd_wire_transaction(
@@ -285,47 +415,12 @@ def lighttpd_wire_transaction(
         fail(f"Lighttpd {case} request and response wire artifacts are the same file")
     if trace_path.parent != headers_path.parent or trace_path.parent.name != "crs-request-evidence":
         fail(f"Lighttpd {case} wire artifacts do not share the private evidence root")
-    try:
-        trace = trace_bytes.decode("ascii")
-        headers = headers_bytes.decode("ascii")
-    except UnicodeDecodeError as exc:
-        fail(f"Lighttpd {case} wire evidence is not ASCII HTTP/curl output")
-        raise AssertionError from exc
-    request_lines = lighttpd_request_lines(trace, case)
-    if request_lines[0] != f"GET {uri} HTTP/1.1":
-        fail(f"Lighttpd {case} trace has an unexpected request line")
-    require_single_lighttpd_request_header(request_lines, case, "Host", "crs-runtime.test")
-    require_single_lighttpd_request_header(request_lines, case, "X-Framework-Run-ID", run_id)
-    require_single_lighttpd_request_header(request_lines, case, "X-Framework-Request-ID", request_id)
-    if any(
-        line.partition(":")[0].lower()
-        in {"x-modsec-transaction-id", "x-msconnector-host-transaction-id"}
-        for line in request_lines[1:-1]
-    ):
-        fail(f"Lighttpd {case} trace supplied a client transaction id")
-    if trace.count("*   Trying 127.0.0.1:") != 1 or trace.count("* Established connection to 127.0.0.1") != 1:
-        fail(f"Lighttpd {case} trace does not prove one private loopback connection")
-
-    if not headers.endswith("\r\n\r\n") or headers.count("\r\n\r\n") != 1:
-        fail(f"Lighttpd {case} response does not contain one complete HTTP header block")
-    lines = headers[:-4].split("\r\n")
-    if len(lines) < 2 or any(not line or line[:1] in (" ", "\t") for line in lines):
-        fail(f"Lighttpd {case} response headers are malformed or folded")
-    status = re.fullmatch(r"HTTP/1\.1 ([0-9]{3}) [ -~]{1,64}", lines[0])
-    if status is None or int(status.group(1)) != expected_status:
-        fail(f"Lighttpd {case} response status does not match the observed request status")
-    values: list[str] = []
-    for line in lines[1:]:
-        name, separator, value = line.partition(":")
-        if not separator or not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name):
-            fail(f"Lighttpd {case} response header syntax is invalid")
-        if name.lower() == header_name.lower():
-            values.append(value.strip())
-    if len(values) != 1 or not LIGHTTPD_HOST_TRANSACTION.fullmatch(values[0]):
-        fail(f"Lighttpd {case} response lacks one safe server-generated transaction id")
-    if values[0] == request_id:
-        fail(f"Lighttpd {case} response transaction id reused its client request label")
-    return values[0], trace_path, headers_path
+    trace, headers = decode_lighttpd_wire(trace_bytes, headers_bytes, case)
+    validate_lighttpd_request(trace, case, uri, run_id, request_id)
+    transaction_id = lighttpd_response_transaction_id(
+        headers, case, expected_status, header_name, request_id
+    )
+    return transaction_id, trace_path, headers_path
 
 
 def correlated_trigger(log_text: str, transaction_id: str) -> int:
@@ -343,140 +438,238 @@ def correlated_trigger(log_text: str, transaction_id: str) -> int:
     return matches[0]
 
 
-def observed_runtime(runtime_root: Path, connector: str, run_id: str) -> dict[str, Any]:
-    """Return only facts bound to this connector's fixed attack transaction."""
-    if connector == "envoy":
-        summary = summary_values(runtime_root / "runtime-summary.txt", runtime_root)
-        if summary.get("status") != "PASS" or summary.get("connector") != "envoy" or summary.get("integration_mode") != "ext_proc" or summary.get("run_id") != run_id:
-            fail("Envoy completion identity is not a PASS ext_proc run")
-        block = runtime_root / "crs-block-probe.json"
-        bypass = runtime_root / "crs-bypass-probe.json"
-        allow = runtime_root / "crs-allow-probe.json"
-        block_value = json.loads(read_bounded(block, runtime_root).decode())
-        bypass_value = json.loads(read_bounded(bypass, runtime_root).decode())
-        allow_value = json.loads(read_bounded(allow, runtime_root).decode())
-        status = int(block_value.get("http_status", 0))
-        bypass_status = int(bypass_value.get("http_status", 0))
-        allow_status = int(allow_value.get("http_status", 0))
-        block_id = summary.get("block_request_id", "")
-        bypass_id = summary.get("bypass_request_id", "")
-        allow_id = summary.get("allow_request_id", "")
-        if status != 403 or bypass_status != 403 or allow_status != 200:
-            fail("Envoy probe statuses are not 200/403/403")
-        service_text = read_bounded(runtime_root / "ext-proc.stderr.log", runtime_root).decode("utf-8", "replace")
-        block_trigger = correlated_trigger(service_text, block_id)
-        if not block_trigger:
-            fail("Envoy raw ModSecurity evidence is not correlated to the block request")
-        bypass_trigger = correlated_trigger(service_text, bypass_id)
-        if not bypass_trigger:
-            fail("Envoy raw ModSecurity evidence is not correlated to the bypass request")
-        if block_id == bypass_id:
-            fail("Envoy block and bypass reused a transaction id")
-        event_path = runtime_root / "events.jsonl"
-        events = jsonl(event_path, runtime_root)
-        interventions = {}
-        for tx in (block_id, bypass_id):
-            matches = [event for event in events if event.get("connector") == "envoy" and event.get("integration_mode") == "ext_proc" and str(event.get("transaction_id")) == tx and event.get("actual_action") == "deny" and int(event.get("visible_http_status", 0)) == 403 and event.get("transport_result") == "http_status"]
-            if len(matches) != 1:
-                fail(f"Envoy Common event lacks correlated 949110 intervention for {tx}")
-            try: interventions[tx] = int(matches[0]["rule_id"])
-            except (KeyError, TypeError, ValueError): fail(f"Envoy intervention rule is malformed for {tx}")
-            if interventions[tx] != 949110: fail(f"Envoy intervention rule is not 949110 for {tx}")
-        if not allow_id:
-            fail("Envoy summary lacks allow transaction identity")
-        completion_events = jsonl(runtime_root / "completion-events.jsonl", runtime_root)
-        allow_completions = [event for event in completion_events if event.get("event") == "ext_proc_stream_complete" and event.get("integration_mode") == "ext_proc" and str(event.get("transaction_id")) == allow_id and event.get("evaluation_mode") == "common_libmodsecurity_nonpromoted" and event.get("rule_evaluation") == "libmodsecurity" and event.get("late_action") == "none" and event.get("close_reason") == "response_end_of_stream" and int(event.get("response_body_bytes", 0)) > 0]
-        if len(allow_completions) != 1:
-            fail("Envoy allow request lacks one correlated ext_proc completion event")
-        allow_value["request_id"] = allow_id
-        allow_value["transaction_id"] = allow_id
-        block_value["request_id"] = block_id
-        block_value["transaction_id"] = block_id
-        bypass_value["request_id"] = bypass_id
-        bypass_value["transaction_id"] = bypass_id
-        return {"allow": allow_value, "block": block_value, "bypass": bypass_value, "actual_intervention": interventions[block_id], "canonical_trigger": block_trigger, "request_id": block_id, "transaction_id": block_id}
-    if connector == "traefik":
-        result_path = runtime_root / "result.json"
-        result = json.loads(read_bounded(result_path, runtime_root).decode())
-        if result.get("status") != "PASS" or result.get("connector") != "traefik" or result.get("integration_mode") != "native-traefik-middleware" or result.get("run_id") != run_id:
-            fail("Traefik completion identity is not a PASS native run")
-        block = result.get("block")
-        bypass = result.get("bypass")
-        allow = result.get("allow")
-        if not isinstance(block, dict) or not isinstance(bypass, dict) or not isinstance(allow, dict):
-            fail("Traefik result lacks observed allow/block/bypass records")
-        if (int(allow.get("status", 0)), int(block.get("status", 0)), int(bypass.get("status", 0))) != (200, 403, 403):
-            fail("Traefik result statuses are not 200/403/403")
-        block_id = str(block.get("request_id", ""))
-        bypass_id = str(bypass.get("request_id", ""))
-        if not block_id or not bypass_id or block_id == bypass_id:
-            fail("Traefik result lacks distinct transaction identities")
-        engine_log = runtime_root / "logs" / "engine.stderr.log"
-        engine_text = read_bounded(engine_log, runtime_root).decode("utf-8", "replace")
-        block_trigger = correlated_trigger(engine_text, block_id)
-        bypass_trigger = correlated_trigger(engine_text, bypass_id)
-        try: actual_intervention = int(block.get("intervention_rule_id", block.get("observed_rule_id")))
-        except (TypeError, ValueError): fail("Traefik intervention rule is malformed")
-        if actual_intervention != 949110: fail("Traefik block does not retain the actual 949110 intervention")
-        events = jsonl(runtime_root / "logs" / "events.jsonl", runtime_root)
-        def matching_event(case: dict[str, Any], tx: str) -> dict[str, Any]:
-            observed_event = case.get("observed_event")
-            if not isinstance(observed_event, dict):
-                fail("Traefik result case lacks observed_event")
-            matches = [event for event in events if event == observed_event and event.get("connector") == "traefik" and event.get("integration_mode") == "native-traefik-middleware" and str(event.get("transaction_id")) == tx and event.get("actual_action") == "deny" and int(event.get("visible_http_status", 0)) == 403 and event.get("transport_result") == "http_status" and str(event.get("rule_id")) == "949110"]
-            if len(matches) != 1:
-                fail(f"Traefik result event is not uniquely correlated for {tx}")
-            return matches[0]
-        matching_event(block, block_id)
-        matching_event(bypass, bypass_id)
-        return {"allow": allow, "block": block, "bypass": bypass, "actual_intervention": actual_intervention, "canonical_trigger": block_trigger, "request_id": block_id, "transaction_id": block_id}
-    event_path = runtime_root / "events.jsonl"
-    events = jsonl(event_path, runtime_root)
-    summary = summary_values(runtime_root / "runtime-summary.txt", runtime_root)
-    if summary.get("status") != "PASS" or summary.get("connector") != "lighttpd" or summary.get("integration_mode") != "patched-native-lighttpd" or summary.get("run_id") != run_id:
+def envoy_deny_event(event: dict[str, Any], transaction_id: str) -> bool:
+    return (
+        event.get("connector") == "envoy"
+        and event.get("integration_mode") == "ext_proc"
+        and str(event.get("transaction_id")) == transaction_id
+        and event.get("actual_action") == "deny"
+        and int(event.get("visible_http_status", 0)) == 403
+        and event.get("transport_result") == "http_status"
+    )
+
+
+def envoy_interventions(events: list[dict[str, Any]], transaction_ids: tuple[str, str]) -> dict[str, int]:
+    interventions: dict[str, int] = {}
+    for transaction_id in transaction_ids:
+        matches = [event for event in events if envoy_deny_event(event, transaction_id)]
+        if len(matches) != 1:
+            fail(f"Envoy Common event lacks correlated 949110 intervention for {transaction_id}")
+        try:
+            rule_id = int(matches[0]["rule_id"])
+        except (KeyError, TypeError, ValueError) as exc:
+            fail(f"Envoy intervention rule is malformed for {transaction_id}")
+            raise AssertionError from exc
+        if rule_id != 949110:
+            fail(f"Envoy intervention rule is not 949110 for {transaction_id}")
+        interventions[transaction_id] = rule_id
+    return interventions
+
+
+def envoy_allow_completion(event: dict[str, Any], request_id: str) -> bool:
+    return (
+        event.get("event") == "ext_proc_stream_complete"
+        and event.get("integration_mode") == "ext_proc"
+        and str(event.get("transaction_id")) == request_id
+        and event.get("evaluation_mode") == "common_libmodsecurity_nonpromoted"
+        and event.get("rule_evaluation") == "libmodsecurity"
+        and event.get("late_action") == "none"
+        and event.get("close_reason") == "response_end_of_stream"
+        and int(event.get("response_body_bytes", 0)) > 0
+    )
+
+
+def require_traefik_matching_event(
+    events: list[dict[str, Any]], case: dict[str, Any], transaction_id: str
+) -> None:
+    observed_event = case.get("observed_event")
+    if not isinstance(observed_event, dict):
+        fail("Traefik result case lacks observed_event")
+    matches = [
+        event
+        for event in events
+        if event == observed_event
+        and event.get("connector") == "traefik"
+        and event.get("integration_mode") == "native-traefik-middleware"
+        and str(event.get("transaction_id")) == transaction_id
+        and event.get("actual_action") == "deny"
+        and int(event.get("visible_http_status", 0)) == 403
+        and event.get("transport_result") == "http_status"
+        and str(event.get("rule_id")) == "949110"
+    ]
+    if len(matches) != 1:
+        fail(f"Traefik result event is not uniquely correlated for {transaction_id}")
+
+
+def observed_traefik(runtime_root: Path, run_id: str) -> dict[str, Any]:
+    result = json.loads(read_bounded(runtime_root / RESULT_FILE, runtime_root).decode())
+    if result.get("status") != "PASS" or result.get("connector") != "traefik" or result.get("integration_mode") != "native-traefik-middleware" or result.get("run_id") != run_id:
+        fail("Traefik completion identity is not a PASS native run")
+    block = result.get("block")
+    bypass = result.get("bypass")
+    allow = result.get("allow")
+    if not isinstance(block, dict) or not isinstance(bypass, dict) or not isinstance(allow, dict):
+        fail("Traefik result lacks observed allow/block/bypass records")
+    if (int(allow.get("status", 0)), int(block.get("status", 0)), int(bypass.get("status", 0))) != (200, 403, 403):
+        fail("Traefik result statuses are not 200/403/403")
+    block_id = str(block.get("request_id", ""))
+    bypass_id = str(bypass.get("request_id", ""))
+    if not block_id or not bypass_id or block_id == bypass_id:
+        fail("Traefik result lacks distinct transaction identities")
+    engine_text = read_bounded(runtime_root / "logs" / "engine.stderr.log", runtime_root).decode("utf-8", "replace")
+    block_trigger = correlated_trigger(engine_text, block_id)
+    correlated_trigger(engine_text, bypass_id)
+    try:
+        actual_intervention = int(block.get("intervention_rule_id", block.get("observed_rule_id")))
+    except (TypeError, ValueError) as exc:
+        fail("Traefik intervention rule is malformed")
+        raise AssertionError from exc
+    if actual_intervention != 949110:
+        fail("Traefik block does not retain the actual 949110 intervention")
+    events = jsonl(runtime_root / "logs" / EVENTS_FILE, runtime_root)
+    require_traefik_matching_event(events, block, block_id)
+    require_traefik_matching_event(events, bypass, bypass_id)
+    return {"allow": allow, "block": block, "bypass": bypass, "actual_intervention": actual_intervention, "canonical_trigger": block_trigger, "request_id": block_id, "transaction_id": block_id}
+
+
+def observed_envoy(runtime_root: Path, run_id: str) -> dict[str, Any]:
+    """Validate Envoy's probes, final host action, and ext-proc completion."""
+    summary = summary_values(runtime_root / SUMMARY_FILE, runtime_root)
+    if (
+        summary.get("status") != "PASS"
+        or summary.get("connector") != "envoy"
+        or summary.get("integration_mode") != "ext_proc"
+        or summary.get("run_id") != run_id
+    ):
+        fail("Envoy completion identity is not a PASS ext_proc run")
+    block_value = json.loads(read_bounded(runtime_root / "crs-block-probe.json", runtime_root).decode())
+    bypass_value = json.loads(read_bounded(runtime_root / "crs-bypass-probe.json", runtime_root).decode())
+    allow_value = json.loads(read_bounded(runtime_root / "crs-allow-probe.json", runtime_root).decode())
+    if (
+        int(block_value.get("http_status", 0)) != 403
+        or int(bypass_value.get("http_status", 0)) != 403
+        or int(allow_value.get("http_status", 0)) != 200
+    ):
+        fail("Envoy probe statuses are not 200/403/403")
+    block_id = summary.get("block_request_id", "")
+    bypass_id = summary.get("bypass_request_id", "")
+    allow_id = summary.get("allow_request_id", "")
+    service_text = read_bounded(runtime_root / "ext-proc.stderr.log", runtime_root).decode("utf-8", "replace")
+    block_trigger = correlated_trigger(service_text, block_id)
+    if not block_trigger:
+        fail("Envoy raw ModSecurity evidence is not correlated to the block request")
+    bypass_trigger = correlated_trigger(service_text, bypass_id)
+    if not bypass_trigger:
+        fail("Envoy raw ModSecurity evidence is not correlated to the bypass request")
+    if block_id == bypass_id:
+        fail("Envoy block and bypass reused a transaction id")
+    interventions = envoy_interventions(jsonl(runtime_root / EVENTS_FILE, runtime_root), (block_id, bypass_id))
+    if not allow_id:
+        fail("Envoy summary lacks allow transaction identity")
+    completion_events = jsonl(runtime_root / COMPLETION_EVENTS_FILE, runtime_root)
+    if len([event for event in completion_events if envoy_allow_completion(event, allow_id)]) != 1:
+        fail("Envoy allow request lacks one correlated ext_proc completion event")
+    for value, request_id in (
+        (allow_value, allow_id),
+        (block_value, block_id),
+        (bypass_value, bypass_id),
+    ):
+        value["request_id"] = request_id
+        value["transaction_id"] = request_id
+    return {
+        "allow": allow_value,
+        "block": block_value,
+        "bypass": bypass_value,
+        "actual_intervention": interventions[block_id],
+        "canonical_trigger": block_trigger,
+        "request_id": block_id,
+        "transaction_id": block_id,
+    }
+
+
+def lighttpd_summary_correlation(summary: dict[str, str], run_id: str) -> tuple[dict[str, str], dict[str, str]]:
+    if (
+        summary.get("status") != "PASS"
+        or summary.get("connector") != "lighttpd"
+        or summary.get("integration_mode") != "patched-native-lighttpd"
+        or summary.get("run_id") != run_id
+    ):
         fail("Lighttpd completion identity is not a PASS patched-native run")
     if summary.get("response_transaction_header_name") != LIGHTTPD_RESPONSE_TRANSACTION_HEADER:
         fail("Lighttpd summary does not identify the fixed response transaction header")
     if summary.get("response_transaction_header_origin") != "server_generated_lighttpd_host":
         fail("Lighttpd summary does not identify a server-generated response transaction header")
-    allow_request_id = summary.get("allow_request_id", "")
-    block_request_id = summary.get("block_request_id", "")
-    bypass_request_id = summary.get("bypass_request_id", "")
-    allow_uri = summary.get("allow_request_uri", "")
-    block_uri = summary.get("block_request_uri", "")
-    bypass_uri = summary.get("bypass_request_uri", "")
-    if not all((allow_request_id, block_request_id, bypass_request_id, allow_uri, block_uri, bypass_uri)):
+    request_ids = {case: summary.get(f"{case}_request_id", "") for case in ("allow", "block", "bypass")}
+    uris = {case: summary.get(f"{case}_request_uri", "") for case in ("allow", "block", "bypass")}
+    if not all((*request_ids.values(), *uris.values())):
         fail("Lighttpd summary lacks a complete request correlation tuple")
-    for request_id, label in (
-        (allow_request_id, "allow request id"),
-        (block_request_id, "block request id"),
-        (bypass_request_id, "bypass request id"),
-    ):
-        safe_token(request_id, f"Lighttpd {label}")
-    if len({allow_request_id, block_request_id, bypass_request_id}) != 3:
+    for case, request_id in request_ids.items():
+        safe_token(request_id, f"Lighttpd {case} request id")
+    if len(set(request_ids.values())) != len(request_ids):
         fail("Lighttpd requests reused a client correlation label")
+    return request_ids, uris
 
-    def wire_for(case: str, request_id: str, uri: str, expected_status: int) -> tuple[str, Path, Path]:
-        response_transaction_id, trace_path, headers_path = lighttpd_wire_transaction(
-            runtime_root=runtime_root,
-            case=case,
-            trace_value=summary.get(f"{case}_request_trace", ""),
-            headers_value=summary.get(f"{case}_response_headers", ""),
-            request_id=request_id,
-            run_id=run_id,
-            uri=uri,
-            expected_status=expected_status,
-            header_name=summary.get("response_transaction_header_name", ""),
-        )
-        if summary.get(f"{case}_response_transaction_id", "") != response_transaction_id:
-            fail(f"Lighttpd {case} summary response transaction id differs from its raw response header")
-        if summary.get(f"{case}_transaction_id", "") != response_transaction_id:
-            fail(f"Lighttpd {case} Common transaction id differs from its raw response header")
-        return response_transaction_id, trace_path, headers_path
 
-    allow_id, allow_trace, allow_headers = wire_for("allow", allow_request_id, allow_uri, 200)
-    block_id, block_trace, block_headers = wire_for("block", block_request_id, block_uri, 403)
-    bypass_id, bypass_trace, bypass_headers = wire_for("bypass", bypass_request_id, bypass_uri, 403)
+def lighttpd_wire_for(
+    runtime_root: Path,
+    summary: dict[str, str],
+    run_id: str,
+    case: str,
+    request_id: str,
+    uri: str,
+    expected_status: int,
+) -> tuple[str, Path, Path]:
+    response_transaction_id, trace_path, headers_path = lighttpd_wire_transaction(
+        runtime_root=runtime_root,
+        case=case,
+        trace_value=summary.get(f"{case}_request_trace", ""),
+        headers_value=summary.get(f"{case}_response_headers", ""),
+        request_id=request_id,
+        run_id=run_id,
+        uri=uri,
+        expected_status=expected_status,
+        header_name=summary.get("response_transaction_header_name", ""),
+    )
+    if summary.get(f"{case}_response_transaction_id", "") != response_transaction_id:
+        fail(f"Lighttpd {case} summary response transaction id differs from its raw response header")
+    if summary.get(f"{case}_transaction_id", "") != response_transaction_id:
+        fail(f"Lighttpd {case} Common transaction id differs from its raw response header")
+    return response_transaction_id, trace_path, headers_path
+
+
+def lighttpd_deny_event(event: dict[str, Any], transaction_id: str, uri: str) -> bool:
+    return (
+        event.get("connector") == "lighttpd"
+        and event.get("integration_mode") == "patched-native-lighttpd"
+        and str(event.get("transaction_id")) == transaction_id
+        and event.get("method") == "GET"
+        and event.get("actual_action") == "deny"
+        and int(event.get("http_status", 0)) == 403
+        and int(event.get("visible_http_status", 0)) == 403
+        and event.get("transport_result") == "http_status"
+        and str(event.get("uri")) == uri
+        and str(event.get("rule_id")) == "949110"
+    )
+
+
+def lighttpd_intervention_event(
+    events: list[dict[str, Any]], case: str, transaction_id: str, uri: str
+) -> dict[str, Any]:
+    matches = [event for event in events if lighttpd_deny_event(event, transaction_id, uri)]
+    if len(matches) != 1:
+        fail(f"Lighttpd {case} lacks one correlated 949110 intervention for {transaction_id}")
+    return matches[0]
+
+
+def observed_lighttpd(runtime_root: Path, run_id: str) -> dict[str, Any]:
+    """Validate Lighttpd's private wire evidence and correlated host events."""
+    event_path = runtime_root / EVENTS_FILE
+    events = jsonl(event_path, runtime_root)
+    summary = summary_values(runtime_root / SUMMARY_FILE, runtime_root)
+    request_ids, uris = lighttpd_summary_correlation(summary, run_id)
+    allow_id, allow_trace, allow_headers = lighttpd_wire_for(runtime_root, summary, run_id, "allow", request_ids["allow"], uris["allow"], 200)
+    block_id, block_trace, block_headers = lighttpd_wire_for(runtime_root, summary, run_id, "block", request_ids["block"], uris["block"], 403)
+    bypass_id, bypass_trace, bypass_headers = lighttpd_wire_for(runtime_root, summary, run_id, "bypass", request_ids["bypass"], uris["bypass"], 403)
     wire_artifacts = {
         "allow_request_trace": allow_trace,
         "allow_response_headers": allow_headers,
@@ -489,43 +682,74 @@ def observed_runtime(runtime_root: Path, connector: str, run_id: str) -> dict[st
         fail("Lighttpd requests reused a raw wire-evidence artifact")
     if len({allow_id, block_id, bypass_id}) != 3:
         fail("Lighttpd requests reused a server-generated host transaction id")
-
-    def event_for(case: str, transaction_id: str, uri: str) -> dict[str, Any]:
-        matches = [event for event in events if event.get("connector") == "lighttpd" and event.get("integration_mode") == "patched-native-lighttpd" and str(event.get("transaction_id")) == transaction_id and event.get("method") == "GET" and event.get("actual_action") == "deny" and int(event.get("http_status", 0)) == 403 and int(event.get("visible_http_status", 0)) == 403 and event.get("transport_result") == "http_status" and str(event.get("uri")) == uri and str(event.get("rule_id")) == "949110"]
-        if len(matches) != 1:
-            fail(f"Lighttpd {case} lacks one correlated 949110 intervention for {transaction_id}")
-        return matches[0]
-
-    block = event_for("block", block_id, block_uri)
-    bypass = event_for("bypass", bypass_id, bypass_uri)
-    if any(event.get("connector") == "lighttpd" and event.get("integration_mode") == "patched-native-lighttpd" and event.get("actual_action") == "deny" and str(event.get("uri")) == allow_uri for event in events):
+    block = lighttpd_intervention_event(events, "block", block_id, uris["block"])
+    bypass = lighttpd_intervention_event(events, "bypass", bypass_id, uris["bypass"])
+    if any(
+        event.get("connector") == "lighttpd"
+        and event.get("integration_mode") == "patched-native-lighttpd"
+        and event.get("actual_action") == "deny"
+        and str(event.get("uri")) == uris["allow"]
+        for event in events
+    ):
         fail("Lighttpd allow URI has a correlated deny event")
-    allow = {"request_id": allow_request_id, "transaction_id": allow_id, "status": 200}
+    allow = {"request_id": request_ids["allow"], "transaction_id": allow_id, "status": 200}
     server_text = read_bounded(runtime_root / "runtime-smoke.stderr", runtime_root).decode("utf-8", "replace")
     block_trigger = correlated_trigger(server_text, block_id)
     bypass_trigger = correlated_trigger(server_text, bypass_id)
     try: actual_intervention = int(block["rule_id"])
     except (KeyError, TypeError, ValueError): fail("Lighttpd intervention rule is malformed")
     if actual_intervention != 949110: fail("Lighttpd intervention is not 949110")
-    return {"allow": allow, "block": block, "bypass": bypass, "actual_intervention": actual_intervention, "canonical_trigger": block_trigger, "request_id": block_request_id, "transaction_id": block_id, "bypass_request_id": bypass_request_id, "wire_artifacts": wire_artifacts}
+    return {"allow": allow, "block": block, "bypass": bypass, "actual_intervention": actual_intervention, "canonical_trigger": block_trigger, "request_id": request_ids["block"], "transaction_id": block_id, "bypass_request_id": request_ids["bypass"], "wire_artifacts": wire_artifacts}
+
+
+def observed_runtime(runtime_root: Path, connector: str, run_id: str) -> dict[str, Any]:
+    """Return only facts bound to this connector's fixed attack transaction."""
+    if connector == "envoy":
+        return observed_envoy(runtime_root, run_id)
+    if connector == "traefik":
+        return observed_traefik(runtime_root, run_id)
+    if connector == "lighttpd":
+        return observed_lighttpd(runtime_root, run_id)
+    fail(f"unsupported connector runtime evidence: {connector}")
+    raise AssertionError
+
+
+def repository_root(path: Path, label: str) -> Path:
+    root = root_path(str(path), f"{label} repository root")
+    details = root.lstat()
+    if not stat.S_ISDIR(details.st_mode) or stat.S_ISLNK(details.st_mode):
+        fail(f"{label} repository root is not a safe directory")
+    return root
 
 
 def commit_identity(root: Path, label: str) -> str:
+    repository = repository_root(root, label)
     try:
-        value = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repository,
+            check=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            env={"PATH": os.defpath, "LC_ALL": "C"},
+        )
     except (OSError, subprocess.CalledProcessError) as exc:
         fail(f"cannot resolve {label} commit")
         raise AssertionError from exc
+    value = result.stdout.strip()
     if not COMMIT.fullmatch(value):
         fail(f"invalid {label} commit")
     return value
 
 
 def framework_pins(framework_root: Path) -> tuple[str, str, str, str]:
-    common = contained(framework_root / "ci/lib/common.sh", framework_root, "Framework common.sh")
+    framework = repository_root(framework_root, "Framework")
+    common = contained(framework / "ci/lib/common.sh", framework, "Framework common.sh")
     values: dict[str, str] = {}
     assignment = re.compile(r"^(CRS_APPROVED_REPO_URL|CRS_RELEASE_TAG|CRS_APPROVED_COMMIT|CRS_RULE_FILE_SHA256)=(?:\"([^\"]*)\"|'([^']*)')$")
-    for line in common.read_text(encoding="utf-8").splitlines():
+    for line in read_bounded(common, framework).decode("utf-8", "strict").splitlines():
         match = assignment.fullmatch(line.strip())
         if match:
             values[match.group(1)] = match.group(2) or match.group(3)
@@ -541,17 +765,100 @@ def record_json(record: dict[str, Any]) -> bytes:
     return (json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
 
+def framework_raw_value(value: Any) -> str:
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    return str(value)
+
+
 def framework_raw_record(record: dict[str, Any]) -> bytes:
     """Encode Framework's strict, non-normalized key=value evidence format."""
     lines: list[str] = []
     for name, value in record.items():
         if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name):
             fail(f"unsafe Framework raw-record key: {name}")
-        encoded = "true" if value is True else "false" if value is False else str(value)
+        encoded = framework_raw_value(value)
         if not encoded or "\r" in encoded or "\n" in encoded:
             fail(f"unsafe Framework raw-record value for {name}")
         lines.append(f"{name}={encoded}")
     return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def clean_runtime_observation(
+    observation: dict[str, Any], connector: str, integration_mode: str
+) -> tuple[dict[str, bool], dict[str, Any]]:
+    expected_dispatch = {
+        "source": "parent-runner",
+        "connector": connector,
+        "integration_mode": integration_mode,
+        "test_variant": "with-crs",
+        "mrts_variant": "no-mrts",
+    }
+    if observation.get("dispatch") != expected_dispatch:
+        fail("runner dispatch identity is not the exact Parent with-crs/no-mrts dispatch")
+    if connector == "traefik" and observation.get("external_socket_parent_cleanup") != "verified":
+        fail("Traefik external socket parent cleanup was not verified")
+    no_mrts = observation.get("no_mrts")
+    if observation.get("status") != "PASS" or not isinstance(no_mrts, dict):
+        fail("runner-written cleanup/no-MRTS observation is not a clean PASS")
+    if any(no_mrts.get(name) is not False for name in NO_MRTS_FIELDS):
+        fail("runner-written cleanup/no-MRTS observation is not a clean PASS")
+    cleanup = observation.get("cleanup")
+    if not isinstance(cleanup, dict):
+        fail("runner-written cleanup scan is not empty")
+    cleanup_scan = dict(cleanup)
+    if any(name not in cleanup_scan for name in CLEANUP_COUNTERS):
+        fail("runner cleanup scan is missing required counters")
+    if any(int(cleanup_scan[name]) != 0 for name in CLEANUP_COUNTERS):
+        fail("runner-written cleanup scan is not empty")
+    listener_records = cleanup_scan.get("listener_records")
+    residue_paths = cleanup_scan.get("paths")
+    if not isinstance(listener_records, list) or not isinstance(residue_paths, list):
+        fail("runner cleanup diagnostics are missing bounded arrays")
+    if len(listener_records) > 1024 or len(residue_paths) > 4096:
+        fail("runner cleanup diagnostics exceed bounds")
+    if len(listener_records) != int(cleanup_scan["listeners_remaining"]):
+        fail("runner listener counter does not match listener diagnostics")
+    if residue_paths:
+        fail("runner cleanup reports residue paths despite zero counters")
+    return {name: no_mrts[name] for name in NO_MRTS_FIELDS}, cleanup_scan
+
+
+def host_raw_inputs(runtime_root: Path, connector: str, observed: dict[str, Any]) -> dict[str, str]:
+    raw_names = {
+        "envoy": (SUMMARY_FILE, "crs-allow-probe.json", "crs-block-probe.json", "crs-bypass-probe.json", EVENTS_FILE, COMPLETION_EVENTS_FILE, "ext-proc.stderr.log"),
+        "traefik": (RESULT_FILE, "logs/events.jsonl", "logs/engine.stderr.log"),
+        "lighttpd": (SUMMARY_FILE, EVENTS_FILE, "runtime-smoke.stderr"),
+    }[connector]
+    raw_inputs: dict[str, str] = {}
+    for name in raw_names:
+        raw_path = contained(runtime_root / name, runtime_root, "raw host evidence")
+        if not raw_path.is_file():
+            fail(f"missing raw host evidence: {name}")
+        raw_inputs[name] = digest(raw_path, runtime_root)
+    if connector != "lighttpd":
+        return raw_inputs
+    wire_artifacts = observed.get("wire_artifacts")
+    expected_wire_names = {
+        "allow_request_trace",
+        "allow_response_headers",
+        "block_request_trace",
+        "block_response_headers",
+        "bypass_request_trace",
+        "bypass_response_headers",
+    }
+    if not isinstance(wire_artifacts, dict) or set(wire_artifacts) != expected_wire_names:
+        fail("Lighttpd observed runtime lacks the exact wire-evidence inventory")
+    for name, raw_path_value in wire_artifacts.items():
+        if not isinstance(raw_path_value, Path):
+            fail(f"Lighttpd wire artifact is not a verified path: {name}")
+        raw_path = contained(raw_path_value, runtime_root, f"Lighttpd {name}")
+        if not raw_path.is_file():
+            fail(f"Lighttpd wire artifact is absent: {name}")
+        raw_inputs[str(raw_path.relative_to(runtime_root))] = digest(raw_path, runtime_root)
+    return raw_inputs
 
 
 def normalize(args: argparse.Namespace) -> Path:
@@ -569,45 +876,14 @@ def normalize(args: argparse.Namespace) -> Path:
         fail("canonical CRS rule digest mismatch")
     if b"id:942270" not in rule_data:
         fail("canonical CRS rule fingerprint is absent")
-    completion = runtime_root / ("runtime-summary.txt" if connector != "traefik" else "result.json")
+    completion = runtime_root / (SUMMARY_FILE if connector != "traefik" else RESULT_FILE)
     if not completion.is_file():
         fail("host harness completion record is missing")
     observation_path = runtime_root / "runtime-observation.json"
     observation = json.loads(read_bounded(observation_path, runtime_root).decode())
-    dispatch = observation.get("dispatch")
-    expected_dispatch = {
-        "source": "parent-runner",
-        "connector": connector,
-        "integration_mode": mode,
-        "test_variant": "with-crs",
-        "mrts_variant": "no-mrts",
-    }
-    if not isinstance(dispatch, dict) or dispatch != expected_dispatch:
-        fail("runner dispatch identity is not the exact Parent with-crs/no-mrts dispatch")
-    if connector == "traefik" and observation.get("external_socket_parent_cleanup") != "verified":
-        fail("Traefik external socket parent cleanup was not verified")
-    no_mrts = observation.get("no_mrts")
-    if observation.get("status") != "PASS" or not isinstance(no_mrts, dict) or any(no_mrts.get(name) is not False for name in ("runner_invoked", "case_inventory_loaded", "process_started", "socket_or_listener_created", "artifact_used")):
-        fail("runner-written cleanup/no-MRTS observation is not a clean PASS")
-    cleanup_scan = observation.get("cleanup")
-    if not isinstance(cleanup_scan, dict):
-        fail("runner-written cleanup scan is not empty")
-    cleanup_scan = dict(cleanup_scan)
-    required_scan_keys = ("processes_remaining", "host_processes_remaining", "helper_processes_remaining", "listeners_remaining", "sockets_remaining", "pid_files_remaining", "runtime_fixtures_remaining", "temporary_paths_remaining")
-    if any(name not in cleanup_scan for name in required_scan_keys):
-        fail("runner cleanup scan is missing required counters")
-    if any(int(cleanup_scan[name]) != 0 for name in required_scan_keys):
-        fail("runner-written cleanup scan is not empty")
-    listener_records = cleanup_scan.get("listener_records")
-    residue_paths = cleanup_scan.get("paths")
-    if not isinstance(listener_records, list) or not isinstance(residue_paths, list):
-        fail("runner cleanup diagnostics are missing bounded arrays")
-    if len(listener_records) > 1024 or len(residue_paths) > 4096:
-        fail("runner cleanup diagnostics exceed bounds")
-    if len(listener_records) != int(cleanup_scan["listeners_remaining"]):
-        fail("runner listener counter does not match listener diagnostics")
-    if residue_paths:
-        fail("runner cleanup reports residue paths despite zero counters")
+    if not isinstance(observation, dict):
+        fail("runner observation is not a JSON object")
+    no_mrts, cleanup_scan = clean_runtime_observation(observation, connector, mode)
     parent_commit = commit_identity(args.connector_root, "Parent")
     framework_commit = commit_identity(args.framework_root, "Framework")
     observed = observed_runtime(runtime_root, connector, run_id)
@@ -619,37 +895,7 @@ def normalize(args: argparse.Namespace) -> Path:
     canonical_trigger = int(observed["canonical_trigger"])
     if canonical_trigger != RULE_ID:
         fail("correlated CRS trigger does not match the Framework contract")
-    raw_names = {
-        "envoy": ("runtime-summary.txt", "crs-allow-probe.json", "crs-block-probe.json", "crs-bypass-probe.json", "events.jsonl", "completion-events.jsonl", "ext-proc.stderr.log"),
-        "traefik": ("result.json", "logs/events.jsonl", "logs/engine.stderr.log"),
-        "lighttpd": ("runtime-summary.txt", "events.jsonl", "runtime-smoke.stderr"),
-    }[connector]
-    raw_inputs = {}
-    for name in raw_names:
-        raw_path = contained(runtime_root / name, runtime_root, "raw host evidence")
-        if not raw_path.is_file(): fail(f"missing raw host evidence: {name}")
-        raw_inputs[name] = hashlib.sha256(read_bounded(raw_path, runtime_root)).hexdigest()
-    if connector == "lighttpd":
-        wire_artifacts = observed.get("wire_artifacts")
-        expected_wire_names = {
-            "allow_request_trace",
-            "allow_response_headers",
-            "block_request_trace",
-            "block_response_headers",
-            "bypass_request_trace",
-            "bypass_response_headers",
-        }
-        if not isinstance(wire_artifacts, dict) or set(wire_artifacts) != expected_wire_names:
-            fail("Lighttpd observed runtime lacks the exact wire-evidence inventory")
-        for name, raw_path_value in wire_artifacts.items():
-            if not isinstance(raw_path_value, Path):
-                fail(f"Lighttpd wire artifact is not a verified path: {name}")
-            raw_path = contained(raw_path_value, runtime_root, f"Lighttpd {name}")
-            if not raw_path.is_file():
-                fail(f"Lighttpd wire artifact is absent: {name}")
-            raw_inputs[str(raw_path.relative_to(runtime_root))] = hashlib.sha256(
-                read_bounded(raw_path, runtime_root)
-            ).hexdigest()
+    raw_inputs = host_raw_inputs(runtime_root, connector, observed)
     safe_token(request_id, "block request id")
     safe_token(transaction_id, "block transaction id")
     run_dir = contained(evidence_root / "raw" / connector / run_id, evidence_root, "raw evidence")

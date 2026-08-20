@@ -12,7 +12,7 @@
 | Observed current `origin/master` | `ab9cb2c276f159397ec2558b2d58cc260fd66ce2` |
 | Parent → Framework pin | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | Framework → MRTS pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Draft PR authorized; exact-head hosted validation pending. This record does not claim a PR, commit, push, hosted-check success, or merge. |
+| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The earlier pushed head `c7039ee4bcc5e92b8494a936468a8291829da5cb` required remediation; this follow-up revision still requires exact-head hosted validation. No merge or auto-merge is authorized. |
 
 The task worktree was created from the recorded task base. `origin/master`
 subsequently advanced to the separately recorded current value. This record
@@ -158,7 +158,7 @@ production-runtime result here.
 | C module build | passed with `-Wall`, `-Wextra`, and `-Werror` |
 | Clang static analyzer | passed: 0 diagnostics |
 | Envoy and Traefik Go validation | `go mod verify`, dependency listing, tests, vet, and `govulncheck` passed; no vulnerabilities found |
-| Parent runtime tests | passed: 31 tests |
+| Parent runtime tests | passed: 34 tests; task-local Btrfs directory-durability barriers were slow but completed, with no atomicity control removed |
 | `test_collect` under the Framework override | passed: 42 tests; 3 Framework-gated skips |
 | Python dependency validation | `pip check` passed |
 | Shell/Python/YAML validation | shell syntax, Python compilation, YAML parsing, and diff checks passed |
@@ -167,21 +167,31 @@ production-runtime result here.
 
 ## Runtime evidence
 
-No final runtime evidence is asserted by this record. In particular, there is
-no exact final task head, hosted workflow run, SonarQube Cloud analysis,
-required-check result, or pull request evidence to report yet. Preliminary
-connector work and static validation do not replace real host-runtime evidence
-for the three promoted matrix cells.
+Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309)
+was created for the earlier exact head
+`c7039ee4bcc5e92b8494a936468a8291829da5cb`. Its hosted workflow run
+`32423859019` was not successful: Envoy and Traefik completed, while Lighttpd
+rejected a newer curl informational trace framing and Apache/HAProxy requested
+an over-broad component build. Those task-owned causes are addressed by the
+pending follow-up revision, but that fact is not evidence for a later head.
+The prior hosted actionlint and SonarQube results also required remediation.
+
+No final runtime evidence is asserted by this record. In particular, the
+follow-up exact task head has no completed hosted workflow, SonarQube Cloud
+analysis, or required-check result yet. Preliminary connector work and static
+validation do not replace real host-runtime evidence for the three promoted
+matrix cells.
 
 ## Checks not run and rationale
 
 The following remain pending or unavailable: complete three-connector local
 runtime validation in a non-root-capable namespace environment (the real
 non-root namespace integration is pending on a hosted runner); full matrix
-workflow validation; GitHub-hosted required checks; CodeQL/Secret Scanning/OSV;
-actionlint, zizmor, Ruff, and Pyright were unavailable in the local
-environment; SonarQube Cloud; and final PR exact-head verification. No result
-for any of these checks is inferred from an older branch, PR, or base revision.
+workflow validation; GitHub-hosted required checks; actionlint, zizmor, Ruff,
+and Pyright were unavailable in the local environment; SonarQube Cloud; and
+final PR exact-head verification. CodeQL, Secret Scanning, OSV, and zizmor
+were observed only for the earlier PR head and are not reused as evidence for
+the pending follow-up head.
 
 ## Known limitations
 
@@ -206,8 +216,8 @@ quality/security gates.
 
 ## Final diff and review status
 
-Status: in progress; Draft PR authorized, exact-head hosted validation pending.
-This record documents an authorized Parent-only implementation effort and its
-present blockers. It does not claim a commit, push, created PR, Ready-for-
-Review transition, hosted-check success, merge, CI success, SonarQube success,
-complete matrix, or risk acceptance.
+Status: in progress; Draft PR #309 exists and exact-head hosted validation is
+pending. This record documents an authorized Parent-only implementation effort
+and its present blockers. It does not claim Ready-for-Review, hosted-check
+success, merge, CI success, SonarQube success, a complete matrix, or risk
+acceptance.

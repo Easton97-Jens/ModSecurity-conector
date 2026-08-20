@@ -724,6 +724,8 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn("stat.S_IMODE(details.st_mode) & 0o077", crs_branch)
         self.assertIn("def parse_curl_request_lines(trace, case):", crs_branch)
         self.assertIn("CURL_TRACE_DATA_ROW", crs_branch)
+        self.assertIn("CURL_TRACE_INFO_LINE", crs_branch)
+        self.assertIn("== Info: Request completely sent off", crs_branch)
         self.assertIn("span == visible_length + 2", crs_branch)
         self.assertIn("non-contiguous outgoing-header offset", crs_branch)
         self.assertIn("MAX_CRS_WIRE_EVIDENCE_BYTES = 65536", crs_branch)
@@ -771,6 +773,13 @@ class PatchedHostContractTest(unittest.TestCase):
         )
         with self.assertRaises(SystemExit):
             parse_request(folded_trace.replace("00bb:", "00bc:", 1), "bypass")
+
+        info_trace = folded_trace.replace(
+            "* Request completely sent off\n",
+            "== Info: sent request bytes\n"
+            "== Info: Request completely sent off\n",
+        )
+        self.assertEqual(parse_request(info_trace, "bypass"), request_lines)
 
         parsed = parse_response(
             "HTTP/1.1 403 Forbidden\r\n"

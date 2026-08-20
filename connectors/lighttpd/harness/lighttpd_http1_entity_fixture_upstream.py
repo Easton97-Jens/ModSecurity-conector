@@ -40,6 +40,8 @@ CHUNKED_PARTS: Final = (
     b"no-crs-response-",
     b"body-marker",
 )
+READY_FILE_LABEL: Final = "ready file"
+RESULT_FILE_LABEL: Final = "result file"
 
 
 class FixtureError(RuntimeError):
@@ -203,13 +205,13 @@ def serve(
     timeout: float,
     inter_part_delay: float,
 ) -> None:
-    ready_file = safe_output_path(output_root, ready_file, "ready file")
-    result_file = safe_output_path(output_root, result_file, "result file")
+    ready_file = safe_output_path(output_root, ready_file, READY_FILE_LABEL)
+    result_file = safe_output_path(output_root, result_file, RESULT_FILE_LABEL)
     if ready_file.exists() or result_file.exists():
         raise FixtureError("fixture control files must be fresh")
     serve_exchange(
-        publish_ready=lambda value: write_json(output_root, ready_file, value, "ready file"),
-        publish_result=lambda value: write_json(output_root, result_file, value, "result file"),
+        publish_ready=lambda value: write_json(output_root, ready_file, value, READY_FILE_LABEL),
+        publish_result=lambda value: write_json(output_root, result_file, value, RESULT_FILE_LABEL),
         host=host,
         port=port,
         timeout=timeout,
@@ -227,11 +229,11 @@ def serve_bound(
     timeout: float,
     inter_part_delay: float,
 ) -> None:
-    directory.require_absent(ready_name, "ready file")
-    directory.require_absent(result_name, "result file")
+    directory.require_absent(ready_name, READY_FILE_LABEL)
+    directory.require_absent(result_name, RESULT_FILE_LABEL)
     serve_exchange(
-        publish_ready=lambda value: write_bound_json(directory, ready_name, value, "ready file"),
-        publish_result=lambda value: write_bound_json(directory, result_name, value, "result file"),
+        publish_ready=lambda value: write_bound_json(directory, ready_name, value, READY_FILE_LABEL),
+        publish_result=lambda value: write_bound_json(directory, result_name, value, RESULT_FILE_LABEL),
         host=host,
         port=port,
         timeout=timeout,

@@ -42,14 +42,27 @@ SETUP_TIMEOUT_SECONDS = 10.0
 CHILD_STOP_TIMEOUT_SECONDS = 5.0
 MAX_ARGUMENTS = 64
 MAX_ARGUMENT_LENGTH = 16384
-SAFE_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+_ROOT = Path(os.sep)
+SYSTEM_BIN_ROOT = _ROOT / "usr" / "bin"
+SYSTEM_LINKED_BIN_ROOT = _ROOT / "bin"
+PRIVATE_TMPFS_MOUNT = _ROOT / "tmp"
+SAFE_PATH = os.pathsep.join(
+    str(root)
+    for root in (
+        _ROOT / "usr" / "local" / "sbin",
+        _ROOT / "usr" / "local" / "bin",
+        _ROOT / "usr" / "sbin",
+        SYSTEM_BIN_ROOT,
+        _ROOT / "sbin",
+        SYSTEM_LINKED_BIN_ROOT,
+    )
+)
 
-TRUSTED_UNSHARE = Path("/usr/bin/unshare")
-TRUSTED_BWRAP = Path("/usr/bin/bwrap")
-TRUSTED_DASH = Path("/usr/bin/dash")
-TRUSTED_MOUNT = Path("/usr/bin/mount")
-TRUSTED_PYTHON = Path("/usr/bin/python3")
-PRIVATE_TMPFS_MOUNT = Path("/tmp")
+TRUSTED_UNSHARE = SYSTEM_BIN_ROOT / "unshare"
+TRUSTED_BWRAP = SYSTEM_BIN_ROOT / "bwrap"
+TRUSTED_DASH = SYSTEM_BIN_ROOT / "dash"
+TRUSTED_MOUNT = SYSTEM_BIN_ROOT / "mount"
+TRUSTED_PYTHON = SYSTEM_BIN_ROOT / "python3"
 FIXTURE_ROOT = PRIVATE_TMPFS_MOUNT / "msconnector-lighttpd-no-crs-fixture"
 
 # This string is passed as a single, immutable argv element to the root-owned
@@ -59,7 +72,8 @@ FIXTURE_ROOT = PRIVATE_TMPFS_MOUNT / "msconnector-lighttpd-no-crs-fixture"
 # by an argv-preserving exec of bwrap.
 PRIVATE_TMPFS_SETUP = (
     "set -eu; "
-    "/usr/bin/mount -t tmpfs -o mode=0755,nosuid,nodev,noexec,size=64m tmpfs /tmp; "
+    f"{TRUSTED_MOUNT} -t tmpfs -o mode=0755,nosuid,nodev,noexec,size=64m "
+    f"tmpfs {PRIVATE_TMPFS_MOUNT}; "
     "exec \"$@\""
 )
 
@@ -67,7 +81,7 @@ PRIVATE_TMPFS_SETUP = (
 # has created the private root, disabled new user namespaces, and dropped all
 # capabilities. It is an enforcement boundary, not merely test evidence: no
 # worktree harness command is exec'd until every final-state assertion passes.
-FINAL_NAMESPACE_STATE_VERIFIER = r'''
+_FINAL_NAMESPACE_STATE_VERIFIER_TEMPLATE = r'''
 import os
 from pathlib import Path
 import stat
@@ -119,7 +133,7 @@ matches = []
 for row in rows:
     before, separator, after = row.partition(" - ")
     fields = before.split()
-    if separator and len(fields) >= 6 and fields[4] == "/tmp":
+    if separator and len(fields) >= 6 and fields[4] == __PRIVATE_TMPFS_MOUNT__:
         matches.append((fields, after.split()))
 if len(matches) != 1:
     blocked("namespace final verifier has no unique private tmpfs")
@@ -133,7 +147,7 @@ if (
     blocked("namespace final verifier private tmpfs is unsafe")
 
 try:
-    details = os.lstat("/tmp/msconnector-lighttpd-no-crs-fixture")
+    details = os.lstat(__FIXTURE_ROOT__)
 except OSError:
     blocked("namespace final verifier fixture root is unavailable")
 if (
@@ -145,6 +159,12 @@ if (
 os.environ["LIGHTTPD_NO_CRS_FIXTURE_ROOT_IDENTITY"] = f"{details.st_dev}:{details.st_ino}"
 os.execvpe(sys.argv[1], sys.argv[1:], os.environ)
 '''
+
+FINAL_NAMESPACE_STATE_VERIFIER = (
+    _FINAL_NAMESPACE_STATE_VERIFIER_TEMPLATE
+    .replace("__PRIVATE_TMPFS_MOUNT__", repr(str(PRIVATE_TMPFS_MOUNT)))
+    .replace("__FIXTURE_ROOT__", repr(str(FIXTURE_ROOT)))
+)
 
 SYSTEM_READONLY_BINDS = (
     Path("/usr"),
@@ -180,6 +200,26 @@ class CallerIdentity:
     gid: int
 
 
+@dataclass(frozen=True)
+class ProductionRuntimePaths:
+    """Validated Parent-owned paths used by the full lifecycle."""
+
+    runtime_root: Path
+    smoke_root: Path
+    verified_root: Path
+    evidence: Path
+    parent_host: Path | None
+
+
+def _required_environment_value(environment: Mapping[str, str], name: str) -> str:
+    value = environment.get(name)
+    if not value:
+        raise NamespaceUnavailable(
+            "No-CRS namespace requires Parent-owned Lighttpd runtime roots"
+        )
+    return value
+
+
 def _bounded_timeout(value: str) -> float:
     try:
         parsed = float(value)
@@ -202,48 +242,51 @@ def _caller_identity() -> CallerIdentity:
     return CallerIdentity(uid=os.geteuid(), gid=os.getegid())
 
 
-def _require_trusted_system_executable(path: Path) -> None:
-    """Accept only a root-owned, non-writable executable below trusted dirs."""
-
-    if not path.is_absolute() or path.parent not in {Path("/usr/bin"), Path("/bin")}:
-        raise NamespaceUnavailable(f"trusted namespace binary path is invalid: {path}")
-    for directory in (Path("/"), Path("/usr"), Path("/usr/bin")):
-        try:
-            details = directory.lstat()
-        except OSError as error:
-            raise NamespaceUnavailable(f"cannot inspect trusted directory: {directory}") from error
-        if (
-            not stat.S_ISDIR(details.st_mode)
-            or details.st_uid != 0
-            or stat.S_IMODE(details.st_mode) & (stat.S_IWGRP | stat.S_IWOTH)
-        ):
-            raise NamespaceUnavailable(f"trusted directory is unsafe: {directory}")
+def _require_root_owned_directory(path: Path) -> None:
     try:
         details = path.lstat()
     except OSError as error:
-        raise NamespaceUnavailable(f"trusted namespace binary is unavailable: {path}") from error
-    if stat.S_ISLNK(details.st_mode):
-        try:
-            resolved = path.resolve(strict=True)
-            resolved_details = resolved.lstat()
-        except OSError as error:
-            raise NamespaceUnavailable(f"trusted namespace binary symlink is unsafe: {path}") from error
-        if (
-            resolved.parent != Path("/usr/bin")
-            or not stat.S_ISREG(resolved_details.st_mode)
-            or resolved_details.st_uid != 0
-            or stat.S_IMODE(resolved_details.st_mode) & (stat.S_IWGRP | stat.S_IWOTH)
-            or not resolved_details.st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        ):
-            raise NamespaceUnavailable(f"trusted namespace binary symlink is unsafe: {path}")
-        return
+        raise NamespaceUnavailable(f"cannot inspect trusted directory: {path}") from error
+    if (
+        not stat.S_ISDIR(details.st_mode)
+        or details.st_uid != 0
+        or stat.S_IMODE(details.st_mode) & (stat.S_IWGRP | stat.S_IWOTH)
+    ):
+        raise NamespaceUnavailable(f"trusted directory is unsafe: {path}")
+
+
+def _require_trusted_executable_file(path: Path, details: os.stat_result, label: str) -> None:
     if (
         not stat.S_ISREG(details.st_mode)
         or details.st_uid != 0
         or stat.S_IMODE(details.st_mode) & (stat.S_IWGRP | stat.S_IWOTH)
         or not details.st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     ):
-        raise NamespaceUnavailable(f"trusted namespace binary is unsafe: {path}")
+        raise NamespaceUnavailable(f"trusted namespace binary {label} is unsafe: {path}")
+
+
+def _require_trusted_system_executable(path: Path) -> None:
+    """Accept only a root-owned, non-writable executable below trusted dirs."""
+
+    if not path.is_absolute() or path.parent not in {SYSTEM_BIN_ROOT, SYSTEM_LINKED_BIN_ROOT}:
+        raise NamespaceUnavailable(f"trusted namespace binary path is invalid: {path}")
+    for directory in (_ROOT, _ROOT / "usr", SYSTEM_BIN_ROOT):
+        _require_root_owned_directory(directory)
+    try:
+        details = path.lstat()
+    except OSError as error:
+        raise NamespaceUnavailable(f"trusted namespace binary is unavailable: {path}") from error
+    if not stat.S_ISLNK(details.st_mode):
+        _require_trusted_executable_file(path, details, "file")
+        return
+    try:
+        resolved = path.resolve(strict=True)
+        resolved_details = resolved.lstat()
+    except OSError as error:
+        raise NamespaceUnavailable(f"trusted namespace binary symlink is unsafe: {path}") from error
+    if resolved.parent != SYSTEM_BIN_ROOT:
+        raise NamespaceUnavailable(f"trusted namespace binary symlink is unsafe: {path}")
+    _require_trusted_executable_file(path, resolved_details, "symlink target")
 
 
 def _require_trusted_system_binaries() -> None:
@@ -367,6 +410,38 @@ def _child_environment(base: Mapping[str, str]) -> dict[str, str]:
     return result
 
 
+def _production_runtime_paths(environment: Mapping[str, str]) -> ProductionRuntimePaths:
+    paths = ProductionRuntimePaths(
+        runtime_root=Path(_required_environment_value(environment, "RUNTIME_ROOT")),
+        smoke_root=Path(
+            _required_environment_value(environment, "LIGHTTPD_PATCHED_SMOKE_DIR")
+        ),
+        verified_root=Path(_required_environment_value(environment, "VERIFIED_RUN_ROOT")),
+        evidence=Path(
+            _required_environment_value(environment, "FULL_LIFECYCLE_EVIDENCE_OUTPUT")
+        ),
+        parent_host=Path(environment["PARENT_HOST_RUNTIME_ROOT"])
+        if environment.get("PARENT_HOST_RUNTIME_ROOT")
+        else None,
+    )
+    all_paths = (paths.runtime_root, paths.smoke_root, paths.verified_root, paths.evidence)
+    if not all(path.is_absolute() for path in all_paths):
+        raise NamespaceUnavailable("No-CRS namespace runtime roots must be absolute")
+    if paths.parent_host is not None and not paths.parent_host.is_absolute():
+        raise NamespaceUnavailable("No-CRS namespace Parent host runtime root must be absolute")
+    return paths
+
+
+def _expected_production_smoke_root(paths: ProductionRuntimePaths) -> Path:
+    with_crs_smoke = paths.runtime_root / "host"
+    no_crs_smoke = paths.verified_root / "lighttpd-runtime"
+    if paths.smoke_root == with_crs_smoke and paths.parent_host == with_crs_smoke:
+        return with_crs_smoke
+    if paths.smoke_root == no_crs_smoke and paths.parent_host is None:
+        return no_crs_smoke
+    raise NamespaceUnavailable("No-CRS namespace writable root is not an exact Parent Lighttpd runtime root")
+
+
 def _safe_production_writable_root(environment: Mapping[str, str]) -> Path:
     """Materialize exactly the Parent-owned Lighttpd host runtime root.
 
@@ -375,31 +450,9 @@ def _safe_production_writable_root(environment: Mapping[str, str]) -> Path:
     broad cache, or an arbitrary caller-selected directory.
     """
 
-    runtime_root_value = environment.get("RUNTIME_ROOT")
-    smoke_root_value = environment.get("LIGHTTPD_PATCHED_SMOKE_DIR")
-    parent_host_value = environment.get("PARENT_HOST_RUNTIME_ROOT")
-    verified_root_value = environment.get("VERIFIED_RUN_ROOT")
-    evidence_value = environment.get("FULL_LIFECYCLE_EVIDENCE_OUTPUT")
-    if not all((runtime_root_value, smoke_root_value, verified_root_value, evidence_value)):
-        raise NamespaceUnavailable("No-CRS namespace requires Parent-owned Lighttpd runtime roots")
-    runtime_root = Path(runtime_root_value)
-    smoke_root = Path(smoke_root_value)
-    parent_host = Path(parent_host_value) if parent_host_value else None
-    verified_root = Path(verified_root_value)
-    evidence = Path(evidence_value)
-    if not all(path.is_absolute() for path in (runtime_root, smoke_root, verified_root, evidence)):
-        raise NamespaceUnavailable("No-CRS namespace runtime roots must be absolute")
-    with_crs_smoke = runtime_root / "host"
-    no_crs_smoke = verified_root / "lighttpd-runtime"
-    if parent_host is not None and not parent_host.is_absolute():
-        raise NamespaceUnavailable("No-CRS namespace Parent host runtime root must be absolute")
-    if smoke_root == with_crs_smoke and parent_host == with_crs_smoke:
-        expected_smoke = with_crs_smoke
-    elif smoke_root == no_crs_smoke and parent_host is None:
-        expected_smoke = no_crs_smoke
-    else:
-        raise NamespaceUnavailable("No-CRS namespace writable root is not an exact Parent Lighttpd runtime root")
-    if evidence != expected_smoke / "first-byte-evidence.json":
+    paths = _production_runtime_paths(environment)
+    expected_smoke = _expected_production_smoke_root(paths)
+    if paths.evidence != expected_smoke / "first-byte-evidence.json":
         raise NamespaceUnavailable("No-CRS namespace evidence output is not the exact Parent runtime artifact")
     patched_root_value = environment.get("LIGHTTPD_PATCHED_ROOT")
     if not patched_root_value:
@@ -411,12 +464,12 @@ def _safe_production_writable_root(environment: Mapping[str, str]) -> Path:
             sys.path.insert(0, str(script_directory))
         from safe_runtime_output import verified_runtime_output_root
 
-        verified_runtime_output_root(smoke_root)
+        verified_runtime_output_root(paths.smoke_root)
     except (ImportError, OSError, ValueError) as error:
         raise NamespaceUnavailable("No-CRS namespace writable root is unsafe") from error
-    if smoke_root == PRIVATE_TMPFS_MOUNT or PRIVATE_TMPFS_MOUNT in smoke_root.parents:
+    if paths.smoke_root == PRIVATE_TMPFS_MOUNT or PRIVATE_TMPFS_MOUNT in paths.smoke_root.parents:
         raise NamespaceUnavailable("No-CRS namespace writable root must not overlay private /tmp")
-    return smoke_root
+    return paths.smoke_root
 
 
 def _require_production_harness(command: Sequence[str]) -> None:
@@ -469,6 +522,14 @@ def _readonly_runtime_bind_roots(environment: Mapping[str, str]) -> list[Path]:
     """Build the minimum read-only view required by the full host lifecycle."""
 
     repository_root = _repository_root()
+    _require_expected_connector_root(environment, repository_root)
+    candidate_roots = _runtime_bind_candidates(environment, repository_root)
+    return _deduplicate_runtime_bind_roots(candidate_roots)
+
+
+def _require_expected_connector_root(
+    environment: Mapping[str, str], repository_root: Path
+) -> None:
     connector_root = environment.get("CONNECTOR_ROOT")
     if connector_root is not None and Path(connector_root) != repository_root:
         raise NamespaceUnavailable("namespace CONNECTOR_ROOT is not the active Parent checkout")
@@ -478,11 +539,15 @@ def _readonly_runtime_bind_roots(environment: Mapping[str, str]) -> list[Path]:
     if framework_root != repository_root / "modules/ModSecurity-test-Framework":
         raise NamespaceUnavailable("namespace FRAMEWORK_ROOT is not the Parent framework gitlink")
 
-    candidate_roots = [repository_root]
+
+def _runtime_bind_candidates(
+    environment: Mapping[str, str], repository_root: Path
+) -> list[Path]:
+    candidates = [repository_root]
     for name in ("LIGHTTPD_PATCHED_ROOT", "MODSECURITY_LIB_DIR", "MODSECURITY_PREFIX"):
         value = environment.get(name)
         if value:
-            candidate_roots.append(Path(value))
+            candidates.append(Path(value))
     python_value = environment.get("PYTHON")
     if python_value and os.path.isabs(python_value):
         python_path = Path(python_value)
@@ -491,8 +556,11 @@ def _readonly_runtime_bind_roots(environment: Mapping[str, str]) -> list[Path]:
         except OSError as error:
             raise NamespaceUnavailable("namespace PYTHON is unavailable") from error
         if not _is_beneath(resolved_python, Path("/usr")):
-            candidate_roots.append(resolved_python.parent.parent)
+            candidates.append(resolved_python.parent.parent)
+    return candidates
 
+
+def _deduplicate_runtime_bind_roots(candidate_roots: Sequence[Path]) -> list[Path]:
     result: list[Path] = []
     trusted_roots = (*SYSTEM_READONLY_BINDS,)
     for candidate in candidate_roots:
@@ -652,6 +720,34 @@ def _seal_inherited_descriptors(kept: set[int]) -> None:
                 raise NamespaceUnavailable("cannot seal inherited namespace descriptor") from error
 
 
+def _require_setup_child_running(child: int) -> None:
+    try:
+        pid, _status = os.waitpid(child, os.WNOHANG)
+    except ChildProcessError:
+        raise NamespaceUnavailable("namespace setup child disappeared") from None
+    if pid == child:
+        raise NamespaceUnavailable("trusted namespace setup did not attest readiness")
+
+
+def _parse_setup_attestation(payload: bytearray) -> bool:
+    try:
+        record = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    valid = (
+        isinstance(record, dict)
+        and isinstance(record.get("child-pid"), int)
+        and record["child-pid"] > 0
+        and isinstance(record.get("mnt-namespace"), int)
+        and record["mnt-namespace"] > 0
+        and isinstance(record.get("pid-namespace"), int)
+        and record["pid-namespace"] > 0
+    )
+    if not valid:
+        raise NamespaceUnavailable("trusted namespace setup attestation is invalid")
+    return True
+
+
 def _read_setup_attestation(descriptor: int, child: int) -> None:
     """Require bwrap's setup record before treating later exits as harness exits."""
 
@@ -661,12 +757,7 @@ def _read_setup_attestation(descriptor: int, child: int) -> None:
         while time.monotonic() < deadline:
             ready, _write, _error = select.select([descriptor], [], [], 0.05)
             if not ready:
-                try:
-                    pid, _status = os.waitpid(child, os.WNOHANG)
-                except ChildProcessError:
-                    raise NamespaceUnavailable("namespace setup child disappeared") from None
-                if pid == child:
-                    raise NamespaceUnavailable("trusted namespace setup did not attest readiness")
+                _require_setup_child_running(child)
                 continue
             chunk = os.read(descriptor, 4096)
             if not chunk:
@@ -674,21 +765,8 @@ def _read_setup_attestation(descriptor: int, child: int) -> None:
             payload.extend(chunk)
             if len(payload) > 16384:
                 raise NamespaceUnavailable("trusted namespace setup attestation is too large")
-            try:
-                record = json.loads(payload.decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError):
-                continue
-            if (
-                not isinstance(record, dict)
-                or not isinstance(record.get("child-pid"), int)
-                or record["child-pid"] <= 0
-                or not isinstance(record.get("mnt-namespace"), int)
-                or record["mnt-namespace"] <= 0
-                or not isinstance(record.get("pid-namespace"), int)
-                or record["pid-namespace"] <= 0
-            ):
-                raise NamespaceUnavailable("trusted namespace setup attestation is invalid")
-            return
+            if _parse_setup_attestation(payload):
+                return
     finally:
         os.close(descriptor)
     raise NamespaceUnavailable("trusted namespace setup attestation timed out")
@@ -750,6 +828,23 @@ def _wait_for_child(child: int, timeout_seconds: float) -> int:
             signal.signal(signum, handler)
 
 
+def _exec_namespace_child(setup_read: int, setup_write: int, arguments: Sequence[str]) -> None:
+    """Enter the supervisor chain, preserving fail-closed child exits."""
+
+    try:
+        os.close(setup_read)
+        os.setsid()
+        _arm_parent_death_signal()
+        _seal_inherited_descriptors({0, 1, 2, setup_write})
+        os.execve(str(TRUSTED_UNSHARE), arguments, {"PATH": SAFE_PATH})
+    except NamespaceUnavailable as error:
+        print(f"No-CRS namespace blocked: {error}", file=sys.stderr)
+        os._exit(EXIT_BLOCKED)
+    except Exception as error:
+        print(f"No-CRS namespace setup failed: {error}", file=sys.stderr)
+        os._exit(126)
+
+
 def run_isolated(
     command: Sequence[str],
     *,
@@ -775,24 +870,13 @@ def run_isolated(
         )
         child = os.fork()
         if child == 0:
-            try:
-                os.close(setup_read)
-                os.setsid()
-                _arm_parent_death_signal()
-                _seal_inherited_descriptors({0, 1, 2, setup_write})
-                os.execve(str(TRUSTED_UNSHARE), arguments, {"PATH": SAFE_PATH})
-            except NamespaceUnavailable as error:
-                print(f"No-CRS namespace blocked: {error}", file=sys.stderr)
-                os._exit(EXIT_BLOCKED)
-            except BaseException as error:
-                print(f"No-CRS namespace setup failed: {error}", file=sys.stderr)
-                os._exit(126)
+            _exec_namespace_child(setup_read, setup_write, arguments)
         os.close(setup_write)
         setup_write = -1
         _read_setup_attestation(setup_read, child)
         setup_read = -1
         return _wait_for_child(child, timeout_seconds)
-    except BaseException:
+    except (Exception, KeyboardInterrupt, SystemExit):
         if child > 0:
             _terminate_and_reap(child)
         raise

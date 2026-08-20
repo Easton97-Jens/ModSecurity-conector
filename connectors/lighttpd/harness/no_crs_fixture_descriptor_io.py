@@ -46,6 +46,9 @@ MAX_HEADER_BYTES = 64 * 1024
 MAX_DIAGNOSTIC_BYTES = 64 * 1024
 MAX_TIMEOUT_SECONDS = 30.0
 MAX_CURL_OUTPUT_BYTES = MAX_HEADER_BYTES + 3
+HTTP_STATUS_LINE = re.compile(rb"HTTP/1\.1 200 [\x20-\x7e]+")
+CONTENT_LENGTH_VALUE = re.compile(rb"[0-9]+")
+STATUS_CODE_VALUE = re.compile(rb"[0-9]{3}")
 
 _CURL_CASES = {
     "content-length": (
@@ -114,8 +117,8 @@ def create_fixture_directory(args: argparse.Namespace) -> int:
 
 
 def verify_fixture_directory(args: argparse.Namespace) -> int:
-    with open_fixture_directory(args):
-        pass
+    directory = open_fixture_directory(args)
+    directory.close()
     print("verified")
     return 0
 
@@ -202,7 +205,7 @@ def _parse_response_headers(value: bytes, case: str) -> list[tuple[bytes, bytes]
     if value.count(b"\r\n\r\n") != 1 or not value.endswith(b"\r\n\r\n"):
         raise ValueError(f"{case} response must contain exactly one complete HTTP header block")
     lines = value[:-4].split(b"\r\n")
-    if not lines or not re.fullmatch(rb"HTTP/1\.1 200 [\x20-\x7e]+", lines[0]):
+    if not lines or HTTP_STATUS_LINE.fullmatch(lines[0]) is None:
         raise ValueError(f"{case} response has an unexpected HTTP status line")
     parsed: list[tuple[bytes, bytes]] = []
     for line in lines[1:]:
@@ -218,7 +221,7 @@ def _validate_case_headers(case: str, value: bytes) -> None:
     content_length = [header for name, header in headers if name == b"content-length"]
     transfer_encoding = [header for name, header in headers if name == b"transfer-encoding"]
     if case == "content-length":
-        if len(content_length) != 1 or not re.fullmatch(rb"[0-9]+", content_length[0]):
+        if len(content_length) != 1 or CONTENT_LENGTH_VALUE.fullmatch(content_length[0]) is None:
             raise ValueError("Content-Length fixture response lost its Content-Length boundary")
         if any(value.lower() == b"chunked" for value in transfer_encoding):
             raise ValueError("Content-Length fixture response was relabelled as chunked")
@@ -308,7 +311,7 @@ def curl_fixture_case(args: argparse.Namespace) -> int:
             ],
             args.case,
         )
-        if len(response) < 3 or not re.fullmatch(rb"[0-9]{3}", response[-3:]):
+        if len(response) < 3 or STATUS_CODE_VALUE.fullmatch(response[-3:]) is None:
             raise ValueError(f"{args.case} fixture curl did not emit one HTTP status")
         status = response[-3:]
         headers = response[:-3]
@@ -398,10 +401,8 @@ def main(argv: list[str] | None = None) -> int:
         return args.handler(args)
     except (
         entity_fixture.FixtureError,
-        FileNotFoundError,
         OSError,
         ValueError,
-        json.JSONDecodeError,
         subprocess.TimeoutExpired,
     ) as error:
         print(f"no_crs_fixture_descriptor_io: {error}", file=sys.stderr)

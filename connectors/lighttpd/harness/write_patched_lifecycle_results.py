@@ -72,6 +72,7 @@ P4_SEMANTIC_FIELDS = (
     "end_of_stream_evaluation",
 )
 NON_OBJECT_ERROR = "{path}:{line_number} is not an object"
+ENTITY_FIXTURE_RESULT_LABEL = "entity fixture result"
 
 
 def has_transaction_id(event: dict[str, Any]) -> bool:
@@ -237,7 +238,7 @@ def load_fixture_result(
     """Load one actual fixture result through one selected safe transport."""
 
     if path is not None:
-        raw = read_runtime_input_text(root, path, "entity fixture result")
+        raw = read_runtime_input_text(root, path, ENTITY_FIXTURE_RESULT_LABEL)
     else:
         if (
             fixture_directory_name is None
@@ -251,7 +252,7 @@ def load_fixture_result(
             identity=fixture_directory_identity,
         ) as directory:
             raw = directory.read_text(
-                "result.json", "entity fixture result", maximum_bytes=64 * 1024
+                "result.json", ENTITY_FIXTURE_RESULT_LABEL, maximum_bytes=64 * 1024
             )
     value = json.loads(raw)
     if not isinstance(value, dict):
@@ -324,6 +325,148 @@ def write_summary(
     )
 
 
+def _resolve_fixture_result_mode(
+    args: argparse.Namespace, output_root: Path
+) -> tuple[Path | None, str | None, str | None, Path | None]:
+    fixture_path_mode = args.entity_fixture_result is not None
+    descriptor_values = (
+        args.entity_fixture_directory_name,
+        args.entity_fixture_directory_identity,
+        args.entity_fixture_runtime_output_root,
+    )
+    fixture_descriptor_mode = all(value is not None for value in descriptor_values)
+    if fixture_path_mode == fixture_descriptor_mode:
+        raise ValueError("select exactly one pathname or descriptor entity-fixture-result mode")
+    fixture_result_path = (
+        safe_input_path(output_root, args.entity_fixture_result, ENTITY_FIXTURE_RESULT_LABEL)
+        if fixture_path_mode
+        else None
+    )
+    return (
+        fixture_result_path,
+        args.entity_fixture_directory_name,
+        args.entity_fixture_directory_identity,
+        args.entity_fixture_runtime_output_root,
+    )
+
+
+def _prepare_inputs(
+    args: argparse.Namespace, output_root: Path, run_id: str
+) -> tuple[list[dict[str, Any]], set[str], int, int, dict[str, Any], Path, Path]:
+    events_path = safe_input_path(output_root, args.events, "events input")
+    phase4_safe_events_path = safe_input_path(
+        output_root, args.phase4_safe_events, "phase-4 safe events input"
+    )
+    first_byte_evidence_path = safe_input_path(
+        output_root, args.phase4_first_byte_evidence, "phase-4 first-byte evidence input"
+    )
+    content_length_events_path = safe_input_path(
+        output_root, args.content_length_events, "Content-Length events input"
+    )
+    chunked_events_path = safe_input_path(
+        output_root, args.chunked_events, "chunked events input"
+    )
+    fixture_path, directory_name, directory_identity, fixture_root = _resolve_fixture_result_mode(
+        args, output_root
+    )
+    events = load_events(events_path, non_object_error=NON_OBJECT_ERROR)
+    content_length_bytes, chunked_bytes = load_fixture_result(
+        output_root,
+        fixture_path,
+        fixture_directory_name=directory_name,
+        fixture_directory_identity=directory_identity,
+        fixture_runtime_root=fixture_root,
+    )
+    validate_entity_boundary(
+        content_length_events_path,
+        expected_bytes=content_length_bytes,
+        label="Content-Length entity boundary",
+    )
+    validate_entity_boundary(
+        chunked_events_path,
+        expected_bytes=chunked_bytes,
+        label="chunked entity boundary",
+    )
+    raw_safe_event = one_safe_phase4_event(
+        load_events(phase4_safe_events_path, non_object_error=NON_OBJECT_ERROR),
+        "synchronized first-byte barrier",
+    )
+    safe_event = one_safe_phase4_event(
+        [
+            write_eos_projection(
+                output_root,
+                args.phase4_projected_events_output,
+                raw_safe_event,
+                run_id=run_id,
+            )
+        ],
+        "synchronized first-byte barrier EOS projection",
+    )
+    if args.phase4_safe_status != 200:
+        raise ValueError("safe Phase-4 HTTP/1.1 client status must remain 200")
+    return (
+        events,
+        requested_cases(args.selected_case_ids),
+        content_length_bytes,
+        chunked_bytes,
+        safe_event,
+        events_path,
+        first_byte_evidence_path,
+    )
+
+
+def _selected_rows(
+    args: argparse.Namespace,
+    events: list[dict[str, Any]],
+    selected: set[str],
+    safe_event: dict[str, Any],
+    events_path: Path,
+    first_byte_evidence_path: Path,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if "allow_without_marker" in selected:
+        rows.append(
+            {
+                "case_id": "allow_without_marker",
+                "status": "PASS" if args.allow_status == 200 else "FAIL",
+                "actual_status": args.allow_status,
+                "live_executed": True,
+                "observed_transport_result": "http_status",
+                "reason": "real patched-lighttpd allow request",
+            }
+        )
+    statuses = {
+        "deny_header_marker_403": args.deny_status,
+        "deny_with_alternative_status": args.alternative_status,
+        "deny_request_body_marker_403": args.request_body_status,
+        "deny_response_header_marker_403": args.response_header_status,
+        "phase3_deny_before_commit": args.response_header_status,
+        "phase3_original_and_visible_status": args.response_header_status,
+    }
+    for case_id, actual_status in statuses.items():
+        if case_id in selected:
+            rule_id, expected_status = CASE_RULES[case_id]
+            rows.append(
+                result_row(
+                    case_id,
+                    actual_status,
+                    host_confirmed_event(events, rule_id, expected_status),
+                    events_path,
+                )
+            )
+    for case_id in P4_SAFE_CASE_IDS + P4_BARRIER_CASE_IDS:
+        if case_id in selected:
+            rows.append(
+                phase4_result_row(
+                    case_id,
+                    safe_event,
+                    args.phase4_projected_events_output,
+                    first_byte_evidence=first_byte_evidence_path,
+                )
+            )
+    return rows
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--events", required=True, type=Path)
@@ -354,129 +497,12 @@ def main() -> int:
         parser.error(str(error))
     output_root = verified_runtime_output_root(args.runtime_output_root)
 
-    events_path = safe_input_path(output_root, args.events, "events input")
-    phase4_safe_events_path = safe_input_path(
-        output_root, args.phase4_safe_events, "phase-4 safe events input"
+    events, selected, content_length_bytes, chunked_bytes, safe_event, events_path, first_byte_evidence_path = _prepare_inputs(
+        args, output_root, run_id
     )
-    first_byte_evidence_path = safe_input_path(
-        output_root,
-        args.phase4_first_byte_evidence,
-        "phase-4 first-byte evidence input",
+    rows = _selected_rows(
+        args, events, selected, safe_event, events_path, first_byte_evidence_path
     )
-    content_length_events_path = safe_input_path(
-        output_root, args.content_length_events, "Content-Length events input"
-    )
-    chunked_events_path = safe_input_path(
-        output_root, args.chunked_events, "chunked events input"
-    )
-    fixture_result_path: Path | None = None
-    fixture_path_mode = args.entity_fixture_result is not None
-    fixture_descriptor_mode = all(
-        value is not None
-        for value in (
-            args.entity_fixture_directory_name,
-            args.entity_fixture_directory_identity,
-            args.entity_fixture_runtime_output_root,
-        )
-    )
-    if fixture_path_mode == fixture_descriptor_mode:
-        parser.error("select exactly one pathname or descriptor entity-fixture-result mode")
-    if fixture_path_mode:
-        fixture_result_path = safe_input_path(
-            output_root, args.entity_fixture_result, "entity fixture result"
-        )
-
-    events = load_events(events_path, non_object_error=NON_OBJECT_ERROR)
-    selected = requested_cases(args.selected_case_ids)
-    content_length_bytes, chunked_bytes = load_fixture_result(
-        output_root,
-        fixture_result_path,
-        fixture_directory_name=args.entity_fixture_directory_name,
-        fixture_directory_identity=args.entity_fixture_directory_identity,
-        fixture_runtime_root=args.entity_fixture_runtime_output_root,
-    )
-    validate_entity_boundary(
-        content_length_events_path,
-        expected_bytes=content_length_bytes,
-        label="Content-Length entity boundary",
-    )
-    validate_entity_boundary(
-        chunked_events_path,
-        expected_bytes=chunked_bytes,
-        label="chunked entity boundary",
-    )
-    raw_safe_event = one_safe_phase4_event(
-        load_events(phase4_safe_events_path, non_object_error=NON_OBJECT_ERROR),
-        "synchronized first-byte barrier",
-    )
-    safe_event = one_safe_phase4_event(
-        [
-            write_eos_projection(
-                output_root,
-                args.phase4_projected_events_output,
-                raw_safe_event,
-                run_id=run_id,
-            )
-        ],
-        "synchronized first-byte barrier EOS projection",
-    )
-    if args.phase4_safe_status != 200:
-        raise ValueError("safe Phase-4 HTTP/1.1 client status must remain 200")
-
-    rows: list[dict[str, Any]] = []
-    if "allow_without_marker" in selected:
-        rows.append(
-            {
-                "case_id": "allow_without_marker",
-                "status": "PASS" if args.allow_status == 200 else "FAIL",
-                "actual_status": args.allow_status,
-                "live_executed": True,
-                "observed_transport_result": "http_status",
-                "reason": "real patched-lighttpd allow request",
-            }
-        )
-
-    statuses = {
-        "deny_header_marker_403": args.deny_status,
-        "deny_with_alternative_status": args.alternative_status,
-        "deny_request_body_marker_403": args.request_body_status,
-        "deny_response_header_marker_403": args.response_header_status,
-        "phase3_deny_before_commit": args.response_header_status,
-        "phase3_original_and_visible_status": args.response_header_status,
-    }
-    for case_id, actual_status in statuses.items():
-        if case_id not in selected:
-            continue
-        rule_id, expected_status = CASE_RULES[case_id]
-        rows.append(
-            result_row(
-                case_id,
-                actual_status,
-                host_confirmed_event(events, rule_id, expected_status),
-                args.events,
-            )
-        )
-
-    for case_id in P4_SAFE_CASE_IDS:
-        if case_id in selected:
-            rows.append(
-                phase4_result_row(
-                    case_id,
-                    safe_event,
-                    args.phase4_projected_events_output,
-                    first_byte_evidence=first_byte_evidence_path,
-                )
-            )
-    for case_id in P4_BARRIER_CASE_IDS:
-        if case_id in selected:
-            rows.append(
-                phase4_result_row(
-                    case_id,
-                    safe_event,
-                    args.phase4_projected_events_output,
-                    first_byte_evidence=first_byte_evidence_path,
-                )
-            )
 
     write_text_atomic(
         output_root,

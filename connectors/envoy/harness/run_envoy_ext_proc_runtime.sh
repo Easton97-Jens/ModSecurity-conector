@@ -74,10 +74,9 @@ upstream_start_token=
 
 print_runtime_log() {
     log_path=$1
-    if [ -f "$log_path" ] && [ ! -L "$log_path" ]; then
-        if ! sed -n "$ENVIRONMENT_LOG_LINES" "$log_path" >&2; then
-            echo "envoy_ext_proc_runtime: diagnostic log could not be read: $log_path" >&2
-        fi
+    if [ -f "$log_path" ] && [ ! -L "$log_path" ] &&
+        ! sed -n "$ENVIRONMENT_LOG_LINES" "$log_path" >&2; then
+        echo "envoy_ext_proc_runtime: diagnostic log could not be read: $log_path" >&2
     fi
 }
 
@@ -109,11 +108,13 @@ owned_process_start_token() {
     owned_pid=$1
     case "$owned_pid" in
         ''|*[!0-9]*) return 1 ;;
+        *) ;;
     esac
     [ -r "/proc/$owned_pid/stat" ] || return 1
     owned_token=$(owned_process_stat_value "$owned_pid" starttime) || return 1
     case "$owned_token" in
         ''|*[!0-9]*) return 1 ;;
+        *) ;;
     esac
     printf '%s\n' "$owned_token"
 }
@@ -192,19 +193,18 @@ stop_owned_process() {
             echo "envoy_ext_proc_runtime: could not send TERM to owned $process_label PID $owned_pid" >&2
             return 1
         fi
-        if ! wait_for_owned_process_stop "$owned_pid" "$expected_token" "$process_label"; then
-            if kill -0 "$owned_pid" 2>/dev/null; then
-                if ! owned_process_is_current "$owned_pid" "$expected_token"; then
-                    return 1
-                fi
-                if ! kill -KILL "$owned_pid" 2>/dev/null && kill -0 "$owned_pid" 2>/dev/null; then
-                    echo "envoy_ext_proc_runtime: could not send KILL to owned $process_label PID $owned_pid" >&2
-                    return 1
-                fi
-                if ! wait_for_owned_process_stop "$owned_pid" "$expected_token" "$process_label"; then
-                    echo "envoy_ext_proc_runtime: owned $process_label PID $owned_pid did not stop within bounded timeout" >&2
-                    return 1
-                fi
+        if ! wait_for_owned_process_stop "$owned_pid" "$expected_token" "$process_label" &&
+            kill -0 "$owned_pid" 2>/dev/null; then
+            if ! owned_process_is_current "$owned_pid" "$expected_token"; then
+                return 1
+            fi
+            if ! kill -KILL "$owned_pid" 2>/dev/null && kill -0 "$owned_pid" 2>/dev/null; then
+                echo "envoy_ext_proc_runtime: could not send KILL to owned $process_label PID $owned_pid" >&2
+                return 1
+            fi
+            if ! wait_for_owned_process_stop "$owned_pid" "$expected_token" "$process_label"; then
+                echo "envoy_ext_proc_runtime: owned $process_label PID $owned_pid did not stop within bounded timeout" >&2
+                return 1
             fi
         fi
     fi

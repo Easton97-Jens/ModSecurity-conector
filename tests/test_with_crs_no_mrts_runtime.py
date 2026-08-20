@@ -563,6 +563,32 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "symlink|overwrite"):
                 NORMALIZER.atomic_write(link, b"nope\n", evidence)
 
+    def test_evidence_replacement_between_lstat_and_open_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-normalizer-identity-") as temporary:
+            root = Path(temporary)
+            evidence = root / "evidence"
+            evidence.mkdir(mode=0o700)
+            target = evidence / "record.json"
+            private_file(target, b"original\n")
+            displaced = evidence / "record.original"
+            real_open = NORMALIZER.os.open
+            replaced = False
+
+            def replace_before_open(path, flags, mode=0o777, *, dir_fd=None):
+                nonlocal replaced
+                if path == target.name and dir_fd is not None and not replaced:
+                    replaced = True
+                    target.rename(displaced)
+                    private_file(target, b"replacement\n")
+                return real_open(path, flags, mode, dir_fd=dir_fd)
+
+            with mock.patch.object(NORMALIZER.os, "open", side_effect=replace_before_open):
+                with self.assertRaisesRegex(RuntimeError, "between validation and open"):
+                    NORMALIZER.open_contained_regular(target, evidence)
+            self.assertTrue(replaced)
+            self.assertEqual(displaced.read_bytes(), b"original\n")
+            self.assertEqual(target.read_bytes(), b"replacement\n")
+
     def test_normalizer_rejects_pass_marker_without_host_evidence(self) -> None:
         for connector in ("envoy", "traefik", "lighttpd"):
             with self.subTest(connector=connector), tempfile.TemporaryDirectory(prefix="crs-static-evidence-") as temporary:
@@ -899,6 +925,50 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             event = json.loads(event_path.read_text(encoding="utf-8"))
             self.assertEqual(event["run_id"], long_run_id)
             self.assertEqual(event["request_id"], request_ids["block"])
+
+    def test_lighttpd_accepts_curl_info_framing_without_relaxing_exchange_checks(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-lighttpd-wire-info-") as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime"
+            self.make_observation(runtime, connector="lighttpd")
+            self.make_lighttpd_host_evidence(runtime)
+            trace_path = runtime / "crs-request-evidence" / "block.curl.trace"
+            trace = trace_path.read_text(encoding="ascii")
+            info_trace = trace.replace(
+                "* Request completely sent off\n",
+                "== Info: sent request bytes\n"
+                "== Info: Request completely sent off\n",
+            )
+            private_file(trace_path, info_trace)
+
+            event_path, _ = self.normalize("lighttpd", root, runtime)
+            event = json.loads(event_path.read_text(encoding="utf-8"))
+            self.assertEqual(event["request_id"], "block-request-lighttpd")
+
+            with self.assertRaisesRegex(RuntimeError, "exactly one request exchange"):
+                private_file(
+                    trace_path,
+                    info_trace.replace(
+                        "== Info: Request completely sent off\n",
+                        "== Info: Request completely sent off\n"
+                        "== Info: Request completely sent off\n",
+                    ),
+                )
+                self.normalize("lighttpd", root, runtime)
+
+    def test_lighttpd_rejects_arbitrary_curl_info_row(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-lighttpd-wire-info-reject-") as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime"
+            self.make_observation(runtime, connector="lighttpd")
+            self.make_lighttpd_host_evidence(runtime)
+            trace_path = runtime / "crs-request-evidence" / "block.curl.trace"
+            trace = trace_path.read_text(encoding="ascii").replace(
+                "* Request completely sent off\n",
+                "* attacker-controlled note\n* Request completely sent off\n",
+            )
+            with self.assertRaisesRegex(RuntimeError, "unexpected outgoing-header row"):
+                NORMALIZER.lighttpd_request_lines(trace, "block")
 
     def test_lighttpd_rejects_noncontiguous_or_invalid_wire_offset_span(self) -> None:
         for mutation, expected in (

@@ -73,6 +73,8 @@ FIRST_BYTE_EVIDENCE_FILENAME = "first-byte-evidence.json"
 ENGINE_SOCKET_FILENAME = "engine.sock"
 ENGINE_SOCKET_PARENT_LABEL = "Traefik engine socket parent"
 ENGINE_SOCKET_DIRECTORY_RANDOM_HEX_LENGTH = 16
+ENGINE_STDERR_LOG_FILENAME = "engine.stderr.log"
+TRAEFIK_STDOUT_LOG_FILENAME = "traefik.stdout.log"
 # Linux sockaddr_un traditionally permits 107 pathname bytes plus NUL. Keep a
 # margin so a pinned host with a shorter implementation cannot silently turn
 # a long canonical run root into an engine-start failure.
@@ -1506,7 +1508,7 @@ def cleanup_staged_runtime_workspaces(
             shutil.rmtree(workspace)
             if workspace.exists() or workspace.is_symlink():
                 return False
-    except (OSError, RuntimeError, MissingDependency):
+    except (OSError, RuntimeError):
         return False
     return True
 
@@ -1565,7 +1567,7 @@ def run_native_requests(
         inputs.runtime_root, artifacts.logs_dir, inputs.include_dir, inputs.library_dir
     )
     with (artifacts.logs_dir / "engine.stdout.log").open("wb") as engine_stdout, (
-        artifacts.logs_dir / "engine.stderr.log"
+        artifacts.logs_dir / ENGINE_STDERR_LOG_FILENAME
     ).open("wb") as engine_stderr:
         processes.engine = subprocess.Popen(
             [
@@ -1581,7 +1583,7 @@ def run_native_requests(
             stderr=engine_stderr,
         )
         wait_for_socket(setup.engine_socket, processes.engine, "persistent Traefik engine service")
-        with (artifacts.logs_dir / "traefik.stdout.log").open("wb") as stdout, (
+        with (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).open("wb") as stdout, (
             artifacts.logs_dir / "traefik.stderr.log"
         ).open("wb") as stderr:
             processes.traefik = subprocess.Popen(
@@ -1666,7 +1668,7 @@ def run_crs_requests(
         inputs.runtime_root, artifacts.logs_dir, inputs.include_dir, inputs.library_dir
     )
     with (artifacts.logs_dir / "engine.stdout.log").open("wb") as engine_stdout, (
-        artifacts.logs_dir / "engine.stderr.log"
+        artifacts.logs_dir / ENGINE_STDERR_LOG_FILENAME
     ).open("wb") as engine_stderr:
         processes.engine = subprocess.Popen(
             [
@@ -1682,7 +1684,7 @@ def run_crs_requests(
             stderr=engine_stderr,
         )
         wait_for_socket(setup.engine_socket, processes.engine, "persistent Traefik CRS engine service")
-        with (artifacts.logs_dir / "traefik.stdout.log").open("wb") as stdout, (
+        with (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).open("wb") as stdout, (
             artifacts.logs_dir / "traefik.stderr.log"
         ).open("wb") as stderr:
             processes.traefik = subprocess.Popen(
@@ -1734,7 +1736,6 @@ def run_crs_requests(
 
 
 def finalize_crs_host_observations(
-    inputs: NativeRuntimeInputs,
     artifacts: NativeRuntimeArtifacts,
     results: CrsRequestResults,
 ) -> tuple[dict[str, Any] | None, dict[str, Any], dict[str, Any]]:
@@ -1768,7 +1769,7 @@ def finalize_crs_host_observations(
     if bypass_event is None:
         raise RuntimeError("Traefik CRS bypass event is not bound to its transformed transaction")
 
-    engine_log = artifacts.logs_dir / "engine.stderr.log"
+    engine_log = artifacts.logs_dir / ENGINE_STDERR_LOG_FILENAME
     if not engine_log.is_file():
         raise RuntimeError("Traefik CRS engine stderr evidence is missing")
     raw_lines = engine_log.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -1822,7 +1823,7 @@ def write_crs_success(
             "connector": "traefik",
             "engine_mode": "uds",
             "integration_mode": "native-traefik-middleware",
-            "plugin_loaded": "Plugins loaded." in (artifacts.logs_dir / "traefik.stdout.log").read_text(
+            "plugin_loaded": "Plugins loaded." in (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).read_text(
                 encoding="utf-8", errors="replace"
             ),
             "processes_stopped": processes_stopped,
@@ -1837,7 +1838,7 @@ def write_crs_success(
                 "status": results.block_status,
                 "observed_rule_id": str(block_event.get("rule_id")),
                 "trigger_rule_id": CRS_RULE_ID,
-                "raw_trigger_log": "logs/engine.stderr.log",
+                "raw_trigger_log": f"logs/{ENGINE_STDERR_LOG_FILENAME}",
                 "intervention_rule_id": str(block_event.get("rule_id")),
                 "observed_event": block_event,
             },
@@ -1849,7 +1850,7 @@ def write_crs_success(
                 "response_bytes": results.bypass_bytes,
                 "observed_rule_id": str(bypass_event.get("rule_id")),
                 "trigger_rule_id": CRS_RULE_ID,
-                "raw_trigger_log": "logs/engine.stderr.log",
+                "raw_trigger_log": f"logs/{ENGINE_STDERR_LOG_FILENAME}",
                 "intervention_rule_id": str(bypass_event.get("rule_id")),
                 "observed_event": bypass_event,
             },
@@ -1864,7 +1865,7 @@ def observe_live_native_host(
 ) -> NativeLiveObservation:
     """Require the expected plugin, streaming fixture, and keep-alive state."""
 
-    host_log = (artifacts.logs_dir / "traefik.stdout.log").read_text(
+    host_log = (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).read_text(
         encoding="utf-8", errors="replace"
     )
     plugin_loaded = "Plugins loaded." in host_log and PLUGIN_ID in host_log
@@ -2077,7 +2078,7 @@ def run() -> int:
         if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1":
             crs_results = run_crs_requests(inputs, artifacts, setup, processes)
             traefik_stopped, engine_stopped = stop_native_processes(processes)
-            crs_events = finalize_crs_host_observations(inputs, artifacts, crs_results)
+            crs_events = finalize_crs_host_observations(artifacts, crs_results)
             write_crs_success(
                 inputs,
                 artifacts,

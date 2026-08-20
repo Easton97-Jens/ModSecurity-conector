@@ -12,7 +12,7 @@
 | Beobachteter aktueller `origin/master` | `ab9cb2c276f159397ec2558b2d58cc260fd66ce2` |
 | Parent → Framework Pin | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | Framework → MRTS Pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery-Status | Draft-PR autorisiert; Exact-Head-Hosted-Validierung ausstehend. Dieser Record behauptet keinen PR, Commit, Push, erfolgreichen Hosted-Check oder Merge. |
+| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der frühere gepushte Head `c7039ee4bcc5e92b8494a936468a8291829da5cb` benötigte Nachbesserung; auch diese Follow-up-Revision benötigt noch Exact-Head-Hosted-Validierung. Kein Merge und kein Auto-Merge sind autorisiert. |
 
 Der Task-Worktree wurde von der aufgezeichneten Task-Basis erstellt.
 `origin/master` ist anschließend auf den separat aufgezeichneten aktuellen Wert
@@ -169,7 +169,7 @@ lokal verifizierten Produktions-Runtime-Ergebnis befördert.
 | C-Modul-Build | bestanden mit `-Wall`, `-Wextra` und `-Werror` |
 | Clang Static Analyzer | bestanden: 0 Diagnosen |
 | Envoy- und Traefik-Go-Validierung | `go mod verify`, Dependency-Auflistung, Tests, Vet und `govulncheck` bestanden; keine Schwachstellen gefunden |
-| Parent-Runtime-Tests | bestanden: 31 Tests |
+| Parent-Runtime-Tests | bestanden: 34 Tests; die task-lokalen Btrfs-Verzeichnis-Haltbarkeitsbarrieren waren langsam, endeten aber ohne Entfernung einer Atomicity-Kontrolle |
 | `test_collect` unter dem Framework-Override | bestanden: 42 Tests; 3 Framework-gated Skips |
 | Python-Dependency-Validierung | `pip check` bestanden |
 | Shell-/Python-/YAML-Validierung | Shell-Syntax, Python-Kompilierung, YAML-Parsing und Diff-Checks bestanden |
@@ -178,12 +178,21 @@ lokal verifizierten Produktions-Runtime-Ergebnis befördert.
 
 ## Runtime-Evidence
 
-Dieser Record behauptet keine finale Runtime-Evidence. Insbesondere gibt es
-noch keinen exakten finalen Task-Head, keinen Hosted-Workflow-Lauf, keine
-SonarQube-Cloud-Analyse, kein Required-Check-Ergebnis und keine Pull-
-Request-Evidence zu berichten. Vorläufige Connector-Arbeit und
-Static-Validierung ersetzen keine reale Host-Runtime-Evidence für die drei
-beförderten Matrixzellen.
+Der Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309)
+wurde für den früheren exakten Head
+`c7039ee4bcc5e92b8494a936468a8291829da5cb` erstellt. Sein Hosted-Workflow-Lauf
+`32423859019` war nicht erfolgreich: Envoy und Traefik endeten erfolgreich,
+während Lighttpd ein neueres informatives Curl-Trace-Format ablehnte und
+Apache/HAProxy einen zu breiten Komponenten-Build anforderten. Diese
+task-eigenen Ursachen sind in der ausstehenden Follow-up-Revision adressiert;
+dies ist jedoch keine Evidence für einen späteren Head. Auch die früheren
+Hosted-Ergebnisse von actionlint und SonarQube benötigten Nachbesserung.
+
+Dieser Record behauptet keine finale Runtime-Evidence. Insbesondere besitzt
+der Follow-up-Head noch keinen abgeschlossenen Hosted-Workflow, keine
+SonarQube-Cloud-Analyse und kein Required-Check-Ergebnis. Vorläufige
+Connector-Arbeit und Static-Validierung ersetzen keine reale Host-Runtime-
+Evidence für die drei beförderten Matrixzellen.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -191,10 +200,11 @@ Folgendes bleibt ausstehend oder war lokal nicht verfügbar: vollständige
 Drei-Connector-Lokal-Runtime-Validierung in einer Namespace-Umgebung mit
 Nicht-root-Capability (die reale Nicht-root-Namespace-Integration wartet auf
 einen Hosted-Runner); Full-Matrix-Workflow-Validierung; GitHub-Hosted-
-Required-Checks; CodeQL/Secret-Scanning/OSV; actionlint, zizmor, Ruff und
-Pyright waren in der lokalen Umgebung nicht verfügbar; SonarQube Cloud sowie
-finale PR-Exact-Head-Validierung. Für keine dieser Prüfungen wird ein Ergebnis
-aus einem älteren Branch, PR oder einer Basis-Revision abgeleitet.
+Required-Checks; actionlint, zizmor, Ruff und Pyright waren in der lokalen
+Umgebung nicht verfügbar; SonarQube Cloud sowie finale PR-Exact-Head-
+Validierung. CodeQL, Secret Scanning, OSV und zizmor wurden nur für den
+früheren PR-Head beobachtet und nicht als Evidence für den ausstehenden
+Follow-up-Head wiederverwendet.
 
 ## Bekannte Einschränkungen
 
@@ -221,8 +231,8 @@ Exact-Head-Hosted-Checks und den erforderlichen Qualitäts-/Security-Gates ab.
 
 ## Finaler Diff- und Review-Status
 
-Status: in Arbeit; Draft-PR autorisiert, Exact-Head-Hosted-Validierung
+Status: in Arbeit; Draft-PR #309 vorhanden, Exact-Head-Hosted-Validierung
 ausstehend. Dieser Record dokumentiert eine autorisierte Parent-only-
-Implementierungsarbeit und ihre aktuellen Blocker. Er behauptet keinen Commit,
-Push, erstellten PR, Ready-for-Review-Übergang, erfolgreichen Hosted-Check,
-Merge, CI-Erfolg, SonarQube-Erfolg, vollständige Matrix oder Risikoakzeptanz.
+Implementierungsarbeit und ihre aktuellen Blocker. Er behauptet keinen
+Ready-for-Review-Übergang, erfolgreichen Hosted-Check, Merge, CI-Erfolg,
+SonarQube-Erfolg, vollständige Matrix oder Risikoakzeptanz.

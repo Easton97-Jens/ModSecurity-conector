@@ -40,7 +40,10 @@ is_safe_root() {
     value=$1
     case "$value" in /*) ;; *) return 1 ;; esac
     [ "$value" != / ] || return 1
-    case "$value" in "$CONNECTOR_ROOT"|"$CONNECTOR_ROOT"/*|"$FRAMEWORK_ROOT"|"$FRAMEWORK_ROOT"/*) return 1 ;; esac
+    case "$value" in
+        "$CONNECTOR_ROOT"|"$CONNECTOR_ROOT"/*|"$FRAMEWORK_ROOT"|"$FRAMEWORK_ROOT"/*) return 1 ;;
+        *) ;;
+    esac
     return 0
 }
 for root in "$TASK_ROOT" "$BUILD_ROOT" "$RUNTIME_ROOT" "$EVIDENCE_ROOT"; do
@@ -190,6 +193,7 @@ case "$CONNECTOR" in
     envoy) TARGET=runtime-smoke-envoy-ext-proc ;;
     traefik) TARGET=runtime-smoke-traefik-native ;;
     lighttpd) TARGET=runtime-smoke-lighttpd-patched ;;
+    *) echo "FAIL: unsupported connector target" >&2; exit 2 ;;
 esac
 export VERIFIED_RUN_ROOT="$TASK_ROOT" PARENT_HOST_RUNTIME_ROOT="$HOST_RUNTIME_ROOT" \
     BUILD_ROOT CONNECTOR_COMPONENT_CACHE
@@ -233,6 +237,7 @@ case "$CONNECTOR" in
             FULL_LIFECYCLE_EXECUTED_TARGET="$TARGET" FULL_LIFECYCLE_EVIDENCE_OUTPUT="$HOST_RUNTIME_ROOT/first-byte-evidence.json" \
             LIGHTTPD_PATCHED_SMOKE_DIR="$HOST_RUNTIME_ROOT"
         ;;
+    *) echo "FAIL: unsupported connector environment" >&2; exit 2 ;;
 esac
 set +e
 "$PYTHON" - "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-remaining-connector-target.sh" "$CONNECTOR" "$TARGET" <<'PY'

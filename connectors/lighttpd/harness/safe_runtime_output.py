@@ -37,6 +37,15 @@ def _directory_open_flags() -> int:
     return os.O_RDONLY | directory | no_follow
 
 
+def _no_follow_flag() -> int:
+    """Return the required kernel flag for private artifact opens."""
+
+    value = getattr(os, "O_NOFOLLOW", 0)
+    if not value:
+        raise ValueError("private runtime artifacts require O_NOFOLLOW")
+    return value
+
+
 def _validate_private_leaf_name(value: str, label: str) -> str:
     """Accept one direct, bounded filename and never a path expression."""
 
@@ -100,6 +109,30 @@ def _list_private_directory(descriptor: int) -> list[str]:
         os.close(fresh_descriptor)
 
 
+def _reject_legacy_children(
+    parent_descriptor: int, rejected_names: tuple[str, ...]
+) -> None:
+    for legacy_name in rejected_names:
+        legacy_name = _validate_private_leaf_name(
+            legacy_name, "rejected legacy runtime child"
+        )
+        try:
+            os.stat(legacy_name, dir_fd=parent_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            continue
+        raise ValueError(f"legacy runtime child already exists: {legacy_name}")
+
+
+def _cleanup_created_child(
+    parent_descriptor: int, name: str, identity: tuple[int, int]
+) -> None:
+    current = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+    if (current.st_dev, current.st_ino) != identity:
+        raise ValueError("new private runtime directory was replaced during setup")
+    _require_private_directory(current, "new private runtime directory")
+    os.rmdir(name, dir_fd=parent_descriptor)
+
+
 def verified_runtime_output_root(value: Path) -> Path:
     """Return one private runtime root, never a source or broad system path."""
 
@@ -143,9 +176,7 @@ def write_text_atomic(root: Path, output: Path, content: str, label: str) -> Pat
     """Write one text artifact without following output or temporary-file links."""
 
     destination = safe_output_path(root, output, label)
-    no_follow = getattr(os, "O_NOFOLLOW", 0)
-    if no_follow == 0:
-        raise ValueError("safe runtime output creation requires O_NOFOLLOW")
+    no_follow = _no_follow_flag()
     temporary = destination.with_name(f".{destination.name}.{os.getpid()}.tmp")
     descriptor = -1
     try:
@@ -245,17 +276,7 @@ class BoundRuntimeDirectory:
         identity: tuple[int, int] | None = None
         try:
             _require_safe_runtime_root(os.fstat(parent_descriptor), "runtime output root")
-            for legacy_name in rejected_legacy_names:
-                legacy_name = _validate_private_leaf_name(
-                    legacy_name, "rejected legacy runtime child"
-                )
-                try:
-                    os.stat(legacy_name, dir_fd=parent_descriptor, follow_symlinks=False)
-                except FileNotFoundError:
-                    continue
-                raise ValueError(
-                    f"legacy runtime child already exists: {legacy_name}"
-                )
+            _reject_legacy_children(parent_descriptor, rejected_legacy_names)
             for _ in range(100):
                 candidate = f"{prefix}{secrets.token_hex(16)}"
                 try:
@@ -286,11 +307,7 @@ class BoundRuntimeDirectory:
                 child_descriptor = -1
             if name is not None and identity is not None:
                 try:
-                    current = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
-                    if (current.st_dev, current.st_ino) != identity:
-                        raise ValueError("new private runtime directory was replaced during setup")
-                    _require_private_directory(current, "new private runtime directory")
-                    os.rmdir(name, dir_fd=parent_descriptor)
+                    _cleanup_created_child(parent_descriptor, name, identity)
                 except BaseException as cleanup_error:
                     raise ValueError(
                         f"private runtime directory setup failed and exact cleanup failed: {cleanup_error}"
@@ -341,9 +358,7 @@ class BoundRuntimeDirectory:
 
         name = _validate_private_leaf_name(name, label)
         self._assert_directory_identity()
-        no_follow = getattr(os, "O_NOFOLLOW", 0)
-        if not no_follow:
-            raise ValueError("private runtime artifacts require O_NOFOLLOW")
+        no_follow = _no_follow_flag()
         descriptor = os.open(
             name,
             os.O_RDWR | os.O_CREAT | os.O_EXCL | no_follow,
@@ -376,9 +391,7 @@ class BoundRuntimeDirectory:
         if not isinstance(value, bytes):
             raise ValueError(f"{label} must be bytes")
         self._assert_directory_identity()
-        no_follow = getattr(os, "O_NOFOLLOW", 0)
-        if not no_follow:
-            raise ValueError("private runtime artifacts require O_NOFOLLOW")
+        no_follow = _no_follow_flag()
         temporary_name: str | None = None
         descriptor = -1
         try:
@@ -445,9 +458,7 @@ class BoundRuntimeDirectory:
         if not isinstance(maximum_bytes, int) or maximum_bytes < 0:
             raise ValueError(f"{label} maximum size is invalid")
         self._assert_directory_identity()
-        no_follow = getattr(os, "O_NOFOLLOW", 0)
-        if not no_follow:
-            raise ValueError("private runtime artifacts require O_NOFOLLOW")
+        no_follow = _no_follow_flag()
         descriptor = os.open(
             name, os.O_RDONLY | no_follow, dir_fd=self._directory_descriptor
         )
