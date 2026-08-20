@@ -13,9 +13,9 @@ angelegt werden.
 
 - [CR-20260819-fnd-parent-0185-crs-provenance-exports](CR-20260819-fnd-parent-0185-crs-provenance-exports.de.md) —
   der aktuelle Benutzer hat diese Parent-only-Reparatur und einen Draft-PR
-  autorisiert und Framework-Moduländerungen ausdrücklich untersagt. Der Record
-  weist nur lokale Evidence aus; Exact-Head-Hosted-Checks und ein möglicher
-  Merge bleiben ausstehend.
+  autorisiert und Framework-Moduländerungen ausdrücklich untersagt. Die
+  Hosted-Checks des Implementierungs-Heads bestanden; der vom Benutzer
+  autorisierte geschützte Merge und die Post-Merge-Verifikation stehen aus.
 
 - [CR-20260819-readonly-submodule-sandbox-preservation](CR-20260819-readonly-submodule-sandbox-preservation.de.md) —
   der aktuelle Benutzer hat diese Parent-only-Sandbox-Reparatur zur

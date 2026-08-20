@@ -12,7 +12,7 @@
 | Finding | `FND-PARENT-0185` |
 | Delivery branch | `agent/fix-fnd-parent-0185-crs-export` |
 | Framework boundary | Gitlink `bd69ee96e0e7082317d4afe1232bee625665eb9a`; no source or Gitlink change |
-| Delivery disposition | Parent Draft PR authorized; no merge authorized |
+| Delivery disposition | PR #303: protected integration into `master` explicitly authorized on 2026-08-20; final documentation-head checks, exact-head-bound merge, and post-merge verification pending |
 
 ## Motivation and problem statement
 
@@ -28,8 +28,9 @@ CRS, NGINX, HAProxy, HTTPD, APR, APR-util, and PCRE2 pin sets.
 - Explicit empty and altered CRS inputs still fail closed before side effects.
 - The five HAProxy tests reach their intended assertions without a Framework,
   Gitlink, or MRTS change.
-- Exact-head hosted Actions and the unchanged SonarQube Cloud gate must pass
-  before this finding may become verified.
+- Exact-head hosted Actions and the unchanged SonarQube Cloud gate passed.
+  A separately authorized merge and resulting-master reproduction remain
+  required before this finding may become `verified`.
 
 ## Implementation decision and rationale
 
@@ -43,6 +44,11 @@ The Parent tests cover that contract for every list member. HAProxy fixtures
 now include the binary digest demanded by the current Framework contract, and
 the future-pin test asserts the earlier inherited-pin guard rather than a later
 runtime-lock failure.
+
+The all-active-pin test reads APR-util's defined tuple only from the clean,
+exact-gitlink Framework at test runtime. This avoids making Parent a second
+static pin authority while retaining complete defined-value coverage; the
+APR-util scanner and its allowlist remain unchanged.
 
 ## Security impact
 
@@ -64,12 +70,20 @@ origin validation, CI controls, scanners, and Quality Gate are unchanged.
 - Explicit altered and empty `CRS_REPO_URL` controls were rejected before a
   build or download.
 - Final independent security review found no bypass or reportable issue.
+- The successor's hosted-job-equivalent APR-util contracts (22 tests) and its
+  exact implementation head `5e9e69d9109d10650dc37e63b41af9372716658b` both
+  passed. SonarQube Cloud reports `0.0% Duplication on New Code` and 0 new
+  issues. This factual documentation correction creates a new PR head whose
+  exact checks remain required before the authorized merge.
 
 ## Runtime evidence
 
 The retained receipt is
 `.codex/runs/20260819T230619Z-fix-fnd-parent-0185-crs-export/evidence/post-remediation-local-validation.md`
 with SHA-256 `bf6b0ba026a3135ea7ea4ee10cc977c46f1b63c1252997d694db3a25b6e74235`.
+The exact-head hosted receipt is
+`.codex/runs/20260819T230619Z-fix-fnd-parent-0185-crs-export/evidence/pr303-successor-exact-head-hosted-validation.md`
+with SHA-256 `3e224c6dbf68dfd9e687a1f4252e88b87ec84bc34cc18fd30ad1ae62cd84e7df`.
 
 ## Checks not run and rationale
 
@@ -86,13 +100,18 @@ its two static catalog-path cases cannot finish locally.
 
 ## Remaining risks
 
-Exact-head hosted CI and SonarQube Cloud evidence are still required; no merge
-is authorized.
+The current user explicitly authorized protected integration of PR #303 into
+`master`. Before `FND-PARENT-0185` may become `verified`, the new
+documentation-only PR head must pass its exact checks, the merge must be bound
+to that head without bypass, and resulting-master workflows plus the original
+reproduction must pass.
 
 ## Final diff and review status
 
 Only Parent `Makefile`, Parent tests, and this paired traceability material are
 changed. The Framework source, its Gitlink, and nested MRTS are unchanged.
-`FND-PARENT-0185` is `fixed` locally, not verified or closed. The pending
-Draft-PR head must pass the unchanged GitHub Actions and SonarQube Cloud gates;
-this record neither requests nor authorizes a merge.
+`FND-PARENT-0185` is `fixed`, not verified or closed. Implementation head
+`5e9e69d9109d10650dc37e63b41af9372716658b` passed the unchanged GitHub
+Actions and SonarQube Cloud gates. The current user has authorized the
+protected merge of PR #303; this record captures that fact but cannot execute
+the merge.

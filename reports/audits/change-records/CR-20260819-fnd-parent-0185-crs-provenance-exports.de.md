@@ -12,7 +12,7 @@
 | Finding | `FND-PARENT-0185` |
 | Delivery-Branch | `agent/fix-fnd-parent-0185-crs-export` |
 | Framework-Grenze | Gitlink `bd69ee96e0e7082317d4afe1232bee625665eb9a`; weder Source noch Gitlink geändert |
-| Delivery-Disposition | Parent-Draft-PR autorisiert; kein Merge autorisiert |
+| Delivery-Disposition | PR #303: Geschützte Integration nach `master` am 2026-08-20 ausdrücklich autorisiert; finale Dokumentations-Head-Checks, exakter Head-gebundener Merge und Post-Merge-Verifikation stehen aus |
 
 ## Motivation und Problemstellung
 
@@ -29,8 +29,9 @@ HAProxy-, HTTPD-, APR-, APR-util- und PCRE2-Pins.
   closed.
 - Die fünf HAProxy-Tests erreichen ihre Assertions ohne Framework-, Gitlink-
   oder MRTS-Änderung.
-- Exact-Head-Hosted-Actions und das unveränderte SonarQube-Cloud-Gate müssen
-  vor `verified` bestehen.
+- Exact-Head-Hosted-Actions und das unveränderte SonarQube-Cloud-Gate
+  bestanden. Vor `verified` bleiben ein separat autorisierter Merge und eine
+  Reproduktion auf dem resultierenden Master erforderlich.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -44,6 +45,12 @@ Die Parent-Tests prüfen diese Semantik für jedes Listenelement. Die HAProxy-
 Fixtures tragen nun zudem den vom aktuellen Framework verlangten Binärdigest;
 der Future-Pin-Test erwartet den vorgelagerten Inherited-Pin-Guard statt eines
 späteren Runtime-Lock-Fehlers.
+
+Der All-Active-Pin-Test liest das definierte APR-util-Tupel nur zur Testlaufzeit
+aus dem sauberen Framework am exakten Gitlink. So wird Parent nicht zu einer
+zweiten statischen Pin-Autorität, während die vollständige Defined-Value-
+Coverage erhalten bleibt; APR-util-Scanner und seine Allowlist bleiben
+unverändert.
 
 ## Security-Auswirkung
 
@@ -67,12 +74,21 @@ Origin-Validierung, CI-Kontrollen, Scanner und Quality Gate bleiben unverändert
   Download abgelehnt.
 - Der abschließende unabhängige Security-Review fand keinen Bypass und kein
   reportable Issue.
+- Die APR-util-Contracts im Hosted-Job-Umfang des Nachfolgers (22 Tests) und
+  sein exakter Implementierungs-Head `5e9e69d9109d10650dc37e63b41af9372716658b`
+  bestanden. SonarQube Cloud meldet `0,0 % Duplication on New Code` und 0
+  neue Issues. Diese sachliche Dokumentationskorrektur erzeugt einen neuen
+  PR-Head, dessen exakte Checks vor dem autorisierten Merge weiter erforderlich
+  sind.
 
 ## Runtime-Evidence
 
 Der zurückgehaltene Receipt ist
 `.codex/runs/20260819T230619Z-fix-fnd-parent-0185-crs-export/evidence/post-remediation-local-validation.md`
 mit SHA-256 `bf6b0ba026a3135ea7ea4ee10cc977c46f1b63c1252997d694db3a25b6e74235`.
+Der Exact-Head-Hosted-Receipt ist
+`.codex/runs/20260819T230619Z-fix-fnd-parent-0185-crs-export/evidence/pr303-successor-exact-head-hosted-validation.md`
+mit SHA-256 `3e224c6dbf68dfd9e687a1f4252e88b87ec84bc34cc18fd30ad1ae62cd84e7df`.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -90,14 +106,18 @@ enden.
 
 ## Verbleibende Risiken
 
-Exact-Head-Hosted-CI und SonarQube-Cloud-Evidence sind weiter erforderlich;
-kein Merge ist autorisiert.
+Der aktuelle Benutzer hat die geschützte Integration von PR #303 nach
+`master` ausdrücklich autorisiert. Bevor `FND-PARENT-0185` `verified` werden
+kann, muss der neue reine Dokumentations-PR-Head seine exakten Checks bestehen,
+der Merge ohne Bypass an diesen Head gebunden erfolgen und die resultierenden
+Master-Workflows sowie die ursprüngliche Reproduktion bestehen.
 
 ## Finaler Diff- und Review-Status
 
 Geändert sind ausschließlich Parent-`Makefile`, Parent-Tests und dieses
 zweisprachige Traceability-Paar. Framework-Source, Gitlink und verschachteltes
-MRTS bleiben unverändert. `FND-PARENT-0185` ist lokal `fixed`, nicht `verified`
-oder geschlossen. Der ausstehende Draft-PR-Head muss unveränderte GitHub-
-Actions- und SonarQube-Cloud-Gates bestehen; dieser Record fordert oder
-autorisiert keinen Merge.
+MRTS bleiben unverändert. `FND-PARENT-0185` ist `fixed`, nicht `verified` oder
+geschlossen. Implementierungs-Head `5e9e69d9109d10650dc37e63b41af9372716658b`
+bestand die unveränderten GitHub-Actions- und SonarQube-Cloud-Gates. Der
+aktuelle Benutzer hat den geschützten Merge von PR #303 autorisiert; dieser
+Record hält diese Tatsache fest, kann den Merge jedoch nicht ausführen.
