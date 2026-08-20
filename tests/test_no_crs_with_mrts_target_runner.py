@@ -175,7 +175,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             )
             self.assertEqual(
                 EXECUTOR.event_ids(
-                    event_log, "run-0001", "envoy", "/?foo=attack%20value", "request_body", {"100000"}),
+                    event_log, "run-0001", "envoy", "/?foo=attack%20value", "request_body", {"100000"}, {"100000"}),
                 {"100000"},
             )
 
@@ -187,7 +187,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             event["nested"] = {"matched_rule_ids": ["100000"]}
             event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
             with self.assertRaises(SystemExit):
-                EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"})
+                EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000", "100001", "100032"})
 
     def test_event_ids_ignores_other_transaction_or_uri(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -195,7 +195,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             base = dedicated_rule_match_event(transaction_id="other-run", uri="/?foo=other")
             event_log.write_text(json.dumps(base) + "\n", encoding="utf-8")
             self.assertEqual(
-                EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}),
+                EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000"}),
                 set(),
             )
 
@@ -214,7 +214,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             )
             self.assertEqual(
                 EXECUTOR.event_ids(
-                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000"}
                 ),
                 {"100000"},
             )
@@ -234,7 +234,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             )
             self.assertEqual(
                 EXECUTOR.event_ids(
-                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000"}
                 ),
                 {"100000"},
             )
@@ -260,11 +260,12 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                     "/?foo=attack",
                     "request_body",
                     {"100000"},
+                    {"100000", "100001"},
                 ),
                 {"100000"},
             )
 
-    def test_event_ids_keeps_extra_same_phase_match_for_detection_oracle(self):
+    def test_event_ids_keeps_extra_same_phase_match_for_detection_receipt(self):
         with tempfile.TemporaryDirectory() as directory:
             event_log = Path(directory) / "events.jsonl"
             expected = dedicated_rule_match_event(rule_id="100000")
@@ -282,12 +283,43 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 "/?foo=attack",
                 "request_body",
                 {"100000"},
+                {"100000", "100001"},
             )
             self.assertEqual(observed, {"100000", "100001"})
-            with self.assertRaisesRegex(SystemExit, "rule-match mismatch"):
-                EXECUTOR.require_case_rule_matches(
-                    "detection", "detection", {"100000"}, observed
+            EXECUTOR.require_case_rule_matches(
+                "detection", "detection", {"100000"}, observed
+            )
+
+    def test_event_ids_rejects_unknown_extra_unless_sealed_inventory_permits_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            expected = dedicated_rule_match_event(rule_id="100000")
+            unknown = dedicated_rule_match_event(
+                rule_id="100001", previous_event_hash=int(expected["event_hash"])
+            )
+            event_log.write_text(
+                json.dumps(expected) + "\n" + json.dumps(unknown) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(SystemExit, "outside the pinned corpus"):
+                EXECUTOR.event_ids(
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body",
+                    {"100000"}, {"100000"},
                 )
+            permitted = dedicated_rule_match_event(
+                rule_id="100032", previous_event_hash=int(expected["event_hash"])
+            )
+            event_log.write_text(
+                json.dumps(expected) + "\n" + json.dumps(permitted) + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                EXECUTOR.event_ids(
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body",
+                    {"100000"}, {"100000", "100032"},
+                ),
+                {"100000", "100032"},
+            )
 
     def test_event_ids_rejects_expected_rule_in_same_transaction_wrong_phase(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -303,6 +335,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                     "envoy",
                     "/?foo=attack",
                     "request_body",
+                    {"100000"},
                     {"100000"},
                 )
 
@@ -320,6 +353,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 "/?foo=attack",
                 "request_body",
                 set(),
+                {"100000"},
             )
             self.assertEqual(observed, {"100000"})
             with self.assertRaisesRegex(SystemExit, "unexpectedly matched rules"):
@@ -334,7 +368,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(SystemExit, "relevant rule-match event has invalid phase"):
                 EXECUTOR.event_ids(
-                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000"}
                 )
 
     def test_event_ids_rejects_an_unknown_phase_value(self):
@@ -345,7 +379,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
             with self.assertRaisesRegex(SystemExit, "rule-match event has invalid phase"):
                 EXECUTOR.event_ids(
-                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000"}
                 )
 
     def test_event_ids_rejects_forged_or_discontinuous_integrity_data(self):
@@ -356,13 +390,13 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             event_log.write_text(json.dumps(forged) + "\n", encoding="utf-8")
             with self.assertRaises(SystemExit):
                 EXECUTOR.event_ids(
-                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000"}
                 )
             discontinuous = dedicated_rule_match_event(previous_event_hash=1)
             event_log.write_text(json.dumps(discontinuous) + "\n", encoding="utf-8")
             with self.assertRaises(SystemExit):
                 EXECUTOR.event_ids(
-                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000"}
                 )
 
     def test_rule_match_integrity_rejects_an_unpinned_abi(self):
@@ -377,7 +411,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             encoded = json.dumps(dedicated_rule_match_event())
             event_log.write_text(encoded[:-1] + ',"rule_id":"100001"}\n', encoding="utf-8")
             with self.assertRaises(SystemExit):
-                EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"})
+                EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000", "100001"})
 
     def test_event_ids_rejects_duplicate_relevant_rule_ids(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -392,21 +426,27 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             )
             with self.assertRaises(SystemExit):
                 EXECUTOR.event_ids(
-                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000"}
                 )
 
-    def test_detection_rule_matches_require_exact_equality(self):
+    def test_detection_rule_matches_require_the_expected_subset(self):
         EXECUTOR.require_case_rule_matches(
             "detection", "detection", {"100000"}, {"100000"}
         )
-        with self.assertRaises(SystemExit):
-            EXECUTOR.require_case_rule_matches(
-                "detection", "detection", {"100000"}, {"100000", "100001"}
-            )
-        with self.assertRaises(SystemExit):
+        EXECUTOR.require_case_rule_matches(
+            "detection", "detection", {"100000"}, {"100000", "100032"}
+        )
+        with self.assertRaisesRegex(SystemExit, "missing expected IDs"):
             EXECUTOR.require_case_rule_matches(
                 "detection", "detection", {"100000"}, set()
             )
+
+    def test_control_and_bypass_rule_matches_reject_every_correlated_id(self):
+        for kind in ("control", "bypass"):
+            with self.assertRaisesRegex(SystemExit, "unexpectedly matched rules"):
+                EXECUTOR.require_case_rule_matches(
+                    kind, kind, set(), {"100032"}
+                )
 
     def test_event_ids_rejects_wrong_phase_schema_or_scalar_payload(self):
         cases = (
@@ -424,12 +464,12 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 event[field] = value
                 event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
                 with self.assertRaises(SystemExit, msg=f"accepted invalid {field}={value!r}"):
-                    EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"})
+                    EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000"})
             event = dedicated_rule_match_event()
             event["matched_value"] = "attack"
             event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
             with self.assertRaises(SystemExit, msg="accepted an extra scalar payload field"):
-                EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"})
+                EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000"})
 
     def test_generated_plan_has_control_detection_and_bypass(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -554,6 +594,9 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                     "generated_rules_root": str(rules),
                     "canonical_mrts_rules_root": str(canonical),
                     "included_rule_sha256": {generated.name: rules_hash},
+                    "rule_id_inventory": TARGET.rule_id_inventory(
+                        rules, {generated.name: rules_hash}
+                    ),
                 },
             }
             plan_path.write_text(json.dumps(plan), encoding="utf-8")
@@ -563,6 +606,13 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 TARGET.validate_sealed_plan(
                     plan_path, runtime, framework, rules, load, initial_digest
                 )
+                plan["no_crs_validation"]["rule_id_inventory"] = ["100001"]
+                plan_path.write_text(json.dumps(plan), encoding="utf-8")
+                with self.assertRaisesRegex(SystemExit, "no-CRS validation does not match"):
+                    TARGET.validate_sealed_plan(
+                        plan_path, runtime, framework, rules, load, plan_digest(plan_path)
+                    )
+                plan["no_crs_validation"]["rule_id_inventory"] = ["100000"]
                 plan["cases"][1]["uri"] = "/?foo=benign"
                 plan_path.write_text(json.dumps(plan), encoding="utf-8")
                 with self.assertRaisesRegex(SystemExit, "digest does not match"):
@@ -644,6 +694,7 @@ expect:
                     "generated_rules_root": str(rules),
                     "canonical_mrts_rules_root": str(canonical.resolve()),
                     "included_rule_sha256": included,
+                    "rule_id_inventory": TARGET.rule_id_inventory(rules, included),
                 },
             }
             plan_path.write_text(json.dumps(plan), encoding="utf-8")
@@ -727,6 +778,7 @@ expect:
                             "generated_rules_root": str(rules),
                             "canonical_mrts_rules_root": str(canonical.resolve()),
                             "included_rule_sha256": included,
+                            "rule_id_inventory": TARGET.rule_id_inventory(rules, included),
                         },
                     }
                 ),

@@ -70,6 +70,16 @@ liest keine Audit-Logs, Error-Logs, stderr- oder Request-/Response-Payloads.
 Native Integritäts- und Verkettungsprüfungen erfolgen, bevor das Ergebnis
 akzeptiert wird.
 
+Das versiegelte `mrts.load` enthält absichtlich den vollständigen gepinnten
+MRTS-Korpus. Daher verwendet DetectionOnly dasselbe kanonische Orakel wie
+Apache und HAProxy: Jede vom Case deklarierte erwartete Regel-ID muss in ihrer
+exakt korrelierten Phase beobachtet werden, während zusätzliche vollständig
+validierte native Treffer derselben Phase nur bei Mitgliedschaft im erneut
+validierten gepinnten Regel-ID-Inventar im Receipt erhalten bleiben. Sie
+können keine erwartete ID ersetzen. Eine erwartete ID in einer anderen Phase
+führt fail-closed zum Fehler; jeder korrelierte Regeltreffer lässt weiterhin
+einen Kontroll- oder Bypass-Case fehlschlagen.
+
 Die Parent-Python-Grenze erhält den geprüften task-lokalen venv-Interpreter,
 ohne dessen letzten Symlink aufzulösen. Symlinkte übergeordnete Verzeichnisse
 werden zurückgewiesen; die Shell-Dispatcher reichen vor MRTS-Materialisierung

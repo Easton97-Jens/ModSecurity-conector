@@ -63,6 +63,15 @@ transaction correlation; it does not scrape audit logs, error logs, stderr, or
 request/response payloads. Native integrity and contiguous-chain validation is
 performed before the result is accepted.
 
+The sealed `mrts.load` intentionally contains the complete pinned MRTS corpus.
+Consequently, DetectionOnly uses the same canonical oracle as Apache and
+HAProxy: every case-declared expected rule ID must be observed in its exact
+correlated phase, while additional fully validated same-phase native matches
+remain recorded only when their IDs are members of the revalidated pinned rule
+inventory. They cannot replace an expected ID. An
+expected ID in a different phase fails closed, and any correlated rule match
+still fails a control or bypass case.
+
 The Parent Python boundary preserves the approved task-local venv interpreter
 without collapsing its final symlink. Symlinked parent directories are
 rejected, and the shell dispatchers pass the same approved interpreter through

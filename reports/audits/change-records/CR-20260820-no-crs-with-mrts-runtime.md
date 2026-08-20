@@ -152,6 +152,15 @@ request correlation, no-CRS result, evidence hashes, and cleanup status. Raw
 payloads, secrets, private keys, and local absolute paths must not be copied
 into this record.
 
+The complete sealed `mrts.load` can legitimately yield more than one native
+DetectionOnly match for a selected request. The Parent executor therefore
+uses the canonical Apache/HAProxy subset oracle: every case-declared expected
+ID must be present in the fully validated, exact-transaction and exact-phase
+evidence, and additional same-phase IDs remain in the receipt only when they
+belong to the revalidated pinned rule-ID inventory. They do not replace an
+expected ID; an expected ID at another phase fails closed; and
+any correlated match still fails a control or bypass case.
+
 Envoy `r10` is retained only as diagnostic evidence: it reached real-host
 start and readiness, then failed with HTTP 500 before MRTS case execution
 because sealed evidence mode requires `x-mrts-transaction-id` while the

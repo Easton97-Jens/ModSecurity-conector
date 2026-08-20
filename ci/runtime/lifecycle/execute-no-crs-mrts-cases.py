@@ -386,6 +386,7 @@ def event_ids(
     uri: str,
     expected_phase: str,
     expected_ids: set[str],
+    allowed_rule_ids: set[str],
 ) -> set[str]:
     """Return IDs from the dedicated, metadata-only rule-match record.
 
@@ -439,6 +440,8 @@ def event_ids(
         ):
             continue
         if item["phase"] == expected_phase:
+            if rule_id not in allowed_rule_ids:
+                fail("relevant rule-match event has rule ID outside the pinned corpus")
             if rule_id in found:
                 fail("relevant rule-match event duplicates a rule ID")
             found.add(rule_id)
@@ -462,11 +465,18 @@ def require_case_rule_matches(
     expected_ids: set[str],
     matched_ids: set[str],
 ) -> None:
-    """Apply the closed DetectionOnly oracle without ignoring extra matches."""
+    """Apply the canonical MRTS DetectionOnly oracle.
 
-    if case_kind == "detection" and expected_ids != matched_ids:
+    Each selected canonical case declares the rule IDs that must be observed,
+    while the sealed load file deliberately contains the complete pinned MRTS
+    corpus.  A single real request may consequently trigger additional,
+    fully-correlated native rules.  Keep every such event in the receipt, but
+    require every selected expectation; an extra match cannot replace one.
+    """
+
+    if case_kind == "detection" and not expected_ids.issubset(matched_ids):
         fail(
-            f"{case_id} rule-match mismatch: "
+            f"{case_id} rule-match missing expected IDs: "
             f"expected {sorted(expected_ids)}, observed {sorted(matched_ids)}"
         )
     if case_kind in {"control", "bypass"} and matched_ids:
@@ -548,6 +558,27 @@ def main() -> int:
     if not isinstance(load_sha, str) or hashlib.sha256(load_path.read_bytes()).hexdigest() != load_sha:
         fail("MRTS load file digest mismatch")
     validate_sealed_no_crs_plan(plan_path, root, load_path, executor_path, plan_sha256)
+    validation = plan.get("no_crs_validation")
+    if not isinstance(validation, dict):
+        fail("plan has no sealed no-CRS validation")
+    raw_inventory = validation.get("rule_id_inventory")
+    if (
+        not isinstance(raw_inventory, list)
+        or not raw_inventory
+        or raw_inventory != sorted(raw_inventory, key=lambda value: int(value) if isinstance(value, str) and value.isdigit() else -1)
+        or len(raw_inventory) > 100_000
+        or any(
+            not isinstance(value, str)
+            or not value
+            or len(value) > 12
+            or value[0] == "0"
+            or any(character not in "0123456789" for character in value)
+            for value in raw_inventory
+        )
+        or len(set(raw_inventory)) != len(raw_inventory)
+    ):
+        fail("plan rule ID inventory is not canonical")
+    allowed_rule_ids = set(raw_inventory)
     inventory_root = confined(str(plan.get("inventory_root", "")), build_root, "MRTS inventory root", regular=False)
     if inventory_root.is_symlink() or not inventory_root.is_dir():
         fail("MRTS inventory root is not a regular contained directory")
@@ -592,7 +623,8 @@ def main() -> int:
         if expected_phase != "request_body":
             fail("invalid expected MRTS rule-match phase")
         matched = event_ids(
-            event_path, correlation_id, args.connector, uri, expected_phase, expected_ids)
+            event_path, correlation_id, args.connector, uri, expected_phase,
+            expected_ids, allowed_rule_ids)
         if status != 200:
             fail(f"{case.get('id', index)} returned HTTP {status}, expected DetectionOnly 200")
         require_case_rule_matches(

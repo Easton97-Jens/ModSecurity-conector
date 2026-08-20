@@ -17,6 +17,7 @@ from typing import Any, NoReturn
 CONNECTORS = {"envoy", "traefik", "lighttpd"}
 PROFILE = "no-crs/with-mrts"
 MAX_PLAN_BYTES = 1_048_576
+MAX_RULE_ID_INVENTORY = 100_000
 SHA256_RE = set("0123456789abcdef")
 # The pinned CGo/libmodsecurity bridge observes the selected MRTS phase-1
 # rule as Common request-body evidence. Retain that observed value as a single
@@ -350,6 +351,54 @@ def validate_mrts_load_file(
     return includes
 
 
+def rule_id_inventory(
+    rules_root: Path, included_rules: dict[str, str]
+) -> list[str]:
+    """Extract the complete normalized ID inventory from the pinned rule load."""
+
+    if len(included_rules) > MAX_RULE_ID_INVENTORY:
+        stop("pinned MRTS rule corpus contains too many generated files")
+    inventory: set[str] = set()
+    id_marker = re.compile(r"\bid\s*:\s*([^,\s\\]+)")
+    for name in sorted(included_rules):
+        path = rules_root / name
+        if (
+            path.parent != rules_root
+            or path.is_symlink()
+            or has_symlink_component(path)
+            or not path.is_file()
+        ):
+            stop("pinned MRTS rule inventory path is not a direct regular file")
+        try:
+            data = path.read_bytes()
+            text = data.decode("utf-8")
+        except (OSError, UnicodeError) as exc:
+            stop(f"pinned MRTS rule cannot be parsed for ID inventory: {exc}")
+        if len(data) > MAX_PLAN_BYTES:
+            stop("pinned MRTS rule exceeds bounded size")
+        if hashlib.sha256(data).hexdigest() != included_rules[name]:
+            stop("pinned MRTS rule changed during ID inventory validation")
+        found_in_file = 0
+        for line in text.splitlines():
+            if line.lstrip().startswith("#"):
+                continue
+            for match in id_marker.finditer(line):
+                raw_id = match.group(1).strip("'\"")
+                if not re.fullmatch(r"[1-9][0-9]{0,11}", raw_id):
+                    stop(f"pinned MRTS rule has a non-canonical rule ID: {name}")
+                if raw_id in inventory:
+                    stop(f"pinned MRTS rule corpus contains duplicate rule ID: {raw_id}")
+                inventory.add(raw_id)
+                found_in_file += 1
+        if found_in_file == 0:
+            stop(f"pinned MRTS rule has no canonical rule ID: {name}")
+        if len(inventory) > MAX_RULE_ID_INVENTORY:
+            stop("pinned MRTS rule corpus contains too many rule IDs")
+    if not inventory:
+        stop("pinned MRTS rule corpus has an empty rule ID inventory")
+    return sorted(inventory, key=lambda value: int(value))
+
+
 def reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     value: dict[str, Any] = {}
     for key, item in pairs:
@@ -392,7 +441,7 @@ def load_sealed_plan(plan_path: Path, expected_plan_sha256: str) -> dict[str, An
     return plan
 
 
-def validate_plan_cases(cases: Any) -> None:
+def validate_plan_cases(cases: Any, allowed_rule_ids: set[str]) -> None:
     if not isinstance(cases, list) or len(cases) < 3:
         stop("sealed MRTS plan must contain bounded control, detection, and bypass cases")
     kinds: set[str] = set()
@@ -418,6 +467,8 @@ def validate_plan_cases(cases: Any) -> None:
             for rule_id in expected_ids
         ):
             stop("sealed MRTS plan case has an invalid expected rule ID")
+        if any(rule_id not in allowed_rule_ids for rule_id in expected_ids):
+            stop("sealed MRTS plan case expects a rule ID outside the pinned corpus")
         if kind == "detection" and not expected_ids:
             stop("sealed MRTS detection case has no expected rule ID")
         if kind != "detection" and expected_ids:
@@ -512,7 +563,9 @@ def validate_sealed_plan(
         stop("sealed MRTS plan schema is invalid")
     if plan.get("profile") != PROFILE or plan.get("connector") not in CONNECTORS:
         stop("sealed MRTS plan profile is not closed")
-    validate_plan_cases(plan.get("cases"))
+    validation = plan.get("no_crs_validation")
+    if not isinstance(validation, dict):
+        stop("sealed MRTS plan lacks no-CRS validation")
     connector = plan["connector"]
     expected_plan = runtime_root / "build" / "stages" / connector / "no_crs_with_mrts" / "runtime" / "mrts-runtime-plan.json"
     expected_rules_root = runtime_root / "build" / "mrts" / "upstream-config-tests" / "rules"
@@ -523,16 +576,16 @@ def validate_sealed_plan(
     mrts_root = framework_root / "tools" / "MRTS"
     no_crs_rules = framework_root / "tests" / "rules" / "no-crs-baseline.conf"
     included_rules = validate_mrts_load_file(load_file, rules_root, no_crs_rules, mrts_root, runtime_root)
-    validation = plan.get("no_crs_validation")
-    if not isinstance(validation, dict):
-        stop("sealed MRTS plan lacks no-CRS validation")
+    inventory = rule_id_inventory(rules_root, included_rules)
     expected_validation = {
         "generated_rules_root": str(rules_root),
         "canonical_mrts_rules_root": str(mrts_root / "generated" / "rules"),
         "included_rule_sha256": included_rules,
+        "rule_id_inventory": inventory,
     }
     if validation != expected_validation:
         stop("sealed MRTS plan no-CRS validation does not match loaded rules")
+    validate_plan_cases(plan.get("cases"), set(inventory))
     if plan.get("load_file") != str(load_file):
         stop("sealed MRTS plan load-file path does not match")
     if plan.get("load_file_sha256") != hashlib.sha256(load_file.read_bytes()).hexdigest():
@@ -619,7 +672,8 @@ def main() -> int:
     if executor.is_symlink() or not executor.is_file() or not os.access(executor, os.R_OK):
         stop("MRTS executor is not a regular readable file")
     executor_sha256 = hashlib.sha256(executor.read_bytes()).hexdigest()
-    plan = {"schema": "no-crs-with-mrts-plan/v1", "profile": PROFILE, "connector": args.connector, "parent_commit": git_sha(parent), "framework_commit": git_sha(framework), "mrts_commit": git_sha(mrts), "provenance": provenance, "executor": {"path": str(executor), "sha256": executor_sha256}, "inventory_root": str(case_root), "inventory_hash": selected_case_inventory_hash(sources), "case_hashes": source_hashes, "load_file": str(load_file), "load_file_sha256": hashlib.sha256(load_file.read_bytes()).hexdigest(), "no_crs_rules_file": str(no_crs_rules), "no_crs_validation": {"generated_rules_root": str(build / "mrts" / "upstream-config-tests" / "rules"), "canonical_mrts_rules_root": str(mrts / "generated" / "rules"), "included_rule_sha256": included_rules}, "cases": cases}
+    rule_ids = rule_id_inventory(build / "mrts" / "upstream-config-tests" / "rules", included_rules)
+    plan = {"schema": "no-crs-with-mrts-plan/v1", "profile": PROFILE, "connector": args.connector, "parent_commit": git_sha(parent), "framework_commit": git_sha(framework), "mrts_commit": git_sha(mrts), "provenance": provenance, "executor": {"path": str(executor), "sha256": executor_sha256}, "inventory_root": str(case_root), "inventory_hash": selected_case_inventory_hash(sources), "case_hashes": source_hashes, "load_file": str(load_file), "load_file_sha256": hashlib.sha256(load_file.read_bytes()).hexdigest(), "no_crs_rules_file": str(no_crs_rules), "no_crs_validation": {"generated_rules_root": str(build / "mrts" / "upstream-config-tests" / "rules"), "canonical_mrts_rules_root": str(mrts / "generated" / "rules"), "included_rule_sha256": included_rules, "rule_id_inventory": rule_ids}, "cases": cases}
     plan_path = stage_runtime / "mrts-runtime-plan.json"
     if plan_path.exists():
         stop("runtime plan already exists; use a fresh private runtime root")

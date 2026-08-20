@@ -161,6 +161,17 @@ Case- und Request-Korrelation, No-CRS-Ergebnis, Evidence-Hashes und Cleanup-
 Status enthalten. Roh-Payloads, Secrets, private Schlüssel und lokale absolute
 Pfade dürfen nicht in diesen Record kopiert werden.
 
+Das vollständige versiegelte `mrts.load` kann für einen ausgewählten Request
+legitim mehr als einen nativen DetectionOnly-Treffer erzeugen. Der
+Parent-Executor verwendet daher das kanonische Apache-/HAProxy-Subset-Orakel:
+Jede vom Case deklarierte erwartete ID muss in der vollständig validierten,
+exakt transaktions- und phasenkorrelierten Evidence vorhanden sein;
+zusätzliche IDs derselben Phase bleiben nur bei Mitgliedschaft im erneut
+validierten gepinnten Regel-ID-Inventar im Receipt. Sie ersetzen keine
+erwartete ID, eine erwartete ID in einer anderen Phase schlägt fail-closed
+fehl, und jeder korrelierte Treffer lässt weiterhin einen Kontroll- oder
+Bypass-Case fehlschlagen.
+
 Envoy `r10` wird nur als Diagnose-Evidence aufbewahrt: Der Lauf erreichte
 echten Hoststart und Readiness, schlug aber mit HTTP 500 vor der MRTS-
 Case-Ausführung fehl, weil der versiegelte Evidence-Modus
