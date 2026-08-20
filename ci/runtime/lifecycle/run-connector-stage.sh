@@ -42,6 +42,10 @@ validate_mrts_stage_inputs() {
         echo "FAIL: no_crs_with_mrts requires MSCONNECTOR_MRTS_RUNTIME=1" >&2
         exit 2
     }
+    [ "${ALLOW_RUNTIME_DOWNLOADS:-}" = 1 ] && [ "${ALLOW_RUNTIME_BUILDS:-}" = 1 ] || {
+        echo "FAIL: no_crs_with_mrts requires explicit ALLOW_RUNTIME_DOWNLOADS=1 and ALLOW_RUNTIME_BUILDS=1" >&2
+        exit 77
+    }
     [ -n "${MRTS_RUNTIME_PLAN:-}" ] || { echo "FAIL: MRTS_RUNTIME_PLAN is required" >&2; exit 2; }
     [ -n "${MRTS_RUNTIME_RESULT:-}" ] || { echo "FAIL: MRTS_RUNTIME_RESULT is required" >&2; exit 2; }
     [ -n "${MRTS_RUNTIME_EXECUTOR:-}" ] || { echo "FAIL: MRTS_RUNTIME_EXECUTOR is required" >&2; exit 2; }
@@ -360,6 +364,8 @@ run_remaining_connector() {
             GOTMPDIR="$MRTS_GOTMPDIR" \
             TMPDIR="$MRTS_TMPDIR" \
             GOENV=off \
+            ALLOW_RUNTIME_DOWNLOADS=1 \
+            ALLOW_RUNTIME_BUILDS=1 \
             PYTHON="$MRTS_PYTHON_BIN" \
             PYTHON_BIN="$MRTS_PYTHON_BIN" \
             CONNECTOR_ROOT="$CONNECTOR_ROOT" \

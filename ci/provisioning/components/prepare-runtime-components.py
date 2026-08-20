@@ -430,6 +430,16 @@ def load_framework_environment(connector_root: Path, framework_root: Path, base_
         loaded.pop(key, None)
     if any(loaded.get(key) != value for key, value in guarded_apr_util.items()):
         return dict(base_env), "failed:framework_apr_util_guarded_tuple_mismatch"
+    # ``common.sh`` takes this internal multiline snapshot before assigning
+    # its canonical pins.  It is useful only inside that source operation.
+    # Passing it into a later guard and sourcing ``common.sh`` again would
+    # embed the previous ``ENVOY_VERSION=...`` (and peers) lines in the next
+    # inherited-environment snapshot, making the Framework correctly reject
+    # them as duplicate pin declarations.  Do not re-export either internal
+    # snapshot field; a later Framework guard takes a fresh snapshot of the
+    # actual, already guarded environment instead.
+    loaded.pop("CI_INHERITED_UPSTREAM_ENV", None)
+    loaded.pop("CI_INHERITED_UPSTREAM_ENV_STATUS", None)
     loaded.update(guarded_apr_util)
     return loaded, "loaded"
 

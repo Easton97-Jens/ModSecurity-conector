@@ -29,6 +29,8 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
             "GOCACHE=$MRTS_CLOSED_GOCACHE",
             "GOTMPDIR=$MRTS_CLOSED_GOTMPDIR",
             "TMPDIR=$MRTS_CLOSED_TMPDIR",
+            "ALLOW_RUNTIME_DOWNLOADS=$MRTS_CLOSED_ALLOW_RUNTIME_DOWNLOADS",
+            "ALLOW_RUNTIME_BUILDS=$MRTS_CLOSED_ALLOW_RUNTIME_BUILDS",
         ):
             self.assertIn(variable, source)
 
@@ -38,6 +40,18 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
         self.assertIn("readonly MRTS_CLOSED_RUNTIME_ENV", source)
         self.assertIn("MRTS_CLOSED_STAGE=$MSCONNECTOR_MRTS_STAGE", source)
         self.assertIn("MRTS_RUNTIME_EXECUTOR_SHA256=$MRTS_CLOSED_EXECUTOR_SHA256", source)
+        self.assertIn("MRTS_CLOSED_ALLOW_RUNTIME_DOWNLOADS=1", source)
+        self.assertIn("MRTS_CLOSED_ALLOW_RUNTIME_BUILDS=1", source)
+
+    def test_runtime_provisioning_opt_ins_are_gated_and_reasserted_as_literals(self) -> None:
+        stage_source = STAGE.read_text(encoding="utf-8")
+        runner_source = RUNNER.read_text(encoding="utf-8")
+        for source in (stage_source, runner_source):
+            self.assertIn('"${ALLOW_RUNTIME_DOWNLOADS:-}" = 1', source)
+            self.assertIn('"${ALLOW_RUNTIME_BUILDS:-}" = 1', source)
+        self.assertIn("env -i", stage_source)
+        self.assertIn("ALLOW_RUNTIME_DOWNLOADS=1", stage_source)
+        self.assertIn("ALLOW_RUNTIME_BUILDS=1", stage_source)
 
     def test_all_mrts_dispatch_boundaries_revalidate_the_sealed_no_crs_plan(self) -> None:
         for path in (STAGE, RUNNER, ENVOY):
