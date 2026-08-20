@@ -385,16 +385,18 @@ def event_ids(
     connector: str,
     uri: str,
     expected_phase: str,
+    expected_ids: set[str],
 ) -> set[str]:
     """Return IDs from the dedicated, metadata-only rule-match record.
 
-    The event log is evidence, not an input language.  In particular, never
-    recursively scrape arbitrary JSON keys: an audit payload or a similarly
-    named field must not be able to satisfy a DetectionOnly case.  A record
-    with the exact transaction/connector/URI identity is a relevant candidate
-    and is therefore validated fail-closed when its fixed metadata contract is
-    malformed.  Records for another transaction or request remain irrelevant
-    and are ignored.
+    The event log is evidence, not an input language.  Every record is fully
+    validated, including its closed phase enum and native integrity chain,
+    before case correlation.  Detection cases select only expected-phase
+    IDs; an expected ID observed in another phase fails closed, while a
+    non-selected ID in another phase is out of profile and may be ignored
+    after validation.  Control and bypass cases retain every correlated ID so
+    their empty-set oracle can reject any match.  Records for another
+    transaction or request remain irrelevant and are ignored.
     """
     integration_mode = RULE_MATCH_INTEGRATION_MODES.get(connector)
     if integration_mode is None:
@@ -436,11 +438,21 @@ def event_ids(
             or item.get("uri") != uri
         ):
             continue
-        if item["phase"] != expected_phase:
+        if item["phase"] == expected_phase:
+            if rule_id in found:
+                fail("relevant rule-match event duplicates a rule ID")
+            found.add(rule_id)
+        elif not expected_ids:
+            # Control and bypass cases must expose every correlated match to
+            # the existing empty-set oracle, regardless of native phase.
+            if rule_id in found:
+                fail("relevant rule-match event duplicates a rule ID")
+            found.add(rule_id)
+        elif rule_id in expected_ids:
+            # An expected rule observed in another phase is a fail-closed
+            # correlation error.  Other fully validated rule IDs in that
+            # phase are unrelated to this case and may be ignored.
             fail("relevant rule-match event has invalid phase")
-        if rule_id in found:
-            fail("relevant rule-match event duplicates a rule ID")
-        found.add(rule_id)
     return found
 
 
@@ -580,7 +592,7 @@ def main() -> int:
         if expected_phase != "request_body":
             fail("invalid expected MRTS rule-match phase")
         matched = event_ids(
-            event_path, correlation_id, args.connector, uri, expected_phase)
+            event_path, correlation_id, args.connector, uri, expected_phase, expected_ids)
         if status != 200:
             fail(f"{case.get('id', index)} returned HTTP {status}, expected DetectionOnly 200")
         require_case_rule_matches(

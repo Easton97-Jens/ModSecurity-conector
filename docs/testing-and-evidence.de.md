@@ -109,8 +109,19 @@ native Hash- und globale Chain-Validierung für jede Event-Zeile. Sie verwendet
 eine endliche native Phasenzuordnung, ignoriert nur vollständig gültige
 unabhängige Transaktions-/URI-Records nach dieser Validierung und behält ein
 relevantes Event mit falscher Phase fail-closed. `FND-PARENT-0198` verfolgt
-diesen Parent-eigenen Reihenfolgenfehler. Frische Envoy-Receipts `r12` und die
-unabhängige Wiederholung `r13` bleiben erforderlich.
+diesen Parent-eigenen Reihenfolgenfehler. Frische Envoy-Receipts nach dem Fix
+und eine unabhängige Wiederholung bleiben erforderlich.
+
+Frisches Envoy `r12c` erreichte den gepinnten Build, echten ext-proc-Hoststart,
+Readiness und einen DetectionOnly-Request, erzeugte aber keinen gültigen
+MRTS-Receipt. Ein zweites Executor-Klassifikationsproblem behandelte gültige
+`response_headers`- und `response_body`-Rule-Matches derselben Transaktion als
+ungültig, nur weil sie außerhalb des ausgewählten Request-Body-Profils liegen.
+Diese nicht erwarteten Response-Phasen derselben Request-Transaktion müssen
+weiter integritätsvalidiert werden und liegen danach außerhalb des ausgewählten
+Request-Body-Akzeptanzprofils. Demgegenüber bleiben eine erwartete Regel-ID in
+falscher Phase sowie alle Kontroll-/Bypass-Erwartungen fail-closed. Vor jeder
+Runtime-Klassifikation ist weiterhin ein frischer Hostlauf nach dem Fix nötig.
 
 Dieses Profil ist ausdrücklich no-CRS. Der Pfad weist CRS-Referenzen in der
 erzeugten MRTS-Load-Datei zurück und übergibt als aktive Nicht-CRS-Eingabe nur

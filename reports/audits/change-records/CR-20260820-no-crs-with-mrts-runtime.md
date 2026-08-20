@@ -175,6 +175,16 @@ a finite native phase mapping, ignores only fully valid unrelated
 transaction/URI records after validation, and keeps a relevant wrong phase
 fail-closed.
 
+Fresh Envoy `r12c` then reached the pinned build, real ext-proc host start,
+readiness, and a DetectionOnly request but failed before any valid MRTS receipt.
+The relevant request transaction contained the selected request-body rule and
+valid same-transaction `response_headers`/`response_body` records. Treating
+those nonexpected response-phase records as invalid is a second executor
+classification defect. They must remain integrity-validated and then be
+outside the selected request-body acceptance profile. An expected rule ID at a
+wrong phase, and all control/bypass expectations, remain fail-closed. `r12c`
+is diagnostic-only and cannot promote the cell.
+
 ## Checks not run and rationale
 
 - Envoy, Traefik, and lighttpd real host execution: `NOT EXECUTED` at record
@@ -204,9 +214,10 @@ approved venv and produces no false runtime receipt on dependency failure.
 Envoy needs a fresh post-header-fix run and an independent repetition; Lighttpd
 needs a fresh sealed-MRTS dispatcher run. Neither may use Envoy `r10` or a
 legacy Lighttpd smoke result as runtime evidence.
-Envoy `r11` also cannot be promoted: fresh `r12` and independent `r13` host
-receipts must prove MRTS cases, no-CRS evidence, and cleanup after the
-phase-ordering correction.
+Envoy `r11` also cannot be promoted: fresh post-fix host receipts and an
+independent repetition must prove MRTS cases, no-CRS evidence, and cleanup.
+Envoy `r12c` also has no valid receipt; a fresh post-fix host run remains
+required after binding the selected case to its expected rule IDs and phase.
 The final workflow may expose environment or required-check failures. Until
 those exact results are observed, the three target cells remain
 `PENDING` for delivery classification.

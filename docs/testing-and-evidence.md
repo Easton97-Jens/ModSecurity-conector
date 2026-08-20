@@ -98,7 +98,18 @@ native hash, and global chain validation for every event line. It uses a finite
 native phase mapping, ignores only fully valid unrelated transaction/URI
 records after that validation, and keeps a relevant event with the wrong phase
 fail-closed. `FND-PARENT-0198` tracks this Parent-owned ordering defect. Fresh
-Envoy `r12` and independently repeated `r13` receipts remain required.
+post-fix Envoy receipts and an independent repetition remain required.
+
+Fresh Envoy `r12c` reached the pinned build, real ext-proc host start,
+readiness, and a DetectionOnly request, but produced no valid MRTS receipt. A
+second executor-classification issue treated valid same-transaction
+`response_headers` and `response_body` rule matches as invalid merely because
+they are outside the selected request-body profile. Those nonexpected
+same-request response-phase records must remain integrity-validated, then sit
+outside the selected request-body acceptance profile. In contrast, an expected
+rule ID at a wrong phase and all control/bypass expectations remain
+fail-closed. A post-fix fresh host run is still required before any runtime
+classification.
 
 This profile is explicitly no-CRS. The route rejects CRS references in the
 generated MRTS load file and passes the repository-owned no-CRS rules only as

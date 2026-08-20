@@ -187,6 +187,17 @@ Phasenzuordnung, ignoriert nur vollständig gültige unabhängige Transaktions-/
 URI-Records nach der Validierung und behält eine relevante falsche Phase
 fail-closed.
 
+Frisches Envoy `r12c` erreichte danach den gepinnten Build, echten ext-proc-
+Hoststart, Readiness und einen DetectionOnly-Request, scheiterte jedoch vor
+jedem gültigen MRTS-Receipt. Die relevante Request-Transaktion enthielt die
+ausgewählte Request-Body-Regel und gültige `response_headers`-/`response_body`-
+Records derselben Transaktion. Diese nicht erwarteten Response-Phasen als
+ungültig zu behandeln, ist ein zweiter Executor-Klassifikationsfehler. Sie
+müssen integritätsvalidiert bleiben und danach außerhalb des ausgewählten
+Request-Body-Akzeptanzprofils liegen. Eine erwartete Regel-ID in falscher Phase
+sowie alle Kontroll-/Bypass-Erwartungen bleiben fail-closed. `r12c` ist nur
+diagnostisch und kann die Zelle nicht befördern.
+
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 - Echte Envoy-, Traefik- und lighttpd-Hostausführung: bei Erstellung
@@ -220,9 +231,12 @@ Envoy benötigt einen frischen Lauf nach dem Header-Fix und eine unabhängige
 Wiederholung; Lighttpd benötigt einen frischen Lauf durch den versiegelten
 MRTS-Dispatcher. Weder Envoy `r10` noch ein Legacy-Lighttpd-Smoke-Ergebnis
 dürfen als Runtime-Evidence dienen.
-Auch Envoy `r11` darf nicht befördert werden: Frische Host-Receipts `r12` und
-die unabhängige Wiederholung `r13` müssen nach der Phasenreihenfolgenkorrektur
-MRTS-Cases, No-CRS-Evidence und Cleanup belegen.
+Auch Envoy `r11` darf nicht befördert werden: Frische Host-Receipts nach dem
+Fix und eine unabhängige Wiederholung müssen MRTS-Cases, No-CRS-Evidence und
+Cleanup belegen.
+Auch Envoy `r12c` besitzt keinen gültigen Receipt; nach dem Binden des
+ausgewählten Cases an seine erwarteten Regel-IDs und Phase bleibt ein frischer
+Hostlauf nach dem Fix erforderlich.
 Bis diese Exact-Head-Ergebnisse beobachtet wurden, bleiben die drei Zielzellen
 für die Lieferung `PENDING`.
 
