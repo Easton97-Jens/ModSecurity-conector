@@ -48,6 +48,21 @@ case, expected-rule, and observed-event identifiers. It requires a
 DetectionOnly HTTP 200 result, an actual detection case, a legitimate control,
 and a benign bypass control before atomically writing the bounded result.
 
+The plan is sealed by a SHA-256 digest computed over the exact plan bytes and
+propagated through every host-adapter boundary. Before a host starts, the
+validator re-reads the sealed bytes, rejects duplicate JSON keys, verifies the
+plan digest, and reconstructs the selected cases from the exact Framework
+inventory. The selected case hashes and inventory hash must match the plan;
+changing a URI, expected event ID, or case source therefore fails closed. The
+executor receives the same digest explicitly and records it in the receipt.
+
+Rule-match evidence uses a typed native `RuleMessage` observer. It is disabled
+by default and is enabled only for the sealed MRTS runtime profile. The
+observer emits bounded metadata-only JSONL records with request and
+transaction correlation; it does not scrape audit logs, error logs, stderr, or
+request/response payloads. Native integrity and contiguous-chain validation is
+performed before the result is accepted.
+
 This profile is explicitly no-CRS. The route rejects CRS references in the
 generated MRTS load file and passes the repository-owned no-CRS rules only as
 the active non-CRS input. The route does not enable, acquire, cache, or reuse
@@ -70,9 +85,24 @@ gitlinks.
 ### Evidence status for this task
 
 At documentation time, the route and its contracts are present in the task
-worktree, but the real three-connector host runs, hosted Actions, Required
-Checks, SonarQube Cloud analysis, and PR-head equality have not been observed
-by this documentation change. They remain <code>NOT EXECUTED</code> or
+worktree. The observed local validation includes 97 focused Python contract
+tests, shell syntax checks for the changed runners, Python compilation,
+`check-common-security-contract.py`, `check-adapter-contracts.py`,
+`check-remaining-connectors-build-wiring.py`, and `git diff --check`. The
+Envoy and Traefik Go checks used `/usr/local/go/bin/go` `go1.26.6` with
+`GOTOOLCHAIN=local`: `gofmt`, `go mod verify`, `go list -deps ./...`,
+`go test ./...`, `go vet ./...`, and `govulncheck ./...` passed (the Traefik
+module was run from `connectors/traefik/native_middleware`; the first longer
+temporary socket path was replaced by a private short test root). C/C++
+syntax checks and the repository C17 remaining-connector check also passed.
+The broad C++ security scan was kept at its original C/H baseline plus the
+new typed observer `.cc` file; the pre-existing `common/scripts/
+modsecurity_targeted_eval.cc` was not exempted. Four pre-existing ShellCheck
+SC1007 warnings remain in the Envoy configuration helper.
+
+The real three-connector host runs, hosted Actions, Required Checks,
+SonarQube Cloud analysis, and PR-head equality have not been observed by this
+documentation change. They remain <code>NOT EXECUTED</code> or
 <code>PENDING</code> until the corresponding exact-head evidence exists. A
 static plan, inventory, parser test, or workflow contract must not be promoted
 to a runtime <code>PASS</code>. See the paired [Change Record](../reports/audits/change-records/CR-20260820-no-crs-with-mrts-runtime.md)

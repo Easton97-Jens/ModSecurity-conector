@@ -12,7 +12,7 @@
 | Parent-Grenze | Nur Parent; aktuelle Framework- und MRTS-Gitlinks read-only verwendet |
 | Framework-Gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | MRTS-Gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Lieferstatus | Implementierung im Task-Branch; kein Commit, Push, PR, Merge oder gehostetes Ergebnis behauptet |
+| Lieferstatus | Implementierung im Task-Branch; aktuelle Quelländerungen uncommitted; kein Push, PR, Merge oder gehostetes Ergebnis behauptet |
 
 ## Motivation und Problemstellung
 
@@ -52,10 +52,17 @@ Middleware und der gepatchte native lighttpd-Pfad.
 Der Pfad ist über `MSCONNECTOR_MRTS_RUNTIME=1` opt-in und verwendet private,
 symlinkgeprüfte Runtimepfade. Er weist Plan-/Result-Wiederverwendung,
 JSON-Duplikatschlüssel, Traversal, CRS-Referenzen und Connectornamen außerhalb
-der geschlossenen Menge zurück.
-Der Parent-Go-Versionsvertragschecker wird außerdem an den aktuellen
-CodeQL-`awk`-Guard angeglichen; die exakte stabile `1.26.x`-Grammatik bleibt
-erhalten, statt eine überholte reine Bash-Schreibweise zu verlangen.
+der geschlossenen Menge zurück. Der Plan wird durch den SHA-256-Digest seiner
+exakten Bytes versiegelt; dieser Digest ist an jeder Hostadapter- und
+Executor-Grenze erforderlich. Aus dem exakten Framework-Checkout rekonstruierte
+Case-Hashes und der ausgewählte Inventar-Hash müssen mit dem versiegelten Plan
+übereinstimmen. Rule-Match-Evidence verwendet einen typisierten nativen
+`RuleMessage`-Observer, standardmäßig deaktiviert und nur für das versiegelte
+MRTS-Profil aktiviert; er erzeugt begrenzte Metadaten-JSONL und prüft native
+Integrität sowie zusammenhängende Verkettung. Der Parent-Go-
+Versionsvertragschecker entspricht dem aktuellen CodeQL-`awk`-Guard und
+bewahrt die exakte stabile `1.26.x`-Grammatik. Die lokale Go-Validierung
+verwendete `/usr/local/go/bin/go` `go1.26.6` mit `GOTOOLCHAIN=local`.
 
 ## Security-Auswirkung
 
@@ -77,12 +84,23 @@ Diff-Reviews:
 - `ci/runtime/lifecycle/execute-no-crs-mrts-cases.py`
 - `ci/runtime/lifecycle/run-connector-stage.sh`
 - `ci/runtime/lifecycle/run-remaining-connector-target.sh`
-- `ci/checks/common/check-go-version-contract.py`
+- `ci/checks/common/check-go-version-contract.py` sowie fokussierte Common-
+  Security-, Adapter- und Remaining-Connector-Wiring-Checks
+- `common/include/msconnector/config.h`
+- `common/include/msconnector/event.h`
+- `common/runtime/msconnector_runtime.c`
+- `common/runtime/msconnector_rule_match_observer.cc`
+- `common/runtime/msconnector_rule_match_observer.h`
+- `common/src/config.c`
 - `connectors/envoy/harness/run_envoy_ext_proc_runtime.sh`
+- Envoy-Build-/Konfigurations-/Harness-Skripte sowie ext-proc-Go-Quelle/-Tests
 - `connectors/traefik/scripts/runtime_native_smoke.py`
+- Traefik-Build-Skripte und MRTS-Input-Tests
 - `connectors/lighttpd/harness/run_patched_full_lifecycle.sh`
+- Lighttpd-Build-/Konfigurationspfade und Host-Contract-Tests
 - `.github/workflows/test-connectors-no-crs-with-mrts.yml`
-- fokussierte `tests/test_no_crs_with_mrts_*.py`-Verträge
+- fokussierte `tests/test_no_crs_with_mrts_*.py`, Envoy-Transport- und
+  Selected-Runner-Contracts
 - `tests/test_go_version_contract.py`
 - `docs/testing-and-evidence.md` und `docs/testing-and-evidence.de.md`
 - dieser gepaarte Change Record und sein Archive-Index-Eintrag
@@ -93,9 +111,24 @@ Framework- und MRTS-Quelldateien werden nicht geändert.
 
 Bei der Erstellung dieses Records wurden folgende Repository-Inspektionsbefehle
 ausgeführt: `rtk proxy find`, `rtk proxy sed`, `rtk proxy rg` und `rtk proxy git
-status --short`. Sie bestätigten die aktuelle Master-Basis, die bestehende
-Dokumentationskonvention und die task-eigenen Implementierungspfade. Die
-Dokumentationsvertragsprüfungen bestanden: `rtk proxy make check-bilingual-docs` (`bilingual docs ok`), `rtk proxy make check-doc-links` (`repository path references: PASS`; `doc links ok`) und `rtk proxy git diff --check` (Exit 0). Die drei echten Hostläufe, der gehostete
+status --short`. Die beobachtete lokale Validierung bestand: 97 fokussierte
+Python-Contract-Tests, Shell-Syntaxprüfungen für geänderte Runner,
+Python-Kompilierung, `check-common-security-contract.py`,
+`check-adapter-contracts.py`, `check-remaining-connectors-build-wiring.py`,
+`git diff --check`, der C17-Check für die übrigen Connectoren sowie C/C++-
+Syntaxprüfungen. Envoy- und Traefik-Go-Checks verwendeten
+`/usr/local/go/bin/go` `go1.26.6` mit `GOTOOLCHAIN=local`: `gofmt`,
+`go mod verify`, `go list -deps ./...`, `go test ./...`, `go vet ./...` und
+`govulncheck ./...` bestanden. Das Traefik-Modul wurde aus
+`connectors/traefik/native_middleware` ausgeführt; sein erster längerer
+temporärer Socket-Pfad wurde durch einen privaten kurzen Test-Root ersetzt.
+Der Scanner behielt die ursprüngliche C/H-Baseline bei und ergänzte nur
+`common/runtime/msconnector_rule_match_observer.cc`; vier vorbestehende
+ShellCheck-SC1007-Warnungen verbleiben im Envoy-Konfigurationshelfer. Die
+Dokumentationsvertragsprüfungen bestanden: `rtk proxy make
+check-bilingual-docs` (`bilingual docs ok`), `rtk proxy make check-doc-links`
+(`repository path references: PASS`; `doc links ok`) und `rtk proxy git
+diff --check` (Exit 0). Die drei echten Hostläufe, der gehostete
 Fünf-Connector-Workflow, Exact-Head-Required-Checks und die SonarQube-Cloud-
 Analyse sind aktuell `NOT EXECUTED`. Kein statisches Vertrags- oder
 Inventarergebnis wird zu Runtime-`PASS` befördert.
@@ -125,8 +158,10 @@ Pfade dürfen nicht in diesen Record kopiert werden.
 Der Task-Branch basiert auf aktuellem `master`, nicht auf PR #279. Die
 Implementierung und ihre lokalen Verträge können sich nach den Hostläufen noch
 ändern, wenn connector-spezifische Probleme sichtbar werden. Die
-Dokumentation beschreibt den vorgesehenen geschlossenen Pfad und die aktuelle
-Evidence-Grenze; sie begründet nicht `verified_pr`.
+lokale Evidence deckt nur statische, Sprach- und Contract-Prüfungen ab; sie
+belegt kein Host-Runtime-Verhalten. Die Dokumentation beschreibt den
+vorgesehenen geschlossenen Pfad und die aktuelle Evidence-Grenze; sie begründet
+nicht `verified_pr`.
 
 ## Verbleibende Risiken
 

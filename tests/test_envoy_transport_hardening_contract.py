@@ -761,7 +761,20 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         executor_end = source.index("    mrts_executor_rc=$?", executor_start)
         executor_source = source[executor_start:executor_end]
         self.assertIn('--runtime-root \"$VERIFIED_RUN_ROOT\"', executor_source)
+        self.assertIn('--plan-sha256 \"$MRTS_RUNTIME_PLAN_SHA256\"', executor_source)
         self.assertNotIn('--runtime-root \"$RUNTIME_ROOT\"', executor_source)
+
+    def test_mrts_rule_match_evidence_is_after_sealed_plan_validation(self) -> None:
+        source = RUNTIME_PATH.read_text(encoding="utf-8")
+        validation = source.index("validate_mrts_runtime_inputs\ntrap cleanup")
+        materializer = source.index('OUTPUT_CONFIG="$EXT_PROC_RUNTIME_CONFIG"')
+        self.assertLess(validation, materializer)
+        self.assertIn("transaction_id_header=x-mrts-transaction-id", source)
+        self.assertIn("emit_rule_match_evidence=on", source)
+        self.assertIn("transaction_id_header=x-request-id", source)
+        self.assertIn("emit_rule_match_evidence=off", source)
+        self.assertIn("MRTS_RUNTIME_PLAN_SHA256", source)
+        self.assertIn('--plan-sha256 \"$MRTS_RUNTIME_PLAN_SHA256\"', source)
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@
 | Parent boundary | Parent only; current Framework and MRTS gitlinks consumed read-only |
 | Framework gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | MRTS gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Task branch implementation in progress; no commit, push, PR, merge, or hosted result asserted |
+| Delivery status | Task branch implementation in progress; current source changes uncommitted; no push, PR, merge, or hosted result asserted |
 
 ## Motivation and problem statement
 
@@ -51,9 +51,16 @@ patched native path.
 The route is opt-in through `MSCONNECTOR_MRTS_RUNTIME=1` and uses private,
 symlink-checked runtime paths. It rejects plan/result reuse, duplicate JSON
 keys, traversal, CRS references, and connector names outside the closed set.
-The Parent Go-version contract checker is also aligned with the current
-CodeQL `awk` guard, preserving the exact stable `1.26.x` grammar instead of
-requiring the superseded Bash-only spelling.
+The plan is sealed by the SHA-256 digest of its exact bytes and that digest is
+required at every host-adapter and executor boundary. Selected case hashes and
+the selected inventory hash are reconstructed from the exact Framework
+checkout and must match the sealed plan. Rule-match evidence uses a typed
+native `RuleMessage` observer, disabled by default and enabled only for the
+sealed MRTS profile; it emits bounded metadata-only JSONL records and validates
+native integrity and contiguous chaining. The Parent Go-version contract
+checker is aligned with the current CodeQL `awk` guard, preserving the exact
+stable `1.26.x` grammar. Local Go validation used `/usr/local/go/bin/go`
+`go1.26.6` with `GOTOOLCHAIN=local`.
 
 ## Security impact
 
@@ -74,12 +81,22 @@ final diff review:
 - `ci/runtime/lifecycle/execute-no-crs-mrts-cases.py`
 - `ci/runtime/lifecycle/run-connector-stage.sh`
 - `ci/runtime/lifecycle/run-remaining-connector-target.sh`
-- `ci/checks/common/check-go-version-contract.py`
+- `ci/checks/common/check-go-version-contract.py` and focused common security,
+  adapter, and remaining-connector wiring checks
+- `common/include/msconnector/config.h`
+- `common/include/msconnector/event.h`
+- `common/runtime/msconnector_runtime.c`
+- `common/runtime/msconnector_rule_match_observer.cc`
+- `common/runtime/msconnector_rule_match_observer.h`
+- `common/src/config.c`
 - `connectors/envoy/harness/run_envoy_ext_proc_runtime.sh`
+- Envoy build/configuration/harness scripts and ext-proc Go source/tests
 - `connectors/traefik/scripts/runtime_native_smoke.py`
+- Traefik build scripts and MRTS input tests
 - `connectors/lighttpd/harness/run_patched_full_lifecycle.sh`
+- Lighttpd build/configuration and host-contract tests
 - `.github/workflows/test-connectors-no-crs-with-mrts.yml`
-- focused `tests/test_no_crs_with_mrts_*.py` contracts
+- focused `tests/test_no_crs_with_mrts_*.py`, Envoy transport, and selected-runner contracts
 - `tests/test_go_version_contract.py`
 - `docs/testing-and-evidence.md` and `docs/testing-and-evidence.de.md`
 - this paired Change Record and its archive index entry
@@ -90,9 +107,22 @@ Framework and MRTS source files are not changed.
 
 The following repository inspection commands were executed while preparing the
 record: `rtk proxy find`, `rtk proxy sed`, `rtk proxy rg`, and
-`rtk proxy git status --short`. They confirmed the current-master base,
-existing documentation convention, and task-owned implementation paths. The
-documentation contract checks passed: `rtk proxy make check-bilingual-docs` (`bilingual docs ok`), `rtk proxy make check-doc-links` (`repository path references: PASS`; `doc links ok`), and `rtk proxy git diff --check` (exit 0).
+`rtk proxy git status --short`. The observed local validation passed: 97
+focused Python contract tests; shell syntax checks for changed runners;
+Python compilation; `check-common-security-contract.py`;
+`check-adapter-contracts.py`; `check-remaining-connectors-build-wiring.py`;
+`git diff --check`; C17 remaining-connector checks; and C/C++ syntax checks.
+Envoy and Traefik Go checks used `/usr/local/go/bin/go` `go1.26.6` with
+`GOTOOLCHAIN=local`: `gofmt`, `go mod verify`, `go list -deps ./...`,
+`go test ./...`, `go vet ./...`, and `govulncheck ./...` passed. The Traefik
+module was run from `connectors/traefik/native_middleware`; its first longer
+temporary socket path was replaced by a private short test root. The scanner
+kept the original C/H baseline and explicitly added only
+`common/runtime/msconnector_rule_match_observer.cc`; four pre-existing
+ShellCheck SC1007 warnings remain in the Envoy configuration helper. The
+documentation contract checks passed: `rtk proxy make check-bilingual-docs`
+(`bilingual docs ok`), `rtk proxy make check-doc-links` (`repository path
+references: PASS`; `doc links ok`), and `rtk proxy git diff --check` (exit 0).
 The three real host runs, the full five-connector hosted workflow, exact-head
 Required Checks, and SonarQube Cloud analysis are currently `NOT EXECUTED`.
 No static contract or inventory result is promoted to runtime `PASS`.
@@ -121,8 +151,10 @@ into this record.
 
 The task branch is based on current `master`, not PR #279. The implementation
 and its local contracts may still change after host execution exposes
-connector-specific issues. The documentation records the intended closed
-route and current evidence boundary; it does not establish `verified_pr`.
+connector-specific issues. The local evidence covers static, language, and
+contract checks only; it does not establish host-runtime behavior. The
+documentation records the intended closed route and current evidence boundary;
+it does not establish `verified_pr`.
 
 ## Remaining risks
 

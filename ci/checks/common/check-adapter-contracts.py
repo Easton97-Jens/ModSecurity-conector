@@ -109,6 +109,9 @@ common_contract_files = (
     + list((ROOT / "common/runtime").glob("*.h"))
     + list((ROOT / "common/runtime").glob("*.c"))
 )
+rule_match_observer = ROOT / "common/runtime/msconnector_rule_match_observer.cc"
+if rule_match_observer.is_file():
+    common_contract_files.append(rule_match_observer)
 for path in common_contract_files:
     text = path.read_text(errors="ignore")
     target = contains_server_include(text)

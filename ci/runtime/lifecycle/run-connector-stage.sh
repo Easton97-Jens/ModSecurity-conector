@@ -47,6 +47,7 @@ validate_mrts_stage_inputs() {
         exit 77
     }
     [ -n "${MRTS_RUNTIME_PLAN:-}" ] || { echo "FAIL: MRTS_RUNTIME_PLAN is required" >&2; exit 2; }
+    [ -n "${MRTS_RUNTIME_PLAN_SHA256:-}" ] || { echo "FAIL: MRTS_RUNTIME_PLAN_SHA256 is required" >&2; exit 2; }
     [ -n "${MRTS_RUNTIME_RESULT:-}" ] || { echo "FAIL: MRTS_RUNTIME_RESULT is required" >&2; exit 2; }
     [ -n "${MRTS_RUNTIME_EXECUTOR:-}" ] || { echo "FAIL: MRTS_RUNTIME_EXECUTOR is required" >&2; exit 2; }
     [ -n "${MRTS_RUNTIME_EXECUTOR_SHA256:-}" ] || { echo "FAIL: MRTS_RUNTIME_EXECUTOR_SHA256 is required" >&2; exit 2; }
@@ -78,6 +79,13 @@ validate_mrts_stage_inputs() {
     esac
     [ "${#MRTS_RUNTIME_EXECUTOR_SHA256}" -eq 64 ] || {
         echo "FAIL: MRTS_RUNTIME_EXECUTOR_SHA256 must be a SHA-256 digest" >&2
+        exit 2
+    }
+    case "$MRTS_RUNTIME_PLAN_SHA256" in
+        *[!0-9a-f]*) echo "FAIL: MRTS_RUNTIME_PLAN_SHA256 must be a lowercase SHA-256 digest" >&2; exit 2 ;;
+    esac
+    [ "${#MRTS_RUNTIME_PLAN_SHA256}" -eq 64 ] || {
+        echo "FAIL: MRTS_RUNTIME_PLAN_SHA256 must be a SHA-256 digest" >&2
         exit 2
     }
     case "$MRTS_RUNTIME_PLAN:$MRTS_RUNTIME_RESULT" in
@@ -116,7 +124,7 @@ validate_mrts_stage_inputs() {
         echo "FAIL: MRTS runtime executor digest mismatch" >&2
         exit 77
     }
-    if ! "$MRTS_PYTHON_BIN" -c 'import json, sys
+    if ! "$MRTS_PYTHON_BIN" -c 'import hashlib, json, pathlib, sys
 def reject_duplicates(pairs):
     value = {}
     for key, item in pairs:
@@ -124,11 +132,13 @@ def reject_duplicates(pairs):
             raise ValueError("duplicate JSON key")
         value[key] = item
     return value
-with open(sys.argv[1], encoding="utf-8") as stream:
-    plan = json.load(stream, object_pairs_hook=reject_duplicates)
+data = pathlib.Path(sys.argv[1]).read_bytes()
+if hashlib.sha256(data).hexdigest() != sys.argv[4]:
+    raise SystemExit(1)
+plan = json.loads(data.decode("utf-8"), object_pairs_hook=reject_duplicates)
 executor = plan.get("executor") if isinstance(plan, dict) else None
 if not isinstance(executor, dict) or executor.get("path") != sys.argv[2] or executor.get("sha256") != sys.argv[3]:
-    raise SystemExit(1)' "$MRTS_RUNTIME_PLAN" "$expected_mrts_executor" "$MRTS_RUNTIME_EXECUTOR_SHA256"; then
+    raise SystemExit(1)' "$MRTS_RUNTIME_PLAN" "$expected_mrts_executor" "$MRTS_RUNTIME_EXECUTOR_SHA256" "$MRTS_RUNTIME_PLAN_SHA256"; then
         echo "FAIL: sealed MRTS plan executor identity does not match the approved executor" >&2
         exit 77
     fi
@@ -146,7 +156,7 @@ if not isinstance(executor, dict) or executor.get("path") != sys.argv[2] or exec
     if ! "$MRTS_PYTHON_BIN" "$sealed_plan_validator" --validate-sealed-plan \
         --plan "$MRTS_RUNTIME_PLAN" --runtime-root "$VERIFIED_RUN_ROOT" \
         --framework-root "$FRAMEWORK_ROOT" --rules-root "$MRTS_RUNTIME_RULES_ROOT" \
-        --load-file "$MRTS_LOAD_FILE"; then
+        --load-file "$MRTS_LOAD_FILE" --plan-sha256 "$MRTS_RUNTIME_PLAN_SHA256"; then
         echo "FAIL: sealed MRTS plan no-CRS validation failed" >&2
         exit 77
     fi
@@ -389,6 +399,7 @@ run_remaining_connector() {
             MODSECURITY_TEST_VARIANT=no-crs \
             MODSECURITY_MRTS_VARIANT=with-mrts \
             MRTS_RUNTIME_PLAN="$MRTS_RUNTIME_PLAN" \
+            MRTS_RUNTIME_PLAN_SHA256="$MRTS_RUNTIME_PLAN_SHA256" \
             MRTS_RUNTIME_RESULT="$MRTS_RUNTIME_RESULT" \
             MRTS_RUNTIME_EXECUTOR="$MRTS_RUNTIME_EXECUTOR" \
             MRTS_RUNTIME_EXECUTOR_SHA256="$MRTS_RUNTIME_EXECUTOR_SHA256" \

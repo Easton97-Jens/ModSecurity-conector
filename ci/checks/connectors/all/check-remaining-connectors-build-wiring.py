@@ -21,6 +21,7 @@ for target in (
         errors.append(f"root Makefile missing {target}")
 
 build_scripts = (
+    "connectors/envoy/build/build_ext_proc.sh",
     "connectors/envoy/build/build_connector.sh",
     "connectors/traefik/build/build-connector.sh",
     "connectors/lighttpd/build/build_module.sh",
@@ -38,6 +39,19 @@ for relative in build_scripts:
         errors.append(f"C17 build policy missing: {relative}")
     if "-Werror" not in content:
         errors.append(f"warnings-as-errors missing: {relative}")
+
+observer_source = "common/runtime/msconnector_rule_match_observer.cc"
+observer_scripts = (
+    "connectors/envoy/build/build_ext_proc.sh",
+    "connectors/envoy/build/build_connector.sh",
+    "connectors/traefik/build/build-connector.sh",
+    "connectors/traefik/build/build-engine-service.sh",
+    "connectors/lighttpd/build/build_module.sh",
+)
+for relative in observer_scripts:
+    content = (ROOT / relative).read_text(encoding="utf-8", errors="replace")
+    if observer_source not in content:
+        errors.append(f"typed Common observer is not linked by: {relative}")
 
 lighttpd_make = (ROOT / "connectors/lighttpd/Makefile").read_text(encoding="utf-8")
 if "self-test-lighttpd-bridge: build-lighttpd-bridge" not in lighttpd_make:

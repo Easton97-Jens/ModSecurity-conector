@@ -41,15 +41,16 @@ func main() {
 type usageError struct{}
 
 func (usageError) Error() string {
-	return "usage: msconnector_envoy_ext_proc --config PATH [--runtime-config PATH] [--listen HOST:PORT] [--event-log PATH] [--check-config]"
+	return "usage: msconnector_envoy_ext_proc --config PATH [--runtime-config PATH] [--transaction-id-header HEADER] [--listen HOST:PORT] [--event-log PATH] [--check-config]"
 }
 
 type commandLineOptions struct {
-	configPath        string
-	listenOverride    string
-	eventLogPath      string
-	runtimeConfigPath string
-	checkConfig       bool
+	configPath          string
+	listenOverride      string
+	transactionIDHeader string
+	eventLogPath        string
+	runtimeConfigPath   string
+	checkConfig         bool
 }
 
 func run() (int, error) {
@@ -81,6 +82,7 @@ func parseCommandLine() (commandLineOptions, error) {
 	var options commandLineOptions
 	flag.StringVar(&options.configPath, "config", "", "path to ext_proc JSON config")
 	flag.StringVar(&options.listenOverride, "listen", "", "optional host:port override")
+	flag.StringVar(&options.transactionIDHeader, "transaction-id-header", "", "optional sealed transaction correlation header override")
 	flag.StringVar(&options.eventLogPath, "event-log", "", "optional absolute metadata-only JSONL evidence path")
 	flag.StringVar(&options.runtimeConfigPath, "runtime-config", "", "path to Common/libmodsecurity runtime config")
 	flag.BoolVar(&options.checkConfig, "check-config", false, "validate config and exit")
@@ -101,6 +103,15 @@ func loadServiceConfig(options commandLineOptions) (processor.Config, error) {
 		if err := config.Validate(); err != nil {
 			return processor.Config{}, fmt.Errorf("invalid listen override: %w", err)
 		}
+	}
+	if options.transactionIDHeader != "" {
+		if options.transactionIDHeader != "x-request-id" && options.transactionIDHeader != "x-mrts-transaction-id" {
+			return processor.Config{}, fmt.Errorf("invalid transaction-id-header: %s", options.transactionIDHeader)
+		}
+		config.TransactionIDHeader = options.transactionIDHeader
+	}
+	if err := config.Validate(); err != nil {
+		return processor.Config{}, fmt.Errorf("invalid service config: %w", err)
 	}
 	return config, nil
 }

@@ -17,6 +17,7 @@ PROXY_FIXTURE_PORT=${LIGHTTPD_PROXY_FIXTURE_PORT:-}
 RUNTIME_CONFIG=$SMOKE_DIR/msconnector-runtime.conf
 LIGHTTPD_CONFIG=$SMOKE_DIR/lighttpd.conf
 EVENT_PATH=$SMOKE_DIR/events.jsonl
+MRTS_RUNTIME_MODE=${MSCONNECTOR_MRTS_RUNTIME:-0}
 
 blocked() {
     reason=$1
@@ -35,6 +36,10 @@ esac
 case "$SMOKE_PORT" in
     ''|*[!0-9]*) blocked "LIGHTTPD_SMOKE_PORT must be numeric" ;;
     *) ;;
+esac
+case "$MRTS_RUNTIME_MODE" in
+    0|1) ;;
+    *) blocked "MSCONNECTOR_MRTS_RUNTIME must be 0 or 1" ;;
 esac
 if [ "$SMOKE_PORT" -lt 1024 ] || [ "$SMOKE_PORT" -gt 65535 ]; then
     blocked "LIGHTTPD_SMOKE_PORT must be between 1024 and 65535"
@@ -84,12 +89,19 @@ printf '%s\n' 'lighttpd native connector smoke' > "$SMOKE_DIR/document-root/inde
 printf '%s\n' 'lighttpd phase-3 response header probe' > "$SMOKE_DIR/document-root/phase3-block"
 printf '%s\n' 'lighttpd phase-3 redirect header probe' > "$SMOKE_DIR/document-root/phase3-redirect"
 
+if [ "$MRTS_RUNTIME_MODE" = 1 ]; then
+    TRANSACTION_ID_HEADER=x-mrts-transaction-id
+    EMIT_RULE_MATCH_EVIDENCE=on
+else
+    TRANSACTION_ID_HEADER=x-modsec-transaction-id
+    EMIT_RULE_MATCH_EVIDENCE=off
+fi
+
 {
     printf 'enabled=on\n'
     printf 'rules_file=%s\n' "$RULES_FILE"
-    # The patched module supplies its own unique host transaction ID first;
-    # retain the canonical fallback header for hosts that do not provide one.
-    printf 'transaction_id_header=x-modsec-transaction-id\n'
+    printf 'transaction_id_header=%s\n' "$TRANSACTION_ID_HEADER"
+    printf 'emit_rule_match_evidence=%s\n' "$EMIT_RULE_MATCH_EVIDENCE"
     printf 'request_body_mode=%s\n' "$REQUEST_BODY_MODE"
     printf 'response_body_mode=%s\n' "$RESPONSE_BODY_MODE"
     printf 'request_body_limit=1048576\n'

@@ -26,6 +26,67 @@ TARGET = load("mrts_target", "ci/runtime/lifecycle/run-no-crs-with-mrts-target.p
 EXECUTOR = load("mrts_executor", "ci/runtime/lifecycle/execute-no-crs-mrts-cases.py")
 
 
+def plan_digest(path: Path) -> str:
+    return TARGET.hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def dedicated_rule_match_event(
+    *,
+    connector: str = "envoy",
+    transaction_id: str = "run-0001",
+    uri: str = "/?foo=attack",
+    rule_id: str = "100000",
+    previous_event_hash: int = 0,
+) -> dict[str, object]:
+    event: dict[str, object] = {
+        "timestamp": "2026-08-20T12:34:56Z",
+        "level": "info",
+        "message_id": "MSCONN_EVENT_RULE_MATCHED",
+        "message": "",
+        "event": "request_rule_match",
+        "connector": connector,
+        "integration_mode": EXECUTOR.RULE_MATCH_INTEGRATION_MODES[connector],
+        "transaction_id": transaction_id,
+        "phase": "request_body",
+        "status": "ok",
+        "action": "allow",
+        "requested_action": "allow",
+        "actual_action": "allow",
+        "http_status": 0,
+        "original_http_status": 0,
+        "visible_http_status": 0,
+        "transport_result": "",
+        "http_reason_phrase": "",
+        "http_default_message": "",
+        "rule_id": rule_id,
+        "reason": "",
+        "method": "GET",
+        "uri": uri,
+        "client_ip": "",
+        "content_type": "",
+        "body_bytes_seen": 0,
+        "body_bytes_inspected": 0,
+        "late_intervention": False,
+        "response_started": False,
+        "response_committed": False,
+        "headers_sent": False,
+        "body_started": False,
+        "body_truncated": False,
+        "connection_aborted": False,
+        "client_disconnected": False,
+        "upstream_disconnected": False,
+        "cancelled": False,
+        "eos_seen": False,
+        "redacted": False,
+        "truncated": False,
+        "sequence": 1,
+        "previous_event_hash": previous_event_hash,
+        "event_hash": 0,
+    }
+    event["event_hash"] = EXECUTOR.rule_match_event_hash(event)
+    return event
+
+
 class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
     def test_profile_is_closed_to_three_connectors(self):
         self.assertEqual(TARGET.CONNECTORS, {"envoy", "traefik", "lighttpd"})
@@ -68,13 +129,152 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         self.assertIn("executor digest mismatch", source)
         self.assertIn("MRTS case digest mismatch", source)
         self.assertIn('parser.add_argument("--load-file", required=True)', source)
+        self.assertIn('parser.add_argument("--plan-sha256", required=True)', source)
         self.assertIn('build_root = root / "build"', source)
-        self.assertIn("validate_sealed_no_crs_plan(plan_path, root, load_path, executor_path)", source)
+        self.assertIn("validate_sealed_no_crs_plan(plan_path, root, load_path, executor_path, plan_sha256)", source)
+        self.assertIn('host_request_id = f"host-{correlation_id}"', source)
+        self.assertIn('"X-Request-ID": host_request_id', source)
         self.assertNotIn('if "crs" in load_path.read_text', source)
 
     def test_duplicate_json_keys_are_rejected(self):
         with self.assertRaises(SystemExit):
             EXECUTOR.reject_duplicates([("a", 1), ("a", 2)])
+
+    def test_event_ids_accepts_only_the_dedicated_metadata_rule_match(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            event_log.write_text(
+                json.dumps(dedicated_rule_match_event(uri="/?foo=attack%20value")) + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                EXECUTOR.event_ids(
+                    event_log, "run-0001", "envoy", "/?foo=attack%20value", "request_body"),
+                {"100000"},
+            )
+
+    def test_event_ids_rejects_wrong_event_kind_and_arbitrary_nested_rule_ids(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            event = dedicated_rule_match_event()
+            event["message_id"] = "MSCONN_EVENT_DECISION"
+            event["nested"] = {"matched_rule_ids": ["100000"]}
+            event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body")
+
+    def test_event_ids_ignores_other_transaction_or_uri(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            base = dedicated_rule_match_event(transaction_id="other-run", uri="/?foo=other")
+            event_log.write_text(json.dumps(base) + "\n", encoding="utf-8")
+            self.assertEqual(
+                EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body"),
+                set(),
+            )
+
+    def test_event_ids_validates_the_native_integrity_hash_chain(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            first = dedicated_rule_match_event(
+                transaction_id="other-run", uri="/?foo=other"
+            )
+            second = dedicated_rule_match_event(
+                previous_event_hash=int(first["event_hash"])
+            )
+            event_log.write_text(
+                json.dumps(first) + "\n" + json.dumps(second) + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                EXECUTOR.event_ids(
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body"
+                ),
+                {"100000"},
+            )
+
+    def test_event_ids_rejects_forged_or_discontinuous_integrity_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            forged = dedicated_rule_match_event()
+            forged["event_hash"] = int(forged["event_hash"]) ^ 1
+            event_log.write_text(json.dumps(forged) + "\n", encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                EXECUTOR.event_ids(
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body"
+                )
+            discontinuous = dedicated_rule_match_event(previous_event_hash=1)
+            event_log.write_text(json.dumps(discontinuous) + "\n", encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                EXECUTOR.event_ids(
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body"
+                )
+
+    def test_rule_match_integrity_rejects_an_unpinned_abi(self):
+        event = dedicated_rule_match_event()
+        with mock.patch.object(EXECUTOR.sys, "byteorder", "big"):
+            with self.assertRaises(SystemExit):
+                EXECUTOR.rule_match_event_hash(event)
+
+    def test_event_ids_rejects_duplicate_keys_in_relevant_record(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            encoded = json.dumps(dedicated_rule_match_event())
+            event_log.write_text(encoded[:-1] + ',"rule_id":"100001"}\n', encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body")
+
+    def test_event_ids_rejects_duplicate_relevant_rule_ids(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            first = dedicated_rule_match_event()
+            duplicate = dedicated_rule_match_event(
+                previous_event_hash=int(first["event_hash"])
+            )
+            event_log.write_text(
+                json.dumps(first) + "\n" + json.dumps(duplicate) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(SystemExit):
+                EXECUTOR.event_ids(
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body"
+                )
+
+    def test_detection_rule_matches_require_exact_equality(self):
+        EXECUTOR.require_case_rule_matches(
+            "detection", "detection", {"100000"}, {"100000"}
+        )
+        with self.assertRaises(SystemExit):
+            EXECUTOR.require_case_rule_matches(
+                "detection", "detection", {"100000"}, {"100000", "100001"}
+            )
+        with self.assertRaises(SystemExit):
+            EXECUTOR.require_case_rule_matches(
+                "detection", "detection", {"100000"}, set()
+            )
+
+    def test_event_ids_rejects_wrong_phase_schema_or_scalar_payload(self):
+        cases = (
+            ("phase", "request_headers"),
+            ("integration_mode", "forwardAuth"),
+            ("message", "untrusted-rule-message"),
+            ("truncated", True),
+            ("rule_id", "0"),
+            ("rule_id", "000100000"),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            for field, value in cases:
+                event = dedicated_rule_match_event()
+                event[field] = value
+                event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
+                with self.assertRaises(SystemExit, msg=f"accepted invalid {field}={value!r}"):
+                    EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body")
+            event = dedicated_rule_match_event()
+            event["matched_value"] = "attack"
+            event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
+            with self.assertRaises(SystemExit, msg="accepted an extra scalar payload field"):
+                EXECUTOR.event_ids(event_log, "run-0001", "envoy", "/?foo=attack", "request_body")
 
     def test_generated_plan_has_control_detection_and_bypass(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -87,9 +287,9 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             # The framework parser is intentionally used by the runner; this
             # test only verifies the executor's required case contract.
             plan = {"profile": "no-crs/with-mrts", "connector": "envoy", "cases": [
-                {"id": "control", "kind": "control", "uri": "/?control=1", "expect_ids": []},
-                {"id": "detect", "kind": "detection", "uri": "/?foo=attack", "expect_ids": ["100000"]},
-                {"id": "bypass", "kind": "bypass", "uri": "/?foo=benign", "expect_ids": []},
+                {"id": "control", "kind": "control", "uri": "/?control=1", "expect_ids": [], "expect_event_phase": "request_body"},
+                {"id": "detect", "kind": "detection", "uri": "/?foo=attack", "expect_ids": ["100000"], "expect_event_phase": "request_body"},
+                {"id": "bypass", "kind": "bypass", "uri": "/?foo=benign", "expect_ids": [], "expect_event_phase": "request_body"},
             ]}
             self.assertEqual({case["kind"] for case in plan["cases"]}, {"control", "detection", "bypass"})
             json.loads(json.dumps(plan), object_pairs_hook=EXECUTOR.reject_duplicates)
@@ -170,33 +370,144 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             baseline = framework / "tests" / "rules" / "no-crs-baseline.conf"
             baseline.parent.mkdir(parents=True)
             baseline.write_text("SecRuleEngine DetectionOnly\n", encoding="utf-8")
+            case_root = runtime / "build" / "mrts" / "upstream-config-tests" / "framework-cases"
+            case_root.mkdir(parents=True)
+            source = case_root / "fixture.yaml"
+            source.write_text("fixture: generated\n", encoding="utf-8")
+            expected_cases = [
+                {"id": "control", "kind": "control", "uri": "/?control=1", "expect_ids": [], "expect_event_phase": "request_body"},
+                {"id": "detect", "kind": "detection", "uri": "/?foo=attack", "expect_ids": ["100000"], "expect_event_phase": "request_body", "source": source.name},
+                {"id": "bypass", "kind": "bypass", "uri": "/?foo=benign", "expect_ids": [], "expect_event_phase": "request_body"},
+            ]
+            case_hashes = TARGET.selected_case_hashes(case_root, [source])
             stage = runtime / "build" / "stages" / "envoy" / "no_crs_with_mrts" / "runtime"
             stage.mkdir(parents=True)
             plan_path = stage / "mrts-runtime-plan.json"
             rules_hash = TARGET.hashlib.sha256(generated.read_bytes()).hexdigest()
-            plan_path.write_text(
-                json.dumps({
-                    "schema": "no-crs-with-mrts-plan/v1",
-                    "profile": "no-crs/with-mrts",
-                    "connector": "envoy",
-                    "load_file": str(load),
-                    "load_file_sha256": TARGET.hashlib.sha256(load.read_bytes()).hexdigest(),
-                    "no_crs_rules_file": str(baseline),
-                    "no_crs_validation": {
-                        "generated_rules_root": str(rules),
-                        "canonical_mrts_rules_root": str(canonical),
-                        "included_rule_sha256": {generated.name: rules_hash},
-                    },
-                }),
+            plan = {
+                "schema": "no-crs-with-mrts-plan/v1",
+                "profile": "no-crs/with-mrts",
+                "connector": "envoy",
+                "cases": json.loads(json.dumps(expected_cases)),
+                "inventory_root": str(case_root),
+                "inventory_hash": TARGET.selected_case_inventory_hash([source]),
+                "case_hashes": case_hashes,
+                "load_file": str(load),
+                "load_file_sha256": TARGET.hashlib.sha256(load.read_bytes()).hexdigest(),
+                "no_crs_rules_file": str(baseline),
+                "no_crs_validation": {
+                    "generated_rules_root": str(rules),
+                    "canonical_mrts_rules_root": str(canonical),
+                    "included_rule_sha256": {generated.name: rules_hash},
+                },
+            }
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+            runtime.chmod(0o700)
+            with mock.patch.object(TARGET, "select_cases", return_value=(expected_cases, [source])):
+                initial_digest = plan_digest(plan_path)
+                TARGET.validate_sealed_plan(
+                    plan_path, runtime, framework, rules, load, initial_digest
+                )
+                plan["cases"][1]["uri"] = "/?foo=benign"
+                plan_path.write_text(json.dumps(plan), encoding="utf-8")
+                with self.assertRaisesRegex(SystemExit, "digest does not match"):
+                    TARGET.validate_sealed_plan(
+                        plan_path, runtime, framework, rules, load, initial_digest
+                    )
+                with self.assertRaisesRegex(SystemExit, "cases do not match"):
+                    TARGET.validate_sealed_plan(
+                        plan_path, runtime, framework, rules, load, plan_digest(plan_path)
+                    )
+                plan["cases"] = json.loads(json.dumps(expected_cases))
+                plan["load_file_sha256"] = "0" * 64
+                plan_path.write_text(json.dumps(plan), encoding="utf-8")
+                with self.assertRaises(SystemExit):
+                    TARGET.validate_sealed_plan(
+                        plan_path, runtime, framework, rules, load, plan_digest(plan_path)
+                    )
+
+    def test_sealed_plan_reconstructs_cases_from_the_explicit_framework_root(self):
+        framework = ROOT / "modules" / "ModSecurity-test-Framework"
+        canonical = framework / "tools" / "MRTS" / "generated" / "rules"
+        baseline = framework / "tests" / "rules" / "no-crs-baseline.conf"
+        if not canonical.is_dir() or not baseline.is_file():
+            self.skipTest("exact Framework/MRTS gitlink is unavailable")
+        with tempfile.TemporaryDirectory(prefix="mrts-no-crs-case-binding-") as directory:
+            runtime = Path(directory) / "mrts-no-crs-runtime"
+            rules = runtime / "build" / "mrts" / "upstream-config-tests" / "rules"
+            case_root = runtime / "build" / "mrts" / "upstream-config-tests" / "framework-cases"
+            stage = runtime / "build" / "stages" / "envoy" / "no_crs_with_mrts" / "runtime"
+            rules.mkdir(parents=True)
+            case_root.mkdir(parents=True)
+            stage.mkdir(parents=True)
+            for source in sorted(canonical.glob("MRTS_*.conf")):
+                (rules / source.name).write_bytes(source.read_bytes())
+            copied_source = case_root / "fixture.yaml"
+            copied_source.write_text(
+                """metadata:
+  upstream_file: tools/MRTS/generated/tests/regression/tests/MRTS_002_ARGS_A-GET.yaml
+  phase: 1
+portable: true
+request:
+  method: GET
+  path: /?foo=attack
+expect:
+  rule_id: 100000
+""",
                 encoding="utf-8",
             )
-            runtime.chmod(0o700)
-            TARGET.validate_sealed_plan(plan_path, runtime, framework, rules, load)
-            plan = json.loads(plan_path.read_text(encoding="utf-8"))
-            plan["load_file_sha256"] = "0" * 64
+            with mock.patch.dict(
+                os.environ,
+                {"MRTS_FRAMEWORK_ROOT": str(runtime / "untrusted-framework")},
+                clear=False,
+            ):
+                cases, sources = TARGET.select_cases(case_root, framework)
+            self.assertGreaterEqual(len(cases), 3)
+            self.assertEqual(sources, [copied_source])
+            included = {
+                source.name: TARGET.hashlib.sha256(source.read_bytes()).hexdigest()
+                for source in sorted(rules.glob("MRTS_*.conf"))
+            }
+            load = runtime / "build" / "mrts" / "upstream-config-tests" / "mrts.load"
+            load.write_text(
+                "".join(f'Include "{rules / name}"\n' for name in sorted(included)),
+                encoding="utf-8",
+            )
+            plan_path = stage / "mrts-runtime-plan.json"
+            plan = {
+                "schema": "no-crs-with-mrts-plan/v1",
+                "profile": "no-crs/with-mrts",
+                "connector": "envoy",
+                "cases": cases,
+                "inventory_root": str(case_root),
+                "inventory_hash": TARGET.selected_case_inventory_hash(sources),
+                "case_hashes": TARGET.selected_case_hashes(case_root, sources),
+                "load_file": str(load),
+                "load_file_sha256": TARGET.hashlib.sha256(load.read_bytes()).hexdigest(),
+                "no_crs_rules_file": str(baseline.resolve()),
+                "no_crs_validation": {
+                    "generated_rules_root": str(rules),
+                    "canonical_mrts_rules_root": str(canonical.resolve()),
+                    "included_rule_sha256": included,
+                },
+            }
             plan_path.write_text(json.dumps(plan), encoding="utf-8")
-            with self.assertRaises(SystemExit):
-                TARGET.validate_sealed_plan(plan_path, runtime, framework, rules, load)
+            runtime.chmod(0o700)
+            initial_digest = plan_digest(plan_path)
+            TARGET.validate_sealed_plan(
+                plan_path, runtime, framework, rules, load, initial_digest
+            )
+            detection = next(case for case in plan["cases"] if case["kind"] == "detection")
+            detection["expect_ids"] = ["100001"]
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+            with self.assertRaisesRegex(SystemExit, "digest does not match"):
+                TARGET.validate_sealed_plan(
+                    plan_path, runtime, framework, rules, load, initial_digest
+                )
+            with self.assertRaisesRegex(SystemExit, "cases do not match"):
+                TARGET.validate_sealed_plan(
+                    plan_path, runtime, framework, rules, load, plan_digest(plan_path)
+                )
 
     def test_executor_reuses_exact_no_crs_validator_for_a_no_crs_runtime_path(self):
         framework = ROOT / "modules" / "ModSecurity-test-Framework"
@@ -207,8 +518,10 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="mrts-no-crs-executor-") as directory:
             runtime = Path(directory) / "mrts-no-crs-runtime"
             rules = runtime / "build" / "mrts" / "upstream-config-tests" / "rules"
+            case_root = runtime / "build" / "mrts" / "upstream-config-tests" / "framework-cases"
             stage = runtime / "build" / "stages" / "envoy" / "no_crs_with_mrts" / "runtime"
             rules.mkdir(parents=True)
+            case_root.mkdir(parents=True)
             stage.mkdir(parents=True)
             included: dict[str, str] = {}
             for source in sorted(canonical.glob("MRTS_*.conf")):
@@ -221,6 +534,21 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 "".join(f'Include "{rules / name}"\n' for name in sorted(included)),
                 encoding="utf-8",
             )
+            source = case_root / "fixture.yaml"
+            source.write_text(
+                """metadata:
+  upstream_file: tools/MRTS/generated/tests/regression/tests/MRTS_002_ARGS_A-GET.yaml
+  phase: 1
+portable: true
+request:
+  method: GET
+  path: /?foo=attack
+expect:
+  rule_id: 100000
+""",
+                encoding="utf-8",
+            )
+            cases, sources = TARGET.select_cases(case_root, framework)
             plan_path = stage / "mrts-runtime-plan.json"
             executor_path = ROOT / "ci" / "runtime" / "lifecycle" / "execute-no-crs-mrts-cases.py"
             plan_path.write_text(
@@ -229,7 +557,10 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                         "schema": "no-crs-with-mrts-plan/v1",
                         "profile": "no-crs/with-mrts",
                         "connector": "envoy",
-                        "cases": [{"kind": "control", "source": "fixture.yaml"}],
+                        "cases": cases,
+                        "inventory_root": str(case_root),
+                        "inventory_hash": TARGET.selected_case_inventory_hash(sources),
+                        "case_hashes": TARGET.selected_case_hashes(case_root, sources),
                         "executor": {
                             "path": str(executor_path),
                             "sha256": TARGET.hashlib.sha256(executor_path.read_bytes()).hexdigest(),
@@ -248,7 +579,10 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             )
             runtime.chmod(0o700)
             executor_path = ROOT / "ci" / "runtime" / "lifecycle" / "execute-no-crs-mrts-cases.py"
-            EXECUTOR.validate_sealed_no_crs_plan(plan_path, runtime, load, executor_path)
+            sealed_plan_sha256 = plan_digest(plan_path)
+            EXECUTOR.validate_sealed_no_crs_plan(
+                plan_path, runtime, load, executor_path, sealed_plan_sha256
+            )
             with mock.patch.object(
                 sys,
                 "argv",
@@ -260,6 +594,8 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                     str(stage),
                     "--plan",
                     str(plan_path),
+                    "--plan-sha256",
+                    sealed_plan_sha256,
                     "--load-file",
                     str(load),
                     "--result",
@@ -277,7 +613,9 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             first_rule = rules / next(iter(sorted(included)))
             first_rule.write_text('SecRule ARGS:foo "@streq attack" "id:949110,phase:1,pass"\\n', encoding="utf-8")
             with self.assertRaises(SystemExit):
-                EXECUTOR.validate_sealed_no_crs_plan(plan_path, runtime, load, executor_path)
+                EXECUTOR.validate_sealed_no_crs_plan(
+                    plan_path, runtime, load, executor_path, sealed_plan_sha256
+                )
 
 
 if __name__ == "__main__":

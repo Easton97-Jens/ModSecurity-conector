@@ -230,7 +230,298 @@ func TestCommonRuntimeEngineUsesCanonicalEnvoyEventIdentity(t *testing.T) {
 		if event["connector"] != "envoy" || event["integration_mode"] != "ext_proc" {
 			t.Fatalf("Common event identity = connector=%#v integration_mode=%#v, want envoy/ext_proc", event["connector"], event["integration_mode"])
 		}
+		if event["message_id"] == "MSCONN_EVENT_RULE_MATCHED" {
+			t.Fatal("ordinary config unexpectedly enabled DetectionOnly rule-match evidence")
+		}
 	}
+}
+
+func TestCommonRuntimeEngineEmitsDetectionOnlyRuleMatchEvidence(t *testing.T) {
+	engine, eventPath := newDetectionOnlyRuntimeEngineForTest(t)
+	ctx := context.Background()
+	// The adapter-supplied host ID and ordinary x-request-id are deliberately
+	// different: sealed MRTS evidence must use only x-mrts-transaction-id.
+	metadata := commonTestStreamMetadata("host-id-must-not-be-used")
+	metadata.Request.Method = "GET"
+	metadata.Request.URI = "/?foo=attack"
+	transaction, err := engine.Open(ctx, metadata)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	decision, err := transaction.ProcessHeaders(ctx, DirectionRequest, []Header{
+		{Name: "x-mrts-transaction-id", Value: []byte("detection-only-transaction")},
+		{Name: "x-request-id", Value: []byte("must-not-be-used")},
+	}, true)
+	assertCommonDecision(t, "DetectionOnly request", decision, err, ActionAllow, 0)
+	transaction.Close(ctx, Summary{CloseReason: CloseResponseEOS})
+
+	events := readCommonEvents(t, eventPath)
+	if len(events) != 1 {
+		t.Fatalf("DetectionOnly match emitted %d events, want exactly one: %#v", len(events), events)
+	}
+	event := events[0]
+	for field, want := range map[string]string{
+		"event":            "request_rule_match",
+		"message_id":       "MSCONN_EVENT_RULE_MATCHED",
+		"connector":        "envoy",
+		"integration_mode": "ext_proc",
+		"transaction_id":   "detection-only-transaction",
+		"rule_id":          "1200010",
+		"status":           "ok",
+		"action":           "allow",
+		"requested_action": "allow",
+		"actual_action":    "allow",
+		"uri":              "/?foo=attack",
+	} {
+		if event[field] != want {
+			t.Errorf("DetectionOnly event[%q] = %#v, want %q", field, event[field], want)
+		}
+	}
+	if phase, ok := event["phase"].(string); !ok || phase != "request_body" {
+		t.Errorf("DetectionOnly event phase = %#v, want request_body", event["phase"])
+	}
+	for _, field := range []string{"message", "reason", "client_ip", "content_type"} {
+		if value, ok := event[field].(string); !ok || value != "" {
+			t.Errorf("DetectionOnly event[%q] = %#v, want empty string", field, event[field])
+		}
+	}
+	for _, field := range []string{"run_id", "transport_case_id"} {
+		if _, present := event[field]; present {
+			t.Errorf("DetectionOnly event unexpectedly contains %q", field)
+		}
+	}
+	for _, field := range []string{"body_bytes_seen", "body_bytes_inspected"} {
+		if value, ok := event[field].(float64); !ok || value != 0 {
+			t.Errorf("DetectionOnly event[%q] = %#v, want zero", field, event[field])
+		}
+	}
+	for _, forbidden := range []string{
+		"rule_message", "message_data", "matched_data", "request_headers", "request_body", "response_body",
+	} {
+		if _, present := event[forbidden]; present {
+			t.Errorf("DetectionOnly event contains payload-bearing field %q", forbidden)
+		}
+	}
+
+	// A control/bypass transaction must not inherit the selected match from a
+	// previous stream. This also exercises transaction-local callback state.
+	controlMetadata := commonTestStreamMetadata("control-host-id-must-not-be-used")
+	controlMetadata.Request.Method = "GET"
+	controlMetadata.Request.URI = "/?foo=benign"
+	control, err := engine.Open(ctx, controlMetadata)
+	if err != nil {
+		t.Fatalf("Open(control) error = %v", err)
+	}
+	decision, err = control.ProcessHeaders(ctx, DirectionRequest, []Header{
+		{Name: "x-mrts-transaction-id", Value: []byte("detection-only-control")},
+		{Name: "x-request-id", Value: []byte("must-not-be-used")},
+	}, true)
+	assertCommonDecision(t, "DetectionOnly control", decision, err, ActionAllow, 0)
+	control.Close(ctx, Summary{CloseReason: CloseResponseEOS})
+	if events := readCommonEvents(t, eventPath); len(events) != 1 {
+		t.Fatalf("control/bypass emitted or inherited rule-match evidence: %#v", events)
+	}
+
+	missingHeader, err := engine.Open(ctx, commonTestStreamMetadata("host-id-must-not-fallback"))
+	if err != nil {
+		t.Fatalf("Open(missing-header) error = %v", err)
+	}
+	defer missingHeader.Close(ctx, Summary{CloseReason: ClosePeerEOF})
+	if _, err := missingHeader.ProcessHeaders(ctx, DirectionRequest, []Header{
+		{Name: "x-request-id", Value: []byte("must-not-fallback")},
+	}, true); err == nil {
+		t.Fatal("MRTS evidence mode accepted a missing x-mrts-transaction-id")
+	}
+}
+
+func TestCommonRuntimeEngineRejectsRuleMatchEvidenceWithoutEventPath(t *testing.T) {
+	directory := t.TempDir()
+	rulesPath := filepath.Join(directory, "rules.conf")
+	configPath := filepath.Join(directory, "runtime.conf")
+	if err := os.WriteFile(rulesPath, []byte("SecRuleEngine DetectionOnly\n"), 0o600); err != nil {
+		t.Fatalf("write rules: %v", err)
+	}
+	config := fmt.Sprintf(`enabled=on
+rules_file=%s
+transaction_id_header=x-mrts-transaction-id
+emit_rule_match_evidence=on
+request_body_mode=streaming
+response_body_mode=streaming
+request_body_limit=1048576
+response_body_limit=1048576
+body_limit_action=reject
+phase4_mode=safe
+default_block_status=403
+default_error_status=500
+use_error_log=off
+max_header_count=128
+max_header_name_size=256
+max_header_value_size=8192
+max_total_header_bytes=32768
+max_event_json_bytes=16384
+`, rulesPath)
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if _, err := NewCommonRuntimeEngine(configPath); err == nil {
+		t.Fatal("rule-match evidence without event_path was accepted")
+	}
+}
+
+func TestCommonRuntimeEngineRejectsSymlinkRuleMatchEventPath(t *testing.T) {
+	directory := t.TempDir()
+	rulesPath := filepath.Join(directory, "rules.conf")
+	configPath := filepath.Join(directory, "runtime.conf")
+	realEventPath := filepath.Join(directory, "real-events.jsonl")
+	eventPath := filepath.Join(directory, "events.jsonl")
+	if err := os.WriteFile(rulesPath, []byte("SecRuleEngine DetectionOnly\n"), 0o600); err != nil {
+		t.Fatalf("write rules: %v", err)
+	}
+	if err := os.WriteFile(realEventPath, nil, 0o600); err != nil {
+		t.Fatalf("write real event path: %v", err)
+	}
+	if err := os.Symlink(realEventPath, eventPath); err != nil {
+		t.Fatalf("create event-path symlink: %v", err)
+	}
+	config := fmt.Sprintf(`enabled=on
+rules_file=%s
+transaction_id_header=x-mrts-transaction-id
+emit_rule_match_evidence=on
+request_body_mode=streaming
+response_body_mode=streaming
+request_body_limit=1048576
+response_body_limit=1048576
+body_limit_action=reject
+phase4_mode=safe
+default_block_status=403
+default_error_status=500
+use_error_log=off
+max_header_count=128
+max_header_name_size=256
+max_header_value_size=8192
+max_total_header_bytes=32768
+max_event_json_bytes=16384
+event_path=%s
+`, rulesPath, eventPath)
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if _, err := NewCommonRuntimeEngine(configPath); err == nil {
+		t.Fatal("rule-match evidence accepted a symlink event path")
+	}
+}
+
+func TestCommonRuntimeEngineRejectsSymlinkedRuleMatchEventParent(t *testing.T) {
+	directory := t.TempDir()
+	externalDirectory := t.TempDir()
+	rulesPath := filepath.Join(directory, "rules.conf")
+	configPath := filepath.Join(directory, "runtime.conf")
+	symlinkedParent := filepath.Join(directory, "linked-events")
+	eventPath := filepath.Join(symlinkedParent, "events.jsonl")
+	externalEventPath := filepath.Join(externalDirectory, "events.jsonl")
+	if err := os.WriteFile(rulesPath, []byte("SecRuleEngine DetectionOnly\n"), 0o600); err != nil {
+		t.Fatalf("write rules: %v", err)
+	}
+	if err := os.Symlink(externalDirectory, symlinkedParent); err != nil {
+		t.Fatalf("create event-parent symlink: %v", err)
+	}
+	config := fmt.Sprintf(`enabled=on
+rules_file=%s
+transaction_id_header=x-mrts-transaction-id
+emit_rule_match_evidence=on
+request_body_mode=streaming
+response_body_mode=streaming
+request_body_limit=1048576
+response_body_limit=1048576
+body_limit_action=reject
+phase4_mode=safe
+default_block_status=403
+default_error_status=500
+use_error_log=off
+max_header_count=128
+max_header_name_size=256
+max_header_value_size=8192
+max_total_header_bytes=32768
+max_event_json_bytes=16384
+event_path=%s
+`, rulesPath, eventPath)
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if _, err := NewCommonRuntimeEngine(configPath); err == nil {
+		t.Fatal("rule-match evidence accepted a symlinked event parent")
+	}
+	if _, err := os.Lstat(externalEventPath); !os.IsNotExist(err) {
+		t.Fatalf("symlinked evidence parent received an event file: %v", err)
+	}
+}
+
+func readCommonEvents(t *testing.T, path string) []map[string]any {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%s): %v", path, err)
+	}
+	var events []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		if line == "" {
+			continue
+		}
+		var event map[string]any
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatalf("unmarshal Common event: %v", err)
+		}
+		events = append(events, event)
+	}
+	return events
+}
+
+func newDetectionOnlyRuntimeEngineForTest(t *testing.T) (*CommonRuntimeEngine, string) {
+	t.Helper()
+	directory := t.TempDir()
+	rulesPath := filepath.Join(directory, "rules.conf")
+	configPath := filepath.Join(directory, "runtime.conf")
+	eventPath := filepath.Join(directory, "events.jsonl")
+	rules := `SecRuleEngine DetectionOnly
+SecRequestBodyAccess On
+SecRule ARGS:foo "@streq attack" "id:1200010,phase:1,pass,log,t:none"
+`
+	if err := os.WriteFile(rulesPath, []byte(rules), 0o600); err != nil {
+		t.Fatalf("write DetectionOnly rules: %v", err)
+	}
+	config := fmt.Sprintf(`enabled=on
+rules_file=%s
+transaction_id_header=x-mrts-transaction-id
+emit_rule_match_evidence=on
+request_body_mode=streaming
+response_body_mode=streaming
+request_body_limit=1048576
+response_body_limit=1048576
+body_limit_action=reject
+phase4_mode=safe
+default_block_status=403
+default_error_status=500
+use_error_log=off
+max_header_count=128
+max_header_name_size=256
+max_header_value_size=8192
+max_total_header_bytes=32768
+max_event_json_bytes=16384
+event_path=%s
+`, rulesPath, eventPath)
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatalf("write DetectionOnly config: %v", err)
+	}
+	engine, err := NewCommonRuntimeEngine(configPath)
+	if err != nil {
+		t.Fatalf("NewCommonRuntimeEngine(DetectionOnly): %v", err)
+	}
+	t.Cleanup(func() {
+		if err := engine.Close(); err != nil {
+			t.Errorf("DetectionOnly Common runtime close: %v", err)
+		}
+	})
+	return engine, eventPath
 }
 
 func newCommonRuntimeEngineForTest(t *testing.T) (*CommonRuntimeEngine, string) {

@@ -9,6 +9,7 @@ OUT_DIR=${LIGHTTPD_CONNECTOR_OUT_DIR:-$BUILD_ROOT/lighttpd-connector}
 OBJ_DIR=$OUT_DIR/objects
 MODULE_DIR=${LIGHTTPD_MODULE_DIR:-$OUT_DIR/modules}
 CC_BIN=${CC:-cc}
+CXX_BIN=${CXX:-c++}
 MSCONNECTOR_C_STD=${MSCONNECTOR_C_STD:-c17}
 LIGHTTPD_MSCONNECTOR_CORE_MODE=${LIGHTTPD_MSCONNECTOR_CORE_MODE:-stock}
 
@@ -54,6 +55,7 @@ esac
 [ -n "${MODSECURITY_INCLUDE_DIR:-}" ] || blocked "MODSECURITY_INCLUDE_DIR is required"
 [ -n "${MODSECURITY_LIB_DIR:-}" ] || blocked "MODSECURITY_LIB_DIR is required"
 command -v "$CC_BIN" >/dev/null 2>&1 || blocked "missing C compiler: $CC_BIN"
+command -v "$CXX_BIN" >/dev/null 2>&1 || blocked "missing C++ compiler/linker: $CXX_BIN"
 
 case "$LIGHTTPD_SOURCE_DIR" in
     /*) ;;
@@ -148,6 +150,20 @@ done
 RUNTIME_OBJECT=$OBJ_DIR/msconnector_runtime.o
 compile_common "$REPO_ROOT/common/runtime/msconnector_runtime.c" "$RUNTIME_OBJECT"
 
+OBSERVER_OBJECT=$OBJ_DIR/msconnector_rule_match_observer.o
+"$CXX_BIN" \
+    -std=c++17 \
+    -fPIC \
+    -Wall \
+    -Wextra \
+    -Werror \
+    -I "$REPO_ROOT" \
+    -I "$REPO_ROOT/common/include" \
+    -I "$REPO_ROOT/common/runtime" \
+    -isystem "$MODSECURITY_INCLUDE_DIR" \
+    -c "$REPO_ROOT/common/runtime/msconnector_rule_match_observer.cc" \
+    -o "$OBSERVER_OBJECT"
+
 "$CC_BIN" \
     -std="$MSCONNECTOR_C_STD" \
     -fPIC \
@@ -181,8 +197,7 @@ compile_common "$REPO_ROOT/common/runtime/msconnector_runtime.c" "$RUNTIME_OBJEC
 
 # Unresolved lighttpd host symbols are intentional and are resolved by the
 # pinned lighttpd binary when it loads the module.
-"$CC_BIN" \
-    -std="$MSCONNECTOR_C_STD" \
+"$CXX_BIN" \
     -fPIC \
     -Wall \
     -Wextra \
@@ -190,6 +205,7 @@ compile_common "$REPO_ROOT/common/runtime/msconnector_runtime.c" "$RUNTIME_OBJEC
     -shared \
     "$OBJ_DIR"/common_*.o \
     "$RUNTIME_OBJECT" \
+    "$OBSERVER_OBJECT" \
     "$OBJ_DIR/lighttpd_modsecurity_mapper.o" \
     "$OBJ_DIR/mod_msconnector.o" \
     -L "$MODSECURITY_LIB_DIR" \

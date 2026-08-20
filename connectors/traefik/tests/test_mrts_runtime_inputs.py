@@ -42,6 +42,7 @@ class TraefikMRTSRuntimeInputsTest(unittest.TestCase):
             mrts_executor=plan_file,
             mrts_load_file=plan_file,
             mrts_plan=plan_file,
+            mrts_plan_sha256="0" * 64,
             mrts_result=root / "mrts-runtime-result.json",
         )
 
@@ -67,6 +68,31 @@ class TraefikMRTSRuntimeInputsTest(unittest.TestCase):
         self.assertIn('"--load-file"', source)
         self.assertIn("MSCONNECTOR_RULES_FILE must resolve exactly to MRTS_LOAD_FILE", source)
         self.assertIn("require_no_crs_mrts_load_file", source)
+        self.assertIn('"--plan-sha256"', source)
+        self.assertIn('MRTS_RUNTIME_PLAN_SHA256', source)
+
+    def test_plan_digest_requires_lowercase_sha256(self) -> None:
+        self.assertEqual(self.runner.require_plan_sha256("a" * 64), "a" * 64)
+        for value in ("A" * 64, "g" * 64, "0" * 63, "0" * 65):
+            with self.assertRaisesRegex(self.runner.MissingDependency, "PLAN_SHA256"):
+                self.runner.require_plan_sha256(value)
+
+    def test_engine_config_uses_sealed_mrts_correlation_only_in_mrts_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            rules = root / "rules.conf"
+            events = root / "events.jsonl"
+            normal = root / "normal.conf"
+            mrts = root / "mrts.conf"
+            self.runner.write_engine_config(normal, rules, events)
+            self.runner.write_engine_config(mrts, rules, events, True)
+            normal_text = normal.read_text(encoding="utf-8")
+            mrts_text = mrts.read_text(encoding="utf-8")
+            self.assertIn("transaction_id_header=x-request-id\n", normal_text)
+            self.assertIn("emit_rule_match_evidence=off\n", normal_text)
+            self.assertIn("transaction_id_header=x-mrts-transaction-id\n", mrts_text)
+            self.assertIn("emit_rule_match_evidence=on\n", mrts_text)
+            self.assertNotIn("transaction_id_header=x-request-id\n", mrts_text)
 
     def test_mrts_executor_uses_top_level_verified_run_root(self) -> None:
         source = RUNNER_PATH.read_text(encoding="utf-8")

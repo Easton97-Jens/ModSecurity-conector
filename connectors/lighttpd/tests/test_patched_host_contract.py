@@ -1066,6 +1066,8 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertNotIn('--runtime-root "$SMOKE_DIR"', executor)
         self.assertIn('"$MRTS_RUNTIME_PLAN"', runner)
         self.assertIn('"$MRTS_RUNTIME_RESULT"', runner)
+        self.assertIn('MRTS_RUNTIME_PLAN_SHA256', runner)
+        self.assertIn('--plan-sha256 "$MRTS_RUNTIME_PLAN_SHA256"', runner)
         self.assertIn('"$EVENT_PATH"', runner)
         self.assertIn('path.resolve(strict=False).relative_to(smoke_resolved)', runner)
         self.assertIn('"build" / "stages" / "lighttpd"', runner)
@@ -1306,6 +1308,46 @@ class PatchedHostContractTest(unittest.TestCase):
             self.assertEqual(summary_value["phase4_end_of_stream_evaluation_status"], 200)
             self.assertEqual(summary_value["phase4_first_byte_before_response_end_status"], 200)
             self.assertEqual(summary_value["phase4_no_full_response_buffering_status"], 200)
+
+
+class NativeConfigModeTest(unittest.TestCase):
+    def test_prepare_native_config_has_sealed_mrts_mode_and_safe_normal_mode(self) -> None:
+        preparer = CONNECTOR / "harness" / "prepare_native_smoke.sh"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            rules = root / "rules.conf"
+            rules.write_text("SecRuleEngine DetectionOnly\n", encoding="utf-8")
+            configs: dict[str, str] = {}
+            for mode in ("0", "1"):
+                smoke = root / f"smoke-{mode}"
+                environment = os.environ.copy()
+                environment.update(
+                    {
+                        "BUILD_ROOT": str(root / "build"),
+                        "LIGHTTPD_SMOKE_DIR": str(smoke),
+                        "LIGHTTPD_SMOKE_PORT": str(18084 + int(mode)),
+                        "MSCONNECTOR_RULES_FILE": str(rules),
+                        "MSCONNECTOR_MRTS_RUNTIME": mode,
+                    }
+                )
+                result = subprocess.run(
+                    ["sh", str(preparer)],
+                    cwd=REPO_ROOT,
+                    env=environment,
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                configs[mode] = (smoke / "msconnector-runtime.conf").read_text(
+                    encoding="utf-8"
+                )
+            self.assertIn("transaction_id_header=x-modsec-transaction-id\n", configs["0"])
+            self.assertIn("emit_rule_match_evidence=off\n", configs["0"])
+            self.assertIn("transaction_id_header=x-mrts-transaction-id\n", configs["1"])
+            self.assertIn("emit_rule_match_evidence=on\n", configs["1"])
+            self.assertNotIn("transaction_id_header=x-request-id\n", configs["1"])
 
 
 if __name__ == "__main__":

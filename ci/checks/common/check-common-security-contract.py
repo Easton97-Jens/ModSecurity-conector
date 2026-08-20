@@ -66,6 +66,11 @@ for name in COMMON_APIS:
         errors.append(f"{src.relative_to(ROOT)} missing matching header include")
 
 common_files = sorted((ROOT / "common").rglob("*.c"))
+rule_match_observer = ROOT / "common/runtime/msconnector_rule_match_observer.cc"
+if not rule_match_observer.is_file():
+    errors.append(f"missing {rule_match_observer.relative_to(ROOT)}")
+else:
+    common_files.append(rule_match_observer)
 common_files += sorted((ROOT / "common").rglob("*.h"))
 common_text = "\n".join(path.read_text(errors="ignore") for path in common_files)
 for token in FORBIDDEN_COMMON_TOKENS:
@@ -112,7 +117,10 @@ for pattern in FORBIDDEN_HASH_PATTERNS:
     if pattern.search(integrity_api + "\n" + doc_text):
         errors.append(f"forbidden hash/integrity claim: {pattern.pattern}")
 
-claim_paths = list((ROOT / "common").rglob("*.[ch]"))
+claim_paths = list((ROOT / "common").rglob("*.c"))
+if rule_match_observer.is_file():
+    claim_paths.append(rule_match_observer)
+claim_paths += list((ROOT / "common").rglob("*.h"))
 claim_paths += [
     ROOT / "docs/architecture.md",
     ROOT / "docs/architecture.de.md",

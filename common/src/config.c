@@ -162,6 +162,7 @@ void msconnector_config_init(msconnector_config *config) {
 
     config->enable = MSCONNECTOR_BOOL_UNSET;
     config->use_error_log = MSCONNECTOR_BOOL_UNSET;
+    config->emit_rule_match_evidence = MSCONNECTOR_BOOL_UNSET;
     config->rules_inline = 0;
     config->rules_file = 0;
     config->rules_remote_key = 0;
@@ -193,6 +194,10 @@ void msconnector_config_apply_defaults(msconnector_config *config) {
 
     if (config->use_error_log == MSCONNECTOR_BOOL_UNSET) {
         config->use_error_log = MSCONNECTOR_DEFAULT_USE_ERROR_LOG;
+    }
+
+    if (config->emit_rule_match_evidence == MSCONNECTOR_BOOL_UNSET) {
+        config->emit_rule_match_evidence = MSCONNECTOR_BOOL_OFF;
     }
 
     if (config->phase4_mode == MSCONNECTOR_PHASE4_MODE_UNSET) {
@@ -256,6 +261,8 @@ int msconnector_config_merge(
 
     out->enable = merge_bool_option(parent->enable, child->enable);
     out->use_error_log = merge_bool_option(parent->use_error_log, child->use_error_log);
+    out->emit_rule_match_evidence = merge_bool_option(
+        parent->emit_rule_match_evidence, child->emit_rule_match_evidence);
     out->rules_inline = merge_string(parent->rules_inline, child->rules_inline);
     out->rules_file = merge_string(parent->rules_file, child->rules_file);
     merge_remote_rules_pair(out, parent, child);
@@ -294,6 +301,11 @@ int msconnector_config_validate(const msconnector_config *config, char *error, s
     }
 
     if (!validate_bool_option(config->use_error_log, "invalid error log option", error, error_len)) {
+        return 0;
+    }
+
+    if (!validate_bool_option(config->emit_rule_match_evidence,
+            "invalid rule-match evidence option", error, error_len)) {
         return 0;
     }
 

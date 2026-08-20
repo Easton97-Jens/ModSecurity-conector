@@ -119,6 +119,10 @@ if [ "$runtime_source_count" -eq 0 ]; then
     echo "BLOCKED: common runtime implementation sources are not available" >&2
     exit 77
 fi
+if [ ! -f "$REPO_ROOT/common/runtime/msconnector_rule_match_observer.cc" ]; then
+    echo "BLOCKED: typed Common rule-match observer source is not available" >&2
+    exit 77
+fi
 
 rm -rf "$OBJECT_DIR"
 mkdir -p "$OBJECT_DIR" "$(dirname "$CONNECTOR_BIN")"
@@ -145,6 +149,22 @@ compile_source() {
     objects="$objects $object"
 }
 
+compile_cpp_source() {
+    source=$1
+    relative=${source#"$REPO_ROOT"/}
+    object_name=$(printf '%s' "$relative" | tr '/.' '__')
+    object="$OBJECT_DIR/$object_name.o"
+    # Keep the typed observer isolated as C++17 PIC; Common C remains C17.
+    # shellcheck disable=SC2086
+    "$CXX_BIN" ${CXXFLAGS:-} -std=c++17 -Wall -Wextra -Werror -pthread -fPIC \
+        ${TRAEFIK_CONNECTOR_CFLAGS:-} \
+        -I "$REPO_ROOT" -I "$REPO_ROOT/common/include" \
+        -I "$REPO_ROOT/common/runtime" -I "$REPO_ROOT/connectors/traefik" \
+        -I "$REPO_ROOT/connectors/traefik/src" -isystem "$MODSECURITY_INCLUDE_DIR" \
+        -c "$source" -o "$object"
+    objects="$objects $object"
+}
+
 for source in \
     "$REPO_ROOT"/common/src/*.c \
     "$REPO_ROOT"/common/runtime/*.c \
@@ -155,6 +175,7 @@ do
     [ -f "$source" ] || continue
     compile_source "$source"
 done
+compile_cpp_source "$REPO_ROOT/common/runtime/msconnector_rule_match_observer.cc"
 
 # C sources are compiled in C17 mode. The final link uses the C++ driver because
 # libmodsecurity is a C++ library even though the connector consumes its C API.

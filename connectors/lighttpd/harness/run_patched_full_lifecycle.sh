@@ -25,6 +25,7 @@ MRTS_LOAD_FILE=${MRTS_LOAD_FILE:-}
 MRTS_RUNTIME_EXECUTOR=${MRTS_RUNTIME_EXECUTOR:-}
 MRTS_RUNTIME_PLAN=${MRTS_RUNTIME_PLAN:-}
 MRTS_RUNTIME_RESULT=${MRTS_RUNTIME_RESULT:-}
+MRTS_RUNTIME_PLAN_SHA256=${MRTS_RUNTIME_PLAN_SHA256:-}
 RULES_FILE=${MSCONNECTOR_RULES_FILE:-${RULES_FILE:-$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf}}
 PYTHON_BIN=${PYTHON:-python3}
 : "${NO_CRS_RUN_ID:?NO_CRS_RUN_ID is required}"
@@ -556,6 +557,12 @@ verify_mrts_runtime_inputs() {
     : "${MRTS_RUNTIME_EXECUTOR:?MRTS_RUNTIME_EXECUTOR is required when MRTS runtime is enabled}"
     : "${MRTS_RUNTIME_PLAN:?MRTS_RUNTIME_PLAN is required when MRTS runtime is enabled}"
     : "${MRTS_RUNTIME_RESULT:?MRTS_RUNTIME_RESULT is required when MRTS runtime is enabled}"
+    : "${MRTS_RUNTIME_PLAN_SHA256:?MRTS_RUNTIME_PLAN_SHA256 is required when MRTS runtime is enabled}"
+    [ "${#MRTS_RUNTIME_PLAN_SHA256}" -eq 64 ] ||
+        blocked "MRTS_RUNTIME_PLAN_SHA256 must be exactly 64 lowercase hexadecimal characters"
+    case "$MRTS_RUNTIME_PLAN_SHA256" in
+        *[!0-9a-f]*) blocked "MRTS_RUNTIME_PLAN_SHA256 must be exactly 64 lowercase hexadecimal characters" ;;
+    esac
 
     # The patched host must be selected by this harness' pinned manifest.  In
     # particular, do not let the generic Lighttpd wrappers replace its binary,
@@ -699,7 +706,6 @@ PY
 }
 
 configure_mrts_request_id_header() {
-    [ "$MRTS_RUNTIME_MODE" = 1 ] || return 0
     "$PYTHON_BIN" - "$LIGHTTPD_CONFIG" <<'PY'
 from pathlib import Path
 import os
@@ -707,26 +713,21 @@ import sys
 
 config = Path(sys.argv[1])
 text = config.read_text(encoding="utf-8")
-old = "transaction_id_header=x-modsec-transaction-id\n"
-new = "transaction_id_header=x-request-id\n"
-if text.count(old) != 1:
-    raise SystemExit("MRTS mode requires exactly one canonical transaction header setting")
-temporary = config.with_name(f".{config.name}.{os.getpid()}.tmp")
-fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-try:
-    with os.fdopen(fd, "w", encoding="utf-8") as stream:
-        fd = -1
-        stream.write(text.replace(old, new))
-        stream.flush()
-        os.fsync(stream.fileno())
-    os.replace(temporary, config)
-finally:
-    if fd >= 0:
-        os.close(fd)
-    try:
-        temporary.unlink()
-    except FileNotFoundError:
-        pass
+runtime = os.environ.get("MSCONNECTOR_MRTS_RUNTIME", "0")
+expected_header = (
+    "transaction_id_header=x-mrts-transaction-id\n"
+    if runtime == "1"
+    else "transaction_id_header=x-modsec-transaction-id\n"
+)
+expected_evidence = (
+    "emit_rule_match_evidence=on\n"
+    if runtime == "1"
+    else "emit_rule_match_evidence=off\n"
+)
+if text.count(expected_header) != 1 or text.count(expected_evidence) != 1:
+    raise SystemExit("Lighttpd runtime config has an unexpected correlation/evidence mode")
+if "transaction_id_header=x-request-id\n" in text:
+    raise SystemExit("Lighttpd runtime config must not use the mutable x-request-id fallback")
 PY
 }
 
@@ -1076,6 +1077,7 @@ if [ "$MRTS_RUNTIME_MODE" = 1 ]; then
         --connector lighttpd \
         --runtime-root "$VERIFIED_RUN_ROOT" \
         --plan "$MRTS_RUNTIME_PLAN" \
+        --plan-sha256 "$MRTS_RUNTIME_PLAN_SHA256" \
         --load-file "$MRTS_LOAD_FILE" \
         --result "$MRTS_RUNTIME_RESULT" \
         --event-log "$EVENT_PATH" \

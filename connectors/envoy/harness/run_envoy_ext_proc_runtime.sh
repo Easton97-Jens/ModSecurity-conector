@@ -23,6 +23,7 @@ RUNTIME_ROOT=${RUNTIME_ROOT:-$BUILD_ROOT/envoy-ext-proc/runtime-smoke}
 COMMON_EVENT_LOG_PATH=${COMMON_EVENT_LOG_PATH:-${EVENT_LOG_PATH:-$RUNTIME_ROOT/events.jsonl}}
 COMPLETION_LOG_PATH=${COMPLETION_LOG_PATH:-$RUNTIME_ROOT/completion-events.jsonl}
 EXT_PROC_RUNTIME_CONFIG=${EXT_PROC_RUNTIME_CONFIG:-$RUNTIME_ROOT/envoy-ext-proc-runtime.conf}
+PROCESSOR_TRANSACTION_ID_HEADER=x-request-id
 # The canonical dispatcher exports MSCONNECTOR_RULES_FILE. Prefer it over an
 # incidental make/environment RULES_FILE so this real-host runner cannot fall
 # back to a connector-local smoke ruleset. Direct local invocation may still
@@ -33,6 +34,7 @@ if [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
     # incidental RULES_FILE from the caller.
     RULES_FILE=${MRTS_LOAD_FILE:-}
     RULES_SOURCE=MRTS_LOAD_FILE
+    PROCESSOR_TRANSACTION_ID_HEADER=x-mrts-transaction-id
 elif [ -n "${MSCONNECTOR_RULES_FILE:-}" ]; then
     RULES_FILE=$MSCONNECTOR_RULES_FILE
     RULES_SOURCE=MSCONNECTOR_RULES_FILE
@@ -462,6 +464,17 @@ validate_mrts_runtime_inputs() {
     [ -n "${MRTS_RUNTIME_EXECUTOR:-}" ] || missing_dependency "MRTS_RUNTIME_EXECUTOR is required for MRTS runtime mode"
     [ -n "${MRTS_RUNTIME_PLAN:-}" ] || missing_dependency "MRTS_RUNTIME_PLAN is required for MRTS runtime mode"
     [ -n "${MRTS_RUNTIME_RESULT:-}" ] || missing_dependency "MRTS_RUNTIME_RESULT is required for MRTS runtime mode"
+    [ -n "${MRTS_RUNTIME_PLAN_SHA256:-}" ] || missing_dependency "MRTS_RUNTIME_PLAN_SHA256 is required for MRTS runtime mode"
+    [ "${#MRTS_RUNTIME_PLAN_SHA256}" -eq 64 ] || {
+        echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_PLAN_SHA256 must be exactly 64 lowercase hexadecimal characters" >&2
+        exit 1
+    }
+    case "$MRTS_RUNTIME_PLAN_SHA256" in
+        *[!0-9a-f]*)
+            echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_PLAN_SHA256 must be exactly 64 lowercase hexadecimal characters" >&2
+            exit 1
+            ;;
+    esac
     [ -n "${MRTS_LOAD_FILE:-}" ] || missing_dependency "MRTS_LOAD_FILE is required for MRTS runtime mode"
     case "$MRTS_RUNTIME_EXECUTOR" in /*) ;; *) echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_EXECUTOR must be absolute" >&2; exit 1 ;; esac
     case "$MRTS_RUNTIME_PLAN" in /*) ;; *) echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_PLAN must be absolute" >&2; exit 1 ;; esac
@@ -527,7 +540,7 @@ PY
     if ! "$PYTHON_BIN" "$sealed_plan_validator" --validate-sealed-plan \
         --plan "$MRTS_RUNTIME_PLAN" --runtime-root "$VERIFIED_RUN_ROOT" \
         --framework-root "$FRAMEWORK_ROOT" --rules-root "$MRTS_RUNTIME_RULES_ROOT" \
-        --load-file "$MRTS_LOAD_FILE"; then
+        --load-file "$MRTS_LOAD_FILE" --plan-sha256 "$MRTS_RUNTIME_PLAN_SHA256"; then
         echo "envoy_ext_proc_runtime: FAIL - sealed MRTS plan no-CRS validation failed" >&2
         exit 1
     fi
@@ -738,6 +751,7 @@ OUTPUT_CONFIG="$ENVOY_CONFIG" LISTEN_PORT="$listen_port" \
     TLS_CERTIFICATE="$TLS_CERTIFICATE" TLS_PRIVATE_KEY="$TLS_PRIVATE_KEY" \
     sh "$PREPARE_ENVOY_CONFIG" >/dev/null
 OUTPUT_CONFIG="$EXT_PROC_RUNTIME_CONFIG" RULES_FILE="$RULES_FILE" EVENT_PATH="$COMMON_EVENT_LOG_PATH" \
+    TRANSACTION_ID_HEADER="$PROCESSOR_TRANSACTION_ID_HEADER" \
     sh "$PREPARE_RUNTIME_CONFIG" >/dev/null
 
 if ! grep -Fq 'name: envoy.filters.http.ext_proc' "$ENVOY_CONFIG" || \
@@ -772,9 +786,21 @@ if ! grep -Fqx "rules_file=$resolved_rules_file" "$EXT_PROC_RUNTIME_CONFIG"; the
     echo "envoy_ext_proc_runtime: FAIL - Common runtime config did not load the canonical rules file" >&2
     exit 1
 fi
+if [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
+    if ! grep -Fqx 'transaction_id_header=x-mrts-transaction-id' "$EXT_PROC_RUNTIME_CONFIG" || \
+        ! grep -Fqx 'emit_rule_match_evidence=on' "$EXT_PROC_RUNTIME_CONFIG"; then
+        echo "envoy_ext_proc_runtime: FAIL - sealed MRTS config lacks typed rule-match evidence" >&2
+        exit 1
+    fi
+elif ! grep -Fqx 'transaction_id_header=x-request-id' "$EXT_PROC_RUNTIME_CONFIG" || \
+    ! grep -Fqx 'emit_rule_match_evidence=off' "$EXT_PROC_RUNTIME_CONFIG"; then
+    echo "envoy_ext_proc_runtime: FAIL - normal config must not enable typed rule-match evidence" >&2
+    exit 1
+fi
 
 "$EXT_PROC_BIN" --check-config --config "$EXT_PROC_CONFIG" \
     --runtime-config "$EXT_PROC_RUNTIME_CONFIG" \
+    --transaction-id-header "$PROCESSOR_TRANSACTION_ID_HEADER" \
     >"$RUNTIME_ROOT/ext-proc-config-check.stdout.log" \
     2>"$RUNTIME_ROOT/ext-proc-config-check.stderr.log"
 
@@ -802,6 +828,7 @@ upstream_start_token=$(owned_process_start_token "$upstream_pid") || {
 
 EXT_PROC_BIN="$EXT_PROC_BIN" EXT_PROC_CONFIG="$EXT_PROC_CONFIG" \
     EXT_PROC_RUNTIME_CONFIG="$EXT_PROC_RUNTIME_CONFIG" \
+    PROCESSOR_TRANSACTION_ID_HEADER="$PROCESSOR_TRANSACTION_ID_HEADER" \
     EVENT_LOG_PATH="$COMPLETION_LOG_PATH" LISTEN_ADDRESS=127.0.0.1 \
     LISTEN_PORT="$ext_proc_port" sh "$SCRIPT_DIR/serve_envoy_ext_proc.sh" \
     >"$SERVICE_STDOUT" 2>"$SERVICE_STDERR" &
@@ -870,6 +897,7 @@ elif [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
         --connector envoy \
         --runtime-root "$VERIFIED_RUN_ROOT" \
         --plan "$MRTS_RUNTIME_PLAN" \
+        --plan-sha256 "$MRTS_RUNTIME_PLAN_SHA256" \
         --result "$MRTS_RUNTIME_RESULT" \
         --load-file "$MRTS_LOAD_FILE" \
         --event-log "$COMMON_EVENT_LOG_PATH" \

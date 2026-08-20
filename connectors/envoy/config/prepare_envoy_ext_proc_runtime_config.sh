@@ -8,6 +8,21 @@ BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecuri
 RULES_FILE=${MSCONNECTOR_RULES_FILE:-${RULES_FILE:-$REPO_ROOT/modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf}}
 OUTPUT_CONFIG=${OUTPUT_CONFIG:-$BUILD_ROOT/envoy-ext-proc/config/envoy-ext-proc-runtime.conf}
 EVENT_PATH=${EVENT_PATH:-}
+TRANSACTION_ID_HEADER=${TRANSACTION_ID_HEADER:-x-request-id}
+
+case "$TRANSACTION_ID_HEADER" in
+    x-mrts-transaction-id) EMIT_RULE_MATCH_EVIDENCE=on ;;
+    x-request-id) EMIT_RULE_MATCH_EVIDENCE=off ;;
+    *) EMIT_RULE_MATCH_EVIDENCE=invalid ;;
+esac
+
+case "$TRANSACTION_ID_HEADER" in
+    x-request-id|x-mrts-transaction-id) ;;
+    *)
+        echo "envoy_ext_proc_runtime_config: unsupported transaction correlation header: $TRANSACTION_ID_HEADER" >&2
+        exit 2
+        ;;
+esac
 
 absolute_existing_file() {
     input=$1
@@ -54,7 +69,8 @@ umask 077
     printf '%s\n' '# event_path, when supplied, is the Common Runtime raw decision JSONL.'
     printf '%s\n' 'enabled=on'
     printf 'rules_file=%s\n' "$RULES_FILE"
-    printf '%s\n' 'transaction_id_header=x-request-id'
+    printf 'transaction_id_header=%s\n' "$TRANSACTION_ID_HEADER"
+    printf 'emit_rule_match_evidence=%s\n' "$EMIT_RULE_MATCH_EVIDENCE"
     printf '%s\n' 'request_body_mode=streaming'
     printf '%s\n' 'response_body_mode=streaming'
     printf '%s\n' 'request_body_limit=10485760'

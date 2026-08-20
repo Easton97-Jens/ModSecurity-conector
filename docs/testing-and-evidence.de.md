@@ -53,6 +53,23 @@ HTTP 200 im DetectionOnly-Modus, einen echten Detection-Case, einen legitimen
 Kontrollfall und einen gutartigen Bypass-Kontrollfall, bevor er das begrenzte
 Ergebnis atomar schreibt.
 
+Der Plan wird durch einen SHA-256-Digest über die exakten Planbytes versiegelt
+und durch jede Hostadapter-Grenze weitergereicht. Vor dem Hoststart liest der
+Validator die versiegelten Bytes erneut, weist doppelte JSON-Schlüssel zurück,
+prüft den Plan-Digest und rekonstruiert die ausgewählten Cases aus dem exakten
+Framework-Inventar. Die ausgewählten Case-Hashes und der Inventar-Hash müssen
+mit dem Plan übereinstimmen; eine Änderung an URI, erwarteter Event-ID oder
+Case-Quelle führt daher zu einem fail-closed-Abbruch. Der Executor erhält
+denselben Digest explizit und zeichnet ihn im Receipt auf.
+
+Die Rule-Match-Evidence verwendet einen typisierten nativen
+`RuleMessage`-Observer. Standardmäßig ist er deaktiviert und wird nur für das
+versiegelte MRTS-Runtimeprofil aktiviert. Der Observer erzeugt begrenzte,
+metadatenbasierte JSONL-Datensätze mit Request-/Transaktionskorrelation; er
+liest keine Audit-Logs, Error-Logs, stderr- oder Request-/Response-Payloads.
+Native Integritäts- und Verkettungsprüfungen erfolgen, bevor das Ergebnis
+akzeptiert wird.
+
 Dieses Profil ist ausdrücklich no-CRS. Der Pfad weist CRS-Referenzen in der
 erzeugten MRTS-Load-Datei zurück und übergibt als aktive Nicht-CRS-Eingabe nur
 die repository-eigenen no-CRS-Regeln. OWASP CRS wird weder aktiviert noch
@@ -74,13 +91,31 @@ Gitlinks verwendet.
 
 ### Evidence-Status dieses Tasks
 
-Zum Zeitpunkt dieser Dokumentationsänderung sind Pfad und Verträge im
-Task-Worktree vorhanden; die echten Hostläufe für alle drei Connectoren,
-gehostete Actions, Required Checks, SonarQube-Cloud-Analyse und PR-Head-
-Gleichheit wurden durch diese Dokumentationsänderung noch nicht beobachtet.
-Sie bleiben <code>NOT EXECUTED</code> beziehungsweise <code>PENDING</code>,
-bis die entsprechende Exact-Head-Evidence vorliegt. Ein statischer Plan, ein
-Inventar, ein Parser-Test oder ein Workflow-Vertrag darf nicht zu einem
+Zum Zeitpunkt dieser Dokumentationsänderung ist der Pfad mit seinen Verträgen
+im Task-Worktree vorhanden. Die beobachtete lokale Validierung umfasst 97
+fokussierte Python-Contract-Tests, Shell-Syntaxprüfungen für die geänderten
+Runner, Python-Kompilierung, `check-common-security-contract.py`,
+`check-adapter-contracts.py`, `check-remaining-connectors-build-wiring.py`
+und `git diff --check`. Die Go-Prüfungen für Envoy und Traefik verwendeten
+`/usr/local/go/bin/go` `go1.26.6` mit `GOTOOLCHAIN=local`: `gofmt`,
+`go mod verify`, `go list -deps ./...`, `go test ./...`, `go vet ./...` und
+`govulncheck ./...` bestanden (das Traefik-Modul wurde aus
+`connectors/traefik/native_middleware` ausgeführt; der erste längere
+temporäre Socket-Pfad wurde durch einen privaten kurzen Test-Root ersetzt).
+C/C++-Syntaxprüfungen und der repository-native C17-Check für die übrigen
+Connectoren bestanden ebenfalls. Der breite C++-Security-Scan behielt die
+ursprüngliche C/H-Baseline bei und ergänzte nur die neue typisierte Observer-
+`.cc`-Datei; die bestehende
+`common/scripts/modsecurity_targeted_eval.cc` wurde nicht ausgenommen. Vier
+vorbestehende ShellCheck-SC1007-Warnungen verbleiben im Envoy-
+Konfigurationshelfer.
+
+Die echten Hostläufe für alle drei Connectoren, gehostete Actions, Required
+Checks, SonarQube-Cloud-Analyse und PR-Head-Gleichheit wurden durch diese
+Dokumentationsänderung noch nicht beobachtet. Sie bleiben
+<code>NOT EXECUTED</code> beziehungsweise <code>PENDING</code>, bis die
+entsprechende Exact-Head-Evidence vorliegt. Ein statischer Plan, ein Inventar,
+ein Parser-Test oder ein Workflow-Vertrag darf nicht zu einem
 Runtime-<code>PASS</code> befördert werden. Der gepaarte
 [Change Record](../reports/audits/change-records/CR-20260820-no-crs-with-mrts-runtime.de.md)
 beschreibt den begrenzten Lieferstatus und die Einschränkungen.

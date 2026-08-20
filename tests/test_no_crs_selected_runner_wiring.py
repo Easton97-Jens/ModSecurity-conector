@@ -511,9 +511,17 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
         self.assertNotIn("PYTHON_RECIPE_INJECTION_REACHED", engine_service_output)
         self.assertNotIn(python_recipe_payload, engine_service_output)
         with tempfile.TemporaryDirectory(prefix="msconnector-traefik-make-test-") as temporary:
-            runtime_root = Path(temporary) / "runtime"
+            verified_run_root = Path(temporary) / "verified-run"
+            verified_run_root.mkdir(mode=0o700)
+            verified_run_root.chmod(0o700)
+            runtime_root = (
+                verified_run_root
+                / "build/stages/traefik/no_crs_with_mrts/runtime"
+            )
             shell_sentinel = Path(temporary) / "shell-injection-sentinel"
             injected_parent = f'{Path(temporary) / "unsafe"}"; : > "{shell_sentinel}"; #'
+            native_environment = os.environ.copy()
+            native_environment["VERIFIED_RUN_ROOT"] = str(verified_run_root)
             native_make_dry_run = subprocess.run(
                 [
                     "make",
@@ -526,6 +534,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
                     "runtime-smoke-traefik-native",
                 ],
                 cwd=ROOT,
+                env=native_environment,
                 check=False,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -545,6 +554,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
                     "runtime-smoke-traefik-native",
                 ],
                 cwd=ROOT,
+                env=native_environment,
                 check=False,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

@@ -384,6 +384,42 @@ func TestEnvoyEndpointAddressKeepsOnlyTheHostComponentOfSocketAttributes(t *test
 	}
 }
 
+func TestDecodeHeaderValuesUsesOnlyConfiguredTransactionCorrelationHeader(t *testing.T) {
+	state := &streamState{config: testConfig(LateActionSafe)}
+	state.config.TransactionIDHeader = "x-mrts-transaction-id"
+
+	_, transactionID, decision, err := state.decodeHeaderValues([]*corev3.HeaderValue{
+		{Key: "x-request-id", RawValue: []byte("normal-id")},
+		{Key: "x-mrts-transaction-id", RawValue: []byte("mrts-id")},
+	})
+	if err != nil || decision.Action != ActionAllow {
+		t.Fatalf("decode MRTS headers = id=%q decision=%#v err=%v", transactionID, decision, err)
+	}
+	if transactionID != "mrts-id" {
+		t.Fatalf("MRTS transaction id = %q, want mrts-id", transactionID)
+	}
+
+	state.config.TransactionIDHeader = "x-request-id"
+	_, transactionID, decision, err = state.decodeHeaderValues([]*corev3.HeaderValue{
+		{Key: "x-request-id", RawValue: []byte("normal-id")},
+		{Key: "x-mrts-transaction-id", RawValue: []byte("mrts-id")},
+	})
+	if err != nil || decision.Action != ActionAllow || transactionID != "normal-id" {
+		t.Fatalf("decode normal headers = id=%q decision=%#v err=%v", transactionID, decision, err)
+	}
+}
+
+func TestDecodeHeaderValuesRejectsMalformedConfiguredTransactionCorrelationHeader(t *testing.T) {
+	state := &streamState{config: testConfig(LateActionSafe)}
+	state.config.TransactionIDHeader = "x-mrts-transaction-id"
+	for _, value := range [][]byte{[]byte("bad\nvalue"), make([]byte, 129)} {
+		_, transactionID, decision, err := state.decodeHeaderValues([]*corev3.HeaderValue{{Key: "x-mrts-transaction-id", RawValue: value}})
+		if err != nil || decision.Action != ActionAllow || transactionID != "" {
+			t.Fatalf("malformed MRTS header = id=%q decision=%#v err=%v", transactionID, decision, err)
+		}
+	}
+}
+
 func newTestService(t *testing.T, transaction *recordingTransaction, policy LateActionPolicy) *Service {
 	t.Helper()
 	service, err := NewService(testConfig(policy), recordingEngine{transaction: transaction})

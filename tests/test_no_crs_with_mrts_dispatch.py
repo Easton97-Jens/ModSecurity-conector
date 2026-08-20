@@ -39,6 +39,7 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
         self.assertIn("readonly MRTS_CLOSED_CONNECTOR_ROOT", source)
         self.assertIn("readonly MRTS_CLOSED_RUNTIME_ENV", source)
         self.assertIn("MRTS_CLOSED_STAGE=$MSCONNECTOR_MRTS_STAGE", source)
+        self.assertIn("MRTS_CLOSED_PLAN_SHA256=$MRTS_RUNTIME_PLAN_SHA256", source)
         self.assertIn("MRTS_RUNTIME_EXECUTOR_SHA256=$MRTS_CLOSED_EXECUTOR_SHA256", source)
         self.assertIn("MRTS_CLOSED_ALLOW_RUNTIME_DOWNLOADS=1", source)
         self.assertIn("MRTS_CLOSED_ALLOW_RUNTIME_BUILDS=1", source)
@@ -57,7 +58,19 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
         for path in (STAGE, RUNNER, ENVOY):
             source = path.read_text(encoding="utf-8")
             self.assertIn("--validate-sealed-plan", source)
+            self.assertIn("--plan-sha256", source)
             self.assertNotIn("grep -Eiq 'crs", source)
+
+    def test_parent_held_plan_digest_is_required_and_survives_each_shell_boundary(self) -> None:
+        stage_source = STAGE.read_text(encoding="utf-8")
+        runner_source = RUNNER.read_text(encoding="utf-8")
+        for source in (stage_source, runner_source):
+            self.assertIn("MRTS_RUNTIME_PLAN_SHA256 is required", source)
+            self.assertIn("MRTS_RUNTIME_PLAN_SHA256 must be a lowercase SHA-256 digest", source)
+            self.assertIn('"$MRTS_RUNTIME_PLAN_SHA256"', source)
+        self.assertIn('MRTS_RUNTIME_PLAN_SHA256="$MRTS_RUNTIME_PLAN_SHA256"', stage_source)
+        self.assertIn("MRTS_CLOSED_PLAN_SHA256=$MRTS_RUNTIME_PLAN_SHA256", runner_source)
+        self.assertIn("MRTS_RUNTIME_PLAN_SHA256=$MRTS_CLOSED_PLAN_SHA256", runner_source)
 
 
 if __name__ == "__main__":

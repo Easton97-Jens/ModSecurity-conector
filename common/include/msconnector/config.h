@@ -20,6 +20,9 @@ extern "C" {
 typedef struct msconnector_config {
     enum msconnector_bool_option enable;
     enum msconnector_bool_option use_error_log;
+    /* Off by default. The sealed no-CRS/with-MRTS target configuration is
+     * the only supported caller that enables typed rule-match evidence. */
+    enum msconnector_bool_option emit_rule_match_evidence;
     const char *rules_inline;
     const char *rules_file;
     const char *rules_remote_key;

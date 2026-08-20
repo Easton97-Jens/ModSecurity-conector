@@ -83,6 +83,7 @@ ENGINE_SOCKET_PATH_MAX_BYTES = 100
 TRANSPORT_OBSERVATION_MAX_BODY_BYTES = 64 << 10
 SAFE_RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 CRS_REFERENCE_PATTERN = re.compile(r"(?:\bcrs\b|coreruleset|owasp[ _-]*crs)", re.IGNORECASE)
+PLAN_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
 @dataclass(frozen=True)
@@ -118,6 +119,16 @@ def assert_no_symlink_components(path: Path) -> None:
             raise MissingDependency(f"runtime path contains a symlink: {current}")
         if not current.exists():
             break
+
+
+def require_plan_sha256(value: str) -> str:
+    """Require the parent-held immutable digest for the sealed MRTS plan."""
+
+    if PLAN_SHA256_PATTERN.fullmatch(value) is None:
+        raise MissingDependency(
+            "MRTS_RUNTIME_PLAN_SHA256 must be exactly 64 lowercase hexadecimal characters"
+        )
+    return value
 
 
 def directory_entry_is_protected_from_cross_user_replacement(
@@ -657,18 +668,25 @@ def wait_for_socket(path: Path, process: subprocess.Popen[bytes], label: str) ->
     raise RuntimeError(f"{label} did not create its Unix socket")
 
 
-def write_engine_config(path: Path, rules_file: Path, event_path: Path) -> None:
+def write_engine_config(
+    path: Path, rules_file: Path, event_path: Path, mrts_runtime: bool = False
+) -> None:
     if not rules_file.is_absolute() or not event_path.is_absolute():
         raise MissingDependency("engine rules and event paths must be absolute")
     for candidate in (rules_file, event_path):
         if ".." in candidate.parts or "\n" in str(candidate) or "\r" in str(candidate):
             raise MissingDependency("engine rules and event paths must be isolated normalized paths")
+    transaction_id_header = (
+        "x-mrts-transaction-id" if mrts_runtime else "x-request-id"
+    )
+    emit_rule_match_evidence = "on" if mrts_runtime else "off"
     path.write_text(
         "\n".join(
             (
                 "enabled=on",
                 f"rules_file={rules_file}",
-                "transaction_id_header=x-request-id",
+                f"transaction_id_header={transaction_id_header}",
+                f"emit_rule_match_evidence={emit_rule_match_evidence}",
                 "request_body_mode=streaming",
                 "response_body_mode=streaming",
                 "request_body_limit=4096",
@@ -1219,6 +1237,7 @@ def run_mrts_runtime_executor(
         inputs.mrts_executor is None
         or inputs.mrts_load_file is None
         or inputs.mrts_plan is None
+        or inputs.mrts_plan_sha256 is None
         or inputs.mrts_result is None
     ):
         raise MissingDependency("MRTS runtime inputs were not completely resolved")
@@ -1243,6 +1262,8 @@ def run_mrts_runtime_executor(
         str(inputs.verified_run_root),
         "--plan",
         str(inputs.mrts_plan),
+        "--plan-sha256",
+        str(inputs.mrts_plan_sha256),
         "--load-file",
         str(inputs.mrts_load_file),
         "--result",
@@ -1505,6 +1526,7 @@ class NativeRuntimeInputs:
     mrts_executor: Path | None
     mrts_load_file: Path | None
     mrts_plan: Path | None
+    mrts_plan_sha256: str | None
     mrts_result: Path | None
 
 
@@ -1654,6 +1676,7 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
     mrts_executor: Path | None = None
     mrts_load_file: Path | None = None
     mrts_plan: Path | None = None
+    mrts_plan_sha256: str | None = None
     mrts_result: Path | None = None
     if mrts_runtime:
         mrts_executor = require_existing_file_without_symlinks(
@@ -1669,6 +1692,9 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
         rules_profile = "mrts-load"
         mrts_plan = require_existing_file_without_symlinks(
             Path(os.environ.get("MRTS_RUNTIME_PLAN", "")), "MRTS_RUNTIME_PLAN"
+        )
+        mrts_plan_sha256 = require_plan_sha256(
+            os.environ.get("MRTS_RUNTIME_PLAN_SHA256", "")
         )
         mrts_result = require_path_below_runtime_root(
             Path(os.environ.get("MRTS_RUNTIME_RESULT", "")),
@@ -1692,6 +1718,7 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
         mrts_executor=mrts_executor,
         mrts_load_file=mrts_load_file,
         mrts_plan=mrts_plan,
+        mrts_plan_sha256=mrts_plan_sha256,
         mrts_result=mrts_result,
     )
 
@@ -1800,7 +1827,12 @@ def start_native_runtime_setup(
         traefik_port = free_port()
         write_static_config(artifacts.static_config, artifacts.dynamic_config, traefik_port, inputs.module_name)
         write_dynamic_config(artifacts.dynamic_config, upstream_port, engine_socket)
-        write_engine_config(artifacts.engine_config, inputs.rules_file, artifacts.event_path)
+        write_engine_config(
+            artifacts.engine_config,
+            inputs.rules_file,
+            artifacts.event_path,
+            inputs.mrts_runtime,
+        )
         state = UpstreamState()
         upstream = http.server.ThreadingHTTPServer(
             ("127.0.0.1", upstream_port), upstream_handler(state)
