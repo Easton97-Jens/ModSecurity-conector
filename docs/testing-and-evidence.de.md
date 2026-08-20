@@ -22,6 +22,69 @@ Run-/Commit-Identität und Cleanup-Status. Diese Validierung ist kein Nachweis
 eines bestandenen gehosteten Runtime-Laufs und liefert keine CRS-, MRTS-,
 HTTP/2-, HTTP/3-, Full-Matrix- oder Produktions-Claims.
 
+## Geschlossener no-CRS/with-MRTS-Runtimepfad
+
+Der aktuelle Master-Task ergänzt einen separaten, geschlossenen
+<code>no-crs/with-mrts</code>-Runtimepfad genau für Envoy, Traefik und lighttpd.
+Der Einstieg ist
+<code>ci/runtime/lifecycle/run-no-crs-with-mrts-target.py</code>; er verlangt
+<code>--execute-stage</code> und weist jeden Connector außerhalb dieser drei
+Einträge zurück. Apache und HAProxy verwenden im Fünf-Connector-Workflow
+weiterhin ihren bestehenden MRTS-Hostpfad; dieser Abschnitt ändert deren
+Vertrag nicht.
+
+Der Pfad erzeugt einen privaten Run-Root, prüft den Parent-Gitlink auf das
+Framework und den Framework-Gitlink auf MRTS und importiert die MRTS-Cases über
+das exakt ausgecheckte Framework. Die aktuell gepinnte Kette lautet:
+
+| Repository | Vom Pfad verwendete Revision |
+| --- | --- |
+| Parent | aktuelle Task-Basis `b42907ca410da69843c80d0c4376193b6ab3801b` |
+| Framework-Gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
+| MRTS-Gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
+
+Der erzeugte Plan zeichnet die drei Revisionen, das importierte Case-Inventar
+und seine Hashes, die erzeugte Load-Datei, das Profil sowie den geschlossenen
+Case-Satz auf. Der Executor
+<code>ci/runtime/lifecycle/execute-no-crs-mrts-cases.py</code> sendet echte
+Requests durch den ausgewählten laufenden Host und korreliert Request-,
+Transaktions-, Case-, erwartete Regel- und beobachtete Event-IDs. Er verlangt
+HTTP 200 im DetectionOnly-Modus, einen echten Detection-Case, einen legitimen
+Kontrollfall und einen gutartigen Bypass-Kontrollfall, bevor er das begrenzte
+Ergebnis atomar schreibt.
+
+Dieses Profil ist ausdrücklich no-CRS. Der Pfad weist CRS-Referenzen in der
+erzeugten MRTS-Load-Datei zurück und übergibt als aktive Nicht-CRS-Eingabe nur
+die repository-eigenen no-CRS-Regeln. OWASP CRS wird weder aktiviert noch
+beschafft, gecacht oder wiederverwendet. Erzeugter Plan, Resultat, Event-Log,
+Host-Zusammenfassung und Cleanup-Status verbleiben im privaten Run-Root; sie
+sind Runtime-Evidence und keine einzucheckenden Quelldateien.
+
+Die drei Hostadapter müssen ihren echten Connector starten und den Plan
+ausführen, solange dieser Connector läuft:
+
+- Envoy verwendet den bestehenden ext-proc-Hostpfad;
+- Traefik verwendet den bestehenden nativen Middleware-Hostpfad; und
+- lighttpd verwendet den bestehenden gepatchten nativen Hostpfad.
+
+Der Task ändert weder die negativen <code>with-crs/with-mrts</code>-Ziele für
+diese Connectoren noch NGINX. Ebenso wird keine Framework- oder MRTS-Quelle
+geändert; die oben genannten Framework- und MRTS-Revisionen werden als exakte
+Gitlinks verwendet.
+
+### Evidence-Status dieses Tasks
+
+Zum Zeitpunkt dieser Dokumentationsänderung sind Pfad und Verträge im
+Task-Worktree vorhanden; die echten Hostläufe für alle drei Connectoren,
+gehostete Actions, Required Checks, SonarQube-Cloud-Analyse und PR-Head-
+Gleichheit wurden durch diese Dokumentationsänderung noch nicht beobachtet.
+Sie bleiben <code>NOT EXECUTED</code> beziehungsweise <code>PENDING</code>,
+bis die entsprechende Exact-Head-Evidence vorliegt. Ein statischer Plan, ein
+Inventar, ein Parser-Test oder ein Workflow-Vertrag darf nicht zu einem
+Runtime-<code>PASS</code> befördert werden. Der gepaarte
+[Change Record](../reports/audits/change-records/CR-20260820-no-crs-with-mrts-runtime.de.md)
+beschreibt den begrenzten Lieferstatus und die Einschränkungen.
+
 ## Testebenen
 
 | Ebene | Typisches Target | Belegt | Belegt nicht |

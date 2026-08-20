@@ -1,0 +1,149 @@
+name: Five Connector No-CRS with MRTS Runtime
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: no-crs-with-mrts-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  runtime:
+    name: no-crs/with-mrts/${{ matrix.connector }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        connector:
+          - apache
+          - envoy
+          - haproxy
+          - lighttpd
+          - traefik
+    env:
+      CONNECTOR: ${{ matrix.connector }}
+      CRS_VARIANT: no-crs
+      MRTS_VARIANT: with-mrts
+      GOTOOLCHAIN: local
+      MODSECURITY_TEST_VARIANT: no-crs
+      MODSECURITY_MRTS_VARIANT: with-mrts
+      NO_CRS_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Checkout exact workflow revision and submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up Python
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Set up Go
+        id: setup-go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Verify Go version contract without acquisition
+        run: |
+          set -euo pipefail
+          expected_go_version="$(tr -d '[:space:]' < .go-version)"
+          actual_go_version="$(go version | sed -n 's/^go version go\([^ ]*\).*$/\1/p')"
+          test -n "$expected_go_version"
+          test "$actual_go_version" = "$expected_go_version"
+          test "${GOTOOLCHAIN:-}" = local
+
+      - name: Verify closed no-CRS with-MRTS matrix row
+        run: |
+          set -euo pipefail
+          test "$CRS_VARIANT" = no-crs
+          test "$MRTS_VARIANT" = with-mrts
+          case "$CONNECTOR" in
+            apache|envoy|haproxy|lighttpd|traefik) ;;
+            *) echo "connector is outside the closed runtime matrix" >&2; exit 2 ;;
+          esac
+          test "$CRS_VARIANT/$MRTS_VARIANT" = no-crs/with-mrts
+          test ! -n "${MODSECURITY_RULESET:-}"
+
+      - name: Prepare MRTS runtime dependencies
+        env:
+          RUNTIME_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}
+          FRAMEWORK_ROOT: ${{ github.workspace }}/modules/ModSecurity-test-Framework
+          CONNECTOR_ROOT: ${{ github.workspace }}
+          BUILD_ROOT: ${{ env.RUNTIME_ROOT }}/build
+          SOURCE_ROOT: ${{ env.RUNTIME_ROOT }}/src
+          TMP_ROOT: ${{ env.RUNTIME_ROOT }}/tmp
+          LOG_ROOT: ${{ env.RUNTIME_ROOT }}/logs
+          VERIFIED_RUN_ROOT: ${{ env.RUNTIME_ROOT }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$BUILD_ROOT" "$SOURCE_ROOT" "$TMP_ROOT" "$LOG_ROOT"
+          make setup-dev
+          case "$CONNECTOR" in
+            apache|haproxy) make prepare-runtime-components ;;
+            envoy) make prepare-envoy-runtime ;;
+            traefik) make prepare-traefik-runtime ;;
+            lighttpd) ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime ;;
+            *) echo "unreachable connector" >&2; exit 2 ;;
+          esac
+
+      - name: Run Apache or HAProxy MRTS host runtime
+        if: matrix.connector == 'apache' || matrix.connector == 'haproxy'
+        env:
+          RUNTIME_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}
+          FRAMEWORK_ROOT: ${{ github.workspace }}/modules/ModSecurity-test-Framework
+          CONNECTOR_ROOT: ${{ github.workspace }}
+          BUILD_ROOT: ${{ env.RUNTIME_ROOT }}/build
+          SOURCE_ROOT: ${{ env.RUNTIME_ROOT }}/src
+          TMP_ROOT: ${{ env.RUNTIME_ROOT }}/tmp
+          LOG_ROOT: ${{ env.RUNTIME_ROOT }}/logs
+          VERIFIED_RUN_ROOT: ${{ env.RUNTIME_ROOT }}
+        run: |
+          set -euo pipefail
+          make full-matrix-single-job-runtime CONNECTOR="$CONNECTOR" CRS=no-crs MRTS=with-mrts
+
+      - name: Run Envoy, Traefik, or Lighttpd MRTS host runtime
+        if: matrix.connector == 'envoy' || matrix.connector == 'traefik' || matrix.connector == 'lighttpd'
+        env:
+          RUNTIME_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}
+          FRAMEWORK_ROOT: ${{ github.workspace }}/modules/ModSecurity-test-Framework
+          CONNECTOR_ROOT: ${{ github.workspace }}
+          BUILD_ROOT: ${{ env.RUNTIME_ROOT }}/build
+          SOURCE_ROOT: ${{ env.RUNTIME_ROOT }}/src
+          TMP_ROOT: ${{ env.RUNTIME_ROOT }}/tmp
+          LOG_ROOT: ${{ env.RUNTIME_ROOT }}/logs
+          VERIFIED_RUN_ROOT: ${{ env.RUNTIME_ROOT }}
+        run: |
+          set -euo pipefail
+          python3 ci/runtime/lifecycle/run-no-crs-with-mrts-target.py \
+            --connector "$CONNECTOR" \
+            --execute-stage \
+            --parent-root "$GITHUB_WORKSPACE" \
+            --framework-root "$FRAMEWORK_ROOT" \
+            --runtime-root "$RUNTIME_ROOT"
+
+      - name: Upload isolated runtime evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: no-crs-with-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}
+          if-no-files-found: error

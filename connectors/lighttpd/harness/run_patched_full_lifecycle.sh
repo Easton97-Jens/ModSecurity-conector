@@ -17,6 +17,13 @@ PROXY_MODULE_PATH=$PATCHED_ROOT/stage/modules/mod_proxy.so
 HOST_MANIFEST=$PATCHED_ROOT/patched-host-build-info.txt
 SMOKE_DIR=${LIGHTTPD_PATCHED_SMOKE_DIR:-$PATCHED_ROOT/smoke}
 SMOKE_PORT=${LIGHTTPD_SMOKE_PORT:-18084}
+AMBIENT_MSCONNECTOR_RULES_FILE=${MSCONNECTOR_RULES_FILE:-}
+AMBIENT_RULES_FILE=${RULES_FILE:-}
+MRTS_RUNTIME_MODE=${MSCONNECTOR_MRTS_RUNTIME:-0}
+MRTS_LOAD_FILE=${MRTS_LOAD_FILE:-}
+MRTS_RUNTIME_EXECUTOR=${MRTS_RUNTIME_EXECUTOR:-}
+MRTS_RUNTIME_PLAN=${MRTS_RUNTIME_PLAN:-}
+MRTS_RUNTIME_RESULT=${MRTS_RUNTIME_RESULT:-}
 RULES_FILE=${MSCONNECTOR_RULES_FILE:-${RULES_FILE:-$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf}}
 PYTHON_BIN=${PYTHON:-python3}
 : "${NO_CRS_RUN_ID:?NO_CRS_RUN_ID is required}"
@@ -29,6 +36,7 @@ FIRST_BYTE_METADATA=$SCRIPT_DIR/write_patched_first_byte_metadata.py
 RESULT_WRITER=$SCRIPT_DIR/write_patched_lifecycle_results.py
 RESULTS_PATH=$SMOKE_DIR/results.jsonl
 SUMMARY_PATH=$SMOKE_DIR/runtime-summary.txt
+MRTS_RUNTIME_SUMMARY_PATH=$SMOKE_DIR/mrts-runtime-summary.json
 EVENT_PATH=$SMOKE_DIR/events.jsonl
 ERROR_LOG=$SMOKE_DIR/lighttpd-error.log
 SERVER_STDOUT=$SMOKE_DIR/runtime-smoke.stdout
@@ -59,6 +67,7 @@ CRS_UPSTREAM_PID_TOKEN=
 CRS_UPSTREAM_PORT=
 CRS_UPSTREAM_READY=
 BARRIER_RELEASE_FILE=
+FIRST_BYTE_CLIENT_PID=
 HTTP_STATUS_FORMAT='%{http_code}'
 DIAGNOSTIC_LINES='1,200p'
 CHILD_STOP_ATTEMPTS=50
@@ -540,6 +549,225 @@ prepare_host_transaction_evidence() {
         p2-deny.response.headers p3-deny.response.headers
 }
 
+verify_mrts_runtime_inputs() {
+    [ "$MRTS_RUNTIME_MODE" = 1 ] || return 0
+    : "${MRTS_LOAD_FILE:?MRTS_LOAD_FILE is required when MRTS runtime is enabled}"
+    : "${MRTS_RUNTIME_EXECUTOR:?MRTS_RUNTIME_EXECUTOR is required when MRTS runtime is enabled}"
+    : "${MRTS_RUNTIME_PLAN:?MRTS_RUNTIME_PLAN is required when MRTS runtime is enabled}"
+    : "${MRTS_RUNTIME_RESULT:?MRTS_RUNTIME_RESULT is required when MRTS runtime is enabled}"
+
+    # The patched host must be selected by this harness' pinned manifest.  In
+    # particular, do not let the generic Lighttpd wrappers replace its binary,
+    # module, source, or smoke preparer with ambient values.
+    [ -z "${LIGHTTPD_BIN:-}" ] || blocked "MRTS mode rejects ambient LIGHTTPD_BIN"
+    [ -z "${LIGHTTPD_CONNECTOR_MODULE:-}" ] || blocked "MRTS mode rejects ambient LIGHTTPD_CONNECTOR_MODULE"
+    [ -z "${LIGHTTPD_MODULE_DIR:-}" ] || blocked "MRTS mode rejects ambient LIGHTTPD_MODULE_DIR"
+    [ -z "${LIGHTTPD_SOURCE_DIR:-}" ] || blocked "MRTS mode rejects ambient LIGHTTPD_SOURCE_DIR"
+    [ -z "${LIGHTTPD_PATCHED_SOURCE_DIR:-}" ] || blocked "MRTS mode rejects ambient LIGHTTPD_PATCHED_SOURCE_DIR"
+    [ -z "${LIGHTTPD_SMOKE_PREPARER:-}" ] || blocked "MRTS mode rejects ambient LIGHTTPD_SMOKE_PREPARER"
+
+    [ -z "$AMBIENT_MSCONNECTOR_RULES_FILE" ] ||
+        [ "$AMBIENT_MSCONNECTOR_RULES_FILE" = "$MRTS_LOAD_FILE" ] ||
+        blocked "MRTS mode rejects an ambient MSCONNECTOR_RULES_FILE override"
+    [ -z "$AMBIENT_RULES_FILE" ] ||
+        [ "$AMBIENT_RULES_FILE" = "$MRTS_LOAD_FILE" ] ||
+        blocked "MRTS mode rejects an ambient RULES_FILE override"
+
+    "$PYTHON_BIN" - "$SMOKE_DIR" "$MRTS_LOAD_FILE" "$MRTS_RUNTIME_EXECUTOR" \
+        "$MRTS_RUNTIME_PLAN" "$MRTS_RUNTIME_RESULT" <<'PY'
+from pathlib import Path
+import os
+import sys
+
+root, load_file, executor, plan, result = map(Path, sys.argv[1:])
+
+def reject_symlink_components(value: Path, label: str) -> Path:
+    if not value.is_absolute():
+        raise SystemExit(f"{label} must be absolute: {value}")
+    current = Path(value.anchor)
+    for component in value.parts[1:]:
+        current /= component
+        if current.is_symlink():
+            raise SystemExit(f"{label} contains a symbolic-link component: {current}")
+    return value
+
+root = reject_symlink_components(root, "runtime root")
+load_file = reject_symlink_components(load_file, "MRTS load file")
+executor = reject_symlink_components(executor, "MRTS runtime executor")
+plan = reject_symlink_components(plan, "MRTS runtime plan")
+result = reject_symlink_components(result, "MRTS runtime result")
+
+for path, label in ((load_file, "MRTS load file"), (plan, "MRTS runtime plan")):
+    if not path.is_file():
+        raise SystemExit(f"{label} must be an existing regular file: {path}")
+if not executor.is_file() or not os.access(executor, os.R_OK):
+    raise SystemExit(f"MRTS runtime executor must be a readable regular file: {executor}")
+if result == root or root not in result.parents:
+    raise SystemExit(f"MRTS runtime result must be below the smoke root: {result}")
+if result.exists():
+    raise SystemExit(f"MRTS runtime result must not already exist: {result}")
+
+# A direct harness invocation must not accidentally turn a CRS load file into
+# a no-CRS run.  The central runner additionally binds the canonical no-CRS
+# artifact and its digest; this local check is deliberately conservative.
+load_text = load_file.read_text(encoding="utf-8")
+if any(token in load_text.lower() for token in ("crs-setup", "coreruleset", "owasp-modsecurity-crs")):
+    raise SystemExit(f"MRTS load file contains a CRS reference: {load_file}")
+PY
+}
+
+write_mrts_runtime_provenance() {
+    [ "$MRTS_RUNTIME_MODE" = 1 ] || return 0
+    "$PYTHON_BIN" - "$SMOKE_DIR/runtime-host-provenance.txt" "$CORE_BIN" \
+        "$MODULE_PATH" "$PROXY_MODULE_PATH" "$HOST_MANIFEST" <<'PY'
+from hashlib import sha256
+from pathlib import Path
+import os
+import sys
+
+destination, core, module, proxy, manifest = map(Path, sys.argv[1:])
+def digest(path: Path) -> str:
+    value = sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            value.update(chunk)
+    return value.hexdigest()
+lines = [
+    "evidence_origin=real_host",
+    f"lighttpd_version={next((line.split('=', 1)[1] for line in manifest.read_text(encoding='utf-8').splitlines() if line.startswith('lighttpd_version=')), 'unknown')}",
+    f"core_binary={core}",
+    f"core_binary_sha256={digest(core)}",
+    f"manifest_core_binary_sha256={next((line.split('=', 1)[1] for line in manifest.read_text(encoding='utf-8').splitlines() if line.startswith('core_binary_sha256=')), 'unknown')}",
+    f"msconnector_module={module}",
+    f"msconnector_module_sha256={digest(module)}",
+    f"manifest_module_sha256={next((line.split('=', 1)[1] for line in manifest.read_text(encoding='utf-8').splitlines() if line.startswith('module_sha256=')), 'unknown')}",
+    f"proxy_module={proxy}",
+    f"proxy_module_sha256={digest(proxy)}",
+    f"manifest_proxy_module_sha256={next((line.split('=', 1)[1] for line in manifest.read_text(encoding='utf-8').splitlines() if line.startswith('proxy_module_sha256=')), 'unknown')}",
+    f"host_manifest={manifest}",
+    "archive_digest_equivalence=not_claimed",
+]
+temporary = destination.with_name(f".{destination.name}.{os.getpid()}.tmp")
+fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        fd = -1
+        stream.write("\n".join(lines) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, destination)
+finally:
+    if fd >= 0:
+        os.close(fd)
+    try:
+        temporary.unlink()
+    except FileNotFoundError:
+        pass
+PY
+}
+
+configure_mrts_request_id_header() {
+    [ "$MRTS_RUNTIME_MODE" = 1 ] || return 0
+    "$PYTHON_BIN" - "$LIGHTTPD_CONFIG" <<'PY'
+from pathlib import Path
+import os
+import sys
+
+config = Path(sys.argv[1])
+text = config.read_text(encoding="utf-8")
+old = "transaction_id_header=x-modsec-transaction-id\n"
+new = "transaction_id_header=x-request-id\n"
+if text.count(old) != 1:
+    raise SystemExit("MRTS mode requires exactly one canonical transaction header setting")
+temporary = config.with_name(f".{config.name}.{os.getpid()}.tmp")
+fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        fd = -1
+        stream.write(text.replace(old, new))
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, config)
+finally:
+    if fd >= 0:
+        os.close(fd)
+    try:
+        temporary.unlink()
+    except FileNotFoundError:
+        pass
+PY
+}
+
+write_mrts_runtime_summary() {
+    [ "$MRTS_RUNTIME_MODE" = 1 ] || return 0
+    "$PYTHON_BIN" - "$MRTS_RUNTIME_SUMMARY_PATH" "$LIGHTTPD_CONFIG" \
+        "$MRTS_RUNTIME_RESULT" "$EVENT_PATH" "$SMOKE_DIR/runtime-host-provenance.txt" \
+        "$SMOKE_PORT" "$SERVER_PID" "$FIXTURE_PID" "$BARRIER_PID" <<'PY'
+import json
+import os
+import socket
+import sys
+from pathlib import Path
+
+destination, config, result, events, provenance, port, server, fixture, barrier = sys.argv[1:]
+
+def stopped(value: str) -> bool:
+    return bool(value) and not os.path.exists(f"/proc/{value}")
+
+try:
+    with socket.create_connection(("127.0.0.1", int(port)), timeout=0.2):
+        listener_closed = False
+except OSError:
+    listener_closed = True
+
+summary = {
+    "evidence_origin": "real_host",
+    "config_load_status": "passed",
+    "listener_ready_status": "passed",
+    "config_path": config,
+    "mrt_result_path": result,
+    "event_log_path": events,
+    "provenance_path": provenance,
+    "result_present": Path(result).is_file() and Path(result).stat().st_size > 0,
+    "event_log_present": Path(events).is_file() and Path(events).stat().st_size > 0,
+    "provenance_present": Path(provenance).is_file() and Path(provenance).stat().st_size > 0,
+    "server_process_stopped": stopped(server),
+    "fixture_process_stopped": stopped(fixture),
+    "barrier_process_stopped": stopped(barrier),
+    "listener_closed": listener_closed,
+}
+summary["cleanup_status"] = "passed" if all(
+    summary[key] for key in (
+        "server_process_stopped", "fixture_process_stopped",
+        "barrier_process_stopped", "listener_closed",
+    )
+) else "failed"
+if summary["cleanup_status"] != "passed" or not all(
+    summary[key] for key in ("result_present", "event_log_present", "provenance_present")
+):
+    raise SystemExit("MRTS runtime cleanup or evidence receipt is incomplete")
+
+target = Path(destination)
+temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        fd = -1
+        json.dump(summary, stream, sort_keys=True, separators=(",", ":"))
+        stream.write("\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, target)
+finally:
+    if fd >= 0:
+        os.close(fd)
+    try:
+        temporary.unlink()
+    except FileNotFoundError:
+        pass
+PY
+}
+
 case "$SMOKE_DIR" in
     /*) ;;
     *) blocked "LIGHTTPD_PATCHED_SMOKE_DIR must be absolute" ;;
@@ -552,6 +780,16 @@ case "$FIRST_BYTE_EVIDENCE" in
     /*) ;;
     *) blocked "FULL_LIFECYCLE_EVIDENCE_OUTPUT must be absolute" ;;
 esac
+case "$MRTS_RUNTIME_MODE" in
+    0|1) ;;
+    *) blocked "MSCONNECTOR_MRTS_RUNTIME must be 0 or 1" ;;
+esac
+if [ "$MSCONNECTOR_CRS_RUNTIME" = 1 ] && [ "$MRTS_RUNTIME_MODE" = 1 ]; then
+    blocked "CRS and MRTS runtime modes are mutually exclusive"
+fi
+if [ "$MRTS_RUNTIME_MODE" = 1 ]; then
+    RULES_FILE=$MRTS_LOAD_FILE
+fi
 [ -f "$RULES_FILE" ] || blocked "canonical rules file is missing: $RULES_FILE"
 [ -x "$CORE_BIN" ] || blocked "patched lighttpd binary is missing: $CORE_BIN"
 [ -f "$MODULE_PATH" ] || blocked "patched module is missing: $MODULE_PATH"
@@ -564,6 +802,7 @@ esac
 command -v curl >/dev/null 2>&1 || blocked "curl is required"
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || blocked "python3 is required"
 verify_runtime_output_paths || blocked "Lighttpd runtime output paths are unsafe"
+verify_mrts_runtime_inputs || blocked "Lighttpd MRTS runtime inputs are unsafe"
 
 MODSECURITY_LIB_DIR=$(manifest_value modsecurity_lib_dir)
 [ -n "$MODSECURITY_LIB_DIR" ] || blocked "patched host manifest has no libmodsecurity directory"
@@ -716,6 +955,7 @@ LIGHTTPD_CONFIG=$( \
     MSCONNECTOR_RULES_FILE="$RULES_FILE" \
     sh "$SCRIPT_DIR/prepare_patched_lifecycle_smoke.sh"
 )
+configure_mrts_request_id_header || blocked "could not configure MRTS request correlation"
 
 if [ "$MSCONNECTOR_CRS_RUNTIME" = 1 ]; then
     # The focused CRS route uses the canonical root URI.  The existing
@@ -798,6 +1038,28 @@ kill -0 "$SERVER_PID" 2>/dev/null || {
     sed -n "$DIAGNOSTIC_LINES" "$SERVER_STDERR" >&2
     fail "process did not remain alive"
 }
+
+if [ "$MRTS_RUNTIME_MODE" = 1 ]; then
+    if ! "$PYTHON_BIN" "$MRTS_RUNTIME_EXECUTOR" \
+        --connector lighttpd \
+        --runtime-root "$SMOKE_DIR" \
+        --plan "$MRTS_RUNTIME_PLAN" \
+        --load-file "$MRTS_LOAD_FILE" \
+        --result "$MRTS_RUNTIME_RESULT" \
+        --event-log "$EVENT_PATH" \
+        --scheme http \
+        --host 127.0.0.1 \
+        --port "$SMOKE_PORT"; then
+        fail "MRTS runtime executor failed"
+    fi
+    [ -s "$MRTS_RUNTIME_RESULT" ] || fail "MRTS runtime executor produced no result"
+    [ -s "$EVENT_PATH" ] || fail "MRTS runtime executor produced no event evidence"
+    cleanup
+    write_mrts_runtime_summary || fail "could not write MRTS runtime cleanup receipt"
+    printf 'lighttpd_patched_full_lifecycle: PASS MRTS result=%s summary=%s\n' \
+        "$MRTS_RUNTIME_RESULT" "$MRTS_RUNTIME_SUMMARY_PATH"
+    exit 0
+fi
 
 base_url=http://127.0.0.1:$SMOKE_PORT/
 

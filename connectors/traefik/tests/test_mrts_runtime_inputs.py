@@ -1,0 +1,92 @@
+from __future__ import annotations
+
+import importlib.util
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+RUNNER_PATH = Path(__file__).resolve().parents[1] / "scripts" / "runtime_native_smoke.py"
+
+
+def load_runner() -> object:
+    specification = importlib.util.spec_from_file_location("traefik_mrts_runner", RUNNER_PATH)
+    assert specification is not None
+    assert specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    sys.modules[specification.name] = module
+    specification.loader.exec_module(module)
+    return module
+
+
+class TraefikMRTSRuntimeInputsTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.runner = load_runner()
+
+    def mrts_inputs(self, root: Path, plan_file: Path) -> object:
+        return self.runner.NativeRuntimeInputs(
+            runtime_root=root,
+            engine_socket_parent=None,
+            run_id=None,
+            first_byte_output=None,
+            binary=Path("/dev/null"),
+            include_dir=Path("/dev/null"),
+            library_dir=Path("/dev/null"),
+            rules_file=plan_file,
+            rule_ids={},
+            rules_profile="mrts-load",
+            module_name=self.runner.read_plugin_module(self.runner.PLUGIN_SOURCE),
+            mrts_runtime=True,
+            mrts_executor=plan_file,
+            mrts_load_file=plan_file,
+            mrts_plan=plan_file,
+            mrts_result=root / "mrts-runtime-result.json",
+        )
+
+    def test_load_file_rejects_crs_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            load_file = Path(temporary) / "mrts.load"
+            load_file.write_text('Include "/private/owasp-crs/rules.conf"\n', encoding="utf-8")
+            with self.assertRaisesRegex(self.runner.MissingDependency, "CRS material"):
+                self.runner.require_no_crs_mrts_load_file(load_file)
+
+    def test_load_file_rejects_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "target.load"
+            target.write_text('Include "/private/mrts/rules.conf"\n', encoding="utf-8")
+            alias = root / "alias.load"
+            alias.symlink_to(target)
+            with self.assertRaisesRegex(self.runner.MissingDependency, "symlink"):
+                self.runner.require_no_crs_mrts_load_file(alias)
+
+    def test_executor_receives_the_validated_load_file(self) -> None:
+        source = RUNNER_PATH.read_text(encoding="utf-8")
+        self.assertIn('"--load-file"', source)
+        self.assertIn("MSCONNECTOR_RULES_FILE must resolve exactly to MRTS_LOAD_FILE", source)
+        self.assertIn("require_no_crs_mrts_load_file", source)
+
+    def test_staging_allows_only_the_prevalidated_plan_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "runtime"
+            root.mkdir()
+            plan_file = root / "mrts-runtime-plan.json"
+            plan_file.write_text("{}\n", encoding="utf-8")
+            artifacts = self.runner.stage_native_runtime(self.mrts_inputs(root, plan_file))
+            self.assertTrue(plan_file.is_file())
+            self.assertTrue(artifacts.logs_dir.is_dir())
+
+    def test_staging_rejects_any_content_beside_the_prevalidated_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "runtime"
+            root.mkdir()
+            plan_file = root / "mrts-runtime-plan.json"
+            plan_file.write_text("{}\n", encoding="utf-8")
+            (root / "foreign.txt").write_text("unexpected\n", encoding="utf-8")
+            with self.assertRaisesRegex(self.runner.MissingDependency, "only its sealed plan"):
+                self.runner.stage_native_runtime(self.mrts_inputs(root, plan_file))
+
+
+if __name__ == "__main__":
+    unittest.main()

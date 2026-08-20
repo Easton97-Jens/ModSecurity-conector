@@ -9,6 +9,15 @@ Commits und Pull Requests nachvollziehbar. Neue Einzelberichte dürfen nur nach
 einer ausdrücklichen Repository-Policy-Entscheidung oder Benutzerentscheidung
 angelegt werden.
 
+## Aktueller Task-Record
+
+- [CR-20260820-no-crs-with-mrts-runtime](CR-20260820-no-crs-with-mrts-runtime.de.md) — ausdrücklich
+  delegierte Parent-Dokumentation und Traceability für den aktuellen
+  Master-Task zum no-CRS/with-MRTS-Runtimepfad. Der Record beschreibt die
+  Implementierungsgrenze sowie noch offene lokale, gehostete, PR-,
+  Required-Check- und SonarQube-Evidence; er behauptet keine Lieferung oder
+  keinen Merge.
+
 ## Ausdrücklich autorisierte Records
 
 - [CR-20260822-trusted-lighttpd-namespace-dispatch](CR-20260822-trusted-lighttpd-namespace-dispatch.de.md) —

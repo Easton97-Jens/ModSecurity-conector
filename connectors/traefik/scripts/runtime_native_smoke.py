@@ -12,6 +12,7 @@ host status/event artifacts but never changes checked-in capability state.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import http.client
 import http.server
 import json
@@ -81,6 +82,7 @@ TRAEFIK_STDOUT_LOG_FILENAME = "traefik.stdout.log"
 ENGINE_SOCKET_PATH_MAX_BYTES = 100
 TRANSPORT_OBSERVATION_MAX_BODY_BYTES = 64 << 10
 SAFE_RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+CRS_REFERENCE_PATTERN = re.compile(r"(?:\bcrs\b|coreruleset|owasp[ _-]*crs)", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -395,6 +397,44 @@ def require_local_executable(path: Path, label: str) -> Path:
     return resolved
 
 
+def require_existing_file_without_symlinks(path: Path, label: str) -> Path:
+    """Validate an explicit file input before it reaches the MRTS executor."""
+
+    if not path.is_absolute():
+        raise MissingDependency(f"{label} must be an absolute path")
+    if any(ord(character) < 0x20 or ord(character) == 0x7F for character in str(path)):
+        raise MissingDependency(f"{label} must not contain control characters")
+    assert_no_symlink_components(path)
+    try:
+        path_stat = path.lstat()
+    except OSError as exc:
+        raise MissingDependency(f"{label} is unavailable: {path}") from exc
+    if stat.S_ISLNK(path_stat.st_mode) or not stat.S_ISREG(path_stat.st_mode):
+        raise MissingDependency(f"{label} must be a regular non-symlink file: {path}")
+    if not os.access(path, os.R_OK):
+        raise MissingDependency(f"{label} is not readable: {path}")
+    return path
+
+
+def require_path_below_runtime_root(path: Path, runtime_root: Path, label: str) -> Path:
+    """Require an output path to remain inside this run's private root."""
+
+    if not path.is_absolute():
+        raise MissingDependency(f"{label} must be an absolute path")
+    candidate = Path(os.path.abspath(path))
+    root = Path(os.path.abspath(runtime_root))
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise MissingDependency(f"{label} must be below the native runtime root") from exc
+    assert_no_symlink_components(candidate)
+    if candidate.exists() and candidate.is_symlink():
+        raise MissingDependency(f"{label} must not be a symlink: {candidate}")
+    if not candidate.name or candidate.name in {".", ".."}:
+        raise MissingDependency(f"{label} must name a file")
+    return candidate
+
+
 def require_modsecurity_environment() -> tuple[Path, Path]:
     include = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", ""))
     library = Path(os.environ.get("MODSECURITY_LIB_DIR", ""))
@@ -405,18 +445,44 @@ def require_modsecurity_environment() -> tuple[Path, Path]:
     return include, library
 
 
-def select_engine_rules() -> tuple[Path, dict[str, str], str]:
+def select_engine_rules(mrts_runtime: bool = False) -> tuple[Path, dict[str, str], str]:
     configured = os.environ.get("MSCONNECTOR_RULES_FILE", "").strip()
     if configured:
         rules = Path(configured)
-        if not rules.is_absolute() or not rules.is_file():
+        if mrts_runtime:
+            rules = require_existing_file_without_symlinks(rules, "MSCONNECTOR_RULES_FILE")
+        elif not rules.is_absolute() or not rules.is_file():
             raise MissingDependency("MSCONNECTOR_RULES_FILE must name an existing absolute rules file")
         if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1":
             return rules.resolve(), {"block": CRS_RULE_ID}, "framework-crs-v4.29.0"
         return rules.resolve(), CANONICAL_RULE_IDS, "framework-no-crs"
+    if mrts_runtime:
+        raise MissingDependency(
+            "MSCONNECTOR_RULES_FILE is required for MRTS runtime; standalone rule fallback is disabled"
+        )
     if not STANDALONE_ENGINE_RULES.is_file():
         raise MissingDependency(f"standalone Traefik rule fixture is unavailable: {STANDALONE_ENGINE_RULES}")
     return STANDALONE_ENGINE_RULES.resolve(), STANDALONE_RULE_IDS, "standalone-targeted"
+
+
+def require_no_crs_mrts_load_file(path: Path) -> Path:
+    """Accept one explicit generated MRTS include file without CRS material."""
+
+    load_file = require_existing_file_without_symlinks(path, "MRTS_LOAD_FILE")
+    try:
+        content = load_file.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise MissingDependency(f"MRTS_LOAD_FILE is unreadable: {load_file}") from exc
+    if not content.strip():
+        raise MissingDependency("MRTS_LOAD_FILE must not be empty")
+    if CRS_REFERENCE_PATTERN.search(content):
+        raise MissingDependency("MRTS_LOAD_FILE must not reference CRS material")
+    includes = [
+        line for line in content.splitlines() if re.match(r"^\s*Include\s+", line, flags=re.ASCII)
+    ]
+    if not includes:
+        raise MissingDependency("MRTS_LOAD_FILE must contain generated Include entries")
+    return load_file.resolve(strict=True)
 
 
 def require_engine_inputs(rules_file: Path) -> None:
@@ -1084,6 +1150,101 @@ def traefik_version(binary: Path) -> str:
     return next((line.strip() for line in completed.stdout.splitlines() if line.strip()), "unknown")
 
 
+def write_traefik_provenance(path: Path, binary: Path) -> None:
+    """Record immutable host-binary identity alongside runtime evidence."""
+
+    digest = hashlib.sha256()
+    with binary.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(chunk)
+    write_json(
+        path,
+        {
+            "artifact": "traefik",
+            "binary": str(binary),
+            "sha256": digest.hexdigest(),
+            "version": traefik_version(binary),
+        },
+    )
+
+
+def run_mrts_runtime_executor(
+    inputs: NativeRuntimeInputs,
+    artifacts: NativeRuntimeArtifacts,
+    setup: NativeRuntimeSetup,
+    processes: NativeProcesses,
+) -> None:
+    """Execute the real MRTS plan while both native host processes are live."""
+
+    if not inputs.mrts_runtime:
+        return
+    if (
+        inputs.mrts_executor is None
+        or inputs.mrts_load_file is None
+        or inputs.mrts_plan is None
+        or inputs.mrts_result is None
+    ):
+        raise MissingDependency("MRTS runtime inputs were not completely resolved")
+    if processes.traefik is None or processes.engine is None:
+        raise RuntimeError("MRTS executor requires live Traefik and engine processes")
+    if processes.traefik.poll() is not None or processes.engine.poll() is not None:
+        raise RuntimeError("MRTS executor requires Traefik and engine to remain alive")
+    require_existing_file_without_symlinks(inputs.mrts_executor, "MRTS_RUNTIME_EXECUTOR")
+    require_no_crs_mrts_load_file(inputs.mrts_load_file)
+    require_existing_file_without_symlinks(inputs.mrts_plan, "MRTS_RUNTIME_PLAN")
+    result_path = require_path_below_runtime_root(
+        inputs.mrts_result, inputs.runtime_root, "MRTS_RUNTIME_RESULT"
+    )
+    if result_path.exists():
+        raise MissingDependency(f"MRTS_RUNTIME_RESULT must be fresh: {result_path}")
+    command = [
+        sys.executable,
+        str(inputs.mrts_executor),
+        "--connector",
+        "traefik",
+        "--runtime-root",
+        str(inputs.runtime_root),
+        "--plan",
+        str(inputs.mrts_plan),
+        "--load-file",
+        str(inputs.mrts_load_file),
+        "--result",
+        str(result_path),
+        "--event-log",
+        str(artifacts.event_path),
+        "--scheme",
+        "http",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(setup.traefik_port),
+    ]
+    with (artifacts.logs_dir / "mrts-executor.stdout.log").open("wb") as stdout, (
+        artifacts.logs_dir / "mrts-executor.stderr.log"
+    ).open("wb") as stderr:
+        completed = subprocess.run(
+            command,
+            cwd=inputs.runtime_root,
+            env=os.environ.copy(),
+            stdout=stdout,
+            stderr=stderr,
+            check=False,
+        )
+    if processes.traefik.poll() is not None or processes.engine.poll() is not None:
+        raise RuntimeError("Traefik or engine exited during MRTS executor run")
+    if completed.returncode != 0:
+        raise RuntimeError(f"MRTS runtime executor failed with code {completed.returncode}")
+    require_existing_file_without_symlinks(result_path, "MRTS_RUNTIME_RESULT")
+    if result_path.stat().st_size == 0:
+        raise RuntimeError("MRTS runtime executor produced an empty result")
+    try:
+        parsed = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError("MRTS runtime executor produced invalid JSON result") from exc
+    if not isinstance(parsed, dict):
+        raise RuntimeError("MRTS runtime executor result must be a JSON object")
+
+
 def read_host_outcomes(event_path: Path) -> list[dict[str, Any]]:
     if not event_path.is_file():
         raise RuntimeError("persistent engine did not produce run-local events.jsonl")
@@ -1302,6 +1463,11 @@ class NativeRuntimeInputs:
     rule_ids: dict[str, str]
     rules_profile: str
     module_name: str
+    mrts_runtime: bool
+    mrts_executor: Path | None
+    mrts_load_file: Path | None
+    mrts_plan: Path | None
+    mrts_result: Path | None
 
 
 @dataclass(frozen=True)
@@ -1315,6 +1481,8 @@ class NativeRuntimeArtifacts:
     dynamic_config: Path
     engine_config: Path
     event_path: Path
+    native_summary_path: Path
+    provenance_path: Path
 
 
 @dataclass(frozen=True)
@@ -1401,6 +1569,16 @@ class NativeLiveObservation:
     p1_allow_upstream_requests: int
 
 
+@dataclass(frozen=True)
+class NativeMRTSHostObservation:
+    """Real host state captured after MRTS execution and before shutdown."""
+
+    engine_alive: bool
+    engine_socket_ready: bool
+    plugin_loaded: bool
+    traefik_alive: bool
+
+
 def collect_native_runtime_inputs() -> NativeRuntimeInputs:
     """Resolve all environment-derived inputs before making runtime changes."""
 
@@ -1413,7 +1591,16 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
         raise MissingDependency("FULL_LIFECYCLE_EVIDENCE_OUTPUT is required for the native first-byte proof")
     engine_socket_parent = resolve_engine_socket_parent()
     binary = require_local_executable(Path(os.environ.get("TRAEFIK_BIN", "")), "Traefik binary")
-    rules_file, rule_ids, rules_profile = select_engine_rules()
+    crs_runtime = os.environ.get("MSCONNECTOR_CRS_RUNTIME", "0")
+    mrts_runtime_value = os.environ.get("MSCONNECTOR_MRTS_RUNTIME", "0")
+    if crs_runtime not in {"0", "1"}:
+        raise MissingDependency("MSCONNECTOR_CRS_RUNTIME must be 0 or 1")
+    if mrts_runtime_value not in {"0", "1"}:
+        raise MissingDependency("MSCONNECTOR_MRTS_RUNTIME must be 0 or 1")
+    if crs_runtime == "1" and mrts_runtime_value == "1":
+        raise MissingDependency("CRS and MRTS runtime modes are mutually exclusive")
+    mrts_runtime = mrts_runtime_value == "1"
+    rules_file, rule_ids, rules_profile = select_engine_rules(mrts_runtime)
     require_engine_inputs(rules_file)
     include_dir, library_dir = require_modsecurity_environment()
     run_id = optional_canonical_run_id()
@@ -1422,6 +1609,30 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
     if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1":
         assert run_id is not None
         crs_request_ids(run_id)
+    mrts_executor: Path | None = None
+    mrts_load_file: Path | None = None
+    mrts_plan: Path | None = None
+    mrts_result: Path | None = None
+    if mrts_runtime:
+        mrts_executor = require_existing_file_without_symlinks(
+            Path(os.environ.get("MRTS_RUNTIME_EXECUTOR", "")), "MRTS_RUNTIME_EXECUTOR"
+        )
+        mrts_load_file = require_no_crs_mrts_load_file(
+            Path(os.environ.get("MRTS_LOAD_FILE", ""))
+        )
+        if rules_file != mrts_load_file:
+            raise MissingDependency(
+                "MSCONNECTOR_RULES_FILE must resolve exactly to MRTS_LOAD_FILE in MRTS runtime"
+            )
+        rules_profile = "mrts-load"
+        mrts_plan = require_existing_file_without_symlinks(
+            Path(os.environ.get("MRTS_RUNTIME_PLAN", "")), "MRTS_RUNTIME_PLAN"
+        )
+        mrts_result = require_path_below_runtime_root(
+            Path(os.environ.get("MRTS_RUNTIME_RESULT", "")),
+            runtime_root,
+            "MRTS_RUNTIME_RESULT",
+        )
     return NativeRuntimeInputs(
         runtime_root=runtime_root,
         engine_socket_parent=engine_socket_parent,
@@ -1434,14 +1645,31 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
         rule_ids=rule_ids,
         rules_profile=rules_profile,
         module_name=read_plugin_module(PLUGIN_SOURCE),
+        mrts_runtime=mrts_runtime,
+        mrts_executor=mrts_executor,
+        mrts_load_file=mrts_load_file,
+        mrts_plan=mrts_plan,
+        mrts_result=mrts_result,
     )
 
 
 def stage_native_runtime(inputs: NativeRuntimeInputs) -> NativeRuntimeArtifacts:
     """Stage one isolated local-plugin workspace below the trusted root."""
 
-    if inputs.runtime_root.exists() and any(inputs.runtime_root.iterdir()):
-        raise MissingDependency(f"native runtime root must be empty: {inputs.runtime_root}")
+    if inputs.runtime_root.exists():
+        existing_entries = list(inputs.runtime_root.iterdir())
+        if inputs.mrts_runtime:
+            if inputs.mrts_plan is None:
+                raise MissingDependency("MRTS runtime root requires a validated plan file")
+            plan_file = require_existing_file_without_symlinks(inputs.mrts_plan, "MRTS_RUNTIME_PLAN")
+            if plan_file.parent != inputs.runtime_root:
+                raise MissingDependency("MRTS_RUNTIME_PLAN must be directly below the native runtime root")
+            if existing_entries != [plan_file]:
+                raise MissingDependency(
+                    "MRTS native runtime root may contain only its sealed plan file before staging"
+                )
+        elif existing_entries:
+            raise MissingDependency(f"native runtime root must be empty: {inputs.runtime_root}")
     staging_started = False
     try:
         inputs.runtime_root.mkdir(parents=True, mode=0o700, exist_ok=True)
@@ -1462,6 +1690,8 @@ def stage_native_runtime(inputs: NativeRuntimeInputs) -> NativeRuntimeArtifacts:
             dynamic_config=config_dir / "traefik-native-dynamic.yaml",
             engine_config=config_dir / "traefik-native-engine.conf",
             event_path=logs_dir / "events.jsonl",
+            native_summary_path=inputs.runtime_root / "native-host-summary.json",
+            provenance_path=logs_dir / "traefik-provenance.json",
         )
     except Exception as exc:
         if staging_started and not cleanup_staged_runtime_workspaces(inputs):
@@ -1567,6 +1797,7 @@ def running_traefik_host(
     engine_binary = build_engine_service(
         inputs.runtime_root, artifacts.logs_dir, inputs.include_dir, inputs.library_dir
     )
+    write_traefik_provenance(artifacts.provenance_path, inputs.binary)
     with (artifacts.logs_dir / "engine.stdout.log").open("wb") as engine_stdout, (
         artifacts.logs_dir / ENGINE_STDERR_LOG_FILENAME
     ).open("wb") as engine_stderr:
@@ -1602,7 +1833,7 @@ def run_native_requests(
     artifacts: NativeRuntimeArtifacts,
     setup: NativeRuntimeSetup,
     processes: NativeProcesses,
-) -> NativeRequestResults:
+) -> NativeRequestResults | None:
     """Start both host processes and make the bounded lifecycle requests."""
 
     if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1":
@@ -1616,6 +1847,10 @@ def run_native_requests(
         engine_description="persistent Traefik engine service",
         host_description="Traefik native local-plugin host",
     ):
+        if inputs.mrts_runtime:
+            if processes.traefik.poll() is not None or processes.engine.poll() is not None:
+                raise RuntimeError("Traefik or engine exited before MRTS executor start")
+            return None
         p1_allow_status, p1_allow_bytes = request_through_traefik(
             setup.traefik_port, REQUEST_BODY, P1_ALLOW_TRANSACTION_ID, http.HTTPStatus.OK
         )
@@ -1895,6 +2130,28 @@ def observe_live_native_host(
     return observation
 
 
+def observe_live_mrts_host(
+    artifacts: NativeRuntimeArtifacts, setup: NativeRuntimeSetup, processes: NativeProcesses
+) -> NativeMRTSHostObservation:
+    """Capture actual plugin, process, and UDS state before MRTS cleanup."""
+
+    traefik_alive = processes.traefik is not None and processes.traefik.poll() is None
+    engine_alive = processes.engine is not None and processes.engine.poll() is None
+    engine_socket_ready = setup.engine_socket.exists() and setup.engine_socket.is_socket()
+    host_log = (artifacts.logs_dir / "traefik.stdout.log").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    plugin_loaded = "Plugins loaded." in host_log and PLUGIN_ID in host_log
+    if not (traefik_alive and engine_alive and engine_socket_ready and plugin_loaded):
+        raise RuntimeError("Traefik MRTS host did not remain live and ready after executor run")
+    return NativeMRTSHostObservation(
+        engine_alive=engine_alive,
+        engine_socket_ready=engine_socket_ready,
+        plugin_loaded=plugin_loaded,
+        traefik_alive=traefik_alive,
+    )
+
+
 def stop_native_processes(processes: NativeProcesses) -> tuple[bool, bool]:
     """Stop both owned process handles and clear them from subsequent cleanup."""
 
@@ -1995,8 +2252,9 @@ def write_native_success(
 ) -> None:
     """Write the successful local-host result without promoting capability state."""
 
+    result_path = artifacts.native_summary_path if inputs.mrts_runtime else artifacts.result_path
     write_json(
-        artifacts.result_path,
+        result_path,
         {
             "capability_promotion": "not_permitted",
             "common_runtime_bridge": True,
@@ -2038,8 +2296,46 @@ def write_native_success(
             "rules_profile": inputs.rules_profile,
             "status": "PASS",
             "traefik_version": traefik_version(inputs.binary),
+            "traefik_provenance": artifacts.provenance_path.name,
             "transport_observations_diagnostic": artifacts.transport_observations_path.name,
             "upstream_requests": live_observation.upstream_requests,
+        },
+    )
+
+
+def write_mrts_host_summary(
+    inputs: NativeRuntimeInputs,
+    artifacts: NativeRuntimeArtifacts,
+    observation: NativeMRTSHostObservation,
+    processes_stopped: bool,
+) -> None:
+    """Record the completed real host lifecycle without replacing MRTS output."""
+
+    if not inputs.mrts_runtime or inputs.mrts_result is None:
+        raise RuntimeError("MRTS host summary requires a resolved MRTS result path")
+    if not processes_stopped:
+        raise RuntimeError("MRTS host summary requires confirmed process cleanup")
+    for path, label in (
+        (artifacts.event_path, "MRTS event log"),
+        (artifacts.provenance_path, "Traefik provenance"),
+        (inputs.mrts_result, "MRTS result"),
+    ):
+        require_existing_file_without_symlinks(path, label)
+    write_json(
+        artifacts.native_summary_path,
+        {
+            "connector": "traefik",
+            "event_log": str(artifacts.event_path.relative_to(inputs.runtime_root)),
+            "host_started": observation.traefik_alive and observation.engine_alive,
+            "integration_mode": "native-traefik-middleware",
+            "mrts_runtime": True,
+            "mrts_result": str(inputs.mrts_result.relative_to(inputs.runtime_root)),
+            "plugin_loaded": observation.plugin_loaded,
+            "process_cleanup": processes_stopped,
+            "provenance": str(artifacts.provenance_path.relative_to(inputs.runtime_root)),
+            "readiness": observation.engine_socket_ready,
+            "schema_version": 1,
+            "status": "PASS",
         },
     )
 
@@ -2089,24 +2385,38 @@ def run() -> int:
             )
         else:
             results = run_native_requests(inputs, artifacts, setup, processes)
-            live_observation = observe_live_native_host(artifacts, setup, processes)
-            traefik_stopped, engine_stopped = stop_native_processes(processes)
-            outcome_count = finalize_native_host_observations(
-                inputs, artifacts, results, live_observation
-            )
-            write_native_success(
-                inputs,
-                artifacts,
-                results,
-                live_observation,
-                outcome_count,
-                traefik_stopped and engine_stopped,
-            )
+            if inputs.mrts_runtime:
+                run_mrts_runtime_executor(inputs, artifacts, setup, processes)
+                mrts_host_observation = observe_live_mrts_host(artifacts, setup, processes)
+                traefik_stopped, engine_stopped = stop_native_processes(processes)
+                if not (traefik_stopped and engine_stopped):
+                    raise RuntimeError("Traefik MRTS host cleanup did not stop all processes")
+                write_mrts_host_summary(
+                    inputs,
+                    artifacts,
+                    mrts_host_observation,
+                    traefik_stopped and engine_stopped,
+                )
+            else:
+                assert results is not None
+                live_observation = observe_live_native_host(artifacts, setup, processes)
+                traefik_stopped, engine_stopped = stop_native_processes(processes)
+                outcome_count = finalize_native_host_observations(
+                    inputs, artifacts, results, live_observation
+                )
+                write_native_success(
+                    inputs,
+                    artifacts,
+                    results,
+                    live_observation,
+                    outcome_count,
+                    traefik_stopped and engine_stopped,
+                )
         outcome = 0
     except Exception as exc:
         traefik_stopped, engine_stopped = stop_native_processes(processes)
         write_native_failure(
-            artifacts.result_path,
+            artifacts.native_summary_path if inputs.mrts_runtime else artifacts.result_path,
             type(exc).__name__,
             "host_runtime_failed",
             traefik_stopped and engine_stopped,
@@ -2122,7 +2432,7 @@ def run() -> int:
         workspace_cleanup_ok = cleanup_staged_runtime_workspaces(inputs, artifacts)
         if not socket_cleanup_ok or not workspace_cleanup_ok:
             write_native_failure(
-                artifacts.result_path,
+                artifacts.native_summary_path if inputs.mrts_runtime else artifacts.result_path,
                 "",
                 "host_runtime_cleanup_incomplete",
                 False,

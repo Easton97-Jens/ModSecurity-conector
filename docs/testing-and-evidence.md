@@ -19,6 +19,65 @@ bound result and receipt per selected connector, including run and commit
 identity plus cleanup status. That validation is not hosted-runtime proof and
 does not provide CRS, MRTS, HTTP/2, HTTP/3, full-matrix, or production claims.
 
+## Closed no-CRS/with-MRTS runtime route
+
+The current-master task route adds a separate, closed
+<code>no-crs/with-mrts</code> runtime path for exactly Envoy, Traefik, and
+lighttpd. The entry point is
+<code>ci/runtime/lifecycle/run-no-crs-with-mrts-target.py</code>; it requires
+<code>--execute-stage</code> and rejects any connector outside that three-item
+set. Apache and HAProxy continue to use their existing MRTS host route in the
+five-connector workflow; this section does not alter their contract.
+
+The route creates a private run root, verifies the Parent gitlink to
+Framework and the Framework gitlink to MRTS, and imports the MRTS cases through
+the exact checked-out Framework. The current pinned chain is:
+
+| Repository | Revision used by the route |
+| --- | --- |
+| Parent | current task base `b42907ca410da69843c80d0c4376193b6ab3801b` |
+| Framework gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
+| MRTS gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
+
+The generated plan records the three revisions, the imported case inventory
+and hashes, the generated load file, the selected profile, and the closed case
+set. The executor
+<code>ci/runtime/lifecycle/execute-no-crs-mrts-cases.py</code> sends actual
+requests through the selected live host and correlates request, transaction,
+case, expected-rule, and observed-event identifiers. It requires a
+DetectionOnly HTTP 200 result, an actual detection case, a legitimate control,
+and a benign bypass control before atomically writing the bounded result.
+
+This profile is explicitly no-CRS. The route rejects CRS references in the
+generated MRTS load file and passes the repository-owned no-CRS rules only as
+the active non-CRS input. The route does not enable, acquire, cache, or reuse
+OWASP CRS. The generated plan, result, event log, host summary, and cleanup
+state remain under the private run root; they are runtime evidence, not source
+files to commit.
+
+The three host adapters must start their real connector and execute this plan
+while that connector is live:
+
+- Envoy uses the existing ext-proc host path;
+- Traefik uses the existing native middleware host path; and
+- lighttpd uses the existing patched native host path.
+
+The task changes neither the <code>with-crs/with-mrts</code> negative targets
+for these connectors nor NGINX. It also makes no Framework or MRTS source
+change; the Framework and MRTS revisions above are consumed as exact
+gitlinks.
+
+### Evidence status for this task
+
+At documentation time, the route and its contracts are present in the task
+worktree, but the real three-connector host runs, hosted Actions, Required
+Checks, SonarQube Cloud analysis, and PR-head equality have not been observed
+by this documentation change. They remain <code>NOT EXECUTED</code> or
+<code>PENDING</code> until the corresponding exact-head evidence exists. A
+static plan, inventory, parser test, or workflow contract must not be promoted
+to a runtime <code>PASS</code>. See the paired [Change Record](../reports/audits/change-records/CR-20260820-no-crs-with-mrts-runtime.md)
+for the bounded delivery state and limitations.
+
 ## Test layers
 
 | Layer | Typical target | Establishes | Does not establish |

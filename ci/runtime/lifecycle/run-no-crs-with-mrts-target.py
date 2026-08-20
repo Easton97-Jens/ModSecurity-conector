@@ -1,0 +1,275 @@
+#!/usr/bin/env python3
+"""Closed Parent route for the no-CRS/with-MRTS connector profile."""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import importlib.util
+import json
+import os
+import secrets
+import subprocess
+import sys
+import re
+from pathlib import Path
+from typing import Any, NoReturn
+
+CONNECTORS = {"envoy", "traefik", "lighttpd"}
+PROFILE = "no-crs/with-mrts"
+MAX_PLAN_BYTES = 1_048_576
+
+
+def stop(message: str) -> NoReturn:
+    raise SystemExit(f"BLOCKED: {message}")
+
+
+def private_root(value: str) -> Path:
+    root = Path(value).expanduser()
+    if not root.is_absolute() or ".." in root.parts:
+        stop("runtime root must be absolute and traversal-free")
+    component = Path(root.anchor)
+    for part in root.parts[1:]:
+        component /= part
+        if component.exists() and component.is_symlink():
+            stop("runtime root contains a symlink component")
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    root = root.resolve(strict=True)
+    if root.is_symlink() or root.stat().st_uid != os.getuid():
+        stop("runtime root is not owner-controlled")
+    os.chmod(root, 0o700)
+    return root
+
+
+def git_sha(path: Path) -> str:
+    try:
+        value = subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD"], text=True, timeout=10).strip()
+    except (OSError, subprocess.SubprocessError) as exc:
+        stop(f"cannot resolve git identity for {path}: {exc}")
+    if len(value) != 40 or any(ch not in "0123456789abcdef" for ch in value):
+        stop(f"invalid git identity for {path}")
+    return value
+
+
+def git_output(path: Path, *arguments: str) -> str:
+    try:
+        return subprocess.check_output(["git", "-C", str(path), *arguments], text=True, stderr=subprocess.STDOUT, timeout=10).strip()
+    except (OSError, subprocess.SubprocessError) as exc:
+        stop(f"git provenance query failed for {path}: {exc}")
+
+
+def repository_provenance(parent: Path, framework: Path, mrts: Path) -> dict[str, Any]:
+    parent_link = git_output(parent, "ls-tree", "HEAD", "modules/ModSecurity-test-Framework").split()
+    framework_link = git_output(framework, "ls-tree", "HEAD", "tools/MRTS").split()
+    if len(parent_link) < 3 or len(framework_link) < 3:
+        stop("required gitlink is missing or malformed")
+    expected = {"parent_framework": parent_link[2], "framework_mrts": framework_link[2]}
+    actual = {"parent_framework": git_sha(framework), "framework_mrts": git_sha(mrts)}
+    if expected != actual:
+        stop(f"gitlink mismatch: expected {expected}, checked out {actual}")
+    repositories = {"parent": parent, "framework": framework, "mrts": mrts}
+    origins: dict[str, dict[str, str]] = {}
+    clean: dict[str, bool] = {}
+    detached: dict[str, bool] = {}
+    expected_origins = {
+        "parent": "Easton97-Jens/ModSecurity-conector",
+        "framework": "Easton97-Jens/ModSecurity-test-Framework",
+        "mrts": "Easton97-Jens/MRTS",
+    }
+    for name, path in repositories.items():
+        status = git_output(path, "status", "--porcelain=v1")
+        clean[name] = not status
+        if not clean[name]:
+            stop(f"{name} checkout is dirty")
+        branch = git_output(path, "rev-parse", "--abbrev-ref", "HEAD")
+        detached[name] = branch == "HEAD"
+        if name != "parent" and not detached[name]:
+            stop(f"{name} checkout must be detached")
+        remotes = {}
+        remotes["fetch"] = git_output(path, "remote", "get-url", "origin")
+        remotes["push"] = git_output(path, "remote", "get-url", "--push", "origin")
+        for remote in ("fetch", "push"):
+            normalized = remotes[remote].removesuffix(".git")
+            owner, repository = expected_origins[name].split("/", 1)
+            allowed = re.fullmatch(rf"(?:git@github\.com:{re.escape(owner)}/{re.escape(repository)}|https://github\.com/{re.escape(owner)}/{re.escape(repository)}|ssh://git@github\.com/{re.escape(owner)}/{re.escape(repository)})", normalized, re.IGNORECASE)
+            if not allowed:
+                stop(f"{name} origin {remote} does not match expected repository")
+        origins[name] = remotes
+    return {"gitlinks": expected, "checked_out": actual, "origins": origins, "clean": clean, "detached": detached}
+
+
+def checked_path(value: str, label: str) -> Path:
+    path = Path(value)
+    if not path.is_absolute() or ".." in path.parts:
+        stop(f"{label} must be absolute and traversal-free")
+    if path.is_symlink() or any(part.is_symlink() for part in path.parents if part.exists()):
+        stop(f"{label} contains a symlink component")
+    try:
+        return path.resolve(strict=True)
+    except OSError as exc:
+        stop(f"{label} is unavailable: {exc}")
+
+
+def duplicate_safe_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def atomic_json(path: Path, value: Any) -> None:
+    data = duplicate_safe_json(value).encode()
+    if len(data) > MAX_PLAN_BYTES:
+        stop("plan exceeds bounded size")
+    temporary = path.with_name(f".{path.name}.{secrets.token_hex(8)}.tmp")
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        os.chmod(path, 0o600)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def load_framework_yaml(path: Path) -> dict[str, Any]:
+    framework_root = Path(os.environ["MRTS_FRAMEWORK_ROOT"])
+    loader_path = framework_root / "ci" / "provisioning" / "import-mrts-cases.py"
+    spec = importlib.util.spec_from_file_location("mrts_case_loader", loader_path)
+    if spec is None or spec.loader is None:
+        stop("Framework MRTS loader cannot be imported")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        parsed = module.load_yaml(path)
+    except (OSError, ValueError) as exc:
+        stop(f"generated MRTS case is invalid: {exc}")
+    if not isinstance(parsed, dict):
+        stop("generated MRTS case root is not a mapping")
+    return parsed
+
+
+def select_cases(case_root: Path) -> tuple[list[dict[str, Any]], list[Path]]:
+    selected: list[dict[str, Any]] = []
+    sources: list[Path] = []
+    for source in sorted(case_root.glob("*.yaml")):
+        if source.is_symlink() or not source.is_file() or case_root not in source.resolve(strict=True).parents:
+            stop(f"generated MRTS case is not a contained regular file: {source}")
+        document = load_framework_yaml(source)
+        meta = document.get("meta", {})
+        metadata = document.get("metadata", {})
+        upstream_file = metadata.get("upstream_file", "") if isinstance(metadata, dict) else ""
+        is_args_get = (isinstance(meta, dict) and meta.get("name") == "MRTS_002_ARGS_A-GET.yaml") or str(upstream_file).endswith("MRTS_002_ARGS_A-GET.yaml")
+        if not is_args_get:
+            continue
+        if isinstance(document.get("request"), dict):
+            request = document["request"]
+            expected = document.get("expect", {}).get("rule_id") if isinstance(document.get("expect"), dict) else None
+            if metadata.get("phase") != 1 or document.get("portable") is not True or request.get("method") != "GET":
+                continue
+            uri = request.get("path")
+            if isinstance(uri, str) and uri.startswith("/?") and expected is not None:
+                selected.append({"id": source.stem, "source": source.name, "kind": "detection", "uri": uri, "expect_ids": [str(expected)]})
+                sources.append(source)
+            continue
+        tests = document.get("tests", [])
+        if not isinstance(tests, list):
+            stop(f"MRTS tests is not a list: {source}")
+        for item in tests:
+            if not isinstance(item, dict):
+                stop(f"MRTS test is not a mapping: {source}")
+            for stage in item.get("stages", []):
+                if not isinstance(stage, dict):
+                    continue
+                request = stage.get("input", {})
+                output = stage.get("output", {})
+                log = output.get("log", {}) if isinstance(output, dict) else {}
+                if not isinstance(request, dict) or request.get("method") != "GET":
+                    continue
+                uri = request.get("uri")
+                if not isinstance(uri, str) or not uri.startswith("/?"):
+                    continue
+                expected = log.get("expect_ids", []) if isinstance(log, dict) else []
+                if not isinstance(expected, list) or not expected:
+                    continue
+                selected.append({"id": f"{source.stem}:{item.get('test_id', len(selected))}", "source": source.name, "kind": "detection", "uri": uri, "expect_ids": [str(x) for x in expected]})
+                sources.append(source)
+    if not selected:
+        stop("no applicable phase-1 GET ARGS MRTS cases were generated")
+    # These controls are deliberately outside the imported attack cases and
+    # use the same real host path. They prove DetectionOnly and bypass safety.
+    selected.insert(0, {"id": "control-empty-args", "kind": "control", "uri": "/?mrts_control=1", "expect_ids": []})
+    selected.append({"id": "bypass-safe-args", "kind": "bypass", "uri": "/?foo=benign-value", "expect_ids": []})
+    return selected, sorted(set(sources))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--connector", required=True)
+    parser.add_argument("--parent-root", required=True)
+    parser.add_argument("--framework-root", required=True)
+    parser.add_argument("--runtime-root", required=True)
+    parser.add_argument("--execute-stage", action="store_true", help="required: run the real host stage")
+    args = parser.parse_args()
+    if args.connector not in CONNECTORS:
+        stop("connector is outside the closed no-crs/with-mrts profile")
+    if not args.execute_stage:
+        stop("--execute-stage is mandatory; plan-only execution is not a runtime result")
+    root = private_root(args.runtime_root)
+    parent = checked_path(args.parent_root, "Parent root")
+    framework = checked_path(args.framework_root, "Framework root")
+    expected_framework = (parent / "modules" / "ModSecurity-test-Framework").resolve(strict=True)
+    if framework != expected_framework:
+        stop("Framework root is not the exact Parent gitlink checkout")
+    mrts = framework / "tools" / "MRTS"
+    if not mrts.is_dir() or mrts.is_symlink():
+        stop("MRTS checkout is missing or symlinked")
+    provenance = repository_provenance(parent, framework, mrts)
+    python_path = Path(sys.executable).resolve(strict=True)
+    if not python_path.is_file() or not os.access(python_path, os.R_OK | os.X_OK):
+        stop("trusted Python interpreter is unavailable")
+    no_crs_rules = (framework / "tests" / "rules" / "no-crs-baseline.conf").resolve(strict=True)
+    build = root / "build"
+    build.mkdir(mode=0o700)
+    stage_runtime = build / "stages" / args.connector / "no_crs_with_mrts" / "runtime"
+    stage_runtime.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if stage_runtime.is_symlink() or stage_runtime.stat().st_uid != os.getuid():
+        stop("stage runtime root is not a private owner-controlled directory")
+    os.chmod(stage_runtime, 0o700)
+    env = {key: os.environ[key] for key in ("PATH", "HOME", "LANG", "LC_ALL") if key in os.environ}
+    env.update({"PYTHON": str(python_path), "PYTHON_BIN": str(python_path), "FRAMEWORK_ROOT": str(framework), "CONNECTOR_ROOT": str(parent), "VERIFIED_RUN_ROOT": str(root), "BUILD_ROOT": str(build), "MRTS_BUILD_ROOT": str(build / "mrts"), "TMP_ROOT": str(root / "tmp"), "LOG_ROOT": str(root / "logs"), "MODSECURITY_TEST_VARIANT": "no-crs", "MODSECURITY_MRTS_VARIANT": "with-mrts", "MODSECURITY_MRTS_PREPARED": "0", "MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO": "0", "GOTOOLCHAIN": "local"})
+    env["MRTS_FRAMEWORK_ROOT"] = str(framework)
+    os.environ["MRTS_FRAMEWORK_ROOT"] = str(framework)
+    prepare = '. "$FRAMEWORK_ROOT/ci/lib/common.sh"; . "$FRAMEWORK_ROOT/ci/lib/mrts-common.sh"; prepare_mrts_runtime_variant'
+    subprocess.run(["sh", "-eu", "-c", prepare], env=env, cwd=parent, check=True)
+    case_root = build / "mrts" / "upstream-config-tests" / "framework-cases"
+    load_file = build / "mrts" / "upstream-config-tests" / "mrts.load"
+    if not case_root.is_dir() or not load_file.is_file():
+        stop("Framework did not produce MRTS case/load artifacts")
+    cases, sources = select_cases(case_root)
+    for artifact in (case_root, load_file):
+        resolved = artifact.resolve(strict=True)
+        if artifact.is_symlink() or root not in resolved.parents:
+            stop(f"MRTS artifact escapes private runtime root: {artifact}")
+    load_text = load_file.read_text(encoding="utf-8")
+    if "crs" in load_text.lower() or str(no_crs_rules) in load_text:
+        stop("CRS path/include found in MRTS load file")
+    source_hashes = {str(path.relative_to(case_root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
+    executor = Path(__file__).with_name("execute-no-crs-mrts-cases.py").resolve(strict=True)
+    if executor.is_symlink() or not executor.is_file() or not os.access(executor, os.R_OK):
+        stop("MRTS executor is not a regular readable file")
+    executor_sha256 = hashlib.sha256(executor.read_bytes()).hexdigest()
+    plan = {"schema": "no-crs-with-mrts-plan/v1", "profile": PROFILE, "connector": args.connector, "parent_commit": git_sha(parent), "framework_commit": git_sha(framework), "mrts_commit": git_sha(mrts), "provenance": provenance, "executor": {"path": str(executor), "sha256": executor_sha256}, "inventory_root": str(case_root), "inventory_hash": hashlib.sha256(b"".join(path.read_bytes() for path in sources)).hexdigest(), "case_hashes": source_hashes, "load_file": str(load_file), "load_file_sha256": hashlib.sha256(load_file.read_bytes()).hexdigest(), "no_crs_rules_file": str(no_crs_rules), "cases": cases}
+    plan_path = stage_runtime / "mrts-runtime-plan.json"
+    if plan_path.exists():
+        stop("runtime plan already exists; use a fresh private runtime root")
+    atomic_json(plan_path, plan)
+    env.update({"MSCONNECTOR_MRTS_RUNTIME": "1", "MRTS_RUNTIME_PLAN": str(plan_path), "MRTS_RUNTIME_RESULT": str(stage_runtime / "mrts-runtime-result.json"), "MRTS_RUNTIME_EXECUTOR": str(executor), "MRTS_RUNTIME_EXECUTOR_SHA256": executor_sha256, "MRTS_RUNTIME_RULES_ROOT": str(build / "mrts" / "upstream-config-tests" / "rules"), "NO_CRS_RULES_FILE": str(no_crs_rules), "MSCONNECTOR_RULES_FILE": str(no_crs_rules), "MRTS_LOAD_FILE": str(load_file), "MRTS_CASE_ROOT": str(case_root), "EVENT_LOG": str(stage_runtime / "events.jsonl")})
+    subprocess.run(["sh", str(Path(__file__).with_name("run-connector-stage.sh")), args.connector, "no_crs_with_mrts"], cwd=parent, env=env, check=True)
+    print(plan_path)
+    return 0
+
+
+if __name__ == "__main__":
+    main()
