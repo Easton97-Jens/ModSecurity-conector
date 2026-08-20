@@ -204,6 +204,92 @@ def select_cases(case_root: Path) -> tuple[list[dict[str, Any]], list[Path]]:
     return selected, sorted(set(sources))
 
 
+def has_symlink_component(path: Path) -> bool:
+    if not path.is_absolute():
+        return True
+    component = Path(path.anchor)
+    for part in path.parts[1:]:
+        component /= part
+        try:
+            if component.is_symlink():
+                return True
+        except OSError:
+            return True
+    return False
+
+
+def validate_mrts_load_file(
+    load_file: Path,
+    rules_root: Path,
+    no_crs_rules: Path,
+    mrts_root: Path,
+    runtime_root: Path,
+) -> dict[str, str]:
+    """Bind the generated load set byte-for-byte to the pinned MRTS rule corpus."""
+    if any(not path.is_absolute() or ".." in path.parts for path in (load_file, rules_root, mrts_root, runtime_root)):
+        stop("MRTS validation paths must be absolute and traversal-free")
+    if any(has_symlink_component(path) for path in (load_file, rules_root, mrts_root, runtime_root)):
+        stop("MRTS validation path contains a symlink component")
+    try:
+        runtime_root = runtime_root.resolve(strict=True)
+        rules_root = rules_root.resolve(strict=True)
+        mrts_root = mrts_root.resolve(strict=True)
+        no_crs_rules = no_crs_rules.resolve(strict=True)
+        lines = load_file.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        stop(f"cannot inspect MRTS load file: {exc}")
+    expected_rules_root = runtime_root / "build" / "mrts" / "upstream-config-tests" / "rules"
+    if rules_root != expected_rules_root or not rules_root.is_dir():
+        stop("MRTS rules root is not the expected private generated directory")
+    canonical_root_raw = mrts_root / "generated" / "rules"
+    if has_symlink_component(canonical_root_raw):
+        stop("canonical MRTS rules root contains a symlink component")
+    try:
+        canonical_root = canonical_root_raw.resolve(strict=True)
+    except OSError as exc:
+        stop(f"canonical MRTS rules root is unavailable: {exc}")
+    if canonical_root.parent.parent != mrts_root or not canonical_root.is_dir():
+        stop("canonical MRTS rules root escapes the pinned MRTS checkout")
+    canonical: dict[str, str] = {}
+    for source in sorted(canonical_root.glob("MRTS_*.conf")):
+        if source.is_symlink() or not source.is_file() or source.parent != canonical_root:
+            stop("canonical MRTS rule is not a direct regular file")
+        canonical[source.name] = hashlib.sha256(source.read_bytes()).hexdigest()
+    if not canonical:
+        stop("pinned MRTS checkout has no canonical generated rules")
+    includes: dict[str, str] = {}
+    for line in lines:
+        if not line.strip():
+            continue
+        match = re.fullmatch(r'\s*Include\s+"([^"\r\n]+)"\s*', line)
+        if match is None:
+            stop("MRTS load file has a non-canonical include line")
+        candidate = Path(match.group(1))
+        if not candidate.is_absolute() or ".." in candidate.parts:
+            stop("MRTS load file include is not an absolute traversal-free path")
+        if candidate.parent != rules_root or has_symlink_component(candidate):
+            stop("MRTS load file include is outside the private generated rules root")
+        try:
+            resolved = candidate.resolve(strict=True)
+        except OSError as exc:
+            stop(f"MRTS load file include is unavailable: {exc}")
+        if candidate.is_symlink() or resolved.is_symlink() or not resolved.is_file():
+            stop("MRTS load file include is not a regular file")
+        if resolved.parent != rules_root or not re.fullmatch(r"MRTS_[A-Z0-9_-]+\.conf", resolved.name):
+            stop("MRTS load file include is outside the generated MRTS rules root")
+        if resolved == no_crs_rules:
+            stop("no-CRS baseline file is not a permitted MRTS include")
+        if resolved.name in includes:
+            stop("MRTS load file contains duplicate generated includes")
+        observed_hash = hashlib.sha256(resolved.read_bytes()).hexdigest()
+        if canonical.get(resolved.name) != observed_hash:
+            stop("generated MRTS rule does not match the pinned canonical MRTS source")
+        includes[resolved.name] = observed_hash
+    if includes != canonical:
+        stop("MRTS load file must include the complete canonical generated rule set")
+    return includes
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector", required=True)
@@ -252,15 +338,19 @@ def main() -> int:
         resolved = artifact.resolve(strict=True)
         if artifact.is_symlink() or root not in resolved.parents:
             stop(f"MRTS artifact escapes private runtime root: {artifact}")
-    load_text = load_file.read_text(encoding="utf-8")
-    if "crs" in load_text.lower() or str(no_crs_rules) in load_text:
-        stop("CRS path/include found in MRTS load file")
+    included_rules = validate_mrts_load_file(
+        load_file,
+        build / "mrts" / "upstream-config-tests" / "rules",
+        no_crs_rules,
+        mrts,
+        root,
+    )
     source_hashes = {str(path.relative_to(case_root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
     executor = Path(__file__).with_name("execute-no-crs-mrts-cases.py").resolve(strict=True)
     if executor.is_symlink() or not executor.is_file() or not os.access(executor, os.R_OK):
         stop("MRTS executor is not a regular readable file")
     executor_sha256 = hashlib.sha256(executor.read_bytes()).hexdigest()
-    plan = {"schema": "no-crs-with-mrts-plan/v1", "profile": PROFILE, "connector": args.connector, "parent_commit": git_sha(parent), "framework_commit": git_sha(framework), "mrts_commit": git_sha(mrts), "provenance": provenance, "executor": {"path": str(executor), "sha256": executor_sha256}, "inventory_root": str(case_root), "inventory_hash": hashlib.sha256(b"".join(path.read_bytes() for path in sources)).hexdigest(), "case_hashes": source_hashes, "load_file": str(load_file), "load_file_sha256": hashlib.sha256(load_file.read_bytes()).hexdigest(), "no_crs_rules_file": str(no_crs_rules), "cases": cases}
+    plan = {"schema": "no-crs-with-mrts-plan/v1", "profile": PROFILE, "connector": args.connector, "parent_commit": git_sha(parent), "framework_commit": git_sha(framework), "mrts_commit": git_sha(mrts), "provenance": provenance, "executor": {"path": str(executor), "sha256": executor_sha256}, "inventory_root": str(case_root), "inventory_hash": hashlib.sha256(b"".join(path.read_bytes() for path in sources)).hexdigest(), "case_hashes": source_hashes, "load_file": str(load_file), "load_file_sha256": hashlib.sha256(load_file.read_bytes()).hexdigest(), "no_crs_rules_file": str(no_crs_rules), "no_crs_validation": {"generated_rules_root": str(build / "mrts" / "upstream-config-tests" / "rules"), "canonical_mrts_rules_root": str(mrts / "generated" / "rules"), "included_rule_sha256": included_rules}, "cases": cases}
     plan_path = stage_runtime / "mrts-runtime-plan.json"
     if plan_path.exists():
         stop("runtime plan already exists; use a fresh private runtime root")

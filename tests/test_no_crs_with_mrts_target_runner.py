@@ -67,6 +67,65 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             self.assertEqual({case["kind"] for case in plan["cases"]}, {"control", "detection", "bypass"})
             json.loads(json.dumps(plan), object_pairs_hook=EXECUTOR.reject_duplicates)
 
+    def test_mrts_load_permits_generated_rules_under_a_private_no_crs_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = root / "mrts-no-crs"
+            rules = runtime / "build" / "mrts" / "upstream-config-tests" / "rules"
+            rules.mkdir(parents=True)
+            generated = rules / "MRTS_002_ARGS_A-GET.conf"
+            generated.write_text('SecRule ARGS:foo "@streq attack" "id:100000,phase:1,pass"\n', encoding="utf-8")
+            load = runtime / "mrts.load"
+            load.write_text(f'Include "{generated}"\n', encoding="utf-8")
+            baseline = root / "baseline.conf"
+            baseline.write_text("SecRuleEngine DetectionOnly\n", encoding="utf-8")
+            canonical = root / "pinned-mrts" / "generated" / "rules"
+            canonical.mkdir(parents=True)
+            (canonical / generated.name).write_bytes(generated.read_bytes())
+            self.assertEqual(
+                TARGET.validate_mrts_load_file(load, rules, baseline, canonical.parents[1], runtime),
+                {generated.name: TARGET.hashlib.sha256(generated.read_bytes()).hexdigest()},
+            )
+
+    def test_mrts_load_rejects_a_crs_named_or_outside_include(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = root / "runtime"
+            rules = runtime / "build" / "mrts" / "upstream-config-tests" / "rules"
+            rules.mkdir(parents=True)
+            foreign = rules / "MRTS_002_ARGS_A-GET.conf"
+            foreign.write_text('SecRule ARGS:foo "@streq attack" "id:949110,phase:1,pass"\n', encoding="utf-8")
+            load = runtime / "mrts.load"
+            load.write_text(f'Include "{foreign}"\n', encoding="utf-8")
+            baseline = root / "baseline.conf"
+            baseline.write_text("SecRuleEngine DetectionOnly\n", encoding="utf-8")
+            canonical = root / "pinned-mrts" / "generated" / "rules"
+            canonical.mkdir(parents=True)
+            (canonical / foreign.name).write_text('SecRule ARGS:foo "@streq attack" "id:100000,phase:1,pass"\n', encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                TARGET.validate_mrts_load_file(load, rules, baseline, canonical.parents[1], runtime)
+
+    def test_mrts_load_rejects_a_symlinked_private_rules_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = root / "runtime"
+            external = root / "external-rules"
+            external.mkdir(parents=True)
+            generated = external / "MRTS_002_ARGS_A-GET.conf"
+            generated.write_text('SecRule ARGS:foo "@streq attack" "id:100000,phase:1,pass"\n', encoding="utf-8")
+            rules = runtime / "build" / "mrts" / "upstream-config-tests" / "rules"
+            rules.parent.mkdir(parents=True)
+            rules.symlink_to(external, target_is_directory=True)
+            load = runtime / "mrts.load"
+            load.write_text(f'Include "{rules / generated.name}"\n', encoding="utf-8")
+            baseline = root / "baseline.conf"
+            baseline.write_text("SecRuleEngine DetectionOnly\n", encoding="utf-8")
+            canonical = root / "pinned-mrts" / "generated" / "rules"
+            canonical.mkdir(parents=True)
+            (canonical / generated.name).write_bytes(generated.read_bytes())
+            with self.assertRaises(SystemExit):
+                TARGET.validate_mrts_load_file(load, rules, baseline, canonical.parents[1], runtime)
+
 
 if __name__ == "__main__":
     unittest.main()
