@@ -70,11 +70,10 @@ def result_jsonl_path(job_root: Path, connector: str) -> Path:
 
 
 def summary_path(job_root: Path, connector: str) -> Path:
-    summary_file = job_root / "summary.path"
-    if summary_file.is_file():
-        raw = summary_file.read_text(encoding="utf-8", errors="replace").strip()
-        if raw:
-            return Path(raw)
+    # A job-local summary.path used to be an unchecked indirection.  The
+    # report generator must only consume the fixed, job-root-confined summary
+    # locations; the later report gate cannot make an earlier arbitrary read
+    # safe.
     for candidate in summary_candidates(job_root, connector):
         if candidate.is_file():
             return candidate
