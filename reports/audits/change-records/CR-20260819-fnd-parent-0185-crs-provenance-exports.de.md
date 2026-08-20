@@ -12,7 +12,7 @@
 | Finding | `FND-PARENT-0185` |
 | Delivery-Branch | `agent/fix-fnd-parent-0185-crs-export` |
 | Framework-Grenze | Gitlink `bd69ee96e0e7082317d4afe1232bee625665eb9a`; weder Source noch Gitlink geändert |
-| Delivery-Disposition | PR #303: Geschützte Integration nach `master` am 2026-08-20 ausdrücklich autorisiert; finale Dokumentations-Head-Checks, exakter Head-gebundener Merge und Post-Merge-Verifikation stehen aus |
+| Delivery-Disposition | PR #303: Geschützte Integration nach `master` am 2026-08-20 ausdrücklich autorisiert; Abschluss erfordert exakte Current-Head-Checks, einen exakten Head-gebundenen Merge und Post-Merge-Verifikation |
 
 ## Motivation und Problemstellung
 
@@ -77,9 +77,8 @@ Origin-Validierung, CI-Kontrollen, Scanner und Quality Gate bleiben unverändert
 - Die APR-util-Contracts im Hosted-Job-Umfang des Nachfolgers (22 Tests) und
   sein exakter Implementierungs-Head `5e9e69d9109d10650dc37e63b41af9372716658b`
   bestanden. SonarQube Cloud meldet `0,0 % Duplication on New Code` und 0
-  neue Issues. Diese sachliche Dokumentationskorrektur erzeugt einen neuen
-  PR-Head, dessen exakte Checks vor dem autorisierten Merge weiter erforderlich
-  sind.
+  neue Issues. Diese Dokumentationskorrektur unterliegt den exakten
+  Current-Head-Checks des PR vor dem geschützten Merge.
 
 ## Runtime-Evidence
 
@@ -107,10 +106,10 @@ enden.
 ## Verbleibende Risiken
 
 Der aktuelle Benutzer hat die geschützte Integration von PR #303 nach
-`master` ausdrücklich autorisiert. Bevor `FND-PARENT-0185` `verified` werden
-kann, muss der neue reine Dokumentations-PR-Head seine exakten Checks bestehen,
-der Merge ohne Bypass an diesen Head gebunden erfolgen und die resultierenden
-Master-Workflows sowie die ursprüngliche Reproduktion bestehen.
+`master` ausdrücklich autorisiert. `FND-PARENT-0185` kann erst nach exakten
+Current-Head-Checks, einem exakten Head-gebundenen Merge ohne Bypass sowie
+bestandenen resultierenden Master-Workflows und der ursprünglichen
+Reproduktion fortschreiten.
 
 ## Finaler Diff- und Review-Status
 

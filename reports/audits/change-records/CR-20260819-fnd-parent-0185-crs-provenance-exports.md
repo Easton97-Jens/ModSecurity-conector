@@ -12,7 +12,7 @@
 | Finding | `FND-PARENT-0185` |
 | Delivery branch | `agent/fix-fnd-parent-0185-crs-export` |
 | Framework boundary | Gitlink `bd69ee96e0e7082317d4afe1232bee625665eb9a`; no source or Gitlink change |
-| Delivery disposition | PR #303: protected integration into `master` explicitly authorized on 2026-08-20; final documentation-head checks, exact-head-bound merge, and post-merge verification pending |
+| Delivery disposition | PR #303: protected integration into `master` explicitly authorized on 2026-08-20; completion requires exact current-head checks, an exact-head-bound merge, and post-merge verification |
 
 ## Motivation and problem statement
 
@@ -73,8 +73,8 @@ origin validation, CI controls, scanners, and Quality Gate are unchanged.
 - The successor's hosted-job-equivalent APR-util contracts (22 tests) and its
   exact implementation head `5e9e69d9109d10650dc37e63b41af9372716658b` both
   passed. SonarQube Cloud reports `0.0% Duplication on New Code` and 0 new
-  issues. This factual documentation correction creates a new PR head whose
-  exact checks remain required before the authorized merge.
+  issues. This documentation correction is subject to the PR's exact
+  current-head checks before protected merge.
 
 ## Runtime evidence
 
@@ -101,10 +101,9 @@ its two static catalog-path cases cannot finish locally.
 ## Remaining risks
 
 The current user explicitly authorized protected integration of PR #303 into
-`master`. Before `FND-PARENT-0185` may become `verified`, the new
-documentation-only PR head must pass its exact checks, the merge must be bound
-to that head without bypass, and resulting-master workflows plus the original
-reproduction must pass.
+`master`. `FND-PARENT-0185` can advance only after exact current-head checks,
+an exact-head-bound merge without bypass, and resulting-master workflows plus
+the original reproduction pass.
 
 ## Final diff and review status
 

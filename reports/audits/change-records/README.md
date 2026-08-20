@@ -15,7 +15,7 @@ reports without an explicit repository-policy decision or user decision.
   current user authorized this Parent-only repair and Draft PR while expressly
   prohibiting Framework-module changes. The implementation head's hosted
   checks passed; the user-authorized protected merge and post-merge verification
-  remain pending.
+  follow the protected delivery lifecycle.
 
 - [CR-20260819-readonly-submodule-sandbox-preservation](CR-20260819-readonly-submodule-sandbox-preservation.md)
   | [Deutsch](CR-20260819-readonly-submodule-sandbox-preservation.de.md) — the
