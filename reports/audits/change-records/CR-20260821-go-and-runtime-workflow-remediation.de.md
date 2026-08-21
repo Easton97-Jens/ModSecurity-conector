@@ -9,7 +9,7 @@
 | Change-ID | CR-20260821-go-and-runtime-workflow-remediation |
 | Datum (UTC) | 2026-08-21 |
 | Basis-Revision | `57187eb210ab96b7e1eed22221fa367671d01820` |
-| Delivery-Status | Ein Parent-only-Task-Branch und Draft-PR sind autorisiert. Initiale Exact-Head-Hosted-Evidence und PR-Checks wurden auf `a0c527cdb57ec97c663e983c4fbe195a6f2361b0` erhoben; nach der Step-lokalen Capture-Korrektur ist ein Successor-No-CRS-Lauf erforderlich. Ein Merge ist nicht autorisiert. |
+| Delivery-Status | Ein Parent-only-Task-Branch und Draft-PR sind autorisiert. Initiale Hosted-Evidence wurde auf `a0c527cdb57ec97c663e983c4fbe195a6f2361b0` erhoben; der finale Code-Head `bf21d726f3d998a333ce57dc935efa2d8782a75c` bestand die anwendbaren PR-Checks und sein Successor-No-CRS-Lauf validierte jeden Diagnostic-Capture-/Upload-Schritt. Ein Merge ist nicht autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -43,9 +43,9 @@ Branches bleiben erhalten.
 - Heavy Smoke bewahrt den ModSecurity-v3-Provenance-Guard und stellt seine
   privaten Component-Reports in bestehenden Smoke-Artefakten bereit; die
   Provenance wird nicht abgeschwächt und Framework/MRTS werden nicht geändert.
-- Fokussierte Regressionen und Security-Contracts bestehen. Der Successor-
-  No-CRS-Hosted-Lauf bleibt erforderlich, bevor seine Follow-up-Capture-
-  Korrektur auf dem finalen Task-Branch-Head verifiziert werden kann.
+- Fokussierte Regressionen und Security-Contracts bestehen. Der Final-Head-
+  No-CRS-Lauf validiert die Follow-up-Capture-Korrektur; die vollständige
+  Baseline bleibt unabhängig durch die Framework-eigene Provenance-Konfiguration blockiert.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -122,20 +122,21 @@ sichere read-only-/no-cleanup-Workflows; Publisher, Artefakt-Löschung,
 Root-Broker und Framework-/MRTS-Aktionen sind nicht enthalten.
 
 Der erste korrigierte Five-Connector-No-CRS-Lauf `32494262558` bewahrte die
-neuen privaten Diagnose-Artefakte auf und belegte, dass der gemeinsame Blocker
-`modsecurity_v3_provenance_configuration_failed` weiterhin jeden Connector
-erreicht. Er legte außerdem das nun korrigierte nicht gesetzte `$CONNECTOR` im
-Capture-Schritt offen. Für diese Step-lokale Korrektur ist ein Successor-
-No-CRS-Lauf erforderlich.
+neuen privaten Diagnose-Artefakte auf und legte das nun korrigierte nicht
+gesetzte `$CONNECTOR` im Capture-Schritt offen. Der Successor-Lauf des finalen
+Code-Heads `32495576734` auf `bf21d726f3d998a333ce57dc935efa2d8782a75c`
+schloss Capture und Upload bounded diagnostics für alle fünf Connectoren ab.
+Sein Result-only-Aggregat scheiterte fail-closed, weil alle fünf weiterhin den
+gemeinsamen Blocker `modsecurity_v3_provenance_configuration_failed` erreichten.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 `actionlint` und `zizmor` sind in der verfügbaren Umgebung nicht installiert.
 Framework-abhängige Aggregatprüfungen können nicht laufen, weil der
 Task-Worktree einen nicht initialisierten Framework-Gitlink enthält; er wird
-absichtlich weder initialisiert noch verändert. Die finale Successor-No-CRS-
-Ausführung und ihre erneuerten PR-Checks stehen nach der Step-lokalen Capture-
-Korrektur noch aus; kein Merge ist autorisiert.
+absichtlich weder initialisiert noch verändert. Die Final-Code-Head-No-CRS-
+Ausführung und die anwendbaren PR-Checks sind abgeschlossen; kein Merge ist
+autorisiert.
 
 ## Bekannte Einschränkungen
 

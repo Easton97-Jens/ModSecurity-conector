@@ -9,7 +9,7 @@
 | Change ID | CR-20260821-go-and-runtime-workflow-remediation |
 | Date (UTC) | 2026-08-21 |
 | Base revision | `57187eb210ab96b7e1eed22221fa367671d01820` |
-| Delivery status | A Parent-only task branch and Draft PR are authorized. Initial exact-head hosted evidence and PR checks were collected on `a0c527cdb57ec97c663e983c4fbe195a6f2361b0`; a successor No-CRS run is required after the step-local capture correction. A merge is not authorized. |
+| Delivery status | A Parent-only task branch and Draft PR are authorized. Initial hosted evidence was collected on `a0c527cdb57ec97c663e983c4fbe195a6f2361b0`; final code head `bf21d726f3d998a333ce57dc935efa2d8782a75c` passed applicable PR checks and its successor No-CRS run validated every diagnostic Capture/Upload step. A merge is not authorized. |
 
 ## Motivation and problem statement
 
@@ -40,9 +40,9 @@ after their CodeQL v4.37.7 changes were verified on merged PR #311 and current
 - Heavy smoke preserves the ModSecurity v3 provenance guard and exposes its
   private component reports in existing smoke artifacts; it does not weaken
   provenance or modify Framework/MRTS.
-- Focused regression and security-contract checks pass. The successor No-CRS
-  hosted run remains required before its follow-up capture correction can be
-  verified on the final task-branch head.
+- Focused regression and security-contract checks pass. The final-head No-CRS
+  run validates the follow-up capture correction; the complete baseline remains
+  independently blocked by the Framework-owned provenance configuration.
 
 ## Implementation decision and rationale
 
@@ -115,18 +115,20 @@ workflows; no publisher, artifact deletion, root broker, or Framework/MRTS
 action is included.
 
 The first corrected Five Connector No-CRS run `32494262558` retained the new
-private diagnostic artifacts and established that the shared
-`modsecurity_v3_provenance_configuration_failed` blocker still reaches every
-connector. It also exposed the now-corrected unset `$CONNECTOR` in the capture
-step. A successor No-CRS run is required for that step-local correction.
+private diagnostic artifacts and exposed the now-corrected unset `$CONNECTOR`
+in the capture step. The successor final-code-head run `32495576734` at
+`bf21d726f3d998a333ce57dc935efa2d8782a75c` completed Capture and Upload
+bounded diagnostics for all five connectors. Its result-only aggregate failed
+closed because all five still reached the shared
+`modsecurity_v3_provenance_configuration_failed` blocker.
 
 ## Checks not run and rationale
 
 `actionlint` and `zizmor` are not installed in the available environment.
 Framework-dependent aggregate checks cannot run because the task worktree has
 an uninitialized Framework Gitlink; it is intentionally not initialized or
-modified. The final-head successor No-CRS execution and its renewed PR checks
-are pending the step-local capture correction; no merge is authorized.
+modified. The final-code-head No-CRS execution and applicable PR checks have
+completed; a merge is not authorized.
 
 ## Known limitations
 
