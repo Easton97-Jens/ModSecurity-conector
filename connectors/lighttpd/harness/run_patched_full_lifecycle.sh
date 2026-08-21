@@ -922,6 +922,7 @@ raw_log = read_artifact(raw_log_path, "raw ModSecurity log")
 
 CURL_TRACE_SEND_HEADER = re.compile(r"^=> Send header, ([0-9]+) bytes \(0x[0-9a-fA-F]+\)$")
 CURL_TRACE_DATA_ROW = re.compile(r"^([0-9a-fA-F]+): ?(.*)$")
+CURL_TRACE_RECEIVE_HEADER = re.compile(r"^<= Recv header, [0-9]+ bytes \(0x[0-9a-fA-F]+\)$")
 # curl 8.18 emits informational records as ``== Info: ...`` in the trace
 # stream.  Accept only the documented printable record form; a bare ``*``
 # line is a data/diagnostic row here and must not be allowed to bypass the
@@ -949,12 +950,26 @@ def parse_curl_request_lines(trace, case):
             send_headers.append((index, match))
     if len(send_headers) != 1:
         raise SystemExit(f"{case} curl trace needs exactly one outgoing header block")
+    explicit_completions = sum(
+        line in {"* Request completely sent off", "== Info: Request completely sent off"}
+        for line in trace_lines
+    )
+    if explicit_completions > 1:
+        raise SystemExit(f"{case} curl trace needs exactly one request exchange")
     start_index, declaration = send_headers[0]
     declared_length = int(declaration.group(1))
     rows = []
     completed = False
     for line in trace_lines[start_index + 1:]:
         if line in {"* Request completely sent off", "== Info: Request completely sent off"}:
+            completed = True
+            break
+        # Curl's documented trace callback labels the first received HTTP
+        # header as ``<= Recv header``. Older runners can transition directly
+        # to that marker without an explicit request-complete info record.
+        # It is a structural boundary only: the independent raw-header parser
+        # below still validates the observed HTTP status and response fields.
+        if CURL_TRACE_RECEIVE_HEADER.fullmatch(line):
             completed = True
             break
         # curl 8.18 may emit informational trace records with the ``== Info:``

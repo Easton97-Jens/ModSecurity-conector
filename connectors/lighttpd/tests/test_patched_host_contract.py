@@ -781,6 +781,27 @@ class PatchedHostContractTest(unittest.TestCase):
             "== Info: Request completely sent off\n",
         )
         self.assertEqual(parse_request(info_trace, "bypass"), request_lines)
+        receive_boundary_trace = folded_trace.replace(
+            "* Request completely sent off\n",
+            "<= Recv header, 26 bytes (0x1a)\n",
+        )
+        self.assertEqual(parse_request(receive_boundary_trace, "bypass"), request_lines)
+        with self.assertRaises(SystemExit):
+            parse_request(
+                receive_boundary_trace.replace(
+                    "0103: \n",
+                    "<= Recv header, 26 bytes (0x1a)\n0103: \n",
+                ),
+                "bypass",
+            )
+        with self.assertRaises(SystemExit):
+            parse_request(
+                receive_boundary_trace.replace(
+                    "<= Recv header, 26 bytes (0x1a)",
+                    "<= Recv data, 26 bytes (0x1a)",
+                ),
+                "bypass",
+            )
         with self.assertRaises(SystemExit):
             parse_request(
                 folded_trace.replace(

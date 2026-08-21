@@ -195,6 +195,15 @@ exact head with 15 task-owned issues; local remediations have been prepared,
 but require a fresh exact-head analysis. No raw CI log or trace artifact export
 was performed because that was rejected as unnecessary external data export.
 
+The failed exact-head Lighttpd job reached CRS acquisition and the pinned
+`1.4.85` host build before its private Curl trace parser rejected an otherwise
+unclassified structural row. The bounded follow-up accepts only Curl's
+documented `<= Recv header, <decimal> bytes (0x<hex>)` transition as an
+alternative request-completion boundary. It still rejects received data,
+generic diagnostics, malformed records, and arbitrary star rows; the outgoing
+offset/length checks and independent raw response-header validation remain
+mandatory. This change is pending fresh exact-head runtime evidence.
+
 This run is not final runtime evidence for the three promoted cells. The
 previous hosted run `32423859019` and its results are retained as historical
 context only and are not reused for exact-head claims.

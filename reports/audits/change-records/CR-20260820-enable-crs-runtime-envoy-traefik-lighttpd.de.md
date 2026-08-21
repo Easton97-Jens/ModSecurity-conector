@@ -209,6 +209,17 @@ lokale Behebungen sind vorbereitet, benötigen aber eine frische Exact-Head-
 Analyse. Es wurde kein rohes CI-Log und kein Trace-Artefakt exportiert, weil
 dies als unnötiger externer Datenexport abgelehnt wurde.
 
+Der fehlgeschlagene Lighttpd-Job auf dem exakten Head erreichte CRS-Akquisition
+und den gepinnten `1.4.85`-Host-Build, bevor sein privater Curl-Trace-Parser
+eine sonst nicht klassifizierte strukturelle Zeile ablehnte. Der eng begrenzte
+Follow-up akzeptiert ausschließlich Curls dokumentierten Übergang
+`<= Recv header, <decimal> bytes (0x<hex>)` als alternative
+Request-Abschlussgrenze. Empfangene Daten, generische Diagnosen, fehlerhafte
+Datensätze und beliebige Star-Zeilen bleiben abgelehnt; Outgoing-
+Offset-/Längenprüfungen und die unabhängige Raw-Response-Header-Validierung
+bleiben verpflichtend. Diese Änderung wartet auf frische Exact-Head-
+Runtime-Evidence.
+
 Dieser Lauf ist keine finale Runtime-Evidence für die drei beförderten Zellen.
 Der frühere Hosted-Lauf `32423859019` und seine Ergebnisse bleiben nur als
 historischer Kontext erhalten und werden nicht für Exact-Head-Behauptungen

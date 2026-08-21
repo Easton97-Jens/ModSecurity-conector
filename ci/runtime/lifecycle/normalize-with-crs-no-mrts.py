@@ -57,6 +57,7 @@ LIGHTTPD_RESPONSE_TRANSACTION_HEADER = "X-Msconnector-Host-Transaction-Id"
 LIGHTTPD_HOST_TRANSACTION = re.compile(r"^lighttpd-[1-9][0-9]{0,18}-[1-9][0-9]{0,18}$")
 CURL_TRACE_SEND_HEADER = re.compile(r"^=> Send header, ([0-9]{1,10}) bytes \(0x[0-9a-fA-F]{1,8}\)$")
 CURL_TRACE_DATA_ROW = re.compile(r"^([0-9a-fA-F]{1,16}): ?([ -~]{0,256})$")
+CURL_TRACE_RECEIVE_HEADER = re.compile(r"^<= Recv header, [0-9]{1,10} bytes \(0x[0-9a-fA-F]{1,8}\)$")
 CURL_TRACE_INFO_LINE = re.compile(r"^== Info: [ -~]{1,256}$")
 
 
@@ -285,7 +286,7 @@ def curl_send_header(trace_lines: list[str], case: str) -> tuple[int, int]:
         "* Request completely sent off",
         "== Info: Request completely sent off",
     }
-    if len(send_headers) != 1 or sum(line in completed_lines for line in trace_lines) != 1:
+    if len(send_headers) != 1 or sum(line in completed_lines for line in trace_lines) > 1:
         fail(f"Lighttpd {case} trace does not contain exactly one request exchange")
     start_index, declaration = send_headers[0]
     return start_index, int(declaration.group(1))
@@ -295,6 +296,10 @@ def curl_header_rows(trace_lines: list[str], start_index: int, case: str) -> lis
     rows: list[tuple[int, str]] = []
     for line in trace_lines[start_index + 1:]:
         if line in {"* Request completely sent off", "== Info: Request completely sent off"}:
+            if rows:
+                return rows
+            fail(f"Lighttpd {case} trace has no completed outgoing-header block")
+        if CURL_TRACE_RECEIVE_HEADER.fullmatch(line):
             if rows:
                 return rows
             fail(f"Lighttpd {case} trace has no completed outgoing-header block")

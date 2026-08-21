@@ -1004,6 +1004,46 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "exactly one request exchange"):
                 self.normalize("lighttpd", root, runtime)
 
+    def test_lighttpd_accepts_received_header_boundary_without_relaxing_wire_validation(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-lighttpd-wire-recv-header-") as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime"
+            self.make_observation(runtime, connector="lighttpd")
+            self.make_lighttpd_host_evidence(runtime)
+            trace_path = runtime / "crs-request-evidence" / "block.curl.trace"
+            trace = trace_path.read_text(encoding="ascii")
+            receive_boundary_trace = trace.replace(
+                "* Request completely sent off\n",
+                "<= Recv header, 26 bytes (0x1a)\n",
+            )
+            private_file(trace_path, receive_boundary_trace)
+
+            event_path, _ = self.normalize("lighttpd", root, runtime)
+            event = json.loads(event_path.read_text(encoding="utf-8"))
+            self.assertEqual(event["request_id"], "block-request-lighttpd")
+
+            invalid_receive_trace = receive_boundary_trace.replace(
+                "<= Recv header, 26 bytes (0x1a)",
+                "<= Recv data, 26 bytes (0x1a)",
+            )
+            private_file(trace_path, invalid_receive_trace)
+            with self.assertRaisesRegex(RuntimeError, "unexpected outgoing-header row"):
+                self.normalize("lighttpd", root, runtime)
+
+            trace_lines = receive_boundary_trace.splitlines()
+            last_data_row = max(
+                index
+                for index, line in enumerate(trace_lines)
+                if NORMALIZER.CURL_TRACE_DATA_ROW.fullmatch(line) is not None
+            )
+            trace_lines.insert(last_data_row, "<= Recv header, 26 bytes (0x1a)")
+            private_file(trace_path, "\n".join(trace_lines) + "\n")
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "invalid outgoing-header byte span|unterminated outgoing-header block",
+            ):
+                self.normalize("lighttpd", root, runtime)
+
     def test_lighttpd_rejects_arbitrary_curl_info_row(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-lighttpd-wire-info-reject-") as temporary:
             root = Path(temporary)
