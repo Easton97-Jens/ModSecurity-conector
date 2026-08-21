@@ -688,11 +688,6 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
 EXPECTED_WRITE_PERMISSIONS = {
     ("cleanup-artifacts.yml", "cleanup-artifacts"): {"actions": "write"},
     ("test-full-smoke-sequential.yml", "cleanup-artifacts"): {"actions": "write"},
-    ("update-actions-versions.yml", "update-actions-versions"): {
-        "contents": "write",
-        "pull-requests": "write",
-        "actions": "write",
-    },
     ("update-submodules.yml", "create-submodule-update-pr"): {
         "contents": "write",
         "pull-requests": "write",
@@ -1312,8 +1307,11 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         return job_blocks(self.workflow(name))
 
     def test_all_remote_actions_are_immutable_sha_pins(self) -> None:
-        lock_text = (ROOT / "ci" / "tooling" / "security-tools.lock.yml").read_text(encoding="utf-8")
-        recorded_shas = set(re.findall(r"commit_sha: ([a-f\d]{40})", lock_text))
+        lock_data = yaml.safe_load(LOCK_PATH.read_text(encoding="utf-8"))
+        locked_actions = (
+            lock_data.get("pinned_actions", {}) if isinstance(lock_data, dict) else {}
+        )
+        self.assertIsInstance(locked_actions, dict)
         for path in self.workflow_paths():
             for line in path.read_text(encoding="utf-8").splitlines():
                 if "uses:" not in line or "@" not in line or "./" in line:
@@ -1326,7 +1324,15 @@ class CiSecurityWorkflowTest(unittest.TestCase):
                     self.assertEqual(reference, PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE)
                     continue
                 self.assertRegex(reference, SHA_PIN, f"{path}: {line}")
-                self.assertIn(reference.split("@", 1)[1].split()[0], recorded_shas, f"{path}: {line}")
+                action_with_suffix, pinned_sha = reference.split("@", 1)
+                action_name = "/".join(action_with_suffix.split("/")[:2])
+                record = locked_actions.get(action_name)
+                self.assertIsInstance(record, dict, f"{path}: {line}")
+                self.assertEqual(
+                    pinned_sha.split()[0],
+                    record.get("commit_sha"),
+                    f"{path}: {line}",
+                )
 
     def test_workflow_and_lock_yaml_reject_forbidden_indirection(self) -> None:
         unsafe = """\
@@ -2662,16 +2668,43 @@ sudo -n chmod 0750 "$namespace_parent"
             self.assertEqual(len(widened_records), 2)
             self.assertFalse(len(widened_records) == 1 and bool(expected.fullmatch(widened_records[0])))
 
-    def test_manual_actions_updater_uses_a_trusted_default_branch(self) -> None:
-        job = self.jobs("update-actions-versions.yml")["update-actions-versions"]
-        self.assertIn(
-            "if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
-            job,
-        )
-        checkouts = checkout_step_blocks(job)
-        self.assertEqual(len(checkouts), 1)
-        self.assertIn("ref: ${{ github.event.repository.default_branch }}", checkouts[0])
-        self.assertIn("persist-credentials: false", checkouts[0])
+    def test_workflow_tool_updater_is_the_sole_parent_only_action_maintainer(self) -> None:
+        for retired_path in (
+            WORKFLOWS / "check-actions-versions.yml",
+            WORKFLOWS / "update-actions-versions.yml",
+            ROOT / "scripts/check-github-actions-versions.py",
+            ROOT / "scripts/update-github-actions-versions.py",
+        ):
+            self.assertFalse(retired_path.exists(), retired_path)
+
+        dependabot = (ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
+        self.assertNotIn('package-ecosystem: "github-actions"', dependabot)
+        self.assertIn('package-ecosystem: "pip"', dependabot)
+
+        workflow_name = "update-workflow-tools.yml"
+        workflow = self.workflow(workflow_name)
+        jobs = self.jobs(workflow_name)
+        self.assertEqual(set(jobs), {"resolver", "validator", "publisher", "outcome"})
+        publisher = jobs["publisher"]
+        for required_guard in (
+            "github.repository == 'Easton97-Jens/ModSecurity-conector'",
+            "github.event.repository.fork == false",
+            "github.event.repository.default_branch == 'master'",
+            "github.ref == 'refs/heads/master'",
+        ):
+            self.assertIn(required_guard, publisher)
+        for job_name in ("resolver", "validator", "publisher"):
+            for checkout in checkout_step_blocks(jobs[job_name]):
+                self.assertIn("submodules: false", checkout, job_name)
+                self.assertNotIn("submodules: recursive", checkout, job_name)
+        for forbidden in (
+            "SUBMODULE_UPDATE_TOKEN",
+            "modules/ModSecurity-test-Framework",
+            "git submodule",
+            "module_repo",
+            "automation/update-github-actions-versions",
+        ):
+            self.assertNotIn(forbidden, workflow)
 
     def test_python_patch_updater_separates_trusted_stages_and_writer_scope(self) -> None:
         workflow_name = "update-python-version.yml"

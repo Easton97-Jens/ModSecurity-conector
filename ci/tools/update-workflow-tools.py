@@ -75,6 +75,13 @@ UPSTREAM_REPOSITORY = re.compile(
     r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)$"
 )
 GIT_REVISION = re.compile(r"^[A-Za-z0-9_./-]+$")
+REMOTE_WORKFLOW_USE = re.compile(
+    r"^(?P<name>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"
+    r"(?P<suffix>(?:/[A-Za-z0-9_.-]+)*)@(?P<revision>[^@\s]+)$",
+    re.ASCII,
+)
+PARENT_REPOSITORY = "Easton97-Jens/ModSecurity-conector"
+PARENT_REUSABLE_WORKFLOW_PREFIX = "/.github/workflows/"
 
 # The on-disk Connector schema is the only source of truth. The updater
 # normalizes it in memory so candidates remain stable without adding a second
@@ -156,7 +163,7 @@ TOOL_MUTABLE_FIELDS = TOOL_CANDIDATE_SPEC.mutable_fields
 ALLOWED_UPDATE_PATHS = frozenset(
     {
         "ci/tooling/security-tools.lock.yml",
-        ".github/workflows/check-actions-versions.yml",
+        ".github/workflows/all-connectors-no-crs.yml",
         ".github/workflows/cleanup-artifacts.yml",
         ".github/workflows/ci-security-codeql.yml",
         ".github/workflows/ci-security-osv.yml",
@@ -178,7 +185,6 @@ ALLOWED_UPDATE_PATHS = frozenset(
         ".github/workflows/test-lighttpd.yml",
         ".github/workflows/test-nginx.yml",
         ".github/workflows/test-traefik.yml",
-        ".github/workflows/update-actions-versions.yml",
         ".github/workflows/update-go-version.yml",
         ".github/workflows/update-python-version.yml",
         ".github/workflows/update-submodules.yml",
@@ -208,6 +214,7 @@ REVIEWED_ACTION_RELEASE_RESOLUTIONS = {
 PROPOSED_TREE_BASELINE_PATHS = frozenset(
     {
         "Makefile",
+        ".github/dependabot.yml",
         "requirements-dev.txt",
         "connectors/envoy/ext_proc/go.mod",
         "connectors/envoy/config/envoy-ext-proc-versions.env",
@@ -525,12 +532,24 @@ class WorkflowInventory:
             for path in self.source_paths()
         }
 
-    def action_references(self, action_name: str, uses_by_path: dict[Path, set[str]]) -> set[str]:
-        reference = re.compile(rf"{re.escape(action_name)}(?:/[A-Za-z0-9_.-]+)*@")
+    def action_references(
+        self,
+        action_name: str,
+        uses_by_path: dict[Path, set[str]],
+        action_names: set[str],
+    ) -> set[str]:
         return {
             str(path.relative_to(self.root))
             for path, uses_values in uses_by_path.items()
-            if any(reference.search(value) for value in uses_values)
+            if any(
+                managed_workflow_action_name(
+                    value,
+                    action_names,
+                    f"workflow {path.relative_to(self.root)}",
+                )
+                == action_name
+                for value in uses_values
+            )
         }
 
 
@@ -572,6 +591,45 @@ def workflow_uses_values(text: str, description: str) -> set[str]:
     return values
 
 
+def managed_workflow_action_name(
+    value: str, action_names: set[str], description: str
+) -> str | None:
+    """Classify one workflow ``uses`` value under the central-lock boundary.
+
+    Local reusable workflows are part of the reviewed Parent tree.  A remote
+    reuse of the same Parent repository is also allowed only for an immutable
+    reusable-workflow SHA.  Every other remote Action must name exactly one
+    central-lock record; substring matches such as ``evil-actions/checkout``
+    are deliberately rejected rather than treated as ``actions/checkout``.
+    """
+
+    if value.startswith("./"):
+        return None
+    match = REMOTE_WORKFLOW_USE.fullmatch(value)
+    if match is None:
+        raise UpdateError(
+            f"{description} has an unsupported non-local uses value: {value!r}"
+        )
+    name = match.group("name")
+    suffix = match.group("suffix")
+    revision = match.group("revision")
+    if SHA40.fullmatch(revision) is None:
+        raise UpdateError(
+            f"{description} uses a non-immutable remote Action reference: {value!r}"
+        )
+    if name == PARENT_REPOSITORY:
+        if not suffix.startswith(PARENT_REUSABLE_WORKFLOW_PREFIX):
+            raise UpdateError(
+                f"{description} uses an unsupported Parent repository target: {value!r}"
+            )
+        return None
+    if name not in action_names:
+        raise UpdateError(
+            f"{description} uses a remote Action not governed by the central lock: {value!r}"
+        )
+    return name
+
+
 def locked_action_workflow_references(
     root: Path, lock: dict[str, Any]
 ) -> dict[str, set[str]]:
@@ -583,18 +641,34 @@ def locked_action_workflow_references(
     inventory = WorkflowInventory(root)
     workflow_uses = inventory.uses_by_path()
     references: dict[str, set[str]] = {}
+    action_names = set(actions)
     for name in sorted(actions):
         if not isinstance(name, str):
             raise UpdateError("lock action name is invalid")
-        references[name] = inventory.action_references(name, workflow_uses)
+        references[name] = inventory.action_references(
+            name, workflow_uses, action_names
+        )
     return references
 
 
 def ensure_locked_action_workflow_coverage(root: Path, lock: dict[str, Any]) -> None:
-    """Fail if a lock-managed Action appears outside publisher-approved paths."""
+    """Require complete, exact central-lock coverage for Parent remote Actions."""
 
+    inventory = WorkflowInventory(root)
+    references = locked_action_workflow_references(root, lock)
+    unapproved_workflows = sorted(
+        {
+            str(path.relative_to(root))
+            for path in inventory.source_paths()
+        }.difference(WORKFLOW_UPDATE_PATHS)
+    )
+    if unapproved_workflows:
+        raise UpdateError(
+            "workflow paths escape the publisher allowlist: "
+            + ", ".join(unapproved_workflows)
+    )
     missing: dict[str, list[str]] = {}
-    for name, referenced in locked_action_workflow_references(root, lock).items():
+    for name, referenced in references.items():
         unapproved = sorted(referenced.difference(WORKFLOW_UPDATE_PATHS))
         if unapproved:
             missing[name] = unapproved
@@ -1593,11 +1667,17 @@ def lock_record_section(text: str, group: str, name: str) -> tuple[int, int, str
 def write_verified_text(path: Path, text: str) -> None:
     """Rewrite an existing reviewed regular file through its canonical path."""
 
+    write_verified_bytes(path, text.encode("utf-8"))
+
+
+def write_verified_bytes(path: Path, contents: bytes) -> None:
+    """Restore or rewrite one reviewed regular file without following links."""
+
     if path.is_symlink() or not path.is_file():
         raise UpdateError("updated path must be a regular non-symlink file")
     destination = path.resolve(strict=True)
-    with destination.open("w", encoding="utf-8") as output:
-        output.write(text)
+    with destination.open("wb") as output:
+        output.write(contents)
 
 
 def apply_lock_changes(
@@ -1656,7 +1736,8 @@ def action_reference_patterns(
 
     accepted_comment = action_comment_pattern(name, baseline)
     prefix = (
-        rf"{re.escape(name)}(?P<suffix>(?:/[A-Za-z0-9_.-]+)*)@"
+        rf"(?<![A-Za-z0-9_./-]){re.escape(name)}"
+        rf"(?P<suffix>(?:/[A-Za-z0-9_.-]+)*)@"
         rf"{re.escape(str(baseline['immutable_commit']))}"
     )
     source_reference = re.compile(
@@ -1758,6 +1839,14 @@ def update_documentation_references(
                 write_verified_text(path, text.replace(old_cells, new_cells))
 
 
+def restore_update_snapshot(root: Path, before: dict[str, bytes]) -> None:
+    """Restore every approved input after a failed in-place candidate apply."""
+
+    for relative_text, contents in sorted(before.items()):
+        path = resolve_regular_file(root, Path(relative_text))
+        write_verified_bytes(path, contents)
+
+
 def apply_candidate(root: Path, candidate: dict[str, Any]) -> list[str]:
     root = resolve_root(root)
     lock_path, lock, lock_digest = load_lock(root)
@@ -1767,9 +1856,18 @@ def apply_candidate(root: Path, candidate: dict[str, Any]) -> list[str]:
         path: resolve_regular_file(root, Path(path)).read_bytes()
         for path in ALLOWED_UPDATE_PATHS
     }
-    apply_lock_changes(lock_path, lock, candidate)
-    update_workflow_references(root, lock, candidate)
-    update_documentation_references(root, lock, candidate)
+    try:
+        apply_lock_changes(lock_path, lock, candidate)
+        update_workflow_references(root, lock, candidate)
+        update_documentation_references(root, lock, candidate)
+    except Exception:
+        try:
+            restore_update_snapshot(root, before)
+        except Exception as rollback_error:
+            raise UpdateError(
+                "candidate application failed and rollback did not complete"
+            ) from rollback_error
+        raise
     changed = [
         path
         for path, contents in before.items()

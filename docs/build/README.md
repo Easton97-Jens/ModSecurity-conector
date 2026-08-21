@@ -90,7 +90,7 @@ bootstrap, virtual-environment, or system `python3` interpreter.
 
 ### Complete Parent workflow/job inventory
 
-This 22-job baseline inventory is the authoritative documentation table for
+This 20-job baseline inventory is the authoritative documentation table for
 the linked Change Record. “Existing minor-only setup” and “Ambient or
 bootstrapped Python” describe the historical adoption path before the
 contract was introduced; neither is a current selector. In the checked-in
@@ -102,7 +102,6 @@ and `python`/`python3` equivalence validation.
 | `reusable-five-connectors-profile.yml` | `resolve-profile` | Pinned `actions/setup-python`, interpreter-contract verification, then `python3 ci/runtime/lifecycle/five-connector-no-crs-profile.py --emit-github-matrix` | Explicit `.python-version` setup |
 | `reusable-five-connectors-profile.yml` | `no-crs` | Pinned `actions/setup-python`, interpreter-contract verification, then profile validation and Python-backed Framework/Make lifecycle targets | Explicit `.python-version` setup |
 | `reusable-five-connectors-profile.yml` | `aggregate` | Pinned `actions/setup-python`, interpreter-contract verification, then `python3` evidence validation and five-result aggregation | Explicit `.python-version` setup |
-| `check-actions-versions.yml` | `check-actions-versions` | `python3 scripts/check-github-actions-versions.py` | Existing minor-only setup |
 | `ci-security-secrets.yml` | `pull-request-range` | `python3 ci/tools/fetch_security_tool.py` | Ambient or bootstrapped Python |
 | `ci-security-secrets.yml` | `advisory-full-history` | `python3 ci/tools/fetch_security_tool.py` | Ambient or bootstrapped Python |
 | `ci-security-workflow-lint.yml` | `actionlint` | Python tool fetcher and `python3 -m unittest` | Ambient or bootstrapped Python |
@@ -119,7 +118,6 @@ and `python`/`python3` equivalence validation.
 | `test-lighttpd.yml` | `lighttpd-contract` | Indirect Python in connector and shared checks | Ambient or bootstrapped Python |
 | `test-nginx.yml` | `nginx-structure` | Conditional non-PR Python setup and quick-check | Existing minor-only setup |
 | `test-traefik.yml` | `traefik-contract` | Indirect Python in connector and shared checks | Ambient or bootstrapped Python |
-| `update-actions-versions.yml` | `update-actions-versions` | `python3 scripts/update-github-actions-versions.py --write` | Existing minor-only setup |
 | `update-submodules.yml` | `validate-submodule-update` | Indirect Python through `make quick-check` | Ambient or bootstrapped Python |
 | `verified-report-governance.yml` | `report-governance` | Indirect Python through `make report-governance` | Existing minor-only setup |
 
@@ -131,7 +129,7 @@ workflow filenames.
 
 ### Safe stable-patch updater contract
 
-The updater is separate from the 22 baseline jobs. The checked-in
+The updater is separate from the 20 baseline jobs. The checked-in
 `.github/workflows/update-python-version.yml` has exactly four jobs:
 
 | Job | Interpreter and trust boundary | Required behavior |

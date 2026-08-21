@@ -672,24 +672,74 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             )
             candidate = self.candidate_for(root, {"github/codeql-action": codeql})
 
-            UPDATER.apply_candidate(root, candidate)
+            changed = UPDATER.apply_candidate(root, candidate)
 
-            workflow = (root / ".github/workflows/ci-security-codeql.yml").read_text(
+            self.assertIn("ci/tooling/security-tools.lock.yml", changed)
+            lock_text = (root / "ci/tooling/security-tools.lock.yml").read_text(
                 encoding="utf-8"
             )
-            for suffix in ("init", "analyze"):
-                with self.subTest(suffix=suffix):
-                    self.assertIn(
-                        f"github/codeql-action/{suffix}@{'c' * 40} # v4.99.7",
-                        workflow,
+            self.assertIn("    version: v4.99.7", lock_text)
+            self.assertIn(f"    commit_sha: {'c' * 40}", lock_text)
+            expected_references = (
+                ("ci-security-codeql.yml", "init", 4),
+                ("ci-security-codeql.yml", "analyze", 4),
+                ("ci-security-osv.yml", "upload-sarif", 1),
+                ("ci-security-scorecard.yml", "upload-sarif", 1),
+            )
+            for workflow_name, suffix, count in expected_references:
+                with self.subTest(workflow=workflow_name, suffix=suffix):
+                    workflow = (
+                        root / ".github/workflows" / workflow_name
+                    ).read_text(encoding="utf-8")
+                    self.assertEqual(
+                        workflow.count(
+                            f"github/codeql-action/{suffix}@{'c' * 40} # v4.99.7"
+                        ),
+                        count,
                     )
+
+    def test_apply_restores_all_approved_files_after_a_later_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = self.copied_update_root(Path(temporary_directory))
+            _path, lock, _digest = UPDATER.load_lock(root)
+            candidate = self.candidate_for(
+                root,
+                {
+                    "actions/checkout": self.changed_action(
+                        lock, "actions/checkout", "v9.9.9", "a" * 40
+                    )
+                },
+            )
+            before = {
+                path: (root / path).read_bytes()
+                for path in UPDATER.ALLOWED_UPDATE_PATHS
+            }
+
+            with patch.object(
+                UPDATER,
+                "update_documentation_references",
+                side_effect=UPDATER.UpdateError("injected documentation failure"),
+            ):
+                with self.assertRaisesRegex(UPDATER.UpdateError, "injected documentation"):
+                    UPDATER.apply_candidate(root, candidate)
+
+            after = {
+                path: (root / path).read_bytes()
+                for path in UPDATER.ALLOWED_UPDATE_PATHS
+            }
+            self.assertEqual(after, before)
 
     def test_all_locked_action_references_are_in_the_publisher_allowlist(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
         UPDATER.ensure_locked_action_workflow_coverage(ROOT, lock)
         references = UPDATER.locked_action_workflow_references(ROOT, lock)
         observed_workflows = set().union(*references.values())
-        self.assertEqual(set(UPDATER.WORKFLOW_UPDATE_PATHS), observed_workflows)
+        actual_workflows = {
+            str(path.relative_to(ROOT))
+            for path in (ROOT / ".github/workflows").glob("*.yml")
+        }
+        self.assertTrue(observed_workflows.issubset(actual_workflows))
+        self.assertEqual(set(UPDATER.WORKFLOW_UPDATE_PATHS), actual_workflows)
 
         workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
             encoding="utf-8"
@@ -751,7 +801,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 """,
-                    "escape the publisher allowlist",
+                    "non-immutable remote Action reference",
                 ),
                 (
                     "yaml-anchor",
@@ -762,6 +812,29 @@ jobs:
             for name, contents, error in rejected_workflows:
                 with self.subTest(name=name):
                     escaped.write_text(contents, encoding="utf-8")
+                    with self.assertRaisesRegex(UPDATER.UpdateError, error):
+                        UPDATER.ensure_locked_action_workflow_coverage(root, lock)
+
+    def test_remote_action_identity_and_pin_must_match_the_central_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = self.copied_update_root(Path(temporary_directory))
+            _path, lock, _digest = UPDATER.load_lock(root)
+            workflow_path = root / ".github/workflows/update-workflow-tools.yml"
+            original = workflow_path.read_text(encoding="utf-8")
+            baseline = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
+            mutations = (
+                ("mutable", "actions/checkout@v4", "non-immutable remote Action reference"),
+                (
+                    "substring-lookalike",
+                    "evil-actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                    "not governed by the central lock",
+                ),
+            )
+            for name, replacement, error in mutations:
+                with self.subTest(name=name):
+                    workflow_path.write_text(
+                        original.replace(baseline, replacement, 1), encoding="utf-8"
+                    )
                     with self.assertRaisesRegex(UPDATER.UpdateError, error):
                         UPDATER.ensure_locked_action_workflow_coverage(root, lock)
 
@@ -1206,7 +1279,10 @@ jobs:
             '"--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP"',
             "draft: true",
             "verify-scope --root . --staged",
-            "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+            "github.repository == 'Easton97-Jens/ModSecurity-conector'",
+            "github.event.repository.fork == false",
+            "github.event.repository.default_branch == 'master'",
+            "github.ref == 'refs/heads/master'",
             "if: ${{ always() }}",
             "permissions: {}",
             "No reviewed workflow or tool updates are currently available.",

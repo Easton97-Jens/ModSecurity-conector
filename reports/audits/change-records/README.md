@@ -10,6 +10,12 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260821-parent-only-workflow-maintenance-bundle](CR-20260821-parent-only-workflow-maintenance-bundle.md)
+  | [Deutsch](CR-20260821-parent-only-workflow-maintenance-bundle.de.md) — the
+  current user authorized one Parent-only bundled Action/tool maintenance path
+  and an update to existing PR #311. The record retains that no Framework/MRTS
+  change, legacy Dependabot-PR action, or merge is authorized or asserted.
+
 - [CR-20260821-github-workflow-hostruntime-consolidation](CR-20260821-github-workflow-hostruntime-consolidation.md)
   | [Deutsch](CR-20260821-github-workflow-hostruntime-consolidation.de.md) — the
   current user authorized this Parent-only workflow consolidation, updater

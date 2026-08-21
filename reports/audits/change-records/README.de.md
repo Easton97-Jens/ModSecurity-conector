@@ -11,6 +11,12 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260821-parent-only-workflow-maintenance-bundle](CR-20260821-parent-only-workflow-maintenance-bundle.de.md) —
+  der aktuelle Benutzer autorisierte einen Parent-only gebündelten
+  Action-/Tool-Wartungsweg und die Aktualisierung des bestehenden PR #311. Der
+  Record hält fest, dass keine Framework-/MRTS-Änderung, keine Aktion an
+  Legacy-Dependabot-PRs und kein Merge autorisiert oder behauptet wird.
+
 - [CR-20260821-github-workflow-hostruntime-consolidation](CR-20260821-github-workflow-hostruntime-consolidation.de.md) —
   der aktuelle Benutzer hat diese Parent-only-Workflow-Konsolidierung, die
   Updater-Reparatur, gekoppelte Traceability, einen Branch, einen Commit und
