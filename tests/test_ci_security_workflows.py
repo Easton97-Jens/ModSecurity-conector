@@ -1633,35 +1633,30 @@ jobs:
         self.assertIn('test "${#CRS_RUNTIME_RUN_ID}" -le 48', job)
         self.assertIn("EVIDENCE_ROOT: \"\"", job)
 
+        self.assertIn("- name: Prepare fresh CRS source for Apache and HAProxy", job)
         self.assertIn(". ci/runtime/lifecycle/prepare-fresh-crs-source.sh", job)
         self.assertIn('sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"', job)
         self.assertIn(
             'printf \'%s\\n\' "SOURCE_ROOT=$SOURCE_ROOT" "CRS_SOURCE_DIR=$CRS_SOURCE_DIR" >> "$GITHUB_ENV"',
             job,
         )
-        preparation = job.split("            apache|haproxy)\n", 1)[1].split(
-            "              ;;", 1
-        )[0]
-        self.assertRegex(
+        preparation = job.split(
+            "      - name: Prepare fresh CRS source for Apache and HAProxy\n", 1
+        )[1].split("      - name: Run selected real with-CRS no-MRTS runtime\n", 1)[0]
+        self.assertIn('case "$CONNECTOR" in', preparation)
+        self.assertIn("apache|haproxy)", preparation)
+        self.assertIn(
+            'printf \'%s\\n\' "SOURCE_ROOT=$SOURCE_ROOT" "CRS_SOURCE_DIR=$CRS_SOURCE_DIR" >> "$GITHUB_ENV"',
             preparation,
-            r"              \(\n"
-            r"                \. \"\$FRAMEWORK_ROOT/ci/lib/common\.sh\"\n"
-            r"                \. ci/runtime/lifecycle/prepare-fresh-crs-source\.sh\n"
-            r"                sh \"\$FRAMEWORK_ROOT/ci/provisioning/fetch-crs\.sh\"\n"
-            r"                # The fetch runs in this shell, while the Make target runs in\n"
-            r"                # the next step\. Persist only the helper-validated, fresh\n"
-            r"                # run-owned CRS roots; otherwise Make's Framework prepare\n"
-            r"                # path fails closed with \"missing CRS_SOURCE_DIR\"\.\n"
-            r"                printf '%s\\n' \"SOURCE_ROOT=\$SOURCE_ROOT\" \"CRS_SOURCE_DIR=\$CRS_SOURCE_DIR\" >> \"\$GITHUB_ENV\"\n"
-            r"              \)\n",
         )
+        runtime = job.split(
+            "      - name: Run selected real with-CRS no-MRTS runtime\n", 1
+        )[1].split("      - name: Upload real runtime evidence\n", 1)[0]
+        self.assertNotIn("prepare-fresh-crs-source.sh", runtime)
+        self.assertNotIn('fetch-crs.sh', runtime)
         self.assertEqual(
             job.count('. "$FRAMEWORK_ROOT/ci/lib/common.sh"'),
             1,
-        )
-        self.assertNotIn(
-            'apache|haproxy)\n              . "$FRAMEWORK_ROOT/ci/lib/common.sh"',
-            job,
         )
         self.assertLess(
             job.index("prepare-fresh-crs-source.sh"),

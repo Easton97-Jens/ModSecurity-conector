@@ -12,7 +12,7 @@
 | Observed current `origin/master` | `aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf` |
 | Parent → Framework pin | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | Framework → MRTS pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The last hosted exact head is `75c3be54a4855e0c34ffeb30d0895c0fd840f313`; hosted run `32433856340` is not successful, and this follow-up awaits a fresh exact-head run. No merge or auto-merge is authorized. |
+| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The latest hosted exact head is `5985153e54a49875c331d65005e2051f8f185167`; its hosted validation is not successful. No merge or auto-merge is authorized. |
 
 The task worktree was created from the recorded task base. `origin/master`
 subsequently advanced to the separately recorded current value. This record
@@ -168,50 +168,38 @@ production-runtime result here.
 ## Runtime evidence
 
 Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309)
-was evaluated at pushed exact head
-`75c3be54a4855e0c34ffeb30d0895c0fd840f313` by hosted run `32433856340`.
-Envoy and Traefik completed their runtime jobs successfully. Lighttpd reached
-and completed its lifecycle, but the post-run normalizer rejected Curl 8.18's
-`Connected` spelling, so its promoted cell is not verified. Apache lost its
-freshly acquired CRS roots across the runtime snapshot. HAProxy was blocked
-before runtime by the read-only Framework ordering, which invokes
-`verify_build_target` before `prepare_build_worktree`. These failures prevent a
-full-matrix or verified-PR claim.
+was evaluated at hosted exact head `5985153e54a49875c331d65005e2051f8f185167`. Envoy and Traefik completed their
+runtime jobs successfully. Apache failed because same-step `GITHUB_ENV`
+temporal semantics did not make the freshly acquired CRS roots available to
+the later step; this change adds a separate preparation step for that handoff.
+Lighttpd completed its lifecycle, but the normalizer rejected Curl 8.18's
+local source-port suffix; this change adds a narrow correction for that exact
+spelling. HAProxy was blocked before runtime by the read-only
+Framework ordering at `bd69ee96e0e7082317d4afe1232bee625665eb9a`, which invokes
+`verify_build_target` before `prepare_build_worktree`.
 
-The follow-up Parent fixes are narrowly scoped: accept the exact
-documented Curl spelling; forward Apache's fresh CRS roots through
-`GITHUB_ENV` with an explicit final environment override; and require the
-PR-triggered Lighttpd namespace suite to fail when user, mount, or PID
-namespace support is unavailable. The suite checks out and tests the exact PR
-head. The local suite remains capability-gated and skips its integration cases
-because the nested kernel rejects the user namespace with `EPERM`; hosted
-evidence for this required suite is pending. No raw CI log or trace artifact
-export was performed.
-
-The failed exact-head Lighttpd job reached CRS acquisition and the pinned
-`1.4.85` host build before its private Curl trace parser rejected an otherwise
-unclassified structural row. The bounded follow-up accepts only Curl's
-documented `<= Recv header, <decimal> bytes (0x<hex>)` transition as an
-alternative request-completion boundary. It still rejects received data,
-generic diagnostics, malformed records, and arbitrary star rows; the outgoing
-offset/length checks and independent raw response-header validation remain
-mandatory. This change is pending fresh exact-head runtime evidence.
+The required PR-triggered P1 namespace test failed closed because the hosted
+environment did not provide the required user, mount, or PID namespace
+capability. This is a failed validation, not a successful fallback. These
+observations prevent a full-matrix or verified-PR claim. No future test result
+is asserted and no raw CI log or trace artifact was exported.
 
 This run is not final runtime evidence for all three promoted cells. Previous
 hosted runs and their results are retained as historical context only and are
 not reused for exact-head claims.
 
 No final runtime evidence is asserted by this record. In particular, the
-follow-up exact task head has no completed hosted workflow, SonarQube Cloud
-analysis, or required-check result yet. Preliminary connector work and static
-validation do not replace real host-runtime evidence for the three promoted
-matrix cells.
+hosted validation for the latest exact task head is unsuccessful and no
+successful SonarQube Cloud analysis or required-check result is asserted.
+Preliminary connector work and static validation do not replace real
+host-runtime evidence for the three promoted matrix cells.
 
 ## Checks not run and rationale
 
 The following remain pending or unavailable: complete three-connector local
-runtime validation in a non-root-capable namespace environment (the real
-non-root namespace integration is pending on a hosted runner); full matrix
+runtime validation in a non-root-capable namespace environment (the hosted
+namespace test failed closed because the runner lacked the required
+capability); full matrix
 workflow validation; GitHub-hosted required checks; actionlint, zizmor, Ruff,
 and Pyright were unavailable in the local environment; SonarQube Cloud; and
 final PR exact-head verification. CodeQL, Secret Scanning, OSV, and zizmor
@@ -223,7 +211,8 @@ the pending follow-up head.
 The observed non-root `unshare --user --map-root-user` probe fails with
 `write /proc/self/uid_map: Operation not permitted`, preventing exercise of the
 capability-gated Lighttpd namespace entry path as its intended non-root caller.
-The real non-root namespace integration remains pending on a hosted runner.
+The hosted namespace test has now failed closed because the runner did not
+provide the required namespace capability.
 This is an environment blocker for that integration test, not evidence that the
 control is unnecessary or that a weaker cleanup path is permitted. The
 bilingual documentation target is also blocked by the uninitialized Framework

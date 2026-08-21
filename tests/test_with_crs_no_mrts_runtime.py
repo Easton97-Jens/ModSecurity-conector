@@ -938,6 +938,54 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 "lighttpd-1-102",
             )
 
+    def test_lighttpd_accepts_ubuntu_curl_established_loopback_trace(self) -> None:
+        """Curl 8.18 on Ubuntu adds a verified local source endpoint."""
+        with tempfile.TemporaryDirectory(prefix="crs-lighttpd-curl-established-") as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime"
+            self.make_observation(runtime, connector="lighttpd")
+            self.make_lighttpd_host_evidence(runtime)
+            for case in ("allow", "block", "bypass"):
+                trace_path = runtime / "crs-request-evidence" / f"{case}.curl.trace"
+                trace_path.write_text(
+                    trace_path.read_text(encoding="ascii").replace(
+                        "* Established connection to 127.0.0.1 (127.0.0.1 port 8080)",
+                        "* Established connection to 127.0.0.1 (127.0.0.1 port 8080) "
+                        "from 127.0.0.1 port 49152 ",
+                    ),
+                    encoding="ascii",
+                )
+            event_path, _evidence = self.normalize("lighttpd", root, runtime)
+            self.assertEqual(
+                json.loads(event_path.read_text(encoding="utf-8"))["transaction_id"],
+                "lighttpd-1-102",
+            )
+
+    def test_lighttpd_rejects_ubuntu_curl_mismatched_or_nonlocal_loopback_trace(self) -> None:
+        for replacement in (
+            "* Established connection to 127.0.0.1 (127.0.0.1 port 8081) "
+            "from 127.0.0.1 port 49152 ",
+            "* Established connection to 127.0.0.1 (127.0.0.1 port 8080) "
+            "from 192.0.2.1 port 49152 ",
+        ):
+            with self.subTest(replacement=replacement), tempfile.TemporaryDirectory(
+                prefix="crs-lighttpd-curl-established-reject-"
+            ) as temporary:
+                root = Path(temporary)
+                runtime = root / "runtime"
+                self.make_observation(runtime, connector="lighttpd")
+                self.make_lighttpd_host_evidence(runtime)
+                trace_path = runtime / "crs-request-evidence" / "block.curl.trace"
+                trace_path.write_text(
+                    trace_path.read_text(encoding="ascii").replace(
+                        "* Established connection to 127.0.0.1 (127.0.0.1 port 8080)",
+                        replacement,
+                    ),
+                    encoding="ascii",
+                )
+                with self.assertRaisesRegex(RuntimeError, "one private loopback connection"):
+                    self.normalize("lighttpd", root, runtime)
+
     def test_lighttpd_rejects_multiple_loopback_connections(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-lighttpd-curl-loopback-reject-") as temporary:
             root = Path(temporary)

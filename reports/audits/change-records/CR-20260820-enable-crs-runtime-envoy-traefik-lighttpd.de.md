@@ -12,7 +12,7 @@
 | Beobachteter aktueller `origin/master` | `aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf` |
 | Parent → Framework Pin | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | Framework → MRTS Pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der zuletzt gehostet geprüfte exakte Head ist `75c3be54a4855e0c34ffeb30d0895c0fd840f313`; Hosted-Lauf `32433856340` ist nicht erfolgreich und dieses Follow-up wartet auf einen frischen Exact-Head-Lauf. Kein Merge und kein Auto-Merge sind autorisiert. |
+| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der letzte gehostete exakte Head ist `5985153e54a49875c331d65005e2051f8f185167`; seine Hosted-Validierung ist nicht erfolgreich. Kein Merge und kein Auto-Merge sind autorisiert. |
 
 Der Task-Worktree wurde von der aufgezeichneten Task-Basis erstellt.
 `origin/master` ist anschließend auf den separat aufgezeichneten aktuellen Wert
@@ -179,55 +179,42 @@ lokal verifizierten Produktions-Runtime-Ergebnis befördert.
 ## Runtime-Evidence
 
 Der Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309)
-wurde beim gepushten exakten Head
-`75c3be54a4855e0c34ffeb30d0895c0fd840f313` durch den Hosted-Lauf `32433856340`
-geprüft. Envoy und Traefik beendeten ihre Runtime-Jobs erfolgreich. Lighttpd
-erreichte und beendete seinen Lifecycle, aber der Post-Run-Normalizer lehnte
-die Curl-8.18-Schreibweise `Connected` ab; seine beförderte Zelle ist daher
-noch nicht verifiziert. Apache verlor seine frisch erworbenen CRS-Roots über
-den Runtime-Snapshot. HAProxy war vor der Runtime durch die read-only-
-Framework-Reihenfolge blockiert, die `verify_build_target` vor
-`prepare_build_worktree` aufruft. Diese Fehler verhindern einen Full-Matrix-
-oder verified-PR-Claim.
+wurde beim Hosted-Exact-Head `5985153e54a49875c331d65005e2051f8f185167` geprüft. Envoy und Traefik beendeten
+ihre Runtime-Jobs erfolgreich. Apache scheiterte, weil die zeitliche Semantik
+von `GITHUB_ENV` innerhalb desselben Steps die frisch erworbenen CRS-Roots für
+den folgenden Step nicht verfügbar machte; diese Änderung fügt einen separaten
+Vorbereitungsschritt für diese Übergabe hinzu. Lighttpd beendete seinen
+Lifecycle erfolgreich, aber der Normalizer lehnte den lokalen Source-Port-
+Suffix von Curl 8.18 ab; diese Änderung fügt eine enge Korrektur für diese
+exakte Schreibweise hinzu. HAProxy war vor der Runtime durch die read-only-
+Framework-Reihenfolge bei
+`bd69ee96e0e7082317d4afe1232bee625665eb9a` blockiert, die
+`verify_build_target` vor `prepare_build_worktree` aufruft.
 
-Die Follow-up-Parent-Behebungen sind eng begrenzt: die exakt
-dokumentierte Curl-Schreibweise akzeptieren; Apaches frische CRS-Roots über
-`GITHUB_ENV` mit einem expliziten finalen Environment-Override weiterreichen;
-und die PR-ausgelöste Lighttpd-Namespace-Suite so erzwingen, dass fehlende
-User-, Mount- oder PID-Namespace-Unterstützung fehlschlägt. Die Suite prüft den
-exakten PR-Head aus und testet ihn. Die lokale Suite bleibt capability-gated
-und überspringt ihre Integrationsfälle, weil der verschachtelte Kernel den
-User-Namespace mit `EPERM` ablehnt; Hosted-Evidence für diese erforderliche
-Suite steht noch aus. Es wurden keine rohen CI-Logs oder Trace-Artefakte
-exportiert.
-
-Der fehlgeschlagene Lighttpd-Job auf dem exakten Head erreichte CRS-Akquisition
-und den gepinnten `1.4.85`-Host-Build, bevor sein privater Curl-Trace-Parser
-eine sonst nicht klassifizierte strukturelle Zeile ablehnte. Der eng begrenzte
-Follow-up akzeptiert ausschließlich Curls dokumentierten Übergang
-`<= Recv header, <decimal> bytes (0x<hex>)` als alternative
-Request-Abschlussgrenze. Empfangene Daten, generische Diagnosen, fehlerhafte
-Datensätze und beliebige Star-Zeilen bleiben abgelehnt; Outgoing-
-Offset-/Längenprüfungen und die unabhängige Raw-Response-Header-Validierung
-bleiben verpflichtend. Diese Änderung wartet auf frische Exact-Head-
-Runtime-Evidence.
+Der erforderliche PR-ausgelöste P1-Namespace-Test schlug fail-closed fehl,
+weil die Hosted-Umgebung die nötige User-, Mount- oder PID-Namespace-
+Capability nicht bereitstellte. Das ist eine fehlgeschlagene Validierung und
+kein erfolgreicher Fallback. Diese Beobachtungen verhindern einen Full-Matrix-
+oder verified-PR-Claim. Es wird kein künftiges Testergebnis behauptet und es
+wurden keine rohen CI-Logs oder Trace-Artefakte exportiert.
 
 Dieser Lauf ist keine finale Runtime-Evidence für alle drei beförderten Zellen.
 Frühere Hosted-Läufe und ihre Ergebnisse bleiben nur als historischer Kontext
 erhalten und werden nicht für Exact-Head-Behauptungen wiederverwendet.
 
-Dieser Record behauptet keine finale Runtime-Evidence. Insbesondere besitzt
-der Follow-up-Head noch keinen abgeschlossenen Hosted-Workflow, keine
-SonarQube-Cloud-Analyse und kein Required-Check-Ergebnis. Vorläufige
-Connector-Arbeit und Static-Validierung ersetzen keine reale Host-Runtime-
-Evidence für die drei beförderten Matrixzellen.
+Dieser Record behauptet keine finale Runtime-Evidence. Insbesondere ist die
+Hosted-Validierung des neuesten exakten Task-Heads nicht erfolgreich; eine
+erfolgreiche SonarQube-Cloud-Analyse oder ein erfolgreiches Required-Check-
+Ergebnis wird nicht behauptet. Vorläufige Connector-Arbeit und
+Static-Validierung ersetzen keine reale Host-Runtime-Evidence für die drei
+beförderten Matrixzellen.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 Folgendes bleibt ausstehend oder war lokal nicht verfügbar: vollständige
 Drei-Connector-Lokal-Runtime-Validierung in einer Namespace-Umgebung mit
-Nicht-root-Capability (die reale Nicht-root-Namespace-Integration wartet auf
-einen Hosted-Runner); Full-Matrix-Workflow-Validierung; GitHub-Hosted-
+Nicht-root-Capability (der Hosted-Namespace-Test schlug fail-closed fehl);
+Full-Matrix-Workflow-Validierung; GitHub-Hosted-
 Required-Checks; actionlint, zizmor, Ruff und Pyright waren in der lokalen
 Umgebung nicht verfügbar; SonarQube Cloud sowie finale PR-Exact-Head-
 Validierung. CodeQL, Secret Scanning, OSV und zizmor wurden nur für den
@@ -239,8 +226,9 @@ Follow-up-Head wiederverwendet.
 Die beobachtete Nicht-root-Probe `unshare --user --map-root-user` scheitert mit
 `write /proc/self/uid_map: Operation not permitted` und verhindert die
 Ausführung des capability-geprüften Lighttpd-Namespace-Einstiegspfads mit
-seinem vorgesehenen Nicht-root-Aufrufer. Die reale Nicht-root-Namespace-
-Integration wartet auf einen Hosted-Runner. Das ist ein Umgebungsblocker für
+seinem vorgesehenen Nicht-root-Aufrufer. Der Hosted-Namespace-Test schlug
+fail-closed fehl, weil der Runner die erforderliche Namespace-Capability nicht
+bereitstellte. Das ist ein Umgebungsblocker für
 diesen Integrationstest, kein Nachweis, dass die Kontrolle unnötig ist oder ein
 schwächerer Cleanup-Pfad erlaubt wäre. Das bilinguale Dokumentationsziel ist
 außerdem durch den uninitialisierten Framework-Gitlink blockiert. Die aktuelle

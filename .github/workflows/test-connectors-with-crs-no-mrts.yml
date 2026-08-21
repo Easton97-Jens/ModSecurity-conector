@@ -161,7 +161,7 @@ jobs:
             printf '%s\n' "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
           } >> "$GITHUB_ENV"
 
-      - name: Run selected real with-CRS no-MRTS runtime
+      - name: Prepare fresh CRS source for Apache and HAProxy
         env:
           CONNECTOR: ${{ matrix.connector }}
         run: |
@@ -172,14 +172,25 @@ jobs:
                 . "$FRAMEWORK_ROOT/ci/lib/common.sh"
                 . ci/runtime/lifecycle/prepare-fresh-crs-source.sh
                 sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"
-                # The fetch runs in this shell, while the Make target runs in
-                # the next step. Persist only the helper-validated, fresh
-                # run-owned CRS roots; otherwise Make's Framework prepare
-                # path fails closed with "missing CRS_SOURCE_DIR".
+                # GITHUB_ENV is applied between steps.  Publish only the
+                # helper-validated, fresh run-owned CRS roots for the Make
+                # target in the following step.
                 printf '%s\n' "SOURCE_ROOT=$SOURCE_ROOT" "CRS_SOURCE_DIR=$CRS_SOURCE_DIR" >> "$GITHUB_ENV"
               )
               ;;
+            envoy|lighttpd|traefik)
+              ;;
+            *)
+              echo "FAIL: connector is outside the fixed runtime set: $CONNECTOR" >&2
+              exit 2
+              ;;
           esac
+
+      - name: Run selected real with-CRS no-MRTS runtime
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
           case "$CONNECTOR" in
             apache)
               EVIDENCE_ROOT='' make verified-apache-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"

@@ -59,9 +59,17 @@ CURL_TRACE_SEND_HEADER = re.compile(r"^=> Send header, ([0-9]{1,10}) bytes \(0x[
 CURL_TRACE_DATA_ROW = re.compile(r"^([0-9a-fA-F]{1,16}): ?([ -~]{0,256})$")
 CURL_TRACE_RECEIVE_HEADER = re.compile(r"^<= Recv header, [0-9]{1,10} bytes \(0x[0-9a-fA-F]{1,8}\)$")
 CURL_TRACE_INFO_LINE = re.compile(r"^== Info: [ -~]{1,256}$")
+CURL_TRACE_LOOPBACK_TRY = re.compile(
+    r"^\*   Trying 127\.0\.0\.1:(?P<port>[1-9][0-9]{0,4})\.\.\.$"
+)
 CURL_TRACE_LOOPBACK_CONNECT = re.compile(
-    r"^\* (?:Established connection to 127\.0\.0\.1 \(127\.0\.0\.1 port [1-9][0-9]*\)|"
-    r"Connected to 127\.0\.0\.1 \(127\.0\.0\.1\) port [1-9][0-9]*)$"
+    r"^\* (?:"
+    r"Established connection to 127\.0\.0\.1 \(127\.0\.0\.1 port "
+    r"(?P<established_port>[1-9][0-9]{0,4})\)(?: from 127\.0\.0\.1 port "
+    r"(?P<source_port>[1-9][0-9]{0,4}))? ?"
+    r"|Connected to 127\.0\.0\.1 \(127\.0\.0\.1\) port "
+    r"(?P<connected_port>[1-9][0-9]{0,4})"
+    r")$"
 )
 
 
@@ -375,6 +383,31 @@ def decode_lighttpd_wire(trace_bytes: bytes, headers_bytes: bytes, case: str) ->
         raise AssertionError from exc
 
 
+def loopback_port(port_text: str, case: str) -> int:
+    port = int(port_text)
+    if not 1 <= port <= 65535:
+        fail(f"Lighttpd {case} trace has an invalid loopback port")
+    return port
+
+
+def trace_loopback_try_port(line: str, case: str) -> int | None:
+    match = CURL_TRACE_LOOPBACK_TRY.fullmatch(line)
+    return None if match is None else loopback_port(match["port"], case)
+
+
+def trace_loopback_connect_port(line: str, case: str) -> int | None:
+    match = CURL_TRACE_LOOPBACK_CONNECT.fullmatch(line)
+    if match is None:
+        return None
+    source_port = match["source_port"]
+    if source_port is not None:
+        loopback_port(source_port, case)
+    target_port = match["established_port"] or match["connected_port"]
+    if target_port is None:
+        fail(f"Lighttpd {case} trace has no loopback target port")
+    return loopback_port(target_port, case)
+
+
 def validate_lighttpd_request(
     trace: str, case: str, uri: str, run_id: str, request_id: str
 ) -> None:
@@ -390,10 +423,24 @@ def validate_lighttpd_request(
     }
     if any(line.partition(":")[0].lower() in transaction_headers for line in request_lines[1:-1]):
         fail(f"Lighttpd {case} trace supplied a client transaction id")
-    loopback_connects = [
-        line for line in trace.splitlines() if CURL_TRACE_LOOPBACK_CONNECT.fullmatch(line)
+    trace_lines = trace.splitlines()
+    try_markers = [line for line in trace_lines if line.startswith("*   Trying ")]
+    connect_markers = [
+        line
+        for line in trace_lines
+        if line.startswith("* Established connection to ") or line.startswith("* Connected to ")
     ]
-    if trace.count("*   Trying 127.0.0.1:") != 1 or len(loopback_connects) != 1:
+    try_ports = [port for line in trace_lines if (port := trace_loopback_try_port(line, case)) is not None]
+    connect_ports = [
+        port for line in trace_lines if (port := trace_loopback_connect_port(line, case)) is not None
+    ]
+    if (
+        len(try_markers) != 1
+        or len(try_ports) != 1
+        or len(connect_markers) != 1
+        or len(connect_ports) != 1
+        or try_ports[0] != connect_ports[0]
+    ):
         fail(f"Lighttpd {case} trace does not prove one private loopback connection")
 
 
