@@ -86,6 +86,44 @@ through the available one-shot `write_text_fresh` API. Its final leaf is
 created with `O_EXCL|O_NOFOLLOW`; it does not depend on the previously missing
 atomic-write interface or on a temporary leaf that would require cleanup.
 
+## 2026-08-21 follow-up: namespace gate, workflow overview, and Sonar issues
+
+The hosted Lighttpd namespace integration remains deliberately fail-closed.
+The `ubuntu-latest` runner does not provide the required unprivileged
+user/mount/PID namespace combination, and the test therefore fails at its
+explicit availability assertion rather than falling back to pathname cleanup.
+There is no safe Parent-only workflow adjustment for that missing kernel
+facility: `sudo`, a privileged container, a setcap helper, disabling the gate,
+or a check-then-`rmdir` fallback would either execute mutable PR code with
+privilege or weaken the P1 control. The smallest prerequisite is an isolated,
+non-root self-hosted Linux runner with those namespaces enabled, trusted
+root-owned setup binaries, no secrets, no Docker socket, no persistent host
+access, and a dedicated label. The Draft PR remains blocked on that external
+runner capability.
+
+The CRS/no-MRTS workflow now writes a final `if: always()` connector overview.
+It reports only fixed GitHub step outcomes for checkout, locked dependencies,
+revision/cell verification, private roots, CRS preparation, the real runtime
+target, and evidence publication. Each connector shows passed, failed,
+skipped, and cancelled stages plus the first non-passing stage. A failed,
+skipped, or cancelled runtime target is displayed as such and is never
+promoted to a connector capability pass. The existing HAProxy raw-artifact
+upload exclusion is shown separately as `skipped_by_security_policy`; it is
+not hidden as a runtime success or failure. The summary writer rejects unknown
+outcomes, requires `O_NOFOLLOW`, opens the runner-provided parent directory
+once, and appends through that directory descriptor.
+
+At PR head `6c1fe074b1d3027a00228b1517e29e08b064eca3`, the official
+SonarQube Cloud issue API reported eleven open new issues, despite a passing
+Quality Gate: five regex-style findings and one cognitive-complexity finding
+in the Parent normalizer, plus four exception-assertion findings in a Lighttpd
+contract test. This follow-up repairs each finding without `NOSONAR`, rule or
+quality-gate changes, exclusions, issue acceptance, dependency changes, or
+test weakening. The normalizer keeps its ASCII wire-evidence restriction while
+using explicit ASCII regex semantics, and the complexity split preserves the
+same fail-closed trace validation. The next exact-head SonarQube analysis must
+still demonstrate zero new issues before the requirement is considered met.
+
 ## Security impact
 
 The affected boundary spans untrusted HTTP input, connector-to-ModSecurity
@@ -109,8 +147,9 @@ the final staged inventory remains subject to the mandatory final diff review:
 - `ci/provisioning/components/prepare-runtime-components.py`,
   `ci/runtime/lifecycle/run-no-crs-baseline.sh`,
   `ci/runtime/lifecycle/run-remaining-connector-target.sh`,
-  `ci/runtime/lifecycle/run-with-crs-no-mrts.sh`, and
-  `ci/runtime/lifecycle/normalize-with-crs-no-mrts.py`;
+  `ci/runtime/lifecycle/run-with-crs-no-mrts.sh`,
+  `ci/runtime/lifecycle/normalize-with-crs-no-mrts.py`, and
+  `ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py`;
 - Envoy ext-proc runtime code, harness, and focused tests under
   `connectors/envoy/`;
 - Traefik native middleware, runtime smoke, and focused tests under
@@ -118,7 +157,8 @@ the final staged inventory remains subject to the mandatory final diff review:
 - Lighttpd module, lifecycle harness, trusted namespace runner,
   namespace/descriptor-I/O helpers, focused tests, and associated EN/DE
   documentation under `connectors/lighttpd/` and `docs/`;
-- focused Parent test contracts under `tests/`, plus the repository `Makefile`;
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`, focused Parent test
+  contracts under `tests/`, plus the repository `Makefile`;
 - this English/German Change Record pair.
 
 No Framework or MRTS source file, Gitlink, dependency manifest, lockfile, or

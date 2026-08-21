@@ -1750,6 +1750,19 @@ jobs:
         self.assertIn("if-no-files-found: error", job)
         self.assertNotIn("if-no-files-found: ignore", job)
         self.assertIn("retention-days: 10", job)
+        for step_id in (
+            "checkout",
+            "setup-python",
+            "verify-python",
+            "verify-revisions",
+            "install-framework-ci",
+            "verify-runtime-cell",
+            "initialize-runtime-roots",
+            "prepare-crs-source",
+            "runtime",
+            "upload-runtime-evidence",
+        ):
+            self.assertIn(f"id: {step_id}", job)
         self.assertEqual(
             job.count("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1"),
             1,
@@ -1761,6 +1774,29 @@ jobs:
         self.assertLess(
             job.index("make verified-haproxy-case CASE=crs_sqli_anomaly_block"),
             job.index("if: always() && matrix.connector != 'haproxy'"),
+        )
+        summary = job.split("      - name: Write connector runtime overview\n", 1)[1]
+        self.assertIn("if: always()", summary)
+        self.assertIn(
+            'python3 ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py --connector "$CONNECTOR" --summary-file "$GITHUB_STEP_SUMMARY"',
+            summary,
+        )
+        for environment_name, step_id in (
+            ("CHECKOUT_OUTCOME", "checkout"),
+            ("SETUP_PYTHON_OUTCOME", "setup-python"),
+            ("VERIFY_PYTHON_OUTCOME", "verify-python"),
+            ("VERIFY_REVISIONS_OUTCOME", "verify-revisions"),
+            ("INSTALL_DEPENDENCIES_OUTCOME", "install-framework-ci"),
+            ("VERIFY_CELL_OUTCOME", "verify-runtime-cell"),
+            ("INITIALIZE_ROOTS_OUTCOME", "initialize-runtime-roots"),
+            ("PREPARE_CRS_OUTCOME", "prepare-crs-source"),
+            ("RUNTIME_OUTCOME", "runtime"),
+            ("UPLOAD_EVIDENCE_OUTCOME", "upload-runtime-evidence"),
+        ):
+            self.assertIn(f"{environment_name}: ${{{{ steps.{step_id}.outcome }}}}", summary)
+        self.assertLess(
+            job.index("      - name: Upload real runtime evidence\n"),
+            job.index("      - name: Write connector runtime overview\n"),
         )
         runtime_runner = (ROOT / "ci/runtime/lifecycle/run-with-crs-no-mrts.sh").read_text(
             encoding="utf-8"

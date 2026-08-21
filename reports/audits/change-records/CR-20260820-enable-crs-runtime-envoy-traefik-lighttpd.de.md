@@ -91,6 +91,49 @@ wird mit `O_EXCL|O_NOFOLLOW` erzeugt; die Implementierung hängt nicht von der
 zuvor fehlenden atomaren Schreibschnittstelle und nicht von einem temporären
 Blatt ab, das bereinigt werden müsste.
 
+## Follow-up vom 2026-08-21: Namespace-Gate, Workflow-Übersicht und Sonar-Befunde
+
+Die Hosted-Lighttpd-Namespace-Integration bleibt bewusst fail-closed. Der
+`ubuntu-latest`-Runner stellt die erforderliche Kombination aus
+unprivilegiertem User-, Mount- und PID-Namespace nicht bereit; deshalb schlägt
+der Test an seiner expliziten Availability-Assertion fehl, statt auf
+pfadbasiertes Cleanup zurückzufallen. Für diese fehlende Kernel-Fähigkeit gibt
+es keine sichere Parent-only-Workflow-Anpassung: `sudo`, ein privilegierter
+Container, ein Setcap-Helper, das Abschalten des Gates oder ein
+Check-then-`rmdir`-Fallback würden entweder veränderbaren PR-Code privilegiert
+ausführen oder die P1-Kontrolle abschwächen. Kleinste Voraussetzung ist ein
+isolierter, nicht-root Self-hosted-Linux-Runner mit aktivierten Namespaces,
+vertrauenswürdigen root-eigenen Setup-Binaries, keinen Secrets, keinem Docker-
+Socket, keinem persistenten Hostzugriff und einem dedizierten Label. Der
+Draft-PR bleibt auf diese externe Runner-Fähigkeit blockiert.
+
+Der CRS/no-MRTS-Workflow schreibt nun eine abschließende
+`if: always()`-Connector-Übersicht. Sie meldet ausschließlich feste GitHub-
+Step-Outcomes für Checkout, gesperrte Dependencies, Revisions-/Zellenprüfung,
+private Roots, CRS-Vorbereitung, das reale Runtime-Target und die Evidence-
+Veröffentlichung. Für jeden Connector werden bestandene, fehlgeschlagene,
+übersprungene und abgebrochene Stages sowie die erste nicht bestandene Stage
+sichtbar. Ein fehlgeschlagenes, übersprungenes oder abgebrochenes Runtime-
+Target wird als solches dargestellt und niemals zu einem Connector-
+Capability-Pass befördert. Der bestehende HAProxy-Ausschluss für den Raw-
+Artifact-Upload wird separat als `skipped_by_security_policy` gezeigt; er wird
+weder als Runtime-Erfolg noch als Runtime-Fehler versteckt. Der Summary-Writer
+weist unbekannte Outcomes ab, verlangt `O_NOFOLLOW`, öffnet das vom Runner
+bereitgestellte Parent-Verzeichnis einmal und hängt über dessen Directory-
+Descriptor an.
+
+Am PR-Head `6c1fe074b1d3027a00228b1517e29e08b064eca3` meldete die offizielle
+SonarQube-Cloud-Issue-API trotz bestandenem Quality Gate elf offene neue
+Befunde: fünf Regex-Style-Befunde und einen Cognitive-Complexity-Befund im
+Parent-Normalizer sowie vier Exception-Assertion-Befunde in einem Lighttpd-
+Contract-Test. Dieses Follow-up behebt jeden Befund ohne `NOSONAR`, Änderungen
+an Regeln oder Quality Gate, Exclusions, Issue-Acceptance, Dependency-
+Änderungen oder Testabschwächungen. Der Normalizer erhält seine ASCII-
+Wire-Evidence-Einschränkung mit expliziter ASCII-Regex-Semantik; die
+Komplexitätsaufteilung erhält dieselbe fail-closed Trace-Validierung. Die
+nächste SonarQube-Analyse des exakten Heads muss weiterhin null neue Befunde
+zeigen, bevor die Anforderung als erfüllt gilt.
+
 ## Security-Auswirkung
 
 Die betroffene Grenze umfasst nicht vertrauenswürdige HTTP-Eingaben,
@@ -116,8 +159,9 @@ finalen Diff-Prüfung vorbehalten:
 - `ci/provisioning/components/prepare-runtime-components.py`,
   `ci/runtime/lifecycle/run-no-crs-baseline.sh`,
   `ci/runtime/lifecycle/run-remaining-connector-target.sh`,
-  `ci/runtime/lifecycle/run-with-crs-no-mrts.sh` und
-  `ci/runtime/lifecycle/normalize-with-crs-no-mrts.py`;
+  `ci/runtime/lifecycle/run-with-crs-no-mrts.sh`,
+  `ci/runtime/lifecycle/normalize-with-crs-no-mrts.py` und
+  `ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py`;
 - Envoy-ext-proc-Runtime-Code, Harness und fokussierte Tests unter
   `connectors/envoy/`;
 - Traefik-Native-Middleware, Runtime-Smoke und fokussierte Tests unter
@@ -125,8 +169,8 @@ finalen Diff-Prüfung vorbehalten:
 - Lighttpd-Modul, Lifecycle-Harness, vertrauenswürdiger Namespace-Runner,
   Namespace-/Descriptor-I/O-Helfer, fokussierte Tests und zugehörige EN/DE-
   Dokumentation unter `connectors/lighttpd/` und `docs/`;
-- fokussierte Parent-Test-Contracts unter `tests/` sowie das Repository-
-  `Makefile`;
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`, fokussierte
+  Parent-Test-Contracts unter `tests/` sowie das Repository-`Makefile`;
 - dieses englische/deutsche Change-Record-Paar.
 
 Keine Framework- oder MRTS-Quelldatei, kein Gitlink, kein Dependency-Manifest,

@@ -786,40 +786,32 @@ class PatchedHostContractTest(unittest.TestCase):
             "<= Recv header, 26 bytes (0x1a)\n",
         )
         self.assertEqual(parse_request(receive_boundary_trace, "bypass"), request_lines)
+        duplicated_receive_boundary_trace = receive_boundary_trace.replace(
+            "0103: \n",
+            "<= Recv header, 26 bytes (0x1a)\n0103: \n",
+        )
         with self.assertRaises(SystemExit):
-            parse_request(
-                receive_boundary_trace.replace(
-                    "0103: \n",
-                    "<= Recv header, 26 bytes (0x1a)\n0103: \n",
-                ),
-                "bypass",
-            )
+            parse_request(duplicated_receive_boundary_trace, "bypass")
+        receive_data_boundary_trace = receive_boundary_trace.replace(
+            "<= Recv header, 26 bytes (0x1a)",
+            "<= Recv data, 26 bytes (0x1a)",
+        )
         with self.assertRaises(SystemExit):
-            parse_request(
-                receive_boundary_trace.replace(
-                    "<= Recv header, 26 bytes (0x1a)",
-                    "<= Recv data, 26 bytes (0x1a)",
-                ),
-                "bypass",
-            )
+            parse_request(receive_data_boundary_trace, "bypass")
+        unexpected_diagnostic_trace = folded_trace.replace(
+            "* Request completely sent off\n",
+            "* unexpected diagnostic row\n"
+            "* Request completely sent off\n",
+        )
         with self.assertRaises(SystemExit):
-            parse_request(
-                folded_trace.replace(
-                    "* Request completely sent off\n",
-                    "* unexpected diagnostic row\n"
-                    "* Request completely sent off\n",
-                ),
-                "bypass",
-            )
+            parse_request(unexpected_diagnostic_trace, "bypass")
         hostile_record = "* attacker-controlled-header: secret-value"
+        hostile_diagnostic_trace = folded_trace.replace(
+            "* Request completely sent off\n",
+            f"{hostile_record}\n* Request completely sent off\n",
+        )
         with self.assertRaises(SystemExit) as raised:
-            parse_request(
-                folded_trace.replace(
-                    "* Request completely sent off\n",
-                    f"{hostile_record}\n* Request completely sent off\n",
-                ),
-                "bypass",
-            )
+            parse_request(hostile_diagnostic_trace, "bypass")
         diagnostic = str(raised.exception)
         self.assertIn("unsupported star trace record family", diagnostic)
         self.assertNotIn("attacker-controlled-header", diagnostic)

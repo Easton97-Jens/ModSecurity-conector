@@ -22,6 +22,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER_PATH = ROOT / "ci/runtime/lifecycle/run-with-crs-no-mrts.sh"
 NORMALIZER_PATH = ROOT / "ci/runtime/lifecycle/normalize-with-crs-no-mrts.py"
+SUMMARY_PATH = ROOT / "ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py"
 
 
 def load_normalizer():
@@ -35,6 +36,19 @@ def load_normalizer():
 
 
 NORMALIZER = load_normalizer()
+
+
+def load_summary():
+    spec = importlib.util.spec_from_file_location("with_crs_no_mrts_workflow_summary", SUMMARY_PATH)
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"cannot load {SUMMARY_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+SUMMARY = load_summary()
 NO_MRTS = {
     "runner_invoked": False,
     "case_inventory_loaded": False,
@@ -65,6 +79,55 @@ def read_json(path: Path) -> dict[str, object]:
 
 
 class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
+    def workflow_outcomes(self, **overrides: str) -> dict[str, str]:
+        outcomes = {stage: "success" for stage, _label, _environment_name in SUMMARY.STAGES}
+        outcomes.update(overrides)
+        return outcomes
+
+    def test_workflow_summary_counts_actual_outcomes_and_security_skips(self) -> None:
+        summary = SUMMARY.render_summary(
+            "haproxy", self.workflow_outcomes(upload_evidence="skipped")
+        )
+        self.assertIn("| Stages passed | `9` |", summary)
+        self.assertIn("| Stages failed | `0` |", summary)
+        self.assertIn("| Security-policy skips | `1` |", summary)
+        self.assertIn("| Evidence publication | `skipped_by_security_policy` |", summary)
+        self.assertIn("| First non-passing stage | `none` |", summary)
+
+    def test_workflow_summary_exposes_failed_runtime_without_promoting_capability(self) -> None:
+        summary = SUMMARY.render_summary(
+            "lighttpd", self.workflow_outcomes(runtime="failure", upload_evidence="skipped")
+        )
+        self.assertIn("| Stages failed | `1` |", summary)
+        self.assertIn("| First non-passing stage | `Real connector runtime target` |", summary)
+        self.assertIn("| Real connector runtime target | `failure` |", summary)
+        self.assertIn("`FAIL — runtime assertions did not complete`", summary)
+        self.assertNotIn("skipped_by_security_policy", summary)
+
+    def test_workflow_summary_rejects_missing_outcome_and_symlink_target(self) -> None:
+        environment = {
+            environment_name: "success" for _stage, _label, environment_name in SUMMARY.STAGES
+        }
+        environment.pop("RUNTIME_OUTCOME")
+        with self.assertRaisesRegex(ValueError, "RUNTIME_OUTCOME"):
+            SUMMARY.outcomes_from_environment(environment)
+        with tempfile.TemporaryDirectory(prefix="crs-workflow-summary-") as temporary:
+            root = Path(temporary)
+            target = root / "summary.md"
+            SUMMARY.append_summary(target, "first\n")
+            self.assertEqual(target.read_text(encoding="utf-8"), "first\n")
+            link = root / "linked.md"
+            link.symlink_to(target)
+            with self.assertRaises(OSError):
+                SUMMARY.append_summary(link, "must-not-follow\n")
+            linked_parent = root / "linked-parent"
+            linked_parent.symlink_to(root, target_is_directory=True)
+            with self.assertRaises(OSError):
+                SUMMARY.append_summary(linked_parent / "summary.md", "must-not-follow\n")
+        with mock.patch.object(SUMMARY.os, "O_NOFOLLOW", None):
+            with self.assertRaisesRegex(ValueError, "safe-open capability"):
+                SUMMARY.append_summary(Path("/tmp/workflow-summary.md"), "must-not-write\n")
+
     def run_runner(
         self, connector: str, run_id: str = "valid-run", *, environment: dict[str, str] | None = None
     ) -> subprocess.CompletedProcess[str]:
@@ -961,6 +1024,21 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 json.loads(event_path.read_text(encoding="utf-8"))["transaction_id"],
                 "lighttpd-1-102",
             )
+
+    def test_lighttpd_trace_numeric_patterns_remain_ascii_only(self) -> None:
+        """Sonar regex cleanup must not admit Unicode digits into wire evidence."""
+        self.assertIsNone(NORMALIZER.LIGHTTPD_HOST_TRANSACTION.fullmatch("lighttpd-١-2"))
+        self.assertIsNone(
+            NORMALIZER.CURL_TRACE_SEND_HEADER.fullmatch("=> Send header, ١ bytes (0x1)")
+        )
+        self.assertIsNone(
+            NORMALIZER.CURL_TRACE_RECEIVE_HEADER.fullmatch("<= Recv header, ١ bytes (0x1)")
+        )
+        self.assertIsNone(
+            NORMALIZER.CURL_TRACE_LOOPBACK_TRY.fullmatch(
+                "== Info:   Trying 127.0.0.1:٨٠٨٠..."
+            )
+        )
 
     def test_lighttpd_accepts_curl_info_loopback_trace(self) -> None:
         """Curl's ``== Info:`` trace family still proves one local connection."""

@@ -75,6 +75,7 @@ jobs:
 
     steps:
       - name: Checkout exact Parent head with pinned submodules
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -89,11 +90,13 @@ jobs:
           check-latest: false
 
       - name: Verify Python interpreter contract
+        id: verify-python
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Verify pinned Parent, Framework, and MRTS revisions
+        id: verify-revisions
         run: |
           set -euo pipefail
           parent_commit=$(git rev-parse HEAD)
@@ -104,6 +107,7 @@ jobs:
           test "$mrts_commit" = "$EXPECTED_MRTS_SHA"
 
       - name: Install hash-locked Framework CI dependency
+        id: install-framework-ci
         env:
           SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
         run: |
@@ -113,6 +117,7 @@ jobs:
           "$SETUP_PYTHON_PATH" -m pip check
 
       - name: Verify exact real-runtime cell
+        id: verify-runtime-cell
         env:
           CONNECTOR: ${{ matrix.connector }}
         run: |
@@ -123,6 +128,7 @@ jobs:
           esac
 
       - name: Initialize private runtime roots
+        id: initialize-runtime-roots
         env:
           CONNECTOR: ${{ matrix.connector }}
           SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
@@ -162,6 +168,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Prepare fresh CRS source for Apache and HAProxy
+        id: prepare-crs-source
         env:
           CONNECTOR: ${{ matrix.connector }}
         run: |
@@ -187,6 +194,7 @@ jobs:
           esac
 
       - name: Run selected real with-CRS no-MRTS runtime
+        id: runtime
         env:
           CONNECTOR: ${{ matrix.connector }}
         run: |
@@ -208,6 +216,7 @@ jobs:
           esac
 
       - name: Upload real runtime evidence
+        id: upload-runtime-evidence
         # The one-case HAProxy harness validates its raw host evidence before
         # returning.  Do not pass its same-UID writable runtime root to this
         # action: upload-artifact follows symlinks during discovery.
@@ -221,3 +230,21 @@ jobs:
           if-no-files-found: error
           retention-days: 10
           overwrite: false
+
+      - name: Write connector runtime overview
+        if: always()
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+          CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
+          SETUP_PYTHON_OUTCOME: ${{ steps.setup-python.outcome }}
+          VERIFY_PYTHON_OUTCOME: ${{ steps.verify-python.outcome }}
+          VERIFY_REVISIONS_OUTCOME: ${{ steps.verify-revisions.outcome }}
+          INSTALL_DEPENDENCIES_OUTCOME: ${{ steps.install-framework-ci.outcome }}
+          VERIFY_CELL_OUTCOME: ${{ steps.verify-runtime-cell.outcome }}
+          INITIALIZE_ROOTS_OUTCOME: ${{ steps.initialize-runtime-roots.outcome }}
+          PREPARE_CRS_OUTCOME: ${{ steps.prepare-crs-source.outcome }}
+          RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
+          UPLOAD_EVIDENCE_OUTCOME: ${{ steps.upload-runtime-evidence.outcome }}
+        run: |
+          set -euo pipefail
+          python3 ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py --connector "$CONNECTOR" --summary-file "$GITHUB_STEP_SUMMARY"

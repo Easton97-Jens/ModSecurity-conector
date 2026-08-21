@@ -54,22 +54,24 @@ MAX_FILE_BYTES = 2 * 1024 * 1024
 TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 LIGHTTPD_RESPONSE_TRANSACTION_HEADER = "X-Msconnector-Host-Transaction-Id"
-LIGHTTPD_HOST_TRANSACTION = re.compile(r"^lighttpd-[1-9][0-9]{0,18}-[1-9][0-9]{0,18}$")
-CURL_TRACE_SEND_HEADER = re.compile(r"^=> Send header, ([0-9]{1,10}) bytes \(0x[0-9a-fA-F]{1,8}\)$")
+LIGHTTPD_HOST_TRANSACTION = re.compile(r"^lighttpd-[1-9]\d{0,18}-[1-9]\d{0,18}$", re.ASCII)
+CURL_TRACE_SEND_HEADER = re.compile(r"^=> Send header, (\d{1,10}) bytes \(0x[0-9a-fA-F]{1,8}\)$", re.ASCII)
 CURL_TRACE_DATA_ROW = re.compile(r"^([0-9a-fA-F]{1,16}): ?([ -~]{0,256})$")
-CURL_TRACE_RECEIVE_HEADER = re.compile(r"^<= Recv header, [0-9]{1,10} bytes \(0x[0-9a-fA-F]{1,8}\)$")
+CURL_TRACE_RECEIVE_HEADER = re.compile(r"^<= Recv header, \d{1,10} bytes \(0x[0-9a-fA-F]{1,8}\)$", re.ASCII)
 CURL_TRACE_INFO_LINE = re.compile(r"^== Info: [ -~]{1,256}$")
 CURL_TRACE_LOOPBACK_TRY = re.compile(
-    r"^(?:\*|== Info:)   Trying 127\.0\.0\.1:(?P<port>[1-9][0-9]{0,4})\.\.\.$"
+    r"^(?:\*|== Info:) {3}Trying 127\.0\.0\.1:(?P<port>[1-9]\d{0,4})\.\.\.$",
+    re.ASCII,
 )
 CURL_TRACE_LOOPBACK_CONNECT = re.compile(
     r"^(?:\*|== Info:) (?:"
     r"Established connection to 127\.0\.0\.1 \(127\.0\.0\.1 port "
-    r"(?P<established_port>[1-9][0-9]{0,4})\)(?: from 127\.0\.0\.1 port "
-    r"(?P<source_port>[1-9][0-9]{0,4}))? ?"
+    r"(?P<established_port>[1-9]\d{0,4})\)(?: from 127\.0\.0\.1 port "
+    r"(?P<source_port>[1-9]\d{0,4}))? ?"
     r"|Connected to 127\.0\.0\.1 \(127\.0\.0\.1\) port "
-    r"(?P<connected_port>[1-9][0-9]{0,4})"
-    r")$"
+    r"(?P<connected_port>[1-9]\d{0,4})"
+    r")$",
+    re.ASCII,
 )
 CURL_TRACE_LOOPBACK_TRY_PREFIXES = ("*   Trying ", "== Info:   Trying ")
 CURL_TRACE_LOOPBACK_CONNECT_PREFIXES = (
@@ -311,31 +313,43 @@ def curl_send_header(trace_lines: list[str], case: str) -> tuple[int, int]:
     return start_index, int(declaration.group(1))
 
 
+def curl_header_block_completed(line: str) -> bool:
+    return line in {
+        "* Request completely sent off",
+        "== Info: Request completely sent off",
+    } or CURL_TRACE_RECEIVE_HEADER.fullmatch(line) is not None
+
+
+def curl_completed_header_rows(rows: list[tuple[int, str]], case: str) -> list[tuple[int, str]]:
+    if not rows:
+        fail(f"Lighttpd {case} trace has no completed outgoing-header block")
+    return rows
+
+
+def curl_header_data_row(line: str, case: str) -> tuple[int, str] | None:
+    # curl 8.18 can emit informational records with an ``== Info:`` prefix
+    # while flushing the header (older builds use ``*``). These records contain
+    # no request bytes; every byte row remains subject to the checks below.
+    if CURL_TRACE_INFO_LINE.fullmatch(line):
+        return None
+    row = CURL_TRACE_DATA_ROW.fullmatch(line)
+    if row is None:
+        fail(f"Lighttpd {case} trace has an unexpected outgoing-header row")
+    offset = int(row.group(1), 16)
+    fragment = row.group(2)
+    if not fragment.isascii() or any(not 0x20 <= ord(character) <= 0x7E for character in fragment):
+        fail(f"Lighttpd {case} trace has a non-ASCII outgoing-header fragment")
+    return offset, fragment
+
+
 def curl_header_rows(trace_lines: list[str], start_index: int, case: str) -> list[tuple[int, str]]:
     rows: list[tuple[int, str]] = []
     for line in trace_lines[start_index + 1:]:
-        if line in {"* Request completely sent off", "== Info: Request completely sent off"}:
-            if rows:
-                return rows
-            fail(f"Lighttpd {case} trace has no completed outgoing-header block")
-        if CURL_TRACE_RECEIVE_HEADER.fullmatch(line):
-            if rows:
-                return rows
-            fail(f"Lighttpd {case} trace has no completed outgoing-header block")
-        # curl 8.18 can emit informational records with an ``== Info:``
-        # prefix while flushing the header (older builds use ``*``).  These
-        # records contain no request bytes; every byte row remains subject to
-        # the contiguous-offset and declared-length checks below.
-        if CURL_TRACE_INFO_LINE.fullmatch(line):
-            continue
-        row = CURL_TRACE_DATA_ROW.fullmatch(line)
-        if row is None:
-            fail(f"Lighttpd {case} trace has an unexpected outgoing-header row")
-        offset = int(row.group(1), 16)
-        fragment = row.group(2)
-        if not fragment.isascii() or any(not 0x20 <= ord(character) <= 0x7E for character in fragment):
-            fail(f"Lighttpd {case} trace has a non-ASCII outgoing-header fragment")
-        rows.append((offset, fragment))
+        if curl_header_block_completed(line):
+            return curl_completed_header_rows(rows, case)
+        row = curl_header_data_row(line, case)
+        if row is not None:
+            rows.append(row)
     fail(f"Lighttpd {case} trace has no completed outgoing-header block")
 
 
