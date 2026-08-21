@@ -61,8 +61,17 @@ Provenance. Sie bewahrt unveränderliche Action-Pins, Least-Privilege-
 Berechtigungen, read-only Checkout-Credentials, Artefakt-Contracts und
 restriktive Updater-Allowlists. Der gemeinsame Collector ergänzt weder
 Shell-Ausführung noch externe Downloads; seine Ausgabe ist fail-closed und
-payload-sicher. Post-Change-Review und kanonischer Security-Diff-Scan fanden
-keine reportable Vulnerability.
+payload-sicher. Ein späterer fokussierter Review reproduzierte die unten
+aufgezeichnete Same-User-Artefakt-Symlink-Grenzverletzung; der Successor behebt
+sie vor der Auslieferung.
+
+Der anfängliche Diff-Review meldete diese Grenzverletzung nicht. Ein späterer
+fokussierter Review reproduzierte einen Same-User-`RUNNER_TEMP`-Symlink-
+Overwrite im Fallback-Pfad des Collectors. Der Successor validiert den privaten
+Artefakt-Root und verwendet für jeden Collector-Output die bestehenden
+descriptor-basierten atomaren No-Follow-Reader/Writer; zwei Regressionen
+weisen vorab angelegte Root- und finale Status-Symlinks ab, ohne deren
+Sentinel-Target zu verändern.
 
 ## Geänderte Dateien
 
@@ -96,6 +105,8 @@ keine reportable Vulnerability.
 | `make check-bilingual-docs` | nur durch vorbestehende fehlende Framework-Gitlink-Targets blockiert; kein neuer Change-Record-Fehler bleibt |
 | `make check-doc-links` | nur durch dieselben fehlenden Framework-Gitlink-Targets blockiert, bevor Framework-Dokumentationslinks geprüft werden können |
 
+| Collector-Symlink-Grenze und Runtime-Artefakt-Contracts | bestanden: 44 Tests; Root- und finale Status-Symlink-Targets blieben unverändert |
+
 ## Runtime-Evidence
 
 Der reproduzierbare Fehler von `Update pinned workflow tools` wurde in seinem
@@ -127,10 +138,11 @@ die GitHub-Ausführung erforderlich.
 
 ## Verbleibende Risiken
 
-Der gemeinsame Collector vertraut weiterhin dem von GitHub Runnern gelieferten
-temporären Verzeichnis, wie dies auch der frühere Inline-Code tat; das ist
-keine Regression. Künftige Workflow-Änderungen müssen das Verhalten pro
-Connector-Wrapper bewahren und Input-Mappings explizit ergänzen. Die Closure
+Der gemeinsame Collector verlangt jetzt einen privaten Artefakt-Root ohne
+Symlink, statt das von GitHub Runnern gelieferte temporäre Verzeichnis als
+ausreichenden Confinement-Nachweis zu behandeln. Künftige Workflow-Änderungen
+müssen das Verhalten pro Connector-Wrapper bewahren und Input-Mappings
+explizit ergänzen. Die Closure
 des Updater-Fixes ist notwendigerweise auf die aktuellen statischen Eingaben
 von `check-ci-security-contract` begrenzt; zukünftige Contract-Abhängigkeiten
 brauchen dieselbe eingeschränkte Review.

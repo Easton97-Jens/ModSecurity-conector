@@ -74,6 +74,14 @@ Follow-ups enthielt #311 die von den Dependabot-PRs #306–#308 dargestellten
   gemeinsam aktualisiert. Dadurch bleibt nicht die unvollständige Form der
   drei ursprünglichen Dependabot-PRs mit nur direkten Referenzen bestehen.
 
+- Der gemeinsame Host-Runtime-Collector wurde gehärtet, nachdem der fokussierte
+  Review einen vorab angelegten Same-User-Artefakt-Symlink-Overwrite
+  reproduzierte. Er verwendet jetzt für jeden Collector-Read und -Write die
+  bestehenden Private-Root-, No-Follow- und atomaren Artefakt-APIs;
+  Regressionen weisen sowohl einen Evidence-Root- als auch einen finalen
+  Status-Symlink ab und bewahren den externen Sentinel. Der separate
+  NGINX-Workflow bleibt unverändert.
+
 ## Security-Auswirkung
 
 Der stillgelegte Legacy-Updater checkte Submodule rekursiv aus, akzeptierte ein
@@ -94,8 +102,19 @@ und Archivgrößenlimits für Release-Metadaten/-Assets fest. Es rechtfertigt
 weder das Beibehalten des stillgelegten Modulpfads noch das Aufspalten von
 Updates und wird separat als \`FND-PARENT-0205\` verfolgt.
 
+Der Task-Review reproduzierte außerdem `MSC-SEC-HOSTRUNTIME-001`: Ein früherer
+Collector-Fallback folgte nach der Ablehnung durch den sicheren Preflight einem
+vorab angelegten `RUNNER_TEMP`-Symlink und erlaubte einen Same-User-Evidence-
+Write außerhalb des vorgesehenen Artefakt-Subtrees. Der Successor verwendet
+für Root-, Status- und Summary-Pfade die bestehenden descriptor-basierten,
+atomaren `O_NOFOLLOW`-APIs. Die lokale Reparatur wird als `FND-PARENT-0206`
+verfolgt; sie beweist Artefakt-Root-Integrität, behauptet aber weder Cross-User-
+noch Secret-Access oder Privilege-Escalation.
+
 ## Geänderte Dateien
 
+- `ci/runtime/common/collect_hostruntime_preflight_evidence.py`
+- `tests/test_collect_hostruntime_preflight_evidence.py`
 - \`.github/dependabot.yml\`
 - \`.github/workflows/update-workflow-tools.yml\`
 - \`.github/workflows/test-common.yml\`
@@ -137,6 +156,7 @@ Updates und wird separat als \`FND-PARENT-0205\` verfolgt.
 | Follow-up-CodeQL-Lock-/Referenz-Unit-Contract | bestanden: 83 Tests über `tests.test_ci_security_workflows`, `tests.ci_security.test_update_workflow_tools`, `tests.ci_security.test_ci_security_contract` und `tests.security_regression.test_workflow_security_contract` |
 | `make check-ci-security-contract` (Follow-up) | bestanden: 122 Tests, 5 erwartete Capability-Skips und Validierung der actionlint/zizmor/gitleaks-Lock-Metadaten |
 | Alle Parent-Workflow-YAML parsen | bestanden: 27 `.github/workflows/*.yml`-Dateien |
+| Collector-Symlink-Grenze und Runtime-Artefakt-Controls | bestanden: 44 Tests über Collector-, Runtime-Artefakt-, Host-Runtime-Workflow- und Python-Inventar-Contracts; beide vorab angelegten Symlink-Sentinels blieben unverändert |
 
 ## Runtime-Evidence
 
@@ -146,6 +166,12 @@ geprüfte init/analyze/upload-sarif-Referenz; ein injizierter späterer
 Write-Fehler stellt jede erlaubte Datei wieder her. Es wurden kein Live-
 Maintenance-Dispatch, kein Token-Mint, kein externer Modul-Write und keine
 Submodule-Initialisierung ausgeführt.
+
+Die fokussierte Host-Runtime-Validierung reproduzierte den ursprünglichen
+Same-User-`status.json`-Symlink-Overwrite nur in einem disposable externen
+Scan-Pfad. Die Successor-Regression weist danach sowohl den Evidence-Root- als
+auch den finalen Status-Symlink vor Command-Ausführung ab und bewahrt den
+Sentinel bytegenau.
 
 ## Bekannte Einschränkungen
 
@@ -164,6 +190,9 @@ PR #311 anwendbare Hosted-Checks besteht und nach einem autorisierten Merge die
 Original-Controls auf resultierendem master bestehen. Das separate
 Medium-Confidence-Response-/Asset-/Archiv-Resource-Limit-Hardening-Follow-up
 bleibt als FND-PARENT-0205 erhalten.
+
+Das lokal behobene FND-PARENT-0206 benötigt weiter Exact-Head-Checks des
+Successor-PRs und Resulting-Master-Evidence, bevor es verified werden kann.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 

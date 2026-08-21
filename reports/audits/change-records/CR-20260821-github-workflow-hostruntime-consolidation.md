@@ -58,8 +58,16 @@ The change touches GitHub Actions execution, CI evidence, and updater
 provenance. It retains immutable action pins, least-privilege permissions,
 read-only checkout credentials, artifact contracts, and restrictive updater
 allowlists. The shared collector adds no shell execution or external download;
-its output is fail-closed and payload-safe. The post-change review and
-canonical security-diff scan found no reportable vulnerability.
+its output is fail-closed and payload-safe. A later focused review reproduced
+the same-user artifact-symlink boundary failure recorded below and the
+successor fixes it before delivery.
+
+The initial diff review did not report this boundary failure. A later focused
+review reproduced a same-user `RUNNER_TEMP` symlink overwrite in the
+collector's fallback path. The successor validates the private artifact root
+and uses the existing descriptor-based, no-follow atomic readers/writers for
+every collector output; two regressions reject preseeded root and final-status
+symlinks without changing their sentinel target.
 
 ## Changed files
 
@@ -93,6 +101,8 @@ canonical security-diff scan found no reportable vulnerability.
 | `make check-bilingual-docs` | blocked only by pre-existing missing Framework-Gitlink targets; no new Change Record error remains |
 | `make check-doc-links` | blocked only by the same missing Framework-Gitlink targets before it can inspect Framework documentation links |
 
+| Collector symlink-boundary and runtime-artifact contracts | passed: 44 tests; root and final-status symlink targets remained unchanged |
+
 ## Runtime evidence
 
 The reproducible `Update pinned workflow tools` failure was recreated in its
@@ -121,10 +131,11 @@ on the eventual exact PR head remain necessary to validate GitHub execution.
 
 ## Remaining risks
 
-The shared collector continues to trust GitHub's runner-provided temporary
-directory, as did the original inline code; this is not a regression. Future
-workflow changes must continue to preserve per-connector wrapper behavior and
-must add input mappings explicitly. The updater repair's closure is necessarily
+The shared collector now requires a private non-symlink artifact root rather
+than treating the runner-provided temporary directory as sufficient confinement
+proof. Future workflow changes must continue to preserve per-connector wrapper
+behavior and must add input mappings explicitly. The updater repair's closure
+is necessarily
 bounded to the current `check-ci-security-contract` static inputs; future
 contract dependencies require the same constrained review.
 

@@ -158,6 +158,62 @@ class CollectHostRuntimePreflightEvidenceTests(unittest.TestCase):
             self.assertEqual(runtime["preflight_status"], "PASS")
             self.assertEqual(runtime["reason_code"], "runtime_execution_not_configured")
 
+    def test_collect_rejects_preseeded_evidence_root_symlink(self) -> None:
+        with self.temporary_directory() as temporary_directory:
+            runner_temp = Path(temporary_directory) / "runner-temp"
+            runner_temp.mkdir()
+            redirected = Path(temporary_directory) / "redirected"
+            redirected.mkdir()
+            sentinel = redirected / "status.json"
+            sentinel.write_text("unchanged\n", encoding="utf-8")
+            (runner_temp / "hostruntime-evidence").symlink_to(
+                redirected, target_is_directory=True
+            )
+
+            with self.assertRaises(ValueError):
+                COLLECTOR.collect(
+                    connector="nginx",
+                    runtime_lock="lock.json",
+                    runner_temp=runner_temp,
+                    binary_name="collector-fixture-binary",
+                    profiles=(
+                        COLLECTOR.ProfileSpec("nginx-h1", "nginx.conf", "fixture.json"),
+                    ),
+                    markdown_code=True,
+                )
+
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "unchanged\n")
+
+    def test_collect_rejects_preseeded_status_symlink(self) -> None:
+        with self.temporary_directory() as temporary_directory:
+            runner_temp = Path(temporary_directory) / "runner-temp"
+            status_path = (
+                runner_temp
+                / "hostruntime-evidence"
+                / "nginx"
+                / "preflight"
+                / "nginx-h1"
+                / "status.json"
+            )
+            status_path.parent.mkdir(parents=True)
+            sentinel = Path(temporary_directory) / "outside-status.json"
+            sentinel.write_text("unchanged\n", encoding="utf-8")
+            status_path.symlink_to(sentinel)
+
+            with self.assertRaises(ValueError):
+                COLLECTOR.collect(
+                    connector="nginx",
+                    runtime_lock="lock.json",
+                    runner_temp=runner_temp,
+                    binary_name="collector-fixture-binary",
+                    profiles=(
+                        COLLECTOR.ProfileSpec("nginx-h1", "nginx.conf", "fixture.json"),
+                    ),
+                    markdown_code=True,
+                )
+
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "unchanged\n")
+
     def test_cli_rejects_traversal_and_unpaired_profile_arguments(self) -> None:
         common = (
             "--runtime-lock",

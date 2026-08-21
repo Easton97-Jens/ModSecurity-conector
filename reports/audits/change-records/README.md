@@ -13,8 +13,10 @@ reports without an explicit repository-policy decision or user decision.
 - [CR-20260821-parent-only-workflow-maintenance-bundle](CR-20260821-parent-only-workflow-maintenance-bundle.md)
   | [Deutsch](CR-20260821-parent-only-workflow-maintenance-bundle.de.md) — the
   current user authorized one Parent-only bundled Action/tool maintenance path
-  and an update to existing PR #311. The record retains that no Framework/MRTS
-  change, legacy Dependabot-PR action, or merge is authorized or asserted.
+  and controlled #311 `master` integration after all protected-delivery
+  preconditions pass. The record retains that no Framework/MRTS change or
+  legacy Dependabot-PR action is authorized, and no merge has occurred or is
+  asserted in advance.
 
 - [CR-20260821-github-workflow-hostruntime-consolidation](CR-20260821-github-workflow-hostruntime-consolidation.md)
   | [Deutsch](CR-20260821-github-workflow-hostruntime-consolidation.de.md) — the

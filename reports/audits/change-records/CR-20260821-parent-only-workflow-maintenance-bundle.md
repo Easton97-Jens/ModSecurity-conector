@@ -69,6 +69,13 @@ PRs #306–#308.
   `init`/`analyze`/`upload-sarif` reference advance together. This avoids the
   incomplete direct-reference-only shape of the three original Dependabot PRs.
 
+- Hardened the shared host-runtime collector after the focused review
+  reproduced a preseeded same-user artifact-symlink overwrite. It now uses the
+  established private-root, no-follow, atomic artifact APIs for every
+  collector read and write; regressions reject both an evidence-root and a
+  final-status symlink while preserving the external sentinel. The separate
+  NGINX workflow remains unchanged.
+
 ## Security impact
 
 The retired legacy updater checked out submodules recursively, accepted a
@@ -88,8 +95,18 @@ archive-size limits for release metadata/assets. It does not justify retaining
 the retired module path or splitting updates, and is tracked separately as
 \`FND-PARENT-0205\`.
 
+The task review also reproduced `MSC-SEC-HOSTRUNTIME-001`: an earlier
+collector fallback followed a preseeded `RUNNER_TEMP` symlink after the secure
+preflight rejected it, allowing a same-user evidence write outside the intended
+artifact subtree. The successor uses the existing descriptor-based,
+`O_NOFOLLOW` atomic APIs for the root, status, and summary paths. The local
+repair is tracked as `FND-PARENT-0206`; it proves artifact-root integrity but
+does not claim cross-user access, secret access, or privilege escalation.
+
 ## Changed files
 
+- `ci/runtime/common/collect_hostruntime_preflight_evidence.py`
+- `tests/test_collect_hostruntime_preflight_evidence.py`
 - \`.github/dependabot.yml\`
 - \`.github/workflows/update-workflow-tools.yml\`
 - \`.github/workflows/test-common.yml\`
@@ -131,6 +148,7 @@ the retired module path or splitting updates, and is tracked separately as
 | Follow-up CodeQL lock/reference unit contract | passed: 83 tests across `tests.test_ci_security_workflows`, `tests.ci_security.test_update_workflow_tools`, `tests.ci_security.test_ci_security_contract`, and `tests.security_regression.test_workflow_security_contract` |
 | `make check-ci-security-contract` (follow-up) | passed: 122 tests, 5 expected capability skips, and actionlint/zizmor/gitleaks lock-metadata validation |
 | Parse all Parent workflow YAML | passed: 27 `.github/workflows/*.yml` files |
+| Collector symlink-boundary and runtime-artifact controls | passed: 44 tests across collector, runtime-artifact, host-runtime workflow, and Python-inventory contracts; both preseeded-symlink sentinels remained unchanged |
 
 ## Runtime evidence
 
@@ -139,6 +157,11 @@ One valid CodeQL candidate changes the central lock and every reviewed
 init/analyze/upload-sarif reference; an injected later write failure restores
 each allowed file. No live maintenance dispatch, token mint, external module
 write, or submodule initialization was performed.
+
+The focused host-runtime validation reproduced the original same-user
+`status.json` symlink overwrite only in a disposable external scan path. The
+successor regression then rejects both the artifact-root and final-status
+symlink before command execution and preserves the sentinel byte-for-byte.
 
 ## Known limitations
 
@@ -155,6 +178,9 @@ The local correction is not verified until the exact successor PR #311 head
 passes applicable hosted checks and, after an authorized merge, the original
 controls pass on resulting master. The separate medium-confidence response/
 asset/archive resource-limit hardening follow-up is retained as FND-PARENT-0205.
+
+The locally fixed FND-PARENT-0206 still requires the successor PR's exact-head
+checks and resulting-master evidence before it can be verified.
 
 ## Checks not run and rationale
 

@@ -21,6 +21,18 @@ import sys
 from typing import Any
 
 
+_CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import (
+    read_runtime_artifact_text,
+    runtime_artifact_path,
+    verified_runtime_artifact_root,
+    write_runtime_artifact_text_atomic,
+)
+
+
 ALLOWED_STATUSES = frozenset({"PASS", "FAIL", "BLOCKED", "NOT_RUN", "NOT_APPLICABLE"})
 SAFE_COMPONENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$", re.ASCII)
 CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
@@ -132,10 +144,20 @@ def project_preflight_record(
     }
 
 
-def write_record(path: Path, payload: dict[str, object]) -> None:
+def write_record(
+    root: Path,
+    path: Path,
+    payload: dict[str, object],
+    label: str,
+) -> None:
     """Write one canonical JSON payload without retaining untrusted raw data."""
 
-    path.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+    write_runtime_artifact_text_atomic(
+        root,
+        path,
+        json.dumps(payload, sort_keys=True) + "\n",
+        label,
+    )
 
 
 def markdown_value(value: object, markdown_code: bool) -> str:
@@ -168,17 +190,20 @@ def collect(
 ) -> Path:
     """Collect all profile records and the connector-level runtime placeholder."""
 
-    evidence_dir = runner_temp / "hostruntime-evidence" / connector
-    preflight_dir = evidence_dir / "preflight"
-    preflight_dir.mkdir(parents=True, exist_ok=True)
+    evidence_dir = verified_runtime_artifact_root(
+        runner_temp / "hostruntime-evidence" / connector
+    )
     binary_path = shutil.which(binary_name) or str(
         evidence_dir / f"hostruntime-missing-{binary_name}"
     )
     records: list[dict[str, object]] = []
 
     for spec in profiles:
-        status_path = preflight_dir / spec.profile / "status.json"
-        status_path.parent.mkdir(parents=True, exist_ok=True)
+        status_path = runtime_artifact_path(
+            evidence_dir,
+            evidence_dir / "preflight" / spec.profile / "status.json",
+            "preflight status output",
+        )
         exit_code = command_runner(
             [
                 sys.executable,
@@ -218,8 +243,14 @@ def collect(
             ]
         )
         try:
-            raw_value: object = json.loads(status_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            raw_value: object = json.loads(
+                read_runtime_artifact_text(
+                    evidence_dir,
+                    status_path,
+                    "preflight status output",
+                )
+            )
+        except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
             raw_value = {}
         record = project_preflight_record(
             raw_value,
@@ -227,13 +258,15 @@ def collect(
             profile=spec.profile,
             exit_code=exit_code,
         )
-        write_record(status_path, record)
-        (status_path.parent / "summary.md").write_text(
+        write_record(evidence_dir, status_path, record, "preflight status output")
+        write_runtime_artifact_text_atomic(
+            evidence_dir,
+            status_path.parent / "summary.md",
             f"# {connector} {record['lock_profile']} preflight\n\n"
             f"- status: {markdown_value(record['status'], markdown_code)}\n"
             f"- reason_code: {markdown_value(record['reason_code'], markdown_code)}\n"
             f"- runtime_status: {markdown_value('NOT_RUN', markdown_code)}\n",
-            encoding="utf-8",
+            "preflight summary output",
         )
         records.append(record)
 
@@ -255,13 +288,20 @@ def collect(
         "preflight_status": preflight_status,
         "profiles": [record["lock_profile"] for record in records],
     }
-    write_record(evidence_dir / "hostruntime-record.json", runtime_record)
-    (evidence_dir / "summary.md").write_text(
+    write_record(
+        evidence_dir,
+        evidence_dir / "hostruntime-record.json",
+        runtime_record,
+        "host-runtime record",
+    )
+    write_runtime_artifact_text_atomic(
+        evidence_dir,
+        evidence_dir / "summary.md",
         f"# {connector} host-runtime evidence\n\n"
         f"- preflight_status: {markdown_value(preflight_status, markdown_code)}\n"
         f"- runtime_status: {markdown_value('NOT_RUN', markdown_code)}\n"
         f"- reason_code: {markdown_value(runtime_reason, markdown_code)}\n",
-        encoding="utf-8",
+        "host-runtime summary",
     )
     return evidence_dir
 
