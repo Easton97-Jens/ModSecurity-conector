@@ -352,3 +352,11 @@ zizmor, zweisprachige Dokumentation, Python-Syntaxkompilierung und
 `git diff --check`. Neue Exact-Head-Hosted-Runtime- und SonarQube-Cloud-
 Evidence bleibt erforderlich; dieser Record behauptet noch keinen Sonar-
 Nullbefund und keine erfolgreichen Runtime-Zellen.
+
+Die erste SonarQube-Cloud-Analyse für den exakten Head `263f8806…` bestand
+zwar ihr Quality Gate und schloss die beiden Security-Befunde, die offizielle
+PR-Issue-Abfrage enthielt jedoch noch einen task-eigenen `python:S1192`-
+Code-Smell für das wiederholte Unsafe-Path-Fehlerliteral. Das Literal ist jetzt
+eine Modulkonstante; das fail-closed Fehlerverhalten bleibt ohne Suppression
+erhalten. Eine neue Exact-Head-Analyse muss den vom Benutzer geforderten
+Null-Neu-Issues-Befund nachweisen.

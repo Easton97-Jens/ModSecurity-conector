@@ -329,3 +329,10 @@ environment-gated skips, actionlint, offline zizmor, bilingual documentation,
 Python syntax compilation, and `git diff --check`. New exact-head hosted
 runtime and SonarQube Cloud evidence is still required; this record does not
 claim a zero-issue Sonar result or successful runtime cells yet.
+
+The first SonarQube Cloud analysis for exact head `263f8806…` passed its
+Quality Gate and closed the two security findings, but its official PR issue
+query still returned one task-owned `python:S1192` code smell for the repeated
+unsafe-path error literal. The literal is now a module constant, preserving
+the fail-closed error semantics without a suppression. A new exact-head
+analysis must prove the user-required zero-new-issue result.

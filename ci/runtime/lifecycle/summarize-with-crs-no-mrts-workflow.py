@@ -33,6 +33,7 @@ STAGES = (
 SECURITY_SKIPPED_STAGE = ("haproxy", "upload_evidence")
 SUMMARY_DIRECTORY_NAME = "_runner_file_commands"
 SUMMARY_FILE_NAME = re.compile(r"^step_summary_[A-Za-z0-9_-]+$", re.ASCII)
+UNSAFE_SUMMARY_PATH = "GitHub step summary path is unsafe"
 
 
 def require_connector(value: str) -> str:
@@ -169,7 +170,7 @@ def _open_directory_without_symlinks(path: Path) -> int:
         or path == Path("/")
         or os.path.normpath(os.fspath(path)) != os.fspath(path)
     ):
-        raise ValueError("GitHub step summary path is unsafe")
+        raise ValueError(UNSAFE_SUMMARY_PATH)
     nofollow, directory, _nonblock, close_on_exec = _safe_open_flags()
     descriptor = -1
     try:
@@ -185,7 +186,7 @@ def _open_directory_without_symlinks(path: Path) -> int:
     except OSError as error:
         if descriptor >= 0:
             os.close(descriptor)
-        raise ValueError("GitHub step summary path is unsafe") from error
+        raise ValueError(UNSAFE_SUMMARY_PATH) from error
     return descriptor
 
 
@@ -217,17 +218,17 @@ def _open_github_step_summary(environment: Mapping[str, str]) -> int:
             not summary_path.is_absolute()
             or os.path.normpath(summary_value) != summary_value
         ):
-            raise ValueError("GitHub step summary path is unsafe")
+            raise ValueError(UNSAFE_SUMMARY_PATH)
         try:
             relative = summary_path.relative_to(runner_temp)
         except ValueError as error:
-            raise ValueError("GitHub step summary path is unsafe") from error
+            raise ValueError(UNSAFE_SUMMARY_PATH) from error
         if (
             len(relative.parts) != 2
             or relative.parts[0] != SUMMARY_DIRECTORY_NAME
             or not SUMMARY_FILE_NAME.fullmatch(relative.parts[1])
         ):
-            raise ValueError("GitHub step summary path is unsafe")
+            raise ValueError(UNSAFE_SUMMARY_PATH)
         summary_parent_descriptor = os.open(
             SUMMARY_DIRECTORY_NAME,
             os.O_RDONLY | directory | nofollow | close_on_exec,
@@ -251,7 +252,7 @@ def _open_github_step_summary(environment: Mapping[str, str]) -> int:
         summary_descriptor = -1
         return result
     except OSError as error:
-        raise ValueError("GitHub step summary path is unsafe") from error
+        raise ValueError(UNSAFE_SUMMARY_PATH) from error
     finally:
         if runner_descriptor >= 0:
             os.close(runner_descriptor)
