@@ -28,6 +28,14 @@ the publisher obtains a short-lived, repository-limited GitHub App token only
 after candidate and proposed-tree validation. It creates Draft pull requests
 only after explicit path, symlink, staged-scope, and candidate-SHA-256 checks.
 
+Workflow maintenance has one owner: Dependabot does not manage
+`github-actions` here. The updater resolves each lock record as a unit,
+updates every matching Action suffix (including all `github/codeql-action`
+components) and the central lock in one candidate, validates the complete
+proposed tree, and creates at most one matching Parent Draft pull request. All
+checkout steps use `submodules: false`; Framework/MRTS sources and gitlinks are
+outside this workflow's scope.
+
 The checked-in `ci/tooling/security-tools.lock.yml` remains the only lockfile
 and source of truth. Its on-disk `pinned_actions` records use `commit_sha` and
 `upstream`; tool records use `release_commit`, `url`, and `upstream`. The

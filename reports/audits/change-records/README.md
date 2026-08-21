@@ -10,6 +10,21 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260821-parent-only-workflow-maintenance-bundle](CR-20260821-parent-only-workflow-maintenance-bundle.md)
+  | [Deutsch](CR-20260821-parent-only-workflow-maintenance-bundle.de.md) — the
+  current user authorized one Parent-only bundled Action/tool maintenance path
+  and controlled #311 `master` integration after all protected-delivery
+  preconditions pass. The record retains that no Framework/MRTS change or
+  legacy Dependabot-PR action is authorized, and no merge has occurred or is
+  asserted in advance.
+
+- [CR-20260821-github-workflow-hostruntime-consolidation](CR-20260821-github-workflow-hostruntime-consolidation.md)
+  | [Deutsch](CR-20260821-github-workflow-hostruntime-consolidation.de.md) — the
+  current user authorized this Parent-only workflow consolidation, updater
+  repair, paired traceability, one branch, one commit, and one unmerged PR.
+  The record distinguishes observed local/security evidence from pending
+  exact-head hosted checks and asserts no Framework change or merge.
+
 - [CR-20260820-full-matrix-evidence-selector](CR-20260820-full-matrix-evidence-selector.md)
   | [Deutsch](CR-20260820-full-matrix-evidence-selector.de.md) — the current
   user explicitly authorized the Parent-only `AUDIT_AND_FIX` repair, its paired

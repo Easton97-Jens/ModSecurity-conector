@@ -44,7 +44,12 @@ PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
         "github.event.repository.default_branch == 'master'",
     }
 )
-SUBMODULE_PUBLISHER_SHA256 = "eb6113334cf6ab75245f4f7add91538cb968d4a79d3618583ac96ccca2d8f44f"
+LOCK_PATH = ROOT / "ci" / "tooling" / "security-tools.lock.yml"
+LOCKED_ACTION_USE = re.compile(
+    r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
+    r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
+)
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "486be1c4676f48e035b8f17ca7ec44f9651de539edc9620d83191f1052418bc6"
 AUTO_MERGE_DISABLED_QUERY = (
     "--jq 'if (has(\"auto_merge\") and (.auto_merge == null)) then \"null\" "
     "else \"auto-merge-present\" end'"
@@ -683,11 +688,6 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
 EXPECTED_WRITE_PERMISSIONS = {
     ("cleanup-artifacts.yml", "cleanup-artifacts"): {"actions": "write"},
     ("test-full-smoke-sequential.yml", "cleanup-artifacts"): {"actions": "write"},
-    ("update-actions-versions.yml", "update-actions-versions"): {
-        "contents": "write",
-        "pull-requests": "write",
-        "actions": "write",
-    },
     ("update-submodules.yml", "create-submodule-update-pr"): {
         "contents": "write",
         "pull-requests": "write",
@@ -1255,6 +1255,47 @@ def go_module_requirements(text: str) -> dict[str, tuple[int, int, int]]:
     return requirements
 
 
+def locked_action_pins() -> set[str]:
+    """Return immutable Action SHAs from the current reviewed lock."""
+
+    raw = yaml.safe_load(LOCK_PATH.read_text(encoding="utf-8"))
+    actions = raw.get("pinned_actions", {}) if isinstance(raw, dict) else {}
+    if not isinstance(actions, dict):
+        raise AssertionError("workflow Action lock has no pinned_actions mapping")
+    pins = {
+        record.get("commit_sha")
+        for record in actions.values()
+        if isinstance(record, dict) and isinstance(record.get("commit_sha"), str)
+    }
+    if not pins or any(not re.fullmatch(r"[a-f0-9]{40}", pin) for pin in pins):
+        raise AssertionError("workflow Action lock contains an invalid immutable pin")
+    return pins
+
+
+def locked_action_pin(name: str) -> str:
+    """Return one exact Action reference prefix bound to the reviewed lock."""
+
+    raw = yaml.safe_load(LOCK_PATH.read_text(encoding="utf-8"))
+    actions = raw.get("pinned_actions", {}) if isinstance(raw, dict) else {}
+    record = actions.get(name) if isinstance(actions, dict) else None
+    if not isinstance(record, dict) or not isinstance(record.get("commit_sha"), str):
+        raise AssertionError(f"workflow Action lock has no immutable pin for {name}")
+    return f"{name}@{record['commit_sha']}"
+
+
+def normalize_locked_action_pins(text: str) -> str:
+    """Canonicalize only reviewed Action pins before a structural digest check."""
+
+    pins = locked_action_pins()
+
+    def replace(match: re.Match[str]) -> str:
+        if match.group("sha") not in pins:
+            return match.group(0)
+        return f"{match.group('prefix')}<locked-action> # <locked-version>"
+
+    return LOCKED_ACTION_USE.sub(replace, text)
+
+
 class CiSecurityWorkflowTest(unittest.TestCase):
     def workflow(self, name: str) -> str:
         return (WORKFLOWS / name).read_text(encoding="utf-8")
@@ -1266,8 +1307,11 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         return job_blocks(self.workflow(name))
 
     def test_all_remote_actions_are_immutable_sha_pins(self) -> None:
-        lock_text = (ROOT / "ci" / "tooling" / "security-tools.lock.yml").read_text(encoding="utf-8")
-        recorded_shas = set(re.findall(r"commit_sha: ([a-f\d]{40})", lock_text))
+        lock_data = yaml.safe_load(LOCK_PATH.read_text(encoding="utf-8"))
+        locked_actions = (
+            lock_data.get("pinned_actions", {}) if isinstance(lock_data, dict) else {}
+        )
+        self.assertIsInstance(locked_actions, dict)
         for path in self.workflow_paths():
             for line in path.read_text(encoding="utf-8").splitlines():
                 if "uses:" not in line or "@" not in line or "./" in line:
@@ -1280,7 +1324,15 @@ class CiSecurityWorkflowTest(unittest.TestCase):
                     self.assertEqual(reference, PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE)
                     continue
                 self.assertRegex(reference, SHA_PIN, f"{path}: {line}")
-                self.assertIn(reference.split("@", 1)[1].split()[0], recorded_shas, f"{path}: {line}")
+                action_with_suffix, pinned_sha = reference.split("@", 1)
+                action_name = "/".join(action_with_suffix.split("/")[:2])
+                record = locked_actions.get(action_name)
+                self.assertIsInstance(record, dict, f"{path}: {line}")
+                self.assertEqual(
+                    pinned_sha.split()[0],
+                    record.get("commit_sha"),
+                    f"{path}: {line}",
+                )
 
     def test_workflow_and_lock_yaml_reject_forbidden_indirection(self) -> None:
         unsafe = """\
@@ -1536,17 +1588,14 @@ jobs:
         self.assertNotIn("github.token", job)
         checkout_steps = checkout_step_blocks(job)
         self.assertEqual(len(checkout_steps), 1)
-        self.assertIn("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7", checkout_steps[0])
+        self.assertIn(locked_action_pin("actions/checkout"), checkout_steps[0])
         self.assertIn("submodules: recursive", checkout_steps[0])
         self.assertIn("persist-credentials: false", checkout_steps[0])
         self.assertIn(
             "python3 -m unittest -v tests.test_framework_apr_util_provenance tests.test_apr_util_static_contract",
             job,
         )
-        self.assertIn(
-            "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0",
-            job,
-        )
+        self.assertIn(locked_action_pin("actions/setup-python"), job)
         self.assertIn("id: setup-python", job)
         self.assertIn("python-version-file: .python-version", job)
         self.assertIn("check-latest: false", job)
@@ -2386,7 +2435,10 @@ sudo -n chmod 0750 "$namespace_parent"
                 self.assertNotEqual(update_submodule_validate_only_errors(mutated), [])
 
         self.assertIn("submodules: false", publisher)
-        self.assertEqual(sha256(publisher.encode("utf-8")).hexdigest(), SUBMODULE_PUBLISHER_SHA256)
+        self.assertEqual(
+            sha256(normalize_locked_action_pins(publisher).encode("utf-8")).hexdigest(),
+            SUBMODULE_PUBLISHER_NORMALIZED_SHA256,
+        )
         self.assertIn("persist-credentials: false", publisher)
         self.assertIn("id: setup-python", publisher)
         self.assertIn(
@@ -2616,16 +2668,47 @@ sudo -n chmod 0750 "$namespace_parent"
             self.assertEqual(len(widened_records), 2)
             self.assertFalse(len(widened_records) == 1 and bool(expected.fullmatch(widened_records[0])))
 
-    def test_manual_actions_updater_uses_a_trusted_default_branch(self) -> None:
-        job = self.jobs("update-actions-versions.yml")["update-actions-versions"]
-        self.assertIn(
-            "if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
-            job,
-        )
-        checkouts = checkout_step_blocks(job)
-        self.assertEqual(len(checkouts), 1)
-        self.assertIn("ref: ${{ github.event.repository.default_branch }}", checkouts[0])
-        self.assertIn("persist-credentials: false", checkouts[0])
+    def test_workflow_tool_updater_is_the_sole_parent_only_action_maintainer(self) -> None:
+        for retired_path in (
+            WORKFLOWS / "check-actions-versions.yml",
+            WORKFLOWS / "update-actions-versions.yml",
+            ROOT / "scripts/check-github-actions-versions.py",
+            ROOT / "scripts/update-github-actions-versions.py",
+            ROOT / "tests/test_update_github_actions_versions.py",
+        ):
+            self.assertFalse(retired_path.exists(), retired_path)
+
+        common_scaffold = (WORKFLOWS / "test-common.yml").read_text(encoding="utf-8")
+        self.assertNotIn("test_update_github_actions_versions.py", common_scaffold)
+
+        dependabot = (ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
+        self.assertNotIn('package-ecosystem: "github-actions"', dependabot)
+        self.assertIn('package-ecosystem: "pip"', dependabot)
+
+        workflow_name = "update-workflow-tools.yml"
+        workflow = self.workflow(workflow_name)
+        jobs = self.jobs(workflow_name)
+        self.assertEqual(set(jobs), {"resolver", "validator", "publisher", "outcome"})
+        publisher = jobs["publisher"]
+        for required_guard in (
+            "github.repository == 'Easton97-Jens/ModSecurity-conector'",
+            "github.event.repository.fork == false",
+            "github.event.repository.default_branch == 'master'",
+            "github.ref == 'refs/heads/master'",
+        ):
+            self.assertIn(required_guard, publisher)
+        for job_name in ("resolver", "validator", "publisher"):
+            for checkout in checkout_step_blocks(jobs[job_name]):
+                self.assertIn("submodules: false", checkout, job_name)
+                self.assertNotIn("submodules: recursive", checkout, job_name)
+        for forbidden in (
+            "SUBMODULE_UPDATE_TOKEN",
+            "modules/ModSecurity-test-Framework",
+            "git submodule",
+            "module_repo",
+            "automation/update-github-actions-versions",
+        ):
+            self.assertNotIn(forbidden, workflow)
 
     def test_python_patch_updater_separates_trusted_stages_and_writer_scope(self) -> None:
         workflow_name = "update-python-version.yml"
@@ -2694,10 +2777,7 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("WORKFLOW_UPDATER_APP_PRIVATE_KEY", publisher)
         self.assertIn("::error::WORKFLOW_UPDATER_APP_CLIENT_ID", publisher)
         self.assertIn("::error::WORKFLOW_UPDATER_APP_PRIVATE_KEY", publisher)
-        self.assertIn(
-            "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0",
-            publisher,
-        )
+        self.assertIn(locked_action_pin("actions/create-github-app-token"), publisher)
         self.assertIn("permission-contents: write", publisher)
         self.assertIn("permission-pull-requests: write", publisher)
         self.assertNotIn("permission-workflows:", publisher)
