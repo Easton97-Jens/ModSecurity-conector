@@ -9,15 +9,15 @@
 | Change ID | `CR-20260820-enable-crs-runtime-envoy-traefik-lighttpd` |
 | Date (UTC) | 2026-08-20 |
 | Base revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Observed current `origin/master` | `aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf` |
-| Parent → Framework pin | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
+| Observed current `origin/master` | `cd6bc68fda3916baf53c03740eb74aa15744a596` |
+| Parent → Framework pin | `89881a1b33219fc18df3cf2f15dda53261d13443` |
 | Framework → MRTS pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The latest hosted exact head is `e432b1e748dc8f49b98ed1a29e8d7277a40763a5`; its hosted validation is not successful. A Parent-only follow-up for the observed Lighttpd status-normalization failure is pending exact-head validation. No merge or auto-merge is authorized. |
+| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The branch was normally synchronized with `origin/master` through merge commit `50767822`; post-update exact-head hosted validation is pending. The current Framework pin contains the HAProxy provisioning-order correction from Framework PR #102. No merge or auto-merge is authorized. |
 
-The task worktree was created from the recorded task base. `origin/master`
-subsequently advanced to the separately recorded current value. This record
-does not claim that the later base has been incorporated; that decision and any
-required revalidation remain delivery-gated.
+The task worktree was created from the recorded task base and later normally
+merged with the separately recorded current `origin/master`. Earlier hosted
+results remain historical only; all required revalidation remains
+delivery-gated.
 
 ## Motivation and problem statement
 
@@ -185,9 +185,12 @@ the uploaded evidence validated against the unchanged pinned Framework as
 corresponding `Trying`, `Established`, and `Connected` spellings with literal
 `127.0.0.1`, valid source and target ports, exactly one marker of each kind,
 and matching attempted/connected target ports. HAProxy was blocked before
-runtime by the read-only
-Framework ordering at `bd69ee96e0e7082317d4afe1232bee625665eb9a`, which invokes
-`verify_build_target` before `prepare_build_worktree`.
+runtime by the old read-only Framework ordering at
+`bd69ee96e0e7082317d4afe1232bee625665eb9a`, which invoked
+`verify_build_target` before `prepare_build_worktree`. The current Parent pin
+is `89881a1b33219fc18df3cf2f15dda53261d13443`, which contains Framework PR
+#102's ordering correction. A fresh exact-head HAProxy runtime validation
+remains mandatory; no successful result is asserted here.
 
 The required PR-triggered P1 namespace test failed closed because the hosted
 environment did not provide the required user, mount, or PID namespace
@@ -227,11 +230,11 @@ The hosted namespace test has now failed closed because the runner did not
 provide the required namespace capability.
 This is an environment blocker for that integration test, not evidence that the
 control is unnecessary or that a weaker cleanup path is permitted. The
-bilingual documentation target is also blocked by the uninitialized Framework
-Gitlink. The current task base also differs from observed `origin/master`; the
-PR remains Draft and delivery requires renewed exact-head validation according
-to the current base strategy. No Framework, MRTS, or Gitlink change is part of
-this work.
+bilingual documentation target still requires the exact pinned Framework
+checkout for its repository-native validation. The task branch is now normally
+synchronized with observed `origin/master`; the PR remains Draft and delivery
+requires renewed exact-head validation. No Framework, MRTS, or task-created
+Gitlink change is part of this work.
 
 ## Remaining risks
 
@@ -240,8 +243,9 @@ tests pass, the P1 remediation is not eligible for a verified-PR claim. The
 implementation must continue to fail closed rather than fall back to path-based
 deletion. Runtime promotion also remains contingent on real CRS rule evidence,
 No-MRTS proof, cleanup evidence, exact-head hosted checks, and the required
-quality/security gates. The HAProxy Framework ordering dependency currently
-blocks full-matrix completion.
+quality/security gates. The updated Framework revision removes the previously
+known HAProxy ordering failure, but a fresh exact-head HAProxy run is still
+required before it can cease to be a matrix blocker.
 
 ## Final diff and review status
 

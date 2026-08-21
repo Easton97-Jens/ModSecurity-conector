@@ -68,7 +68,7 @@ jobs:
       RUNTIME_COMPONENT_TARGET: ${{ matrix.runtime_component_target }}
       CRS_RUNTIME_RUN_ID: crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.connector }}
       EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      EXPECTED_FRAMEWORK_SHA: bd69ee96e0e7082317d4afe1232bee625665eb9a
+      EXPECTED_FRAMEWORK_SHA: 89881a1b33219fc18df3cf2f15dda53261d13443
       EXPECTED_MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
       EVIDENCE_ROOT: ""
       PYTHONDONTWRITEBYTECODE: "1"

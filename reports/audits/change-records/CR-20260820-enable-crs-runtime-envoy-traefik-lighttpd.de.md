@@ -9,16 +9,15 @@
 | Change-ID | `CR-20260820-enable-crs-runtime-envoy-traefik-lighttpd` |
 | Datum (UTC) | 2026-08-20 |
 | Basis-Revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Beobachteter aktueller `origin/master` | `aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf` |
-| Parent → Framework Pin | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
+| Beobachteter aktueller `origin/master` | `cd6bc68fda3916baf53c03740eb74aa15744a596` |
+| Parent → Framework Pin | `89881a1b33219fc18df3cf2f15dda53261d13443` |
 | Framework → MRTS Pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der letzte gehostete exakte Head ist `e432b1e748dc8f49b98ed1a29e8d7277a40763a5`; seine Hosted-Validierung ist nicht erfolgreich. Ein Parent-only-Follow-up für den beobachteten Lighttpd-Statusnormalisierungsfehler wartet auf Exact-Head-Validierung. Kein Merge und kein Auto-Merge sind autorisiert. |
+| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der Branch wurde per normalem Merge-Commit `50767822` mit `origin/master` synchronisiert; die Exact-Head-Hosted-Validierung nach dem Update steht aus. Der aktuelle Framework-Pin enthält die HAProxy-Provisionierungsreihenfolgekorrektur aus Framework-PR #102. Kein Merge und kein Auto-Merge sind autorisiert. |
 
-Der Task-Worktree wurde von der aufgezeichneten Task-Basis erstellt.
-`origin/master` ist anschließend auf den separat aufgezeichneten aktuellen Wert
-weitergelaufen. Dieser Record behauptet nicht, dass die spätere Basis enthalten
-ist; diese Entscheidung und jede erforderliche Revalidierung bleiben
-Delivery-gesteuert.
+Der Task-Worktree wurde von der aufgezeichneten Task-Basis erstellt und später
+per normalem Merge mit dem separat aufgezeichneten aktuellen `origin/master`
+synchronisiert. Frühere Hosted-Ergebnisse bleiben ausschließlich historisch;
+alle erforderlichen Revalidierungen bleiben Delivery-gesteuert.
 
 ## Motivation und Problemstellung
 
@@ -198,11 +197,14 @@ gepinnte Framework als `CONTRACT_VALIDATED`. Die vorausgehende Curl-Korrektur
 akzeptiert ausschließlich die entsprechenden `Trying`-, `Established`- und
 `Connected`-Schreibweisen mit literalem `127.0.0.1`, gültigen Source- und
 Zielports, genau einem Marker jeder Art und übereinstimmenden
-Versuch-/Verbindungs-Zielports. HAProxy war vor der Runtime
-durch die read-only-
-Framework-Reihenfolge bei
+Versuch-/Verbindungs-Zielports. HAProxy war vor der Runtime durch die alte
+read-only-Framework-Reihenfolge bei
 `bd69ee96e0e7082317d4afe1232bee625665eb9a` blockiert, die
-`verify_build_target` vor `prepare_build_worktree` aufruft.
+`verify_build_target` vor `prepare_build_worktree` aufrief. Der aktuelle
+Parent-Pin ist `89881a1b33219fc18df3cf2f15dda53261d13443` und enthält die
+Reihenfolgekorrektur aus Framework-PR #102. Eine frische Exact-Head-HAProxy-
+Runtime-Validierung bleibt verpflichtend; dieser Record behauptet keinen
+Erfolg.
 
 Der erforderliche PR-ausgelöste P1-Namespace-Test schlug fail-closed fehl,
 weil die Hosted-Umgebung die nötige User-, Mount- oder PID-Namespace-
@@ -244,12 +246,12 @@ seinem vorgesehenen Nicht-root-Aufrufer. Der Hosted-Namespace-Test schlug
 fail-closed fehl, weil der Runner die erforderliche Namespace-Capability nicht
 bereitstellte. Das ist ein Umgebungsblocker für
 diesen Integrationstest, kein Nachweis, dass die Kontrolle unnötig ist oder ein
-schwächerer Cleanup-Pfad erlaubt wäre. Das bilinguale Dokumentationsziel ist
-außerdem durch den uninitialisierten Framework-Gitlink blockiert. Die aktuelle
-Task-Basis unterscheidet sich zudem vom beobachteten `origin/master`; der PR
-bleibt Draft und die Delivery erfordert eine erneute Exact-Head-Validierung
-gemäß der aktuellen Basisstrategie. Keine Framework-, MRTS- oder Gitlink-
-Änderung ist Teil dieser Arbeit.
+schwächerer Cleanup-Pfad erlaubt wäre. Das bilinguale Dokumentationsziel
+benötigt für seine repository-native Validierung weiterhin den exakten
+gepinnten Framework-Checkout. Der Task-Branch ist jetzt per normalem Merge mit
+dem beobachteten `origin/master` synchronisiert; der PR bleibt Draft und die
+Delivery erfordert eine erneute Exact-Head-Validierung. Keine Framework-,
+MRTS- oder task-erzeugte Gitlink-Änderung gehört zu dieser Arbeit.
 
 ## Verbleibende Risiken
 
@@ -259,8 +261,9 @@ verified-PR-Claim geeignet. Die Implementierung muss weiter fail-closed sein,
 statt auf pfadbasierte Löschung zurückzufallen. Die Runtime-Promotion hängt
 außerdem von realer CRS-Regel-Evidence, No-MRTS-Nachweis, Cleanup-Evidence,
 Exact-Head-Hosted-Checks und den erforderlichen Qualitäts-/Security-Gates ab.
-Die Framework-Abhängigkeit der HAProxy-Reihenfolge blockiert derzeit die
-Vervollständigung der Matrix.
+Die aktualisierte Framework-Revision entfernt den zuvor bekannten HAProxy-
+Reihenfolgefehler, aber ein frischer Exact-Head-HAProxy-Lauf bleibt erforderlich,
+bevor er kein Matrix-Blocker mehr ist.
 
 ## Finaler Diff- und Review-Status
 
