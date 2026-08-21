@@ -11,6 +11,13 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260820-full-matrix-evidence-selector](CR-20260820-full-matrix-evidence-selector.de.md) —
+  der aktuelle Benutzer hat die Parent-only-`AUDIT_AND_FIX`-Reparatur, ihren
+  gekoppelten Change Record und später einen Parent-Draft-PR ausdrücklich
+  autorisiert; keine Framework-Source-Änderung ist autorisiert. Der Record
+  weist nur beobachtete lokale Evidence aus; Hosted-Ergebnisse und ein Merge
+  werden nicht behauptet.
+
 - [CR-20260819-fnd-parent-0185-crs-provenance-exports](CR-20260819-fnd-parent-0185-crs-provenance-exports.de.md) —
   der aktuelle Benutzer hat diese Parent-only-Reparatur und einen Draft-PR
   autorisiert und Framework-Moduländerungen ausdrücklich untersagt. Die
