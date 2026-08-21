@@ -9,7 +9,7 @@
 | Change ID | CR-20260821-parent-only-workflow-maintenance-bundle |
 | Date (UTC) | 2026-08-21 |
 | Base revision | \`aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf\` |
-| Delivery status | The existing Parent-only pull request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) is the sole delivery vehicle. A follow-up commit, push, and exact-head hosted checks are pending; merge is not authorized. PRs #306–#308 are not modified or closed by this task. |
+| Delivery status | The existing Parent-only pull request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) is the sole delivery vehicle. Exact-head hosted checks are pending after the final stale-scaffold-reference correction; merge is not authorized. PRs #306–#308 are not modified or closed by this task. |
 
 ## Motivation and problem statement
 
@@ -53,6 +53,9 @@ central lock and make CI red.
   its exact central-lock SHA. The regression suite proves a CodeQL candidate
   changes its central lock plus all ten \`init\`/\`analyze\`/\`upload-sarif\`
   references as one unit.
+- Removed the obsolete common-scaffold assertion for the retired legacy updater
+  test and made the Parent-only maintenance regression reject that stale
+  reference going forward.
 
 ## Security impact
 
@@ -71,6 +74,7 @@ the retired module path or splitting updates, and is tracked separately as
 
 - \`.github/dependabot.yml\`
 - \`.github/workflows/update-workflow-tools.yml\`
+- \`.github/workflows/test-common.yml\`
 - \`.gitignore\`
 - \`ci/checks/common/check-python-version-contract.py\`
 - \`ci/tools/update-workflow-tools.py\`
@@ -130,7 +134,6 @@ would exceed the Parent-only maintenance scope or require separate authority.
 
 ## Final diff and review status
 
-The local source, test, workflow, and security review is complete pending final
-diff checks, delivery preflight, the one follow-up commit/push to #311, and
-exact-head hosted results. The task does not claim that PRs #306–#308 are
-closed, merged, or superseded remotely.
+The local source, test, workflow, and security review is complete pending the
+final follow-up commit/push to #311 and exact-head hosted results. The task
+does not claim that PRs #306–#308 are closed, merged, or superseded remotely.

@@ -9,7 +9,7 @@
 | Change-ID | CR-20260821-parent-only-workflow-maintenance-bundle |
 | Datum (UTC) | 2026-08-21 |
 | Basis-Revision | \`aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf\` |
-| Delivery-Status | Der bestehende Parent-only-Pull-Request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) ist der einzige Delivery-Weg. Ein Follow-up-Commit, Push und Exact-Head-Hosted-Checks stehen aus; ein Merge ist nicht autorisiert. Die PRs #306–#308 werden durch diese Aufgabe weder verändert noch geschlossen. |
+| Delivery-Status | Der bestehende Parent-only-Pull-Request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) ist der einzige Delivery-Weg. Nach der abschließenden Korrektur der veralteten Scaffold-Referenz stehen Exact-Head-Hosted-Checks aus; ein Merge ist nicht autorisiert. Die PRs #306–#308 werden durch diese Aufgabe weder verändert noch geschlossen. |
 
 ## Motivation und Problemstellung
 
@@ -56,6 +56,9 @@ oder den zentralen Lock auslassen und CI rot machen können.
   zentralen-Lock-SHA auf. Die Regression-Suite beweist, dass ein
   CodeQL-Kandidat den zentralen Lock und alle zehn \`init\`-/\`analyze\`-/
   \`upload-sarif\`-Referenzen als Einheit ändert.
+- Die veraltete Common-Scaffold-Assertion für den stillgelegten Legacy-Updater-
+  Test wurde entfernt; die Parent-only-Wartungsregression weist diese veraltete
+  Referenz künftig zurück.
 
 ## Security-Auswirkung
 
@@ -75,6 +78,7 @@ Updates und wird separat als \`FND-PARENT-0205\` verfolgt.
 
 - \`.github/dependabot.yml\`
 - \`.github/workflows/update-workflow-tools.yml\`
+- \`.github/workflows/test-common.yml\`
 - \`.gitignore\`
 - \`ci/checks/common/check-python-version-contract.py\`
 - \`ci/tools/update-workflow-tools.py\`
@@ -138,7 +142,7 @@ Maintenance-Scope überschreiten oder getrennte Autorität erfordern.
 
 ## Finaler Diff- und Review-Status
 
-Der lokale Source-, Test-, Workflow- und Security-Review ist abgeschlossen,
-vorbehaltlich finaler Diff-Checks, Delivery-Preflight, eines Follow-up-Commits/
-Pushs auf #311 und Exact-Head-Hosted-Ergebnissen. Die Aufgabe behauptet nicht,
-dass PRs #306–#308 remote geschlossen, gemergt oder ersetzt sind.
+Der lokale Source-, Test-, Workflow- und Security-Review ist abgeschlossen;
+aus stehen der finale Follow-up-Commit/Push zu #311 und die
+Exact-Head-Hosted-Ergebnisse. Die Aufgabe behauptet nicht, dass PRs #306–#308
+remote geschlossen, gemergt oder ersetzt sind.

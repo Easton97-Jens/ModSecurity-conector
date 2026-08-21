@@ -2674,8 +2674,12 @@ sudo -n chmod 0750 "$namespace_parent"
             WORKFLOWS / "update-actions-versions.yml",
             ROOT / "scripts/check-github-actions-versions.py",
             ROOT / "scripts/update-github-actions-versions.py",
+            ROOT / "tests/test_update_github_actions_versions.py",
         ):
             self.assertFalse(retired_path.exists(), retired_path)
+
+        common_scaffold = (WORKFLOWS / "test-common.yml").read_text(encoding="utf-8")
+        self.assertNotIn("test_update_github_actions_versions.py", common_scaffold)
 
         dependabot = (ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
         self.assertNotIn('package-ecosystem: "github-actions"', dependabot)
