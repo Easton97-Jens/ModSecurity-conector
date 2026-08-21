@@ -9,7 +9,7 @@
 | Change-ID | CR-20260821-parent-only-workflow-maintenance-bundle |
 | Datum (UTC) | 2026-08-21 |
 | Basis-Revision | \`aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf\` |
-| Delivery-Status | Der bestehende Parent-only-Pull-Request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) ist der einzige Delivery-Weg. Nach der abschließenden Korrektur der veralteten Scaffold-Referenz stehen Exact-Head-Hosted-Checks aus; ein Merge ist nicht autorisiert. Die PRs #306–#308 werden durch diese Aufgabe weder verändert noch geschlossen. |
+| Delivery-Status | Der bestehende Parent-only-Pull-Request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) ist der einzige Delivery-Weg. Nach den Korrekturen der veralteten Scaffold-Referenz und des Python-Workflow-Inventar-Contracts stehen Exact-Head-Hosted-Checks aus; ein Merge ist nicht autorisiert. Die PRs #306–#308 werden durch diese Aufgabe weder verändert noch geschlossen. |
 
 ## Motivation und Problemstellung
 
@@ -59,6 +59,10 @@ oder den zentralen Lock auslassen und CI rot machen können.
 - Die veraltete Common-Scaffold-Assertion für den stillgelegten Legacy-Updater-
   Test wurde entfernt; die Parent-only-Wartungsregression weist diese veraltete
   Referenz künftig zurück.
+- Das veraltete hartcodierte Python-Inventar wurde nach dem Stilllegen der zwei
+  Legacy-Jobs korrigiert: 36 normale und insgesamt 40 Python-ausführende
+  Workflow-Jobs. Die Regression stellt jetzt zusätzlich sicher, dass beide
+  stillgelegten Workflow-Job-Identitäten abwesend bleiben.
 
 ## Security-Auswirkung
 
@@ -89,6 +93,7 @@ Updates und wird separat als \`FND-PARENT-0205\` verfolgt.
 - \`tests/security_regression/test_workflow_security_contract.py\`
 - \`tests/test_ci_security_workflows.py\`
 - stillgelegte Legacy-Actions-Wartungsworkflows, Skripte und Tests
+- `tests/test_python_version_contract.py`
 - dieses gekoppelte Change-Record-Paar und die gekoppelten Archivindizes
 
 ## Ausgeführte Befehle
@@ -102,6 +107,9 @@ Updates und wird separat als \`FND-PARENT-0205\` verfolgt.
 | \`make check-ci-security-contract\` | bestanden: 122 Tests, 5 erwartete Capability-Skips und Validierung gepinnter Tool-Metadaten |
 | \`make check-python-version-contract\` | bestanden: Python 3.14.7 und 40 Python-ausführende Workflow-Jobs |
 | Alle Workflow-YAML parsen | bestanden |
+| `tests.test_hostruntime_workflow_evidence_contract`, `tests.test_collect_hostruntime_preflight_evidence` und `tests.test_python_version_contract` | bestanden: 30 Tests nach der Python-Inventar-Korrektur |
+| `python3 ci/checks/common/check-python-version-contract.py` | bestanden: Python 3.14.7 und 40 Python-ausführende Workflow-Jobs |
+| `make check-ci-security-contract` (aktueller lokaler Successor) | bestanden: 122 Tests, 5 erwartete Capability-Skips und Validierung gepinnter Tool-Metadaten |
 | actionlint mit ShellCheck | bestanden |
 | offline-zizmor | bestanden: keine Findings; 86 bestehende Suppressions berücksichtigt |
 | `make check-bilingual-docs` | nur durch vorbestehende fehlende Ziele im absichtlich nicht initialisierten Framework-Gitlink blockiert; dieses gekoppelte Record-Paar besteht seine erforderlichen Section-Checks |
@@ -144,5 +152,7 @@ Maintenance-Scope überschreiten oder getrennte Autorität erfordern.
 
 Der lokale Source-, Test-, Workflow- und Security-Review ist abgeschlossen;
 aus stehen der finale Follow-up-Commit/Push zu #311 und die
-Exact-Head-Hosted-Ergebnisse. Die Aufgabe behauptet nicht, dass PRs #306–#308
-remote geschlossen, gemergt oder ersetzt sind.
+Exact-Head-Hosted-Ergebnisse. Das Follow-up korrigiert nur den Python-
+Workflow-Inventar-Testvertrag; der separate NGINX-Workflow wird nicht
+verändert. Die Aufgabe behauptet nicht, dass PRs #306–#308 remote geschlossen,
+gemergt oder ersetzt sind.

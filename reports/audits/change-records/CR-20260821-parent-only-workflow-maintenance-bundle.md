@@ -9,7 +9,7 @@
 | Change ID | CR-20260821-parent-only-workflow-maintenance-bundle |
 | Date (UTC) | 2026-08-21 |
 | Base revision | \`aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf\` |
-| Delivery status | The existing Parent-only pull request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) is the sole delivery vehicle. Exact-head hosted checks are pending after the final stale-scaffold-reference correction; merge is not authorized. PRs #306–#308 are not modified or closed by this task. |
+| Delivery status | The existing Parent-only pull request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) is the sole delivery vehicle. Exact-head hosted checks are pending after the stale-scaffold-reference and Python workflow-inventory contract corrections; merge is not authorized. PRs #306–#308 are not modified or closed by this task. |
 
 ## Motivation and problem statement
 
@@ -56,6 +56,9 @@ central lock and make CI red.
 - Removed the obsolete common-scaffold assertion for the retired legacy updater
   test and made the Parent-only maintenance regression reject that stale
   reference going forward.
+- Corrected the stale hard-coded Python inventory after retiring the two legacy
+  jobs: 36 normal and 40 total Python-executing workflow jobs. The regression
+  now also asserts that both retired workflow-job identifiers remain absent.
 
 ## Security impact
 
@@ -85,6 +88,7 @@ the retired module path or splitting updates, and is tracked separately as
 - \`tests/security_regression/test_workflow_security_contract.py\`
 - \`tests/test_ci_security_workflows.py\`
 - retired legacy Actions-maintenance workflows, scripts, and tests
+- `tests/test_python_version_contract.py`
 - this paired Change Record and paired archive indexes
 
 ## Commands executed
@@ -98,6 +102,9 @@ the retired module path or splitting updates, and is tracked separately as
 | \`make check-ci-security-contract\` | passed: 122 tests, 5 expected capability skips, and locked tool metadata validation |
 | \`make check-python-version-contract\` | passed: Python 3.14.7 and 40 Python-executing workflow jobs |
 | Parse all workflow YAML | passed |
+| `tests.test_hostruntime_workflow_evidence_contract`, `tests.test_collect_hostruntime_preflight_evidence`, and `tests.test_python_version_contract` | passed: 30 tests after the Python-inventory correction |
+| `python3 ci/checks/common/check-python-version-contract.py` | passed: Python 3.14.7 and 40 Python-executing workflow jobs |
+| `make check-ci-security-contract` (current local successor) | passed: 122 tests, 5 expected capability skips, and locked tool metadata validation |
 | actionlint with ShellCheck | passed |
 | offline zizmor | passed: no findings; 86 existing suppressions honored |
 | `make check-bilingual-docs` | blocked only by pre-existing missing targets in the intentionally uninitialized Framework Gitlink; this paired record passes its required-section checks |
@@ -135,5 +142,7 @@ would exceed the Parent-only maintenance scope or require separate authority.
 ## Final diff and review status
 
 The local source, test, workflow, and security review is complete pending the
-final follow-up commit/push to #311 and exact-head hosted results. The task
-does not claim that PRs #306–#308 are closed, merged, or superseded remotely.
+final follow-up commit/push to #311 and exact-head hosted results. The
+follow-up only corrects the Python workflow-inventory test contract; it does
+not modify the separate NGINX workflow. The task does not claim that PRs
+#306–#308 are closed, merged, or superseded remotely.
