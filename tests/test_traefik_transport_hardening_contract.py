@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import http.client
 import http.server
 import importlib.util
 import json
 import os
+import socket
 import sys
 import tempfile
 import threading
@@ -66,6 +68,91 @@ class _KeepAliveHandler(http.server.BaseHTTPRequestHandler):
 
 
 class TraefikTransportHardeningContractTest(unittest.TestCase):
+    def test_mrts_get_case_reaches_the_native_upstream(self) -> None:
+        runtime = load_runtime_module()
+        state = runtime.UpstreamState()
+        server = http.server.ThreadingHTTPServer(
+            ("127.0.0.1", 0), runtime.upstream_handler(state)
+        )
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            connection = http.client.HTTPConnection(
+                "127.0.0.1", server.server_port, timeout=5
+            )
+            connection.request("GET", "/?mrts_control=1")
+            response = connection.getresponse()
+            body = response.read()
+            connection.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(response.status, 200)
+        self.assertIn(b"native-traefik-first-chunk", body)
+        self.assertEqual(state.request_count, 1)
+        self.assertEqual(state.request_body_bytes, 0)
+
+    def test_mrts_get_case_rejects_a_request_body(self) -> None:
+        runtime = load_runtime_module()
+        state = runtime.UpstreamState()
+        server = http.server.ThreadingHTTPServer(
+            ("127.0.0.1", 0), runtime.upstream_handler(state)
+        )
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            connection = http.client.HTTPConnection(
+                "127.0.0.1", server.server_port, timeout=5
+            )
+            connection.request("GET", "/?mrts_control=1", body=b"unexpected")
+            response = connection.getresponse()
+            response.read()
+            connection.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(response.status, 400)
+        self.assertEqual(state.request_count, 0)
+
+    def test_mrts_get_case_rejects_chunked_body_framing_without_followup(self) -> None:
+        runtime = load_runtime_module()
+        state = runtime.UpstreamState()
+        server = http.server.ThreadingHTTPServer(
+            ("127.0.0.1", 0), runtime.upstream_handler(state)
+        )
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with socket.create_connection(
+                ("127.0.0.1", server.server_port), timeout=5
+            ) as connection:
+                connection.sendall(
+                    b"GET /?mrts_control=1 HTTP/1.1\r\n"
+                    b"Host: 127.0.0.1\r\n"
+                    b"Transfer-Encoding: chunked\r\n"
+                    b"\r\n"
+                    b"0\r\n\r\n"
+                    b"GET /?mrts_control=1 HTTP/1.1\r\n"
+                    b"Host: 127.0.0.1\r\n\r\n"
+                )
+                response = bytearray()
+                while True:
+                    chunk = connection.recv(4096)
+                    if not chunk:
+                        break
+                    response.extend(chunk)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertIn(b"400 Bad Request", response)
+        self.assertEqual(state.request_count, 0)
+
     def test_safe_followup_requires_the_same_http11_connection(self) -> None:
         runtime = load_runtime_module()
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _KeepAliveHandler)

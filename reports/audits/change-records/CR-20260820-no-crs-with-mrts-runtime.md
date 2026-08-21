@@ -12,7 +12,7 @@
 | Parent boundary | Parent only; current Framework and MRTS gitlinks consumed read-only |
 | Framework gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | MRTS gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Task branch implementation committed through `e7316caa4a5123bb7a9177424c1814b8c52b01b8`; this record includes a narrow Traefik load-guard repair; no push, PR, merge, or hosted result asserted |
+| Delivery status | Earlier task-branch implementation is committed through `27b7e5a51db6e52f237e230046b9f709089aa525`; this record documents narrow Traefik load-guard and GET-upstream repairs; no push, PR, merge, or hosted result asserted |
 
 ## Motivation and problem statement
 
@@ -96,6 +96,17 @@ components; focused controls reject `crs` and `owasp-crs` components and accept
 a `no-crs` parent. `FND-PARENT-0201` preserves the diagnostic and keeps release
 promotion blocked until two fresh exact-head Traefik receipts.
 
+Fresh Traefik `r3` on Parent `27b7e5a5` passed that guard, built the pinned
+Traefik runtime, and reached the real native host. Its first legitimate MRTS
+GET control then received HTTP 501 from the local upstream fixture: the sealed
+executor intentionally sends GET cases, while that fixture implemented only
+`do_POST`. This is a task-owned fixture capability gap, not CRS, rule, or host
+middleware evidence. No MRTS receipt was written, and host cleanup still
+completed. The fixture now routes body-free GET and existing POST requests
+through the same bounded response path, and rejects GET body framing;
+a direct GET control contract prevents a repeat of the 501. It still requires
+two fresh receipts on the new candidate head before promotion.
+
 ## Security impact
 
 The relevant boundaries are untrusted connector/case selection, generated
@@ -133,7 +144,8 @@ final diff review:
 - `connectors/envoy/harness/run_envoy_ext_proc_runtime.sh`
 - Envoy build/configuration/harness scripts and ext-proc Go source/tests
 - `connectors/traefik/scripts/runtime_native_smoke.py`
-- Traefik build scripts and MRTS input tests
+- Traefik build scripts, MRTS input tests, and
+  `tests/test_traefik_transport_hardening_contract.py`
 - `connectors/lighttpd/harness/run_patched_full_lifecycle.sh`
 - `connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh`
 - Lighttpd build/configuration and host-contract tests
@@ -154,6 +166,9 @@ focused Python contract tests; shell syntax checks for changed runners;
 Python compilation; `check-common-security-contract.py`;
 `check-adapter-contracts.py`; `check-remaining-connectors-build-wiring.py`;
 `git diff --check`; C17 remaining-connector checks; and C/C++ syntax checks.
+The current Traefik GET-upstream correction passed 106 focused selected-runner,
+sealed-target, dispatch, workflow, Traefik input/plugin, and transport-contract
+tests with `TMPDIR=/var/tmp` and bytecode writing disabled.
 Envoy and Traefik Go checks used `/usr/local/go/bin/go` `go1.26.6` with
 `GOTOOLCHAIN=local`: `gofmt`, `go mod verify`, `go list -deps ./...`,
 `go test ./...`, `go vet ./...`, and `govulncheck ./...` passed. The Traefik
@@ -216,6 +231,12 @@ Traefik `r2` is diagnostic-only: it stopped at the auxiliary load-file guard
 before native host creation, readiness, request processing, case execution,
 or a runtime receipt. Its failure is not evidence of CRS loading and cannot be
 used as a runtime result.
+
+Traefik `r3` is also diagnostic-only: it passed the repaired no-CRS guard and
+started the real host, but its first MRTS GET control received HTTP 501 from
+the POST-only local upstream before a case result, event correlation, or
+receipt could be produced. It confirmed clean host teardown but cannot be used
+as a runtime result.
 
 Evidence must remain in the private run root and include the plan/result/event
 paths, exact Parent/Framework/MRTS identities, case and request correlation,
@@ -302,7 +323,7 @@ those exact results are observed, the three target cells remain
 
 ## Final diff and review status
 
-`PARTIAL — the preceding implementation is committed through e7316caa; this
-record adds the narrow Traefik guard correction, while fresh candidate-head
-runtime and delivery evidence remain pending.` No push, PR creation, merge,
+`PARTIAL — earlier implementation is committed through 27b7e5a5; this record
+adds narrow Traefik guard and GET-upstream fixture corrections, while fresh
+candidate-head runtime and delivery evidence remain pending.` No push, PR creation, merge,
 auto-merge, or default-branch write is recorded.

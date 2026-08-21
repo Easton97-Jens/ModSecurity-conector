@@ -758,6 +758,7 @@ def stop_process(process: subprocess.Popen[bytes] | None) -> bool:
 
 @dataclass
 class UpstreamState:
+    crs_runtime: bool = False
     request_count: int = 0
     request_body_bytes: int = 0
     response_chunks: int = 0
@@ -782,14 +783,7 @@ def upstream_handler(state: UpstreamState) -> type[http.server.BaseHTTPRequestHa
             except (BrokenPipeError, ConnectionResetError):
                 return
 
-        def do_POST(self) -> None:  # noqa: N802 - HTTP server callback name
-            expected = int(self.headers.get("Content-Length", "0"))
-            seen = 0
-            while seen < expected:
-                chunk = self.rfile.read(min(4096, expected - seen))
-                if not chunk:
-                    break
-                seen += len(chunk)
+        def _respond(self, seen: int) -> None:
             p3_requested = self.headers.get("X-Native-Response-Rule") == "block"
             p4_requested = self.headers.get("X-Native-P4-Rule") == "block"
             barrier_requested = self.headers.get("X-Native-P4-Barrier") == "true"
@@ -834,19 +828,45 @@ def upstream_handler(state: UpstreamState) -> type[http.server.BaseHTTPRequestHa
                 return
 
         def do_GET(self) -> None:  # noqa: N802 - HTTP server callback name
-            with state.lock:
-                state.request_count += 1
-                state.response_chunks += 1
-            payload = b"traefik-crs-upstream-ok\n"
-            self.send_response(200)
-            self.send_header("Content-Type", PLAIN_TEXT_CONTENT_TYPE)
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            try:
-                self.wfile.write(payload)
-                self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError):
+            if state.crs_runtime:
+                with state.lock:
+                    state.request_count += 1
+                    state.response_chunks += 1
+                payload = b"traefik-crs-upstream-ok\n"
+                self.send_response(200)
+                self.send_header("Content-Type", PLAIN_TEXT_CONTENT_TYPE)
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                try:
+                    self.wfile.write(payload)
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    return
                 return
+
+            # The sealed MRTS executor intentionally exercises GET-only cases.
+            # They still pass through the real Traefik middleware and native
+            # engine; this local upstream only supplies the final HTTP response.
+            # Reject body framing rather than leaving unread bytes on an
+            # HTTP/1.1 connection for a subsequent request.
+            if (
+                self.headers.get("Content-Length") is not None
+                or self.headers.get("Transfer-Encoding") is not None
+            ):
+                self.close_connection = True
+                self.send_error(http.HTTPStatus.BAD_REQUEST)
+                return
+            self._respond(0)
+
+        def do_POST(self) -> None:  # noqa: N802 - HTTP server callback name
+            expected = int(self.headers.get("Content-Length", "0"))
+            seen = 0
+            while seen < expected:
+                chunk = self.rfile.read(min(4096, expected - seen))
+                if not chunk:
+                    break
+                seen += len(chunk)
+            self._respond(seen)
 
         def log_message(self, _format: str, *_args: object) -> None:
             # Request paths and body values are not useful evidence.
@@ -1840,7 +1860,7 @@ def start_native_runtime_setup(
             artifacts.event_path,
             inputs.mrts_runtime,
         )
-        state = UpstreamState()
+        state = UpstreamState(crs_runtime=os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1")
         upstream = http.server.ThreadingHTTPServer(
             ("127.0.0.1", upstream_port), upstream_handler(state)
         )

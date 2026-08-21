@@ -12,7 +12,7 @@
 | Parent-Grenze | Nur Parent; aktuelle Framework- und MRTS-Gitlinks read-only verwendet |
 | Framework-Gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | MRTS-Gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Lieferstatus | Implementierung im Task-Branch bis `e7316caa4a5123bb7a9177424c1814b8c52b01b8` committed; dieser Record enthält eine enge Traefik-Load-Guard-Korrektur; kein Push, PR, Merge oder gehostetes Ergebnis behauptet |
+| Lieferstatus | Frühere Implementierung im Task-Branch bis `27b7e5a51db6e52f237e230046b9f709089aa525` committed; dieser Record dokumentiert enge Traefik-Load-Guard- und GET-Upstream-Korrekturen; kein Push, PR, Merge oder gehostetes Ergebnis behauptet |
 
 ## Motivation und Problemstellung
 
@@ -102,6 +102,19 @@ Guard erkennt jetzt nur echte CRS-Pfadkomponenten; fokussierte Controls weisen
 `FND-PARENT-0201` bewahrt die Diagnose und hält die Release-Hochstufung bis zu
 zwei frischen Traefik-Receipts auf dem exakten Head blockiert.
 
+Der frische Traefik-`r3` auf Parent `27b7e5a5` bestand diesen Guard, baute die
+gepinnte Traefik-Runtime und erreichte den echten nativen Host. Sein erster
+legitimer MRTS-GET-Kontrollfall erhielt danach HTTP 501 vom lokalen
+Upstream-Fixture: Der versiegelte Executor sendet absichtlich GET-Cases, das
+Fixture implementierte aber nur `do_POST`. Dies ist eine task-eigene
+Fixture-Capability-Lücke, keine CRS-, Regel- oder Host-Middleware-Evidence.
+Es wurde kein MRTS-Receipt geschrieben; das Host-Cleanup schloss dennoch ab.
+Das Fixture führt body-freie GET- und bestehende POST-Requests jetzt durch
+denselben begrenzten Response-Pfad und weist GET-Body-Framing ab;
+ein direkter GET-Control-Contract verhindert eine Wiederholung des 501. Vor
+einer Hochstufung bleiben zwei frische Receipts auf dem neuen Candidate-Head
+erforderlich.
+
 ## Security-Auswirkung
 
 Die relevanten Grenzen sind nicht vertrauenswürdige Connector-/Case-Auswahl,
@@ -142,7 +155,8 @@ Diff-Reviews:
 - `connectors/envoy/harness/run_envoy_ext_proc_runtime.sh`
 - Envoy-Build-/Konfigurations-/Harness-Skripte sowie ext-proc-Go-Quelle/-Tests
 - `connectors/traefik/scripts/runtime_native_smoke.py`
-- Traefik-Build-Skripte und MRTS-Input-Tests
+- Traefik-Build-Skripte, MRTS-Input-Tests und
+  `tests/test_traefik_transport_hardening_contract.py`
 - `connectors/lighttpd/harness/run_patched_full_lifecycle.sh`
 - `connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh`
 - Lighttpd-Build-/Konfigurationspfade und Host-Contract-Tests
@@ -164,7 +178,10 @@ Python-Contract-Tests, Shell-Syntaxprüfungen für geänderte Runner,
 Python-Kompilierung, `check-common-security-contract.py`,
 `check-adapter-contracts.py`, `check-remaining-connectors-build-wiring.py`,
 `git diff --check`, der C17-Check für die übrigen Connectoren sowie C/C++-
-Syntaxprüfungen. Envoy- und Traefik-Go-Checks verwendeten
+Syntaxprüfungen. Die aktuelle Traefik-GET-Upstream-Korrektur bestand 106
+fokussierte Selected-Runner-, versiegelte Target-, Dispatch-, Workflow-,
+Traefik-Input-/Plugin- und Transport-Contract-Tests mit `TMPDIR=/var/tmp` und
+deaktiviertem Bytecode-Schreiben. Envoy- und Traefik-Go-Checks verwendeten
 `/usr/local/go/bin/go` `go1.26.6` mit `GOTOOLCHAIN=local`: `gofmt`,
 `go mod verify`, `go list -deps ./...`, `go test ./...`, `go vet ./...` und
 `govulncheck ./...` bestanden. Das Traefik-Modul wurde aus
@@ -232,6 +249,13 @@ Traefik `r2` ist nur Diagnose-Evidence: Der Lauf stoppte am Hilfs-Loadfile-
 Guard vor der nativen Host-Erzeugung, Readiness, Request-Verarbeitung,
 Case-Ausführung oder einem Runtime-Receipt. Sein Fehler ist kein Nachweis
 eines CRS-Ladens und kann nicht als Runtime-Ergebnis verwendet werden.
+
+Auch Traefik `r3` ist nur Diagnose-Evidence: Er bestand den korrigierten
+No-CRS-Guard und startete den echten Host, aber sein erster MRTS-GET-
+Kontrollfall erhielt HTTP 501 vom nur POST-fähigen lokalen Upstream, bevor
+Case-Ergebnis, Event-Korrelation oder Receipt erzeugt werden konnten. Er
+bestätigte sauberes Host-Teardown, darf aber nicht als Runtime-Ergebnis
+verwendet werden.
 
 Evidence muss im privaten Run-Root bleiben und Plan-/Result-/Event-Pfade,
 exakte Parent-/Framework-/MRTS-Identitäten, Case- und Request-Korrelation,
@@ -328,8 +352,8 @@ für die Lieferung `PENDING`.
 
 ## Finaler Diff- und Review-Status
 
-`PARTIAL — die vorausgehende Implementierung ist bis e7316caa committed;
-dieser Record ergänzt die enge Traefik-Guard-Korrektur, während frische
+`PARTIAL — frühere Implementierung ist bis 27b7e5a5 committed; dieser Record
+ergänzt enge Traefik-Guard- und GET-Upstream-Fixture-Korrekturen, während frische
 Candidate-Head-Runtime- und Delivery-Evidence offen bleibt.` Kein Push,
 keine PR-Erstellung, kein Merge, kein Auto-Merge und kein Default-Branch-Write
 sind aufgezeichnet.
