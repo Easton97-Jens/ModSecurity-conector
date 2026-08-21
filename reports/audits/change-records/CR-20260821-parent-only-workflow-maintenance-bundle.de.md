@@ -9,13 +9,15 @@
 | Change-ID | CR-20260821-parent-only-workflow-maintenance-bundle |
 | Datum (UTC) | 2026-08-21 |
 | Basis-Revision | \`aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf\` |
-| Delivery-Status | Der bestehende Parent-only-Pull-Request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) ist der einzige Delivery-Weg. Anwendbare Hosted-Checks müssen für seinen exakten aktuellen Head bestehen, bevor ein verified- oder Merge-Claim möglich ist; ein Merge ist nicht autorisiert. Die PRs #306–#308 werden durch diese Aufgabe weder verändert noch geschlossen. |
+| Delivery-Status | Der bestehende Parent-only-Pull-Request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) ist der einzige Delivery-Weg. Der aktuelle Benutzer autorisiert seine kontrollierte `master`-Integration erst, nachdem frische Exact-Head-Checks sowie Review-/Thread-, Ruleset-, SonarCloud- und Squash-Merge-Voraussetzungen bestehen. Die Dependabot-PRs #306–#308 bleiben offen und unverändert, solange sie nicht separat autorisiert werden. |
 
 ## Motivation und Problemstellung
 
 Der Benutzer benötigt eine einzige Parent-only-Workflow-Wartung statt mehrerer
 separater partieller Action-Updates, die einen zugehörigen CodeQL-Bestandteil
-oder den zentralen Lock auslassen und CI rot machen können.
+oder den zentralen Lock auslassen und CI rot machen können. Zu Beginn dieses
+Follow-ups enthielt #311 die von den Dependabot-PRs #306–#308 dargestellten
+`github/codeql-action`-Aktualisierungen auf v4.37.7 noch nicht.
 
 ## Akzeptanzkriterien
 
@@ -35,6 +37,9 @@ oder den zentralen Lock auslassen und CI rot machen können.
 - Eine fehlgeschlagene Kandidatenanwendung stellt ihre erlaubten Dateien
   bytegenau wieder her; die Action-Identitätszuordnung ist exakt statt
   substring-basiert.
+- Der zentrale `github/codeql-action`-Lock und alle zehn geprüften `init`-,
+  `analyze`- und `upload-sarif`-Referenzen wechseln gemeinsam auf v4.37.7,
+  Commit `ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd`.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -63,6 +68,11 @@ oder den zentralen Lock auslassen und CI rot machen können.
   Legacy-Jobs korrigiert: 36 normale und insgesamt 40 Python-ausführende
   Workflow-Jobs. Die Regression stellt jetzt zusätzlich sicher, dass beide
   stillgelegten Workflow-Job-Identitäten abwesend bleiben.
+- Der ausgewählte CodeQL-v4.37.7-Inhalt aus #306–#308 wurde als ein
+  zusammenhängender Parent-Patch in #311 übernommen: zentraler Lock und jede
+  der zehn passenden CodeQL-`init`/`analyze`/`upload-sarif`-Referenzen werden
+  gemeinsam aktualisiert. Dadurch bleibt nicht die unvollständige Form der
+  drei ursprünglichen Dependabot-PRs mit nur direkten Referenzen bestehen.
 
 ## Security-Auswirkung
 
@@ -72,6 +82,12 @@ Parent-Repositorys schreiben oder einen PR öffnen. Seine Entfernung beseitigt
 diese validierte Privileg- und Repository-Grenzverletzung. Der verbleibende
 Updater bleibt allow-listed, fail-closed, SHA-gepinnt und verwendet die
 einzige Parent-Kandidatengrenze.
+
+Der annotierte v4.37.7-Upstream-Tag löst zu
+`ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd` auf. GitHub meldet für die
+Verifikation des Ziel-Commits `valid`; das Tag-Objekt selbst ist unsigniert.
+Der ausgewählte Patch bleibt damit ein unveränderlicher Action-Pin desselben
+Upstreams statt einer veränderlichen Tag-Referenz.
 
 Ein separates Medium-Confidence-Hardening-Follow-up behält explizite Response-
 und Archivgrößenlimits für Release-Metadaten/-Assets fest. Es rechtfertigt
@@ -95,6 +111,10 @@ Updates und wird separat als \`FND-PARENT-0205\` verfolgt.
 - stillgelegte Legacy-Actions-Wartungsworkflows, Skripte und Tests
 - `tests/test_python_version_contract.py`
 - dieses gekoppelte Change-Record-Paar und die gekoppelten Archivindizes
+- `.github/workflows/ci-security-codeql.yml`
+- `.github/workflows/ci-security-osv.yml`
+- `.github/workflows/ci-security-scorecard.yml`
+- `ci/tooling/security-tools.lock.yml`
 
 ## Ausgeführte Befehle
 
@@ -113,6 +133,10 @@ Updates und wird separat als \`FND-PARENT-0205\` verfolgt.
 | actionlint mit ShellCheck | bestanden |
 | offline-zizmor | bestanden: keine Findings; 86 bestehende Suppressions berücksichtigt |
 | `make check-bilingual-docs` | nur durch vorbestehende fehlende Ziele im absichtlich nicht initialisierten Framework-Gitlink blockiert; dieses gekoppelte Record-Paar besteht seine erforderlichen Section-Checks |
+| GitHub-API-Auflösung von `github/codeql-action` v4.37.7 | bestanden: Der annotierte Tag löst zu `ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd` auf; GitHub meldet die Verifikation des Ziel-Commits als `valid` |
+| Follow-up-CodeQL-Lock-/Referenz-Unit-Contract | bestanden: 83 Tests über `tests.test_ci_security_workflows`, `tests.ci_security.test_update_workflow_tools`, `tests.ci_security.test_ci_security_contract` und `tests.security_regression.test_workflow_security_contract` |
+| `make check-ci-security-contract` (Follow-up) | bestanden: 122 Tests, 5 erwartete Capability-Skips und Validierung der actionlint/zizmor/gitleaks-Lock-Metadaten |
+| Alle Parent-Workflow-YAML parsen | bestanden: 27 `.github/workflows/*.yml`-Dateien |
 
 ## Runtime-Evidence
 
@@ -126,7 +150,7 @@ Submodule-Initialisierung ausgeführt.
 ## Bekannte Einschränkungen
 
 Kein Framework- oder MRTS-Source, Gitlink, Submodule-Zustand, Token,
-Modul-Remote, Legacy-Dependabot-PR oder Merge wird verändert.
+Modul-Remote oder Legacy-Dependabot-PR wird verändert.
 \`make check-bilingual-docs\` bleibt durch vorbestehende fehlende Ziele im
 absichtlich nicht initialisierten Framework-Gitlink blockiert; die Aufgabe
 initialisiert oder verändert dieses getrennte Repository nicht. Hosted-Checks
@@ -144,15 +168,16 @@ bleibt als FND-PARENT-0205 erhalten.
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 Kein Live-Maintenance-Workflow-Dispatch, GitHub-App-Token-Mint, externer
-Modul-Write, Submodule-Initialisierung, keine Mutation von PR #306–#308 und
-kein Merge wurden ausgeführt. Jeder dieser Schritte würde den Parent-only-
-Maintenance-Scope überschreiten oder getrennte Autorität erfordern.
+Modul-Write, Submodule-Initialisierung oder eine Mutation von PR #306–#308
+wurde ausgeführt. Ein Merge ist noch nicht erfolgt: Der Successor-Head von
+#311 benötigt noch die oben festgehaltenen frischen Hosted-Checks und
+kontrollierten Integrationsvoraussetzungen.
 
 ## Finaler Diff- und Review-Status
 
-Der lokale Source-, Test-, Workflow- und Security-Review ist abgeschlossen.
-Hosted-Checks werden nur gegen den exakten aktuellen PR-#311-Head bewertet;
-die Aufgabe autorisiert keinen Merge. Das Follow-up korrigiert nur den Python-
-Workflow-Inventar-Testvertrag und verändert den separaten NGINX-Workflow nicht.
-Die Aufgabe behauptet nicht, dass PRs #306–#308 remote geschlossen, gemergt
-oder ersetzt sind.
+Der lokale Source-, Test-, Workflow- und Security-Review läuft für den exakten
+Successor von PR #311. Die aktuelle Aufgabe autorisiert einen kontrollierten
+Squash-Merge erst, nachdem Exact-Head-Hosted-Checks und alle Repository-Regeln
+bestehen. Der CodeQL-Patch verändert den separaten NGINX-Workflow nicht. Die
+Aufgabe behauptet nicht, dass PRs #306–#308 remote geschlossen, gemergt oder
+ersetzt sind.
