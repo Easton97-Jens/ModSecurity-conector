@@ -104,29 +104,64 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
         self.assertIn("`FAIL — runtime assertions did not complete`", summary)
         self.assertNotIn("skipped_by_security_policy", summary)
 
-    def test_workflow_summary_rejects_missing_outcome_and_symlink_target(self) -> None:
+    def test_workflow_summary_rejects_missing_outcome(self) -> None:
         environment = {
             environment_name: "success" for _stage, _label, environment_name in SUMMARY.STAGES
         }
         environment.pop("RUNTIME_OUTCOME")
         with self.assertRaisesRegex(ValueError, "RUNTIME_OUTCOME"):
             SUMMARY.outcomes_from_environment(environment)
-        with tempfile.TemporaryDirectory(prefix="crs-workflow-summary-") as temporary:
+
+    def test_workflow_summary_requires_a_runner_owned_step_summary_file(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-workflow-summary-runner-") as temporary:
             root = Path(temporary)
-            target = root / "summary.md"
-            SUMMARY.append_summary(target, "first\n")
+            runner_temp = root / "runner-temp"
+            summary_directory = runner_temp / "_runner_file_commands"
+            summary_directory.mkdir(parents=True)
+            target = summary_directory / "step_summary_abc123"
+            target.touch()
+            target.chmod(0o600)
+            environment = {
+                **{
+                    environment_name: "success"
+                    for _stage, _label, environment_name in SUMMARY.STAGES
+                },
+                "RUNNER_TEMP": str(runner_temp),
+                "GITHUB_STEP_SUMMARY": str(target),
+            }
+            SUMMARY.append_github_step_summary(environment, "first\n")
             self.assertEqual(target.read_text(encoding="utf-8"), "first\n")
-            link = root / "linked.md"
-            link.symlink_to(target)
-            with self.assertRaises(OSError):
-                SUMMARY.append_summary(link, "must-not-follow\n")
-            linked_parent = root / "linked-parent"
-            linked_parent.symlink_to(root, target_is_directory=True)
-            with self.assertRaises(OSError):
-                SUMMARY.append_summary(linked_parent / "summary.md", "must-not-follow\n")
-        with mock.patch.object(SUMMARY.os, "O_NOFOLLOW", None):
-            with self.assertRaisesRegex(ValueError, "safe-open capability"):
-                SUMMARY.append_summary(Path("/tmp/workflow-summary.md"), "must-not-write\n")
+            with mock.patch.dict(SUMMARY.os.environ, environment, clear=True):
+                self.assertEqual(SUMMARY.main(["--connector", "apache"]), 0)
+            self.assertIn("### apache", target.read_text(encoding="utf-8"))
+
+            outside = root / "outside.md"
+            outside.touch()
+            outside.chmod(0o600)
+            with self.assertRaisesRegex(ValueError, "path is unsafe"):
+                SUMMARY.append_github_step_summary(
+                    {**environment, "GITHUB_STEP_SUMMARY": str(outside)}, "must-not-write\n"
+                )
+            with self.assertRaisesRegex(ValueError, "path is unsafe"):
+                SUMMARY.append_github_step_summary(
+                    {
+                        **environment,
+                        "GITHUB_STEP_SUMMARY": str(
+                            summary_directory / ".." / "step_summary_abc123"
+                        ),
+                    },
+                    "must-not-write\n",
+                )
+            target.unlink()
+            target.symlink_to(outside)
+            with self.assertRaisesRegex(ValueError, "path is unsafe"):
+                SUMMARY.append_github_step_summary(environment, "must-not-follow\n")
+            with mock.patch.object(SUMMARY.os, "O_NOFOLLOW", None):
+                with self.assertRaisesRegex(ValueError, "safe-open capability"):
+                    SUMMARY.append_github_step_summary(environment, "must-not-write\n")
+            with mock.patch.object(SUMMARY.os, "O_NONBLOCK", None):
+                with self.assertRaisesRegex(ValueError, "safe-open capability"):
+                    SUMMARY.append_github_step_summary(environment, "must-not-write\n")
 
     def run_runner(
         self, connector: str, run_id: str = "valid-run", *, environment: dict[str, str] | None = None

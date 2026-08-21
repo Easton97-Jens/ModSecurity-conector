@@ -316,3 +316,39 @@ ausstehend. Dieser Record dokumentiert eine autorisierte Parent-only-
 Implementierungsarbeit und ihre aktuellen Blocker. Er behauptet keinen
 Ready-for-Review-Übergang, erfolgreichen Hosted-Check, Merge, CI-Erfolg,
 SonarQube-Erfolg, vollständige Matrix oder Risikoakzeptanz.
+
+## Exact-Head-Remediation-Follow-up vom 2026-08-21
+
+Der aktuelle Parent-`origin/master` ist
+`c2e2c6a77edd0f1ccc3d41fc4e133974a630e518`; er pinnt Framework
+`798bff0c921ab8c7f10b2ca949304d58e7f205a2` und MRTS
+`615b13bacbd008562c17408246c41ab27dca3104`. Der Task-Branch wurde normal mit
+diesem Parent-Master gemergt. Dies ist eine Basis-Synchronisierung und erzeugt
+keinen task-eigenen Gitlink-Diff.
+
+Der erste Exact-Head-Lauf nach dieser Synchronisierung brach für alle
+`with-crs/no-mrts`-Connectoren vor dem Hoststart ab, weil der Workflow den
+ausgecheckten Framework-Stand noch gegen den früheren Pin `89881a…` verglich.
+Workflow-Vertrag und Regressionstest verwenden jetzt die vom Parent
+eingetragene Revision `798bff…`. Das ist eine Konsistenzkorrektur und keine
+Framework-Source-Änderung.
+
+SonarQube Cloud meldete außerdem zwei `pythonsecurity:S8707`-Befunde im neuen
+Connector-Summary-Helper: Ein per CLI übergebener Summary-Dateiname konnte
+einen Dateisystem-Sink erreichen. Der Helper akzeptiert keinen Summary-
+Dateipfad mehr per CLI. Er akzeptiert nur noch das runner-bereitgestellte
+`GITHUB_STEP_SUMMARY`, verlangt genau eine reguläre `step_summary_*`-Datei
+unter dem runner-owned Verzeichnis `RUNNER_TEMP/_runner_file_commands`,
+durchläuft Verzeichnisse über Non-Symlink-Deskriptoren und prüft Owner,
+nicht-schreibbare Verzeichnis-/Dateimodi sowie Link-Anzahl vor dem Anhängen.
+Fehlende Capabilities, unsichere Pfade, Symlinks, fehlende Dateien oder falsche
+Owner brechen fail-closed ab. Der neue Regressionstest belegt den legitimen
+Runner-Fall und lehnt externe, Traversal- und Symlink-Ziele ab.
+
+Die fokussierte Post-Fix-Validierung bestand: 49 CRS/no-MRTS-
+Runtime-Contract-Tests, 30 CI-Workflow-Tests, die CI-Sicherheitsvertrags-Suite
+mit 124 Tests und 5 erwarteten environment-gated Skips, actionlint, offline
+zizmor, zweisprachige Dokumentation, Python-Syntaxkompilierung und
+`git diff --check`. Neue Exact-Head-Hosted-Runtime- und SonarQube-Cloud-
+Evidence bleibt erforderlich; dieser Record behauptet noch keinen Sonar-
+Nullbefund und keine erfolgreichen Runtime-Zellen.

@@ -35,7 +35,7 @@ PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
     + PROTECTED_NGINX_BROKER_SHA
 )
-WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "89881a1b33219fc18df3cf2f15dda53261d13443"
+WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "798bff0c921ab8c7f10b2ca949304d58e7f205a2"
 WITH_CRS_NO_MRTS_MRTS_SHA = "615b13bacbd008562c17408246c41ab27dca3104"
 PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
     {
@@ -1778,9 +1778,10 @@ jobs:
         summary = job.split("      - name: Write connector runtime overview\n", 1)[1]
         self.assertIn("if: always()", summary)
         self.assertIn(
-            'python3 ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py --connector "$CONNECTOR" --summary-file "$GITHUB_STEP_SUMMARY"',
+            'python3 ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py --connector "$CONNECTOR"',
             summary,
         )
+        self.assertNotIn("--summary-file", summary)
         for environment_name, step_id in (
             ("CHECKOUT_OUTCOME", "checkout"),
             ("SETUP_PYTHON_OUTCOME", "setup-python"),

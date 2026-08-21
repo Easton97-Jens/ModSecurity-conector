@@ -294,3 +294,38 @@ pending. This record documents an authorized Parent-only implementation effort
 and its present blockers. It does not claim Ready-for-Review, hosted-check
 success, merge, CI success, SonarQube success, a complete matrix, or risk
 acceptance.
+
+## 2026-08-21 exact-head remediation follow-up
+
+The current Parent `origin/master` is
+`c2e2c6a77edd0f1ccc3d41fc4e133974a630e518`, which records Framework
+`798bff0c921ab8c7f10b2ca949304d58e7f205a2` and MRTS
+`615b13bacbd008562c17408246c41ab27dca3104`. The task branch was normally
+merged with that Parent master; this is a base synchronization and creates no
+task-owned Gitlink difference.
+
+The first exact-head run after that synchronization failed every
+`with-crs/no-mrts` connector before host start because the workflow still
+compared the checked-out Framework against the former `89881a…` pin. The
+workflow contract and its regression test now use the Parent-recorded
+`798bff…` revision. This is a consistency correction, not a Framework source
+change.
+
+SonarQube Cloud also identified two `pythonsecurity:S8707` findings in the
+new connector-summary helper: a CLI-provided summary filename could reach a
+filesystem sink. The helper no longer accepts a summary-file CLI argument. It
+now accepts only the runner-provided `GITHUB_STEP_SUMMARY`, requires it to be
+one `step_summary_*` regular file below the runner-owned
+`RUNNER_TEMP/_runner_file_commands` directory, traverses directories by
+non-symlink descriptor, and verifies ownership, non-writable directory/file
+modes, and link count before appending. Missing capabilities, unsafe paths,
+symlinks, missing files, or incorrect ownership fail closed. The added
+regression test proves the legitimate runner file works while outside,
+traversal, and symlink targets are rejected.
+
+Focused post-fix validation passed: 49 CRS/no-MRTS runtime-contract tests,
+30 CI-workflow tests, the 124-test CI-security-contract suite with 5 expected
+environment-gated skips, actionlint, offline zizmor, bilingual documentation,
+Python syntax compilation, and `git diff --check`. New exact-head hosted
+runtime and SonarQube Cloud evidence is still required; this record does not
+claim a zero-issue Sonar result or successful runtime cells yet.
