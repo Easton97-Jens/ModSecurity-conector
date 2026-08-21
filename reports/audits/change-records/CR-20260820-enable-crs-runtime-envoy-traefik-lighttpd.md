@@ -177,9 +177,16 @@ established root cause was that the workflow sourced Framework `common.sh` in
 the same shell as the subsequent Make invocation; the duplicate inherited
 `ENVOY_VERSION` correctly failed the Framework guard. The version pins remained
 consistent. CRS preparation is now executed in a POSIX subshell so its exports
-do not leak into the subsequent Make environment. A fresh real Apache run
-using these exact semantics is still in progress; this record does not claim
-that it succeeded. Lighttpd's first failure was a safe
+do not leak into the subsequent Make environment. The isolated rerun then
+exposed a second Parent-owned propagation path:
+`load_framework_environment()` retained Framework's internal multi-line
+`CI_INHERITED_UPSTREAM_ENV` snapshot after loading `common.sh`. A subsequent
+Framework source operation read its embedded `ENVOY_VERSION=` line as a
+duplicate. The Parent now removes both internal snapshot fields before each
+guard source and before retaining its loaded environment; direct caller pin
+overrides remain subject to the unchanged Framework guard. The pending
+exact-head runtime validation is required before claiming an Apache or HAProxy
+success. Lighttpd's first failure was a safe
 Curl-trace grammar rejection. A narrow, non-content diagnostic classifier was
 added to distinguish unsupported trace-record families without exporting raw
 headers, traces, request data, hashes, or byte contents; new exact-head hosted

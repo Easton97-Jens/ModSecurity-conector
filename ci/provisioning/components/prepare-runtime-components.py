@@ -146,6 +146,14 @@ FRAMEWORK_APR_UTIL_ENV_KEYS = (
     "APR_UTIL_SHA256",
     "APR_UTIL_SHA256_URL",
 )
+# Framework common.sh captures the inherited environment before it assigns
+# canonical pins.  Its own snapshot is internal validation state, not runtime
+# configuration: passing it through another source operation would turn its
+# embedded pin lines into apparent duplicate inherited variables.
+FRAMEWORK_TRANSIENT_ENV_KEYS = (
+    "CI_INHERITED_UPSTREAM_ENV",
+    "CI_INHERITED_UPSTREAM_ENV_STATUS",
+)
 # A Framework provenance guard sources common.sh itself.  Carry only the
 # resolved runtime-root tuple from the previously loaded Framework environment
 # into that second source.  Passing common.sh's exported version/provenance
@@ -251,7 +259,13 @@ def _framework_guard_environment(
 ) -> dict[str, str]:
     """Build the fixed, non-login environment for Framework guard commands."""
     env = dict(base_env)
-    for key in (*FRAMEWORK_APR_UTIL_ENV_KEYS, "ENV", "BASH_ENV", "SHELLOPTS"):
+    for key in (
+        *FRAMEWORK_APR_UTIL_ENV_KEYS,
+        *FRAMEWORK_TRANSIENT_ENV_KEYS,
+        "ENV",
+        "BASH_ENV",
+        "SHELLOPTS",
+    ):
         env.pop(key, None)
     env["PATH"] = _TRUSTED_FRAMEWORK_GUARD_PATH
     env["CONNECTOR_ROOT"] = str(connector_root)
@@ -399,6 +413,8 @@ def load_framework_environment(connector_root: Path, framework_root: Path, base_
     if common_error is not None or common_output is None:
         return dict(base_env), common_error or "failed:framework_common_environment_missing"
     loaded = _null_delimited_environment(common_output)
+    for key in FRAMEWORK_TRANSIENT_ENV_KEYS:
+        loaded.pop(key, None)
     if any(loaded.get(key) != value for key, value in guarded_apr_util.items()):
         return dict(base_env), "failed:framework_apr_util_guarded_tuple_mismatch"
     loaded.update(guarded_apr_util)

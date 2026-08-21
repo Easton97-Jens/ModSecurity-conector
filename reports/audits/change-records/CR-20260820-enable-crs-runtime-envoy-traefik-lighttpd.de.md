@@ -189,9 +189,17 @@ der Workflow Frameworks `common.sh` in derselben Shell wie den anschließenden
 Make-Aufruf einband; die doppelt geerbte `ENVOY_VERSION` löste den Framework-
 Guard korrekt aus. Die Versions-Pins blieben konsistent. Die CRS-Vorbereitung
 läuft jetzt in einer POSIX-Subshell, sodass ihre Exporte nicht in die
-nachfolgende Make-Umgebung auslaufen. Ein frischer realer Apache-Lauf mit
-genau dieser Semantik läuft noch; dieser Record behauptet keinen Erfolg. Der
-erste Lighttpd-Fehler war eine sichere Ablehnung der Curl-Trace-Grammatik.
+nachfolgende Make-Umgebung auslaufen. Der isolierte Wiederholungslauf zeigte
+danach einen zweiten Parent-eigenen Weitergabepfad:
+`load_framework_environment()` behielt Frameworks internen mehrzeiligen
+Snapshot `CI_INHERITED_UPSTREAM_ENV` nach dem Laden von `common.sh`. Ein
+weiterer Framework-Source-Vorgang las dessen eingebettete Zeile
+`ENVOY_VERSION=` als Duplikat. Der Parent entfernt jetzt beide internen
+Snapshot-Felder vor jedem Guard-Source und vor dem Behalten der geladenen
+Umgebung; direkte Caller-Pin-Overrides unterliegen weiterhin dem unveränderten
+Framework-Guard. Die ausstehende Exact-Head-Runtime-Validierung ist erforderlich,
+bevor ein Apache- oder HAProxy-Erfolg behauptet wird. Der erste Lighttpd-Fehler
+war eine sichere Ablehnung der Curl-Trace-Grammatik.
 Ein eng begrenzter, nicht inhaltsbezogener Diagnoseklassifizierer wurde ergänzt,
 der nicht unterstützte Trace-Datensatzfamilien unterscheidet, ohne rohe
 Header, Traces, Requestdaten, Hashes oder Byte-Inhalte zu exportieren; neue
