@@ -172,9 +172,12 @@ was evaluated at hosted exact head `5985153e54a49875c331d65005e2051f8f185167`. E
 runtime jobs successfully. Apache failed because same-step `GITHUB_ENV`
 temporal semantics did not make the freshly acquired CRS roots available to
 the later step; this change adds a separate preparation step for that handoff.
-Lighttpd completed its lifecycle, but the normalizer rejected Curl 8.18's
-local source-port suffix; this change adds a narrow correction for that exact
-spelling. HAProxy was blocked before runtime by the read-only
+Lighttpd completed its lifecycle, but the normalizer then rejected Curl's
+equivalent `== Info:` loopback connection metadata after accepting the legacy
+`*` form. This change accepts only the corresponding `Trying`, `Established`,
+and `Connected` spellings with literal `127.0.0.1`, valid source and target
+ports, exactly one marker of each kind, and matching attempted/connected target
+ports. HAProxy was blocked before runtime by the read-only
 Framework ordering at `bd69ee96e0e7082317d4afe1232bee625665eb9a`, which invokes
 `verify_build_target` before `prepare_build_worktree`.
 

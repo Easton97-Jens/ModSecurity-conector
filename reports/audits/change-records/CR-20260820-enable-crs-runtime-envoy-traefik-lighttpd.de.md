@@ -184,9 +184,13 @@ ihre Runtime-Jobs erfolgreich. Apache scheiterte, weil die zeitliche Semantik
 von `GITHUB_ENV` innerhalb desselben Steps die frisch erworbenen CRS-Roots für
 den folgenden Step nicht verfügbar machte; diese Änderung fügt einen separaten
 Vorbereitungsschritt für diese Übergabe hinzu. Lighttpd beendete seinen
-Lifecycle erfolgreich, aber der Normalizer lehnte den lokalen Source-Port-
-Suffix von Curl 8.18 ab; diese Änderung fügt eine enge Korrektur für diese
-exakte Schreibweise hinzu. HAProxy war vor der Runtime durch die read-only-
+Lifecycle erfolgreich, aber der Normalizer lehnte danach Curls äquivalente
+`== Info:`-Loopback-Verbindungsmetadaten ab, obwohl die ältere `*`-Form
+akzeptiert war. Diese Änderung akzeptiert ausschließlich die entsprechenden
+`Trying`-, `Established`- und `Connected`-Schreibweisen mit literalem
+`127.0.0.1`, gültigen Source- und Zielports, genau einem Marker jeder Art und
+übereinstimmenden Versuch-/Verbindungs-Zielports. HAProxy war vor der Runtime
+durch die read-only-
 Framework-Reihenfolge bei
 `bd69ee96e0e7082317d4afe1232bee625665eb9a` blockiert, die
 `verify_build_target` vor `prepare_build_worktree` aufruft.

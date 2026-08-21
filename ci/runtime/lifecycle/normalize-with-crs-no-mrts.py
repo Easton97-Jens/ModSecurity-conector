@@ -60,16 +60,23 @@ CURL_TRACE_DATA_ROW = re.compile(r"^([0-9a-fA-F]{1,16}): ?([ -~]{0,256})$")
 CURL_TRACE_RECEIVE_HEADER = re.compile(r"^<= Recv header, [0-9]{1,10} bytes \(0x[0-9a-fA-F]{1,8}\)$")
 CURL_TRACE_INFO_LINE = re.compile(r"^== Info: [ -~]{1,256}$")
 CURL_TRACE_LOOPBACK_TRY = re.compile(
-    r"^\*   Trying 127\.0\.0\.1:(?P<port>[1-9][0-9]{0,4})\.\.\.$"
+    r"^(?:\*|== Info:)   Trying 127\.0\.0\.1:(?P<port>[1-9][0-9]{0,4})\.\.\.$"
 )
 CURL_TRACE_LOOPBACK_CONNECT = re.compile(
-    r"^\* (?:"
+    r"^(?:\*|== Info:) (?:"
     r"Established connection to 127\.0\.0\.1 \(127\.0\.0\.1 port "
     r"(?P<established_port>[1-9][0-9]{0,4})\)(?: from 127\.0\.0\.1 port "
     r"(?P<source_port>[1-9][0-9]{0,4}))? ?"
     r"|Connected to 127\.0\.0\.1 \(127\.0\.0\.1\) port "
     r"(?P<connected_port>[1-9][0-9]{0,4})"
     r")$"
+)
+CURL_TRACE_LOOPBACK_TRY_PREFIXES = ("*   Trying ", "== Info:   Trying ")
+CURL_TRACE_LOOPBACK_CONNECT_PREFIXES = (
+    "* Established connection to ",
+    "* Connected to ",
+    "== Info: Established connection to ",
+    "== Info: Connected to ",
 )
 
 
@@ -424,11 +431,11 @@ def validate_lighttpd_request(
     if any(line.partition(":")[0].lower() in transaction_headers for line in request_lines[1:-1]):
         fail(f"Lighttpd {case} trace supplied a client transaction id")
     trace_lines = trace.splitlines()
-    try_markers = [line for line in trace_lines if line.startswith("*   Trying ")]
+    try_markers = [line for line in trace_lines if line.startswith(CURL_TRACE_LOOPBACK_TRY_PREFIXES)]
     connect_markers = [
         line
         for line in trace_lines
-        if line.startswith("* Established connection to ") or line.startswith("* Connected to ")
+        if line.startswith(CURL_TRACE_LOOPBACK_CONNECT_PREFIXES)
     ]
     try_ports = [port for line in trace_lines if (port := trace_loopback_try_port(line, case)) is not None]
     connect_ports = [
