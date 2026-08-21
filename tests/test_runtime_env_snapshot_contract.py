@@ -638,6 +638,37 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         self.assertIn('SOURCE_ROOT="$(SOURCE_ROOT)"', apache_target)
         self.assertIn('CRS_SOURCE_DIR="$(CRS_SOURCE_DIR)"', apache_target)
 
+        haproxy_start = makefile.index("verified-haproxy-case: check-framework prepare-runtime-components")
+        haproxy_end = makefile.index("\n\nverified-full-matrix-resume:", haproxy_start)
+        haproxy_target = makefile[haproxy_start:haproxy_end]
+        self.assertIn('SOURCE_ROOT="$${SOURCE_ROOT}"', haproxy_target)
+        self.assertIn('CRS_SOURCE_DIR="$${CRS_SOURCE_DIR}"', haproxy_target)
+        self.assertNotIn('SOURCE_ROOT="$(SOURCE_ROOT)"', haproxy_target)
+        self.assertNotIn('CRS_SOURCE_DIR="$(CRS_SOURCE_DIR)"', haproxy_target)
+
+        hostile_source_root = '/tmp/fresh"; printf injected >&2; #'
+        hostile_crs_source = '/tmp/fresh/coreruleset"; printf injected >&2; #'
+        forwarding = subprocess.run(
+            [
+                "sh",
+                "-eu",
+                "-c",
+                'env SOURCE_ROOT="${SOURCE_ROOT}" CRS_SOURCE_DIR="${CRS_SOURCE_DIR}" '
+                'sh -c \'printf "%s|%s" "$SOURCE_ROOT" "$CRS_SOURCE_DIR"\'',
+            ],
+            env={
+                **os.environ,
+                "SOURCE_ROOT": hostile_source_root,
+                "CRS_SOURCE_DIR": hostile_crs_source,
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(forwarding.returncode, 0, forwarding.stdout + forwarding.stderr)
+        self.assertEqual(forwarding.stdout, f"{hostile_source_root}|{hostile_crs_source}")
+        self.assertEqual(forwarding.stderr, "")
+
         with tempfile.TemporaryDirectory(prefix="fresh-crs-source-") as temporary:
             root = Path(temporary)
             verified_root = root / "verified"
