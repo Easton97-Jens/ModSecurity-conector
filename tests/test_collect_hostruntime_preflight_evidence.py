@@ -158,6 +158,33 @@ class CollectHostRuntimePreflightEvidenceTests(unittest.TestCase):
             self.assertEqual(runtime["preflight_status"], "PASS")
             self.assertEqual(runtime["reason_code"], "runtime_execution_not_configured")
 
+    def test_collect_fails_closed_for_malformed_preflight_status(self) -> None:
+        with self.temporary_directory() as temporary_directory:
+            runner_temp = Path(temporary_directory) / "runner-temp"
+
+            def write_malformed_result(command: list[str]) -> int:
+                output = Path(command[command.index("--output") + 1])
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_text("{", encoding="utf-8")
+                return 0
+
+            profile = COLLECTOR.ProfileSpec("nginx-h1", "nginx.conf", "fixture.json")
+            evidence_dir = COLLECTOR.collect(
+                connector="nginx",
+                runtime_lock="lock.json",
+                runner_temp=runner_temp,
+                binary_name="collector-fixture-binary",
+                profiles=(profile,),
+                markdown_code=True,
+                command_runner=write_malformed_result,
+            )
+
+            record = json.loads(
+                (evidence_dir / "preflight/nginx-h1/status.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(record["status"], "BLOCKED")
+            self.assertEqual(record["reason_code"], "invalid_or_missing_preflight_status")
+
     def test_collect_rejects_preseeded_evidence_root_symlink(self) -> None:
         with self.temporary_directory() as temporary_directory:
             runner_temp = Path(temporary_directory) / "runner-temp"
@@ -169,6 +196,7 @@ class CollectHostRuntimePreflightEvidenceTests(unittest.TestCase):
             (runner_temp / "hostruntime-evidence").symlink_to(
                 redirected, target_is_directory=True
             )
+            profile = COLLECTOR.ProfileSpec("nginx-h1", "nginx.conf", "fixture.json")
 
             with self.assertRaises(ValueError):
                 COLLECTOR.collect(
@@ -176,9 +204,7 @@ class CollectHostRuntimePreflightEvidenceTests(unittest.TestCase):
                     runtime_lock="lock.json",
                     runner_temp=runner_temp,
                     binary_name="collector-fixture-binary",
-                    profiles=(
-                        COLLECTOR.ProfileSpec("nginx-h1", "nginx.conf", "fixture.json"),
-                    ),
+                    profiles=(profile,),
                     markdown_code=True,
                 )
 
@@ -199,6 +225,7 @@ class CollectHostRuntimePreflightEvidenceTests(unittest.TestCase):
             sentinel = Path(temporary_directory) / "outside-status.json"
             sentinel.write_text("unchanged\n", encoding="utf-8")
             status_path.symlink_to(sentinel)
+            profile = COLLECTOR.ProfileSpec("nginx-h1", "nginx.conf", "fixture.json")
 
             with self.assertRaises(ValueError):
                 COLLECTOR.collect(
@@ -206,9 +233,7 @@ class CollectHostRuntimePreflightEvidenceTests(unittest.TestCase):
                     runtime_lock="lock.json",
                     runner_temp=runner_temp,
                     binary_name="collector-fixture-binary",
-                    profiles=(
-                        COLLECTOR.ProfileSpec("nginx-h1", "nginx.conf", "fixture.json"),
-                    ),
+                    profiles=(profile,),
                     markdown_code=True,
                 )
 

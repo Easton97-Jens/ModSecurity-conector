@@ -37,6 +37,7 @@ ALLOWED_STATUSES = frozenset({"PASS", "FAIL", "BLOCKED", "NOT_RUN", "NOT_APPLICA
 SAFE_COMPONENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$", re.ASCII)
 CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 PREFLIGHT_SCRIPT = Path(__file__).with_name("hostruntime-preflight.py")
+PREFLIGHT_STATUS_OUTPUT_LABEL = "preflight status output"
 
 
 @dataclass(frozen=True)
@@ -202,7 +203,7 @@ def collect(
         status_path = runtime_artifact_path(
             evidence_dir,
             evidence_dir / "preflight" / spec.profile / "status.json",
-            "preflight status output",
+            PREFLIGHT_STATUS_OUTPUT_LABEL,
         )
         exit_code = command_runner(
             [
@@ -247,10 +248,10 @@ def collect(
                 read_runtime_artifact_text(
                     evidence_dir,
                     status_path,
-                    "preflight status output",
+                    PREFLIGHT_STATUS_OUTPUT_LABEL,
                 )
             )
-        except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
+        except (OSError, ValueError):
             raw_value = {}
         record = project_preflight_record(
             raw_value,
@@ -258,7 +259,7 @@ def collect(
             profile=spec.profile,
             exit_code=exit_code,
         )
-        write_record(evidence_dir, status_path, record, "preflight status output")
+        write_record(evidence_dir, status_path, record, PREFLIGHT_STATUS_OUTPUT_LABEL)
         write_runtime_artifact_text_atomic(
             evidence_dir,
             status_path.parent / "summary.md",
