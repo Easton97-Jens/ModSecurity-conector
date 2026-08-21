@@ -10,6 +10,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260821-go-and-runtime-workflow-remediation](CR-20260821-go-and-runtime-workflow-remediation.md)
+  | [Deutsch](CR-20260821-go-and-runtime-workflow-remediation.de.md) — the
+  current user authorized this Parent-only Go and runtime-workflow remediation,
+  the safe closure of superseded PRs #306–#308, paired traceability, and a
+  later unmerged Draft PR. The record distinguishes local evidence from pending
+  exact-head hosted runs and asserts no Framework/MRTS change or merge.
+
 - [CR-20260821-parent-only-workflow-maintenance-bundle](CR-20260821-parent-only-workflow-maintenance-bundle.md)
   | [Deutsch](CR-20260821-parent-only-workflow-maintenance-bundle.de.md) — the
   current user authorized one Parent-only bundled Action/tool maintenance path

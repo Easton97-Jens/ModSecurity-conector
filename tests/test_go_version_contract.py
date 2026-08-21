@@ -69,7 +69,7 @@ class GoVersionContractTests(unittest.TestCase):
         return status, json.loads(output.getvalue())
 
     def valid_workflow(self) -> str:
-        trusted = r'''  trusted-go-version:
+        trusted = '''  trusted-go-version:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -80,7 +80,10 @@ class GoVersionContractTests(unittest.TestCase):
       - id: version
         run: |
           version="$(cat -- .go-version)"
-          [[ ! "$version" =~ ^1\.26\.(0|[1-9][0-9]*)$ ]]
+''' + f'''          {checker.TRUSTED_VERSION_VALIDATOR}
+            echo "invalid trusted-base Go version" >&2
+            exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 '''
         return "name: CodeQL\n\non:\n  workflow_dispatch:\n\njobs:\n" + trusted + go_job("envoy-go") + go_job("traefik-go")
@@ -91,6 +94,12 @@ class GoVersionContractTests(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual(result["status"], "passed")
         self.assertEqual(result["version"], "1.26.5")
+        self.assertEqual(result["violations"], [])
+
+    def test_checked_in_codeql_workflow_satisfies_contract(self) -> None:
+        status, result = self.check_json(ROOT)
+        self.assertEqual(status, 0)
+        self.assertEqual(result["status"], "passed")
         self.assertEqual(result["violations"], [])
 
     def test_literal_selector_and_unlisted_go_job_are_rejected(self) -> None:
