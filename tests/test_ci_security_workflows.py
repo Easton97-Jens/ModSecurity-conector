@@ -1609,6 +1609,25 @@ jobs:
 
         self.assertIn(". ci/runtime/lifecycle/prepare-fresh-crs-source.sh", job)
         self.assertIn('sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"', job)
+        preparation = job.split("            apache|haproxy)\n", 1)[1].split(
+            "              ;;", 1
+        )[0]
+        self.assertRegex(
+            preparation,
+            r"              \(\n"
+            r"                \. \"\$FRAMEWORK_ROOT/ci/lib/common\.sh\"\n"
+            r"                \. ci/runtime/lifecycle/prepare-fresh-crs-source\.sh\n"
+            r"                sh \"\$FRAMEWORK_ROOT/ci/provisioning/fetch-crs\.sh\"\n"
+            r"              \)\n",
+        )
+        self.assertEqual(
+            job.count('. "$FRAMEWORK_ROOT/ci/lib/common.sh"'),
+            1,
+        )
+        self.assertNotIn(
+            'apache|haproxy)\n              . "$FRAMEWORK_ROOT/ci/lib/common.sh"',
+            job,
+        )
         self.assertLess(
             job.index("prepare-fresh-crs-source.sh"),
             job.index("make verified-apache-case CASE=crs_sqli_anomaly_block"),

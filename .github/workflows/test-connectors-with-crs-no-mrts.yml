@@ -168,9 +168,11 @@ jobs:
           set -euo pipefail
           case "$CONNECTOR" in
             apache|haproxy)
-              . "$FRAMEWORK_ROOT/ci/lib/common.sh"
-              . ci/runtime/lifecycle/prepare-fresh-crs-source.sh
-              sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"
+              (
+                . "$FRAMEWORK_ROOT/ci/lib/common.sh"
+                . ci/runtime/lifecycle/prepare-fresh-crs-source.sh
+                sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"
+              )
               ;;
           esac
           case "$CONNECTOR" in

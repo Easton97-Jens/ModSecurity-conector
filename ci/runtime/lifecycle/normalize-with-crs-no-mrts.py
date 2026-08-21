@@ -54,9 +54,9 @@ MAX_FILE_BYTES = 2 * 1024 * 1024
 TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 LIGHTTPD_RESPONSE_TRANSACTION_HEADER = "X-Msconnector-Host-Transaction-Id"
-LIGHTTPD_HOST_TRANSACTION = re.compile(r"^lighttpd-[1-9][0-9]*-[1-9][0-9]*$")
-CURL_TRACE_SEND_HEADER = re.compile(r"^=> Send header, ([0-9]+) bytes \(0x[0-9a-fA-F]+\)$")
-CURL_TRACE_DATA_ROW = re.compile(r"^([0-9a-fA-F]+): ?(.*)$")
+LIGHTTPD_HOST_TRANSACTION = re.compile(r"^lighttpd-[1-9][0-9]{0,18}-[1-9][0-9]{0,18}$")
+CURL_TRACE_SEND_HEADER = re.compile(r"^=> Send header, ([0-9]{1,10}) bytes \(0x[0-9a-fA-F]{1,8}\)$")
+CURL_TRACE_DATA_ROW = re.compile(r"^([0-9a-fA-F]{1,16}): ?([ -~]{0,256})$")
 CURL_TRACE_INFO_LINE = re.compile(r"^== Info: [ -~]{1,256}$")
 
 
@@ -114,6 +114,27 @@ def contained(path: Path, root: Path, label: str) -> Path:
     return candidate
 
 
+def open_trusted_directory(root: Path, label: str) -> int:
+    """Open a previously validated, non-symlink directory as the walk root."""
+    checked = root_path(str(root), label)
+    if Path(os.path.realpath(checked)) != checked:
+        fail(f"{label} resolves through a symlink")
+    pre_open = checked.lstat()
+    if not stat.S_ISDIR(pre_open.st_mode):
+        fail(f"{label} is not a directory")
+    flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0)
+    directory_fd = os.open(checked, flags)
+    details = os.fstat(directory_fd)
+    if (
+        not stat.S_ISDIR(details.st_mode)
+        or (details.st_dev, details.st_ino, stat.S_IFMT(details.st_mode))
+        != (pre_open.st_dev, pre_open.st_ino, stat.S_IFMT(pre_open.st_mode))
+    ):
+        os.close(directory_fd)
+        fail(f"{label} changed between validation and open")
+    return directory_fd
+
+
 def open_contained_regular(path: Path, root: Path) -> tuple[int, Path]:
     """Open a regular evidence file by no-follow directory descriptors."""
     candidate = contained(path, root, "runtime evidence")
@@ -130,7 +151,7 @@ def open_contained_regular(path: Path, root: Path) -> tuple[int, Path]:
     if no_follow is None:
         fail("platform cannot open runtime evidence without following symlinks")
     directory_flags = os.O_RDONLY | os.O_DIRECTORY | no_follow
-    directory_fd = os.open(base, directory_flags)
+    directory_fd = open_trusted_directory(base, "runtime evidence root")
     try:
         for component in relative.parts[:-1]:
             next_fd = os.open(component, directory_flags, dir_fd=directory_fd)
@@ -364,17 +385,34 @@ def validate_lighttpd_request(
         fail(f"Lighttpd {case} trace does not prove one private loopback connection")
 
 
-def lighttpd_response_transaction_id(
-    headers: str, case: str, expected_status: int, header_name: str, request_id: str
-) -> str:
+def lighttpd_response_lines(headers: str, case: str) -> list[str]:
     if not headers.endswith("\r\n\r\n") or headers.count("\r\n\r\n") != 1:
         fail(f"Lighttpd {case} response does not contain one complete HTTP header block")
     lines = headers[:-4].split("\r\n")
     if len(lines) < 2 or any(not line or line[:1] in (" ", "\t") for line in lines):
         fail(f"Lighttpd {case} response headers are malformed or folded")
-    status = re.fullmatch(r"HTTP/1\.1 ([0-9]{3}) [ -~]{1,64}", lines[0])
-    if status is None or int(status.group(1)) != expected_status:
+    return lines
+
+
+def lighttpd_response_status(lines: list[str], case: str, expected_status: int) -> None:
+    status_line = lines[0]
+    status_prefix = "HTTP/1.1 "
+    status_text = status_line[len(status_prefix) :]
+    status_code, separator, reason = status_text.partition(" ")
+    if (
+        not status_line.startswith(status_prefix)
+        or len(status_code) != 3
+        or not status_code.isdecimal()
+        or not separator
+        or not reason
+        or len(reason) > 64
+        or any(not 0x20 <= ord(character) <= 0x7E for character in reason)
+        or int(status_code) != expected_status
+    ):
         fail(f"Lighttpd {case} response status does not match the observed request status")
+
+
+def lighttpd_response_header_values(lines: list[str], header_name: str, case: str) -> list[str]:
     values: list[str] = []
     for line in lines[1:]:
         name, separator, value = line.partition(":")
@@ -382,6 +420,15 @@ def lighttpd_response_transaction_id(
             fail(f"Lighttpd {case} response header syntax is invalid")
         if name.lower() == header_name.lower():
             values.append(value.strip())
+    return values
+
+
+def lighttpd_response_transaction_id(
+    headers: str, case: str, expected_status: int, header_name: str, request_id: str
+) -> str:
+    lines = lighttpd_response_lines(headers, case)
+    lighttpd_response_status(lines, case, expected_status)
+    values = lighttpd_response_header_values(lines, header_name, case)
     if len(values) != 1 or not LIGHTTPD_HOST_TRANSACTION.fullmatch(values[0]):
         fail(f"Lighttpd {case} response lacks one safe server-generated transaction id")
     if values[0] == request_id:
@@ -428,11 +475,17 @@ def correlated_trigger(log_text: str, transaction_id: str) -> int:
     for line in log_text.splitlines():
         if f'[unique_id "{transaction_id}"]' not in line:
             continue
-        match = re.search(r'\[id "([0-9]+)"\]', line)
-        if match:
-            trigger = int(match.group(1))
-            if trigger == RULE_ID:
-                matches.append(trigger)
+        marker = '[id "'
+        start = line.find(marker)
+        if start < 0:
+            continue
+        value_start = start + len(marker)
+        value_end = line.find('"', value_start)
+        if value_end < 0 or line[value_end : value_end + 2] != '"]':
+            continue
+        value = line[value_start:value_end]
+        if value.isdecimal() and int(value) == RULE_ID:
+            matches.append(RULE_ID)
     if len(matches) != 1:
         fail(f"CRS trigger {RULE_ID} is not uniquely correlated to {transaction_id}: {len(matches)} matches")
     return matches[0]
@@ -695,7 +748,7 @@ def observed_lighttpd(runtime_root: Path, run_id: str) -> dict[str, Any]:
     allow = {"request_id": request_ids["allow"], "transaction_id": allow_id, "status": 200}
     server_text = read_bounded(runtime_root / "runtime-smoke.stderr", runtime_root).decode("utf-8", "replace")
     block_trigger = correlated_trigger(server_text, block_id)
-    bypass_trigger = correlated_trigger(server_text, bypass_id)
+    correlated_trigger(server_text, bypass_id)
     try: actual_intervention = int(block["rule_id"])
     except (KeyError, TypeError, ValueError): fail("Lighttpd intervention rule is malformed")
     if actual_intervention != 949110: fail("Lighttpd intervention is not 949110")

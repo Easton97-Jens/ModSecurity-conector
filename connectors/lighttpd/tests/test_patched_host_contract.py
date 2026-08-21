@@ -771,8 +771,9 @@ class PatchedHostContractTest(unittest.TestCase):
             request_lines[-2],
             "X-Framework-Request-ID: lighttpd-host-id-crs-delivery3-20260820-bypass",
         )
+        malformed_offset_trace = folded_trace.replace("00bb:", "00bc:", 1)
         with self.assertRaises(SystemExit):
-            parse_request(folded_trace.replace("00bb:", "00bc:", 1), "bypass")
+            parse_request(malformed_offset_trace, "bypass")
 
         info_trace = folded_trace.replace(
             "* Request completely sent off\n",
@@ -780,6 +781,28 @@ class PatchedHostContractTest(unittest.TestCase):
             "== Info: Request completely sent off\n",
         )
         self.assertEqual(parse_request(info_trace, "bypass"), request_lines)
+        with self.assertRaises(SystemExit):
+            parse_request(
+                folded_trace.replace(
+                    "* Request completely sent off\n",
+                    "* unexpected diagnostic row\n"
+                    "* Request completely sent off\n",
+                ),
+                "bypass",
+            )
+        hostile_record = "* attacker-controlled-header: secret-value"
+        with self.assertRaises(SystemExit) as raised:
+            parse_request(
+                folded_trace.replace(
+                    "* Request completely sent off\n",
+                    f"{hostile_record}\n* Request completely sent off\n",
+                ),
+                "bypass",
+            )
+        diagnostic = str(raised.exception)
+        self.assertIn("unsupported star trace record family", diagnostic)
+        self.assertNotIn("attacker-controlled-header", diagnostic)
+        self.assertNotIn("secret-value", diagnostic)
 
         parsed = parse_response(
             "HTTP/1.1 403 Forbidden\r\n"

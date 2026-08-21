@@ -922,8 +922,23 @@ raw_log = read_artifact(raw_log_path, "raw ModSecurity log")
 
 CURL_TRACE_SEND_HEADER = re.compile(r"^=> Send header, ([0-9]+) bytes \(0x[0-9a-fA-F]+\)$")
 CURL_TRACE_DATA_ROW = re.compile(r"^([0-9a-fA-F]+): ?(.*)$")
-CURL_TRACE_INFO_LINE = re.compile(r"^(?:\* |== Info: ).+$")
+# curl 8.18 emits informational records as ``== Info: ...`` in the trace
+# stream.  Accept only the documented printable record form; a bare ``*``
+# line is a data/diagnostic row here and must not be allowed to bypass the
+# contiguous request-byte validation below.
+CURL_TRACE_INFO_LINE = re.compile(r"^== Info: [ -~]{1,256}$")
 CURL_RESPONSE_STATUS = re.compile(r"^HTTP/1\.1 ([0-9]{3})(?: [ -~]*)?$")
+
+def classify_unexpected_trace_record(line):
+    if not line:
+        return "blank trace record"
+    if line.startswith("== Info:"):
+        return "malformed info record"
+    if any(ord(char) < 0x20 or ord(char) > 0x7E for char in line):
+        return "nonprintable/control trace record"
+    if line.startswith("* "):
+        return "unsupported star trace record family"
+    return "unsupported trace record family"
 
 def parse_curl_request_lines(trace, case):
     trace_lines = trace.splitlines()
@@ -943,15 +958,17 @@ def parse_curl_request_lines(trace, case):
             completed = True
             break
         # curl 8.18 may emit informational trace records with the ``== Info:``
-        # prefix (older builds use ``*``) while the outgoing header is being
-        # flushed.  They carry no request bytes and are accepted only as
-        # complete, non-empty trace-info records; all byte rows remain subject
-        # to the contiguous offset and declared-length checks below.
+        # prefix while the outgoing header is being flushed.  They carry no
+        # request bytes; all byte rows remain subject to the contiguous offset
+        # and declared-length checks below.
         if CURL_TRACE_INFO_LINE.fullmatch(line):
             continue
         row = CURL_TRACE_DATA_ROW.fullmatch(line)
         if row is None:
-            raise SystemExit(f"{case} curl trace has an unexpected outgoing-header row")
+            reason = classify_unexpected_trace_record(line)
+            raise SystemExit(
+                f"{case} curl trace has an unexpected outgoing-header row ({reason})"
+            )
         offset = int(row.group(1), 16)
         fragment = row.group(2)
         if not fragment.isascii() or any(not 0x20 <= ord(char) <= 0x7e for char in fragment):

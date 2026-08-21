@@ -46,9 +46,9 @@ MAX_HEADER_BYTES = 64 * 1024
 MAX_DIAGNOSTIC_BYTES = 64 * 1024
 MAX_TIMEOUT_SECONDS = 30.0
 MAX_CURL_OUTPUT_BYTES = MAX_HEADER_BYTES + 3
-HTTP_STATUS_LINE = re.compile(rb"HTTP/1\.1 200 [\x20-\x7e]+")
-CONTENT_LENGTH_VALUE = re.compile(rb"[0-9]+")
-STATUS_CODE_VALUE = re.compile(rb"[0-9]{3}")
+HTTP_STATUS_LINE = re.compile(rb"HTTP/1\.1 200 [ -~]+")
+CONTENT_LENGTH_VALUE = re.compile(rb"\d+")
+STATUS_CODE_VALUE = re.compile(rb"\d{3}")
 
 _CURL_CASES = {
     "content-length": (

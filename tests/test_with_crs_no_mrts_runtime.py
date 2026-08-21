@@ -589,6 +589,30 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             self.assertEqual(displaced.read_bytes(), b"original\n")
             self.assertEqual(target.read_bytes(), b"replacement\n")
 
+    def test_runtime_root_replacement_between_validation_and_open_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-normalizer-root-identity-") as temporary:
+            parent = Path(temporary)
+            runtime = parent / "runtime"
+            runtime.mkdir(mode=0o700)
+            displaced = parent / "runtime.original"
+            real_open = NORMALIZER.os.open
+            replaced = False
+
+            def replace_before_open(path, flags, mode=0o777, *, dir_fd=None):
+                nonlocal replaced
+                if Path(path) == runtime and dir_fd is None and not replaced:
+                    replaced = True
+                    runtime.rename(displaced)
+                    runtime.mkdir(mode=0o700)
+                return real_open(path, flags, mode, dir_fd=dir_fd)
+
+            with mock.patch.object(NORMALIZER.os, "open", side_effect=replace_before_open):
+                with self.assertRaisesRegex(RuntimeError, "changed between validation and open"):
+                    NORMALIZER.open_trusted_directory(runtime, "runtime evidence root")
+            self.assertTrue(replaced)
+            self.assertTrue(displaced.is_dir())
+            self.assertTrue(runtime.is_dir())
+
     def test_normalizer_rejects_pass_marker_without_host_evidence(self) -> None:
         for connector in ("envoy", "traefik", "lighttpd"):
             with self.subTest(connector=connector), tempfile.TemporaryDirectory(prefix="crs-static-evidence-") as temporary:
@@ -777,6 +801,32 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "not uniquely correlated"):
                     self.normalize("envoy", root, runtime)
 
+    def test_lighttpd_rejects_malformed_raw_crs_rule_marker(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-lighttpd-malformed-trigger-") as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime"
+            self.make_observation(runtime, connector="lighttpd")
+            self.make_lighttpd_host_evidence(runtime)
+            raw_log = runtime / "runtime-smoke.stderr"
+            expected_marker = '[unique_id "lighttpd-1-102"] [id "942270"]\n'
+            malformed_marker = '[unique_id "lighttpd-1-102"] [id "942270"x]\n'
+            raw_content = raw_log.read_text(encoding="utf-8")
+            self.assertIn(expected_marker, raw_content)
+            private_file(raw_log, raw_content.replace(expected_marker, malformed_marker))
+
+            with self.assertRaisesRegex(RuntimeError, "not uniquely correlated"):
+                self.normalize("lighttpd", root, runtime)
+
+            event_path = (
+                root
+                / "evidence"
+                / "normalized"
+                / "lighttpd"
+                / "lighttpd-run"
+                / "event.json"
+            )
+            self.assertFalse(event_path.exists())
+
     def test_lighttpd_preserves_distinct_request_and_transaction_ids(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-lighttpd-identities-") as temporary:
             root = Path(temporary)
@@ -945,15 +995,13 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             event = json.loads(event_path.read_text(encoding="utf-8"))
             self.assertEqual(event["request_id"], "block-request-lighttpd")
 
+            duplicate_completion_trace = info_trace.replace(
+                "== Info: Request completely sent off\n",
+                "== Info: Request completely sent off\n"
+                "== Info: Request completely sent off\n",
+            )
+            private_file(trace_path, duplicate_completion_trace)
             with self.assertRaisesRegex(RuntimeError, "exactly one request exchange"):
-                private_file(
-                    trace_path,
-                    info_trace.replace(
-                        "== Info: Request completely sent off\n",
-                        "== Info: Request completely sent off\n"
-                        "== Info: Request completely sent off\n",
-                    ),
-                )
                 self.normalize("lighttpd", root, runtime)
 
     def test_lighttpd_rejects_arbitrary_curl_info_row(self) -> None:

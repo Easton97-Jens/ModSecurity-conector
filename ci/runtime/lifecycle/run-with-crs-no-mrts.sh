@@ -7,7 +7,10 @@ RUN_ID=${2:-${CRS_RUNTIME_RUN_ID:-}}
 case "$CONNECTOR" in envoy|traefik|lighttpd) ;; *) echo "FAIL: connector must be envoy, traefik, or lighttpd" >&2; exit 2 ;; esac
 [ -n "$RUN_ID" ] || RUN_ID="crs-runtime-$(date -u +%Y%m%dT%H%M%SZ)"
 case "$RUN_ID" in [A-Za-z0-9]*) ;; *) echo "FAIL: run id must start with ASCII alphanumeric" >&2; exit 2 ;; esac
-case "$RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: unsafe run id" >&2; exit 2 ;; esac
+case "$RUN_ID" in
+    *[!A-Za-z0-9._-]*) echo "FAIL: unsafe run id" >&2; exit 2 ;;
+    *) : ;;
+esac
 [ "${#RUN_ID}" -le 48 ] || { echo "FAIL: run id is too long" >&2; exit 2; }
 
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
@@ -42,7 +45,7 @@ is_safe_root() {
     [ "$value" != / ] || return 1
     case "$value" in
         "$CONNECTOR_ROOT"|"$CONNECTOR_ROOT"/*|"$FRAMEWORK_ROOT"|"$FRAMEWORK_ROOT"/*) return 1 ;;
-        *) ;;
+        *) : ;;
     esac
     return 0
 }

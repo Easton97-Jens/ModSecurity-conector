@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from contextlib import ExitStack
 from pathlib import Path
 import secrets
 import stat
@@ -131,6 +132,34 @@ def _cleanup_created_child(
         raise ValueError("new private runtime directory was replaced during setup")
     _require_private_directory(current, "new private runtime directory")
     os.rmdir(name, dir_fd=parent_descriptor)
+
+
+def _create_private_child(
+    parent_descriptor: int, prefix: str, flags: int
+) -> tuple[str, tuple[int, int], int]:
+    """Create and verify one child below a held private-root descriptor."""
+
+    for _ in range(100):
+        candidate = f"{prefix}{secrets.token_hex(16)}"
+        try:
+            os.mkdir(candidate, _PRIVATE_DIRECTORY_MODE, dir_fd=parent_descriptor)
+        except FileExistsError:
+            continue
+        created = os.stat(candidate, dir_fd=parent_descriptor, follow_symlinks=False)
+        identity = (created.st_dev, created.st_ino)
+        with ExitStack() as cleanup:
+            cleanup.callback(
+                _cleanup_created_child, parent_descriptor, candidate, identity
+            )
+            child_descriptor = os.open(candidate, flags, dir_fd=parent_descriptor)
+            cleanup.callback(os.close, child_descriptor)
+            _require_private_directory(
+                os.fstat(child_descriptor), "new private runtime directory"
+            )
+            os.fchmod(child_descriptor, _PRIVATE_DIRECTORY_MODE)
+            cleanup.pop_all()
+            return candidate, identity, child_descriptor
+    raise ValueError("could not create a collision-free private runtime directory")
 
 
 def verified_runtime_output_root(value: Path) -> Path:
@@ -277,30 +306,18 @@ class BoundRuntimeDirectory:
         try:
             _require_safe_runtime_root(os.fstat(parent_descriptor), "runtime output root")
             _reject_legacy_children(parent_descriptor, rejected_legacy_names)
-            for _ in range(100):
-                candidate = f"{prefix}{secrets.token_hex(16)}"
-                try:
-                    os.mkdir(candidate, _PRIVATE_DIRECTORY_MODE, dir_fd=parent_descriptor)
-                except FileExistsError:
-                    continue
-                name = candidate
-                created = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
-                identity = (created.st_dev, created.st_ino)
-                child_descriptor = os.open(name, flags, dir_fd=parent_descriptor)
-                _require_private_directory(
-                    os.fstat(child_descriptor), "new private runtime directory"
-                )
-                os.fchmod(child_descriptor, _PRIVATE_DIRECTORY_MODE)
-                handle = cls(
-                    directory_descriptor=child_descriptor,
-                    identity=identity,
-                    parent_descriptor=parent_descriptor,
-                    name=name,
-                )
-                child_descriptor = -1
-                parent_descriptor = -1
-                return handle
-            raise ValueError("could not create a collision-free private runtime directory")
+            name, identity, child_descriptor = _create_private_child(
+                parent_descriptor, prefix, flags
+            )
+            handle = cls(
+                directory_descriptor=child_descriptor,
+                identity=identity,
+                parent_descriptor=parent_descriptor,
+                name=name,
+            )
+            child_descriptor = -1
+            parent_descriptor = -1
+            return handle
         except BaseException as error:
             if child_descriptor >= 0:
                 os.close(child_descriptor)
@@ -308,7 +325,7 @@ class BoundRuntimeDirectory:
             if name is not None and identity is not None:
                 try:
                     _cleanup_created_child(parent_descriptor, name, identity)
-                except BaseException as cleanup_error:
+                except (OSError, ValueError) as cleanup_error:
                     raise ValueError(
                         f"private runtime directory setup failed and exact cleanup failed: {cleanup_error}"
                     ) from error

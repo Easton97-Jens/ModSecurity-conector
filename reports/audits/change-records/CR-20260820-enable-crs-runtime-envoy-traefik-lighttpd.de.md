@@ -12,7 +12,7 @@
 | Beobachteter aktueller `origin/master` | `ab9cb2c276f159397ec2558b2d58cc260fd66ce2` |
 | Parent → Framework Pin | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | Framework → MRTS Pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der frühere gepushte Head `c7039ee4bcc5e92b8494a936468a8291829da5cb` benötigte Nachbesserung; auch diese Follow-up-Revision benötigt noch Exact-Head-Hosted-Validierung. Kein Merge und kein Auto-Merge sind autorisiert. |
+| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der exakte Head `22d8e9a65809754d5fca51cfd1e72b103fc716cd` wurde durch Hosted-Lauf `32428252679` validiert; auch dieser Lauf benötigt Nachbesserung und eine neue Exact-Head-Validierung. Kein Merge und kein Auto-Merge sind autorisiert. |
 
 Der Task-Worktree wurde von der aufgezeichneten Task-Basis erstellt.
 `origin/master` ist anschließend auf den separat aufgezeichneten aktuellen Wert
@@ -179,14 +179,32 @@ lokal verifizierten Produktions-Runtime-Ergebnis befördert.
 ## Runtime-Evidence
 
 Der Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309)
-wurde für den früheren exakten Head
-`c7039ee4bcc5e92b8494a936468a8291829da5cb` erstellt. Sein Hosted-Workflow-Lauf
-`32423859019` war nicht erfolgreich: Envoy und Traefik endeten erfolgreich,
-während Lighttpd ein neueres informatives Curl-Trace-Format ablehnte und
-Apache/HAProxy einen zu breiten Komponenten-Build anforderten. Diese
-task-eigenen Ursachen sind in der ausstehenden Follow-up-Revision adressiert;
-dies ist jedoch keine Evidence für einen späteren Head. Auch die früheren
-Hosted-Ergebnisse von actionlint und SonarQube benötigten Nachbesserung.
+wurde beim exakten Head
+`22d8e9a65809754d5fca51cfd1e72b103fc716cd` durch den Hosted-Lauf `32428252679`
+geprüft. Envoy und Traefik beendeten ihre Runtime-Jobs erfolgreich. Apache und
+HAProxy scheiterten in der Provisionierung, bevor Runtime-Evidence entstand,
+jeweils mit `missing_local_httpd_build` und
+`missing_haproxy_runtime_build`. Als konkrete Ursache wurde ermittelt, dass
+der Workflow Frameworks `common.sh` in derselben Shell wie den anschließenden
+Make-Aufruf einband; die doppelt geerbte `ENVOY_VERSION` löste den Framework-
+Guard korrekt aus. Die Versions-Pins blieben konsistent. Die CRS-Vorbereitung
+läuft jetzt in einer POSIX-Subshell, sodass ihre Exporte nicht in die
+nachfolgende Make-Umgebung auslaufen. Ein frischer realer Apache-Lauf mit
+genau dieser Semantik läuft noch; dieser Record behauptet keinen Erfolg. Der
+erste Lighttpd-Fehler war eine sichere Ablehnung der Curl-Trace-Grammatik.
+Ein eng begrenzter, nicht inhaltsbezogener Diagnoseklassifizierer wurde ergänzt,
+der nicht unterstützte Trace-Datensatzfamilien unterscheidet, ohne rohe
+Header, Traces, Requestdaten, Hashes oder Byte-Inhalte zu exportieren; neue
+Hosted-Evidence für einen exakten Head steht noch aus. Das SonarQube-Cloud-
+Quality-Gate scheiterte auf diesem exakten Head mit 15 task-eigenen Befunden;
+lokale Behebungen sind vorbereitet, benötigen aber eine frische Exact-Head-
+Analyse. Es wurde kein rohes CI-Log und kein Trace-Artefakt exportiert, weil
+dies als unnötiger externer Datenexport abgelehnt wurde.
+
+Dieser Lauf ist keine finale Runtime-Evidence für die drei beförderten Zellen.
+Der frühere Hosted-Lauf `32423859019` und seine Ergebnisse bleiben nur als
+historischer Kontext erhalten und werden nicht für Exact-Head-Behauptungen
+wiederverwendet.
 
 Dieser Record behauptet keine finale Runtime-Evidence. Insbesondere besitzt
 der Follow-up-Head noch keinen abgeschlossenen Hosted-Workflow, keine
