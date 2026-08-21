@@ -973,6 +973,15 @@ jobs:
                         / "ci/tools/run-readonly-submodule-validation-namespace.py"
                     ).is_file()
                 )
+                self.assertTrue(
+                    (
+                        proposed_root
+                        / "ci/runtime/lifecycle/run-verified-report-run.py"
+                    ).is_file()
+                )
+                self.assertTrue(
+                    (proposed_root / "tests/test_update_framework_versions.py").is_file()
+                )
                 self.assert_connector_lock_unchanged(root, source_lock)
                 return subprocess.CompletedProcess(arguments, 0, "", "")
 
@@ -984,6 +993,19 @@ jobs:
 
             self.assertEqual(len(commands), 1)
             self.assertEqual(commands[0][0][-1], "check-ci-security-contract")
+            self.assertEqual(list(runner_temp.iterdir()), [])
+            self.assert_connector_lock_unchanged(root, source_lock)
+
+    def test_proposed_tree_validation_runs_the_real_ci_security_contract(self) -> None:
+        """A bounded candidate must pass its real copied-tree contract checks."""
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            root, candidate, source_lock, runner_temp = self.proposed_tree_fixture(
+                temporary_root
+            )
+            with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+                UPDATER.validate_proposed_tree(root, candidate)
             self.assertEqual(list(runner_temp.iterdir()), [])
             self.assert_connector_lock_unchanged(root, source_lock)
 

@@ -11,6 +11,13 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260821-github-workflow-hostruntime-consolidation](CR-20260821-github-workflow-hostruntime-consolidation.de.md) —
+  der aktuelle Benutzer hat diese Parent-only-Workflow-Konsolidierung, die
+  Updater-Reparatur, gekoppelte Traceability, einen Branch, einen Commit und
+  einen nicht gemergten PR autorisiert. Der Record unterscheidet beobachtete
+  lokale/Security-Evidence von ausstehenden Exact-Head-Hosted-Checks und
+  behauptet weder Framework-Änderung noch Merge.
+
 - [CR-20260820-full-matrix-evidence-selector](CR-20260820-full-matrix-evidence-selector.de.md) —
   der aktuelle Benutzer hat die Parent-only-`AUDIT_AND_FIX`-Reparatur, ihren
   gekoppelten Change Record und später einen Parent-Draft-PR ausdrücklich

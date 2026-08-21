@@ -44,7 +44,12 @@ PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
         "github.event.repository.default_branch == 'master'",
     }
 )
-SUBMODULE_PUBLISHER_SHA256 = "eb6113334cf6ab75245f4f7add91538cb968d4a79d3618583ac96ccca2d8f44f"
+LOCK_PATH = ROOT / "ci" / "tooling" / "security-tools.lock.yml"
+LOCKED_ACTION_USE = re.compile(
+    r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
+    r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
+)
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "486be1c4676f48e035b8f17ca7ec44f9651de539edc9620d83191f1052418bc6"
 AUTO_MERGE_DISABLED_QUERY = (
     "--jq 'if (has(\"auto_merge\") and (.auto_merge == null)) then \"null\" "
     "else \"auto-merge-present\" end'"
@@ -1255,6 +1260,47 @@ def go_module_requirements(text: str) -> dict[str, tuple[int, int, int]]:
     return requirements
 
 
+def locked_action_pins() -> set[str]:
+    """Return immutable Action SHAs from the current reviewed lock."""
+
+    raw = yaml.safe_load(LOCK_PATH.read_text(encoding="utf-8"))
+    actions = raw.get("pinned_actions", {}) if isinstance(raw, dict) else {}
+    if not isinstance(actions, dict):
+        raise AssertionError("workflow Action lock has no pinned_actions mapping")
+    pins = {
+        record.get("commit_sha")
+        for record in actions.values()
+        if isinstance(record, dict) and isinstance(record.get("commit_sha"), str)
+    }
+    if not pins or any(not re.fullmatch(r"[a-f0-9]{40}", pin) for pin in pins):
+        raise AssertionError("workflow Action lock contains an invalid immutable pin")
+    return pins
+
+
+def locked_action_pin(name: str) -> str:
+    """Return one exact Action reference prefix bound to the reviewed lock."""
+
+    raw = yaml.safe_load(LOCK_PATH.read_text(encoding="utf-8"))
+    actions = raw.get("pinned_actions", {}) if isinstance(raw, dict) else {}
+    record = actions.get(name) if isinstance(actions, dict) else None
+    if not isinstance(record, dict) or not isinstance(record.get("commit_sha"), str):
+        raise AssertionError(f"workflow Action lock has no immutable pin for {name}")
+    return f"{name}@{record['commit_sha']}"
+
+
+def normalize_locked_action_pins(text: str) -> str:
+    """Canonicalize only reviewed Action pins before a structural digest check."""
+
+    pins = locked_action_pins()
+
+    def replace(match: re.Match[str]) -> str:
+        if match.group("sha") not in pins:
+            return match.group(0)
+        return f"{match.group('prefix')}<locked-action> # <locked-version>"
+
+    return LOCKED_ACTION_USE.sub(replace, text)
+
+
 class CiSecurityWorkflowTest(unittest.TestCase):
     def workflow(self, name: str) -> str:
         return (WORKFLOWS / name).read_text(encoding="utf-8")
@@ -1536,17 +1582,14 @@ jobs:
         self.assertNotIn("github.token", job)
         checkout_steps = checkout_step_blocks(job)
         self.assertEqual(len(checkout_steps), 1)
-        self.assertIn("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7", checkout_steps[0])
+        self.assertIn(locked_action_pin("actions/checkout"), checkout_steps[0])
         self.assertIn("submodules: recursive", checkout_steps[0])
         self.assertIn("persist-credentials: false", checkout_steps[0])
         self.assertIn(
             "python3 -m unittest -v tests.test_framework_apr_util_provenance tests.test_apr_util_static_contract",
             job,
         )
-        self.assertIn(
-            "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0",
-            job,
-        )
+        self.assertIn(locked_action_pin("actions/setup-python"), job)
         self.assertIn("id: setup-python", job)
         self.assertIn("python-version-file: .python-version", job)
         self.assertIn("check-latest: false", job)
@@ -2386,7 +2429,10 @@ sudo -n chmod 0750 "$namespace_parent"
                 self.assertNotEqual(update_submodule_validate_only_errors(mutated), [])
 
         self.assertIn("submodules: false", publisher)
-        self.assertEqual(sha256(publisher.encode("utf-8")).hexdigest(), SUBMODULE_PUBLISHER_SHA256)
+        self.assertEqual(
+            sha256(normalize_locked_action_pins(publisher).encode("utf-8")).hexdigest(),
+            SUBMODULE_PUBLISHER_NORMALIZED_SHA256,
+        )
         self.assertIn("persist-credentials: false", publisher)
         self.assertIn("id: setup-python", publisher)
         self.assertIn(
@@ -2694,10 +2740,7 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("WORKFLOW_UPDATER_APP_PRIVATE_KEY", publisher)
         self.assertIn("::error::WORKFLOW_UPDATER_APP_CLIENT_ID", publisher)
         self.assertIn("::error::WORKFLOW_UPDATER_APP_PRIVATE_KEY", publisher)
-        self.assertIn(
-            "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0",
-            publisher,
-        )
+        self.assertIn(locked_action_pin("actions/create-github-app-token"), publisher)
         self.assertIn("permission-contents: write", publisher)
         self.assertIn("permission-pull-requests: write", publisher)
         self.assertNotIn("permission-workflows:", publisher)

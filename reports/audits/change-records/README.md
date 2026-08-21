@@ -10,6 +10,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260821-github-workflow-hostruntime-consolidation](CR-20260821-github-workflow-hostruntime-consolidation.md)
+  | [Deutsch](CR-20260821-github-workflow-hostruntime-consolidation.de.md) — the
+  current user authorized this Parent-only workflow consolidation, updater
+  repair, paired traceability, one branch, one commit, and one unmerged PR.
+  The record distinguishes observed local/security evidence from pending
+  exact-head hosted checks and asserts no Framework change or merge.
+
 - [CR-20260820-full-matrix-evidence-selector](CR-20260820-full-matrix-evidence-selector.md)
   | [Deutsch](CR-20260820-full-matrix-evidence-selector.de.md) — the current
   user explicitly authorized the Parent-only `AUDIT_AND_FIX` repair, its paired
