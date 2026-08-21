@@ -10,6 +10,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260820-full-matrix-evidence-selector](CR-20260820-full-matrix-evidence-selector.md)
+  | [Deutsch](CR-20260820-full-matrix-evidence-selector.de.md) — the current
+  user explicitly authorized the Parent-only `AUDIT_AND_FIX` repair, its paired
+  Change Record, and later one Parent Draft PR; no Framework-source change is
+  authorized. It records observed local evidence only; hosted results and a
+  merge are not asserted.
+
 - [CR-20260819-fnd-parent-0185-crs-provenance-exports](CR-20260819-fnd-parent-0185-crs-provenance-exports.md)
   | [Deutsch](CR-20260819-fnd-parent-0185-crs-provenance-exports.de.md) — the
   current user authorized this Parent-only repair and Draft PR while expressly
