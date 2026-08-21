@@ -9,7 +9,7 @@
 | Change ID | CR-20260821-parent-only-workflow-maintenance-bundle |
 | Date (UTC) | 2026-08-21 |
 | Base revision | \`aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf\` |
-| Delivery status | The existing Parent-only pull request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) is the sole delivery vehicle. Exact-head hosted checks are pending after the stale-scaffold-reference and Python workflow-inventory contract corrections; merge is not authorized. PRs #306–#308 are not modified or closed by this task. |
+| Delivery status | The existing Parent-only pull request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) is the sole delivery vehicle. Applicable hosted checks must pass for its exact current head before any verified or merge claim; merge is not authorized. PRs #306–#308 are not modified or closed by this task. |
 
 ## Motivation and problem statement
 
@@ -141,8 +141,9 @@ would exceed the Parent-only maintenance scope or require separate authority.
 
 ## Final diff and review status
 
-The local source, test, workflow, and security review is complete pending the
-final follow-up commit/push to #311 and exact-head hosted results. The
-follow-up only corrects the Python workflow-inventory test contract; it does
-not modify the separate NGINX workflow. The task does not claim that PRs
-#306–#308 are closed, merged, or superseded remotely.
+The local source, test, workflow, and security review is complete. Hosted
+checks are evaluated only against the exact current PR #311 head; the task
+does not authorize a merge. The follow-up only corrects the Python
+workflow-inventory test contract and does not modify the separate NGINX
+workflow. The task does not claim that PRs #306–#308 are closed, merged, or
+superseded remotely.

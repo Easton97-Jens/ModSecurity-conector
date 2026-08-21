@@ -9,7 +9,7 @@
 | Change-ID | CR-20260821-parent-only-workflow-maintenance-bundle |
 | Datum (UTC) | 2026-08-21 |
 | Basis-Revision | \`aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf\` |
-| Delivery-Status | Der bestehende Parent-only-Pull-Request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) ist der einzige Delivery-Weg. Nach den Korrekturen der veralteten Scaffold-Referenz und des Python-Workflow-Inventar-Contracts stehen Exact-Head-Hosted-Checks aus; ein Merge ist nicht autorisiert. Die PRs #306–#308 werden durch diese Aufgabe weder verändert noch geschlossen. |
+| Delivery-Status | Der bestehende Parent-only-Pull-Request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) ist der einzige Delivery-Weg. Anwendbare Hosted-Checks müssen für seinen exakten aktuellen Head bestehen, bevor ein verified- oder Merge-Claim möglich ist; ein Merge ist nicht autorisiert. Die PRs #306–#308 werden durch diese Aufgabe weder verändert noch geschlossen. |
 
 ## Motivation und Problemstellung
 
@@ -150,9 +150,9 @@ Maintenance-Scope überschreiten oder getrennte Autorität erfordern.
 
 ## Finaler Diff- und Review-Status
 
-Der lokale Source-, Test-, Workflow- und Security-Review ist abgeschlossen;
-aus stehen der finale Follow-up-Commit/Push zu #311 und die
-Exact-Head-Hosted-Ergebnisse. Das Follow-up korrigiert nur den Python-
-Workflow-Inventar-Testvertrag; der separate NGINX-Workflow wird nicht
-verändert. Die Aufgabe behauptet nicht, dass PRs #306–#308 remote geschlossen,
-gemergt oder ersetzt sind.
+Der lokale Source-, Test-, Workflow- und Security-Review ist abgeschlossen.
+Hosted-Checks werden nur gegen den exakten aktuellen PR-#311-Head bewertet;
+die Aufgabe autorisiert keinen Merge. Das Follow-up korrigiert nur den Python-
+Workflow-Inventar-Testvertrag und verändert den separaten NGINX-Workflow nicht.
+Die Aufgabe behauptet nicht, dass PRs #306–#308 remote geschlossen, gemergt
+oder ersetzt sind.
