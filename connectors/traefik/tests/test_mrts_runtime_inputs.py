@@ -53,6 +53,23 @@ class TraefikMRTSRuntimeInputsTest(unittest.TestCase):
             with self.assertRaisesRegex(self.runner.MissingDependency, "CRS material"):
                 self.runner.require_no_crs_mrts_load_file(load_file)
 
+    def test_load_file_rejects_bare_crs_path_component(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            load_file = Path(temporary) / "mrts.load"
+            load_file.write_text('Include "/private/crs/rules.conf"\n', encoding="utf-8")
+            with self.assertRaisesRegex(self.runner.MissingDependency, "CRS material"):
+                self.runner.require_no_crs_mrts_load_file(load_file)
+
+    def test_load_file_allows_a_private_no_crs_parent_segment(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "mrts-no-crs-master"
+            root.mkdir()
+            load_file = root / "mrts.load"
+            load_file.write_text(
+                f'Include "{root}/MRTS_002_ARGS_A-GET.conf"\n', encoding="utf-8"
+            )
+            self.assertEqual(self.runner.require_no_crs_mrts_load_file(load_file), load_file)
+
     def test_load_file_rejects_symlink(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

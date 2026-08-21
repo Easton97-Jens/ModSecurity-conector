@@ -12,7 +12,7 @@
 | Parent boundary | Parent only; current Framework and MRTS gitlinks consumed read-only |
 | Framework gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | MRTS gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Task branch implementation committed through `14f453d7096fb41a56cdba086cddf4afc8788cc6`; no push, PR, merge, or hosted result asserted |
+| Delivery status | Task branch implementation committed through `e7316caa4a5123bb7a9177424c1814b8c52b01b8`; this record includes a narrow Traefik load-guard repair; no push, PR, merge, or hosted result asserted |
 
 ## Motivation and problem statement
 
@@ -84,6 +84,17 @@ runner fail closed.
 The current implementation commits include the sealed run-identity and socket
 parent follow-up (`602d88e3`) and its closed Traefik `env -i` forwarding fix
 (`14f453d7`). Neither commit changes the Framework or MRTS gitlink.
+
+The first fresh Traefik `r2` target attempt then stopped fail-closed before
+host creation: its auxiliary load-file check used a broad textual CRS match and
+classified `mrts-no-crs-*` in the legitimate private root as CRS material. The
+generated load file itself had only the 15 pinned `MRTS_*.conf` includes, and
+the central sealed validator still requires canonical include syntax, the
+private generated-rule directory, the complete canonical include set, and
+byte-for-byte hashes. The narrow local guard now detects only actual CRS path
+components; focused controls reject `crs` and `owasp-crs` components and accept
+a `no-crs` parent. `FND-PARENT-0201` preserves the diagnostic and keeps release
+promotion blocked until two fresh exact-head Traefik receipts.
 
 ## Security impact
 
@@ -178,6 +189,10 @@ plugin contracts. The three real-host final-candidate repetitions, the full
 five-connector hosted workflow, exact-head Required Checks, and SonarQube
 Cloud analysis are currently `NOT EXECUTED`. No static contract or inventory
 result is promoted to runtime `PASS`.
+The narrow Traefik load-guard correction passed 56 focused target and Traefik
+input contracts plus `git diff --check`; it has not yet been used in a host
+run. Its focused independent security review found no concrete bypass, and it
+does not weaken the central sealed no-CRS corpus validation.
 
 ## Runtime evidence
 
@@ -189,6 +204,18 @@ native rule-match evidence, and reported cleanup passed. It establishes the
 current host path but is not final-candidate evidence because this record's
 reconciliation commit follows it. Final promotion still requires two fresh,
 independent receipts for every target connector on the candidate head.
+
+Two later independent Envoy receipts, `r16` and `r17`, completed on Parent
+`e7316caa` with real ext-proc host start/readiness, ten HTTP-200
+DetectionOnly cases, correlated metadata-only rule-match evidence, and cleanup
+passed. They remain behavioral evidence only because the current Traefik guard
+repair follows that head; every target connector must be repeated from fresh
+roots on the final candidate head.
+
+Traefik `r2` is diagnostic-only: it stopped at the auxiliary load-file guard
+before native host creation, readiness, request processing, case execution,
+or a runtime receipt. Its failure is not evidence of CRS loading and cannot be
+used as a runtime result.
 
 Evidence must remain in the private run root and include the plan/result/event
 paths, exact Parent/Framework/MRTS identities, case and request correlation,
@@ -264,17 +291,18 @@ The final host adapters may reveal capability, readiness, or cleanup defects.
 `FND-PARENT-0194` is not closed by local interpreter-contract tests alone;
 fresh private-root host attempts must confirm that MRTS generation uses the
 approved venv and produces no false runtime receipt on dependency failure.
-Envoy `r15` supersedes the failed diagnostic Envoy attempts for current-path
-validation, but it remains pre-documentation evidence. Two fresh
-final-candidate Envoy receipts plus two fresh receipts each for Traefik and
-lighttpd must prove MRTS cases, no-CRS evidence, and cleanup. Neither a legacy
-Lighttpd smoke result nor a static contract can serve as runtime evidence.
+Envoy `r15`, `r16`, and `r17` demonstrate the current host route but all
+precede the Traefik guard repair and cannot be final-candidate evidence. Two
+fresh final-candidate receipts per target connector must prove MRTS cases,
+no-CRS evidence, and cleanup. Neither a legacy Lighttpd smoke result nor a
+static contract can serve as runtime evidence.
 The final workflow may expose environment or required-check failures. Until
 those exact results are observed, the three target cells remain
 `PENDING` for delivery classification.
 
 ## Final diff and review status
 
-`PARTIAL — implementation committed through 14f453d7; one Envoy real-host
-receipt recorded; final-candidate runtime and delivery evidence pending.` No
-push, PR creation, merge, auto-merge, or default-branch write is recorded.
+`PARTIAL — the preceding implementation is committed through e7316caa; this
+record adds the narrow Traefik guard correction, while fresh candidate-head
+runtime and delivery evidence remain pending.` No push, PR creation, merge,
+auto-merge, or default-branch write is recorded.

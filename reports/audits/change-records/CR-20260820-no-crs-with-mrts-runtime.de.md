@@ -12,7 +12,7 @@
 | Parent-Grenze | Nur Parent; aktuelle Framework- und MRTS-Gitlinks read-only verwendet |
 | Framework-Gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | MRTS-Gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Lieferstatus | Implementierung im Task-Branch bis `14f453d7096fb41a56cdba086cddf4afc8788cc6` committed; kein Push, PR, Merge oder gehostetes Ergebnis behauptet |
+| Lieferstatus | Implementierung im Task-Branch bis `e7316caa4a5123bb7a9177424c1814b8c52b01b8` committed; dieser Record enthält eine enge Traefik-Load-Guard-Korrektur; kein Push, PR, Merge oder gehostetes Ergebnis behauptet |
 
 ## Motivation und Problemstellung
 
@@ -89,6 +89,18 @@ Zu den aktuellen Implementierungscommits gehören das versiegelte
 Run-Identity-/Socket-Parent-Follow-up (`602d88e3`) und seine geschlossene
 Traefik-`env -i`-Weitergabekorrektur (`14f453d7`). Keiner der Commits ändert
 den Framework- oder MRTS-Gitlink.
+
+Der erste frische Traefik-`r2`-Targetlauf stoppte anschließend fail-closed vor
+der Host-Erzeugung: Seine Hilfsprüfung des Loadfiles verwendete einen breiten
+textuellen CRS-Treffer und bewertete `mrts-no-crs-*` im legitimen privaten Root
+als CRS-Material. Das erzeugte Loadfile enthielt selbst nur die 15 gepinnten
+`MRTS_*.conf`-Includes; der zentrale versiegelte Validator verlangt weiterhin
+kanonische Include-Syntax, das private generierte Regelverzeichnis, die
+vollständige kanonische Include-Menge und bytegenaue Hashes. Der enge lokale
+Guard erkennt jetzt nur echte CRS-Pfadkomponenten; fokussierte Controls weisen
+`crs`- und `owasp-crs`-Komponenten ab und akzeptieren einen `no-crs`-Parent.
+`FND-PARENT-0201` bewahrt die Diagnose und hält die Release-Hochstufung bis zu
+zwei frischen Traefik-Receipts auf dem exakten Head blockiert.
 
 ## Security-Auswirkung
 
@@ -191,6 +203,11 @@ Final-Candidate-Realhost-Wiederholungen, der gehostete Fünf-Connector-
 Workflow, Exact-Head-Required-Checks und die SonarQube-Cloud-Analyse sind
 aktuell `NOT EXECUTED`. Kein statisches Vertrags- oder Inventarergebnis wird
 zu Runtime-`PASS` befördert.
+Die enge Traefik-Load-Guard-Korrektur bestand 56 fokussierte Target- und
+Traefik-Input-Contracts sowie `git diff --check`; sie wurde noch nicht in einem
+Hostlauf verwendet. Ihr fokussiertes unabhängiges Security-Review fand keinen
+konkreten Bypass; sie schwächt die zentrale versiegelte No-CRS-
+Korpusvalidierung nicht ab.
 
 ## Runtime-Evidence
 
@@ -203,6 +220,18 @@ meldete Cleanup bestanden. Er belegt den aktuellen Hostpfad, ist aber keine
 Final-Candidate-Evidence, weil dieser Record erst danach abgeglichen wird.
 Eine finale Beförderung erfordert weiterhin zwei frische, unabhängige Receipts
 für jeden Zielconnector auf dem Candidate-Head.
+
+Zwei spätere unabhängige Envoy-Receipts, `r16` und `r17`, schlossen auf Parent
+`e7316caa` mit echtem ext-proc-Hoststart/Readiness, zehn HTTP-200-
+DetectionOnly-Cases, korrelierter metadata-only Rule-Match-Evidence und
+bestandenem Cleanup ab. Sie bleiben nur Verhaltens-Evidence, weil die aktuelle
+Traefik-Guard-Korrektur diesem Head folgt; jeder Zielconnector muss aus
+frischen Roots auf dem finalen Candidate-Head wiederholt werden.
+
+Traefik `r2` ist nur Diagnose-Evidence: Der Lauf stoppte am Hilfs-Loadfile-
+Guard vor der nativen Host-Erzeugung, Readiness, Request-Verarbeitung,
+Case-Ausführung oder einem Runtime-Receipt. Sein Fehler ist kein Nachweis
+eines CRS-Ladens und kann nicht als Runtime-Ergebnis verwendet werden.
 
 Evidence muss im privaten Run-Root bleiben und Plan-/Result-/Event-Pfade,
 exakte Parent-/Framework-/MRTS-Identitäten, Case- und Request-Korrelation,
@@ -289,18 +318,18 @@ nicht geschlossen; frische Private-Root-Hostversuche müssen bestätigen, dass
 die MRTS-Erzeugung die genehmigte venv verwendet und bei fehlender Dependency
 kein falsches Runtime-Receipt erzeugt. Der finale Workflow kann Umgebungs- oder
 Required-Check-Fehler zeigen.
-Envoy `r15` ersetzt die fehlgeschlagenen diagnostischen Envoy-Versuche für die
-Validierung des aktuellen Pfads, bleibt aber Evidence vor dem
-Dokumentationsabgleich. Zwei frische Final-Candidate-Envoy-Receipts sowie je
-zwei frische Receipts für Traefik und lighttpd müssen MRTS-Cases,
-No-CRS-Evidence und Cleanup nachweisen. Weder ein Legacy-Lighttpd-
-Smoke-Ergebnis noch ein statischer Contract dürfen als Runtime-Evidence dienen.
+Envoy `r15`, `r16` und `r17` belegen den aktuellen Hostpfad, gehen aber der
+Traefik-Guard-Korrektur voraus und sind keine Final-Candidate-Evidence. Zwei
+frische Final-Candidate-Receipts pro Zielconnector müssen MRTS-Cases,
+No-CRS-Evidence und Cleanup belegen. Weder ein Legacy-Lighttpd-Smoke-Ergebnis
+noch ein statischer Contract kann als Runtime-Evidence dienen.
 Bis diese Exact-Head-Ergebnisse beobachtet wurden, bleiben die drei Zielzellen
 für die Lieferung `PENDING`.
 
 ## Finaler Diff- und Review-Status
 
-`PARTIAL — Implementierung bis 14f453d7 committed; ein echter Envoy-
-Host-Receipt aufgezeichnet; Final-Candidate-Runtime- und Delivery-Evidence
-ausstehend.` Kein Push, keine PR-Erstellung, kein Merge, kein Auto-Merge und
-kein Default-Branch-Write sind aufgezeichnet.
+`PARTIAL — die vorausgehende Implementierung ist bis e7316caa committed;
+dieser Record ergänzt die enge Traefik-Guard-Korrektur, während frische
+Candidate-Head-Runtime- und Delivery-Evidence offen bleibt.` Kein Push,
+keine PR-Erstellung, kein Merge, kein Auto-Merge und kein Default-Branch-Write
+sind aufgezeichnet.

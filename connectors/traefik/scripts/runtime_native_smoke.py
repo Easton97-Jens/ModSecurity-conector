@@ -82,7 +82,14 @@ TRAEFIK_STDOUT_LOG_FILENAME = "traefik.stdout.log"
 ENGINE_SOCKET_PATH_MAX_BYTES = 100
 TRANSPORT_OBSERVATION_MAX_BODY_BYTES = 64 << 10
 SAFE_RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
-CRS_REFERENCE_PATTERN = re.compile(r"(?:\bcrs\b|coreruleset|owasp[ _-]*crs)", re.IGNORECASE)
+# A CRS source is rejected only when it forms an include-path component.  The
+# closed parent validator separately requires the complete pinned MRTS corpus;
+# a broad word match would incorrectly reject the legitimate private task path
+# segment ``mrts-no-crs-*`` before that validator can run.
+CRS_REFERENCE_PATTERN = re.compile(
+    r"(?:^|[/'\"])(?:crs|coreruleset|owasp[ _-]*crs)(?:[/'\"]|$)",
+    re.IGNORECASE,
+)
 PLAN_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
