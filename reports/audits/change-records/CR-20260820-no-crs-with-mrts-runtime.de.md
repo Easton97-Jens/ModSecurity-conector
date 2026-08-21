@@ -8,11 +8,11 @@
 | --- | --- |
 | Change-ID | CR-20260820-no-crs-with-mrts-runtime |
 | Datum (UTC) | 2026-08-20 |
-| Basis-Revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
+| Basis-Revision | `ab9cb2c276f159397ec2558b2d58cc260fd66ce2` |
 | Parent-Grenze | Nur Parent; aktuelle Framework- und MRTS-Gitlinks read-only verwendet |
 | Framework-Gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | MRTS-Gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Lieferstatus | Implementierung im Task-Branch; aktuelle Quelländerungen uncommitted; kein Push, PR, Merge oder gehostetes Ergebnis behauptet |
+| Lieferstatus | Implementierung im Task-Branch bis `14f453d7096fb41a56cdba086cddf4afc8788cc6` committed; kein Push, PR, Merge oder gehostetes Ergebnis behauptet |
 
 ## Motivation und Problemstellung
 
@@ -84,6 +84,11 @@ Ergebnisse und aufbewahrte Evidence bleiben unterhalb des privaten Run-Roots.
 Die versiegelte MRTS-`env -i`-Grenze reicht nur diesen berechneten Parent für
 Traefik weiter; ein fehlender Wert lässt den nativen Runner weiterhin
 fail-closed fehlschlagen.
+
+Zu den aktuellen Implementierungscommits gehören das versiegelte
+Run-Identity-/Socket-Parent-Follow-up (`602d88e3`) und seine geschlossene
+Traefik-`env -i`-Weitergabekorrektur (`14f453d7`). Keiner der Commits ändert
+den Framework- oder MRTS-Gitlink.
 
 ## Security-Auswirkung
 
@@ -179,19 +184,31 @@ bestand; dies wird als Umgebungs-/Testpfadgrenze dokumentiert, nicht als
 Produkt-Erfolgsabkürzung. Ein fokussierter Security-Diff-Scan der sechs
 Follow-up-Dateien meldete keinen konkreten Befund. Er bleibt Source-Level-
 Review und ersetzt weder frische Host-Receipts noch Exact-Head-Hosted-Checks.
-Die drei echten Hostläufe, der gehostete
-Fünf-Connector-Workflow, Exact-Head-Required-Checks und die SonarQube-Cloud-
-Analyse sind aktuell `NOT EXECUTED`. Kein statisches Vertrags- oder
-Inventarergebnis wird zu Runtime-`PASS` befördert.
+Die fokussierte Suite nach der Forwarding-Korrektur bestand 94 Tests,
+einschließlich Selected-Runner-, versiegelter Target-, Dispatch-, Workflow-,
+Traefik-MRTS-Input- und Traefik-Native-Plugin-Contracts. Die drei
+Final-Candidate-Realhost-Wiederholungen, der gehostete Fünf-Connector-
+Workflow, Exact-Head-Required-Checks und die SonarQube-Cloud-Analyse sind
+aktuell `NOT EXECUTED`. Kein statisches Vertrags- oder Inventarergebnis wird
+zu Runtime-`PASS` befördert.
 
 ## Runtime-Evidence
 
-Dieser Record behauptet noch keinen aufbewahrten Runtime-Receipt für die drei
-Connectoren. Sobald vorhanden, muss die Evidence im privaten Run-Root bleiben
-und Plan-/Result-/Event-Pfade, exakte Parent-/Framework-/MRTS-Identitäten,
-Case- und Request-Korrelation, No-CRS-Ergebnis, Evidence-Hashes und Cleanup-
-Status enthalten. Roh-Payloads, Secrets, private Schlüssel und lokale absolute
-Pfade dürfen nicht in diesen Record kopiert werden.
+Ein aufbewahrter Envoy-Receipt vor dem Dokumentationsabgleich wird jetzt nur
+als diagnostische Runtime-Evidence behauptet: `r15` auf Parent `14f453d7`
+verwendete die exakt aufgezeichneten Framework- und MRTS-Gitlinks, bestand
+realen Envoy-ext-proc-Start/Readiness, führte zehn Live-DetectionOnly-MRTS-
+Cases mit HTTP 200 aus, erzeugte korrelierte native Rule-Match-Evidence und
+meldete Cleanup bestanden. Er belegt den aktuellen Hostpfad, ist aber keine
+Final-Candidate-Evidence, weil dieser Record erst danach abgeglichen wird.
+Eine finale Beförderung erfordert weiterhin zwei frische, unabhängige Receipts
+für jeden Zielconnector auf dem Candidate-Head.
+
+Evidence muss im privaten Run-Root bleiben und Plan-/Result-/Event-Pfade,
+exakte Parent-/Framework-/MRTS-Identitäten, Case- und Request-Korrelation,
+No-CRS-Ergebnis, Evidence-Hashes und Cleanup-Status enthalten. Roh-Payloads,
+Secrets, private Schlüssel und lokale absolute Pfade dürfen nicht in diesen
+Record kopiert werden.
 
 Das vollständige versiegelte `mrts.load` kann für einen ausgewählten Request
 legitim mehr als einen nativen DetectionOnly-Treffer erzeugen. Der
@@ -243,8 +260,10 @@ diagnostisch und kann die Zelle nicht befördern.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- Echte Envoy-, Traefik- und lighttpd-Hostausführung: bei Erstellung
-  `NOT EXECUTED`; benötigt fertige Adapter und Runtime-Voraussetzungen.
+- Final-Candidate-Echt-Hostausführung für Envoy, Traefik und lighttpd:
+  `NOT EXECUTED`; Envoy `r15` ist ein erfolgreicher Receipt vor dem
+  Dokumentationsabgleich und ersetzt die geforderten frischen Wiederholungen
+  nicht.
 - Gehostete GitHub Actions und Exact-Head-Prüfungen: `NOT EXECUTED`; es gibt
   noch keinen PR.
 - SonarQube-Cloud-Analyse und Quality Gate für diesen Task-Head:
@@ -256,9 +275,9 @@ diagnostisch und kann die Zelle nicht befördern.
 
 Der Task-Branch basiert auf aktuellem `master`, nicht auf PR #279. Die
 Implementierung und ihre lokalen Verträge können sich nach den Hostläufen noch
-ändern, wenn connector-spezifische Probleme sichtbar werden. Die
-lokale Evidence deckt nur statische, Sprach- und Contract-Prüfungen ab; sie
-belegt kein Host-Runtime-Verhalten. Die Dokumentation beschreibt den
+ändern, wenn connector-spezifische Probleme sichtbar werden. Die lokale
+Evidence enthält einen echten Envoy-Receipt, belegt aber nicht die
+Drei-Connector-Final-Candidate-Hostmatrix. Die Dokumentation beschreibt den
 vorgesehenen geschlossenen Pfad und die aktuelle Evidence-Grenze; sie begründet
 nicht `verified_pr`.
 
@@ -270,21 +289,18 @@ nicht geschlossen; frische Private-Root-Hostversuche müssen bestätigen, dass
 die MRTS-Erzeugung die genehmigte venv verwendet und bei fehlender Dependency
 kein falsches Runtime-Receipt erzeugt. Der finale Workflow kann Umgebungs- oder
 Required-Check-Fehler zeigen.
-Envoy benötigt einen frischen Lauf nach dem Header-Fix und eine unabhängige
-Wiederholung; Lighttpd benötigt einen frischen Lauf durch den versiegelten
-MRTS-Dispatcher. Weder Envoy `r10` noch ein Legacy-Lighttpd-Smoke-Ergebnis
-dürfen als Runtime-Evidence dienen.
-Auch Envoy `r11` darf nicht befördert werden: Frische Host-Receipts nach dem
-Fix und eine unabhängige Wiederholung müssen MRTS-Cases, No-CRS-Evidence und
-Cleanup belegen.
-Auch Envoy `r12c` besitzt keinen gültigen Receipt; nach dem Binden des
-ausgewählten Cases an seine erwarteten Regel-IDs und Phase bleibt ein frischer
-Hostlauf nach dem Fix erforderlich.
+Envoy `r15` ersetzt die fehlgeschlagenen diagnostischen Envoy-Versuche für die
+Validierung des aktuellen Pfads, bleibt aber Evidence vor dem
+Dokumentationsabgleich. Zwei frische Final-Candidate-Envoy-Receipts sowie je
+zwei frische Receipts für Traefik und lighttpd müssen MRTS-Cases,
+No-CRS-Evidence und Cleanup nachweisen. Weder ein Legacy-Lighttpd-
+Smoke-Ergebnis noch ein statischer Contract dürfen als Runtime-Evidence dienen.
 Bis diese Exact-Head-Ergebnisse beobachtet wurden, bleiben die drei Zielzellen
 für die Lieferung `PENDING`.
 
 ## Finaler Diff- und Review-Status
 
-`PARTIAL — Dokumentation aktualisiert; Implementierung sowie Runtime- und
-Delivery-Evidence ausstehend.` Kein Commit, Push, PR, Merge, Auto-Merge oder
-Schreiben auf einen Default-Branch wird aufgezeichnet.
+`PARTIAL — Implementierung bis 14f453d7 committed; ein echter Envoy-
+Host-Receipt aufgezeichnet; Final-Candidate-Runtime- und Delivery-Evidence
+ausstehend.` Kein Push, keine PR-Erstellung, kein Merge, kein Auto-Merge und
+kein Default-Branch-Write sind aufgezeichnet.

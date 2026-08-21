@@ -8,11 +8,11 @@
 | --- | --- |
 | Change ID | CR-20260820-no-crs-with-mrts-runtime |
 | Date (UTC) | 2026-08-20 |
-| Base revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
+| Base revision | `ab9cb2c276f159397ec2558b2d58cc260fd66ce2` |
 | Parent boundary | Parent only; current Framework and MRTS gitlinks consumed read-only |
 | Framework gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | MRTS gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Task branch implementation in progress; current source changes uncommitted; no push, PR, merge, or hosted result asserted |
+| Delivery status | Task branch implementation committed through `14f453d7096fb41a56cdba086cddf4afc8788cc6`; no push, PR, merge, or hosted result asserted |
 
 ## Motivation and problem statement
 
@@ -80,6 +80,10 @@ closed on any unexpected artifact. Plans, logs, results, and retained evidence
 remain below the private run root. The sealed MRTS `env -i` boundary forwards
 only this calculated parent for Traefik; a missing value still makes the native
 runner fail closed.
+
+The current implementation commits include the sealed run-identity and socket
+parent follow-up (`602d88e3`) and its closed Traefik `env -i` forwarding fix
+(`14f453d7`). Neither commit changes the Framework or MRTS gitlink.
 
 ## Security impact
 
@@ -168,18 +172,28 @@ the complete rerun passed; this is recorded as an environment/test-path limit,
 not a product success shortcut. A focused security-diff scan of the six
 follow-up files reported no concrete finding. It is source-level review only
 and does not replace fresh host receipts or exact-head hosted checks.
-The three real host runs, the full five-connector hosted workflow, exact-head
-Required Checks, and SonarQube Cloud analysis are currently `NOT EXECUTED`.
-No static contract or inventory result is promoted to runtime `PASS`.
+The focused post-forwarding suite passed 94 tests, including selected runner,
+sealed target, dispatch, workflow, Traefik MRTS-input, and Traefik native
+plugin contracts. The three real-host final-candidate repetitions, the full
+five-connector hosted workflow, exact-head Required Checks, and SonarQube
+Cloud analysis are currently `NOT EXECUTED`. No static contract or inventory
+result is promoted to runtime `PASS`.
 
 ## Runtime evidence
 
-No retained three-connector runtime receipt is claimed by this record yet.
-When available, evidence must remain in the private run root and include the
-plan/result/event paths, exact Parent/Framework/MRTS identities, case and
-request correlation, no-CRS result, evidence hashes, and cleanup status. Raw
-payloads, secrets, private keys, and local absolute paths must not be copied
-into this record.
+One retained pre-documentation Envoy receipt is now claimed as diagnostic
+runtime evidence only: `r15` on Parent `14f453d7` used the exact recorded
+Framework and MRTS gitlinks, passed real Envoy ext-proc startup/readiness,
+executed ten live DetectionOnly MRTS cases with HTTP 200, emitted correlated
+native rule-match evidence, and reported cleanup passed. It establishes the
+current host path but is not final-candidate evidence because this record's
+reconciliation commit follows it. Final promotion still requires two fresh,
+independent receipts for every target connector on the candidate head.
+
+Evidence must remain in the private run root and include the plan/result/event
+paths, exact Parent/Framework/MRTS identities, case and request correlation,
+no-CRS result, evidence hashes, and cleanup status. Raw payloads, secrets,
+private keys, and local absolute paths must not be copied into this record.
 
 The complete sealed `mrts.load` can legitimately yield more than one native
 DetectionOnly match for a selected request. The Parent executor therefore
@@ -225,8 +239,9 @@ is diagnostic-only and cannot promote the cell.
 
 ## Checks not run and rationale
 
-- Envoy, Traefik, and lighttpd real host execution: `NOT EXECUTED` at record
-  creation; requires the completed adapters and their runtime prerequisites.
+- Final-candidate Envoy, Traefik, and lighttpd real host execution:
+  `NOT EXECUTED`; Envoy `r15` is a successful pre-documentation diagnostic
+  receipt and does not replace the required fresh repetitions.
 - Hosted GitHub Actions and exact final PR-head checks: `NOT EXECUTED`; no PR
   exists yet.
 - SonarQube Cloud analysis and Quality Gate for this task head: `NOT EXECUTED`;
@@ -238,8 +253,8 @@ is diagnostic-only and cannot promote the cell.
 
 The task branch is based on current `master`, not PR #279. The implementation
 and its local contracts may still change after host execution exposes
-connector-specific issues. The local evidence covers static, language, and
-contract checks only; it does not establish host-runtime behavior. The
+connector-specific issues. The local evidence includes one real Envoy receipt
+but does not establish the three-connector final-candidate host matrix. The
 documentation records the intended closed route and current evidence boundary;
 it does not establish `verified_pr`.
 
@@ -249,19 +264,17 @@ The final host adapters may reveal capability, readiness, or cleanup defects.
 `FND-PARENT-0194` is not closed by local interpreter-contract tests alone;
 fresh private-root host attempts must confirm that MRTS generation uses the
 approved venv and produces no false runtime receipt on dependency failure.
-Envoy needs a fresh post-header-fix run and an independent repetition; Lighttpd
-needs a fresh sealed-MRTS dispatcher run. Neither may use Envoy `r10` or a
-legacy Lighttpd smoke result as runtime evidence.
-Envoy `r11` also cannot be promoted: fresh post-fix host receipts and an
-independent repetition must prove MRTS cases, no-CRS evidence, and cleanup.
-Envoy `r12c` also has no valid receipt; a fresh post-fix host run remains
-required after binding the selected case to its expected rule IDs and phase.
+Envoy `r15` supersedes the failed diagnostic Envoy attempts for current-path
+validation, but it remains pre-documentation evidence. Two fresh
+final-candidate Envoy receipts plus two fresh receipts each for Traefik and
+lighttpd must prove MRTS cases, no-CRS evidence, and cleanup. Neither a legacy
+Lighttpd smoke result nor a static contract can serve as runtime evidence.
 The final workflow may expose environment or required-check failures. Until
 those exact results are observed, the three target cells remain
 `PENDING` for delivery classification.
 
 ## Final diff and review status
 
-`PARTIAL — documentation updated; implementation and runtime/delivery evidence
-pending.` No commit, push, PR creation, merge, auto-merge, or default-branch
-write is recorded.
+`PARTIAL — implementation committed through 14f453d7; one Envoy real-host
+receipt recorded; final-candidate runtime and delivery evidence pending.` No
+push, PR creation, merge, auto-merge, or default-branch write is recorded.
