@@ -1748,7 +1748,20 @@ jobs:
         ):
             self.assertNotIn(forbidden, job)
         self.assertIn("if-no-files-found: error", job)
+        self.assertNotIn("if-no-files-found: ignore", job)
         self.assertIn("retention-days: 10", job)
+        self.assertEqual(
+            job.count("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1"),
+            1,
+        )
+        upload = job.split("      - name: Upload real runtime evidence\n", 1)[1]
+        self.assertIn("if: always() && matrix.connector != 'haproxy'", upload)
+        self.assertNotIn("verified-haproxy-case", upload)
+        self.assertNotIn("Upload HAProxy host-runtime artifacts", job)
+        self.assertLess(
+            job.index("make verified-haproxy-case CASE=crs_sqli_anomaly_block"),
+            job.index("if: always() && matrix.connector != 'haproxy'"),
+        )
         runtime_runner = (ROOT / "ci/runtime/lifecycle/run-with-crs-no-mrts.sh").read_text(
             encoding="utf-8"
         )
@@ -1766,10 +1779,6 @@ jobs:
         )
         self.assertIn(
             "${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results",
-            job,
-        )
-        self.assertIn(
-            "${{ env.BUILD_ROOT }}/verified-haproxy-case/with-crs/no-mrts/results",
             job,
         )
 

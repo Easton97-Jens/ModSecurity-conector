@@ -208,14 +208,16 @@ jobs:
           esac
 
       - name: Upload real runtime evidence
-        if: always()
+        # The one-case HAProxy harness validates its raw host evidence before
+        # returning.  Do not pass its same-UID writable runtime root to this
+        # action: upload-artifact follows symlinks during discovery.
+        if: always() && matrix.connector != 'haproxy'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ env.VERIFIED_RUN_ROOT }}/evidence
             ${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results
-            ${{ env.BUILD_ROOT }}/verified-haproxy-case/with-crs/no-mrts/results
           if-no-files-found: error
           retention-days: 10
           overwrite: false
