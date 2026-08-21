@@ -86,3 +86,9 @@ The local nested container has only a one-entry UID/GID map, so it cannot
 exercise the complete non-root production entry path. That limitation blocks
 the local production integration claim; it does not authorize a less secure
 fallback.
+
+The pull-request `test-lighttpd` workflow sets
+`LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION=1` when it runs the namespace suite.
+An unavailable unprivileged user/mount/PID namespace is therefore a failed
+hosted security check, never a skipped-success substitute for the lifecycle,
+race, signal, crash, and teardown evidence.

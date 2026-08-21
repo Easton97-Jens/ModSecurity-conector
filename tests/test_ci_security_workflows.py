@@ -1525,6 +1525,32 @@ jobs:
             for checkout_step in checkout_steps:
                 self.assertIn("persist-credentials: false", checkout_step, path.name)
 
+    def test_lighttpd_namespace_integration_is_required_on_pull_requests(self) -> None:
+        """A skipped user-namespace probe is not security evidence in CI."""
+
+        workflow = self.workflow("test-lighttpd.yml")
+        jobs = self.jobs("test-lighttpd.yml")
+        self.assertIn("  pull_request:\n", workflow)
+        self.assertEqual(top_level_permissions(workflow), {"contents": "read"})
+        self.assertEqual(set(jobs), {"lighttpd-contract"})
+        job = jobs["lighttpd-contract"]
+        self.assertIn(
+            "ref: ${{ github.event.pull_request.head.sha || github.sha }}", job
+        )
+        self.assertIn("persist-credentials: false", job)
+        self.assertIn(
+            "Run fail-closed private fixture namespace lifecycle tests", job
+        )
+        self.assertIn('LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION: "1"', job)
+        self.assertIn('PYTHONDONTWRITEBYTECODE: "1"', job)
+        self.assertIn("set -euo pipefail", job)
+        self.assertIn(
+            "python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace",
+            job,
+        )
+        for forbidden in ("continue-on-error:", "|| true", "exit 0", "sudo", "unshare "):
+            self.assertNotIn(forbidden, job)
+
     def test_with_crs_no_mrts_workflow_is_five_real_fail_closed_runtime_jobs(self) -> None:
         """Keep the narrow CRS workflow on real no-MRTS runtime paths only."""
 
@@ -1609,6 +1635,10 @@ jobs:
 
         self.assertIn(". ci/runtime/lifecycle/prepare-fresh-crs-source.sh", job)
         self.assertIn('sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"', job)
+        self.assertIn(
+            'printf \'%s\\n\' "SOURCE_ROOT=$SOURCE_ROOT" "CRS_SOURCE_DIR=$CRS_SOURCE_DIR" >> "$GITHUB_ENV"',
+            job,
+        )
         preparation = job.split("            apache|haproxy)\n", 1)[1].split(
             "              ;;", 1
         )[0]
@@ -1618,6 +1648,11 @@ jobs:
             r"                \. \"\$FRAMEWORK_ROOT/ci/lib/common\.sh\"\n"
             r"                \. ci/runtime/lifecycle/prepare-fresh-crs-source\.sh\n"
             r"                sh \"\$FRAMEWORK_ROOT/ci/provisioning/fetch-crs\.sh\"\n"
+            r"                # The fetch runs in this shell, while the Make target runs in\n"
+            r"                # the next step\. Persist only the helper-validated, fresh\n"
+            r"                # run-owned CRS roots; otherwise Make's Framework prepare\n"
+            r"                # path fails closed with \"missing CRS_SOURCE_DIR\"\.\n"
+            r"                printf '%s\\n' \"SOURCE_ROOT=\$SOURCE_ROOT\" \"CRS_SOURCE_DIR=\$CRS_SOURCE_DIR\" >> \"\$GITHUB_ENV\"\n"
             r"              \)\n",
         )
         self.assertEqual(

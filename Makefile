@@ -495,7 +495,7 @@ verified-apache-case: check-framework prepare-runtime-components
 	@test -n "$(CASE)" || { echo "CASE is required, e.g. CASE=action_deny_phase1"; exit 2; }
 	@test -n "$(CRS)" || { echo "CRS is required, e.g. CRS=with-crs"; exit 2; }
 	@test -n "$(MRTS)" || { echo "MRTS is required, e.g. MRTS=with-mrts"; exit 2; }
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" FORCE_ALL_CASES=1 MODSECURITY_TEST_VARIANT="$(CRS)" MODSECURITY_MRTS_VARIANT="$(MRTS)" TEST_CASE="$(CASE)" CASE_SCOPE=all RESULTS_DIR="$(BUILD_ROOT)/verified-apache-case/$(CRS)/$(MRTS)/results" APACHE_RUNTIME_LOG_DIR="$(BUILD_ROOT)/verified-apache-case/$(CRS)-$(MRTS)-apache/logs/apache-runtime" RUNTIME_BASE="$(BUILD_ROOT)/verified-apache-case/$(CRS)-$(MRTS)-apache/apache-runtime" sh "$(FRAMEWORK_ROOT)/ci/runtime/run-apache-smoke.sh"
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" SOURCE_ROOT="$(SOURCE_ROOT)" CRS_SOURCE_DIR="$(CRS_SOURCE_DIR)" FORCE_ALL_CASES=1 MODSECURITY_TEST_VARIANT="$(CRS)" MODSECURITY_MRTS_VARIANT="$(MRTS)" TEST_CASE="$(CASE)" CASE_SCOPE=all RESULTS_DIR="$(BUILD_ROOT)/verified-apache-case/$(CRS)/$(MRTS)/results" APACHE_RUNTIME_LOG_DIR="$(BUILD_ROOT)/verified-apache-case/$(CRS)-$(MRTS)-apache/logs/apache-runtime" RUNTIME_BASE="$(BUILD_ROOT)/verified-apache-case/$(CRS)-$(MRTS)-apache/apache-runtime" sh "$(FRAMEWORK_ROOT)/ci/runtime/run-apache-smoke.sh"
 
 verified-haproxy-case: check-framework prepare-runtime-components
 	@test -n "$(CASE)" || { echo "CASE is required, e.g. CASE=action_deny_phase1"; exit 2; }

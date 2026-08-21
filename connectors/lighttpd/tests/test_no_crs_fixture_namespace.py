@@ -153,8 +153,28 @@ def _user_namespace_available() -> bool:
     return probe.returncode == 0
 
 
+def _namespace_integration_is_required() -> bool:
+    """Make hosted security evidence fail closed instead of silently skipping."""
+
+    value = os.environ.get("LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION")
+    if value not in {None, "1"}:
+        raise RuntimeError(
+            "LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION must be unset or exactly 1"
+        )
+    return value == "1"
+
+
 @unittest.skipUnless(os.name == "posix" and sys.platform == "linux", "Linux only")
 class NamespaceContractTest(unittest.TestCase):
+    def test_required_namespace_integration_is_available(self) -> None:
+        """A CI caller selecting this gate cannot treat skipped integration as proof."""
+
+        if _namespace_integration_is_required():
+            self.assertTrue(
+                _user_namespace_available(),
+                "required unprivileged user/mount/PID namespace integration is unavailable",
+            )
+
     def test_trusted_namespace_boundary_and_no_unsafe_rmdir_path_exist(self) -> None:
         source = HELPER_PATH.read_text(encoding="utf-8")
         fixture_io = FIXTURE_IO_PATH.read_text(encoding="utf-8")

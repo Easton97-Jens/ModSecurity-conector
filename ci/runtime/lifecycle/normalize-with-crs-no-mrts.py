@@ -59,6 +59,10 @@ CURL_TRACE_SEND_HEADER = re.compile(r"^=> Send header, ([0-9]{1,10}) bytes \(0x[
 CURL_TRACE_DATA_ROW = re.compile(r"^([0-9a-fA-F]{1,16}): ?([ -~]{0,256})$")
 CURL_TRACE_RECEIVE_HEADER = re.compile(r"^<= Recv header, [0-9]{1,10} bytes \(0x[0-9a-fA-F]{1,8}\)$")
 CURL_TRACE_INFO_LINE = re.compile(r"^== Info: [ -~]{1,256}$")
+CURL_TRACE_LOOPBACK_CONNECT = re.compile(
+    r"^\* (?:Established connection to 127\.0\.0\.1 \(127\.0\.0\.1 port [1-9][0-9]*\)|"
+    r"Connected to 127\.0\.0\.1 \(127\.0\.0\.1\) port [1-9][0-9]*)$"
+)
 
 
 def file_identity(details: os.stat_result) -> tuple[int, int, int, int]:
@@ -386,7 +390,10 @@ def validate_lighttpd_request(
     }
     if any(line.partition(":")[0].lower() in transaction_headers for line in request_lines[1:-1]):
         fail(f"Lighttpd {case} trace supplied a client transaction id")
-    if trace.count("*   Trying 127.0.0.1:") != 1 or trace.count("* Established connection to 127.0.0.1") != 1:
+    loopback_connects = [
+        line for line in trace.splitlines() if CURL_TRACE_LOOPBACK_CONNECT.fullmatch(line)
+    ]
+    if trace.count("*   Trying 127.0.0.1:") != 1 or len(loopback_connects) != 1:
         fail(f"Lighttpd {case} trace does not prove one private loopback connection")
 
 

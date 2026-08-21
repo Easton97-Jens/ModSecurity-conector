@@ -632,6 +632,12 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         no_crs_end = makefile.index("\n\ntest-with-crs:", no_crs_start)
         self.assertNotIn("prepare-fresh-crs-source.sh", makefile[no_crs_start:no_crs_end])
 
+        apache_start = makefile.index("verified-apache-case: check-framework prepare-runtime-components")
+        apache_end = makefile.index("\n\nverified-haproxy-case:", apache_start)
+        apache_target = makefile[apache_start:apache_end]
+        self.assertIn('SOURCE_ROOT="$(SOURCE_ROOT)"', apache_target)
+        self.assertIn('CRS_SOURCE_DIR="$(CRS_SOURCE_DIR)"', apache_target)
+
         with tempfile.TemporaryDirectory(prefix="fresh-crs-source-") as temporary:
             root = Path(temporary)
             verified_root = root / "verified"

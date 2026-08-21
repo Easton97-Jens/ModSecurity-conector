@@ -90,3 +90,9 @@ Der lokale verschachtelte Container besitzt nur eine einzeilige UID-/GID-Map
 und kann daher den vollständigen Produktionspfad für Nicht-root lokal nicht
 ausführen. Diese Einschränkung verhindert einen lokalen Produktions-
 Integrationsclaim; sie erlaubt keinen unsicheren Fallback.
+
+Der Pull-Request-Workflow `test-lighttpd` setzt beim Ausführen der
+Namespace-Suite `LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION=1`. Ein nicht
+verfügbarer unprivilegierter User-/Mount-/PID-Namespace ist daher ein
+fehlgeschlagener Hosted-Sicherheitscheck und niemals ein übersprungener Erfolg
+als Ersatz für Lifecycle-, Race-, Signal-, Absturz- und Teardown-Evidence.

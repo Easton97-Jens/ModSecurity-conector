@@ -9,10 +9,10 @@
 | Change ID | `CR-20260820-enable-crs-runtime-envoy-traefik-lighttpd` |
 | Date (UTC) | 2026-08-20 |
 | Base revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Observed current `origin/master` | `ab9cb2c276f159397ec2558b2d58cc260fd66ce2` |
+| Observed current `origin/master` | `aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf` |
 | Parent → Framework pin | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | Framework → MRTS pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The exact head `22d8e9a65809754d5fca51cfd1e72b103fc716cd` was hosted-validated by run `32428252679`; that run still requires remediation and a new exact-head validation. No merge or auto-merge is authorized. |
+| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The last hosted exact head is `75c3be54a4855e0c34ffeb30d0895c0fd840f313`; hosted run `32433856340` is not successful, and this follow-up awaits a fresh exact-head run. No merge or auto-merge is authorized. |
 
 The task worktree was created from the recorded task base. `origin/master`
 subsequently advanced to the separately recorded current value. This record
@@ -153,8 +153,8 @@ production-runtime result here.
 | Check | Actual result recorded here |
 | --- | --- |
 | Change Record `git diff --check` | passed; no diff-whitespace output |
-| Lighttpd focused contracts | passed: 49 contracts; 12 user-namespace-gated skips |
-| Workflow security tests | passed: 29 tests |
+| Lighttpd focused contracts | passed: 50 tests in the combined focused run; namespace integration remains locally capability-gated |
+| Workflow security tests | passed: 30 tests |
 | C module build | passed with `-Wall`, `-Wextra`, and `-Werror` |
 | Clang static analyzer | passed: 0 diagnostics |
 | Envoy and Traefik Go validation | `go mod verify`, dependency listing, tests, vet, and `govulncheck` passed; no vulnerabilities found |
@@ -168,32 +168,25 @@ production-runtime result here.
 ## Runtime evidence
 
 Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309)
-was evaluated at exact head
-`22d8e9a65809754d5fca51cfd1e72b103fc716cd` by hosted run `32428252679`.
-Envoy and Traefik completed their runtime jobs successfully. Apache and HAProxy
-failed during provisioning before runtime evidence was produced, respectively
-with `missing_local_httpd_build` and `missing_haproxy_runtime_build`. The
-established root cause was that the workflow sourced Framework `common.sh` in
-the same shell as the subsequent Make invocation; the duplicate inherited
-`ENVOY_VERSION` correctly failed the Framework guard. The version pins remained
-consistent. CRS preparation is now executed in a POSIX subshell so its exports
-do not leak into the subsequent Make environment. The isolated rerun then
-exposed a second Parent-owned propagation path:
-`load_framework_environment()` retained Framework's internal multi-line
-`CI_INHERITED_UPSTREAM_ENV` snapshot after loading `common.sh`. A subsequent
-Framework source operation read its embedded `ENVOY_VERSION=` line as a
-duplicate. The Parent now removes both internal snapshot fields before each
-guard source and before retaining its loaded environment; direct caller pin
-overrides remain subject to the unchanged Framework guard. The pending
-exact-head runtime validation is required before claiming an Apache or HAProxy
-success. Lighttpd's first failure was a safe
-Curl-trace grammar rejection. A narrow, non-content diagnostic classifier was
-added to distinguish unsupported trace-record families without exporting raw
-headers, traces, request data, hashes, or byte contents; new exact-head hosted
-evidence is still pending. The SonarQube Cloud Quality Gate failed on this
-exact head with 15 task-owned issues; local remediations have been prepared,
-but require a fresh exact-head analysis. No raw CI log or trace artifact export
-was performed because that was rejected as unnecessary external data export.
+was evaluated at pushed exact head
+`75c3be54a4855e0c34ffeb30d0895c0fd840f313` by hosted run `32433856340`.
+Envoy and Traefik completed their runtime jobs successfully. Lighttpd reached
+and completed its lifecycle, but the post-run normalizer rejected Curl 8.18's
+`Connected` spelling, so its promoted cell is not verified. Apache lost its
+freshly acquired CRS roots across the runtime snapshot. HAProxy was blocked
+before runtime by the read-only Framework ordering, which invokes
+`verify_build_target` before `prepare_build_worktree`. These failures prevent a
+full-matrix or verified-PR claim.
+
+The follow-up Parent fixes are narrowly scoped: accept the exact
+documented Curl spelling; forward Apache's fresh CRS roots through
+`GITHUB_ENV` with an explicit final environment override; and require the
+PR-triggered Lighttpd namespace suite to fail when user, mount, or PID
+namespace support is unavailable. The suite checks out and tests the exact PR
+head. The local suite remains capability-gated and skips its integration cases
+because the nested kernel rejects the user namespace with `EPERM`; hosted
+evidence for this required suite is pending. No raw CI log or trace artifact
+export was performed.
 
 The failed exact-head Lighttpd job reached CRS acquisition and the pinned
 `1.4.85` host build before its private Curl trace parser rejected an otherwise
@@ -204,9 +197,9 @@ generic diagnostics, malformed records, and arbitrary star rows; the outgoing
 offset/length checks and independent raw response-header validation remain
 mandatory. This change is pending fresh exact-head runtime evidence.
 
-This run is not final runtime evidence for the three promoted cells. The
-previous hosted run `32423859019` and its results are retained as historical
-context only and are not reused for exact-head claims.
+This run is not final runtime evidence for all three promoted cells. Previous
+hosted runs and their results are retained as historical context only and are
+not reused for exact-head claims.
 
 No final runtime evidence is asserted by this record. In particular, the
 follow-up exact task head has no completed hosted workflow, SonarQube Cloud
@@ -234,8 +227,10 @@ The real non-root namespace integration remains pending on a hosted runner.
 This is an environment blocker for that integration test, not evidence that the
 control is unnecessary or that a weaker cleanup path is permitted. The
 bilingual documentation target is also blocked by the uninitialized Framework
-Gitlink. The current task base also differs from observed `origin/master`;
-delivery requires an explicit current-base decision and renewed validation.
+Gitlink. The current task base also differs from observed `origin/master`; the
+PR remains Draft and delivery requires renewed exact-head validation according
+to the current base strategy. No Framework, MRTS, or Gitlink change is part of
+this work.
 
 ## Remaining risks
 
@@ -244,7 +239,8 @@ tests pass, the P1 remediation is not eligible for a verified-PR claim. The
 implementation must continue to fail closed rather than fall back to path-based
 deletion. Runtime promotion also remains contingent on real CRS rule evidence,
 No-MRTS proof, cleanup evidence, exact-head hosted checks, and the required
-quality/security gates.
+quality/security gates. The HAProxy Framework ordering dependency currently
+blocks full-matrix completion.
 
 ## Final diff and review status
 

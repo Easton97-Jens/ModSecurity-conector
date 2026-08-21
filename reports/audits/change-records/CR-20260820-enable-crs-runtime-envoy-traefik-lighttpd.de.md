@@ -9,10 +9,10 @@
 | Change-ID | `CR-20260820-enable-crs-runtime-envoy-traefik-lighttpd` |
 | Datum (UTC) | 2026-08-20 |
 | Basis-Revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Beobachteter aktueller `origin/master` | `ab9cb2c276f159397ec2558b2d58cc260fd66ce2` |
+| Beobachteter aktueller `origin/master` | `aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf` |
 | Parent → Framework Pin | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | Framework → MRTS Pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der exakte Head `22d8e9a65809754d5fca51cfd1e72b103fc716cd` wurde durch Hosted-Lauf `32428252679` validiert; auch dieser Lauf benötigt Nachbesserung und eine neue Exact-Head-Validierung. Kein Merge und kein Auto-Merge sind autorisiert. |
+| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der zuletzt gehostet geprüfte exakte Head ist `75c3be54a4855e0c34ffeb30d0895c0fd840f313`; Hosted-Lauf `32433856340` ist nicht erfolgreich und dieses Follow-up wartet auf einen frischen Exact-Head-Lauf. Kein Merge und kein Auto-Merge sind autorisiert. |
 
 Der Task-Worktree wurde von der aufgezeichneten Task-Basis erstellt.
 `origin/master` ist anschließend auf den separat aufgezeichneten aktuellen Wert
@@ -164,8 +164,8 @@ lokal verifizierten Produktions-Runtime-Ergebnis befördert.
 | Prüfung | Hier aufgezeichnetes tatsächliches Ergebnis |
 | --- | --- |
 | Change-Record-`git diff --check` | bestanden; keine Ausgabe zu Diff-Whitespace |
-| Lighttpd-fokussierte Contracts | bestanden: 49 Contracts; 12 durch User-Namespace capability-gated übersprungen |
-| Workflow-Sicherheitstests | bestanden: 29 Tests |
+| Lighttpd-fokussierte Contracts | bestanden: 50 Tests im kombinierten fokussierten Lauf; Namespace-Integration bleibt lokal capability-gated |
+| Workflow-Sicherheitstests | bestanden: 30 Tests |
 | C-Modul-Build | bestanden mit `-Wall`, `-Wextra` und `-Werror` |
 | Clang Static Analyzer | bestanden: 0 Diagnosen |
 | Envoy- und Traefik-Go-Validierung | `go mod verify`, Dependency-Auflistung, Tests, Vet und `govulncheck` bestanden; keine Schwachstellen gefunden |
@@ -179,35 +179,27 @@ lokal verifizierten Produktions-Runtime-Ergebnis befördert.
 ## Runtime-Evidence
 
 Der Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309)
-wurde beim exakten Head
-`22d8e9a65809754d5fca51cfd1e72b103fc716cd` durch den Hosted-Lauf `32428252679`
-geprüft. Envoy und Traefik beendeten ihre Runtime-Jobs erfolgreich. Apache und
-HAProxy scheiterten in der Provisionierung, bevor Runtime-Evidence entstand,
-jeweils mit `missing_local_httpd_build` und
-`missing_haproxy_runtime_build`. Als konkrete Ursache wurde ermittelt, dass
-der Workflow Frameworks `common.sh` in derselben Shell wie den anschließenden
-Make-Aufruf einband; die doppelt geerbte `ENVOY_VERSION` löste den Framework-
-Guard korrekt aus. Die Versions-Pins blieben konsistent. Die CRS-Vorbereitung
-läuft jetzt in einer POSIX-Subshell, sodass ihre Exporte nicht in die
-nachfolgende Make-Umgebung auslaufen. Der isolierte Wiederholungslauf zeigte
-danach einen zweiten Parent-eigenen Weitergabepfad:
-`load_framework_environment()` behielt Frameworks internen mehrzeiligen
-Snapshot `CI_INHERITED_UPSTREAM_ENV` nach dem Laden von `common.sh`. Ein
-weiterer Framework-Source-Vorgang las dessen eingebettete Zeile
-`ENVOY_VERSION=` als Duplikat. Der Parent entfernt jetzt beide internen
-Snapshot-Felder vor jedem Guard-Source und vor dem Behalten der geladenen
-Umgebung; direkte Caller-Pin-Overrides unterliegen weiterhin dem unveränderten
-Framework-Guard. Die ausstehende Exact-Head-Runtime-Validierung ist erforderlich,
-bevor ein Apache- oder HAProxy-Erfolg behauptet wird. Der erste Lighttpd-Fehler
-war eine sichere Ablehnung der Curl-Trace-Grammatik.
-Ein eng begrenzter, nicht inhaltsbezogener Diagnoseklassifizierer wurde ergänzt,
-der nicht unterstützte Trace-Datensatzfamilien unterscheidet, ohne rohe
-Header, Traces, Requestdaten, Hashes oder Byte-Inhalte zu exportieren; neue
-Hosted-Evidence für einen exakten Head steht noch aus. Das SonarQube-Cloud-
-Quality-Gate scheiterte auf diesem exakten Head mit 15 task-eigenen Befunden;
-lokale Behebungen sind vorbereitet, benötigen aber eine frische Exact-Head-
-Analyse. Es wurde kein rohes CI-Log und kein Trace-Artefakt exportiert, weil
-dies als unnötiger externer Datenexport abgelehnt wurde.
+wurde beim gepushten exakten Head
+`75c3be54a4855e0c34ffeb30d0895c0fd840f313` durch den Hosted-Lauf `32433856340`
+geprüft. Envoy und Traefik beendeten ihre Runtime-Jobs erfolgreich. Lighttpd
+erreichte und beendete seinen Lifecycle, aber der Post-Run-Normalizer lehnte
+die Curl-8.18-Schreibweise `Connected` ab; seine beförderte Zelle ist daher
+noch nicht verifiziert. Apache verlor seine frisch erworbenen CRS-Roots über
+den Runtime-Snapshot. HAProxy war vor der Runtime durch die read-only-
+Framework-Reihenfolge blockiert, die `verify_build_target` vor
+`prepare_build_worktree` aufruft. Diese Fehler verhindern einen Full-Matrix-
+oder verified-PR-Claim.
+
+Die Follow-up-Parent-Behebungen sind eng begrenzt: die exakt
+dokumentierte Curl-Schreibweise akzeptieren; Apaches frische CRS-Roots über
+`GITHUB_ENV` mit einem expliziten finalen Environment-Override weiterreichen;
+und die PR-ausgelöste Lighttpd-Namespace-Suite so erzwingen, dass fehlende
+User-, Mount- oder PID-Namespace-Unterstützung fehlschlägt. Die Suite prüft den
+exakten PR-Head aus und testet ihn. Die lokale Suite bleibt capability-gated
+und überspringt ihre Integrationsfälle, weil der verschachtelte Kernel den
+User-Namespace mit `EPERM` ablehnt; Hosted-Evidence für diese erforderliche
+Suite steht noch aus. Es wurden keine rohen CI-Logs oder Trace-Artefakte
+exportiert.
 
 Der fehlgeschlagene Lighttpd-Job auf dem exakten Head erreichte CRS-Akquisition
 und den gepinnten `1.4.85`-Host-Build, bevor sein privater Curl-Trace-Parser
@@ -220,10 +212,9 @@ Offset-/Längenprüfungen und die unabhängige Raw-Response-Header-Validierung
 bleiben verpflichtend. Diese Änderung wartet auf frische Exact-Head-
 Runtime-Evidence.
 
-Dieser Lauf ist keine finale Runtime-Evidence für die drei beförderten Zellen.
-Der frühere Hosted-Lauf `32423859019` und seine Ergebnisse bleiben nur als
-historischer Kontext erhalten und werden nicht für Exact-Head-Behauptungen
-wiederverwendet.
+Dieser Lauf ist keine finale Runtime-Evidence für alle drei beförderten Zellen.
+Frühere Hosted-Läufe und ihre Ergebnisse bleiben nur als historischer Kontext
+erhalten und werden nicht für Exact-Head-Behauptungen wiederverwendet.
 
 Dieser Record behauptet keine finale Runtime-Evidence. Insbesondere besitzt
 der Follow-up-Head noch keinen abgeschlossenen Hosted-Workflow, keine
@@ -253,9 +244,10 @@ Integration wartet auf einen Hosted-Runner. Das ist ein Umgebungsblocker für
 diesen Integrationstest, kein Nachweis, dass die Kontrolle unnötig ist oder ein
 schwächerer Cleanup-Pfad erlaubt wäre. Das bilinguale Dokumentationsziel ist
 außerdem durch den uninitialisierten Framework-Gitlink blockiert. Die aktuelle
-Task-Basis unterscheidet sich zudem vom beobachteten `origin/master`; die
-Delivery erfordert eine explizite Entscheidung zur aktuellen Basis und erneute
-Validierung.
+Task-Basis unterscheidet sich zudem vom beobachteten `origin/master`; der PR
+bleibt Draft und die Delivery erfordert eine erneute Exact-Head-Validierung
+gemäß der aktuellen Basisstrategie. Keine Framework-, MRTS- oder Gitlink-
+Änderung ist Teil dieser Arbeit.
 
 ## Verbleibende Risiken
 
@@ -265,6 +257,8 @@ verified-PR-Claim geeignet. Die Implementierung muss weiter fail-closed sein,
 statt auf pfadbasierte Löschung zurückzufallen. Die Runtime-Promotion hängt
 außerdem von realer CRS-Regel-Evidence, No-MRTS-Nachweis, Cleanup-Evidence,
 Exact-Head-Hosted-Checks und den erforderlichen Qualitäts-/Security-Gates ab.
+Die Framework-Abhängigkeit der HAProxy-Reihenfolge blockiert derzeit die
+Vervollständigung der Matrix.
 
 ## Finaler Diff- und Review-Status
 
