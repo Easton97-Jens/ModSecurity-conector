@@ -199,44 +199,31 @@ struct RequestEvaluationContext {
     modsecurity::ModSecurityIntervention *intervention;
 };
 
+void add_request_header(
+    modsecurity::Transaction *transaction,
+    std::string_view name,
+    std::string_view value) {
+    modsecurity::msc_add_n_request_header(
+        transaction,
+        reinterpret_cast<const unsigned char *>(name.data()),
+        name.size(),
+        reinterpret_cast<const unsigned char *>(value.data()),
+        value.size());
+}
+
 void configure_request(const RequestSetupContext &setup_context, const EvaluatorOptions &options) {
     modsecurity::msc_process_connection(setup_context.transaction, "127.0.0.1", 12345, "127.0.0.1", 8080);
     modsecurity::msc_process_uri(setup_context.transaction, options.uri.c_str(), options.method.c_str(), "1.1");
-    const unsigned char host_name[] = "Host";
-    const unsigned char host_value[] = "example.test";
-    modsecurity::msc_add_n_request_header(
-        setup_context.transaction,
-        host_name,
-        sizeof(host_name) - 1U,
-        host_value,
-        sizeof(host_value) - 1U);
+    add_request_header(setup_context.transaction, "Host", "example.test");
     if (!options.header_value.empty()) {
-        const unsigned char header_name[] = "X-Modsec-Smoke";
-        modsecurity::msc_add_n_request_header(
-            setup_context.transaction,
-            header_name,
-            sizeof(header_name) - 1U,
-            reinterpret_cast<const unsigned char *>(options.header_value.c_str()),
-            options.header_value.size());
+        add_request_header(setup_context.transaction, "X-Modsec-Smoke", options.header_value);
     }
     if (!options.body.empty()) {
         if (!options.content_type.empty()) {
-            const unsigned char content_type_name[] = "Content-Type";
-            modsecurity::msc_add_n_request_header(
-                setup_context.transaction,
-                content_type_name,
-                sizeof(content_type_name) - 1U,
-                reinterpret_cast<const unsigned char *>(options.content_type.c_str()),
-                options.content_type.size());
+            add_request_header(setup_context.transaction, "Content-Type", options.content_type);
         }
         const std::string content_length = std::to_string(options.body.size());
-        const unsigned char content_length_name[] = "Content-Length";
-        modsecurity::msc_add_n_request_header(
-            setup_context.transaction,
-            content_length_name,
-            sizeof(content_length_name) - 1U,
-            reinterpret_cast<const unsigned char *>(content_length.c_str()),
-            content_length.size());
+        add_request_header(setup_context.transaction, "Content-Length", content_length);
     }
     modsecurity::msc_process_request_headers(setup_context.transaction);
 }
