@@ -156,6 +156,10 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         self.assertIn("- name: Capture bounded connector failure diagnostics", self.reusable)
         self.assertIn("- name: Upload bounded connector failure diagnostics", self.reusable)
         self.assertIn("if: failure()", self.reusable)
+        capture = self.reusable.split(
+            "- name: Capture bounded connector failure diagnostics", 1
+        )[1].split("- name: Upload bounded connector failure diagnostics", 1)[0]
+        self.assertIn("env:\n          CONNECTOR: ${{ matrix.connector }}", capture)
         self.assertIn(
             "name: five-connector-diagnostics-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}",
             self.reusable,

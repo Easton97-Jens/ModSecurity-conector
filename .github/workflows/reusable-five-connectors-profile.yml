@@ -269,6 +269,8 @@ jobs:
 
       - name: Capture bounded connector failure diagnostics
         if: failure()
+        env:
+          CONNECTOR: ${{ matrix.connector }}
         run: |
           set -euo pipefail
           manifest="$FIVE_CONNECTOR_DIAGNOSTIC_ROOT/retained-paths.txt"

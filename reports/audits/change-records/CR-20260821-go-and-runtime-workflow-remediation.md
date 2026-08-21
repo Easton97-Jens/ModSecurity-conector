@@ -9,7 +9,7 @@
 | Change ID | CR-20260821-go-and-runtime-workflow-remediation |
 | Date (UTC) | 2026-08-21 |
 | Base revision | `57187eb210ab96b7e1eed22221fa367671d01820` |
-| Delivery status | A Parent-only task branch and Draft PR are authorized. Local validation is complete at record preparation time; exact-head hosted workflow runs, PR checks, and a merge are not asserted. A merge is not authorized. |
+| Delivery status | A Parent-only task branch and Draft PR are authorized. Initial exact-head hosted evidence and PR checks were collected on `a0c527cdb57ec97c663e983c4fbe195a6f2361b0`; a successor No-CRS run is required after the step-local capture correction. A merge is not authorized. |
 
 ## Motivation and problem statement
 
@@ -40,8 +40,9 @@ after their CodeQL v4.37.7 changes were verified on merged PR #311 and current
 - Heavy smoke preserves the ModSecurity v3 provenance guard and exposes its
   private component reports in existing smoke artifacts; it does not weaken
   provenance or modify Framework/MRTS.
-- Focused regression and security-contract checks pass. Corrected hosted runs
-  remain required before the three original runtime findings can be verified.
+- Focused regression and security-contract checks pass. The successor No-CRS
+  hosted run remains required before its follow-up capture correction can be
+  verified on the final task-branch head.
 
 ## Implementation decision and rationale
 
@@ -55,6 +56,10 @@ after their CodeQL v4.37.7 changes were verified on merged PR #311 and current
 - The reusable five-connector profile writes identity-bound diagnostics only on
   failure below its private verified root. The artifact name is deliberately
   outside the canonical `five-no-crs-*` aggregate pattern.
+- The first corrected No-CRS run proved that the capture step used `$CONNECTOR`
+  under `set -u` without a step-local binding. It now receives the closed
+  resolver matrix value explicitly; the contract test scopes that assertion to
+  the capture step.
 - Heavy smoke exports runtime component reports below its existing private
   build root and uploads them with the established diagnostic artifact path.
   The Framework-owned provenance guard remains fail-closed; no Framework,
@@ -90,6 +95,8 @@ reportable security candidate.
 | Go/updater, five-connector, heavy-smoke, and open-connectors contracts | passed: 34 tests |
 | `make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-go-version-contract` | passed |
 | CI security and Python version contracts | passed: 52 tests |
+| Follow-up five-connector contracts after step-local matrix binding | passed: 17 tests |
+| Follow-up CI-security contracts after step-local matrix binding | passed: 28 tests |
 | `git diff --check` | passed |
 | Focused open-connectors `set -eu` shell regression | passed: 1 test; the private report root was exported exactly |
 | Focused security re-review | passed: no remaining candidate for the corrected open-connectors path |
@@ -98,18 +105,28 @@ reportable security candidate.
 
 The original hosted failures are retained as evidence: Go run `32006247568`,
 open-connectors run `32485037344`, five-connector No-CRS run `32485072808`, and
-heavy-smoke run `32485033800`. The corrected workflow source has not yet run
-on an exact Draft-PR head at record preparation time. The task will dispatch
-only the safe read-only/no-cleanup workflows after delivery; no publisher,
-artifact deletion, root broker, or Framework/MRTS action is included.
+heavy-smoke run `32485033800`. On exact Draft-PR head
+`a0c527cdb57ec97c663e983c4fbe195a6f2361b0`, the corrected Go contract and
+pull-request checks passed. Open-connectors run `32494251838` initialized its
+private report root successfully before the independent provenance blocker;
+heavy-smoke run `32494271540` retained both no-CRS and with-CRS reports and did
+not request cleanup. The task dispatches only safe read-only/no-cleanup
+workflows; no publisher, artifact deletion, root broker, or Framework/MRTS
+action is included.
+
+The first corrected Five Connector No-CRS run `32494262558` retained the new
+private diagnostic artifacts and established that the shared
+`modsecurity_v3_provenance_configuration_failed` blocker still reaches every
+connector. It also exposed the now-corrected unset `$CONNECTOR` in the capture
+step. A successor No-CRS run is required for that step-local correction.
 
 ## Checks not run and rationale
 
 `actionlint` and `zizmor` are not installed in the available environment.
 Framework-dependent aggregate checks cannot run because the task worktree has
 an uninitialized Framework Gitlink; it is intentionally not initialized or
-modified. Corrected hosted workflow executions, PR checks, and result-reading
-are pending the task branch and Draft PR.
+modified. The final-head successor No-CRS execution and its renewed PR checks
+are pending the step-local capture correction; no merge is authorized.
 
 ## Known limitations
 
@@ -129,7 +146,7 @@ boundary for the corrected workflow behavior.
 
 ## Final diff and review status
 
-The Parent-only source change is locally ready for Draft-PR delivery. The three
-replaced Dependabot PRs are closed with branches retained. No new master
-integration, branch deletion, Framework/MRTS modification, or NGINX
-consolidation is authorized or asserted.
+The Parent-only source change is in Draft PR #313. The three replaced
+Dependabot PRs are closed with branches retained. No new master integration,
+branch deletion, Framework/MRTS modification, or NGINX consolidation is
+authorized or asserted.
