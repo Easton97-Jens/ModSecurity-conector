@@ -392,6 +392,7 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                     "transaction_id": block_transaction_id,
                     "method": "GET",
                     "rule_id": 949110,
+                    "status": "blocked",
                     "actual_action": "deny",
                     "http_status": 403,
                     "visible_http_status": 403,
@@ -408,6 +409,7 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                     "transaction_id": bypass_transaction_id,
                     "method": "GET",
                     "rule_id": 949110,
+                    "status": "blocked",
                     "actual_action": "deny",
                     "http_status": 403,
                     "visible_http_status": 403,
@@ -646,6 +648,28 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 self.assertEqual(parent["observed_statuses"], {"allow": 200, "block": 403, "bypass": 403})
                 self.assertEqual(parent["no_mrts"], NO_MRTS)
                 self.assertEqual(list((evidence / "normalized").rglob("event.json")), [event_path])
+
+    def test_observed_http_status_accepts_lighttpd_semantic_state_only_with_numeric_evidence(self) -> None:
+        self.assertEqual(
+            NORMALIZER.observed_http_status(
+                {"status": "blocked", "http_status": 403, "visible_http_status": 403},
+                "Lighttpd block",
+                403,
+            ),
+            403,
+        )
+        for record, message in (
+            ({"status": "blocked"}, "lacks an observed HTTP status"),
+            ({"status": "blocked", "http_status": "denied"}, "not a safe HTTP status"),
+            ({"status": "blocked", "http_status": "403"}, "not a safe HTTP status"),
+            ({"status": "blocked", "http_status": 403.9}, "not a safe HTTP status"),
+            ({"status": "PASS", "http_status": 403}, "not a safe HTTP status"),
+            ({"status": "blocked", "http_status": 403, "visible_http_status": 200}, "do not match"),
+            ({"status": "blocked", "http_status": True}, "not a safe HTTP status"),
+        ):
+            with self.subTest(record=record):
+                with self.assertRaisesRegex(RuntimeError, message):
+                    NORMALIZER.observed_http_status(record, "Lighttpd block", 403)
 
     def test_normalizer_emits_exact_framework_key_value_raw_records(self) -> None:
         """Lock Parent raw files to Framework's non-JSON record grammar."""

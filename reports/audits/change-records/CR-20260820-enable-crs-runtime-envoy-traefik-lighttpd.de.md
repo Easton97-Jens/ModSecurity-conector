@@ -12,7 +12,7 @@
 | Beobachteter aktueller `origin/master` | `aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf` |
 | Parent → Framework Pin | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | Framework → MRTS Pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der letzte gehostete exakte Head ist `5985153e54a49875c331d65005e2051f8f185167`; seine Hosted-Validierung ist nicht erfolgreich. Kein Merge und kein Auto-Merge sind autorisiert. |
+| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der letzte gehostete exakte Head ist `e432b1e748dc8f49b98ed1a29e8d7277a40763a5`; seine Hosted-Validierung ist nicht erfolgreich. Ein Parent-only-Follow-up für den beobachteten Lighttpd-Statusnormalisierungsfehler wartet auf Exact-Head-Validierung. Kein Merge und kein Auto-Merge sind autorisiert. |
 
 Der Task-Worktree wurde von der aufgezeichneten Task-Basis erstellt.
 `origin/master` ist anschließend auf den separat aufgezeichneten aktuellen Wert
@@ -170,6 +170,7 @@ lokal verifizierten Produktions-Runtime-Ergebnis befördert.
 | Clang Static Analyzer | bestanden: 0 Diagnosen |
 | Envoy- und Traefik-Go-Validierung | `go mod verify`, Dependency-Auflistung, Tests, Vet und `govulncheck` bestanden; keine Schwachstellen gefunden |
 | Parent-Runtime-Tests | bestanden: 34 Tests; die task-lokalen Btrfs-Verzeichnis-Haltbarkeitsbarrieren waren langsam, endeten aber ohne Entfernung einer Atomicity-Kontrolle |
+| Fokussierte CRS/no-MRTS-Normalizer-Regression | bestanden: 44 Tests, einschließlich semantischem Lighttpd-`status=blocked` plus strikter numerischer HTTP-Status-Validierung |
 | `test_collect` unter dem Framework-Override | bestanden: 42 Tests; 3 Framework-gated Skips |
 | Python-Dependency-Validierung | `pip check` bestanden |
 | Shell-/Python-/YAML-Validierung | Shell-Syntax, Python-Kompilierung, YAML-Parsing und Diff-Checks bestanden |
@@ -179,17 +180,25 @@ lokal verifizierten Produktions-Runtime-Ergebnis befördert.
 ## Runtime-Evidence
 
 Der Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309)
-wurde beim Hosted-Exact-Head `5985153e54a49875c331d65005e2051f8f185167` geprüft. Envoy und Traefik beendeten
+wurde zuletzt beim Hosted-Exact-Head `e432b1e748dc8f49b98ed1a29e8d7277a40763a5` geprüft. Envoy und Traefik beendeten
 ihre Runtime-Jobs erfolgreich. Apache scheiterte, weil die zeitliche Semantik
 von `GITHUB_ENV` innerhalb desselben Steps die frisch erworbenen CRS-Roots für
 den folgenden Step nicht verfügbar machte; diese Änderung fügt einen separaten
 Vorbereitungsschritt für diese Übergabe hinzu. Lighttpd beendete seinen
-Lifecycle erfolgreich, aber der Normalizer lehnte danach Curls äquivalente
-`== Info:`-Loopback-Verbindungsmetadaten ab, obwohl die ältere `*`-Form
-akzeptiert war. Diese Änderung akzeptiert ausschließlich die entsprechenden
-`Trying`-, `Established`- und `Connected`-Schreibweisen mit literalem
-`127.0.0.1`, gültigen Source- und Zielports, genau einem Marker jeder Art und
-übereinstimmenden Versuch-/Verbindungs-Zielports. HAProxy war vor der Runtime
+Lifecycle sowie die Curl-Metadatenvalidierung erfolgreich, doch danach
+versuchte die Parent-Attestierung, das semantische Action-Label
+`status=blocked` von Lighttpd als Ganzzahl zu parsen, bevor sie die numerischen
+Hostfelder `http_status=403` und `visible_http_status=403` berücksichtigte.
+Das Follow-up akzeptiert dieses dokumentierte semantische Label nur, wenn
+mindestens ein striktes JSON-Ganzzahl-HTTP-Feld vorhanden, im Bereich und
+konsistent ist; fehlerhafte Strings, Booleans, Gleitkommazahlen, fehlende
+numerische Evidence und Konflikte werden fail-closed abgewiesen. Eine
+task-private Kopie der hochgeladenen Evidence validierte gegen das unveränderte
+gepinnte Framework als `CONTRACT_VALIDATED`. Die vorausgehende Curl-Korrektur
+akzeptiert ausschließlich die entsprechenden `Trying`-, `Established`- und
+`Connected`-Schreibweisen mit literalem `127.0.0.1`, gültigen Source- und
+Zielports, genau einem Marker jeder Art und übereinstimmenden
+Versuch-/Verbindungs-Zielports. HAProxy war vor der Runtime
 durch die read-only-
 Framework-Reihenfolge bei
 `bd69ee96e0e7082317d4afe1232bee625665eb9a` blockiert, die
@@ -204,7 +213,8 @@ wurden keine rohen CI-Logs oder Trace-Artefakte exportiert.
 
 Dieser Lauf ist keine finale Runtime-Evidence für alle drei beförderten Zellen.
 Frühere Hosted-Läufe und ihre Ergebnisse bleiben nur als historischer Kontext
-erhalten und werden nicht für Exact-Head-Behauptungen wiederverwendet.
+erhalten und werden nicht für Exact-Head-Behauptungen wiederverwendet. Das
+Statusnormalisierungs-Follow-up hat noch keinen Hosted-Exact-Head-Lauf erhalten.
 
 Dieser Record behauptet keine finale Runtime-Evidence. Insbesondere ist die
 Hosted-Validierung des neuesten exakten Task-Heads nicht erfolgreich; eine

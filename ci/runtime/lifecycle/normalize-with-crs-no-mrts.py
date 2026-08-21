@@ -833,6 +833,35 @@ def observed_runtime(runtime_root: Path, connector: str, run_id: str) -> dict[st
     raise AssertionError
 
 
+def observed_http_status(record: dict[str, Any], label: str, expected: int) -> int:
+    """Extract one verified HTTP status without confusing semantic state labels.
+
+    Lighttpd event records use ``status=blocked`` as an action label while
+    separately exposing ``http_status`` and ``visible_http_status``.  Treating
+    that label as an integer both rejects genuine evidence and could obscure a
+    disagreement between the actual HTTP fields.  Only numeric HTTP-status
+    fields are authoritative; a semantic ``status`` is accepted solely as the
+    documented ``allowed``/``blocked`` label.
+    """
+    numeric_values: list[int] = []
+    for name in ("http_status", "visible_http_status", "observed_status", "status"):
+        if name not in record:
+            continue
+        value = record[name]
+        if name == "status" and isinstance(value, str) and value in {"allowed", "blocked"}:
+            continue
+        if not isinstance(value, int) or isinstance(value, bool):
+            fail(f"{label} {name} is not a safe HTTP status")
+        if not 100 <= value <= 599:
+            fail(f"{label} {name} is outside the HTTP status range")
+        numeric_values.append(value)
+    if not numeric_values:
+        fail(f"{label} lacks an observed HTTP status")
+    if any(value != expected for value in numeric_values):
+        fail(f"{label} HTTP status fields do not match the observed response")
+    return expected
+
+
 def repository_root(path: Path, label: str) -> Path:
     root = root_path(str(path), f"{label} repository root")
     details = root.lstat()
@@ -1009,6 +1038,11 @@ def normalize(args: argparse.Namespace) -> Path:
     allow = observed["allow"]
     block = observed["block"]
     bypass = observed["bypass"]
+    observed_statuses = {
+        "allow": observed_http_status(allow, f"{connector} allow", 200),
+        "block": observed_http_status(block, f"{connector} block", 403),
+        "bypass": observed_http_status(bypass, f"{connector} bypass", 403),
+    }
     request_id = str(observed["request_id"])
     transaction_id = str(observed["transaction_id"])
     canonical_trigger = int(observed["canonical_trigger"])
@@ -1057,11 +1091,7 @@ def normalize(args: argparse.Namespace) -> Path:
             "block_audit": digest(block_file, evidence_root),
         },
         "raw_inputs": raw_inputs,
-        "observed_statuses": {
-            "allow": int(allow.get("status", allow.get("http_status", allow.get("visible_http_status", allow.get("observed_status", 0))))),
-            "block": int(block.get("status", block.get("http_status", block.get("visible_http_status", block.get("observed_status", 0))))),
-            "bypass": int(bypass.get("status", bypass.get("http_status", bypass.get("visible_http_status", bypass.get("observed_status", 0))))),
-        },
+        "observed_statuses": observed_statuses,
         "no_mrts": {name: no_mrts[name] for name in ("runner_invoked", "case_inventory_loaded", "process_started", "socket_or_listener_created", "artifact_used")},
         "cleanup_scan": cleanup_scan,
     }

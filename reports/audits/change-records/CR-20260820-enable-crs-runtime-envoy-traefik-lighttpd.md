@@ -12,7 +12,7 @@
 | Observed current `origin/master` | `aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf` |
 | Parent → Framework pin | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
 | Framework → MRTS pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The latest hosted exact head is `5985153e54a49875c331d65005e2051f8f185167`; its hosted validation is not successful. No merge or auto-merge is authorized. |
+| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The latest hosted exact head is `e432b1e748dc8f49b98ed1a29e8d7277a40763a5`; its hosted validation is not successful. A Parent-only follow-up for the observed Lighttpd status-normalization failure is pending exact-head validation. No merge or auto-merge is authorized. |
 
 The task worktree was created from the recorded task base. `origin/master`
 subsequently advanced to the separately recorded current value. This record
@@ -159,6 +159,7 @@ production-runtime result here.
 | Clang static analyzer | passed: 0 diagnostics |
 | Envoy and Traefik Go validation | `go mod verify`, dependency listing, tests, vet, and `govulncheck` passed; no vulnerabilities found |
 | Parent runtime tests | passed: 34 tests; task-local Btrfs directory-durability barriers were slow but completed, with no atomicity control removed |
+| Focused CRS/no-MRTS normalizer regression | passed: 44 tests, including semantic Lighttpd `status=blocked` plus strict numeric HTTP-status validation |
 | `test_collect` under the Framework override | passed: 42 tests; 3 Framework-gated skips |
 | Python dependency validation | `pip check` passed |
 | Shell/Python/YAML validation | shell syntax, Python compilation, YAML parsing, and diff checks passed |
@@ -168,16 +169,23 @@ production-runtime result here.
 ## Runtime evidence
 
 Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309)
-was evaluated at hosted exact head `5985153e54a49875c331d65005e2051f8f185167`. Envoy and Traefik completed their
+was most recently evaluated at hosted exact head `e432b1e748dc8f49b98ed1a29e8d7277a40763a5`. Envoy and Traefik completed their
 runtime jobs successfully. Apache failed because same-step `GITHUB_ENV`
 temporal semantics did not make the freshly acquired CRS roots available to
 the later step; this change adds a separate preparation step for that handoff.
-Lighttpd completed its lifecycle, but the normalizer then rejected Curl's
-equivalent `== Info:` loopback connection metadata after accepting the legacy
-`*` form. This change accepts only the corresponding `Trying`, `Established`,
-and `Connected` spellings with literal `127.0.0.1`, valid source and target
-ports, exactly one marker of each kind, and matching attempted/connected target
-ports. HAProxy was blocked before runtime by the read-only
+Lighttpd completed its lifecycle and the Curl metadata validation, but then
+the Parent attestation tried to parse Lighttpd's semantic `status=blocked`
+action label as an integer before considering the host's numeric
+`http_status=403` and `visible_http_status=403`. The follow-up accepts that
+documented semantic label only when at least one strict JSON-integer HTTP field
+is present, in range, and consistent; malformed strings, booleans, floats,
+missing numeric evidence, and conflicts fail closed. A task-private copy of
+the uploaded evidence validated against the unchanged pinned Framework as
+`CONTRACT_VALIDATED`. The preceding Curl correction accepts only the
+corresponding `Trying`, `Established`, and `Connected` spellings with literal
+`127.0.0.1`, valid source and target ports, exactly one marker of each kind,
+and matching attempted/connected target ports. HAProxy was blocked before
+runtime by the read-only
 Framework ordering at `bd69ee96e0e7082317d4afe1232bee625665eb9a`, which invokes
 `verify_build_target` before `prepare_build_worktree`.
 
@@ -189,7 +197,8 @@ is asserted and no raw CI log or trace artifact was exported.
 
 This run is not final runtime evidence for all three promoted cells. Previous
 hosted runs and their results are retained as historical context only and are
-not reused for exact-head claims.
+not reused for exact-head claims. The status-normalization follow-up has not
+yet received a hosted exact-head run.
 
 No final runtime evidence is asserted by this record. In particular, the
 hosted validation for the latest exact task head is unsuccessful and no
