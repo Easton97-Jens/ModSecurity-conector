@@ -94,7 +94,7 @@ Virtual-Environment- oder System-`python3`-Interpreter zurückfallen.
 
 ### Vollständige Parent-Workflow-/Job-Inventarisierung
 
-Diese 22-Job-Baseline-Inventarisierung ist die maßgebliche
+Diese 20-Job-Baseline-Inventarisierung ist die maßgebliche
 Dokumentationstabelle für den verlinkten Change Record. „Vorhandenes
 Minor-only-Setup“ und „Ambientes oder Bootstrap-Python“ beschreiben den
 historischen Einführungspfad vor dem Vertrag; keine der beiden Bezeichnungen
@@ -107,7 +107,6 @@ dasselbe explizite <code>3.14.6</code>-Setup und dieselbe
 | `reusable-five-connectors-profile.yml` | `resolve-profile` | Gesperrtes `actions/setup-python`, Interpreter-Contract-Validierung, dann `python3 ci/runtime/lifecycle/five-connector-no-crs-profile.py --emit-github-matrix` | Explizites `.python-version`-Setup |
 | `reusable-five-connectors-profile.yml` | `no-crs` | Gesperrtes `actions/setup-python`, Interpreter-Contract-Validierung, dann Profilvalidierung und Python-gestützte Framework-/Make-Lifecycle-Targets | Explizites `.python-version`-Setup |
 | `reusable-five-connectors-profile.yml` | `aggregate` | Gesperrtes `actions/setup-python`, Interpreter-Contract-Validierung, dann `python3`-Evidence-Validierung und Fünf-Ergebnis-Aggregation | Explizites `.python-version`-Setup |
-| `check-actions-versions.yml` | `check-actions-versions` | `python3 scripts/check-github-actions-versions.py` | Vorhandenes Minor-only-Setup |
 | `ci-security-secrets.yml` | `pull-request-range` | `python3 ci/tools/fetch_security_tool.py` | Ambientes oder Bootstrap-Python |
 | `ci-security-secrets.yml` | `advisory-full-history` | `python3 ci/tools/fetch_security_tool.py` | Ambientes oder Bootstrap-Python |
 | `ci-security-workflow-lint.yml` | `actionlint` | Python-Tool-Fetcher und `python3 -m unittest` | Ambientes oder Bootstrap-Python |
@@ -124,7 +123,6 @@ dasselbe explizite <code>3.14.6</code>-Setup und dieselbe
 | `test-lighttpd.yml` | `lighttpd-contract` | Indirektes Python in Connector- und Shared-Checks | Ambientes oder Bootstrap-Python |
 | `test-nginx.yml` | `nginx-structure` | Bedingtes nicht-PR-Python-Setup und Quick-Check | Vorhandenes Minor-only-Setup |
 | `test-traefik.yml` | `traefik-contract` | Indirektes Python in Connector- und Shared-Checks | Ambientes oder Bootstrap-Python |
-| `update-actions-versions.yml` | `update-actions-versions` | `python3 scripts/update-github-actions-versions.py --write` | Vorhandenes Minor-only-Setup |
 | `update-submodules.yml` | `validate-submodule-update` | Indirektes Python über `make quick-check` | Ambientes oder Bootstrap-Python |
 | `verified-report-governance.yml` | `report-governance` | Indirektes Python über `make report-governance` | Vorhandenes Minor-only-Setup |
 
@@ -136,7 +134,7 @@ Validator deckt die Workflow-Dateinamen `.yml` und `.yaml` ab.
 
 ### Vertrag für den sicheren Stable-Patch-Updater
 
-Der Updater ist von den 22 Baseline-Jobs getrennt. Der eingecheckte Workflow
+Der Updater ist von den 20 Baseline-Jobs getrennt. Der eingecheckte Workflow
 `.github/workflows/update-python-version.yml` hat genau vier Jobs:
 
 | Job | Interpreter und Trust-Grenze | Erforderliches Verhalten |

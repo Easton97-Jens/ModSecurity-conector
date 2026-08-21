@@ -1,0 +1,198 @@
+# Change Record: Parent-only workflow maintenance bundle
+
+**Language:** English | [Deutsch](CR-20260821-parent-only-workflow-maintenance-bundle.de.md)
+
+## Identity
+
+| Field | Value |
+| --- | --- |
+| Change ID | CR-20260821-parent-only-workflow-maintenance-bundle |
+| Date (UTC) | 2026-08-21 |
+| Base revision | \`aaeb7c550d8943a584d21f0f5ca5a11cc3706cbf\` |
+| Delivery status | The existing Parent-only pull request [#311](https://github.com/Easton97-Jens/ModSecurity-conector/pull/311) is the sole delivery vehicle. The current user authorizes its controlled `master` integration only after fresh exact-head checks, review/thread, ruleset, SonarCloud, and squash-merge preconditions pass. Dependabot PRs #306–#308 remain open and unmodified unless separately authorized. |
+
+## Motivation and problem statement
+
+The user requires one Parent-only workflow-maintenance operation, rather than
+separate partial Action updates that can omit a related CodeQL component or the
+central lock and make CI red. At the start of this follow-up, #311 did not yet
+contain the `github/codeql-action` v4.37.7 updates represented by Dependabot
+PRs #306–#308.
+
+## Acceptance criteria
+
+- One updater owns GitHub-Action and locked workflow-tool maintenance; the
+  legacy checker/updater workflows and scripts are retired.
+- A candidate updates the central lock together with every reviewed matching
+  Action reference, including every CodeQL \`init\`, \`analyze\`, and
+  \`upload-sarif\` suffix occurrence.
+- The candidate covers every Parent \`.github/workflows/*.yml\` file explicitly,
+  so a newly added local-only wrapper cannot be forgotten silently.
+- Dependabot does not create separate \`github-actions\` update PRs; its existing
+  Python dependency updates remain enabled.
+- The maintenance boundary is Parent-only: no recursive submodule checkout,
+  Framework/MRTS path, module token, external remote, Gitlink update, or
+  external-module PR path remains.
+- A failed candidate application restores its allowed files byte-for-byte, and
+  Action identity matching is exact rather than substring-based.
+- The central `github/codeql-action` lock and all ten reviewed `init`,
+  `analyze`, and `upload-sarif` references move together to v4.37.7 commit
+  `ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd`.
+
+## Implementation decision and rationale
+
+- Removed \`check-actions-versions.yml\`, \`update-actions-versions.yml\`, their
+  Python scripts and tests, and their legacy branch/report ignore rule.
+- Made \`update-workflow-tools.yml\` the single canonical four-job resolver,
+  validator, publisher, and outcome workflow. Its publisher is explicitly
+  gated to the canonical Parent repository, non-fork default \`master\` branch,
+  and a successful resolver result.
+- Disabled only Dependabot's \`github-actions\` ecosystem entry. The one central
+  lock and updater now prepare a complete candidate instead of accepting three
+  independent partial PRs.
+- Hardened \`ci/tools/update-workflow-tools.py\` with exact remote Action parsing,
+  full Parent workflow-inventory equality, explicit inclusion of the
+  local-only \`all-connectors-no-crs.yml\` wrapper, and rollback across every
+  allowed update file.
+- Tightened native workflow pin tests to resolve each remote \`owner/repo\` to
+  its exact central-lock SHA. The regression suite proves a CodeQL candidate
+  changes its central lock plus all ten \`init\`/\`analyze\`/\`upload-sarif\`
+  references as one unit.
+- Removed the obsolete common-scaffold assertion for the retired legacy updater
+  test and made the Parent-only maintenance regression reject that stale
+  reference going forward.
+- Corrected the stale hard-coded Python inventory after retiring the two legacy
+  jobs: 36 normal and 40 total Python-executing workflow jobs. The regression
+  now also asserts that both retired workflow-job identifiers remain absent.
+- Incorporated the selected #306–#308 CodeQL v4.37.7 content into #311 as one
+  coherent Parent patch: the central lock and every ten matching CodeQL
+  `init`/`analyze`/`upload-sarif` reference advance together. This avoids the
+  incomplete direct-reference-only shape of the three original Dependabot PRs.
+
+- Hardened the shared host-runtime collector after the focused review
+  reproduced a preseeded same-user artifact-symlink overwrite. It now uses the
+  established private-root, no-follow, atomic artifact APIs for every
+  collector read and write; regressions reject both an evidence-root and a
+  final-status symlink while preserving the external sentinel. The separate
+  NGINX workflow remains unchanged.
+
+## Security impact
+
+The retired legacy updater checked out submodules recursively, accepted a
+module token, derived a submodule remote, and could write or open a PR outside
+the Parent repository. Its removal eliminates that validated privilege and
+repository-boundary violation. The remaining updater stays allow-listed,
+fail-closed, SHA-pinned, and uses the single Parent candidate boundary.
+
+The v4.37.7 annotated upstream tag resolves to
+`ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd`. GitHub reports the target commit
+verification as valid; the tag object itself is unsigned. The selected patch
+therefore remains an immutable same-upstream action pin rather than a mutable
+tag reference.
+
+A separate medium-confidence hardening follow-up retains explicit response and
+archive-size limits for release metadata/assets. It does not justify retaining
+the retired module path or splitting updates, and is tracked separately as
+\`FND-PARENT-0205\`.
+
+The task review also reproduced `MSC-SEC-HOSTRUNTIME-001`: an earlier
+collector fallback followed a preseeded `RUNNER_TEMP` symlink after the secure
+preflight rejected it, allowing a same-user evidence write outside the intended
+artifact subtree. The successor uses the existing descriptor-based,
+`O_NOFOLLOW` atomic APIs for the root, status, and summary paths. The local
+repair is tracked as `FND-PARENT-0206`; it proves artifact-root integrity but
+does not claim cross-user access, secret access, or privilege escalation.
+
+## Changed files
+
+- `ci/runtime/common/collect_hostruntime_preflight_evidence.py`
+- `tests/test_collect_hostruntime_preflight_evidence.py`
+- \`.github/dependabot.yml\`
+- \`.github/workflows/update-workflow-tools.yml\`
+- \`.github/workflows/test-common.yml\`
+- \`.gitignore\`
+- \`ci/checks/common/check-python-version-contract.py\`
+- \`ci/tools/update-workflow-tools.py\`
+- \`docs/build/README.md\` and \`README.de.md\`
+- \`docs/security/ci-security-tooling.md\` and \`.de.md\`
+- \`tests/ci_security/test_ci_security_contract.py\`
+- \`tests/ci_security/test_update_workflow_tools.py\`
+- \`tests/security_regression/test_workflow_security_contract.py\`
+- \`tests/test_ci_security_workflows.py\`
+- retired legacy Actions-maintenance workflows, scripts, and tests
+- `tests/test_python_version_contract.py`
+- this paired Change Record and paired archive indexes
+- `.github/workflows/ci-security-codeql.yml`
+- `.github/workflows/ci-security-osv.yml`
+- `.github/workflows/ci-security-scorecard.yml`
+- `ci/tooling/security-tools.lock.yml`
+
+## Commands executed
+
+| Check | Actual result |
+| --- | --- |
+| \`tests.test_ci_security_workflows\` | passed: 28 tests |
+| \`tests.ci_security.test_update_workflow_tools\` | passed: 37 tests, including the full CodeQL bundle and rollback controls |
+| \`tests.ci_security.test_ci_security_contract\` | passed: 13 tests |
+| \`tests.security_regression.test_workflow_security_contract\` | passed: 5 tests |
+| \`make check-ci-security-contract\` | passed: 122 tests, 5 expected capability skips, and locked tool metadata validation |
+| \`make check-python-version-contract\` | passed: Python 3.14.7 and 40 Python-executing workflow jobs |
+| Parse all workflow YAML | passed |
+| `tests.test_hostruntime_workflow_evidence_contract`, `tests.test_collect_hostruntime_preflight_evidence`, and `tests.test_python_version_contract` | passed: 30 tests after the Python-inventory correction |
+| `python3 ci/checks/common/check-python-version-contract.py` | passed: Python 3.14.7 and 40 Python-executing workflow jobs |
+| `make check-ci-security-contract` (current local successor) | passed: 122 tests, 5 expected capability skips, and locked tool metadata validation |
+| actionlint with ShellCheck | passed |
+| offline zizmor | passed: no findings; 86 existing suppressions honored |
+| `make check-bilingual-docs` | blocked only by pre-existing missing targets in the intentionally uninitialized Framework Gitlink; this paired record passes its required-section checks |
+| GitHub API resolution of `github/codeql-action` v4.37.7 | passed: the annotated tag resolves to `ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd`; GitHub reports the target commit verification as valid |
+| Follow-up CodeQL lock/reference unit contract | passed: 83 tests across `tests.test_ci_security_workflows`, `tests.ci_security.test_update_workflow_tools`, `tests.ci_security.test_ci_security_contract`, and `tests.security_regression.test_workflow_security_contract` |
+| `make check-ci-security-contract` (follow-up) | passed: 122 tests, 5 expected capability skips, and actionlint/zizmor/gitleaks lock-metadata validation |
+| Parse all Parent workflow YAML | passed: 27 `.github/workflows/*.yml` files |
+| Collector symlink-boundary and runtime-artifact controls | passed: 44 tests across collector, runtime-artifact, host-runtime workflow, and Python-inventory contracts; both preseeded-symlink sentinels remained unchanged |
+
+## Runtime evidence
+
+The updater's synthetic candidates exercised the real copied-tree contract.
+One valid CodeQL candidate changes the central lock and every reviewed
+init/analyze/upload-sarif reference; an injected later write failure restores
+each allowed file. No live maintenance dispatch, token mint, external module
+write, or submodule initialization was performed.
+
+The focused host-runtime validation reproduced the original same-user
+`status.json` symlink overwrite only in a disposable external scan path. The
+successor regression then rejects both the artifact-root and final-status
+symlink before command execution and preserves the sentinel byte-for-byte.
+
+## Known limitations
+
+No Framework or MRTS source, Gitlink, submodule state, token, module remote,
+or legacy Dependabot PR is modified. \`make check-bilingual-docs\` remains
+blocked by pre-existing missing targets inside the intentionally uninitialized
+Framework Gitlink; the task does not initialize or alter that separate
+repository. Hosted checks on the exact successor head of PR #311 remain
+required before any verified or merge claim.
+
+## Remaining risks
+
+The local correction is not verified until the exact successor PR #311 head
+passes applicable hosted checks and, after an authorized merge, the original
+controls pass on resulting master. The separate medium-confidence response/
+asset/archive resource-limit hardening follow-up is retained as FND-PARENT-0205.
+
+The locally fixed FND-PARENT-0206 still requires the successor PR's exact-head
+checks and resulting-master evidence before it can be verified.
+
+## Checks not run and rationale
+
+No live maintenance workflow dispatch, GitHub App token mint, external module
+write, submodule initialization, or PR #306–#308 mutation was run. No merge
+has occurred yet: #311's successor head still requires the fresh hosted-check
+and controlled-integration preconditions recorded above.
+
+## Final diff and review status
+
+The local source, test, workflow, and security review is in progress for the
+exact successor of PR #311. The current task authorizes a controlled squash
+merge only after the exact-head hosted checks and all repository rules pass.
+The CodeQL patch does not modify the separate NGINX workflow. The task does
+not claim that PRs #306–#308 are closed, merged, or superseded remotely.

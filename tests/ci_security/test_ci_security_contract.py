@@ -41,7 +41,10 @@ EXPECTED_APP_TOKEN_INPUTS = {
     "permission-workflows": "write",
 }
 EXPECTED_PUBLISHER_GATE = (
-    "github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && "
+    "github.repository == 'Easton97-Jens/ModSecurity-conector' && "
+    "github.event.repository.fork == false && "
+    "github.event.repository.default_branch == 'master' && "
+    "github.ref == 'refs/heads/master' && "
     "needs.resolver.outputs.has_updates == 'true'"
 )
 
@@ -150,7 +153,7 @@ class CiSecurityContractTest(unittest.TestCase):
             str(path.relative_to(ROOT))
             for path in (ROOT / ".github/workflows").glob("*.yml")
         }
-        self.assertEqual(observed, actual)
+        self.assertTrue(observed.issubset(actual))
         self.assertEqual(set(UPDATER.WORKFLOW_UPDATE_PATHS), actual)
         UPDATER.ensure_locked_action_workflow_coverage(ROOT, lock)
 

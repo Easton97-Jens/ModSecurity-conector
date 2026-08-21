@@ -40,7 +40,6 @@ logs/
 tmp/
 *.log
 *.load
-actions-update-report.md
 
 
 # Editor and operating-system files

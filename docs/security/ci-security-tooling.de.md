@@ -29,6 +29,15 @@ Validierung einen kurzlebigen, auf das Repository begrenzten GitHub-App-Token.
 Er erstellt ausschließlich Draft-Pull-Requests und erst nach expliziten Pfad-,
 Symlink-, Staging-Scope- und Candidate-SHA-256-Prüfungen.
 
+Die Workflow-Wartung hat genau einen Besitzer: Dependabot verwaltet hier keine
+`github-actions`. Der Updater löst jeden Lock-Eintrag als Einheit auf,
+aktualisiert jeden passenden Action-Suffix (einschließlich aller
+`github/codeql-action`-Komponenten) und die zentrale Lockdatei in einem
+Kandidaten, validiert den vollständigen Proposed Tree und erstellt höchstens
+einen passenden Parent-Draft-Pull-Request. Alle Checkout-Schritte verwenden
+`submodules: false`; Framework-/MRTS-Quellen und Gitlinks liegen außerhalb des
+Scopes dieses Workflows.
+
 Die eingecheckte `ci/tooling/security-tools.lock.yml` bleibt die einzige
 Lockdatei und Source of Truth. Ihre On-Disk-`pinned_actions`-Einträge verwenden
 `commit_sha` und `upstream`; Tool-Einträge verwenden `release_commit`, `url`

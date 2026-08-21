@@ -11,6 +11,21 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260821-parent-only-workflow-maintenance-bundle](CR-20260821-parent-only-workflow-maintenance-bundle.de.md) —
+  der aktuelle Benutzer autorisierte einen Parent-only gebündelten
+  Action-/Tool-Wartungsweg und eine kontrollierte #311-`master`-Integration,
+  nachdem alle geschützten Delivery-Voraussetzungen bestehen. Der Record hält
+  fest, dass keine Framework-/MRTS-Änderung und keine Aktion an
+  Legacy-Dependabot-PRs autorisiert ist und kein Merge vorab erfolgt oder
+  behauptet wird.
+
+- [CR-20260821-github-workflow-hostruntime-consolidation](CR-20260821-github-workflow-hostruntime-consolidation.de.md) —
+  der aktuelle Benutzer hat diese Parent-only-Workflow-Konsolidierung, die
+  Updater-Reparatur, gekoppelte Traceability, einen Branch, einen Commit und
+  einen nicht gemergten PR autorisiert. Der Record unterscheidet beobachtete
+  lokale/Security-Evidence von ausstehenden Exact-Head-Hosted-Checks und
+  behauptet weder Framework-Änderung noch Merge.
+
 - [CR-20260820-full-matrix-evidence-selector](CR-20260820-full-matrix-evidence-selector.de.md) —
   der aktuelle Benutzer hat die Parent-only-`AUDIT_AND_FIX`-Reparatur, ihren
   gekoppelten Change Record und später einen Parent-Draft-PR ausdrücklich
