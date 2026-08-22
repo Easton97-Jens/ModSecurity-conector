@@ -71,6 +71,26 @@ Branches bleiben erhalten.
   Framework-, MRTS-, Gitlink-, Cleanup-, Root-Broker- oder NGINX-
   Workflowänderung.
 
+### Fortsetzung 2026-08-22: target-spezifische NGINX-Isolierung
+
+Nach dem normalen Base-Merge erreichte der kontrollierte Five-Connector-No-CRS-
+Run `32577438675` auf `ec8cccc6211534e92eba7013cf76747c135d7a4a` die
+Parent-Vorbereitungsgrenze, aber alle fünf ausgewählten Nicht-NGINX-Jobs
+scheiterten an `nginx_pinned_provenance_ref_mismatch`. Das Framework-Tupel
+liefert separat verwaltete `release-1.31.4`-Metadaten, während Parent sein
+unabhängig geprüftes `release-1.31.3`-Tupel behält. NGINX wurde nicht
+gestartet; daher ist Target-Isolierung statt eines NGINX-Repins die korrekte
+Reparatur.
+
+`required_runtime_component_sources` weist unbekannte Targets jetzt fail-closed
+ab und verarbeitet NGINX-URL-, Provenance- und Protokoll-Metadaten nur für
+`all` und `nginx`. Einen NGINX-Connector-Plan erstellt es ebenfalls nur für
+diese Targets. Die bestehenden strikten NGINX-Repository-/Tag-/Ref-/Asset-/
+SHA-256- und Protokoll-/TLS-Prüfungen bleiben für `all` und `nginx`
+unverändert. Dies lässt NGINX separat, macht `shared`, `apache` und `haproxy`
+unabhängig von ungenutzten NGINX-Metadaten und ändert weder Framework, MRTS,
+einen Gitlink, einen NGINX-Pin, einen Publisher noch einen Cleanup-Workflow.
+
 ## Security-Auswirkung
 
 Diese Änderung berührt GitHub-Actions-Runtime-Pfade, Artefakt-Evidence und
@@ -78,8 +98,9 @@ einen Update-Contract. Sie bewahrt gepinnte Actions, read-only-Berechtigungen,
 deaktivierte Checkout-Credential-Persistenz, fail-closed-Evidence-Aggregation
 und den ModSecurity-v3-Provenance-Guard. Ein fokussierter Diff-Review fand,
 dass der erste Open-Connectors-Patch eine nicht gesetzte Shell-Variable
-`BUILD_ROOT` referenzierte; die Korrektur bindet den Wert an den vertrauenswür-
-digen geprüften Root und die verstärkte Regression reproduziert die `set -eu`-
+`BUILD_ROOT` referenzierte; die Korrektur bindet den Wert an den
+vertrauenswürdigen geprüften Root und die verstärkte Regression reproduziert die
+`set -eu`-
 Kontrolle. Der abschließende fokussierte Review fand kein verbleibendes
 berichtspflichtiges Security-Kandidatenfinding.
 
@@ -89,9 +110,11 @@ berichtspflichtiges Security-Kandidatenfinding.
 - `.github/workflows/reusable-five-connectors-profile.yml`
 - `.github/workflows/test-full-smoke-sequential.yml`
 - `ci/checks/common/check-go-version-contract.py`
+- `ci/provisioning/components/prepare-runtime-components.py`
 - `tests/test_all_connectors_no_crs_workflow_contract.py`
 - `tests/test_full_smoke_workflow_contract.py`
 - `tests/test_go_version_contract.py`
+- `tests/test_prepare_runtime_components.py`
 - `tests/test_runtime_path_policy.py`
 - dieses gekoppelte Change-Record-Paar und die gekoppelten Archivindizes
 
@@ -107,6 +130,9 @@ berichtspflichtiges Security-Kandidatenfinding.
 | `git diff --check` | bestanden |
 | Fokussierte Open-Connectors-`set -eu`-Shell-Regression | bestanden: 1 Test; der private Report-Root wurde exakt exportiert |
 | Fokussierter Security-Re-Review | bestanden: kein verbleibender Kandidat für den korrigierten Open-Connectors-Pfad |
+| `python -m py_compile tests/test_prepare_runtime_components.py ci/provisioning/components/prepare-runtime-components.py` | bestanden |
+| `python -m unittest -v tests.test_prepare_runtime_components` | bestanden: 43 Tests; 5 erwartete Skips, weil der Task-Worktree den Framework-Gitlink nicht initialisiert |
+| `make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-ci-security-contract` | bestanden: 123 Tests; 5 erwartete Namespace-/Identity-Skips; `actionlint`-, `zizmor`- und `gitleaks`-Lock-Validierung bestanden |
 
 ## Runtime-Evidence
 
@@ -129,6 +155,18 @@ schloss Capture und Upload bounded diagnostics für alle fünf Connectoren ab.
 Sein Result-only-Aggregat scheiterte fail-closed, weil alle fünf weiterhin den
 gemeinsamen Blocker `modsecurity_v3_provenance_configuration_failed` erreichten.
 
+Der spätere kontrollierte Five-Connector-No-CRS-Run `32577438675` auf dem
+Merged-Base-Head `ec8cccc6211534e92eba7013cf76747c135d7a4a` ist begrenzte
+Evidence für einen separaten Parent-Target-Scope-Defekt: Apache, HAProxy,
+Envoy, Traefik und Lighttpd stoppten alle an
+`nginx_pinned_provenance_ref_mismatch`, bevor ihre eigenen Runtime-Stufen
+erreicht wurden. Der wiederverwendbare Workflow wählte Apache/HAProxy oder
+`shared` und startete NGINX nicht. Seine secret-free aufbewahrte
+Diagnosezusammenfassung ist hash-gebunden im Task-Evidence-Manifest. Ein Rerun
+auf dem nachfolgenden exakten PR-Head steht noch aus; für diese Fortsetzung
+wurde kein NGINX-, Publisher-, Lösch-, Root-Broker-, Framework- oder MRTS-
+Workflow gestartet.
+
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 `actionlint` und `zizmor` sind in der verfügbaren Umgebung nicht installiert.
@@ -138,6 +176,12 @@ absichtlich weder initialisiert noch verändert. Die Final-Code-Head-No-CRS-
 Ausführung und die anwendbaren PR-Checks sind abgeschlossen; kein Merge ist
 autorisiert.
 
+Für die Fortsetzung vom 2026-08-22 sind der Five-Connector-No-CRS-Rerun auf
+dem exakten nachfolgenden PR-Head und die daraus resultierenden PR-Checks noch
+nicht verfügbar, während dieser Change Record erstellt wird. Sie sind vor
+`verified_pr` erforderlich; ein NGINX-, Publisher-, Lösch-, Root-Broker-,
+Framework- oder MRTS-Dispatch bleibt out of scope.
+
 ## Bekannte Einschränkungen
 
 Die Five-Connector- und ModSecurity-v3-Findings gelten durch die neue
@@ -146,6 +190,12 @@ nicht verfügbar und der Provenance-Guard ist Framework-eigen. Die nächsten
 korrigierten Hosted-Läufe müssen zuerst die Connector-Fehler klassifizieren und
 den Component-Report bereitstellen, bevor eine zugrundeliegende Connector- oder
 Framework-Ursache repariert werden kann.
+
+Das lokale Runtime-Path-Aggregat behält einen umgebungsblockierten Self-Test
+und fünf Framework-Gitlink-abhängige HAProxy-Skips; der Task initialisiert,
+aktualisiert oder verändert dieses Submodule absichtlich nicht. Sie decken die
+neue Target-Scope-Regression nicht ab; dafür bestehen eigene fokussierte
+Kontrollen und das vollständige Modul `tests.test_prepare_runtime_components`.
 
 ## Verbleibende Risiken
 
@@ -160,4 +210,7 @@ Ausführungsgrenze für das korrigierte Workflowverhalten.
 Die Parent-only-Source-Änderung liegt in Draft-PR #313. Die drei ersetzten
 Dependabot-PRs sind geschlossen, ihre Branches bleiben erhalten. Keine neue
 Master-Integration, Branch-Löschung, Framework-/MRTS-Modifikation oder NGINX-
-Konsolidierung ist autorisiert oder wird behauptet.
+Konsolidierung ist autorisiert oder wird behauptet. Die Fortsetzungs-Source-
+und Regression-Änderung hat einen zweiten fokussierten Security-Review ohne
+High-/Critical-Finding; Commit, Push, Exact-Head-Hosted-Rerun und finale
+PR-Check-Beobachtung stehen noch aus.

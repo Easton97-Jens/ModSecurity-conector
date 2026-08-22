@@ -65,6 +65,25 @@ after their CodeQL v4.37.7 changes were verified on merged PR #311 and current
   The Framework-owned provenance guard remains fail-closed; no Framework,
   MRTS, Gitlink, cleanup, root broker, or NGINX workflow change is made.
 
+### Continuation 2026-08-22: target-scoped NGINX isolation
+
+After the normal base merge, controlled Five Connector No-CRS run `32577438675`
+at `ec8cccc6211534e92eba7013cf76747c135d7a4a` reached the Parent preparation
+boundary but failed all five selected non-NGINX jobs at
+`nginx_pinned_provenance_ref_mismatch`. The Framework tuple supplies separately
+managed `release-1.31.4` metadata while Parent retains its independently
+reviewed `release-1.31.3` tuple. NGINX was not dispatched; therefore the
+correct repair is target isolation rather than a NGINX repin.
+
+`required_runtime_component_sources` now rejects unknown targets fail-closed
+and consumes NGINX URL, provenance, and protocol metadata only for `all` and
+`nginx`. It also creates an NGINX connector plan only for those targets. The
+existing strict NGINX repository/tag/ref/asset/SHA-256 and protocol/TLS checks
+are unchanged for `all` and `nginx`. This leaves NGINX separate, makes
+`shared`, `apache`, and `haproxy` independent of unused NGINX metadata, and
+does not modify Framework, MRTS, a Gitlink, an NGINX pin, a publisher, or a
+cleanup workflow.
+
 ## Security impact
 
 This change touches GitHub Actions runtime paths, artifact evidence, and an
@@ -82,9 +101,11 @@ reportable security candidate.
 - `.github/workflows/reusable-five-connectors-profile.yml`
 - `.github/workflows/test-full-smoke-sequential.yml`
 - `ci/checks/common/check-go-version-contract.py`
+- `ci/provisioning/components/prepare-runtime-components.py`
 - `tests/test_all_connectors_no_crs_workflow_contract.py`
 - `tests/test_full_smoke_workflow_contract.py`
 - `tests/test_go_version_contract.py`
+- `tests/test_prepare_runtime_components.py`
 - `tests/test_runtime_path_policy.py`
 - this paired Change Record and paired archive indexes
 
@@ -100,6 +121,9 @@ reportable security candidate.
 | `git diff --check` | passed |
 | Focused open-connectors `set -eu` shell regression | passed: 1 test; the private report root was exported exactly |
 | Focused security re-review | passed: no remaining candidate for the corrected open-connectors path |
+| `python -m py_compile tests/test_prepare_runtime_components.py ci/provisioning/components/prepare-runtime-components.py` | passed |
+| `python -m unittest -v tests.test_prepare_runtime_components` | passed: 43 tests; 5 expected skips because the task worktree does not initialize the Framework Gitlink |
+| `make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-ci-security-contract` | passed: 123 tests; 5 expected namespace/identity skips; `actionlint`, `zizmor`, and `gitleaks` lock validation passed |
 
 ## Runtime evidence
 
@@ -122,6 +146,16 @@ bounded diagnostics for all five connectors. Its result-only aggregate failed
 closed because all five still reached the shared
 `modsecurity_v3_provenance_configuration_failed` blocker.
 
+The later controlled Five Connector No-CRS run `32577438675` at merged-base
+head `ec8cccc6211534e92eba7013cf76747c135d7a4a` is bounded evidence for a
+separate Parent target-scope defect: Apache, HAProxy, Envoy, Traefik, and
+Lighttpd all stopped at `nginx_pinned_provenance_ref_mismatch` before their own
+runtime stages. The reusable workflow selected Apache/HAProxy or `shared` and
+did not dispatch NGINX. Its secret-free retained diagnostic summary is
+hash-bound in the task evidence manifest. A rerun on the subsequent exact PR
+head remains pending; no NGINX, publisher, deletion, root-broker, Framework,
+or MRTS workflow was dispatched for this continuation.
+
 ## Checks not run and rationale
 
 `actionlint` and `zizmor` are not installed in the available environment.
@@ -130,6 +164,12 @@ an uninitialized Framework Gitlink; it is intentionally not initialized or
 modified. The final-code-head No-CRS execution and applicable PR checks have
 completed; a merge is not authorized.
 
+For the 2026-08-22 continuation, the exact subsequent PR-head Five Connector
+No-CRS rerun and its resulting PR checks are not yet available while this
+Change Record is prepared. They are required before `verified_pr`; an NGINX,
+publisher, deletion, root-broker, Framework, or MRTS dispatch remains out of
+scope.
+
 ## Known limitations
 
 The five-connector and ModSecurity v3 findings are not declared fixed by the
@@ -137,6 +177,12 @@ new diagnostics alone. Their historical direct job logs are unavailable, and
 the provenance guard is Framework-owned. The next corrected hosted runs must
 classify the connector failures and expose the component report before any
 underlying connector or Framework cause can be repaired.
+
+The local runtime-path aggregate retains one environment-blocked self-test and
+five Framework-Gitlink-dependent HAProxy skips; the task intentionally does
+not initialize, update, or modify that submodule. These do not cover the new
+target-scope regression, which has its own passing focused controls and a
+passing full `tests.test_prepare_runtime_components` module.
 
 ## Remaining risks
 
@@ -151,4 +197,6 @@ boundary for the corrected workflow behavior.
 The Parent-only source change is in Draft PR #313. The three replaced
 Dependabot PRs are closed with branches retained. No new master integration,
 branch deletion, Framework/MRTS modification, or NGINX consolidation is
-authorized or asserted.
+authorized or asserted. The continuation source and regression change has a
+second focused security review with no high/critical finding; commit, push,
+exact-head hosted rerun, and final PR-check observation are still pending.

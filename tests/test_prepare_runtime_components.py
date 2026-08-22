@@ -154,6 +154,19 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     components.validate_https_url_config({"CRS_REPO_URL": invalid_url})
 
+        unused_nginx_urls = {
+            "CRS_REPO_URL": canonical,
+            "NGINX_SOURCE_REPO_URL": f"http://github.com/{repo}",
+            "NGINX_QUIC_TLS_SOURCE_URL": "http://example.invalid/quic.tar.gz",
+        }
+        for target in ("shared", "apache", "haproxy"):
+            with self.subTest(target=target):
+                components.validate_https_url_config(unused_nginx_urls, target)
+        for target in ("all", "nginx"):
+            with self.subTest(nginx_target=target):
+                with self.assertRaises(RuntimeError):
+                    components.validate_https_url_config(unused_nginx_urls, target)
+
     def test_pinned_nginx_release_tuple_uses_only_the_direct_release_asset(self) -> None:
         archive_root = Path("cache/archives")
         cache_root = Path("cache")
@@ -244,6 +257,149 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 mark_cache.assert_not_called()
                 complete_cache.assert_not_called()
                 inspect_archive.assert_not_called()
+
+    def test_required_runtime_component_sources_scopes_nginx_preflight_to_nginx_targets(
+        self,
+    ) -> None:
+        mismatched_nginx = dict(PINNED_NGINX_RELEASE_TUPLE)
+        mismatched_nginx.update(
+            {
+                "NGINX_RELEASE_TAG": "release-1.31.4",
+                "NGINX_SOURCE_GIT_REF": "release-1.31.4",
+            }
+        )
+        with self.assertRaisesRegex(RuntimeError, "unsupported_runtime_component_target:unknown"):
+            components.required_runtime_component_sources(
+                {},
+                strict=False,
+                target_connector="unknown",
+            )
+        for target in ("shared", "apache", "haproxy"):
+            with self.subTest(target=target):
+                with (
+                    mock.patch.object(components, "validate_https_url_config"),
+                    mock.patch.object(
+                        components,
+                        "require_apr_util_pinned_provenance",
+                        return_value={"component": "apr-util"},
+                    ),
+                    mock.patch.object(components, "require_env_value", return_value="required-source"),
+                    mock.patch.object(
+                        components,
+                        "nginx_protocol_build_inputs",
+                        side_effect=AssertionError(
+                            "non-NGINX target must not read NGINX protocol inputs"
+                        ),
+                    ) as nginx_protocol,
+                ):
+                    values = components.required_runtime_component_sources(
+                        mismatched_nginx,
+                        strict=False,
+                        target_connector=target,
+                    )
+
+            self.assertNotIn("nginx_pinned_provenance", values)
+            self.assertNotIn("nginx_require_pinned_provenance", values)
+            nginx_protocol.assert_not_called()
+
+        for target in ("all", "nginx"):
+            with self.subTest(target=target):
+                with (
+                    mock.patch.object(components, "validate_https_url_config"),
+                    mock.patch.object(
+                        components,
+                        "require_apr_util_pinned_provenance",
+                        return_value={"component": "apr-util"},
+                    ),
+                    mock.patch.object(components, "require_env_value", return_value="required-source"),
+                    mock.patch.object(components, "nginx_protocol_build_inputs") as nginx_protocol,
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
+                        components.required_runtime_component_sources(
+                            mismatched_nginx,
+                            strict=False,
+                            target_connector=target,
+                        )
+
+            nginx_protocol.assert_not_called()
+
+        for target in ("all", "nginx"):
+            with self.subTest(protocol_target=target):
+                with (
+                    mock.patch.object(components, "validate_https_url_config"),
+                    mock.patch.object(
+                        components,
+                        "require_apr_util_pinned_provenance",
+                        return_value={"component": "apr-util"},
+                    ),
+                    mock.patch.object(components, "require_env_value", return_value="required-source"),
+                    mock.patch.object(
+                        components,
+                        "nginx_protocol_build_inputs",
+                        side_effect=RuntimeError("nginx_protocol_validation"),
+                    ),
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "nginx_protocol_validation"):
+                        components.required_runtime_component_sources(
+                            dict(PINNED_NGINX_RELEASE_TUPLE),
+                            strict=False,
+                            target_connector=target,
+                        )
+
+    def test_prepare_native_component_records_builds_nginx_plan_only_for_nginx_target(
+        self,
+    ) -> None:
+        paths = {
+            "sources_root": Path("cache/sources"),
+            "archives_root": Path("cache/archives"),
+        }
+        for target, expects_nginx_plan in (
+            ("shared", False),
+            ("apache", False),
+            ("haproxy", False),
+            ("all", True),
+            ("nginx", True),
+        ):
+            context = {
+                "env": {},
+                "cache_root": Path("cache"),
+                "build_root": Path("build"),
+                "connector_root": ROOT,
+                "framework_root": ROOT,
+                "target_connector": target,
+            }
+            with self.subTest(target=target):
+                with (
+                    mock.patch.object(components, "prepare_expat", return_value={"status": "present"}),
+                    mock.patch.object(
+                        components,
+                        "prepare_shared_modsecurity",
+                        return_value={"status": "present", "build_id": "modsecurity"},
+                    ),
+                    mock.patch.object(
+                        components,
+                        "connector_plan",
+                        side_effect=lambda *args: {"connector": args[4]},
+                    ) as connector_plan,
+                    mock.patch.object(
+                        components, "prepare_apache_httpd", return_value={"status": "present"}
+                    ),
+                    mock.patch.object(
+                        components, "prepare_nginx_runtime", return_value={"status": "present"}
+                    ),
+                    mock.patch.object(
+                        components, "prepare_haproxy_runtime", return_value={"status": "present"}
+                    ),
+                    mock.patch.object(components, "prepare_go_tool", return_value={"status": "present"}),
+                ):
+                    records = components.prepare_native_component_records(context, paths, [], [])
+
+            planned_connectors = [call.args[4] for call in connector_plan.call_args_list]
+            self.assertEqual("nginx" in planned_connectors, expects_nginx_plan)
+            if expects_nginx_plan:
+                self.assertEqual(records["nginx_plan"]["connector"], "nginx")
+            else:
+                self.assertEqual(records["nginx_plan"], {})
 
     def test_runtime_component_report_describes_strict_expat_and_cache_fsck_accurately(self) -> None:
         report = components.markdown_report(
