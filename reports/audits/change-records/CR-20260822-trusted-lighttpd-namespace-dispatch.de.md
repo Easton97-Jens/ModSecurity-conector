@@ -9,7 +9,7 @@
 | Change-ID | CR-20260822-trusted-lighttpd-namespace-dispatch |
 | Datum (UTC) | 2026-08-22 |
 | Basis-Revision | `423abcc130cf5d29ccf15dd7d82e4e7d89d495d3` |
-| Delivery-Status | Separater Protected-master-Bootstrap-Pull-Request; weder Merge noch erfolgreicher Trusted-Runtime-Lauf werden behauptet. |
+| Delivery-Status | Separater Protected-master-Bootstrap-Pull-Request; reguläres Master-Refresh und manuelle Integration sind autorisiert, während Exact-Head-Validierung, Integration und erfolgreicher Trusted-Runtime-Lauf bei diesem Record-Update noch ausstehen. |
 
 ## Motivation und Problemstellung
 
@@ -24,6 +24,16 @@ Dieser separate, manuell ausgelöste Workflow muss zuerst nach geschütztes
 `master` geprüft und gemergt werden. Er stellt das kurzlebige Ubuntu-24.04-
 Setup bereit, ohne einem PR-kontrollierten Workflow einen privilegierten Schritt
 zu geben.
+
+## 2026-08-22 Master-Integrationsautorisierung
+
+Der aktuelle Benutzer autorisierte ausdrücklich nur PR #320, auf den aktuellen
+`master` gebracht und integriert zu werden. Das Branch-Refresh verwendet einen
+normalen Merge des aktuellen `origin/master`; es autorisiert keinen Rebase,
+Force-Push, direkten Push nach `master`, Auto-Merge, Schutz-Bypass, PR-#309-
+Merge, Framework-/MRTS-Änderung oder Gitlink-Update. Ein manueller
+repository-konventioneller Merge bleibt von frischen Exact-Head-Checks,
+SonarQube Cloud und dem geschützten Ruleset abhängig.
 
 ## Akzeptanzkriterien
 

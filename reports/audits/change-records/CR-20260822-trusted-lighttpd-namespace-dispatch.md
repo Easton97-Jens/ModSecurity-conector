@@ -9,7 +9,7 @@
 | Change ID | CR-20260822-trusted-lighttpd-namespace-dispatch |
 | Date (UTC) | 2026-08-22 |
 | Base revision | `423abcc130cf5d29ccf15dd7d82e4e7d89d495d3` |
-| Delivery status | Separate protected-master bootstrap pull request; no merge or trusted runtime success is asserted. |
+| Delivery status | Separate protected-master bootstrap pull request; normal master refresh and manual integration are authorized, while exact-head validation, integration, and trusted runtime success remain pending at this record update. |
 
 ## Motivation and problem statement
 
@@ -22,6 +22,15 @@ workflow would be unsafe because the workflow YAML is supplied by the PR.
 This separate, manually dispatched workflow must first be reviewed and merged
 to protected `master`. It supplies the short-lived Ubuntu-24.04 setup without
 giving a PR-controlled workflow a privileged step.
+
+## 2026-08-22 master-integration authorization
+
+The current user expressly authorized PR #320 only to be brought to current
+`master` and integrated. The branch refresh uses a normal merge of current
+`origin/master`; it does not authorize a rebase, force-push, direct push to
+`master`, auto-merge, protection bypass, PR #309 merge, Framework/MRTS change,
+or Gitlink update. A manual repository-conventional merge remains conditional
+on fresh exact-head checks, SonarQube Cloud, and the protected ruleset.
 
 ## Acceptance criteria
 
