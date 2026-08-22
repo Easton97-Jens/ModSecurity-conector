@@ -11,6 +11,12 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260822-trusted-lighttpd-namespace-dispatch](CR-20260822-trusted-lighttpd-namespace-dispatch.de.md) —
+  der aktuelle Benutzer autorisierte eine separate Protected-master-
+  `workflow_dispatch`-Grenze für den Lighttpd-Namespace-Test. Der Record weist
+  nur lokale Contracts aus; Protected Merge und manueller Runtime-Lauf stehen
+  noch aus.
+
 - [CR-20260821-go-and-runtime-workflow-remediation](CR-20260821-go-and-runtime-workflow-remediation.de.md) —
   der aktuelle Benutzer autorisierte diese Parent-only-Go- und Runtime-
   Workflow-Remediation, das sichere Schließen der ersetzten PRs #306–#308, die
