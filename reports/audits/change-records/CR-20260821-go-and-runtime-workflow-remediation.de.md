@@ -9,7 +9,7 @@
 | Change-ID | CR-20260821-go-and-runtime-workflow-remediation |
 | Datum (UTC) | 2026-08-21 |
 | Basis-Revision | `57187eb210ab96b7e1eed22221fa367671d01820` |
-| Delivery-Status | Ein Parent-only-Task-Branch und Draft-PR sind autorisiert. Initiale Hosted-Evidence wurde auf `a0c527cdb57ec97c663e983c4fbe195a6f2361b0` erhoben; der finale Code-Head `bf21d726f3d998a333ce57dc935efa2d8782a75c` bestand die anwendbaren PR-Checks und sein Successor-No-CRS-Lauf validierte jeden Diagnostic-Capture-/Upload-Schritt. Ein Merge ist nicht autorisiert. |
+| Delivery-Status | Parent-Draft-PR #313 ist task-eigen. Vor dieser gekoppelten Record-Korrektur war sein exakter Head `d06528df0daca17c66c9771dad449b5e341ad986`; alle anwendbaren PR-Checks und SonarCloud bestanden, und der kontrollierte Five-Connector-No-CRS-Run `32582786272` endete. Der aktuelle Nutzer autorisiert ausdrücklich die geschützte Integration von PR #313 und akzeptiert nur das beschriebene Risiko des noch fehlenden r13-Hostnachweises von FND-PARENT-0148. Diese Dokumentationskorrektur erzeugt einen neuen PR-Head, der vor jedem Merge erneut geprüft werden muss; ein Merge wird hier nicht behauptet. |
 
 ## Motivation und Problemstellung
 
@@ -119,6 +119,23 @@ Das Full-Lifecycle-Mapping bleibt unverändert. Traefik bleibt fail-closed und
 außerhalb dieses Parent-only-Fixes, weil seine vom Framework bereitgestellte
 Binary eine separate Trusted-Root-Kontrolle verletzt.
 
+### Fortsetzung 2026-08-22: Delivery-Autorisierung und FND-PARENT-0148-Scope
+
+Der aktuelle Nutzer autorisiert nun ausdrücklich die geschützte Parent-
+`master`-Integration des task-eigenen PR #313 und akzeptiert das exakte
+Restrisiko von FND-PARENT-0148 nur für diese Integration. Es existiert kein
+erfolgreicher privater Traefik-`no-crs/with-mrts`-Host-Receipt: r10--r12
+schlugen vor Hoststart fail-closed fehl, und der normale PR-#313-Run beobachtete
+einen Trusted-Root-Containment-Block vor Requests erneut. Die Akzeptanz
+verifiziert oder schließt den Finding nicht, lockert keinen Control und endet
+mit dem ersten frischen r13-Ergebnis. Ein Fehler muss über einen neuen PR
+behoben werden, niemals direkt auf `master`.
+
+Der historische r13-Runner gehört nicht zu PR #313 und benötigt eine separate
+Parent-Runtime-Aufgabe mit vorbereiteten read-only-Framework-/MRTS-Inputs. Er
+kann weder als exakter PR-#313-Check beansprucht noch aus diesem PR-Checkout
+gestartet werden. NGINX bleibt getrennt und wurde nicht gestartet.
+
 ## Security-Auswirkung
 
 Diese Änderung berührt GitHub-Actions-Runtime-Pfade, Artefakt-Evidence und
@@ -199,24 +216,31 @@ Envoy, Traefik und Lighttpd stoppten alle an
 erreicht wurden. Der wiederverwendbare Workflow wählte Apache/HAProxy oder
 `shared` und startete NGINX nicht. Seine secret-free aufbewahrte
 Diagnosezusammenfassung ist hash-gebunden im Task-Evidence-Manifest. Ein Rerun
-auf dem nachfolgenden exakten PR-Head steht noch aus; für diese Fortsetzung
-wurde kein NGINX-, Publisher-, Lösch-, Root-Broker-, Framework- oder MRTS-
-Workflow gestartet.
+auf dem nachfolgenden exakten PR-Head endete dann als `32582786272` auf
+`d06528df0daca17c66c9771dad449b5e341ad986`: Apache, HAProxy, Envoy und
+Lighttpd bestanden Runtime-Smoke, kanonische Evidence, Publish und Cleanup.
+Traefik stoppte korrekt vor Requests an seiner separaten Trusted-Root-Kontrolle,
+weil die gestagte Binary unter dem geforderten Shared-Cache-Root lag; das
+Aggregat schlug daher fail-closed fehl. Für diese Fortsetzung wurde kein
+NGINX-, Publisher-, Lösch-, Root-Broker-, Framework- oder MRTS-Workflow
+gestartet.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 `actionlint` und `zizmor` sind in der verfügbaren Umgebung nicht installiert.
 Framework-abhängige Aggregatprüfungen können nicht laufen, weil der
 Task-Worktree einen nicht initialisierten Framework-Gitlink enthält; er wird
-absichtlich weder initialisiert noch verändert. Die Final-Code-Head-No-CRS-
-Ausführung und die anwendbaren PR-Checks sind abgeschlossen; kein Merge ist
-autorisiert.
+absichtlich weder initialisiert noch verändert. Die kontrollierte Final-Code-
+Head-No-CRS-Ausführung und die anwendbaren PR-Checks endeten vor dieser reinen
+Dokumentationskorrektur; der neue Head benötigt vor dem Merge eigene
+Exact-Head-Checks.
 
-Für die Fortsetzung vom 2026-08-22 sind der Five-Connector-No-CRS-Rerun auf
-dem exakten nachfolgenden PR-Head und die daraus resultierenden PR-Checks noch
-nicht verfügbar, während dieser Change Record erstellt wird. Sie sind vor
-`verified_pr` erforderlich; ein NGINX-, Publisher-, Lösch-, Root-Broker-,
-Framework- oder MRTS-Dispatch bleibt out of scope.
+Der gewünschte r13-Nachweis wird hier nicht ausgeführt: Sein historischer
+Runner fehlt in PR #313, liegt auf einem separaten historischen Parent-Branch
+und benötigt separat autorisierten Runtime-Scope mit vorbereiteten read-only-
+Framework-/MRTS-Inputs. Es wäre weder sicher noch wahrheitsgemäß, den normalen
+No-CRS-Run zu ersetzen, einen verschachtelten Checkout zu initialisieren oder
+ein historisches r13-Ergebnis als PR-#313-Evidence zu behandeln.
 
 ## Bekannte Einschränkungen
 
@@ -241,12 +265,22 @@ Repository-Secrets, behalten `contents: read` und trennen das Diagnoseartefakt
 vom kanonischen Erfolgsaggregat. Der Hosted Runner bleibt die notwendige finale
 Ausführungsgrenze für das korrigierte Workflowverhalten.
 
+Für die geschützte Integration von PR #313 allein akzeptierte der aktuelle
+Nutzer das oben beschriebene verbleibende FND-PARENT-0148-Risiko, während r13
+aussteht. Es ist auf das Fehlen eines erfolgreichen privaten Traefik-
+no-CRS/with-MRTS-Receipts begrenzt und kann einen späteren Fehler vor oder
+während Transaktions-, Audit-/Receipt- oder Cleanup-Validation umfassen. Es
+schwächt die fail-closed-Controls nicht und erstreckt sich nicht auf Framework,
+MRTS, Gitlinks, NGINX, einen anderen PR oder einen direkten Master-Write.
+
 ## Finaler Diff- und Review-Status
 
 Die Parent-only-Source-Änderung liegt in Draft-PR #313. Die drei ersetzten
-Dependabot-PRs sind geschlossen, ihre Branches bleiben erhalten. Keine neue
-Master-Integration, Branch-Löschung, Framework-/MRTS-Modifikation oder NGINX-
-Konsolidierung ist autorisiert oder wird behauptet. Die Fortsetzungs-Source-
-und Regression-Änderung hat einen zweiten fokussierten Security-Review ohne
-High-/Critical-Finding; Commit, Push, Exact-Head-Hosted-Rerun und finale
-PR-Check-Beobachtung stehen noch aus.
+Dependabot-PRs sind geschlossen, ihre Branches bleiben erhalten. Der aktuelle
+Nutzer hat die geschützte Integration von PR #313 allein autorisiert,
+vorbehaltlich frischer Exact-Head-PR-Verifikation nach dieser Record-
+Aktualisierung. Keine Branch-Löschung, Framework-/MRTS-Modifikation, NGINX-
+Konsolidierung, direkter Master-Write oder Control-Lockerung ist autorisiert
+oder wird behauptet. Die Fortsetzungs-Source- und Regression-Änderung hat
+einen zweiten fokussierten Security-Review ohne High-/Critical-Finding außer
+dem ausdrücklich erfassten und scope-begrenzten Restrisiko FND-PARENT-0148.

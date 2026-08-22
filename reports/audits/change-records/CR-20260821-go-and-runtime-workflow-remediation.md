@@ -9,7 +9,7 @@
 | Change ID | CR-20260821-go-and-runtime-workflow-remediation |
 | Date (UTC) | 2026-08-21 |
 | Base revision | `57187eb210ab96b7e1eed22221fa367671d01820` |
-| Delivery status | A Parent-only task branch and Draft PR are authorized. Initial hosted evidence was collected on `a0c527cdb57ec97c663e983c4fbe195a6f2361b0`; final code head `bf21d726f3d998a333ce57dc935efa2d8782a75c` passed applicable PR checks and its successor No-CRS run validated every diagnostic Capture/Upload step. A merge is not authorized. |
+| Delivery status | Parent Draft PR #313 is task-owned. Before this paired record correction its exact head was `d06528df0daca17c66c9771dad449b5e341ad986`; all applicable PR checks and SonarCloud passed, and controlled Five Connector No-CRS run `32582786272` completed. The current user explicitly authorizes protected integration of PR #313 and accepts only FND-PARENT-0148's stated missing r13 host-proof risk. This documentation correction creates a new PR head that must be rechecked before any merge; no merge is asserted here. |
 
 ## Motivation and problem statement
 
@@ -110,6 +110,22 @@ full-lifecycle mapping remains unchanged. Traefik remains fail-closed and
 outside this Parent-only fix because its Framework-provided binary violates a
 separate trusted-root control.
 
+### Continuation 2026-08-22: delivery authorization and FND-PARENT-0148 scope
+
+The current user now explicitly authorizes protected Parent `master`
+integration of task-owned PR #313 and accepts the exact residual
+FND-PARENT-0148 risk for that integration only. No successful private Traefik
+`no-crs/with-mrts` host receipt exists: r10--r12 failed closed before host
+start, and the normal PR #313 run reobserved a trusted-root containment block
+before requests. The acceptance neither verifies nor closes the finding,
+relaxes no control, and expires with the first fresh r13 result. A failure
+must be repaired through a new PR, never directly on `master`.
+
+The historical r13 runner is not part of PR #313 and requires a separate
+Parent runtime task with prepared read-only Framework/MRTS inputs. It cannot
+be claimed as an exact PR #313 check or be started by this PR's checkout.
+NGINX remains separate and was not dispatched.
+
 ## Security impact
 
 This change touches GitHub Actions runtime paths, artifact evidence, and an
@@ -186,7 +202,12 @@ Lighttpd all stopped at `nginx_pinned_provenance_ref_mismatch` before their own
 runtime stages. The reusable workflow selected Apache/HAProxy or `shared` and
 did not dispatch NGINX. Its secret-free retained diagnostic summary is
 hash-bound in the task evidence manifest. A rerun on the subsequent exact PR
-head remains pending; no NGINX, publisher, deletion, root-broker, Framework,
+head then completed as `32582786272` at
+`d06528df0daca17c66c9771dad449b5e341ad986`: Apache, HAProxy, Envoy, and
+Lighttpd passed runtime smoke, canonical evidence, publish, and cleanup.
+Traefik correctly stopped before requests at its separate trusted-root control
+because the staged binary was below the required shared cache root, so the
+aggregate failed closed. No NGINX, publisher, deletion, root-broker, Framework,
 or MRTS workflow was dispatched for this continuation.
 
 ## Checks not run and rationale
@@ -194,14 +215,15 @@ or MRTS workflow was dispatched for this continuation.
 `actionlint` and `zizmor` are not installed in the available environment.
 Framework-dependent aggregate checks cannot run because the task worktree has
 an uninitialized Framework Gitlink; it is intentionally not initialized or
-modified. The final-code-head No-CRS execution and applicable PR checks have
-completed; a merge is not authorized.
+modified. The controlled final-code-head No-CRS execution and applicable PR
+checks completed before this documentation-only correction; the new head must
+receive its own exact-head checks before merging.
 
-For the 2026-08-22 continuation, the exact subsequent PR-head Five Connector
-No-CRS rerun and its resulting PR checks are not yet available while this
-Change Record is prepared. They are required before `verified_pr`; an NGINX,
-publisher, deletion, root-broker, Framework, or MRTS dispatch remains out of
-scope.
+The requested r13 proof is not run here: its historical runner is absent from
+PR #313, lives on a separate historical Parent branch, and needs a separately
+authorized runtime scope with prepared read-only Framework/MRTS inputs. It is
+not safe or truthful to substitute the normal no-CRS run, initialize a nested
+checkout, or treat a historical r13 result as PR #313 evidence.
 
 ## Known limitations
 
@@ -225,11 +247,20 @@ free of secrets. Current workflows pass no repository secrets, retain
 success aggregate. The hosted runner remains the required final execution
 boundary for the corrected workflow behavior.
 
+For protected integration of PR #313 only, the current user accepted the
+remaining FND-PARENT-0148 risk described above while r13 is pending. The risk
+is limited to lack of a successful private Traefik no-CRS/with-MRTS receipt and
+may include a later failure before or during transaction, audit/receipt, or
+cleanup validation. It does not weaken the fail-closed controls or extend to
+Framework, MRTS, Gitlinks, NGINX, another PR, or a direct master write.
+
 ## Final diff and review status
 
 The Parent-only source change is in Draft PR #313. The three replaced
-Dependabot PRs are closed with branches retained. No new master integration,
-branch deletion, Framework/MRTS modification, or NGINX consolidation is
+Dependabot PRs are closed with branches retained. The current user has
+authorized protected integration of PR #313 only, subject to a fresh exact-head
+PR verification after this record update. No branch deletion, Framework/MRTS
+modification, NGINX consolidation, direct master write, or control weakening is
 authorized or asserted. The continuation source and regression change has a
-second focused security review with no high/critical finding; commit, push,
-exact-head hosted rerun, and final PR-check observation are still pending.
+second focused security review with no high/critical finding beyond the
+explicitly tracked and scoped FND-PARENT-0148 residual risk.
