@@ -365,3 +365,23 @@ query still returned one task-owned `python:S1192` code smell for the repeated
 unsafe-path error literal. The literal is now a module constant, preserving
 the fail-closed error semantics without a suppression. A new exact-head
 analysis must prove the user-required zero-new-issue result.
+
+## 2026-08-22 exact-head workflow revision correction
+
+The fresh PR-head `93a007f7b858a09c5b527b5db4084e93add5da7b` SonarQube Cloud
+analysis reports `0.0%` New Code duplication and zero duplicated lines. The
+fresh runtime workflow `32578172744` nevertheless failed all five matrix jobs
+before any connector host started. Every job failed at `Verify pinned Parent,
+Framework, and MRTS revisions`: the normal master merge changed the Parent →
+Framework Gitlink to `c40e924ec5c341032908e0082feba1d37ed1dfda`, while this
+workflow and its contract test still expected the former
+`798bff0c921ab8c7f10b2ca949304d58e7f205a2`; MRTS remains
+`615b13bacbd008562c17408246c41ab27dca3104`.
+
+The correction updates only that expected Framework identity in the workflow
+and synchronized contract test. It retains the exact immutable Parent,
+Framework, and MRTS comparison; it neither suppresses the gate nor permits
+runtime execution on a mismatched checkout. Artifact-upload failures in Envoy,
+Traefik, and Lighttpd were secondary to the skipped runtime and are not treated
+as a distinct runtime failure. Fresh exact-head workflow and Sonar evidence
+remain required after this correction.

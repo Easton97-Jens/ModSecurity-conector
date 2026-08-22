@@ -394,3 +394,25 @@ Code-Smell für das wiederholte Unsafe-Path-Fehlerliteral. Das Literal ist jetzt
 eine Modulkonstante; das fail-closed Fehlerverhalten bleibt ohne Suppression
 erhalten. Eine neue Exact-Head-Analyse muss den vom Benutzer geforderten
 Null-Neu-Issues-Befund nachweisen.
+
+## Exact-Head-Workflow-Revisionskorrektur vom 2026-08-22
+
+Die frische SonarQube-Cloud-Analyse des PR-Heads
+`93a007f7b858a09c5b527b5db4084e93add5da7b` meldet `0,0 %` New-Code-
+Duplizierung und null duplizierte Zeilen. Der frische Runtime-Workflow
+`32578172744` scheiterte dennoch in allen fünf Matrix-Jobs, bevor ein
+Connector-Host startete. Jeder Job scheiterte bei `Verify pinned Parent,
+Framework, and MRTS revisions`: Der normale Master-Merge änderte den Parent →
+Framework-Gitlink auf `c40e924ec5c341032908e0082feba1d37ed1dfda`, während
+dieser Workflow und sein Contract-Test weiter die frühere Revision
+`798bff0c921ab8c7f10b2ca949304d58e7f205a2` erwarteten; MRTS bleibt
+`615b13bacbd008562c17408246c41ab27dca3104`.
+
+Die Korrektur aktualisiert ausschließlich diese erwartete Framework-Identität
+im Workflow und synchronisierten Contract-Test. Sie behält den exakten
+unveränderlichen Vergleich von Parent, Framework und MRTS bei; sie unterdrückt
+weder das Gate noch erlaubt sie Runtime-Ausführung bei einem nicht passenden
+Checkout. Artifact-Upload-Fehler in Envoy, Traefik und Lighttpd waren Folge der
+übersprungenen Runtime und werden nicht als separater Runtime-Fehler behandelt.
+Frische Exact-Head-Workflow- und Sonar-Evidence bleibt nach dieser Korrektur
+erforderlich.
