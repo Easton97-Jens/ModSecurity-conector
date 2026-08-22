@@ -9,15 +9,15 @@
 | Change-ID | `CR-20260820-enable-crs-runtime-envoy-traefik-lighttpd` |
 | Datum (UTC) | 2026-08-20 |
 | Basis-Revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Beobachteter aktueller `origin/master` | `423abcc130cf5d29ccf15dd7d82e4e7d89d495d3` |
+| Beobachteter aktueller `origin/master` | `4e8560fdc8a2b737fca598522f8748a4d73857be` |
 | Parent → Framework Pin | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | Framework → MRTS Pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der Branch wurde per normalem Merge-Commit `101df216` mit aktuellem `origin/master` synchronisiert; die Exact-Head-Hosted-Validierung nach dem Update steht aus. Der master-abgeleitete Framework-Pin bleibt read-only und löst auf den aufgezeichneten MRTS-Pin auf. Kein Merge und kein Auto-Merge sind autorisiert. |
+| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der Branch wurde per normalem Merge-Commit `0ae1ce0590f18b20a39903f2ce877d0280a6e5bd` mit aktuellem `origin/master` synchronisiert; die Exact-Head-Hosted-Validierung nach dem Update steht aus. Der master-abgeleitete Framework-Pin bleibt read-only und löst auf den aufgezeichneten MRTS-Pin auf. Kein Merge und kein Auto-Merge sind autorisiert. |
 
 Der Task-Worktree wurde von der aufgezeichneten Task-Basis erstellt und später
 per normalem Merge mit separat aufgezeichneten aktuellen `origin/master`-
 Revisionen synchronisiert, zuletzt mit
-`423abcc130cf5d29ccf15dd7d82e4e7d89d495d3`. Frühere Hosted-Ergebnisse bleiben
+`4e8560fdc8a2b737fca598522f8748a4d73857be`. Frühere Hosted-Ergebnisse bleiben
 ausschließlich historisch; alle erforderlichen Revalidierungen bleiben
 Delivery-gesteuert.
 
@@ -442,3 +442,28 @@ PR #309 enthält nur die passenden unprivilegierten Testassertions für diese
 Runtime-Erfolg, Qualitätsergebnis, Ready-for-Review-Status und Merge werden
 erst nach einem erfolgreichen manuellen Lauf des geschützten-master-Workflows
 für den exakten Head beansprucht.
+
+## Aktualisierung vom 2026-08-22: aktueller Master und Envoy-Authority-Kohärenz
+
+Ein sauberer Task-Worktree hat das aktuelle `origin/master`
+`4e8560fdc8a2b737fca598522f8748a4d73857be` regulär durch Merge-Commit
+`0ae1ce0590f18b20a39903f2ce877d0280a6e5bd` übernommen. Der Parent →
+Framework-Pin bleibt `c40e924ec5c341032908e0082feba1d37ed1dfda`, der Framework →
+MRTS-Pin bleibt `615b13bacbd008562c17408246c41ab27dca3104`; in keinem der
+verschachtelten Repositories gibt es eine task-eigene Source- oder
+Gitlink-Änderung.
+
+Der oben beschriebene vertrauenswürdige Namespace-Dispatcher auf geschütztem
+`master` ist jetzt Teil des aktuellen Masters. Er muss weiterhin manuell gegen
+den exakten finalen Head von PR #309 gestartet werden; der gewöhnliche
+PR-Workflow bleibt unprivilegiert und dieser Draft beansprucht keinen
+Namespace-Runtime-Erfolg, bevor dieser manuelle Lauf erfolgreich ist.
+
+Die fokussierte Prüfung stellte fest, dass der Envoy-Request-Metadatenparser
+`:authority` und einen gewöhnlichen `Host`-Header bisher unabhängig behielt.
+Er weist jetzt einen Unterschied oder eine doppelte Authority-/Host-
+Repräsentation ab, bevor die Transaktion geöffnet wird. Ein kanonisches,
+case-insensitiv übereinstimmendes Paar bleibt erlaubt und verwendet den
+ursprünglichen `:authority`-Wert. Fokussierte Go-Tests decken beide
+Header-Reihenfolgen, doppelte Repräsentationen und den legitimen Matching-Fall
+ab.

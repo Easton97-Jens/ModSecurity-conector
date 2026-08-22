@@ -9,14 +9,14 @@
 | Change ID | `CR-20260820-enable-crs-runtime-envoy-traefik-lighttpd` |
 | Date (UTC) | 2026-08-20 |
 | Base revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Observed current `origin/master` | `423abcc130cf5d29ccf15dd7d82e4e7d89d495d3` |
+| Observed current `origin/master` | `4e8560fdc8a2b737fca598522f8748a4d73857be` |
 | Parent → Framework pin | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | Framework → MRTS pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The branch was normally synchronized with current `origin/master` through merge commit `101df216`; post-update exact-head hosted validation is pending. The master-derived Framework pin remains read-only and resolves to the recorded MRTS pin. No merge or auto-merge is authorized. |
+| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The branch was normally synchronized with current `origin/master` through merge commit `0ae1ce0590f18b20a39903f2ce877d0280a6e5bd`; post-update exact-head hosted validation is pending. The master-derived Framework pin remains read-only and resolves to the recorded MRTS pin. No merge or auto-merge is authorized. |
 
 The task worktree was created from the recorded task base and later normally
 merged with separately recorded current `origin/master` revisions, most
-recently `423abcc130cf5d29ccf15dd7d82e4e7d89d495d3`. Earlier hosted results
+recently `4e8560fdc8a2b737fca598522f8748a4d73857be`. Earlier hosted results
 remain historical only; all required revalidation remains delivery-gated.
 
 ## Motivation and problem statement
@@ -409,3 +409,24 @@ PR #309 contains only the matching unprivileged test assertions for that outer
 identity and temporary root. It remains Draft: no namespace runtime success,
 quality result, Ready-for-Review state, or merge is claimed until the
 protected-master workflow has produced an exact-head successful manual run.
+
+## 2026-08-22 refresh: current master and Envoy authority coherence
+
+A clean task worktree normally merged current `origin/master`
+`4e8560fdc8a2b737fca598522f8748a4d73857be` through merge commit
+`0ae1ce0590f18b20a39903f2ce877d0280a6e5bd`. The Parent → Framework pin remains
+`c40e924ec5c341032908e0082feba1d37ed1dfda`, and the Framework → MRTS pin remains
+`615b13bacbd008562c17408246c41ab27dca3104`; neither nested repository has a
+task-authored source or Gitlink change.
+
+The protected-master trusted namespace dispatcher described above is now part
+of current master. It must still be manually dispatched against PR #309's
+exact final head; the ordinary PR workflow remains unprivileged and this Draft
+does not claim a namespace-runtime pass before that manual run succeeds.
+
+Focused review found that the Envoy request-metadata parser previously retained
+`:authority` and an ordinary `Host` header independently. It now rejects a
+mismatch or duplicate authority/Host representation before opening the
+transaction. One canonical case-insensitive matching pair remains accepted and
+uses the original `:authority` value. Focused Go tests cover both header orders,
+duplicate representations, and the legitimate matching control.

@@ -326,6 +326,48 @@ func TestRequestMetadataUsesEnvoyAttributesWithoutPeerInference(t *testing.T) {
 	}
 }
 
+func TestRequestMetadataRejectsMismatchedAuthorityAndHost(t *testing.T) {
+	for name, headers := range map[string][]Header{
+		"authority before Host": {
+			{Name: ":authority", Value: []byte("trusted.example")},
+			{Name: "Host", Value: []byte("attacker.example")},
+		},
+		"Host before authority": {
+			{Name: "Host", Value: []byte("attacker.example")},
+			{Name: ":authority", Value: []byte("trusted.example")},
+		},
+		"duplicate Host after matching Host": {
+			{Name: ":authority", Value: []byte("trusted.example")},
+			{Name: "Host", Value: []byte("trusted.example")},
+			{Name: "Host", Value: []byte("attacker.example")},
+		},
+		"duplicate authority after matching authority": {
+			{Name: ":authority", Value: []byte("trusted.example")},
+			{Name: ":authority", Value: []byte("attacker.example")},
+			{Name: "Host", Value: []byte("trusted.example")},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := requestMetadataFromEnvoy(headers, map[string]*structpb.Struct{}); err == nil {
+				t.Fatal("requestMetadataFromEnvoy() accepted mismatched :authority and Host")
+			}
+		})
+	}
+}
+
+func TestRequestMetadataAcceptsCaseInsensitiveMatchingAuthorityAndHost(t *testing.T) {
+	metadata, err := requestMetadataFromEnvoy([]Header{
+		{Name: ":authority", Value: []byte("Example.TEST:8443")},
+		{Name: "Host", Value: []byte("example.test:8443")},
+	}, map[string]*structpb.Struct{})
+	if err != nil {
+		t.Fatalf("requestMetadataFromEnvoy() error = %v", err)
+	}
+	if got, want := metadata.Hostname, "Example.TEST:8443"; got != want {
+		t.Fatalf("Hostname = %q, want authority %q", got, want)
+	}
+}
+
 func TestEnvoyEndpointAddressKeepsOnlyTheHostComponentOfSocketAttributes(t *testing.T) {
 	for input, want := range map[string]string{
 		"192.0.2.10:45678":  "192.0.2.10",
