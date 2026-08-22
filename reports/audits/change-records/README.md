@@ -16,6 +16,14 @@ reports without an explicit repository-policy decision or user decision.
   boundary for the Lighttpd namespace test. It records local contracts only;
   protected merge and the manual runtime run remain pending.
 
+- [CR-20260822-sonar-pr313-hostruntime-remediation](CR-20260822-sonar-pr313-hostruntime-remediation.md)
+  | [Deutsch](CR-20260822-sonar-pr313-hostruntime-remediation.de.md) — the
+  current user authorized remediation of four Parent-owned PR #313 SonarCloud
+  code smells through a successor Draft PR. The historical #313 analysis is
+  immutable; the record requires fresh successor-head Sonar evidence with zero
+  open New-Code issues and asserts no Framework/MRTS, Gitlink, NGINX, or merge
+  change.
+
 - [CR-20260821-go-and-runtime-workflow-remediation](CR-20260821-go-and-runtime-workflow-remediation.md)
   | [Deutsch](CR-20260821-go-and-runtime-workflow-remediation.de.md) — the
   current user authorized this Parent-only Go and runtime-workflow remediation,

@@ -254,6 +254,46 @@ class HostRuntimeRecordTest(unittest.TestCase):
                 self.invoke_projection(root, result, manifest, output, summary)
             self.assertEqual(raised.exception.code, 2)
 
+    def test_manifest_projection_rejects_noncanonical_self_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result, manifest, output, summary = self.projection_fixture(root)
+            manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+            manifest_payload["artifacts"]["manifest"]["path"] = "alternate-manifest.json"
+            manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+            with self.assertRaises(SystemExit) as raised:
+                self.invoke_projection(root, result, manifest, output, summary)
+            self.assertEqual(raised.exception.code, 2)
+
+    def test_manifest_projection_rejects_reserved_artifact_paths(self) -> None:
+        for artifact_map in ("result", "manifest"):
+            with self.subTest(artifact_map=artifact_map), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                result, manifest, output, summary = self.projection_fixture(root)
+                if artifact_map == "result":
+                    result_payload = json.loads(result.read_text(encoding="utf-8"))
+                    result_payload["artifacts"]["log"] = writer.SELF_ARTIFACT_PATHS["result"]
+                    result.write_text(json.dumps(result_payload), encoding="utf-8")
+                else:
+                    manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+                    manifest_payload["artifacts"]["log"]["path"] = writer.SELF_ARTIFACT_PATHS["result"]
+                    manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+                with self.assertRaises(SystemExit) as raised:
+                    self.invoke_projection(root, result, manifest, output, summary)
+                self.assertEqual(raised.exception.code, 2)
+
+    def test_manifest_projection_rejects_invalid_checksum_and_state(self) -> None:
+        for field, value in (("sha256", "not-a-checksum"), ("state", "unknown")):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                result, manifest, output, summary = self.projection_fixture(root)
+                manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+                manifest_payload["artifacts"]["log"][field] = value
+                manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+                with self.assertRaises(SystemExit) as raised:
+                    self.invoke_projection(root, result, manifest, output, summary)
+                self.assertEqual(raised.exception.code, 2)
+
     def test_manifest_projection_rejects_existing_output_destination(self) -> None:
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)

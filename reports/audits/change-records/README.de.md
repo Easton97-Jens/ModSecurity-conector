@@ -17,6 +17,13 @@ angelegt werden.
   nur lokale Contracts aus; Protected Merge und manueller Runtime-Lauf stehen
   noch aus.
 
+- [CR-20260822-sonar-pr313-hostruntime-remediation](CR-20260822-sonar-pr313-hostruntime-remediation.de.md) —
+  der aktuelle Benutzer autorisierte die Behebung von vier Parent-eigenen
+  SonarCloud-Code-Smells aus PR #313 über einen Nachfolge-Draft-PR. Die
+  historische #313-Analyse ist unveränderlich; der Record verlangt frische
+  Sonar-Evidence des Successor-Heads mit null offenen New-Code-Issues und
+  behauptet weder Framework-/MRTS-, Gitlink-, NGINX- noch Merge-Änderung.
+
 - [CR-20260821-go-and-runtime-workflow-remediation](CR-20260821-go-and-runtime-workflow-remediation.de.md) —
   der aktuelle Benutzer autorisierte diese Parent-only-Go- und Runtime-
   Workflow-Remediation, das sichere Schließen der ersetzten PRs #306–#308, die
