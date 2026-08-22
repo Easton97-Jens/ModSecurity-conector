@@ -10,6 +10,12 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260822-trusted-lighttpd-namespace-dispatch](CR-20260822-trusted-lighttpd-namespace-dispatch.md)
+  | [Deutsch](CR-20260822-trusted-lighttpd-namespace-dispatch.de.md) — the
+  current user authorized a separate protected-master `workflow_dispatch`
+  boundary for the Lighttpd namespace test. It records local contracts only;
+  protected merge and the manual runtime run remain pending.
+
 - [CR-20260822-nginx-framework-updater-decoupling](CR-20260822-nginx-framework-updater-decoupling.md)
   | [Deutsch](CR-20260822-nginx-framework-updater-decoupling.de.md) — the current user authorized separating NGINX from the generic Framework updater. The protected NGINX broker remains on the latest officially published `1.31.3`; no merge is asserted.
 

@@ -11,6 +11,12 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260822-trusted-lighttpd-namespace-dispatch](CR-20260822-trusted-lighttpd-namespace-dispatch.de.md) —
+  der aktuelle Benutzer autorisierte eine separate Protected-master-
+  `workflow_dispatch`-Grenze für den Lighttpd-Namespace-Test. Der Record weist
+  nur lokale Contracts aus; Protected Merge und manueller Runtime-Lauf stehen
+  noch aus.
+
 - [CR-20260822-nginx-framework-updater-decoupling](CR-20260822-nginx-framework-updater-decoupling.de.md) —
   Der aktuelle Nutzer autorisierte die Trennung von NGINX vom allgemeinen Framework-Updater. Der geschützte NGINX-Broker bleibt auf der neuesten offiziell veröffentlichten Version `1.31.3`; kein Merge wird behauptet.
 
