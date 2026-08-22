@@ -27,7 +27,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 
 class MissingDependency(RuntimeError):
@@ -1552,16 +1552,17 @@ def start_native_runtime_setup(
         raise
 
 
-def run_native_requests(
+@contextlib.contextmanager
+def running_traefik_host(
     inputs: NativeRuntimeInputs,
     artifacts: NativeRuntimeArtifacts,
     setup: NativeRuntimeSetup,
     processes: NativeProcesses,
-) -> NativeRequestResults:
-    """Start both host processes and make the bounded lifecycle requests."""
-
-    if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1":
-        raise RuntimeError("CRS mode must use run_crs_requests")
+    *,
+    engine_description: str,
+    host_description: str,
+) -> Iterator[None]:
+    """Start the common engine/host pair while keeping its log descriptors open."""
 
     engine_binary = build_engine_service(
         inputs.runtime_root, artifacts.logs_dir, inputs.include_dir, inputs.library_dir
@@ -1582,7 +1583,7 @@ def run_native_requests(
             stdout=engine_stdout,
             stderr=engine_stderr,
         )
-        wait_for_socket(setup.engine_socket, processes.engine, "persistent Traefik engine service")
+        wait_for_socket(setup.engine_socket, processes.engine, engine_description)
         with (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).open("wb") as stdout, (
             artifacts.logs_dir / "traefik.stderr.log"
         ).open("wb") as stderr:
@@ -1592,41 +1593,63 @@ def run_native_requests(
                 stdout=stdout,
                 stderr=stderr,
             )
-            wait_for_port(setup.traefik_port, processes.traefik, "Traefik native local-plugin host")
-            p1_allow_status, p1_allow_bytes = request_through_traefik(
-                setup.traefik_port, REQUEST_BODY, P1_ALLOW_TRANSACTION_ID, http.HTTPStatus.OK
-            )
-            p1_deny_status, _ = request_through_traefik(
-                setup.traefik_port,
-                REQUEST_BODY,
-                "traefik-native-p1-deny",
-                http.HTTPStatus.FORBIDDEN,
-                {"X-Modsec-Smoke": "block"},
-            )
-            p1_alternative_status, _ = request_through_traefik(
-                setup.traefik_port,
-                REQUEST_BODY,
-                "traefik-native-p1-alternative",
-                http.HTTPStatus.TOO_MANY_REQUESTS,
-                {"X-Modsec-Smoke": "alternative-status"},
-            )
-            p2_deny_status, _ = request_through_traefik(
-                setup.traefik_port, P2_BODY, "traefik-native-p2-deny", http.HTTPStatus.FORBIDDEN
-            )
-            p3_deny_status, _ = request_through_traefik(
-                setup.traefik_port,
-                REQUEST_BODY,
-                "traefik-native-p3-deny",
-                http.HTTPStatus.FORBIDDEN,
-                {"X-Native-Response-Rule": "block"},
-            )
-            keepalive_observation = synchronized_safe_followup(
-                setup.traefik_port,
-                setup.state,
-                REQUEST_BODY,
-                "traefik-native-p4-safe",
-                "traefik-native-keepalive-followup",
-            )
+            wait_for_port(setup.traefik_port, processes.traefik, host_description)
+            yield
+
+
+def run_native_requests(
+    inputs: NativeRuntimeInputs,
+    artifacts: NativeRuntimeArtifacts,
+    setup: NativeRuntimeSetup,
+    processes: NativeProcesses,
+) -> NativeRequestResults:
+    """Start both host processes and make the bounded lifecycle requests."""
+
+    if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1":
+        raise RuntimeError("CRS mode must use run_crs_requests")
+
+    with running_traefik_host(
+        inputs,
+        artifacts,
+        setup,
+        processes,
+        engine_description="persistent Traefik engine service",
+        host_description="Traefik native local-plugin host",
+    ):
+        p1_allow_status, p1_allow_bytes = request_through_traefik(
+            setup.traefik_port, REQUEST_BODY, P1_ALLOW_TRANSACTION_ID, http.HTTPStatus.OK
+        )
+        p1_deny_status, _ = request_through_traefik(
+            setup.traefik_port,
+            REQUEST_BODY,
+            "traefik-native-p1-deny",
+            http.HTTPStatus.FORBIDDEN,
+            {"X-Modsec-Smoke": "block"},
+        )
+        p1_alternative_status, _ = request_through_traefik(
+            setup.traefik_port,
+            REQUEST_BODY,
+            "traefik-native-p1-alternative",
+            http.HTTPStatus.TOO_MANY_REQUESTS,
+            {"X-Modsec-Smoke": "alternative-status"},
+        )
+        p2_deny_status, _ = request_through_traefik(
+            setup.traefik_port, P2_BODY, "traefik-native-p2-deny", http.HTTPStatus.FORBIDDEN
+        )
+        p3_deny_status, _ = request_through_traefik(
+            setup.traefik_port,
+            REQUEST_BODY,
+            "traefik-native-p3-deny",
+            http.HTTPStatus.FORBIDDEN,
+            {"X-Native-Response-Rule": "block"},
+        )
+        keepalive_observation = synchronized_safe_followup(
+            setup.traefik_port,
+            setup.state,
+            REQUEST_BODY,
+            "traefik-native-p4-safe",
+            "traefik-native-keepalive-followup",
+        )
     if processes.traefik.poll() is not None:
         raise RuntimeError(
             f"Traefik exited after native requests with code {processes.traefik.returncode}"
@@ -1664,63 +1687,41 @@ def run_crs_requests(
         "Content-Type": "application/x-www-form-urlencoded",
         "X-Framework-Run-ID": inputs.run_id,
     }
-    engine_binary = build_engine_service(
-        inputs.runtime_root, artifacts.logs_dir, inputs.include_dir, inputs.library_dir
-    )
-    with (artifacts.logs_dir / "engine.stdout.log").open("wb") as engine_stdout, (
-        artifacts.logs_dir / ENGINE_STDERR_LOG_FILENAME
-    ).open("wb") as engine_stderr:
-        processes.engine = subprocess.Popen(
-            [
-                str(engine_binary),
-                "--serve",
-                "--config",
-                str(artifacts.engine_config),
-                "--socket",
-                str(setup.engine_socket),
-            ],
-            cwd=inputs.runtime_root,
-            stdout=engine_stdout,
-            stderr=engine_stderr,
+    with running_traefik_host(
+        inputs,
+        artifacts,
+        setup,
+        processes,
+        engine_description="persistent Traefik CRS engine service",
+        host_description="Traefik CRS native host",
+    ):
+        allow_status, allow_bytes = request_through_traefik(
+            setup.traefik_port,
+            b"",
+            request_ids.allow,
+            http.HTTPStatus.OK,
+            crs_headers,
+            method="GET",
+            path=CRS_ALLOW_PATH,
         )
-        wait_for_socket(setup.engine_socket, processes.engine, "persistent Traefik CRS engine service")
-        with (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).open("wb") as stdout, (
-            artifacts.logs_dir / "traefik.stderr.log"
-        ).open("wb") as stderr:
-            processes.traefik = subprocess.Popen(
-                [str(inputs.binary), f"--configFile={artifacts.static_config}"],
-                cwd=inputs.runtime_root,
-                stdout=stdout,
-                stderr=stderr,
-            )
-            wait_for_port(setup.traefik_port, processes.traefik, "Traefik CRS native host")
-            allow_status, allow_bytes = request_through_traefik(
-                setup.traefik_port,
-                b"",
-                request_ids.allow,
-                http.HTTPStatus.OK,
-                crs_headers,
-                method="GET",
-                path=CRS_ALLOW_PATH,
-            )
-            block_status, _ = request_through_traefik(
-                setup.traefik_port,
-                b"",
-                request_ids.block,
-                http.HTTPStatus.FORBIDDEN,
-                crs_headers,
-                method="GET",
-                path=CRS_BLOCK_PATH,
-            )
-            bypass_status, bypass_bytes = request_through_traefik(
-                setup.traefik_port,
-                b"",
-                request_ids.bypass,
-                http.HTTPStatus.FORBIDDEN,
-                crs_headers,
-                method="GET",
-                path=CRS_BYPASS_PATH,
-            )
+        block_status, _ = request_through_traefik(
+            setup.traefik_port,
+            b"",
+            request_ids.block,
+            http.HTTPStatus.FORBIDDEN,
+            crs_headers,
+            method="GET",
+            path=CRS_BLOCK_PATH,
+        )
+        bypass_status, bypass_bytes = request_through_traefik(
+            setup.traefik_port,
+            b"",
+            request_ids.bypass,
+            http.HTTPStatus.FORBIDDEN,
+            crs_headers,
+            method="GET",
+            path=CRS_BYPASS_PATH,
+        )
     if processes.traefik.poll() is not None:
         raise RuntimeError(f"Traefik exited after CRS requests with code {processes.traefik.returncode}")
     if processes.engine.poll() is not None:

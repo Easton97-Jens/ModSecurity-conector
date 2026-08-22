@@ -9,15 +9,15 @@
 | Change ID | `CR-20260820-enable-crs-runtime-envoy-traefik-lighttpd` |
 | Date (UTC) | 2026-08-20 |
 | Base revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Observed current `origin/master` | `cd6bc68fda3916baf53c03740eb74aa15744a596` |
-| Parent → Framework pin | `89881a1b33219fc18df3cf2f15dda53261d13443` |
+| Observed current `origin/master` | `423abcc130cf5d29ccf15dd7d82e4e7d89d495d3` |
+| Parent → Framework pin | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | Framework → MRTS pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The branch was normally synchronized with `origin/master` through merge commit `50767822`; post-update exact-head hosted validation is pending. The current Framework pin contains the HAProxy provisioning-order correction from Framework PR #102. No merge or auto-merge is authorized. |
+| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The branch was normally synchronized with current `origin/master` through merge commit `101df216`; post-update exact-head hosted validation is pending. The master-derived Framework pin remains read-only and resolves to the recorded MRTS pin. No merge or auto-merge is authorized. |
 
 The task worktree was created from the recorded task base and later normally
-merged with the separately recorded current `origin/master`. Earlier hosted
-results remain historical only; all required revalidation remains
-delivery-gated.
+merged with separately recorded current `origin/master` revisions, most
+recently `423abcc130cf5d29ccf15dd7d82e4e7d89d495d3`. Earlier hosted results
+remain historical only; all required revalidation remains delivery-gated.
 
 ## Motivation and problem statement
 
@@ -47,8 +47,10 @@ attacker-writable pathname deletion, the cleanup boundary.
 - Same-UID adversarial replacement, success, error, timeout, signal, helper
   failure, partial-initialization, capability-failure, and teardown behavior
   have focused regression coverage.
-- Only Parent files change. Framework, MRTS, Gitlinks, dependency manifests,
-  lockfiles, and toolchain selections remain unchanged.
+- Only Parent-authored files change. Framework and MRTS source, dependency
+  manifests, lockfiles, and toolchain selections remain unchanged. The normal
+  current-master merge retains its master-derived Parent → Framework Gitlink
+  update without making it a task-authored Gitlink change.
 - A separate task branch and PR receive exact-head local and hosted validation
   before any Ready-for-Review claim. No merge, auto-merge, or risk acceptance
   is part of this change.
@@ -123,6 +125,33 @@ test weakening. The normalizer keeps its ASCII wire-evidence restriction while
 using explicit ASCII regex semantics, and the complexity split preserves the
 same fail-closed trace validation. The next exact-head SonarQube analysis must
 still demonstrate zero new issues before the requirement is considered met.
+
+## 2026-08-22 follow-up: master refresh, Traefik deduplication, and hosted boundary
+
+The branch now includes the normal merge commit `101df216` of current
+`origin/master` `423abcc130cf5d29ccf15dd7d82e4e7d89d495d3`. The resulting
+Parent → Framework pin is `c40e924ec5c341032908e0082feba1d37ed1dfda`, and the
+Framework → MRTS pin remains `615b13bacbd008562c17408246c41ab27dca3104`. This
+is a master-derived revision update, not a task-authored Framework or MRTS
+change; the stale local nested checkout is not staged or used as authority.
+
+The official SonarQube Cloud duplication API attributed all 20 duplicated New
+Code lines to two equivalent Traefik engine/host-start blocks. They now share
+the `running_traefik_host` context manager. It retains the process ownership,
+arguments, working directory, log descriptor lifetime, readiness diagnostics,
+and outer cleanup behavior of both the CRS and non-CRS runtime paths. A direct
+regression test verifies those lifecycle properties, while the existing CRS
+run-ID request test continues to cover request correlation. The fresh
+exact-head SonarQube analysis must report `0.0%` New Code duplication before
+that metric is claimed as satisfied.
+
+The required Lighttpd namespace integration remains an external hosted-runner
+blocker, not a safe Parent-only workflow bug. Its real entry path requires an
+unprivileged user/mount/PID namespace chain and rejects host-root and set-ID
+callers. `sudo`, a privileged container, or a setcap helper would not preserve
+that boundary. The smallest safe remedy remains an isolated non-root
+self-hosted Linux runner with the required namespaces, fixed root-owned setup
+binaries, no secrets, no Docker socket, and a dedicated label.
 
 ## Security impact
 

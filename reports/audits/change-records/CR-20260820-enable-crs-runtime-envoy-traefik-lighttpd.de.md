@@ -9,15 +9,17 @@
 | Change-ID | `CR-20260820-enable-crs-runtime-envoy-traefik-lighttpd` |
 | Datum (UTC) | 2026-08-20 |
 | Basis-Revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Beobachteter aktueller `origin/master` | `cd6bc68fda3916baf53c03740eb74aa15744a596` |
-| Parent → Framework Pin | `89881a1b33219fc18df3cf2f15dda53261d13443` |
+| Beobachteter aktueller `origin/master` | `423abcc130cf5d29ccf15dd7d82e4e7d89d495d3` |
+| Parent → Framework Pin | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | Framework → MRTS Pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der Branch wurde per normalem Merge-Commit `50767822` mit `origin/master` synchronisiert; die Exact-Head-Hosted-Validierung nach dem Update steht aus. Der aktuelle Framework-Pin enthält die HAProxy-Provisionierungsreihenfolgekorrektur aus Framework-PR #102. Kein Merge und kein Auto-Merge sind autorisiert. |
+| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der Branch wurde per normalem Merge-Commit `101df216` mit aktuellem `origin/master` synchronisiert; die Exact-Head-Hosted-Validierung nach dem Update steht aus. Der master-abgeleitete Framework-Pin bleibt read-only und löst auf den aufgezeichneten MRTS-Pin auf. Kein Merge und kein Auto-Merge sind autorisiert. |
 
 Der Task-Worktree wurde von der aufgezeichneten Task-Basis erstellt und später
-per normalem Merge mit dem separat aufgezeichneten aktuellen `origin/master`
-synchronisiert. Frühere Hosted-Ergebnisse bleiben ausschließlich historisch;
-alle erforderlichen Revalidierungen bleiben Delivery-gesteuert.
+per normalem Merge mit separat aufgezeichneten aktuellen `origin/master`-
+Revisionen synchronisiert, zuletzt mit
+`423abcc130cf5d29ccf15dd7d82e4e7d89d495d3`. Frühere Hosted-Ergebnisse bleiben
+ausschließlich historisch; alle erforderlichen Revalidierungen bleiben
+Delivery-gesteuert.
 
 ## Motivation und Problemstellung
 
@@ -48,8 +50,10 @@ Cleanup-Grenze.
 - Same-UID-Angreiferersetzung sowie Erfolg, Fehler, Timeout, Signal,
   Helper-Fehler, teilweise Initialisierung, Capability-Fehler und Teardown
   besitzen fokussierte Regression-Abdeckung.
-- Nur Parent-Dateien ändern sich. Framework, MRTS, Gitlinks,
+- Nur Parent-eigene Dateien ändern sich. Framework- und MRTS-Source,
   Dependency-Manifeste, Lockfiles und Toolchain-Auswahlen bleiben unverändert.
+  Der normale Merge des aktuellen `master` enthält dessen Parent → Framework-
+  Gitlink-Update, ohne daraus eine task-eigene Gitlink-Änderung zu machen.
 - Ein separater Task-Branch und PR erhalten Exact-Head-Lokal- und
   Hosted-Validierung vor jeder Ready-for-Review-Behauptung. Kein Merge,
   Auto-Merge oder Risikoakzeptanz ist Teil dieser Änderung.
@@ -133,6 +137,36 @@ Wire-Evidence-Einschränkung mit expliziter ASCII-Regex-Semantik; die
 Komplexitätsaufteilung erhält dieselbe fail-closed Trace-Validierung. Die
 nächste SonarQube-Analyse des exakten Heads muss weiterhin null neue Befunde
 zeigen, bevor die Anforderung als erfüllt gilt.
+
+## Follow-up vom 2026-08-22: Master-Aktualisierung, Traefik-Deduplizierung und Hosted-Grenze
+
+Der Branch enthält jetzt den normalen Merge-Commit `101df216` des aktuellen
+`origin/master` `423abcc130cf5d29ccf15dd7d82e4e7d89d495d3`. Der resultierende
+Parent → Framework-Pin ist `c40e924ec5c341032908e0082feba1d37ed1dfda`; der
+Framework → MRTS-Pin bleibt `615b13bacbd008562c17408246c41ab27dca3104`. Das
+ist eine master-abgeleitete Revisionsaktualisierung und keine task-eigene
+Framework- oder MRTS-Änderung; der veraltete lokale verschachtelte Checkout
+wird weder gestaged noch als Autorität verwendet.
+
+Die offizielle SonarQube-Cloud-Duplizierungs-API ordnete alle 20 duplizierten
+New-Code-Zeilen zwei gleichartigen Traefik-Engine-/Host-Startblöcken zu. Sie
+verwenden jetzt gemeinsam den Context-Manager `running_traefik_host`. Er erhält
+Prozess-Ownership, Argumente, Arbeitsverzeichnis, Lebensdauer der
+Log-Deskriptoren, Readiness-Diagnostik und das äußere Cleanup-Verhalten beider
+CRS- und Nicht-CRS-Runtime-Pfade. Ein direkter Regressionstest prüft diese
+Lifecycle-Eigenschaften; der bestehende CRS-Run-ID-Request-Test deckt weiter
+die Request-Korrelation ab. Die frische SonarQube-Analyse des exakten Heads
+muss `0,0 %` New-Code-Duplizierung melden, bevor diese Metrik als erfüllt
+behauptet wird.
+
+Die erforderliche Lighttpd-Namespace-Integration bleibt ein externer
+Hosted-Runner-Blocker und kein sicher Parent-only behebbarer Workflowfehler.
+Ihr echter Einstiegspfad verlangt eine unprivilegierte User-/Mount-/PID-
+Namespace-Kette und weist Host-root- sowie Set-ID-Aufrufer zurück. `sudo`, ein
+privilegierter Container oder ein Setcap-Helper würden diese Grenze nicht
+erhalten. Kleinste sichere Abhilfe bleibt ein isolierter Nicht-root
+Self-hosted-Linux-Runner mit den nötigen Namespaces, festen root-eigenen
+Setup-Binaries, keinen Secrets, keinem Docker-Socket und dediziertem Label.
 
 ## Security-Auswirkung
 

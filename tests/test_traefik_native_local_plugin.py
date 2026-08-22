@@ -778,6 +778,57 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
             ):
                 self.assertEqual(observed_headers[request_id]["X-Framework-Run-ID"], inputs.run_id)
 
+    def test_running_traefik_host_preserves_owned_processes_and_diagnostics(self) -> None:
+        """Both runtime profiles share startup without changing process ownership."""
+
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-host-") as temporary:
+            root = Path(temporary)
+            logs = root / "logs"
+            logs.mkdir()
+            inputs = SimpleNamespace(
+                runtime_root=root,
+                include_dir=root,
+                library_dir=root,
+                binary=root / "traefik",
+            )
+            artifacts = SimpleNamespace(
+                logs_dir=logs,
+                engine_config=root / "engine.conf",
+                static_config=root / "traefik.yaml",
+            )
+            setup = SimpleNamespace(engine_socket=root / "engine.sock", traefik_port=18443)
+            processes = runner.NativeProcesses()
+            engine_process = object()
+            traefik_process = object()
+
+            with mock.patch.object(
+                runner, "build_engine_service", return_value=root / "engine"
+            ), mock.patch.object(runner, "wait_for_socket") as wait_for_socket, mock.patch.object(
+                runner, "wait_for_port"
+            ) as wait_for_port, mock.patch.object(
+                runner.subprocess, "Popen", side_effect=(engine_process, traefik_process)
+            ) as popen:
+                with runner.running_traefik_host(
+                    inputs,
+                    artifacts,
+                    setup,
+                    processes,
+                    engine_description="persistent test engine",
+                    host_description="test Traefik host",
+                ):
+                    self.assertIs(processes.engine, engine_process)
+                    self.assertIs(processes.traefik, traefik_process)
+
+            wait_for_socket.assert_called_once_with(
+                setup.engine_socket, engine_process, "persistent test engine"
+            )
+            wait_for_port.assert_called_once_with(setup.traefik_port, traefik_process, "test Traefik host")
+            self.assertEqual(popen.call_count, 2)
+            self.assertEqual(popen.call_args_list[0].kwargs["cwd"], root)
+            self.assertEqual(
+                popen.call_args_list[1].args[0], [str(inputs.binary), f"--configFile={artifacts.static_config}"]
+            )
+
     def test_crs_transaction_ids_are_not_reused_across_run_ids(self) -> None:
         first = runner.crs_request_ids("traefik-crs-run-one")
         second = runner.crs_request_ids("traefik-crs-run-two")
