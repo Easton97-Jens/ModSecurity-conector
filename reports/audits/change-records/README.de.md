@@ -11,8 +11,17 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260821-go-and-runtime-workflow-remediation](CR-20260821-go-and-runtime-workflow-remediation.de.md) —
+  der aktuelle Benutzer autorisierte diese Parent-only-Go- und Runtime-
+  Workflow-Remediation, das sichere Schließen der ersetzten PRs #306–#308, die
+  gekoppelte Nachvollziehbarkeit und später einen nicht gemergten Draft-PR. Der
+  Record unterscheidet lokale Evidence von ausstehenden Exact-Head-Hosted-
+  Läufen und behauptet weder Framework-/MRTS-Änderung noch Merge.
+
 - [CR-20260822-nginx-framework-updater-decoupling](CR-20260822-nginx-framework-updater-decoupling.de.md) —
-  Der aktuelle Nutzer autorisierte die Trennung von NGINX vom allgemeinen Framework-Updater. Der geschützte NGINX-Broker bleibt auf der neuesten offiziell veröffentlichten Version `1.31.3`; kein Merge wird behauptet.
+  Der aktuelle Nutzer autorisierte die Trennung von NGINX vom allgemeinen
+  Framework-Updater. Der geschützte NGINX-Broker bleibt auf der neuesten
+  offiziell veröffentlichten Version `1.31.3`; kein Merge wird behauptet.
 
 - [CR-20260821-parent-only-workflow-maintenance-bundle](CR-20260821-parent-only-workflow-maintenance-bundle.de.md) —
   der aktuelle Benutzer autorisierte einen Parent-only gebündelten

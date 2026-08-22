@@ -189,6 +189,7 @@ jobs:
             echo "TMP_ROOT=$verified_root/tmp"
             echo "LOG_ROOT=$verified_root/logs"
             echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
+            echo "RUNTIME_REPORT_OUTPUT_ROOT=$build_root/runtime-component-reports"
             echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
             echo "MODSECURITY_SOURCE_DIR=$source_root/ModSecurity_V3"
             echo "MODSECURITY_V3_SOURCE_DIR=$source_root/ModSecurity_V3"
@@ -238,3 +239,4 @@ jobs:
             ${{ steps.paths.outputs.build_root_apache }}/results
             ${{ steps.paths.outputs.build_root }}/logs
             ${{ steps.paths.outputs.build_root }}/results
+            ${{ steps.paths.outputs.build_root }}/runtime-component-reports

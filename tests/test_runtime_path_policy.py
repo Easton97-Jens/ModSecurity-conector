@@ -251,6 +251,53 @@ class RuntimePathPolicyTest(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_open_connector_workflow_keeps_runtime_reports_outside_source_checkout(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "open-connectors-smoke.yml").read_text(
+            encoding="utf-8"
+        )
+        start = workflow.index("      - name: Initialize runtime paths\n")
+        end = workflow.index("\n      - name: Install local Python dependencies\n", start)
+        initialize_paths = workflow[start:end]
+
+        self.assertIn(
+            'build_root="$verified_root/build"',
+            initialize_paths,
+        )
+        self.assertIn(
+            'echo "BUILD_ROOT=$build_root"',
+            initialize_paths,
+        )
+        self.assertIn(
+            'echo "RUNTIME_REPORT_OUTPUT_ROOT=$build_root/runtime-component-reports"',
+            initialize_paths,
+        )
+        self.assertNotIn("$GITHUB_WORKSPACE", initialize_paths)
+        self.assertNotIn("ci-artifacts/open-connectors/runtime-cache-reports", initialize_paths)
+
+        run_marker = "        run: |\n"
+        run_script = initialize_paths.split(run_marker, 1)[1]
+        run_script = "\n".join(
+            line.removeprefix("          ") for line in run_script.splitlines()
+        )
+        with tempfile.TemporaryDirectory(prefix="open-connectors-runtime-paths-") as temporary:
+            github_env = Path(temporary) / "github-env"
+            result = subprocess.run(
+                ["bash", "--noprofile", "--norc", "-eu", "-c", run_script],
+                cwd=temporary,
+                env={"GITHUB_ENV": str(github_env), "PATH": os.environ["PATH"]},
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            written_environment = github_env.read_text(encoding="utf-8")
+            self.assertIn(
+                "RUNTIME_REPORT_OUTPUT_ROOT=/tmp/ModSecurity-conector-verified/build/runtime-component-reports",
+                written_environment,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
