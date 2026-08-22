@@ -79,6 +79,14 @@ The disposable GitHub-hosted VM owns the final account/profile/temp teardown;
 there is deliberately no root-side recursive deletion of an `ns-test`-writable
 tree after PR code has run.
 
+The pre-checkout bootstrap creates its per-run state only beneath the
+prevalidated root-owned, non-writable `/var/lib` parent. It deliberately does
+not use `/var/tmp`, whose standard `1777` mode is both incompatible with the
+trusted-directory invariant and unsuitable as the parent of a privileged
+runtime root. The dispatcher verifies the exact root-owned `0755` state root
+and the exact non-root `source`/private `0700` temporary children before
+checkout or PR-code execution.
+
 ## Changed files
 
 - `.github/workflows/run-trusted-lighttpd-namespace-dispatch.yml` — protected

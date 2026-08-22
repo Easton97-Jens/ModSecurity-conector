@@ -68,7 +68,7 @@ jobs:
             fi
           }
 
-          for directory in / /usr /usr/bin /usr/sbin /etc /var /var/tmp; do
+          for directory in / /usr /usr/bin /usr/sbin /etc /var /var/lib; do
             require_root_owned_directory "$directory"
           done
           for binary in /usr/bin/apt-get /usr/bin/env /usr/bin/install /usr/bin/stat /usr/bin/sudo /usr/bin/tee /usr/sbin/useradd; do
@@ -99,9 +99,9 @@ jobs:
           [[ "$ns_test_gid" =~ ^[1-9][0-9]*$ ]]
           test "$(/usr/bin/id -G ns-test)" = "$ns_test_gid"
 
-          /usr/bin/sudo -n /usr/bin/install -d -o 0 -g 0 -m 0755 /var/tmp/trusted-lighttpd-namespace
-          /usr/bin/sudo -n /usr/bin/install -d -o "$ns_test_uid" -g "$ns_test_gid" -m 0755 /var/tmp/trusted-lighttpd-namespace/source
-          /usr/bin/sudo -n /usr/bin/install -d -o "$ns_test_uid" -g "$ns_test_gid" -m 0700 /var/tmp/trusted-lighttpd-namespace/tmp
+          /usr/bin/sudo -n /usr/bin/install -d -o 0 -g 0 -m 0755 /var/lib/trusted-lighttpd-namespace
+          /usr/bin/sudo -n /usr/bin/install -d -o "$ns_test_uid" -g "$ns_test_gid" -m 0755 /var/lib/trusted-lighttpd-namespace/source
+          /usr/bin/sudo -n /usr/bin/install -d -o "$ns_test_uid" -g "$ns_test_gid" -m 0700 /var/lib/trusted-lighttpd-namespace/tmp
 
           require_exact_directory() {
             local candidate="$1"
@@ -114,9 +114,9 @@ jobs:
             test "$(/usr/bin/stat -Lc '%g' -- "$candidate")" = "$expected_group"
             test "$(/usr/bin/stat -Lc '%a' -- "$candidate")" = "$expected_mode"
           }
-          require_exact_directory /var/tmp/trusted-lighttpd-namespace 0 0 755
-          require_exact_directory /var/tmp/trusted-lighttpd-namespace/source "$ns_test_uid" "$ns_test_gid" 755
-          require_exact_directory /var/tmp/trusted-lighttpd-namespace/tmp "$ns_test_uid" "$ns_test_gid" 700
+          require_exact_directory /var/lib/trusted-lighttpd-namespace 0 0 755
+          require_exact_directory /var/lib/trusted-lighttpd-namespace/source "$ns_test_uid" "$ns_test_gid" 755
+          require_exact_directory /var/lib/trusted-lighttpd-namespace/tmp "$ns_test_uid" "$ns_test_gid" 700
 
           /usr/bin/sudo -n /usr/bin/tee /etc/apparmor.d/trusted-lighttpd-ci-userns >/dev/null <<'APPARMOR_PROFILE'
           abi <abi/4.0>,
@@ -266,8 +266,8 @@ jobs:
           source_root="$GITHUB_WORKSPACE/pr-source"
           test -d "$source_root"
           test ! -L "$source_root"
-          test -d /var/tmp/trusted-lighttpd-namespace/source
-          test -d /var/tmp/trusted-lighttpd-namespace/tmp
+          test -d /var/lib/trusted-lighttpd-namespace/source
+          test -d /var/lib/trusted-lighttpd-namespace/tmp
 
           /usr/bin/sudo -n /usr/bin/aa-exec -p trusted-lighttpd-ci-userns -- \
             /usr/bin/setpriv \
@@ -285,15 +285,15 @@ jobs:
                 LOGNAME=ns-test \
                 PATH=/usr/bin:/bin \
                 PYTHONDONTWRITEBYTECODE=1 \
-                TMPDIR=/var/tmp/trusted-lighttpd-namespace/tmp \
-                LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT=/var/tmp/trusted-lighttpd-namespace/tmp \
+                TMPDIR=/var/lib/trusted-lighttpd-namespace/tmp \
+                LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT=/var/lib/trusted-lighttpd-namespace/tmp \
                 LIGHTTPD_NAMESPACE_TEST_GID="$ns_test_gid" \
                 LIGHTTPD_NAMESPACE_TEST_UID="$ns_test_uid" \
                 LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION=1 \
                 LIGHTTPD_REQUIRE_UNPRIVILEGED_TEST_RUNNER=1 \
                 NS_TEST_GID="$ns_test_gid" \
                 NS_TEST_UID="$ns_test_uid" \
-                SOURCE_COPY=/var/tmp/trusted-lighttpd-namespace/source \
+                SOURCE_COPY=/var/lib/trusted-lighttpd-namespace/source \
                 SOURCE_ROOT="$source_root" \
                 /usr/bin/dash -eu -c '
                   test "$(/usr/bin/id -u)" = "$NS_TEST_UID"

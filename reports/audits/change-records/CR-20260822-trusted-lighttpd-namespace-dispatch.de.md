@@ -84,6 +84,14 @@ Identity-Drop kopiert. Die entsorgbare GitHub-hosted-VM besitzt abschließend
 Account-/Profil-/Temp-Teardown; bewusst gibt es nach gelaufenem PR-Code kein
 root-seitiges rekursives Löschen eines von `ns-test` beschreibbaren Baums.
 
+Das Pre-Checkout-Bootstrap erzeugt seinen Run-State ausschließlich unter dem
+vorab geprüften root-eigenen, nicht beschreibbaren `/var/lib`-Parent. Es nutzt
+bewusst nicht `/var/tmp`, dessen Standardmodus `1777` sowohl mit der
+Trusted-Directory-Invariante unvereinbar ist als auch keinen geeigneten Parent
+für einen privilegierten Runtime-Root bildet. Der Dispatcher prüft den exakten
+root-eigenen `0755`-State-Root sowie die exakten Non-root-`source`- und
+privaten `0700`-Temp-Children vor Checkout oder PR-Code-Ausführung.
+
 ## Geänderte Dateien
 
 - `.github/workflows/run-trusted-lighttpd-namespace-dispatch.yml` —

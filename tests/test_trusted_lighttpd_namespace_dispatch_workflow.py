@@ -92,6 +92,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             errors.append(f"missing protected-master boundary: {required}")
 
     for required in (
+        "for directory in / /usr /usr/bin /usr/sbin /etc /var /var/lib; do",
         "/usr/bin/apt-get update",
         "apparmor-utils bubblewrap jq",
         "kernel/apparmor_restrict_unprivileged_userns",
@@ -103,13 +104,16 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         "/usr/sbin/aa-status --profiled",
         "/usr/sbin/useradd --create-home --user-group --home-dir /home/ns-test",
         "test \"$(/usr/bin/id -G ns-test)\" = \"$ns_test_gid\"",
-        "/var/tmp/trusted-lighttpd-namespace/tmp",
+        "/var/lib/trusted-lighttpd-namespace/tmp",
         "-m 0700",
         "--disable-userns",
         "--assert-userns-disabled",
     ):
         if required not in text:
             errors.append(f"missing trusted bootstrap control: {required}")
+
+    if "/var/tmp/trusted-lighttpd-namespace" in text:
+        errors.append("trusted runtime root must not use the public /var/tmp parent")
 
     for forbidden_profile_term in (
         "capability,",
@@ -185,7 +189,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         "/usr/bin/env -i",
         "LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION=1",
         "LIGHTTPD_REQUIRE_UNPRIVILEGED_TEST_RUNNER=1",
-        "LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT=/var/tmp/trusted-lighttpd-namespace/tmp",
+        "LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT=/var/lib/trusted-lighttpd-namespace/tmp",
         "/usr/bin/unshare --user --map-root-user --mount --pid --fork",
         "--propagation private",
         "/usr/bin/mount --make-rprivate /",
@@ -259,6 +263,10 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
             "global userns relaxation": ("test \"$userns_restriction\" = 1", "sysctl -w kernel.apparmor_restrict_unprivileged_userns=0"),
             "privileged container": ("cancel-in-progress: false", "cancel-in-progress: false\n    container: --privileged"),
             "unsafe namespace fallback": ("--assert-userns-disabled", "--unshare-user-try"),
+            "public runtime parent": (
+                "/var/lib/trusted-lighttpd-namespace",
+                "/var/tmp/trusted-lighttpd-namespace",
+            ),
             "lost privilege drop": ("--no-new-privs", "--drop-no-new-privileges"),
             "root PR-source command": (
                 "          source_root=\"$GITHUB_WORKSPACE/pr-source\"\n          test -d \"$source_root\"",
