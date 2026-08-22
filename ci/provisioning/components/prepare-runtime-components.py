@@ -9580,26 +9580,38 @@ def parse_runtime_component_args() -> argparse.Namespace:
     return runtime_component_argument_parser().parse_args()
 
 
-def required_runtime_component_sources(env: dict[str, str], strict: bool) -> dict[str, Any]:
+def required_runtime_component_sources(
+    env: dict[str, str],
+    strict: bool,
+    target_connector: str,
+) -> dict[str, Any]:
     validate_https_url_config(env)
     # Validate the guarded Framework tuple before any managed cache root,
     # archive path, extraction, or download is reached.
     values = {"apr_util_provenance": require_apr_util_pinned_provenance(env)}
     values.update({
-        "go_ftw_source_url": require_env_value(env, "GO_FTW_SOURCE_URL"),
-        "go_ftw_expected_latest": require_env_value(env, "GO_FTW_PROMPT_EXPECTED_LATEST"),
-        "albedo_source_url": require_env_value(env, "ALBEDO_SOURCE_URL"),
-        "albedo_expected_latest": require_env_value(env, "ALBEDO_PROMPT_EXPECTED_LATEST"),
         "expat_source_url": require_env_value(env, "EXPAT_SOURCE_URL"),
         "expat_git_ref": require_env_value(env, "EXPAT_GIT_REF"),
     })
     if strict:
         values["expat_git_ref"] = require_full_immutable_git_commit(values["expat_git_ref"], "EXPAT_GIT_REF")
-    # NGINX no longer has a mutable fallback: validate its complete reviewed
-    # release tuple before the managed cache root is initialized.
-    values["nginx_pinned_provenance"] = nginx_pinned_provenance(env)
-    values["nginx_require_pinned_provenance"] = nginx_pinned_provenance_required(env)
-    nginx_protocol_build_inputs(env)
+    if target_connector == "all":
+        # These optional tools are prepared only by the aggregate target; a
+        # connector-scoped run must not be blocked by their unrelated source
+        # configuration.
+        values.update({
+            "go_ftw_source_url": require_env_value(env, "GO_FTW_SOURCE_URL"),
+            "go_ftw_expected_latest": require_env_value(env, "GO_FTW_PROMPT_EXPECTED_LATEST"),
+            "albedo_source_url": require_env_value(env, "ALBEDO_SOURCE_URL"),
+            "albedo_expected_latest": require_env_value(env, "ALBEDO_PROMPT_EXPECTED_LATEST"),
+        })
+    if target_connector in {"all", "nginx"}:
+        # NGINX has no mutable fallback. Keep its complete reviewed release
+        # tuple fail-closed for every path that can prepare NGINX, but do not
+        # make unrelated connector runs depend on it.
+        values["nginx_pinned_provenance"] = nginx_pinned_provenance(env)
+        values["nginx_require_pinned_provenance"] = nginx_pinned_provenance_required(env)
+        nginx_protocol_build_inputs(env)
     return values
 
 
@@ -9663,7 +9675,7 @@ def runtime_component_context(args: argparse.Namespace) -> tuple[dict[str, Any] 
     PATH_POLICY_ENV = dict(env)
     strict = env.get("RUNTIME_COMPONENT_STRICT_VERIFY") == "1"
     try:
-        sources = required_runtime_component_sources(env, strict)
+        sources = required_runtime_component_sources(env, strict, args.target_connector)
     except RuntimeError as exc:
         print(f"prepare-runtime-components: BLOCKED: {exc}")
         return None, 77

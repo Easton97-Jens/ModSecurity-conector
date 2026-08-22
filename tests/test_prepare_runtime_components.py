@@ -154,6 +154,87 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     components.validate_https_url_config({"CRS_REPO_URL": invalid_url})
 
+    def test_required_runtime_component_sources_scope_all_and_nginx_only_inputs(self) -> None:
+        """Unrelated NGINX and optional-tool pins cannot block selected hosts."""
+
+        non_nginx_env = {
+            "EXPAT_SOURCE_URL": "https://github.com/libexpat/libexpat",
+            "EXPAT_GIT_REF": PINNED_EXPAT_COMMIT,
+            **PINNED_NGINX_RELEASE_TUPLE,
+            "NGINX_RELEASE_TAG": "release-1.31.4",
+            "NGINX_SOURCE_GIT_REF": "release-1.31.4",
+        }
+        all_env = {
+            **non_nginx_env,
+            "GO_FTW_SOURCE_URL": "https://github.com/example/go-ftw",
+            "GO_FTW_PROMPT_EXPECTED_LATEST": "v1.0.0",
+            "ALBEDO_SOURCE_URL": "https://github.com/example/albedo",
+            "ALBEDO_PROMPT_EXPECTED_LATEST": "v1.0.0",
+        }
+
+        with (
+            mock.patch.object(components, "validate_https_url_config"),
+            mock.patch.object(components, "require_apr_util_pinned_provenance", return_value={}),
+        ):
+            for target_connector in ("shared", "apache", "haproxy"):
+                with self.subTest(target_connector=target_connector):
+                    values = components.required_runtime_component_sources(
+                        non_nginx_env,
+                        strict=False,
+                        target_connector=target_connector,
+                    )
+                    self.assertEqual(values["expat_git_ref"], PINNED_EXPAT_COMMIT)
+                    self.assertNotIn("nginx_pinned_provenance", values)
+                    self.assertNotIn("go_ftw_source_url", values)
+                    self.assertNotIn("albedo_source_url", values)
+
+            with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
+                components.required_runtime_component_sources(
+                    non_nginx_env,
+                    strict=False,
+                    target_connector="nginx",
+                )
+            with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
+                components.required_runtime_component_sources(
+                    all_env,
+                    strict=False,
+                    target_connector="all",
+                )
+
+        with (
+            mock.patch.object(components, "validate_https_url_config"),
+            mock.patch.object(components, "require_apr_util_pinned_provenance", return_value={}),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "missing required runtime component config: GO_FTW_SOURCE_URL",
+            ):
+                components.required_runtime_component_sources(
+                    {
+                        "EXPAT_SOURCE_URL": "https://github.com/libexpat/libexpat",
+                        "EXPAT_GIT_REF": PINNED_EXPAT_COMMIT,
+                    },
+                    strict=False,
+                    target_connector="all",
+                )
+
+    def test_required_runtime_component_sources_keeps_global_url_guard_for_every_target(self) -> None:
+        """Target scoping never bypasses the common source URL trust boundary."""
+
+        for target_connector in ("shared", "apache", "haproxy", "nginx", "all"):
+            with self.subTest(target_connector=target_connector):
+                with mock.patch.object(
+                    components,
+                    "validate_https_url_config",
+                    side_effect=RuntimeError("invalid_runtime_source_url"),
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "invalid_runtime_source_url"):
+                        components.required_runtime_component_sources(
+                            {},
+                            strict=False,
+                            target_connector=target_connector,
+                        )
+
     def test_pinned_nginx_release_tuple_uses_only_the_direct_release_asset(self) -> None:
         archive_root = Path("cache/archives")
         cache_root = Path("cache")
