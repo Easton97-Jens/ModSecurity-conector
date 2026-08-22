@@ -73,11 +73,11 @@ test -f "$MODSECURITY_LIB_DIR/libmodsecurity.so"
 
 ### Einfacher Weg
 
-Nur die ausgewählte offizielle NGINX-Hostquelle herunterladen. Die Repository-Source-of-Truth pinnt derzeit `NGINX_RELEASE_TAG=release-1.31.3`; dies entspricht dem unten verwendeten offiziellen Archiv `1.31.3`. Dabei wird kein Connector aus einem anderen Repository geladen: Der Connector liegt bereits in diesem Checkout unter `connectors/nginx/`.
+Nur die ausgewählte offizielle NGINX-Hostquelle herunterladen. Die Repository-Source-of-Truth pinnt derzeit `NGINX_RELEASE_TAG=release-1.31.4`; dies entspricht dem unten verwendeten offiziellen Archiv `1.31.4`. Dabei wird kein Connector aus einem anderen Repository geladen: Der Connector liegt bereits in diesem Checkout unter `connectors/nginx/`.
 
 ```sh
 WORKDIR="$HOME/nginx-modsecurity"
-VERSION="1.31.3"
+VERSION="1.31.4"
 ```
 
 #### Hostquelle herunterladen und entpacken

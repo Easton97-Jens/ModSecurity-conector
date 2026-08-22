@@ -11,6 +11,9 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260822-nginx-updater-workflow-publication](CR-20260822-nginx-updater-workflow-publication.de.md) —
+  der aktuelle Nutzer autorisierte die Reparatur des NGINX-Updaters und die Synchronisierung auf die neueste Version. Die dedizierte, unveränderliche Root-Broker-Grenze bleibt bestehen; der Nachweis behauptet weder Merge noch Repin des geschützten Callers im Voraus.
+
 - [CR-20260821-parent-only-workflow-maintenance-bundle](CR-20260821-parent-only-workflow-maintenance-bundle.de.md) —
   der aktuelle Benutzer autorisierte einen Parent-only gebündelten
   Action-/Tool-Wartungsweg und eine kontrollierte #311-`master`-Integration,

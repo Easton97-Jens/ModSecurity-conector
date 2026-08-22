@@ -49,7 +49,7 @@ LOCKED_ACTION_USE = re.compile(
     r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
     r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
 )
-SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "486be1c4676f48e035b8f17ca7ec44f9651de539edc9620d83191f1052418bc6"
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "f75c04317edf96bdd310497709dea53e67bdb0340c52831f51b081aaaaf850d3"
 AUTO_MERGE_DISABLED_QUERY = (
     "--jq 'if (has(\"auto_merge\") and (.auto_merge == null)) then \"null\" "
     "else \"auto-merge-present\" end'"
@@ -689,7 +689,7 @@ EXPECTED_WRITE_PERMISSIONS = {
     ("cleanup-artifacts.yml", "cleanup-artifacts"): {"actions": "write"},
     ("test-full-smoke-sequential.yml", "cleanup-artifacts"): {"actions": "write"},
     ("update-submodules.yml", "create-submodule-update-pr"): {
-        "contents": "write",
+        "contents": "read",
         "pull-requests": "write",
     },
     ("update-go-version.yml", "create-go-update-pr"): {
@@ -900,7 +900,7 @@ def update_submodule_validate_only_errors(text: str) -> list[str]:
         errors.append("resolver permissions must remain contents-read only")
     if job_permissions(validator) != {"contents": "read"}:
         errors.append("validator permissions must remain contents-read only")
-    if job_permissions(publisher) != {"contents": "write", "pull-requests": "write"}:
+    if job_permissions(publisher) != {"contents": "read", "pull-requests": "write"}:
         errors.append("publisher permissions changed outside the established boundary")
     if job_permissions(outcome) != {"contents": "read"}:
         errors.append("outcome reporter permissions must remain contents-read only")
@@ -1867,7 +1867,7 @@ jobs:
         self.assertEqual(job_permissions(validator), {"contents": "read"})
         self.assertEqual(
             job_permissions(publisher),
-            {"contents": "write", "pull-requests": "write"},
+            {"contents": "read", "pull-requests": "write"},
         )
         self.assertEqual(job_permissions(outcome), {"contents": "read"})
         self.assertEqual(job_if_expression(outcome), "always()")
@@ -2464,6 +2464,20 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("git ls-remote --exit-code", publisher)
         self.assertTrue(has_exact_framework_gitlink_staging(publisher))
         self.assertIn("GH_TOKEN: ${{ github.token }}", publisher)
+        self.assertIn("PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}", publisher)
+        self.assertIn(
+            "Verify workflow publisher GitHub App configuration", publisher
+        )
+        self.assertIn(
+            "Mint repository-limited workflow publisher App token", publisher
+        )
+        self.assertIn(
+            locked_action_pin("actions/create-github-app-token"), publisher
+        )
+        self.assertIn("permission-contents: write", publisher)
+        self.assertIn("permission-workflows: write", publisher)
+        self.assertIn("git config --local credential.helper", publisher)
+        self.assertNotIn("gh auth setup-git", publisher)
         self.assertIn("git read-tree \"$MASTER_HEAD\"", publisher)
         self.assertIn('git diff --cached --name-only "$MASTER_HEAD"', normalized_publisher)
         self.assertIn("require_only_allowed_update_paths", publisher)

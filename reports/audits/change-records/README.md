@@ -10,6 +10,9 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260822-nginx-updater-workflow-publication](CR-20260822-nginx-updater-workflow-publication.md)
+  | [Deutsch](CR-20260822-nginx-updater-workflow-publication.de.md) — the current user authorized the NGINX updater repair and latest-version synchronization. The dedicated immutable root-broker boundary remains; the record asserts no merge or protected-caller repin in advance.
+
 - [CR-20260821-parent-only-workflow-maintenance-bundle](CR-20260821-parent-only-workflow-maintenance-bundle.md)
   | [Deutsch](CR-20260821-parent-only-workflow-maintenance-bundle.de.md) — the
   current user authorized one Parent-only bundled Action/tool maintenance path

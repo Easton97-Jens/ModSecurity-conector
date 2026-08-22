@@ -11,10 +11,13 @@ on:
         default: false
         type: boolean
 
-# The isolated publisher job must be allowed to create pull requests:
-# Settings -> Actions -> General -> Workflow permissions:
-# - enable Read and write permissions
-# - enable "Allow GitHub Actions to create and approve pull requests"
+# The isolated publisher keeps the built-in token limited to pull-request
+# metadata. Git pushes use the repository-limited workflow publisher App
+# because synchronized component pins can legitimately include
+# .github/workflows/*.yml.
+# Required repository configuration:
+# - variable WORKFLOW_UPDATER_APP_CLIENT_ID
+# - secret WORKFLOW_UPDATER_APP_PRIVATE_KEY
 permissions:
   contents: read
 
@@ -390,7 +393,7 @@ jobs:
         needs.validate-submodule-update.result == 'success'
       }}
     permissions:
-      contents: write
+      contents: read
       pull-requests: write
     runs-on: ubuntu-latest
     env:
@@ -417,10 +420,37 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
+      - name: Verify workflow publisher GitHub App configuration
+        env:
+          WORKFLOW_UPDATER_APP_CLIENT_ID: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
+          WORKFLOW_UPDATER_APP_PRIVATE_KEY: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$WORKFLOW_UPDATER_APP_CLIENT_ID" ]; then
+            echo "::error::WORKFLOW_UPDATER_APP_CLIENT_ID repository variable is missing or empty" >&2
+            exit 1
+          fi
+          if [ -z "$WORKFLOW_UPDATER_APP_PRIVATE_KEY" ]; then
+            echo "::error::WORKFLOW_UPDATER_APP_PRIVATE_KEY repository secret is missing" >&2
+            exit 1
+          fi
+
+      - name: Mint repository-limited workflow publisher App token
+        id: publisher_app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          permission-contents: write
+          permission-workflows: write
+
       - name: Publish only a verified Framework gitlink through a safe maintenance state
         id: publish
         env:
           GH_TOKEN: ${{ github.token }}
+          PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}
         run: |
           set -euo pipefail
 
@@ -921,14 +951,15 @@ jobs:
           fi
           read_open_prs
           read_update_branch
+          git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISH_TOKEN\"; }; f"
+          trap 'git config --local --unset-all credential.helper' EXIT
           case "$BRANCH_STATE" in
             A)
               if [ "$OPEN_PR_COUNT" != "0" ] || [ "$UPDATE_BRANCH_PRESENT" != false ]; then
                 echo "Maintenance state changed before normal branch creation." >&2
                 exit 1
               fi
-              gh auth setup-git
-              git push origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"
+                git push origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"
               ;;
             B)
               if [ "$OPEN_PR_COUNT" != "1" ] || [ "$UPDATE_BRANCH_PRESENT" != true ] || [ "$EXPECTED_REMOTE_HEAD" != "$ORIGINAL_REMOTE_HEAD" ]; then
@@ -936,8 +967,7 @@ jobs:
                 exit 1
               fi
               verify_open_draft_pr "$OPEN_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"
-              gh auth setup-git
-              git push --force-with-lease="refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_HEAD" origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"
+                git push --force-with-lease="refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_HEAD" origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"
               ;;
             C)
               if [ "$OPEN_PR_COUNT" != "0" ] || [ "$UPDATE_BRANCH_PRESENT" != true ] || [ "$EXPECTED_REMOTE_HEAD" != "$ORIGINAL_REMOTE_HEAD" ]; then
@@ -946,14 +976,15 @@ jobs:
               fi
               read_matching_merged_pr
               verify_merged_pr "$MERGED_PR_NUMBER" "$EXPECTED_REMOTE_HEAD"
-              gh auth setup-git
-              git push --force-with-lease="refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_HEAD" origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"
+                git push --force-with-lease="refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_HEAD" origin "$NEW_COMMIT:refs/heads/$UPDATE_BRANCH"
               ;;
             *)
               echo "Unrecognized maintenance branch state: $BRANCH_STATE" >&2
               exit 1
               ;;
           esac
+          git config --local --unset-all credential.helper
+          trap - EXIT
 
           read_update_branch
           if [ "$EXPECTED_REMOTE_HEAD" != "$NEW_COMMIT" ]; then
