@@ -16,8 +16,18 @@ reports without an explicit repository-policy decision or user decision.
   boundary for the Lighttpd namespace test. It records local contracts only;
   protected merge and the manual runtime run remain pending.
 
+- [CR-20260821-go-and-runtime-workflow-remediation](CR-20260821-go-and-runtime-workflow-remediation.md)
+  | [Deutsch](CR-20260821-go-and-runtime-workflow-remediation.de.md) — the
+  current user authorized this Parent-only Go and runtime-workflow remediation,
+  the safe closure of superseded PRs #306–#308, paired traceability, and a
+  later unmerged Draft PR. The record distinguishes local evidence from pending
+  exact-head hosted runs and asserts no Framework/MRTS change or merge.
+
 - [CR-20260822-nginx-framework-updater-decoupling](CR-20260822-nginx-framework-updater-decoupling.md)
-  | [Deutsch](CR-20260822-nginx-framework-updater-decoupling.de.md) — the current user authorized separating NGINX from the generic Framework updater. The protected NGINX broker remains on the latest officially published `1.31.3`; no merge is asserted.
+  | [Deutsch](CR-20260822-nginx-framework-updater-decoupling.de.md) — the
+  current user authorized separating NGINX from the generic Framework updater.
+  The protected NGINX broker remains on the latest officially published
+  `1.31.3`; no merge is asserted.
 
 - [CR-20260821-parent-only-workflow-maintenance-bundle](CR-20260821-parent-only-workflow-maintenance-bundle.md)
   | [Deutsch](CR-20260821-parent-only-workflow-maintenance-bundle.de.md) — the

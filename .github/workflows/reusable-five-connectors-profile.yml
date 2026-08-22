@@ -137,9 +137,17 @@ jobs:
           evidence_root="$verified_evidence_root/no-crs-evidence"
           run_root="$verified_root/runs"
           log_root="$verified_root/run-logs"
+          diagnostic_root="$verified_root/failure-diagnostics"
           cache_root="$verified_root/cache-v2"
           umask 077
-          mkdir -p "$evidence_root"
+          mkdir -p "$evidence_root" "$diagnostic_root"
+          printf '%s\n' \
+            "connector=$CONNECTOR" \
+            "profile=$CI_PROFILE" \
+            "run_id=$NO_CRS_RUN_ID" \
+            "parent_commit=$parent_commit" \
+            "framework_commit=$framework_commit" \
+            > "$diagnostic_root/identity.txt"
           {
             echo "FIVE_CONNECTOR_PARENT_COMMIT=$parent_commit"
             echo "FIVE_CONNECTOR_FRAMEWORK_COMMIT=$framework_commit"
@@ -148,6 +156,7 @@ jobs:
             echo "VERIFIED_EVIDENCE_ROOT=$verified_evidence_root"
             echo "RUNTIME_RUN_ROOT=$run_root"
             echo "RUNTIME_LOG_ROOT=$log_root"
+            echo "FIVE_CONNECTOR_DIAGNOSTIC_ROOT=$diagnostic_root"
             echo "BUILD_ROOT=$build_root"
             echo "TMP_ROOT=$build_root/tmp"
             echo "LOG_ROOT=$build_root/logs"
@@ -257,6 +266,38 @@ jobs:
           cleanup_log="$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID/logs/process_cleanup.log"
           test -f "$cleanup_log"
           test "$(cat "$cleanup_log")" = none
+
+      - name: Capture bounded connector failure diagnostics
+        if: failure()
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          manifest="$FIVE_CONNECTOR_DIAGNOSTIC_ROOT/retained-paths.txt"
+          {
+            printf '%s\n' "connector=$CONNECTOR" "run_id=$NO_CRS_RUN_ID"
+            for root in "$LOG_ROOT" "$RUNTIME_LOG_ROOT" "$RUNTIME_REPORT_OUTPUT_ROOT"; do
+              if [ -d "$root" ]; then
+                printf 'files-under=%s\n' "$root"
+                find "$root" -xdev -type f -printf '%p\n' | sort
+              else
+                printf 'missing-root=%s\n' "$root"
+              fi
+            done
+          } > "$manifest"
+
+      - name: Upload bounded connector failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: five-connector-diagnostics-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            ${{ env.FIVE_CONNECTOR_DIAGNOSTIC_ROOT }}
+            ${{ env.LOG_ROOT }}
+            ${{ env.RUNTIME_LOG_ROOT }}
+            ${{ env.RUNTIME_REPORT_OUTPUT_ROOT }}
 
       - name: Upload canonical connector evidence
         if: always()

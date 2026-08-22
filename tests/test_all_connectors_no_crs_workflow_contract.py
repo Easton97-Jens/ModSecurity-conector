@@ -101,6 +101,7 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
             'verified_evidence_root="$verified_root/evidence"',
             'run_root="$verified_root/runs"',
             'log_root="$verified_root/run-logs"',
+            'diagnostic_root="$verified_root/failure-diagnostics"',
             'cache_root="$verified_root/cache-v2"',
             'evidence_root="$verified_evidence_root/no-crs-evidence"',
             'test "$parent_commit" = "$GITHUB_SHA"',
@@ -113,6 +114,7 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
             self.reusable,
         )
         self.assertIn('echo "PYTHON=$SETUP_PYTHON_PATH"', self.reusable)
+        self.assertIn('echo "FIVE_CONNECTOR_DIAGNOSTIC_ROOT=$diagnostic_root"', self.reusable)
         self.assertNotIn('echo "PYTHON=${{', self.reusable)
         self.assertNotIn('verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"', self.reusable)
         self.assertNotIn('evidence_root="$build_root/no-crs-evidence"', self.reusable)
@@ -151,6 +153,20 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
             self.reusable,
         )
         self.assertIn('destination="$EVIDENCE_ROOT/$connector/$NO_CRS_RUN_ID"', self.reusable)
+        self.assertIn("- name: Capture bounded connector failure diagnostics", self.reusable)
+        self.assertIn("- name: Upload bounded connector failure diagnostics", self.reusable)
+        self.assertIn("if: failure()", self.reusable)
+        capture = self.reusable.split(
+            "- name: Capture bounded connector failure diagnostics", 1
+        )[1].split("- name: Upload bounded connector failure diagnostics", 1)[0]
+        self.assertIn("env:\n          CONNECTOR: ${{ matrix.connector }}", capture)
+        self.assertIn(
+            "name: five-connector-diagnostics-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}",
+            self.reusable,
+        )
+        self.assertIn("${{ env.FIVE_CONNECTOR_DIAGNOSTIC_ROOT }}", self.reusable)
+        self.assertIn("${{ env.RUNTIME_REPORT_OUTPUT_ROOT }}", self.reusable)
+        self.assertNotIn("name: five-no-crs-diagnostics-", self.reusable)
 
     def test_aggregation_is_fail_closed_and_result_only(self) -> None:
         self.assertIn("if: always()", self.reusable)
