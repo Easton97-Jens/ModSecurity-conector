@@ -159,6 +159,38 @@ FRAMEWORK_APR_UTIL_ENV_KEYS = (
     "APR_UTIL_SHA256",
     "APR_UTIL_SHA256_URL",
 )
+# Framework common.sh captures the inherited environment before it assigns
+# canonical pins.  Its own snapshot is internal validation state, not runtime
+# configuration: passing it through another source operation would turn its
+# embedded pin lines into apparent duplicate inherited variables.
+FRAMEWORK_TRANSIENT_ENV_KEYS = (
+    "CI_INHERITED_UPSTREAM_ENV",
+    "CI_INHERITED_UPSTREAM_ENV_STATUS",
+)
+# A Framework provenance guard sources common.sh itself.  Carry only the
+# resolved runtime-root tuple from the previously loaded Framework environment
+# into that second source.  Passing common.sh's exported version/provenance
+# values back into another common.sh source creates duplicate inherited
+# environment entries on dash, which the Framework correctly rejects before
+# any source acquisition.  Original caller values remain in os.environ so a
+# genuine attempted pin override still reaches the fail-closed guard.
+FRAMEWORK_GUARD_RUNTIME_ROOT_ENV_KEYS = (
+    "CONNECTOR_ROOT",
+    "VERIFIED_RUN_ROOT",
+    "VERIFIED_STATE_ROOT",
+    "VERIFIED_BUILD_ROOT",
+    "VERIFIED_SOURCE_ROOT",
+    "VERIFIED_TMP_ROOT",
+    "VERIFIED_LOG_ROOT",
+    "CACHE_ROOT",
+    "VERIFIED_COMPONENT_CACHE",
+    "CONNECTOR_COMPONENT_CACHE",
+    "SOURCE_ROOT",
+    "BUILD_ROOT",
+    "TMP_ROOT",
+    "LOG_ROOT",
+    "MRTS_NATIVE_ROOT",
+)
 APR_UTIL_VERSION_RE = re.compile(r"\d+(?:\.\d+)+", re.ASCII)
 APR_UTIL_SHA256_RE = re.compile(r"[0-9a-f]{64}")
 SHELL_QUOTED_ENV_RE = re.compile(r"([A-Z_][A-Z0-9_]*)='([^']*)'")
@@ -240,7 +272,13 @@ def _framework_guard_environment(
 ) -> dict[str, str]:
     """Build the fixed, non-login environment for Framework guard commands."""
     env = dict(base_env)
-    for key in (*FRAMEWORK_APR_UTIL_ENV_KEYS, "ENV", "BASH_ENV", "SHELLOPTS"):
+    for key in (
+        *FRAMEWORK_APR_UTIL_ENV_KEYS,
+        *FRAMEWORK_TRANSIENT_ENV_KEYS,
+        "ENV",
+        "BASH_ENV",
+        "SHELLOPTS",
+    ):
         env.pop(key, None)
     env["PATH"] = _TRUSTED_FRAMEWORK_GUARD_PATH
     env["CONNECTOR_ROOT"] = str(connector_root)
@@ -388,6 +426,8 @@ def load_framework_environment(connector_root: Path, framework_root: Path, base_
     if common_error is not None or common_output is None:
         return dict(base_env), common_error or "failed:framework_common_environment_missing"
     loaded = _null_delimited_environment(common_output)
+    for key in FRAMEWORK_TRANSIENT_ENV_KEYS:
+        loaded.pop(key, None)
     if any(loaded.get(key) != value for key, value in guarded_apr_util.items()):
         return dict(base_env), "failed:framework_apr_util_guarded_tuple_mismatch"
     loaded.update(guarded_apr_util)
@@ -4581,7 +4621,11 @@ def run_framework_modsecurity_v3_guard(
             "framework_common": str(common_sh),
         }
     guard_env = dict(os.environ)
-    guard_env.update(env)
+    for key in FRAMEWORK_GUARD_RUNTIME_ROOT_ENV_KEYS:
+        value = env.get(key)
+        if value:
+            guard_env[key] = value
+    guard_env["FRAMEWORK_ROOT"] = str(resolved_framework_root)
     try:
         trusted_shell = verified_host_guard_executable(_TRUSTED_FRAMEWORK_GUARD_SHELL, "framework_guard_shell")
         verified_host_guard_executable(_TRUSTED_FRAMEWORK_GUARD_GIT, "framework_guard_git")
@@ -9575,15 +9619,21 @@ def required_runtime_component_sources(
     # archive path, extraction, or download is reached.
     values = {"apr_util_provenance": require_apr_util_pinned_provenance(env)}
     values.update({
-        "go_ftw_source_url": require_env_value(env, "GO_FTW_SOURCE_URL"),
-        "go_ftw_expected_latest": require_env_value(env, "GO_FTW_PROMPT_EXPECTED_LATEST"),
-        "albedo_source_url": require_env_value(env, "ALBEDO_SOURCE_URL"),
-        "albedo_expected_latest": require_env_value(env, "ALBEDO_PROMPT_EXPECTED_LATEST"),
         "expat_source_url": require_env_value(env, "EXPAT_SOURCE_URL"),
         "expat_git_ref": require_env_value(env, "EXPAT_GIT_REF"),
     })
     if strict:
         values["expat_git_ref"] = require_full_immutable_git_commit(values["expat_git_ref"], "EXPAT_GIT_REF")
+    if target_connector == "all":
+        # These optional tools are prepared only by the aggregate target; a
+        # connector-scoped run must not be blocked by their unrelated source
+        # configuration.
+        values.update({
+            "go_ftw_source_url": require_env_value(env, "GO_FTW_SOURCE_URL"),
+            "go_ftw_expected_latest": require_env_value(env, "GO_FTW_PROMPT_EXPECTED_LATEST"),
+            "albedo_source_url": require_env_value(env, "ALBEDO_SOURCE_URL"),
+            "albedo_expected_latest": require_env_value(env, "ALBEDO_PROMPT_EXPECTED_LATEST"),
+        })
     # NGINX no longer has a mutable fallback. Validate its complete reviewed
     # release tuple before the managed cache root is initialized, but only
     # when this invocation can prepare NGINX.

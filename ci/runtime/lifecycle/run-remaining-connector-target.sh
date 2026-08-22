@@ -164,7 +164,7 @@ case "$connector" in
             ENVOY_BIN=$(require_or_provision_envoy)
             export ENVOY_BIN
         fi
-        ext_proc_runtime_root=${ENVOY_EXT_PROC_RUNTIME_ROOT:-${ENVOY_RESULT_ROOT:-${RUNTIME_ROOT:-$BUILD_ROOT/envoy-ext-proc/runtime-smoke}}}
+        ext_proc_runtime_root=${PARENT_HOST_RUNTIME_ROOT:-${ENVOY_EXT_PROC_RUNTIME_ROOT:-${ENVOY_RESULT_ROOT:-${RUNTIME_ROOT:-$BUILD_ROOT/envoy-ext-proc/runtime-smoke}}}}
         ext_proc_event_log=${ENVOY_EXT_PROC_EVENT_LOG_PATH:-$ext_proc_runtime_root/events.jsonl}
         run_make_target -C "$CONNECTOR_ROOT/connectors/envoy" "$target" \
             BUILD_ROOT="$BUILD_ROOT" ENVOY_BIN="$ENVOY_BIN" \
@@ -180,7 +180,7 @@ case "$connector" in
             TRAEFIK_BIN=$(require_or_provision_traefik)
             export TRAEFIK_BIN
         fi
-        traefik_native_runtime_root=${TRAEFIK_NATIVE_RUNTIME_ROOT:-${TRAEFIK_RESULT_ROOT:-${RUNTIME_ROOT:-$BUILD_ROOT/traefik-native-middleware/runtime-smoke}}}
+        traefik_native_runtime_root=${PARENT_HOST_RUNTIME_ROOT:-${TRAEFIK_NATIVE_RUNTIME_ROOT:-${TRAEFIK_RESULT_ROOT:-${RUNTIME_ROOT:-$BUILD_ROOT/traefik-native-middleware/runtime-smoke}}}}
         TRAEFIK_NATIVE_RUNTIME_ROOT=$traefik_native_runtime_root
         MODSECURITY_PREFIX=${MODSECURITY_PREFIX:-}
         export TRAEFIK_BIN TRAEFIK_NATIVE_RUNTIME_ROOT
@@ -193,7 +193,7 @@ case "$connector" in
         export LIGHTTPD_BIN LIGHTTPD_SOURCE_DIR LIGHTTPD_BUILD_ROOT
         export LIGHTTPD_INCLUDE_DIR LIGHTTPD_CONNECTOR_BUILD_ROOT LIGHTTPD_MODULE_DIR
         lighttpd_patched_root=${LIGHTTPD_PATCHED_ROOT:-$BUILD_ROOT/lighttpd-core-patched}
-        lighttpd_patched_smoke_dir=${LIGHTTPD_PATCHED_SMOKE_DIR:-${RUNTIME_ROOT:-$BUILD_ROOT/lighttpd-patched-smoke}}
+        lighttpd_patched_smoke_dir=${PARENT_HOST_RUNTIME_ROOT:-${LIGHTTPD_PATCHED_SMOKE_DIR:-${RUNTIME_ROOT:-$BUILD_ROOT/lighttpd-patched-smoke}}}
         run_make_target -C "$CONNECTOR_ROOT/connectors/lighttpd" "$target" \
             BUILD_ROOT="$BUILD_ROOT" LIGHTTPD_BIN="$LIGHTTPD_BIN" \
             LIGHTTPD_SOURCE_DIR="$LIGHTTPD_SOURCE_DIR" \

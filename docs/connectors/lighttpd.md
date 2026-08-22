@@ -83,6 +83,43 @@ lighttpd behavior. The selected evidence profile does not establish P4 rule
 evaluation, visible late action, abort, response truncation, full CRS behavior,
 or production hardening without dedicated artifacts.
 
+## No-CRS fixture isolation
+
+The patched lifecycle's No-CRS baseline uses the trusted private-namespace
+runner documented in the [harness guide](../../connectors/lighttpd/harness/README.md).
+Root-owned `/usr/bin/unshare`, fixed `/usr/bin/dash` and `/usr/bin/mount`, and
+then `/usr/bin/bwrap` establish the user, mount, and PID boundary. The shell
+setup makes propagation private and mounts a private `nosuid,nodev,noexec`
+tmpfs at `/tmp`. Bwrap exposes only the minimal read-only system and runtime
+binds needed by the harness plus the exact task-owned smoke root as the sole
+writable bind. The fixture root is mode-0700.
+
+Namespace setup is capability-gated. After setup the runner verifies that all
+capability sets, including the bounding and ambient sets, are empty and that
+`no_new_privs` is enabled before the test harness runs. Any missing kernel
+capability or failed attestation aborts closed; the former pathname
+check-then-`rmdir` cleanup is not a fallback.
+
+Fixture cleanup is tied to child and namespace lifetime. Normal completion,
+test error, timeout, signal, helper failure, and partial initialization all
+terminate the child group and release the private namespace. The final
+namespace-state verifier checks only capability sets, `no_new_privs`, mount
+state, and the fixed fixture-root device/inode (`dev:ino`) identity. The
+descriptor-I/O cleanup command separately verifies the allowlisted fixture-leaf
+inventory, retains every leaf, and neither unlinks nor re-resolves the fixture
+pathname. All leaves and the directory disappear when the private tmpfs
+namespace is torn down.
+
+Threat model: a same-UID process can race the old fixture pathname by renaming,
+replacing, or recreating it. The private namespace and controlled writable root
+ensure that releasing the namespace removes the fixture mounts without
+deleting a replacement selected through the host pathname.
+
+The current nested local container exposes only a one-entry UID/GID mapping,
+so the complete non-root production entry path cannot be exercised locally.
+This is a validation limitation, not permission to weaken the fail-closed
+prerequisite checks.
+
 ## Related references
 
 - [Architecture](../architecture.md)

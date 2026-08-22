@@ -395,6 +395,53 @@ func newCommonCHeaders(headers []Header) (*commonCHeaders, error) {
 	return converted, nil
 }
 
+// requestHeadersForCommon restores Envoy's request authority as an ordinary
+// Host header only when Envoy supplied no Host header. Envoy carries the
+// authority in a pseudo header, while ModSecurity correctly evaluates Host as
+// REQUEST_HEADERS:Host. The injected value must remain a valid bounded HTTP
+// header value; ambiguous or control-character-bearing authority is rejected
+// instead of becoming a new header-injection path.
+func requestHeadersForCommon(headers []Header) ([]Header, error) {
+	hasHost := false
+	authorityCount := 0
+	var authority []byte
+	for _, header := range headers {
+		if strings.EqualFold(header.Name, "host") {
+			hasHost = true
+			continue
+		}
+		if header.Name == ":authority" {
+			authorityCount++
+			authority = header.Value
+		}
+	}
+	if hasHost || authorityCount == 0 {
+		return headers, nil
+	}
+	if authorityCount != 1 {
+		return nil, fmt.Errorf("ambiguous Envoy :authority header")
+	}
+	if !validAuthorityHeaderValue(authority) {
+		return nil, fmt.Errorf("invalid Envoy :authority header")
+	}
+	withHost := make([]Header, 0, len(headers)+1)
+	withHost = append(withHost, headers...)
+	withHost = append(withHost, Header{Name: "Host", Value: authority})
+	return withHost, nil
+}
+
+func validAuthorityHeaderValue(value []byte) bool {
+	if len(value) == 0 {
+		return false
+	}
+	for _, character := range value {
+		if character < 0x21 || character > 0x7e {
+			return false
+		}
+	}
+	return true
+}
+
 func (headers *commonCHeaders) pointer() *C.msc_envoy_ext_proc_header {
 	if headers == nil {
 		return nil
@@ -427,7 +474,11 @@ func newCommonRequest(metadata StreamMetadata, headers []Header) (*commonCReques
 	if err := validateCommonRequestMetadata(metadata.Request); err != nil {
 		return nil, nil, err
 	}
-	convertedHeaders, err := newCommonCHeaders(headers)
+	requestHeaders, err := requestHeadersForCommon(headers)
+	if err != nil {
+		return nil, nil, err
+	}
+	convertedHeaders, err := newCommonCHeaders(requestHeaders)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -700,6 +700,10 @@ func responseStatusFromHeaders(headers []Header) int {
 // never silently substitutes the gRPC peer endpoint.
 func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.Struct) (RequestMetadata, error) {
 	metadata := RequestMetadata{}
+	authority := ""
+	host := ""
+	authoritySeen := false
+	hostSeen := false
 	for _, header := range headers {
 		name := strings.ToLower(header.Name)
 		value, err := boundedMetadataText(header.Value, name)
@@ -712,12 +716,26 @@ func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.
 		case ":path":
 			metadata.URI = value
 		case ":authority":
-			metadata.Hostname = value
-		case "host":
-			if metadata.Hostname == "" {
-				metadata.Hostname = value
+			if authoritySeen {
+				return RequestMetadata{}, fmt.Errorf("Envoy request contains multiple :authority headers")
 			}
+			authority = value
+			authoritySeen = true
+		case "host":
+			if hostSeen {
+				return RequestMetadata{}, fmt.Errorf("Envoy request contains multiple Host headers")
+			}
+			host = value
+			hostSeen = true
 		}
+	}
+	if authoritySeen && hostSeen && !strings.EqualFold(authority, host) {
+		return RequestMetadata{}, fmt.Errorf("Envoy :authority and Host headers disagree")
+	}
+	if authoritySeen {
+		metadata.Hostname = authority
+	} else if hostSeen {
+		metadata.Hostname = host
 	}
 	textAssignments := []struct {
 		attribute string
