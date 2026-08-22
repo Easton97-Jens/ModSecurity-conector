@@ -10,8 +10,32 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260822-trusted-lighttpd-namespace-dispatch](CR-20260822-trusted-lighttpd-namespace-dispatch.md)
+  | [Deutsch](CR-20260822-trusted-lighttpd-namespace-dispatch.de.md) — the
+  current user authorized a separate protected-master `workflow_dispatch`
+  boundary for the Lighttpd namespace test. It records local contracts only;
+  protected merge and the manual runtime run remain pending.
+
+- [CR-20260822-sonar-pr313-hostruntime-remediation](CR-20260822-sonar-pr313-hostruntime-remediation.md)
+  | [Deutsch](CR-20260822-sonar-pr313-hostruntime-remediation.de.md) — the
+  current user authorized remediation of four Parent-owned PR #313 SonarCloud
+  code smells through a successor Draft PR. The historical #313 analysis is
+  immutable; the record requires fresh successor-head Sonar evidence with zero
+  open New-Code issues and asserts no Framework/MRTS, Gitlink, NGINX, or merge
+  change.
+
+- [CR-20260821-go-and-runtime-workflow-remediation](CR-20260821-go-and-runtime-workflow-remediation.md)
+  | [Deutsch](CR-20260821-go-and-runtime-workflow-remediation.de.md) — the
+  current user authorized this Parent-only Go and runtime-workflow remediation,
+  the safe closure of superseded PRs #306–#308, paired traceability, and a
+  later unmerged Draft PR. The record distinguishes local evidence from pending
+  exact-head hosted runs and asserts no Framework/MRTS change or merge.
+
 - [CR-20260822-nginx-framework-updater-decoupling](CR-20260822-nginx-framework-updater-decoupling.md)
-  | [Deutsch](CR-20260822-nginx-framework-updater-decoupling.de.md) — the current user authorized separating NGINX from the generic Framework updater. The protected NGINX broker remains on the latest officially published `1.31.3`; no merge is asserted.
+  | [Deutsch](CR-20260822-nginx-framework-updater-decoupling.de.md) — the
+  current user authorized separating NGINX from the generic Framework updater.
+  The protected NGINX broker remains on the latest officially published
+  `1.31.3`; no merge is asserted.
 
 - [CR-20260821-parent-only-workflow-maintenance-bundle](CR-20260821-parent-only-workflow-maintenance-bundle.md)
   | [Deutsch](CR-20260821-parent-only-workflow-maintenance-bundle.de.md) — the

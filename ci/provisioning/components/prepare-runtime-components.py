@@ -68,6 +68,15 @@ GITHUB_REPO_URL_KEYS = (
     "EXPAT_GIT_URL",
 )
 
+NGINX_GITHUB_REPO_URL_KEYS = frozenset(
+    {
+        "MODSECURITY_NGINX_REPO_URL",
+        "MODSECURITY_NGINX_GIT_URL",
+        "NGINX_SOURCE_REPO_URL",
+        "NGINX_GITHUB_REPO",
+    }
+)
+
 HTTPS_URL_KEYS = (
     "HAPROXY_SOURCE_URL",
     "HAPROXY_SHA256_URL",
@@ -81,6 +90,10 @@ HTTPS_URL_KEYS = (
     "PCRE2_SHA256_URL",
     "NGINX_QUIC_TLS_SOURCE_URL",
 )
+
+NGINX_HTTPS_URL_KEYS = frozenset({"NGINX_QUIC_TLS_SOURCE_URL"})
+RUNTIME_COMPONENT_TARGETS = ("all", "shared", "apache", "nginx", "haproxy")
+NGINX_RUNTIME_COMPONENT_TARGETS = frozenset({"all", "nginx"})
 
 
 NGINX_PROTOCOL_PROFILES = ("h1", "h1-h2", "h1-h2-h3-quic")
@@ -479,12 +492,29 @@ def require_https_github_repo_url(url: str) -> str:
     return f"https://github.com/{repo}"
 
 
-def validate_https_url_config(env: dict[str, str]) -> None:
+def require_runtime_component_target(target_connector: str) -> str:
+    if target_connector not in RUNTIME_COMPONENT_TARGETS:
+        raise RuntimeError(f"unsupported_runtime_component_target:{target_connector}")
+    return target_connector
+
+
+def validate_https_url_config(env: dict[str, str], target_connector: str = "all") -> None:
+    target_connector = require_runtime_component_target(target_connector)
     for key in GITHUB_REPO_URL_KEYS:
+        if (
+            key in NGINX_GITHUB_REPO_URL_KEYS
+            and target_connector not in NGINX_RUNTIME_COMPONENT_TARGETS
+        ):
+            continue
         value = env.get(key, "").strip()
         if value:
             require_https_github_repo_url(value)
     for key in HTTPS_URL_KEYS:
+        if (
+            key in NGINX_HTTPS_URL_KEYS
+            and target_connector not in NGINX_RUNTIME_COMPONENT_TARGETS
+        ):
+            continue
         value = env.get(key, "").strip()
         if value:
             require_https_url(value, key)
@@ -9569,7 +9599,7 @@ def runtime_component_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--native-root", default=None)
     parser.add_argument(
         "--target-connector",
-        choices=("all", "shared", "apache", "nginx", "haproxy"),
+        choices=RUNTIME_COMPONENT_TARGETS,
         default=os.environ.get("RUNTIME_COMPONENT_TARGET", "all"),
         help="Prepare shared dependencies, one native connector, or all native connectors.",
     )
@@ -9581,11 +9611,10 @@ def parse_runtime_component_args() -> argparse.Namespace:
 
 
 def required_runtime_component_sources(
-    env: dict[str, str],
-    strict: bool,
-    target_connector: str,
+    env: dict[str, str], strict: bool, target_connector: str
 ) -> dict[str, Any]:
-    validate_https_url_config(env)
+    target_connector = require_runtime_component_target(target_connector)
+    validate_https_url_config(env, target_connector)
     # Validate the guarded Framework tuple before any managed cache root,
     # archive path, extraction, or download is reached.
     values = {"apr_util_provenance": require_apr_util_pinned_provenance(env)}
@@ -9605,10 +9634,10 @@ def required_runtime_component_sources(
             "albedo_source_url": require_env_value(env, "ALBEDO_SOURCE_URL"),
             "albedo_expected_latest": require_env_value(env, "ALBEDO_PROMPT_EXPECTED_LATEST"),
         })
-    if target_connector in {"all", "nginx"}:
-        # NGINX has no mutable fallback. Keep its complete reviewed release
-        # tuple fail-closed for every path that can prepare NGINX, but do not
-        # make unrelated connector runs depend on it.
+    # NGINX no longer has a mutable fallback. Validate its complete reviewed
+    # release tuple before the managed cache root is initialized, but only
+    # when this invocation can prepare NGINX.
+    if target_connector in NGINX_RUNTIME_COMPONENT_TARGETS:
         values["nginx_pinned_provenance"] = nginx_pinned_provenance(env)
         values["nginx_require_pinned_provenance"] = nginx_pinned_provenance_required(env)
         nginx_protocol_build_inputs(env)
@@ -9949,7 +9978,7 @@ def prepare_runtime_archives(context: dict[str, Any], paths: dict[str, Path]) ->
                 cache_root,
             )
         )
-    if target_connector in {"all", "nginx"}:
+    if target_connector in NGINX_RUNTIME_COMPONENT_TARGETS:
         archives.extend(nginx_archive_records(env, paths["archives_root"], cache_root))
     return archives
 
@@ -9997,8 +10026,20 @@ def prepare_native_component_records(
     )
     connector_plans = {
         name: connector_plan(connector_root, framework_root, cache_root, env, name, modsecurity, expat, archives)
-        for name in ("apache", "nginx", "haproxy")
+        for name in ("apache", "haproxy")
     }
+    nginx_plan: dict[str, Any] = {}
+    if target_connector in NGINX_RUNTIME_COMPONENT_TARGETS:
+        nginx_plan = connector_plan(
+            connector_root,
+            framework_root,
+            cache_root,
+            env,
+            "nginx",
+            modsecurity,
+            expat,
+            archives,
+        )
     apache_httpd = not_selected_connector("apache", modsecurity)
     nginx = not_selected_connector("nginx", modsecurity)
     haproxy = not_selected_connector("haproxy", modsecurity)
@@ -10025,7 +10066,7 @@ def prepare_native_component_records(
             paths["sources_root"],
             paths["archives_root"],
             modsecurity,
-            connector_plans["nginx"],
+            nginx_plan,
         )
     if target_connector in {"all", "haproxy"}:
         haproxy = prepare_haproxy_runtime(
@@ -10050,7 +10091,7 @@ def prepare_native_component_records(
         "modsecurity": modsecurity,
         "apache_httpd": apache_httpd,
         "nginx": nginx,
-        "nginx_plan": connector_plans["nginx"],
+        "nginx_plan": nginx_plan,
         "haproxy": haproxy,
         "go_ftw": go_ftw,
         "albedo": albedo,

@@ -22,6 +22,11 @@ TRUSTED_VERSION_JOB = "trusted-go-version"
 VERSION_RE = re.compile(r"^1\.26\.(?:0|[1-9]\d*)$", re.ASCII)
 JOB_HEADER = re.compile(r"^ {2}(?P<name>[A-Za-z0-9_-]+):\s*$")
 SETUP_GO_PREFIX = "      - uses: actions/setup-go@"
+TRUSTED_VERSION_VALIDATOR = (
+    "if ! printf '%s\\n' \"$version\" | awk "
+    "'NR == 1 && $0 ~ /^1\\.26\\.(0|[1-9][0-9]*)$/ { valid = 1 } "
+    "END { exit !(NR == 1 && valid) }'; then"
+)
 EXPECTED_SETUP_GO_BODY = "\n".join(
     (
         "        with:",
@@ -181,7 +186,7 @@ def evaluate(root: Path) -> Result:
         "ref: ${{ github.event.pull_request.base.sha || github.sha }}",
         "version: ${{ steps.version.outputs.version }}",
         'version="$(cat -- .go-version)"',
-        '[[ ! "$version" =~ ^1\\.26\\.(0|[1-9][0-9]*)$ ]]',
+        TRUSTED_VERSION_VALIDATOR,
         'echo "version=$version" >> "$GITHUB_OUTPUT"',
     ):
         if marker not in trusted_job:

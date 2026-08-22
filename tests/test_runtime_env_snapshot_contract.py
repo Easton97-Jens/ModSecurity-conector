@@ -566,6 +566,24 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             canonical_runner,
         )
         self.assertIn(
+            "LIGHTTPD_HOST_BINARY_RESOLVER=$CONNECTOR_ROOT/ci/runtime/lifecycle/resolve-lighttpd-host-binary.py",
+            canonical_runner,
+        )
+        self.assertIn(
+            "\n".join(
+                (
+                    'host_binary=$("$PYTHON" "$LIGHTTPD_HOST_BINARY_RESOLVER" \\',
+                    '                --build-root "$CONNECTOR_BUILD_ROOT")',
+                )
+            ),
+            canonical_runner,
+        )
+        self.assertIn("inherited LIGHTTPD_BIN values", canonical_runner)
+        self.assertNotIn(
+            "host_binary=$CONNECTOR_COMPONENT_CACHE/lighttpd/bin/lighttpd",
+            canonical_runner,
+        )
+        self.assertIn(
             'RUNTIME_COMPONENT_ENV_SNAPSHOT="${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}"',
             stage_runner,
         )
