@@ -5,6 +5,10 @@
 proves the Framework Git object, extracts its ``ci/lib/common.sh`` as a data
 file, and this tool accepts only a bounded registry-defined data grammar. It
 can write only the explicit Parent target registry.
+
+NGINX is intentionally outside this generic synchronizer. Its privileged
+release tuple remains owned by the dedicated root-broker workflow and must be
+updated through an independently reviewed NGINX change.
 """
 from __future__ import annotations
 
@@ -30,12 +34,7 @@ SAFE_PATCH = re.compile(r"^[A-Za-z0-9._-]+\.patch$")
 SERIES = re.compile(r"^(?a:\d+)\.(?a:\d+)$")
 OFFICIAL_LIGHTTPD_RELEASE_ROOT_URL = "https://download.lighttpd.net/lighttpd"
 OFFICIAL_HAPROXY_RELEASE_ROOT_URL = "https://www.haproxy.org/download"
-OFFICIAL_NGINX_SOURCE_REPOSITORY = "https://github.com/nginx/nginx"
 OFFICIAL_CRS_REPOSITORY = "https://github.com/coreruleset/coreruleset.git"
-# The one retained legacy syntax is a static fallback needed by the current
-# Framework data model. It never consults the process environment.
-LEGACY_SELF_DEFAULTS = {"NGINX_QUIC_TLS_LIBRARY": "openssl"}
-
 ENVOY_PROJECTION = "Envoy projection"
 LIGHTTPD_PROJECTION = "Lighttpd projection"
 LIGHTTPD_RESOLUTION_DEPENDENCY = "Lighttpd resolution dependency"
@@ -45,9 +44,6 @@ HAPROXY_RUNTIME_PROJECTION = "HAProxy runtime projection"
 HAPROXY_HTX_TUPLE = "HAProxy HTX tuple"
 HAPROXY_HTX_PROJECTION = "HAProxy HTX projection"
 HAPROXY_HTX_RESOLUTION_DEPENDENCY = "HAProxy HTX resolution dependency"
-NGINX_PROJECTION = "NGINX projections"
-NGINX_TLS_PROJECTION = "NGINX TLS projection"
-NGINX_TLS_RESOLUTION_DEPENDENCY = "NGINX TLS resolution dependency"
 CRS_PROJECTION = "CRS Parent projections"
 
 
@@ -120,8 +116,6 @@ class SourceField:
 
 LITERAL = ("literal",)
 REFERENCES = ("literal", "references")
-PREFIX_REFERENCE = ("literal", "references", "prefix_remove")
-LEGACY_SELF_DEFAULT = ("literal", "legacy_self_default")
 
 # This is a source/data allowlist, deliberately separate from TARGET_REGISTRY.
 # It records direct Parent consumers and the intermediate fields required to
@@ -247,83 +241,6 @@ SOURCE_REGISTRY = (
         HAPROXY_HTX_PROJECTION,
     ),
     SourceField(
-        "NGINX_SOURCE_MODE",
-        True,
-        LITERAL,
-        _fixed_value("github-release"),
-        NGINX_PROJECTION,
-    ),
-    SourceField(
-        "NGINX_SOURCE_REPO_URL",
-        True,
-        LITERAL,
-        _safe_ascii_value,
-        NGINX_PROJECTION,
-    ),
-    SourceField(
-        "NGINX_RELEASE_TAG",
-        True,
-        LITERAL,
-        lambda value: bool(re.fullmatch(r"release-(?a:\d+)\.(?a:\d+)\.(?a:\d+)", value)),
-        NGINX_PROJECTION,
-    ),
-    SourceField(
-        "NGINX_SOURCE_GIT_REF",
-        True,
-        REFERENCES,
-        _safe_ascii_value,
-        NGINX_PROJECTION,
-    ),
-    SourceField(
-        "NGINX_RELEASE_ASSET_NAME",
-        True,
-        PREFIX_REFERENCE,
-        _safe_ascii_value,
-        NGINX_PROJECTION,
-    ),
-    SourceField(
-        "NGINX_SHA256",
-        True,
-        LITERAL,
-        lambda value: bool(HEX64.fullmatch(value)),
-        NGINX_PROJECTION,
-    ),
-    SourceField(
-        "NGINX_QUIC_TLS_LIBRARY",
-        True,
-        LEGACY_SELF_DEFAULT,
-        _fixed_value("openssl"),
-        NGINX_TLS_PROJECTION,
-    ),
-    SourceField(
-        "NGINX_QUIC_TLS_VERSION",
-        True,
-        LITERAL,
-        _semantic_version,
-        NGINX_TLS_PROJECTION,
-    ),
-    SourceField(
-        "NGINX_QUIC_TLS_ARCHIVE_NAME",
-        True,
-        REFERENCES,
-        _safe_ascii_value,
-        NGINX_TLS_RESOLUTION_DEPENDENCY,
-    ),
-    SourceField(
-        "NGINX_QUIC_TLS_SOURCE_URL",
-        True,
-        REFERENCES,
-        _safe_ascii_value,
-        NGINX_TLS_PROJECTION,
-    ),
-    SourceField(
-        "NGINX_QUIC_TLS_SOURCE_SHA256",
-        True,
-        LITERAL,
-        lambda value: bool(HEX64.fullmatch(value)),
-        NGINX_TLS_PROJECTION,
-    ),
-    SourceField(
         "CRS_APPROVED_REPO_URL",
         True,
         LITERAL,
@@ -375,31 +292,7 @@ TARGET_REGISTRY = (
     ),
     TargetSpec(
         "ci/provisioning/components/prepare-runtime-components.py",
-        (
-            ("DEFAULT_NGINX_QUIC_TLS_VERSION", "NGINX_QUIC_TLS_VERSION"),
-            ("DEFAULT_NGINX_QUIC_TLS_SOURCE_URL", "NGINX_QUIC_TLS_SOURCE_URL"),
-            ("DEFAULT_NGINX_QUIC_TLS_SOURCE_SHA256", "NGINX_QUIC_TLS_SOURCE_SHA256"),
-            ("NGINX_PINNED_SOURCE_REPOSITORY", "NGINX_SOURCE_REPO_URL"),
-            ("NGINX_PINNED_RELEASE_TAG", "NGINX_RELEASE_TAG"),
-            ("NGINX_PINNED_SOURCE_REF", "NGINX_SOURCE_GIT_REF"),
-            ("NGINX_PINNED_RELEASE_ASSET_NAME", "NGINX_RELEASE_ASSET_NAME"),
-            ("NGINX_PINNED_RELEASE_ASSET_SHA256", "NGINX_SHA256"),
-            ("NGINX_PINNED_VERSION_READBACK", "NGINX_VERSION_READBACK"),
-            ("DEFAULT_HAPROXY_VERSION", "HAPROXY_VERSION"),
-        ),
-        "python",
-    ),
-    TargetSpec(
-        "ci/checks/evidence/check-runtime-producer-readiness.py",
-        (
-            ("CANONICAL_NGINX_SOURCE_REPOSITORY", "NGINX_SOURCE_REPO_URL"),
-            ("CANONICAL_NGINX_SOURCE_MODE", "NGINX_SOURCE_MODE"),
-            ("CANONICAL_NGINX_RELEASE_TAG", "NGINX_RELEASE_TAG"),
-            ("CANONICAL_NGINX_SOURCE_REF", "NGINX_SOURCE_GIT_REF"),
-            ("CANONICAL_NGINX_RELEASE_ASSET_NAME", "NGINX_RELEASE_ASSET_NAME"),
-            ("CANONICAL_NGINX_ARCHIVE_SHA256", "NGINX_SHA256"),
-            ("CANONICAL_NGINX_VERSION_READBACK", "NGINX_VERSION_READBACK"),
-        ),
+        (("DEFAULT_HAPROXY_VERSION", "HAPROXY_VERSION"),),
         "python",
     ),
     TargetSpec(
@@ -408,8 +301,6 @@ TARGET_REGISTRY = (
             ("CRS_APPROVED_REPOSITORY", "CRS_APPROVED_REPO_URL"),
             ("CRS_RELEASE_TAG", "CRS_RELEASE_TAG"),
             ("CRS_APPROVED_COMMIT", "CRS_APPROVED_COMMIT"),
-            ("NGINX_PINNED_VERSION", "NGINX_VERSION"),
-            ("NGINX_PINNED_RELEASE_TAG", "NGINX_RELEASE_TAG"),
         ),
         "python",
     ),
@@ -419,7 +310,6 @@ TARGET_REGISTRY = (
             ("CRS_REPOSITORY", "CRS_APPROVED_REPO_URL"),
             ("CRS_RELEASE_TAG", "CRS_RELEASE_TAG"),
             ("CRS_COMMIT", "CRS_APPROVED_COMMIT"),
-            ("NGINX_PINNED_VERSION", "NGINX_VERSION"),
         ),
         "python",
     ),
@@ -453,31 +343,19 @@ TARGET_REGISTRY = (
         ),
         "haproxy-contract",
     ),
-    TargetSpec(
-        ".github/workflows/test-full-smoke-sequential.yml",
-        (
-            ("NGINX_SOURCE_MODE", "NGINX_SOURCE_MODE"),
-            ("NGINX_SOURCE_REPO_URL", "NGINX_SOURCE_REPO_URL"),
-            ("NGINX_RELEASE_TAG", "NGINX_RELEASE_TAG"),
-            ("NGINX_SOURCE_GIT_REF", "NGINX_SOURCE_GIT_REF"),
-            ("NGINX_RELEASE_ASSET_NAME", "NGINX_RELEASE_ASSET_NAME"),
-            ("NGINX_SHA256", "NGINX_SHA256"),
-        ),
-        "yaml",
-    ),
-    TargetSpec(
-        ".github/workflows/nginx-root-broker.yml",
-        (
-            ("NGINX_SOURCE_MODE", "NGINX_SOURCE_MODE"),
-            ("NGINX_SOURCE_REPO_URL", "NGINX_SOURCE_REPO_URL"),
-            ("NGINX_RELEASE_TAG", "NGINX_RELEASE_TAG"),
-            ("NGINX_SOURCE_GIT_REF", "NGINX_SOURCE_GIT_REF"),
-            ("NGINX_RELEASE_ASSET_NAME", "NGINX_RELEASE_ASSET_NAME"),
-            ("NGINX_SHA256", "NGINX_SHA256"),
-        ),
-        "yaml",
-    ),
 )
+
+# Security boundary: the general Framework updater must never regain ownership
+# of NGINX. NGINX source data and Parent projections belong to its dedicated
+# root-broker workflow and independently reviewed release process.
+if any(field.name.startswith("NGINX_") for field in SOURCE_REGISTRY):
+    raise RuntimeError("NGINX must not be registered as Framework source data")
+if any(
+    source_name.startswith("NGINX_")
+    for spec in TARGET_REGISTRY
+    for _target_name, source_name in spec.fields
+):
+    raise RuntimeError("NGINX must not be registered as a Framework Parent target")
 
 
 def _absolute(path: Path) -> Path:
@@ -629,23 +507,12 @@ def _braced_source_variable_part(value: str, index: int, field: SourceField) -> 
     if closing == -1:
         raise SyncError(f"unbalanced parameter expansion in {field.name}")
     body = value[index + 2 : closing]
-    fallback = LEGACY_SELF_DEFAULTS.get(field.name)
-    if fallback is not None and body == f"{field.name}:-{fallback}":
-        _require_expression_type(field, "legacy_self_default")
-        return ("literal", fallback, ""), closing + 1
     if _assignment_key(body):
         _require_expression_type(field, "references")
         if body not in SOURCE_FIELDS:
             raise SyncError(f"unknown source variable reference in {field.name}: {body}")
         return ("reference", body, ""), closing + 1
-    prefix = re.fullmatch(r"([A-Z][A-Z0-9_]*)#([A-Za-z0-9._-]+)", body)
-    if prefix is None:
-        raise SyncError(f"unsupported parameter expansion in {field.name}")
-    reference, removed_prefix = prefix.groups()
-    if field.name != "NGINX_RELEASE_ASSET_NAME" or reference != "NGINX_RELEASE_TAG" or removed_prefix != "release-":
-        raise SyncError(f"unsupported prefix removal in {field.name}")
-    _require_expression_type(field, "prefix_remove")
-    return ("prefix_remove", reference, removed_prefix), closing + 1
+    raise SyncError(f"unsupported parameter expansion in {field.name}")
 
 
 def _source_variable_part(value: str, index: int, field: SourceField) -> tuple[tuple[str, str, str], int]:
@@ -837,7 +704,6 @@ def _validate(values: dict[str, str]) -> None:
     _validate_versions(values)
     _validate_lighttpd(values)
     _validate_haproxy(values)
-    _validate_nginx(values)
     _validate_crs(values)
 
 
@@ -847,7 +713,6 @@ def _validate_versions(values: dict[str, str]) -> None:
         "LIGHTTPD_VERSION",
         "HAPROXY_VERSION",
         "HAPROXY_HTX_VERSION",
-        "NGINX_QUIC_TLS_VERSION",
     ):
         if not _semantic_version(values[key]):
             raise SyncError(f"{key} is not a semantic version")
@@ -913,42 +778,6 @@ def _validate_haproxy(values: dict[str, str]) -> None:
     )
     _validate_haproxy_tuple(values, "HAPROXY")
     _validate_haproxy_tuple(values, "HAPROXY_HTX")
-
-
-def _validate_nginx(values: dict[str, str]) -> None:
-    if values["NGINX_QUIC_TLS_LIBRARY"] != "openssl":
-        raise SyncError("unsupported NGINX_QUIC_TLS_LIBRARY")
-    tls = values["NGINX_QUIC_TLS_VERSION"]
-    expected_tls_archive = f"openssl-{tls}.tar.gz"
-    if values["NGINX_QUIC_TLS_ARCHIVE_NAME"] != expected_tls_archive:
-        raise SyncError("NGINX_QUIC_TLS_ARCHIVE_NAME does not match its version")
-    expected_tls = (
-        "https://github.com/openssl/openssl/releases/download/"
-        f"openssl-{tls}/{expected_tls_archive}"
-    )
-    _validate_exact_https_url(
-        values["NGINX_QUIC_TLS_SOURCE_URL"],
-        expected_tls,
-        "NGINX_QUIC_TLS_SOURCE_URL",
-    )
-    if not HEX64.fullmatch(values["NGINX_QUIC_TLS_SOURCE_SHA256"]):
-        raise SyncError("NGINX_QUIC_TLS_SOURCE_SHA256 is not a SHA-256 digest")
-    if values["NGINX_SOURCE_MODE"] != "github-release":
-        raise SyncError("unsupported NGINX source mode")
-    _validate_exact_https_url(
-        values["NGINX_SOURCE_REPO_URL"],
-        OFFICIAL_NGINX_SOURCE_REPOSITORY,
-        "NGINX_SOURCE_REPO_URL",
-    )
-    tag = values["NGINX_RELEASE_TAG"]
-    if not re.fullmatch(r"release-(?a:\d+)\.(?a:\d+)\.(?a:\d+)", tag):
-        raise SyncError("NGINX_RELEASE_TAG must be a release-x.y.z tag")
-    if values["NGINX_SOURCE_GIT_REF"] != tag:
-        raise SyncError("NGINX_SOURCE_GIT_REF must match NGINX_RELEASE_TAG")
-    if values["NGINX_RELEASE_ASSET_NAME"] != f"nginx-{tag.removeprefix('release-')}.tar.gz":
-        raise SyncError("NGINX_RELEASE_ASSET_NAME does not match NGINX_RELEASE_TAG")
-    if not HEX64.fullmatch(values["NGINX_SHA256"]):
-        raise SyncError("NGINX_SHA256 is not a SHA-256 digest")
 
 
 def _validate_crs(values: dict[str, str]) -> None:
@@ -1091,8 +920,6 @@ def _lighttpd_source_map(text: str, fields: tuple[tuple[str, str], ...], values:
 def _render_targets(root: Path, values: dict[str, str]) -> list[RenderedTarget]:
     derived = {
         "ENVOY_IMAGE": f"envoyproxy/envoy:v{values['ENVOY_VERSION']}",
-        "NGINX_VERSION": values["NGINX_RELEASE_TAG"].removeprefix("release-"),
-        "NGINX_VERSION_READBACK": f"nginx/{values['NGINX_RELEASE_TAG'].removeprefix('release-')}",
     }
     rendered: list[RenderedTarget] = []
 

@@ -129,6 +129,29 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             for spec in SYNC.TARGET_REGISTRY
         }
 
+    def nginx_owned_bytes(self) -> dict[Path, bytes]:
+        relative_paths = (
+            ".github/workflows/nginx-root-broker.yml",
+            ".github/workflows/test-full-smoke-sequential.yml",
+            "ci/checks/evidence/check-runtime-producer-readiness.py",
+            "ci/provisioning/components/prepare-runtime-components.py",
+            "ci/runtime/broker/nginx_root_broker.py",
+            "ci/runtime/broker/protected_nginx_broker_caller.py",
+        )
+        return {
+            self.root / relative: (self.root / relative).read_bytes()
+            for relative in relative_paths
+        }
+
+    def nginx_pin_lines(self) -> dict[Path, tuple[str, ...]]:
+        return {
+            path: tuple(
+                line for line in contents.decode("utf-8").splitlines()
+                if "NGINX_" in line
+            )
+            for path, contents in self.nginx_owned_bytes().items()
+        }
+
     def test_current_candidate_grammar_fixture_resolves_as_data(self) -> None:
         values = SYNC.parse_common(self.common)
         self.assertEqual(
@@ -150,10 +173,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         )
         self.assertEqual(values["HAPROXY_SOURCE_URL"].split("/")[-2], "src")
         self.assertEqual(values["HAPROXY_HTX_VERSION"], "3.2.22")
-        self.assertEqual(values["NGINX_SOURCE_GIT_REF"], "release-1.31.3")
-        self.assertEqual(values["NGINX_RELEASE_ASSET_NAME"], "nginx-1.31.3.tar.gz")
-        self.assertEqual(values["NGINX_QUIC_TLS_ARCHIVE_NAME"], "openssl-4.0.1.tar.gz")
-        self.assertEqual(values["NGINX_QUIC_TLS_LIBRARY"], "openssl")
+        self.assertFalse(any(name.startswith("NGINX_") for name in values))
 
     def test_unconsumed_framework_pins_are_ignored_as_data(self) -> None:
         self.write_common(
@@ -164,18 +184,30 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.assertNotIn("GO_FTW_SERIES", values)
         self.assertEqual(values["LIGHTTPD_VERSION"], "1.4.85")
 
-    def test_braced_reference_and_static_self_default_do_not_read_environment(self) -> None:
-        self.write_common(
-            replace_rhs(
-                CURRENT_CANDIDATE_COMMON,
-                "NGINX_SOURCE_GIT_REF",
-                '"${NGINX_RELEASE_TAG}"',
+    def test_framework_nginx_assignments_are_unconsumed_data(self) -> None:
+        common = CURRENT_CANDIDATE_COMMON
+        for name, rhs in (
+            ("NGINX_RELEASE_TAG", '"release-9.99.99"'),
+            ("NGINX_SOURCE_GIT_REF", '"$(id)"'),
+            (
+                "NGINX_QUIC_TLS_LIBRARY",
+                '"${NGINX_QUIC_TLS_LIBRARY:-attacker}"',
+            ),
+        ):
+            common = replace_rhs(common, name, rhs)
+        self.write_common(common)
+        values = SYNC.parse_common(self.common)
+        self.assertFalse(any(name.startswith("NGINX_") for name in values))
+        self.assertFalse(
+            any(field.name.startswith("NGINX_") for field in SYNC.SOURCE_REGISTRY)
+        )
+        self.assertFalse(
+            any(
+                source_name.startswith("NGINX_")
+                for spec in SYNC.TARGET_REGISTRY
+                for _target_name, source_name in spec.fields
             )
         )
-        with mock.patch.dict(os.environ, {"NGINX_QUIC_TLS_LIBRARY": "attacker"}):
-            values = SYNC.parse_common(self.common)
-        self.assertEqual(values["NGINX_SOURCE_GIT_REF"], "release-1.31.3")
-        self.assertEqual(values["NGINX_QUIC_TLS_LIBRARY"], "openssl")
 
     def test_resolution_budget_rejects_fanout_before_semantic_validation(self) -> None:
         reference = "$LIGHTTPD_SERIES_BASE_URL"
@@ -207,6 +239,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         )
 
     def test_positive_future_series_map_and_sync_separates_generic_and_htx(self) -> None:
+        nginx_before = self.nginx_pin_lines()
         self.write_common(future_series_common())
         changed = SYNC.synchronize(self.root, self.common, True)
         self.assertTrue(
@@ -249,12 +282,33 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.assertNotIn("$", contract)
         self.assertNotIn("$", json.dumps(source_map, sort_keys=True))
         self.assertNotIn("$", json.dumps(htx, sort_keys=True))
+        self.assertEqual(nginx_before, self.nginx_pin_lines())
         for relative in (
             "ci/provisioning/components/prepare-runtime-components.py",
             "ci/runtime/broker/nginx_root_broker.py",
             "ci/runtime/broker/protected_nginx_broker_caller.py",
         ):
             py_compile.compile(str(self.root / relative), doraise=True)
+
+    def test_framework_nginx_tuple_cannot_change_parent(self) -> None:
+        before = self.nginx_owned_bytes()
+        common = CURRENT_CANDIDATE_COMMON
+        for name, rhs in (
+            ("NGINX_SOURCE_MODE", '"untrusted"'),
+            ("NGINX_SOURCE_REPO_URL", '"https://evil.example/nginx"'),
+            ("NGINX_RELEASE_TAG", '"release-1.31.4"'),
+            ("NGINX_SOURCE_GIT_REF", '"release-1.31.4"'),
+            ("NGINX_RELEASE_ASSET_NAME", '"nginx-1.31.4.tar.gz"'),
+            (
+                "NGINX_SHA256",
+                '"e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3"',
+            ),
+            ("NGINX_QUIC_TLS_VERSION", '"99.0.0"'),
+        ):
+            common = replace_rhs(common, name, rhs)
+        self.write_common(common)
+        self.assertEqual(SYNC.synchronize(self.root, self.common, True), [])
+        self.assertEqual(before, self.nginx_owned_bytes())
 
     def test_cli_validate_sync_check_and_second_sync_are_byte_idempotent(self) -> None:
         self.assertEqual(
@@ -341,31 +395,6 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             "here document": replace_rhs(
                 CURRENT_CANDIDATE_COMMON, "LIGHTTPD_SOURCE_URL", '"value<<EOF"'
             ),
-            "unsupported default": replace_rhs(
-                CURRENT_CANDIDATE_COMMON,
-                "NGINX_SOURCE_GIT_REF",
-                '"${NGINX_RELEASE_TAG:-release-1.31.3}"',
-            ),
-            "unsupported dash default": replace_rhs(
-                CURRENT_CANDIDATE_COMMON,
-                "NGINX_SOURCE_GIT_REF",
-                '"${NGINX_RELEASE_TAG-release-1.31.3}"',
-            ),
-            "suffix removal": replace_rhs(
-                CURRENT_CANDIDATE_COMMON,
-                "NGINX_SOURCE_GIT_REF",
-                '"${NGINX_RELEASE_TAG%.*}"',
-            ),
-            "replacement": replace_rhs(
-                CURRENT_CANDIDATE_COMMON,
-                "NGINX_SOURCE_GIT_REF",
-                '"${NGINX_RELEASE_TAG/release-/}"',
-            ),
-            "indirect": replace_rhs(
-                CURRENT_CANDIDATE_COMMON,
-                "NGINX_SOURCE_GIT_REF",
-                '"${!NGINX_RELEASE_TAG}"',
-            ),
             "arithmetic": replace_rhs(
                 CURRENT_CANDIDATE_COMMON, "LIGHTTPD_SOURCE_URL", '"$((1 + 1))"'
             ),
@@ -375,23 +404,8 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             "eval": replace_rhs(
                 CURRENT_CANDIDATE_COMMON, "LIGHTTPD_SOURCE_URL", '"eval value"'
             ),
-            "carriage return": replace_rhs(
-                CURRENT_CANDIDATE_COMMON,
-                "NGINX_SOURCE_GIT_REF",
-                '"$NGINX_RELEASE_TAG"\r',
-            ),
-            "embedded newline": replace_rhs(
-                CURRENT_CANDIDATE_COMMON,
-                "NGINX_SOURCE_GIT_REF",
-                '"release-\n1.31.3"',
-            ),
             "indented known assignment": CURRENT_CANDIDATE_COMMON.replace(
                 'ENVOY_VERSION="1.39.0"', '  ENVOY_VERSION="1.39.0"'
-            ),
-            "unsupported self default": replace_rhs(
-                CURRENT_CANDIDATE_COMMON,
-                "NGINX_QUIC_TLS_LIBRARY",
-                '"${NGINX_QUIC_TLS_LIBRARY:-not-openssl}"',
             ),
         }
         for label, malformed in cases.items():
@@ -442,26 +456,6 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 CURRENT_CANDIDATE_COMMON,
                 "LIGHTTPD_DOWNLOAD_URL",
                 '"https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.85.zip"',
-            ),
-            "nginx ref mismatch": replace_rhs(
-                CURRENT_CANDIDATE_COMMON,
-                "NGINX_SOURCE_GIT_REF",
-                '"release-1.31.4"',
-            ),
-            "nginx asset mismatch": replace_rhs(
-                CURRENT_CANDIDATE_COMMON,
-                "NGINX_RELEASE_ASSET_NAME",
-                '"nginx-1.31.4.tar.gz"',
-            ),
-            "openssl archive mismatch": replace_rhs(
-                CURRENT_CANDIDATE_COMMON,
-                "NGINX_QUIC_TLS_ARCHIVE_NAME",
-                '"openssl-4.0.0.tar.gz"',
-            ),
-            "openssl URL mismatch": replace_rhs(
-                CURRENT_CANDIDATE_COMMON,
-                "NGINX_QUIC_TLS_SOURCE_URL",
-                '"https://github.com/openssl/openssl/releases/download/openssl-4.0.1/openssl-4.0.0.tar.gz"',
             ),
             "generic haproxy mismatch": replace_rhs(
                 CURRENT_CANDIDATE_COMMON, "HAPROXY_SERIES", '"3.3"'
