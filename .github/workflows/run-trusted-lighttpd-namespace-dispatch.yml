@@ -1,0 +1,348 @@
+name: Trusted Lighttpd Namespace Dispatch
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Open canonical PR number or its full lowercase 40-character head SHA.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trusted-lighttpd-namespace-dispatch
+  cancel-in-progress: false
+
+jobs:
+  trusted-lighttpd-namespace:
+    # This workflow is deliberately dispatched from protected master only.  It
+    # must be reviewed and merged independently before it can prepare a runner
+    # for a PR's namespace test.
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      github.event.repository.fork == false &&
+      github.ref == 'refs/heads/master' &&
+      github.event.repository.default_branch == 'master' &&
+      github.ref_protected == true &&
+      github.actor == 'Easton97-Jens' &&
+      github.triggering_actor == 'Easton97-Jens'
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Bootstrap constrained namespace host before any checkout
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail {0}
+        run: |
+          require_trusted_system_file() {
+            local candidate="$1"
+            local owner
+            local mode
+            test -f "$candidate"
+            owner="$(/usr/bin/stat -Lc '%u' -- "$candidate")"
+            mode="$(/usr/bin/stat -Lc '%a' -- "$candidate")"
+            test "$owner" = 0
+            [[ "$mode" =~ ^[0-7]{3,4}$ ]]
+            if (( (8#$mode) & 0022 )); then
+              printf '%s\n' "BLOCKED: trusted system binary is group/other writable: $candidate" >&2
+              exit 77
+            fi
+          }
+
+          require_root_owned_directory() {
+            local candidate="$1"
+            local owner
+            local mode
+            test -d "$candidate"
+            test ! -L "$candidate"
+            owner="$(/usr/bin/stat -Lc '%u' -- "$candidate")"
+            mode="$(/usr/bin/stat -Lc '%a' -- "$candidate")"
+            test "$owner" = 0
+            [[ "$mode" =~ ^[0-7]{3,4}$ ]]
+            if (( (8#$mode) & 0022 )); then
+              printf '%s\n' "BLOCKED: trusted system directory is group/other writable: $candidate" >&2
+              exit 77
+            fi
+          }
+
+          for directory in / /usr /usr/bin /usr/sbin /etc /var /var/lib; do
+            require_root_owned_directory "$directory"
+          done
+          for binary in /usr/bin/apt-get /usr/bin/env /usr/bin/install /usr/bin/stat /usr/bin/sudo /usr/bin/tee /usr/sbin/useradd; do
+            require_trusted_system_file "$binary"
+          done
+
+          /usr/bin/sudo -n /usr/bin/env DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get update
+          /usr/bin/sudo -n /usr/bin/env DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get install --no-install-recommends --yes apparmor-utils bubblewrap jq
+
+          require_root_owned_directory /etc/apparmor.d
+          for binary in /usr/bin/aa-exec /usr/bin/bwrap /usr/bin/cat /usr/bin/cp /usr/bin/curl /usr/bin/dash /usr/bin/env /usr/bin/find /usr/bin/getent /usr/bin/git /usr/bin/grep /usr/bin/id /usr/bin/install /usr/bin/jq /usr/bin/mount /usr/bin/python3 /usr/bin/readlink /usr/bin/rm /usr/bin/setpriv /usr/bin/stat /usr/bin/sudo /usr/bin/tee /usr/bin/unshare /usr/sbin/aa-status /usr/sbin/apparmor_parser /usr/sbin/useradd; do
+            require_trusted_system_file "$binary"
+          done
+          /usr/bin/bwrap --help | /usr/bin/grep -F -- '--disable-userns' >/dev/null
+          /usr/bin/bwrap --help | /usr/bin/grep -F -- '--assert-userns-disabled' >/dev/null
+          test -r /proc/sys/kernel/apparmor_restrict_unprivileged_userns
+          read -r userns_restriction < /proc/sys/kernel/apparmor_restrict_unprivileged_userns
+          test "$userns_restriction" = 1
+
+          if /usr/bin/getent passwd ns-test >/dev/null || /usr/bin/getent group ns-test >/dev/null; then
+            printf '%s\n' 'BLOCKED: fresh runner unexpectedly already contains ns-test.' >&2
+            exit 77
+          fi
+          /usr/bin/sudo -n /usr/sbin/useradd --create-home --user-group --home-dir /home/ns-test --shell /usr/sbin/nologin --no-log-init ns-test
+          ns_test_uid="$(/usr/bin/id -u ns-test)"
+          ns_test_gid="$(/usr/bin/id -g ns-test)"
+          [[ "$ns_test_uid" =~ ^[1-9][0-9]*$ ]]
+          [[ "$ns_test_gid" =~ ^[1-9][0-9]*$ ]]
+          test "$(/usr/bin/id -G ns-test)" = "$ns_test_gid"
+
+          /usr/bin/sudo -n /usr/bin/install -d -o 0 -g 0 -m 0755 /var/lib/trusted-lighttpd-namespace
+          /usr/bin/sudo -n /usr/bin/install -d -o "$ns_test_uid" -g "$ns_test_gid" -m 0755 /var/lib/trusted-lighttpd-namespace/source
+          /usr/bin/sudo -n /usr/bin/install -d -o "$ns_test_uid" -g "$ns_test_gid" -m 0700 /var/lib/trusted-lighttpd-namespace/tmp
+
+          require_exact_directory() {
+            local candidate="$1"
+            local expected_owner="$2"
+            local expected_group="$3"
+            local expected_mode="$4"
+            test -d "$candidate"
+            test ! -L "$candidate"
+            test "$(/usr/bin/stat -Lc '%u' -- "$candidate")" = "$expected_owner"
+            test "$(/usr/bin/stat -Lc '%g' -- "$candidate")" = "$expected_group"
+            test "$(/usr/bin/stat -Lc '%a' -- "$candidate")" = "$expected_mode"
+          }
+          require_exact_directory /var/lib/trusted-lighttpd-namespace 0 0 755
+          require_exact_directory /var/lib/trusted-lighttpd-namespace/source "$ns_test_uid" "$ns_test_gid" 755
+          require_exact_directory /var/lib/trusted-lighttpd-namespace/tmp "$ns_test_uid" "$ns_test_gid" 700
+
+          /usr/bin/sudo -n /usr/bin/tee /etc/apparmor.d/trusted-lighttpd-ci-userns >/dev/null <<'APPARMOR_PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+
+          profile trusted-lighttpd-ci-userns flags=(unconfined) {
+            userns,
+          }
+          APPARMOR_PROFILE
+          /usr/bin/sudo -n /usr/sbin/apparmor_parser --replace /etc/apparmor.d/trusted-lighttpd-ci-userns
+          /usr/sbin/aa-status --enabled
+          /usr/sbin/aa-status --profiled | /usr/bin/grep -F -- 'trusted-lighttpd-ci-userns' >/dev/null
+
+          /usr/bin/sudo -n /usr/bin/setpriv \
+            --reuid="$ns_test_uid" \
+            --regid="$ns_test_gid" \
+            --clear-groups \
+            --no-new-privs \
+            --inh-caps=-all \
+            --ambient-caps=-all \
+            --bounding-set=-all \
+            -- /usr/bin/env -i \
+              HOME=/home/ns-test \
+              PATH=/usr/bin:/bin \
+              NS_TEST_UID="$ns_test_uid" \
+              NS_TEST_GID="$ns_test_gid" \
+              /usr/bin/dash -eu -c '
+                test "$(/usr/bin/id -u)" = "$NS_TEST_UID"
+                test "$(/usr/bin/id -g)" = "$NS_TEST_GID"
+                test "$(/usr/bin/id -G)" = "$NS_TEST_GID"
+                /usr/bin/grep -Eq "^NoNewPrivs:[[:space:]]+1$" /proc/self/status
+                if test -e /var/run/docker.sock; then
+                  test ! -r /var/run/docker.sock
+                  test ! -w /var/run/docker.sock
+                fi
+              '
+
+      - id: resolve-target
+        name: Resolve and bind the canonical PR identity without credentials
+        env:
+          TARGET: ${{ inputs.target }}
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail {0}
+        run: |
+          expected_repository='Easton97-Jens/ModSecurity-conector'
+          api_root="https://api.github.com/repos/$expected_repository"
+          target="$TARGET"
+
+          fetch_public_api() {
+            /usr/bin/env -i HOME=/nonexistent LC_ALL=C PATH=/usr/bin:/bin \
+              /usr/bin/curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+                --connect-timeout 10 --max-time 30 --retry 0 \
+                -H 'Accept: application/vnd.github+json' "$1"
+          }
+
+          if [[ "$target" =~ ^[0-9a-f]{40}$ ]]; then
+            commit_response="$(fetch_public_api "$api_root/commits/$target")"
+            commit_sha="$(printf '%s' "$commit_response" | /usr/bin/jq -er '.sha')"
+            test "$commit_sha" = "$target"
+            response="$(fetch_public_api "$api_root/commits/$target/pulls")"
+            selected="$(printf '%s' "$response" | /usr/bin/jq -er --arg expected_repository "$expected_repository" --arg expected_sha "$target" '
+                [ .[]
+                  | select(.state == "open")
+                  | select(.base.ref == "master")
+                  | select(.base.repo.full_name == $expected_repository)
+                  | select(.head.repo.full_name == $expected_repository)
+                  | select(.head.sha == $expected_sha)
+                  | [(.number | tostring), .head.sha] | @tsv
+                ] | if length == 1 then .[0] else error("commit SHA does not bind exactly one open canonical master PR") end
+              ')"
+          elif [[ "$target" =~ ^[1-9][0-9]*$ ]]; then
+            response="$(fetch_public_api "$api_root/pulls/$target")"
+            selected="$(printf '%s' "$response" | /usr/bin/jq -er --arg expected_repository "$expected_repository" --arg expected_pr "$target" '
+                if ((.number | tostring) == $expected_pr)
+                   and .state == "open"
+                   and .base.ref == "master"
+                   and .base.repo.full_name == $expected_repository
+                   and .head.repo.full_name == $expected_repository
+                   and (.head.sha | test("^[0-9a-f]{40}$"))
+                then [(.number | tostring), .head.sha] | @tsv
+                else error("PR does not bind an open canonical master head")
+                end
+              ')"
+          else
+            printf '%s\n' 'BLOCKED: target must be one decimal PR number or one lowercase 40-character commit SHA.' >&2
+            exit 77
+          fi
+
+          IFS=$'\t' read -r target_pr target_sha extra <<< "$selected"
+          test -n "$target_pr"
+          test -z "${extra:-}"
+          [[ "$target_pr" =~ ^[1-9][0-9]*$ ]]
+          [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          printf '%s\n' "Validated PR: $target_pr"
+          printf '%s\n' "Validated exact head SHA: $target_sha"
+          printf 'target_pr=%s\n' "$target_pr" >> "$GITHUB_OUTPUT"
+          printf 'target_sha=%s\n' "$target_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the validated exact commit without hooks
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: core.hooksPath
+          GIT_CONFIG_VALUE_0: /dev/null
+        with:
+          ref: ${{ steps.resolve-target.outputs.target_sha }}
+          path: pr-source
+          persist-credentials: false
+          clean: true
+          submodules: false
+          lfs: false
+          fetch-depth: 1
+
+      - name: Verify exact checkout and remove Git state before PR code
+        env:
+          TARGET_SHA: ${{ steps.resolve-target.outputs.target_sha }}
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail {0}
+        run: |
+          source_root="$GITHUB_WORKSPACE/pr-source"
+          test -d "$source_root"
+          test ! -L "$source_root"
+          test -d "$source_root/.git"
+          test ! -L "$source_root/.git"
+          test "$(/usr/bin/git -C "$source_root" rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(/usr/bin/git -C "$source_root" rev-parse --is-inside-work-tree)" = true
+          if /usr/bin/git -C "$source_root" config --local --get-regexp '^http\..*\.extraheader$' >/dev/null 2>&1; then
+            printf '%s\n' 'BLOCKED: checkout retained an HTTP credential header.' >&2
+            exit 77
+          else
+            config_status=$?
+          fi
+          test "$config_status" = 1
+          if /usr/bin/git -C "$source_root" config --local --get-all credential.helper >/dev/null 2>&1; then
+            printf '%s\n' 'BLOCKED: checkout retained a Git credential helper.' >&2
+            exit 77
+          else
+            config_status=$?
+          fi
+          test "$config_status" = 1
+          /usr/bin/rm -rf --one-file-system -- "$source_root/.git"
+          test ! -e "$source_root/.git"
+
+      - name: Run the namespace test only as constrained ns-test
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail {0}
+        run: |
+          ns_test_uid="$(/usr/bin/id -u ns-test)"
+          ns_test_gid="$(/usr/bin/id -g ns-test)"
+          source_root="$GITHUB_WORKSPACE/pr-source"
+          test -d "$source_root"
+          test ! -L "$source_root"
+          test -d /var/lib/trusted-lighttpd-namespace/source
+          test -d /var/lib/trusted-lighttpd-namespace/tmp
+
+          /usr/bin/sudo -n /usr/bin/aa-exec -p trusted-lighttpd-ci-userns -- \
+            /usr/bin/setpriv \
+              --reuid="$ns_test_uid" \
+              --regid="$ns_test_gid" \
+              --clear-groups \
+              --no-new-privs \
+              --inh-caps=-all \
+              --ambient-caps=-all \
+              --bounding-set=-all \
+              -- /usr/bin/env -i \
+                HOME=/home/ns-test \
+                LANG=C \
+                LC_ALL=C \
+                LOGNAME=ns-test \
+                PATH=/usr/bin:/bin \
+                PYTHONDONTWRITEBYTECODE=1 \
+                TMPDIR=/var/lib/trusted-lighttpd-namespace/tmp \
+                LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT=/var/lib/trusted-lighttpd-namespace/tmp \
+                LIGHTTPD_NAMESPACE_TEST_GID="$ns_test_gid" \
+                LIGHTTPD_NAMESPACE_TEST_UID="$ns_test_uid" \
+                LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION=1 \
+                LIGHTTPD_REQUIRE_UNPRIVILEGED_TEST_RUNNER=1 \
+                NS_TEST_GID="$ns_test_gid" \
+                NS_TEST_UID="$ns_test_uid" \
+                SOURCE_COPY=/var/lib/trusted-lighttpd-namespace/source \
+                SOURCE_ROOT="$source_root" \
+                /usr/bin/dash -eu -c '
+                  test "$(/usr/bin/id -u)" = "$NS_TEST_UID"
+                  test "$(/usr/bin/id -g)" = "$NS_TEST_GID"
+                  test "$(/usr/bin/id -G)" = "$NS_TEST_GID"
+                  /usr/bin/grep -Eq "^NoNewPrivs:[[:space:]]+1$" /proc/self/status
+                  for capability in CapInh CapPrm CapEff CapBnd CapAmb; do
+                    /usr/bin/grep -Eq "^${capability}:[[:space:]]+0000000000000000$" /proc/self/status
+                  done
+                  case "$(/usr/bin/cat /proc/self/attr/current)" in
+                    trusted-lighttpd-ci-userns\ *) ;;
+                    *)
+                      printf "%s\\n" "BLOCKED: ns-test did not enter the trusted AppArmor profile." >&2
+                      exit 77
+                      ;;
+                  esac
+                  if test -e /var/run/docker.sock; then
+                    test ! -r /var/run/docker.sock
+                    test ! -w /var/run/docker.sock
+                  fi
+
+                  host_user_namespace="$(/usr/bin/readlink /proc/self/ns/user)"
+                  host_mount_namespace="$(/usr/bin/readlink /proc/self/ns/mnt)"
+                  host_pid_namespace="$(/usr/bin/readlink /proc/self/ns/pid)"
+                  test ! -e /tmp/trusted-lighttpd-mount-probe
+                  /usr/bin/unshare --user --map-root-user --mount --pid --fork --kill-child=SIGKILL --mount-proc=/proc --propagation private /usr/bin/dash -eu -c "
+                    test \"\$(/usr/bin/readlink /proc/self/ns/user)\" != \"$host_user_namespace\"
+                    test \"\$(/usr/bin/readlink /proc/self/ns/mnt)\" != \"$host_mount_namespace\"
+                    test \"\$(/usr/bin/readlink /proc/self/ns/pid)\" != \"$host_pid_namespace\"
+                    test \"\$\$\" = 1
+                    /usr/bin/mount --make-rprivate /
+                    /usr/bin/mount -t tmpfs -o mode=0700,nosuid,nodev,noexec,size=4m tmpfs /tmp
+                    /usr/bin/grep -F \" /tmp \" /proc/self/mountinfo | /usr/bin/grep -F \" - tmpfs \" >/dev/null
+                    if /usr/bin/grep -F \" /tmp \" /proc/self/mountinfo | /usr/bin/grep -Eq \"(shared:|master:)\"; then
+                      exit 77
+                    fi
+                    /usr/bin/mkdir /tmp/trusted-lighttpd-mount-probe
+                    /usr/bin/touch /tmp/trusted-lighttpd-mount-probe/inside
+                  "
+                  test ! -e /tmp/trusted-lighttpd-mount-probe
+
+                  /usr/bin/bwrap --unshare-user --unshare-pid --disable-userns --assert-userns-disabled --die-with-parent --new-session --ro-bind / / --proc /proc --dev /dev --clearenv --setenv PATH /usr/bin:/bin -- /usr/bin/true
+
+                  test -d "$SOURCE_ROOT"
+                  test ! -L "$SOURCE_ROOT"
+                  test -z "$(/usr/bin/find -P "$SOURCE_ROOT" -type l -print -quit)"
+                  test -z "$(/usr/bin/find -P "$SOURCE_COPY" -mindepth 1 -maxdepth 1 -print -quit)"
+                  umask 022
+                  /usr/bin/cp -R --no-preserve=mode,ownership,timestamps -- "$SOURCE_ROOT"/. "$SOURCE_COPY"/
+                  cd "$SOURCE_COPY"
+                  /usr/bin/python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace
+                '

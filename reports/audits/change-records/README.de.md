@@ -11,6 +11,12 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260822-trusted-lighttpd-namespace-dispatch](CR-20260822-trusted-lighttpd-namespace-dispatch.de.md) —
+  der aktuelle Benutzer autorisierte eine separate Protected-master-
+  `workflow_dispatch`-Grenze für den Lighttpd-Namespace-Test. Der Record weist
+  nur lokale Contracts aus; Protected Merge und manueller Runtime-Lauf stehen
+  noch aus.
+
 - [CR-20260822-sonar-pr313-hostruntime-remediation](CR-20260822-sonar-pr313-hostruntime-remediation.de.md) —
   der aktuelle Benutzer autorisierte die Behebung von vier Parent-eigenen
   SonarCloud-Code-Smells aus PR #313 über einen Nachfolge-Draft-PR. Die

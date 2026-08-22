@@ -10,6 +10,12 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260822-trusted-lighttpd-namespace-dispatch](CR-20260822-trusted-lighttpd-namespace-dispatch.md)
+  | [Deutsch](CR-20260822-trusted-lighttpd-namespace-dispatch.de.md) — the
+  current user authorized a separate protected-master `workflow_dispatch`
+  boundary for the Lighttpd namespace test. It records local contracts only;
+  protected merge and the manual runtime run remain pending.
+
 - [CR-20260822-sonar-pr313-hostruntime-remediation](CR-20260822-sonar-pr313-hostruntime-remediation.md)
   | [Deutsch](CR-20260822-sonar-pr313-hostruntime-remediation.de.md) — the
   current user authorized remediation of four Parent-owned PR #313 SonarCloud
