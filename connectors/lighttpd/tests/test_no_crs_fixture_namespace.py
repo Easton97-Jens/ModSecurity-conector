@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -22,7 +23,40 @@ FIXTURE_IO_PATH = REPO_ROOT / "connectors/lighttpd/harness/no_crs_fixture_descri
 PYTHON = "/usr/bin/python3"
 UNPRIVILEGED_UID = 65534
 UNPRIVILEGED_GID = 65534
-TEST_TEMP_PARENT = Path("/var/tmp")
+TEST_TEMP_PARENT_ENV = "LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT"
+
+
+def _configured_test_temp_parent(value: str | None = None) -> Path:
+    """Accept a CI temporary root only when its ownership is unambiguous."""
+
+    configured = os.environ.get(TEST_TEMP_PARENT_ENV) if value is None else value
+    if configured is None:
+        return Path("/var/tmp")
+    candidate = Path(configured)
+    if not candidate.is_absolute():
+        raise RuntimeError("configured namespace test temporary parent must be absolute")
+    try:
+        details = candidate.lstat()
+    except OSError as error:
+        raise RuntimeError(
+            "configured namespace test temporary parent is unavailable"
+        ) from error
+    if stat.S_ISLNK(details.st_mode) or not stat.S_ISDIR(details.st_mode):
+        raise RuntimeError(
+            "configured namespace test temporary parent is not a real directory"
+        )
+    if details.st_uid != os.geteuid() or details.st_gid != os.getegid():
+        raise RuntimeError(
+            "configured namespace test temporary parent has the wrong owner"
+        )
+    if stat.S_IMODE(details.st_mode) != 0o700:
+        raise RuntimeError(
+            "configured namespace test temporary parent must be mode 0700"
+        )
+    return candidate
+
+
+TEST_TEMP_PARENT = _configured_test_temp_parent()
 
 
 def _mountinfo_for_mountpoint(mountpoint: Path) -> list[str]:
@@ -35,6 +69,16 @@ def _mountinfo_for_mountpoint(mountpoint: Path) -> list[str]:
         if separator and len(fields) >= 6 and fields[4] == str(mountpoint):
             rows.append(row)
     return rows
+
+
+def _proc_status_value(name: str) -> str:
+    """Return one exact value from proc status or reject incomplete evidence."""
+
+    for row in Path("/proc/self/status").read_text(encoding="utf-8").splitlines():
+        key, separator, value = row.partition(":")
+        if separator and key == name:
+            return value.strip()
+    raise RuntimeError(f"missing {name} in /proc/self/status")
 
 
 def _host_path_snapshot(path: Path) -> tuple[int, int, int, int] | None:
@@ -166,6 +210,39 @@ def _namespace_integration_is_required() -> bool:
 
 @unittest.skipUnless(os.name == "posix" and sys.platform == "linux", "Linux only")
 class NamespaceContractTest(unittest.TestCase):
+    def test_configured_temporary_parent_must_be_private_and_owned(self) -> None:
+        """The CI-owned outer temporary root cannot be a shared path."""
+
+        with tempfile.TemporaryDirectory() as temporary:
+            candidate = Path(temporary)
+            self.assertEqual(_configured_test_temp_parent(str(candidate)), candidate)
+            candidate.chmod(0o755)
+            with self.assertRaisesRegex(RuntimeError, "mode 0700"):
+                _configured_test_temp_parent(str(candidate))
+
+    def test_required_workflow_identity_is_non_root_and_restricted(self) -> None:
+        """Hosted evidence must attest the outer test identity before isolation."""
+
+        required = os.environ.get("LIGHTTPD_REQUIRE_UNPRIVILEGED_TEST_RUNNER")
+        if required is None:
+            return
+        self.assertEqual(required, "1")
+        try:
+            expected_uid = int(os.environ["LIGHTTPD_NAMESPACE_TEST_UID"])
+            expected_gid = int(os.environ["LIGHTTPD_NAMESPACE_TEST_GID"])
+        except (KeyError, ValueError) as error:
+            self.fail(f"invalid required workflow identity contract: {error}")
+        self.assertNotEqual(expected_uid, 0)
+        self.assertNotEqual(expected_gid, 0)
+        self.assertEqual((os.getuid(), os.geteuid()), (expected_uid, expected_uid))
+        self.assertEqual((os.getgid(), os.getegid()), (expected_gid, expected_gid))
+        self.assertEqual(os.getgroups(), [])
+        self.assertEqual(_proc_status_value("NoNewPrivs"), "1")
+        docker_socket = Path("/var/run/docker.sock")
+        if docker_socket.exists():
+            self.assertFalse(os.access(docker_socket, os.R_OK))
+            self.assertFalse(os.access(docker_socket, os.W_OK))
+
     def test_required_namespace_integration_is_available(self) -> None:
         """A CI caller selecting this gate cannot treat skipped integration as proof."""
 

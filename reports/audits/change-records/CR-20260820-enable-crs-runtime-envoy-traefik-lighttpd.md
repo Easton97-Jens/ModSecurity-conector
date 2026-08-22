@@ -385,3 +385,27 @@ runtime execution on a mismatched checkout. Artifact-upload failures in Envoy,
 Traefik, and Lighttpd were secondary to the skipped runtime and are not treated
 as a distinct runtime failure. Fresh exact-head workflow and Sonar evidence
 remain required after this correction.
+
+## 2026-08-22 follow-up: trusted namespace dispatcher prerequisite
+
+The earlier self-hosted-only prerequisite is superseded by a separately
+reviewed Bootstrap Draft PR #320. It adds a `workflow_dispatch`-only workflow
+to protected `master`; it is not part of this PR's `pull_request` workflow and
+does not add `sudo`, AppArmor setup, a privileged container, or a fallback to
+PR #309.
+
+After PR #320 is independently reviewed and merged, the configured repository
+owner must manually dispatch its trusted workflow from `master` with PR #309's
+open canonical number or current full lowercase head SHA. The fixed dispatcher
+first performs only root-owned Ubuntu-24.04 system setup, then uses the public
+GitHub API to bind the input to exactly one open canonical master PR and its
+exact head SHA. It checks out only that SHA without persistent credentials or
+hooks, removes `.git`, and runs this PR's test source only as fresh `ns-test`
+with empty supplemental groups and capability sets, `NoNewPrivs`, `env -i`, a
+private temporary root, Docker-socket denial, and fail-closed user/mount/PID
+namespace plus Bubblewrap probes.
+
+PR #309 contains only the matching unprivileged test assertions for that outer
+identity and temporary root. It remains Draft: no namespace runtime success,
+quality result, Ready-for-Review state, or merge is claimed until the
+protected-master workflow has produced an exact-head successful manual run.

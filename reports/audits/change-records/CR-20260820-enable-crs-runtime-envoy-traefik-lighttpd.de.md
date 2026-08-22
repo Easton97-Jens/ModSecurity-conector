@@ -416,3 +416,29 @@ Checkout. Artifact-Upload-Fehler in Envoy, Traefik und Lighttpd waren Folge der
 übersprungenen Runtime und werden nicht als separater Runtime-Fehler behandelt.
 Frische Exact-Head-Workflow- und Sonar-Evidence bleibt nach dieser Korrektur
 erforderlich.
+
+## Follow-up vom 2026-08-22: Voraussetzung eines vertrauenswürdigen Namespace-Dispatchers
+
+Die frühere ausschließlich Self-hosted-Voraussetzung wird durch den separat
+geprüften Bootstrap-Draft-PR #320 ersetzt. Er fügt einen ausschließlich
+`workflow_dispatch`-Workflow zu geschütztem `master` hinzu; er ist nicht Teil
+des `pull_request`-Workflows dieses PRs und fügt PR #309 weder `sudo`,
+AppArmor-Setup, privilegierten Container noch Fallback hinzu.
+
+Nach unabhängiger Prüfung und Merge von PR #320 muss der konfigurierte
+Repository-Owner dessen vertrauenswürdigen Workflow manuell von `master` mit
+der offenen kanonischen Nummer oder dem aktuellen vollständigen klein
+geschriebenen Head-SHA von PR #309 starten. Der feste Dispatcher führt zuerst
+nur root-owned Ubuntu-24.04-Systemsetup aus und bindet die Eingabe danach über
+die öffentliche GitHub-API an genau einen offenen kanonischen master-PR und
+dessen exakten Head-SHA. Er checkt nur diesen SHA ohne persistente Credentials
+oder Hooks aus, entfernt `.git` und führt den Testquelltext dieses PRs nur als
+frischen `ns-test` mit leeren Zusatzgruppen und Capability-Sets,
+`NoNewPrivs`, `env -i`, privatem Temp-Root, Docker-Socket-Sperre und
+fail-closed User-/Mount-/PID-Namespace- sowie Bubblewrap-Probes aus.
+
+PR #309 enthält nur die passenden unprivilegierten Testassertions für diese
+äußere Identität und den temporären Root. Er bleibt Draft: Namespace-
+Runtime-Erfolg, Qualitätsergebnis, Ready-for-Review-Status und Merge werden
+erst nach einem erfolgreichen manuellen Lauf des geschützten-master-Workflows
+für den exakten Head beansprucht.
