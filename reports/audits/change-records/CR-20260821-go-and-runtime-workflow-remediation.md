@@ -84,6 +84,32 @@ are unchanged for `all` and `nginx`. This leaves NGINX separate, makes
 does not modify Framework, MRTS, a Gitlink, an NGINX pin, a publisher, or a
 cleanup workflow.
 
+### Continuation 2026-08-22: canonical hostruntime projection and Lighttpd inventory
+
+The exact-head follow-up run `32579807096` at
+`679ae784db021d72343fdce693f3033969227960` passed the former non-NGINX NGINX
+guard for all five selected connectors. Apache, Envoy, and HAProxy each
+finalized a passing runtime result, but the unchanged Framework validator then
+correctly rejected the two Parent-created files `hostruntime-record.json` and
+`hostruntime-summary.md`: they were produced after finalization but were not
+declared in the canonical manifest. The Parent now projects only these two
+fixed relative files into both artifact maps with SHA-256 values and refreshes
+the existing manifest result-artifact checksum only after verifying its prior
+binding. Malformed maps, unsafe paths,
+symlinks, non-regular files, checksum mismatches, and write failures remain
+fail-closed; the Framework validator is unchanged.
+
+The same run showed that the Lighttpd smoke itself passed its two requests,
+but its final evidence could not pass because the version inventory used a
+different cache path. For the generic profile, the runner now accepts only the
+fixed staged path `CONNECTOR_BUILD_ROOT/lighttpd-connector/bin/lighttpd`, if
+it is an absolute, regular, executable, non-symlink file. Every absent or
+unsafe staged file leaves the version `not_provisioned`; inherited
+`LIGHTTPD_BIN`, system, and shared-cache fallbacks are not consumed. The
+full-lifecycle mapping remains unchanged. Traefik remains fail-closed and
+outside this Parent-only fix because its Framework-provided binary violates a
+separate trusted-root control.
+
 ## Security impact
 
 This change touches GitHub Actions runtime paths, artifact evidence, and an
@@ -102,12 +128,19 @@ reportable security candidate.
 - `.github/workflows/test-full-smoke-sequential.yml`
 - `ci/checks/common/check-go-version-contract.py`
 - `ci/provisioning/components/prepare-runtime-components.py`
+- `ci/runtime/lifecycle/run-no-crs-baseline.sh`
+- `ci/runtime/lifecycle/resolve-lighttpd-host-binary.py`
+- `ci/runtime/lifecycle/write-hostruntime-record.py`
 - `tests/test_all_connectors_no_crs_workflow_contract.py`
 - `tests/test_full_smoke_workflow_contract.py`
 - `tests/test_go_version_contract.py`
 - `tests/test_prepare_runtime_components.py`
+- `tests/test_resolve_lighttpd_host_binary.py`
+- `tests/test_hostruntime_record.py`
+- `tests/test_runtime_env_snapshot_contract.py`
 - `tests/test_runtime_path_policy.py`
-- this paired Change Record and paired archive indexes
+- this paired Change Record and `reports/audits/change-records/README.md` /
+  `reports/audits/change-records/README.de.md`
 
 ## Commands executed
 

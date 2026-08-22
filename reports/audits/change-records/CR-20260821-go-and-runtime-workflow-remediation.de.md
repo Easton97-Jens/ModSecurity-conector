@@ -91,6 +91,34 @@ unverändert. Dies lässt NGINX separat, macht `shared`, `apache` und `haproxy`
 unabhängig von ungenutzten NGINX-Metadaten und ändert weder Framework, MRTS,
 einen Gitlink, einen NGINX-Pin, einen Publisher noch einen Cleanup-Workflow.
 
+### Fortsetzung 2026-08-22: kanonische Hostruntime-Projektion und Lighttpd-Inventar
+
+Der Exact-Head-Folgelauf `32579807096` auf
+`679ae784db021d72343fdce693f3033969227960` passierte für alle fünf
+ausgewählten Connectoren den früheren Nicht-NGINX-NGINX-Guard. Apache, Envoy
+und HAProxy finalisierten jeweils ein erfolgreiches Runtime-Ergebnis, aber der
+unveränderte Framework-Validator verwarf danach korrekt die beiden vom Parent
+erzeugten Dateien `hostruntime-record.json` und `hostruntime-summary.md`: Sie
+wurden erst nach der Finalisierung erzeugt und waren nicht im kanonischen
+Manifest deklariert. Der Parent projiziert nur diese zwei festen relativen
+Dateien jetzt mit SHA-256-Werten in beide Artefakt-Maps und aktualisiert die
+bestehende Checksumme des Manifest-Result-Artefakts erst nach Prüfung ihrer
+vorherigen Bindung. Fehlgeformte Maps,
+unsichere Pfade, Symlinks, nicht reguläre Dateien, Checksum-Mismatches und
+Schreibfehler bleiben fail-closed; der Framework-Validator bleibt unverändert.
+
+Der gleiche Lauf zeigte, dass der Lighttpd-Smoke selbst seine zwei Requests
+bestand, aber seine finale Evidence nicht bestehen konnte, weil das
+Versionsinventar einen anderen Cache-Pfad nutzte. Für das generische Profil
+akzeptiert der Runner jetzt nur den festen Stage-Pfad
+`CONNECTOR_BUILD_ROOT/lighttpd-connector/bin/lighttpd`, falls er eine absolute,
+reguläre, ausführbare und nicht verlinkte Datei ist. Jeder fehlende oder
+unsichere Stage-Binary lässt die Version bei `not_provisioned`; geerbtes
+`LIGHTTPD_BIN`, System- und Shared-Cache-Fallbacks werden nicht konsumiert.
+Das Full-Lifecycle-Mapping bleibt unverändert. Traefik bleibt fail-closed und
+außerhalb dieses Parent-only-Fixes, weil seine vom Framework bereitgestellte
+Binary eine separate Trusted-Root-Kontrolle verletzt.
+
 ## Security-Auswirkung
 
 Diese Änderung berührt GitHub-Actions-Runtime-Pfade, Artefakt-Evidence und
@@ -111,12 +139,20 @@ berichtspflichtiges Security-Kandidatenfinding.
 - `.github/workflows/test-full-smoke-sequential.yml`
 - `ci/checks/common/check-go-version-contract.py`
 - `ci/provisioning/components/prepare-runtime-components.py`
+- `ci/runtime/lifecycle/run-no-crs-baseline.sh`
+- `ci/runtime/lifecycle/resolve-lighttpd-host-binary.py`
+- `ci/runtime/lifecycle/write-hostruntime-record.py`
 - `tests/test_all_connectors_no_crs_workflow_contract.py`
 - `tests/test_full_smoke_workflow_contract.py`
 - `tests/test_go_version_contract.py`
 - `tests/test_prepare_runtime_components.py`
+- `tests/test_resolve_lighttpd_host_binary.py`
+- `tests/test_hostruntime_record.py`
+- `tests/test_runtime_env_snapshot_contract.py`
 - `tests/test_runtime_path_policy.py`
-- dieses gekoppelte Change-Record-Paar und die gekoppelten Archivindizes
+- dieses gekoppelte Change-Record-Paar sowie
+  `reports/audits/change-records/README.md` /
+  `reports/audits/change-records/README.de.md`
 
 ## Ausgeführte Befehle
 

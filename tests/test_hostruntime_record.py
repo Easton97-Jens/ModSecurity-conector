@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -169,6 +170,162 @@ class HostRuntimeRecordTest(unittest.TestCase):
         self.assertIn("FINAL_RESULT=", runner)
         self.assertIn('if [ "$finalize_rc" -ne 0 ]; then', runner)
         self.assertLess(runner.index("FINAL_RESULT="), runner.index("latest_file="))
+
+    def projection_fixture(self, root: Path) -> tuple[Path, Path, Path, Path]:
+        result = self.write_result(root, {**self.complete(), "artifacts": {
+            "log": "logs/run.log", "result": "result.json", "manifest": "manifest.json",
+        }})
+        (root / "logs").mkdir()
+        (root / "logs/run.log").write_text("payload-free\n", encoding="utf-8")
+        manifest = root / "manifest.json"
+        manifest.write_text(json.dumps({
+            "artifacts": {
+                "log": {
+                    "path": "logs/run.log",
+                    "state": "produced",
+                    "sha256": hashlib.sha256(b"payload-free\n").hexdigest(),
+                },
+                "result": {
+                    "path": "result.json",
+                    "state": "produced",
+                    "sha256": hashlib.sha256(result.read_bytes()).hexdigest(),
+                },
+                "manifest": {"path": "manifest.json", "state": "produced"},
+                "optional": {"state": "not_produced"},
+                "not-applicable": {"state": "not_applicable"},
+            }
+        }), encoding="utf-8")
+        output = root / "hostruntime-record.json"
+        summary = root / "hostruntime-summary.txt"
+        return result, manifest, output, summary
+
+    def invoke_projection(self, root: Path, result: Path, manifest: Path,
+                          output: Path, summary: Path) -> None:
+        self.assertEqual(writer.main([
+            "--result", str(result), "--output", str(output),
+            "--summary", str(summary), "--manifest", str(manifest),
+            "--runtime-root", str(root), "--connector", "haproxy",
+            "--profile", "native-htx", "--timestamp", "2026-08-14T00:00:00Z",
+        ]), 0)
+
+    def test_manifest_projection_updates_both_canonical_maps(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result, manifest, output, summary = self.projection_fixture(root)
+            self.invoke_projection(root, result, manifest, output, summary)
+            result_payload = json.loads(result.read_text(encoding="utf-8"))
+            manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+            self.assertEqual(result_payload["artifacts"]["hostruntime_record"], output.name)
+            self.assertEqual(result_payload["artifacts"]["hostruntime_summary"], summary.name)
+            for key, path in (("hostruntime_record", output), ("hostruntime_summary", summary)):
+                self.assertEqual(manifest_payload["artifacts"][key]["path"], path.name)
+                self.assertEqual(manifest_payload["artifacts"][key]["state"], "produced")
+                self.assertEqual(
+                    manifest_payload["artifacts"][key]["sha256"],
+                    hashlib.sha256(path.read_bytes()).hexdigest(),
+                )
+            self.assertEqual(
+                manifest_payload["artifacts"]["result"]["sha256"],
+                hashlib.sha256(result.read_bytes()).hexdigest(),
+            )
+            self.assertEqual(manifest_payload["artifacts"]["optional"], {"state": "not_produced"})
+            self.assertEqual(manifest_payload["artifacts"]["not-applicable"], {"state": "not_applicable"})
+
+    def test_manifest_projection_rejects_existing_non_produced_target(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result, manifest, output, summary = self.projection_fixture(root)
+            (root / "present.log").write_text("unexpected\n", encoding="utf-8")
+            manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+            manifest_payload["artifacts"]["optional"]["path"] = "present.log"
+            manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+            with self.assertRaises(SystemExit) as raised:
+                self.invoke_projection(root, result, manifest, output, summary)
+            self.assertEqual(raised.exception.code, 2)
+
+    def test_manifest_projection_requires_produced_self_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result, manifest, output, summary = self.projection_fixture(root)
+            manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+            manifest_payload["artifacts"]["result"]["state"] = "not_produced"
+            manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+            with self.assertRaises(SystemExit) as raised:
+                self.invoke_projection(root, result, manifest, output, summary)
+            self.assertEqual(raised.exception.code, 2)
+
+    def test_manifest_projection_rejects_existing_output_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result, manifest, output, summary = self.projection_fixture(root)
+            output.write_text("stale\n", encoding="utf-8")
+            with self.assertRaises(SystemExit) as raised:
+                self.invoke_projection(root, result, manifest, output, summary)
+            self.assertEqual(raised.exception.code, 2)
+
+    def test_manifest_projection_rejects_malformed_artifact_maps(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result, manifest, output, summary = self.projection_fixture(root)
+            json_payload = json.loads(result.read_text(encoding="utf-8"))
+            json_payload["artifacts"] = []
+            result.write_text(json.dumps(json_payload), encoding="utf-8")
+            with self.assertRaises(SystemExit) as raised:
+                self.invoke_projection(root, result, manifest, output, summary)
+            self.assertEqual(raised.exception.code, 2)
+
+    def test_manifest_projection_rejects_artifact_outside_run_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result, manifest, output, summary = self.projection_fixture(root)
+            manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+            manifest_payload["artifacts"]["log"]["path"] = "../outside.log"
+            manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+            with self.assertRaises(SystemExit) as raised:
+                self.invoke_projection(root, result, manifest, output, summary)
+            self.assertEqual(raised.exception.code, 2)
+
+    def test_manifest_projection_rejects_symlink_and_nonregular_artifacts(self) -> None:
+        for kind in ("symlink", "directory"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                result, manifest, output, summary = self.projection_fixture(root)
+                artifact = root / "unsafe"
+                if kind == "symlink":
+                    artifact.symlink_to(root / "logs" / "run.log")
+                else:
+                    artifact.mkdir()
+                result_payload = json.loads(result.read_text(encoding="utf-8"))
+                result_payload["artifacts"]["log"] = artifact.name
+                result.write_text(json.dumps(result_payload), encoding="utf-8")
+                manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+                manifest_payload["artifacts"]["log"]["path"] = artifact.name
+                manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+                with self.assertRaises(SystemExit) as raised:
+                    self.invoke_projection(root, result, manifest, output, summary)
+                self.assertEqual(raised.exception.code, 2)
+
+    def test_manifest_projection_rejects_hash_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result, manifest, output, summary = self.projection_fixture(root)
+            manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+            manifest_payload["artifacts"]["log"]["sha256"] = "0" * 64
+            manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+            with self.assertRaises(SystemExit) as raised:
+                self.invoke_projection(root, result, manifest, output, summary)
+            self.assertEqual(raised.exception.code, 2)
+
+    def test_manifest_projection_rejects_stale_result_checksum_before_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result, manifest, output, summary = self.projection_fixture(root)
+            manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+            manifest_payload["artifacts"]["result"]["sha256"] = "0" * 64
+            manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+            with self.assertRaises(SystemExit) as raised:
+                self.invoke_projection(root, result, manifest, output, summary)
+            self.assertEqual(raised.exception.code, 2)
 
 
 if __name__ == "__main__":
