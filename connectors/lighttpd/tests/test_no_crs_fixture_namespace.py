@@ -179,7 +179,7 @@ def _run_runner(
     )
 
 
-def _bounded_namespace_probe_failure_reason(stderr: str) -> str:
+def _bounded_namespace_probe_failure_reason(stderr: str, returncode: int) -> str:
     """Classify only fixed namespace-probe failures, never relay child output."""
 
     normalized = stderr.lower()
@@ -196,6 +196,12 @@ def _bounded_namespace_probe_failure_reason(stderr: str) -> str:
     ):
         if marker in normalized:
             return reason
+    if returncode == HELPER.EXIT_BLOCKED:
+        return "trusted namespace helper blocked"
+    if returncode == HELPER.EXIT_TIMEOUT:
+        return "namespace probe timed out"
+    if returncode == 126:
+        return "namespace setup execution failed"
     return "namespace probe exited with nonzero status"
 
 
@@ -226,7 +232,7 @@ def _namespace_probe_result() -> tuple[bool, str]:
         return False, "required namespace binary unavailable"
     if probe.returncode < 0:
         return False, "namespace probe terminated by signal"
-    return False, _bounded_namespace_probe_failure_reason(probe_stderr)
+    return False, _bounded_namespace_probe_failure_reason(probe_stderr, probe.returncode)
 
 
 def _user_namespace_available() -> bool:
@@ -249,10 +255,10 @@ def _namespace_integration_is_required() -> bool:
 @unittest.skipUnless(os.name == "posix" and sys.platform == "linux", "Linux only")
 class NamespaceContractTest(unittest.TestCase):
     @staticmethod
-    def _failed_namespace_probe(stderr: str) -> tuple[bool, str]:
+    def _failed_namespace_probe(stderr: str, returncode: int = 1) -> tuple[bool, str]:
         completed = subprocess.CompletedProcess(
             args=[PYTHON, "-c", "pass"],
-            returncode=1,
+            returncode=returncode,
             stdout="",
             stderr=stderr,
         )
@@ -313,19 +319,22 @@ class NamespaceContractTest(unittest.TestCase):
     def test_namespace_probe_diagnostic_uses_only_fixed_categories(self) -> None:
         """Nested setup diagnostics remain useful without exposing child stderr."""
 
-        cases = {
-            "unshare: cannot set groups; sensitive fixture path": "namespace group mapping unavailable",
-            "No-CRS namespace blocked: trusted namespace setup attestation timed out": "namespace setup attestation failed",
-            "No-CRS namespace blocked: trusted namespace setup did not attest readiness": "namespace setup attestation failed",
-            "lighttpd_no_crs_fixture_namespace: BLOCKED: namespace final verifier retained CapBnd": "namespace final-state verification failed",
-            "bwrap: creating namespace failed; sensitive fixture path": "bubblewrap namespace setup failed",
-            "unshare: unsupported flag; sensitive fixture path": "unshare namespace setup failed",
-            "No-CRS namespace blocked: unexpected setup detail": "trusted namespace setup blocked",
-            "unrecognized sensitive fixture path": "namespace probe exited with nonzero status",
-        }
-        for stderr, expected in cases.items():
-            with self.subTest(stderr=stderr):
-                available, reason = self._failed_namespace_probe(stderr)
+        cases = (
+            ("unshare: cannot set groups; sensitive fixture path", 1, "namespace group mapping unavailable"),
+            ("No-CRS namespace blocked: trusted namespace setup attestation timed out", 1, "namespace setup attestation failed"),
+            ("No-CRS namespace blocked: trusted namespace setup did not attest readiness", 1, "namespace setup attestation failed"),
+            ("lighttpd_no_crs_fixture_namespace: BLOCKED: namespace final verifier retained CapBnd", 1, "namespace final-state verification failed"),
+            ("bwrap: creating namespace failed; sensitive fixture path", 1, "bubblewrap namespace setup failed"),
+            ("unshare: unsupported flag; sensitive fixture path", 1, "unshare namespace setup failed"),
+            ("No-CRS namespace blocked: unexpected setup detail", 1, "trusted namespace setup blocked"),
+            ("", HELPER.EXIT_BLOCKED, "trusted namespace helper blocked"),
+            ("", HELPER.EXIT_TIMEOUT, "namespace probe timed out"),
+            ("", 126, "namespace setup execution failed"),
+            ("unrecognized sensitive fixture path", 1, "namespace probe exited with nonzero status"),
+        )
+        for stderr, returncode, expected in cases:
+            with self.subTest(stderr=stderr, returncode=returncode):
+                available, reason = self._failed_namespace_probe(stderr, returncode)
                 self.assertFalse(available)
                 self.assertEqual(reason, expected)
                 self.assertNotIn("sensitive", reason)
