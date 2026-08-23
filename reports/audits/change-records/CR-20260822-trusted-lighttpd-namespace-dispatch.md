@@ -9,7 +9,7 @@
 | Change ID | CR-20260822-trusted-lighttpd-namespace-dispatch |
 | Date (UTC) | 2026-08-22 |
 | Base revision | `423abcc130cf5d29ccf15dd7d82e4e7d89d495d3` |
-| Delivery status | Separate protected-master bootstrap pull request; normal master refresh and manual integration are authorized, while exact-head validation, integration, and trusted runtime success remain pending at this record update. |
+| Delivery status | Separate protected-master dispatcher repair pull request; normal master refresh and manual integration are authorized, while exact-head validation, integration, and trusted runtime success remain pending at this record update. |
 
 ## Motivation and problem statement
 
@@ -37,8 +37,10 @@ on fresh exact-head checks, SonarQube Cloud, and the protected ruleset.
 - The dispatcher has only `workflow_dispatch`, one `target` input, a
   protected-`master`/canonical-repository gate, and an exact owner-maintainer
   actor gate.
-- It has only `contents: read`, no secrets, caches, artifacts,
-  `pull_request_target`, status write, or local action checkout.
+- The PR-code test job has only `contents: read`; a separate no-checkout
+  reporter has only `statuses: write`, receives no PR source or artifact, and
+  can write only the fixed `trusted-lighttpd-namespace` status for the
+  API-bound target SHA.
 - Fixed pre-checkout system steps install only fixed packages, load the fixed
   AppArmor user-namespace profile, make `ns-test`, and verify binary, group,
   Docker-socket, and capability preconditions.
@@ -74,6 +76,14 @@ as the sandbox; the actual boundary is the fresh `ns-test` identity,
 `NoNewPrivs`, zero capability sets, cleared environment, inaccessible Docker
 socket, and the nested private namespace/Bubblewrap probes.
 
+The previous `aa-status --profiled | grep <profile>` assertion was removed:
+on Ubuntu 24.04, `--profiled` reports a count of loaded profiles rather than
+their names. Immediately after `apparmor_parser --replace`, fixed root-owned
+`aa-exec` enters `trusted-lighttpd-ci-userns` and checks
+`/proc/self/attr/current`. A different or absent profile exits `77` before
+checkout. The static contract forbids the old count-based form and mutates the
+active-profile proof, the reporter isolation, and the privilege inventory.
+
 The trusted source path is:
 
 ~~~text
@@ -96,13 +106,24 @@ runtime root. The dispatcher verifies the exact root-owned `0755` state root
 and the exact non-root `source`/private `0700` temporary children before
 checkout or PR-code execution.
 
+The test job exposes only its API-validated `target_sha` output. A fresh
+GitHub-hosted reporter VM runs after it with no checkout, no local action, no
+cache, no artifact, no `sudo`, and no PR-code execution. It revalidates the
+lowercase 40-character SHA, maps only the trusted test result to a fixed
+`success`/`failure`/`error` value, and posts the fixed status context
+`trusted-lighttpd-namespace`. The status token exists only in that reporter;
+the test job never receives it.
+
 ## Changed files
 
 - `.github/workflows/run-trusted-lighttpd-namespace-dispatch.yml` — protected
   manual Ubuntu-24.04 dispatcher, API-bound exact checkout, and restricted
   `ns-test` execution.
 - `tests/test_trusted_lighttpd_namespace_dispatch_workflow.py` — positive and
-  mutation contracts for the trust boundary.
+  mutation contracts for the trust boundary, active-profile proof, and
+  isolated status reporter.
+- `tests/test_ci_security_workflows.py` — exact allowlist entry for the
+  reporter's only write permission, `statuses: write`.
 - This English/German Change Record pair and archive entries — authorization,
   invocation, validation, and explicit pending-runtime status.
 
@@ -136,8 +157,10 @@ gh workflow run run-trusted-lighttpd-namespace-dispatch.yml --repo Easton97-Jens
 
 For SHA mode, replace `309` with PR #309's current full lowercase
 40-character head SHA. The dispatcher prints the API-validated PR and SHA
-before checkout. Its successful manual run is the required runtime evidence;
-it does not make the ordinary pull-request workflow claim success.
+before checkout. Its successful manual run is the required runtime evidence.
+The reporter publishes its fixed exact-SHA status only after the target is
+bound; bootstrap or target-resolution failure has no trustworthy SHA and thus
+fails the dispatcher without writing an unbound status.
 
 ## Known limitations
 
@@ -149,6 +172,12 @@ an open same-repository PR whose head is API-bound before checkout.
 
 PR #309 remains Draft until this workflow is merged and an exact-head manual
 run succeeds.
+
+The active protected-master ruleset must additionally require
+`trusted-lighttpd-namespace` before a green ordinary PR check can be treated
+as an automatic merge condition. Repository-settings changes are deliberately
+out of scope here; until that explicit rule exists, PR #309's retained Draft
+state is the documented mandatory manual merge barrier.
 
 ## Security impact
 
@@ -162,6 +191,11 @@ source. All source handling happens after the non-root drop.
 The dispatcher adds no root path cleanup, privileged-container fallback,
 global AppArmor relaxation, or successful skip.
 
+The reporting job is deliberately separate from the PR-code job. Its ephemeral
+`statuses: write` token cannot be read by PR code because the reporter has no
+checkout or transferred data other than a strict SHA output and the test-job
+conclusion. It cannot select a context, target, or outcome from PR input.
+
 ## Remaining risks
 
 The AppArmor profile uses `flags=(unconfined)` to permit this non-root
@@ -174,6 +208,12 @@ The public API is unauthenticated by design to avoid a secret. Rate limiting or
 API failure fails closed. The disposable VM's final teardown removes the
 profile, account, and temporary data without root cleanup of an
 `ns-test`-writable path.
+
+The reporter context is evidence rather than a repository-rule guarantee until
+the repository owner adds it to the protected-master required contexts. This
+pull request does not change branch rules; PR #309 must remain Draft until
+that governance action and an exact-head successful dispatch are both
+independently evidenced.
 
 ## Checks not run and rationale
 
