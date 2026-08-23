@@ -663,7 +663,15 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
         r'[ \t]*(T_CONFIG_[A-Z]+),[ \t]*\n[ \t]*(T_CONFIG_SCOPE_[A-Z]+)',
         text,
     )
-    if keys != [("msconnector.enabled", "T_CONFIG_BOOL", "T_CONFIG_SCOPE_SERVER"), ("msconnector.config-file", "T_CONFIG_STRING", "T_CONFIG_SCOPE_SERVER")]:
+    if keys != [
+        ("msconnector.enabled", "T_CONFIG_BOOL", "T_CONFIG_SCOPE_SERVER"),
+        ("msconnector.config-file", "T_CONFIG_STRING", "T_CONFIG_SCOPE_SERVER"),
+        (
+            "msconnector.expose-host-transaction-id",
+            "T_CONFIG_BOOL",
+            "T_CONFIG_SCOPE_SERVER",
+        ),
+    ]:
         raise ValueError(f"lighttpd plugin key extractor found unexpected keys: {keys!r}")
     values: list[dict[str, Any]] = []
     values.append(_option(
@@ -690,6 +698,20 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
         security_relevance="The runtime file contains executable rule paths and limits; use trusted ownership and permissions.",
         runtime_effect="Loads and creates the connector-neutral runtime before requests are served.", example_file="examples/lighttpd/minimal/lighttpd.conf",
         description="Path to the Common Runtime configuration used by the native plugin."))
+    values.append(_option(
+        "lighttpd", "msconnector.expose-host-transaction-id", "host_connector_directive", source,
+        "mod_msconnector_set_defaults / mod_msconnector_emit_host_transaction_id",
+        syntax='msconnector.expose-host-transaction-id = "enable" | "disable"', value_type="lighttpd boolean", allowed_values="lighttpd boolean values; examples use enable/disable",
+        default="off", default_source="ck_calloc plugin_data allocation and default config", required=False,
+        contexts="T_CONFIG_SCOPE_SERVER", inheritance="Only defaults are loaded; the module has no request-time conditional patch path.",
+        merge_behavior="config_plugin_values_init populates defaults; no documented per-request merge.",
+        validation="lighttpd parses this server-scoped setting as a boolean during set-defaults; validate host syntax with lighttpd -tt -f <config>.",
+        phase_relevance="P3 response headers only; it does not select or alter Common Runtime transaction-ID input.",
+        security_relevance="When enabled, a server-generated correlation identifier is exposed in a response header. It never reflects a request header; enable it only for trusted runtime evidence.",
+        runtime_effect="Opt-in harness evidence plumbing emits the server-generated host transaction ID as X-Msconnector-Host-Transaction-Id after response-header processing.",
+        example_file="connectors/lighttpd/harness/prepare_native_smoke.sh",
+        example_value='msconnector.expose-host-transaction-id = "enable"',
+        description="Opt-in response-header evidence for the server-generated host transaction ID."))
     values.append(_option(
         "lighttpd", "sidecar proxy", "compatibility", LIGHTTPD_SIDECAR_CONFIGURATION,
         "compatibility-sidecar example", syntax="proxy.server = (...)", value_type="compatibility host setup", allowed_values="ordinary lighttpd proxy fields",
@@ -3081,6 +3103,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Validate as an Envoy ext_authz compatibility configuration.": "Als Envoy-ext_authz-Kompatibilitätskonfiguration validieren.",
     LIGHTTPD_SIDECAR_VALIDATION: "Als normale lighttpd-Proxy-Konfiguration validieren.",
     "When enabled, lighttpd validates the runtime file during set-defaults; validate host syntax with lighttpd -tt -f <config>.": "Bei Aktivierung validiert lighttpd die Runtime-Datei während set-defaults; Hostsyntax mit lighttpd -tt -f <config> validieren.",
+    "lighttpd parses this server-scoped setting as a boolean during set-defaults; validate host syntax with lighttpd -tt -f <config>.": "lighttpd parst diese serverspezifische Einstellung während set-defaults als Boolean; Hostsyntax mit lighttpd -tt -f <config> validieren.",
     VALIDATE_APACHE: VALIDATE_APACHE,
     VALIDATE_HAPROXY: VALIDATE_HAPROXY,
     VALIDATE_LIGHTTPD: VALIDATE_LIGHTTPD,
@@ -3100,6 +3123,7 @@ GERMAN_TEXT: dict[str, str] = {
     "No selected response-body P4 path.": "Kein ausgewählter P4-Pfad für den Response-Body.",
     "P1 controls integration; rules and P4 controls affect the stated phase only.": "P1 steuert die Integration; Regeln und P4-Steuerungen betreffen nur die genannte Phase.",
     "P1/P2/P3/P4 middleware callback bounds and engine connection behavior.": "Grenzen der P1/P2/P3/P4-Middleware-Callbacks und Verhalten der Engine-Verbindung.",
+    "P3 response headers only; it does not select or alter Common Runtime transaction-ID input.": "Nur P3-Response-Header; dies wählt oder verändert keine Common-Runtime-Transaktions-ID-Eingabe.",
     "P1–P4 native HTX callbacks are attached only when this filter is declared.": "Native HTX-Callbacks für P1–P4 werden nur angehängt, wenn dieser Filter deklariert ist.",
     "P4 only. The current HTX host action distinguishes strict from non-strict; minimal and safe share the non-strict late log-only path.": "Nur P4. Die aktuelle HTX-Hostaktion unterscheidet strict von nicht-strict; minimal und safe teilen den späten nicht-strict-log_only-Pfad.",
     "P4 only. The response-body filter accumulates bounded in-scope bytes and finishes the engine at EOS (last_buf/last_in_chain); header/body commitment determines whether a status or only a late transport action remains possible.": "Nur P4. Der Response-Body-Filter sammelt begrenzte Bytes im Geltungsbereich und beendet die Engine bei EOS (last_buf/last_in_chain); das Committen von Headern/Body bestimmt, ob ein Status oder nur noch eine späte Transportaktion möglich ist.",
@@ -3138,6 +3162,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Controls ext_proc service startup/check behavior.": "Steuert Start- und Prüfverhalten des ext_proc-Service.",
     "Controls fail-open versus fail-closed behavior for processor errors.": "Steuert Fail-open- gegenüber Fail-closed-Verhalten bei Prozessorfehlern.",
     "Controls forwarding of libmodsecurity messages to the host error log; it does not switch rule evaluation.": "Steuert die Weiterleitung von libmodsecurity-Meldungen an das Host-Fehlerlog; die Regelauswertung wird dadurch nicht umgeschaltet.",
+    "Opt-in harness evidence plumbing emits the server-generated host transaction ID as X-Msconnector-Host-Transaction-Id after response-header processing.": "Opt-in-Nachweisverdrahtung des Harnesses gibt die servergenerierte Host-Transaktions-ID nach der Verarbeitung der Response-Header als X-Msconnector-Host-Transaction-Id aus.",
     "Controls rule execution/disruptive action inside libmodsecurity, independently of the host connector switch.": "Steuert Regelausführung/disruptive Aktion innerhalb von libmodsecurity, unabhängig vom Hostconnector-Schalter.",
     "Controls whether an over-limit chunk is rejected or truncated before engine input.": "Steuert, ob ein Chunk über dem Limit vor der Engine-Eingabe abgewiesen oder gekürzt wird.",
     "Defines a ModSecurity rule such as the local RESPONSE_BODY P4 illustration.": "Definiert eine ModSecurity-Regel wie die lokale RESPONSE_BODY-P4-Illustration.",
@@ -3180,6 +3205,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Selects the requested late P4 policy. Before response commit a deny can be applied; after commit the current Apache/NGINX/HTX paths distinguish strict from non-strict only. Minimal and safe therefore share the current non-strict log-only path.": "Wählt die angeforderte späte P4-Policy. Vor dem Response-Commit kann ein deny angewendet werden; nach dem Commit unterscheiden die aktuellen Apache-/NGINX-/HTX-Pfade nur strict von nicht-strict. Minimal und safe teilen daher den aktuellen nicht-strict-log_only-Pfad.",
     "Selects whether ext_proc receives request or response headers.": "Wählt, ob ext_proc Request- oder Response-Header empfängt.",
     "Selects whether mod_msconnector initialises Common Runtime.": "Wählt, ob mod_msconnector die Common Runtime initialisiert.",
+    "Opt-in response-header evidence for the server-generated host transaction ID.": "Opt-in-Response-Header-Nachweis für die servergenerierte Host-Transaktions-ID.",
     "Sends trailers/EOS metadata to the ext_proc service.": "Sendet Trailer-/EOS-Metadaten an den ext_proc-Service.",
     "Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4.": "Setzt einen Connector-Ereignispfad; aktuelle Apache- und NGINX-Pfade verwenden ihn auch für frühere Regel-/Interventionsmetadaten, nicht nur für P4.",
     "Sets a static runtime transaction identifier.": "Setzt eine statische Runtime-Transaktionskennung.",
@@ -3216,6 +3242,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Keep the file and parent directories non-writable by untrusted identities.": "Die Datei und ihre übergeordneten Verzeichnisse für nicht vertrauenswürdige Identitäten nicht schreibbar halten.",
     "Keep the file, its parent directories, and any engine-included files non-writable by untrusted identities. Prefer an absolute path so a changed working directory cannot select unintended policy.": "Die Datei, ihre übergeordneten Verzeichnisse und alle von der Engine eingebundenen Dateien für nicht vertrauenswürdige Identitäten nicht schreibbar halten. Einen absoluten Pfad bevorzugen, damit ein geändertes Arbeitsverzeichnis keine unbeabsichtigte Policy wählen kann.",
     "Keep the scope narrow and validate that the host exposes the intended representation of response bytes.": "Den Geltungsbereich eng halten und validieren, dass der Host die beabsichtigte Repräsentation der Response-Bytes bereitstellt.",
+    "When enabled, a server-generated correlation identifier is exposed in a response header. It never reflects a request header; enable it only for trusted runtime evidence.": "Bei Aktivierung wird eine servergenerierte Korrelationskennung in einem Response-Header ausgegeben. Sie spiegelt niemals einen Request-Header wider; nur für vertrauenswürdige Laufzeitnachweise aktivieren.",
     "Limits bound resource use. Adds inline rule configuration.": "Limits begrenzen den Ressourcenverbrauch. Fügt eine Inline-Regelkonfiguration hinzu.",
     "Limits bound resource use. Alias for event_path.": "Limits begrenzen den Ressourcenverbrauch. Alias für event_path.",
     "Limits bound resource use. Appends metadata-only JSONL events when configured.": "Limits begrenzen den Ressourcenverbrauch. Hängt bei Konfiguration JSONL-Ereignisse an, die nur Metadaten enthalten.",

@@ -13,6 +13,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | --- | --- | --- | --- | --- | --- | --- |
 | [`msconnector.config-file`](#msconnector-config-file) | Host / Connector | Pfad | ja | none | T_CONFIG_SCOPE_SERVER | Pfad zur Common-Runtime-Konfiguration, die das native Plugin verwendet. |
 | [`msconnector.enabled`](#msconnector-enabled) | Host / Connector | lighttpd-Boolean | nein | off | T_CONFIG_SCOPE_SERVER | Aktiviert das native lighttpd-Plugin. |
+| [`msconnector.expose-host-transaction-id`](#msconnector-expose-host-transaction-id) | Host / Connector | lighttpd-Boolean | nein | off | T_CONFIG_SCOPE_SERVER | Opt-in-Response-Header-Nachweis für die servergenerierte Host-Transaktions-ID. |
 | [`proxy.server`](#proxy-server) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`server.bind`](#server-bind) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`server.compat-module-load`](#server-compat-module-load) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
@@ -217,6 +218,61 @@ Quellenbasiertes Beispiel: [examples/lighttpd/minimal/lighttpd.conf](../../examp
 ### Sicherheit und Betrieb
 
 Das Deaktivieren des Moduls umgeht die Connector-Verarbeitung, auch wenn eine Regeldatei existiert.
+
+<a id="msconnector-expose-host-transaction-id"></a>
+## `msconnector.expose-host-transaction-id`
+
+### Kurzbeschreibung
+
+Opt-in-Response-Header-Nachweis für die servergenerierte Host-Transaktions-ID.
+
+### Syntax
+
+```text
+msconnector.expose-host-transaction-id = "enable" | "disable"
+```
+
+### Gültige Kontexte
+
+- T_CONFIG_SCOPE_SERVER
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| lighttpd-Boolean | lighttpd-Boolean-Werte; die Beispiele verwenden enable/disable | nein |
+
+### Standardwert
+
+off
+
+Quelle: `ck_calloc-Allocation von plugin_data und Standardkonfiguration`.
+
+### Vererbung und Zusammenführung
+
+Es werden nur Standardwerte geladen; das Modul besitzt keinen bedingten Patch-Pfad zur Request-Zeit.
+
+Zusammenführung: config_plugin_values_init belegt Standardwerte; kein dokumentierter Merge pro Request.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Nur P3-Response-Header; dies wählt oder verändert keine Common-Runtime-Transaktions-ID-Eingabe.
+
+Opt-in-Nachweisverdrahtung des Harnesses gibt die servergenerierte Host-Transaktions-ID nach der Verarbeitung der Response-Header als X-Msconnector-Host-Transaction-Id aus.
+
+### Validierung und Fehler
+
+lighttpd parst diese serverspezifische Einstellung während set-defaults als Boolean; Hostsyntax mit lighttpd -tt -f <config> validieren.
+
+### Beispiel
+
+Ausgewählter Beispielwert: `msconnector.expose-host-transaction-id = "enable"`.
+
+Quellenbasiertes Beispiel: `connectors/lighttpd/harness/prepare_native_smoke.sh`.
+
+### Sicherheit und Betrieb
+
+Bei Aktivierung wird eine servergenerierte Korrelationskennung in einem Response-Header ausgegeben. Sie spiegelt niemals einen Request-Header wider; nur für vertrauenswürdige Laufzeitnachweise aktivieren.
 
 <a id="proxy-server"></a>
 ## `proxy.server`
