@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/test-connectors-no-crs-no-mrts.yml
       - tests/test_ci_security_workflows.py
+      - tests/test_connector_mode_coverage_summary.py
       - tests/test_python_version_contract.py
       - ci/checks/common/check-python-version-contract.py
       - ci/checks/common/check-python-interpreter-contract.py
@@ -90,7 +91,7 @@ jobs:
     env:
       ALLOW_RUNTIME_BUILDS: "1"
       ALLOW_RUNTIME_DOWNLOADS: "1"
-      EXPECTED_FRAMEWORK_SHA: 01952978772995c054ba6a4cba86adc5d0cd1e7d
+      EXPECTED_FRAMEWORK_SHA: c40e924ec5c341032908e0082feba1d37ed1dfda
       EXPECTED_MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
       EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       FIVE_CONNECTOR_PROFILE: no-crs
@@ -127,6 +128,7 @@ jobs:
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Verify recorded Framework and MRTS revisions
+        id: verify-revisions
         run: |
           set -euo pipefail
           framework_commit=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
@@ -272,15 +274,17 @@ jobs:
           case "$CONNECTOR" in apache|envoy|haproxy|lighttpd|traefik) ;; *) exit 2 ;; esac
           make "start-smoke-$CONNECTOR"
 
-      - name: Run canonical minimal No-CRS runtime smoke
+      - name: Run complete canonical No-CRS baseline
+        id: run-canonical-no-crs-baseline
         env:
           CONNECTOR: ${{ matrix.connector }}
         run: |
           set -euo pipefail
           case "$CONNECTOR" in apache|envoy|haproxy|lighttpd|traefik) ;; *) exit 2 ;; esac
-          RUNTIME_EVIDENCE_ROOT="$EVIDENCE_ROOT" make "runtime-smoke-$CONNECTOR"
+          make "no-crs-baseline-$CONNECTOR"
 
       - name: Validate canonical evidence and profile receipt
+        id: validate-canonical-evidence
         env:
           CONNECTOR: ${{ matrix.connector }}
         run: |
@@ -294,6 +298,23 @@ jobs:
             --check all
           test -f "$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID/logs/five_connector_profile_receipt.log"
 
+      - name: Write complete connector coverage summary
+        if: always() && steps.verify-revisions.outcome == 'success'
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+          EVIDENCE_VALIDATION_OUTCOME: ${{ steps.validate-canonical-evidence.outcome }}
+        run: |
+          set -euo pipefail
+          python3 ci/runtime/lifecycle/summarize-connector-mode-coverage.py \
+            --connector "$CONNECTOR" \
+            --crs "$CRS" \
+            --mrts "$MRTS" \
+            --coverage-kind "$COVERAGE_KIND" \
+            --connector-root "$GITHUB_WORKSPACE" \
+            --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            --evidence-dir "$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID" \
+            --evidence-validation-outcome "$EVIDENCE_VALIDATION_OUTCOME"
+
       - name: Publish canonical status
         if: always()
         env:
@@ -303,12 +324,15 @@ jobs:
           result="$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID/result.json"
           test -f "$result"
           status=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["status"])' "$result")
+          case "$status" in
+            PASS) ;;
+            *) echo "FAIL: canonical result has an invalid final status" >&2; exit 2 ;;
+          esac
           {
             echo "### $CONNECTOR canonical No-CRS status"
             echo
             echo "$status"
           } >> "$GITHUB_STEP_SUMMARY"
-          test "$status" = PASS
 
       - name: Check process cleanup
         if: always()

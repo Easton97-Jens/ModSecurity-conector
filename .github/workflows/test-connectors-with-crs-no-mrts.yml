@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/test-connectors-with-crs-no-mrts.yml
       - tests/test_ci_security_workflows.py
+      - tests/test_connector_mode_coverage_summary.py
       - tests/test_with_crs_no_mrts_runtime.py
       - ci/checks/common/check-python-interpreter-contract.py
       - ci/provisioning/**
@@ -248,3 +249,18 @@ jobs:
         run: |
           set -euo pipefail
           python3 ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py --connector "$CONNECTOR"
+
+      - name: Write complete connector coverage summary
+        if: always() && steps.verify-revisions.outcome == 'success'
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          python3 ci/runtime/lifecycle/summarize-connector-mode-coverage.py \
+            --connector "$CONNECTOR" \
+            --crs "$CRS" \
+            --mrts "$MRTS" \
+            --coverage-kind runtime \
+            --connector-root "$GITHUB_WORKSPACE" \
+            --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            --evidence-validation-outcome not_run

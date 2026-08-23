@@ -216,18 +216,6 @@ CONNECTOR_MODE_WORKFLOWS = {
             "traefik": "runtime",
         },
     },
-    "test-connectors-with-crs-no-mrts.yml": {
-        "name": "connector-tests-with-crs-no-mrts",
-        "crs": "with-crs",
-        "mrts": "no-mrts",
-        "cells": {
-            "apache": "runtime",
-            "envoy": "contract",
-            "haproxy": "runtime",
-            "lighttpd": "contract",
-            "traefik": "contract",
-        },
-    },
     "test-connectors-no-crs-with-mrts.yml": {
         "name": "connector-tests-no-crs-with-mrts",
         "crs": "no-crs",
@@ -253,17 +241,21 @@ CONNECTOR_MODE_WORKFLOWS = {
         },
     },
 }
+CONNECTOR_MODE_WORKFLOW_FILES = frozenset(
+    {*CONNECTOR_MODE_WORKFLOWS, "test-connectors-with-crs-no-mrts.yml"}
+)
 CONNECTOR_MODE_CONNECTORS = frozenset(
     {"apache", "envoy", "haproxy", "lighttpd", "traefik"}
 )
 CONNECTOR_MODE_COVERAGE_KINDS = frozenset(
     {"runtime", "contract", "expected_unsupported"}
 )
-CONNECTOR_MODE_FRAMEWORK_SHA = "01952978772995c054ba6a4cba86adc5d0cd1e7d"
+CONNECTOR_MODE_FRAMEWORK_SHA = "c40e924ec5c341032908e0082feba1d37ed1dfda"
 CONNECTOR_MODE_MRTS_SHA = "615b13bacbd008562c17408246c41ab27dca3104"
 CONNECTOR_MODE_TRIGGER_PATHS = frozenset(
     {
         "tests/test_ci_security_workflows.py",
+        "tests/test_connector_mode_coverage_summary.py",
         "tests/test_python_version_contract.py",
         "ci/checks/common/check-python-version-contract.py",
         "ci/checks/common/check-python-interpreter-contract.py",
@@ -1744,7 +1736,7 @@ jobs:
             "RUNTIME_COMPONENT_TARGET: ${{ matrix.runtime_component_target }}",
             job,
         )
-        self.assertNotIn("coverage_kind", job)
+        self.assertNotIn("coverage_kind:", job)
         self.assertNotIn("verified-full-matrix-job", job)
         self.assertNotIn("run-full-matrix-job.py", job)
 
@@ -1877,6 +1869,16 @@ jobs:
             summary,
         )
         self.assertNotIn("--summary-file", summary)
+        coverage_summary = job.split(
+            "      - name: Write complete connector coverage summary\n", 1
+        )[1]
+        self.assertIn("if: always()", coverage_summary)
+        self.assertIn(
+            'python3 ci/runtime/lifecycle/summarize-connector-mode-coverage.py',
+            coverage_summary,
+        )
+        self.assertIn("--coverage-kind runtime", coverage_summary)
+        self.assertIn("--evidence-validation-outcome not_run", coverage_summary)
         for environment_name, step_id in (
             ("CHECKOUT_OUTCOME", "checkout"),
             ("SETUP_PYTHON_OUTCOME", "setup-python"),
@@ -3377,11 +3379,11 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
         self.assertIsInstance(parsed, dict, filename)
         return parsed, text
 
-    def test_exact_static_topology_and_twenty_cells(self) -> None:
+    def test_static_topology_and_twenty_cells_with_dedicated_crs_runtime(self) -> None:
         actual_files = {
             path.name for path in WORKFLOWS.glob("test-connectors-*.yml")
         }
-        self.assertEqual(actual_files, set(CONNECTOR_MODE_WORKFLOWS))
+        self.assertEqual(actual_files, set(CONNECTOR_MODE_WORKFLOW_FILES))
 
         observed_cells: dict[tuple[str, str, str], str] = {}
         for filename, expected in CONNECTOR_MODE_WORKFLOWS.items():
@@ -3429,15 +3431,70 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
                     self.assertNotIn(key, observed_cells)
                     observed_cells[key] = coverage_kind
 
+        dedicated, _text = self.load_workflow("test-connectors-with-crs-no-mrts.yml")
+        dedicated_rows = dedicated["jobs"]["connector-mode"]["strategy"]["matrix"]["include"]
+        self.assertEqual(len(dedicated_rows), 5)
+        self.assertEqual(
+            {row["connector"] for row in dedicated_rows}, CONNECTOR_MODE_CONNECTORS
+        )
+        self.assertEqual({row["crs"] for row in dedicated_rows}, {"with-crs"})
+        self.assertEqual({row["mrts"] for row in dedicated_rows}, {"no-mrts"})
+        self.assertTrue(all("coverage_kind" not in row for row in dedicated_rows))
+        for row in dedicated_rows:
+            key = (row["connector"], "with-crs", "no-mrts")
+            self.assertNotIn(key, observed_cells)
+            observed_cells[key] = "runtime"
+
         expected_cells = {
             (connector, expected["crs"], expected["mrts"]): coverage_kind
             for expected in CONNECTOR_MODE_WORKFLOWS.values()
             for connector, coverage_kind in expected["cells"].items()
         }
+        expected_cells.update(
+            {
+                (connector, "with-crs", "no-mrts"): "runtime"
+                for connector in CONNECTOR_MODE_CONNECTORS
+            }
+        )
         self.assertEqual(observed_cells, expected_cells)
         self.assertEqual(len(observed_cells), 20)
         self.assertNotIn("nginx", {key[0] for key in observed_cells})
         self.assertNotIn("_template", {key[0] for key in observed_cells})
+
+    def test_each_mode_workflow_writes_complete_case_coverage_summary(self) -> None:
+        for filename in CONNECTOR_MODE_WORKFLOW_FILES:
+            with self.subTest(filename=filename):
+                workflow, text = self.load_workflow(filename)
+                steps = workflow["jobs"]["connector-mode"]["steps"]
+                summary = next(
+                    step
+                    for step in steps
+                    if step["name"] == "Write complete connector coverage summary"
+                )
+                revision_check = next(
+                    step
+                    for step in steps
+                    if "Verify" in step["name"] and "Framework" in step["name"]
+                )
+                self.assertEqual(revision_check.get("id"), "verify-revisions")
+                self.assertEqual(
+                    summary.get("if"),
+                    "always() && steps.verify-revisions.outcome == 'success'",
+                )
+                self.assertIn(
+                    "ci/runtime/lifecycle/summarize-connector-mode-coverage.py",
+                    summary["run"],
+                )
+                self.assertIn('--connector-root "$GITHUB_WORKSPACE"', summary["run"])
+                self.assertIn(
+                    '--framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"',
+                    summary["run"],
+                )
+                self.assertIn("--evidence-validation-outcome", summary["run"])
+                self.assertLess(
+                    text.index("Write complete connector coverage summary"),
+                    len(text),
+                )
 
     def test_no_crs_metadata_stays_equal_to_closed_profile(self) -> None:
         workflow, _text = self.load_workflow("test-connectors-no-crs-no-mrts.yml")
@@ -3563,10 +3620,6 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
         )
         expected_conditions = {
             "test-connectors-no-crs-no-mrts.yml": [None],
-            "test-connectors-with-crs-no-mrts.yml": [
-                "matrix.coverage_kind == 'contract'",
-                "matrix.coverage_kind == 'runtime'",
-            ],
             "test-connectors-no-crs-with-mrts.yml": [
                 "matrix.coverage_kind == 'runtime'"
             ],
@@ -3610,62 +3663,30 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
         )
         self.assertIn("FIVE_CONNECTOR_PROFILE: no-crs", no_crs_text)
         self.assertIn("--verify-row", no_crs_text)
-        self.assertIn('make "runtime-smoke-$CONNECTOR"', no_crs_text)
+        self.assertIn('make "no-crs-baseline-$CONNECTOR"', no_crs_text)
+        self.assertNotIn('make "runtime-smoke-$CONNECTOR"', no_crs_text)
         self.assertIn('make "evidence-check-$CONNECTOR"', no_crs_text)
+        self.assertIn("Validate canonical evidence and profile receipt", no_crs_text)
+        self.assertIn("Write complete connector coverage summary", no_crs_text)
+        self.assertIn("EVIDENCE_VALIDATION_OUTCOME", no_crs_text)
+        self.assertIn('case "$status" in', no_crs_text)
+        self.assertIn('PASS) ;;', no_crs_text)
         self.assertIn("Check process cleanup", no_crs_text)
         self.assertNotIn("expected_unsupported", no_crs_text)
         self.assertEqual(
             no_crs["jobs"]["connector-mode"]["strategy"]["fail-fast"], "false"
         )
 
-        contract, contract_text = self.load_workflow(
+        dedicated, dedicated_text = self.load_workflow(
             "test-connectors-with-crs-no-mrts.yml"
         )
-        self.assertIn("test-five-connectors-with-crs-no-mrts-contract", contract_text)
-        self.assertIn("test-crs-provenance-contract", contract_text)
-        self.assertIn("Install hash-locked Framework CI dependency", contract_text)
-        self.assertIn(
-            "--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock",
-            contract_text,
-        )
-        self.assertIn("python3 -m pip check", contract_text)
-        dependency_step = next(
-            step
-            for step in contract["jobs"]["connector-mode"]["steps"]
-            if step["name"] == "Install hash-locked Framework CI dependency"
-        )
-        framework_revision_step = next(
-            step
-            for step in contract["jobs"]["connector-mode"]["steps"]
-            if step["name"] == "Verify recorded Framework and MRTS revisions"
-        )
-        steps = contract["jobs"]["connector-mode"]["steps"]
-        self.assertLess(
-            steps.index(framework_revision_step), steps.index(dependency_step)
-        )
-        self.assertEqual(dependency_step["if"], "matrix.coverage_kind == 'contract'")
+        self.assertIn("Run selected real with-CRS no-MRTS runtime", dedicated_text)
+        self.assertIn("Write connector runtime overview", dedicated_text)
+        self.assertIn("Write complete connector coverage summary", dedicated_text)
+        self.assertIn("--coverage-kind runtime", dedicated_text)
+        self.assertNotIn("run-full-matrix-job.py", dedicated_text)
         self.assertEqual(
-            dependency_step["run"].splitlines(),
-            [
-                "set -euo pipefail",
-                "python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \\",
-                "  --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock",
-                "python3 -m pip check",
-            ],
-        )
-        self.assertIn("CONTRACT_VALIDATED", contract_text)
-        self.assertIn("host_runtime_status=UNATTESTED", contract_text)
-        for target in (
-            "check-config-envoy",
-            "check-config-lighttpd",
-            "check-config-traefik",
-        ):
-            self.assertIn(f"make -n {target}", contract_text)
-        self.assertNotIn("five-connectors-with-crs-no-mrts-validate", contract_text)
-        self.assertNotIn("five-connectors-with-crs-no-mrts-aggregate", contract_text)
-        self.assertNotIn("run-full-matrix-job.py", contract_text)
-        self.assertEqual(
-            contract["jobs"]["connector-mode"]["strategy"]["fail-fast"], "false"
+            dedicated["jobs"]["connector-mode"]["strategy"]["fail-fast"], "false"
         )
 
         for filename in (
@@ -3683,20 +3704,6 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
                 self.assertIn('test ! -e "$rejected_build_root"', text)
                 self.assertNotIn("if: false", text)
                 self.assertNotIn("exit 0", text)
-
-        no_mrts_filename = "test-connectors-with-crs-no-mrts.yml"
-        _workflow, no_mrts_text = self.load_workflow(no_mrts_filename)
-        self.assertIn(
-            'make verified-apache-case CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"',
-            no_mrts_text,
-        )
-        self.assertIn(
-            'SOURCE_ROOT="$haproxy_source_root" make verified-haproxy-case '
-            'CASE=action_deny_phase1 CRS="$CRS" MRTS="$MRTS"',
-            no_mrts_text,
-        )
-        self.assertNotIn("RUNTIME_COMPONENT_TARGET=haproxy", no_mrts_text)
-        self.assertNotIn("make fetch-crs", no_mrts_text)
 
         for filename in (
             "test-connectors-no-crs-with-mrts.yml",
@@ -3737,7 +3744,6 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
                     self.assertNotIn("make fetch-crs", text)
 
         for filename in (
-            "test-connectors-with-crs-no-mrts.yml",
             "test-connectors-no-crs-with-mrts.yml",
             "test-connectors-with-crs-with-mrts.yml",
         ):
@@ -3787,7 +3793,7 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
             gitlink,
             rf"^160000 {CONNECTOR_MODE_FRAMEWORK_SHA} 0\tmodules/ModSecurity-test-Framework$",
         )
-        for filename in CONNECTOR_MODE_WORKFLOWS:
+        for filename in CONNECTOR_MODE_WORKFLOW_FILES:
             with self.subTest(filename=filename):
                 _workflow, text = self.load_workflow(filename)
                 self.assertIn(

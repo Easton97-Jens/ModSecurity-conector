@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/test-connectors-no-crs-with-mrts.yml
       - tests/test_ci_security_workflows.py
+      - tests/test_connector_mode_coverage_summary.py
       - tests/test_python_version_contract.py
       - ci/checks/common/check-python-version-contract.py
       - ci/checks/common/check-python-interpreter-contract.py
@@ -65,7 +66,7 @@ jobs:
     env:
       ALLOW_RUNTIME_BUILDS: "1"
       ALLOW_RUNTIME_DOWNLOADS: "1"
-      EXPECTED_FRAMEWORK_SHA: 01952978772995c054ba6a4cba86adc5d0cd1e7d
+      EXPECTED_FRAMEWORK_SHA: c40e924ec5c341032908e0082feba1d37ed1dfda
       EXPECTED_MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
       EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       CRS: ${{ matrix.crs }}
@@ -94,6 +95,7 @@ jobs:
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Verify recorded Framework and MRTS revisions
+        id: verify-revisions
         run: |
           set -euo pipefail
           parent_commit=$(git rev-parse HEAD)
@@ -236,3 +238,18 @@ jobs:
             echo
             echo "Safe parser rejection observed for $CONNECTOR, unknown, and _template; no host runtime or build artifact was accepted."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write complete connector coverage summary
+        if: always() && steps.verify-revisions.outcome == 'success'
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          python3 ci/runtime/lifecycle/summarize-connector-mode-coverage.py \
+            --connector "$CONNECTOR" \
+            --crs "$CRS" \
+            --mrts "$MRTS" \
+            --coverage-kind "$COVERAGE_KIND" \
+            --connector-root "$GITHUB_WORKSPACE" \
+            --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            --evidence-validation-outcome not_run

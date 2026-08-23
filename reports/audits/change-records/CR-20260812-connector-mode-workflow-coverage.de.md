@@ -456,3 +456,138 @@ Der Fehler hat eine exakte, security-reviewte Ursache und eine enge lokal
 validierte Korrektur. Normale Veröffentlichung und neue Exact-Head-
 Verifikation sind die verbleibenden Schritte; keine Ready-Umstellung, kein
 Merge und kein Auto-Merge sind autorisiert.
+
+## Zwischen-Update vom 2026-08-23: kanonische Connector-Abdeckungsansicht
+
+### Motivation
+
+Der Nutzer verlangte ein Zwischen-Update von PR #279 auf aktuellem `master`,
+das zeigt, was jeder Connector je Framework-Phase und -Bereich erreicht, statt
+ein wie ein Zehn-Fall-Smoke wirkendes Ergebnis zu zeigen. Die MRTS-Connector-
+Unterstützung ist weiter in Arbeit; fehlende Host- oder MRTS-Evidence darf daher
+nicht zu einem Pass werden.
+
+### Akzeptanzkriterien
+
+- PR #279 durch den normalen lokalen Merge von `origin/master`
+  `7c403fada21de4547259fef1dc4a1b079cb0cb25` fortführen und den Draft-Status
+  bewahren.
+- Die kanonische Framework-No-CRS-Auswahl für die native no-CRS/no-MRTS-Route
+  verwenden und jeden ausgewählten Katalogfall je Connector, Phase und Bereich
+  in jeder Mode-Workflow-Summary darstellen.
+- `PASS`, `FAIL`, `BLOCKED`, `UNSUPPORTED`, `NOT_EXECUTED` und
+  `NOT_APPLICABLE` unterscheiden; Auswahl oder fehlende MRTS-Routen nicht als
+  Ausführung darstellen.
+- Native Routen, Revisions-Pins, PR-Sicherheit und die geschützte NGINX-Grenze
+  bewahren, ohne Framework-/MRTS-Source oder Gitlinks zu ändern.
+
+### Technische Entscheidungen
+
+Der normale lokale Merge ist `e8c391843beb1306f16d67e0e58e234d9b7a1548`. Der
+Parent-Gitlink zeichnet jetzt Framework
+`c40e924ec5c341032908e0082feba1d37ed1dfda` auf, dessen MRTS-Gitlink
+weiterhin `615b13bacbd008562c17408246c41ab27dca3104` bleibt.
+
+`test-connectors-no-crs-no-mrts.yml` ruft jetzt
+`make "no-crs-baseline-$CONNECTOR"` auf und ersetzt damit nur seinen früheren
+Zwei-Fall-Runtime-Smoke. Der neue Parent-Helper
+`ci/runtime/lifecycle/summarize-connector-mode-coverage.py` nutzt den
+gepinten Framework-Selektor und das aktuelle Connector-Capability-Manifest;
+er kopiert keinen Framework-Fallkorpus. Der kanonische No-CRS-Katalog hat 166
+Fälle über die Phasen `0` bis `5` und 24 Bereiche; alle werden mit
+Selection-Status und Grund dargestellt.
+
+Nur zehn Katalogeinträge besitzen ein `runner_case`; 156 haben keine
+materialisierbare Runner-Fixture. Die native Route führt daher ihre
+materialisierbaren ausgewählten Fixtures aus und die übrigen Zeilen bleiben je
+nach Fall `NOT_EXECUTED`, `UNSUPPORTED`, `NOT_APPLICABLE` oder `BLOCKED`.
+CRS/MRTS-Summaries zeigen den vollständigen No-CRS-Katalog als Inventar, nicht
+als CRS/MRTS-Runtime-Evidence.
+
+Die 20 bestehenden Workflow-Cells bleiben fünf Nicht-NGINX-Connectors über
+vier Profile. Ihre Summary listet alle 24 Connector/Profile-Routen: NGINX ist
+`PROTECTED_SEPARATE`, wird hier nicht geplant und ist nie ein Pass. Die
+CRS/no-MRTS-Zeilen von Envoy, Traefik und lighttpd sind `RUNTIME_ROUTE`; ihre
+MRTS-Zeilen bleiben `EXPECTED_UNSUPPORTED`. Kein Provisioning-Target,
+Connector-Source, Capability-Manifest, Dependency, Framework-/MRTS-Source oder
+Gitlink wurde geändert.
+
+### Security-Auswirkung
+
+Alle vier Summaries laufen erst nach erfolgreicher exakter Framework-/MRTS-
+Revisionsvalidierung. Der Helper nutzt den sicheren GitHub-Step-Summary-Writer;
+er liest Runtime-Evidence nur nach erfolgreicher kanonischer Validation, bindet
+`result.json` und jeden `results.jsonl`-Record an ausgewählten Connector, Phase
+und Bereich, weist doppelte oder außerhalb des Plans liegende Records ab und
+behält `PASS` nur mit `live_executed=true`. Der kanonische Final-Status wird
+vor dem alten direkten Summary-Write über eine Allowlist begrenzt. Die
+Workflows behalten `pull_request`, `permissions: contents: read`, immutable
+Action-Pins, `persist-credentials: false`, feste Matrix-Werte, keine Secrets
+und kein Write-Token. Das fokussierte Workflow-Review bestätigte keinen Fund
+mit hoher oder kritischer Auswirkung.
+
+### Geänderte Dateien
+
+- `.github/workflows/test-connectors-no-crs-no-mrts.yml`
+- `.github/workflows/test-connectors-no-crs-with-mrts.yml`
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `.github/workflows/test-connectors-with-crs-with-mrts.yml`
+- `ci/runtime/lifecycle/summarize-connector-mode-coverage.py`
+- `tests/test_connector_mode_coverage_summary.py`
+- `tests/test_ci_security_workflows.py`
+- dieses englische/deutsche Change-Record-Paar
+
+### Tests und tatsächliche Ergebnisse
+
+`/root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v
+tests.test_connector_mode_coverage_summary tests.test_ci_security_workflows`
+bestand: 48 Tests. Sie decken einen all-166-ähnlichen Plan, Demotion von
+erfundenem `PASS`, gültiges Live-`PASS`, Routenklassifizierungen, Ablehnung
+doppelter Evidence, Reporting des Validation-Ergebnisses und den gehärteten
+Summary-Writer-Pfad ab.
+
+`make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python
+check-ci-security-contract` bestand: 133 Tests mit fünf erwarteten
+Environment-Capability-Skips; validation-only Checks wurden für `actionlint`,
+`zizmor` und `gitleaks` abgeschlossen. PyYAML parste alle vier Workflows und
+`git diff --check` bestand.
+
+### Runtime-Evidence
+
+Für diese Zwischen-Summary-Änderung wird keine neue lokale Connector-Host-
+Runtime behauptet. Der Selektor beweist die vollständige 166-Zeilen-Ansicht,
+nicht die Live-Ausführung aller 166 Fälle. Exact-Head-Hosted-Evidence ist für
+tatsächliche materialisierte Ergebnisse erforderlich.
+
+### Nicht ausgeführte Prüfungen
+
+Direkte lokale `actionlint`- und `zizmor`-Läufe waren nicht möglich, weil ihre
+Binaries fehlen; kein Tool wurde heruntergeladen. Vollständige Connector-
+Runtime und der komplette Live-166-Fall-Lauf können aus diesem Task-Worktree
+nicht festgestellt werden, der bewusst kein initialisiertes Framework-
+Submodule hat und Framework/MRTS nicht ändert. Hosted Actions, SonarQube Cloud
+und Exact-Head-Coverage-/Duplication-Evidence stehen bis zum normalen
+PR-Branch-Push aus.
+
+### Bekannte Einschränkungen
+
+Dem Framework fehlen derzeit Runner-Fixtures für 156 kanonische Katalogzeilen.
+Die vollständige Summary ist eine Fähigkeits-/Evidence-Ansicht, keine
+Behauptung, dass jeder Connector jeden Framework-Fall live ausgeführt hat. Die
+MRTS-Connector-Abdeckung bleibt ein Zwischenstand; der Nutzer verlangte, dass
+PR #279 bis zu separater Arbeit Draft bleibt.
+
+### Restrisiken
+
+Der Hosted-Run kann Connector-/Runtime-Inkompatibilitäten zeigen, sobald native
+Routen die aktualisierte Baseline konsumieren. SonarQube Cloud kann den neuen
+Helper oder die Tests anders klassifizieren. Keine dieser Möglichkeiten wird
+von der Summary verborgen; die PR bleibt Draft und keine Master-Integration,
+Ready-Umstellung, kein Merge und kein Auto-Merge sind autorisiert.
+
+### Finaler Review-Status
+
+Der lokale Master-Refresh, die Workflow-Änderung, der Summary-Contract und das
+fokussierte Security-Review sind abgeschlossen. Normale Branch-
+Veröffentlichung, PR-Head-Verifikation, GitHub Actions und Exact-Head-
+SonarQube-Cloud-Evidence stehen noch aus.

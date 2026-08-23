@@ -430,3 +430,128 @@ PR #279 remains Draft while the user completes further work.
 The failure has an exact, security-reviewed root cause and a narrow locally
 validated correction. Normal publication and new exact-head verification are
 the remaining steps; no Ready transition, merge, or auto-merge is authorized.
+
+## 2026-08-23 interim update: canonical connector coverage view
+
+### Motivation
+
+The user requested a current-`master` intermediate PR update that shows what
+each connector can achieve by Framework phase and area, rather than a
+ten-case-looking smoke result. MRTS connector support remains work in progress,
+so missing host or MRTS evidence must not become a pass.
+
+### Acceptance criteria
+
+- Bring PR #279 forward through the normal local merge of `origin/master`
+  `7c403fada21de4547259fef1dc4a1b079cb0cb25`, retaining Draft status.
+- Use the canonical Framework No-CRS selection for the no-CRS/no-MRTS native
+  route, and render every selected catalogue case by connector, phase, and
+  area in every mode-workflow summary.
+- Distinguish `PASS`, `FAIL`, `BLOCKED`, `UNSUPPORTED`, `NOT_EXECUTED`, and
+  `NOT_APPLICABLE`; do not represent selection or missing MRTS routes as
+  execution.
+- Preserve native routes, revision pins, PR safety, and the protected NGINX
+  boundary without changing Framework/MRTS source or Gitlinks.
+
+### Technical decisions
+
+The normal local merge is `e8c391843beb1306f16d67e0e58e234d9b7a1548`. The
+Parent Gitlink now records Framework
+`c40e924ec5c341032908e0082feba1d37ed1dfda`, whose MRTS Gitlink remains
+`615b13bacbd008562c17408246c41ab27dca3104`.
+
+`test-connectors-no-crs-no-mrts.yml` now invokes
+`make "no-crs-baseline-$CONNECTOR"`, replacing only its former two-case
+runtime smoke. The new Parent helper
+`ci/runtime/lifecycle/summarize-connector-mode-coverage.py` uses the pinned
+Framework selector and current connector capability manifest; it does not copy
+the Framework case corpus. The canonical No-CRS catalogue has 166 cases across
+phases `0` through `5` and 24 areas, all rendered with selection status and
+reason.
+
+Only ten catalogue entries provide a `runner_case`; 156 have no materializable
+runner fixture. The native route therefore runs its materializable selected
+fixtures, and other rows remain `NOT_EXECUTED`, `UNSUPPORTED`,
+`NOT_APPLICABLE`, or `BLOCKED` as applicable. CRS/MRTS summaries show the
+complete No-CRS catalogue as inventory, not CRS/MRTS runtime evidence.
+
+The 20 existing workflow cells remain five non-NGINX connectors across four
+profiles. Their summary lists all 24 connector/profile routes: NGINX is
+`PROTECTED_SEPARATE`, not scheduled here, and never a pass. Envoy, Traefik,
+and lighttpd CRS/no-MRTS rows are `RUNTIME_ROUTE`; their MRTS rows remain
+`EXPECTED_UNSUPPORTED`. No provisioning target, connector source, capability
+manifest, dependency, Framework/MRTS source, or Gitlink changed.
+
+### Security impact
+
+All four summaries execute only after exact Framework/MRTS revision validation.
+The helper reuses the safe GitHub Step Summary writer; it reads runtime evidence
+only after successful canonical validation, binds `result.json` and every
+`results.jsonl` record to selected connector, phase, and area, rejects duplicate
+or out-of-plan records, and retains `PASS` only with `live_executed=true`.
+The canonical final status is allowlisted before the legacy direct summary
+write. The workflows retain `pull_request`, `permissions: contents: read`,
+immutable action pins, `persist-credentials: false`, fixed matrix values, no
+secrets, and no write token. The focused workflow review confirmed no
+high- or critical-impact finding.
+
+### Changed files
+
+- `.github/workflows/test-connectors-no-crs-no-mrts.yml`
+- `.github/workflows/test-connectors-no-crs-with-mrts.yml`
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `.github/workflows/test-connectors-with-crs-with-mrts.yml`
+- `ci/runtime/lifecycle/summarize-connector-mode-coverage.py`
+- `tests/test_connector_mode_coverage_summary.py`
+- `tests/test_ci_security_workflows.py`
+- this English/German Change Record pair
+
+### Tests and actual results
+
+`/root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v
+tests.test_connector_mode_coverage_summary tests.test_ci_security_workflows`
+passed: 48 tests. They cover an all-166-like plan, fabricated-`PASS` demotion,
+valid live `PASS`, route classifications, duplicate-evidence rejection,
+validation-outcome reporting, and the hardened summary-writer path.
+
+`make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python
+check-ci-security-contract` passed: 133 tests with five expected
+environment-capability skips; validation-only checks completed for `actionlint`,
+`zizmor`, and `gitleaks`. PyYAML parsed all four workflows, and
+`git diff --check` passed.
+
+### Runtime evidence
+
+No new local connector-host runtime is claimed for this intermediate summary
+change. The selector proves the complete 166-row view, not live execution of
+all 166 cases. Exact-head hosted evidence is required for actual materialized
+results.
+
+### Checks not run
+
+Direct local `actionlint` and `zizmor` runs were not possible because their
+binaries are absent; no tool was downloaded. Full connector runtime and the
+complete live 166-case run cannot be established from this task worktree,
+which intentionally has no initialized Framework submodule and does not alter
+Framework/MRTS. Hosted Actions, SonarQube Cloud, and exact-head
+coverage/duplication evidence remain pending the normal PR-branch push.
+
+### Known limitations
+
+The Framework currently lacks runner fixtures for 156 canonical catalogue rows.
+The complete summary is a capability/evidence view, not a claim that every
+connector live-ran every Framework case. MRTS connector coverage remains
+interim, and the user requested PR #279 remain Draft pending separate work.
+
+### Residual risks
+
+The hosted run may reveal connector/runtime incompatibilities once native routes
+consume the updated baseline. SonarQube Cloud can classify the new helper or
+tests differently. Neither is hidden by the summary; the PR remains Draft and
+no master integration, Ready transition, merge, or auto-merge is authorized.
+
+### Final review status
+
+The local master refresh, workflow change, summary contract, and focused
+security review are complete. Normal branch publication, PR-head verification,
+GitHub Actions, and exact-head SonarQube Cloud evidence remain pending.
