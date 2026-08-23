@@ -495,7 +495,7 @@ jobs:
           fetch_public_api() {
             /usr/bin/env -i HOME=/nonexistent LC_ALL=C PATH=/usr/bin:/bin \
               /usr/bin/curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
-                --connect-timeout 10 --max-time 30 --retry 0 \
+                --connect-timeout 10 --max-time 30 --retry 3 --retry-delay 1 --retry-max-time 30 \
                 -H 'Accept: application/vnd.github+json' "$1"
           }
 

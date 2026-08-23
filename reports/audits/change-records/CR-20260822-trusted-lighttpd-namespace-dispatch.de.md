@@ -220,6 +220,23 @@ Workflow oder den Draft-Status von PR #309. Hosted-Exact-Head-Runtime- und
 Sonar-Evidence bleiben ausstehend, bis diese separat geprüfte Master-Reparatur
 gemergt und dispatcht ist.
 
+## 2026-08-23 Begrenzte Wiederholung der öffentlichen API-Bindung
+
+Run `32619161990` schloss den eingeschränkten Bootstrap ab und brach vor der
+Source-Materialisierung ab, als die feste anonyme GitHub-API-Anfrage für den
+exakten Commit HTTP `504` lieferte. Dieses Ergebnis bleibt fail-closed, doch
+die frühere Regel `--retry 0` machte eine vorübergehende Control-Plane-Störung
+von einem dauerhaften Bindungsfehler ununterscheidbar.
+
+Nur der idempotente feste HTTPS-GET-Helper verwendet nun begrenzte Curl-
+Wiederholungen: drei Wiederholungen, eine Sekunde Wiederholungsverzögerung und
+ein 30-Sekunden-Wiederholungsfenster. Die normale Transient-Error-Policy von
+Curl umfasst HTTP `504`; `--retry-all-errors` wird nicht verwendet. Der
+Resolver besitzt weiterhin kein Token, akzeptiert nur das strikt formatierte
+Ziel, validiert die API-Antwort und scheitert vor jeder PR-Source, wenn seine
+Wiederholungen erschöpft sind. Der separate status-schreibende POST behält
+`--retry 0`, damit keine Side-Effect-Statusanfrage wiederholt wird.
+
 ### Lokale Validierung
 
 - `rtk test python3 -m unittest -v tests.test_trusted_lighttpd_namespace_dispatch_workflow` — bestanden (`2` Tests, einschließlich der Abschwächungs-Mutationen).
