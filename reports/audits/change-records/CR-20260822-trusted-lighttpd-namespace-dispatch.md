@@ -203,6 +203,22 @@ dependency, toolchain, action pin, repository setting, ordinary PR workflow,
 or PR #309's Draft state. Hosted exact-head runtime and Sonar evidence remain
 pending until this separately reviewed master repair is merged and dispatched.
 
+## 2026-08-23 bounded public API binding retry
+
+Run `32619161990` completed the constrained bootstrap and failed before source
+materialization when the fixed anonymous GitHub API request for the exact
+commit returned HTTP `504`. That result remains fail-closed, but the former
+`--retry 0` policy made a transient control-plane outage indistinguishable from
+a durable binding failure.
+
+Only the idempotent, fixed-HTTPS GET helper now uses bounded curl retry
+settings: three retries, a one-second retry delay, and a 30-second retry
+window. Curl's normal transient-error policy covers HTTP `504`; it does not
+use `--retry-all-errors`. The resolver still has no token, accepts only the
+strictly formatted target, validates the API response, and fails before any PR
+source exists if its retries are exhausted. The separate status-writing POST
+retains `--retry 0` so a side-effecting status request is not replayed.
+
 ### Local validation
 
 - `rtk test python3 -m unittest -v tests.test_trusted_lighttpd_namespace_dispatch_workflow` — passed (`2` tests, including the weakening mutations).

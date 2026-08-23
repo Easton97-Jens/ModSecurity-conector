@@ -239,6 +239,22 @@ def trusted_dispatch_errors(text: str) -> list[str]:
     ):
         errors.append("unvalidated target used outside the resolver environment")
 
+    resolver_match = re.search(
+        r"(?ms)^      - id: resolve-target\n(?P<body>.*?)(?=^      - name: Materialize and run the namespace test only as constrained ns-test)",
+        text,
+    )
+    if resolver_match is None:
+        errors.append("public API resolver boundary")
+        resolver = ""
+    else:
+        resolver = resolver_match.group("body")
+    if re.search(r"--retry 3 --retry-delay 1 --retry-max-time 30(?:\s|$)", resolver) is None:
+        errors.append("missing bounded public API retry")
+    if "--retry 0" in resolver:
+        errors.append("public API resolver must retry bounded transient errors")
+    if "--retry-all-errors" in resolver:
+        errors.append("public API resolver must not retry non-transient errors")
+
     trusted_job_match = re.search(
         r"(?ms)^  trusted-lighttpd-namespace:\n(?P<body>.*?)(?=^  report-trusted-lighttpd-namespace:)",
         text,
@@ -328,6 +344,12 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         errors.append("status reporter must not load an action")
     if re.search(r"(?m)^      (?!statuses:)[A-Za-z-]+:\s*write\s*$", report_job):
         errors.append("status reporter must have only statuses: write")
+    if text.count("--retry 0") != 1:
+        errors.append("only the side-effecting status POST may retain retry 0")
+    if re.search(r"--retry 0\s*\\\n\s*--request POST", report_job) is None:
+        errors.append("status reporter POST must retain retry 0")
+    if re.search(r"--retry (?!0(?:\s|\\|$))", report_job):
+        errors.append("status reporter POST must not use a nonzero retry policy")
 
     require_markers(
         errors,
@@ -603,6 +625,18 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
                 '"$TRUSTED_ORIGIN" "$TARGET_SHA"',
                 '"$TRUSTED_ORIGIN" "${{ inputs.target }}"',
             ),
+            "public API retry disabled": (
+                "--retry 3 --retry-delay 1 --retry-max-time 30",
+                "--retry 0",
+            ),
+            "public API retry bound weakened": (
+                "--retry 3 --retry-delay 1 --retry-max-time 30",
+                "--retry 3 --retry-delay 1 --retry-max-time 300",
+            ),
+            "public API retries all errors": (
+                "--retry 3 --retry-delay 1 --retry-max-time 30",
+                "--retry 3 --retry-delay 1 --retry-max-time 30 --retry-all-errors",
+            ),
             "untrusted Git origin": (TRUSTED_ORIGIN, "https://example.invalid/untrusted.git"),
             "protocol restriction removed": ("GIT_ALLOW_PROTOCOL=https", "GIT_ALLOW_PROTOCOL=file"),
             "global Git config restored": ("GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_NOSYSTEM=0"),
@@ -745,6 +779,7 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
                 "    steps:\n      - name: Publish the fixed trusted namespace status without checkout",
                 "    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\n      - name: Publish the fixed trusted namespace status without checkout",
             ),
+            "status reporter retries side effect": ("--retry 0", "--retry 3"),
             "status reporter loses trusted output dependency": (
                 "    needs: trusted-lighttpd-namespace\n",
                 "    needs: []\n",
