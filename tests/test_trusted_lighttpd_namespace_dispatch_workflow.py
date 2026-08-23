@@ -140,6 +140,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "-m 0700",
             "--disable-userns",
             "--assert-userns-disabled",
+            "/usr/bin/unshare --help | /usr/bin/grep -F -- '--keep-caps' >/dev/null",
         ),
     )
     if "/usr/sbin/aa-status --profiled" in text:
@@ -463,7 +464,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION=1",
             "LIGHTTPD_REQUIRE_UNPRIVILEGED_TEST_RUNNER=1",
             f"LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT=\"$TEMP_ROOT\"",
-            "/usr/bin/unshare --user --map-current-user --map-group=\"$NS_TEST_GID\" --mount --pid --fork --kill-child=SIGKILL",
+            "/usr/bin/unshare --user --map-current-user --map-group=\"$NS_TEST_GID\" --keep-caps --mount --pid --fork --kill-child=SIGKILL",
             f"/usr/bin/dash -eu {SOURCE_TEST_RUNNER}",
         ),
     )
@@ -520,7 +521,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "uid=$NS_TEST_UID,gid=$NS_TEST_GID,mode=0700,nosuid,nodev,noexec,size=128m",
             "exec /usr/bin/setpriv",
             "-- /usr/bin/env -i",
-            "/usr/bin/unshare --user --map-current-user --map-group=\"$NS_TEST_GID\" --mount --pid --fork",
+            "/usr/bin/unshare --user --map-current-user --map-group=\"$NS_TEST_GID\" --keep-caps --mount --pid --fork",
             f"/usr/bin/dash -eu {SOURCE_TEST_RUNNER}",
         ),
     )
@@ -556,8 +557,26 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         errors.append("trusted source teardown must not delete a same-UID writable path")
     if any(marker in source_namespace_runner for marker in ("run_git()", "python3", "rm -rf", "-depth -delete")):
         errors.append("root source namespace helper must not consume PR source")
-    if "--keep-caps" in source_namespace_runner:
+    if "--keep-caps" in source_runner:
         errors.append("source runner must not retain setup capabilities across exec")
+    source_capability_finalizer_pattern = (
+        r'/usr/bin/unshare --user --map-current-user --map-group="\$NS_TEST_GID" '
+        r'--keep-caps --mount --pid --fork --kill-child=SIGKILL --mount-proc=/proc '
+        r'--propagation private[ \t]*\\[ \t]*\n[ \t]*'
+        r'/usr/bin/setpriv[ \t]*\\[ \t]*\n[ \t]*'
+        r'--reuid="\$NS_TEST_UID"[ \t]*\\[ \t]*\n[ \t]*'
+        r'--regid="\$NS_TEST_GID"[ \t]*\\[ \t]*\n[ \t]*'
+        r'--clear-groups[ \t]*\\[ \t]*\n[ \t]*'
+        r'--no-new-privs[ \t]*\\[ \t]*\n[ \t]*'
+        r'--inh-caps=-all[ \t]*\\[ \t]*\n[ \t]*'
+        r'--ambient-caps=-all[ \t]*\\[ \t]*\n[ \t]*'
+        r'--bounding-set=-all[ \t]*\\[ \t]*\n[ \t]*'
+        rf'-- /usr/bin/dash -eu {re.escape(SOURCE_TEST_RUNNER)}'
+    )
+    if source_namespace_runner.count("--keep-caps") != 1:
+        errors.append("source namespace must retain capabilities only for one trusted finalizer transition")
+    if re.search(source_capability_finalizer_pattern, source_namespace_runner) is None:
+        errors.append("source namespace must drop recreated capabilities before the source runner")
     if text.count("/usr/bin/sudo -n") != 13:
         errors.append("unexpected privileged command inventory")
     if text.count("/usr/bin/sudo -n /usr/bin/aa-exec -p trusted-lighttpd-ci-userns -- ") != 2:
@@ -574,16 +593,19 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         errors.append("temporary tmpfs must be proven inside the private mount and source runner")
     if text.count('/usr/bin/grep -Eq "(shared:|master:)"') != 5:
         errors.append("every namespace probe and private mount must reject shared propagation")
-    if len(re.findall(r"(?<![A-Za-z0-9-])--no-new-privs(?![A-Za-z0-9-])", text)) != 2:
-        errors.append("both non-root privilege drops must set no_new_privs")
-    if text.count("--clear-groups") != 2:
-        errors.append("both non-root privilege drops must clear supplemental groups")
+    if len(re.findall(r"(?<![A-Za-z0-9-])--no-new-privs(?![A-Za-z0-9-])", text)) != 3:
+        errors.append("every non-root privilege drop, including the user-namespace finalizer, must set no_new_privs")
+    if text.count("--clear-groups") != 3:
+        errors.append("every non-root privilege drop, including the user-namespace finalizer, must clear supplemental groups")
+    for capability_drop in ("--inh-caps=-all", "--ambient-caps=-all", "--bounding-set=-all"):
+        if text.count(capability_drop) != 3:
+            errors.append(f"every non-root privilege drop, including the user-namespace finalizer, must retain {capability_drop}")
     if text.count("/usr/bin/unshare --user --map-root-user --mount --pid --fork") != 1:
         errors.append("the pre-materialization user/mount/PID probe is required")
     if text.count(
-        "/usr/bin/unshare --user --map-current-user --map-group=\"$NS_TEST_GID\" --mount --pid --fork"
+        "/usr/bin/unshare --user --map-current-user --map-group=\"$NS_TEST_GID\" --keep-caps --mount --pid --fork"
     ) != 1:
-        errors.append("source execution must enter one capless same-identity user/mount/PID namespace")
+        errors.append("source execution must enter one same-identity user/mount/PID namespace with a trusted capability finalizer")
     if text.count(
         "/usr/bin/bwrap --unshare-user --unshare-pid --disable-userns --assert-userns-disabled"
     ) != 1:
@@ -667,9 +689,9 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
                 "--map-current-user",
                 "--map-root-user",
             ),
-            "source namespace capability retained across exec": (
-                "--map-current-user",
-                "--keep-caps --map-current-user",
+            "source namespace capability finalizer moved outside the inner namespace": (
+                "exec /usr/bin/unshare --mount --pid --fork --kill-child=SIGKILL",
+                "exec /usr/bin/unshare --keep-caps --mount --pid --fork --kill-child=SIGKILL",
             ),
             "private source tmpfs removed": (
                 "uid=$NS_TEST_UID,gid=$NS_TEST_GID,mode=0700,nosuid,nodev,noexec,size=256m",
@@ -789,4 +811,28 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIn(original, text)
                 mutated = text.replace(original, replacement, 1)
+                self.assertNotEqual(trusted_dispatch_errors(mutated), [])
+
+        inner_finalizer_marker = (
+            '--map-group="$NS_TEST_GID" --keep-caps --mount --pid --fork '
+            '--kill-child=SIGKILL --mount-proc=/proc --propagation private'
+        )
+        inner_finalizer_index = text.index(inner_finalizer_marker)
+        inner_finalizer = text[inner_finalizer_index:]
+        finalizer_mutations = {
+            "source namespace capability retention removed": ("--keep-caps --mount", "--mount"),
+            "source namespace capability finalizer bypassed": ("/usr/bin/setpriv", "/usr/bin/dash"),
+            "source namespace finalizer retains supplemental groups": (
+                "--clear-groups",
+                "--supplementary-groups=ns-test",
+            ),
+            "source namespace finalizer loses no_new_privs": ("--no-new-privs", "--no-new-privileges"),
+            "source namespace finalizer retains inheritable capabilities": ("--inh-caps=-all", "--inh-caps=+all"),
+            "source namespace finalizer retains ambient capabilities": ("--ambient-caps=-all", "--ambient-caps=+all"),
+            "source namespace finalizer retains bounding capabilities": ("--bounding-set=-all", "--bounding-set=+all"),
+        }
+        for name, (original, replacement) in finalizer_mutations.items():
+            with self.subTest(name=name):
+                self.assertIn(original, inner_finalizer)
+                mutated = text[:inner_finalizer_index] + inner_finalizer.replace(original, replacement, 1)
                 self.assertNotEqual(trusted_dispatch_errors(mutated), [])

@@ -86,6 +86,7 @@ jobs:
           done
           /usr/bin/bwrap --help | /usr/bin/grep -F -- '--disable-userns' >/dev/null
           /usr/bin/bwrap --help | /usr/bin/grep -F -- '--assert-userns-disabled' >/dev/null
+          /usr/bin/unshare --help | /usr/bin/grep -F -- '--keep-caps' >/dev/null
           test -r /proc/sys/kernel/apparmor_restrict_unprivileged_userns
           read -r userns_restriction < /proc/sys/kernel/apparmor_restrict_unprivileged_userns
           test "$userns_restriction" = 1
@@ -356,8 +357,16 @@ jobs:
                 SOURCE_ROOT="$SOURCE_ROOT" \
                 TARGET_SHA="$TARGET_SHA" \
                 TRUSTED_ORIGIN="$TRUSTED_ORIGIN" \
-                /usr/bin/unshare --user --map-current-user --map-group="$NS_TEST_GID" --mount --pid --fork --kill-child=SIGKILL --mount-proc=/proc --propagation private \
-                  /usr/bin/dash -eu /var/lib/trusted-lighttpd-namespace/run-source-test.sh
+                /usr/bin/unshare --user --map-current-user --map-group="$NS_TEST_GID" --keep-caps --mount --pid --fork --kill-child=SIGKILL --mount-proc=/proc --propagation private \
+                  /usr/bin/setpriv \
+                    --reuid="$NS_TEST_UID" \
+                    --regid="$NS_TEST_GID" \
+                    --clear-groups \
+                    --no-new-privs \
+                    --inh-caps=-all \
+                    --ambient-caps=-all \
+                    --bounding-set=-all \
+                    -- /usr/bin/dash -eu /var/lib/trusted-lighttpd-namespace/run-source-test.sh
           '
           TRUSTED_SOURCE_NAMESPACE
           require_trusted_system_file /var/lib/trusted-lighttpd-namespace/run-source-namespace.sh
