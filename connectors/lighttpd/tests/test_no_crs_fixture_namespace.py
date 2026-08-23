@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import importlib.util
 import json
 import os
@@ -120,6 +121,20 @@ def _load_helper():
 
 HELPER = _load_helper()
 
+_ENCODED_PYTHON_PAYLOAD_RUNNER = (
+    "import base64,subprocess,sys;"
+    "raise SystemExit(subprocess.run("
+    "['/usr/bin/python3','-'],input=base64.b64decode(sys.argv[1],validate=True),"
+    "check=False).returncode)"
+)
+
+
+def _one_line_python_command(payload: str) -> list[str]:
+    """Encode a test-only multi-line Python payload without control chars."""
+
+    encoded_payload = base64.b64encode(payload.encode("utf-8")).decode("ascii")
+    return [PYTHON, "-c", _ENCODED_PYTHON_PAYLOAD_RUNNER, encoded_payload]
+
 
 def _runner_source(
     payload: str,
@@ -129,6 +144,7 @@ def _runner_source(
     writable_roots: tuple[Path, ...] = (),
 ) -> str:
     encoded_roots = repr([str(root) for root in writable_roots])
+    command = _one_line_python_command(payload)
     return textwrap.dedent(
         f"""
         import importlib.util
@@ -139,7 +155,7 @@ def _runner_source(
         sys.modules[spec.name] = helper
         spec.loader.exec_module(helper)
         {patch}
-        command = [{PYTHON!r}, "-c", {payload!r}]
+        command = {command!r}
         writable_roots = tuple(Path(value) for value in {encoded_roots})
         # The unit/integration harness must not inherit a potentially unrelated
         # checkout path from the test runner.  The helper derives its active
@@ -352,6 +368,30 @@ class NamespaceContractTest(unittest.TestCase):
                 "required unprivileged user/mount/PID namespace integration is unavailable: "
                 f"{reason}",
             )
+
+    def test_multiline_test_payload_keeps_command_validator_strict(self) -> None:
+        """Test code transports newlines without weakening the argv boundary."""
+
+        payload = 'print("encoded payload executed")\n'
+        command = _one_line_python_command(payload)
+        self.assertEqual(command[:3], [PYTHON, "-c", _ENCODED_PYTHON_PAYLOAD_RUNNER])
+        self.assertNotIn("exec(", command[2])
+        for argument in command:
+            self.assertNotIn("\x00", argument)
+            self.assertNotIn("\n", argument)
+            self.assertNotIn("\r", argument)
+            self.assertLessEqual(len(argument), HELPER.MAX_ARGUMENT_LENGTH)
+        self.assertEqual(HELPER._validate_command(command), command)
+        completed = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(completed.stdout, "encoded payload executed\n")
+        with self.assertRaises(HELPER.NamespaceUnavailable):
+            HELPER._validate_command([PYTHON, "-c", payload])
+        malformed = [PYTHON, "-c", _ENCODED_PYTHON_PAYLOAD_RUNNER, "###"]
+        malformed_completed = subprocess.run(
+            malformed, capture_output=True, text=True, check=False
+        )
+        self.assertNotEqual(malformed_completed.returncode, 0)
 
     def test_namespace_probe_diagnostic_is_bounded(self) -> None:
         """A forced gate explains capability failure without echoing helper output."""
