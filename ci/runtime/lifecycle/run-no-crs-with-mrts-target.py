@@ -292,6 +292,26 @@ def read_go_version_contract(parent: Path) -> str:
         stop(f"trusted Go version contract is invalid: {exc}")
 
 
+def _go_directory_is_trusted(metadata: os.stat_result, *, hosted_toolcache: bool) -> bool:
+    """Validate one directory on the selected Go binary's ancestry.
+
+    ``actions/setup-go`` may provision its hosted-toolcache tree with the
+    runner's primary group and group-write permission.  That is acceptable
+    only for the effective runner owner and its primary group, and never for
+    world-writable components.  The fixed ``/usr/local/go`` contract keeps
+    its stricter owner/non-writable rule.
+    """
+
+    mode = metadata.st_mode
+    if not hosted_toolcache:
+        return metadata.st_uid in {0, os.getuid()} and not mode & 0o022
+    if metadata.st_uid == os.geteuid() and metadata.st_gid == os.getgid():
+        return not mode & 0o002
+    if metadata.st_uid == 0:
+        return not mode & 0o022
+    return False
+
+
 def active_go_provenance(parent: Path) -> tuple[Path, str, str]:
     """Bind the existing setup-go binary to its approved root and version."""
 
@@ -303,7 +323,9 @@ def active_go_provenance(parent: Path) -> tuple[Path, str, str]:
         stop("trusted Go invocation must be absolute and traversal-free")
     if has_symlink_component(executable) or executable.is_symlink() or parent in executable.parents:
         stop("trusted Go invocation contains a symlink component")
-    if not any(root == executable or root in executable.parents for root in (Path("/usr/local/go"), Path("/opt/hostedtoolcache/go"))):
+    hosted_toolcache_root = Path("/opt/hostedtoolcache/go")
+    hosted_toolcache = hosted_toolcache_root == executable or hosted_toolcache_root in executable.parents
+    if not any(root == executable or root in executable.parents for root in (Path("/usr/local/go"), hosted_toolcache_root)):
         stop("trusted Go invocation is outside the approved setup-go roots")
     try:
         resolved = executable.resolve(strict=True)
@@ -316,12 +338,16 @@ def active_go_provenance(parent: Path) -> tuple[Path, str, str]:
         or not os.access(resolved, os.R_OK | os.X_OK)
     ):
         stop("trusted Go binary is unavailable")
+    hosted_toolcache_parent = Path("/opt/hostedtoolcache")
     for directory in (executable.parent, *executable.parents):
         try:
             metadata = directory.stat()
         except OSError as exc:
             stop(f"trusted Go binary parent is unavailable: {exc}")
-        if metadata.st_uid not in {0, os.getuid()} or metadata.st_mode & 0o022:
+        hosted_component = hosted_toolcache and (
+            directory == hosted_toolcache_parent or hosted_toolcache_parent in directory.parents
+        )
+        if not _go_directory_is_trusted(metadata, hosted_toolcache=hosted_component):
             stop("trusted Go binary is not owner-controlled and non-writable")
     try:
         version = subprocess.check_output(

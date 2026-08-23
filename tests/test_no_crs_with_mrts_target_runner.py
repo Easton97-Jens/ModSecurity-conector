@@ -127,6 +127,31 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         with mock.patch.object(TARGET.shutil, "which", return_value="/tmp/go"), self.assertRaises(SystemExit):
             TARGET.active_go_executable(ROOT)
 
+    def test_hosted_toolcache_allows_runner_primary_group_write_without_world_write(self):
+        metadata = os.stat_result((0o100775, 0, 0, 1, os.geteuid(), os.getgid(), 0, 0, 0, 0))
+        self.assertTrue(TARGET._go_directory_is_trusted(metadata, hosted_toolcache=True))
+
+    def test_hosted_toolcache_rejects_unsafe_group_world_write_and_wrong_owner(self):
+        current_uid = os.geteuid()
+        current_gid = os.getgid()
+        cases = (
+            (0o100775, current_uid, current_gid + 1),
+            (0o100777, current_uid, current_gid),
+            (0o100775, current_uid + 1, current_gid),
+        )
+        for mode, uid, gid in cases:
+            with self.subTest(mode=oct(mode), uid=uid, gid=gid):
+                metadata = os.stat_result((mode, 0, 0, 1, uid, gid, 0, 0, 0, 0))
+                self.assertFalse(TARGET._go_directory_is_trusted(metadata, hosted_toolcache=True))
+
+    def test_usr_local_go_keeps_strict_non_writable_contract(self):
+        metadata = os.stat_result((0o100775, 0, 0, 1, os.getuid(), os.getgid(), 0, 0, 0, 0))
+        self.assertFalse(TARGET._go_directory_is_trusted(metadata, hosted_toolcache=False))
+
+    def test_outer_parent_rejects_runner_group_write_even_with_effective_owner(self):
+        metadata = os.stat_result((0o100775, 0, 0, 1, os.geteuid(), os.getgid(), 0, 0, 0, 0))
+        self.assertFalse(TARGET._go_directory_is_trusted(metadata, hosted_toolcache=False))
+
     def test_go_version_contract_accepts_bounded_canonical_file(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
