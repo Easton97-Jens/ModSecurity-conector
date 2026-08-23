@@ -28,6 +28,14 @@ the publisher obtains a short-lived, repository-limited GitHub App token only
 after candidate and proposed-tree validation. It creates Draft pull requests
 only after explicit path, symlink, staged-scope, and candidate-SHA-256 checks.
 
+Workflow maintenance has one owner: Dependabot does not manage
+`github-actions` here. The updater resolves each lock record as a unit,
+updates every matching Action suffix (including all `github/codeql-action`
+components) and the central lock in one candidate, validates the complete
+proposed tree, and creates at most one matching Parent Draft pull request. All
+checkout steps use `submodules: false`; Framework/MRTS sources and gitlinks are
+outside this workflow's scope.
+
 The checked-in `ci/tooling/security-tools.lock.yml` remains the only lockfile
 and source of truth. Its on-disk `pinned_actions` records use `commit_sha` and
 `upstream`; tool records use `release_commit`, `url`, and `upstream`. The
@@ -44,7 +52,7 @@ not need a parallel lock schema.
 | `actions/setup-python` | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` |
 | `actions/upload-artifact` | `v7.0.1` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` |
 | `github/codeql-action` | `v4.37.6` | `5595ccaf912efad79be6eef63a5619ff05969be3` |
-| `google/osv-scanner-action` | `v2.5.0` | `8deb546fdb875b9996d27d4950be7312dac076a1` |
+| `google/osv-scanner-action` | `v2.5.1` | `6e4298ebc4db23e847df9b2e2de2939d6f066c67` |
 | `ossf/scorecard-action` | `v2.4.4` | `2d1146689b8cda280b9bc96326124645441f03bc` |
 
 For hosted execution, configure the repository variable
@@ -52,6 +60,53 @@ For hosted execution, configure the repository variable
 `WORKFLOW_UPDATER_APP_PRIVATE_KEY`. Do not place either value in the
 repository. The GitHub App must be limited to this repository and grant only
 `Contents: write`, `Pull requests: write`, and `Workflows: write`.
+
+## Constrained Python 3.14 patch updater
+
+`.github/workflows/update-python-version.yml` has exactly four jobs:
+`resolve-python-patch`, `validate-python-patch`, `publish-python-update`, and
+`report-python-update-outcome`. It is triggered only by Monday's `17 6 * * 1`
+schedule or `workflow_dispatch`, serializes per repository through
+`modsecurity-conector-python-version-maintenance-${{ github.repository }}`
+without cancelling a running maintenance attempt, and admits work only for the
+canonical non-fork `Easton97-Jens/ModSecurity-conector` `master` ref.
+
+The resolver uses the exact trusted event SHA, the canonical `.python-version`,
+and `scripts/update-python-version.py --check --json` to emit the typed
+`status`, `current_version`, `latest_version`, and `update_available` outputs.
+The validator independently installs and verifies the candidate patch,
+re-resolves it with `--expected-version`, uses hash-locked CI dependencies,
+and runs the Python/version and CI-security contracts before publication.
+Both jobs have only `contents: read`.
+
+The normal `GITHUB_TOKEN` remains `contents: read` in the publisher. Only that
+job reads the App configuration, mints the existing SHA-pinned GitHub App
+token, and limits that token to `Contents: write` and `Pull requests: write`.
+It never requests `Workflows`, `Actions`, or `Issues` write permission; the
+broader `Workflows: write` grant above belongs only to the separate
+workflow/tool updater. The publisher has no `github.token` write path.
+
+The publisher bridges the `changed` step output into a named environment
+variable before shell execution and accepts only the literal `true` value. It
+does not interpolate GitHub Actions expressions directly into a shell command;
+that keeps the output guard fail-closed and avoids workflow-template injection.
+
+Before it writes, the publisher requires either no maintenance branch and no
+matching PR, or exactly one same-repository Draft PR with the fixed title and
+marker `<!-- modsecurity-conector-python-314-updater -->`, `master` base, and
+automatic merge disabled. It verifies an existing branch's historical scope,
+then rebuilds from current trusted `origin/master`, applies only
+`.python-version`, stages only that file, and uses the exact
+`--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP` form only
+when safely replacing the verified maintenance branch. An unconditional force
+push, a default-branch update, merge, or auto-merge is not permitted.
+
+The resulting same-repository Draft PR records the prior/proposed version,
+Python.org metadata URL, validation-run URL, Framework reference SHA, and the
+manual-review/manual-merge requirement in English and German. The zero-
+permission `report-python-update-outcome` job always runs and rejects
+inconsistent resolver, validator, or publisher states; for a current result it
+reports that no branch, commit, or PR changed.
 
 ## Workflow linting
 

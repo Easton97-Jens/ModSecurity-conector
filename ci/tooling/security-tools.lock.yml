@@ -32,12 +32,12 @@ pinned_actions:
     commit_sha: 3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
     upstream: https://github.com/actions/download-artifact
   github/codeql-action:
-    version: v4.37.6
-    commit_sha: 5595ccaf912efad79be6eef63a5619ff05969be3
+    version: v4.37.8
+    commit_sha: db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28
     upstream: https://github.com/github/codeql-action
   google/osv-scanner-action:
-    version: v2.5.0
-    commit_sha: 8deb546fdb875b9996d27d4950be7312dac076a1
+    version: v2.5.1
+    commit_sha: 6e4298ebc4db23e847df9b2e2de2939d6f066c67
     upstream: https://github.com/google/osv-scanner-action
   ossf/scorecard-action:
     version: v2.4.4

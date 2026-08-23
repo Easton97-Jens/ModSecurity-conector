@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -26,6 +27,7 @@ type bodyCall struct {
 
 type recordingTransaction struct {
 	headerCalls    []headerCall
+	headerValues   [][]Header
 	bodyCalls      []bodyCall
 	contexts       []context.Context
 	closed         []Summary
@@ -36,10 +38,89 @@ type recordingTransaction struct {
 func (transaction *recordingTransaction) ProcessHeaders(value context.Context, direction Direction, headers []Header, end bool) (Decision, error) {
 	transaction.contexts = append(transaction.contexts, value)
 	transaction.headerCalls = append(transaction.headerCalls, headerCall{direction: direction, end: end, count: len(headers)})
+	transaction.headerValues = append(transaction.headerValues, append([]Header(nil), headers...))
 	if transaction.headerDecision != nil {
 		return transaction.headerDecision(direction, headers, end), nil
 	}
 	return allowDecision(), nil
+}
+
+func requestHeaderValues(transaction *recordingTransaction) []Header {
+	for index, call := range transaction.headerCalls {
+		if call.direction == DirectionRequest {
+			return transaction.headerValues[index]
+		}
+	}
+	return nil
+}
+
+func TestMiddlewareForwardsRequestAuthorityAsHostHeader(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example:8443/resource", nil)
+	if request.Header.Get("Host") != "" {
+		t.Fatal("httptest request unexpectedly stored authority in Header")
+	}
+
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+
+	if got, want := response.Code, http.StatusNoContent; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	var hosts []string
+	for _, header := range requestHeaderValues(transaction) {
+		if strings.EqualFold(header.Name, "Host") {
+			hosts = append(hosts, header.Value)
+		}
+	}
+	if got, want := hosts, []string{"authority.example:8443"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("forwarded Host values = %#v, want %#v", got, want)
+	}
+}
+
+func TestMiddlewarePreservesExistingHostHeaderWithoutAuthorityDuplicate(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = "authority.example"
+	request.Header.Set("Host", "header.example")
+
+	middleware.ServeHTTP(httptest.NewRecorder(), request)
+
+	var hosts []string
+	for _, header := range requestHeaderValues(transaction) {
+		if strings.EqualFold(header.Name, "Host") {
+			hosts = append(hosts, header.Value)
+		}
+	}
+	if got, want := hosts, []string{"header.example"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("preserved Host values = %#v, want %#v", got, want)
+	}
+}
+
+func TestMiddlewareRejectsInvalidAuthorityBeforeEngineHeaders(t *testing.T) {
+	transaction := &recordingTransaction{}
+	nextCalled := false
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		nextCalled = true
+	}), transaction)
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = "authority.example\r\nInjected: yes"
+	response := httptest.NewRecorder()
+
+	middleware.ServeHTTP(response, request)
+
+	if nextCalled {
+		t.Fatal("next handler ran for invalid authority")
+	}
+	if got, want := response.Code, http.StatusRequestHeaderFieldsTooLarge; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
 }
 
 func (transaction *recordingTransaction) ProcessBody(value context.Context, direction Direction, body []byte, end bool) (Decision, error) {

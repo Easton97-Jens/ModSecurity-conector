@@ -27,7 +27,7 @@ VERIFIER_NAME = "Verify Python interpreter contract"
 CANDIDATE_VERIFIER_NAME = "Verify Python candidate interpreter contract"
 VERIFIER_PATH = "ci/checks/common/check-python-interpreter-contract.py"
 SETUP_PYTHON_OUTPUT = "${{ steps.setup-python.outputs.python-path }}"
-CANDIDATE_VERSION_OUTPUT = "${{ needs.resolve-python-patch.outputs.version }}"
+CANDIDATE_VERSION_OUTPUT = "${{ needs.resolve-python-patch.outputs.latest_version }}"
 NORMAL_VERIFIER_COMMAND = (
     f'python3 {VERIFIER_PATH} --version-file .python-version '
     '--expected-python "$EXPECTED_PYTHON"'
@@ -38,6 +38,7 @@ CANDIDATE_VERIFIER_COMMAND = (
 )
 UPDATE_PYTHON_VERSION_WORKFLOW = "update-python-version.yml"
 UPDATE_GO_VERSION_WORKFLOW = "update-go-version.yml"
+UPDATE_WORKFLOW_TOOLS_WORKFLOW = "update-workflow-tools.yml"
 CI_SECURITY_WORKFLOW_LINT_WORKFLOW = "ci-security-workflow-lint.yml"
 PROTECTED_NGINX_BROKER_CALLER_WORKFLOW = "run-protected-nginx-root-broker.yml"
 PROTECTED_NGINX_BROKER_REUSABLE_WORKFLOW = (
@@ -70,7 +71,6 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity(REUSABLE_FIVE_CONNECTORS_PROFILE_WORKFLOW, "aggregate"),
         JobIdentity(REUSABLE_FIVE_CONNECTORS_PROFILE_WORKFLOW, "no-crs"),
         JobIdentity(REUSABLE_FIVE_CONNECTORS_PROFILE_WORKFLOW, "resolve-profile"),
-        JobIdentity("check-actions-versions.yml", "check-actions-versions"),
         JobIdentity("ci-security-secrets.yml", "advisory-full-history"),
         JobIdentity("ci-security-secrets.yml", "pull-request-range"),
         JobIdentity(CI_SECURITY_WORKFLOW_LINT_WORKFLOW, "actionlint"),
@@ -84,6 +84,7 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("quick-framework-check.yml", "quick-check"),
         JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "prepare-manifests"),
         JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "verify-evidence"),
+        JobIdentity("test-apache.yml", "apache-autotools-bootstrap"),
         JobIdentity("test-apache.yml", "apache-structure"),
         JobIdentity("test-common.yml", "common-structure"),
         JobIdentity("test-connectors-no-crs-no-mrts.yml", "connector-mode"),
@@ -92,17 +93,20 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("test-connectors-with-crs-with-mrts.yml", "connector-mode"),
         JobIdentity("test-envoy.yml", "envoy-contract"),
         JobIdentity("test-full-smoke-sequential.yml", "manual-heavy-runtime-validation"),
+        JobIdentity("test-haproxy.yml", "haproxy-structure"),
         JobIdentity("test-lighttpd.yml", "lighttpd-contract"),
         JobIdentity("test-nginx.yml", "nginx-structure"),
         JobIdentity("test-traefik.yml", "traefik-contract"),
-        JobIdentity("update-actions-versions.yml", "update-actions-versions"),
-        JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "create-python-update-pr"),
+        JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "publish-python-update"),
         JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "resolve-python-patch"),
         JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "create-go-update-pr"),
         JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "resolve-go-patch"),
         JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "validate-go-patch"),
+        JobIdentity("update-submodules.yml", "create-submodule-update-pr"),
         JobIdentity("update-submodules.yml", "validate-submodule-update"),
-        JobIdentity("verified-report-governance.yml", "verified-report-contract-preflight"),
+        JobIdentity(UPDATE_WORKFLOW_TOOLS_WORKFLOW, "publisher"),
+        JobIdentity(UPDATE_WORKFLOW_TOOLS_WORKFLOW, "resolver"),
+        JobIdentity(UPDATE_WORKFLOW_TOOLS_WORKFLOW, "validator"),
         JobIdentity("verified-report-governance.yml", "report-governance"),
     }
 )
@@ -1665,7 +1669,7 @@ def candidate_setup_violations(job: Job, setup: Step) -> list[str]:
     if with_values.get("python-version") != CANDIDATE_VERSION_OUTPUT:
         errors.append(
             "candidate setup-python must use exactly "
-            "python-version: ${{ needs.resolve-python-patch.outputs.version }}"
+            "python-version: ${{ needs.resolve-python-patch.outputs.latest_version }}"
         )
     if "python-version-file" in with_values:
         errors.append("candidate setup-python must not use python-version-file")
@@ -1688,7 +1692,7 @@ def candidate_verifier_violations(verifier: Step) -> list[str]:
     if env.get("EXPECTED_VERSION") != CANDIDATE_VERSION_OUTPUT:
         errors.append(
             "candidate verifier EXPECTED_VERSION must be exactly "
-            "${{ needs.resolve-python-patch.outputs.version }}"
+            "${{ needs.resolve-python-patch.outputs.latest_version }}"
         )
     if env.get("EXPECTED_PYTHON") != SETUP_PYTHON_OUTPUT:
         errors.append(

@@ -76,6 +76,7 @@ ENGINE_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-engine-lifecyc
 FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT='/./{p;q;}'
 TRANSPORT_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-transport-lifecycle-artifacts.py
 HOSTRUNTIME_RECORD_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-hostruntime-record.py
+LIGHTTPD_HOST_BINARY_RESOLVER=$CONNECTOR_ROOT/ci/runtime/lifecycle/resolve-lighttpd-host-binary.py
 TRAEFIK_ARTIFACT_STAGER=$CONNECTOR_ROOT/ci/runtime/lifecycle/stage-traefik-runtime-artifacts.py
 SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
 
@@ -121,6 +122,10 @@ fi
 }
 [ -f "$HOSTRUNTIME_RECORD_WRITER" ] || {
     echo "FAIL: hostruntime record writer is missing: $HOSTRUNTIME_RECORD_WRITER" >&2
+    exit 1
+}
+[ -f "$LIGHTTPD_HOST_BINARY_RESOLVER" ] || {
+    echo "FAIL: Lighttpd host-binary resolver is missing: $LIGHTTPD_HOST_BINARY_RESOLVER" >&2
     exit 1
 }
 [ -f "$TRAEFIK_ARTIFACT_STAGER" ] || {
@@ -564,6 +569,7 @@ TRAEFIK_CONFIG_ROOT="$TRAEFIK_RUNTIME_ROOT/config" \
 TRAEFIK_LOG_ROOT="$HOST_LOG_ROOT/traefik" \
 TRAEFIK_RESULT_ROOT="$TRAEFIK_RUNTIME_ROOT" \
 TRAEFIK_NATIVE_RUNTIME_ROOT="$TRAEFIK_RUNTIME_ROOT" \
+TRAEFIK_FIRST_BYTE_EVIDENCE_ROOT="$CONNECTOR_RUN_ROOT" \
 TRAEFIK_BUILD_ROOT="$CONNECTOR_BUILD_ROOT/traefik-connector" \
 TRAEFIK_CONNECTOR_BUILD_DIR="$CONNECTOR_BUILD_ROOT/traefik-connector" \
 TRAEFIK_CONNECTOR_BIN="$CONNECTOR_BUILD_ROOT/traefik-connector/traefik-forwardauth" \
@@ -936,7 +942,15 @@ case "$connector" in
         if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
             host_binary=$HOST_RUNTIME_ROOT/lighttpd-patched/stage/bin/lighttpd
         else
-            host_binary=$CONNECTOR_COMPONENT_CACHE/lighttpd/bin/lighttpd
+            # Only record the version of the fixed connector-local staged
+            # binary. An absent or unsafe staged file deliberately leaves the
+            # host version at not_provisioned; inherited LIGHTTPD_BIN values,
+            # shared-cache paths, and system fallbacks are never consumed.
+            host_binary=$("$PYTHON" "$LIGHTTPD_HOST_BINARY_RESOLVER" \
+                --build-root "$CONNECTOR_BUILD_ROOT") || {
+                echo "INFO: staged Lighttpd host binary is unavailable or unsafe; host version remains not_provisioned" >&2
+                host_binary=
+            }
         fi
         ;;
     *)
@@ -944,7 +958,7 @@ case "$connector" in
         exit 2
         ;;
 esac
-if [ -x "$host_binary" ]; then
+if [ -n "$host_binary" ] && [ -x "$host_binary" ]; then
     case "$connector" in
         apache)
             apache_runtime_lib=$(dirname "$(dirname "$host_binary")")/lib
@@ -1131,6 +1145,7 @@ HOSTRUNTIME_SUMMARY=$EVIDENCE_ROOT/$connector/$NO_CRS_RUN_ID/hostruntime-summary
 if [ -f "$FINAL_RESULT" ]; then
     "$PYTHON" "$HOSTRUNTIME_RECORD_WRITER" \
         --result "$FINAL_RESULT" \
+        --manifest "$EVIDENCE_ROOT/$connector/$NO_CRS_RUN_ID/manifest.json" \
         --output "$HOSTRUNTIME_RECORD" \
         --summary "$HOSTRUNTIME_SUMMARY" \
         --runtime-root "$CANONICAL_VERIFIED_RUN_ROOT" \

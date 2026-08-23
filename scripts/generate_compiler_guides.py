@@ -62,6 +62,7 @@ def read_python_literals(path: Path, expected_names: set[str]) -> dict[str, str]
 LIGHTTPD_CONTRACT = read_assignment_contract(
     ROOT / "connectors" / "lighttpd" / "lighttpd-version.contract",
     {
+        "LIGHTTPD_SERIES",
         "LIGHTTPD_VERSION",
         "LIGHTTPD_SOURCE_URL",
         "LIGHTTPD_DOWNLOAD_URL",

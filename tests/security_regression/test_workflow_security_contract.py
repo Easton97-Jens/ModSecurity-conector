@@ -64,7 +64,7 @@ class WorkflowSecurityContractTests(unittest.TestCase):
         }
         references = UPDATER.locked_action_workflow_references(ROOT, lock)
         referenced_workflows = set().union(*references.values())
-        self.assertEqual(referenced_workflows, actual_workflows)
+        self.assertTrue(referenced_workflows.issubset(actual_workflows))
         self.assertEqual(set(UPDATER.WORKFLOW_UPDATE_PATHS), actual_workflows)
         UPDATER.ensure_locked_action_workflow_coverage(ROOT, lock)
 

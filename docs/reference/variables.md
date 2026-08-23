@@ -231,6 +231,50 @@ SHA-256. `NGINX_REQUIRE_PINNED_PROVENANCE=1` also rejects inherited native
 binary/module overrides. Update every value atomically and review the whole
 tuple; a system or MRTS NGINX binary is not full-smoke evidence.
 
+#### Static Framework component-pin projection
+
+`ci/tools/sync-framework-component-versions.py` reads the checked Framework
+`ci/lib/common.sh` as a bounded UTF-8 data file. It never sources, imports,
+executes, shells out to, or evaluates that file. The Parent accepts only the
+fixed source registry required by its registered projections. The registry
+labels each entry as a direct Parent consumer or a resolution dependency;
+unconsumed Framework-only pins such as Go-FTW, Albedo, Python, Action, and CI
+tool pins are ignored and do not create a second Parent authority.
+
+For a registered source field, the accepted assignment grammar is deliberately
+small: a direct literal, `$NAME`, `${NAME}`, concatenated safe literal and
+allowlisted-reference pieces, and the one canonical prefix removal
+`${NGINX_RELEASE_TAG#release-}` for the NGINX release asset. The only retained
+self-default is the static `NGINX_QUIC_TLS_LIBRARY` fallback to `openssl`; it
+does not read the caller environment. Command/process substitution, backticks,
+`eval`, separators, pipes, redirections, CR/LF, arithmetic expansion,
+unsupported parameter operators, unknown or non-allowlisted references,
+duplicates, cycles, missing/empty fields, and malformed tuples fail closed
+before any target is written.
+
+Lighttpd is a series-derived tuple:
+`LIGHTTPD_SERIES` is ASCII `X.Y`, `LIGHTTPD_VERSION` is ASCII `X.Y.Z`, and the
+official `https://download.lighttpd.net/lighttpd` root derives the series base,
+source URL, archive name, and download URL. The parser rejects authority,
+credential, query, fragment, duplicate-path, archive, version, or SHA-256
+drift. `connectors/lighttpd/lighttpd-version.contract` and
+`connectors/lighttpd/SOURCE_MAP.json` are generated Parent views and include
+the explicit `LIGHTTPD_SERIES` provenance field. The shell contract has no
+schema-version field; its reader accepts the additive key, so no separate
+schema-version increase is required.
+
+Generic `HAPROXY_*` and `HAPROXY_HTX_*` are independent validated tuples. Each
+binds series, version, archive name, source URL, and SHA-256 to the official
+HAProxy root. The generic tuple remains the runtime-provisioning input, while
+`connectors/haproxy/htx-overlay/version-contract.json` is generated solely
+from the HTX tuple; neither tuple falls back to the other. NGINX continues to
+bind `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_ASSET_NAME`,
+`NGINX_QUIC_TLS_ARCHIVE_NAME`, and `NGINX_QUIC_TLS_SOURCE_URL` atomically to
+the exact repository, tag, OpenSSL version, asset, and SHA-256 values.
+
+Parsing or projecting these values is not source, build, configuration,
+runtime, CRS, HTTP/2, HTTP/3, QUIC, production, or hosted-workflow evidence.
+
 <code>CC</code>, <code>CXX</code>, <code>CPPFLAGS</code>, <code>CFLAGS</code>,
 <code>CXXFLAGS</code>, <code>LDFLAGS</code>, <code>LIBS</code>,
 <code>PKG_CONFIG_PATH</code>, <code>LD_LIBRARY_PATH</code>, and

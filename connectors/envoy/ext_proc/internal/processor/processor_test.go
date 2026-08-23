@@ -112,6 +112,37 @@ func TestResponseHeaderDenyUsesImmediateResponseBeforeCommit(t *testing.T) {
 	}
 }
 
+func TestExplicitEmptyRequestDoesNotSynthesizeBody(t *testing.T) {
+	transaction := &recordingTransaction{}
+	service := newTestService(t, transaction, LateActionSafe)
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+		{request: requestHeadersWithExplicitEmptyBody()},
+		{request: responseHeaders(false)},
+	}}
+
+	if err := service.Process(stream); err != nil {
+		t.Fatalf("Process() error = %v", err)
+	}
+	if got, want := len(stream.sent), 2; got != want {
+		t.Fatalf("sent responses = %d, want %d", got, want)
+	}
+	if stream.sent[0].GetRequestHeaders() == nil {
+		t.Fatalf("request headers did not receive a continue response: %#v", stream.sent[0])
+	}
+	if stream.sent[1].GetResponseHeaders() == nil {
+		t.Fatalf("response headers unexpectedly became an immediate response: %#v", stream.sent[1])
+	}
+	if got := transaction.requestBodyLengths; len(got) != 0 {
+		t.Fatalf("explicitly empty request synthesized body chunks = %v", got)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != ClosePeerEOF {
+		t.Fatalf("unexpected cleanup after explicit empty request: %#v", transaction.closed)
+	}
+	if len(transaction.hostActions) != 0 {
+		t.Fatalf("explicitly empty request recorded host actions: %#v", transaction.hostActions)
+	}
+}
+
 func TestFailedImmediateResponseDoesNotRecordHostAction(t *testing.T) {
 	transaction := &recordingTransaction{
 		headerDecision: func(direction Direction) Decision {
@@ -295,6 +326,51 @@ func TestRequestMetadataUsesEnvoyAttributesWithoutPeerInference(t *testing.T) {
 	}
 }
 
+func TestRequestMetadataRejectsMismatchedAuthorityAndHost(t *testing.T) {
+	authorityAndHost := func(authorityFirst bool) []Header {
+		authority := Header{Name: ":authority", Value: []byte("trusted.example")}
+		host := Header{Name: "Host", Value: []byte("attacker.example")}
+		if authorityFirst {
+			return []Header{authority, host}
+		}
+		return []Header{host, authority}
+	}
+
+	for name, headers := range map[string][]Header{
+		"authority before Host": authorityAndHost(true),
+		"Host before authority": authorityAndHost(false),
+		"duplicate Host after matching Host": {
+			{Name: ":authority", Value: []byte("trusted.example")},
+			{Name: "Host", Value: []byte("trusted.example")},
+			{Name: "Host", Value: []byte("attacker.example")},
+		},
+		"duplicate authority after matching authority": {
+			{Name: ":authority", Value: []byte("trusted.example")},
+			{Name: ":authority", Value: []byte("attacker.example")},
+			{Name: "Host", Value: []byte("trusted.example")},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := requestMetadataFromEnvoy(headers, map[string]*structpb.Struct{}); err == nil {
+				t.Fatal("requestMetadataFromEnvoy() accepted mismatched :authority and Host")
+			}
+		})
+	}
+}
+
+func TestRequestMetadataAcceptsCaseInsensitiveMatchingAuthorityAndHost(t *testing.T) {
+	metadata, err := requestMetadataFromEnvoy([]Header{
+		{Name: ":authority", Value: []byte("Example.TEST:8443")},
+		{Name: "Host", Value: []byte("example.test:8443")},
+	}, map[string]*structpb.Struct{})
+	if err != nil {
+		t.Fatalf("requestMetadataFromEnvoy() error = %v", err)
+	}
+	if got, want := metadata.Hostname, "Example.TEST:8443"; got != want {
+		t.Fatalf("Hostname = %q, want authority %q", got, want)
+	}
+}
+
 func TestEnvoyEndpointAddressKeepsOnlyTheHostComponentOfSocketAttributes(t *testing.T) {
 	for input, want := range map[string]string{
 		"192.0.2.10:45678":  "192.0.2.10",
@@ -446,6 +522,15 @@ func requestHeaders(eos bool) *extprocv3.ProcessingRequest {
 		}},
 		EndOfStream: eos,
 	}}}
+}
+
+func requestHeadersWithExplicitEmptyBody() *extprocv3.ProcessingRequest {
+	request := requestHeaders(false)
+	request.GetRequestHeaders().Headers.Headers = append(
+		request.GetRequestHeaders().Headers.Headers,
+		&corev3.HeaderValue{Key: "content-length", Value: "0"},
+	)
+	return request
 }
 
 func responseHeaders(eos bool) *extprocv3.ProcessingRequest {

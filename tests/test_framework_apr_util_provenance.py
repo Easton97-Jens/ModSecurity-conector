@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
 BRIDGE = ROOT / "ci" / "tools" / "print-framework-apr-util-env.sh"
@@ -37,12 +39,14 @@ APR_KEYS = {suffix: apr_key(suffix) for suffix in ("VERSION", "SOURCE_URL", "SHA
 
 
 class FrameworkAprUtilProvenanceTest(unittest.TestCase):
-    def require_current_framework(self) -> None:
-        if not (FRAMEWORK_ROOT / "ci" / "lib" / "common.sh").is_file():
-            self.skipTest(
-                "Framework submodule is unavailable; set PARENT_TEST_FRAMEWORK_ROOT "
-                "for a read-only local checkout or use the recursive hosted checkout"
-            )
+    def setUp(self) -> None:
+        framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+        if framework_root is None:
+            self.skipTest(error)
+        self.framework_root = framework_root
+
+    def require_current_framework(self) -> Path:
+        return self.framework_root
 
     @staticmethod
     def fixture_tuple(version: str, digest: str) -> dict[str, str]:
@@ -63,8 +67,8 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
 
     def bridge(
         self,
+        framework_root: Path,
         environment: dict[str, str] | None = None,
-        framework_root: Path = FRAMEWORK_ROOT,
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["/bin/sh", str(BRIDGE), str(framework_root), str(ROOT)],
@@ -76,8 +80,7 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
         )
 
     def canonical_tuple(self) -> dict[str, str]:
-        self.require_current_framework()
-        result = self.bridge(self.clean_environment())
+        result = self.bridge(self.require_current_framework(), self.clean_environment())
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(result.stdout.splitlines()), 4)
         values, error = components._guarded_apr_util_tuple(result.stdout.encode("utf-8"))
@@ -112,9 +115,12 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
         canonical = self.canonical_tuple()
         inherited = self.clean_environment()
         inherited.update(canonical)
-        result = self.bridge(inherited)
+        result = self.bridge(self.framework_root, inherited)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, self.bridge(self.clean_environment()).stdout)
+        self.assertEqual(
+            result.stdout,
+            self.bridge(self.framework_root, self.clean_environment()).stdout,
+        )
 
     def test_bridge_rejects_partial_and_empty_tuples(self) -> None:
         canonical = self.canonical_tuple()
@@ -123,20 +129,20 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
             with self.subTest(partial=key):
                 environment = self.clean_environment()
                 environment[key] = canonical[key]
-                result = self.bridge(environment)
+                result = self.bridge(self.framework_root, environment)
                 self.assertEqual(result.returncode, 77)
                 self.assertEqual(result.stdout, "")
         for size in (2, 3):
             with self.subTest(partial_size=size):
                 environment = self.clean_environment()
                 environment.update({key: canonical[key] for key in ordered_keys[:size]})
-                result = self.bridge(environment)
+                result = self.bridge(self.framework_root, environment)
                 self.assertEqual(result.returncode, 77)
         for key in ordered_keys:
             with self.subTest(empty=key):
                 environment = self.clean_environment()
                 environment[key] = ""
-                result = self.bridge(environment)
+                result = self.bridge(self.framework_root, environment)
                 self.assertEqual(result.returncode, 77)
                 self.assertEqual(result.stdout, "")
 
@@ -155,12 +161,12 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
                 environment = self.clean_environment()
                 environment.update(canonical)
                 environment[key] = replacement
-                result = self.bridge(environment)
+                result = self.bridge(self.framework_root, environment)
                 self.assertEqual(result.returncode, 77)
                 self.assertEqual(result.stdout, "")
         alternative = self.clean_environment()
         alternative.update(self.fixture_tuple("9.9.9", "a" * 64))
-        result = self.bridge(alternative)
+        result = self.bridge(self.framework_root, alternative)
         self.assertEqual(result.returncode, 77)
         self.assertEqual(result.stdout, "")
 
@@ -174,7 +180,7 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
             'test "$first" = "$second"'
         )
         result = subprocess.run(
-            ["/bin/sh", "-eu", "-c", script, "framework-child-source", str(FRAMEWORK_ROOT)],
+            ["/bin/sh", "-eu", "-c", script, "framework-child-source", str(self.framework_root)],
             cwd=ROOT,
             env=self.clean_environment(),
             text=True,
@@ -191,7 +197,7 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
             f'{version_key}=9.9.9; ci_require_apr_util_pinned_provenance'
         )
         result = subprocess.run(
-            ["/bin/sh", "-eu", "-c", script, "framework-post-source-mutation", str(FRAMEWORK_ROOT)],
+            ["/bin/sh", "-eu", "-c", script, "framework-post-source-mutation", str(self.framework_root)],
             cwd=ROOT,
             env=self.clean_environment(),
             text=True,
@@ -200,41 +206,72 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 77, result.stderr)
 
-    def test_framework_guard_environment_removes_tuple_and_startup_hooks(self) -> None:
+    def test_framework_guard_environment_removes_tuple_startup_hooks_and_internal_snapshots(self) -> None:
         base = self.fixture_tuple("7.8.9", "a" * 64)
-        base.update({"ENV": "hook", "BASH_ENV": "hook", "SHELLOPTS": "nounset", "PATH": "/unsafe"})
+        base.update(
+            {
+                "ENV": "hook",
+                "BASH_ENV": "hook",
+                "SHELLOPTS": "nounset",
+                "PATH": "/unsafe",
+                "CI_INHERITED_UPSTREAM_ENV": "ENVOY_VERSION=1.39.0",
+                "CI_INHERITED_UPSTREAM_ENV_STATUS": "0",
+            }
+        )
         guarded = components._framework_guard_environment(base, ROOT, FRAMEWORK_ROOT)
-        for key in (*components.FRAMEWORK_APR_UTIL_ENV_KEYS, "ENV", "BASH_ENV", "SHELLOPTS"):
+        for key in (
+            *components.FRAMEWORK_APR_UTIL_ENV_KEYS,
+            *components.FRAMEWORK_TRANSIENT_ENV_KEYS,
+            "ENV",
+            "BASH_ENV",
+            "SHELLOPTS",
+        ):
             self.assertNotIn(key, guarded)
         self.assertEqual(guarded["PATH"], components._TRUSTED_FRAMEWORK_GUARD_PATH)
 
     def test_python_loader_accepts_only_canonical_propagation(self) -> None:
         canonical = self.canonical_tuple()
         absent = self.clean_environment()
-        loaded, status = components.load_framework_environment(ROOT, FRAMEWORK_ROOT, absent)
+        loaded, status = components.load_framework_environment(ROOT, self.framework_root, absent)
         self.assertEqual(status, "loaded")
         self.assertEqual({key: loaded[key] for key in canonical}, canonical)
+        self.assertFalse(set(components.FRAMEWORK_TRANSIENT_ENV_KEYS) & set(loaded))
 
         inherited = self.clean_environment()
         inherited.update(canonical)
-        loaded, status = components.load_framework_environment(ROOT, FRAMEWORK_ROOT, inherited)
+        loaded, status = components.load_framework_environment(ROOT, self.framework_root, inherited)
         self.assertEqual(status, "loaded")
         self.assertEqual({key: loaded[key] for key in canonical}, canonical)
         inherited[APR_KEYS["VERSION"]] = "9.9.8"
         self.assertEqual(loaded[APR_KEYS["VERSION"]], canonical[APR_KEYS["VERSION"]])
 
+    def test_python_loader_removes_nested_framework_snapshot_before_a_resourced_common_sh(self) -> None:
+        nested = self.clean_environment()
+        nested.update(
+            {
+                "ENVOY_VERSION": "1.39.0",
+                "CI_INHERITED_UPSTREAM_ENV": "ENVOY_VERSION=1.39.0",
+                "CI_INHERITED_UPSTREAM_ENV_STATUS": "0",
+            }
+        )
+        loaded, status = components.load_framework_environment(ROOT, self.framework_root, nested)
+        self.assertEqual(status, "loaded")
+        self.assertEqual(loaded["ENVOY_VERSION"], "1.39.0")
+        for key in components.FRAMEWORK_TRANSIENT_ENV_KEYS:
+            self.assertNotIn(key, loaded)
+
     def test_python_loader_rejects_partial_empty_mismatch_and_alternative_tuples(self) -> None:
         canonical = self.canonical_tuple()
         partial = self.clean_environment()
         partial[APR_KEYS["VERSION"]] = canonical[APR_KEYS["VERSION"]]
-        loaded, status = components.load_framework_environment(ROOT, FRAMEWORK_ROOT, partial)
+        loaded, status = components.load_framework_environment(ROOT, self.framework_root, partial)
         self.assertEqual(loaded, partial)
         self.assertTrue(status.startswith("failed:inherited_parent_apr_util_partial:"), status)
 
         empty = self.clean_environment()
         empty.update(canonical)
         empty[APR_KEYS["SHA256"]] = ""
-        loaded, status = components.load_framework_environment(ROOT, FRAMEWORK_ROOT, empty)
+        loaded, status = components.load_framework_environment(ROOT, self.framework_root, empty)
         self.assertEqual(loaded, empty)
         self.assertIn("inherited_parent_apr_util_empty", status)
 
@@ -242,13 +279,13 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
         mismatch.update(canonical)
         mismatch_version = "9.9.8"
         mismatch[APR_KEYS["SOURCE_URL"]] = f"https://mirror.invalid/apr-util-{mismatch_version}.tar.bz2"
-        loaded, status = components.load_framework_environment(ROOT, FRAMEWORK_ROOT, mismatch)
+        loaded, status = components.load_framework_environment(ROOT, self.framework_root, mismatch)
         self.assertEqual(loaded, mismatch)
         self.assertEqual(status, "failed:inherited_parent_apr_util_mismatch")
 
         alternative = self.clean_environment()
         alternative.update(self.fixture_tuple("9.9.9", "a" * 64))
-        loaded, status = components.load_framework_environment(ROOT, FRAMEWORK_ROOT, alternative)
+        loaded, status = components.load_framework_environment(ROOT, self.framework_root, alternative)
         self.assertEqual(loaded, alternative)
         self.assertEqual(status, "failed:inherited_parent_apr_util_mismatch")
 
@@ -386,7 +423,7 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
         environment.update(
             {
                 "CONNECTOR_ROOT": str(ROOT),
-                "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
+                "FRAMEWORK_ROOT": str(self.framework_root),
                 "PYTHON": sys.executable,
                 "PYTHONPATH": str(site_root),
                 "PATH": f"{fake_bin}:/usr/bin:/bin",

@@ -12,8 +12,13 @@ import sys
 import tempfile
 import unittest
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
+FRAMEWORK_ROOT = Path(
+    os.environ.get("PARENT_TEST_FRAMEWORK_ROOT", ROOT / "modules" / "ModSecurity-test-Framework")
+)
 SPEC = importlib.util.spec_from_file_location(
     "collect_no_crs_source", ROOT / "ci/runtime/lifecycle/collect-no-crs-source.py"
 )
@@ -22,15 +27,6 @@ assert SPEC.loader is not None
 collector = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(collector)
 
-FRAMEWORK_SPEC = importlib.util.spec_from_file_location(
-    "framework_no_crs_baseline",
-    ROOT / "modules/ModSecurity-test-Framework/ci/checks/catalog/no_crs_baseline.py",
-)
-assert FRAMEWORK_SPEC is not None
-assert FRAMEWORK_SPEC.loader is not None
-framework_baseline = importlib.util.module_from_spec(FRAMEWORK_SPEC)
-FRAMEWORK_SPEC.loader.exec_module(framework_baseline)
-
 TRAEFIK_SPEC = importlib.util.spec_from_file_location(
     "traefik_runtime_smoke", ROOT / "connectors/traefik/scripts/runtime_smoke.py"
 )
@@ -38,6 +34,22 @@ assert TRAEFIK_SPEC is not None
 assert TRAEFIK_SPEC.loader is not None
 traefik_smoke = importlib.util.module_from_spec(TRAEFIK_SPEC)
 TRAEFIK_SPEC.loader.exec_module(traefik_smoke)
+
+
+def load_trusted_framework_baseline(test_case: unittest.TestCase) -> object:
+    framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+    if framework_root is None:
+        test_case.skipTest(error)
+    assert framework_root is not None
+    spec = importlib.util.spec_from_file_location(
+        "framework_no_crs_baseline",
+        framework_root / "ci" / "checks" / "catalog" / "no_crs_baseline.py",
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class CollectNoCrsSourceTest(unittest.TestCase):
@@ -281,7 +293,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertEqual(canonical_event["integration_mode"], "native_htx_filter")
         self.assertEqual(canonical_event["status"], "not_attempted")
         self.assertEqual(
-            framework_baseline.canonical_event_errors(
+            load_trusted_framework_baseline(self).canonical_event_errors(
                 canonical_event,
                 connector="haproxy",
             ),
@@ -583,10 +595,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         )
 
     def test_phase3_precommit_case_keeps_header_status_metadata(self) -> None:
-        catalog = (
-            ROOT
-            / "modules/ModSecurity-test-Framework/tests/cases/no-crs-baseline/catalog.json"
-        )
+        catalog = FRAMEWORK_ROOT / "tests/cases/no-crs-baseline/catalog.json"
         expectations, runner_case_index = collector.catalog_contract(catalog)
         with tempfile.TemporaryDirectory(prefix="no-crs-phase3-") as temporary:
             root = Path(temporary)
@@ -812,10 +821,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertFalse(cases[0]["event_metadata_verified"])
 
     def test_catalog_runner_case_mapping_does_not_guess_from_fixture_name(self) -> None:
-        catalog = (
-            ROOT
-            / "modules/ModSecurity-test-Framework/tests/cases/no-crs-baseline/catalog.json"
-        )
+        catalog = FRAMEWORK_ROOT / "tests/cases/no-crs-baseline/catalog.json"
         expectations, runner_case_index = collector.catalog_contract(catalog)
         with tempfile.TemporaryDirectory(prefix="no-crs-runner-name-") as temporary:
             root = Path(temporary)
@@ -1224,6 +1230,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             'ENVOY_EXT_PROC_RUNTIME_ROOT="$HOST_RUNTIME_ROOT"',
             "TRAEFIK_RUNTIME_ROOT=$STAGE_BUILD_ROOT/traefik-runtime",
             'TRAEFIK_NATIVE_RUNTIME_ROOT="$TRAEFIK_RUNTIME_ROOT"',
+            'TRAEFIK_FIRST_BYTE_EVIDENCE_ROOT="$CONNECTOR_RUN_ROOT"',
             "TRAEFIK_ARTIFACT_STAGER=$CONNECTOR_ROOT/ci/runtime/lifecycle/stage-traefik-runtime-artifacts.py",
             '--build-root "$STAGE_BUILD_ROOT"',
             '--raw-root "$RAW_DIR"',
@@ -1265,7 +1272,10 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertNotIn("|| true", fallback)
 
     def test_synchronized_fallback_helper_requires_and_honors_control_root(self) -> None:
-        helper = ROOT / "modules" / "ModSecurity-test-Framework" / "tests" / "runners" / "synchronized_upstream.py"
+        framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+        if framework_root is None:
+            self.skipTest(error)
+        helper = framework_root / "tests" / "runners" / "synchronized_upstream.py"
         with tempfile.TemporaryDirectory(prefix="synchronized-fallback-") as temporary:
             control_root = Path(temporary)
             output = control_root / "first-byte-evidence.json"
@@ -1330,6 +1340,39 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             if line.partition("=")[0] in names
         )
 
+    def framework_canonical_apr_util_provenance(
+        self, names: tuple[str, ...]
+    ) -> dict[str, str]:
+        """Read the canonical APR-util tuple without duplicating it in Parent."""
+
+        framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+        if framework_root is None:
+            self.skipTest(error)
+        completed = subprocess.run(
+            [
+                "/bin/sh",
+                "-c",
+                (
+                    "set -eu\n"
+                    '. "$1/ci/lib/common.sh"\n'
+                    "printf '%s\\0' \"$APR_UTIL_VERSION\" \"$APR_UTIL_SOURCE_URL\" "
+                    '\"$APR_UTIL_SHA256\" \"$APR_UTIL_SHA256_URL\"'
+                ),
+                "read-framework-apr-util-provenance",
+                str(framework_root),
+            ],
+            cwd=ROOT,
+            env={"LC_ALL": "C", "PATH": os.defpath, "TMPDIR": tempfile.gettempdir()},
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertTrue(completed.stdout.endswith("\0"), completed.stderr)
+        values = tuple(completed.stdout[:-1].split("\0"))
+        self.assertEqual(len(values), len(names), completed.stderr)
+        self.assertTrue(all(values), completed.stderr)
+        return dict(zip(names, values))
+
     def test_make_preserves_nginx_provenance_presence_semantics(self) -> None:
         names = (
             "NGINX_SOURCE_MODE",
@@ -1390,6 +1433,82 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         }
         self.assertEqual(
             self.make_provenance_environment(names, make_target, reviewed), reviewed
+        )
+
+    def test_make_preserves_framework_active_provenance_presence_semantics(self) -> None:
+        names = (
+            "CRS_REPO_URL",
+            "CRS_GIT_REF",
+            "NGINX_SOURCE_MODE",
+            "NGINX_SOURCE_REPO_URL",
+            "NGINX_SOURCE_GIT_REF",
+            "NGINX_GITHUB_REPO",
+            "NGINX_RELEASE_TAG",
+            "HAPROXY_VERSION",
+            "HAPROXY_SOURCE_URL",
+            "HAPROXY_SHA256_URL",
+            "HAPROXY_SHA256",
+            "HTTPD_VERSION",
+            "HTTPD_SOURCE_URL",
+            "HTTPD_SHA256",
+            "HTTPD_SHA256_URL",
+            "APR_VERSION",
+            "APR_SOURCE_URL",
+            "APR_SHA256",
+            "APR_SHA256_URL",
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+            "PCRE2_VERSION",
+            "PCRE2_SOURCE_URL",
+            "PCRE2_SHA256",
+            "PCRE2_SHA256_URL",
+        )
+        make_target = "print-framework-active-provenance-contract"
+        self.assertEqual(
+            self.make_provenance_environment(names, make_target, {name: None for name in names}),
+            {},
+        )
+        self.assertEqual(
+            self.make_provenance_environment(names, make_target, {name: "" for name in names}),
+            {name: "" for name in names},
+        )
+        specified = {
+            "CRS_REPO_URL": "https://github.com/coreruleset/coreruleset.git",
+            "CRS_GIT_REF": "v4.29.0",
+            "NGINX_SOURCE_MODE": "github-release",
+            "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
+            "NGINX_SOURCE_GIT_REF": "release-1.31.3",
+            "NGINX_GITHUB_REPO": "https://github.com/nginx/nginx",
+            "NGINX_RELEASE_TAG": "release-1.31.3",
+            "HAPROXY_VERSION": "3.2.0",
+            "HAPROXY_SOURCE_URL": "https://fixture.invalid/haproxy.tar.gz",
+            "HAPROXY_SHA256_URL": "https://fixture.invalid/haproxy.tar.gz.sha256",
+            "HAPROXY_SHA256": "a" * 64,
+            "HTTPD_VERSION": "2.4.0",
+            "HTTPD_SOURCE_URL": "https://fixture.invalid/httpd.tar.gz",
+            "HTTPD_SHA256": "b" * 64,
+            "HTTPD_SHA256_URL": "https://fixture.invalid/httpd.tar.gz.sha256",
+            "APR_VERSION": "1.7.0",
+            "APR_SOURCE_URL": "https://fixture.invalid/apr.tar.gz",
+            "APR_SHA256": "c" * 64,
+            "APR_SHA256_URL": "https://fixture.invalid/apr.tar.gz.sha256",
+            "PCRE2_VERSION": "10.0",
+            "PCRE2_SOURCE_URL": "https://fixture.invalid/pcre2.tar.gz",
+            "PCRE2_SHA256": "e" * 64,
+            "PCRE2_SHA256_URL": "https://fixture.invalid/pcre2.tar.gz.sha256",
+        }
+        apr_util_names = (
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        )
+        specified.update(self.framework_canonical_apr_util_provenance(apr_util_names))
+        self.assertEqual(set(specified), set(names))
+        self.assertEqual(
+            self.make_provenance_environment(names, make_target, specified), specified
         )
 
     def test_protocol_client_bundle_is_root_runner_scoped_and_forwarded(self) -> None:

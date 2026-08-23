@@ -68,6 +68,15 @@ GITHUB_REPO_URL_KEYS = (
     "EXPAT_GIT_URL",
 )
 
+NGINX_GITHUB_REPO_URL_KEYS = frozenset(
+    {
+        "MODSECURITY_NGINX_REPO_URL",
+        "MODSECURITY_NGINX_GIT_URL",
+        "NGINX_SOURCE_REPO_URL",
+        "NGINX_GITHUB_REPO",
+    }
+)
+
 HTTPS_URL_KEYS = (
     "HAPROXY_SOURCE_URL",
     "HAPROXY_SHA256_URL",
@@ -81,6 +90,10 @@ HTTPS_URL_KEYS = (
     "PCRE2_SHA256_URL",
     "NGINX_QUIC_TLS_SOURCE_URL",
 )
+
+NGINX_HTTPS_URL_KEYS = frozenset({"NGINX_QUIC_TLS_SOURCE_URL"})
+RUNTIME_COMPONENT_TARGETS = ("all", "shared", "apache", "nginx", "haproxy")
+NGINX_RUNTIME_COMPONENT_TARGETS = frozenset({"all", "nginx"})
 
 
 NGINX_PROTOCOL_PROFILES = ("h1", "h1-h2", "h1-h2-h3-quic")
@@ -145,6 +158,38 @@ FRAMEWORK_APR_UTIL_ENV_KEYS = (
     "APR_UTIL_SOURCE_URL",
     "APR_UTIL_SHA256",
     "APR_UTIL_SHA256_URL",
+)
+# Framework common.sh captures the inherited environment before it assigns
+# canonical pins.  Its own snapshot is internal validation state, not runtime
+# configuration: passing it through another source operation would turn its
+# embedded pin lines into apparent duplicate inherited variables.
+FRAMEWORK_TRANSIENT_ENV_KEYS = (
+    "CI_INHERITED_UPSTREAM_ENV",
+    "CI_INHERITED_UPSTREAM_ENV_STATUS",
+)
+# A Framework provenance guard sources common.sh itself.  Carry only the
+# resolved runtime-root tuple from the previously loaded Framework environment
+# into that second source.  Passing common.sh's exported version/provenance
+# values back into another common.sh source creates duplicate inherited
+# environment entries on dash, which the Framework correctly rejects before
+# any source acquisition.  Original caller values remain in os.environ so a
+# genuine attempted pin override still reaches the fail-closed guard.
+FRAMEWORK_GUARD_RUNTIME_ROOT_ENV_KEYS = (
+    "CONNECTOR_ROOT",
+    "VERIFIED_RUN_ROOT",
+    "VERIFIED_STATE_ROOT",
+    "VERIFIED_BUILD_ROOT",
+    "VERIFIED_SOURCE_ROOT",
+    "VERIFIED_TMP_ROOT",
+    "VERIFIED_LOG_ROOT",
+    "CACHE_ROOT",
+    "VERIFIED_COMPONENT_CACHE",
+    "CONNECTOR_COMPONENT_CACHE",
+    "SOURCE_ROOT",
+    "BUILD_ROOT",
+    "TMP_ROOT",
+    "LOG_ROOT",
+    "MRTS_NATIVE_ROOT",
 )
 APR_UTIL_VERSION_RE = re.compile(r"\d+(?:\.\d+)+", re.ASCII)
 APR_UTIL_SHA256_RE = re.compile(r"[0-9a-f]{64}")
@@ -227,7 +272,13 @@ def _framework_guard_environment(
 ) -> dict[str, str]:
     """Build the fixed, non-login environment for Framework guard commands."""
     env = dict(base_env)
-    for key in (*FRAMEWORK_APR_UTIL_ENV_KEYS, "ENV", "BASH_ENV", "SHELLOPTS"):
+    for key in (
+        *FRAMEWORK_APR_UTIL_ENV_KEYS,
+        *FRAMEWORK_TRANSIENT_ENV_KEYS,
+        "ENV",
+        "BASH_ENV",
+        "SHELLOPTS",
+    ):
         env.pop(key, None)
     env["PATH"] = _TRUSTED_FRAMEWORK_GUARD_PATH
     env["CONNECTOR_ROOT"] = str(connector_root)
@@ -375,6 +426,8 @@ def load_framework_environment(connector_root: Path, framework_root: Path, base_
     if common_error is not None or common_output is None:
         return dict(base_env), common_error or "failed:framework_common_environment_missing"
     loaded = _null_delimited_environment(common_output)
+    for key in FRAMEWORK_TRANSIENT_ENV_KEYS:
+        loaded.pop(key, None)
     if any(loaded.get(key) != value for key, value in guarded_apr_util.items()):
         return dict(base_env), "failed:framework_apr_util_guarded_tuple_mismatch"
     loaded.update(guarded_apr_util)
@@ -439,12 +492,29 @@ def require_https_github_repo_url(url: str) -> str:
     return f"https://github.com/{repo}"
 
 
-def validate_https_url_config(env: dict[str, str]) -> None:
+def require_runtime_component_target(target_connector: str) -> str:
+    if target_connector not in RUNTIME_COMPONENT_TARGETS:
+        raise RuntimeError(f"unsupported_runtime_component_target:{target_connector}")
+    return target_connector
+
+
+def validate_https_url_config(env: dict[str, str], target_connector: str = "all") -> None:
+    target_connector = require_runtime_component_target(target_connector)
     for key in GITHUB_REPO_URL_KEYS:
+        if (
+            key in NGINX_GITHUB_REPO_URL_KEYS
+            and target_connector not in NGINX_RUNTIME_COMPONENT_TARGETS
+        ):
+            continue
         value = env.get(key, "").strip()
         if value:
             require_https_github_repo_url(value)
     for key in HTTPS_URL_KEYS:
+        if (
+            key in NGINX_HTTPS_URL_KEYS
+            and target_connector not in NGINX_RUNTIME_COMPONENT_TARGETS
+        ):
+            continue
         value = env.get(key, "").strip()
         if value:
             require_https_url(value, key)
@@ -4678,7 +4748,11 @@ def run_framework_modsecurity_v3_guard(
             "framework_common": str(common_sh),
         }
     guard_env = dict(os.environ)
-    guard_env.update(env)
+    for key in FRAMEWORK_GUARD_RUNTIME_ROOT_ENV_KEYS:
+        value = env.get(key)
+        if value:
+            guard_env[key] = value
+    guard_env["FRAMEWORK_ROOT"] = str(resolved_framework_root)
     try:
         trusted_shell = verified_host_guard_executable(_TRUSTED_FRAMEWORK_GUARD_SHELL, "framework_guard_shell")
         verified_host_guard_executable(_TRUSTED_FRAMEWORK_GUARD_GIT, "framework_guard_git")
@@ -9652,7 +9726,7 @@ def runtime_component_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--native-root", default=None)
     parser.add_argument(
         "--target-connector",
-        choices=("all", "shared", "apache", "nginx", "haproxy"),
+        choices=RUNTIME_COMPONENT_TARGETS,
         default=os.environ.get("RUNTIME_COMPONENT_TARGET", "all"),
         help="Prepare shared dependencies, one native connector, or all native connectors.",
     )
@@ -9663,26 +9737,37 @@ def parse_runtime_component_args() -> argparse.Namespace:
     return runtime_component_argument_parser().parse_args()
 
 
-def required_runtime_component_sources(env: dict[str, str], strict: bool) -> dict[str, Any]:
-    validate_https_url_config(env)
+def required_runtime_component_sources(
+    env: dict[str, str], strict: bool, target_connector: str
+) -> dict[str, Any]:
+    target_connector = require_runtime_component_target(target_connector)
+    validate_https_url_config(env, target_connector)
     # Validate the guarded Framework tuple before any managed cache root,
     # archive path, extraction, or download is reached.
     values = {"apr_util_provenance": require_apr_util_pinned_provenance(env)}
     values.update({
-        "go_ftw_source_url": require_env_value(env, "GO_FTW_SOURCE_URL"),
-        "go_ftw_expected_latest": require_env_value(env, "GO_FTW_PROMPT_EXPECTED_LATEST"),
-        "albedo_source_url": require_env_value(env, "ALBEDO_SOURCE_URL"),
-        "albedo_expected_latest": require_env_value(env, "ALBEDO_PROMPT_EXPECTED_LATEST"),
         "expat_source_url": require_env_value(env, "EXPAT_SOURCE_URL"),
         "expat_git_ref": require_env_value(env, "EXPAT_GIT_REF"),
     })
     if strict:
         values["expat_git_ref"] = require_full_immutable_git_commit(values["expat_git_ref"], "EXPAT_GIT_REF")
-    # NGINX no longer has a mutable fallback: validate its complete reviewed
-    # release tuple before the managed cache root is initialized.
-    values["nginx_pinned_provenance"] = nginx_pinned_provenance(env)
-    values["nginx_require_pinned_provenance"] = nginx_pinned_provenance_required(env)
-    nginx_protocol_build_inputs(env)
+    if target_connector == "all":
+        # These optional tools are prepared only by the aggregate target; a
+        # connector-scoped run must not be blocked by their unrelated source
+        # configuration.
+        values.update({
+            "go_ftw_source_url": require_env_value(env, "GO_FTW_SOURCE_URL"),
+            "go_ftw_expected_latest": require_env_value(env, "GO_FTW_PROMPT_EXPECTED_LATEST"),
+            "albedo_source_url": require_env_value(env, "ALBEDO_SOURCE_URL"),
+            "albedo_expected_latest": require_env_value(env, "ALBEDO_PROMPT_EXPECTED_LATEST"),
+        })
+    # NGINX no longer has a mutable fallback. Validate its complete reviewed
+    # release tuple before the managed cache root is initialized, but only
+    # when this invocation can prepare NGINX.
+    if target_connector in NGINX_RUNTIME_COMPONENT_TARGETS:
+        values["nginx_pinned_provenance"] = nginx_pinned_provenance(env)
+        values["nginx_require_pinned_provenance"] = nginx_pinned_provenance_required(env)
+        nginx_protocol_build_inputs(env)
     return values
 
 
@@ -9746,7 +9831,7 @@ def runtime_component_context(args: argparse.Namespace) -> tuple[dict[str, Any] 
     PATH_POLICY_ENV = dict(env)
     strict = env.get("RUNTIME_COMPONENT_STRICT_VERIFY") == "1"
     try:
-        sources = required_runtime_component_sources(env, strict)
+        sources = required_runtime_component_sources(env, strict, args.target_connector)
     except RuntimeError as exc:
         print(f"prepare-runtime-components: BLOCKED: {exc}")
         return None, 77
@@ -10021,7 +10106,7 @@ def prepare_runtime_archives(context: dict[str, Any], paths: dict[str, Path]) ->
                 cache_root,
             )
         )
-    if target_connector in {"all", "nginx"}:
+    if target_connector in NGINX_RUNTIME_COMPONENT_TARGETS:
         archives.extend(nginx_archive_records(env, paths["archives_root"], cache_root))
     return archives
 
@@ -10069,8 +10154,20 @@ def prepare_native_component_records(
     )
     connector_plans = {
         name: connector_plan(connector_root, framework_root, cache_root, env, name, modsecurity, expat, archives)
-        for name in ("apache", "nginx", "haproxy")
+        for name in ("apache", "haproxy")
     }
+    nginx_plan: dict[str, Any] = {}
+    if target_connector in NGINX_RUNTIME_COMPONENT_TARGETS:
+        nginx_plan = connector_plan(
+            connector_root,
+            framework_root,
+            cache_root,
+            env,
+            "nginx",
+            modsecurity,
+            expat,
+            archives,
+        )
     apache_httpd = not_selected_connector("apache", modsecurity)
     nginx = not_selected_connector("nginx", modsecurity)
     haproxy = not_selected_connector("haproxy", modsecurity)
@@ -10097,7 +10194,7 @@ def prepare_native_component_records(
             paths["sources_root"],
             paths["archives_root"],
             modsecurity,
-            connector_plans["nginx"],
+            nginx_plan,
         )
     if target_connector in {"all", "haproxy"}:
         haproxy = prepare_haproxy_runtime(
@@ -10122,7 +10219,7 @@ def prepare_native_component_records(
         "modsecurity": modsecurity,
         "apache_httpd": apache_httpd,
         "nginx": nginx,
-        "nginx_plan": connector_plans["nginx"],
+        "nginx_plan": nginx_plan,
         "haproxy": haproxy,
         "go_ftw": go_ftw,
         "albedo": albedo,

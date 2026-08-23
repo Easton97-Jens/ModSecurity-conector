@@ -1998,6 +1998,47 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
         self.assertEqual(jsonl_path, selected_jsonl)
         self.assertEqual(jsonl_counts["source"], "results_jsonl")
 
+    def test_summary_selector_rejects_external_override(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            job_root = root / "job"
+            external = root / "external-summary.json"
+            job_root.mkdir()
+            write_json(external, {"apache": {"cases": {"external": {"status": "pass"}}}})
+            (job_root / "summary.path").write_text(str(external), encoding="utf-8")
+
+            selected = GENERATOR.summary_path(job_root, "apache")
+
+        self.assertEqual(
+            selected,
+            job_root / "results" / "apache-summary.json",
+        )
+
+    def test_summary_selector_rejects_traversal_override(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            job_root = root / "job"
+            job_root.mkdir()
+            (job_root / "summary.path").write_text("../../outside.json", encoding="utf-8")
+
+            selected = GENERATOR.summary_path(job_root, "apache")
+
+        self.assertEqual(
+            selected,
+            job_root / "results" / "apache-summary.json",
+        )
+
+    def test_summary_selector_keeps_canonical_direct_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            job_root = root / "job"
+            direct = job_root / "results" / "apache-summary.json"
+            write_json(direct, {"apache": {"cases": {"control": {"status": "pass"}}}})
+
+            selected = GENERATOR.summary_path(job_root, "apache")
+
+        self.assertEqual(selected, direct)
+
     def test_rewritten_raw_manifest_preserves_identity_and_artifact_hashes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             manifest_path = Path(temporary) / "full-runtime-matrix-runs.jsonl"

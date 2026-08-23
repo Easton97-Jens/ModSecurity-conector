@@ -29,6 +29,15 @@ Validierung einen kurzlebigen, auf das Repository begrenzten GitHub-App-Token.
 Er erstellt ausschließlich Draft-Pull-Requests und erst nach expliziten Pfad-,
 Symlink-, Staging-Scope- und Candidate-SHA-256-Prüfungen.
 
+Die Workflow-Wartung hat genau einen Besitzer: Dependabot verwaltet hier keine
+`github-actions`. Der Updater löst jeden Lock-Eintrag als Einheit auf,
+aktualisiert jeden passenden Action-Suffix (einschließlich aller
+`github/codeql-action`-Komponenten) und die zentrale Lockdatei in einem
+Kandidaten, validiert den vollständigen Proposed Tree und erstellt höchstens
+einen passenden Parent-Draft-Pull-Request. Alle Checkout-Schritte verwenden
+`submodules: false`; Framework-/MRTS-Quellen und Gitlinks liegen außerhalb des
+Scopes dieses Workflows.
+
 Die eingecheckte `ci/tooling/security-tools.lock.yml` bleibt die einzige
 Lockdatei und Source of Truth. Ihre On-Disk-`pinned_actions`-Einträge verwenden
 `commit_sha` und `upstream`; Tool-Einträge verwenden `release_commit`, `url`
@@ -45,7 +54,7 @@ bestehende Connector-Consumer kein paralleles Lock-Schema benötigen.
 | `actions/setup-python` | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` |
 | `actions/upload-artifact` | `v7.0.1` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` |
 | `github/codeql-action` | `v4.37.6` | `5595ccaf912efad79be6eef63a5619ff05969be3` |
-| `google/osv-scanner-action` | `v2.5.0` | `8deb546fdb875b9996d27d4950be7312dac076a1` |
+| `google/osv-scanner-action` | `v2.5.1` | `6e4298ebc4db23e847df9b2e2de2939d6f066c67` |
 | `ossf/scorecard-action` | `v2.4.4` | `2d1146689b8cda280b9bc96326124645441f03bc` |
 
 Für die gehostete Ausführung konfigurieren Sie die Repository-Variable
@@ -53,6 +62,60 @@ Für die gehostete Ausführung konfigurieren Sie die Repository-Variable
 `WORKFLOW_UPDATER_APP_PRIVATE_KEY`. Keiner der beiden Werte gehört in das
 Repository. Die GitHub App muss auf dieses Repository begrenzt sein und darf
 nur `Contents: write`, `Pull requests: write` und `Workflows: write` erhalten.
+
+## Eingeschränkter Python-3.14-Patch-Updater
+
+`.github/workflows/update-python-version.yml` hat genau vier Jobs:
+`resolve-python-patch`, `validate-python-patch`, `publish-python-update` und
+`report-python-update-outcome`. Er wird ausschließlich durch den Montags-
+Zeitplan `17 6 * * 1` oder `workflow_dispatch` ausgelöst, serialisiert pro
+Repository über
+`modsecurity-conector-python-version-maintenance-${{ github.repository }}`
+ohne einen laufenden Wartungsversuch abzubrechen und lässt Arbeit nur für die
+kanonische Nicht-Fork-Ref `master` von `Easton97-Jens/ModSecurity-conector` zu.
+
+Der Resolver verwendet den exakten vertrauenswürdigen Event-SHA, die kanonische
+`.python-version` und `scripts/update-python-version.py --check --json`, um
+die typisierten Outputs `status`, `current_version`, `latest_version` und
+`update_available` auszugeben. Der Validator installiert und prüft den
+Candidate-Patch unabhängig, löst ihn mit `--expected-version` erneut auf,
+nutzt hash-gesperrte CI-Abhängigkeiten und führt vor der Veröffentlichung die
+Python-/Versions- und CI-Sicherheitsverträge aus. Beide Jobs besitzen nur
+`contents: read`.
+
+Das normale `GITHUB_TOKEN` bleibt im Publisher bei `contents: read`. Nur dieser
+Job liest die App-Konfiguration, erstellt das vorhandene SHA-gepinnte
+GitHub-App-Token und begrenzt dieses Token auf `Contents: write` und
+`Pull requests: write`. Er fordert nie Schreibrechte für `Workflows`,
+`Actions` oder `Issues`; das weitergehende oben genannte `Workflows: write`
+gehört nur zum getrennten Workflow-/Tool-Updater. Der Publisher besitzt keinen
+Schreibpfad über `github.token`.
+
+Der Publisher übergibt den Step-Output `changed` vor der Shell-Ausführung über
+eine benannte Umgebungsvariable und akzeptiert nur den literalen Wert `true`.
+Er interpoliert keine GitHub-Actions-Ausdrücke direkt in einen Shell-Befehl;
+dadurch bleibt die Output-Prüfung fehlgeschlossen und vermeidet
+Workflow-Template-Injection.
+
+Vor einem Schreibzugriff verlangt der Publisher entweder keinen Wartungs-Branch
+und keinen passenden PR oder genau einen Same-Repository-Draft-PR mit festem
+Titel und Marker `<!-- modsecurity-conector-python-314-updater -->`, Basis
+`master` und deaktiviertem automatischen Merge. Er prüft bei einem bestehenden
+Branch dessen historischen Scope, baut danach von aktuellem vertrauenswürdigem
+`origin/master` neu auf, ändert nur `.python-version`, staged nur diese Datei
+und verwendet beim sicheren Ersetzen des verifizierten Wartungs-Branch nur die
+exakte Form
+`--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP`. Ein
+unbedingter Force-Push, ein Default-Branch-Update, Merge oder Auto-Merge ist
+nicht erlaubt.
+
+Der resultierende Same-Repository-Draft-PR dokumentiert vorherige/vorgeschlagene
+Version, Python.org-Metadaten-URL, Validierungs-Run-URL, Framework-Referenz-SHA
+und die Pflicht zu manueller Prüfung/manuellem Merge auf Englisch und Deutsch.
+Der `report-python-update-outcome`-Job mit leeren Berechtigungen läuft immer
+und weist inkonsistente Resolver-, Validator- oder Publisher-Zustände zurück;
+bei einem aktuellen Resultat berichtet er, dass kein Branch, Commit oder PR
+geändert wurde.
 
 ## Workflow-Linting
 

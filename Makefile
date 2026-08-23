@@ -169,36 +169,52 @@ export ALBEDO_BIN
 export ALBEDO_SOURCE_URL
 export ALBEDO_PROMPT_EXPECTED_LATEST
 export ALBEDO_GIT_REF
-export CRS_REPO_URL
-export CRS_GIT_REF
+# The Framework snapshots active provenance inputs before applying its reviewed
+# defaults.  Preserve the absence of optional Parent inputs; explicit empty and
+# altered values must remain visible so the Framework can reject them fail closed.
+define export_framework_optional_provenance
+ifneq ($(origin $(1)),undefined)
+export $(1)
+endif
+endef
+
+override FRAMEWORK_OPTIONAL_PROVENANCE_EXPORTS := \
+	CRS_REPO_URL \
+	CRS_GIT_REF \
+	NGINX_SOURCE_MODE \
+	NGINX_SOURCE_REPO_URL \
+	NGINX_SOURCE_GIT_REF \
+	NGINX_GITHUB_REPO \
+	NGINX_RELEASE_TAG \
+	HAPROXY_VERSION \
+	HAPROXY_SOURCE_URL \
+	HAPROXY_SHA256_URL \
+	HAPROXY_SHA256 \
+	HTTPD_VERSION \
+	HTTPD_SOURCE_URL \
+	HTTPD_SHA256 \
+	HTTPD_SHA256_URL \
+	APR_VERSION \
+	APR_SOURCE_URL \
+	APR_SHA256 \
+	APR_SHA256_URL \
+	APR_UTIL_VERSION \
+	APR_UTIL_SOURCE_URL \
+	APR_UTIL_SHA256 \
+	APR_UTIL_SHA256_URL \
+	PCRE2_VERSION \
+	PCRE2_SOURCE_URL \
+	PCRE2_SHA256 \
+	PCRE2_SHA256_URL
+
+$(foreach framework_optional_provenance,$(FRAMEWORK_OPTIONAL_PROVENANCE_EXPORTS),$(eval $(call export_framework_optional_provenance,$(framework_optional_provenance))))
+
 export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
 export BUILD_HTTPD_FROM_SOURCE
 export BUILD_PCRE2_FROM_SOURCE
 export BUILD_NGINX_FROM_SOURCE
-# The Framework deliberately distinguishes absent provenance inputs (its
-# reviewed defaults apply) from explicit empty inputs (fail closed).  Do not
-# turn an absent optional Make variable into an empty exported override.
-ifneq ($(origin NGINX_SOURCE_MODE),undefined)
-export NGINX_SOURCE_MODE
-endif
-ifneq ($(origin NGINX_SOURCE_REPO_URL),undefined)
-export NGINX_SOURCE_REPO_URL
-endif
-ifneq ($(origin NGINX_SOURCE_GIT_REF),undefined)
-export NGINX_SOURCE_GIT_REF
-endif
-ifneq ($(origin NGINX_GITHUB_REPO),undefined)
-export NGINX_GITHUB_REPO
-endif
-ifneq ($(origin NGINX_RELEASE_TAG),undefined)
-export NGINX_RELEASE_TAG
-endif
-export HAPROXY_VERSION
-export HAPROXY_SOURCE_URL
-export HAPROXY_SHA256_URL
-export HAPROXY_SHA256
 export HAPROXY_SOURCE_ROOT
 export HAPROXY_DOWNLOAD_DIR
 export HAPROXY_SOURCE_DIR
@@ -210,43 +226,10 @@ export EXPAT_SOURCE_URL
 export EXPAT_GIT_REF
 export EXPAT_GIT_URL
 export EXPAT_PROMPT_EXPECTED_LATEST
-export HTTPD_VERSION
-export HTTPD_SOURCE_URL
-export HTTPD_SHA256
-export HTTPD_SHA256_URL
-export APR_VERSION
-export APR_SOURCE_URL
-export APR_SHA256
-export APR_SHA256_URL
-# The pinned Framework's reviewed APR-util tuple deliberately distinguishes
-# absent inputs (use the reviewed tuple) from explicit empty or altered
-# overrides (fail closed). Do not turn an absent optional Make variable into
-# an empty exported override.
-ifneq ($(origin APR_UTIL_VERSION),undefined)
-export APR_UTIL_VERSION
-endif
-ifneq ($(origin APR_UTIL_SOURCE_URL),undefined)
-export APR_UTIL_SOURCE_URL
-endif
-ifneq ($(origin APR_UTIL_SHA256),undefined)
-export APR_UTIL_SHA256
-endif
-ifneq ($(origin APR_UTIL_SHA256_URL),undefined)
-export APR_UTIL_SHA256_URL
-endif
 
 .PHONY: framework-apr-util-env
 framework-apr-util-env:
 	@/bin/sh "$(CURDIR)/ci/tools/print-framework-apr-util-env.sh" "$(FRAMEWORK_ROOT)" "$(CURDIR)"
-export PCRE2_VERSION
-export PCRE2_SOURCE_URL
-export PCRE2_SHA256_URL
-# Framework's PCRE2 default deliberately distinguishes an absent digest from
-# an explicitly empty caller override.  GNU make would export an undefined
-# variable as empty, so only forward an actual caller-supplied override.
-ifneq ($(origin PCRE2_SHA256),undefined)
-export PCRE2_SHA256
-endif
 export APACHE_BIN
 export APACHECTL_BIN
 export APXS_BIN
@@ -265,6 +248,7 @@ export LIGHTTPD_DECISION_BACKEND
 
 .PHONY: check-framework prepare-runtime-components prepare-envoy-runtime prepare-traefik-runtime prepare-lighttpd-runtime prepare-lighttpd-runtime-build prepare-open-connector-runtimes runtime-components-inventory runtime-components-sources check-framework-fixture-syntax check-runtime-producer-readiness check-runtime-path-policy check-bilingual-docs check-doc-links check-variable-documentation check-connector-config-reference generate-connector-config-reference refresh-connector-reports refresh-all-reports check-generated-report-layout report-governance verified-report-evidence-gate generate-system-environment-proof prove-generated-reports verified-runtime-producers verified-report-refresh verified-report-producers verified-report-consumers verified-report-checks verified-report-run verified-report-run-soft verified-report-run-smoke verified-full-matrix-job verified-case verified-native-case verified-apache-case verified-nginx-case verified-haproxy-case verified-full-matrix-resume full-matrix-single-job-runtime full-matrix-resume-runtime smoke-common smoke-apache smoke-nginx soak-nginx smoke-envoy smoke-envoy-modsecurity smoke-envoy-crs smoke-envoy-crs-secondary smoke-haproxy smoke-lighttpd smoke-lighttpd-modsecurity smoke-lighttpd-crs smoke-lighttpd-crs-secondary smoke-traefik smoke-traefik-modsecurity smoke-traefik-crs smoke-traefik-crs-secondary smoke-open-connectors-crs smoke-open-connectors-crs-secondary smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-all-runtime runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel full-matrix-parallel-runtime generate-full-runtime-matrix generate-full-matrix-job-completeness generate-nginx-mrts-http500-cluster-analysis generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-native-semantics-comparison generate-remaining-critical-batch-analysis generate-remaining-failure-analysis mrts-native-full-run mrts-native-full-run-runtime mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
 .PHONY: smoke-envoy-request-body smoke-traefik-request-body smoke-lighttpd-request-body smoke-open-connectors-request-body
+.PHONY: with-crs-no-mrts-runtime
 .PHONY: memcheck-nginx
 .PHONY: check-compiler-guides
 .PHONY: check-connector-guides
@@ -511,13 +495,13 @@ verified-apache-case: check-framework prepare-runtime-components
 	@test -n "$(CASE)" || { echo "CASE is required, e.g. CASE=action_deny_phase1"; exit 2; }
 	@test -n "$(CRS)" || { echo "CRS is required, e.g. CRS=with-crs"; exit 2; }
 	@test -n "$(MRTS)" || { echo "MRTS is required, e.g. MRTS=with-mrts"; exit 2; }
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" FORCE_ALL_CASES=1 MODSECURITY_TEST_VARIANT="$(CRS)" MODSECURITY_MRTS_VARIANT="$(MRTS)" TEST_CASE="$(CASE)" CASE_SCOPE=all RESULTS_DIR="$(BUILD_ROOT)/verified-apache-case/$(CRS)/$(MRTS)/results" APACHE_RUNTIME_LOG_DIR="$(BUILD_ROOT)/verified-apache-case/$(CRS)-$(MRTS)-apache/logs/apache-runtime" RUNTIME_BASE="$(BUILD_ROOT)/verified-apache-case/$(CRS)-$(MRTS)-apache/apache-runtime" sh "$(FRAMEWORK_ROOT)/ci/runtime/run-apache-smoke.sh"
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" SOURCE_ROOT="$(SOURCE_ROOT)" CRS_SOURCE_DIR="$(CRS_SOURCE_DIR)" FORCE_ALL_CASES=1 MODSECURITY_TEST_VARIANT="$(CRS)" MODSECURITY_MRTS_VARIANT="$(MRTS)" TEST_CASE="$(CASE)" CASE_SCOPE=all RESULTS_DIR="$(BUILD_ROOT)/verified-apache-case/$(CRS)/$(MRTS)/results" APACHE_RUNTIME_LOG_DIR="$(BUILD_ROOT)/verified-apache-case/$(CRS)-$(MRTS)-apache/logs/apache-runtime" RUNTIME_BASE="$(BUILD_ROOT)/verified-apache-case/$(CRS)-$(MRTS)-apache/apache-runtime" sh "$(FRAMEWORK_ROOT)/ci/runtime/run-apache-smoke.sh"
 
 verified-haproxy-case: check-framework prepare-runtime-components
 	@test -n "$(CASE)" || { echo "CASE is required, e.g. CASE=action_deny_phase1"; exit 2; }
 	@test -n "$(CRS)" || { echo "CRS is required, e.g. CRS=with-crs"; exit 2; }
 	@test -n "$(MRTS)" || { echo "MRTS is required, e.g. MRTS=with-mrts"; exit 2; }
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(BUILD_ROOT)/verified-haproxy-case/$(CRS)-$(MRTS)-haproxy/tmp" FORCE_ALL_CASES=1 MODSECURITY_TEST_VARIANT="$(CRS)" MODSECURITY_MRTS_VARIANT="$(MRTS)" TEST_CASE="$(CASE)" RUN_ONE_CASE=1 CASE_SCOPE=all RESULTS_DIR="$(BUILD_ROOT)/verified-haproxy-case/$(CRS)/$(MRTS)/results" LOG_ROOT="$(BUILD_ROOT)/verified-haproxy-case/$(CRS)-$(MRTS)-haproxy/logs" RUNTIME_BASE="$(BUILD_ROOT)/verified-haproxy-case/$(CRS)-$(MRTS)-haproxy/haproxy-runtime-cases" sh "$(FRAMEWORK_ROOT)/ci/runtime/run-haproxy-smoke.sh"
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" SOURCE_ROOT="$${SOURCE_ROOT}" CRS_SOURCE_DIR="$${CRS_SOURCE_DIR}" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(BUILD_ROOT)/verified-haproxy-case/$(CRS)-$(MRTS)-haproxy/tmp" FORCE_ALL_CASES=1 MODSECURITY_TEST_VARIANT="$(CRS)" MODSECURITY_MRTS_VARIANT="$(MRTS)" TEST_CASE="$(CASE)" RUN_ONE_CASE=1 CASE_SCOPE=all RESULTS_DIR="$(BUILD_ROOT)/verified-haproxy-case/$(CRS)/$(MRTS)/results" LOG_ROOT="$(BUILD_ROOT)/verified-haproxy-case/$(CRS)-$(MRTS)-haproxy/logs" RUNTIME_BASE="$(BUILD_ROOT)/verified-haproxy-case/$(CRS)-$(MRTS)-haproxy/haproxy-runtime-cases" sh "$(FRAMEWORK_ROOT)/ci/runtime/run-haproxy-smoke.sh"
 
 verified-full-matrix-resume: check-framework
 	@run_id="$${VERIFIED_RUN_ID:-$$(cat "$(BUILD_ROOT)/verified-runs/current-run-id" 2>/dev/null || true)}"; \
@@ -650,6 +634,18 @@ test-no-crs: check-framework prepare-runtime-components
 
 test-with-crs: check-framework prepare-runtime-components
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/lib/common.sh"; . "$(CURDIR)/ci/runtime/lifecycle/prepare-fresh-crs-source.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-smokes.sh"')
+
+# The dedicated Parent runner owns fresh provisioning and evidence validation.
+# Keep only the three newly promoted connectors in this narrow entrypoint.
+with-crs-no-mrts-runtime: check-framework
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required: envoy, traefik, or lighttpd" >&2; exit 2; }
+	@case "$(CONNECTOR)" in envoy|traefik|lighttpd) ;; *) echo "CONNECTOR is not allowlisted: $(CONNECTOR)" >&2; exit 2 ;; esac
+	@run_id="$${CRS_RUNTIME_RUN_ID:-$(FRESH_VERIFIED_RUN_ID)-$(CONNECTOR)}"; \
+	case "$$run_id" in [A-Za-z0-9]*) ;; *) echo "CRS_RUNTIME_RUN_ID must start with an ASCII alphanumeric character" >&2; exit 2 ;; esac; \
+	case "$$run_id" in *[!A-Za-z0-9._-]*) echo "CRS_RUNTIME_RUN_ID must be a bounded token" >&2; exit 2 ;; esac; \
+	[ "$${#run_id}" -le 48 ] || { echo "CRS_RUNTIME_RUN_ID must be at most 48 characters" >&2; exit 2; }; \
+	EVIDENCE_ROOT= CRS_RUNTIME_RUN_ID="$$run_id" CONNECTOR_ROOT="$(CURDIR)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" PYTHON="$(FRAMEWORK_PYTHON)" \
+		sh ci/runtime/lifecycle/run-with-crs-no-mrts.sh "$(CONNECTOR)" "$$run_id"
 
 mrts-generate: check-framework
 	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-generate

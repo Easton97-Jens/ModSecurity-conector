@@ -10,6 +10,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK_ROOT = Path(
@@ -50,6 +52,29 @@ MISMATCH_SPEC.loader.exec_module(runtime_mismatch)
 
 
 class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
+    def setUp(self) -> None:
+        framework_root, error = trusted_framework_root(ROOT, FRAMEWORK_ROOT)
+        if framework_root is None:
+            self.skipTest(error)
+        self.framework_root = framework_root
+
+    def trusted_framework_environment(self) -> dict[str, str]:
+        """Bind every Framework-executing child to the validated test root."""
+
+        environment = os.environ.copy()
+        environment["FRAMEWORK_ROOT"] = str(self.framework_root)
+        return environment
+
+    def test_child_environment_replaces_an_ambient_framework_root(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {"FRAMEWORK_ROOT": "/untrusted/framework-root"},
+            clear=False,
+        ):
+            environment = self.trusted_framework_environment()
+
+        self.assertEqual(environment["FRAMEWORK_ROOT"], str(self.framework_root))
+
     def test_native_summary_and_mismatch_helpers_keep_outputs_with_reduced_context_parameters(self) -> None:
         with tempfile.TemporaryDirectory(prefix="native-summary-signatures-") as temporary:
             root = Path(temporary)
@@ -541,6 +566,24 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             canonical_runner,
         )
         self.assertIn(
+            "LIGHTTPD_HOST_BINARY_RESOLVER=$CONNECTOR_ROOT/ci/runtime/lifecycle/resolve-lighttpd-host-binary.py",
+            canonical_runner,
+        )
+        self.assertIn(
+            "\n".join(
+                (
+                    'host_binary=$("$PYTHON" "$LIGHTTPD_HOST_BINARY_RESOLVER" \\',
+                    '                --build-root "$CONNECTOR_BUILD_ROOT")',
+                )
+            ),
+            canonical_runner,
+        )
+        self.assertIn("inherited LIGHTTPD_BIN values", canonical_runner)
+        self.assertNotIn(
+            "host_binary=$CONNECTOR_COMPONENT_CACHE/lighttpd/bin/lighttpd",
+            canonical_runner,
+        )
+        self.assertIn(
             'RUNTIME_COMPONENT_ENV_SNAPSHOT="${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}"',
             stage_runner,
         )
@@ -606,6 +649,43 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         no_crs_start = makefile.index("test-no-crs: check-framework prepare-runtime-components")
         no_crs_end = makefile.index("\n\ntest-with-crs:", no_crs_start)
         self.assertNotIn("prepare-fresh-crs-source.sh", makefile[no_crs_start:no_crs_end])
+
+        apache_start = makefile.index("verified-apache-case: check-framework prepare-runtime-components")
+        apache_end = makefile.index("\n\nverified-haproxy-case:", apache_start)
+        apache_target = makefile[apache_start:apache_end]
+        self.assertIn('SOURCE_ROOT="$(SOURCE_ROOT)"', apache_target)
+        self.assertIn('CRS_SOURCE_DIR="$(CRS_SOURCE_DIR)"', apache_target)
+
+        haproxy_start = makefile.index("verified-haproxy-case: check-framework prepare-runtime-components")
+        haproxy_end = makefile.index("\n\nverified-full-matrix-resume:", haproxy_start)
+        haproxy_target = makefile[haproxy_start:haproxy_end]
+        self.assertIn('SOURCE_ROOT="$${SOURCE_ROOT}"', haproxy_target)
+        self.assertIn('CRS_SOURCE_DIR="$${CRS_SOURCE_DIR}"', haproxy_target)
+        self.assertNotIn('SOURCE_ROOT="$(SOURCE_ROOT)"', haproxy_target)
+        self.assertNotIn('CRS_SOURCE_DIR="$(CRS_SOURCE_DIR)"', haproxy_target)
+
+        hostile_source_root = '/tmp/fresh"; printf injected >&2; #'
+        hostile_crs_source = '/tmp/fresh/coreruleset"; printf injected >&2; #'
+        forwarding = subprocess.run(
+            [
+                "sh",
+                "-eu",
+                "-c",
+                'env SOURCE_ROOT="${SOURCE_ROOT}" CRS_SOURCE_DIR="${CRS_SOURCE_DIR}" '
+                'sh -c \'printf "%s|%s" "$SOURCE_ROOT" "$CRS_SOURCE_DIR"\'',
+            ],
+            env={
+                **os.environ,
+                "SOURCE_ROOT": hostile_source_root,
+                "CRS_SOURCE_DIR": hostile_crs_source,
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(forwarding.returncode, 0, forwarding.stdout + forwarding.stderr)
+        self.assertEqual(forwarding.stdout, f"{hostile_source_root}|{hostile_crs_source}")
+        self.assertEqual(forwarding.stderr, "")
 
         with tempfile.TemporaryDirectory(prefix="fresh-crs-source-") as temporary:
             root = Path(temporary)
@@ -726,8 +806,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             )
 
     def test_make_does_not_materialize_an_empty_nginx_github_repo_alias(self) -> None:
-        environment = os.environ.copy()
-        environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
+        environment = self.trusted_framework_environment()
         environment.pop("NGINX_GITHUB_REPO", None)
         result = subprocess.run(
             [
@@ -746,8 +825,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_make_prints_the_guarded_framework_apr_util_tuple_without_parent_overrides(self) -> None:
-        environment = os.environ.copy()
-        environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
+        environment = self.trusted_framework_environment()
         for variable in (
             "APR_UTIL_VERSION",
             "APR_UTIL_SOURCE_URL",
@@ -780,8 +858,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         self.assertEqual(values["APR_UTIL_SOURCE_URL"], f"'{components.require_apr_util_pinned_provenance(unquoted)['APR_UTIL_SOURCE_URL']}'")
 
     def test_make_accepts_a_complete_canonical_apr_util_tuple(self) -> None:
-        environment = os.environ.copy()
-        environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
+        environment = self.trusted_framework_environment()
         for variable in components.FRAMEWORK_APR_UTIL_ENV_KEYS:
             environment.pop(variable, None)
         initial = subprocess.run(
@@ -820,8 +897,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             "APR_UTIL_SHA256_URL",
         ):
             with self.subTest(variable=variable):
-                environment = os.environ.copy()
-                environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
+                environment = self.trusted_framework_environment()
                 environment[variable] = ""
                 result = subprocess.run(
                     [
@@ -851,8 +927,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             "APR_UTIL_SHA256_URL",
         ):
             with self.subTest(variable=variable):
-                environment = os.environ.copy()
-                environment.setdefault("FRAMEWORK_ROOT", str(FRAMEWORK_ROOT))
+                environment = self.trusted_framework_environment()
                 environment[variable] = "untrusted-value"
                 result = subprocess.run(
                     [

@@ -224,6 +224,15 @@ class UpdatePythonVersionTests(unittest.TestCase):
         with self.assertRaises(updater.MetadataError):
             updater.resolve_latest_stable_version(metadata=[malformed_release])
 
+    def test_stable_version_parser_regression_matrix(self) -> None:
+        for value in ("3.14.6", "3.14.7"):
+            with self.subTest(value=value):
+                self.assertEqual(str(updater.parse_stable_version(value)), value)
+
+        for value in ("3.14.06", "3.14.-1", "3.15.0", "3.14.\u0661"):
+            with self.subTest(value=value), self.assertRaises(updater.VersionError):
+                updater.parse_stable_version(value)
+
     def test_malformed_json_is_rejected(self):
         self._assert_metadata_failure(FakeResponse(b"{"))
 

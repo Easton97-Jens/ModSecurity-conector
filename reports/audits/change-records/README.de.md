@@ -11,6 +11,96 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260822-trusted-lighttpd-namespace-dispatch](CR-20260822-trusted-lighttpd-namespace-dispatch.de.md) —
+  der aktuelle Benutzer autorisierte eine separate Protected-master-
+  `workflow_dispatch`-Grenze für den Lighttpd-Namespace-Test. Der Record weist
+  nur lokale Contracts aus; Protected Merge und manueller Runtime-Lauf stehen
+  noch aus.
+
+- [CR-20260822-sonar-pr313-hostruntime-remediation](CR-20260822-sonar-pr313-hostruntime-remediation.de.md) —
+  der aktuelle Benutzer autorisierte die Behebung von vier Parent-eigenen
+  SonarCloud-Code-Smells aus PR #313 über einen Nachfolge-Draft-PR. Die
+  historische #313-Analyse ist unveränderlich; der Record verlangt frische
+  Sonar-Evidence des Successor-Heads mit null offenen New-Code-Issues und
+  behauptet weder Framework-/MRTS-, Gitlink-, NGINX- noch Merge-Änderung.
+
+- [CR-20260821-go-and-runtime-workflow-remediation](CR-20260821-go-and-runtime-workflow-remediation.de.md) —
+  der aktuelle Benutzer autorisierte diese Parent-only-Go- und Runtime-
+  Workflow-Remediation, das sichere Schließen der ersetzten PRs #306–#308, die
+  gekoppelte Nachvollziehbarkeit und später einen nicht gemergten Draft-PR. Der
+  Record unterscheidet lokale Evidence von ausstehenden Exact-Head-Hosted-
+  Läufen und behauptet weder Framework-/MRTS-Änderung noch Merge.
+
+- [CR-20260822-nginx-framework-updater-decoupling](CR-20260822-nginx-framework-updater-decoupling.de.md) —
+  Der aktuelle Nutzer autorisierte die Trennung von NGINX vom allgemeinen
+  Framework-Updater. Der geschützte NGINX-Broker bleibt auf der neuesten
+  offiziell veröffentlichten Version `1.31.3`; kein Merge wird behauptet.
+
+- [CR-20260821-parent-only-workflow-maintenance-bundle](CR-20260821-parent-only-workflow-maintenance-bundle.de.md) —
+  der aktuelle Benutzer autorisierte einen Parent-only gebündelten
+  Action-/Tool-Wartungsweg und eine kontrollierte #311-`master`-Integration,
+  nachdem alle geschützten Delivery-Voraussetzungen bestehen. Der Record hält
+  fest, dass keine Framework-/MRTS-Änderung und keine Aktion an
+  Legacy-Dependabot-PRs autorisiert ist und kein Merge vorab erfolgt oder
+  behauptet wird.
+
+- [CR-20260821-github-workflow-hostruntime-consolidation](CR-20260821-github-workflow-hostruntime-consolidation.de.md) —
+  der aktuelle Benutzer hat diese Parent-only-Workflow-Konsolidierung, die
+  Updater-Reparatur, gekoppelte Traceability, einen Branch, einen Commit und
+  einen nicht gemergten PR autorisiert. Der Record unterscheidet beobachtete
+  lokale/Security-Evidence von ausstehenden Exact-Head-Hosted-Checks und
+  behauptet weder Framework-Änderung noch Merge.
+
+- [CR-20260820-full-matrix-evidence-selector](CR-20260820-full-matrix-evidence-selector.de.md) —
+  der aktuelle Benutzer hat die Parent-only-`AUDIT_AND_FIX`-Reparatur, ihren
+  gekoppelten Change Record und später einen Parent-Draft-PR ausdrücklich
+  autorisiert; keine Framework-Source-Änderung ist autorisiert. Der Record
+  weist nur beobachtete lokale Evidence aus; Hosted-Ergebnisse und ein Merge
+  werden nicht behauptet.
+
+- [CR-20260819-fnd-parent-0185-crs-provenance-exports](CR-20260819-fnd-parent-0185-crs-provenance-exports.de.md) —
+  der aktuelle Benutzer hat diese Parent-only-Reparatur und einen Draft-PR
+  autorisiert und Framework-Moduländerungen ausdrücklich untersagt. Die
+  Hosted-Checks des Implementierungs-Heads bestanden; der vom Benutzer
+  autorisierte geschützte Merge und die Post-Merge-Verifikation folgen dem
+  geschützten Delivery-Lifecycle.
+
+- [CR-20260819-readonly-submodule-sandbox-preservation](CR-20260819-readonly-submodule-sandbox-preservation.de.md) —
+  der aktuelle Benutzer hat diese Parent-only-Sandbox-Reparatur zur
+  Source-Preservation, die gepaarte Nachvollziehbarkeit und Draft PR
+  [#302](https://github.com/Easton97-Jens/ModSecurity-conector/pull/302)
+  ausdrücklich autorisiert. Der Record weist nur beobachtete lokale Evidence
+  aus; weder Framework-Änderung, Gitlink-Update, Hosted-Ergebnis,
+  Ready-for-Review-Status noch Merge werden behauptet.
+
+- [CR-20260818-framework-component-resolver](CR-20260818-framework-component-resolver.de.md) —
+  der aktuelle Benutzer hat diese Parent-only-Reparatur des statischen
+  Resolvers und die gepaarte Nachvollziehbarkeit sowie anschließend ausdrücklich
+  einen Parent-Draft-PR autorisiert. Der Record
+  weist nur beobachtete lokale Validierung aus; weder Framework-Änderung,
+  Gitlink-Update, Hosted-Rerun, finaler Delivery-Identifier noch Merge werden
+  behauptet.
+
+- [CR-20260816-python-updater-publisher-dependency](CR-20260816-python-updater-publisher-dependency.de.md) —
+  der aktuelle Benutzer hat die fokussierte Parent-CI-Fehlerbehebung und die
+  Draft-PR-Auslieferung autorisiert. Dieser gekoppelte Record weist nur
+  beobachtete lokale Validierung aus; gehostete Pull-Request-Checks und die
+  absichtlich an `master` gebundene Ende-zu-Ende-Ausführung des Publishers
+  stehen noch aus.
+
+- [CR-20260816-python-workflow-contract-alignment](CR-20260816-python-workflow-contract-alignment.de.md) —
+  der aktuelle Benutzer hat die fokussierte Parent-Reparatur, den Sonar-
+  Follow-up von PR #296 und die bedingte geschützte `master`-Integration für
+  den verlinkten Actions-Contract-Fehler autorisiert. Der gekoppelte Record
+  unterscheidet beobachteten lokalen Nachweis von ausstehender Successor-Head-
+  Hosted- und Resulting-Master-Evidence und behauptet keinen Merge vorab.
+
+- [CR-20260815-python-updater-framework-port](CR-20260815-python-updater-framework-port.de.md) —
+  der aktuelle Benutzer hat den eingeschränkten Parent-Python-Updater-Port und
+  die Draft-PR-Auslieferung autorisiert. Dieser gekoppelte Record weist nur
+  beobachtete lokale Validierung aus; Hosted-Ausführung, Delivery-Checks und
+  Merge werden nicht behauptet.
+
 - [CR-20260815-framework-version-pin-updater-sync](CR-20260815-framework-version-pin-updater-sync.de.md) —
   der aktuelle Benutzer hat die Vorbereitung der Framework-zentralen
   Synchronisationsänderung und ihrer PR-Auslieferung autorisiert. Dieser

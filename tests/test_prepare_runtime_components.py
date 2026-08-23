@@ -11,6 +11,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+from tests.framework_test_trust import trusted_framework_root
+
 
 ROOT = Path(__file__).resolve().parents[1]
 LEGACY_FRAMEWORK_HAPROXY_CACHE_SHA = "784977615acfc55567e37b863309abc4a38ac877"
@@ -152,6 +154,100 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     components.validate_https_url_config({"CRS_REPO_URL": invalid_url})
 
+        unused_nginx_urls = {
+            "CRS_REPO_URL": canonical,
+            "NGINX_SOURCE_REPO_URL": f"http://github.com/{repo}",
+            "NGINX_QUIC_TLS_SOURCE_URL": "http://example.invalid/quic.tar.gz",
+        }
+        for target in ("shared", "apache", "haproxy"):
+            with self.subTest(target=target):
+                components.validate_https_url_config(unused_nginx_urls, target)
+        for target in ("all", "nginx"):
+            with self.subTest(nginx_target=target):
+                with self.assertRaises(RuntimeError):
+                    components.validate_https_url_config(unused_nginx_urls, target)
+
+    def test_required_runtime_component_sources_scope_all_and_nginx_only_inputs(self) -> None:
+        """Unrelated NGINX and optional-tool pins cannot block selected hosts."""
+
+        non_nginx_env = {
+            "EXPAT_SOURCE_URL": "https://github.com/libexpat/libexpat",
+            "EXPAT_GIT_REF": PINNED_EXPAT_COMMIT,
+            **PINNED_NGINX_RELEASE_TUPLE,
+            "NGINX_RELEASE_TAG": "release-1.31.4",
+            "NGINX_SOURCE_GIT_REF": "release-1.31.4",
+        }
+        all_env = {
+            **non_nginx_env,
+            "GO_FTW_SOURCE_URL": "https://github.com/example/go-ftw",
+            "GO_FTW_PROMPT_EXPECTED_LATEST": "v1.0.0",
+            "ALBEDO_SOURCE_URL": "https://github.com/example/albedo",
+            "ALBEDO_PROMPT_EXPECTED_LATEST": "v1.0.0",
+        }
+
+        with (
+            mock.patch.object(components, "validate_https_url_config"),
+            mock.patch.object(components, "require_apr_util_pinned_provenance", return_value={}),
+        ):
+            for target_connector in ("shared", "apache", "haproxy"):
+                with self.subTest(target_connector=target_connector):
+                    values = components.required_runtime_component_sources(
+                        non_nginx_env,
+                        strict=False,
+                        target_connector=target_connector,
+                    )
+                    self.assertEqual(values["expat_git_ref"], PINNED_EXPAT_COMMIT)
+                    self.assertNotIn("nginx_pinned_provenance", values)
+                    self.assertNotIn("go_ftw_source_url", values)
+                    self.assertNotIn("albedo_source_url", values)
+
+            with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
+                components.required_runtime_component_sources(
+                    non_nginx_env,
+                    strict=False,
+                    target_connector="nginx",
+                )
+            with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
+                components.required_runtime_component_sources(
+                    all_env,
+                    strict=False,
+                    target_connector="all",
+                )
+
+        with (
+            mock.patch.object(components, "validate_https_url_config"),
+            mock.patch.object(components, "require_apr_util_pinned_provenance", return_value={}),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "missing required runtime component config: GO_FTW_SOURCE_URL",
+            ):
+                components.required_runtime_component_sources(
+                    {
+                        "EXPAT_SOURCE_URL": "https://github.com/libexpat/libexpat",
+                        "EXPAT_GIT_REF": PINNED_EXPAT_COMMIT,
+                    },
+                    strict=False,
+                    target_connector="all",
+                )
+
+    def test_required_runtime_component_sources_keeps_global_url_guard_for_every_target(self) -> None:
+        """Target scoping never bypasses the common source URL trust boundary."""
+
+        for target_connector in ("shared", "apache", "haproxy", "nginx", "all"):
+            with self.subTest(target_connector=target_connector):
+                with mock.patch.object(
+                    components,
+                    "validate_https_url_config",
+                    side_effect=RuntimeError("invalid_runtime_source_url"),
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "invalid_runtime_source_url"):
+                        components.required_runtime_component_sources(
+                            {},
+                            strict=False,
+                            target_connector=target_connector,
+                        )
+
     def test_pinned_nginx_release_tuple_uses_only_the_direct_release_asset(self) -> None:
         archive_root = Path("cache/archives")
         cache_root = Path("cache")
@@ -242,6 +338,149 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 mark_cache.assert_not_called()
                 complete_cache.assert_not_called()
                 inspect_archive.assert_not_called()
+
+    def test_required_runtime_component_sources_scopes_nginx_preflight_to_nginx_targets(
+        self,
+    ) -> None:
+        mismatched_nginx = dict(PINNED_NGINX_RELEASE_TUPLE)
+        mismatched_nginx.update(
+            {
+                "NGINX_RELEASE_TAG": "release-1.31.4",
+                "NGINX_SOURCE_GIT_REF": "release-1.31.4",
+            }
+        )
+        with self.assertRaisesRegex(RuntimeError, "unsupported_runtime_component_target:unknown"):
+            components.required_runtime_component_sources(
+                {},
+                strict=False,
+                target_connector="unknown",
+            )
+        for target in ("shared", "apache", "haproxy"):
+            with self.subTest(target=target):
+                with (
+                    mock.patch.object(components, "validate_https_url_config"),
+                    mock.patch.object(
+                        components,
+                        "require_apr_util_pinned_provenance",
+                        return_value={"component": "apr-util"},
+                    ),
+                    mock.patch.object(components, "require_env_value", return_value="required-source"),
+                    mock.patch.object(
+                        components,
+                        "nginx_protocol_build_inputs",
+                        side_effect=AssertionError(
+                            "non-NGINX target must not read NGINX protocol inputs"
+                        ),
+                    ) as nginx_protocol,
+                ):
+                    values = components.required_runtime_component_sources(
+                        mismatched_nginx,
+                        strict=False,
+                        target_connector=target,
+                    )
+
+            self.assertNotIn("nginx_pinned_provenance", values)
+            self.assertNotIn("nginx_require_pinned_provenance", values)
+            nginx_protocol.assert_not_called()
+
+        for target in ("all", "nginx"):
+            with self.subTest(target=target):
+                with (
+                    mock.patch.object(components, "validate_https_url_config"),
+                    mock.patch.object(
+                        components,
+                        "require_apr_util_pinned_provenance",
+                        return_value={"component": "apr-util"},
+                    ),
+                    mock.patch.object(components, "require_env_value", return_value="required-source"),
+                    mock.patch.object(components, "nginx_protocol_build_inputs") as nginx_protocol,
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
+                        components.required_runtime_component_sources(
+                            mismatched_nginx,
+                            strict=False,
+                            target_connector=target,
+                        )
+
+            nginx_protocol.assert_not_called()
+
+        for target in ("all", "nginx"):
+            with self.subTest(protocol_target=target):
+                with (
+                    mock.patch.object(components, "validate_https_url_config"),
+                    mock.patch.object(
+                        components,
+                        "require_apr_util_pinned_provenance",
+                        return_value={"component": "apr-util"},
+                    ),
+                    mock.patch.object(components, "require_env_value", return_value="required-source"),
+                    mock.patch.object(
+                        components,
+                        "nginx_protocol_build_inputs",
+                        side_effect=RuntimeError("nginx_protocol_validation"),
+                    ),
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "nginx_protocol_validation"):
+                        components.required_runtime_component_sources(
+                            dict(PINNED_NGINX_RELEASE_TUPLE),
+                            strict=False,
+                            target_connector=target,
+                        )
+
+    def test_prepare_native_component_records_builds_nginx_plan_only_for_nginx_target(
+        self,
+    ) -> None:
+        paths = {
+            "sources_root": Path("cache/sources"),
+            "archives_root": Path("cache/archives"),
+        }
+        for target, expects_nginx_plan in (
+            ("shared", False),
+            ("apache", False),
+            ("haproxy", False),
+            ("all", True),
+            ("nginx", True),
+        ):
+            context = {
+                "env": {},
+                "cache_root": Path("cache"),
+                "build_root": Path("build"),
+                "connector_root": ROOT,
+                "framework_root": ROOT,
+                "target_connector": target,
+            }
+            with self.subTest(target=target):
+                with (
+                    mock.patch.object(components, "prepare_expat", return_value={"status": "present"}),
+                    mock.patch.object(
+                        components,
+                        "prepare_shared_modsecurity",
+                        return_value={"status": "present", "build_id": "modsecurity"},
+                    ),
+                    mock.patch.object(
+                        components,
+                        "connector_plan",
+                        side_effect=lambda *args: {"connector": args[4]},
+                    ) as connector_plan,
+                    mock.patch.object(
+                        components, "prepare_apache_httpd", return_value={"status": "present"}
+                    ),
+                    mock.patch.object(
+                        components, "prepare_nginx_runtime", return_value={"status": "present"}
+                    ),
+                    mock.patch.object(
+                        components, "prepare_haproxy_runtime", return_value={"status": "present"}
+                    ),
+                    mock.patch.object(components, "prepare_go_tool", return_value={"status": "present"}),
+                ):
+                    records = components.prepare_native_component_records(context, paths, [], [])
+
+            planned_connectors = [call.args[4] for call in connector_plan.call_args_list]
+            self.assertEqual("nginx" in planned_connectors, expects_nginx_plan)
+            if expects_nginx_plan:
+                self.assertEqual(records["nginx_plan"]["connector"], "nginx")
+            else:
+                self.assertEqual(records["nginx_plan"], {})
 
     def test_runtime_component_report_describes_strict_expat_and_cache_fsck_accurately(self) -> None:
         report = components.markdown_report(
@@ -638,6 +877,48 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             )
             self.assertNotIn("ENV", run_env.call_args.kwargs["env"])
             self.assertNotIn("BASH_ENV", run_env.call_args.kwargs["env"])
+
+    def test_framework_modsecurity_guard_keeps_only_original_pin_inputs(self) -> None:
+        """A re-sourced Framework guard must not inherit its own pin exports."""
+        with tempfile.TemporaryDirectory(prefix="modsecurity-provenance-guard-") as temporary:
+            root = Path(temporary)
+            framework_root = root / "framework"
+            common = framework_root / "ci/lib/common.sh"
+            common.parent.mkdir(parents=True)
+            common.write_text("# tested through a mocked subprocess\n", encoding="utf-8")
+            source = root / "source"
+            source.mkdir()
+            completed = subprocess.CompletedProcess([], 0, "", "")
+            loaded_framework_environment = {
+                "CONNECTOR_ROOT": str(root / "connector"),
+                "FRAMEWORK_ROOT": str(framework_root),
+                "VERIFIED_RUN_ROOT": str(root / "verified-run"),
+                "ENVOY_VERSION": "1.39.0",
+                "TRAEFIK_VERSION": "3.7.10",
+                "LIGHTTPD_VERSION": "1.4.85",
+                "CI_INHERITED_UPSTREAM_ENV": "ENVOY_VERSION=1.39.0",
+            }
+            with mock.patch.dict(
+                os.environ,
+                {"ENVOY_VERSION": "caller-override"},
+                clear=True,
+            ), mock.patch.object(components, "run_env", return_value=completed) as run_env:
+                result = components.verify_framework_approved_modsecurity_v3_checkout(
+                    loaded_framework_environment,
+                    framework_root,
+                    source,
+                )
+
+            self.assertEqual(result["status"], "passed")
+            guard_env = run_env.call_args.kwargs["env"]
+            self.assertEqual(guard_env["ENVOY_VERSION"], "caller-override")
+            self.assertNotIn("TRAEFIK_VERSION", guard_env)
+            self.assertNotIn("LIGHTTPD_VERSION", guard_env)
+            self.assertNotIn("CI_INHERITED_UPSTREAM_ENV", guard_env)
+            self.assertEqual(guard_env["CONNECTOR_ROOT"], str(root / "connector"))
+            self.assertEqual(guard_env["FRAMEWORK_ROOT"], str(framework_root))
+            self.assertEqual(guard_env["VERIFIED_RUN_ROOT"], str(root / "verified-run"))
+            self.assertEqual(guard_env["MODSECURITY_V3_SOURCE_DIR"], str(source))
 
     def test_framework_modsecurity_provisioning_bridge_passes_destination_as_positional_argument(self) -> None:
         with tempfile.TemporaryDirectory(prefix="modsecurity-provisioning-bridge-") as temporary:
@@ -1406,13 +1687,16 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             if configured_root
             else ROOT / "modules" / "ModSecurity-test-Framework"
         )
-        script = framework_root / "ci" / "provisioning" / "prepare-haproxy-runtime.sh"
+        trusted_root, error = trusted_framework_root(ROOT, framework_root)
+        if trusted_root is None:
+            self.skipTest(error)
+        script = trusted_root / "ci" / "provisioning" / "prepare-haproxy-runtime.sh"
         if not script.is_file():
             self.fail(
                 "HAProxy prepare framework source is unavailable; initialize the checked-out "
                 "submodule or set MODSECURITY_FRAMEWORK_TEST_ROOT to a reviewed read-only source"
             )
-        return framework_root
+        return trusted_root
 
     def haproxy_prepare_enforces_split_build_root_containment(self, framework_root: Path) -> bool:
         script = framework_root / "ci" / "provisioning" / "prepare-haproxy-runtime.sh"
@@ -1473,12 +1757,14 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         binary.parent.mkdir(parents=True)
         binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         binary.chmod(0o755)
+        binary_sha256 = hashlib.sha256(binary.read_bytes()).hexdigest()
         (runtime_dir / "haproxy.provenance").write_text(
             "\n".join(
                 (
                     f"haproxy_version={haproxy_version}",
                     f"haproxy_source_url={haproxy_source_url}",
                     f"haproxy_sha256={haproxy_sha256}",
+                    f"haproxy_binary_sha256={binary_sha256}",
                     "",
                 )
             ),
@@ -1597,7 +1883,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("ready existing provenance-verified binary", result.stdout)
 
-    def test_haproxy_prepare_rejects_unapproved_future_provenance_tuple(self) -> None:
+    def test_haproxy_prepare_rejects_unapproved_future_provenance_before_runtime_lock(self) -> None:
         with tempfile.TemporaryDirectory(prefix="haproxy-future-pin-") as temporary:
             env = self.managed_haproxy_cache_environment(
                 Path(temporary),
@@ -1616,9 +1902,10 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             )
         self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn(
-            "runtime-component-lock: BLOCKED: environment profile haproxy-spoe-spop HAPROXY_VERSION drift",
+            "BLOCKED: HAPROXY_VERSION override is not permitted",
             result.stdout + result.stderr,
         )
+        self.assertNotIn("runtime-component-lock:", result.stdout + result.stderr)
 
     def test_haproxy_prepare_rejects_shared_cache_runtime_with_separate_build_root(self) -> None:
         framework_root = self.haproxy_prepare_framework_root()

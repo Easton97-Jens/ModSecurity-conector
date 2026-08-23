@@ -35,6 +35,8 @@ PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
     + PROTECTED_NGINX_BROKER_SHA
 )
+WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "c40e924ec5c341032908e0082feba1d37ed1dfda"
+WITH_CRS_NO_MRTS_MRTS_SHA = "615b13bacbd008562c17408246c41ab27dca3104"
 PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
     {
         "github.event_name == 'workflow_dispatch'",
@@ -44,7 +46,12 @@ PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
         "github.event.repository.default_branch == 'master'",
     }
 )
-SUBMODULE_PUBLISHER_SHA256 = "42b8ac3108df2ce0179a6af793dcaf3e2b53989346325d361ed4fa1465a1e093"
+LOCK_PATH = ROOT / "ci" / "tooling" / "security-tools.lock.yml"
+LOCKED_ACTION_USE = re.compile(
+    r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
+    r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
+)
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "486be1c4676f48e035b8f17ca7ec44f9651de539edc9620d83191f1052418bc6"
 AUTO_MERGE_DISABLED_QUERY = (
     "--jq 'if (has(\"auto_merge\") and (.auto_merge == null)) then \"null\" "
     "else \"auto-merge-present\" end'"
@@ -54,7 +61,7 @@ READONLY_SUBMODULE_SANDBOX_CALL = " ".join(
         "python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py",
         '--source-root "$GITHUB_WORKSPACE"',
         '--framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"',
-        '--write-root "$write_root"',
+        '--write-root "$VALIDATION_WRITE_ROOT"',
         '--runner-temp "$RUNNER_TEMP"',
         "--validator-user modsecurity-validator",
         "--validator-group modsecurity-validator",
@@ -82,6 +89,19 @@ READONLY_SUBMODULE_NAMESPACE_COMPLETE = "READONLY_SUBMODULE_VALIDATION_NAMESPACE
 READONLY_SUBMODULE_VERIFY_GATE = (
     "if: ${{ always() && steps.prepare-readonly-candidate-sandbox.outcome == 'success' }}"
 )
+READONLY_SUBMODULE_CLEANUP_GATE = (
+    "if: ${{ always() && steps.create-readonly-candidate-sandbox-guard.outputs.write_root != '' }}"
+)
+READONLY_SUBMODULE_CLEANUP_CALL = " ".join(
+    (
+        "python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py",
+        "--cleanup",
+        '--source-root "$GITHUB_WORKSPACE"',
+        '--framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"',
+        '--write-root "$VALIDATION_WRITE_ROOT"',
+        '--runner-temp "$RUNNER_TEMP"',
+    )
+)
 SUBMODULE_CANDIDATE_STATE_HELPER = "ci/tools/validate-submodule-candidate-state.py"
 SUBMODULE_CANDIDATE_BASELINE_CALL = " ".join(
     (
@@ -93,7 +113,7 @@ SUBMODULE_CANDIDATE_BASELINE_CALL = " ".join(
 )
 SUBMODULE_CANDIDATE_STATE_CALL = " ".join(
     (
-        f"sudo -n python3 {SUBMODULE_CANDIDATE_STATE_HELPER}",
+        f"python3 {SUBMODULE_CANDIDATE_STATE_HELPER}",
         "validate",
         '--parent-root "$GITHUB_WORKSPACE"',
         '--submodule-path "$SUBMODULE_PATH"',
@@ -180,6 +200,7 @@ WRITE_PERMISSION_KEYS = {
     "packages",
     "id-token",
     "attestations",
+    "statuses",
 }
 
 CONNECTOR_MODE_WORKFLOWS = {
@@ -323,6 +344,8 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
     normalized = normalize_shell_script(validator)
     errors: list[str] = []
     required = (
+        "Create private read-only candidate guard",
+        "id: create-readonly-candidate-sandbox-guard",
         READONLY_SUBMODULE_SANDBOX_CALL,
         READONLY_SUBMODULE_NAMESPACE_CALL,
         "sudo -n groupadd --system modsecurity-validator",
@@ -352,9 +375,13 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         "CANDIDATE_RESULT: ${{ steps.run-readonly-candidate-namespace.outcome }}",
         'test "$SANDBOX_PREPARE_RESULT" = success',
         'test "$CANDIDATE_RESULT" = success',
-        "sudo -n git -c core.hooksPath=/dev/null diff --check",
-        'sudo -n git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check',
+        "git -c core.hooksPath=/dev/null diff --check",
+        'git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check',
         "printf 'write_root=%s\\n' \"$write_root\" >> \"$GITHUB_OUTPUT\"",
+        "Clean up private read-only candidate guard",
+        READONLY_SUBMODULE_CLEANUP_GATE,
+        READONLY_SUBMODULE_CLEANUP_CALL,
+        "READONLY_SUBMODULE_VALIDATION_SANDBOX_CLEANED",
     )
     for term in required:
         if term not in normalized:
@@ -376,6 +403,13 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         "git reset --hard",
         "git clean",
         "|| true",
+        "sudo -n python3 ci/tools/validate-submodule-candidate-state.py",
+        "sudo -n git -c core.hooksPath=/dev/null diff --check",
+        'sudo -n git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" diff --check',
+        "chown -R",
+        "chmod -R",
+        "$SUDO_USER",
+        "$USER",
     )
     for term in forbidden:
         if term in validator:
@@ -384,10 +418,10 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
     namespace_count = normalized.count(READONLY_SUBMODULE_NAMESPACE_CALL)
     if namespace_count != 1:
         errors.append("workflow must invoke the namespace helper exactly once")
-    if normalized.count("prepare-readonly-submodule-validation-sandbox.py") != 2:
-        errors.append("sandbox helper must prepare and physically verify exactly once each")
+    if normalized.count("prepare-readonly-submodule-validation-sandbox.py") != 3:
+        errors.append("sandbox helper must prepare, verify, and clean exactly once each")
     if normalized.count("umask 077") != 1:
-        errors.append("only root-side sandbox preparation may set the workflow umask")
+        errors.append("only private guard creation may set the workflow umask")
     if "GH_TOKEN" in validator or "secrets." in validator or "github.token" in validator:
         errors.append("validator job must not receive credentials")
     if "--namespace-parent /tmp" in validator or "--namespace-parent /var/tmp" in validator:
@@ -407,10 +441,11 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
     namespace_index = normalized.find(READONLY_SUBMODULE_NAMESPACE_CALL)
     verification_index = normalized.find("Verify candidate source inventory and external outputs")
     result_index = normalized.find("Enforce isolated candidate result after verification")
-    if min(setup_index, namespace_index, verification_index, result_index) < 0 or not (
-        setup_index < namespace_index < verification_index < result_index
+    cleanup_index = normalized.find("Clean up private read-only candidate guard")
+    if min(setup_index, namespace_index, verification_index, result_index, cleanup_index) < 0 or not (
+        setup_index < namespace_index < verification_index < result_index < cleanup_index
     ):
-        errors.append("root preparation, namespace candidate, physical verification, and result gate must be ordered")
+        errors.append("guard preparation, candidate, verification, result gate, and cleanup must be ordered")
     baseline_index = normalized.find(SUBMODULE_CANDIDATE_BASELINE_CALL)
     checkout_index = normalized.find("checkout --detach")
     first_state_index = normalized.find(SUBMODULE_CANDIDATE_STATE_CALL)
@@ -419,6 +454,86 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         baseline_index < checkout_index < first_state_index < setup_index < second_state_index < result_index
     ):
         errors.append("candidate-state validation must bracket the isolated namespace")
+    return errors
+
+
+def readonly_submodule_sandbox_helper_errors(helper: str) -> list[str]:
+    """Return violations of the source-preserving root-side sandbox boundary."""
+
+    errors: list[str] = []
+    required = (
+        'WRITE_ROOT_PREFIX = "modsecurity-readonly-validation."',
+        "def _reject_nested_source_mounts",
+        "def _mountinfo_mountpoints",
+        "def cleanup_sandbox",
+        "def _validate_cleanup_layout",
+        "def _open_existing_directory_path",
+        "os.O_NOFOLLOW",
+        "dir_fd=",
+        "source / \".git\"",
+        "_reject_mounts_within(write, \"cleanup write root\", include_root=True)",
+        "_source_regular_inodes",
+        "external output hardlinks a source file",
+        "READONLY_SUBMODULE_VALIDATION_SANDBOX_CLEANED",
+    )
+    for term in required:
+        if term not in helper:
+            errors.append(f"missing {term}")
+    for term in ("_lock_tree", "shutil.", "rmtree", "os.system", "shell=True"):
+        if term in helper:
+            errors.append(f"source-preserving helper must not use {term!r}")
+    try:
+        syntax_tree = ast.parse(helper)
+    except SyntaxError:
+        return [*errors, "source-preserving helper must remain valid Python"]
+    function_nodes = {
+        node.name: node
+        for node in syntax_tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    function_text = {
+        name: "\n".join(helper.splitlines()[node.lineno - 1 : node.end_lineno])
+        for name, node in function_nodes.items()
+        if node.end_lineno is not None
+    }
+    for name in ("prepare_sandbox", "verify_sandbox"):
+        body = function_text.get(name, "")
+        if not body:
+            errors.append(f"missing {name}")
+            continue
+        nested_mount_index = body.find("_reject_nested_source_mounts(source)")
+        inventory_index = body.find("_source_inventory(source)")
+        if min(nested_mount_index, inventory_index) < 0 or nested_mount_index > inventory_index:
+            errors.append(f"{name} must reject nested source mounts before inventory use")
+        for call in ast.walk(function_nodes[name]):
+            if (
+                isinstance(call, ast.Call)
+                and isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id == "os"
+                and call.func.attr in {"chown", "chmod", "fchown", "fchmod"}
+            ):
+                errors.append(f"{name} must not ownership- or mode-mutate the source tree")
+    prepare = function_text.get("prepare_sandbox", "")
+    if prepare.find("_source_inventory(source)") > prepare.find("_make_external_root(write, identity)"):
+        errors.append("prepare must inventory source before creating external output")
+    for name, node in function_nodes.items():
+        for call in ast.walk(node):
+            if not (
+                isinstance(call, ast.Call)
+                and isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id == "os"
+                and call.func.attr in {"chown", "chmod"}
+            ):
+                continue
+            if name != "_make_external_root":
+                errors.append(f"{call.func.attr} is only allowed for the private external root")
+    cleanup = function_text.get("cleanup_sandbox", "")
+    if not cleanup or "_open_existing_directory_path(temporary)" not in cleanup:
+        errors.append("cleanup must open the trusted temporary parent by descriptor")
+    if not cleanup or "_remove_tree_contents(write_descriptor)" not in cleanup:
+        errors.append("cleanup must unlink only descriptor-relative private contents")
     return errors
 
 
@@ -442,6 +557,10 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         'JAIL_FORBIDDEN_PATH_COMPONENTS = ("tmp", "var", "home", "root", "run", "sys")',
         "CLONE_NEWNS | CLONE_NEWPID",
         "MS_NOEXEC = 8",
+        "def _reject_nested_source_mounts",
+        "_reject_nested_source_mounts(source)",
+        "/proc/self/mountinfo",
+        "source root contains an unexpected active mount",
         'parser.add_argument("--namespace-parent", required=True)',
         "_validate_namespace_parent(namespace_parent, gid)",
         "namespace_ancestor = namespace_parent.parent",
@@ -577,6 +696,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
     }
     pid1_candidate = functions.get("_run_pid1_candidate", "")
     namespace_child = functions.get("_namespace_child", "")
+    configuration = functions.get("_validated_configuration", "")
     jail_builder = functions.get("_build_jail_layout", "")
     descriptor_closer = functions.get("_close_unapproved_descriptors", "")
     if not pid1_candidate:
@@ -584,6 +704,10 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
     if not namespace_child:
         errors.append("namespace runner must retain the namespace child launcher")
         return errors
+    nested_mount_index = configuration.find("_reject_nested_source_mounts(source)")
+    external_index = configuration.find("if external != write_root / \"external\":")
+    if not configuration or min(nested_mount_index, external_index) < 0 or nested_mount_index > external_index:
+        errors.append("namespace runner must reject nested source mounts before setup")
     if not jail_builder or "_mount(\"tmpfs\", mount_root" not in jail_builder:
         errors.append("namespace runner must construct a private tmpfs jail before candidate execution")
     if (
@@ -647,18 +771,12 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
 
 
 EXPECTED_WRITE_PERMISSIONS = {
+    ("run-trusted-lighttpd-namespace-dispatch.yml", "report-trusted-lighttpd-namespace"): {
+        "statuses": "write",
+    },
     ("cleanup-artifacts.yml", "cleanup-artifacts"): {"actions": "write"},
     ("test-full-smoke-sequential.yml", "cleanup-artifacts"): {"actions": "write"},
-    ("update-actions-versions.yml", "update-actions-versions"): {
-        "contents": "write",
-        "pull-requests": "write",
-        "actions": "write",
-    },
     ("update-submodules.yml", "create-submodule-update-pr"): {
-        "contents": "write",
-        "pull-requests": "write",
-    },
-    ("update-python-version.yml", "create-python-update-pr"): {
         "contents": "write",
         "pull-requests": "write",
     },
@@ -1225,6 +1343,47 @@ def go_module_requirements(text: str) -> dict[str, tuple[int, int, int]]:
     return requirements
 
 
+def locked_action_pins() -> set[str]:
+    """Return immutable Action SHAs from the current reviewed lock."""
+
+    raw = yaml.safe_load(LOCK_PATH.read_text(encoding="utf-8"))
+    actions = raw.get("pinned_actions", {}) if isinstance(raw, dict) else {}
+    if not isinstance(actions, dict):
+        raise AssertionError("workflow Action lock has no pinned_actions mapping")
+    pins = {
+        record.get("commit_sha")
+        for record in actions.values()
+        if isinstance(record, dict) and isinstance(record.get("commit_sha"), str)
+    }
+    if not pins or any(not re.fullmatch(r"[a-f0-9]{40}", pin) for pin in pins):
+        raise AssertionError("workflow Action lock contains an invalid immutable pin")
+    return pins
+
+
+def locked_action_pin(name: str) -> str:
+    """Return one exact Action reference prefix bound to the reviewed lock."""
+
+    raw = yaml.safe_load(LOCK_PATH.read_text(encoding="utf-8"))
+    actions = raw.get("pinned_actions", {}) if isinstance(raw, dict) else {}
+    record = actions.get(name) if isinstance(actions, dict) else None
+    if not isinstance(record, dict) or not isinstance(record.get("commit_sha"), str):
+        raise AssertionError(f"workflow Action lock has no immutable pin for {name}")
+    return f"{name}@{record['commit_sha']}"
+
+
+def normalize_locked_action_pins(text: str) -> str:
+    """Canonicalize only reviewed Action pins before a structural digest check."""
+
+    pins = locked_action_pins()
+
+    def replace(match: re.Match[str]) -> str:
+        if match.group("sha") not in pins:
+            return match.group(0)
+        return f"{match.group('prefix')}<locked-action> # <locked-version>"
+
+    return LOCKED_ACTION_USE.sub(replace, text)
+
+
 class CiSecurityWorkflowTest(unittest.TestCase):
     def workflow(self, name: str) -> str:
         return (WORKFLOWS / name).read_text(encoding="utf-8")
@@ -1236,8 +1395,11 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         return job_blocks(self.workflow(name))
 
     def test_all_remote_actions_are_immutable_sha_pins(self) -> None:
-        lock_text = (ROOT / "ci" / "tooling" / "security-tools.lock.yml").read_text(encoding="utf-8")
-        recorded_shas = set(re.findall(r"commit_sha: ([a-f\d]{40})", lock_text))
+        lock_data = yaml.safe_load(LOCK_PATH.read_text(encoding="utf-8"))
+        locked_actions = (
+            lock_data.get("pinned_actions", {}) if isinstance(lock_data, dict) else {}
+        )
+        self.assertIsInstance(locked_actions, dict)
         for path in self.workflow_paths():
             for line in path.read_text(encoding="utf-8").splitlines():
                 if "uses:" not in line or "@" not in line or "./" in line:
@@ -1250,7 +1412,15 @@ class CiSecurityWorkflowTest(unittest.TestCase):
                     self.assertEqual(reference, PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE)
                     continue
                 self.assertRegex(reference, SHA_PIN, f"{path}: {line}")
-                self.assertIn(reference.split("@", 1)[1].split()[0], recorded_shas, f"{path}: {line}")
+                action_with_suffix, pinned_sha = reference.split("@", 1)
+                action_name = "/".join(action_with_suffix.split("/")[:2])
+                record = locked_actions.get(action_name)
+                self.assertIsInstance(record, dict, f"{path}: {line}")
+                self.assertEqual(
+                    pinned_sha.split()[0],
+                    record.get("commit_sha"),
+                    f"{path}: {line}",
+                )
 
     def test_workflow_and_lock_yaml_reject_forbidden_indirection(self) -> None:
         unsafe = """\
@@ -1311,6 +1481,9 @@ jobs:
         )
         self.assertEqual(text.count("check-latest: false"), 2)
         self.assertNotIn("go-version-file: .go-version", text)
+        self.assertIn("printf '%s\\n' \"$version\" | awk", text)
+        self.assertIn("NR == 1", text)
+        self.assertNotIn('[[ ! "$version" =~', text)
         self.assertIn("connectors/envoy/ext_proc", text)
         self.assertIn("connectors/traefik/native_middleware", text)
         self.assertIn("Fuzz Traefik UDS frame parser", text)
@@ -1361,10 +1534,10 @@ jobs:
 
     def test_makefile_preserves_the_framework_pcre2_default_boundary(self) -> None:
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
-        self.assertIn(
-            "ifneq ($(origin PCRE2_SHA256),undefined)\nexport PCRE2_SHA256\nendif",
-            makefile,
-        )
+        self.assertIn("define export_framework_optional_provenance", makefile)
+        export_list = makefile.split("FRAMEWORK_OPTIONAL_PROVENANCE_EXPORTS :=", 1)[1]
+        export_list = export_list.split("$(foreach", 1)[0]
+        self.assertIn("PCRE2_SHA256", export_list)
         self.assertNotIn(
             "export PCRE2_VERSION\nexport PCRE2_SOURCE_URL\nexport PCRE2_SHA256\nexport PCRE2_SHA256_URL",
             makefile,
@@ -1490,6 +1663,257 @@ jobs:
             for checkout_step in checkout_steps:
                 self.assertIn("persist-credentials: false", checkout_step, path.name)
 
+    def test_lighttpd_namespace_contract_is_unprivileged_on_pull_requests(self) -> None:
+        """Ordinary CI covers contracts; trusted dispatch covers kernel integration."""
+
+        workflow = self.workflow("test-lighttpd.yml")
+        jobs = self.jobs("test-lighttpd.yml")
+        self.assertIn("  pull_request:\n", workflow)
+        self.assertEqual(top_level_permissions(workflow), {"contents": "read"})
+        self.assertEqual(set(jobs), {"lighttpd-contract"})
+        job = jobs["lighttpd-contract"]
+        self.assertIn(
+            "ref: ${{ github.event.pull_request.head.sha || github.sha }}", job
+        )
+        self.assertIn("persist-credentials: false", job)
+        self.assertIn(
+            "Run private fixture namespace contract tests", job
+        )
+        self.assertNotIn("LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION", job)
+        self.assertIn('PYTHONDONTWRITEBYTECODE: "1"', job)
+        self.assertIn("set -euo pipefail", job)
+        self.assertIn(
+            'namespace_temp_root="$(/usr/bin/mktemp -d "${RUNNER_TEMP}/lighttpd-namespace-contract.XXXXXX")"',
+            job,
+        )
+        self.assertIn('/usr/bin/chmod 700 -- "$namespace_temp_root"', job)
+        self.assertIn(
+            'export LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT="$namespace_temp_root"',
+            job,
+        )
+        self.assertIn(
+            "python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace",
+            job,
+        )
+        for forbidden in ("continue-on-error:", "|| true", "exit 0", "sudo", "unshare "):
+            self.assertNotIn(forbidden, job)
+
+    def test_with_crs_no_mrts_workflow_is_five_real_fail_closed_runtime_jobs(self) -> None:
+        """Keep the narrow CRS workflow on real no-MRTS runtime paths only."""
+
+        workflow = self.workflow("test-connectors-with-crs-no-mrts.yml")
+        jobs = self.jobs("test-connectors-with-crs-no-mrts.yml")
+        self.assertEqual(set(jobs), {"connector-mode"})
+        job = jobs["connector-mode"]
+
+        self.assertIn("  pull_request:\n    branches: [master]\n", workflow)
+        self.assertIn("  workflow_dispatch:\n", workflow)
+        for forbidden in (
+            "pull_request_target:",
+            "workflow_run:",
+            "workflow_call:",
+            "repository_dispatch:",
+            "\n  push:",
+            "secrets.",
+            "github.token",
+            "GITHUB_TOKEN",
+            "GH_TOKEN",
+        ):
+            self.assertNotIn(forbidden, workflow)
+        self.assertEqual(top_level_permissions(workflow), {"contents": "read"})
+        self.assertEqual(job_permissions(job), {})
+        self.assertIsNone(job_if_expression(job))
+
+        expected_rows = [
+            ("apache", "with-crs", "no-mrts", "apache"),
+            ("envoy", "with-crs", "no-mrts", "shared"),
+            ("haproxy", "with-crs", "no-mrts", "haproxy"),
+            ("lighttpd", "with-crs", "no-mrts", "shared"),
+            ("traefik", "with-crs", "no-mrts", "shared"),
+        ]
+        matrix_rows = re.findall(
+            r"^          - connector: ([a-z]+)\n"
+            r"^            crs: ([a-z-]+)\n"
+            r"^            mrts: ([a-z-]+)\n"
+            r"^            runtime_component_target: ([a-z]+)$",
+            job,
+            re.MULTILINE,
+        )
+        self.assertEqual(matrix_rows, expected_rows)
+        self.assertIn(
+            "RUNTIME_COMPONENT_TARGET: ${{ matrix.runtime_component_target }}",
+            job,
+        )
+        self.assertNotIn("coverage_kind", job)
+        self.assertNotIn("verified-full-matrix-job", job)
+        self.assertNotIn("run-full-matrix-job.py", job)
+
+        checkout_steps = checkout_step_blocks(job)
+        self.assertEqual(len(checkout_steps), 1)
+        checkout = checkout_steps[0]
+        self.assertIn(
+            "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7",
+            checkout,
+        )
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", checkout)
+        self.assertIn("submodules: recursive", checkout)
+        self.assertIn("persist-credentials: false", checkout)
+        self.assertIn(
+            "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0",
+            job,
+        )
+        self.assertIn(
+            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+            job,
+        )
+
+        self.assertIn(
+            "EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+            job,
+        )
+        self.assertIn(f"EXPECTED_FRAMEWORK_SHA: {WITH_CRS_NO_MRTS_FRAMEWORK_SHA}", job)
+        self.assertIn(f"EXPECTED_MRTS_SHA: {WITH_CRS_NO_MRTS_MRTS_SHA}", job)
+        self.assertIn('test "$parent_commit" = "$EXPECTED_PARENT_SHA"', job)
+        self.assertIn('test "$framework_commit" = "$EXPECTED_FRAMEWORK_SHA"', job)
+        self.assertIn('test "$mrts_commit" = "$EXPECTED_MRTS_SHA"', job)
+        self.assertIn("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock", job)
+        self.assertIn('test "${#CRS_RUNTIME_RUN_ID}" -le 48', job)
+        self.assertIn("EVIDENCE_ROOT: \"\"", job)
+
+        self.assertIn("- name: Prepare fresh CRS source for Apache and HAProxy", job)
+        self.assertIn(". ci/runtime/lifecycle/prepare-fresh-crs-source.sh", job)
+        self.assertIn('sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"', job)
+        self.assertIn(
+            'printf \'%s\\n\' "SOURCE_ROOT=$SOURCE_ROOT" "CRS_SOURCE_DIR=$CRS_SOURCE_DIR" >> "$GITHUB_ENV"',
+            job,
+        )
+        preparation = job.split(
+            "      - name: Prepare fresh CRS source for Apache and HAProxy\n", 1
+        )[1].split("      - name: Run selected real with-CRS no-MRTS runtime\n", 1)[0]
+        self.assertIn('case "$CONNECTOR" in', preparation)
+        self.assertIn("apache|haproxy)", preparation)
+        self.assertIn(
+            'printf \'%s\\n\' "SOURCE_ROOT=$SOURCE_ROOT" "CRS_SOURCE_DIR=$CRS_SOURCE_DIR" >> "$GITHUB_ENV"',
+            preparation,
+        )
+        runtime = job.split(
+            "      - name: Run selected real with-CRS no-MRTS runtime\n", 1
+        )[1].split("      - name: Upload real runtime evidence\n", 1)[0]
+        self.assertNotIn("prepare-fresh-crs-source.sh", runtime)
+        self.assertNotIn('fetch-crs.sh', runtime)
+        self.assertEqual(
+            job.count('. "$FRAMEWORK_ROOT/ci/lib/common.sh"'),
+            1,
+        )
+        self.assertLess(
+            job.index("prepare-fresh-crs-source.sh"),
+            job.index("make verified-apache-case CASE=crs_sqli_anomaly_block"),
+        )
+        self.assertLess(
+            job.index("prepare-fresh-crs-source.sh"),
+            job.index("make verified-haproxy-case CASE=crs_sqli_anomaly_block"),
+        )
+        self.assertIn(
+            'make verified-apache-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"',
+            job,
+        )
+        self.assertIn(
+            'make verified-haproxy-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"',
+            job,
+        )
+        self.assertEqual(
+            job.count('make with-crs-no-mrts-runtime CONNECTOR="$CONNECTOR"'),
+            1,
+        )
+        self.assertIn("envoy|lighttpd|traefik)", job)
+        self.assertIn("lighttpd:with-crs:no-mrts", job)
+        self.assertNotIn("runtime-with-crs-no-mrts-connector", job)
+        self.assertNotIn("action_deny_phase1", job)
+        self.assertNotIn("2101", job)
+
+        # The trusted Lighttpd namespace launcher remains inside the Parent
+        # runtime target.  The workflow neither skips this cell nor supplies a
+        # host-side fallback if that launcher rejects the runner environment.
+        for forbidden in (
+            "continue-on-error:",
+            "|| true",
+            "exit 0",
+            "unshare",
+            "run_no_crs_fixture_trusted_namespace.py",
+        ):
+            self.assertNotIn(forbidden, job)
+        self.assertIn("if-no-files-found: error", job)
+        self.assertNotIn("if-no-files-found: ignore", job)
+        self.assertIn("retention-days: 10", job)
+        for step_id in (
+            "checkout",
+            "setup-python",
+            "verify-python",
+            "verify-revisions",
+            "install-framework-ci",
+            "verify-runtime-cell",
+            "initialize-runtime-roots",
+            "prepare-crs-source",
+            "runtime",
+            "upload-runtime-evidence",
+        ):
+            self.assertIn(f"id: {step_id}", job)
+        self.assertEqual(
+            job.count("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1"),
+            1,
+        )
+        upload = job.split("      - name: Upload real runtime evidence\n", 1)[1]
+        self.assertIn("if: always() && matrix.connector != 'haproxy'", upload)
+        self.assertNotIn("verified-haproxy-case", upload)
+        self.assertNotIn("Upload HAProxy host-runtime artifacts", job)
+        self.assertLess(
+            job.index("make verified-haproxy-case CASE=crs_sqli_anomaly_block"),
+            job.index("if: always() && matrix.connector != 'haproxy'"),
+        )
+        summary = job.split("      - name: Write connector runtime overview\n", 1)[1]
+        self.assertIn("if: always()", summary)
+        self.assertIn(
+            'python3 ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py --connector "$CONNECTOR"',
+            summary,
+        )
+        self.assertNotIn("--summary-file", summary)
+        for environment_name, step_id in (
+            ("CHECKOUT_OUTCOME", "checkout"),
+            ("SETUP_PYTHON_OUTCOME", "setup-python"),
+            ("VERIFY_PYTHON_OUTCOME", "verify-python"),
+            ("VERIFY_REVISIONS_OUTCOME", "verify-revisions"),
+            ("INSTALL_DEPENDENCIES_OUTCOME", "install-framework-ci"),
+            ("VERIFY_CELL_OUTCOME", "verify-runtime-cell"),
+            ("INITIALIZE_ROOTS_OUTCOME", "initialize-runtime-roots"),
+            ("PREPARE_CRS_OUTCOME", "prepare-crs-source"),
+            ("RUNTIME_OUTCOME", "runtime"),
+            ("UPLOAD_EVIDENCE_OUTCOME", "upload-runtime-evidence"),
+        ):
+            self.assertIn(f"{environment_name}: ${{{{ steps.{step_id}.outcome }}}}", summary)
+        self.assertLess(
+            job.index("      - name: Upload real runtime evidence\n"),
+            job.index("      - name: Write connector runtime overview\n"),
+        )
+        runtime_runner = (ROOT / "ci/runtime/lifecycle/run-with-crs-no-mrts.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "TASK_ROOT=${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-crs-runtime}",
+            runtime_runner,
+        )
+        self.assertIn("EXPECTED_EVIDENCE_ROOT=$TASK_ROOT/evidence", runtime_runner)
+        # The explicit workflow root selects the first branch of the shell's
+        # ``:-`` expansion above, so the runner-owned evidence is rooted
+        # directly below it rather than below the fallback suffix.
+        self.assertIn(
+            "${{ env.VERIFIED_RUN_ROOT }}/evidence",
+            job,
+        )
+        self.assertIn(
+            "${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results",
+            job,
+        )
+
     def test_pr_apr_util_provenance_job_is_unconditional_and_read_only(self) -> None:
         workflow = self.workflow("ci-security-workflow-lint.yml")
         jobs = self.jobs("ci-security-workflow-lint.yml")
@@ -1503,17 +1927,14 @@ jobs:
         self.assertNotIn("github.token", job)
         checkout_steps = checkout_step_blocks(job)
         self.assertEqual(len(checkout_steps), 1)
-        self.assertIn("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7", checkout_steps[0])
+        self.assertIn(locked_action_pin("actions/checkout"), checkout_steps[0])
         self.assertIn("submodules: recursive", checkout_steps[0])
         self.assertIn("persist-credentials: false", checkout_steps[0])
         self.assertIn(
             "python3 -m unittest -v tests.test_framework_apr_util_provenance tests.test_apr_util_static_contract",
             job,
         )
-        self.assertIn(
-            "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0",
-            job,
-        )
+        self.assertIn(locked_action_pin("actions/setup-python"), job)
         self.assertIn("id: setup-python", job)
         self.assertIn("python-version-file: .python-version", job)
         self.assertIn("check-latest: false", job)
@@ -1825,10 +2246,28 @@ jobs:
             validator,
         )
         self.assertNotIn("submodule update --init --recursive", validator)
-        self.assertIn("Validate Framework component-pin data contract", validator)
+        self.assertEqual(validator.count("Validate Framework component-pin data contract"), 1)
         self.assertIn("sync-framework-component-versions.py", validator)
         self.assertIn("--validate", validator)
         self.assertIn('"$CANDIDATE_SHA:ci/lib/common.sh"', validator)
+        self.assertIn('git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" show', validator)
+        for forbidden in (
+            'source "$framework_common"',
+            '. "$framework_common"',
+            'bash "$framework_common"',
+            'sh "$framework_common"',
+            'eval "$framework_common"',
+            'python3 "$framework_common"',
+        ):
+            self.assertNotIn(forbidden, validator)
+        component_pin_validator = validator.partition(
+            "Prepare dedicated read-only candidate sandbox"
+        )[0]
+        self.assertNotIn("continue-on-error", component_pin_validator)
+        self.assertLess(
+            workflow.index("Validate Framework component-pin data contract"),
+            workflow.index("Prepare dedicated read-only candidate sandbox"),
+        )
         self.assertIn(SUBMODULE_CANDIDATE_BASELINE_CALL, normalize_shell_script(validator))
         self.assertEqual(normalize_shell_script(validator).count(SUBMODULE_CANDIDATE_STATE_CALL), 2)
         self.assertNotIn("status --porcelain", validator)
@@ -1850,6 +2289,33 @@ jobs:
         self.assertNotIn("GH_TOKEN", validator)
         self.assertNotIn("secrets.", validator)
         self.assertEqual(readonly_submodule_validator_errors(validator), [])
+        sandbox_helper = (
+            ROOT / "ci" / "tools" / "prepare-readonly-submodule-validation-sandbox.py"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(readonly_submodule_sandbox_helper_errors(sandbox_helper), [])
+        sandbox_helper_mutations = {
+            "source locking returns": (
+                "def _make_external_root",
+                "def _lock_tree(root: Path) -> None:\n"
+                "    for path, _relative, metadata in _walk_tree(root):\n"
+                "        os.chown(path, 0, 0, follow_symlinks=False)\n"
+                "        os.chmod(path, stat.S_IMODE(metadata.st_mode) & ~0o022)\n\n\n"
+                "def _make_external_root",
+            ),
+            "nested source mount rejection removed": (
+                "_reject_nested_source_mounts(source)",
+                "_nested_source_mounts_not_checked(source)",
+            ),
+            "cleanup loses descriptor traversal": (
+                "_open_existing_directory_path(temporary)",
+                "os.open(temporary, os.O_RDONLY | os.O_DIRECTORY)",
+            ),
+        }
+        for name, (original, replacement) in sandbox_helper_mutations.items():
+            with self.subTest(sandbox_helper_mutation=name):
+                self.assertIn(original, sandbox_helper)
+                mutated = sandbox_helper.replace(original, replacement, 1)
+                self.assertNotEqual(readonly_submodule_sandbox_helper_errors(mutated), [])
 
         candidate_state_mutations = {
             "missing immutable Parent baseline": (
@@ -1861,8 +2327,8 @@ jobs:
                 "validate-bypassed \\\n            --parent-root",
             ),
             "broad Parent status check restored": (
-                "sudo -n git -c core.hooksPath=/dev/null diff --check",
-                "git status --porcelain --untracked-files=all\n          sudo -n git -c core.hooksPath=/dev/null diff --check",
+                "git -c core.hooksPath=/dev/null diff --check",
+                "git status --porcelain --untracked-files=all\n          git -c core.hooksPath=/dev/null diff --check",
             ),
         }
         for name, (original, replacement) in candidate_state_mutations.items():
@@ -1992,6 +2458,10 @@ sudo -n chmod 0750 "$namespace_parent"
                 "_mount(str(source), source_view, MS_BIND)",
                 "_mount(str(source), source_view, MS_REC | MS_BIND)",
             ),
+            "nested source mounts are accepted": (
+                "_reject_nested_source_mounts(source)",
+                "_nested_source_mounts_not_checked(source)",
+            ),
             "source loses read-only remount": (
                 "_mount(None, source_view, MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV)",
                 "_mount(None, source_view, MS_BIND | MS_REMOUNT | MS_NOSUID | MS_NODEV)",
@@ -2080,6 +2550,10 @@ sudo -n chmod 0750 "$namespace_parent"
                 mutated_runner = namespace_runner.replace(original, replacement, 1)
                 self.assertNotEqual(readonly_namespace_runner_errors(mutated_runner), [])
         self.assertLess(
+            validator.index("Create private read-only candidate guard"),
+            validator.index("Prepare dedicated read-only candidate sandbox"),
+        )
+        self.assertLess(
             validator.index("Prepare dedicated read-only candidate sandbox"),
             validator.index("Run quick check in the private read-only namespace"),
         )
@@ -2091,12 +2565,18 @@ sudo -n chmod 0750 "$namespace_parent"
             validator.index("Check out the resolved descendant revision"),
             validator.index("Prepare dedicated read-only candidate sandbox"),
         )
+        self.assertLess(
+            validator.index("Enforce isolated candidate result after verification"),
+            validator.index("Clean up private read-only candidate guard"),
+        )
         self.assertIn(READONLY_SUBMODULE_SANDBOX_CALL, normalize_shell_script(validator))
         self.assertIn(READONLY_SUBMODULE_WRITE_ROOT, validator)
         self.assertIn(READONLY_SUBMODULE_EXTERNAL_ROOT, validator)
         self.assertNotIn("setfacl", validator)
         self.assertNotIn("getfacl", validator)
         self.assertNotIn("sudo -n -u modsecurity-validator", validator)
+        self.assertNotIn("sudo -n python3 ci/tools/validate-submodule-candidate-state.py", validator)
+        self.assertNotIn("sudo -n git -c core.hooksPath=/dev/null diff --check", validator)
 
         validator_mutations = {
             "namespace helper removed": (
@@ -2148,6 +2628,18 @@ sudo -n chmod 0750 "$namespace_parent"
             "candidate result is not enforced after verification": (
                 'test "$CANDIDATE_RESULT" = success',
                 "true",
+            ),
+            "private guard cleanup is no longer unconditional": (
+                READONLY_SUBMODULE_CLEANUP_GATE,
+                "if: ${{ success() }}",
+            ),
+            "private guard cleanup is removed": (
+                "Clean up private read-only candidate guard",
+                "Private guard cleanup removed",
+            ),
+            "private guard cleanup loses its fixed prefix contract": (
+                "--cleanup",
+                "--cleanup-disabled",
             ),
             "workflow regains ACL mutation": (
                 "printf 'write_root=%s\\n' \"$write_root\" >> \"$GITHUB_OUTPUT\"",
@@ -2282,8 +2774,24 @@ sudo -n chmod 0750 "$namespace_parent"
                 self.assertNotEqual(update_submodule_validate_only_errors(mutated), [])
 
         self.assertIn("submodules: false", publisher)
-        self.assertEqual(sha256(publisher.encode("utf-8")).hexdigest(), SUBMODULE_PUBLISHER_SHA256)
+        self.assertEqual(
+            sha256(normalize_locked_action_pins(publisher).encode("utf-8")).hexdigest(),
+            SUBMODULE_PUBLISHER_NORMALIZED_SHA256,
+        )
         self.assertIn("persist-credentials: false", publisher)
+        self.assertIn("id: setup-python", publisher)
+        self.assertIn(
+            "EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}",
+            publisher,
+        )
+        self.assertIn(
+            "python3 ci/checks/common/check-python-interpreter-contract.py "
+            "--version-file .python-version --expected-python \"$EXPECTED_PYTHON\"",
+            publisher,
+        )
+        self.assertIn("grep -Fqx", publisher)
+        self.assertIn('-e "$SUBMODULE_PATH"', publisher)
+        self.assertNotIn('case "$changed_path" in', publisher)
         self.assertEqual(
             job_if_expression(publisher),
             SUBMODULE_PUBLISHER_GATE,
@@ -2499,77 +3007,217 @@ sudo -n chmod 0750 "$namespace_parent"
             self.assertEqual(len(widened_records), 2)
             self.assertFalse(len(widened_records) == 1 and bool(expected.fullmatch(widened_records[0])))
 
-    def test_manual_actions_updater_uses_a_trusted_default_branch(self) -> None:
-        job = self.jobs("update-actions-versions.yml")["update-actions-versions"]
-        self.assertIn(
-            "if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
-            job,
-        )
-        checkouts = checkout_step_blocks(job)
-        self.assertEqual(len(checkouts), 1)
-        self.assertIn("ref: ${{ github.event.repository.default_branch }}", checkouts[0])
-        self.assertIn("persist-credentials: false", checkouts[0])
+    def test_workflow_tool_updater_is_the_sole_parent_only_action_maintainer(self) -> None:
+        for retired_path in (
+            WORKFLOWS / "check-actions-versions.yml",
+            WORKFLOWS / "update-actions-versions.yml",
+            ROOT / "scripts/check-github-actions-versions.py",
+            ROOT / "scripts/update-github-actions-versions.py",
+            ROOT / "tests/test_update_github_actions_versions.py",
+        ):
+            self.assertFalse(retired_path.exists(), retired_path)
+
+        common_scaffold = (WORKFLOWS / "test-common.yml").read_text(encoding="utf-8")
+        self.assertNotIn("test_update_github_actions_versions.py", common_scaffold)
+
+        dependabot = (ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
+        self.assertNotIn('package-ecosystem: "github-actions"', dependabot)
+        self.assertIn('package-ecosystem: "pip"', dependabot)
+
+        workflow_name = "update-workflow-tools.yml"
+        workflow = self.workflow(workflow_name)
+        jobs = self.jobs(workflow_name)
+        self.assertEqual(set(jobs), {"resolver", "validator", "publisher", "outcome"})
+        publisher = jobs["publisher"]
+        for required_guard in (
+            "github.repository == 'Easton97-Jens/ModSecurity-conector'",
+            "github.event.repository.fork == false",
+            "github.event.repository.default_branch == 'master'",
+            "github.ref == 'refs/heads/master'",
+        ):
+            self.assertIn(required_guard, publisher)
+        for job_name in ("resolver", "validator", "publisher"):
+            for checkout in checkout_step_blocks(jobs[job_name]):
+                self.assertIn("submodules: false", checkout, job_name)
+                self.assertNotIn("submodules: recursive", checkout, job_name)
+        for forbidden in (
+            "SUBMODULE_UPDATE_TOKEN",
+            "modules/ModSecurity-test-Framework",
+            "git submodule",
+            "module_repo",
+            "automation/update-github-actions-versions",
+        ):
+            self.assertNotIn(forbidden, workflow)
 
     def test_python_patch_updater_separates_trusted_stages_and_writer_scope(self) -> None:
         workflow_name = "update-python-version.yml"
+        workflow = self.workflow(workflow_name)
         jobs = self.jobs(workflow_name)
         self.assertEqual(
             set(jobs),
             {
                 "resolve-python-patch",
                 "validate-python-patch",
-                "create-python-update-pr",
+                "publish-python-update",
+                "report-python-update-outcome",
             },
         )
-        trusted_default_ref = "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
-        for job_name in ("resolve-python-patch", "validate-python-patch", "create-python-update-pr"):
-            self.assertIn(trusted_default_ref, jobs[job_name], job_name)
+        self.assertEqual(top_level_permissions(workflow), {"contents": "read"})
+        self.assertIn(
+            "group: modsecurity-conector-python-version-maintenance-${{ github.repository }}",
+            workflow,
+        )
+        self.assertIn("cancel-in-progress: false", workflow)
+        for disallowed_trigger in (
+            "push:",
+            "pull_request:",
+            "pull_request_target:",
+            "workflow_run:",
+            "repository_dispatch:",
+        ):
+            self.assertNotIn(f"  {disallowed_trigger}", workflow)
+        self.assertIn("- cron: '17 6 * * 1'", workflow)
+        self.assertIn("  workflow_dispatch:", workflow)
+
+        canonical_gate_terms = {
+            "github.repository == 'Easton97-Jens/ModSecurity-conector'",
+            "github.event.repository.fork == false",
+            "github.event.repository.default_branch == 'master'",
+            "github.ref == 'refs/heads/master'",
+            "github.event_name == 'schedule'",
+            "github.event_name == 'workflow_dispatch'",
+        }
+        for job_name in (
+            "resolve-python-patch",
+            "validate-python-patch",
+            "publish-python-update",
+        ):
+            expression = job_if_expression(jobs[job_name])
+            self.assertIsNotNone(expression, job_name)
+            for term in canonical_gate_terms:
+                self.assertIn(term, expression, job_name)
             checkouts = checkout_step_blocks(jobs[job_name])
             self.assertEqual(len(checkouts), 1, job_name)
-            self.assertIn("ref: ${{ github.event.repository.default_branch }}", checkouts[0], job_name)
+            self.assertIn("ref: ${{ github.sha }}", checkouts[0], job_name)
+            self.assertIn("fetch-depth: 1", checkouts[0], job_name)
             self.assertIn("submodules: false", checkouts[0], job_name)
             self.assertIn("persist-credentials: false", checkouts[0], job_name)
-            self.assertNotIn("secrets.", jobs[job_name], job_name)
+
+        self.assertNotIn("secrets.", jobs["resolve-python-patch"])
+        self.assertNotIn("secrets.", jobs["validate-python-patch"])
 
         self.assertEqual(job_permissions(jobs["resolve-python-patch"]), {"contents": "read"})
         self.assertEqual(job_permissions(jobs["validate-python-patch"]), {"contents": "read"})
-        publisher = jobs["create-python-update-pr"]
-        self.assertEqual(
-            job_permissions(publisher),
-            {"contents": "write", "pull-requests": "write"},
-        )
-        self.assertNotIn("actions: write", publisher)
+        publisher = jobs["publish-python-update"]
+        self.assertEqual(job_permissions(publisher), {"contents": "read"})
+        self.assertIn("needs.resolve-python-patch.outputs.update_available == 'true'", publisher)
+        self.assertIn("needs.validate-python-patch.result == 'success'", publisher)
+        self.assertIn("WORKFLOW_UPDATER_APP_CLIENT_ID", publisher)
+        self.assertIn("WORKFLOW_UPDATER_APP_PRIVATE_KEY", publisher)
+        self.assertIn("::error::WORKFLOW_UPDATER_APP_CLIENT_ID", publisher)
+        self.assertIn("::error::WORKFLOW_UPDATER_APP_PRIVATE_KEY", publisher)
+        self.assertIn(locked_action_pin("actions/create-github-app-token"), publisher)
+        self.assertIn("permission-contents: write", publisher)
+        self.assertIn("permission-pull-requests: write", publisher)
+        self.assertNotIn("permission-workflows:", publisher)
+        self.assertNotIn("permission-actions:", publisher)
+        self.assertNotIn("permission-issues:", publisher)
+        self.assertNotIn("github.token", publisher)
+        self.assertNotIn("GH_TOKEN:", publisher)
+        for job_name, job in jobs.items():
+            if job_name != "publish-python-update":
+                self.assertNotIn("WORKFLOW_UPDATER_APP_CLIENT_ID", job, job_name)
+                self.assertNotIn("WORKFLOW_UPDATER_APP_PRIVATE_KEY", job, job_name)
+
         self.assertNotIn("submodules: recursive", publisher)
         self.assertNotIn("git submodule", publisher)
-        self.assertNotIn("make ", publisher)
-        self.assertNotIn("--force", publisher)
-        self.assertNotIn("--force-with-lease", publisher)
-        self.assertIn('python3 scripts/update-python-version.py --update --expected-version "$CANDIDATE_VERSION" --json', publisher)
+        self.assertNotIn("gh ", publisher)
+        self.assertNotIn("scripts/select-python-update-pr.py", publisher)
+        self.assertNotIn("grep -Eq", publisher)
+        self.assertNotIn("re.compile", publisher)
+        publisher_normalized = normalize_shell_script(publisher)
+        publisher_install_step = "Install hash-locked CI test dependency"
+        publisher_install_command = (
+            "python3 -m pip install --disable-pip-version-check --no-input "
+            "--only-binary=:all: --require-hashes -r requirements-ci.lock"
+        )
+        self.assertIn(publisher_install_step, publisher)
+        self.assertIn(publisher_install_command, publisher_normalized)
+        self.assertIn("python3 -m pip check", publisher_normalized)
+        self.assertLess(
+            publisher.index("Verify Python interpreter contract"),
+            publisher.index(publisher_install_step),
+        )
+        self.assertLess(
+            publisher.index(publisher_install_step),
+            publisher.index("Mint repository-limited Python updater App token"),
+        )
+        self.assertLess(
+            publisher.index(publisher_install_step),
+            publisher.index("Revalidate current master before modifying it"),
+        )
+        self.assertLess(
+            publisher_normalized.index(publisher_install_command),
+            publisher_normalized.index("python3 -m pip check"),
+        )
+        self.assertLess(
+            publisher_normalized.index("python3 -m pip check"),
+            publisher_normalized.index("make check-ci-security-contract"),
+        )
+        self.assertIn(
+            'python3 scripts/update-python-version.py --check --expected-version "$CANDIDATE_VERSION" --json',
+            publisher,
+        )
+        self.assertIn(
+            'python3 scripts/update-python-version.py --update --expected-version "$CANDIDATE_VERSION" --json',
+            publisher,
+        )
         self.assertIn("UPDATE_BRANCH: automation/update-python-314", publisher)
         self.assertIn('PR_TITLE: "chore(ci): propose Python 3.14 patch update"', publisher)
-        self.assertIn('changed_paths="$(git diff --name-only)"', publisher)
+        self.assertIn('PR_MARKER: "<!-- modsecurity-conector-python-314-updater -->"', publisher)
+        self.assertIn("FRAMEWORK_REFERENCE_SHA: 3cb33609626ff689c54b6dc0f31fb7e9401fe75e", publisher)
+        self.assertIn('git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"', publisher)
+        self.assertIn('git reset --hard "origin/$DEFAULT_BRANCH"', publisher)
+        self.assertIn('branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"', publisher)
+        self.assertIn('if [ "$branch_paths" != ".python-version" ]; then', publisher)
+        self.assertIn('"--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP"', publisher)
+        self.assertNotRegex(publisher, r"git push\s+--force(?:\s|$)")
+        self.assertNotRegex(publisher, r"git push\s+--force-with-lease(?:\s|$)")
+        self.assertNotIn('origin "HEAD:refs/heads/master"', publisher)
+        self.assertNotIn("pulls.merge", publisher)
+        self.assertNotIn("gh pr merge", publisher)
+        self.assertIn("github.rest.git.listMatchingRefs", publisher)
+        self.assertIn("github.paginate(github.rest.pulls.list", publisher)
+        self.assertIn("pullRequest.head.repo?.full_name !== repository", publisher)
+        self.assertIn("pullRequest.base.repo?.full_name !== repository", publisher)
+        self.assertIn("pullRequest.auto_merge !== null", publisher)
+        self.assertIn("draft: true", publisher)
+        self.assertIn("Recheck the matching Draft pull request after publication", publisher)
+        self.assertIn("pullRequest.head.sha !== process.env.EXPECTED_HEAD_SHA", publisher)
+        self.assertIn('changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH" --)"', publisher)
         self.assertIn("if [ \"$changed_paths\" != \".python-version\" ]; then", publisher)
-        self.assertIn("git diff --check", publisher)
-        self.assertIn("git push origin \"$UPDATE_BRANCH\"", publisher)
-        self.assertIn("--draft", publisher)
-        self.assertIn("gh pr edit \"$existing_pr\"", publisher)
-        self.assertIn('gh api --method GET "repos/$GITHUB_REPOSITORY/pulls"', publisher)
-        self.assertIn('-f base="$DEFAULT_BRANCH"', publisher)
-        self.assertIn('-f head="${GITHUB_REPOSITORY_OWNER}:$UPDATE_BRANCH"', publisher)
-        self.assertIn("set -o pipefail", publisher)
-        self.assertIn("scripts/select-python-update-pr.py", publisher)
-        self.assertNotIn("--input", publisher)
-        self.assertNotIn("gh pr list --head", publisher)
-        self.assertIn(AUTO_MERGE_DISABLED_QUERY, publisher)
-        self.assertIn('if [ "$auto_merge" != "null" ]; then', publisher)
-        self.assertIn("git fetch --no-tags origin \"$UPDATE_BRANCH\"", publisher)
-        self.assertIn("git read-tree \"origin/$UPDATE_BRANCH\"", publisher)
-        self.assertIn("git update-index --add --cacheinfo 100644 \"$candidate_blob\" .python-version", publisher)
-        self.assertIn("git commit-tree \"$tree\" -p \"origin/$UPDATE_BRANCH\"", publisher)
+        self.assertIn('git add -- .python-version', publisher)
+        self.assertIn('staged_paths="$(git diff --cached --name-only)"', publisher)
+        self.assertIn('if [ "$staged_paths" != ".python-version" ]; then', publisher)
+        self.assertIn("git diff --cached --check", publisher)
+        self.assertNotIn("git add -A", publisher)
+        self.assertNotIn("git add .", publisher)
+        self.assertIn("UPDATE_CHANGED: ${{ steps.update.outputs.changed }}", publisher)
+        self.assertIn('if [ "$UPDATE_CHANGED" != true ]; then', publisher)
+        self.assertNotIn('if [ "${{ steps.update.outputs.changed }}" != true ]; then', publisher)
         self.assertIn("## English", publisher)
         self.assertIn("## Deutsch", publisher)
-        self.assertIn("no automatic merge", publisher)
-        self.assertIn("kein automatischer Merge", publisher)
+        self.assertIn("Automatic merge remains disabled.", publisher)
+        self.assertIn("Automatischer Merge bleibt deaktiviert.", publisher)
+
+        resolver = jobs["resolve-python-patch"]
+        self.assertIn("status: ${{ steps.resolve.outputs.status }}", resolver)
+        self.assertIn("current_version: ${{ steps.resolve.outputs.current_version }}", resolver)
+        self.assertIn("latest_version: ${{ steps.resolve.outputs.latest_version }}", resolver)
+        self.assertIn("update_available: ${{ steps.resolve.outputs.update_available }}", resolver)
+        self.assertIn('scripts/update-python-version.py --check --json', resolver)
+        self.assertNotIn("re.compile", resolver)
+        self.assertNotIn("grep -Eq", resolver)
 
         candidate = jobs["validate-python-patch"]
         assert_hash_locked_ci_test_dependency_installation(
@@ -2578,9 +3226,10 @@ sudo -n chmod 0750 "$namespace_parent"
             interpreter_contract_step="Verify Python candidate interpreter contract",
             first_test_step="Run focused Python version contracts",
         )
-        self.assertIn("python-version: ${{ needs.resolve-python-patch.outputs.version }}", candidate)
+        self.assertIn("python-version: ${{ needs.resolve-python-patch.outputs.latest_version }}", candidate)
         self.assertIn("check-latest: false", candidate)
         self.assertIn("python3 -m compileall -q ci scripts tests", candidate)
+        self.assertIn("make check-ci-security-contract", candidate)
         self.assertIn(
             'check-python-interpreter-contract.py --expected-version "$EXPECTED_VERSION" --expected-python "$EXPECTED_PYTHON"',
             candidate,
@@ -2589,6 +3238,15 @@ sudo -n chmod 0750 "$namespace_parent"
             'scripts/update-python-version.py --check --expected-version "$CANDIDATE_VERSION" --json',
             candidate,
         )
+
+        outcome = jobs["report-python-update-outcome"]
+        self.assertEqual(job_permissions(outcome), {})
+        self.assertEqual(job_if_expression(outcome), "always()")
+        self.assertNotIn("secrets.", outcome)
+        self.assertNotIn("publisher_app_token", outcome)
+        self.assertIn("case \"$UPDATE_AVAILABLE\" in", outcome)
+        self.assertIn("No Python 3.14 patch update is available.", outcome)
+        self.assertIn("Kein Python-3.14-Patch-Update ist verfügbar.", outcome)
 
     def test_go_patch_updater_separates_trusted_stages_and_writer_scope(self) -> None:
         workflow_name = "update-go-version.yml"

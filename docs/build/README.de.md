@@ -94,7 +94,7 @@ Virtual-Environment- oder System-`python3`-Interpreter zurückfallen.
 
 ### Vollständige Parent-Workflow-/Job-Inventarisierung
 
-Diese 22-Job-Baseline-Inventarisierung ist die maßgebliche
+Diese 20-Job-Baseline-Inventarisierung ist die maßgebliche
 Dokumentationstabelle für den verlinkten Change Record. „Vorhandenes
 Minor-only-Setup“ und „Ambientes oder Bootstrap-Python“ beschreiben den
 historischen Einführungspfad vor dem Vertrag; keine der beiden Bezeichnungen
@@ -107,7 +107,6 @@ dasselbe explizite <code>3.14.6</code>-Setup und dieselbe
 | `reusable-five-connectors-profile.yml` | `resolve-profile` | Gesperrtes `actions/setup-python`, Interpreter-Contract-Validierung, dann `python3 ci/runtime/lifecycle/five-connector-no-crs-profile.py --emit-github-matrix` | Explizites `.python-version`-Setup |
 | `reusable-five-connectors-profile.yml` | `no-crs` | Gesperrtes `actions/setup-python`, Interpreter-Contract-Validierung, dann Profilvalidierung und Python-gestützte Framework-/Make-Lifecycle-Targets | Explizites `.python-version`-Setup |
 | `reusable-five-connectors-profile.yml` | `aggregate` | Gesperrtes `actions/setup-python`, Interpreter-Contract-Validierung, dann `python3`-Evidence-Validierung und Fünf-Ergebnis-Aggregation | Explizites `.python-version`-Setup |
-| `check-actions-versions.yml` | `check-actions-versions` | `python3 scripts/check-github-actions-versions.py` | Vorhandenes Minor-only-Setup |
 | `ci-security-secrets.yml` | `pull-request-range` | `python3 ci/tools/fetch_security_tool.py` | Ambientes oder Bootstrap-Python |
 | `ci-security-secrets.yml` | `advisory-full-history` | `python3 ci/tools/fetch_security_tool.py` | Ambientes oder Bootstrap-Python |
 | `ci-security-workflow-lint.yml` | `actionlint` | Python-Tool-Fetcher und `python3 -m unittest` | Ambientes oder Bootstrap-Python |
@@ -124,7 +123,6 @@ dasselbe explizite <code>3.14.6</code>-Setup und dieselbe
 | `test-lighttpd.yml` | `lighttpd-contract` | Indirektes Python in Connector- und Shared-Checks | Ambientes oder Bootstrap-Python |
 | `test-nginx.yml` | `nginx-structure` | Bedingtes nicht-PR-Python-Setup und Quick-Check | Vorhandenes Minor-only-Setup |
 | `test-traefik.yml` | `traefik-contract` | Indirektes Python in Connector- und Shared-Checks | Ambientes oder Bootstrap-Python |
-| `update-actions-versions.yml` | `update-actions-versions` | `python3 scripts/update-github-actions-versions.py --write` | Vorhandenes Minor-only-Setup |
 | `update-submodules.yml` | `validate-submodule-update` | Indirektes Python über `make quick-check` | Ambientes oder Bootstrap-Python |
 | `verified-report-governance.yml` | `report-governance` | Indirektes Python über `make report-governance` | Vorhandenes Minor-only-Setup |
 
@@ -136,63 +134,57 @@ Validator deckt die Workflow-Dateinamen `.yml` und `.yaml` ab.
 
 ### Vertrag für den sicheren Stable-Patch-Updater
 
-Der Updater ist von den 22 Baseline-Jobs getrennt. Der eingecheckte Workflow
-`.github/workflows/update-python-version.yml` hat genau drei Jobs:
+Der Updater ist von den 20 Baseline-Jobs getrennt. Der eingecheckte Workflow
+`.github/workflows/update-python-version.yml` hat genau vier Jobs:
 
 | Job | Interpreter und Trust-Grenze | Erforderliches Verhalten |
 | --- | --- | --- |
-| `resolve-python-patch` | Läuft mit der aktuellen kanonischen `.python-version`; schreibgeschützt | Ruft nur die feste offizielle strukturierte Python-Release-API `https://www.python.org/api/v2/downloads/release/?is_published=true` über HTTPS mit exaktem Host `www.python.org`, ohne Redirects, mit `application/json`, begrenzter Response-Verarbeitung und Schema-Validierung auf. `--check` parst veröffentlichte, nicht-prerelease stabile `3.14.N`-Werte strikt, meldet einen Candidate nur bei einem höheren Patch und kann weder downgraden noch eine Minor-Serie überqueren. |
-| `validate-python-patch` | Richtet den unabhängig aufgelösten Candidate-Patch ein; schreibgeschützt | Wiederholt die Kompatibilitätsvalidierung mit dem Candidate-Interpreter vor der Veröffentlichung. Sie ist unabhängig vom Current-Version-Interpreter des Resolvers und führt keine Source- oder Branch-Mutation aus. |
-| `create-python-update-pr` | Läuft mit der aktuellen kanonischen `.python-version`; Default-Branch-gated Publisher | Löst den Candidate mit `--expected-version` vor `--update` erneut auf; nur dieser Job erhält `contents: write` und `pull-requests: write` und nur, um einen vorgeschlagenen Update-Pull-Request zu erstellen. |
+| `resolve-python-patch` | Exakter vertrauenswürdiger Event-SHA und aktuelle kanonische `.python-version`; `contents: read` | Ruft nur die feste offizielle strukturierte Python-Release-API `https://www.python.org/api/v2/downloads/release/?is_published=true` über HTTPS mit exaktem Host `www.python.org`, ohne Redirects, mit `application/json`, begrenzter Response-Verarbeitung und Schema-Validierung auf. Seine getestete Schnittstelle `--check --json` gibt `status`, `current_version`, `latest_version` und `update_available` aus; sie schlägt nur einen höheren stabilen `3.14.N`-Patch vor. |
+| `validate-python-patch` | Exakter vertrauenswürdiger Event-SHA und unabhängig installierter Candidate; `contents: read` | Löst den Candidate mit `--expected-version` erneut auf, prüft den exakten Candidate-Interpreter, installiert hash-gesperrte CI-Abhängigkeiten, führt `pip check`, Compile/Contracts/fokussierte Tests und `make check-ci-security-contract` aus; keine Source- oder Branch-Mutation. |
+| `publish-python-update` | Kanonisches Nicht-Fork-Event auf `master`, aktuelles vertrauenswürdiges `origin/master`; normales `GITHUB_TOKEN` hat `contents: read` | Der einzige App-Secret-Consumer erstellt das vorhandene gepinnte GitHub-App-Token mit nur `Contents: write` und `Pull requests: write`, baut den Wartungs-Branch von aktuellem master neu auf und darf nur den passenden Same-Repository-Draft-PR erstellen oder aktualisieren. |
+| `report-python-update-outcome` | Läuft immer; `permissions: {}` | Schlägt bei inkonsistenten Resolver-/Validator-/Publisher-Resultaten fehl und schreibt für das aktuelle oder unabhängig validierte/veröffentlichte Resultat eine englische/deutsche Zusammenfassung. |
 
 Die einzigen Trigger sind der geplante Montagslauf und ein manueller
-`workflow_dispatch`; es gibt keinen Push- oder Pull-Request-Trigger. Jeder Job
-ist auf die Ref des Repository-Default-Branch gegatet und checkt diesen
-vertrauenswürdigen Default-Branch ohne Submodules oder persistierte Checkout-
-Credentials aus. Der Validierungsjob richtet die unabhängig aufgelöste
-Candidate-Version ein, löst sie erneut auf, führt den fail-closed statischen
-Vertrag aus, kompiliert die eingecheckten Python-Pfade und führt die fokussierten
-Parent-nativen Contract-Tests aus, bevor der Publisher starten kann.
+`workflow_dispatch`; es gibt keinen Push- oder Pull-Request-Trigger. Die
+Concurrency-Gruppe lautet
+`modsecurity-conector-python-version-maintenance-${{ github.repository }}`
+mit `cancel-in-progress: false`. Resolver, Validator und Publisher verlangen
+jeweils das exakte kanonische Repository, ein Nicht-Fork-Event, den literalen
+Default-Branch/Ref `master` sowie ein Zeitplan- oder manuelles Event, bevor sie
+`${{ github.sha }}` ohne Submodules oder persistierte Credentials auschecken.
 
 `--check` löst und validiert einen Candidate ohne Dateien zu ändern. `--update`
 ist dem Publisher vorbehalten, nachdem die unabhängige Validierung und die
-Expected-Version-Neuauflösung bestanden haben. Der Publisher ist kein Updater
-für beliebige Python-Versionen: Er akzeptiert nur das strikte stabile
-<code>3.14.N</code>-Format, niemals einen niedrigeren Patch, Prerelease,
-alternative Minor-Serie oder unstrukturierte/HTML-Release-Daten.
+Expected-Version-Neuauflösung bestanden haben. Versionssyntax gehört zum
+getesteten Updater und wird nicht als Workflow-Regex dupliziert. Der Publisher
+ist kein Updater für beliebige Python-Versionen: Er akzeptiert nur einen vom
+Resolver validierten stabilen <code>3.14.N</code>-Patch, niemals einen
+niedrigeren Patch, Prerelease, eine alternative Minor-Serie oder
+unstrukturierte/HTML-Release-Daten.
 
 Der Publisher verwendet den konstanten Branch
 `automation/update-python-314` und den stabilen Titel
-`chore(ci): propose Python 3.14 patch update`. Er erstellt einen Draft Pull
-Request, wenn dieser Branch nicht existiert, oder aktualisiert einen bestehenden
-repository-eigenen Draft-Update-Pull-Request erst nach Prüfung seines Head-
-Repository, Default-Base und deaktivierten automatischen Merge sowie der
-Beschränkung seines Merge-Base-Diffs auf `.python-version`; einen Branch ohne
-diesen exakten Pull Request überschreibt er nicht. Damit erstellt er keine
-doppelten Update-Pull-Requests und führt nie einen Force-Push aus. Sein englisch/deutscher Pull-
-Request-Body enthält vorherige und vorgeschlagene Version, offizielle Release-
-Identität, Metadatenquelle, Validierungsworkflow/-Run-URL,
-`.python-version` als einzige geänderte Datei, die beibehaltene Python-3.14-
-Minor-Version und das Fehlen eines automatischen Merge.
+`chore(ci): propose Python 3.14 patch update`, den Marker
+`<!-- modsecurity-conector-python-314-updater -->` und nur den festen Pfad
+`.python-version`. Er erstellt einen Draft-PR nur, wenn weder passender Branch
+noch PR existiert. Einen Branch verwendet er nur wieder, wenn genau ein
+passender Same-Repository-Draft-PR existiert, dessen Titel, Marker, Head/Base
+und deaktivierter Auto-Merge alle geprüft sind. Nach Prüfung seines historischen
+Scopes baut er von aktuellem `origin/master` neu auf, staged nur
+`.python-version` und verwendet für einen verifizierten Ersatz-Branch die
+exakte Form
+`--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP`. Er führt
+nie einen unbedingten Force-Push, Default-Branch-Push, Merge oder Auto-Merge
+aus.
 
-Der Publisher streamt die begrenzte REST-Pull-List-Antwort direkt von `gh api`
-in seinen strikten Duplicate-Key-JSON-Selector. Der Selector besitzt keinen
-aufrufergesteuerten Response-Dateipfad; beim Wiederverwenden eines bestehenden
-Draft Pull Request überschreitet der Publisher daher keine Response-Datei- oder
-Symlink/TOCTOU-Grenze.
-
-Der Updater darf nicht auto-mergen, den Default-Branch beschreiben, force-
-pushen, Repository- oder benutzerbereitgestellte `secrets.*` konsumieren,
-Submodules initialisieren oder eine beliebige Project-Workload ausführen. Der
-Publisher darf nur GitHubs automatisch bereitgestelltes Job-Token verwenden,
-das durch seine zwei job-begrenzten Schreibrechte eingeschränkt ist, um den
-Draft Pull Request zu erstellen oder den vorhandenen offenen Update-Pull-
-Request zu aktualisieren; seine Repository-
-Ausführung ist auf die festen Interpreter-Verifikations- und Updater-Pfade
-begrenzt. Resolver und Validator bleiben schreibgeschützt. Die begrenzten
-Schreibrechte des Publishers, das Default-Branch-Gate, die Neuvalidierung an
-der Schreibgrenze und die ausschließlich PR-basierte Ausgabe verhindern, dass
-Metadaten den Default-Branch direkt verändern.
+Nur der Publisher liest `WORKFLOW_UPDATER_APP_CLIENT_ID` und
+`WORKFLOW_UPDATER_APP_PRIVATE_KEY`; sein normales Job-Token bleibt read-only
+und das App-Token fordert nie `Workflows`-, `Actions`- oder `Issues`-
+Schreibrechte an. Der englische/deutsche PR-Body dokumentiert vorherige/
+vorgeschlagene Version, Python.org-Metadaten-URL, Validierungs-Run-URL,
+Framework-Quell-SHA, `.python-version` als einzige geänderte Datei, die
+beibehaltene Python-3.14-Minor-Version und die Pflicht zu manueller Prüfung/
+manuellem Merge.
 
 Die unabhängige Validierungs-Stage ist die Evidence-Grenze für einen
 vorgeschlagenen Patch; sie behauptet nicht, dass ein geplanter Lauf, Candidate,
@@ -264,6 +256,66 @@ Anforderung ist; dies ist keine Behauptung von Netzwerk- oder Egress-Isolation.
 Das Jail ist eine Grenze für Dateisystem und geerbte Deskriptoren und keine
 Behauptung vollständiger Host- oder Kernel-Isolation.
 
+Der Host-Checkout ist kein Lock-Target. Die historische Mutation zu
+Root-eigenen Checkouts stammte aus den früheren rekursiven `_lock_tree`-Aufrufen
+im Root-seitigen Preparer, nicht aus dem Framework-Gitlink selbst; ihr
+historischer Kontext sind [PR #301](https://github.com/Easton97-Jens/ModSecurity-conector/pull/301)
+und Merge-Commit `35c435483dcd637c7b9df0277bed34d6f94dc44d`. Der Preparer
+validiert nun Pfadtopologie, Source-Links und Gitfiles, weist jeden aktiven
+Mount strikt unterhalb des Host-Source-Roots ab, validiert die dedizierte
+Identität und zeichnet das ursprüngliche Inventar auf, bevor er Candidate-
+Output erzeugt. Er ruft kein `chown` oder `chmod` für Parent, Framework, `.git`
+oder `.git/modules` auf; kein Owner, keine Group, kein Modus, Inhalt, Link oder
+Git-Metadatum wird wiederhergestellt, weil nichts geändert wird. Der Namespace-
+Runner wiederholt die Prüfung verschachtelter Source-Mounts unabhängig, bevor
+er den nicht-rekursiven Source-Bind erstellt, sodass ein schreibbarer Submount
+nicht unbemerkt unter dem Read-only-Bind sichtbar sein kann.
+
+Das Inventar bleibt der fail-closed Source-Preservation-Nachweis. Jeder Eintrag
+zeichnet relativen Pfad, Typ, Größe, UID, GID, Modus und Link-Anzahl auf;
+reguläre Dateien enthalten zusätzlich SHA-256 und symbolische Links ihren
+Link-Text. Das Inventar nach dem Candidate muss vor der Output-Validierung
+exakt übereinstimmen. Damit erkennt die Prüfung Inhalts-, Owner-, Group-,
+Rechte-, Link- und Link-Target-Änderungen, ohne selbst eine davon zu verursachen.
+Die External-Output-Prüfung weist weiterhin Source-Hardlinks, entweichende
+Links, Special Objects, fremde Owner und unsichere Modi ab.
+
+Vor jeder fehlbaren Prepare-Operation erzeugt der Workflow einen frischen
+`$RUNNER_TEMP/modsecurity-readonly-validation.XXXXXX`-Guard als direktes,
+nicht-symlinktes Child mit festem Prefix, ändert nur diesen neuen Guard zu
+`root:root` Modus `0711` und speichert seinen exakten Pfad im Step-Output. Der
+Helper erzeugt die root-eigene Inventory-Datei mit Modus `0600` und das dem
+Validator gehörende `external`-Child mit Modus `0700` innerhalb dieses Guards.
+`sudo` ist auf Identity-Erzeugung, Ownership/Modus des privaten Guards,
+Root-seitiges Inventory-Prepare/-Verify, Namespace-/Chroot-Setup und privaten
+Cleanup beschränkt; Candidate-State-Validierung und beide `git diff --check`
+Operationen laufen als normaler Runner-User.
+
+Ein `if: always()`-Cleanup-Step ruft den `--cleanup`-Modus des Helpers auch
+nach Candidate-, Inventory-, Namespace-, Parser- oder Contract-Fehlern auf.
+Vor dem Entfernen verlangt er das exakte absolute direkte Child von
+`RUNNER_TEMP`, das feste Prefix, keine Symlink-Komponenten, keine Überlappung
+mit Parent, Framework oder Git-Metadaten und keinen aktiven Mount unter dem
+Guard. Er öffnet den vertrauenswürdigen temporären Pfad Verzeichnis-Deskriptor
+für Verzeichnis-Deskriptor und entfernt Einträge nur relativ zu geprüften
+Deskriptoren ohne Symlinks zu folgen. Ein Cleanup-Fehler bleibt sichtbar und
+kann einen vorherigen Sicherheitsfehler nicht in Erfolg umwandeln.
+
+Diese Korrektur verhindert künftige Mutationen; sie repariert absichtlich
+keinen bereits root-eigenen lokalen oder self-hosted Checkout. Diagnostiziere
+zuerst einen konkreten Pfad read-only, zum Beispiel:
+
+~~~sh
+find /path/to/ModSecurity-conector -xdev \
+  \( -uid 0 -o -gid 0 \) -printf '%M %u:%g %p\n'
+~~~
+
+Bestätige den vorgesehenen Checkout, den erwarteten lokalen Owner/die Group,
+Mount-Topologie und Workspace-Policy, bevor ein Benutzer oder Administrator
+eine bewusste pfadspezifische manuelle Reparatur vornimmt. Verwende kein
+pauschales `chown -R`, `chmod -R`, ACL-Reset oder `git clean -fdx`; der
+Workflow führt diese Operationen niemals aus.
+
 Der Hosted-Run `31484727901` ist historische Failure-Evidence für den früheren
 ACL-Precheck. Der Hosted-Run `31488072111` ist ebenfalls nur historische
 Failure-Evidence: Auf `5d7d7bbbbb968aa9755d3c0c67a09d8acd651c77` waren Resolver
@@ -283,7 +335,9 @@ auf dem exakten Head `c7bbc70bcf729d148a7d87f45ca352ae7247416b` beobachtet:
 Validator-`make quick-check`, Postverification und Enforcement waren
 erfolgreich. Der Publisher wurde übersprungen und erzeugte keinen Output-Pull-
 Request, Commit oder Branch. Dies belegt kein SonarQube-Ergebnis, keinen
-PR-Merge und keinen Abschluss von `FND-PARENT-0122`; das Finding bleibt offen.
+PR-Merge und keinen Abschluss von `FND-PARENT-0122`; dieses wurde durch
+separat aufgezeichnete Exact-Head- und Protected-Master-Evidence geschlossen.
+Dies ist keine Evidence für diese neuere Source-Preservation-Korrektur.
 
 Der manuelle `workflow_dispatch`-Input `validate_only: true` ist ein nicht
 veröffentlichender Exact-Ref-Nachweis-/Revalidierungspfad mit genau zwei
@@ -357,7 +411,9 @@ Hosted-`validate_only`-Run `31776302498` auf dem exakten Head schloss
 Validator-Quick-Check, Postverification und Enforcement erfolgreich ab, bleibt
 aber auf diesen Run und Head begrenzt. Er ist kein SonarQube-Ergebnis,
 PR-Merge, Delivery oder Beweis vollständiger Host-Isolation.
-`FND-PARENT-0122` bleibt offen.
+`FND-PARENT-0122` ist ein geschlossenes historisches Finding; diese
+Dokumentation behauptet kein neues Hosted-Ergebnis für die
+Source-Preservation-Korrektur.
 
 Dies beschreibt den implementierten Workflow-Vertrag und seine begrenzte lokale
 Evidence, nicht Evidence für einen Hosted Run, einen Current-Head-Security-Scan,

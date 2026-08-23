@@ -1,5 +1,6 @@
 # Machine-readable Lighttpd contract.  Consumers must parse this file as data.
 # The updater replaces the complete contract when the Framework pin changes.
+LIGHTTPD_SERIES=1.4
 LIGHTTPD_VERSION=1.4.85
 LIGHTTPD_SOURCE_URL=https://download.lighttpd.net/lighttpd/releases-1.4.x/
 LIGHTTPD_DOWNLOAD_URL=https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.85.tar.xz

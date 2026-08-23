@@ -86,6 +86,47 @@ lighttpd-Verhalten. Das ausgewählte Evidence-Profil belegt ohne dedizierte
 Artefakte weder P4-Regelauswertung noch sichtbare Late-Action, Abort,
 Response-Trunkierung, vollständiges CRS-Verhalten oder Produktionshärtung.
 
+## No-CRS-Fixture-Isolation
+
+Die No-CRS-Baseline des gepatchten Lifecycles verwendet den vertrauenswürdigen
+privaten Namespace-Runner aus dem [Harness-Guide](../../connectors/lighttpd/harness/README.de.md).
+Root-eigene `/usr/bin/unshare`, das feste `/usr/bin/dash` und
+`/usr/bin/mount` und danach `/usr/bin/bwrap` errichten die User-, Mount- und
+PID-Grenze. Das Shell-Setup macht die Propagation privat und mountet ein
+privates `nosuid,nodev,noexec`-tmpfs auf `/tmp`. Bwrap stellt nur die minimalen
+schreibgeschützten System- und Runtime-Binds bereit, die der Harness benötigt,
+sowie den exakten Task-eigenen Smoke-Root als einzigen beschreibbaren Bind.
+Der Fixture-Root hat den Modus 0700.
+
+Das Namespace-Setup ist capability-geprüft. Nach dem Setup bestätigt der
+Runner, dass alle Capability-Sets einschließlich Bounding- und Ambient-Set
+leer sind und `no_new_privs` aktiviert ist, bevor der Test-Harness startet.
+Fehlende Kernel-Capabilities oder eine fehlgeschlagene Attestierung führen zu
+einem fail-closed Abbruch; das frühere Cleanup aus Pfadprüfung und
+anschließendem `rmdir` ist kein Fallback.
+
+Das Fixture-Cleanup ist an die Lebensdauer von Kindprozess und Namespace
+gebunden. Reguläre Fertigstellung, Testfehler, Timeout, Signal,
+Helper-Fehler und teilweise Initialisierung beenden die Kindprozessgruppe und
+geben den privaten Namespace frei. Der finale Namespace-State-Verifier prüft
+ausschließlich Capability-Sets, `no_new_privs`, den Mount-Zustand und die
+Device/Inode-Identität (`dev:ino`) des festen Fixture-Roots. Der
+Descriptor-I/O-Cleanup-Befehl prüft separat das Allowlist-Inventar der
+Fixture-Blätter, behält jedes Blatt und löscht nichts beziehungsweise löst den
+Fixture-Pfad nicht erneut auf. Alle Blätter und das Verzeichnis verschwinden
+beim Abbau des privaten tmpfs-Namespace.
+
+Bedrohungsmodell: Ein Prozess mit derselben UID kann den früheren Fixture-Pfad
+durch Umbenennen, Ersetzen oder Neuanlegen in ein Race zwingen. Der private
+Namespace und der kontrollierte beschreibbare Root sorgen dafür, dass die
+Freigabe des Namespace die Fixture-Mounts entfernt, ohne eine über den
+Host-Pfad ausgewählte Ersetzung zu löschen.
+
+Der aktuelle verschachtelte lokale Container stellt nur eine einzeilige
+UID-/GID-Zuordnung bereit; daher kann der vollständige Produktionspfad für
+Nicht-root lokal nicht ausgeführt werden. Das ist eine Validierungsgrenze und
+keine Erlaubnis, die fail-closed-Voraussetzungsprüfungen abzuschwächen.
+
 ## Verwandte Referenzen
 
 - [Architektur](../architecture.de.md)

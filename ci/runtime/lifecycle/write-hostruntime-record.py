@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -33,6 +34,12 @@ from runtime_path_utils import (
 STATUS_VALUES = {"PASS", "FAIL", "BLOCKED", "NOT_RUN", "NOT_APPLICABLE"}
 SAFE_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 REQUIRED = ("process", "config", "readiness", "interaction", "result", "cleanup")
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
+MANIFEST_FILENAME = "manifest.json"
+HOSTRUNTIME_RECORD_ARTIFACT = "hostruntime record"
+HOSTRUNTIME_SUMMARY_ARTIFACT = "hostruntime summary"
+NON_PRODUCED_ARTIFACT_STATES = {"not_produced", "not_applicable"}
+SELF_ARTIFACT_PATHS = {"result": "result.json", "manifest": MANIFEST_FILENAME}
 
 
 def safe_token(value: object, name: str) -> str:
@@ -56,6 +63,336 @@ def load_result(runtime_root: Path, path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("result must be a JSON object")
     return value
+
+
+def load_json_artifact(runtime_root: Path, path: Path, label: str) -> dict[str, Any]:
+    target = runtime_artifact_path(runtime_root, path, label, must_exist=True)
+    try:
+        value = json.loads(read_runtime_artifact_text(runtime_root, target, label))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"cannot parse {label}: {exc}") from exc
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must be a JSON object")
+    return value
+
+
+def relative_run_artifact(
+    runtime_root: Path, run_dir: Path, value: Path, label: str, *, must_exist: bool
+) -> tuple[Path, str]:
+    target = runtime_artifact_path(runtime_root, value, label, must_exist=must_exist)
+    try:
+        relative = target.relative_to(run_dir)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be below the canonical run directory") from exc
+    if relative == Path(".") or any(part in {"", ".", ".."} for part in relative.parts):
+        raise ValueError(f"{label} has an unsafe relative path")
+    return target, relative.as_posix()
+
+
+def relative_declared_artifact(
+    runtime_root: Path, run_dir: Path, value: object, label: str, *, must_exist: bool = True
+) -> tuple[Path, str]:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} path must be a non-empty relative string")
+    relative = Path(value)
+    if relative.is_absolute() or any(part in {"", ".", ".."} for part in relative.parts):
+        raise ValueError(f"{label} path must be a safe relative path")
+    return relative_run_artifact(
+        runtime_root, run_dir, run_dir / relative, label, must_exist=must_exist
+    )
+
+
+def artifact_sha256(runtime_root: Path, path: Path, label: str) -> str:
+    data = read_runtime_artifact_text(runtime_root, path, label).encode("utf-8")
+    return hashlib.sha256(data).hexdigest()
+
+
+def artifact_map(value: dict[str, Any], label: str) -> dict[str, Any]:
+    artifacts = value.get("artifacts")
+    if not isinstance(artifacts, dict):
+        raise ValueError(f"{label} artifacts must be a JSON object")
+    return artifacts
+
+
+def artifact_name(name: object, label: str) -> str:
+    if not isinstance(name, str) or not name:
+        raise ValueError(f"{label} artifact names must be non-empty strings")
+    return name
+
+
+def reject_reserved_artifact_path(path: Path, label: str, reserved_paths: set[Path]) -> None:
+    if path in reserved_paths:
+        raise ValueError(f"{label} uses a reserved lifecycle path")
+
+
+def optional_manifest_checksum(value: object, label: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not SHA256.fullmatch(value):
+        raise ValueError(f"{label} checksum is invalid")
+    return value
+
+
+def required_manifest_checksum(value: object, label: str) -> str:
+    if not isinstance(value, str) or not SHA256.fullmatch(value):
+        raise ValueError(f"{label} checksum is invalid")
+    return value
+
+
+def manifest_artifact_state(value: dict[str, Any], label: str) -> str:
+    state = value.get("state")
+    if not isinstance(state, str) or not state.strip():
+        raise ValueError(f"{label} state is invalid")
+    return state
+
+
+def validate_result_artifact(
+    runtime_root: Path,
+    run_dir: Path,
+    name: object,
+    value: object,
+    reserved_paths: set[Path],
+) -> None:
+    name = artifact_name(name, "result")
+    label = f"result artifact {name}"
+    if name in SELF_ARTIFACT_PATHS:
+        if value != SELF_ARTIFACT_PATHS[name]:
+            raise ValueError(f"{label} path is not canonical")
+        return
+    path, _ = relative_declared_artifact(runtime_root, run_dir, value, label)
+    reject_reserved_artifact_path(path, label, reserved_paths)
+
+
+def validate_result_artifacts(
+    runtime_root: Path,
+    run_dir: Path,
+    artifacts: dict[str, Any],
+    reserved_paths: set[Path],
+) -> None:
+    for name, value in artifacts.items():
+        validate_result_artifact(runtime_root, run_dir, name, value, reserved_paths)
+
+
+def validate_self_manifest_artifact(
+    runtime_root: Path,
+    run_dir: Path,
+    name: str,
+    value: dict[str, Any],
+    state: str,
+) -> None:
+    label = f"manifest artifact {name}"
+    if value.get("path") != SELF_ARTIFACT_PATHS[name]:
+        raise ValueError(f"{label} path is not canonical")
+    if state != "produced":
+        raise ValueError(f"{label} state is not produced")
+    checksum = optional_manifest_checksum(value.get("sha256"), label)
+    if name != "result" or checksum is None:
+        return
+    result_path, _ = relative_declared_artifact(
+        runtime_root,
+        run_dir,
+        SELF_ARTIFACT_PATHS["result"],
+        "manifest result artifact",
+    )
+    if artifact_sha256(runtime_root, result_path, "manifest result artifact") != checksum:
+        raise ValueError("manifest result artifact checksum does not match")
+
+
+def validate_non_produced_manifest_artifact(
+    runtime_root: Path,
+    run_dir: Path,
+    value: dict[str, Any],
+    label: str,
+    reserved_paths: set[Path],
+) -> None:
+    declared_path = value.get("path")
+    if declared_path is not None:
+        path, _ = relative_declared_artifact(
+            runtime_root, run_dir, declared_path, label, must_exist=False
+        )
+        reject_reserved_artifact_path(path, label, reserved_paths)
+        if path.exists():
+            raise ValueError(f"{label} non-produced target exists")
+    optional_manifest_checksum(value.get("sha256"), label)
+
+
+def validate_produced_manifest_artifact(
+    runtime_root: Path,
+    run_dir: Path,
+    value: dict[str, Any],
+    label: str,
+    reserved_paths: set[Path],
+) -> None:
+    path, _ = relative_declared_artifact(runtime_root, run_dir, value.get("path"), label)
+    reject_reserved_artifact_path(path, label, reserved_paths)
+    checksum = required_manifest_checksum(value.get("sha256"), label)
+    if artifact_sha256(runtime_root, path, label) != checksum:
+        raise ValueError(f"{label} checksum does not match")
+
+
+def validate_manifest_artifact(
+    runtime_root: Path,
+    run_dir: Path,
+    name: object,
+    value: object,
+    reserved_paths: set[Path],
+) -> None:
+    name = artifact_name(name, "manifest")
+    label = f"manifest artifact {name}"
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must be a JSON object")
+    state = manifest_artifact_state(value, label)
+    if name in SELF_ARTIFACT_PATHS:
+        validate_self_manifest_artifact(runtime_root, run_dir, name, value, state)
+        return
+    if state in NON_PRODUCED_ARTIFACT_STATES:
+        validate_non_produced_manifest_artifact(
+            runtime_root, run_dir, value, label, reserved_paths
+        )
+        return
+    if state != "produced":
+        raise ValueError(f"{label} state is unsupported")
+    validate_produced_manifest_artifact(runtime_root, run_dir, value, label, reserved_paths)
+
+
+def validate_manifest_artifacts(
+    runtime_root: Path,
+    run_dir: Path,
+    artifacts: dict[str, Any],
+    reserved_paths: set[Path],
+) -> None:
+    for name, value in artifacts.items():
+        validate_manifest_artifact(runtime_root, run_dir, name, value, reserved_paths)
+
+
+def validate_artifact_maps(
+    runtime_root: Path,
+    run_dir: Path,
+    result: dict[str, Any],
+    manifest: dict[str, Any],
+    reserved_paths: set[Path],
+) -> None:
+    result_artifacts = artifact_map(result, "result")
+    manifest_artifacts = artifact_map(manifest, "manifest")
+    validate_result_artifacts(runtime_root, run_dir, result_artifacts, reserved_paths)
+    validate_manifest_artifacts(runtime_root, run_dir, manifest_artifacts, reserved_paths)
+
+
+def project_manifest(
+    runtime_root: Path,
+    result_path: Path,
+    manifest_path: Path,
+    output_path: Path,
+    summary_path: Path | None,
+) -> None:
+    result_target = runtime_artifact_path(runtime_root, result_path, "result", must_exist=True)
+    manifest_target = runtime_artifact_path(runtime_root, manifest_path, "manifest", must_exist=True)
+    run_dir = result_target.parent
+    if manifest_target != run_dir / MANIFEST_FILENAME:
+        raise ValueError("manifest must be the canonical run manifest.json")
+    relative_run_artifact(
+        runtime_root, run_dir, output_path, HOSTRUNTIME_RECORD_ARTIFACT, must_exist=True
+    )
+    if summary_path is not None:
+        relative_run_artifact(
+            runtime_root, run_dir, summary_path, HOSTRUNTIME_SUMMARY_ARTIFACT, must_exist=True
+        )
+    if output_path in {result_target, manifest_target} or summary_path in {result_target, manifest_target}:
+        raise ValueError("hostruntime outputs must not replace result or manifest")
+    result = load_json_artifact(runtime_root, result_target, "result")
+    manifest = load_json_artifact(runtime_root, manifest_target, "manifest")
+    validate_artifact_maps(
+        runtime_root,
+        run_dir,
+        result,
+        manifest,
+        {result_target, manifest_target},
+    )
+    record_relative = relative_run_artifact(
+        runtime_root,
+        run_dir,
+        output_path,
+        HOSTRUNTIME_RECORD_ARTIFACT,
+        must_exist=True,
+    )[1]
+    result_artifacts = result["artifacts"]
+    manifest_artifacts = manifest["artifacts"]
+    result_artifacts["hostruntime_record"] = record_relative
+    manifest_artifacts["hostruntime_record"] = {
+        "path": record_relative,
+        "state": "produced",
+        "sha256": artifact_sha256(runtime_root, output_path, HOSTRUNTIME_RECORD_ARTIFACT),
+    }
+    if summary_path is not None:
+        summary_relative = relative_run_artifact(
+            runtime_root,
+            run_dir,
+            summary_path,
+            HOSTRUNTIME_SUMMARY_ARTIFACT,
+            must_exist=True,
+        )[1]
+        result_artifacts["hostruntime_summary"] = summary_relative
+        manifest_artifacts["hostruntime_summary"] = {
+            "path": summary_relative,
+            "state": "produced",
+            "sha256": artifact_sha256(
+                runtime_root, summary_path, HOSTRUNTIME_SUMMARY_ARTIFACT
+            ),
+        }
+    result_serialized = json.dumps(result, indent=2, sort_keys=True) + "\n"
+    result_sha256 = hashlib.sha256(result_serialized.encode("utf-8")).hexdigest()
+    manifest_artifacts["result"] = {
+        "path": SELF_ARTIFACT_PATHS["result"],
+        "state": "produced",
+        "sha256": result_sha256,
+    }
+    manifest_serialized = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+    write_runtime_artifact_text_atomic(runtime_root, result_target, result_serialized, "result")
+    write_runtime_artifact_text_atomic(runtime_root, manifest_target, manifest_serialized, "manifest")
+
+
+def preflight_manifest_projection(
+    runtime_root: Path,
+    result_path: Path,
+    manifest_path: Path,
+    output_path: Path,
+    summary_path: Path | None,
+) -> None:
+    result_target = runtime_artifact_path(runtime_root, result_path, "result", must_exist=True)
+    manifest_target = runtime_artifact_path(runtime_root, manifest_path, "manifest", must_exist=True)
+    run_dir = result_target.parent
+    if manifest_target != run_dir / MANIFEST_FILENAME:
+        raise ValueError("manifest must be the canonical run manifest.json")
+    result = load_json_artifact(runtime_root, result_target, "result")
+    manifest = load_json_artifact(runtime_root, manifest_target, "manifest")
+    validate_artifact_maps(
+        runtime_root,
+        run_dir,
+        result,
+        manifest,
+        {result_target, manifest_target},
+    )
+    output_target, _ = relative_run_artifact(
+        runtime_root,
+        run_dir,
+        output_path,
+        HOSTRUNTIME_RECORD_ARTIFACT,
+        must_exist=False,
+    )
+    if output_target.exists():
+        raise ValueError("hostruntime record destination already exists")
+    if summary_path is not None:
+        summary_target, _ = relative_run_artifact(
+            runtime_root,
+            run_dir,
+            summary_path,
+            HOSTRUNTIME_SUMMARY_ARTIFACT,
+            must_exist=False,
+        )
+        if summary_target.exists():
+            raise ValueError("hostruntime summary destination already exists")
+    if output_path in {result_target, manifest_target} or summary_path in {result_target, manifest_target}:
+        raise ValueError("hostruntime outputs must not replace result or manifest")
 
 
 def explicit_status(value: object) -> str | None:
@@ -153,6 +490,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--result", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--summary")
+    parser.add_argument("--manifest")
     parser.add_argument("--runtime-root", required=True)
     parser.add_argument("--connector", required=True)
     parser.add_argument("--profile", required=True)
@@ -164,6 +502,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         runtime_root = prepare_verified_runtime_artifact_root(args.runtime_root)
         args.runtime_root = runtime_root
+        if args.manifest:
+            preflight_manifest_projection(
+                runtime_root,
+                Path(args.result),
+                Path(args.manifest),
+                Path(args.output),
+                Path(args.summary) if args.summary else None,
+            )
         record = project(args)
         serialized = json.dumps(record, indent=2, sort_keys=True) + "\n"
         write_runtime_artifact_text_atomic(
@@ -174,6 +520,14 @@ def main(argv: list[str] | None = None) -> int:
                        f"profile={record['profile']}\nreason={record['reason']}\n")
             write_runtime_artifact_text_atomic(
                 runtime_root, Path(args.summary), summary, "summary"
+            )
+        if args.manifest:
+            project_manifest(
+                runtime_root,
+                Path(args.result),
+                Path(args.manifest),
+                Path(args.output),
+                Path(args.summary) if args.summary else None,
             )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))

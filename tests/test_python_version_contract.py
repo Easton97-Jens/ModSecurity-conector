@@ -111,11 +111,11 @@ class PythonVersionContractTest(unittest.TestCase):
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: ${{ needs.resolve-python-patch.outputs.version }}
+          python-version: ${{ needs.resolve-python-patch.outputs.latest_version }}
           check-latest: false
       - name: Verify Python candidate interpreter contract
         env:
-          EXPECTED_VERSION: ${{ needs.resolve-python-patch.outputs.version }}
+          EXPECTED_VERSION: ${{ needs.resolve-python-patch.outputs.latest_version }}
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --expected-version "$EXPECTED_VERSION" --expected-python "$EXPECTED_PYTHON"
       - name: Validate candidate
@@ -162,8 +162,8 @@ class PythonVersionContractTest(unittest.TestCase):
             )
         (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
 
-    def test_expected_inventory_has_37_normal_jobs_and_one_special_job(self) -> None:
-        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 37)
+    def test_expected_inventory_has_36_normal_jobs_and_one_special_job(self) -> None:
+        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 36)
         self.assertIn(
             CHECKER.JobIdentity("ci-security-workflow-lint.yml", "apr-util-provenance"),
             CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
@@ -172,6 +172,36 @@ class PythonVersionContractTest(unittest.TestCase):
             CHECKER.JobIdentity("nginx-root-broker.yml", "trusted-root-smoke"),
             CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
         )
+        for identity in (
+            CHECKER.JobIdentity("test-apache.yml", "apache-autotools-bootstrap"),
+            CHECKER.JobIdentity("test-haproxy.yml", "haproxy-structure"),
+            CHECKER.JobIdentity("update-submodules.yml", "create-submodule-update-pr"),
+            CHECKER.JobIdentity("update-workflow-tools.yml", "publisher"),
+            CHECKER.JobIdentity("update-workflow-tools.yml", "resolver"),
+            CHECKER.JobIdentity("update-workflow-tools.yml", "validator"),
+            CHECKER.JobIdentity("verified-report-governance.yml", "report-governance"),
+        ):
+            with self.subTest(identity=identity):
+                self.assertIn(identity, CHECKER.EXPECTED_NORMAL_PYTHON_JOBS)
+        self.assertNotIn(
+            CHECKER.JobIdentity(
+                "verified-report-governance.yml",
+                "verified-report-contract-preflight",
+            ),
+            CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
+        )
+        for retired_identity in (
+            CHECKER.JobIdentity(
+                "check-actions-versions.yml", "check-actions-versions"
+            ),
+            CHECKER.JobIdentity(
+                "update-actions-versions.yml", "update-actions-versions"
+            ),
+        ):
+            with self.subTest(identity=retired_identity):
+                self.assertNotIn(
+                    retired_identity, CHECKER.EXPECTED_NORMAL_PYTHON_JOBS
+                )
         self.assertEqual(
             {
                 CHECKER.JobIdentity(
@@ -525,7 +555,7 @@ printf '%s\\n' 'make quick-check'
 
     def test_special_candidate_job_is_strict_about_expected_outputs(self) -> None:
         malformed = self.candidate_job_block().replace(
-            "${{ needs.resolve-python-patch.outputs.version }}",
+            "${{ needs.resolve-python-patch.outputs.latest_version }}",
             "${{ needs.untrusted.outputs.version }}",
             1,
         )
@@ -547,7 +577,7 @@ printf '%s\\n' 'make quick-check'
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(exit_code, 0)
         self.assertEqual(payload["status"], "valid")
-        self.assertEqual(len(payload["detected_python_jobs"]), 41)
+        self.assertEqual(len(payload["detected_python_jobs"]), 40)
 
 
 if __name__ == "__main__":
