@@ -711,15 +711,15 @@ configure_mrts_request_id_header() {
     # child process with an explicit mode, while this post-generation check
     # runs in the parent shell.  The two modes must remain identical for both
     # CRS/no-MRTS and no-CRS/with-MRTS runs.
-    "$PYTHON_BIN" - "$LIGHTTPD_CONFIG" "$MRTS_RUNTIME_MODE" <<'PY'
+    "$PYTHON_BIN" - "$SMOKE_DIR/msconnector-runtime.conf" "$MRTS_RUNTIME_MODE" <<'PY'
 from pathlib import Path
 import sys
 
-config = Path(sys.argv[1])
+runtime_config = Path(sys.argv[1])
 runtime = sys.argv[2]
 if runtime not in {"0", "1"}:
     raise SystemExit("Lighttpd runtime mode is not a closed 0/1 value")
-text = config.read_text(encoding="utf-8")
+text = runtime_config.read_text(encoding="utf-8")
 expected_header = (
     "transaction_id_header=x-mrts-transaction-id\n"
     if runtime == "1"

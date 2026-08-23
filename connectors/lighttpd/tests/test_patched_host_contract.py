@@ -1342,7 +1342,9 @@ class NativeConfigModeTest(unittest.TestCase):
             "write_mrts_runtime_summary()", 1
         )[0]
 
-        self.assertIn('"$LIGHTTPD_CONFIG" "$MRTS_RUNTIME_MODE"', check)
+        self.assertIn('"$SMOKE_DIR/msconnector-runtime.conf" "$MRTS_RUNTIME_MODE"', check)
+        self.assertNotIn('"$LIGHTTPD_CONFIG" "$MRTS_RUNTIME_MODE"', check)
+        self.assertNotIn('\nconfig = Path(sys.argv[1])\n', check)
         self.assertNotIn('os.environ.get("MSCONNECTOR_MRTS_RUNTIME", "0")', check)
 
     def test_prepare_native_config_has_sealed_mrts_mode_and_safe_normal_mode(self) -> None:
