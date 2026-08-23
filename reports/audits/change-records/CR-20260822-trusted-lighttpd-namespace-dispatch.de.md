@@ -48,8 +48,9 @@ SonarQube Cloud und dem geschützten Ruleset abhängig.
   das feste AppArmor-User-Namespace-Profil, erzeugen `ns-test` und prüfen
   Binary-, Gruppen-, Docker-Socket- und Capability-Voraussetzungen.
 - Die API-Auflösung akzeptiert eine offene kanonische PR-Nummer oder deren
-  exakten 40-stelligen kleingeschriebenen Head-SHA; der Source-Checkout nutzt
-  ausschließlich den aufgelösten SHA.
+  exakten 40-stelligen kleingeschriebenen Head-SHA; der eingeschränkte Prozess
+  materialisiert ausschließlich diesen aufgelösten SHA vom festen öffentlichen
+  HTTPS-Origin.
 - Git-Credentials und `.git` werden vor der Source-Ausführung entfernt. Source
   läuft nur als `ns-test`, mit `NoNewPrivs`, leeren Gruppen/Capabilities,
   `env -i`, privatem `0700`-Temp-Root und fail-closed Namespace-Probes.
@@ -64,7 +65,7 @@ nur der kanonische Repository-Owner manuell auslösen oder erneut ausführen. Da
 weiteren Maintainers benötigt eine separat geprüfte Protected-master-
 Allowlist-Änderung.
 
-Vor dem Checkout prüfen feste absolute root-eigene Binaries, installieren nur
+Vor der Source-Materialisierung prüfen feste absolute root-eigene Binaries, installieren nur
 `apparmor-utils`, `bubblewrap` und `jq`, bestätigen die erforderlichen
 Bubblewrap-Flags, belassen `kernel.apparmor_restrict_unprivileged_userns` auf
 `1` und laden dieses feste root-eigene Profil:
@@ -87,7 +88,7 @@ Unter Ubuntu 24.04 gibt `--profiled` eine Anzahl geladener Profile und nicht
 deren Namen aus. Unmittelbar nach `apparmor_parser --replace` betritt ein
 festes root-eigenes `aa-exec` das Profil `trusted-lighttpd-ci-userns` und prüft
 `/proc/self/attr/current`. Ein anderes oder fehlendes Profil beendet den Job
-vor dem Checkout mit `77`. Der statische Vertrag verbietet die alte
+vor der Source-Materialisierung mit `77`. Der statische Vertrag verbietet die alte
 zählbasierte Form und mutiert den aktiven Profilnachweis, die Reporter-Isolation
 und das Privilegieninventar.
 
@@ -123,13 +124,16 @@ Der vertrauenswürdige Source-Pfad lautet:
 
 ~~~text
 manual target -> strict format validation -> fixed public GitHub API request
--> one open canonical PR/head SHA -> exact SHA checkout -> remove .git
--> aa-exec -> setpriv -> env -i -> ns-test namespace test
+-> one open canonical PR/head SHA -> aa-exec -> setpriv -> env -i
+-> fixed HTTPS exact-SHA materialization -> verify -> remove .git
+-> ns-test namespace test
 ~~~
 
-Kein PR-abgeleiteter Text gelangt in einen privilegierten Shell-Befehl, und der
-rohe Input ist niemals ein Checkout-Ref. Die PR-Source wird erst nach dem
-Identity-Drop kopiert. Die entsorgbare GitHub-hosted-VM besitzt abschließend
+Kein roher oder nicht validierter PR-abgeleiteter Text, Pfad, Ref, URL oder
+Shell-Syntax gelangt in einen privilegierten Befehl; ausschließlich der bereits
+API-gebundene exakte SHA wird als validiertes Datum übergeben. Der rohe Input
+ist niemals ein Checkout-Ref. Die PR-Source wird erst nach dem Identity-Drop
+direkt materialisiert. Die entsorgbare GitHub-hosted-VM besitzt abschließend
 Account-/Profil-/Temp-Teardown; bewusst gibt es nach gelaufenem PR-Code kein
 root-seitiges rekursives Löschen eines von `ns-test` beschreibbaren Baums.
 
@@ -149,18 +153,91 @@ Trusted-Tests einem festen Wert `success`/`failure`/`error` zu und schreibt den
 festen Statuskontext `trusted-lighttpd-namespace`. Das Status-Token existiert
 nur in diesem Reporter; der Testjob erhält es niemals.
 
+## 2026-08-23 Direkte eingeschränkte Source-Materialisierungs- und Mount-Lifecycle-Reparatur
+
+Run `32614114266` bewies den vollständigen privilegierten Bootstrap, die API-
+Bindung, exakte Zielvalidierung, die Identitätsgrenze
+`aa-exec -> setpriv -> env -i` und beide Namespace-Probes. Danach brach er vor
+einem Lighttpd-Unittest fail-closed mit `BLOCKED: runtime.source_root` ab: Der
+eingeschränkte Prozess `ns-test` konnte den bisherigen Checkout im
+Runner-Workspace nicht traversieren. Der Lauf beweist nicht, welcher
+Workspace-Parent die Sichtbarkeitsstörung verursachte, und ist kein
+Lighttpd-Testfehler.
+
+Die Reparatur entfernt die Runner-Workspace-Übergabe vollständig. Der
+geschützte Bootstrap erzeugt unter `/var/lib/trusted-lighttpd-namespace` einen
+root-eigenen `0755`-Parent, ein leeres root-eigenes Git-Template und zwei
+root-eigene feste Helper; nur die festen Children `source` und `tmp`, beide
+`0700`, gehören `ns-test`. Der Source-Namespace-Helper erhält über eine
+bereinigte Umgebung nur den bereits API-gebundenen SHA und die feste numerische
+`ns-test`-Identität. Source-Pfad, Git-Template und öffentlicher HTTPS-Origin
+sind Literale im vertrauenswürdigen, von `master` kontrollierten Text.
+
+Ein nachfolgendes Security-Review verwarf den früheren Plan, das `tmpfs` nach
+`--map-current-user` einzuhängen: Nach diesem Non-root-`exec` berechnet Linux
+die Capability-Sets neu, sodass der Mount nicht sicher erfolgen kann. Der
+vertrauenswürdige Helper validiert deshalb die leeren festen Untergründe für
+Source und temporäre Daten, bevor Source existiert, erfasst die Host-Namespace-
+IDs und erzeugt danach als root einen privaten Mount-/PID-Namespace. Er setzt
+die Mount-Propagation explizit auf privat und mountet ein begrenztes
+`256m`-Source-`tmpfs` sowie ein separates begrenztes `128m`-Temp-`tmpfs`, beide
+mit `nosuid,nodev,noexec`. Bis dahin wurde keine PR-Source gefetcht, gelesen,
+kopiert, geparst oder ausgeführt.
+
+Erst nach diesem leeren privaten Mount leert `setpriv --reuid/--regid` die
+Zusatzgruppen, setzt `NoNewPrivs` und entfernt inheritable, ambient und
+bounding Capabilities. Ein bereinigtes `env -i` betritt danach ohne
+`--keep-caps` einen verschachtelten User-/Mount-/PID-Namespace mit derselben
+Identität und startet das root-eigene Source-Runner-Skript als `ns-test`. Dieser beweist reale
+Non-root-UID/GID, leere Capability-Sets, `NoNewPrivs`, AppArmor-Label,
+Docker-Socket-Isolation, abweichende User-/Mount-/PID-Namespaces, PID 1 und
+beide privaten `tmpfs`-Mounts, bevor Git materialisiert wird. Danach nutzt er nur
+absolute, zuvor als root-eigen geprüfte Binaries und einen zeitbegrenzt
+laufenden Git-Launcher: Initialisierung des privaten Mounts mit dem leeren
+Template, Fetch ausschließlich des exakten SHA
+(`--no-tags --depth=1 --no-recurse-submodules`), Prüfung von Commit/Object und
+`HEAD`, Löschen von `.git`, Ablehnung von Checkout-Symlinks und Ausführung des
+Namespace-Unittests.
+
+Die Materialisierungsumgebung entsteht mit `env -i`: HTTPS ist das einzige
+zulässige Git-Protokoll; Prompts, LFS-Smudge, globale/System-Konfiguration,
+Hooks, Credential-Helper, File-Protokoll und Filesystem-Monitoring sind
+deaktiviert. Kein Token, Workspace-Pfad, Branch/Ref, URL oder Git-Konfiguration
+wird vom PR akzeptiert. Die privaten Source- und Test-Temp-Mounts werden
+zusammen mit ihrem an `--kill-child` gebundenen Namespace bei regulärem Ende
+oder kontrollierter Terminierung des Parent freigegeben. Nach Rückkehr von
+Python prüft der eingeschränkte Runner zusätzlich, dass der private Temp-Root
+leer ist. Der Host prüft nur nicht-destruktiv die Abwesenheit beider Mounts in
+seiner Mount-Tabelle. Er löst niemals einen Same-UID-beschreibbaren Pfad zum
+Cleanup auf. Dies ersetzt das geprüfte unsichere Muster `find ... -delete`;
+Root liest, kopiert, parst oder löscht weder PR-Source noch Test-Temp-Daten
+rekursiv.
+
+Diese Änderung schwächt weder Namespace-, AppArmor-, Capability-, Token- noch
+Failure-Gate ab. Sie ändert weder Framework- noch MRTS-Source, Gitlink,
+Dependency, Toolchain, Action-Pin, Repository-Setting, gewöhnlichen PR-
+Workflow oder den Draft-Status von PR #309. Hosted-Exact-Head-Runtime- und
+Sonar-Evidence bleiben ausstehend, bis diese separat geprüfte Master-Reparatur
+gemergt und dispatcht ist.
+
+### Lokale Validierung
+
+- `rtk test python3 -m unittest -v tests.test_trusted_lighttpd_namespace_dispatch_workflow` — bestanden (`2` Tests, einschließlich der Abschwächungs-Mutationen).
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v tests.test_ci_security_workflows` — bestanden (`28` Tests).
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace` im sauberen PR-#309-Worktree — bestanden (`18` Tests; `10` erwartete Skips ohne das Trusted-Integration-Gate).
+- `actionlint` mit ShellCheck, Offline-`zizmor`, Python-`compileall`, die zweisprachige Dokumentationssuite und `git diff --check` — bestanden.
+
 ## Geänderte Dateien
 
 - `.github/workflows/run-trusted-lighttpd-namespace-dispatch.yml` —
-  geschützter manueller Ubuntu-24.04-Dispatcher, API-gebundener exakter
-  Checkout und eingeschränkte `ns-test`-Ausführung.
+  geschützter manueller Ubuntu-24.04-Dispatcher, API-gebundene direkte
+  eingeschränkte Source-Materialisierung in einem privaten Mount-Lifecycle und
+  eingeschränkte `ns-test`-Ausführung.
 - `tests/test_trusted_lighttpd_namespace_dispatch_workflow.py` — positive und
-  Mutation-Contracts für Vertrauensgrenze, aktiven Profilnachweis und
-  isolierten Statusreporter.
-- `tests/test_ci_security_workflows.py` — exakter Allowlist-Eintrag für die
-  einzige Schreibberechtigung des Reporters, `statuses: write`.
-- Dieses englisch/deutsche Change-Record-Paar und Archiveinträge —
-  Autorisierung, Aufruf, Validierung und expliziter Pending-Runtime-Status.
+  Mutation-Contracts für Vertrauensgrenze, aktiven Profilnachweis, direkte
+  Git-Materialisierung, privaten Mount-Teardown und isolierten Statusreporter.
+- Dieses englisch/deutsche Change-Record-Paar — Autorisierung, Aufruf,
+  Validierung und expliziter Pending-Runtime-Status.
 
 Der bestehende Pull-Request-Workflow erhält weder `sudo` noch AppArmor-Setup.
 Framework, MRTS, Gitlinks, Dependencies, Action-Pins und Settings bleiben
@@ -192,7 +269,7 @@ gh workflow run run-trusted-lighttpd-namespace-dispatch.yml --repo Easton97-Jens
 
 Im SHA-Modus ist `309` durch den aktuellen vollständigen kleingeschriebenen
 40-stelligen PR-#309-Head-SHA zu ersetzen. Der Dispatcher gibt die
-API-validierte PR und SHA vor dem Checkout aus. Sein erfolgreicher manueller
+API-validierte PR und SHA vor der Source-Materialisierung aus. Sein erfolgreicher manueller
 Lauf ist die erforderliche Runtime-Evidence. Der Reporter publiziert seinen
 festen Exact-SHA-Status erst nach der Bindung des Ziels; Bootstrap- oder
 Zielauflösungsfehler besitzen keinen vertrauenswürdigen SHA und lassen den
@@ -204,8 +281,8 @@ Das exakte Actor-/Triggering-Actor-Gate ist bewusst enger als eine allgemeine Ma
 Eine Protected Environment mit Required Reviewers würde Governance ergänzen,
 Repository-Settings-Änderungen liegen jedoch außerhalb dieses Pull Requests.
 Der Dispatcher weist Fork-PRs und Nicht-Head-SHAs bewusst ab; er ist nur für
-einen offenen Same-Repository-PR autorisiert, dessen Head vor dem Checkout
-durch die API gebunden wird.
+einen offenen Same-Repository-PR autorisiert, dessen Head vor der
+Source-Materialisierung durch die API gebunden wird.
 
 PR #309 bleibt Draft, bis dieser Workflow gemergt und ein Exact-Head-Manuallauf
 erfolgreich ist.
@@ -222,9 +299,9 @@ verbindliche manuelle Merge-Sperre.
 Die Reparatur entfernt das Modell, in dem ein PR privilegierte Schritte im
 selben Pull-Request-Workflow verändern konnte, der seine Source ausführt.
 Privilegierte Arbeit stammt nun aus geprüftem Protected-master-YAML und endet
-vor dem Checkout. Die einzigen Root-Aktionen nach dem Checkout sind festes
-Git-State-Entfernen und der statische `aa-exec`-zu-`setpriv`-Launcher; keine
-davon liest, kopiert, parst oder startet PR-Source. Jede Source-Verarbeitung
+vor der Source-Materialisierung. Es gibt keinen Checkout im Runner-Workspace;
+der Root-Helper erstellt nur leere private Mounts und liest, kopiert, parst,
+startet oder bereinigt keinen PR-abgeleiteten Pfad. Jede Source-Verarbeitung
 erfolgt erst nach dem Non-root-Drop.
 
 Der Dispatcher ergänzt weder Root-Path-Cleanup noch einen
