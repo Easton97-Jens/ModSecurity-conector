@@ -157,6 +157,11 @@ if (
 ):
     blocked("namespace final verifier fixture root is unsafe")
 os.environ["LIGHTTPD_NO_CRS_FIXTURE_ROOT_IDENTITY"] = f"{details.st_dev}:{details.st_ino}"
+if os.environ.get("LIGHTTPD_NAMESPACE_PROBE_PHASES") == "1":
+    print(
+        "lighttpd_no_crs_fixture_namespace: probe phase final-state-verified",
+        file=sys.stderr,
+    )
 os.execvpe(sys.argv[1], sys.argv[1:], os.environ)
 '''
 
@@ -384,7 +389,9 @@ _FORWARDED_ENVIRONMENT = (
 )
 
 
-def _child_environment(base: Mapping[str, str]) -> dict[str, str]:
+def _child_environment(
+    base: Mapping[str, str], *, emit_probe_phase_markers: bool = False
+) -> dict[str, str]:
     """Forward only bounded data values after bwrap clears the environment."""
 
     result = {
@@ -407,6 +414,8 @@ def _child_environment(base: Mapping[str, str]) -> dict[str, str]:
         if "\x00" in value or "\n" in value or "\r" in value:
             raise NamespaceUnavailable(f"namespace environment value for {name} is unsafe")
         result[name] = value
+    if emit_probe_phase_markers:
+        result["LIGHTTPD_NAMESPACE_PROBE_PHASES"] = "1"
     return result
 
 
@@ -612,6 +621,7 @@ def build_trusted_namespace_command(
     environment: Mapping[str, str],
     writable_roots: Sequence[Path] = (),
     info_descriptor: int | None = None,
+    emit_probe_phase_markers: bool = False,
 ) -> list[str]:
     """Build the fixed system-binary-only setup chain.
 
@@ -621,7 +631,9 @@ def build_trusted_namespace_command(
     """
 
     harness = _validate_command(command)
-    child_environment = _child_environment(environment)
+    child_environment = _child_environment(
+        environment, emit_probe_phase_markers=emit_probe_phase_markers
+    )
     binds = _namespace_bind_arguments(
         environment=environment,
         writable_roots=writable_roots,
@@ -851,6 +863,7 @@ def run_isolated(
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     environment: Mapping[str, str] | None = None,
     writable_roots: Sequence[Path] = (),
+    emit_probe_phase_markers: bool = False,
 ) -> int:
     """Run after the trusted setup boundary as the invoking non-root identity."""
 
@@ -867,6 +880,7 @@ def run_isolated(
             environment=os.environ if environment is None else environment,
             writable_roots=writable_roots,
             info_descriptor=setup_write,
+            emit_probe_phase_markers=emit_probe_phase_markers,
         )
         child = os.fork()
         if child == 0:
@@ -875,7 +889,18 @@ def run_isolated(
         setup_write = -1
         _read_setup_attestation(setup_read, child)
         setup_read = -1
-        return _wait_for_child(child, timeout_seconds)
+        if emit_probe_phase_markers:
+            print(
+                "lighttpd_no_crs_fixture_namespace: probe phase setup-attested",
+                file=sys.stderr,
+            )
+        status = _wait_for_child(child, timeout_seconds)
+        if emit_probe_phase_markers and status != 0:
+            print(
+                "lighttpd_no_crs_fixture_namespace: probe phase child-exited-after-setup",
+                file=sys.stderr,
+            )
+        return status
     except (Exception, KeyboardInterrupt, SystemExit):
         if child > 0:
             _terminate_and_reap(child)
