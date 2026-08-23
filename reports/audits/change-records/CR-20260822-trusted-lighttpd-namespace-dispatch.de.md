@@ -186,13 +186,18 @@ kopiert, geparst oder ausgeführt.
 
 Erst nach diesem leeren privaten Mount leert `setpriv --reuid/--regid` die
 Zusatzgruppen, setzt `NoNewPrivs` und entfernt inheritable, ambient und
-bounding Capabilities. Ein bereinigtes `env -i` betritt danach ohne
-`--keep-caps` einen verschachtelten User-/Mount-/PID-Namespace mit derselben
-Identität und startet das root-eigene Source-Runner-Skript als `ns-test`. Dieser beweist reale
-Non-root-UID/GID, leere Capability-Sets, `NoNewPrivs`, AppArmor-Label,
+bounding Capabilities. Ein bereinigtes `env -i` betritt danach einen
+verschachtelten User-/Mount-/PID-Namespace mit derselben Identität. Das innere
+`unshare --keep-caps` ist ausschließlich für den kurzen festen Übergang zur
+root-eigenen Systembinary `/usr/bin/setpriv` erlaubt: Dieser Finalizer wiederholt
+die Non-root-Identität sowie die Abgabe von Gruppen, `NoNewPrivs`, inheritable,
+ambient und bounding Capabilities, bevor er das root-eigene Source-Runner-Skript
+als `ns-test` ausführt. Solange diese namespace-lokalen Capabilities bestehen,
+wird kein PR-Code ausgeführt. Der Source-Runner beweist reale Non-root-UID/GID,
+alle fünf leeren Capability-Sets, `NoNewPrivs`, AppArmor-Label,
 Docker-Socket-Isolation, abweichende User-/Mount-/PID-Namespaces, PID 1 und
-beide privaten `tmpfs`-Mounts, bevor Git materialisiert wird. Danach nutzt er nur
-absolute, zuvor als root-eigen geprüfte Binaries und einen zeitbegrenzt
+beide privaten `tmpfs`-Mounts, bevor Git materialisiert wird. Danach nutzt er
+nur absolute, zuvor als root-eigen geprüfte Binaries und einen zeitbegrenzt
 laufenden Git-Launcher: Initialisierung des privaten Mounts mit dem leeren
 Template, Fetch ausschließlich des exakten SHA
 (`--no-tags --depth=1 --no-recurse-submodules`), Prüfung von Commit/Object und
@@ -236,6 +241,46 @@ Resolver besitzt weiterhin kein Token, akzeptiert nur das strikt formatierte
 Ziel, validiert die API-Antwort und scheitert vor jeder PR-Source, wenn seine
 Wiederholungen erschöpft sind. Der separate status-schreibende POST behält
 `--retry 0`, damit keine Side-Effect-Statusanfrage wiederholt wird.
+
+## 2026-08-23 Reparatur des User-Namespace-CapBnd-Finalizers
+
+Der Protected-master-Dispatch `32620696697` bestand den vertrauenswürdigen
+Bootstrap und die exakte anonyme PR-Bindung für den PR-#309-Head
+`316a5de1ac5e663fce3cce58428f1e1dd306e573`, brach jedoch vor jeder PR-Source-
+Materialisierung mit `BLOCKED: runtime.capability_CapBnd` fail-closed ab. Das
+frühere äußere `--bounding-set=-all` leerte den Capability-Bounding-State des
+Host-Namespace korrekt; beim Eintritt in den verschachtelten User-Namespace mit
+derselben Identität entsteht jedoch ein neues namespace-lokales Bounding-Set.
+Der direkte Übergang `unshare -> dash` konnte daher die All-five-mask-
+Voraussetzung des Source-Runners nicht erfüllen.
+
+Die Reparatur bestätigt beim vertrauenswürdigen Bootstrap die Unterstützung von
+`unshare --keep-caps` und verwendet diese Option genau einmal am inneren
+Same-Identity-`unshare`. Sie ruft unmittelbar die feste root-eigene
+Systembinary `/usr/bin/setpriv` auf, die `--reuid`, `--regid`,
+`--clear-groups`, `--no-new-privs`, `--inh-caps=-all`,
+`--ambient-caps=-all` und `--bounding-set=-all` vor dem finalen Non-root-
+`dash`-Exec wiederholt. Der Source-Runner behält seine unabhängigen Nullchecks
+für `CapInh`, `CapPrm`, `CapEff`, `CapBnd` und `CapAmb`, bevor Git-,
+Filesystem- oder Python-Operationen möglich sind. `--keep-caps` ist damit
+keine Capability-Gewährung an PR-Code, sondern ausschließlich der minimale
+vertrauenswürdige Übergang, um das namespace-lokale Bounding-Set zu verwerfen.
+Fehlende Unterstützung oder ein fehlgeschlagener Finalizer- oder Source-Runner-
+Check bleibt fail-closed.
+
+Der statische Vertrag erlaubt kein zweites oder verschobenes `--keep-caps`,
+verlangt die vollständige unmittelbare Finalizer-Sequenz und mutiert das
+Entfernen jeder Finalizer-Abgabe, des Finalizers selbst und der inneren
+Capability-Retention. Die Hosted-Ubuntu-24.04-Ausführung gegen den dann
+aktuellen exakten PR-#309-Head bleibt die maßgebliche Bestätigung dieser
+Reparatur.
+
+### Lokale Validierung der CapBnd-Reparatur
+
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v tests.test_trusted_lighttpd_namespace_dispatch_workflow` — bestanden (`2` Tests, einschließlich der neuen Finalizer-Abschwächungs-Mutationen).
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v tests.test_ci_security_workflows` — bestanden (`28` Tests).
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace` im exakten lokalen PR-#309-Head-Worktree `316a5de1ac5e663fce3cce58428f1e1dd306e573` — bestanden (`18` Tests; `10` erwartete Skips außerhalb des Trusted-Integration-Gate).
+- Python-`compileall`, `actionlint` mit ShellCheck, Offline-`zizmor` und `git diff --check` — bestanden.
 
 ### Lokale Validierung
 
