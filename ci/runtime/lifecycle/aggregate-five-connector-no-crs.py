@@ -82,8 +82,9 @@ def validate_run(root: Path, connector: str, *, run_id: str, connector_commit: s
             raise ValueError(f"{connector}: result {name} does not match aggregate identity")
         if manifest.get(name) != value:
             raise ValueError(f"{connector}: manifest {name} does not match aggregate identity")
-    if result.get("status") != "PASS":
-        raise ValueError(f"{connector}: result is not PASS")
+    status = result.get("status")
+    if status not in {"PASS", "NOT_EXECUTED"}:
+        raise ValueError(f"{connector}: result status is not accepted for the closed profile")
     artifact = artifact_record(result, manifest)
     receipt_path = run / artifact["path"]
     receipt = load(root, receipt_path, f"{connector} profile receipt")
@@ -100,7 +101,7 @@ def validate_run(root: Path, connector: str, *, run_id: str, connector_commit: s
     for name, value in expected_receipt.items():
         if receipt.get(name) != value:
             raise ValueError(f"{connector}: profile receipt {name} does not match result identity")
-    return {"connector": connector, "status": "PASS"}
+    return {"connector": connector, "status": status}
 
 
 def aggregate(evidence_root: Path, *, run_id: str, connector_commit: str,
@@ -114,16 +115,17 @@ def aggregate(evidence_root: Path, *, run_id: str, connector_commit: str,
     if len(actual) != len(set(actual)) or set(actual) != set(profile.CONNECTORS):
         raise ValueError("evidence root must contain exactly the five canonical connector directories")
     rows = [validate_run(evidence_root, connector, run_id=run_id, connector_commit=connector_commit, framework_commit=framework_commit) for connector in profile.CONNECTORS]
+    status = "PASS" if all(row["status"] == "PASS" for row in rows) else "PARTIAL"
     return {"schema_version": 1, "profile": profile.PROFILE, "run_id": run_id,
             "connector_commit": connector_commit, "framework_commit": framework_commit,
-            "status": "PASS", "results": rows}
+            "status": status, "results": rows}
 
 
 def rendered_status(summary: dict[str, Any], german: bool) -> str:
-    passed = summary.get("status") == "PASS"
+    status = str(summary.get("status", "FAIL"))
     if german:
-        return "BESTANDEN" if passed else "FEHLER"
-    return str(summary.get("status", "FAIL"))
+        return {"PASS": "BESTANDEN", "PARTIAL": "TEILWEISE", "FAIL": "FEHLER"}.get(status, status)
+    return status
 
 
 def render(summary: dict[str, Any], german: bool = False) -> str:

@@ -194,6 +194,16 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         self.assertIn("if-no-files-found: error", self.reusable)
         self.assertNotIn("rm -rf", self.reusable)
 
+    def test_canonical_status_is_partial_only_after_validation(self) -> None:
+        self.assertIn("id: validate-canonical-evidence", self.reusable)
+        self.assertIn("EVIDENCE_VALIDATION_OUTCOME: ${{ steps.validate-canonical-evidence.outcome }}", self.reusable)
+        self.assertIn('PASS:success) summary_status=complete', self.reusable)
+        self.assertIn('NOT_EXECUTED:success) summary_status=partial', self.reusable)
+        self.assertIn('PASS:*|NOT_EXECUTED:*) summary_status=unvalidated', self.reusable)
+        self.assertIn('FAIL:*|BLOCKED:*|UNSUPPORTED:*|NOT_APPLICABLE:*) summary_status=failed', self.reusable)
+        self.assertIn('test ! -L "$result"', self.reusable)
+        self.assertNotIn('test "$status" = PASS', self.reusable)
+
     def test_actions_are_commit_pinned_and_checkout_does_not_persist_credentials(self) -> None:
         uses = re.findall(r"^\s*uses:\s+([^\s#]+)", self.reusable, re.MULTILINE)
         self.assertGreaterEqual(len(uses), 7)

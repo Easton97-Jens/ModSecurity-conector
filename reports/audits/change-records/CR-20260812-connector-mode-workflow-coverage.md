@@ -609,3 +609,51 @@ update: SonarQube Cloud and hosted checks must be re-observed on the normal
 successor PR head before the two findings are considered fixed. PR #279
 remains Draft; no Ready-for-review transition, merge, auto-merge, Framework
 write, or MRTS write is authorized.
+
+### Exact-head runtime follow-up: truthful partial status, CRS setup, and Lighttpd stock build
+
+Exact hosted head `56b1f984759389cf63eb6f3eda4add1962a21491` exposed three
+separate Parent-owned follow-ups. The No-CRS publication gate accepted only
+`PASS`, even after canonical validation. A valid `NOT_EXECUTED` result for the
+complete catalogue inventory could therefore fail generically rather than be
+shown as a non-promoting partial result. The correction preserves only a
+validated `NOT_EXECUTED` as `partial`; `PASS` stays the sole `complete` state,
+and `FAIL`, `BLOCKED`, `UNSUPPORTED`, `NOT_APPLICABLE`, invalid evidence,
+symlinked results, or a failed validator remain failing.
+
+The updated aggregate preserves each connector status and reports `PARTIAL`
+when any validated row is `NOT_EXECUTED`. It does not promote a not-executed
+case to `PASS`. The summary renderer now also preserves Framework phase `0`
+instead of treating it as `unknown`. A catalogue-backed contract loads the
+current read-only Framework catalogue and requires every current case ID to
+have a terminal row for every connector, with a concrete phase and area.
+
+The with-CRS/with-MRTS Apache and HAProxy cells had initialized a private source
+root but had not provisioned CRS or exported `CRS_SOURCE_DIR`. The new
+runtime-only preparation step uses the existing bounded fresh-CRS helper and
+pinned Framework fetch control only for those two cells. It creates a private
+component cache and exports the helper-validated `SOURCE_ROOT` and
+`CRS_SOURCE_DIR`; expected-unsupported Envoy, Lighttpd, and Traefik rows do not
+enter this branch. No Framework/MRTS source, Gitlink, NGINX guard, pin,
+provenance, or cache-containment control changes.
+
+The same exact head showed a Lighttpd stock-build failure: the generic
+response-start path called a host-transaction emitter whose definition was
+inside the patched streaming-hook conditional. The narrow C correction moves
+only the generic header helpers into common compilation scope and keeps
+response-body helpers ABI-guarded. It preserves opt-in behavior, a
+server-generated bounded identifier, `http_header_response_set`, and the
+pre-commit guard.
+
+Current focused local validation passed: 88 summary/matrix/catalogue/workflow/
+CRS tests and 85 Lighttpd/workflow-security tests with two expected namespace
+skips. `git diff --check` passed. The isolated task worktree correctly blocks a
+native Lighttpd build at its intentionally uninitialized Framework harness
+(`common.sh`, exit `77`); it did not initialize Framework or MRTS and did not
+simulate a build. A fresh combined security review found no reportable finding.
+
+`FND-PARENT-0213`, `FND-PARENT-0214`, and `FND-PARENT-0215` remain
+`in_progress`. Exact-successor hosted Lighttpd, No-CRS, and with-CRS/with-MRTS
+Apache/HAProxy evidence, plus successor-head SonarQube Cloud evidence, are
+still required. This is an intermediate Draft update only: no Ready transition,
+merge, auto-merge, Framework write, MRTS write, or Gitlink update is authorized.

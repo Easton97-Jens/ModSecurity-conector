@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -50,6 +51,38 @@ class ConnectorModeCoverageSummaryTest(unittest.TestCase):
         self.assertIn("complete No-CRS catalogue is an inventory", rendered)
         self.assertIn("| 5 | area-1 | case-005 | NOT_EXECUTED | no validated result |", rendered)
         self.assertEqual(rendered.count("| NOT_EXECUTED |"), 167)
+
+    def test_phase_zero_is_rendered_as_phase_zero(self) -> None:
+        plan = {"connector": "apache", "cases": [selected("phase-zero", 0)]}
+        rows = SUMMARY.case_rows(plan)
+        self.assertEqual(rows[0]["phase"], "0")
+        self.assertIn("| 0 | headers | phase-zero | NOT_EXECUTED |", SUMMARY.render_summary(plan))
+
+    def test_current_framework_catalog_has_a_terminal_row_for_every_case_and_connector(self) -> None:
+        framework_root = Path(os.environ.get(
+            "FRAMEWORK_ROOT", ROOT / "modules" / "ModSecurity-test-Framework"
+        ))
+        if not (framework_root / SUMMARY.FRAMEWORK_SELECTOR).is_file():
+            self.skipTest("the current Framework checkout is unavailable")
+        selector = SUMMARY.load_framework_selector(framework_root)
+        catalog = selector.load_catalog()
+        catalog_cases = catalog.get("cases")
+        self.assertIsInstance(catalog_cases, list)
+        expected_case_ids = {str(case["case_id"]) for case in catalog_cases}
+        self.assertEqual(len(expected_case_ids), len(catalog_cases))
+        self.assertTrue(expected_case_ids)
+        for connector in SUMMARY.CONNECTORS:
+            with self.subTest(connector=connector):
+                plan = SUMMARY.select_framework_cases(
+                    framework_root, connector,
+                    ROOT / "connectors" / connector / "capabilities.json",
+                )
+                rows = SUMMARY.case_rows(plan)
+                self.assertEqual({row["case_id"] for row in rows}, expected_case_ids)
+                self.assertEqual(len(rows), len(expected_case_ids))
+                self.assertTrue(all(row["phase"] != "unknown" for row in rows))
+                self.assertTrue(all(row["area"] != "ungrouped" for row in rows))
+                self.assertTrue(all(row["status"] in SUMMARY.CASE_STATUSES for row in rows))
 
     def test_unvalidated_fabricated_pass_is_demoted(self) -> None:
         plan = {"connector": "envoy", "cases": [selected("one", 1)]}

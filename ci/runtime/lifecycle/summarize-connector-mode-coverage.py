@@ -175,10 +175,12 @@ def case_rows(plan: Mapping[str, Any], evidence: Mapping[str, Mapping[str, Any]]
     rows = []
     for case_id, selection in cases.items():
         status, evidence_source, reason = _case_status_and_details(selection, evidence.get(case_id))
+        phase = selection.get("phase")
+        area = selection.get("group")
         rows.append({
             "case_id": case_id,
-            "phase": str(selection.get("phase") or "unknown"),
-            "area": str(selection.get("group") or "ungrouped"),
+            "phase": str(phase) if phase is not None and str(phase) else "unknown",
+            "area": str(area) if area is not None and str(area) else "ungrouped",
             "status": status,
             "evidence": evidence_source,
             "reason": reason,

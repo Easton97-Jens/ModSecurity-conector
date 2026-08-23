@@ -629,6 +629,12 @@ class PatchedHostContractTest(unittest.TestCase):
         response_start = module.rsplit("REQUEST_FUNC(mod_msconnector_handle_response_start)", 1)[1].split(
             "REQUEST_FUNC(mod_msconnector_handle_request_reset)", 1
         )[0]
+        response_body_helper = module.index(
+            "static int mod_msconnector_response_body_committed"
+        )
+        stream_hook_guard = module.rfind(
+            "#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION", 0, response_body_helper
+        )
 
         self.assertIn("int expose_host_transaction_id;", module)
         self.assertIn('"msconnector.expose-host-transaction-id"', module)
@@ -639,8 +645,23 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertNotIn("http_header_request_get", emitter)
         self.assertIn("!p->defaults.expose_host_transaction_id", emitter)
         self.assertIn("mod_msconnector_response_headers_committed", emitter)
+        self.assertLess(
+            module.index("static int mod_msconnector_response_headers_committed"),
+            stream_hook_guard,
+        )
+        self.assertLess(
+            module.index("static int mod_msconnector_emit_host_transaction_id"),
+            stream_hook_guard,
+        )
+        self.assertGreater(
+            module.index("static int mod_msconnector_response_body_committed"),
+            stream_hook_guard,
+        )
         self.assertIn("if (ctx->request_intervened)", response_start)
-        self.assertIn("mod_msconnector_emit_host_transaction_id(r, p, ctx)", response_start)
+        self.assertEqual(
+            response_start.count("mod_msconnector_emit_host_transaction_id(r, p, ctx)"),
+            2,
+        )
         self.assertLess(
             response_start.index("msconnector_runtime_transaction_process_response_headers"),
             response_start.rindex("mod_msconnector_emit_host_transaction_id(r, p, ctx)"),

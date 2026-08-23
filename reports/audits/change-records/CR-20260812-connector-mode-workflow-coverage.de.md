@@ -648,3 +648,56 @@ dem normalen Folge-PR-Head erneut beobachtet werden, bevor die zwei Befunde
 als behoben gelten. PR #279 bleibt Draft; keine Ready-for-review-Umstellung,
 kein Merge, kein Auto-Merge, kein Framework-Write und kein MRTS-Write sind
 autorisiert.
+
+### Exact-Head-Runtime-Follow-up: wahrheitsgemäßer Partial-Status, CRS-Setup und Lighttpd-Stock-Build
+
+Der exakte Hosted-Head `56b1f984759389cf63eb6f3eda4add1962a21491` zeigte drei
+getrennte Parent-only-Follow-ups. Das No-CRS-Publikations-Gate akzeptierte auch
+nach kanonischer Validierung nur `PASS`. Ein gültiges `NOT_EXECUTED` für das
+vollständige Kataloginventar konnte daher generisch fehlschlagen, statt als
+nicht-promotendes partielles Ergebnis dargestellt zu werden. Die Korrektur
+bewahrt nur validiertes `NOT_EXECUTED` als `partial`; `PASS` bleibt der einzige
+`complete`-Status und `FAIL`, `BLOCKED`, `UNSUPPORTED`, `NOT_APPLICABLE`,
+ungültige Evidenz, symlinked Ergebnisse oder ein fehlgeschlagener Validator
+bleiben fehlschlagend.
+
+Das aktualisierte Aggregat bewahrt jeden Connector-Status und meldet `PARTIAL`,
+wenn irgendeine validierte Zeile `NOT_EXECUTED` ist. Es promotet keinen nicht
+ausgeführten Fall zu `PASS`. Der Summary-Renderer bewahrt nun außerdem
+Framework-Phase `0`, statt sie als `unknown` zu behandeln. Ein katalogbasierter
+Vertrag lädt den aktuellen read-only-Framework-Katalog und verlangt für jede
+aktuelle Fall-ID eine terminale Zeile für jeden Connector mit konkreter Phase
+und Bereich.
+
+Die with-CRS/with-MRTS-Cells von Apache und HAProxy hatten einen privaten
+Source-Root initialisiert, aber weder CRS provisioniert noch `CRS_SOURCE_DIR`
+exportiert. Der neue runtime-only-Preparation-Schritt verwendet den bestehenden
+begrenzten Fresh-CRS-Helper und den gepinnten Framework-Fetch-Control nur für
+diese zwei Cells. Er erzeugt einen privaten Component-Cache und exportiert das
+vom Helper validierte `SOURCE_ROOT` und `CRS_SOURCE_DIR`; erwartbar nicht
+unterstützte Envoy-, Lighttpd- und Traefik-Zeilen betreten diesen Zweig nicht.
+Keine Framework-/MRTS-Source, kein Gitlink, NGINX-Guard, Pin, Provenance- oder
+Cache-Containment-Control wurde geändert.
+
+Der gleiche Exact-Head zeigte einen Lighttpd-Stock-Build-Fehler: Der generische
+Response-Start-Pfad rief einen Host-Transaction-Emitter auf, dessen Definition
+innerhalb der gepatchten Streaming-Hook-Bedingung lag. Die enge C-Korrektur
+verschiebt nur die generischen Header-Helper in den gemeinsamen
+Kompilierungsscope und hält Response-Body-Helper ABI-geschützt. Sie bewahrt das
+Opt-in-Verhalten, eine servergenerierte gebundene ID,
+`http_header_response_set` und den Pre-Commit-Guard.
+
+Die aktuelle fokussierte lokale Validierung bestand: 88 Summary-/Matrix- /
+Katalog-/Workflow-/CRS-Tests sowie 85 Lighttpd-/Workflow-Sicherheits-Tests mit
+zwei erwarteten Namespace-Skips. `git diff --check` bestand. Der isolierte
+Task-Worktree blockiert einen nativen Lighttpd-Build korrekt an seiner
+absichtlich nicht initialisierten Framework-Harness (`common.sh`, Exit `77`);
+er initialisierte weder Framework noch MRTS und simulierte keinen Build. Ein
+frisches kombiniertes Sicherheitsreview fand keinen reportablen Fund.
+
+`FND-PARENT-0213`, `FND-PARENT-0214` und `FND-PARENT-0215` bleiben
+`in_progress`. Exact-Successor-Hosted-Lighttpd-, No-CRS- und
+with-CRS/with-MRTS-Apache-/HAProxy-Evidenz sowie Successor-Head-SonarQube-
+Cloud-Evidenz sind weiterhin erforderlich. Dies ist nur ein Draft-
+Zwischen-Update: Keine Ready-Umstellung, kein Merge, Auto-Merge,
+Framework-Write, MRTS-Write oder Gitlink-Update ist autorisiert.

@@ -3670,7 +3670,13 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
         self.assertIn("Write complete connector coverage summary", no_crs_text)
         self.assertIn("EVIDENCE_VALIDATION_OUTCOME", no_crs_text)
         self.assertIn('case "$status" in', no_crs_text)
-        self.assertIn('PASS) ;;', no_crs_text)
+        self.assertIn('PASS|NOT_EXECUTED|FAIL|BLOCKED|UNSUPPORTED|NOT_APPLICABLE) ;;', no_crs_text)
+        self.assertIn('PASS:success) summary_status=complete', no_crs_text)
+        self.assertIn('NOT_EXECUTED:success) summary_status=partial', no_crs_text)
+        self.assertIn('PASS:*|NOT_EXECUTED:*) summary_status=unvalidated', no_crs_text)
+        self.assertIn('FAIL:*|BLOCKED:*|UNSUPPORTED:*|NOT_APPLICABLE:*) summary_status=failed', no_crs_text)
+        self.assertIn('test ! -L "$result"', no_crs_text)
+        self.assertNotIn('test "$status" = PASS', no_crs_text)
         self.assertIn("Check process cleanup", no_crs_text)
         self.assertNotIn("expected_unsupported", no_crs_text)
         self.assertEqual(
@@ -3740,6 +3746,35 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
                 )
                 self.assertNotIn("RUNTIME_COMPONENT_TARGET=all", text)
                 self.assertNotIn("make fetch-crs", text)
+
+        with_mrts, with_mrts_text = self.load_workflow(
+            "test-connectors-with-crs-with-mrts.yml"
+        )
+        with_mrts_steps = with_mrts["jobs"]["connector-mode"]["steps"]
+        prepare_crs = next(
+            step for step in with_mrts_steps
+            if step["name"] == "Prepare fresh CRS source for Apache and HAProxy"
+        )
+        self.assertEqual(prepare_crs.get("if"), "matrix.coverage_kind == 'runtime'")
+        self.assertEqual(prepare_crs.get("id"), "prepare-crs-source")
+        for fragment in (
+            'case "$FRAMEWORK_ROOT" in "$GITHUB_WORKSPACE"/modules/ModSecurity-test-Framework',
+            'case "$CONNECTOR_COMPONENT_CACHE" in "$CACHE_ROOT"/shared',
+            'apache|haproxy)',
+            '. "$FRAMEWORK_ROOT/ci/lib/common.sh"',
+            '. ci/runtime/lifecycle/prepare-fresh-crs-source.sh',
+            'sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"',
+            '"SOURCE_ROOT=$SOURCE_ROOT" "CRS_SOURCE_DIR=$CRS_SOURCE_DIR" >> "$GITHUB_ENV"',
+        ):
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, prepare_crs["run"])
+        runtime = next(
+            step for step in with_mrts_steps
+            if step["name"] == "Run existing focused runtime control"
+        )
+        self.assertLess(with_mrts_steps.index(prepare_crs), with_mrts_steps.index(runtime))
+        self.assertIn('echo "CONNECTOR_COMPONENT_CACHE=$cell_root/cache/shared"', with_mrts_text)
+        self.assertIn('echo "FRAMEWORK_ROOT=$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"', with_mrts_text)
 
         for filename in (
             "test-connectors-no-crs-with-mrts.yml",

@@ -319,20 +319,35 @@ jobs:
         if: always()
         env:
           CONNECTOR: ${{ matrix.connector }}
+          EVIDENCE_VALIDATION_OUTCOME: ${{ steps.validate-canonical-evidence.outcome }}
         run: |
           set -euo pipefail
           result="$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID/result.json"
           test -f "$result"
+          test ! -L "$result"
           status=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["status"])' "$result")
           case "$status" in
-            PASS) ;;
+            PASS|NOT_EXECUTED|FAIL|BLOCKED|UNSUPPORTED|NOT_APPLICABLE) ;;
+            *) echo "FAIL: canonical result has an invalid final status" >&2; exit 2 ;;
+          esac
+          case "$status:$EVIDENCE_VALIDATION_OUTCOME" in
+            PASS:success) summary_status=complete ;;
+            NOT_EXECUTED:success) summary_status=partial ;;
+            PASS:*|NOT_EXECUTED:*) summary_status=unvalidated ;;
+            FAIL:*|BLOCKED:*|UNSUPPORTED:*|NOT_APPLICABLE:*) summary_status=failed ;;
             *) echo "FAIL: canonical result has an invalid final status" >&2; exit 2 ;;
           esac
           {
             echo "### $CONNECTOR canonical No-CRS status"
             echo
-            echo "$status"
+            echo "\`$status\` — \`$summary_status\`"
           } >> "$GITHUB_STEP_SUMMARY"
+          case "$summary_status" in
+            complete|partial) ;;
+            unvalidated) echo "FAIL: canonical status requires successful evidence validation" >&2; exit 1 ;;
+            failed) echo "FAIL: canonical result reported $status" >&2; exit 1 ;;
+            *) echo "FAIL: canonical result summary status is invalid" >&2; exit 2 ;;
+          esac
 
       - name: Check process cleanup
         if: always()

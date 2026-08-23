@@ -78,7 +78,7 @@ class FiveConnectorNoCrsProfileTest(unittest.TestCase):
 
     def _write_run(self, root: Path, connector: str, *, bad_identity: bool = False,
                    omit_artifact: bool = False, cleanup_status: str = "passed",
-                   artifact_state: str = "produced") -> None:
+                   artifact_state: str = "produced", result_status: str = "PASS") -> None:
         run = root / connector / RUN_ID
         runtime = root.parent / "runtime" / connector
         receipt = PROFILE.write_receipt(runtime, runtime / PROFILE.RECEIPT_PATH,
@@ -93,7 +93,7 @@ class FiveConnectorNoCrsProfileTest(unittest.TestCase):
             "connector_commit": "c" * 40 if bad_identity else COMMIT,
             "framework_commit": FRAMEWORK_COMMIT,
             "integration_mode": PROFILE.profile_row(connector)["integration_mode"],
-            "status": "PASS",
+            "status": result_status,
             "artifacts": {},
         }
         if not omit_artifact:
@@ -145,6 +145,25 @@ class FiveConnectorNoCrsProfileTest(unittest.TestCase):
         self.assertNotIn("artifacts", payload)
         self.assertIn("Fünf-Connector", german_text)
 
+    def test_clean_not_executed_result_is_preserved_as_partial(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            evidence = self._success_root(Path(temporary))
+            self._write_run(evidence, "apache", result_status="NOT_EXECUTED")
+            output = evidence / "summary.json"
+            rc = AGGREGATE.main(["--profile", "no-crs", "--evidence-root", str(evidence),
+                "--canonical-validation-status", "passed",
+                "--run-id", RUN_ID, "--connector-commit", COMMIT, "--framework-commit", FRAMEWORK_COMMIT,
+                "--output-json", str(output), "--output-md", str(evidence / "summary.md"),
+                "--output-md-de", str(evidence / "summary.de.md")])
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            summary = (evidence / "summary.md").read_text(encoding="utf-8")
+            german = (evidence / "summary.de.md").read_text(encoding="utf-8")
+        self.assertEqual(rc, 0)
+        self.assertEqual(payload["status"], "PARTIAL")
+        self.assertEqual(payload["results"][0], {"connector": "apache", "status": "NOT_EXECUTED"})
+        self.assertIn("PARTIAL", summary)
+        self.assertIn("TEILWEISE", german)
+
     def test_failed_canonical_validation_cannot_emit_pass_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             evidence = self._success_root(Path(temporary))
@@ -165,9 +184,12 @@ class FiveConnectorNoCrsProfileTest(unittest.TestCase):
             connector_commit=COMMIT, framework_commit=FRAMEWORK_COMMIT, cleanup_status="failed")
         self.assertEqual(payload["cleanup_status"], "failed")
 
-    def test_missing_artifact_bad_identity_cleanup_or_manifest_state_fail(self) -> None:
+    def test_missing_artifact_bad_identity_cleanup_manifest_or_non_partial_status_fail(self) -> None:
         for label, options in (("missing", {"omit_artifact": True}), ("identity", {"bad_identity": True}),
-                               ("cleanup", {"cleanup_status": "failed"}), ("state", {"artifact_state": "present"})):
+                               ("cleanup", {"cleanup_status": "failed"}), ("state", {"artifact_state": "present"}),
+                               ("fail", {"result_status": "FAIL"}), ("blocked", {"result_status": "BLOCKED"}),
+                               ("unsupported", {"result_status": "UNSUPPORTED"}),
+                               ("not-applicable", {"result_status": "NOT_APPLICABLE"})):
             with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 evidence = self._success_root(root)
