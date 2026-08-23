@@ -33,6 +33,8 @@ jobs:
       contents: read
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    outputs:
+      target_sha: ${{ steps.resolve-target.outputs.target_sha }}
     steps:
       - name: Bootstrap constrained namespace host before any checkout
         shell: /usr/bin/bash --noprofile --norc -euo pipefail {0}
@@ -128,7 +130,17 @@ jobs:
           APPARMOR_PROFILE
           /usr/bin/sudo -n /usr/sbin/apparmor_parser --replace /etc/apparmor.d/trusted-lighttpd-ci-userns
           /usr/sbin/aa-status --enabled
-          /usr/sbin/aa-status --profiled | /usr/bin/grep -F -- 'trusted-lighttpd-ci-userns' >/dev/null
+          /usr/bin/sudo -n /usr/bin/aa-exec -p trusted-lighttpd-ci-userns -- \
+            /usr/bin/dash -eu -c '
+              case "$(/usr/bin/cat /proc/self/attr/current)" in
+                trusted-lighttpd-ci-userns\ *)
+                  ;;
+                *)
+                  printf "%s\\n" "BLOCKED: trusted AppArmor profile was not entered." >&2
+                  exit 77
+                  ;;
+              esac
+            '
 
           /usr/bin/sudo -n /usr/bin/setpriv \
             --reuid="$ns_test_uid" \
@@ -346,3 +358,57 @@ jobs:
                   cd "$SOURCE_COPY"
                   /usr/bin/python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace
                 '
+
+  report-trusted-lighttpd-namespace:
+    needs: trusted-lighttpd-namespace
+    if: >-
+      always() &&
+      needs.trusted-lighttpd-namespace.outputs.target_sha != ''
+    permissions:
+      statuses: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Publish the fixed trusted namespace status without checkout
+        env:
+          TARGET_SHA: ${{ needs.trusted-lighttpd-namespace.outputs.target_sha }}
+          TRUSTED_TEST_RESULT: ${{ needs.trusted-lighttpd-namespace.result }}
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail {0}
+        run: |
+          if [[ ! "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            printf '%s\n' 'BLOCKED: trusted test output did not contain a lowercase 40-character target SHA.' >&2
+            exit 77
+          fi
+
+          case "$TRUSTED_TEST_RESULT" in
+            success)
+              status_state=success
+              status_description='Trusted Lighttpd namespace test passed.'
+              ;;
+            failure)
+              status_state=failure
+              status_description='Trusted Lighttpd namespace test failed.'
+              ;;
+            cancelled|skipped)
+              status_state=error
+              status_description='Trusted Lighttpd namespace test did not complete.'
+              ;;
+            *)
+              printf '%s\n' 'BLOCKED: trusted test returned an unknown result.' >&2
+              exit 77
+              ;;
+          esac
+
+          /usr/bin/env -i \
+            GITHUB_TOKEN="$GITHUB_TOKEN" \
+            PATH=/usr/bin:/bin \
+            /usr/bin/curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+              --connect-timeout 10 --max-time 30 --retry 0 \
+              --request POST \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'Authorization: Bearer '"$GITHUB_TOKEN" \
+              -H 'X-GitHub-Api-Version: 2022-11-28' \
+              -H 'Content-Type: application/json' \
+              --data "{\"state\":\"$status_state\",\"context\":\"trusted-lighttpd-namespace\",\"description\":\"$status_description\"}" \
+              "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/statuses/$TARGET_SHA"

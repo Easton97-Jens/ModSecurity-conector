@@ -200,6 +200,7 @@ WRITE_PERMISSION_KEYS = {
     "packages",
     "id-token",
     "attestations",
+    "statuses",
 }
 
 
@@ -688,6 +689,9 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
 
 
 EXPECTED_WRITE_PERMISSIONS = {
+    ("run-trusted-lighttpd-namespace-dispatch.yml", "report-trusted-lighttpd-namespace"): {
+        "statuses": "write",
+    },
     ("cleanup-artifacts.yml", "cleanup-artifacts"): {"actions": "write"},
     ("test-full-smoke-sequential.yml", "cleanup-artifacts"): {"actions": "write"},
     ("update-submodules.yml", "create-submodule-update-pr"): {
