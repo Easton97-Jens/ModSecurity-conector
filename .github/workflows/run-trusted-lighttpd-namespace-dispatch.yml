@@ -86,7 +86,9 @@ jobs:
           done
           /usr/bin/bwrap --help | /usr/bin/grep -F -- '--disable-userns' >/dev/null
           /usr/bin/bwrap --help | /usr/bin/grep -F -- '--assert-userns-disabled' >/dev/null
-          /usr/bin/unshare --help | /usr/bin/grep -F -- '--keep-caps' >/dev/null
+          for unshare_option in --map-users --map-groups --setgroups --keep-caps; do
+            /usr/bin/unshare --help | /usr/bin/grep -F -- "$unshare_option" >/dev/null
+          done
           test -r /proc/sys/kernel/apparmor_restrict_unprivileged_userns
           read -r userns_restriction < /proc/sys/kernel/apparmor_restrict_unprivileged_userns
           test "$userns_restriction" = 1
@@ -152,6 +154,12 @@ jobs:
           test "$(/usr/bin/readlink /proc/self/ns/mnt)" != "$HOST_MOUNT_NAMESPACE" || fail_runtime mount_namespace
           test "$(/usr/bin/readlink /proc/self/ns/pid)" != "$HOST_PID_NAMESPACE" || fail_runtime pid_namespace
           test "$$" = 1 || fail_runtime pid_namespace
+          /usr/bin/grep -Eq "^[[:space:]]*0[[:space:]]+0[[:space:]]+1[[:space:]]*$" /proc/self/uid_map || fail_runtime user_namespace_root_uid_map
+          /usr/bin/grep -Eq "^[[:space:]]*${NS_TEST_UID}[[:space:]]+${NS_TEST_UID}[[:space:]]+1[[:space:]]*$" /proc/self/uid_map || fail_runtime user_namespace_ns_test_uid_map
+          test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/uid_map)" = 2 || fail_runtime user_namespace_uid_map_count
+          /usr/bin/grep -Eq "^[[:space:]]*0[[:space:]]+0[[:space:]]+1[[:space:]]*$" /proc/self/gid_map || fail_runtime user_namespace_root_gid_map
+          /usr/bin/grep -Eq "^[[:space:]]*${NS_TEST_GID}[[:space:]]+${NS_TEST_GID}[[:space:]]+1[[:space:]]*$" /proc/self/gid_map || fail_runtime user_namespace_ns_test_gid_map
+          test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/gid_map)" = 2 || fail_runtime user_namespace_gid_map_count
           /usr/bin/grep -F " $SOURCE_ROOT " /proc/self/mountinfo | /usr/bin/grep -F " - tmpfs " >/dev/null || fail_runtime source_namespace_mount
           if /usr/bin/grep -F " $SOURCE_ROOT " /proc/self/mountinfo | /usr/bin/grep -Eq "(shared:|master:)"; then
             fail_runtime source_namespace_propagation
@@ -277,8 +285,27 @@ jobs:
           template_entry="$(/usr/bin/find -P "$GIT_TEMPLATE_ROOT" -mindepth 1 -maxdepth 1 -print -quit)" || fail_namespace git_template_walk
           test -z "$template_entry" || fail_namespace git_template_not_empty
 
+          # The fixed, root-controlled mapping keeps host root and the one
+          # non-root test identity visible in this private namespace.  The
+          # helper can therefore attest root-owned fixed system binaries
+          # without accepting unmapped/overflow ownership.  No PR source runs
+          # until the setpriv transition below has cleared every privilege.
           # shellcheck disable=SC2016 # The child shell expands only its clean fixed environment.
-          exec /usr/bin/unshare --mount --pid --fork --kill-child=SIGKILL --mount-proc=/proc --propagation private /usr/bin/dash -eu -c '
+          exec /usr/bin/unshare \
+            --user \
+            --map-users 0:0:1 \
+            --map-users "$NS_TEST_UID:$NS_TEST_UID:1" \
+            --map-groups 0:0:1 \
+            --map-groups "$NS_TEST_GID:$NS_TEST_GID:1" \
+            --setgroups allow \
+            --keep-caps \
+            --mount \
+            --pid \
+            --fork \
+            --kill-child=SIGKILL \
+            --mount-proc=/proc \
+            --propagation private \
+            /usr/bin/dash -eu -c '
             fail_namespace() {
               printf "%s\\n" "BLOCKED: runtime.$1" >&2
               exit 77
@@ -294,6 +321,12 @@ jobs:
             esac
             test "$(/usr/bin/id -u)" = 0 || fail_namespace source_namespace_identity
             test "$(/usr/bin/id -ru)" = 0 || fail_namespace source_namespace_identity
+            /usr/bin/grep -Eq "^[[:space:]]*0[[:space:]]+0[[:space:]]+1[[:space:]]*$" /proc/self/uid_map || fail_namespace source_namespace_root_uid_map
+            /usr/bin/grep -Eq "^[[:space:]]*${NS_TEST_UID}[[:space:]]+${NS_TEST_UID}[[:space:]]+1[[:space:]]*$" /proc/self/uid_map || fail_namespace source_namespace_ns_test_uid_map
+            test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/uid_map)" = 2 || fail_namespace source_namespace_uid_map_count
+            /usr/bin/grep -Eq "^[[:space:]]*0[[:space:]]+0[[:space:]]+1[[:space:]]*$" /proc/self/gid_map || fail_namespace source_namespace_root_gid_map
+            /usr/bin/grep -Eq "^[[:space:]]*${NS_TEST_GID}[[:space:]]+${NS_TEST_GID}[[:space:]]+1[[:space:]]*$" /proc/self/gid_map || fail_namespace source_namespace_ns_test_gid_map
+            test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/gid_map)" = 2 || fail_namespace source_namespace_gid_map_count
             /usr/bin/mount --make-rprivate / || fail_namespace source_namespace_propagation
             /usr/bin/mount -t tmpfs -o "uid=$NS_TEST_UID,gid=$NS_TEST_GID,mode=0700,nosuid,nodev,noexec,size=256m" tmpfs "$SOURCE_ROOT" || fail_namespace source_namespace_mount
             /usr/bin/grep -F " $SOURCE_ROOT " /proc/self/mountinfo | /usr/bin/grep -F " - tmpfs " >/dev/null || fail_namespace source_namespace_mount
@@ -357,16 +390,7 @@ jobs:
                 SOURCE_ROOT="$SOURCE_ROOT" \
                 TARGET_SHA="$TARGET_SHA" \
                 TRUSTED_ORIGIN="$TRUSTED_ORIGIN" \
-                /usr/bin/unshare --user --map-current-user --map-group="$NS_TEST_GID" --keep-caps --mount --pid --fork --kill-child=SIGKILL --mount-proc=/proc --propagation private \
-                  /usr/bin/setpriv \
-                    --reuid="$NS_TEST_UID" \
-                    --regid="$NS_TEST_GID" \
-                    --keep-groups \
-                    --no-new-privs \
-                    --inh-caps=-all \
-                    --ambient-caps=-all \
-                    --bounding-set=-all \
-                    -- /usr/bin/dash -eu /var/lib/trusted-lighttpd-namespace/run-source-test.sh
+                /usr/bin/dash -eu /var/lib/trusted-lighttpd-namespace/run-source-test.sh
           '
           TRUSTED_SOURCE_NAMESPACE
           require_trusted_system_file /var/lib/trusted-lighttpd-namespace/run-source-namespace.sh

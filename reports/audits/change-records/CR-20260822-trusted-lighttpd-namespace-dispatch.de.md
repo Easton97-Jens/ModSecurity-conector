@@ -318,6 +318,69 @@ Ubuntu-24.04-Exact-Head-Dispatch bleibt der maßgebliche Runtime-Nachweis.
 - `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace` im sauberen PR-#309-Worktree — bestanden (`18` Tests; `10` erwartete Skips ohne das Trusted-Integration-Gate).
 - `actionlint` mit ShellCheck, Offline-`zizmor`, Python-`compileall`, die zweisprachige Dokumentationssuite und `git diff --check` — bestanden.
 
+## 2026-08-23-Reparatur der dualen UID-/GID-Abbildung
+
+Der Protected-master-Dispatch `32626930531` verwendete den Master
+`6501aea5070a99636ba3b56d9f7e77e1c55a641a`, band den damals aktuellen exakten
+Draft-PR-#309-Head `bdc054c74fd8dfd01a6b7bf3ccfe89af9a60fe76` und schloss den
+vertrauenswürdigen Bootstrap sowie die kanonische Zielbindung ab. Er scheiterte
+fail-closed vor dem Fork des Namespace-Helpers: Die begrenzten Phasen enthielten
+`caller-identity-validated`, aber nicht `trusted-binaries-validated`, gefolgt
+von `trusted namespace binary validation failed`.
+
+Der Fehler ist keine fehlende Runner-Capability und erlaubt keine Lockerung des
+strikten Ownership-Guards. Der frühere Source-Namespace bildete nur die
+Non-root-Identität `ns-test` über `--map-current-user` und `--map-group` ab.
+Linux meldet Datei-Ownership durch den User-Namespace des Aufrufers, deshalb
+erschien Host-UID/GID `0` in diesem Prozess als nicht abgebildeter
+Overflow-Owner. Der bestehende Helper wies die festen root-eigenen
+`/usr`-Binaries korrekt zurück, bevor er den echten Fixture-Lifecycle forken
+konnte.
+
+Der Protected-master-Helper erzeugt jetzt exakt zwei explizite
+Abbildungseinträge für jede Identitätsklasse, bevor PR-Source existiert: innere
+UID/GID `0` wird auf Host-UID/GID `0` abgebildet, und innere UID/GID
+`NS_TEST_UID`/`NS_TEST_GID` wird auf dieselbe Host-Identität abgebildet. Er
+prüft beide exakten Einträge und eine exakte Anzahl von zwei Zeilen im
+vertrauenswürdigen Setup-Prozess und erneut im finalen eingeschränkten
+Source-Runner. Der Workflow prüft, dass das installierte `unshare`
+`--map-users`, `--map-groups`, `--setgroups` und `--keep-caps` unterstützt;
+er verwendet danach ausschließlich `--setgroups allow`, während
+vertrauenswürdiger Root-Code die privaten Mounts erzeugt.
+
+Der Namespace wird weiterhin privat, bevor die Source- und temporären
+`tmpfs`-Mounts erzeugt werden. Der feste root-kontrollierte
+`setpriv`-Übergang leert danach Zusatzgruppen, setzt `NoNewPrivs` und leert
+inheritable, ambient und bounding Capability-Sets, bevor `env -i` den
+root-eigenen Source-Runner direkt als `ns-test` startet. PR-Code läuft nicht,
+solange Capabilities existieren. Der alte Same-Identity-Mapper und sein
+`--keep-groups`-Finalizer sind nicht mehr vorhanden; das Akzeptieren von
+Overflow-Ownership, ein Container-/sudo-Fallback oder ein Skip-zu-Erfolg-Pfad
+bleiben verboten.
+
+Der statische Vertrag verlangt jetzt die exakt vier Map-Argumente, die sechs
+Runtime-Map-Attestierungen, Map-Count-Guards, die Reihenfolge von Abbildung zu
+Privilegienabgabe und die Abwesenheit jedes Legacy-Mappers. Seine
+repräsentativen Mutationen decken veränderte Root-/Non-root-UID- und
+GID-Maps, geschwächte Map-Anzahlen, `--setgroups deny`, wiederhergestelltes
+`--map-current-user`, Capability-Retention, Gruppen-Retention und entfernte
+Privilegienabgaben ab.
+
+### Aktuelle lokale Validierung
+
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v tests.test_trusted_lighttpd_namespace_dispatch_workflow tests.test_ci_security_workflows` — bestanden (`30` Tests).
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace` im exakten lokalen PR-#309-Worktree — bestanden (`20` Tests; `10` erwartete Capability-gesteuerte Skips außerhalb des Trusted-Runners).
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m compileall -q tests/test_trusted_lighttpd_namespace_dispatch_workflow.py tests/test_ci_security_workflows.py` — bestanden.
+- YAML-Parsing, ShellCheck beider festen erzeugten `dash`-Helper, `actionlint` mit ShellCheck, Offline-`zizmor` und `git diff --check` wurden ausgeführt; alle bestanden. Offline-`zizmor` meldete keine Befunde und behielt drei bestehende Suppressions bei.
+
+Der lokale Container weist das Schreiben einer User-Namespace-Map mit
+`Operation not permitted` ab und kann daher das Hosted-Kernel-Verhalten nicht
+beweisen. Das ist keine Fallback-Bedingung. Der maßgebliche nächste Schritt
+bleibt ein separat geprüfter und regulär integrierter Protected-master-
+Workflow-PR, gefolgt von einem manuellen `master`-Dispatch mit dem frisch neu
+aufgelösten vollständigen PR-#309-Head-SHA. PR #309 bleibt offen und Draft; es
+wird weder ein Merge noch ein Ready-for-review-Übergang behauptet.
+
 ## Geänderte Dateien
 
 - `.github/workflows/run-trusted-lighttpd-namespace-dispatch.yml` —
@@ -429,9 +492,16 @@ erfolgreicher Exact-Head-Dispatch unabhängig nachgewiesen sind.
 
 Der manuelle Ubuntu-24.04-Runtime-Lauf kann erst nach Merge dieses separaten
 Workflows nach geschütztem `master` erfolgen; die Kopie aus diesem Branch zu
-dispatchen würde die Vertrauensgrenze zerstören. PR-#309-Code wurde unter
-diesem Design lokal nicht ausgeführt. Kein Merge, Hosted-PR-Check,
-SonarQube-Analyse oder Required Check wird behauptet.
+dispatchen würde die Vertrauensgrenze zerstören. Das exakte PR-#309-
+Namespace-Unit-Modul wurde lokal ausgeführt, aber der Container weist
+User-Map-Schreibvorgänge mit `Operation not permitted` ab; diese lokale
+Umgebung kann die erforderliche Hosted-Kernel-/AppArmor-Integration nicht
+ersetzen. `make check-bilingual-docs` und `make check-doc-links` bleiben
+ebenfalls durch bereits zuvor fehlende Framework-Submodule-Dateien blockiert,
+auf die im gesamten Repository verwiesen wird, nicht durch eines der beiden
+aktualisierten Change Records. Für diesen neuen Reparatur-Head werden kein
+Merge, kein Hosted-PR-Check, keine SonarQube-Analyse und kein Required Check
+behauptet.
 
 ## Finaler Diff- und Review-Status
 

@@ -293,6 +293,63 @@ authoritative runtime proof.
 - `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace` in the clean PR #309 worktree — passed (`18` tests; `10` expected skips without the trusted integration gate).
 - `actionlint` with ShellCheck, offline `zizmor`, Python `compileall`, the bilingual-documentation suite, and `git diff --check` — passed.
 
+## 2026-08-23 dual UID/GID map repair
+
+Protected-master dispatch `32626930531` used master
+`6501aea5070a99636ba3b56d9f7e77e1c55a641a`, bound the then-current exact
+Draft PR #309 head `bdc054c74fd8dfd01a6b7bf3ccfe89af9a60fe76`, and completed
+the trusted bootstrap and canonical target binding. It failed closed before
+the namespace helper forked: the bounded phases contained
+`caller-identity-validated` but not `trusted-binaries-validated`, followed by
+`trusted namespace binary validation failed`.
+
+The failure is not a missing runner capability and is not permission to relax
+the strict ownership guard. The previous source namespace mapped only the
+non-root `ns-test` identity via `--map-current-user` and `--map-group`. Linux
+reports file ownership through the caller's user namespace, so host UID/GID
+`0` appeared as an unmapped overflow owner in that process. The existing
+helper correctly rejected the fixed root-owned `/usr` binaries before it could
+fork the real fixture lifecycle.
+
+The protected-master helper now creates exactly two explicit map entries for
+each identity class before any PR source exists: inner UID/GID `0` maps to host
+UID/GID `0`, and inner UID/GID `NS_TEST_UID`/`NS_TEST_GID` maps to the same
+host identity. It verifies both exact entries and an exact count of two lines
+from the trusted setup process and again from the final constrained source
+runner. The workflow checks that its installed `unshare` supports
+`--map-users`, `--map-groups`, `--setgroups`, and `--keep-caps`; it then uses
+only `--setgroups allow` while trusted root code creates the private mounts.
+
+The namespace still becomes private before the source and temporary `tmpfs`
+mounts are created. The fixed root-controlled `setpriv` transition then
+clears supplementary groups, sets `NoNewPrivs`, and clears inheritable,
+ambient, and bounding capability sets before `env -i` directly starts the
+root-owned source runner as `ns-test`. PR code does not run while capabilities
+exist. The old same-identity mapper and its `--keep-groups` finalizer are no
+longer present; accepting overflow ownership, a container/sudo fallback, or a
+skip-to-success path remains prohibited.
+
+The static contract now requires the exact four map arguments, the six
+runtime map attestations, map-count guards, the mapping-to-privilege-drop
+order, and the absence of every legacy mapper. Its representative mutations
+cover altered root/non-root UID and GID maps, map-count weakening,
+`--setgroups deny`, restored `--map-current-user`, capability retention, group
+retention, and removed privilege drops.
+
+### Current local validation
+
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v tests.test_trusted_lighttpd_namespace_dispatch_workflow tests.test_ci_security_workflows` — passed (`30` tests).
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace` in the exact local PR #309 worktree — passed (`20` tests; `10` expected capability-gated skips outside the trusted runner).
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m compileall -q tests/test_trusted_lighttpd_namespace_dispatch_workflow.py tests/test_ci_security_workflows.py` — passed.
+- YAML parsing, ShellCheck of both fixed generated `dash` helpers, `actionlint` with ShellCheck, offline `zizmor`, and `git diff --check` were run; all passed. Offline `zizmor` reported no findings and retained three existing suppressions.
+
+The local container rejects writing a user-namespace map with `Operation not
+permitted`, so it cannot prove the hosted kernel behavior. This is not a
+fallback condition. The authoritative next step remains a separate reviewed
+and normally integrated protected-master workflow PR, followed by a manual
+`master` dispatch using the freshly re-resolved full PR #309 head SHA. PR #309
+remains open and Draft; no merge or Ready-for-review transition is asserted.
+
 ## Changed files
 
 - `.github/workflows/run-trusted-lighttpd-namespace-dispatch.yml` — protected
@@ -397,8 +454,14 @@ independently evidenced.
 
 The manual Ubuntu-24.04 runtime run cannot occur until this separate workflow
 is merged to protected `master`; dispatching the copy in this branch would
-destroy the trust boundary. No PR #309 code was run locally under this design.
-No merge, hosted PR check, SonarQube analysis, or Required Check is claimed.
+destroy the trust boundary. The exact PR #309 namespace unit module was run
+locally, but the container rejects user-map writes with `Operation not
+permitted`; that local environment cannot substitute for the required hosted
+kernel/AppArmor integration. `make check-bilingual-docs` and `make
+check-doc-links` also remain blocked by pre-existing missing Framework
+submodule files referenced throughout the repository, not by either updated
+Change Record. No merge, hosted PR check, SonarQube analysis, or Required Check
+is claimed for this new repair head.
 
 ## Final diff and review status
 
