@@ -39,11 +39,14 @@ STAGES = (
     ("setup_go", "Locked Go toolchain", "SETUP_GO_OUTCOME"),
     ("verify_python", "Python interpreter contract", "VERIFY_PYTHON_OUTCOME"),
     ("verify_go", "Go interpreter contract", "VERIFY_GO_OUTCOME"),
+    ("snapshot_go", "Verified setup-Go binary provenance", "SNAPSHOT_GO_OUTCOME"),
     ("verify_cell", "Closed no-CRS/with-MRTS cell", "VERIFY_CELL_OUTCOME"),
     ("prepare_runtime", "Connector-isolated runtime preparation", "PREPARE_RUNTIME_OUTCOME"),
     ("runtime", "Real connector MRTS host runtime", "RUNTIME_OUTCOME"),
     ("upload_evidence", "Isolated runtime evidence publication", "UPLOAD_EVIDENCE_OUTCOME"),
 )
+TARGET_GO_PROVENANCE_STAGE = "snapshot_go"
+TARGET_GO_PROVENANCE_NOT_APPLICABLE_CONNECTORS = frozenset(("apache", "haproxy"))
 
 
 def require_connector(value: str) -> str:
@@ -54,20 +57,38 @@ def outcomes_from_environment(environment: Mapping[str, str]) -> dict[str, str]:
     return _outcomes_from_environment(environment, STAGES)
 
 
-def outcome_counts(outcomes: Mapping[str, str]) -> dict[str, int]:
-    return _outcome_counts("", outcomes, STAGES)
+def _summary_stages(
+    connector: str, outcomes: Mapping[str, str]
+) -> tuple[tuple[str, str, str], ...]:
+    """Exclude only the intentionally absent target-Go snapshot from metrics."""
+
+    if connector not in TARGET_GO_PROVENANCE_NOT_APPLICABLE_CONNECTORS:
+        return STAGES
+    return tuple(
+        stage
+        for stage in STAGES
+        if not (
+            stage[0] == TARGET_GO_PROVENANCE_STAGE
+            and outcomes[TARGET_GO_PROVENANCE_STAGE] == "skipped"
+        )
+    )
 
 
-def first_nonpassing_stage(outcomes: Mapping[str, str]) -> str:
-    return _first_nonpassing_stage("", outcomes, STAGES)
+def outcome_counts(outcomes: Mapping[str, str], connector: str = "") -> dict[str, int]:
+    return _outcome_counts("", outcomes, _summary_stages(connector, outcomes))
+
+
+def first_nonpassing_stage(outcomes: Mapping[str, str], connector: str = "") -> str:
+    return _first_nonpassing_stage("", outcomes, _summary_stages(connector, outcomes))
 
 
 def render_summary(connector: str, outcomes: Mapping[str, str]) -> str:
     connector = require_connector(connector)
-    return render_profile_summary(
+    stages = _summary_stages(connector, outcomes)
+    summary = render_profile_summary(
         connector,
-        outcomes,
-        STAGES,
+        {stage: outcomes[stage] for stage, _label, _environment_name in stages},
+        stages,
         profile_title="no-CRS/with-MRTS runtime overview",
         stage_heading="Connector-local stage",
         runtime_label="MRTS inventory/plan, host start, control/detection/bypass, no-CRS, cleanup",
@@ -77,6 +98,23 @@ def render_summary(connector: str, outcomes: Mapping[str, str]) -> str:
             "a connector capability pass."
         ),
     )
+    if (
+        connector in TARGET_GO_PROVENANCE_NOT_APPLICABLE_CONNECTORS
+        and outcomes[TARGET_GO_PROVENANCE_STAGE] == "skipped"
+    ):
+        marker = "| Connector-local stage | Actual outcome |\n| --- | --- |\n"
+        summary = summary.replace(
+            marker,
+            marker + "| Verified setup-Go binary provenance | `not_applicable` |\n",
+            1,
+        )
+        summary = summary.replace(
+            "a connector capability pass.",
+            "a connector capability pass. The target-Go provenance snapshot is intentionally "
+            "not applicable to this connector and is excluded from pass/fail metrics.",
+            1,
+        )
+    return summary
 
 
 def main(arguments: Sequence[str] | None = None) -> int:

@@ -74,6 +74,28 @@ jobs:
           test "$actual_go_version" = "$expected_go_version"
           test "${GOTOOLCHAIN:-}" = local
 
+      - name: Snapshot verified setup-Go binary provenance
+        id: snapshot-go-provenance
+        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' || matrix.connector == 'lighttpd' }}
+        run: |
+          set -euo pipefail
+          go_path="$(command -v go)"
+          test -n "$go_path"
+          case "$go_path" in
+            /opt/hostedtoolcache/go/*/bin/go) ;;
+            *) echo "setup-go binary is outside the approved hosted-toolcache root" >&2; exit 2 ;;
+          esac
+          canonical_go_path="$(realpath -e -- "$go_path")"
+          test "$canonical_go_path" = "$go_path"
+          test -f "$go_path"
+          test -x "$go_path"
+          go_sha256="$(sha256sum -- "$go_path" | awk '{print $1}')"
+          case "$go_sha256" in
+            ''|*[!0-9a-f]*) echo "setup-go binary digest is invalid" >&2; exit 2 ;;
+          esac
+          test "${#go_sha256}" -eq 64
+          printf 'path=%s\nsha256=%s\n' "$go_path" "$go_sha256" >> "$GITHUB_OUTPUT"
+
       - name: Verify closed no-CRS with-MRTS matrix row
         id: verify-runtime-cell
         run: |
@@ -126,6 +148,15 @@ jobs:
         run: |
           set -euo pipefail
           case "$CONNECTOR" in
+            envoy|traefik|lighttpd)
+              MRTS_WORKFLOW_GO_BINARY='${{ steps.snapshot-go-provenance.outputs.path }}'
+              MRTS_WORKFLOW_GO_BINARY_SHA256='${{ steps.snapshot-go-provenance.outputs.sha256 }}'
+              export MRTS_WORKFLOW_GO_BINARY MRTS_WORKFLOW_GO_BINARY_SHA256
+              ;;
+            apache|haproxy) ;;
+            *) echo "unreachable connector" >&2; exit 2 ;;
+          esac
+          case "$CONNECTOR" in
             apache)
               RUNTIME_COMPONENT_TARGET=apache make full-matrix-single-job-runtime CONNECTOR=apache CRS=no-crs MRTS=with-mrts
               ;;
@@ -177,6 +208,7 @@ jobs:
           SETUP_GO_OUTCOME: ${{ steps.setup-go.outcome }}
           VERIFY_PYTHON_OUTCOME: ${{ steps.verify-python.outcome }}
           VERIFY_GO_OUTCOME: ${{ steps.verify-go.outcome }}
+          SNAPSHOT_GO_OUTCOME: ${{ steps.snapshot-go-provenance.outcome }}
           VERIFY_CELL_OUTCOME: ${{ steps.verify-runtime-cell.outcome }}
           PREPARE_RUNTIME_OUTCOME: ${{ steps.prepare-runtime.outcome }}
           RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}

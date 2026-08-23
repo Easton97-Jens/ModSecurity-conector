@@ -138,6 +138,53 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         with mock.patch.object(TARGET.shutil, "which", return_value="/tmp/go"), self.assertRaises(SystemExit):
             TARGET.active_go_executable(ROOT)
 
+    def test_workflow_go_snapshot_requires_complete_sealed_pair(self):
+        for environment in (
+            {TARGET.WORKFLOW_GO_BINARY_ENV: "/opt/hostedtoolcache/go/1.26.7/x64/bin/go"},
+            {TARGET.WORKFLOW_GO_BINARY_SHA256_ENV: "a" * 64},
+            {
+                TARGET.WORKFLOW_GO_BINARY_ENV: "/opt/hostedtoolcache/go/1.26.7/x64/bin/go",
+                TARGET.WORKFLOW_GO_BINARY_SHA256_ENV: "A" * 64,
+            },
+        ):
+            with self.subTest(environment=environment), mock.patch.dict(
+                TARGET.os.environ, environment, clear=True
+            ), self.assertRaisesRegex(SystemExit, "workflow Go snapshot"):
+                TARGET._workflow_go_snapshot()
+
+    def test_active_go_provenance_accepts_only_digest_bound_hosted_snapshot(self):
+        executable = Path("/opt/hostedtoolcache/go/1.26.7/x64/bin/go")
+        digest = "a" * 64
+        environment = {
+            TARGET.WORKFLOW_GO_BINARY_ENV: str(executable),
+            TARGET.WORKFLOW_GO_BINARY_SHA256_ENV: digest,
+        }
+        with (
+            mock.patch.dict(TARGET.os.environ, environment, clear=False),
+            mock.patch.object(TARGET.shutil, "which", side_effect=AssertionError("snapshot must select Go")),
+            mock.patch.object(TARGET, "_validate_go_binary", return_value=executable),
+            mock.patch.object(TARGET, "_validate_go_ancestry") as ancestry,
+            mock.patch.object(TARGET, "_go_binary_sha256", return_value=digest),
+            mock.patch.object(TARGET, "_read_go_binary_version", return_value="1.26"),
+            mock.patch.object(TARGET, "read_go_version_contract", return_value="1.26.7"),
+        ):
+            self.assertEqual(TARGET.active_go_provenance(ROOT), (executable, digest, "1.26"))
+        ancestry.assert_not_called()
+
+    def test_active_go_provenance_rejects_changed_hosted_snapshot_binary(self):
+        executable = Path("/opt/hostedtoolcache/go/1.26.7/x64/bin/go")
+        environment = {
+            TARGET.WORKFLOW_GO_BINARY_ENV: str(executable),
+            TARGET.WORKFLOW_GO_BINARY_SHA256_ENV: "a" * 64,
+        }
+        with (
+            mock.patch.dict(TARGET.os.environ, environment, clear=False),
+            mock.patch.object(TARGET, "_validate_go_binary", return_value=executable),
+            mock.patch.object(TARGET, "_go_binary_sha256", return_value="b" * 64),
+            self.assertRaisesRegex(SystemExit, "snapshot digest does not match"),
+        ):
+            TARGET.active_go_provenance(ROOT)
+
     def test_go_version_output_parser_accepts_canonical_output(self):
         self.assertEqual(
             TARGET._go_major_minor("go version go1.26.7 linux/amd64"),

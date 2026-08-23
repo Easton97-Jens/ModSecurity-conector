@@ -27,6 +27,8 @@ PROFILE = "no-crs/with-mrts"
 MAX_PLAN_BYTES = 1_048_576
 MAX_RULE_ID_INVENTORY = 100_000
 SHA256_RE = set("0123456789abcdef")
+WORKFLOW_GO_BINARY_ENV = "MRTS_WORKFLOW_GO_BINARY"
+WORKFLOW_GO_BINARY_SHA256_ENV = "MRTS_WORKFLOW_GO_BINARY_SHA256"
 # The pinned CGo/libmodsecurity bridge observes the selected MRTS phase-1
 # rule as Common request-body evidence. Retain that observed value as a single
 # closed profile value rather than accepting either request phase.
@@ -360,6 +362,36 @@ def _validate_go_binary(executable: Path) -> Path:
     return resolved
 
 
+def _workflow_go_snapshot() -> tuple[Path, str] | None:
+    """Return the pre-build GitHub step snapshot when both sealed values exist.
+
+    The workflow binds these two fixed outputs only for the three direct target
+    routes.  They are created after the pinned ``setup-go`` action and before
+    repository build code can run.  The ordinary local path therefore keeps
+    its stricter owner/writability ancestry requirement below.
+    """
+
+    binary_value = os.environ.get(WORKFLOW_GO_BINARY_ENV)
+    digest = os.environ.get(WORKFLOW_GO_BINARY_SHA256_ENV)
+    if binary_value is None and digest is None:
+        return None
+    if binary_value is None or digest is None:
+        stop("trusted workflow Go snapshot is incomplete")
+    executable = Path(binary_value)
+    if not executable.is_absolute() or ".." in executable.parts:
+        stop("trusted workflow Go snapshot path must be absolute and traversal-free")
+    if len(digest) != 64 or any(character not in SHA256_RE for character in digest):
+        stop("trusted workflow Go snapshot digest must be a lowercase SHA-256 digest")
+    return executable, digest
+
+
+def _go_binary_sha256(executable: Path) -> str:
+    try:
+        return hashlib.sha256(executable.read_bytes()).hexdigest()
+    except OSError as exc:
+        stop(f"trusted Go binary cannot be hashed: {exc}")
+
+
 def _validate_go_ancestry(executable: Path, hosted_toolcache: bool) -> None:
     hosted_toolcache_parent = Path("/opt/hostedtoolcache")
     for directory in (executable.parent, *executable.parents):
@@ -390,10 +422,14 @@ def _read_go_binary_version(executable: Path) -> str:
 def active_go_provenance(parent: Path) -> tuple[Path, str, str]:
     """Bind the existing setup-go binary to its approved root and version."""
 
-    executable_raw = shutil.which("go")
-    if not executable_raw:
-        stop("trusted Go invocation is unavailable")
-    executable = Path(executable_raw)
+    snapshot = _workflow_go_snapshot()
+    if snapshot is None:
+        executable_raw = shutil.which("go")
+        if not executable_raw:
+            stop("trusted Go invocation is unavailable")
+        executable = Path(executable_raw)
+    else:
+        executable, expected_digest = snapshot
     if not executable.is_absolute() or ".." in executable.parts:
         stop("trusted Go invocation must be absolute and traversal-free")
     if has_symlink_component(executable) or executable.is_symlink() or parent in executable.parents:
@@ -403,12 +439,18 @@ def active_go_provenance(parent: Path) -> tuple[Path, str, str]:
     if not any(root == executable or root in executable.parents for root in (Path("/usr/local/go"), hosted_toolcache_root)):
         stop("trusted Go invocation is outside the approved setup-go roots")
     _validate_go_binary(executable)
-    _validate_go_ancestry(executable, hosted_toolcache)
+    if snapshot is None:
+        _validate_go_ancestry(executable, hosted_toolcache)
+    elif not hosted_toolcache:
+        stop("trusted workflow Go snapshot is outside the hosted setup-go root")
+    digest = _go_binary_sha256(executable)
+    if snapshot is not None and digest != expected_digest:
+        stop("trusted workflow Go snapshot digest does not match selected binary")
     actual_major_minor = _read_go_binary_version(executable)
     expected_major_minor = read_go_version_contract(parent).rsplit(".", 1)[0]
     if expected_major_minor != actual_major_minor:
         stop("trusted Go binary does not satisfy the repository Go version contract")
-    return executable, hashlib.sha256(executable.read_bytes()).hexdigest(), actual_major_minor
+    return executable, digest, actual_major_minor
 
 
 def active_go_executable(parent: Path | None = None) -> Path:
@@ -502,27 +544,53 @@ def _select_direct_case(source: Path, document: dict[str, Any]) -> list[dict[str
     return [{"id": source.stem, "source": source.name, "kind": "detection", "uri": uri, "expect_ids": [str(expected)], "expect_event_phase": RULE_MATCH_EVENT_PHASE}]
 
 
+def _staged_detection_case(
+    source: Path, item: dict[str, Any], stage: Any, selected_count: int,
+) -> dict[str, Any] | None:
+    if not isinstance(stage, dict):
+        return None
+    request = stage.get("input", {})
+    output = stage.get("output", {})
+    log = output.get("log", {}) if isinstance(output, dict) else {}
+    if not isinstance(request, dict) or request.get("method") != "GET":
+        return None
+    uri = request.get("uri")
+    expected = log.get("expect_ids", []) if isinstance(log, dict) else []
+    if not isinstance(uri, str) or not uri.startswith("/?") or not isinstance(expected, list) or not expected:
+        return None
+    return {
+        "id": f"{source.stem}:{item.get('test_id', selected_count)}",
+        "source": source.name,
+        "kind": "detection",
+        "uri": uri,
+        "expect_ids": [str(value) for value in expected],
+        "expect_event_phase": RULE_MATCH_EVENT_PHASE,
+    }
+
+
+def _select_item_staged_cases(
+    source: Path, item: Any, selected_count: int,
+) -> list[dict[str, Any]]:
+    if not isinstance(item, dict):
+        stop(f"MRTS test is not a mapping: {source}")
+    stages = item.get("stages", [])
+    if not isinstance(stages, list):
+        stop(f"MRTS test stages is not a list: {source}")
+    selected: list[dict[str, Any]] = []
+    for stage in stages:
+        case = _staged_detection_case(source, item, stage, selected_count + len(selected))
+        if case is not None:
+            selected.append(case)
+    return selected
+
+
 def _select_staged_cases(source: Path, document: dict[str, Any]) -> list[dict[str, Any]]:
     tests = document.get("tests", [])
     if not isinstance(tests, list):
         stop(f"MRTS tests is not a list: {source}")
     selected: list[dict[str, Any]] = []
     for item in tests:
-        if not isinstance(item, dict):
-            stop(f"MRTS test is not a mapping: {source}")
-        for stage in item.get("stages", []):
-            if not isinstance(stage, dict):
-                continue
-            request = stage.get("input", {})
-            output = stage.get("output", {})
-            log = output.get("log", {}) if isinstance(output, dict) else {}
-            if not isinstance(request, dict) or request.get("method") != "GET":
-                continue
-            uri = request.get("uri")
-            expected = log.get("expect_ids", []) if isinstance(log, dict) else []
-            if not isinstance(uri, str) or not uri.startswith("/?") or not isinstance(expected, list) or not expected:
-                continue
-            selected.append({"id": f"{source.stem}:{item.get('test_id', len(selected))}", "source": source.name, "kind": "detection", "uri": uri, "expect_ids": [str(x) for x in expected], "expect_event_phase": RULE_MATCH_EVENT_PHASE})
+        selected.extend(_select_item_staged_cases(source, item, len(selected)))
     return selected
 
 
@@ -704,13 +772,7 @@ def rule_id_inventory(
     return sorted(inventory, key=lambda value: int(value))
 
 
-def _add_rule_file_ids(
-    rules_root: Path,
-    name: str,
-    expected_hash: str,
-    id_marker: re.Pattern[str],
-    inventory: set[str],
-) -> None:
+def _read_pinned_rule_file(rules_root: Path, name: str, expected_hash: str) -> str:
     path = rules_root / name
     if path.parent != rules_root or path.is_symlink() or has_symlink_component(path) or not path.is_file():
         stop("pinned MRTS rule inventory path is not a direct regular file")
@@ -723,18 +785,37 @@ def _add_rule_file_ids(
         stop("pinned MRTS rule exceeds bounded size")
     if hashlib.sha256(data).hexdigest() != expected_hash:
         stop("pinned MRTS rule changed during ID inventory validation")
+    return text
+
+
+def _add_rule_line_ids(
+    line: str, name: str, id_marker: re.Pattern[str], inventory: set[str],
+) -> int:
+    if line.lstrip().startswith("#"):
+        return 0
+    found_in_line = 0
+    for match in id_marker.finditer(line):
+        raw_id = match.group(1).strip("'\"")
+        if not _canonical_rule_id(raw_id):
+            stop(f"pinned MRTS rule has a non-canonical rule ID: {name}")
+        if raw_id in inventory:
+            stop(f"pinned MRTS rule corpus contains duplicate rule ID: {raw_id}")
+        inventory.add(raw_id)
+        found_in_line += 1
+    return found_in_line
+
+
+def _add_rule_file_ids(
+    rules_root: Path,
+    name: str,
+    expected_hash: str,
+    id_marker: re.Pattern[str],
+    inventory: set[str],
+) -> None:
     found_in_file = 0
+    text = _read_pinned_rule_file(rules_root, name, expected_hash)
     for line in text.splitlines():
-        if line.lstrip().startswith("#"):
-            continue
-        for match in id_marker.finditer(line):
-            raw_id = match.group(1).strip("'\"")
-            if not _canonical_rule_id(raw_id):
-                stop(f"pinned MRTS rule has a non-canonical rule ID: {name}")
-            if raw_id in inventory:
-                stop(f"pinned MRTS rule corpus contains duplicate rule ID: {raw_id}")
-            inventory.add(raw_id)
-            found_in_file += 1
+        found_in_file += _add_rule_line_ids(line, name, id_marker, inventory)
     if found_in_file == 0:
         stop(f"pinned MRTS rule has no canonical rule ID: {name}")
 
@@ -876,15 +957,13 @@ def _private_case_root(runtime_root: Path) -> Path:
     return resolved
 
 
-def validate_sealed_plan(
+def _resolve_sealed_plan_paths(
     plan_path: Path,
     runtime_root: Path,
     framework_root: Path,
     rules_root: Path,
     load_file: Path,
-    expected_plan_sha256: str,
-) -> None:
-    """Revalidate the private plan and exact no-CRS rule binding before a host starts."""
+) -> tuple[Path, Path, Path, Path, Path]:
     raw_paths = (plan_path, runtime_root, framework_root, rules_root, load_file)
     if any(not path.is_absolute() or ".." in path.parts for path in raw_paths):
         stop("sealed MRTS plan validation paths must be absolute and traversal-free")
@@ -903,7 +982,10 @@ def validate_sealed_plan(
     runtime_mode = runtime_root.stat().st_mode & 0o777
     if runtime_root.stat().st_uid != os.getuid() or runtime_mode != 0o700:
         stop("sealed MRTS plan runtime root is not private")
-    plan = load_sealed_plan(plan_path, expected_plan_sha256)
+    return plan_path, runtime_root, framework_root, rules_root, load_file
+
+
+def _sealed_plan_metadata(plan: dict[str, Any]) -> tuple[dict[str, Any], str]:
     if plan.get("schema") != "no-crs-with-mrts-plan/v1":
         stop("sealed MRTS plan schema is invalid")
     if plan.get("profile") != PROFILE or plan.get("connector") not in CONNECTORS:
@@ -912,11 +994,27 @@ def validate_sealed_plan(
     if not isinstance(validation, dict):
         stop("sealed MRTS plan lacks no-CRS validation")
     connector = plan["connector"]
+    return validation, connector
+
+
+def _validate_sealed_plan_layout(
+    plan_path: Path, runtime_root: Path, rules_root: Path, load_file: Path, connector: str,
+) -> None:
     expected_plan = runtime_root / "build" / "stages" / connector / "no_crs_with_mrts" / "runtime" / "mrts-runtime-plan.json"
     expected_rules_root = runtime_root / "build" / "mrts" / "upstream-config-tests" / "rules"
     expected_load_file = runtime_root / "build" / "mrts" / "upstream-config-tests" / "mrts.load"
     if plan_path != expected_plan or rules_root != expected_rules_root or load_file != expected_load_file:
         stop("sealed MRTS plan paths do not match the closed private layout")
+
+
+def _validate_sealed_plan_contents(
+    plan: dict[str, Any],
+    validation: dict[str, Any],
+    runtime_root: Path,
+    framework_root: Path,
+    rules_root: Path,
+    load_file: Path,
+) -> None:
     validate_plan_case_binding(plan, runtime_root, framework_root)
     mrts_root = framework_root / "tools" / "MRTS"
     no_crs_rules = framework_root / "tests" / "rules" / "no-crs-baseline.conf"
@@ -937,6 +1035,26 @@ def validate_sealed_plan(
         stop("sealed MRTS plan load-file digest does not match")
     if plan.get("no_crs_rules_file") != str(no_crs_rules.resolve(strict=True)):
         stop("sealed MRTS plan no-CRS baseline identity does not match")
+
+
+def validate_sealed_plan(
+    plan_path: Path,
+    runtime_root: Path,
+    framework_root: Path,
+    rules_root: Path,
+    load_file: Path,
+    expected_plan_sha256: str,
+) -> None:
+    """Revalidate the private plan and exact no-CRS rule binding before a host starts."""
+    plan_path, runtime_root, framework_root, rules_root, load_file = _resolve_sealed_plan_paths(
+        plan_path, runtime_root, framework_root, rules_root, load_file,
+    )
+    plan = load_sealed_plan(plan_path, expected_plan_sha256)
+    validation, connector = _sealed_plan_metadata(plan)
+    _validate_sealed_plan_layout(plan_path, runtime_root, rules_root, load_file, connector)
+    _validate_sealed_plan_contents(
+        plan, validation, runtime_root, framework_root, rules_root, load_file,
+    )
 
 
 def validate_sealed_plan_command(arguments: list[str]) -> int:

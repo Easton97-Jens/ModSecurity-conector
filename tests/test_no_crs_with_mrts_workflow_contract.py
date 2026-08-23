@@ -99,6 +99,7 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
             ("SETUP_GO_OUTCOME", "setup-go"),
             ("VERIFY_PYTHON_OUTCOME", "verify-python"),
             ("VERIFY_GO_OUTCOME", "verify-go"),
+            ("SNAPSHOT_GO_OUTCOME", "snapshot-go-provenance"),
             ("VERIFY_CELL_OUTCOME", "verify-runtime-cell"),
             ("PREPARE_RUNTIME_OUTCOME", "prepare-runtime"),
             ("RUNTIME_OUTCOME", "runtime"),
@@ -135,6 +136,31 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
         self.assertIn('expected_go_version="$(tr -d \'[:space:]\' < .go-version)"', self.source)
         self.assertIn('actual_go_version="$(go version | sed -n', self.source)
         self.assertIn('test "$actual_go_version" = "$expected_go_version"', self.source)
+        snapshot = self.source.split("      - name: Snapshot verified setup-Go binary provenance\n", 1)[1].split(
+            "      - name: Verify closed no-CRS with-MRTS matrix row\n", 1
+        )[0]
+        self.assertIn("id: snapshot-go-provenance", snapshot)
+        self.assertIn("matrix.connector == 'envoy'", snapshot)
+        self.assertIn("matrix.connector == 'traefik'", snapshot)
+        self.assertIn("matrix.connector == 'lighttpd'", snapshot)
+        self.assertNotIn("matrix.connector == 'apache'", snapshot)
+        self.assertNotIn("matrix.connector == 'haproxy'", snapshot)
+        self.assertIn('go_path="$(command -v go)"', snapshot)
+        self.assertIn("/opt/hostedtoolcache/go/*/bin/go", snapshot)
+        self.assertIn('canonical_go_path="$(realpath -e -- "$go_path")"', snapshot)
+        self.assertIn('go_sha256="$(sha256sum -- "$go_path" | awk \'{print $1}\')"', snapshot)
+        self.assertIn("printf 'path=%s\\nsha256=%s\\n'", snapshot)
+        runtime = self.source.split("      - name: Run connector-isolated MRTS host runtime\n", 1)[1].split(
+            "      - name: Upload isolated runtime evidence\n", 1
+        )[0]
+        target_go = runtime.split('case "$CONNECTOR" in', 1)[1].split('case "$CONNECTOR" in', 1)[0]
+        self.assertIn("envoy|traefik|lighttpd)", target_go)
+        self.assertIn("apache|haproxy) ;;", target_go)
+        self.assertIn("MRTS_WORKFLOW_GO_BINARY='${{ steps.snapshot-go-provenance.outputs.path }}'", target_go)
+        self.assertIn(
+            "MRTS_WORKFLOW_GO_BINARY_SHA256='${{ steps.snapshot-go-provenance.outputs.sha256 }}'",
+            target_go,
+        )
         self.assertNotIn("GO: /usr/local/go/bin/go", self.source)
 
     def test_paths_are_run_and_attempt_and_connector_scoped(self) -> None:

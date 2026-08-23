@@ -99,7 +99,7 @@ class NoCrsWithMrtsWorkflowSummaryTest(unittest.TestCase):
             "traefik", self.outcomes(prepare_runtime="failure", runtime="skipped")
         )
         self.assertIn("### traefik — no-CRS/with-MRTS runtime overview", summary)
-        self.assertIn("| Stages passed | `7` |", summary)
+        self.assertIn("| Stages passed | `8` |", summary)
         self.assertIn("| Stages failed | `1` |", summary)
         self.assertIn("| Stages skipped | `1` |", summary)
         self.assertIn(
@@ -108,6 +108,13 @@ class NoCrsWithMrtsWorkflowSummaryTest(unittest.TestCase):
         self.assertIn("| Real connector MRTS host runtime | `skipped` |", summary)
         self.assertIn("`MISSING — runtime target did not run`", summary)
         self.assertNotIn("PASS — real target", summary)
+
+    def test_summary_marks_target_go_snapshot_not_applicable_for_apache_and_haproxy(self) -> None:
+        summary = SUMMARY.render_summary("apache", self.outcomes(snapshot_go="skipped"))
+        self.assertIn("| Stages passed | `9` |", summary)
+        self.assertIn("| Stages skipped | `0` |", summary)
+        self.assertIn("| First non-passing stage | `none` |", summary)
+        self.assertIn("| Verified setup-Go binary provenance | `not_applicable` |", summary)
 
     def test_summary_reports_cancelled_runtime_as_not_completed(self) -> None:
         summary = SUMMARY.render_summary("envoy", self.outcomes(runtime="cancelled"))
