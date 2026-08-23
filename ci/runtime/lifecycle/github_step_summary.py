@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
 import stat
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 
 SUMMARY_DIRECTORY_NAME = "_runner_file_commands"
 SUMMARY_FILE_NAME = re.compile(r"^step_summary_[A-Za-z0-9_-]+$", re.ASCII)
 UNSAFE_SUMMARY_PATH = "GitHub step summary path is unsafe"
+CONNECTORS = frozenset(("apache", "envoy", "haproxy", "lighttpd", "traefik"))
+VALID_OUTCOMES = frozenset(("success", "failure", "skipped", "cancelled"))
 
 
 def _write_summary(descriptor: int, content: str) -> None:
@@ -137,3 +140,157 @@ def append_github_step_summary(environment: Mapping[str, str], content: str) -> 
         _write_summary(descriptor, content)
     finally:
         os.close(descriptor)
+
+
+def require_connector(value: str, profile: str) -> str:
+    if value not in CONNECTORS:
+        raise ValueError(f"connector is outside the fixed {profile} runtime set")
+    return value
+
+
+def outcomes_from_environment(
+    environment: Mapping[str, str], stages: tuple[tuple[str, str, str], ...]
+) -> dict[str, str]:
+    outcomes: dict[str, str] = {}
+    for key, _label, environment_name in stages:
+        value = environment.get(environment_name, "")
+        if value not in VALID_OUTCOMES:
+            raise ValueError(f"{environment_name} is not a GitHub step outcome")
+        outcomes[key] = value
+    return outcomes
+
+
+def validate_outcomes(
+    outcomes: Mapping[str, str], stages: tuple[tuple[str, str, str], ...]
+) -> None:
+    expected_stages = {stage for stage, _label, _environment_name in stages}
+    if set(outcomes) != expected_stages:
+        raise ValueError("summary outcomes do not match the fixed workflow stage set")
+    if any(outcome not in VALID_OUTCOMES for outcome in outcomes.values()):
+        raise ValueError("summary outcomes contain an invalid state")
+
+
+def rendered_outcome(
+    connector: str,
+    stage: str,
+    outcome: str,
+    security_skipped_stage: tuple[str, str] | None = None,
+) -> str:
+    if security_skipped_stage == (connector, stage) and outcome == "skipped":
+        return "skipped_by_security_policy"
+    return outcome
+
+
+def outcome_counts(
+    connector: str,
+    outcomes: Mapping[str, str],
+    stages: tuple[tuple[str, str, str], ...],
+    security_skipped_stage: tuple[str, str] | None = None,
+) -> dict[str, int]:
+    counts = {"passed": 0, "failed": 0, "skipped": 0, "cancelled": 0, "security_skipped": 0}
+    for stage, _label, _environment_name in stages:
+        outcome = outcomes[stage]
+        rendered = rendered_outcome(connector, stage, outcome, security_skipped_stage)
+        if rendered == "skipped_by_security_policy":
+            counts["security_skipped"] += 1
+        elif outcome == "success":
+            counts["passed"] += 1
+        elif outcome == "failure":
+            counts["failed"] += 1
+        elif outcome == "skipped":
+            counts["skipped"] += 1
+        else:
+            counts["cancelled"] += 1
+    return counts
+
+
+def first_nonpassing_stage(
+    connector: str,
+    outcomes: Mapping[str, str],
+    stages: tuple[tuple[str, str, str], ...],
+    security_skipped_stage: tuple[str, str] | None = None,
+) -> str:
+    for stage, label, _environment_name in stages:
+        outcome = rendered_outcome(connector, stage, outcomes[stage], security_skipped_stage)
+        if outcome not in ("success", "skipped_by_security_policy"):
+            return label
+    return "none"
+
+
+def runtime_bundle_outcome(outcome: str) -> str:
+    if outcome == "success":
+        return "PASS — real target completed its fail-closed runtime assertions"
+    if outcome == "failure":
+        return "FAIL — runtime assertions did not complete"
+    if outcome == "skipped":
+        return "MISSING — runtime target did not run"
+    return "CANCELLED — runtime target did not complete"
+
+
+def render_profile_summary(
+    connector: str,
+    outcomes: Mapping[str, str],
+    stages: tuple[tuple[str, str, str], ...],
+    *,
+    profile_title: str,
+    stage_heading: str,
+    runtime_label: str,
+    note: str,
+    security_skipped_stage: tuple[str, str] | None = None,
+) -> str:
+    validate_outcomes(outcomes, stages)
+    counts = outcome_counts(connector, outcomes, stages, security_skipped_stage)
+    rows = [
+        f"### {connector} — {profile_title}",
+        "",
+        "| Metric | Value |",
+        "| --- | ---: |",
+        f"| Stages passed | `{counts['passed']}` |",
+        f"| Stages failed | `{counts['failed']}` |",
+        f"| Stages skipped | `{counts['skipped']}` |",
+        f"| Stages cancelled | `{counts['cancelled']}` |",
+    ]
+    if security_skipped_stage is not None:
+        rows.append(f"| Security-policy skips | `{counts['security_skipped']}` |")
+    rows.extend(
+        (
+            f"| First non-passing stage | `{first_nonpassing_stage(connector, outcomes, stages, security_skipped_stage)}` |",
+            "",
+            f"| {stage_heading} | Actual outcome |",
+            "| --- | --- |",
+        )
+    )
+    rows.extend(
+        f"| {label} | `{rendered_outcome(connector, stage, outcomes[stage], security_skipped_stage)}` |"
+        for stage, label, _environment_name in stages
+    )
+    rows.extend(
+        (
+            "",
+            "| Real runtime assertion bundle | Outcome |",
+            "| --- | --- |",
+            f"| {runtime_label} | `{runtime_bundle_outcome(outcomes['runtime'])}` |",
+            "",
+            note,
+            "",
+        )
+    )
+    return "\n".join(rows)
+
+
+def run_summary(
+    arguments: Sequence[str] | None,
+    *,
+    stages: tuple[tuple[str, str, str], ...],
+    render_summary: Callable[[str, Mapping[str, str]], str],
+) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--connector", required=True)
+    args = parser.parse_args(arguments)
+    try:
+        content = render_summary(args.connector, outcomes_from_environment(os.environ, stages))
+        append_github_step_summary(os.environ, content)
+    except (OSError, ValueError) as error:
+        print(f"FAIL: {error}", file=os.sys.stderr)
+        return 2
+    return 0

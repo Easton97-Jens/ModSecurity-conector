@@ -74,10 +74,14 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
             "            lighttpd)\n", 1
         )[0]
         self.assertIn(
-            "TMPDIR=/tmp python3 ci/runtime/lifecycle/run-no-crs-with-mrts-target.py",
+            "TMPDIR=/tmp ./.venv/bin/python ci/runtime/lifecycle/run-no-crs-with-mrts-target.py",
             traefik_runtime,
         )
-        self.assertEqual(runtime.count("TMPDIR=/tmp python3"), 1)
+        self.assertEqual(runtime.count("TMPDIR=/tmp ./.venv/bin/python"), 1)
+        self.assertEqual(
+            runtime.count("./.venv/bin/python ci/runtime/lifecycle/run-no-crs-with-mrts-target.py"),
+            3,
+        )
 
     def test_summary_reports_each_connector_job_without_reading_raw_evidence(self) -> None:
         summary = self.source.split(

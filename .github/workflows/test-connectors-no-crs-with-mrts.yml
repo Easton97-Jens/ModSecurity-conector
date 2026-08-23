@@ -133,7 +133,7 @@ jobs:
               RUNTIME_COMPONENT_TARGET=haproxy make full-matrix-single-job-runtime CONNECTOR=haproxy CRS=no-crs MRTS=with-mrts
               ;;
             envoy)
-              python3 ci/runtime/lifecycle/run-no-crs-with-mrts-target.py \
+              ./.venv/bin/python ci/runtime/lifecycle/run-no-crs-with-mrts-target.py \
                 --connector envoy \
                 --execute-stage \
                 --parent-root "$GITHUB_WORKSPACE" \
@@ -141,7 +141,7 @@ jobs:
                 --runtime-root "$RUNTIME_ROOT"
               ;;
             traefik)
-              TMPDIR=/tmp python3 ci/runtime/lifecycle/run-no-crs-with-mrts-target.py \
+              TMPDIR=/tmp ./.venv/bin/python ci/runtime/lifecycle/run-no-crs-with-mrts-target.py \
                 --connector traefik \
                 --execute-stage \
                 --parent-root "$GITHUB_WORKSPACE" \
@@ -149,7 +149,7 @@ jobs:
                 --runtime-root "$RUNTIME_ROOT"
               ;;
             lighttpd)
-              python3 ci/runtime/lifecycle/run-no-crs-with-mrts-target.py \
+              ./.venv/bin/python ci/runtime/lifecycle/run-no-crs-with-mrts-target.py \
                 --connector lighttpd \
                 --execute-stage \
                 --parent-root "$GITHUB_WORKSPACE" \

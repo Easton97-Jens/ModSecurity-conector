@@ -526,7 +526,9 @@ def verified_tls_context(root: Path, certificate_value: str) -> ssl.SSLContext:
     certificate = confined(certificate_value, root, "TLS certificate")
     if certificate.is_symlink():
         fail("TLS certificate must not be a symlink")
-    context = ssl.create_default_context(cafile=str(certificate))
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_verify_locations(cafile=str(certificate))
     context.check_hostname = True
     context.verify_mode = ssl.CERT_REQUIRED
     return context

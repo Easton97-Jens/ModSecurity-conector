@@ -332,10 +332,12 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             certificate = root / "envoy-loopback.crt"
             certificate.write_text("certificate", encoding="utf-8")
             context = mock.Mock()
-            with mock.patch.object(EXECUTOR.ssl, "create_default_context", return_value=context) as factory:
+            with mock.patch.object(EXECUTOR.ssl, "SSLContext", return_value=context) as factory:
                 result = EXECUTOR.verified_tls_context(root, str(certificate))
-            factory.assert_called_once_with(cafile=str(certificate))
+            factory.assert_called_once_with(EXECUTOR.ssl.PROTOCOL_TLS_CLIENT)
             self.assertIs(result, context)
+            self.assertEqual(context.minimum_version, EXECUTOR.ssl.TLSVersion.TLSv1_2)
+            context.load_verify_locations.assert_called_once_with(cafile=str(certificate))
             self.assertTrue(context.check_hostname)
             self.assertEqual(context.verify_mode, EXECUTOR.ssl.CERT_REQUIRED)
 
