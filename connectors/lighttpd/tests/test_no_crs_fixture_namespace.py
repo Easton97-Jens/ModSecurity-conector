@@ -227,11 +227,8 @@ class NamespaceContractTest(unittest.TestCase):
         if required is None:
             return
         self.assertEqual(required, "1")
-        try:
-            expected_uid = int(os.environ["LIGHTTPD_NAMESPACE_TEST_UID"])
-            expected_gid = int(os.environ["LIGHTTPD_NAMESPACE_TEST_GID"])
-        except (KeyError, ValueError) as error:
-            self.fail(f"invalid required workflow identity contract: {error}")
+        expected_uid = int(os.environ["LIGHTTPD_NAMESPACE_TEST_UID"])
+        expected_gid = int(os.environ["LIGHTTPD_NAMESPACE_TEST_GID"])
         self.assertNotEqual(expected_uid, 0)
         self.assertNotEqual(expected_gid, 0)
         self.assertEqual((os.getuid(), os.geteuid()), (expected_uid, expected_uid))

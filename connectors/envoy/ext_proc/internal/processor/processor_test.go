@@ -327,15 +327,18 @@ func TestRequestMetadataUsesEnvoyAttributesWithoutPeerInference(t *testing.T) {
 }
 
 func TestRequestMetadataRejectsMismatchedAuthorityAndHost(t *testing.T) {
+	authorityAndHost := func(authorityFirst bool) []Header {
+		authority := Header{Name: ":authority", Value: []byte("trusted.example")}
+		host := Header{Name: "Host", Value: []byte("attacker.example")}
+		if authorityFirst {
+			return []Header{authority, host}
+		}
+		return []Header{host, authority}
+	}
+
 	for name, headers := range map[string][]Header{
-		"authority before Host": {
-			{Name: ":authority", Value: []byte("trusted.example")},
-			{Name: "Host", Value: []byte("attacker.example")},
-		},
-		"Host before authority": {
-			{Name: "Host", Value: []byte("attacker.example")},
-			{Name: ":authority", Value: []byte("trusted.example")},
-		},
+		"authority before Host": authorityAndHost(true),
+		"Host before authority": authorityAndHost(false),
 		"duplicate Host after matching Host": {
 			{Name: ":authority", Value: []byte("trusted.example")},
 			{Name: "Host", Value: []byte("trusted.example")},

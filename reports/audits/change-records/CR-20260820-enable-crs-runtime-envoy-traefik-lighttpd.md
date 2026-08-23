@@ -12,7 +12,7 @@
 | Observed current `origin/master` | `4e8560fdc8a2b737fca598522f8748a4d73857be` |
 | Parent → Framework pin | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | Framework → MRTS pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The branch was normally synchronized with current `origin/master` through merge commit `0ae1ce0590f18b20a39903f2ce877d0280a6e5bd`; post-update exact-head hosted validation is pending. The master-derived Framework pin remains read-only and resolves to the recorded MRTS pin. No merge or auto-merge is authorized. |
+| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The branch was normally synchronized with current `origin/master` through merge commit `0ae1ce0590f18b20a39903f2ce877d0280a6e5bd`. At pre-remediation head `fe74cb02876e9de16eaafc7b590f36b46348044a`, SonarQube Cloud still identified one new code smell and 18 duplicated New-Code lines; the exact successor analysis remains pending. The master-derived Framework pin remains read-only and resolves to the recorded MRTS pin. No merge or auto-merge is authorized. |
 
 The task worktree was created from the recorded task base and later normally
 merged with separately recorded current `origin/master` revisions, most
@@ -152,6 +152,35 @@ callers. `sudo`, a privileged container, or a setcap helper would not preserve
 that boundary. The smallest safe remedy remains an isolated non-root
 self-hosted Linux runner with the required namespaces, fixed root-owned setup
 binaries, no secrets, no Docker socket, and a dedicated label.
+
+## 2026-08-23 follow-up: zero-new-code Sonar remediation
+
+At exact predecessor PR head `fe74cb02876e9de16eaafc7b590f36b46348044a`, the
+public SonarQube Cloud API reported one open New-Code issue,
+`AaAqpBihH7VZS0qiY-cu` / `python:S8714`, at
+`connectors/lighttpd/tests/test_no_crs_fixture_namespace.py:230`. It also
+reported `new_duplicated_lines=18` and
+`new_duplicated_lines_density=0.1573701696100717` (shown as 0.2%) from two
+overlapping Envoy header-table blocks in
+`connectors/envoy/ext_proc/internal/processor/processor_test.go`.
+
+The Parent-only follow-up removes the unnecessary exception wrapper from the
+Lighttpd required-identity contract, so missing or malformed required numeric
+environment values fail naturally. The non-root, exact UID/GID, empty-group,
+`NoNewPrivs`, and Docker-socket assertions remain unchanged. The Envoy test
+now constructs the two authority/Host order variants from one helper while
+retaining all hostile cases: both orderings, duplicate Host, and duplicate
+authority. It does not suppress Sonar, alter a rule/profile/threshold, exclude
+a path, accept an issue, change a dependency, or weaken a runtime or security
+control.
+
+Before delivery, the focused Lighttpd namespace-contract test passed with
+seven contract tests and ten expected capability-gated integration skips;
+Envoy `go test ./...` and `go vet ./...` passed with the existing Go 1.26.6
+toolchain and a private task cache; Python compilation and `git diff --check`
+passed. The exact successor PR-head SonarQube Cloud issue and duplication
+readback remains the final acceptance evidence; no zero result is claimed here
+before that analysis completes.
 
 ## Security impact
 
