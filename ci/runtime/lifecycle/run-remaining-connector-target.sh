@@ -25,6 +25,7 @@ require_mrts_python_invocation() {
     esac
     case "$candidate" in
         */../*|../*|*/..|..) echo "FAIL: MRTS Python interpreter contains traversal" >&2; return 77 ;;
+        *) : ;;
     esac
     [ -f "$candidate" ] || { echo "FAIL: MRTS Python interpreter is not a regular file: $candidate" >&2; return 77; }
     [ -x "$candidate" ] || { echo "FAIL: MRTS Python interpreter is not executable: $candidate" >&2; return 77; }
@@ -43,6 +44,7 @@ require_mrts_go_invocation() {
     esac
     case "$candidate" in
         */../*|../*|*/..|..) echo "FAIL: MRTS Go binary contains traversal" >&2; return 77 ;;
+        *) : ;;
     esac
     case "$candidate" in
         "$CONNECTOR_ROOT"/*) echo "FAIL: MRTS Go binary must not come from the checkout" >&2; return 77 ;;
@@ -56,7 +58,10 @@ require_mrts_go_invocation() {
     mode=$(stat -c '%a' "$candidate") || return 77
     [ "$owner" = "0" ] || [ "$owner" = "$(id -u)" ] || { echo "FAIL: MRTS Go binary is not trusted-owned" >&2; return 77; }
     mode_tail=$(printf '%s' "$mode" | sed 's/.*\(..\)$/\1/')
-    case "$mode_tail" in *[2367]*) echo "FAIL: MRTS Go binary is writable by group or other" >&2; return 77 ;; esac
+    case "$mode_tail" in
+        *[2367]*) echo "FAIL: MRTS Go binary is writable by group or other" >&2; return 77 ;;
+        *) : ;;
+    esac
     parent=${candidate%/*}
     while [ -n "$parent" ] && [ "$parent" != / ]; do
         [ ! -L "$parent" ] || { echo "FAIL: MRTS Go binary has a symlinked parent: $candidate" >&2; return 77; }
@@ -91,6 +96,7 @@ validate_mrts_route() {
     }
     case "${NO_CRS_RUN_ID#mrts-}" in
         *[!0-9a-f]*|'') echo "FAIL: NO_CRS_RUN_ID contains untrusted characters" >&2; exit 77 ;;
+        *) : ;;
     esac
 }
 
@@ -120,6 +126,7 @@ validate_mrts_paths() {
     esac
     case "$MRTS_RUNTIME_EXECUTOR_SHA256" in
         *[!0-9a-f]*) echo "FAIL: MRTS_RUNTIME_EXECUTOR_SHA256 must be a lowercase SHA-256 digest" >&2; exit 2 ;;
+        *) : ;;
     esac
     [ "${#MRTS_RUNTIME_EXECUTOR_SHA256}" -eq 64 ] || {
         echo "FAIL: MRTS_RUNTIME_EXECUTOR_SHA256 must be a SHA-256 digest" >&2
@@ -127,6 +134,7 @@ validate_mrts_paths() {
     }
     case "$MRTS_RUNTIME_PLAN_SHA256" in
         *[!0-9a-f]*) echo "FAIL: MRTS_RUNTIME_PLAN_SHA256 must be a lowercase SHA-256 digest" >&2; exit 2 ;;
+        *) : ;;
     esac
     [ "${#MRTS_RUNTIME_PLAN_SHA256}" -eq 64 ] || {
         echo "FAIL: MRTS_RUNTIME_PLAN_SHA256 must be a SHA-256 digest" >&2
@@ -134,6 +142,7 @@ validate_mrts_paths() {
     }
     case "$MRTS_RUNTIME_PLAN:$MRTS_RUNTIME_RESULT" in
         "$CONNECTOR_ROOT"/*:*|*:"$CONNECTOR_ROOT"/*) echo "FAIL: MRTS plan/result must be outside the checkout" >&2; exit 77 ;;
+        *) : ;;
     esac
     case "$MRTS_RUNTIME_PLAN:$MRTS_RUNTIME_RESULT" in
         "$VERIFIED_RUN_ROOT"/*:*|*:"$VERIFIED_RUN_ROOT"/*) ;;
@@ -264,6 +273,7 @@ prepare_mrts_toolchain_roots() {
             echo "FAIL: MRTS private runtime roots must be outside the checkout" >&2
             exit 77
             ;;
+        *) : ;;
     esac
     case "$TMP_ROOT" in
         "$VERIFIED_RUN_ROOT"/*) ;;
@@ -314,7 +324,10 @@ if [ "${MSCONNECTOR_MRTS_STAGE:-}" = no_crs_with_mrts ]; then
     MRTS_GO_BINARY_SHA256=${MRTS_GO_BINARY_SHA256:?MRTS_GO_BINARY_SHA256 is required}
     MRTS_GO_VERSION=${MRTS_GO_VERSION:?MRTS_GO_VERSION is required}
     require_mrts_go_invocation "$MRTS_GO_BINARY" || exit $?
-    case "$MRTS_GO_BINARY_SHA256" in ''|*[!0-9a-f]*) echo "FAIL: MRTS_GO_BINARY_SHA256 is invalid" >&2; exit 77 ;; esac
+    case "$MRTS_GO_BINARY_SHA256" in
+        ''|*[!0-9a-f]*) echo "FAIL: MRTS_GO_BINARY_SHA256 is invalid" >&2; exit 77 ;;
+        *) : ;;
+    esac
     [ "${#MRTS_GO_BINARY_SHA256}" -eq 64 ] || { echo "FAIL: MRTS_GO_BINARY_SHA256 is invalid" >&2; exit 77; }
     [ "$(sha256sum "$MRTS_GO_BINARY" | awk '{print $1}')" = "$MRTS_GO_BINARY_SHA256" ] || { echo "FAIL: MRTS Go binary digest does not match the sealed value" >&2; exit 77; }
     [ "$("$MRTS_GO_BINARY" version | sed -n 's/^go version go\([0-9]*\.[0-9]*\)\..*$/\1/p')" = "$MRTS_GO_VERSION" ] || { echo "FAIL: MRTS Go binary version does not match the sealed value" >&2; exit 77; }

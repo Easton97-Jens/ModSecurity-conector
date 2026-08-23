@@ -7,6 +7,7 @@
 
 #include <array>
 #include <cstring>
+#include <string_view>
 
 namespace {
 
@@ -62,15 +63,9 @@ bool format_rule_id(
     return true;
 }
 
-size_t bounded_string_length(
-    const char *value,
-    size_t maximum_length) noexcept {
-    for (size_t index = 0U; index < maximum_length; ++index) {
-        if (value[index] == '\0') {
-            return index;
-        }
-    }
-    return maximum_length;
+size_t bounded_string_length(std::string_view value) noexcept {
+    const size_t terminator = value.find('\0');
+    return terminator == std::string_view::npos ? value.size() : terminator;
 }
 
 void capture_rule_message(
@@ -113,8 +108,8 @@ extern "C" void msconnector_rule_match_observer_init(
         observer->failed = 1;
         return;
     }
-    transaction_id_length = bounded_string_length(
-        expected_transaction_id, sizeof(observer->expected_transaction_id));
+    transaction_id_length = bounded_string_length(std::string_view(
+        expected_transaction_id, sizeof(observer->expected_transaction_id)));
     if (transaction_id_length == 0U ||
         transaction_id_length >= sizeof(observer->expected_transaction_id)) {
         observer->failed = 1;

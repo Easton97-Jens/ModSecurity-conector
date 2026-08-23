@@ -32,6 +32,7 @@ require_mrts_python_invocation() {
     esac
     case "$candidate" in
         */../*|../*|*/..|..) echo "FAIL: MRTS Python interpreter contains traversal" >&2; return 77 ;;
+        *) : ;;
     esac
     [ -f "$candidate" ] || { echo "FAIL: MRTS Python interpreter is not a regular file: $candidate" >&2; return 77; }
     [ -x "$candidate" ] || { echo "FAIL: MRTS Python interpreter is not executable: $candidate" >&2; return 77; }
@@ -87,6 +88,7 @@ require_mrts_stage_configuration() {
 validate_mrts_runtime_paths() {
     case "$MRTS_RUNTIME_PLAN:$MRTS_RUNTIME_RESULT:$MRTS_RUNTIME_EXECUTOR:$MRTS_RUNTIME_RULES_ROOT:$MRTS_LOAD_FILE:$MRTS_CASE_ROOT" in
         *[!A-Za-z0-9_./:-]*) echo "FAIL: MRTS runtime paths contain unsafe characters" >&2; exit 2 ;;
+        *) : ;;
     esac
     case "$MRTS_RUNTIME_PLAN:$MRTS_RUNTIME_RESULT:$MRTS_RUNTIME_EXECUTOR:$MRTS_RUNTIME_RULES_ROOT:$MRTS_LOAD_FILE:$MRTS_CASE_ROOT" in
         /*:/*:/*:/*:/*:/*) ;;
@@ -94,6 +96,7 @@ validate_mrts_runtime_paths() {
     esac
     case "$MRTS_RUNTIME_EXECUTOR_SHA256" in
         *[!0-9a-f]*) echo "FAIL: MRTS_RUNTIME_EXECUTOR_SHA256 must be a lowercase SHA-256 digest" >&2; exit 2 ;;
+        *) : ;;
     esac
     [ "${#MRTS_RUNTIME_EXECUTOR_SHA256}" -eq 64 ] || {
         echo "FAIL: MRTS_RUNTIME_EXECUTOR_SHA256 must be a SHA-256 digest" >&2
@@ -101,6 +104,7 @@ validate_mrts_runtime_paths() {
     }
     case "$MRTS_RUNTIME_PLAN_SHA256" in
         *[!0-9a-f]*) echo "FAIL: MRTS_RUNTIME_PLAN_SHA256 must be a lowercase SHA-256 digest" >&2; exit 2 ;;
+        *) : ;;
     esac
     [ "${#MRTS_RUNTIME_PLAN_SHA256}" -eq 64 ] || {
         echo "FAIL: MRTS_RUNTIME_PLAN_SHA256 must be a SHA-256 digest" >&2
@@ -111,6 +115,7 @@ validate_mrts_runtime_paths() {
             echo "FAIL: MRTS plan/result must be outside the checkout" >&2
             exit 77
             ;;
+        *) : ;;
     esac
     case "$MRTS_LOAD_FILE" in
         "$VERIFIED_RUN_ROOT"/*) ;;
@@ -326,6 +331,7 @@ prepare_mrts_toolchain_roots() {
             echo "FAIL: MRTS private runtime roots must be outside the checkout" >&2
             exit 77
             ;;
+        *) : ;;
     esac
     case "$TMP_ROOT" in
         "$VERIFIED_RUN_ROOT"/*) ;;

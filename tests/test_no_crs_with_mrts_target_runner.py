@@ -96,6 +96,10 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             plan_path, runtime, framework, rules, load_file, digest
         )
 
+    def assert_validation_raises(self, pattern, plan_path, runtime, framework, rules, load_file, digest):
+        with self.assertRaisesRegex(SystemExit, pattern):
+            self.validate_plan(plan_path, runtime, framework, rules, load_file, digest)
+
     def create_test_traefik_engine_socket_parent(self, base: Path) -> Path:
         """Inject an already-created private child without using system temp."""
 
@@ -166,20 +170,43 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         ):
             self.assertTrue(TARGET._go_directory_is_trusted(metadata, hosted_toolcache=True))
 
+    def test_hosted_toolcache_allows_root_group_write_outside_runner_groups(self):
+        metadata = os.stat_result((0o100775, 0, 0, 1, 0, 761, 0, 0, 0, 0))
+        with (
+            mock.patch.object(TARGET.os, "getegid", return_value=760),
+            mock.patch.object(TARGET.os, "getgid", return_value=760),
+            mock.patch.object(TARGET.os, "getgroups", return_value=[760]),
+        ):
+            self.assertTrue(TARGET._go_directory_is_trusted(metadata, hosted_toolcache=True))
+
     def test_hosted_toolcache_rejects_unsafe_group_world_write_and_wrong_owner(self):
-        current_uid = os.geteuid()
-        current_gid = os.getegid()
+        runner_uid = 760
+        runner_gid = 761
         cases = (
-            (0o100775, current_uid, current_gid + 1),
-            (0o100777, current_uid, current_gid),
-            (0o100775, current_uid + 1, current_gid),
-            (0o100775, 0, current_gid + 1),
-            (0o100777, 0, current_gid),
+            (0o100775, runner_uid, runner_gid + 1),
+            (0o100777, runner_uid, runner_gid),
+            (0o100775, runner_uid + 1, runner_gid),
+            (0o100777, 0, runner_gid),
         )
-        for mode, uid, gid in cases:
-            with self.subTest(mode=oct(mode), uid=uid, gid=gid):
-                metadata = os.stat_result((mode, 0, 0, 1, uid, gid, 0, 0, 0, 0))
-                self.assertFalse(TARGET._go_directory_is_trusted(metadata, hosted_toolcache=True))
+        with (
+            mock.patch.object(TARGET.os, "geteuid", return_value=runner_uid),
+            mock.patch.object(TARGET.os, "getegid", return_value=runner_gid),
+            mock.patch.object(TARGET.os, "getgid", return_value=runner_gid),
+            mock.patch.object(TARGET.os, "getgroups", return_value=[runner_gid]),
+        ):
+            for mode, uid, gid in cases:
+                with self.subTest(mode=oct(mode), uid=uid, gid=gid):
+                    metadata = os.stat_result((mode, 0, 0, 1, uid, gid, 0, 0, 0, 0))
+                    self.assertFalse(TARGET._go_directory_is_trusted(metadata, hosted_toolcache=True))
+
+    def test_hosted_toolcache_rejects_root_group_write_when_runner_is_member(self):
+        metadata = os.stat_result((0o100775, 0, 0, 1, 0, 761, 0, 0, 0, 0))
+        with (
+            mock.patch.object(TARGET.os, "getegid", return_value=760),
+            mock.patch.object(TARGET.os, "getgid", return_value=760),
+            mock.patch.object(TARGET.os, "getgroups", return_value=[760, 761]),
+        ):
+            self.assertFalse(TARGET._go_directory_is_trusted(metadata, hosted_toolcache=True))
 
     def test_usr_local_go_keeps_strict_non_writable_contract(self):
         metadata = os.stat_result((0o100775, 0, 0, 1, os.getuid(), os.getgid(), 0, 0, 0, 0))
@@ -401,9 +428,9 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         self.assertIn("validate_sealed_no_crs_plan(plan_path, root, load_path, executor_path, plan_sha256)", source)
         self.assertIn('host_request_id = f"host-{correlation_id}"', source)
         self.assertIn('"X-Request-ID": host_request_id', source)
-        self.assertIn('http.client.HTTPConnection(LOOPBACK_HOST, port', source)
+        self.assertIn('connection = http.client.HTTPConnection(', source)
         self.assertIn('http.client.HTTPSConnection(', source)
-        self.assertIn('LOOPBACK_HOST, port, timeout=timeout', source)
+        self.assertIn('LOOPBACK_HOST, endpoint.port, timeout=timeout', source)
         self.assertIn('context.check_hostname = True', source)
         self.assertNotIn('_create_unverified_context', source)
         self.assertNotIn('urllib.request', source)
@@ -442,7 +469,8 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         connection = FakeConnection("127.0.0.1", 18080)
         with mock.patch.object(EXECUTOR.http.client, "HTTPConnection", return_value=connection):
             status = EXECUTOR.request(
-                "/redirect", 18080, "GET", {"Host": "127.0.0.1"}, 1.0, "http", None
+                "/redirect", EXECUTOR.LoopbackEndpoint(18080), "GET",
+                {"Host": "127.0.0.1"}, 1.0, "http", None,
             )
         self.assertEqual(status, 302)
         self.assertEqual(connection.host, EXECUTOR.LOOPBACK_HOST)
@@ -791,6 +819,20 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             self.assertEqual({case["kind"] for case in plan["cases"]}, {"control", "detection", "bypass"})
             json.loads(json.dumps(plan), object_pairs_hook=EXECUTOR.reject_duplicates)
 
+    def test_executor_case_hashes_reject_paths_outside_the_generated_inventory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            inventory = Path(directory) / "framework-cases"
+            inventory.mkdir()
+            source = inventory / "fixture.yaml"
+            source.write_text("fixture\n", encoding="utf-8")
+            digest = EXECUTOR.hashlib.sha256(source.read_bytes()).hexdigest()
+            self.assertEqual(
+                EXECUTOR.validate_case_hashes({source.name: digest}, inventory),
+                {source.name: digest},
+            )
+            with self.assertRaisesRegex(SystemExit, "outside the pinned inventory"):
+                EXECUTOR.validate_case_hashes({"../outside.yaml": digest}, inventory)
+
     def test_mrts_load_permits_generated_rules_under_a_private_no_crs_root(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -910,28 +952,25 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 )
                 plan["no_crs_validation"]["rule_id_inventory"] = ["100001"]
                 plan_path.write_text(json.dumps(plan), encoding="utf-8")
-                with self.assertRaisesRegex(SystemExit, "no-CRS validation does not match"):
-                    self.validate_plan(
-                        plan_path, runtime, framework, rules, load, plan_digest(plan_path)
-                    )
+                self.assert_validation_raises(
+                    "no-CRS validation does not match",
+                    plan_path, runtime, framework, rules, load, plan_digest(plan_path)
+                )
                 plan["no_crs_validation"]["rule_id_inventory"] = ["100000"]
                 plan["cases"][1]["uri"] = "/?foo=benign"
                 plan_path.write_text(json.dumps(plan), encoding="utf-8")
-                with self.assertRaisesRegex(SystemExit, "digest does not match"):
-                    self.validate_plan(
-                        plan_path, runtime, framework, rules, load, initial_digest
-                    )
-                with self.assertRaisesRegex(SystemExit, "cases do not match"):
-                    self.validate_plan(
-                        plan_path, runtime, framework, rules, load, plan_digest(plan_path)
-                    )
+                self.assert_validation_raises(
+                    "digest does not match", plan_path, runtime, framework, rules, load, initial_digest
+                )
+                self.assert_validation_raises(
+                    "cases do not match", plan_path, runtime, framework, rules, load, plan_digest(plan_path)
+                )
                 plan["cases"] = json.loads(json.dumps(expected_cases))
                 plan["load_file_sha256"] = "0" * 64
                 plan_path.write_text(json.dumps(plan), encoding="utf-8")
-                with self.assertRaises(SystemExit):
-                    self.validate_plan(
-                        plan_path, runtime, framework, rules, load, plan_digest(plan_path)
-                    )
+                self.assert_validation_raises(
+                    "", plan_path, runtime, framework, rules, load, plan_digest(plan_path)
+                )
 
     def test_sealed_plan_reconstructs_cases_from_the_explicit_framework_root(self):
         framework = ROOT / "modules" / "ModSecurity-test-Framework"
@@ -1008,14 +1047,12 @@ expect:
             detection = next(case for case in plan["cases"] if case["kind"] == "detection")
             detection["expect_ids"] = ["100001"]
             plan_path.write_text(json.dumps(plan), encoding="utf-8")
-            with self.assertRaisesRegex(SystemExit, "digest does not match"):
-                self.validate_plan(
-                    plan_path, runtime, framework, rules, load, initial_digest
-                )
-            with self.assertRaisesRegex(SystemExit, "cases do not match"):
-                self.validate_plan(
-                    plan_path, runtime, framework, rules, load, plan_digest(plan_path)
-                )
+            self.assert_validation_raises(
+                "digest does not match", plan_path, runtime, framework, rules, load, initial_digest
+            )
+            self.assert_validation_raises(
+                "cases do not match", plan_path, runtime, framework, rules, load, plan_digest(plan_path)
+            )
 
     def test_executor_reuses_exact_no_crs_validator_for_a_no_crs_runtime_path(self):
         framework = ROOT / "modules" / "ModSecurity-test-Framework"
@@ -1117,7 +1154,7 @@ expect:
                     "18080",
                 ],
             ):
-                with self.assertRaisesRegex(SystemExit, "MRTS load file escapes its private root"):
+                with self.assertRaisesRegex(SystemExit, "closed private layout"):
                     EXECUTOR.main()
             first_rule = rules / next(iter(sorted(included)))
             first_rule.write_text('SecRule ARGS:foo "@streq attack" "id:949110,phase:1,pass"\\n', encoding="utf-8")

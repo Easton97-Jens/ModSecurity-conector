@@ -294,7 +294,7 @@ func TestCommonRuntimeEngineEmitsDetectionOnlyRuleMatchEvidence(t *testing.T) {
 
 func assertDetectionOnlyRuleMatchEvent(t *testing.T, event map[string]any) {
 	t.Helper()
-	for field, want := range map[string]string{
+	assertDetectionOnlyStringFields(t, event, map[string]string{
 		"event":            "request_rule_match",
 		"message_id":       "MSCONN_EVENT_RULE_MATCHED",
 		"connector":        "envoy",
@@ -306,34 +306,55 @@ func assertDetectionOnlyRuleMatchEvent(t *testing.T, event map[string]any) {
 		"requested_action": "allow",
 		"actual_action":    "allow",
 		"uri":              "/?foo=attack",
-	} {
+	})
+	assertDetectionOnlyPhase(t, event)
+	assertDetectionOnlyEmptyStringFields(t, event)
+	assertDetectionOnlyAbsentFields(t, event, []string{"run_id", "transport_case_id"})
+	assertDetectionOnlyZeroFields(t, event)
+	assertDetectionOnlyAbsentFields(t, event, []string{
+		"rule_message", "message_data", "matched_data", "request_headers", "request_body", "response_body",
+	})
+}
+
+func assertDetectionOnlyStringFields(t *testing.T, event map[string]any, wantFields map[string]string) {
+	t.Helper()
+	for field, want := range wantFields {
 		if event[field] != want {
 			t.Errorf("DetectionOnly event[%q] = %#v, want %q", field, event[field], want)
 		}
 	}
+}
+
+func assertDetectionOnlyPhase(t *testing.T, event map[string]any) {
+	t.Helper()
 	if phase, ok := event["phase"].(string); !ok || phase != "request_body" {
 		t.Errorf("DetectionOnly event phase = %#v, want request_body", event["phase"])
 	}
+}
+
+func assertDetectionOnlyEmptyStringFields(t *testing.T, event map[string]any) {
+	t.Helper()
 	for _, field := range []string{"message", "reason", "client_ip", "content_type"} {
 		if value, ok := event[field].(string); !ok || value != "" {
 			t.Errorf("DetectionOnly event[%q] = %#v, want empty string", field, event[field])
 		}
 	}
-	for _, field := range []string{"run_id", "transport_case_id"} {
+}
+
+func assertDetectionOnlyAbsentFields(t *testing.T, event map[string]any, fields []string) {
+	t.Helper()
+	for _, field := range fields {
 		if _, present := event[field]; present {
 			t.Errorf("DetectionOnly event unexpectedly contains %q", field)
 		}
 	}
+}
+
+func assertDetectionOnlyZeroFields(t *testing.T, event map[string]any) {
+	t.Helper()
 	for _, field := range []string{"body_bytes_seen", "body_bytes_inspected"} {
 		if value, ok := event[field].(float64); !ok || value != 0 {
 			t.Errorf("DetectionOnly event[%q] = %#v, want zero", field, event[field])
-		}
-	}
-	for _, forbidden := range []string{
-		"rule_message", "message_data", "matched_data", "request_headers", "request_body", "response_body",
-	} {
-		if _, present := event[forbidden]; present {
-			t.Errorf("DetectionOnly event contains payload-bearing field %q", forbidden)
 		}
 	}
 }

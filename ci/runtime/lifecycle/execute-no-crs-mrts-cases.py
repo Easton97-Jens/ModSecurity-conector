@@ -60,13 +60,26 @@ RULE_MATCH_PHASE_VALUES = {
 }
 
 
+class LoopbackEndpoint:
+    """A validated endpoint that can only address the fixed local host."""
+
+    __slots__ = ("port",)
+
+    def __init__(self, port: int) -> None:
+        self.port = port
+
+
 def fail(message: str) -> NoReturn:
     raise SystemExit(f"FAIL: {message}")
 
 
 def safe_root(value: str, label: str) -> Path:
     root = Path(value).expanduser()
-    if not root.is_absolute() or ".." in root.parts:
+    if (
+        not root.is_absolute()
+        or root == Path(root.anchor)
+        or ".." in root.parts
+    ):
         fail(f"{label} must be an absolute traversal-free path")
     component = Path(root.anchor)
     for part in root.parts[1:]:
@@ -81,19 +94,51 @@ def safe_root(value: str, label: str) -> Path:
     return root
 
 
+def confined_components(path: str, root: Path, label: str) -> tuple[str, ...]:
+    """Reduce an external absolute path to safe, root-relative components."""
+
+    prefix = f"{root}{os.sep}"
+    if not isinstance(path, str) or not path.startswith(prefix):
+        fail(f"{label} escapes its private root")
+    components = tuple(path.removeprefix(prefix).split(os.sep))
+    if not components or any(
+        not component
+        or component in {".", ".."}
+        or not component.isascii()
+        or any(not (character.isalnum() or character in "._-") for character in component)
+        for component in components
+    ):
+        fail(f"{label} is not a canonical private-root path")
+    return components
+
+
+def confined_candidate(root: Path, components: tuple[str, ...]) -> Path:
+    candidate = root
+    for component in components:
+        candidate /= component
+    return candidate
+
+
+def reject_confined_symlinks(root: Path, components: tuple[str, ...], label: str) -> None:
+    current = root
+    for component in components:
+        current /= component
+        if current.exists() and current.is_symlink():
+            fail(f"{label} contains a symlink component")
+
+
 def confined(path: str, root: Path, label: str, *, regular: bool = True) -> Path:
-    candidate = Path(path)
-    if not candidate.is_absolute() or ".." in candidate.parts:
-        fail(f"{label} is not absolute and traversal-free")
+    components = confined_components(path, root, label)
+    candidate = confined_candidate(root, components)
+    reject_confined_symlinks(root, components, label)
     try:
-        resolved = candidate.resolve(strict=regular)
         if not regular:
-            resolved.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            candidate.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            reject_confined_symlinks(root, components, label)
+        resolved = candidate.resolve(strict=regular)
         resolved.relative_to(root)
     except (OSError, ValueError) as exc:
         fail(f"{label} escapes its private root: {exc}")
-    if candidate.is_symlink() or any(part.is_symlink() for part in candidate.parents if part.exists()):
-        fail(f"{label} contains a symlink component")
     if regular and not resolved.is_file():
         fail(f"{label} is not a regular file")
     return resolved
@@ -515,7 +560,7 @@ def require_case_rule_matches(
 
 def request(
     path: str,
-    port: int,
+    endpoint: LoopbackEndpoint,
     method: str,
     headers: dict[str, str],
     timeout: float,
@@ -530,15 +575,19 @@ def request(
     HTTPS uses a caller-supplied verified context, so hostname and certificate
     verification remain enabled for Envoy's private loopback certificate.
     """
+    if type(endpoint.port) is not int or not 1 <= endpoint.port <= 65535:
+        fail("sealed loopback endpoint has an invalid port")
     connection: http.client.HTTPConnection
     if scheme == "https":
         if context is None:
             fail("HTTPS request requires a verified TLS context")
         connection = http.client.HTTPSConnection(
-            LOOPBACK_HOST, port, timeout=timeout, context=context
+            LOOPBACK_HOST, endpoint.port, timeout=timeout, context=context
         )
     elif scheme == "http":
-        connection = http.client.HTTPConnection(LOOPBACK_HOST, port, timeout=timeout)
+        connection = http.client.HTTPConnection(
+            LOOPBACK_HOST, endpoint.port, timeout=timeout
+        )
     else:
         fail("unsupported request scheme")
     try:
@@ -580,30 +629,29 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def validate_endpoint(args: argparse.Namespace) -> None:
-    if not 1 <= args.port <= 65535 or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-" for ch in args.host):
+def validate_endpoint(args: argparse.Namespace) -> LoopbackEndpoint:
+    if (
+        type(args.port) is not int
+        or not 1 <= args.port <= 65535
+        or any(
+            character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-"
+            for character in args.host
+        )
+    ):
         fail("invalid host or port")
     if args.host != LOOPBACK_HOST:
         fail("MRTS runtime endpoint must be 127.0.0.1")
+    return LoopbackEndpoint(port=args.port)
 
 
 def validate_result_path(value: str, root: Path) -> Path:
-    result_path = Path(value)
-    if not result_path.is_absolute() or ".." in result_path.parts:
-        fail("result is not traversal-free")
-    result_path = result_path.resolve(strict=False)
-    if root not in result_path.parents:
-        fail("result escapes runtime root")
+    result_path = confined(value, root, "result", regular=False)
     if result_path.exists():
         fail("result already exists; recycled runtime evidence is forbidden")
     return result_path
 
 
-def validate_inventory(plan: dict[str, Any], build_root: Path) -> set[str]:
-    validation = plan.get("no_crs_validation")
-    if not isinstance(validation, dict):
-        fail("plan has no sealed no-CRS validation")
-    raw_inventory = validation.get("rule_id_inventory")
+def validate_rule_id_inventory(raw_inventory: Any) -> set[str]:
     if (
         not isinstance(raw_inventory, list)
         or not raw_inventory
@@ -620,20 +668,37 @@ def validate_inventory(plan: dict[str, Any], build_root: Path) -> set[str]:
         or len(set(raw_inventory)) != len(raw_inventory)
     ):
         fail("plan rule ID inventory is not canonical")
-    allowed_rule_ids = set(raw_inventory)
-    inventory_root = confined(
-        str(plan.get("inventory_root", "")), build_root,
-        "MRTS inventory root", regular=False,
-    )
+    return set(raw_inventory)
+
+
+def validate_inventory_root(plan: dict[str, Any], build_root: Path) -> Path:
+    inventory_root = build_root / "mrts" / "upstream-config-tests" / "framework-cases"
+    if plan.get("inventory_root") != str(inventory_root):
+        fail("MRTS inventory root does not match the closed private layout")
     if inventory_root.is_symlink() or not inventory_root.is_dir():
         fail("MRTS inventory root is not a regular contained directory")
-    case_hashes = plan.get("case_hashes")
+    return inventory_root
+
+
+def direct_case_sources(inventory_root: Path) -> dict[str, Path]:
+    sources: dict[str, Path] = {}
+    for source in inventory_root.glob("*.yaml"):
+        if source.is_symlink() or not source.is_file() or source.parent != inventory_root:
+            fail("MRTS inventory contains a non-regular case source")
+        if source.name in sources:
+            fail("MRTS inventory contains duplicate case source names")
+        sources[source.name] = source
+    return sources
+
+
+def validate_case_hashes(case_hashes: Any, inventory_root: Path) -> dict[str, Any]:
     if not isinstance(case_hashes, dict):
         fail("MRTS case hash map is missing")
+    sources = direct_case_sources(inventory_root)
     for relative, expected_hash in case_hashes.items():
-        case_path = confined(
-            str(inventory_root / str(relative)), inventory_root, "MRTS case",
-        )
+        case_path = sources.get(relative) if isinstance(relative, str) else None
+        if case_path is None:
+            fail("MRTS case hash map contains a source outside the pinned inventory")
         if (
             not isinstance(expected_hash, str)
             or len(expected_hash) != 64
@@ -641,13 +706,27 @@ def validate_inventory(plan: dict[str, Any], build_root: Path) -> set[str]:
             or hashlib.sha256(case_path.read_bytes()).hexdigest() != expected_hash
         ):
             fail(f"MRTS case digest mismatch: {relative}")
-    for case in plan["cases"]:
+    return case_hashes
+
+
+def validate_case_sources(cases: list[Any], case_hashes: dict[str, Any]) -> None:
+    for case in cases:
         if (
             isinstance(case, dict)
             and case.get("source") not in (None, "")
             and str(case["source"]) not in case_hashes
         ):
             fail("plan case references an unverified MRTS source")
+
+
+def validate_inventory(plan: dict[str, Any], build_root: Path) -> set[str]:
+    validation = plan.get("no_crs_validation")
+    if not isinstance(validation, dict):
+        fail("plan has no sealed no-CRS validation")
+    allowed_rule_ids = validate_rule_id_inventory(validation.get("rule_id_inventory"))
+    inventory_root = validate_inventory_root(plan, build_root)
+    case_hashes = validate_case_hashes(plan.get("case_hashes"), inventory_root)
+    validate_case_sources(plan["cases"], case_hashes)
     return allowed_rule_ids
 
 
@@ -671,10 +750,11 @@ def load_runtime_plan(
     if hashlib.sha256(executor_path.read_bytes()).hexdigest() != executor_sha:
         fail("executor digest mismatch")
     build_root = root / "build"
-    load_path = confined(str(plan.get("load_file", "")), build_root, "MRTS load file")
-    supplied_load_path = confined(args.load_file, build_root, "supplied MRTS load file")
-    if supplied_load_path != load_path:
-        fail("supplied MRTS load file does not match the plan")
+    load_path = build_root / "mrts" / "upstream-config-tests" / "mrts.load"
+    if plan.get("load_file") != str(load_path) or args.load_file != str(load_path):
+        fail("supplied MRTS load file does not match the closed private layout")
+    if load_path.is_symlink() or not load_path.is_file():
+        fail("MRTS load file is not a regular closed-layout artifact")
     load_sha = plan.get("load_file_sha256")
     if not isinstance(load_sha, str) or hashlib.sha256(load_path.read_bytes()).hexdigest() != load_sha:
         fail("MRTS load file digest mismatch")
@@ -696,15 +776,21 @@ def prepare_tls(
 
 def prepare_runtime(
     args: argparse.Namespace,
-) -> tuple[Path, dict[str, Any], Path, Path, str, set[str], ssl.SSLContext | None]:
-    validate_endpoint(args)
+) -> tuple[
+    Path, dict[str, Any], Path, Path, str, set[str], ssl.SSLContext | None,
+    LoopbackEndpoint,
+]:
+    endpoint = validate_endpoint(args)
     root = safe_root(args.runtime_root, "runtime root")
     plan_path = confined(args.plan, root, "plan")
     result_path = validate_result_path(args.result, root)
     event_path = confined(args.event_log, root, "event log", regular=False)
     plan, plan_sha256, allowed_rule_ids = load_runtime_plan(args, root, plan_path)
     tls_context = prepare_tls(args, root)
-    return root, plan, event_path, result_path, plan_sha256, allowed_rule_ids, tls_context
+    return (
+        root, plan, event_path, result_path, plan_sha256, allowed_rule_ids,
+        tls_context, endpoint,
+    )
 
 
 def validate_case(case: Any) -> tuple[str, str, list[Any]]:
@@ -729,14 +815,14 @@ def validate_case(case: Any) -> tuple[str, str, list[Any]]:
 def execute_case(
     args: argparse.Namespace, case: Any, index: int, run_id: str,
     event_path: Path, allowed_rule_ids: set[str],
-    tls_context: ssl.SSLContext | None,
+    tls_context: ssl.SSLContext | None, endpoint: LoopbackEndpoint,
 ) -> dict[str, Any]:
     case_kind, uri, raw_expected_ids = validate_case(case)
     correlation_id = f"{run_id}-{index:04d}"
     request_id = correlation_id
     transaction_id = correlation_id
     host_request_id = f"host-{correlation_id}"
-    status = request(uri, args.port, "GET", {
+    status = request(uri, endpoint, "GET", {
         "Host": args.host,
         "X-MRTS-Request-ID": request_id,
         "X-MRTS-Transaction-ID": transaction_id,
@@ -771,6 +857,7 @@ def run_cases(
     plan_sha256: str,
     allowed_rule_ids: set[str],
     tls_context: ssl.SSLContext | None,
+    endpoint: LoopbackEndpoint,
 ) -> None:
     cases = plan["cases"]
     run_id = secrets.token_hex(12)
@@ -778,6 +865,7 @@ def run_cases(
     for index, case in enumerate(cases):
         observed.append(execute_case(
             args, case, index, run_id, event_path, allowed_rule_ids, tls_context,
+            endpoint,
         ))
     if not {item["kind"] for item in observed} >= {"control", "detection", "bypass"}:
         fail("plan must contain control, detection, and bypass cases")
@@ -787,8 +875,14 @@ def run_cases(
 
 def main() -> int:
     args = parse_args()
-    root, plan, event_path, result_path, plan_sha256, allowed_rule_ids, tls_context = prepare_runtime(args)
-    run_cases(args, root, plan, event_path, result_path, plan_sha256, allowed_rule_ids, tls_context)
+    (
+        root, plan, event_path, result_path, plan_sha256, allowed_rule_ids,
+        tls_context, endpoint,
+    ) = prepare_runtime(args)
+    run_cases(
+        args, root, plan, event_path, result_path, plan_sha256,
+        allowed_rule_ids, tls_context, endpoint,
+    )
     return 0
 
 
