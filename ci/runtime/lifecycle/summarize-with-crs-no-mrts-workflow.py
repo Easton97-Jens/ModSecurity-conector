@@ -67,6 +67,20 @@ SECURITY_SKIPPED_STAGE = ("haproxy", "upload_evidence")
 SUMMARY_DIRECTORY_NAME = "_runner_file_commands"
 SUMMARY_FILE_NAME = re.compile(r"^step_summary_[A-Za-z0-9_-]+$", re.ASCII)
 UNSAFE_SUMMARY_PATH = "GitHub step summary path is unsafe"
+NORMALIZED_EVENT = "normalized event"
+RUNTIME_ATTESTATION = "runtime attestation"
+NORMALIZED_HOST_CONFIGURATION = "normalized host configuration"
+NORMALIZED_ALLOW_CASE = "normalized allow case"
+NORMALIZED_CLEANUP = "normalized cleanup"
+RUNTIME_OBSERVED_STATUSES = "runtime observed statuses"
+CRS_BLOCK_REQUEST = "CRS block request"
+NOT_REPORTED = "not reported"
+NOT_RUN = "not run"
+PASSED = "passed"
+HTTP_200 = "HTTP 200"
+HTTP_403 = "HTTP 403"
+FALSE = "false"
+ZERO = "0"
 
 
 def require_connector(value: str) -> str:
@@ -266,6 +280,63 @@ def _safe_child_directory(parent: int, component: str) -> int:
     return descriptor
 
 
+def _open_evidence_file(directory: int, filename: str, label: str) -> int:
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", filename) or filename in {".", ".."}:
+        raise ValueError("runtime evidence filename is unsafe")
+    nofollow, _directory, nonblock, close_on_exec = _safe_open_flags()
+    try:
+        return os.open(
+            filename,
+            os.O_RDONLY | nofollow | nonblock | close_on_exec,
+            dir_fd=directory,
+        )
+    except OSError as error:
+        raise ValueError(f"{label} is unavailable") from error
+
+
+def _file_signature(details: os.stat_result) -> tuple[int, int, int, int, int, int, int]:
+    return (
+        details.st_dev,
+        details.st_ino,
+        stat.S_IFMT(details.st_mode),
+        details.st_uid,
+        stat.S_IMODE(details.st_mode),
+        details.st_nlink,
+        details.st_size,
+    )
+
+
+def _read_evidence_bytes(descriptor: int, before: os.stat_result, label: str) -> bytes:
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or before.st_uid != os.geteuid()
+        or before.st_mode & 0o022
+        or before.st_nlink != 1
+        or before.st_size > MAX_EVIDENCE_FILE_BYTES
+    ):
+        raise ValueError(f"{label} is unsafe")
+    data = bytearray()
+    while len(data) < before.st_size:
+        chunk = os.read(descriptor, min(65536, before.st_size - len(data)))
+        if not chunk:
+            break
+        data.extend(chunk)
+    after = os.fstat(descriptor)
+    if len(data) != before.st_size or _file_signature(before) != _file_signature(after):
+        raise ValueError(f"{label} changed while it was read")
+    return bytes(data)
+
+
+def _parse_evidence_json(data: bytes, label: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(data.decode("utf-8", "strict"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"{label} is not valid JSON") from error
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{label} root must be an object")
+    return parsed
+
+
 def _read_bounded_json(root: Path, components: Sequence[str], label: str) -> dict[str, Any]:
     """Read one fixed JSON artifact through no-follow descriptor traversal."""
     if not components:
@@ -282,63 +353,11 @@ def _read_bounded_json(root: Path, components: Sequence[str], label: str) -> dic
             if directory_descriptor != root_descriptor:
                 os.close(directory_descriptor)
             directory_descriptor = next_descriptor
-        filename = components[-1]
-        if not re.fullmatch(r"[A-Za-z0-9._-]+", filename) or filename in {".", ".."}:
-            raise ValueError("runtime evidence filename is unsafe")
-        nofollow, _directory, nonblock, close_on_exec = _safe_open_flags()
-        try:
-            file_descriptor = os.open(
-                filename,
-                os.O_RDONLY | nofollow | nonblock | close_on_exec,
-                dir_fd=directory_descriptor,
-            )
-        except OSError as error:
-            raise ValueError(f"{label} is unavailable") from error
-        before = os.fstat(file_descriptor)
-        if (
-            not stat.S_ISREG(before.st_mode)
-            or before.st_uid != os.geteuid()
-            or before.st_mode & 0o022
-            or before.st_nlink != 1
-            or before.st_size > MAX_EVIDENCE_FILE_BYTES
-        ):
-            raise ValueError(f"{label} is unsafe")
-        data = bytearray()
-        while len(data) < before.st_size:
-            chunk = os.read(file_descriptor, min(65536, before.st_size - len(data)))
-            if not chunk:
-                break
-            data.extend(chunk)
-        after = os.fstat(file_descriptor)
-        if (
-            len(data) != before.st_size
-            or (
-                before.st_dev,
-                before.st_ino,
-                stat.S_IFMT(before.st_mode),
-                before.st_uid,
-                stat.S_IMODE(before.st_mode),
-                before.st_nlink,
-                before.st_size,
-            )
-            != (
-                after.st_dev,
-                after.st_ino,
-                stat.S_IFMT(after.st_mode),
-                after.st_uid,
-                stat.S_IMODE(after.st_mode),
-                after.st_nlink,
-                after.st_size,
-            )
-        ):
-            raise ValueError(f"{label} changed while it was read")
-        try:
-            parsed = json.loads(bytes(data).decode("utf-8", "strict"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise ValueError(f"{label} is not valid JSON") from error
-        if not isinstance(parsed, dict):
-            raise ValueError(f"{label} root must be an object")
-        return parsed
+        file_descriptor = _open_evidence_file(directory_descriptor, components[-1], label)
+        return _parse_evidence_json(
+            _read_evidence_bytes(file_descriptor, os.fstat(file_descriptor), label),
+            label,
+        )
     finally:
         if file_descriptor >= 0:
             os.close(file_descriptor)
@@ -424,21 +443,21 @@ def _assertion(
 
 def _empty_assertion_sections(result: str, observed: str, evidence: str) -> dict[str, list[dict[str, str]]]:
     configuration = [
-        _assertion("Configuration/load", "passed", observed, result, evidence),
-        _assertion("Connector host start", "passed", observed, result, evidence),
+        _assertion("Configuration/load", PASSED, observed, result, evidence),
+        _assertion("Connector host start", PASSED, observed, result, evidence),
     ]
     requests = [
-        _assertion("Allow request", "HTTP 200", observed, result, evidence),
-        _assertion("CRS block request", "HTTP 403", observed, result, evidence),
+        _assertion("Allow request", HTTP_200, observed, result, evidence),
+        _assertion(CRS_BLOCK_REQUEST, HTTP_403, observed, result, evidence),
         _assertion("CRS trigger rule", f"rule {RULE_ID}", observed, result, evidence),
-        _assertion("Case-variant/bypass probe", "HTTP 403", observed, result, evidence),
+        _assertion("Case-variant/bypass probe", HTTP_403, observed, result, evidence),
     ]
     isolation_cleanup = [
-        _assertion(name, "false", observed, result, evidence)
+        _assertion(name, FALSE, observed, result, evidence)
         for name, _field in NO_MRTS_ASSERTIONS
     ]
     isolation_cleanup.extend(
-        _assertion(name, "0", observed, result, evidence)
+        _assertion(name, ZERO, observed, result, evidence)
         for name, _field in CLEANUP_ASSERTIONS
     )
     return {
@@ -454,47 +473,47 @@ def _normalized_assertion_sections(
     event = _read_bounded_json(
         root,
         ("evidence", "normalized", connector, run_id, "event.json"),
-        "normalized event",
+        NORMALIZED_EVENT,
     )
     runtime = _read_bounded_json(
         root,
         ("evidence", "runtime", connector, run_id, "runtime.json"),
-        "runtime attestation",
+        RUNTIME_ATTESTATION,
     )
     mode = INTEGRATION_MODES[connector]
-    for record, label in ((event, "normalized event"), (runtime, "runtime attestation")):
+    for record, label in ((event, NORMALIZED_EVENT), (runtime, RUNTIME_ATTESTATION)):
         _exact(record, "connector", connector, label)
         _exact(record, "run_id", run_id, label)
-    _exact(event, "schema_version", 1, "normalized event")
-    _exact(event, "profile", PROFILE, "normalized event")
-    _exact(event, "integration_mode", mode, "normalized event")
-    _exact(event, "connector_commit", parent_sha, "normalized event")
-    _exact(event, "framework_commit", framework_sha, "normalized event")
-    _exact(event, "status", "PASS", "normalized event")
-    _exact(runtime, "schema_version", 1, "runtime attestation")
-    _exact(runtime, "record_type", "parent_runtime_attestation", "runtime attestation")
-    _exact(runtime, "runtime_status", "PASS", "runtime attestation")
+    _exact(event, "schema_version", 1, NORMALIZED_EVENT)
+    _exact(event, "profile", PROFILE, NORMALIZED_EVENT)
+    _exact(event, "integration_mode", mode, NORMALIZED_EVENT)
+    _exact(event, "connector_commit", parent_sha, NORMALIZED_EVENT)
+    _exact(event, "framework_commit", framework_sha, NORMALIZED_EVENT)
+    _exact(event, "status", "PASS", NORMALIZED_EVENT)
+    _exact(runtime, "schema_version", 1, RUNTIME_ATTESTATION)
+    _exact(runtime, "record_type", "parent_runtime_attestation", RUNTIME_ATTESTATION)
+    _exact(runtime, "runtime_status", "PASS", RUNTIME_ATTESTATION)
 
-    configuration = _mapping(event.get("host_configuration"), "normalized host configuration")
-    allow = _mapping(event.get("allow_case"), "normalized allow case")
+    configuration = _mapping(event.get("host_configuration"), NORMALIZED_HOST_CONFIGURATION)
+    allow = _mapping(event.get("allow_case"), NORMALIZED_ALLOW_CASE)
     event_no_mrts = _mapping(event.get("no_mrts"), "normalized no-MRTS attestation")
     runtime_no_mrts = _mapping(runtime.get("no_mrts"), "runtime no-MRTS attestation")
-    event_cleanup = _mapping(event.get("cleanup"), "normalized cleanup")
+    event_cleanup = _mapping(event.get("cleanup"), NORMALIZED_CLEANUP)
     cleanup_scan = _mapping(runtime.get("cleanup_scan"), "runtime cleanup scan")
-    observed_statuses = _mapping(runtime.get("observed_statuses"), "runtime observed statuses")
+    observed_statuses = _mapping(runtime.get("observed_statuses"), RUNTIME_OBSERVED_STATUSES)
 
-    _exact(configuration, "config_test_status", "passed", "normalized host configuration")
-    _exact(configuration, "host_start_status", "passed", "normalized host configuration")
-    _http_status(allow, "expected_status", 200, "normalized allow case")
-    _http_status(allow, "observed_status", 200, "normalized allow case")
-    _http_status(event, "expected_status", 403, "normalized event")
-    _http_status(event, "observed_status", 403, "normalized event")
-    _http_status(event, "expected_rule_id", RULE_ID, "normalized event")
-    _http_status(event, "observed_rule_id", RULE_ID, "normalized event")
-    _http_status(observed_statuses, "allow", 200, "runtime observed statuses")
-    _http_status(observed_statuses, "block", 403, "runtime observed statuses")
-    _http_status(observed_statuses, "bypass", 403, "runtime observed statuses")
-    _exact(event_cleanup, "status", "passed", "normalized cleanup")
+    _exact(configuration, "config_test_status", PASSED, NORMALIZED_HOST_CONFIGURATION)
+    _exact(configuration, "host_start_status", PASSED, NORMALIZED_HOST_CONFIGURATION)
+    _http_status(allow, "expected_status", 200, NORMALIZED_ALLOW_CASE)
+    _http_status(allow, "observed_status", 200, NORMALIZED_ALLOW_CASE)
+    _http_status(event, "expected_status", 403, NORMALIZED_EVENT)
+    _http_status(event, "observed_status", 403, NORMALIZED_EVENT)
+    _http_status(event, "expected_rule_id", RULE_ID, NORMALIZED_EVENT)
+    _http_status(event, "observed_rule_id", RULE_ID, NORMALIZED_EVENT)
+    _http_status(observed_statuses, "allow", 200, RUNTIME_OBSERVED_STATUSES)
+    _http_status(observed_statuses, "block", 403, RUNTIME_OBSERVED_STATUSES)
+    _http_status(observed_statuses, "bypass", 403, RUNTIME_OBSERVED_STATUSES)
+    _exact(event_cleanup, "status", PASSED, NORMALIZED_CLEANUP)
 
     for _name, field in NO_MRTS_ASSERTIONS:
         _false_flag(event_no_mrts, field, "normalized no-MRTS attestation")
@@ -502,26 +521,26 @@ def _normalized_assertion_sections(
     for _name, field in CLEANUP_ASSERTIONS:
         _zero_counter(cleanup_scan, field, "runtime cleanup scan")
         if field != "processes_remaining":
-            _zero_counter(event_cleanup, field, "normalized cleanup")
+            _zero_counter(event_cleanup, field, NORMALIZED_CLEANUP)
     if cleanup_scan.get("paths") != [] or cleanup_scan.get("listener_records") != []:
         raise ValueError("runtime cleanup diagnostics are not empty")
 
     configuration_rows = [
-        _assertion("Configuration/load", "passed", "passed", "PASS", "normalized event"),
-        _assertion("Connector host start", "passed", "passed", "PASS", "normalized event"),
+        _assertion("Configuration/load", PASSED, PASSED, "PASS", NORMALIZED_EVENT),
+        _assertion("Connector host start", PASSED, PASSED, "PASS", NORMALIZED_EVENT),
     ]
     request_rows = [
-        _assertion("Allow request", "HTTP 200", "HTTP 200", "PASS", "normalized event"),
-        _assertion("CRS block request", "HTTP 403", "HTTP 403", "PASS", "normalized event"),
-        _assertion("CRS trigger rule", f"rule {RULE_ID}", f"rule {RULE_ID}", "PASS", "normalized event"),
-        _assertion("Case-variant/bypass probe", "HTTP 403", "HTTP 403", "PASS", "runtime attestation"),
+        _assertion("Allow request", HTTP_200, HTTP_200, "PASS", NORMALIZED_EVENT),
+        _assertion(CRS_BLOCK_REQUEST, HTTP_403, HTTP_403, "PASS", NORMALIZED_EVENT),
+        _assertion("CRS trigger rule", f"rule {RULE_ID}", f"rule {RULE_ID}", "PASS", NORMALIZED_EVENT),
+        _assertion("Case-variant/bypass probe", HTTP_403, HTTP_403, "PASS", RUNTIME_ATTESTATION),
     ]
     isolation_cleanup_rows = [
-        _assertion(name, "false", "false", "PASS", "runtime attestation")
+        _assertion(name, FALSE, FALSE, "PASS", RUNTIME_ATTESTATION)
         for name, _field in NO_MRTS_ASSERTIONS
     ]
     isolation_cleanup_rows.extend(
-        _assertion(name, "0", "0", "PASS", "runtime attestation")
+        _assertion(name, ZERO, ZERO, "PASS", RUNTIME_ATTESTATION)
         for name, _field in CLEANUP_ASSERTIONS
     )
     return {
@@ -575,9 +594,9 @@ def _summary_case_assertion_sections(
         result = "NOT_RUN"
     else:
         result = "NOT_AVAILABLE"
-    sections = _empty_assertion_sections("NOT_AVAILABLE", "not reported", "not reported")
+    sections = _empty_assertion_sections("NOT_AVAILABLE", NOT_REPORTED, NOT_REPORTED)
     sections["requests"][1] = _assertion(
-        "CRS block request", f"HTTP {expected}", f"HTTP {observed}", result, f"{connector} summary"
+        CRS_BLOCK_REQUEST, f"HTTP {expected}", f"HTTP {observed}", result, f"{connector} summary"
     )
     return sections
 
@@ -601,7 +620,7 @@ def runtime_assertion_bundle(
     if runtime_outcome not in VALID_OUTCOMES:
         raise ValueError("runtime outcome is outside the fixed workflow state set")
     if runtime_outcome == "skipped":
-        sections = _empty_assertion_sections("NOT_RUN", "not run", "GitHub step outcome")
+        sections = _empty_assertion_sections("NOT_RUN", NOT_RUN, "GitHub step outcome")
         return {**sections, "overall": "NOT_RUN", "evidence_state": "not_run"}
     try:
         root, run_id, parent_sha, framework_sha = _verified_runtime_root(evidence_context)
@@ -615,13 +634,13 @@ def runtime_assertion_bundle(
             evidence_state = "case_summary"
     except (OSError, ValueError):
         if runtime_outcome == "cancelled":
-            sections = _empty_assertion_sections("NOT_RUN", "not run", "GitHub step outcome")
+            sections = _empty_assertion_sections("NOT_RUN", NOT_RUN, "GitHub step outcome")
             overall = "CANCELLED"
         elif runtime_outcome == "failure":
-            sections = _empty_assertion_sections("NOT_AVAILABLE", "not reported", "not reported")
+            sections = _empty_assertion_sections("NOT_AVAILABLE", NOT_REPORTED, NOT_REPORTED)
             overall = "FAIL"
         else:
-            sections = _empty_assertion_sections("NOT_AVAILABLE", "not reported", "not reported")
+            sections = _empty_assertion_sections("NOT_AVAILABLE", NOT_REPORTED, NOT_REPORTED)
             overall = "PARTIAL"
         return {**sections, "overall": overall, "evidence_state": "unavailable"}
     if runtime_outcome == "cancelled":
