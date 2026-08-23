@@ -128,6 +128,28 @@ _ENCODED_PYTHON_PAYLOAD_RUNNER = (
     "check=False).returncode)"
 )
 
+_LIVE_DESCRIPTOR_SNAPSHOT_SOURCE = textwrap.dedent(
+    """
+    import errno
+    import os
+
+    def _live_descriptor_snapshot():
+        snapshot = []
+        for entry in os.listdir("/proc/self/fd"):
+            if not entry.isdecimal():
+                continue
+            descriptor = int(entry, 10)
+            try:
+                os.fstat(descriptor)
+            except OSError as error:
+                if error.errno == errno.EBADF:
+                    continue
+                raise
+            snapshot.append(descriptor)
+        return sorted(snapshot)
+    """
+)
+
 
 def _one_line_python_command(payload: str) -> list[str]:
     """Encode a test-only multi-line Python payload without control chars."""
@@ -144,7 +166,7 @@ def _runner_source(
     writable_roots: tuple[Path, ...] = (),
 ) -> str:
     encoded_roots = repr([str(root) for root in writable_roots])
-    command = _one_line_python_command(payload)
+    command = _one_line_python_command(_LIVE_DESCRIPTOR_SNAPSHOT_SOURCE + payload)
     return textwrap.dedent(
         f"""
         import importlib.util
@@ -392,6 +414,37 @@ class NamespaceContractTest(unittest.TestCase):
             malformed, capture_output=True, text=True, check=False
         )
         self.assertNotEqual(malformed_completed.returncode, 0)
+
+    def test_live_descriptor_snapshot_ignores_only_its_procfs_reader(self) -> None:
+        """Keep the no-inherited-FD test strict without counting its scanner."""
+
+        payload = _LIVE_DESCRIPTOR_SNAPSHOT_SOURCE + textwrap.dedent(
+            """
+            import json
+
+            before = _live_descriptor_snapshot()
+            read_descriptor, write_descriptor = os.pipe()
+            try:
+                with_pipe = _live_descriptor_snapshot()
+            finally:
+                os.close(read_descriptor)
+                os.close(write_descriptor)
+            print(json.dumps({
+                "before": before,
+                "pipe": [read_descriptor, write_descriptor],
+                "with_pipe": with_pipe,
+            }, sort_keys=True))
+            """
+        )
+        completed = subprocess.run(
+            _one_line_python_command(payload), capture_output=True, text=True, check=False
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        observed = json.loads(completed.stdout)
+        self.assertEqual(observed["before"], [0, 1, 2])
+        self.assertEqual(
+            set(observed["with_pipe"]) - {0, 1, 2}, set(observed["pipe"])
+        )
 
     def test_namespace_probe_diagnostic_is_bounded(self) -> None:
         """A forced gate explains capability failure without echoing helper output."""
@@ -745,9 +798,7 @@ class NamespaceIntegrationTest(unittest.TestCase):
             result["fixture_root_attestation"] = os.environ.get(
                 "LIGHTTPD_NO_CRS_FIXTURE_ROOT_IDENTITY"
             )
-            result["open_fds"] = sorted(
-                int(entry) for entry in os.listdir("/proc/self/fd") if entry.isdecimal()
-            )
+            result["open_fds"] = _live_descriptor_snapshot()
             status = {{}}
             for line in pathlib.Path("/proc/self/status").read_text().splitlines():
                 key, sep, value = line.partition(":")
@@ -979,9 +1030,7 @@ class NamespaceIntegrationTest(unittest.TestCase):
                     "upstream.stderr", "content-length.headers", "chunked.headers",
                 }}):
                     raise RuntimeError("namespace cleanup did not retain exactly the verified leaves")
-                open_fds = sorted(
-                    int(entry) for entry in os.listdir("/proc/self/fd") if entry.isdecimal()
-                )
+                open_fds = _live_descriptor_snapshot()
                 pathlib.Path({str(output)!r}).write_text(
                     json.dumps({{
                         "root": str(root), "name": name, "identity": identity,
@@ -1318,9 +1367,7 @@ class NamespaceIntegrationTest(unittest.TestCase):
                 "attacker_root_never_received_fixture": (
                     created_name is None or not (root / created_name).exists()
                 ),
-                "open_fds": sorted(
-                    int(entry) for entry in os.listdir("/proc/self/fd") if entry.isdecimal()
-                ),
+                "open_fds": _live_descriptor_snapshot(),
             }}
             pathlib.Path({str(output)!r}).write_text(json.dumps(result, sort_keys=True), encoding="utf-8")
             """
@@ -1444,9 +1491,9 @@ class NamespaceIntegrationTest(unittest.TestCase):
 
             held_original_descriptor = False
             if opened is not None:
+                held_details = os.fstat(opened._directory)
                 held_original_descriptor = (
-                    (original_root / fixture_name).is_dir()
-                    and not (root / fixture_name / "attacker-child-sentinel").exists()
+                    f"{{held_details.st_dev}}:{{held_details.st_ino}}" == fixture_identity
                 )
                 opened.close()
             attacker_sentinel = root / fixture_name / "attacker-child-sentinel"
@@ -1456,9 +1503,7 @@ class NamespaceIntegrationTest(unittest.TestCase):
                 "attacker_child_sentinel_survives": (
                     attacker_sentinel.read_text(encoding="utf-8") == "must-survive"
                 ),
-                "open_fds": sorted(
-                    int(entry) for entry in os.listdir("/proc/self/fd") if entry.isdecimal()
-                ),
+                "open_fds": _live_descriptor_snapshot(),
             }}
             pathlib.Path({str(output)!r}).write_text(json.dumps(result, sort_keys=True), encoding="utf-8")
             """
