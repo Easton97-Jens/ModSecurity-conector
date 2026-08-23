@@ -145,12 +145,14 @@ jobs:
           TMP_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}/tmp
           LOG_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}/logs
           VERIFIED_RUN_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}
+          SNAPSHOT_GO_BINARY: ${{ steps.snapshot-go-provenance.outputs.path }}
+          SNAPSHOT_GO_BINARY_SHA256: ${{ steps.snapshot-go-provenance.outputs.sha256 }}
         run: |
           set -euo pipefail
           case "$CONNECTOR" in
             envoy|traefik|lighttpd)
-              MRTS_WORKFLOW_GO_BINARY='${{ steps.snapshot-go-provenance.outputs.path }}'
-              MRTS_WORKFLOW_GO_BINARY_SHA256='${{ steps.snapshot-go-provenance.outputs.sha256 }}'
+              MRTS_WORKFLOW_GO_BINARY="${SNAPSHOT_GO_BINARY}"
+              MRTS_WORKFLOW_GO_BINARY_SHA256="${SNAPSHOT_GO_BINARY_SHA256}"
               export MRTS_WORKFLOW_GO_BINARY MRTS_WORKFLOW_GO_BINARY_SHA256
               ;;
             apache|haproxy) ;;

@@ -156,11 +156,13 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
         target_go = runtime.split('case "$CONNECTOR" in', 1)[1].split('case "$CONNECTOR" in', 1)[0]
         self.assertIn("envoy|traefik|lighttpd)", target_go)
         self.assertIn("apache|haproxy) ;;", target_go)
-        self.assertIn("MRTS_WORKFLOW_GO_BINARY='${{ steps.snapshot-go-provenance.outputs.path }}'", target_go)
+        self.assertIn("SNAPSHOT_GO_BINARY: ${{ steps.snapshot-go-provenance.outputs.path }}", runtime)
         self.assertIn(
-            "MRTS_WORKFLOW_GO_BINARY_SHA256='${{ steps.snapshot-go-provenance.outputs.sha256 }}'",
-            target_go,
+            "SNAPSHOT_GO_BINARY_SHA256: ${{ steps.snapshot-go-provenance.outputs.sha256 }}", runtime
         )
+        self.assertIn('MRTS_WORKFLOW_GO_BINARY="${SNAPSHOT_GO_BINARY}"', target_go)
+        self.assertIn('MRTS_WORKFLOW_GO_BINARY_SHA256="${SNAPSHOT_GO_BINARY_SHA256}"', target_go)
+        self.assertNotIn("${{ steps.snapshot-go-provenance.outputs.", target_go)
         self.assertNotIn("GO: /usr/local/go/bin/go", self.source)
 
     def test_paths_are_run_and_attempt_and_connector_scoped(self) -> None:

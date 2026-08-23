@@ -419,17 +419,20 @@ def _read_go_binary_version(executable: Path) -> str:
     return _go_major_minor(output)
 
 
+def _select_go_binary(snapshot: tuple[Path, str] | None) -> tuple[Path, str | None]:
+    if snapshot is not None:
+        return snapshot
+    executable_raw = shutil.which("go")
+    if not executable_raw:
+        stop("trusted Go invocation is unavailable")
+    return Path(executable_raw), None
+
+
 def active_go_provenance(parent: Path) -> tuple[Path, str, str]:
     """Bind the existing setup-go binary to its approved root and version."""
 
     snapshot = _workflow_go_snapshot()
-    if snapshot is None:
-        executable_raw = shutil.which("go")
-        if not executable_raw:
-            stop("trusted Go invocation is unavailable")
-        executable = Path(executable_raw)
-    else:
-        executable, expected_digest = snapshot
+    executable, expected_digest = _select_go_binary(snapshot)
     if not executable.is_absolute() or ".." in executable.parts:
         stop("trusted Go invocation must be absolute and traversal-free")
     if has_symlink_component(executable) or executable.is_symlink() or parent in executable.parents:
@@ -444,7 +447,7 @@ def active_go_provenance(parent: Path) -> tuple[Path, str, str]:
     elif not hosted_toolcache:
         stop("trusted workflow Go snapshot is outside the hosted setup-go root")
     digest = _go_binary_sha256(executable)
-    if snapshot is not None and digest != expected_digest:
+    if expected_digest is not None and digest != expected_digest:
         stop("trusted workflow Go snapshot digest does not match selected binary")
     actual_major_minor = _read_go_binary_version(executable)
     expected_major_minor = read_go_version_contract(parent).rsplit(".", 1)[0]
