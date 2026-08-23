@@ -148,7 +148,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "-m 0700",
             "--disable-userns",
             "--assert-userns-disabled",
-            "for unshare_option in --map-users --map-groups --setgroups --keep-caps; do",
+            "for unshare_option in --map-user --map-users --map-group --map-groups --setgroups --keep-caps; do",
             "/usr/bin/unshare --help | /usr/bin/grep -F -- \"$unshare_option\" >/dev/null",
             "for usermod_option in --add-subuids --add-subgids; do",
             "/usr/sbin/usermod --help | /usr/bin/grep -F -- \"$usermod_option\" >/dev/null",
@@ -515,9 +515,9 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "/usr/bin/find -P \"$TEMP_ROOT\" -mindepth 1 -maxdepth 1 -print -quit",
             "exec /usr/bin/unshare",
             "--user",
-            "--map-users 0:0:1",
+            "--map-user 0",
             '--map-users "$NS_TEST_UID:$NS_TEST_UID:1"',
-            "--map-groups 0:0:1",
+            "--map-group 0",
             '--map-groups "$NS_TEST_GID:$NS_TEST_GID:1"',
             "--setgroups allow",
             "--keep-caps",
@@ -617,9 +617,9 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         (
             "exec /usr/bin/unshare",
             "--user",
-            "--map-users 0:0:1",
+            "--map-user 0",
             '--map-users "$NS_TEST_UID:$NS_TEST_UID:1"',
-            "--map-groups 0:0:1",
+            "--map-group 0",
             '--map-groups "$NS_TEST_GID:$NS_TEST_GID:1"',
             "--setgroups allow",
             "--keep-caps",
@@ -678,16 +678,18 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         errors.append("source runner must not retain setup capabilities across exec")
     if source_namespace_runner.count("--keep-caps") != 1:
         errors.append("source namespace must retain setup capabilities only for the fixed pre-drop transition")
-    if source_namespace_runner.count("--map-users") != 2:
-        errors.append("source namespace must map exactly root and ns-test UIDs")
-    if source_namespace_runner.count("--map-groups") != 2:
-        errors.append("source namespace must map exactly root and ns-test GIDs")
+    if len(re.findall(r"(?m)^\s*--map-users(?:=|[ \t])", source_namespace_runner)) != 1:
+        errors.append("source namespace must use exactly one util-linux subordinate UID range")
+    if len(re.findall(r"(?m)^\s*--map-groups(?:=|[ \t])", source_namespace_runner)) != 1:
+        errors.append("source namespace must use exactly one util-linux subordinate GID range")
+    if len(re.findall(r"(?m)^\s*--map-user(?:=|[ \t])", source_namespace_runner)) != 1:
+        errors.append("source namespace must use exactly one fixed root UID map selector")
+    if len(re.findall(r"(?m)^\s*--map-group(?:=|[ \t])", source_namespace_runner)) != 1:
+        errors.append("source namespace must use exactly one fixed root GID map selector")
     if source_namespace_runner.count("--setgroups allow") != 1 or "--setgroups deny" in source_namespace_runner:
         errors.append("source namespace must permit only the fixed group-clear transition")
     for legacy_map_pattern in (
         r"(?<![A-Za-z0-9-])--map-current-user(?![A-Za-z0-9-])",
-        r"(?<![A-Za-z0-9-])--map-user(?:=|[ \t])",
-        r"(?<![A-Za-z0-9-])--map-group(?:=|[ \t])",
         r"(?<![A-Za-z0-9-])--map-auto(?![A-Za-z0-9-])",
         r"(?<![A-Za-z0-9-])--map-root-user(?![A-Za-z0-9-])",
     ):
@@ -808,17 +810,19 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
             ),
             "Git state retained": ('test ! -e "$SOURCE_ROOT/.git"', 'test -e "$SOURCE_ROOT/.git"'),
             "source symlink guard removed": ('test -z "$source_symlink"', "true # source symlink guard removed"),
-            "source namespace root UID mapping changed": ("--map-users 0:0:1", "--map-users 0:1:1"),
+            "source namespace root UID map selector changed": ("--map-user 0", "--map-user 1"),
             "source namespace ns-test UID mapping changed": (
                 '--map-users "$NS_TEST_UID:$NS_TEST_UID:1"',
                 '--map-users "$NS_TEST_UID:1:1"',
             ),
-            "source namespace root GID mapping changed": ("--map-groups 0:0:1", "--map-groups 0:1:1"),
+            "source namespace root GID map selector changed": ("--map-group 0", "--map-group 1"),
             "source namespace ns-test GID mapping changed": (
                 '--map-groups "$NS_TEST_GID:$NS_TEST_GID:1"',
                 '--map-groups "$NS_TEST_GID:1:1"',
             ),
-            "source namespace legacy identity map reintroduced": ("--map-users 0:0:1", "--map-current-user"),
+            "source namespace repeated UID range reintroduced": ("--map-user 0", "--map-users 0:0:1"),
+            "source namespace repeated GID range reintroduced": ("--map-group 0", "--map-groups 0:0:1"),
+            "source namespace legacy identity map reintroduced": ("--map-user 0", "--map-current-user"),
             "source runner UID map count weakened": (
                 'test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/uid_map)" = 2 || fail_runtime user_namespace_uid_map_count',
                 'test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/uid_map)" = 3 || fail_runtime user_namespace_uid_map_count',
