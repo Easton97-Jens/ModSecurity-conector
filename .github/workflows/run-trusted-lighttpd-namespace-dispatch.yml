@@ -145,7 +145,7 @@ jobs:
           require_trusted_setuid_root_file /usr/bin/newgidmap
           /usr/bin/bwrap --help | /usr/bin/grep -F -- '--disable-userns' >/dev/null
           /usr/bin/bwrap --help | /usr/bin/grep -F -- '--assert-userns-disabled' >/dev/null
-          for unshare_option in --map-users --map-groups --setgroups --keep-caps; do
+          for unshare_option in --map-user --map-users --map-group --map-groups --setgroups --keep-caps; do
             /usr/bin/unshare --help | /usr/bin/grep -F -- "$unshare_option" >/dev/null
           done
           for usermod_option in --add-subuids --add-subgids; do
@@ -365,17 +365,21 @@ jobs:
           template_entry="$(/usr/bin/find -P "$GIT_TEMPLATE_ROOT" -mindepth 1 -maxdepth 1 -print -quit)" || fail_namespace git_template_walk
           test -z "$template_entry" || fail_namespace git_template_not_empty
 
-          # The fixed, root-controlled mapping keeps host root and the one
-          # non-root test identity visible in this private namespace.  The
-          # helper can therefore attest root-owned fixed system binaries
-          # without accepting unmapped/overflow ownership.  No PR source runs
-          # until the setpriv transition below has cleared every privilege.
+          # util-linux 2.39 stores only one explicit --map-users and one
+          # --map-groups range; a repeated option replaces the prior range.
+          # --map-user/--map-group add the fixed root
+          # mappings to those exact one-ID ns-test ranges in one helper call.
+          # The resulting map keeps host root and the one non-root test
+          # identity visible in this private namespace. The helper can
+          # therefore attest root-owned fixed system binaries without
+          # accepting unmapped/overflow ownership. No PR source runs until
+          # the setpriv transition below has cleared every privilege.
           # shellcheck disable=SC2016 # The child shell expands only its clean fixed environment.
           exec /usr/bin/unshare \
             --user \
-            --map-users 0:0:1 \
+            --map-user 0 \
             --map-users "$NS_TEST_UID:$NS_TEST_UID:1" \
-            --map-groups 0:0:1 \
+            --map-group 0 \
             --map-groups "$NS_TEST_GID:$NS_TEST_GID:1" \
             --setgroups allow \
             --keep-caps \

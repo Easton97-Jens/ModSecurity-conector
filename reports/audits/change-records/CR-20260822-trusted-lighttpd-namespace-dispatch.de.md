@@ -553,3 +553,30 @@ Der statische Vertrag mutiert fehlendes `uidmap`, setuid-Helper-Attestierung,
 Systemkonto-Erzeugung, exakten Bereich/Principal, den `ns-test`-Absence-Guard
 und den Exact-Count-Guard. Ein frischer Hosted-Exact-Head-Run bleibt nach
 dieser separaten Reparatur zwingend; PR #309 bleibt offen und Draft.
+
+## 2026-08-23 Reparatur des exakten Dual-Map-Befehls für util-linux 2.39
+
+Der Protected-master-Run `32630114343` bestätigte, dass die exakte
+Root-Subordinate-ID-Einrichtung den ursprünglichen `newuidmap`-
+Autorisierungsfehler reparierte. Danach brach er vor jeder Source-
+Materialisierung mit `runtime.source_namespace_identity` fail-closed ab.
+util-linux `2.39.3` auf Ubuntu 24.04 speichert nur einen expliziten
+`--map-users`- und einen `--map-groups`-Bereich; die zweite wiederholte Option
+ersetzte den Root-Bereich, anstatt eine Zwei-Eintrag-Map zu bilden.
+
+Die nächste ausschließlich vertrauenswürdige Reparatur verwendet die
+unterstützte zusammengesetzte Form:
+
+~~~text
+--map-user 0 --map-users <ns-test-uid>:<ns-test-uid>:1
+--map-group 0 --map-groups <ns-test-gid>:<ns-test-gid>:1
+~~~
+
+Für den Root-Aufrufer übergibt util-linux beide festen Abbildungen an genau
+einen `newuidmap`-/`newgidmap`-Aufruf. Die Runtime-Prüfungen verlangen weiter
+vor jedem Mount oder Non-root-Source-Handling exakt zwei Einträge (`0 -> 0`
+und `ns-test -> ns-test`). Der Vertrag weist die frühere wiederholte
+Bereichsform, veränderte Root-Selektoren, veränderte Subordinate-Bereiche,
+Auto-/Current-/Root-User-Maps und jeden Verlust der exakten Map-Count-Prüfung
+explizit ab. Dies ist kein Fallback und keine Abschwächung, sondern die
+versionskorrekte Schreibweise derselben Least-Privilege-Map.

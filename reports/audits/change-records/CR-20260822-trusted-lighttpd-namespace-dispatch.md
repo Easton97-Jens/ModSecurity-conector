@@ -510,3 +510,28 @@ The static contract mutates loss of `uidmap`, setuid-helper attestation, system
 account creation, exact range/principal, the `ns-test` absence guard, and the
 exact-count guard. A fresh hosted exact-head run remains mandatory after this
 separate repair; PR #309 remains open and Draft.
+
+## 2026-08-23 util-linux 2.39 exact dual-map command repair
+
+Protected-master run `32630114343` confirmed that the exact root subordinate
+ID setup repaired the original `newuidmap` authorization failure. It then
+failed closed with `runtime.source_namespace_identity` before any source
+materialization. Ubuntu 24.04's util-linux `2.39.3` stores only one explicit
+`--map-users` and one `--map-groups` range; the second repeated option replaced
+the root range rather than composing a two-entry map.
+
+The next trusted-only repair uses the supported composition form:
+
+~~~text
+--map-user 0 --map-users <ns-test-uid>:<ns-test-uid>:1
+--map-group 0 --map-groups <ns-test-gid>:<ns-test-gid>:1
+~~~
+
+For the root caller, util-linux supplies both fixed mappings to one
+`newuidmap`/`newgidmap` invocation. The runtime checks continue to require
+exactly two entries (`0 -> 0` and `ns-test -> ns-test`) before any mount or
+non-root source handling. The contract explicitly rejects the prior repeated
+range form, altered root selectors, altered subordinate ranges, auto/current/
+root-user mappings, and any loss of exact map-count validation. This is not a
+fallback or a relaxation: it is the version-correct spelling of the same
+least-privilege map.
