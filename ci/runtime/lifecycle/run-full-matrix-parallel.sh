@@ -630,6 +630,17 @@ run_job() {
 
     common_env="FRAMEWORK_ROOT=$FRAMEWORK_ROOT CONNECTOR_ROOT=$CONNECTOR_ROOT SOURCE_ROOT=$SOURCE_ROOT BUILD_ROOT=$job_build_root MRTS_BUILD_ROOT=$MRTS_BUILD_ROOT TMP_ROOT=$job_tmp_root LOG_ROOT=$job_log_root RESULTS_DIR=$results_dir CONNECTOR_COMPONENT_CACHE=$CONNECTOR_COMPONENT_CACHE MODSECURITY_TEST_VARIANT=$test_variant MODSECURITY_MRTS_VARIANT=$mrts_variant MODSECURITY_MRTS_PREPARED=$prepared_flag FORCE_ALL_CASES=$FORCE_ALL_CASES PYTHONDONTWRITEBYTECODE=$PYTHONDONTWRITEBYTECODE PORT=$port PORT_SEARCH_LIMIT=$FULL_MATRIX_PORT_SPAN PORT_RETRY_LIMIT=1 REFRESH=$job_refresh AUTO_REFRESH_STALE_BUILD=0 CRS_RUNTIME_DIR=$job_build_root/crs MRTS_LOAD_FILE=$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load SKIP_RUNTIME_COMPONENT_PREPARE=1 RUNTIME_COMPONENTS_PREPARED_ONLY=1"
 
+    # MRTS supplies the connector rule/load input separately.  The Framework
+    # no-CRS profile still requires its canonical baseline as the ModSecurity
+    # preamble; never let a prepared mrts.load (or an inherited CRS value)
+    # cross that trust boundary.  Keep this narrowly scoped to the two
+    # cache-backed connectors owned by this runner.
+    case "$connector:$test_variant:$mrts_variant" in
+        apache:no-crs:with-mrts|haproxy:no-crs:with-mrts)
+            common_env="$common_env NO_CRS_RULES_FILE=$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf MODSECURITY_RULE_PREAMBLE_FILE=$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf"
+            ;;
+    esac
+
     set +e
     case "$connector" in
         apache|nginx)
