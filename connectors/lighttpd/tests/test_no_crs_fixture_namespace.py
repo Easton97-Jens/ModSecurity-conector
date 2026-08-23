@@ -202,7 +202,9 @@ def _bounded_namespace_probe_failure_reason(stderr: str, returncode: int) -> str
         return "namespace probe timed out"
     if returncode == 126:
         return "namespace setup execution failed"
-    return "namespace probe exited with nonzero status"
+    if 1 <= returncode <= 255:
+        return f"namespace probe exited with status {returncode}"
+    return "namespace probe exited with an invalid status"
 
 
 def _namespace_probe_result() -> tuple[bool, str]:
@@ -330,7 +332,8 @@ class NamespaceContractTest(unittest.TestCase):
             ("", HELPER.EXIT_BLOCKED, "trusted namespace helper blocked"),
             ("", HELPER.EXIT_TIMEOUT, "namespace probe timed out"),
             ("", 126, "namespace setup execution failed"),
-            ("unrecognized sensitive fixture path", 1, "namespace probe exited with nonzero status"),
+            ("unrecognized sensitive fixture path", 1, "namespace probe exited with status 1"),
+            ("", 255, "namespace probe exited with status 255"),
         )
         for stderr, returncode, expected in cases:
             with self.subTest(stderr=stderr, returncode=returncode):
