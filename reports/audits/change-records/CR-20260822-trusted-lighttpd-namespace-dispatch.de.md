@@ -91,6 +91,34 @@ vor dem Checkout mit `77`. Der statische Vertrag verbietet die alte
 zählbasierte Form und mutiert den aktiven Profilnachweis, die Reporter-Isolation
 und das Privilegieninventar.
 
+## 2026-08-23 Reparatur der eingeschränkten Preflight-Diagnose
+
+Der erste Protected-master-Dispatch nach der anfänglichen Korrektur band den
+exakten PR-#309-SHA und schloss Bootstrap, Checkout und Git-State-Entfernung
+ab, beendete sich aber nach 42 ms in einem unmarkierten Prädikat innerhalb des
+nach Privilegienabgabe laufenden `aa-exec -> setpriv -> env -i`-Prozesses.
+Diese Beobachtung beweist keinen Lighttpd-Runtime-Fehler und rechtfertigt
+keinen Fallback.
+
+Der reparierte Protected-Workflow führt denselben vollständig eingeschränkten
+Launcher vor dem Checkout aus, ohne einen Checkout- oder PR-abgeleiteten Pfad
+zu verwenden. Er prüft reale und effektive UID/GID, leere Zusatzgruppen,
+`NoNewPrivs`, alle fünf Capability-Sets, das aktive AppArmor-Profil,
+Unzugänglichkeit des Docker-Sockets sowie die User-/Mount-/PID- und
+Bubblewrap-Namespace-Probes. Jeder Voraussetzungsfehler wird in ein festes
+Label `BLOCKED: preflight.<reason>` ohne Helper-Stderr oder PR-Daten umgesetzt.
+Der Launcher nach dem Checkout behält dieselben Kontrollen und gibt für seine
+Setup- und Namespace-Prädikate korrespondierende Labels
+`BLOCKED: runtime.<reason>` aus; der tatsächliche Python-Unittest bleibt
+unmaskiert, damit ein echter Fixture-Fehler sichtbar bleibt. Beide
+Namespace-Probes bleiben fail-closed und besitzen weder einen Root-,
+Container- noch einen Out-of-Namespace-Fallback.
+
+Dieses Record-Update dokumentiert ausschließlich eine Diagnose- und
+Kontrolläquivalenz-Reparatur. Es behauptet keinen erfolgreichen Trusted-
+Runtime-Lauf; diese Evidence muss aus einem frischen `master`-Dispatch gegen
+den dann aktuellen exakten PR-#309-Head stammen.
+
 Der vertrauenswürdige Source-Pfad lautet:
 
 ~~~text
