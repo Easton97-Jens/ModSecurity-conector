@@ -35,6 +35,35 @@ require_mrts_python_invocation() {
     done
 }
 
+require_mrts_go_invocation() {
+    candidate=$1
+    case "$candidate" in
+        /*) ;;
+        *) echo "FAIL: MRTS Go binary must be an absolute path" >&2; return 77 ;;
+    esac
+    case "$candidate" in
+        */../*|../*|*/..|..) echo "FAIL: MRTS Go binary contains traversal" >&2; return 77 ;;
+    esac
+    case "$candidate" in
+        "$CONNECTOR_ROOT"/*) echo "FAIL: MRTS Go binary must not come from the checkout" >&2; return 77 ;;
+        /usr/local/go/*|/opt/hostedtoolcache/go/*) ;;
+        *) echo "FAIL: MRTS Go binary is outside the approved setup-go roots" >&2; return 77 ;;
+    esac
+    [ ! -L "$candidate" ] || { echo "FAIL: MRTS Go binary must not be a symlink" >&2; return 77; }
+    [ -f "$candidate" ] || { echo "FAIL: MRTS Go binary is not a regular file: $candidate" >&2; return 77; }
+    [ -x "$candidate" ] || { echo "FAIL: MRTS Go binary is not executable: $candidate" >&2; return 77; }
+    owner=$(stat -c '%u' "$candidate") || return 77
+    mode=$(stat -c '%a' "$candidate") || return 77
+    [ "$owner" = "0" ] || [ "$owner" = "$(id -u)" ] || { echo "FAIL: MRTS Go binary is not trusted-owned" >&2; return 77; }
+    mode_tail=$(printf '%s' "$mode" | sed 's/.*\(..\)$/\1/')
+    case "$mode_tail" in *[2367]*) echo "FAIL: MRTS Go binary is writable by group or other" >&2; return 77 ;; esac
+    parent=${candidate%/*}
+    while [ -n "$parent" ] && [ "$parent" != / ]; do
+        [ ! -L "$parent" ] || { echo "FAIL: MRTS Go binary has a symlinked parent: $candidate" >&2; return 77; }
+        parent=${parent%/*}
+    done
+}
+
 validate_mrts_direct_invocation() {
     case "$connector:$target" in
         envoy:runtime-smoke-envoy-ext-proc|traefik:runtime-smoke-traefik-native|lighttpd:runtime-smoke-lighttpd-patched) ;;
@@ -161,8 +190,7 @@ if not isinstance(executor, dict) or executor.get("path") != sys.argv[2] or exec
     fi
     if [ "$connector" = traefik ]; then
         [ "${GOTOOLCHAIN:-}" = local ] || { echo "FAIL: Traefik MRTS runtime requires GOTOOLCHAIN=local" >&2; exit 77; }
-        [ "${GO:-}" = /usr/local/go/bin/go ] || { echo "FAIL: Traefik MRTS runtime requires the trusted direct Go binary" >&2; exit 77; }
-        [ -x /usr/local/go/bin/go ] || { echo "FAIL: trusted direct Go binary is unavailable" >&2; exit 77; }
+        require_mrts_go_invocation "${GO:-}" || { echo "FAIL: Traefik MRTS runtime requires the trusted direct Go binary" >&2; exit 77; }
     fi
 }
 
@@ -266,7 +294,15 @@ if [ "${MSCONNECTOR_MRTS_STAGE:-}" = no_crs_with_mrts ]; then
     MSCONNECTOR_RULES_FILE=$MRTS_LOAD_FILE
     RULES_FILE=$MRTS_LOAD_FILE
     MODSECURITY_RULE_PREAMBLE_FILE=$NO_CRS_RULES_FILE
-    GO=/usr/local/go/bin/go
+    MRTS_GO_BINARY=${MRTS_GO_BINARY:?MRTS_GO_BINARY is required}
+    MRTS_GO_BINARY_SHA256=${MRTS_GO_BINARY_SHA256:?MRTS_GO_BINARY_SHA256 is required}
+    MRTS_GO_VERSION=${MRTS_GO_VERSION:?MRTS_GO_VERSION is required}
+    require_mrts_go_invocation "$MRTS_GO_BINARY" || exit $?
+    case "$MRTS_GO_BINARY_SHA256" in ''|*[!0-9a-f]*) echo "FAIL: MRTS_GO_BINARY_SHA256 is invalid" >&2; exit 77 ;; esac
+    [ "${#MRTS_GO_BINARY_SHA256}" -eq 64 ] || { echo "FAIL: MRTS_GO_BINARY_SHA256 is invalid" >&2; exit 77; }
+    [ "$(sha256sum "$MRTS_GO_BINARY" | awk '{print $1}')" = "$MRTS_GO_BINARY_SHA256" ] || { echo "FAIL: MRTS Go binary digest does not match the sealed value" >&2; exit 77; }
+    [ "$("$MRTS_GO_BINARY" version | sed -n 's/^go version go\([0-9]*\.[0-9]*\)\..*$/\1/p')" = "$MRTS_GO_VERSION" ] || { echo "FAIL: MRTS Go binary version does not match the sealed value" >&2; exit 77; }
+    GO=$MRTS_GO_BINARY
     GOTOOLCHAIN=local
     PYTHON=$MRTS_PYTHON_BIN
     PYTHON_BIN=$MRTS_PYTHON_BIN
@@ -296,7 +332,9 @@ if [ "${MSCONNECTOR_MRTS_STAGE:-}" = no_crs_with_mrts ]; then
     MRTS_CLOSED_COMPONENT_CACHE=$resolved_component_cache
     MRTS_CLOSED_STAGE=$MSCONNECTOR_MRTS_STAGE
     MRTS_CLOSED_PATH=$PATH
-    MRTS_CLOSED_GO=$GO
+    MRTS_CLOSED_GO_BINARY=$MRTS_GO_BINARY
+    MRTS_CLOSED_GO_SHA256=$MRTS_GO_BINARY_SHA256
+    MRTS_CLOSED_GO_VERSION=$MRTS_GO_VERSION
     MRTS_CLOSED_GOTOOLCHAIN=$GOTOOLCHAIN
     MRTS_CLOSED_PYTHON=$PYTHON
     MRTS_CLOSED_HOME=$HOME
@@ -318,7 +356,7 @@ if [ "${MSCONNECTOR_MRTS_STAGE:-}" = no_crs_with_mrts ]; then
     MRTS_CLOSED_LOAD_FILE=$MRTS_LOAD_FILE
     MRTS_CLOSED_CASE_ROOT=$MRTS_CASE_ROOT
     MRTS_CLOSED_NO_CRS_RUN_ID=$NO_CRS_RUN_ID
-    readonly MRTS_CLOSED_CONNECTOR_ROOT MRTS_CLOSED_FRAMEWORK_ROOT MRTS_CLOSED_VERIFIED_RUN_ROOT MRTS_CLOSED_BUILD_ROOT MRTS_CLOSED_CACHE_ROOT MRTS_CLOSED_TMP_ROOT MRTS_CLOSED_LOG_ROOT MRTS_CLOSED_RESULTS_DIR MRTS_CLOSED_RUNTIME_ROOT MRTS_CLOSED_RUNTIME_BASE MRTS_CLOSED_RUNTIME_REPORT_OUTPUT_ROOT MRTS_CLOSED_COMPONENT_TARGET MRTS_CLOSED_COMPONENT_CACHE MRTS_CLOSED_STAGE MRTS_CLOSED_PATH MRTS_CLOSED_GO MRTS_CLOSED_GOTOOLCHAIN MRTS_CLOSED_PYTHON MRTS_CLOSED_HOME MRTS_CLOSED_XDG_CACHE_HOME MRTS_CLOSED_GOPATH MRTS_CLOSED_GOMODCACHE MRTS_CLOSED_GOCACHE MRTS_CLOSED_GOTMPDIR MRTS_CLOSED_TMPDIR MRTS_CLOSED_GOENV MRTS_CLOSED_ALLOW_RUNTIME_DOWNLOADS MRTS_CLOSED_ALLOW_RUNTIME_BUILDS MRTS_CLOSED_PLAN MRTS_CLOSED_PLAN_SHA256 MRTS_CLOSED_RESULT MRTS_CLOSED_EXECUTOR MRTS_CLOSED_EXECUTOR_SHA256 MRTS_CLOSED_RULES_ROOT MRTS_CLOSED_LOAD_FILE MRTS_CLOSED_CASE_ROOT MRTS_CLOSED_NO_CRS_RUN_ID
+    readonly MRTS_CLOSED_CONNECTOR_ROOT MRTS_CLOSED_FRAMEWORK_ROOT MRTS_CLOSED_VERIFIED_RUN_ROOT MRTS_CLOSED_BUILD_ROOT MRTS_CLOSED_CACHE_ROOT MRTS_CLOSED_TMP_ROOT MRTS_CLOSED_LOG_ROOT MRTS_CLOSED_RESULTS_DIR MRTS_CLOSED_RUNTIME_ROOT MRTS_CLOSED_RUNTIME_BASE MRTS_CLOSED_RUNTIME_REPORT_OUTPUT_ROOT MRTS_CLOSED_COMPONENT_TARGET MRTS_CLOSED_COMPONENT_CACHE MRTS_CLOSED_STAGE MRTS_CLOSED_PATH MRTS_CLOSED_GO_BINARY MRTS_CLOSED_GO_SHA256 MRTS_CLOSED_GO_VERSION MRTS_CLOSED_GOTOOLCHAIN MRTS_CLOSED_PYTHON MRTS_CLOSED_HOME MRTS_CLOSED_XDG_CACHE_HOME MRTS_CLOSED_GOPATH MRTS_CLOSED_GOMODCACHE MRTS_CLOSED_GOCACHE MRTS_CLOSED_GOTMPDIR MRTS_CLOSED_TMPDIR MRTS_CLOSED_GOENV MRTS_CLOSED_ALLOW_RUNTIME_DOWNLOADS MRTS_CLOSED_ALLOW_RUNTIME_BUILDS MRTS_CLOSED_PLAN MRTS_CLOSED_PLAN_SHA256 MRTS_CLOSED_RESULT MRTS_CLOSED_EXECUTOR MRTS_CLOSED_EXECUTOR_SHA256 MRTS_CLOSED_RULES_ROOT MRTS_CLOSED_LOAD_FILE MRTS_CLOSED_CASE_ROOT MRTS_CLOSED_NO_CRS_RUN_ID
     export RUNTIME_ROOT RUNTIME_BASE NO_CRS_BASELINE MODSECURITY_TEST_VARIANT MODSECURITY_MRTS_VARIANT MRTS_LOAD_FILE MRTS_CASE_ROOT MRTS_RUNTIME_PLAN_SHA256 MRTS_RUNTIME_EXECUTOR_SHA256 MSCONNECTOR_RULES_FILE NO_CRS_RULES_FILE RULES_FILE MODSECURITY_RULE_PREAMBLE_FILE GO GOTOOLCHAIN PYTHON PYTHON_BIN HOME XDG_CACHE_HOME GOPATH GOMODCACHE GOCACHE GOTMPDIR TMPDIR GOENV ALLOW_RUNTIME_DOWNLOADS ALLOW_RUNTIME_BUILDS
 fi
 
@@ -438,7 +476,11 @@ reassert_mrts_closed_environment() {
     RUNTIME_BASE=$MRTS_CLOSED_RUNTIME_BASE
     RUNTIME_REPORT_OUTPUT_ROOT=$MRTS_CLOSED_RUNTIME_REPORT_OUTPUT_ROOT
     PATH=$MRTS_CLOSED_PATH
-    GO=$MRTS_CLOSED_GO
+    MRTS_GO_BINARY=$MRTS_CLOSED_GO_BINARY
+    MRTS_GO_BINARY_SHA256=$MRTS_CLOSED_GO_SHA256
+    MRTS_GO_VERSION=$MRTS_CLOSED_GO_VERSION
+    require_mrts_go_invocation "$MRTS_GO_BINARY" || return $?
+    GO=$MRTS_GO_BINARY
     GOTOOLCHAIN=$MRTS_CLOSED_GOTOOLCHAIN
     PYTHON=$MRTS_CLOSED_PYTHON
     PYTHON_BIN=$MRTS_CLOSED_PYTHON
@@ -471,7 +513,7 @@ reassert_mrts_closed_environment() {
     RULES_FILE=$MRTS_LOAD_FILE
     MODSECURITY_RULE_PREAMBLE_FILE=$NO_CRS_RULES_FILE
     prepare_mrts_toolchain_roots
-    [ "$GO" = /usr/local/go/bin/go ] && [ "$GOTOOLCHAIN" = local ] && [ "$GOENV" = off ] || {
+    [ "$GO" = "$MRTS_CLOSED_GO_BINARY" ] && [ "$(sha256sum "$GO" | awk '{print $1}')" = "$MRTS_CLOSED_GO_SHA256" ] && [ "$("$GO" version | sed -n 's/^go version go\([0-9]*\.[0-9]*\)\..*$/\1/p')" = "$MRTS_CLOSED_GO_VERSION" ] && [ "$GOTOOLCHAIN" = local ] && [ "$GOENV" = off ] || {
         echo "FAIL: MRTS Go toolchain controls were not preserved after runtime snapshot load" >&2
         return 77
     }

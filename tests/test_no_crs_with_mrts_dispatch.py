@@ -18,7 +18,8 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
         reassert_index = source.index("reassert_mrts_closed_environment", load_index)
         self.assertGreater(reassert_index, load_index)
         for variable in (
-            "GO=/usr/local/go/bin/go",
+            "GO=$MRTS_GO_BINARY",
+            "MRTS_GO_BINARY=$MRTS_CLOSED_GO_BINARY",
             "GOTOOLCHAIN=local",
             "GOENV=off",
             "PYTHON=$MRTS_CLOSED_PYTHON",
@@ -39,6 +40,14 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
         self.assertIn("readonly MRTS_CLOSED_CONNECTOR_ROOT", source)
         self.assertIn("readonly MRTS_CLOSED_RUNTIME_ENV", source)
         self.assertIn("MRTS_CLOSED_STAGE=$MSCONNECTOR_MRTS_STAGE", source)
+        self.assertIn("MRTS_CLOSED_GO_BINARY=$MRTS_GO_BINARY", source)
+        self.assertIn("MRTS_CLOSED_GO_SHA256=$MRTS_GO_BINARY_SHA256", source)
+        self.assertIn("MRTS_CLOSED_GO_VERSION=$MRTS_GO_VERSION", source)
+        self.assertIn("sha256sum \"$MRTS_GO_BINARY\"", source)
+        self.assertIn("sha256sum \"$GO\"", source)
+        stage = STAGE.read_text(encoding="utf-8")
+        self.assertIn('MRTS_GO_BINARY_SHA256="${MRTS_GO_BINARY_SHA256:?MRTS_GO_BINARY_SHA256 is required}"', stage)
+        self.assertIn('MRTS_GO_VERSION="${MRTS_GO_VERSION:?MRTS_GO_VERSION is required}"', stage)
         self.assertIn("MRTS_CLOSED_PLAN_SHA256=$MRTS_RUNTIME_PLAN_SHA256", source)
         self.assertIn("MRTS_RUNTIME_EXECUTOR_SHA256=$MRTS_CLOSED_EXECUTOR_SHA256", source)
         self.assertIn("MRTS_CLOSED_ALLOW_RUNTIME_DOWNLOADS=1", source)

@@ -424,7 +424,10 @@ run_remaining_connector() {
             NO_CRS_RULES_FILE="$MRTS_LOAD_FILE" \
             RULES_FILE="$MRTS_LOAD_FILE" \
             MODSECURITY_RULE_PREAMBLE_FILE="$MRTS_LOAD_FILE" \
-            GO=/usr/local/go/bin/go \
+            MRTS_GO_BINARY="${MRTS_GO_BINARY:?MRTS_GO_BINARY is required}" \
+            MRTS_GO_BINARY_SHA256="${MRTS_GO_BINARY_SHA256:?MRTS_GO_BINARY_SHA256 is required}" \
+            MRTS_GO_VERSION="${MRTS_GO_VERSION:?MRTS_GO_VERSION is required}" \
+            GO="$MRTS_GO_BINARY" \
             GOTOOLCHAIN=local \
             sh "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-remaining-connector-target.sh" "$connector" "$target"
     fi

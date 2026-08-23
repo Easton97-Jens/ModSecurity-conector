@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 import secrets
+import shutil
 import stat
 import subprocess
 import sys
@@ -15,6 +16,11 @@ import re
 import tempfile
 from pathlib import Path
 from typing import Any, NoReturn
+
+LIB_ROOT = Path(__file__).resolve().parents[2] / "lib"
+if str(LIB_ROOT) not in sys.path:
+    sys.path.insert(0, str(LIB_ROOT))
+from go_version_contract import GoVersionContractError, read_go_version_contract as read_shared_go_version_contract
 
 CONNECTORS = {"envoy", "traefik", "lighttpd"}
 PROFILE = "no-crs/with-mrts"
@@ -277,6 +283,70 @@ def active_python_executable() -> Path:
     ):
         stop("trusted Python interpreter is unavailable")
     return executable
+
+
+def read_go_version_contract(parent: Path) -> str:
+    try:
+        return read_shared_go_version_contract(parent)
+    except GoVersionContractError as exc:
+        stop(f"trusted Go version contract is invalid: {exc}")
+
+
+def active_go_provenance(parent: Path) -> tuple[Path, str, str]:
+    """Bind the existing setup-go binary to its approved root and version."""
+
+    executable_raw = shutil.which("go")
+    if not executable_raw:
+        stop("trusted Go invocation is unavailable")
+    executable = Path(executable_raw)
+    if not executable.is_absolute() or ".." in executable.parts:
+        stop("trusted Go invocation must be absolute and traversal-free")
+    if has_symlink_component(executable) or executable.is_symlink() or parent in executable.parents:
+        stop("trusted Go invocation contains a symlink component")
+    if not any(root == executable or root in executable.parents for root in (Path("/usr/local/go"), Path("/opt/hostedtoolcache/go"))):
+        stop("trusted Go invocation is outside the approved setup-go roots")
+    try:
+        resolved = executable.resolve(strict=True)
+    except OSError as exc:
+        stop(f"trusted Go binary is unavailable: {exc}")
+    if (
+        not executable.is_file()
+        or not os.access(executable, os.R_OK | os.X_OK)
+        or not resolved.is_file()
+        or not os.access(resolved, os.R_OK | os.X_OK)
+    ):
+        stop("trusted Go binary is unavailable")
+    for directory in (executable.parent, *executable.parents):
+        try:
+            metadata = directory.stat()
+        except OSError as exc:
+            stop(f"trusted Go binary parent is unavailable: {exc}")
+        if metadata.st_uid not in {0, os.getuid()} or metadata.st_mode & 0o022:
+            stop("trusted Go binary is not owner-controlled and non-writable")
+    try:
+        version = subprocess.check_output(
+            [str(executable), "version"],
+            text=True,
+            stderr=subprocess.STDOUT,
+            timeout=10,
+        ).strip()
+    except (OSError, subprocess.SubprocessError) as exc:
+        stop(f"trusted Go binary cannot report its version: {exc}")
+    version_match = re.fullmatch(r"go version go([0-9]+\.[0-9]+)(?:\.[0-9]+)? [^\n]+", version)
+    if version_match is None:
+        stop("trusted Go binary returned a non-canonical version")
+    expected_major_minor = read_go_version_contract(parent).rsplit(".", 1)[0]
+    if expected_major_minor != version_match.group(1):
+        stop("trusted Go binary does not satisfy the repository Go version contract")
+    return executable, hashlib.sha256(executable.read_bytes()).hexdigest(), version_match.group(1)
+
+
+def active_go_executable(parent: Path | None = None) -> Path:
+    """Compatibility accessor for tests and callers that only need the path."""
+
+    if parent is None:
+        parent = Path.cwd().resolve()
+    return active_go_provenance(parent)[0]
 
 
 def duplicate_safe_json(value: Any) -> str:
@@ -807,6 +877,7 @@ def main() -> int:
         stop("MRTS checkout is missing or symlinked")
     provenance = repository_provenance(parent, framework, mrts)
     python_path = active_python_executable()
+    go_path, go_sha256, go_version = active_go_provenance(parent)
     no_crs_rules = (framework / "tests" / "rules" / "no-crs-baseline.conf").resolve(strict=True)
     build = private_runtime_build(root)
     stage_runtime = build / "stages" / args.connector / "no_crs_with_mrts" / "runtime"
@@ -815,7 +886,7 @@ def main() -> int:
         stop("stage runtime root is not a private owner-controlled directory")
     os.chmod(stage_runtime, 0o700)
     env = {key: os.environ[key] for key in ("PATH", "HOME", "LANG", "LC_ALL") if key in os.environ}
-    env.update({"PYTHON": str(python_path), "PYTHON_BIN": str(python_path), "FRAMEWORK_ROOT": str(framework), "CONNECTOR_ROOT": str(parent), "VERIFIED_RUN_ROOT": str(root), "BUILD_ROOT": str(build), "MRTS_BUILD_ROOT": str(build / "mrts"), "TMP_ROOT": str(root / "tmp"), "LOG_ROOT": str(root / "logs"), "MODSECURITY_TEST_VARIANT": "no-crs", "MODSECURITY_MRTS_VARIANT": "with-mrts", "MODSECURITY_MRTS_PREPARED": "0", "MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO": "0", "GOTOOLCHAIN": "local", "NO_CRS_RUN_ID": no_crs_run_id})
+    env.update({"PYTHON": str(python_path), "PYTHON_BIN": str(python_path), "MRTS_GO_BINARY": str(go_path), "MRTS_GO_BINARY_SHA256": go_sha256, "MRTS_GO_VERSION": go_version, "FRAMEWORK_ROOT": str(framework), "CONNECTOR_ROOT": str(parent), "VERIFIED_RUN_ROOT": str(root), "BUILD_ROOT": str(build), "MRTS_BUILD_ROOT": str(build / "mrts"), "TMP_ROOT": str(root / "tmp"), "LOG_ROOT": str(root / "logs"), "MODSECURITY_TEST_VARIANT": "no-crs", "MODSECURITY_MRTS_VARIANT": "with-mrts", "MODSECURITY_MRTS_PREPARED": "0", "MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO": "0", "GOTOOLCHAIN": "local", "NO_CRS_RUN_ID": no_crs_run_id})
     env.update(provisioning_environment)
     prepare = '. "$FRAMEWORK_ROOT/ci/lib/common.sh"; . "$FRAMEWORK_ROOT/ci/lib/mrts-common.sh"; prepare_mrts_runtime_variant'
     subprocess.run(["sh", "-eu", "-c", prepare], env=env, cwd=parent, check=True)

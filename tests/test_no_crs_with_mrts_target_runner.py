@@ -104,6 +104,62 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         self.assertEqual(TARGET.CONNECTORS, {"envoy", "traefik", "lighttpd"})
         self.assertEqual(TARGET.PROFILE, "no-crs/with-mrts")
 
+    def test_active_go_executable_uses_the_existing_absolute_binary(self):
+        go = Path(TARGET.shutil.which("go") or "")
+        self.assertTrue(go.is_file())
+        self.assertEqual(TARGET.active_go_executable(ROOT), go)
+        self.assertTrue(
+            any(root == go or root in go.parents for root in (Path("/usr/local/go"), Path("/opt/hostedtoolcache/go")))
+        )
+
+    def test_active_go_executable_rejects_symlinked_binary(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            real = root / "go.real"
+            real.write_text("#!/bin/sh\nprintf '%s\\n' 'go version go1.26.7 linux/amd64'\n", encoding="utf-8")
+            real.chmod(0o700)
+            go = root / "go"
+            go.symlink_to(real)
+            with mock.patch.object(TARGET.shutil, "which", return_value=str(go)), self.assertRaises(SystemExit):
+                TARGET.active_go_executable()
+
+    def test_active_go_executable_rejects_unapproved_path(self):
+        with mock.patch.object(TARGET.shutil, "which", return_value="/tmp/go"), self.assertRaises(SystemExit):
+            TARGET.active_go_executable(ROOT)
+
+    def test_go_version_contract_accepts_bounded_canonical_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            version = root / ".go-version"
+            version.write_text("1.26.7\n", encoding="ascii")
+            version.chmod(0o600)
+            self.assertEqual(TARGET.read_go_version_contract(root), "1.26.7")
+
+    def test_go_version_contract_rejects_symlink_and_mutable_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            real = root / "version.real"
+            real.write_text("1.26.7\n", encoding="ascii")
+            real.chmod(0o600)
+            version = root / ".go-version"
+            version.symlink_to(real)
+            with self.assertRaises(SystemExit):
+                TARGET.read_go_version_contract(root)
+
+    def test_go_version_contract_rejects_leading_zero_patch(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            version = root / ".go-version"
+            version.write_text("1.26.07\n", encoding="ascii")
+            version.chmod(0o600)
+            with self.assertRaises(SystemExit):
+                TARGET.read_go_version_contract(root)
+            version.unlink()
+            version.write_text("1.26.7\n", encoding="ascii")
+            version.chmod(0o666)
+            with self.assertRaises(SystemExit):
+                TARGET.read_go_version_contract(root)
+
     def test_no_crs_run_id_is_generated_and_bounded(self):
         run_id = TARGET.new_no_crs_run_id()
         self.assertRegex(run_id, r"^mrts-[0-9a-f]{32}$")
