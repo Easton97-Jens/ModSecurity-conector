@@ -578,3 +578,34 @@ HAProxy in both MRTS profile workflows, with a contract regression requiring
 those exact values and prohibiting `all`. It is a diagnostic follow-up, not
 closure: the focused local contracts and a new exact-head hosted run are still
 required before this remediation is considered verified.
+
+### SonarQube Cloud maintainability follow-up
+
+At exact Draft PR #279 head
+`ca085bdc1a826271f88192f99441ac9aa81b14d6`, the public SonarQube Cloud
+Quality Gate passed while its New-Code issue query still returned two
+task-owned code smells: `python:S3776` in
+`ci/runtime/lifecycle/summarize-connector-mode-coverage.py:99` (Cognitive
+Complexity 28 where 15 is allowed) and `python:S5778` in
+`tests/test_connector_mode_coverage_summary.py:135`. The same measurement
+returned `0` for new bugs, vulnerabilities, security hotspots, duplicated
+lines, and duplicated-line density. `new_coverage` was absent from the
+response, so this record makes no coverage inference.
+
+This follow-up extracts the existing JSONL line parser and evidence-record
+validator into two small helpers, retaining the original fail-closed ordering
+for malformed JSON, non-objects, unknown cases, duplicate records,
+connector/phase/area mismatches, and invalid statuses. The exception test now
+materializes its safe temporary input before entering the assertion context.
+It introduces no `NOSONAR`, exclusion, rule change, threshold change, or
+Quality-Gate change.
+
+Focused local validation of
+`tests.test_connector_mode_coverage_summary` and
+`tests.test_ci_security_workflows` passed with 48 tests. A fresh independent
+security review found no new candidate or bypass: the structured evidence
+boundary and safe summary path remain unchanged. This is still an interim
+update: SonarQube Cloud and hosted checks must be re-observed on the normal
+successor PR head before the two findings are considered fixed. PR #279
+remains Draft; no Ready-for-review transition, merge, auto-merge, Framework
+write, or MRTS write is authorized.

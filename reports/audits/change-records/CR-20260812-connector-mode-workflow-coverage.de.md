@@ -615,3 +615,36 @@ Apache und `haproxy` für HAProxy. Eine Vertragsregression verlangt diese
 exakten Werte und verbietet `all`. Dies ist ein Diagnose-Follow-up, keine
 Abschlussbehauptung: fokussierte lokale Verträge und ein neuer Exact-Head-
 Hosted-Run sind erforderlich, bevor die Remediation als verifiziert gilt.
+
+### SonarQube-Cloud-Maintainability-Follow-up
+
+Am exakten Draft-PR-#279-Head
+`ca085bdc1a826271f88192f99441ac9aa81b14d6` bestand die öffentliche
+SonarQube-Cloud-Quality-Gate, während ihre New-Code-Issue-Abfrage weiterhin
+zwei task-eigene Code-Smells zurückgab: `python:S3776` in
+`ci/runtime/lifecycle/summarize-connector-mode-coverage.py:99` (Cognitive
+Complexity 28, erlaubt sind 15) und `python:S5778` in
+`tests/test_connector_mode_coverage_summary.py:135`. Dieselbe Messung ergab
+`0` für neue Bugs, Vulnerabilities, Security-Hotspots, duplizierte Zeilen und
+duplizierte-Zeilen-Dichte. `new_coverage` fehlte in der Antwort; dieser Record
+trifft daher keine Coverage-Schlussfolgerung.
+
+Dieses Follow-up extrahiert den bestehenden JSONL-Zeilenparser und
+Evidence-Record-Validator in zwei kleine Helper. Die ursprüngliche
+fail-closed-Reihenfolge für fehlerhaftes JSON, Nicht-Objekte, unbekannte Fälle,
+doppelte Records, Connector-/Phase-/Bereich-Mismatches und ungültige Status
+bleibt erhalten. Der Exception-Test materialisiert seine sichere temporäre
+Eingabe nun vor Eintritt in den Assertion-Kontext. Es werden weder `NOSONAR`
+noch Ausschluss, Regeländerung, Threshold-Änderung oder Quality-Gate-Änderung
+eingeführt.
+
+Die fokussierte lokale Validierung von
+`tests.test_connector_mode_coverage_summary` und
+`tests.test_ci_security_workflows` bestand mit 48 Tests. Ein frisches
+unabhängiges Security-Review fand keinen neuen Kandidaten oder Bypass: die
+strukturierte Evidence-Grenze und der sichere Summary-Pfad bleiben unverändert.
+Dies bleibt ein Zwischen-Update: SonarQube Cloud und Hosted Checks müssen auf
+dem normalen Folge-PR-Head erneut beobachtet werden, bevor die zwei Befunde
+als behoben gelten. PR #279 bleibt Draft; keine Ready-for-review-Umstellung,
+kein Merge, kein Auto-Merge, kein Framework-Write und kein MRTS-Write sind
+autorisiert.

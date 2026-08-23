@@ -96,6 +96,38 @@ def _selection_by_case_id(plan: Mapping[str, Any]) -> dict[str, Mapping[str, Any
     return selections
 
 
+def _parse_evidence_line(line: str, index: int) -> Mapping[str, Any]:
+    try:
+        record = json.loads(line)
+    except json.JSONDecodeError as error:
+        raise ValueError("results.jsonl contains invalid JSON") from error
+    if not isinstance(record, Mapping):
+        raise ValueError(f"results.jsonl record {index} must be an object")
+    return record
+
+
+def _validate_evidence_record(
+    record: Mapping[str, Any], index: int, selections: Mapping[str, Mapping[str, Any]],
+    connector: str, records: Mapping[str, Mapping[str, Any]],
+) -> str:
+    case_id = str(record.get("case_id") or "")
+    selection = selections.get(case_id)
+    if not case_id or selection is None:
+        raise ValueError(f"results.jsonl record {index} is outside the canonical case plan")
+    if case_id in records:
+        raise ValueError(f"results.jsonl contains duplicate case_id {case_id}")
+    if record.get("connector") != connector:
+        raise ValueError(f"results.jsonl record {index} connector does not match the workflow cell")
+    if str(record.get("phase")) != str(selection.get("phase")):
+        raise ValueError(f"results.jsonl record {index} phase does not match the canonical plan")
+    if str(record.get("group") or "") != str(selection.get("group") or ""):
+        raise ValueError(f"results.jsonl record {index} area does not match the canonical plan")
+    status = str(record.get("status") or "").upper()
+    if status not in CASE_STATUSES:
+        raise ValueError(f"results.jsonl record {index} contains an invalid case status")
+    return case_id
+
+
 def _records_from_evidence(
     evidence_dir: Path, plan: Mapping[str, Any], connector: str,
 ) -> dict[str, Mapping[str, Any]]:
@@ -112,27 +144,8 @@ def _records_from_evidence(
     for index, line in enumerate(jsonl_path.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip():
             continue
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError as error:
-            raise ValueError("results.jsonl contains invalid JSON") from error
-        if not isinstance(record, Mapping):
-            raise ValueError(f"results.jsonl record {index} must be an object")
-        case_id = str(record.get("case_id") or "")
-        selection = selections.get(case_id)
-        if not case_id or selection is None:
-            raise ValueError(f"results.jsonl record {index} is outside the canonical case plan")
-        if case_id in records:
-            raise ValueError(f"results.jsonl contains duplicate case_id {case_id}")
-        if record.get("connector") != connector:
-            raise ValueError(f"results.jsonl record {index} connector does not match the workflow cell")
-        if str(record.get("phase")) != str(selection.get("phase")):
-            raise ValueError(f"results.jsonl record {index} phase does not match the canonical plan")
-        if str(record.get("group") or "") != str(selection.get("group") or ""):
-            raise ValueError(f"results.jsonl record {index} area does not match the canonical plan")
-        status = str(record.get("status") or "").upper()
-        if status not in CASE_STATUSES:
-            raise ValueError(f"results.jsonl record {index} contains an invalid case status")
+        record = _parse_evidence_line(line, index)
+        case_id = _validate_evidence_record(record, index, selections, connector, records)
         records[case_id] = record
     return records
 

@@ -132,8 +132,9 @@ class ConnectorModeCoverageSummaryTest(unittest.TestCase):
             self.assertIn("| area | fixture | PASS | validated results.jsonl |", summary.read_text(encoding="utf-8"))
 
     def test_mismatched_and_unsafe_inputs_are_rejected(self) -> None:
+        unsafe_framework_root = Path(tempfile.gettempdir())
         with self.assertRaisesRegex(ValueError, "outside"):
-            SUMMARY.load_framework_selector(Path(tempfile.gettempdir()))
+            SUMMARY.load_framework_selector(unsafe_framework_root)
         plan = {"connector": "apache", "cases": [selected("one", 1)]}
         with self.assertRaisesRegex(ValueError, "invalid case status"):
             SUMMARY.case_rows(plan, {"one": {"status": "MAYBE"}})
