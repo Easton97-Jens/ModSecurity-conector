@@ -656,6 +656,12 @@ case "$connector" in
         if [ "${MSCONNECTOR_MRTS_STAGE:-}" = no_crs_with_mrts ]; then
             lighttpd_patched_root=$BUILD_ROOT/lighttpd-core-patched
             lighttpd_patched_smoke_dir=$RUNTIME_ROOT
+            # The namespace launcher accepts one exact, Parent-owned MRTS
+            # stage root.  Keep the host-produced evidence inside that root
+            # rather than relying on a generic or inherited artifact path.
+            NO_CRS_ARTIFACT_PROFILE=full_lifecycle
+            FULL_LIFECYCLE_EVIDENCE_OUTPUT=$lighttpd_patched_smoke_dir/first-byte-evidence.json
+            export NO_CRS_ARTIFACT_PROFILE FULL_LIFECYCLE_EVIDENCE_OUTPUT
         else
             lighttpd_patched_root=${LIGHTTPD_PATCHED_ROOT:-$BUILD_ROOT/lighttpd-core-patched}
             lighttpd_patched_smoke_dir=${PARENT_HOST_RUNTIME_ROOT:-${LIGHTTPD_PATCHED_SMOKE_DIR:-${RUNTIME_ROOT:-$BUILD_ROOT/lighttpd-patched-smoke}}}

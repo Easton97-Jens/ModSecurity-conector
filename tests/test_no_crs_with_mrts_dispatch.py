@@ -100,6 +100,23 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
         self.assertIn("RULES_FILE=$MRTS_LOAD_FILE", source)
         self.assertNotIn("MODSECURITY_RULE_PREAMBLE_FILE=$MRTS_LOAD_FILE", source)
 
+    def test_lighttpd_mrts_route_seals_its_canonical_evidence_output(self) -> None:
+        source = RUNNER.read_text(encoding="utf-8")
+        lighttpd = source.split("    lighttpd)\n", 1)[1].split("    *)\n", 1)[0]
+        mrts = lighttpd.split(
+            'if [ "${MSCONNECTOR_MRTS_STAGE:-}" = no_crs_with_mrts ]; then\n', 1
+        )[1].split("        else\n", 1)[0]
+        self.assertIn("lighttpd_patched_smoke_dir=$RUNTIME_ROOT", mrts)
+        self.assertIn("NO_CRS_ARTIFACT_PROFILE=full_lifecycle", mrts)
+        self.assertIn(
+            "FULL_LIFECYCLE_EVIDENCE_OUTPUT=$lighttpd_patched_smoke_dir/first-byte-evidence.json",
+            mrts,
+        )
+        self.assertIn(
+            "export NO_CRS_ARTIFACT_PROFILE FULL_LIFECYCLE_EVIDENCE_OUTPUT",
+            mrts,
+        )
+
     def test_python_invocation_contract_allows_only_a_final_venv_symlink(self) -> None:
         for source in (STAGE.read_text(encoding="utf-8"), RUNNER.read_text(encoding="utf-8")):
             self.assertIn("require_mrts_python_invocation()", source)
