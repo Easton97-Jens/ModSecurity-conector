@@ -9,7 +9,7 @@
 | Change-ID | CR-20260822-trusted-lighttpd-namespace-dispatch |
 | Datum (UTC) | 2026-08-22 |
 | Basis-Revision | `423abcc130cf5d29ccf15dd7d82e4e7d89d495d3` |
-| Delivery-Status | Separater Protected-master-Bootstrap-Pull-Request; reguläres Master-Refresh und manuelle Integration sind autorisiert, während Exact-Head-Validierung, Integration und erfolgreicher Trusted-Runtime-Lauf bei diesem Record-Update noch ausstehen. |
+| Delivery-Status | Separater Protected-master-Dispatcher-Reparatur-Pull-Request; reguläres Master-Refresh und manuelle Integration sind autorisiert, während Exact-Head-Validierung, Integration und erfolgreicher Trusted-Runtime-Lauf bei diesem Record-Update noch ausstehen. |
 
 ## Motivation und Problemstellung
 
@@ -40,8 +40,10 @@ SonarQube Cloud und dem geschützten Ruleset abhängig.
 - Der Dispatcher besitzt nur `workflow_dispatch`, genau eine `target`-Eingabe,
   ein Protected-`master`-/kanonisches-Repository-Gate und ein exaktes
   Owner-Maintainer-Actor-Gate.
-- Er besitzt nur `contents: read`, keine Secrets, Caches, Artefakte,
-  `pull_request_target`, Status-Write oder Checkout einer lokalen Action.
+- Der PR-Code-Testjob besitzt nur `contents: read`; ein separater Job ohne
+  Checkout besitzt nur `statuses: write`, erhält weder PR-Source noch Artefakt
+  und kann ausschließlich den festen Status
+  `trusted-lighttpd-namespace` für den API-gebundenen Ziel-SHA schreiben.
 - Feste Systemschritte vor dem Checkout installieren nur feste Pakete, laden
   das feste AppArmor-User-Namespace-Profil, erzeugen `ns-test` und prüfen
   Binary-, Gruppen-, Docker-Socket- und Capability-Voraussetzungen.
@@ -80,6 +82,15 @@ Es wird nicht als Sandbox dargestellt; die tatsächliche Grenze sind die frische
 unzugänglicher Docker-Socket und die verschachtelten privaten Namespace-/
 Bubblewrap-Probes.
 
+Die frühere Behauptung `aa-status --profiled | grep <Profil>` wurde entfernt:
+Unter Ubuntu 24.04 gibt `--profiled` eine Anzahl geladener Profile und nicht
+deren Namen aus. Unmittelbar nach `apparmor_parser --replace` betritt ein
+festes root-eigenes `aa-exec` das Profil `trusted-lighttpd-ci-userns` und prüft
+`/proc/self/attr/current`. Ein anderes oder fehlendes Profil beendet den Job
+vor dem Checkout mit `77`. Der statische Vertrag verbietet die alte
+zählbasierte Form und mutiert den aktiven Profilnachweis, die Reporter-Isolation
+und das Privilegieninventar.
+
 Der vertrauenswürdige Source-Pfad lautet:
 
 ~~~text
@@ -102,13 +113,24 @@ für einen privilegierten Runtime-Root bildet. Der Dispatcher prüft den exakten
 root-eigenen `0755`-State-Root sowie die exakten Non-root-`source`- und
 privaten `0700`-Temp-Children vor Checkout oder PR-Code-Ausführung.
 
+Der Testjob exponiert ausschließlich sein API-validiertes `target_sha`-Output.
+Eine frische GitHub-hosted-Reporter-VM läuft danach ohne Checkout, lokale
+Action, Cache, Artefakt, `sudo` oder PR-Code-Ausführung. Sie validiert den
+kleingeschriebenen 40-stelligen SHA erneut, ordnet nur das Ergebnis des
+Trusted-Tests einem festen Wert `success`/`failure`/`error` zu und schreibt den
+festen Statuskontext `trusted-lighttpd-namespace`. Das Status-Token existiert
+nur in diesem Reporter; der Testjob erhält es niemals.
+
 ## Geänderte Dateien
 
 - `.github/workflows/run-trusted-lighttpd-namespace-dispatch.yml` —
   geschützter manueller Ubuntu-24.04-Dispatcher, API-gebundener exakter
   Checkout und eingeschränkte `ns-test`-Ausführung.
 - `tests/test_trusted_lighttpd_namespace_dispatch_workflow.py` — positive und
-  Mutation-Contracts für die Vertrauensgrenze.
+  Mutation-Contracts für Vertrauensgrenze, aktiven Profilnachweis und
+  isolierten Statusreporter.
+- `tests/test_ci_security_workflows.py` — exakter Allowlist-Eintrag für die
+  einzige Schreibberechtigung des Reporters, `statuses: write`.
 - Dieses englisch/deutsche Change-Record-Paar und Archiveinträge —
   Autorisierung, Aufruf, Validierung und expliziter Pending-Runtime-Status.
 
@@ -143,8 +165,10 @@ gh workflow run run-trusted-lighttpd-namespace-dispatch.yml --repo Easton97-Jens
 Im SHA-Modus ist `309` durch den aktuellen vollständigen kleingeschriebenen
 40-stelligen PR-#309-Head-SHA zu ersetzen. Der Dispatcher gibt die
 API-validierte PR und SHA vor dem Checkout aus. Sein erfolgreicher manueller
-Lauf ist die erforderliche Runtime-Evidence; er lässt den gewöhnlichen
-Pull-Request-Workflow keinen Erfolg behaupten.
+Lauf ist die erforderliche Runtime-Evidence. Der Reporter publiziert seinen
+festen Exact-SHA-Status erst nach der Bindung des Ziels; Bootstrap- oder
+Zielauflösungsfehler besitzen keinen vertrauenswürdigen SHA und lassen den
+Dispatcher daher ohne einen ungebundenen Status fehlschlagen.
 
 ## Bekannte Einschränkungen
 
@@ -157,6 +181,13 @@ durch die API gebunden wird.
 
 PR #309 bleibt Draft, bis dieser Workflow gemergt und ein Exact-Head-Manuallauf
 erfolgreich ist.
+
+Das aktive Protected-master-Ruleset muss zusätzlich
+`trusted-lighttpd-namespace` als erforderlichen Kontext verlangen, bevor ein
+grüner gewöhnlicher PR-Check als automatische Merge-Bedingung gelten kann.
+Repository-Settings liegen bewusst außerhalb dieses Pull Requests; bis diese
+explizite Regel existiert, bleibt der Draft-Status von PR #309 die dokumentierte
+verbindliche manuelle Merge-Sperre.
 
 ## Security-Auswirkung
 
@@ -172,6 +203,12 @@ Der Dispatcher ergänzt weder Root-Path-Cleanup noch einen
 privilegierten-Container-Fallback, globale AppArmor-Abschwächung oder einen
 erfolgreichen Skip.
 
+Der Reporting-Job ist absichtlich vom PR-Code-Job getrennt. Sein kurzlebiges
+`statuses: write`-Token kann PR-Code nicht lesen, weil der Reporter weder
+Checkout noch übertragene Daten außer einem strikt geprüften SHA-Output und
+der Testjob-Conclusion besitzt. Er kann Kontext, Ziel oder Ergebnis nicht aus
+PR-Input wählen.
+
 ## Verbleibende Risiken
 
 Das AppArmor-Profil nutzt `flags=(unconfined)`, um diesen Non-root-
@@ -185,6 +222,12 @@ Die öffentliche API ist absichtlich unauthenticated, um ein Secret zu
 vermeiden. Rate-Limit oder API-Fehler brechen fail-closed ab. Der finale
 Teardown der entsorgbaren VM entfernt Profil, Account und temporäre Daten ohne
 Root-Cleanup eines von `ns-test` beschreibbaren Pfads.
+
+Der Reporter-Kontext ist Evidence und keine durch Repository-Regeln erzwungene
+Garantie, bis der Repository-Owner ihn zu den erforderlichen
+Protected-master-Kontexten hinzufügt. Dieser Pull Request ändert keine
+Branch-Regeln; PR #309 muss Draft bleiben, bis diese Governance-Aktion und ein
+erfolgreicher Exact-Head-Dispatch unabhängig nachgewiesen sind.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
