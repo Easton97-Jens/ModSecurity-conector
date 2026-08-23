@@ -9,17 +9,18 @@
 | Change-ID | `CR-20260820-enable-crs-runtime-envoy-traefik-lighttpd` |
 | Datum (UTC) | 2026-08-20 |
 | Basis-Revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Beobachteter aktueller `origin/master` | `86f5b30c931c2b5efe0ff4ded27f2443c2b271ba` |
+| Beobachteter aktueller `origin/master` vor dieser finalen Dokumentationskorrektur | `c2a36d530eb7676886c80a45eb0d4a6e62dd1aec` |
 | Parent → Framework Pin | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | Framework → MRTS Pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der Branch enthält den normalen Merge-Commit `4ba2f472ccfe236ab33b6af80ec06c341fc3ca4f` des aktuellen `origin/master`; er wird jetzt mit dem unprivilegierten Normal-CI-Vertrag aktualisiert und benötigt weiterhin vertrauenswürdige Exact-Head-Namespace-Evidence. Der master-abgeleitete Framework-Pin bleibt read-only und löst auf den aufgezeichneten MRTS-Pin auf. Kein Merge und kein Auto-Merge sind autorisiert. |
+| Delivery-Status | [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) ist der ausgewählte Parent-Delivery-Branch. Die aktuelle Benutzeranweisung `bringe ihn in den master pr 309` autorisiert ausschließlich einen regulären, exact-head-geschützten Squash-Merge, nachdem die nachfolgende Dokumentationsrevision ihre eigenen Exact-Head-Checks abgeschlossen hat. Bei dieser Record-Revision hat weder ein Merge noch ein Auto-Merge stattgefunden. Die Parent → Framework- und Framework → MRTS-Pins bleiben read-only und unverändert. |
 
 Der Task-Worktree wurde von der aufgezeichneten Task-Basis erstellt und später
 per normalem Merge mit separat aufgezeichneten aktuellen `origin/master`-
-Revisionen synchronisiert, zuletzt mit
-`86f5b30c931c2b5efe0ff4ded27f2443c2b271ba`. Frühere Hosted-Ergebnisse bleiben
-ausschließlich historisch; alle erforderlichen Revalidierungen bleiben
-Delivery-gesteuert.
+Revisionen synchronisiert. Frühere Draft-Status- und ausstehende-Evidence-
+Aussagen unten sind historische Snapshots; der datierte finale Pre-Merge-
+Abschnitt hält die beobachtete Vorgänger-Evidence fest. Der reine
+Dokumentationsnachfolger benötigt vor einem autorisierten Merge weiterhin seine
+eigene Exact-Head-Delivery-Validierung.
 
 ## Motivation und Problemstellung
 
@@ -539,3 +540,54 @@ case-insensitiv übereinstimmendes Paar bleibt erlaubt und verwendet den
 ursprünglichen `:authority`-Wert. Fokussierte Go-Tests decken beide
 Header-Reihenfolgen, doppelte Repräsentationen und den legitimen Matching-Fall
 ab.
+
+## Finaler Pre-Merge-Evidence-Snapshot vom 2026-08-23
+
+Dieser Abschnitt löst frühere Draft- und ausstehende-Evidence-Aussagen nur als
+historische Statusberichte ab. Er hält beobachtete Evidence für den Vorgänger-
+PR-Head `8911cfddddf4a570586a55a7b5124ffa9375e966` fest; dieser reine
+Dokumentationsnachfolger muss vor dem autorisierten Merge seine eigene
+Exact-Head-Validierung erhalten. Er behauptet kein Merge-Ergebnis im Voraus.
+
+Der aktuelle Benutzer hat ausschließlich Parent-PR #309 mit
+`bringe ihn in den master pr 309` für die Integration in `master` ausgewählt.
+Bei diesem Snapshot ist PR #309 offen, Draft, mergebar, sauber gegen `master`
+`c2a36d530eb7676886c80a45eb0d4a6e62dd1aec` und hat keinen Auto-Merge-Auftrag.
+Das aktive Ruleset `Protect master` erlaubt ausschließlich `squash`; es verlangt
+die erfolgreichen Exact-Head-Kontexte `actions`, `bounded-c-cpp`, `envoy-go`,
+`traefik-go`, `actionlint` und `zizmor`, während es aufgelöste Review-Threads,
+aber null zustimmende Reviews verlangt.
+
+Auf dem Vorgänger `8911cfddddf4a570586a55a7b5124ffa9375e966` bestanden alle
+Required Contexts; Review-Threads und Reviews waren leer. Die fünf echten
+`with-CRS/no-MRTS`-Jobs im Workflow-Run `32633588406` bestanden: Apache Job
+`97179916339`, Envoy `97179916414`, HAProxy `97179916340`, Lighttpd
+`97179916396` und Traefik `97179916217`. Der manuelle Dispatcher vom
+geschützten Master, Run `32634406673`, lief von `master`
+`c2a36d530eb7676886c80a45eb0d4a6e62dd1aec` gegen genau diesen Vorgänger und
+bestand sowohl den eingeschränkten `ns-test`-Job `97181890005` als auch den
+Reporter ohne Checkout `97181955407`; er veröffentlichte
+`trusted-lighttpd-namespace=success` auf der Vorgänger-SHA.
+
+SonarQube Cloud meldete auf demselben Vorgänger Quality Gate `OK` sowie null
+neue Bugs, Vulnerabilities, Security Hotspots, Code Smells und duplizierte
+Zeilen (`0.0%` New-Code-Duplizierung). Die lokale Vorgänger-Evidence hält 22
+bestandene fokussierte Namespace-Tests mit 10 capability-gated Skips, 32
+bestandene Trusted-Workflow-/Security-Contract-Tests, Python-Kompilierung,
+fünf strikte Payload-Command-Verträge und `git diff --check` fest; Ruff war in
+den bereitgestellten lokalen Python-Umgebungen nicht verfügbar und wurde nicht
+umgangen.
+
+Eine unabhängige Security-Diff-Prüfung fand keine reportable Regression hoher
+oder kritischer Schwere. `FND-PARENT-0013` bleibt ein bereits bestehender P1-,
+medium-severity-, probable-Traefik-Pfad-Cleanup-Kandidat; dieser PR beansprucht
+weder seine Behebung noch behandelt er private Same-UID-Verzeichnisse als
+Nachweis einer Same-UID-Prozessisolation. Der nicht aufgerufene Helfer
+`cleanup_allowed()` ist auf diesem Vorgänger kein erreichbarer Produktionspfad.
+Es ist keine Risikoakzeptanz aufgezeichnet.
+
+Der aktuelle Final-Review-Status ist `pre_merge_documentation_correction`:
+der Nachfolger muss seine eigenen Exact-Head-Checks, die SonarQube-Cloud-
+Analyse, die finale PR-Beschreibungsprüfung und den Ruleset-/Review-Readback
+abschließen, bevor PR #309 ready gesetzt und mit Exact-Head-Schutz per Squash
+gemergt werden kann.

@@ -9,15 +9,17 @@
 | Change ID | `CR-20260820-enable-crs-runtime-envoy-traefik-lighttpd` |
 | Date (UTC) | 2026-08-20 |
 | Base revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Observed current `origin/master` | `86f5b30c931c2b5efe0ff4ded27f2443c2b271ba` |
+| Observed current `origin/master` before this final documentation correction | `c2a36d530eb7676886c80a45eb0d4a6e62dd1aec` |
 | Parent → Framework pin | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | Framework → MRTS pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The branch contains normal merge commit `4ba2f472ccfe236ab33b6af80ec06c341fc3ca4f` of current `origin/master`; it is now being updated with the unprivileged normal-CI contract and must still obtain trusted exact-head namespace evidence. The master-derived Framework pin remains read-only and resolves to the recorded MRTS pin. No merge or auto-merge is authorized. |
+| Delivery status | [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) is the selected Parent delivery branch. The current user instruction `bringe ihn in den master pr 309` authorizes only a regular exact-head-protected squash merge after the successor documentation revision has completed its own exact-head checks. No merge or auto-merge has occurred at this record revision. The Parent → Framework and Framework → MRTS pins remain read-only and unchanged. |
 
 The task worktree was created from the recorded task base and later normally
-merged with separately recorded current `origin/master` revisions, most
-recently `86f5b30c931c2b5efe0ff4ded27f2443c2b271ba`. Earlier hosted results
-remain historical only; all required revalidation remains delivery-gated.
+merged with separately recorded current `origin/master` revisions. Earlier
+Draft-state and pending-evidence statements below are historical snapshots;
+the dated final-pre-merge section records the observed predecessor evidence.
+The documentation-only successor still requires its own exact-head delivery
+validation before an authorized merge.
 
 ## Motivation and problem statement
 
@@ -495,3 +497,51 @@ mismatch or duplicate authority/Host representation before opening the
 transaction. One canonical case-insensitive matching pair remains accepted and
 uses the original `:authority` value. Focused Go tests cover both header orders,
 duplicate representations, and the legitimate matching control.
+
+## 2026-08-23 final pre-merge evidence snapshot
+
+This section supersedes earlier Draft and pending-evidence statements only as
+historical status reports. It records observed evidence for predecessor PR head
+`8911cfddddf4a570586a55a7b5124ffa9375e966`; this documentation-only successor
+must receive its own exact-head validation before the authorized merge. It does
+not claim a merge result in advance.
+
+The current user explicitly selected only Parent PR #309 for `master`
+integration with `bringe ihn in den master pr 309`. At this snapshot, PR #309
+is open, Draft, mergeable, clean against `master`
+`c2a36d530eb7676886c80a45eb0d4a6e62dd1aec`, and has no auto-merge request.
+The active `Protect master` ruleset permits only `squash`; it requires the
+successful exact-head contexts `actions`, `bounded-c-cpp`, `envoy-go`,
+`traefik-go`, `actionlint`, and `zizmor`, while requiring resolved review
+threads but zero approving reviews.
+
+On predecessor `8911cfddddf4a570586a55a7b5124ffa9375e966`, all required
+contexts passed and review threads and reviews were empty. The five real
+`with-CRS/no-MRTS` jobs in workflow run `32633588406` passed: Apache job
+`97179916339`, Envoy `97179916414`, HAProxy `97179916340`, Lighttpd
+`97179916396`, and Traefik `97179916217`. Protected-master manual dispatcher
+run `32634406673`, started from `master`
+`c2a36d530eb7676886c80a45eb0d4a6e62dd1aec` against that exact predecessor,
+passed both the constrained `ns-test` job `97181890005` and no-checkout
+reporter `97181955407`; it published
+`trusted-lighttpd-namespace=success` on the predecessor SHA.
+
+SonarQube Cloud reported Quality Gate `OK` on the same predecessor and zero
+new Bugs, Vulnerabilities, Security Hotspots, Code Smells, and duplicated
+lines (`0.0%` new-code duplication). Local predecessor evidence recorded 22
+focused namespace tests passing with 10 capability-gated skips, 32
+trusted-workflow/security-contract tests passing, Python compilation, five
+strict payload-command contracts, and `git diff --check`; Ruff was unavailable
+in the supplied local Python environments and was not bypassed.
+
+An independent security diff review found no reportable high- or critical-
+severity regression. `FND-PARENT-0013` remains a pre-existing P1,
+medium-severity, probable Traefik pathname-cleanup candidate; this PR neither
+claims to resolve it nor treats private same-UID directories as a proof of
+same-UID process isolation. The uncalled `cleanup_allowed()` helper is not a
+reachable production path at this predecessor. No risk acceptance is recorded.
+
+The current final-review state is `pre_merge_documentation_correction`:
+the successor must complete its own exact-head checks, SonarQube Cloud
+analysis, final PR-description review, and ruleset/review re-read before PR
+#309 can be marked ready and squash-merged with exact-head protection.
