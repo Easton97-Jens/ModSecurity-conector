@@ -179,6 +179,26 @@ def _run_runner(
     )
 
 
+def _bounded_namespace_probe_failure_reason(stderr: str) -> str:
+    """Classify only fixed namespace-probe failures, never relay child output."""
+
+    normalized = stderr.lower()
+    for marker, reason in (
+        ("operation not permitted", "unshare operation not permitted"),
+        ("cannot set groups", "namespace group mapping unavailable"),
+        ("gid_map", "namespace group mapping unavailable"),
+        ("trusted namespace setup attestation", "namespace setup attestation failed"),
+        ("trusted namespace setup did not attest", "namespace setup attestation failed"),
+        ("namespace final verifier", "namespace final-state verification failed"),
+        ("bwrap", "bubblewrap namespace setup failed"),
+        ("unshare", "unshare namespace setup failed"),
+        ("no-crs namespace blocked", "trusted namespace setup blocked"),
+    ):
+        if marker in normalized:
+            return reason
+    return "namespace probe exited with nonzero status"
+
+
 def _namespace_probe_result() -> tuple[bool, str]:
     """Probe the real launch path without exposing arbitrary helper output."""
 
@@ -201,14 +221,12 @@ def _namespace_probe_result() -> tuple[bool, str]:
 
     # The helper's stderr may contain path, environment, or other runtime
     # details. Keep failure evidence useful without relaying unbounded output.
-    probe_stderr = str(probe.stderr or "").lower()
-    if "operation not permitted" in probe_stderr:
-        return False, "unshare operation not permitted"
-    if "no such file or directory" in probe_stderr:
+    probe_stderr = str(probe.stderr or "")
+    if "no such file or directory" in probe_stderr.lower():
         return False, "required namespace binary unavailable"
     if probe.returncode < 0:
         return False, "namespace probe terminated by signal"
-    return False, "namespace probe exited with nonzero status"
+    return False, _bounded_namespace_probe_failure_reason(probe_stderr)
 
 
 def _user_namespace_available() -> bool:
@@ -230,6 +248,17 @@ def _namespace_integration_is_required() -> bool:
 
 @unittest.skipUnless(os.name == "posix" and sys.platform == "linux", "Linux only")
 class NamespaceContractTest(unittest.TestCase):
+    @staticmethod
+    def _failed_namespace_probe(stderr: str) -> tuple[bool, str]:
+        completed = subprocess.CompletedProcess(
+            args=[PYTHON, "-c", "pass"],
+            returncode=1,
+            stdout="",
+            stderr=stderr,
+        )
+        with mock.patch(__name__ + "._run_runner", return_value=completed):
+            return _namespace_probe_result()
+
     def test_configured_temporary_parent_must_be_private_and_owned(self) -> None:
         """The CI-owned outer temporary root cannot be a shared path."""
 
@@ -274,17 +303,32 @@ class NamespaceContractTest(unittest.TestCase):
     def test_namespace_probe_diagnostic_is_bounded(self) -> None:
         """A forced gate explains capability failure without echoing helper output."""
 
-        completed = subprocess.CompletedProcess(
-            args=[PYTHON, "-c", "pass"],
-            returncode=1,
-            stdout="",
-            stderr="unshare: Operation not permitted; sensitive fixture path",
+        available, reason = self._failed_namespace_probe(
+            "unshare: Operation not permitted; sensitive fixture path"
         )
-        with mock.patch(__name__ + "._run_runner", return_value=completed):
-            available, reason = _namespace_probe_result()
         self.assertFalse(available)
         self.assertEqual(reason, "unshare operation not permitted")
         self.assertNotIn("sensitive", reason)
+
+    def test_namespace_probe_diagnostic_uses_only_fixed_categories(self) -> None:
+        """Nested setup diagnostics remain useful without exposing child stderr."""
+
+        cases = {
+            "unshare: cannot set groups; sensitive fixture path": "namespace group mapping unavailable",
+            "No-CRS namespace blocked: trusted namespace setup attestation timed out": "namespace setup attestation failed",
+            "No-CRS namespace blocked: trusted namespace setup did not attest readiness": "namespace setup attestation failed",
+            "lighttpd_no_crs_fixture_namespace: BLOCKED: namespace final verifier retained CapBnd": "namespace final-state verification failed",
+            "bwrap: creating namespace failed; sensitive fixture path": "bubblewrap namespace setup failed",
+            "unshare: unsupported flag; sensitive fixture path": "unshare namespace setup failed",
+            "No-CRS namespace blocked: unexpected setup detail": "trusted namespace setup blocked",
+            "unrecognized sensitive fixture path": "namespace probe exited with nonzero status",
+        }
+        for stderr, expected in cases.items():
+            with self.subTest(stderr=stderr):
+                available, reason = self._failed_namespace_probe(stderr)
+                self.assertFalse(available)
+                self.assertEqual(reason, expected)
+                self.assertNotIn("sensitive", reason)
 
     def test_trusted_namespace_boundary_and_no_unsafe_rmdir_path_exist(self) -> None:
         source = HELPER_PATH.read_text(encoding="utf-8")
